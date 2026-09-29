@@ -16,7 +16,7 @@ public enum TerminalState { Idle, Starting, Running, Exited, Unavailable }
 
 /// <summary>
 /// The TorLink terminal inside Mira. TorLink runs unchanged in a pseudo console and xterm.js draws it in a local
-/// WebView2 page served from the application folder. The page only exchanges terminal text and its size with Mira:
+/// WebView2 page served from Mira's own resources. The page only exchanges terminal text and its size with Mira:
 /// it cannot navigate elsewhere, open windows, download, or reach the network.
 /// </summary>
 internal sealed class TorLinkTerminal : IDisposable
@@ -24,7 +24,7 @@ internal sealed class TorLinkTerminal : IDisposable
     public const string HostName = "torlink.mira.example";
     private const string Origin = "https://" + HostName + "/";
     private readonly Dispatcher _dispatcher;
-    private readonly string _userData, _assets;
+    private readonly string _userData;
     private readonly StringBuilder _pending = new(), _tail = new();
     private WebView2CompositionControl? _view;
     private PseudoConsole? _console;
@@ -44,8 +44,32 @@ internal sealed class TorLinkTerminal : IDisposable
     /// <summary>The page's control: keys WebView2 forwards to WPF originate from it.</summary>
     public WebView2CompositionControl? View => _view;
 
-    public TorLinkTerminal(Dispatcher dispatcher, string userDataFolder, string assetsFolder)
-    { _dispatcher = dispatcher; _userData = userDataFolder; _assets = assetsFolder; }
+    public TorLinkTerminal(Dispatcher dispatcher, string userDataFolder)
+    { _dispatcher = dispatcher; _userData = userDataFolder; }
+
+    /// <summary>True once the page has loaded and reported its size.</summary>
+    public bool PageReady => _pageReady;
+
+    // The page's files, embedded in Mira: "terminal.html", "xterm/xterm.js"… Nothing else can be served.
+    private static readonly Dictionary<string, string> Pages = typeof(TorLinkTerminal).Assembly.GetManifestResourceNames()
+        .Where(x => x.StartsWith("Mira.TorLink/", StringComparison.Ordinal))
+        .ToDictionary(x => x["Mira.TorLink/".Length..].Replace('\\', '/'), x => x, StringComparer.Ordinal);
+
+    private static CoreWebView2WebResourceResponse Serve(CoreWebView2Environment environment, string uri)
+    {
+        var path = Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.Scheme == Uri.UriSchemeHttps && parsed.Host == HostName ? parsed.AbsolutePath.TrimStart('/') : "";
+        if (!Pages.TryGetValue(path, out var name) || typeof(TorLinkTerminal).Assembly.GetManifestResourceStream(name) is not { } resource)
+            return environment.CreateWebResourceResponse(null, 404, "Not Found", "Content-Type: text/plain");
+        var buffer = new MemoryStream();
+        using (resource) resource.CopyTo(buffer);
+        buffer.Position = 0;
+        var type = Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".html" => "text/html; charset=utf-8", ".js" => "text/javascript; charset=utf-8", ".css" => "text/css; charset=utf-8",
+            ".txt" => "text/plain; charset=utf-8", _ => "application/octet-stream"
+        };
+        return environment.CreateWebResourceResponse(buffer, 200, "OK", $"Content-Type: {type}\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store");
+    }
 
     /// <summary>Creates the page once, inside <paramref name="host"/>. Leaves <see cref="State"/> Unavailable without WebView2.</summary>
     public Task InitializeAsync(Decorator host) => _initialization ??= InitializeCoreAsync(host);
@@ -70,7 +94,9 @@ internal sealed class TorLinkTerminal : IDisposable
             settings.IsZoomControlEnabled = false; settings.IsPinchZoomEnabled = false; settings.IsSwipeNavigationEnabled = false;
             settings.IsGeneralAutofillEnabled = false; settings.IsPasswordAutosaveEnabled = false; settings.IsBuiltInErrorPageEnabled = false;
             settings.IsReputationCheckingRequired = false; settings.IsWebMessageEnabled = true;
-            core.SetVirtualHostNameToFolderMapping(HostName, _assets, CoreWebView2HostResourceAccessKind.Deny);
+            // Every request to the page's reserved host is answered from Mira's own resources, before any network.
+            core.AddWebResourceRequestedFilter(Origin + "*", CoreWebView2WebResourceContext.All);
+            core.WebResourceRequested += (_, e) => e.Response = Serve(environment, e.Request.Uri);
             core.NavigationStarting += (_, e) => { if (!e.Uri.StartsWith(Origin + "terminal.html", StringComparison.Ordinal)) e.Cancel = true; };
             core.FrameNavigationStarting += (_, e) => e.Cancel = true;
             core.NewWindowRequested += (_, e) => e.Handled = true;

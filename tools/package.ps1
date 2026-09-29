@@ -1,4 +1,8 @@
-param([string]$Configuration = 'Release')
+param([string]$Configuration = 'Release', [string]$Iscc = '')
+# Release files in dist/packages, each with its .sha256:
+#   Mira-<version>-win-x64.zip            the application folder (portable), with licences and notices
+#   Mira-<version>-win-x64-portable.exe   the same application as one self-contained file (it creates data beside it)
+#   Mira-<version>-win-x64-setup.exe      per-user installer (Inno Setup 6), when ISCC.exe is available
 $ErrorActionPreference = 'Stop'
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $project = Join-Path $workspace 'src/Mira.Desktop/Mira.Desktop.csproj'
@@ -6,8 +10,17 @@ $project = Join-Path $workspace 'src/Mira.Desktop/Mira.Desktop.csproj'
 $version = [string]$projectXml.Project.PropertyGroup.Version
 $buildRoot = Join-Path $workspace ('.artifacts/package-' + [Guid]::NewGuid().ToString('N'))
 $bundle = Join-Path $buildRoot 'Mira'
+$single = Join-Path $buildRoot 'single'
 $output = Join-Path $workspace 'dist/packages'
-New-Item -ItemType Directory -Path $bundle, $output -Force | Out-Null
+New-Item -ItemType Directory -Path $bundle, $single, $output -Force | Out-Null
+
+function Write-Hash([string]$file) {
+    $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  $([IO.Path]::GetFileName($file))" | Set-Content -LiteralPath "$file.sha256" -Encoding ascii
+    Write-Output $file
+    Write-Output "$file.sha256"
+}
+
 Push-Location $workspace
 try {
     dotnet restore $project --configfile NuGet.Config -r win-x64
@@ -26,8 +39,26 @@ try {
     if ($privateFiles) { throw 'Unexpected profile or private file in the release staging folder.' }
     $archive = Join-Path $output "Mira-$version-win-x64.zip"
     Compress-Archive -LiteralPath $bundle -DestinationPath $archive -CompressionLevel Optimal -Force
-    $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  $([IO.Path]::GetFileName($archive))" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
-    Write-Output $archive
-    Write-Output "$archive.sha256"
+    Write-Hash $archive
+
+    # One file: native libraries are extracted by .NET at first launch; mpv's key bindings and the Shell icon are
+    # embedded in Mira and written into its profile, the TorLink page is served from its resources.
+    dotnet publish $project --no-restore -c $Configuration -r win-x64 --self-contained true -o $single -p:DebugType=None -p:DebugSymbols=false `
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+    if ($LASTEXITCODE -ne 0) { throw 'Single-file publish failed.' }
+    $portable = Join-Path $output "Mira-$version-win-x64-portable.exe"
+    Copy-Item -LiteralPath (Join-Path $single 'Mira.exe') -Destination $portable -Force
+    Write-Hash $portable
+
+    if (-not $Iscc) {
+        $Iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe", "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") |
+            Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+    }
+    if ($Iscc) {
+        & $Iscc /Q "/DAppVersion=$version" "/DSourceDir=$bundle" "/DOutputDir=$output" (Join-Path $workspace 'installer/Mira.iss')
+        if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
+        Write-Hash (Join-Path $output "Mira-$version-win-x64-setup.exe")
+    } else {
+        Write-Warning 'Inno Setup 6 (ISCC.exe) not found: the installer was not built. Install it or pass -Iscc <path>.'
+    }
 } finally { Pop-Location }

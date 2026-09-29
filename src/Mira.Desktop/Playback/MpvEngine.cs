@@ -60,7 +60,7 @@ public sealed class MpvEngine : IDisposable
             if (!headless) Option("wid", window.ToInt64().ToString(CultureInfo.InvariantCulture));
             Option("keep-open", "no");
             Option("input-default-bindings", "no"); Option("input-vo-keyboard", "yes");
-            Option("input-conf", Path.Combine(AppContext.BaseDirectory, "mira-input.conf"));
+            Option("input-conf", Services.AppFiles.InputConf);
             Option("vo", headless ? "null" : "gpu-next,gpu");
             if (headless) Option("ao", "null");
             Option("hwdec", !headless && settings.HardwareDecoding ? "auto" : "no");

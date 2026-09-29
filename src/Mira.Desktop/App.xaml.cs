@@ -28,6 +28,7 @@ public partial class App : Application
         var directory = dataArg >= 0 && dataArg + 1 < e.Args.Length ? e.Args[dataArg + 1] : Path.Combine(AppContext.BaseDirectory, "data");
         if (e.Args.Contains("--public-gallery") && Directory.Exists(directory) && Directory.EnumerateFileSystemEntries(directory).Any())
         { Shutdown(2); return; }
+        AppFiles.ProfileDirectory = Path.GetFullPath(directory);
         var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(directory).ToUpperInvariant())))[..24];
         ShellValidation = dataArg >= 0 || e.Args.Any(x => x is "--demo" or "--visual-check" or "--player-check" or "--windows-check" or "--qa-window");
         ShellAppId = ShellValidation ? WindowsIdentity.AppId + ".Validation." + key : WindowsIdentity.AppId;

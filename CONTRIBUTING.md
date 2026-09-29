@@ -33,6 +33,6 @@ Utiliser un profil `--data` séparé et des médias de test. Ne pas inclure de d
 ./tools/capture-gallery.ps1
 ```
 
-Le paquet est produit dans `dist/packages`, depuis un dossier neuf, sans toucher au profil d’une installation locale. Il ne contient pas libmpv. Le script de captures génère un profil temporaire et exporte les vues publiques dans `docs/screenshots`.
+Les fichiers de release sont produits dans `dist/packages`, depuis des dossiers neufs, sans toucher au profil d’une installation locale : archive, exécutable portable et, si [Inno Setup 6](https://jrsoftware.org/isinfo.php) est installé (ou indiqué par `-Iscc`), l’installateur décrit par `installer/Mira.iss`. Aucun ne contient libmpv. Le script de captures génère un profil temporaire et exporte les vues publiques dans `docs/screenshots`.
 
 L’[architecture](docs/ARCHITECTURE.md) décrit le rendu natif mpv, les couches Windows et l’envoi de progression. Le code original est sous [licence MIT](LICENSE) ; les composants tiers conservent leurs licences.

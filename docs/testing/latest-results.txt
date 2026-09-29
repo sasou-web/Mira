@@ -1,4 +1,4 @@
-Mira 0.5.0 - local validation, 2026-09-29
+Mira 0.5.1 - local validation, 2026-09-29
 
 Core behaviour and persistence (with --torlink-integration):
 PASS  Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture
@@ -43,13 +43,13 @@ PASS  Pseudo-console : sortie UTF-8, taille et code de sortie d’un programme c
 PASS  TorLink réel : écran d’accueil dans la pseudo-console, redimensionnement, arrêt propre et état isolé
 40 tests réussis.
 
-TorLink end-to-end fixture (final installed build, browser key events: the check window did not have the foreground; isolated TorLink state and library, demo mode):
+TorLink end-to-end fixture (portable single-file exe, real keyboard, isolated TorLink state and library, demo mode):
 PASS the rail opens the TorLink page and marks it active
 PASS TorLink runs from its own folder in Mira's pseudo console
 PASS TorLink's interface is drawn inside the page
 PASS only one TorLink runs
 PASS Escape coming from the terminal is left to TorLink
-PASS keys typed in the terminal (browser key events) reach TorLink, and its exit is shown in the page
+PASS keys typed in the terminal (real keyboard) reach TorLink, and its exit is shown in the page
 PASS « Relancer » starts TorLink again
 PASS a film arrives as Title (Year)/Title (Year).mkv with its subtitle
 PASS release notes and other annex files stay in TorLink
@@ -63,19 +63,34 @@ PASS the reclassified episode is still a hard link of TorLink's file
 PASS a second pass imports nothing twice
 PASS Réglages → TorLink shows the installation found
 PASS closing the settings returns to the TorLink page
-PASS Alt+← typed in the terminal (browser key events) leaves the page, TorLink keeps running
-INFO WPF key events from the terminal: none (the page asked to go back)
+PASS Alt+← typed in the terminal (real keyboard) leaves the page
+INFO WPF key events from the terminal: LeftAlt/None/Alt, Left/None/Alt
+PASS Escape outside the terminal (real keyboard) leaves the page, TorLink keeps running
 PASS closing Mira ends TorLink cleanly
 PASS no WebView2 process outlives Mira
 
-Native player fixture (synthetic media):
+Installer fixture (silent per-user install, update and uninstall in a test folder):
+PASS the installer runs silently for the current user, without administrator rights
+PASS Mira 0.5.1 is installed in the chosen folder
+PASS licences and notices are installed, no data folder is created
+PASS Windows lists Mira 0.5.1 in the installed apps of the current user
+PASS the Start menu shortcut opens the installed Mira
+PASS the Windows identity uses the installed icon
+PASS the installed Mira starts and renders its 14 demo views
+PASS installing again over it (an update) keeps the data folder
+PASS the uninstaller removes Mira and its entry in the installed apps
+PASS a silent uninstall keeps the data folder
+PASS the Start menu shortcut and the Windows identity of that installation are removed
+PASS the Start menu shortcut opens the local dist\Mira again
+
+Native player fixture (portable single-file exe, synthetic media):
 PASS native video host loads the synthetic clip
 PASS loading indicator and busy cursor clear once the first frame is ready
 PASS hidden controls keep a mouse-sensitive video surface and hide the cursor
 PASS mouse activity can interrupt the fade without a stale hide closing the controls
 PASS window keeps the caption style for Windows animations, with no native title bar visible
 PASS player icons are laid out uncropped and centred in their buttons
-PASS timeline advances between mpv polls (0.701 -> 0.751 s)
+PASS timeline advances between mpv polls (0.708 -> 0.753 s)
 PASS Space toggles pause even when the event targets the forward button
 PASS Right arrow seeks 10 s from any control (0.8 -> 10.8 s)
 PASS paused controls and cursor leave after idling, for clean screenshots
@@ -120,7 +135,7 @@ PASS end-of-file completes playback even when mpv retains an earlier time positi
 PASS returning after playback puts the last watched film first in the rendered resume row
 PASS mini-player updates recency and returns the resume row to its left edge without stopping playback
 
-Windows media fixture (synthetic media, 0.4.9 results, not re-run for 0.5.0):
+Windows media fixture (synthetic media, 0.4.9 results, not re-run since):
 PASS Windows media broker and notification-area icon initialize
 PASS taskbar buttons remain absent outside playback
 PASS Windows logo is present both as a multi-size ICO and a window resource
@@ -146,7 +161,7 @@ PASS stopping withdraws the active Windows media session
 PASS Windows operations complete without COM errors
 PASS closing cleans up the tray and taskbar integration
 
-Motion fixture (personal library, read-only):
+Motion fixture (personal library, read-only, 0.5.0):
 PASS unchanged cards retain their instances across refresh
 PASS wheel over resume card interpolates 67.1 -> 108.0 px
 PASS carousel advances and progress segment reaches 50 percent

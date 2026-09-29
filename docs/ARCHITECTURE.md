@@ -1,4 +1,4 @@
-# Architecture de Mira 0.5.0
+# Architecture de Mira 0.5.1
 
 ## Découpage
 
@@ -22,7 +22,7 @@ Mira.Desktop (WPF)
   ├─ Playback/FullscreenWindow : limites du moniteur et restauration de fenêtre
   ├─ Playback/PlayerOverlay : couche native de commandes et réception de la souris
   ├─ Playback/VideoHost : surface native de la vidéo
-  ├─ TorLink : pseudo-console Windows, installation TorLink, terminal WebView2 + xterm.js (Assets/TorLink)
+  ├─ TorLink : pseudo-console Windows, installation TorLink, terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
   └─ Services : images, partage des requêtes de métadonnées, session DPAPI et préférences
           │
 Mira.Core
@@ -127,7 +127,7 @@ TorLink reste un programme séparé, lancé sans modification depuis son dossier
 
 **Terminal.** `PseudoConsole` crée une pseudo-console Windows (ConPTY) et démarre TorLink suspendu dans un Job Object `KILL_ON_JOB_CLOSE`, si bien qu’aucun processus TorLink ou Node lancé dans la page ne survit à Mira. Sans WebView2, « Ouvrir dans une fenêtre » lance TorLink à part, comme son raccourci, après la même vérification d’instance ; ce TorLink-là vit indépendamment de Mira. La sortie UTF-8 est lue sur un thread dédié, regroupée jusqu’au prochain passage du dispatcher, puis dessinée par xterm.js 6 dans `Assets/TorLink/terminal.html`. `WebView2CompositionControl` est composé par WPF, sans HWND superposé : mini-lecteur, notifications, fiche et réglages passent au-dessus du terminal. La page n’envoie que quatre messages validés : prête, taille (20 à 500 colonnes, 5 à 300 lignes), saisie (64 Kio au plus) et retour. Les touches que WebView2 transmet à WPF restent à TorLink, Échap et flèches comprises, sauf Alt + ← et la touche « précédent ». La molette devient des flèches, comme TorLink l’attend. À la fermeture, Ctrl + C est envoyé, puis le Job est terminé après 3 secondes. TorLink quitte avec le code 0 quand on le lui demande ; un autre code affiche dans la page la dernière ligne qu’il a écrite, par exemple une version de Node.js trop ancienne.
 
-**Isolation de la page.** Elle est servie depuis le dossier de l’application par un nom d’hôte virtuel réservé (`https://torlink.mira.example/`), avec une CSP `default-src 'none'` : ni réseau, ni cadre, ni formulaire. Les autres navigations, nouvelles fenêtres, téléchargements et demandes d’autorisation sont refusés ; outils de développement, menus contextuels, zoom, remplissage automatique, accélérateurs du navigateur et services réseau d’arrière-plan sont désactivés. Le profil WebView2 est isolé dans `data/webview2`. Mira n’ouvre aucun port : il échange avec TorLink uniquement par la pseudo-console. TorLink hérite de l’environnement de Mira, qui ne contient aucun jeton Jellyfin.
+**Isolation de la page.** Ses fichiers sont des ressources intégrées à Mira : `WebResourceRequested` répond à chaque requête vers un nom d’hôte réservé (`https://torlink.mira.example/`), avant tout accès réseau, et renvoie 404 pour le reste. La page a une CSP `default-src 'none'` : ni réseau, ni cadre, ni formulaire. Les autres navigations, nouvelles fenêtres, téléchargements et demandes d’autorisation sont refusés ; outils de développement, menus contextuels, zoom, remplissage automatique, accélérateurs du navigateur et services réseau d’arrière-plan sont désactivés. Le profil WebView2 est isolé dans `data/webview2`. Mira n’ouvre aucun port : il échange avec TorLink uniquement par la pseudo-console. TorLink hérite de l’environnement de Mira, qui ne contient aucun jeton Jellyfin.
 
 **Rangement.** `TorLinkState` lit l’état de TorLink sans jamais l’écrire : `config.json` (dossier de téléchargement), `history.json` (téléchargements terminés), `queue.json` et les `.torrent` de `Data/torrents`. Ces lectures partagent l’écriture et la suppression : TorLink remplace ses fichiers en renommant une copie, et une lecture de Mira ne doit jamais faire échouer ce remplacement. La variable `TORLINK_STATE_DIR` est respectée. Un `FileSystemWatcher` sur `history.json`, regroupé sur 1,2 s et doublé d’un contrôle toutes les 20 s, déclenche `TorLinkImporter` sur le pool de threads, une passe à la fois.
 
@@ -145,3 +145,13 @@ Le mot de passe ne sert qu’à l’authentification. Le jeton est chiffré par 
 La lecture directe d’un chemin local est utilisée uniquement si le serveur est une adresse de boucle locale, si Jellyfin décrit la source comme un fichier et si ce fichier est accessible. Sinon, le lecteur utilise le flux original fourni par Jellyfin. La conversion vidéo n’est pas implémentée dans cette version.
 
 Les choix de pistes, paramètres avancés et sources multiples devront à terme être réunis dans un contrôleur de lecture distinct des événements de fenêtre. Les migrations de base, une limite de taille du cache, un mécanisme de mise à jour signé et une abstraction de vues plus complète font partie des étapes suivantes avant une diffusion large.
+
+## Distribution
+
+`tools/package.ps1` produit trois formes de la même application, à partir d’une publication autonome win-x64 (runtime .NET inclus), chacune avec son empreinte SHA-256 :
+
+- `Mira-<version>-win-x64.zip` : le dossier de l’application, avec notices et licences.
+- `Mira-<version>-win-x64-portable.exe` : une publication en un seul fichier (`PublishSingleFile`, assemblages compressés, bibliothèques natives extraites par .NET au premier lancement). Rien n’y dépend de fichiers voisins : la page TorLink vient des ressources, et `AppFiles` écrit dans `data/app` les liaisons clavier de mpv et l’icône Windows intégrées. Le dossier `data` reste à côté de l’exécutable.
+- `Mira-<version>-win-x64-setup.exe` : l’installateur Inno Setup 6 (`installer/Mira.iss`) du dossier de l’application, pour l’utilisateur courant et sans droits administrateur, dans `%LOCALAPPDATA%\Programs\Mira`. Mira y écrit lui-même son raccourci Démarrer (`--register-windows`). Une mise à jour ferme Mira par le Restart Manager et garde `data` ; la désinstallation retire les raccourcis et l’identité Windows seulement s’ils désignent cette installation, et demande avant de supprimer `data`.
+
+Aucun de ces fichiers n’est encore signé.

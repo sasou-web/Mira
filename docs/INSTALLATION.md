@@ -6,17 +6,23 @@
 - Un serveur Jellyfin accessible, sur le même PC ou le réseau, et un compte sur ce serveur.
 - Une bibliothèque **libmpv x64** pour lire les vidéos. `mpv.exe` seul ne suffit pas.
 
-L’archive Windows inclut le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET pour l’utiliser. L’interface est actuellement en français. La version 0.5.0 est une préversion de développement non signée.
+L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. La version 0.5.1 est une préversion de développement non signée.
 
 Facultatif : [TorLink](#torlink), installé séparément, et le runtime Microsoft Edge WebView2 (présent sur Windows 11 et la plupart des Windows 10) pour afficher son terminal dans Mira.
 
 ## Installation
 
-1. Télécharger `Mira-0.5.0-win-x64.zip` dans les [releases](https://github.com/sasou-web/Mira/releases).
-2. Extraire **tout** le dossier `Mira` dans un emplacement où ton compte peut écrire, par exemple `Documents/Applications/Mira`. Ne pas lancer l’exécutable depuis l’archive et ne pas copier uniquement `Mira.exe`.
-3. Ouvrir `Mira.exe`. Un raccourci Mira est ajouté au menu Démarrer au premier lancement du profil principal.
-4. Entrer l’adresse de Jellyfin, le nom d’utilisateur et le mot de passe. Pour Jellyfin sur le même PC, l’adresse habituelle est `http://127.0.0.1:8096`.
-5. Dans **Réglages → Lecture**, vérifier que le moteur mpv est détecté. Si besoin, déplier son emplacement et sélectionner `libmpv-2.dll` ou `mpv-2.dll` x64.
+La [release](https://github.com/sasou-web/Mira/releases) propose trois fichiers ; un seul suffit.
+
+- **`Mira-0.5.1-win-x64-setup.exe`, recommandé.** L’installateur place Mira dans `%LOCALAPPDATA%\Programs\Mira`, pour ton compte uniquement et sans droits administrateur. Il ajoute le raccourci Démarrer, un raccourci Bureau si tu le coches, et une entrée de désinstallation dans **Paramètres → Applications**.
+- **`Mira-0.5.1-win-x64-portable.exe`.** Mira en un seul fichier, sans installation. Range-le dans un dossier à lui où ton compte peut écrire, par exemple `Documents\Mira` : il y crée son dossier `data`. Au premier lancement, .NET extrait quelques bibliothèques natives dans `%TEMP%\.net`.
+- **`Mira-0.5.1-win-x64.zip`.** Le dossier complet de l’application. Extraire **tout** le dossier `Mira` dans un emplacement accessible en écriture, sans lancer l’exécutable depuis l’archive ni copier uniquement `Mira.exe`.
+
+Les fichiers ne sont pas encore signés : Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Vérifier l’empreinte du fichier (plus bas), puis choisir **Informations complémentaires → Exécuter quand même**.
+
+1. Ouvrir Mira. Un raccourci Mira est ajouté au menu Démarrer au premier lancement du profil principal, ou dès l’installation.
+2. Entrer l’adresse de Jellyfin, le nom d’utilisateur et le mot de passe. Pour Jellyfin sur le même PC, l’adresse habituelle est `http://127.0.0.1:8096`.
+3. Dans **Réglages → Lecture**, vérifier que le moteur mpv est détecté. Si besoin, déplier son emplacement et sélectionner `libmpv-2.dll` ou `mpv-2.dll` x64.
 
 Le bouton **Essayer sans se connecter** ouvre un catalogue fictif pour explorer l’interface.
 
@@ -60,13 +66,19 @@ Mira ne vérifie pas ce qui est téléchargé. Les sources intégrées à TorLin
 
 ## Mise à jour et données
 
-Fermer Mira, sauvegarder son dossier `data`, puis remplacer les fichiers de l’application par ceux de la nouvelle archive, **en conservant `data`**. Ce dossier contient la session protégée, les préférences, la progression en attente, le cache et le journal des rangements TorLink. Ne jamais le publier ou le joindre à une issue. La session protégée n’est pas portable vers un autre compte Windows.
+Le dossier `data`, à côté de `Mira.exe`, contient la session protégée, les préférences, la progression en attente, le cache et le journal des rangements TorLink. Ne jamais le publier ou le joindre à une issue. La session protégée n’est pas portable vers un autre compte Windows.
 
-L’empreinte du ZIP est fournie dans le fichier `.sha256`. Pour vérifier le fichier téléchargé :
+- **Installateur** : lancer celui de la nouvelle version ; il ferme Mira s’il est ouvert, remplace l’application et garde `data`. La désinstallation demande avant de supprimer ces données (non par défaut).
+- **Exécutable portable** : fermer Mira et remplacer le fichier `.exe`, dans le même dossier que son `data`.
+- **Archive** : fermer Mira, sauvegarder `data`, puis remplacer les fichiers de l’application par ceux de la nouvelle archive, **en conservant `data`**.
+
+Chaque fichier de la release est accompagné de son empreinte SHA-256 (fichier `.sha256`). Pour vérifier un fichier téléchargé :
 
 ```powershell
-Get-FileHash .\Mira-0.5.0-win-x64.zip -Algorithm SHA256
+Get-FileHash .\Mira-0.5.1-win-x64-setup.exe -Algorithm SHA256
 ```
+
+Pour passer d’une copie portable à l’installateur en gardant sa session : installer, fermer toutes les fenêtres Mira, puis copier le dossier `data` de l’ancienne copie dans `%LOCALAPPDATA%\Programs\Mira`, en remplaçant celui qui s’y trouve.
 
 ## Si quelque chose ne fonctionne pas
 

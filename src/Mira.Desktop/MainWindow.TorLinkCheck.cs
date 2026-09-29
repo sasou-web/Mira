@@ -35,10 +35,25 @@ public partial class MainWindow
             // Checked again here; without isolation, TorLink stayed disabled from the start (InitializeTorLink).
             if (!_demo || !_torlinkEnabled || !TorLinkCheckIsolated() || Environment.GetEnvironmentVariable("TORLINK_STATE_DIR") is not { } state)
                 throw new InvalidOperationException("The TorLink check requires --demo, an isolated --data profile and TORLINK_STATE_DIR inside the output folder.");
-            // Another TorLink (a Mira in use, its shortcut) keeps the check's own from starting, by design: say so plainly.
-            if (TorLinkInstallation.Locate(_settings.TorLinkPath) is { } found && await Task.Run(() => found.RunningElsewhere(null)) is { } other)
-                throw new InvalidOperationException($"TorLink is already running on this PC (process {other}): close it, then run the check again.");
             Width = 1440; Height = 900;
+            // Another TorLink on this PC (a Mira in use, its shortcut): Mira rightly refuses a second one. The page itself is
+            // still checked (served from Mira's resources and drawn by xterm.js with its style sheet), then the check stops.
+            if (TorLinkInstallation.Locate(_settings.TorLinkPath) is { } found && await Task.Run(() => found.RunningElsewhere(null)) is { } other)
+            {
+                await ShowTorLinkAsync();
+                await Until(() => _torlinkTerminal?.PageReady == true, 25, "The terminal page did not load");
+                var raw = await _torlinkTerminal!.View!.CoreWebView2.ExecuteScriptAsync(
+                    "JSON.stringify({ xterm: !!document.querySelector('.xterm'), helper: getComputedStyle(document.querySelector('.xterm-helper-textarea')).opacity })");
+                using (var page = JsonDocument.Parse(JsonSerializer.Deserialize<string>(raw) ?? "{}"))
+                    Require(page.RootElement.TryGetProperty("xterm", out var xterm) && xterm.GetBoolean() && page.RootElement.TryGetProperty("helper", out var helper) && helper.GetString() == "0",
+                        "the terminal page loads from Mira's resources, with xterm.js and its style sheet");
+                Require(_torlinkBlocker == "elsewhere" && TorLinkStatePanel.Visibility == Visibility.Visible, "with another TorLink running, the page says so instead of starting a second one");
+                await CaptureAsync(output, "01-torlink-elsewhere");
+                checks.Add($"SKIP TorLink itself, downloads and keys: TorLink is already running on this PC (process {other}); close it to run the whole check");
+                await StopTorLinkAsync();
+                await File.WriteAllLinesAsync(Path.Combine(output, "result.txt"), checks);
+                return;
+            }
             var downloads = Path.Combine(output, "downloads"); var library = Path.Combine(output, "library");
             foreach (var folder in new[] { downloads, Path.Combine(library, "FILMS"), Path.Combine(library, "SERIES"), Path.Combine(library, "ANIME") }) Directory.CreateDirectory(folder);
             PrepareSyntheticDownloads(state, downloads);

@@ -4,13 +4,13 @@
   <p><strong>Ta bibliothèque Jellyfin. Le confort d’un lecteur fait pour elle.</strong></p>
   <p>Un client Windows natif, une interface cinéma et mpv directement dans l’application.</p>
   <p>
-    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.5.0_preview-e8e8ed?style=flat-square" alt="Version 0.5.0 preview" /></a>
+    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.5.1_preview-e8e8ed?style=flat-square" alt="Version 0.5.1 preview" /></a>
     <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
     <img src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square" alt=".NET 8" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Windows build" /></a>
   </p>
-  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.5.0">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
+  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.5.1">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
 </div>
 
 ![Accueil de Mira : bandeau Jujutsu Kaisen et rangée « Continuer à regarder »](docs/screenshots/readme-home.jpg)
@@ -37,12 +37,19 @@ Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau ce
 
 ## Installer
 
-1. Télécharger **Mira-0.5.0-win-x64.zip** dans la [release 0.5.0](https://github.com/sasou-web/Mira/releases/tag/v0.5.0).
-2. Extraire le dossier complet dans un emplacement accessible en écriture, puis lancer `Mira.exe`.
-3. Connecter ton serveur Jellyfin — généralement `http://127.0.0.1:8096` sur le même PC.
-4. Vérifier **Réglages → Lecture** : un moteur **libmpv x64** est requis. Mira détecte certains moteurs installés avec mpv.net ou Jellyfin MPV Shim ; un chemin peut être choisi manuellement.
+Dans la [release 0.5.1](https://github.com/sasou-web/Mira/releases/tag/v0.5.1), choisir l’un des trois fichiers :
 
-**Le runtime .NET est inclus ; libmpv ne l’est pas.** Windows 10 2004+ / Windows 11 x64, interface française, archive de développement non signée. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
+| Fichier | Pour qui |
+| --- | --- |
+| **Mira-0.5.1-win-x64-setup.exe** | Recommandé. Installe Mira pour ton compte, sans droits administrateur, avec son raccourci Démarrer et sa désinstallation depuis les paramètres de Windows. |
+| **Mira-0.5.1-win-x64-portable.exe** | Un seul fichier à lancer tel quel. À ranger dans son propre dossier : il y crée son dossier `data`. |
+| **Mira-0.5.1-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
+
+1. Lancer l’installateur ou l’exécutable. Windows peut afficher un avertissement SmartScreen : les fichiers ne sont pas encore signés (**Informations complémentaires → Exécuter quand même**).
+2. Connecter ton serveur Jellyfin — généralement `http://127.0.0.1:8096` sur le même PC.
+3. Vérifier **Réglages → Lecture** : un moteur **libmpv x64** est requis. Mira détecte certains moteurs installés avec mpv.net ou Jellyfin MPV Shim ; un chemin peut être choisi manuellement.
+
+**Le runtime .NET est inclus ; libmpv ne l’est pas.** Windows 10 2004+ / Windows 11 x64, interface française, préversion non signée. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
 
 La page **TorLink** est facultative : TorLink s’installe séparément et Mira le retrouve par son raccourci Démarrer, ou par le dossier indiqué dans **Réglages → TorLink**. Son terminal utilise le runtime Microsoft Edge WebView2 de Windows.
 
@@ -62,7 +69,7 @@ dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .arti
 ```
 
 ```powershell
-./tools/package.ps1          # Archive Windows propre + empreinte SHA-256
+./tools/package.ps1          # Archive, exécutable portable et installateur (Inno Setup 6) + empreintes SHA-256
 ./tools/capture-gallery.ps1  # Captures avec un profil fictif isolé
 ./tools/torlink-check.ps1    # TorLink réel dans Mira, état et bibliothèque isolés
 ```
@@ -79,7 +86,7 @@ La compilation et les tests de base sont lancés sur Windows dans GitHub Actions
 
 ## État du projet
 
-Mira **0.5.0** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. La compatibilité avec toutes les versions de Jellyfin n’est pas garantie. Les mises à jour sont manuelles.
+Mira **0.5.1** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. La compatibilité avec toutes les versions de Jellyfin n’est pas garantie. Les mises à jour sont manuelles.
 
 - [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md) et [validation](docs/VALIDATION.md)

@@ -1,5 +1,14 @@
 # Historique
 
+## 0.5.1 — 2026-09-29
+
+Installation simplifiée.
+
+- **Installateur Windows** `Mira-0.5.1-win-x64-setup.exe` : installation pour l’utilisateur courant, sans droits administrateur, dans `%LOCALAPPDATA%\Programs\Mira`, avec raccourci Démarrer, raccourci Bureau facultatif et désinstallation depuis les paramètres de Windows. Une mise à jour s’installe par-dessus et garde les données ; la désinstallation demande avant de les supprimer.
+- **Exécutable portable** `Mira-0.5.1-win-x64-portable.exe` : Mira en un seul fichier, qui crée son dossier `data` à côté de lui.
+- La page du terminal TorLink est servie depuis les ressources de Mira ; les liaisons clavier de mpv et l’icône Windows sont intégrées à l’exécutable portable.
+- Contrôle TorLink : avec un autre TorLink ouvert sur le PC, il vérifie la page puis s’arrête, au lieu d’échouer.
+
 ## 0.5.0 — 2026-09-29
 
 TorLink dans Mira, jusqu’à la bibliothèque Jellyfin.

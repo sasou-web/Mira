@@ -1,6 +1,6 @@
 # Third-party notices
 
-Mira's original source code is licensed under MIT. This does not replace the licences of the following components. The release ZIP includes the `licenses` directory and the asset-specific notices.
+Mira's original source code is licensed under MIT. This does not replace the licences of the following components. The release ZIP and the installer include the `licenses` directory, this file and the asset-specific notices. The portable executable contains the same components; its notices are this file and the `licenses` directory, published beside it in the repository, the ZIP and the release.
 
 | Component | Use | Licence / notice |
 | --- | --- | --- |
@@ -14,7 +14,8 @@ Mira's original source code is licensed under MIT. This does not replace the lic
 | Nunito Sans | Bundled typefaces | SIL Open Font License 1.1; `licenses/NUNITO-SANS-OFL.txt`, upstream revision in `src/Mira.Desktop/Assets/Fonts/SOURCE.txt` |
 | Phosphor Icons | Archived SVG assets from an earlier interface | MIT; `licenses/PHOSPHOR-MIT.txt`, revision in `src/Mira.Desktop/Assets/Phosphor/SOURCE.txt` |
 | Microsoft.Web.WebView2 1.0.4258.31 | WebView2 SDK for the embedded TorLink terminal (managed assemblies and `WebView2Loader.dll`) | Microsoft Corporation, BSD-style licence; `licenses/WEBVIEW2-BSD.txt` |
-| xterm.js 6.0.0 and @xterm/addon-fit 0.11.0 | Terminal renderer of the TorLink page, unmodified npm builds | MIT, the xterm.js authors; `licenses/XTERM-MIT.txt`, versions and integrity in `src/Mira.Desktop/Assets/TorLink/xterm/SOURCE.txt` |
+| xterm.js 6.0.0 and @xterm/addon-fit 0.11.0 | Terminal renderer of the TorLink page, unmodified npm builds embedded as resources | MIT, the xterm.js authors; `licenses/XTERM-MIT.txt`, versions and integrity in `src/Mira.Desktop/Assets/TorLink/xterm/SOURCE.txt` |
+| Inno Setup 6.7.3 | Builds the Windows installer; its setup and uninstall program is part of `Mira-*-setup.exe` | Copyright Jordan Russell and Martijn Laan, [Inno Setup License](https://jrsoftware.org/files/is/license.txt); not part of the zip or the portable executable |
 
 The current logo, icon geometry and fictional demo illustrations are original Mira assets. The gallery (`docs/SCREENSHOTS.md`) shows that offline demo. The three screenshots at the top of the README show Mira connected to a personal Jellyfin library: the posters and artwork visible in them belong to their respective rights holders and are shown only to illustrate the software. No media file, personal library data or Jellyfin cache is included in the repository or release.
 

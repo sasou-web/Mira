@@ -10,8 +10,8 @@ namespace Mira.Desktop.Services;
 internal static class WindowsIdentity
 {
     public const string AppId = "Mira.Desktop";
-    // A distinct asset path bypasses the old executable icon cached by Explorer.
-    public static string IconPath => Path.Combine(AppContext.BaseDirectory, "Assets", "mira-mark-v1.ico");
+    // A distinct asset path bypasses the old executable icon cached by Explorer (written into the profile by a single-file Mira.exe).
+    public static string IconPath => AppFiles.Icon;
     public static string? RegistrationError { get; private set; }
 
     public static void SetProcessIdentity(string id) => SetCurrentProcessExplicitAppUserModelID(id);

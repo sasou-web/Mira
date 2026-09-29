@@ -260,7 +260,7 @@ public partial class MainWindow
 
     private TorLinkTerminal CreateTorLinkTerminal()
     {
-        var terminal = new TorLinkTerminal(Dispatcher, Path.Combine(_profile.DirectoryPath, "webview2"), Path.Combine(AppContext.BaseDirectory, "Assets", "TorLink"));
+        var terminal = new TorLinkTerminal(Dispatcher, Path.Combine(_profile.DirectoryPath, "webview2"));
         terminal.StateChanged += UpdateTorLinkState;
         terminal.BackRequested += () => { if (TorLinkOverlay.IsVisible && TorLinkOverlay.IsHitTestVisible) GoBack(); };
         return terminal;
