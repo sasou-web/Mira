@@ -1,6 +1,6 @@
 # Historique
 
-## 0.5.2 — non publiée
+## 0.5.2 — 2026-09-29
 
 Mises à jour automatiques et nouvelle barre de lecture.
 

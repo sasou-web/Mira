@@ -4,13 +4,13 @@
   <p><strong>Ta bibliothèque Jellyfin. Le confort d’un lecteur fait pour elle.</strong></p>
   <p>Un client Windows natif, une interface cinéma et mpv directement dans l’application.</p>
   <p>
-    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.5.1_preview-e8e8ed?style=flat-square" alt="Version 0.5.1 preview" /></a>
+    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.5.2_preview-e8e8ed?style=flat-square" alt="Version 0.5.2 preview" /></a>
     <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
     <img src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square" alt=".NET 8" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Windows build" /></a>
   </p>
-  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.5.1">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
+  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.5.2">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
 </div>
 
 ![Accueil de Mira : bandeau Jujutsu Kaisen et rangée « Continuer à regarder »](docs/screenshots/readme-home.jpg)
@@ -38,13 +38,13 @@ Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau ce
 
 ## Installer
 
-Dans la [release 0.5.1](https://github.com/sasou-web/Mira/releases/tag/v0.5.1), choisir l’un des trois fichiers :
+Dans la [release 0.5.2](https://github.com/sasou-web/Mira/releases/tag/v0.5.2), choisir l’un des trois fichiers :
 
 | Fichier | Pour qui |
 | --- | --- |
-| **Mira-0.5.1-win-x64-setup.exe** | Recommandé. Installe Mira pour ton compte, sans droits administrateur, avec son raccourci Démarrer et sa désinstallation depuis les paramètres de Windows. |
-| **Mira-0.5.1-win-x64-portable.exe** | Un seul fichier à lancer tel quel. À ranger dans son propre dossier : il y crée son dossier `data`. |
-| **Mira-0.5.1-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
+| **Mira-0.5.2-win-x64-setup.exe** | Recommandé. Installe Mira pour ton compte, sans droits administrateur, avec son raccourci Démarrer et sa désinstallation depuis les paramètres de Windows. |
+| **Mira-0.5.2-win-x64-portable.exe** | Un seul fichier à lancer tel quel. À ranger dans son propre dossier : il y crée son dossier `data`. |
+| **Mira-0.5.2-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
 
 1. Lancer l’installateur ou l’exécutable. Windows peut afficher un avertissement SmartScreen : les fichiers ne sont pas encore signés (**Informations complémentaires → Exécuter quand même**).
 2. Connecter ton serveur Jellyfin — généralement `http://127.0.0.1:8096` sur le même PC.
@@ -88,7 +88,7 @@ La compilation et les tests de base sont lancés sur Windows dans GitHub Actions
 
 ## État du projet
 
-Mira **0.5.1** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. La compatibilité avec toutes les versions de Jellyfin n’est pas garantie. Les mises à jour deviennent automatiques avec la 0.5.2 ; depuis une version plus ancienne, cette version s’installe une fois à la main.
+Mira **0.5.2** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. La compatibilité avec toutes les versions de Jellyfin n’est pas garantie. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
 
 - [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md) et [validation](docs/VALIDATION.md)
