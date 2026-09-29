@@ -12,16 +12,17 @@ namespace Mira.Desktop.Views;
 /// <summary>Playback timeline. mpv is polled a few times per second; between polls the played
 /// position is extrapolated on every frame and drawn without pixel snapping, so it glides.
 /// The whole control height is clickable, a press jumps to the pointer and keeps dragging,
-/// and hovering shows the time (and chapter) under the pointer. Chapters appear as dots.</summary>
+/// and hovering shows the time (and chapter) under the pointer. Chapters split the line into
+/// segments; the one under the pointer thickens, and the thumb only appears while pointing.</summary>
 public sealed class Timeline : RangeBase
 {
     private static readonly Brush Rest = Frozen(Color.FromArgb(72, 255, 255, 255));
     private static readonly Brush Buffered = Frozen(Color.FromArgb(108, 255, 255, 255));
     private static readonly Brush Ahead = Frozen(Color.FromArgb(150, 255, 255, 255));
     private static readonly Brush Played = Frozen(Color.FromRgb(245, 245, 247));
-    private static readonly Brush MarkAhead = Frozen(Color.FromArgb(240, 245, 245, 247));
-    private static readonly Brush MarkPassed = Frozen(Color.FromArgb(215, 22, 22, 25));
     private static readonly Brush ThumbShadow = Frozen(Color.FromArgb(80, 0, 0, 0));
+    /// <summary>Space between two chapter segments, and the line thickness at rest.</summary>
+    public const double Gap = 3, Thickness = 3;
     private readonly Border _bubble;
     private readonly TextBlock _bubbleTime, _bubbleTitle;
     private IReadOnlyList<ChapterMark> _chapters = [];
@@ -98,6 +99,16 @@ public sealed class Timeline : RangeBase
         _chapters = chapters.Where(c => double.IsFinite(c.Start) && c.Start >= 0).OrderBy(c => c.Start).ToList();
         InvalidateVisual();
     }
+    /// <summary>Title of the chapter playing at <paramref name="seconds"/>, if the file names it.</summary>
+    public string? ChapterAt(double seconds) =>
+        _chapters.LastOrDefault(c => c.Start <= seconds + .01).Title is { } title && !string.IsNullOrWhiteSpace(title) ? title.Trim() : null;
+    /// <summary>Left and right edges of the drawn segments, in device-independent pixels.</summary>
+    public IReadOnlyList<(double From, double To)> Segments()
+    {
+        var edges = SegmentEdges(ActualWidth); var result = new List<(double, double)>();
+        for (var i = 0; i + 1 < edges.Count; i++) result.Add((edges[i] + (i > 0 ? Gap / 2 : 0), edges[i + 1] - (i + 2 < edges.Count ? Gap / 2 : 0)));
+        return result;
+    }
     public void Reset()
     {
         _sample = _buffered = 0; _playing = _dragging = false; _holdUntil = 0; _chapters = [];
@@ -169,28 +180,52 @@ public sealed class Timeline : RangeBase
         // Transparent fill: the full control height is a hit target, not only the thin line.
         dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, width, height));
         if (width <= 0) return;
-        var middle = height / 2; var thickness = 3 + 2 * _emphasis;
+        var middle = height / 2;
         var position = Displayed(Stopwatch.GetTimestamp()); var played = X(position); _renderedX = played;
-        Bar(dc, 0, width, middle, thickness, Rest);
-        if (_buffered > position) Bar(dc, played, X(_buffered), middle, thickness, Buffered);
-        if (_hovering && !_dragging && _hoverX > played) Bar(dc, played, _hoverX, middle, thickness, Ahead);
-        Bar(dc, 0, played, middle, thickness, Played);
-        var mark = 2.3 + 1.1 * _emphasis;
+        var buffered = _buffered > position ? X(_buffered) : played;
+        var ahead = _hovering && !_dragging && _hoverX > played ? _hoverX : played;
+        var pointing = (_hovering || _dragging) && IsEnabled; var pointer = _dragging ? played : _hoverX;
+        var edges = SegmentEdges(width);
+        for (var i = 0; i + 1 < edges.Count; i++)
+        {
+            var from = edges[i] + (i > 0 ? Gap / 2 : 0); var to = edges[i + 1] - (i + 2 < edges.Count ? Gap / 2 : 0);
+            if (to - from < .5) continue;
+            // The chapter under the pointer grows the most, so the part about to be chosen stands out.
+            var under = pointing && pointer >= edges[i] && pointer <= edges[i + 1];
+            var thickness = Thickness + _emphasis * (under ? 3 : 1);
+            var top = middle - thickness / 2;
+            // Segment ends are rounded; the played edge inside a segment stays straight.
+            var shape = new RectangleGeometry(new Rect(from, top, to - from, thickness), thickness / 2, thickness / 2); shape.Freeze();
+            dc.PushClip(shape);
+            Fill(dc, Rest, from, to, top, thickness);
+            Fill(dc, Buffered, Math.Max(from, played), Math.Min(to, buffered), top, thickness);
+            Fill(dc, Ahead, Math.Max(from, played), Math.Min(to, ahead), top, thickness);
+            Fill(dc, Played, from, Math.Min(to, played), top, thickness);
+            dc.Pop();
+        }
+        if (!IsEnabled || _emphasis < .02) return;
+        var thumb = 6.5 * _emphasis;
+        dc.DrawEllipse(ThumbShadow, null, new Point(played, middle + .6), thumb + 1.4, thumb + 1.4);
+        dc.DrawEllipse(Played, null, new Point(played, middle), thumb, thumb);
+    }
+    private static void Fill(DrawingContext dc, Brush brush, double from, double to, double top, double thickness)
+    {
+        if (to - from < .01) return;
+        dc.DrawRectangle(brush, null, new Rect(from, top, to - from, thickness));
+    }
+    /// <summary>0, each chapter start with room for a gap on both sides, then the full width.</summary>
+    private List<double> SegmentEdges(double width)
+    {
+        var edges = new List<double> { 0 };
+        if (width <= 0 || Maximum <= Minimum) { edges.Add(Math.Max(0, width)); return edges; }
         foreach (var chapter in _chapters)
         {
             if (chapter.Start <= .5 || chapter.Start >= Maximum - .5) continue;
             var x = X(chapter.Start);
-            dc.DrawEllipse(x <= played ? MarkPassed : MarkAhead, null, new Point(x, middle), mark, mark);
+            if (x - edges[^1] >= Gap * 2 && width - x >= Gap * 2) edges.Add(x);
         }
-        if (!IsEnabled) return;
-        var thumb = 5.5 + 1.8 * _emphasis;
-        dc.DrawEllipse(ThumbShadow, null, new Point(played, middle + .6), thumb + 1.4, thumb + 1.4);
-        dc.DrawEllipse(Played, null, new Point(played, middle), thumb, thumb);
-    }
-    private static void Bar(DrawingContext dc, double from, double to, double middle, double thickness, Brush brush)
-    {
-        if (to - from < .01) return;
-        dc.DrawRoundedRectangle(brush, null, new Rect(from, middle - thickness / 2, to - from, thickness), thickness / 2, thickness / 2);
+        edges.Add(width);
+        return edges;
     }
 
     protected override void OnMouseEnter(MouseEventArgs e) { base.OnMouseEnter(e); if (!IsEnabled) return; _hovering = true; Hover(e.GetPosition(this).X); Attach(); }

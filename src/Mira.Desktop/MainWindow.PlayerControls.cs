@@ -5,8 +5,10 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Mira.Core;
 using Mira.Desktop.Playback;
 using Mira.Desktop.Views;
 
@@ -16,7 +18,7 @@ public partial class MainWindow
 {
     private FullscreenWindow? _fullscreenWindow;
     private WindowFrame? _windowFrame;
-    private bool _miniPlayer, _optionsBusy, _controlsVisible;
+    private bool _miniPlayer, _controlsVisible;
     private bool _positionQueued, _changingPlayerLayout;
     private Point? _lastSurfacePoint;
     private int _surfaceMotionCount;
@@ -25,25 +27,40 @@ public partial class MainWindow
     private DateTimeOffset _lastPlayerInteraction = DateTimeOffset.UtcNow, _lastScrub;
     // Playing: controls leave quickly. Paused: they also leave, so the still frame can be captured cleanly.
     private static readonly TimeSpan PlayingIdle = TimeSpan.FromSeconds(2.6), PausedIdle = TimeSpan.FromSeconds(4), MiniIdle = TimeSpan.FromSeconds(1.4);
+    /// <summary>Button whose menu is open (audio and subtitles, or ⋮); the menu opens above it.</summary>
+    private Button? _menuAnchor;
+    private static readonly double[] Speeds = [.5, .75, 1, 1.25, 1.5, 2];
+    // Slider width plus its margins, revealed beside the speaker.
+    private const double VolumeRevealWidth = 100;
+    private readonly DispatcherTimer _volumeHide = new() { Interval = TimeSpan.FromMilliseconds(900) };
+    private bool _volumeShown;
     private void InitializePlayerControls()
     {
         _fullscreenWindow = new(this);
         _windowFrame = new(this);
         _surfaceClick.Tick += (_, _) => { _surfaceClick.Stop(); if (_playing) Pause_Click(this, new()); };
+        _volumeHide.Tick += (_, _) => { _volumeHide.Stop(); if (!KeepVolumeOpen) SetVolumeReveal(false); };
         if (_settings.Volume > 0) _lastAudibleVolume = _settings.Volume;
         SeekBar.SeekStarted += () => { _seeking = true; ShowPlayerControls(); };
         SeekBar.Seeking += Scrub;
         SeekBar.SeekCompleted += SeekTo;
-        // WPF supplies custom placement bounds in device pixels, including at 200% DPI.
-        PlayerOptionsPopup.CustomPopupPlacementCallback = (size, target, _) =>
-        {
-            var dpi = VisualTreeHelper.GetDpi(PlayerShell);
-            return [new CustomPopupPlacement(new Point(Math.Max(12 * dpi.DpiScaleX, target.Width - size.Width - 34 * dpi.DpiScaleX), Math.Max(12 * dpi.DpiScaleY, target.Height - (PlayerControls.Height - 22) * dpi.DpiScaleY - size.Height)), PopupPrimaryAxis.None)];
-        };
+        PlayerOptionsPopup.CustomPopupPlacementCallback = (size, target, _) => [new CustomPopupPlacement(MenuPlacement(size, target), PopupPrimaryAxis.None)];
         LocationChanged += (_, _) => PositionPlayerControls();
         StateChanged += (_, _) => { PositionPlayerControls(); UpdatePlayerControls(); };
         Activated += (_, _) => { _fullscreenWindow.ActiveChanged(); ShowPlayerControls(); };
         Deactivated += (_, _) => { _fullscreenWindow.ActiveChanged(); ClosePlayerPopups(); };
+    }
+    /// <summary>Above the button that opened the menu, right-aligned with it and kept inside the video.
+    /// WPF supplies the sizes in device pixels, including at 200% DPI.</summary>
+    private Point MenuPlacement(Size size, Size target)
+    {
+        var dpi = VisualTreeHelper.GetDpi(PlayerShell);
+        var anchor = _menuAnchor ?? PlayerTracksButton;
+        var corner = anchor.IsVisible ? anchor.TranslatePoint(new Point(anchor.ActualWidth, 0), PlayerSurface) : new Point(PlayerSurface.ActualWidth - 16, PlayerSurface.ActualHeight - 60);
+        var margin = 12 * dpi.DpiScaleX;
+        var x = Math.Clamp(corner.X * dpi.DpiScaleX - size.Width, margin, Math.Max(margin, target.Width - size.Width - margin));
+        var y = Math.Max(12 * dpi.DpiScaleY, corner.Y * dpi.DpiScaleY - size.Height);
+        return new Point(x, y);
     }
     private void Player_SizeChanged(object sender, SizeChangedEventArgs e) => PositionPlayerControls();
     private void PositionPlayerControls()
@@ -95,23 +112,25 @@ public partial class MainWindow
     {
         foreach (var panel in new UIElement[] { PlayerHeader, PlayerControls, PlayerWindowChrome })
         { panel.IsHitTestVisible = visible; Motion.Fade(panel, visible ? 1 : 0, duration); }
+        if (!visible) { _volumeHide.Stop(); SetVolumeReveal(false); }
         SeekBar.Live = visible; UpdateSkip();
     }
     private void ClosePlayerPopups()
     {
         _surfaceClick.Stop(); _controlsVisible = false; _lastSurfacePoint = null;
         PlayerOverlayLayer.IsOpen = PlayerOptionsPopup.IsOpen = false;
+        _volumeHide.Stop(); SetVolumeReveal(false);
         PlayerSurface.Cursor = Cursors.Arrow;
     }
     private void UpdatePlayerControls()
     {
         if (!_playing || WindowState == WindowState.Minimized || (!IsActive && !_args.Contains("--player-check"))) { ClosePlayerPopups(); return; }
         if (_miniPlayer && !MiniSettled) { if (PlayerOverlayLayer.IsOpen) ClosePlayerPopups(); return; }
-        if (!_loaded || _seeking || PlayerOptionsPopup.IsOpen || (_keyboardNavigation && (PlayerControls.IsKeyboardFocusWithin || PlayerHeader.IsKeyboardFocusWithin))) return;
+        if (!_loaded || _seeking || PlayerOptionsPopup.IsOpen || VolumeSlider.IsMouseCaptureWithin || (_keyboardNavigation && (PlayerControls.IsKeyboardFocusWithin || PlayerHeader.IsKeyboardFocusWithin))) return;
         var idle = DateTimeOffset.UtcNow - _lastPlayerInteraction;
         if (_miniPlayer) { if (!PlayerSurface.IsMouseOver && idle > MiniIdle) HidePlayerControls(); return; }
         // While playing, a pointer resting on the controls keeps them. Once paused they leave anyway.
-        if (!_paused && _controlsVisible && (PlayerControls.IsMouseOver || PlayerHeader.IsMouseOver || PlayerWindowChrome.IsMouseOver || SkipButton.IsMouseOver)) return;
+        if (!_paused && _controlsVisible && (PointerOnBars() || SkipButton.IsMouseOver)) return;
         if (idle > (_paused ? PausedIdle : PlayingIdle)) HidePlayerControls();
     }
     private void PlayerSurface_MouseMove(object sender, MouseEventArgs e)
@@ -123,6 +142,16 @@ public partial class MainWindow
         ShowPlayerControls();
     }
     private void PlayerSurface_MouseLeave(object sender, MouseEventArgs e) => _lastSurfacePoint = null;
+    /// <summary>The pointer rests on the bottom bar (from just above the title) or on the top band: the shades take no
+    /// clicks, so the band is measured rather than asked for IsMouseOver.</summary>
+    private bool PointerOnBars()
+    {
+        if (!PlayerSurface.IsMouseOver) return false;
+        var point = Mouse.GetPosition(PlayerSurface);
+        var bottom = PlayerControlsBody.TranslatePoint(new Point(), PlayerSurface).Y - 12;
+        var top = PlayerHeaderBody.TranslatePoint(new Point(0, PlayerHeaderBody.ActualHeight), PlayerSurface).Y + 12;
+        return point.Y >= bottom || point.Y <= top;
+    }
     private void PlayerSurface_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_miniPlayer) { MiniPointerDown(e); return; }
@@ -166,7 +195,12 @@ public partial class MainWindow
             if (ReferenceEquals(node, PlayerShell) || ReferenceEquals(node, PlayerSurface)) return true;
         return false;
     }
-    private void ChangeVolume(double delta) { VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + delta, 0, 100); UpdateMuteIcon(); }
+    private void ChangeVolume(double delta)
+    {
+        VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + delta, 0, 100); UpdateMuteIcon();
+        // The level shows for a moment beside the speaker.
+        if (!_miniPlayer) { SetVolumeReveal(true); HideVolumeSoon(); }
+    }
     private void HandlePlayerMessage(string message)
     {
         if (!_playing) return;
@@ -179,15 +213,15 @@ public partial class MainWindow
             case "mira-pause": Pause_Click(this, new()); break;
             case "mira-seek-back": SeekRelative(-10); ShowPlayerControls(); break;
             case "mira-seek-forward": SeekRelative(10); ShowPlayerControls(); break;
-            case "mira-volume-up": ChangeVolume(5); ShowPlayerControls(); break;
-            case "mira-volume-down": ChangeVolume(-5); ShowPlayerControls(); break;
+            case "mira-volume-up": ShowPlayerControls(); ChangeVolume(5); break;
+            case "mira-volume-down": ShowPlayerControls(); ChangeVolume(-5); break;
             case "mira-mute": Mute_Click(this, new()); break;
             case "mira-skip": if (SkipAvailable) Skip_Click(this, new()); break;
         }
     }
     private void Scrub(double seconds)
     {
-        PositionText.Text = TimeLabel(seconds); ShowPlayerControls();
+        PositionText.Text = TimeLabel(seconds); UpdateChapterText(seconds); ShowPlayerControls();
         if (_mpv is null || !_loaded || DateTimeOffset.UtcNow - _lastScrub < TimeSpan.FromMilliseconds(90)) return;
         _lastScrub = DateTimeOffset.UtcNow;
         // Keyframe seeks follow the pointer quickly; the release performs the exact seek.
@@ -199,6 +233,14 @@ public partial class MainWindow
         if (_mpv is null || !_loaded) return;
         if (TryCommand("seek", seconds.ToString(CultureInfo.InvariantCulture), "absolute+exact")) HoldPosition(seconds);
         ShowPlayerControls();
+    }
+    /// <summary>Name of the chapter being played, above the time, as long as the file names its chapters.</summary>
+    private void UpdateChapterText(double seconds)
+    {
+        var title = SeekBar.ChapterAt(seconds) ?? "";
+        if (ChapterText.Text != title) ChapterText.Text = title;
+        var visibility = title.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (ChapterText.Visibility != visibility) ChapterText.Visibility = visibility;
     }
     private bool TryCommand(params string[] arguments)
     {
@@ -219,18 +261,21 @@ public partial class MainWindow
         if (!mini) DetailOverlay.Visibility = SettingsOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
         TitleBar.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
         PlayerWindowChrome.Visibility = mini || _fullscreen ? Visibility.Collapsed : Visibility.Visible;
-        PlayerHeader.Height = mini ? 58 : 120; PlayerControls.Height = mini ? 84 : 138;
+        // 42 above and 22 below the 44-unit back button: the header must stay at least 108 high.
+        PlayerHeader.Height = mini ? 58 : 108; PlayerControls.Height = mini ? 84 : 210;
         PlayerHeaderBody.Margin = mini ? new Thickness(14, 10, 8, 0) : new Thickness(24, _fullscreen ? 22 : 42, 24, 22);
-        PlayerControlsBody.Margin = mini ? new Thickness(14, 0, 14, 10) : new Thickness(28, 20, 28, 22);
-        PlayerTransport.Height = mini ? 38 : 52; PlayerTransport.Margin = new Thickness(0, mini ? 2 : 6, 0, 0);
-        PlayingTitle.FontSize = mini ? 12.5 : 20; PlayingSubtitle.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
-        MiniExpandButton.Visibility = MiniCloseButton.Visibility = MiniOutline.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
-        foreach (var control in new FrameworkElement[] { PlayerBackButton, PlayerVolumeGroup, RewindButton, ForwardButton, NextButton, PlayerOptionsButton, MiniPlayerButton, FullscreenButton }) control.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
+        PlayerControlsBody.Margin = mini ? new Thickness(14, 0, 14, 8) : new Thickness(24, 0, 24, 14);
+        // The mini-player shows its title at the top and keeps only play / pause, centred under the timeline.
+        PlayerInfo.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
+        MiniTitle.Visibility = MiniExpandButton.Visibility = MiniCloseButton.Visibility = MiniOutline.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
+        PlayerTransport.Height = mini ? 36 : 44; PlayerTransport.Margin = new Thickness(-8, mini ? 0 : 2, -8, 0);
+        Grid.SetColumnSpan(PlayerLeftGroup, mini ? 3 : 1); PlayerLeftGroup.HorizontalAlignment = mini ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+        foreach (var control in new FrameworkElement[] { PlayerBackButton, PlayerVolumeGroup, PlayerRightGroup }) control.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
         NextButton.Visibility = !mini && !_demo && _playingItem?.Type == "Episode" ? Visibility.Visible : Visibility.Collapsed;
-        PauseButton.Width = PauseButton.Height = mini ? 36 : 50; Motion.SetRadius(PauseButton, new CornerRadius(mini ? 18 : 25));
-        PauseIcon.Width = PauseIcon.Height = mini ? 16 : 22;
+        PauseButton.Width = PauseButton.Height = mini ? 34 : 40; Motion.SetRadius(PauseButton, new CornerRadius(mini ? 17 : 20));
+        PauseIcon.Width = PauseIcon.Height = mini ? 19 : 24;
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls(); UpdateSkip();
-        if (mini) { Motion.Reveal(LibraryScroll, 220, 5); UpdateNavigation(); if (!wasMini) RestoreDetailPage(refresh: false); }
+        if (mini) { Motion.Reveal(LibraryScroll, 220, 5); UpdateNavigation(); if (!wasMini) RestoreDetailPage(refresh: false); ShowPendingUpdateNotice(); }
         if (mini && !wasMini && _loaded) _ = RefreshMiniResumeAsync();
     }
     private async void StopPlayer_Click(object sender, RoutedEventArgs e)
@@ -249,36 +294,123 @@ public partial class MainWindow
     private void UpdateMuteIcon()
     {
         var muted = _mpv?.Flag("mute") == true || VolumeSlider.Value <= 0;
-        Motion.Swap(VolumeIcon, muted ? "mute" : "volume"); MuteButton.ToolTip = muted ? "Réactiver le son · M" : "Couper le son · M";
+        Motion.Swap(VolumeIcon, muted ? "mute" : VolumeSlider.Value < 50 ? "volume-low" : "volume");
+        var label = muted ? "Réactiver le son · M" : "Couper le son · M";
+        if (!Equals(MuteButton.ToolTip, label)) { MuteButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(MuteButton, muted ? "Réactiver le son" : "Couper le son"); }
     }
-    private void Tracks_Click(object sender, RoutedEventArgs e)
+
+    // Volume slider beside the speaker: out while the pointer is on the group, while dragging, or with keyboard focus.
+    // A click also focuses the speaker: only focus reached with the keyboard keeps the slider out.
+    private bool KeepVolumeOpen => PlayerVolumeGroup.IsMouseOver || VolumeSlider.IsMouseCaptureWithin || MuteButton.IsKeyboardFocused && _keyboardNavigation;
+    private void VolumeGroup_MouseEnter(object sender, MouseEventArgs e) { _volumeHide.Stop(); SetVolumeReveal(true); }
+    private void VolumeGroup_MouseLeave(object sender, MouseEventArgs e) => HideVolumeSoon();
+    private void VolumeGroup_FocusChanged(object sender, KeyboardFocusChangedEventArgs e) { if (MuteButton.IsKeyboardFocused && _keyboardNavigation) { _volumeHide.Stop(); SetVolumeReveal(true); } else HideVolumeSoon(); }
+    private void VolumeSlider_LostMouseCapture(object sender, MouseEventArgs e) => HideVolumeSoon();
+    private void HideVolumeSoon() { _volumeHide.Stop(); _volumeHide.Start(); }
+    private void SetVolumeReveal(bool shown)
+    {
+        if (shown == _volumeShown) return;
+        _volumeShown = shown;
+        VolumeReveal.BeginAnimation(WidthProperty, new DoubleAnimation(shown ? VolumeRevealWidth : 0, TimeSpan.FromMilliseconds(Motion.Reduced ? 0 : shown ? 190 : 150)) { EasingFunction = Motion.EaseOut }, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void Tracks_Click(object sender, RoutedEventArgs e) => TogglePlayerMenu(PlayerTracksButton);
+    private void More_Click(object sender, RoutedEventArgs e) => TogglePlayerMenu(PlayerMoreButton);
+    /// <summary>Opens the audio and subtitles menu, or the ⋮ menu, above its button; the same button closes it.</summary>
+    private void TogglePlayerMenu(Button anchor)
     {
         if (_mpv is null) return;
-        if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.IsOpen = false; return; }
-        _optionsBusy = true; AudioTrackChoice.Items.Clear(); SubtitleTrackChoice.Items.Clear(); SpeedChoice.Items.Clear();
-        SubtitleTrackChoice.Items.Add(new ComboBoxItem { Content = "Désactivés", Tag = "no" });
-        foreach (var track in _mpv.Tracks())
-        { var target = track.Type == "audio" ? AudioTrackChoice : SubtitleTrackChoice; target.Items.Add(new ComboBoxItem { Content = track.Label, Tag = track.Id }); }
-        SelectChoice(AudioTrackChoice, _mpv.Get("aid") ?? ""); SelectChoice(SubtitleTrackChoice, _mpv.Get("sid") ?? "no");
-        AudioTrackChoice.IsEnabled = AudioTrackChoice.Items.Count > 1;
-        foreach (var speed in new[] { .5, .75, 1, 1.25, 1.5, 2 }) SpeedChoice.Items.Add(new ComboBoxItem { Content = speed.ToString("0.##", CultureInfo.CurrentCulture) + "×", Tag = speed.ToString(CultureInfo.InvariantCulture) });
-        SelectChoice(SpeedChoice, _mpv.Number("speed", 1).ToString(CultureInfo.InvariantCulture));
-        SubtitleDelayReset.Content = $"{_mpv.Number("sub-delay"):0.0} s";
-        PlaybackInfo.Text = $"Vidéo  {_mpv.Get("video-codec")}\nDécodage  {_mpv.Get("hwdec-current")}\nAudio  {_mpv.Get("audio-codec")}\nImages perdues  {_mpv.Get("frame-drop-count")}";
-        _optionsBusy = false; ShowPlayerControls(); PlayerOptionsPopup.IsOpen = true;
+        if (PlayerOptionsPopup.IsOpen) { var same = ReferenceEquals(_menuAnchor, anchor); PlayerOptionsPopup.IsOpen = false; if (same) return; }
+        _menuAnchor = anchor;
+        var tracks = ReferenceEquals(anchor, PlayerTracksButton);
+        TracksMenu.Visibility = tracks ? Visibility.Visible : Visibility.Collapsed;
+        MoreMenu.Visibility = tracks ? Visibility.Collapsed : Visibility.Visible;
+        _menuBuilding = true;
+        try { if (tracks) BuildTrackMenu(); else BuildMoreMenu(); } finally { _menuBuilding = false; }
+        ShowPlayerControls(); PlayerOptionsPopup.IsOpen = true;
+        // The current choice takes focus: arrows and Enter work at once, and a mouse opening shows no focus ring.
+        Dispatcher.BeginInvoke(() => { if (PlayerOptionsPopup.IsOpen) CurrentMenuChoice()?.Focus(); }, DispatcherPriority.Input);
     }
+    private bool _menuBuilding;
+    private RadioButton? CurrentMenuChoice() => TracksMenu.Visibility == Visibility.Visible
+        ? AudioTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen) ?? SubtitleTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen)
+        : SpeedList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen);
+    private static bool IsChosen(RadioButton choice) => choice.IsChecked == true;
+    private void BuildTrackMenu()
+    {
+        if (_mpv is null) return;
+        AudioTrackList.Children.Clear(); SubtitleTrackList.Children.Clear();
+        var tracks = _mpv.Tracks(); var audio = _mpv.Get("aid") ?? ""; var subtitle = _mpv.Get("sid") ?? "no";
+        foreach (var track in tracks.Where(t => t.Type == "audio"))
+            AudioTrackList.Children.Add(MenuChoice("audio", track.Label, track.Details, track.Id == audio, () => ChooseTrack("aid", track.Id)));
+        if (AudioTrackList.Children.Count == 0) AudioTrackList.Children.Add(new TextBlock { Text = "Aucune piste audio", Foreground = Brush("#8E8E97"), FontSize = 13, Margin = new Thickness(10, 8, 10, 8) });
+        SubtitleTrackList.Children.Add(MenuChoice("subtitles", "Désactivés", "", subtitle is "no" or "" or "false", () => ChooseTrack("sid", "no")));
+        foreach (var track in tracks.Where(t => t.Type == "sub"))
+            SubtitleTrackList.Children.Add(MenuChoice("subtitles", track.Label, track.Details, track.Id == subtitle, () => ChooseTrack("sid", track.Id)));
+    }
+    /// <summary>The menu stays open, so that the other kind of track can be picked too.</summary>
+    private void ChooseTrack(string property, string id) { _mpv?.Set(property, id); ShowPlayerControls(); }
+    private void BuildMoreMenu()
+    {
+        if (_mpv is null) return;
+        SpeedList.Children.Clear();
+        var current = _mpv.Number("speed", 1);
+        foreach (var speed in Speeds)
+        {
+            var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "speed", Content = PlayerText.Speed(speed), Tag = speed, IsChecked = Math.Abs(current - speed) < .001 };
+            System.Windows.Automation.AutomationProperties.SetName(chip, "Vitesse " + PlayerText.Speed(speed));
+            chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSpeed(speed); };
+            SpeedList.Children.Add(chip);
+        }
+        SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay"));
+        // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
+        var width = _mpv.Number("width"); var height = _mpv.Number("height");
+        var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null }.Where(x => x is not null));
+        var decoding = _mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? $"matériel ({hwdec})" : "logiciel";
+        PlaybackInfo.Text = $"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nAudio  {PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"}\nImages perdues  {_mpv.Get("frame-drop-count") ?? "0"}";
+    }
+    private void ChooseSpeed(double speed)
+    {
+        _mpv?.Set("speed", speed.ToString(CultureInfo.InvariantCulture));
+        // Also when called from code: the chip of that speed shows as chosen.
+        _menuBuilding = true;
+        try { foreach (var chip in SpeedList.Children.OfType<RadioButton>()) if (chip.Tag is double value && Math.Abs(value - speed) < .001) chip.IsChecked = true; }
+        finally { _menuBuilding = false; }
+        ShowPlayerControls();
+    }
+    /// <summary>A track row: a radio button of its group, checked for the current track, with details (codec, channels…) beneath.</summary>
+    private RadioButton MenuChoice(string group, string text, string details, bool chosen, Action choose)
+    {
+        var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        label.Children.Add(new TextBlock { Text = text, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (details.Length > 0) label.Children.Add(new TextBlock { Text = details, FontSize = 11.5, FontWeight = FontWeights.Normal, Foreground = Brush("#8E8E97"), Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        var full = details.Length > 0 ? text + " · " + details : text;
+        var choice = new RadioButton { Style = (Style)FindResource("PlayerMenuChoice"), GroupName = group, Content = label, IsChecked = chosen, ToolTip = full.Length > 34 ? full : null };
+        System.Windows.Automation.AutomationProperties.SetName(choice, full);
+        choice.Checked += (_, _) => { if (!_menuBuilding) choose(); };
+        return choice;
+    }
+    private static string DelayLabel(double seconds) => PlayerText.Delay(seconds);
     private void PlayerOptions_Opened(object? sender, EventArgs e) => ShowPlayerControls();
-    private void PlayerOptions_Closed(object? sender, EventArgs e) { _lastPlayerInteraction = DateTimeOffset.UtcNow; }
+    private void PlayerOptions_Closed(object? sender, EventArgs e)
+    {
+        _lastPlayerInteraction = DateTimeOffset.UtcNow;
+        // The click that closed the menu went to the popup, not to the button under it: a click on the other menu's
+        // button opens that menu, as the viewer meant (a click on the same button just closes it).
+        if (Mouse.LeftButton != MouseButtonState.Pressed || !_playing) return;
+        var other = ReferenceEquals(_menuAnchor, PlayerTracksButton) ? PlayerMoreButton : PlayerTracksButton;
+        if (!other.IsVisible || PresentationSource.FromVisual(other) is null) return;
+        var point = Mouse.GetPosition(other);
+        if (point.X >= 0 && point.Y >= 0 && point.X < other.ActualWidth && point.Y < other.ActualHeight)
+            Dispatcher.BeginInvoke(() => TogglePlayerMenu(other), DispatcherPriority.Input);
+    }
     private void PlayerOptions_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape) return;
-        var open = new[] { AudioTrackChoice, SubtitleTrackChoice, SpeedChoice }.FirstOrDefault(x => x.IsDropDownOpen);
-        if (open is not null) open.IsDropDownOpen = false; else PlayerOptionsPopup.IsOpen = false;
-        e.Handled = true;
+        PlayerOptionsPopup.IsOpen = false; e.Handled = true;
+        // Back on the button that opened the menu, so the keyboard carries on from there.
+        if (_keyboardNavigation) _menuAnchor?.Focus();
     }
-    private void AudioTrack_Changed(object sender, SelectionChangedEventArgs e) { if (!_optionsBusy && Choice(AudioTrackChoice) is { Length: > 0 } id) _mpv?.Set("aid", id); }
-    private void SubtitleTrack_Changed(object sender, SelectionChangedEventArgs e) { if (!_optionsBusy && Choice(SubtitleTrackChoice) is { Length: > 0 } id) _mpv?.Set("sid", id); }
-    private void Speed_Changed(object sender, SelectionChangedEventArgs e) { if (!_optionsBusy && Choice(SpeedChoice) is { Length: > 0 } speed) _mpv?.Set("speed", speed); }
     private void LoadSubtitle_Click(object sender, RoutedEventArgs e)
     {
         PlayerOptionsPopup.IsOpen = false;
@@ -289,7 +421,8 @@ public partial class MainWindow
     private void SubtitleDelay_Click(object sender, RoutedEventArgs e)
     {
         var delta = double.Parse(((Button)sender).Tag.ToString()!, CultureInfo.InvariantCulture);
-        var value = delta == 0 ? 0 : (_mpv?.Number("sub-delay") ?? 0) + delta;
-        _mpv?.Set("sub-delay", value.ToString(CultureInfo.InvariantCulture)); SubtitleDelayReset.Content = $"{value:0.0} s";
+        var value = delta == 0 ? 0 : Math.Round((_mpv?.Number("sub-delay") ?? 0) + delta, 1);
+        _mpv?.Set("sub-delay", value.ToString(CultureInfo.InvariantCulture)); SubtitleDelayReset.Content = DelayLabel(value);
+        ShowPlayerControls();
     }
 }

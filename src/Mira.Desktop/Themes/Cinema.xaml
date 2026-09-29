@@ -27,6 +27,32 @@
   <Style x:Key="PlayerButton" TargetType="Button" BasedOn="{StaticResource IconButton}"><Setter Property="Width" Value="44"/><Setter Property="Height" Value="44"/><Setter Property="BorderThickness" Value="0"/><Setter Property="v:Motion.Radius" Value="22"/></Style>
   <!-- Floating action over the video (skip opening, next episode). -->
   <Style x:Key="PlayerPill" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="Background" Value="#E0151517"/><Setter Property="BorderBrush" Value="#5CFFFFFF"/><Setter Property="Foreground" Value="White"/><Setter Property="Padding" Value="20,12,17,12"/><Setter Property="FontSize" Value="14"/><Setter Property="v:Motion.Radius" Value="9"/></Style>
+  <!-- Bottom bar of the player: compact round icon buttons in one row. -->
+  <Style x:Key="PlayerBarButton" TargetType="Button" BasedOn="{StaticResource PlayerButton}"><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="v:Motion.Radius" Value="20"/></Style>
+  <!-- Rows, chips and headings of the player menus (audio, subtitles, speed). -->
+  <Style x:Key="PlayerMenuItem" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="Foreground" Value="#D9D9DE"/><Setter Property="BorderThickness" Value="0"/><Setter Property="MinHeight" Value="34"/><Setter Property="v:Motion.Radius" Value="6"/></Style>
+  <Style x:Key="PlayerMenuChip" TargetType="Button" BasedOn="{StaticResource PlayerMenuItem}"><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="Padding" Value="0,7"/><Setter Property="FontSize" Value="12.5"/><Setter Property="Margin" Value="2,0"/><Setter Property="MinHeight" Value="32"/></Style>
+  <!-- Track and speed choices are radio buttons: screen readers announce which one is selected. -->
+  <Style x:Key="PlayerMenuChoice" TargetType="RadioButton"><Setter Property="Foreground" Value="#C9C9CF"/><Setter Property="FontSize" Value="13"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="Padding" Value="10,8"/><Setter Property="MinHeight" Value="34"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><Border x:Name="Chrome" Background="Transparent" CornerRadius="6"><Grid>
+      <Border x:Name="Hover" Background="{TemplateBinding Foreground}" Opacity="0" CornerRadius="6" IsHitTestVisible="False"/>
+      <DockPanel Margin="{TemplateBinding Padding}"><v:Icon x:Name="Check" Kind="check" Width="15" Height="15" Margin="1,0,11,0" Foreground="White" Visibility="Hidden" VerticalAlignment="Center"/><ContentPresenter VerticalAlignment="Center"/></DockPanel>
+    </Grid></Border><ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Hover" Property="Opacity" Value="0.11"/></Trigger>
+      <Trigger Property="IsPressed" Value="True"><Setter TargetName="Hover" Property="Opacity" Value="0.19"/></Trigger>
+      <Trigger Property="IsChecked" Value="True"><Setter TargetName="Check" Property="Visibility" Value="Visible"/><Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
+    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PlayerSpeedChoice" TargetType="RadioButton"><Setter Property="Foreground" Value="#D9D9DE"/><Setter Property="FontSize" Value="12.5"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="Margin" Value="2,0"/><Setter Property="MinHeight" Value="32"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><Border x:Name="Chrome" Background="Transparent" CornerRadius="6"><Grid>
+      <Border x:Name="Hover" Background="{TemplateBinding Foreground}" Opacity="0" CornerRadius="6" IsHitTestVisible="False"/>
+      <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,7"/>
+    </Grid></Border><ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Hover" Property="Opacity" Value="0.11"/></Trigger>
+      <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#111113"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
+    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PlayerMenuHeading" TargetType="TextBlock"><Setter Property="FontSize" Value="11"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="#8E8E97"/><Setter Property="Margin" Value="10,6,10,8"/></Style>
   <Style x:Key="MiniTabButton" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="Width" Value="28"/><Setter Property="Height" Value="84"/><Setter Property="Padding" Value="0"/><Setter Property="Background" Value="#F01C1C20"/><Setter Property="BorderBrush" Value="#38FFFFFF"/><Setter Property="BorderThickness" Value="1,1,0,1"/><Setter Property="v:Motion.Radius" Value="12,0,0,12"/></Style>
   <Style x:Key="RailButton" TargetType="Button" BasedOn="{StaticResource IconButton}"><Setter Property="Width" Value="48"/><Setter Property="Height" Value="46"/><Setter Property="Margin" Value="0,4"/><Setter Property="Padding" Value="0"/><Setter Property="v:Motion.Radius" Value="15"/><Setter Property="Foreground" Value="#D6D6D8"/></Style>
   <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="Padding" Value="17,13"/><Setter Property="Margin" Value="0,3"/></Style>

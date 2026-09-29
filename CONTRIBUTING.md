@@ -35,4 +35,18 @@ Utiliser un profil `--data` séparé et des médias de test. Ne pas inclure de d
 
 Les fichiers de release sont produits dans `dist/packages`, depuis des dossiers neufs, sans toucher au profil d’une installation locale : archive, exécutable portable et, si [Inno Setup 6](https://jrsoftware.org/isinfo.php) est installé (ou indiqué par `-Iscc`), l’installateur décrit par `installer/Mira.iss`. Aucun ne contient libmpv. Le script de captures génère un profil temporaire et exporte les vues publiques dans `docs/screenshots`.
 
+### Signature des mises à jour
+
+Les copies installées ne se mettent à jour que depuis une release qui publie `mira-update.json` et `mira-update.json.sig`, signés par une clé listée dans `UpdateKeys.Trusted` (`src/Mira.Core/Updates/UpdateManifest.cs`). `package.ps1` les écrit dans `dist/packages` quand la clé est sur le PC ; il faut ensuite les joindre à la release avec les trois fichiers.
+
+```powershell
+dotnet run --project tools/Mira.Release -c Release -- keygen                        # une seule fois : crée la clé, affiche la clé publique
+dotnet run --project tools/Mira.Release -c Release -- export-backup --out E:\mira-signing-backup.pem   # copie de secours protégée par une phrase secrète
+dotnet run --project tools/Mira.Release -c Release -- import-backup --in E:\mira-signing-backup.pem    # sur un nouveau PC ou compte Windows
+```
+
+La clé reste chiffrée par Windows pour le compte courant dans `%APPDATA%\Mira Release\update-signing.key`, hors du dépôt ; ne jamais la committer ni la partager. Tout programme lancé sous ce compte Windows peut s’en servir : un compte réservé aux releases limite ce risque. Sans elle, les nouvelles releases ne sont pas proposées aux copies installées. Pour changer de clé, ajouter la nouvelle clé publique à `UpdateKeys.Trusted` dans une release encore signée par l’ancienne.
+
+Les copies installées interrogent `api.github.com/repos/sasou-web/Mira/releases`. En cas de renommage ou de transfert du dépôt, GitHub redirige cette adresse et les téléchargements, que Mira suit ; ne pas recréer ensuite un dépôt sous l’ancien nom, qui prendrait la place de la redirection. `./tools/update-check.ps1` vérifie de bout en bout l’archive, l’exécutable portable et l’installateur, avec un flux local et une clé d’essai ; il rend ensuite le raccourci Démarrer à la copie qu’il désignait.
+
 L’[architecture](docs/ARCHITECTURE.md) décrit le rendu natif mpv, les couches Windows et l’envoi de progression. Le code original est sous [licence MIT](LICENSE) ; les composants tiers conservent leurs licences.

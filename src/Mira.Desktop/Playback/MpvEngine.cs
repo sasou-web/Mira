@@ -6,6 +6,8 @@ using Mira.Core;
 
 namespace Mira.Desktop.Playback;
 
+/// <summary>An audio or subtitle track: mpv id, "audio" or "sub", its menu name and details (codec, channels…).</summary>
+public sealed record MpvTrack(string Id, string Type, string Label, string Details);
 public sealed class MpvEngine : IDisposable
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate IntPtr CreateFn();
@@ -123,16 +125,20 @@ public sealed class MpvEngine : IDisposable
             }
         }
     }
-    public List<(string Id, string Label, string Type)> Tracks()
+    /// <summary>Audio and subtitle tracks, named for the menu: title or language first, then codec and channels.</summary>
+    public List<MpvTrack> Tracks()
     {
         try
         {
             using var doc = JsonDocument.Parse(Get("track-list") ?? "[]");
             return doc.RootElement.EnumerateArray().Where(t => t.GetProperty("type").GetString() is "audio" or "sub").Select(t =>
             {
-                string Read(string name) => t.TryGetProperty(name, out var v) ? v.ToString() : "";
-                var id = Read("id"); var label = string.Join(" · ", new[] { Read("title"), Read("lang"), Read("codec") }.Where(s => s.Length > 0));
-                return (id, string.IsNullOrEmpty(label) ? $"Piste {id}" : label, Read("type"));
+                string Read(string name) => t.TryGetProperty(name, out var v) && v.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? v.ToString() : "";
+                bool Flag(string name) => t.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+                var channels = t.TryGetProperty("demux-channel-count", out var count) && count.TryGetInt32(out var value) ? value : 0;
+                var id = Read("id"); var type = Read("type");
+                var (label, details) = PlayerText.Track(id, Read("title"), Read("lang"), Read("codec"), type == "audio" ? channels : 0, Flag("forced"), Flag("external"));
+                return new MpvTrack(id, type, label, details);
             }).ToList();
         }
         catch (JsonException) { return []; }

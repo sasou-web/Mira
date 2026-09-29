@@ -8,7 +8,7 @@
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>Mira</AssemblyName>
-    <Version>0.5.1</Version>
+    <Version>0.5.2</Version>
     <Product>Mira</Product>
     <Title>Mira</Title>
     <Description>Ta bibliothèque Jellyfin avec mpv intégré</Description>
@@ -32,6 +32,7 @@
     <!-- Copies a single-file Mira.exe writes into its profile; the folder distribution uses the files beside Mira.exe. -->
     <EmbeddedResource Include="mira-input.conf" LogicalName="Mira.App/mira-input.conf" />
     <EmbeddedResource Include="Assets/mira.ico" LogicalName="Mira.App/mira-mark-v1.ico" />
+    <InternalsVisibleTo Include="Mira.Tests" />
     <ProjectReference Include="../Mira.Core/Mira.Core.csproj" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />

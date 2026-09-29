@@ -1,4 +1,4 @@
-# Architecture de Mira 0.5.1
+# Architecture de Mira 0.5.2
 
 ## Découpage
 
@@ -10,11 +10,11 @@ Mira.Desktop (WPF)
   │   ├─ Carousel : progression et fondu du bandeau d’accueil
   │   ├─ Preview : survol intégré suivi pendant le défilement et préchargement
   │   ├─ Recency : activité récente et mise en tête de la reprise après lecture
-  │   ├─ PlayerControls : surimpression, masquage, raccourcis et menus
+  │   ├─ PlayerControls : barre de lecture, masquage, raccourcis, volume et menus ancrés à leur bouton
   │   ├─ MiniPlayer : glisser, aimantation aux coins, rangement derrière la languette
   │   ├─ PlayerSegments : chapitres, passages à sauter et épisode suivant
   │   ├─ Settings : préférences et sections de réglages
-  │   └─ TorLink : page TorLink, surveillance des téléchargements terminés, liste « Vers Jellyfin »
+  │   ├─ TorLink : page TorLink, surveillance des téléchargements terminés, liste « Vers Jellyfin »
   ├─ Themes/Cinema.xaml : composants, couleurs, focus et contrôles sombres
   ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions et défilement progressif
   ├─ Playback/MpvEngine : API C libmpv, rendu dans un HWND enfant
@@ -23,7 +23,7 @@ Mira.Desktop (WPF)
   ├─ Playback/PlayerOverlay : couche native de commandes et réception de la souris
   ├─ Playback/VideoHost : surface native de la vidéo
   ├─ TorLink : pseudo-console Windows, installation TorLink, terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
-  └─ Services : images, partage des requêtes de métadonnées, session DPAPI et préférences
+  └─ Services : images, partage des requêtes de métadonnées, session DPAPI, préférences, mises à jour (Updater, UpdateApplier)
           │
 Mira.Core
   ├─ JellyfinClient : requêtes HTTP, métadonnées, lecture et WebSocket
@@ -33,7 +33,7 @@ Mira.Core
   ├─ PlaybackMarkers : segments Jellyfin, titres de chapitres et passage actif
   ├─ ArtworkPalette : couleur dominante lisible du bandeau
   ├─ SyncService : livraison ordonnée, coalescence et reprise après erreur
-  └─ TorLink : état TorLink, lecture des .torrent, noms de sortie, plan de rangement, importeur et journal
+  ├─ TorLink : état TorLink, lecture des .torrent, noms de sortie, plan de rangement, importeur et journal
 ```
 
 Une application native C# / WPF permet de compiler et de livrer immédiatement sur le PC Windows équipé de .NET. libmpv est appelé directement par son API C ; aucun terminal, processus mpv externe ou lecteur HTML n’est utilisé pour la vidéo. Le rendu dispose de sa propre surface native. Une surface HwndSource transparente, possédée par la fenêtre et non activable, superpose les commandes au HWND vidéo. Elle reste ouverte lorsque les panneaux s'effacent : le fond d'alpha 1/255 conserve la réception de la souris, et WPF gère son curseur. Elle se ferme à la désactivation et à l'arrêt. Elle n'utilise pas Popup pour cette grande surface : WPF limite les Popup à 75 % de l'aire du moniteur. Seuls les menus de réglages restent des Popup. La source est créée masquée, puis montrée sans activation pour éviter un transfert de focus et une boucle de fermeture/réouverture.
@@ -105,6 +105,8 @@ Les raccourcis du lecteur sont lus en phase de tunneling (`PreviewKeyDown`) sur 
 
 La barre de progression (`Views/Timeline`) reçoit la position de mpv toutes les 100 ms, puis l’extrapole à chaque image selon la vitesse de lecture ; un relevé proche est fondu plutôt qu’appliqué d’un coup, et la position demandée par un saut est conservée tant que mpv rapporte encore l’ancienne. Le dessin n’est pas aligné sur les pixels, ce qui rend le mouvement continu. Toute la hauteur du contrôle est une zone de clic ; l’appui saute au point visé et capture la souris pour le glisser, avec des sauts « keyframes » limités à un toutes les 90 ms et un saut exact au relâchement.
 
+Les chapitres découpent la ligne en segments séparés de 3 unités : chaque segment est découpé par un rectangle arrondi, puis rempli (reste, mémoire tampon, survol, lu) ; le bord lu reste droit à l’intérieur d’un segment. Deux chapitres trop proches pour un espace se fondent. Au survol, le segment visé s’épaissit plus que les autres et le curseur rond n’apparaît que pendant le survol ou le glisser. La barre du bas suit une grille unique : titre et ligne d’épisode (`PlayerText.Subtitle`, complétée par la liste des épisodes de la série déjà demandée pour l’épisode suivant), chapitre et temps, ligne de progression, puis deux groupes de boutons dont la rangée déborde des marges de la largeur de leur fond, pour aligner les glyphes sur le texte. Les ombres dégradées ne reçoivent pas les clics : un clic sous elles met en pause comme ailleurs sur la vidéo. Les deux menus partagent un seul `Popup`, placé au-dessus du bouton qui l’a ouvert et aligné sur son bord droit.
+
 Les passages proviennent d’abord de `/MediaSegments/{id}` (Jellyfin 10.10+), puis des titres de chapitres du fichier lus par mpv, ou de Jellyfin à défaut. Les chapitres nommés « Opening », « OP », « Ending », « ED », « Générique de fin », « Preview »… deviennent des passages ; un « Générique » seul dépend de sa position et l’« avant-générique » n’est jamais sauté. Un passage d’ouverture, de récap ou d’aperçu de plus de 6 minutes est ignoré.
 
 Chaque mise à jour d’une fenêtre transparente WPF recopie toute sa surface. Un mouvement de souris ne fait donc que noter l’activité : la découpe arrondie n’est reconstruite que si la taille ou le rayon change, et `SetWindowPos` n’est appelé que si le rectangle change. Les changements de disposition (taille, déplacement, mini-lecteur, plein écran) repositionnent eux-mêmes la couche. La barre de progression ne se redessine qu’au-delà de 0,4 pixel physique de déplacement.
@@ -144,7 +146,7 @@ Le mot de passe ne sert qu’à l’authentification. Le jeton est chiffré par 
 
 La lecture directe d’un chemin local est utilisée uniquement si le serveur est une adresse de boucle locale, si Jellyfin décrit la source comme un fichier et si ce fichier est accessible. Sinon, le lecteur utilise le flux original fourni par Jellyfin. La conversion vidéo n’est pas implémentée dans cette version.
 
-Les choix de pistes, paramètres avancés et sources multiples devront à terme être réunis dans un contrôleur de lecture distinct des événements de fenêtre. Les migrations de base, une limite de taille du cache, un mécanisme de mise à jour signé et une abstraction de vues plus complète font partie des étapes suivantes avant une diffusion large.
+Les choix de pistes, paramètres avancés et sources multiples devront à terme être réunis dans un contrôleur de lecture distinct des événements de fenêtre. Les migrations de base, une limite de taille du cache et une abstraction de vues plus complète font partie des étapes suivantes avant une diffusion large.
 
 ## Distribution
 
@@ -154,4 +156,15 @@ Les choix de pistes, paramètres avancés et sources multiples devront à terme 
 - `Mira-<version>-win-x64-portable.exe` : une publication en un seul fichier (`PublishSingleFile`, assemblages compressés, bibliothèques natives extraites par .NET au premier lancement). Rien n’y dépend de fichiers voisins : la page TorLink vient des ressources, et `AppFiles` écrit dans `data/app` les liaisons clavier de mpv et l’icône Windows intégrées. Le dossier `data` reste à côté de l’exécutable.
 - `Mira-<version>-win-x64-setup.exe` : l’installateur Inno Setup 6 (`installer/Mira.iss`) du dossier de l’application, pour l’utilisateur courant et sans droits administrateur, dans `%LOCALAPPDATA%\Programs\Mira`. Mira y écrit lui-même son raccourci Démarrer (`--register-windows`). Une mise à jour ferme Mira par le Restart Manager et garde `data` ; la désinstallation retire les raccourcis et l’identité Windows seulement s’ils désignent cette installation, et demande avant de supprimer `data`.
 
-Aucun de ces fichiers n’est encore signé.
+Aucun de ces fichiers n’est encore signé. Quand la clé de signature des mises à jour est sur le PC, `package.ps1` écrit aussi `mira-update.json` (version, nom, taille et SHA-256 de chaque fichier) et sa signature `mira-update.json.sig`, par `tools/Mira.Release`.
+
+## Mises à jour
+
+`Updater` (Mira.Desktop) reconnaît la forme de la copie : installateur si `unins*.exe` et `unins*.dat` d’Inno Setup sont à côté de `Mira.exe`, exécutable portable si `Mira.dll` n’y est pas (publication en un seul fichier), dossier sinon ; une sortie `bin\Debug` ou `bin\Release` n’est jamais mise à jour, ni un profil de validation, sauf flux de test local. Vingt secondes après l’ouverture puis toutes les 6 heures (1 heure après un échec), `UpdateClient` (Mira.Core) lit `GET /repos/sasou-web/Mira/releases`, écarte les brouillons et les balises autres que `vX.Y.Z`, et prend la plus haute version supérieure à la sienne qui publie `mira-update.json`. Le manifeste et sa signature (64 octets, ECDSA P-256 sur SHA-256, en base64) sont téléchargés avec une limite de taille, puis vérifiés avec les clés de `UpdateKeys.Trusted` ; la version du manifeste doit être celle de la release, et le fichier de la forme de la copie doit y figurer avec la même taille que dans la release. Toutes les requêtes passent en HTTPS vers `api.github.com`, les téléchargements de release de `github.com` et les serveurs de fichiers `release-assets.githubusercontent.com` et `objects.githubusercontent.com` : les redirections sont suivies à la main, chacune vérifiée avant d’être contactée. Un JSON d’une forme inattendue devient une erreur de mise à jour, jamais une exception de l’application. Le client ne revient pas sur le fil de l’interface pendant le téléchargement ; il écrit un `.partial`, calcule le SHA-256 au fil de l’eau, abandonne un transfert muet pendant 60 s et reprend un `.partial` interrompu par une requête `Range`.
+
+Le fichier attend dans `data/updates/<version>`, seule version gardée ; l’archive y est décompressée une fois (`app/Mira`), et la version de l’exécutable ou de l’installateur doit être celle annoncée. À la fermeture de Mira, après l’arrêt de la lecture, de TorLink et de la synchronisation, ou tout de suite avec **Redémarrer** (vérification faite avant de fermer, hors du fil de l’interface), `Apply` vérifie de nouveau le téléchargement (pour une archive : le zip, puis chaque fichier décompressé par sa taille), note la tentative dans `data/updates/pending.json`, puis :
+
+- installateur : lance `setup.exe /VERYSILENT` (ou `/SILENT` avec redémarrage) `/SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS`, qui reprend le dossier de l’installation et tient le `SetupMutex` `MiraSetup`. Avec `/RELAUNCH=1`, `DeinitializeSetup` de `installer/Mira.iss` rouvre Mira quand Setup se termine, installé ou non (Inno Setup restaure les fichiers d’un Setup en échec ou annulé) ;
+- portable et dossier : lance la nouvelle version avec `--apply-update portable|folder --target … --wait <pid> --from <version> --version <version>`. `UpdateApplier` n’ouvre ni fenêtre ni profil ; il tient le verrou `Local\Mira-Update-<clé du profil>`, refuse une cible qui n’est pas Mira, attend la fin de l’ancien processus, puis remplace l’exécutable par `File.Replace` (sans marque de téléchargement), ou met à jour le dossier en deux temps : chaque nouveau fichier est d’abord copié à côté de sa destination (`.mira-new`), sans toucher à la copie installée, puis chaque ancien fichier part dans `data/updates/rollback-…` et le nouveau prend son nom. Au premier échec, les anciens reviennent (avec les mêmes nouvelles tentatives) ; ceux qui ne le peuvent pas sont listés dans `INCOMPLETE.txt` et la copie de retour arrière est gardée. Le dossier `data` n’est jamais copié ni modifié. Avec `--relaunch`, et seulement pour une cible reconnue, Mira rouvre avec `--updated-from`.
+
+Au démarrage, Mira attend (30 s au plus) la fin d’un de ces verrous avant de prendre son verrou d’instance, puis lit `pending.json` : version atteinte, l’enregistrement disparaît et Mira annonce la nouvelle version ; sinon l’échec est annoncé une fois et compté. Après deux échecs d’une même version, elle n’est plus installée à la fermeture, seulement par **Redémarrer**. Si « Redémarrer » ne peut rien lancer, Mira se relance lui-même (`--after <pid>`). Aucune installation ne démarre pendant l’arrêt de Windows. La nouvelle version efface ensuite les téléchargements des versions installées, les copies de retour arrière complètes et les `.mira-new` d’une mise à jour interrompue. `tools/update-check.ps1` rejoue ces trois chemins de bout en bout avec un flux local (`Mira.Tests --update-server`) et une clé d’essai, passée par `--update-key` : les options `--update-feed` et `--update-key` ne sont lues qu’avec un profil `--data` et une adresse de boucle locale.

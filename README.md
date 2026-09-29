@@ -23,9 +23,10 @@ Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau ce
 
 - **Une bibliothèque visuelle** : bandeau panoramique, couleur adaptée à l’image, recherche, filtres, favoris et fiches avec saisons et épisodes.
 - **Une navigation soignée** : typographie embarquée, icônes arrondies, défilement progressif, survol continu et préférence de réduction des animations.
-- **Un lecteur intégré** : plein écran, mini-lecteur déplaçable, choix des pistes, sous-titres, vitesse, chapitres et passage à l’épisode suivant.
+- **Un lecteur intégré** : barre de lecture épurée découpée par chapitres, plein écran, mini-lecteur déplaçable, pistes audio et sous-titres, vitesse et passage à l’épisode suivant.
 - **Une reprise fiable** : dernière lecture à gauche, progression locale, statut vu, file d’envoi persistante et reprise de synchronisation après coupure.
 - **Une place dans Windows** : logo et raccourci Démarrer, icône de notification, commandes dans l’aperçu de la barre des tâches et session multimédia système.
+- **Toujours à jour** (à partir de la 0.5.2) : chaque nouvelle version est téléchargée en arrière-plan, vérifiée (signature, SHA-256) et installée à la fermeture de Mira, sans toucher à tes données.
 - **TorLink intégré, si tu l’utilises** : son interface s’ouvre dans une page de Mira et chaque téléchargement terminé est rangé dans les dossiers de Jellyfin, nommé comme il l’attend. TorLink s’installe à part ; Mira ne fournit ni sources ni contenus.
 
 <table>
@@ -69,9 +70,10 @@ dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .arti
 ```
 
 ```powershell
-./tools/package.ps1          # Archive, exécutable portable et installateur (Inno Setup 6) + empreintes SHA-256
+./tools/package.ps1          # Archive, exécutable portable, installateur (Inno Setup 6), empreintes et manifeste signé
 ./tools/capture-gallery.ps1  # Captures avec un profil fictif isolé
 ./tools/torlink-check.ps1    # TorLink réel dans Mira, état et bibliothèque isolés
+./tools/update-check.ps1     # Mises à jour de bout en bout : archive, portable et installateur, flux local et clé d’essai
 ```
 
 | Dossier | Rôle |
@@ -86,7 +88,7 @@ La compilation et les tests de base sont lancés sur Windows dans GitHub Actions
 
 ## État du projet
 
-Mira **0.5.1** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. La compatibilité avec toutes les versions de Jellyfin n’est pas garantie. Les mises à jour sont manuelles.
+Mira **0.5.1** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. La compatibilité avec toutes les versions de Jellyfin n’est pas garantie. Les mises à jour deviennent automatiques avec la 0.5.2 ; depuis une version plus ancienne, cette version s’installe une fois à la main.
 
 - [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md) et [validation](docs/VALIDATION.md)

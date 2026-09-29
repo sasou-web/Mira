@@ -77,7 +77,8 @@ public partial class MainWindow
             var finished = item.UserData.Played || item.Progress >= LibraryStore.WatchedThreshold;
             _position = _demo || !_settings.RememberPosition || finished ? 0 : TimeSpan.FromTicks(item.UserData.PlaybackPositionTicks).TotalSeconds;
             _duration = TimeSpan.FromTicks(item.RunTimeTicks ?? 0).TotalSeconds;
-            PlayingTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : item.Subtitle;
+            // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
+            PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
             DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
             LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
             NavigationRail.Visibility = Visibility.Collapsed;
@@ -149,9 +150,9 @@ public partial class MainWindow
         {
             UpdatePlayerControls(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
             _position = ReportedPosition(_mpv.Number("time-pos", _position)); _duration = _mpv.Number("duration", _duration);
-            var paused = _mpv.Flag("pause"); Motion.Swap(PauseIcon, paused ? "play" : "pause");
+            var paused = _mpv.Flag("pause"); ShowPauseState(paused);
             // The timeline interpolates between these polls on every frame.
-            if (!_seeking) { SeekBar.SetPlayback(_position, _duration, !paused, _mpv.Number("speed", 1)); PositionText.Text = TimeLabel(_position); }
+            if (!_seeking) { SeekBar.SetPlayback(_position, _duration, !paused, _mpv.Number("speed", 1)); PositionText.Text = TimeLabel(_position); UpdateChapterText(_position); }
             SeekBar.SetBuffered(_mpv.Number("demuxer-cache-time", 0)); DurationText.Text = TimeLabel(_duration);
             var changed = paused != _paused; _paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
@@ -236,11 +237,17 @@ public partial class MainWindow
         if (_mpv is not null) { _settings.Volume = _mpv.Number("volume", _settings.Volume); _mpv.Dispose(); _mpv = null; }
         if (hadPlayback && !_closing) RenderAfterUserDataChange();
     }
-    private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false)
+    private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false) => (await EpisodeContextAsync(current, quiet)).Next;
+    /// <summary>The episode after <paramref name="current"/> and every episode of its series (for "Épisode 3 / 12").</summary>
+    private async Task<(MediaItem? Next, List<MediaItem> Episodes)> EpisodeContextAsync(MediaItem current, bool quiet = false)
     {
-        if (_client is null || current.SeriesId is null) return null;
-        try { var episodes = await _client.EpisodesAsync(current.SeriesId); var index = episodes.Items.FindIndex(x => x.Id == current.Id); return index >= 0 ? episodes.Items.ElementAtOrDefault(index + 1) : null; }
-        catch (Exception ex) when (IsExpected(ex)) { if (!quiet) SetNotice(Friendly(ex)); return null; }
+        if (_client is null || current.SeriesId is null) return (null, []);
+        try
+        {
+            var episodes = await _client.EpisodesAsync(current.SeriesId); var index = episodes.Items.FindIndex(x => x.Id == current.Id);
+            return (index >= 0 ? episodes.Items.ElementAtOrDefault(index + 1) : null, episodes.Items);
+        }
+        catch (Exception ex) when (IsExpected(ex)) { if (!quiet) SetNotice(Friendly(ex)); return (null, []); }
     }
     private async void Next_Click(object sender, RoutedEventArgs e)
     {
@@ -254,7 +261,7 @@ public partial class MainWindow
         if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement();
         PlayerShell.Visibility = Visibility.Collapsed; LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Visible;
         TitleBar.Visibility = Visibility.Visible;
-        Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock();
+        Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
     }
     private MediaItem? _returnToDetail;
     /// <summary>Playback started from a title page comes back to that page, with progress and watched marks refreshed.</summary>
@@ -270,13 +277,18 @@ public partial class MainWindow
         var pause = !_mpv.Flag("pause");
         _mpv.Set("pause", pause ? "yes" : "no");
         // Swap the glyph now rather than at the next poll, so the press and the new icon are one movement.
-        Motion.Swap(PauseIcon, pause ? "play" : "pause");
+        ShowPauseState(pause);
         SeekBar.SetPlayback(_position, _duration, !pause, _mpv.Number("speed", 1));
         UpdateWindowsPlayback();
         ShowPlayerControls();
     }
-    private void SeekBack_Click(object sender, RoutedEventArgs e) => SeekRelative(-10);
-    private void SeekForward_Click(object sender, RoutedEventArgs e) => SeekRelative(10);
+    /// <summary>The button shows what a press does: play while paused, pause while playing.</summary>
+    private void ShowPauseState(bool paused)
+    {
+        Motion.Swap(PauseIcon, paused ? "play" : "pause");
+        var label = paused ? "Lecture · Espace" : "Pause · Espace";
+        if (!Equals(PauseButton.ToolTip, label)) { PauseButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(PauseButton, paused ? "Lecture" : "Pause"); }
+    }
     private void SeekRelative(double seconds)
     {
         if (_mpv is null || !_loaded) return;
@@ -357,7 +369,7 @@ public partial class MainWindow
         UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll);
         _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
         await StopPlaybackAsync(); await StopTorLinkAsync(); _profile.SaveSettings(_settings); await DisconnectServicesAsync();
-        _videoHost?.Dispose(); _ = Dispatcher.BeginInvoke(Close);
+        _videoHost?.Dispose(); ApplyUpdateAtClose(); _ = Dispatcher.BeginInvoke(Close);
     }
     private static string TimeLabel(double seconds) { var time = TimeSpan.FromSeconds(Math.Max(0, double.IsFinite(seconds) ? seconds : 0)); return time.TotalHours >= 1 ? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}" : $"{(int)time.TotalMinutes}:{time.Seconds:00}"; }
 }

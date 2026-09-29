@@ -1,6 +1,6 @@
 # Mira
 
-Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vidéos avec **mpv intégré**. Version de développement : **0.5.1**.
+Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vidéos avec **mpv intégré**. Version de développement : **0.5.2**.
 
 ## Démarrer
 
@@ -30,17 +30,20 @@ Le moteur déjà installé avec Jellyfin MPV Shim ou mpv.net est détecté autom
 - Filtres par genre, année, progression et bibliothèque ; tri par ajout, titre, année ou note sur l’ensemble du catalogue.
 - Fiches avec sélection de saison et vignettes d’épisodes. La fiche et le favori de l’accueil ciblent la série ; le bouton de lecture indique l’épisode choisi par Jellyfin (« Reprendre · S01 E07 »), marqué « À suivre » dans la liste. Après une lecture lancée depuis une fiche, on revient sur cette fiche, progression et « ✓ Vu » à jour.
 - Une fin naturelle, un arrêt au-delà de 90 % ou le passage à l’épisode suivant depuis le générique marque le titre comme vu et efface sa reprise. L’arrêt et le marquage sont enregistrés ensemble, puis livrés dans l’ordre à Jellyfin ; le statut reste visible hors connexion. Passer au suivant en milieu d’épisode conserve la progression.
-- Réglages répartis entre lecture, audio/sous-titres, apparence et serveur, avec aperçu des sous-titres et préférences de densité. Ils sont enregistrés automatiquement en quittant l’écran.
+- Réglages répartis entre lecture, audio/sous-titres, apparence, serveur, TorLink et mises à jour, avec aperçu des sous-titres et préférences de densité. Ils sont enregistrés automatiquement en quittant l’écran.
+- Mises à jour automatiques : Mira cherche une nouvelle version à l’ouverture puis toutes les 6 heures, la télécharge et la vérifie (signature de Mira, taille, SHA-256), puis l’installe à la fermeture ; **Redémarrer** l’installe tout de suite. **Réglages → Mises à jour** montre l’état, lance une recherche et désactive la recherche automatique. Le dossier `data` n’est jamais modifié.
 - Navigation au clavier et à la souris : **Ctrl + K** ou **Ctrl + F** pour chercher, **Échap** efface la recherche puis revient en arrière, **Alt + ←** et le bouton « précédent » de la souris ferment la fiche, les réglages ou l’écran de compte. Le focus entre dans la fiche ouverte et revient sur l’affiche à la fermeture. **Entrée** valide la connexion.
 - Recherche différée de 250 ms, annulation des anciennes requêtes, pagination par 60 titres.
 - Cache SQLite de la bibliothèque et cache d’images sur disque, séparés par serveur et compte.
-- Lecture mpv avec commandes et curseur masqués après 2,6 s sans interaction (4 s en pause), puis réaffichés au mouvement de la souris : pause, déplacement, volume, plein écran, pistes audio, sous-titres, vitesse et décalage.
+- Lecture mpv avec commandes et curseur masqués après 2,6 s sans interaction (4 s en pause), puis réaffichés au mouvement de la souris.
+- Barre de lecture : titre et ligne d’épisode (« Épisode 3 / 12 · nom », avec la saison si la série en compte plusieurs) à gauche, chapitre en cours et temps à droite. Dessous : lecture / pause, épisode suivant et volume à gauche ; **⋮** (vitesse, décalage des sous-titres, informations), audio et sous-titres, mini-lecteur et plein écran à droite. Le curseur de volume sort du haut-parleur au survol, ou un instant après ↑ / ↓.
+- Menu audio et sous-titres en deux colonnes, la piste en cours cochée, avec sa langue, son codec et ses canaux ; « Désactivés » et « Charger un fichier… » pour les sous-titres. Le menu reste ouvert pour choisir l’autre piste ; Échap le ferme.
 - Captures d’écran propres : les commandes du lecteur sont exclues des captures Windows (Win + Maj + S, Impr. écran, Game Bar) à partir de Windows 10 2004. Elles le sont aussi des enregistrements et partages d’écran.
 - Barre de progression fluide : position interpolée à chaque image, toute la hauteur est cliquable, un appui saute au point visé et se prolonge en glisser, avec l’image qui suit. Le survol affiche le temps et le chapitre visés.
-- Chapitres du fichier (ou de Jellyfin) sous forme de points sur la barre. Passages « Passer l’opening », « Passer l’ending », récap et aperçu en bas à droite, d’après les segments Jellyfin (10.10+ : serveur ou extension comme Intro Skipper) ou les titres de chapitres. « Épisode suivant » apparaît pendant le générique final, ou dans les 20 dernières secondes.
+- Chapitres du fichier (ou de Jellyfin) : la barre est découpée en segments, celui sous le pointeur s’épaissit, et le chapitre en cours est nommé au-dessus du temps. Passages « Passer l’opening », « Passer l’ending », récap et aperçu en bas à droite, d’après les segments Jellyfin (10.10+ : serveur ou extension comme Intro Skipper) ou les titres de chapitres. « Épisode suivant » apparaît pendant le générique final, ou dans les 20 dernières secondes.
 - Avec « Enchaîner les épisodes », le bouton affiche un compte à rebours de 10 secondes (en temps de lecture, donc suspendu en pause) ; « Annuler » reste sur l’épisode et désactive l’enchaînement pour cette fin.
 - Ouverture d’une vidéo signalée tout de suite (curseur occupé, indicateur jusqu’à la première image). Les commandes réagissent immédiatement : l’icône lecture / pause change au clic, le survol des boutons est un seul mouvement.
-- Bouton épisode suivant à droite de la barre, avec les réglages. Le lecteur agrandi n’a plus de bouton « arrêter » : la flèche en haut à gauche ramène à la bibliothèque sans couper la vidéo.
+- Bouton épisode suivant juste après lecture / pause, pour les épisodes. Le lecteur agrandi n’a pas de bouton « arrêter » : la flèche en haut à gauche ramène à la bibliothèque sans couper la vidéo.
 - Mini-lecteur dans la bibliothèque sans redémarrage de la vidéo : coins arrondis, ombre, commandes au survol. Il se déplace à la souris et se range dans le coin le plus proche ; poussé au-delà du bord droit, il se replie derrière une languette qu’un clic ou une traction ramène. Le mode plein écran ou mini est conservé lors du passage au titre suivant.
 - Sous-titres externes, langues préférées, taille des sous-titres, décodage matériel et épisode suivant.
 - Progression enregistrée localement puis envoyée à Jellyfin toutes les 3 secondes et sur les changements de lecture. Une réponse lente ne bloque pas cette sauvegarde, et l’écriture sur disque se fait hors de l’interface pour ne pas saccader la lecture.

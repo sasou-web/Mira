@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Mira.Core;
+using Mira.Core.Updates;
 using Mira.Desktop.Services;
 using Mira.Desktop.Playback;
 
@@ -32,6 +34,44 @@ if (Array.IndexOf(args, "--jellyfin-live") is var liveArg and >= 0)
         ? Directory.EnumerateFiles(films, "*", SearchOption.AllDirectories).Where(ReleaseName.IsVideo).OrderByDescending(File.GetCreationTimeUtc).FirstOrDefault() : null;
     Console.WriteLine(newest is null ? "Aucune vidéo de film à rechercher." : (await client.FindIndexedAsync([newest])).Count > 0
         ? "La vidéo de film la plus récente est retrouvée dans Jellyfin par son chemin exact." : "La vidéo de film la plus récente n’est pas parmi les 100 derniers ajouts indexés.");
+    return;
+}
+// Loopback stand-in for GitHub's release list, for tools/update-check.ps1: serves the files of one folder as release v<version>.
+//   Mira.Tests --update-server <folder> <port> <version>     (stops after 15 minutes, or when killed)
+if (Array.IndexOf(args, "--update-server") is var serverArg and >= 0)
+{
+    var folder = Path.GetFullPath(args[serverArg + 1]); var port = int.Parse(args[serverArg + 2]); var version = args[serverArg + 3];
+    var origin = $"http://127.0.0.1:{port}";
+    var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, port); listener.Start();
+    Console.WriteLine($"Flux de mises à jour sur {origin}/releases pour {folder}");
+    using var lifetime = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+    while (!lifetime.IsCancellationRequested)
+    {
+        System.Net.Sockets.TcpClient connection;
+        try { connection = await listener.AcceptTcpClientAsync(lifetime.Token); } catch (OperationCanceledException) { break; }
+        _ = Task.Run(async () =>
+        {
+            using var client = connection; using var stream = client.GetStream();
+            var header = new StringBuilder(); var buffer = new byte[1];
+            while (!header.ToString().EndsWith("\r\n\r\n") && await stream.ReadAsync(buffer) == 1) header.Append((char)buffer[0]);
+            var target = header.ToString().Split(' ').ElementAtOrDefault(1) ?? "/";
+            byte[] body; var type = "application/octet-stream"; var status = "200 OK";
+            if (target.StartsWith("/releases", StringComparison.Ordinal))
+            {
+                var assets = Directory.EnumerateFiles(folder).Select(f => new FileInfo(f))
+                    .Select(f => new { name = f.Name, size = f.Length, browser_download_url = $"{origin}/files/{Uri.EscapeDataString(f.Name)}" }).ToArray();
+                body = JsonSerializer.SerializeToUtf8Bytes(new[] { new { tag_name = "v" + version, draft = false, prerelease = true, html_url = $"{origin}/release", assets } });
+                type = "application/json";
+            }
+            else if (target.StartsWith("/files/", StringComparison.Ordinal) && Uri.UnescapeDataString(target[7..]) is var name && !name.Contains('/') && !name.Contains('\\') && File.Exists(Path.Combine(folder, name)))
+                body = await File.ReadAllBytesAsync(Path.Combine(folder, name));
+            else { body = Encoding.UTF8.GetBytes("introuvable"); status = "404 Not Found"; type = "text/plain"; }
+            var head = Encoding.ASCII.GetBytes($"HTTP/1.1 {status}\r\nContent-Type: {type}\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+            try { await stream.WriteAsync(head); await stream.WriteAsync(body); } catch (IOException) { }
+            Console.WriteLine($"{status[..3]} {target}");
+        });
+    }
+    listener.Stop();
     return;
 }
 var passed = 0;
@@ -649,6 +689,180 @@ await Test("Pseudo-console : sortie UTF-8, taille et code de sortie d’un progr
     try { await WaitUntil(() => Text() is var t && t.Contains("mira-conpty-ok é") && t.Contains("90") && t.Contains("20"), 6); } catch (TimeoutException) { }
     Assert(code == 0, "Console program exit code lost: " + code);
     Assert(Text() is var text && text.Contains("mira-conpty-ok é") && text.Contains("90") && text.Contains("20"), "Pseudo console output or size lost: " + Text());
+});
+await Test("Lecteur : « Épisode 3 / 12 », pistes nommées en français, vitesse et décalage", () =>
+{
+    MediaItem Episode(string id, int season, int number, string name = "") => new() { Id = id, Type = "Episode", SeriesName = "Sword Art Online", Name = name, ParentIndexNumber = season, IndexNumber = number };
+    var single = Enumerable.Range(1, 25).Select(n => Episode($"e{n}", 1, n, n == 1 ? "Le monde des épées" : $"Episode {n}")).ToList();
+    Assert(PlayerText.Subtitle(single[0], single) == "Épisode 1 / 25 · Le monde des épées", "Episode line: " + PlayerText.Subtitle(single[0], single));
+    Assert(PlayerText.Subtitle(single[2], single) == "Épisode 3 / 25", "A generic name is repeated: " + PlayerText.Subtitle(single[2], single));
+    Assert(PlayerText.Subtitle(single[0]) == "Épisode 1 · Le monde des épées", "Before the episode list: " + PlayerText.Subtitle(single[0]));
+    var seasons = single.Take(12).Concat(Enumerable.Range(1, 10).Select(n => Episode($"s2e{n}", 2, n))).Append(Episode("sp1", 0, 1, "OVA")).ToList();
+    Assert(PlayerText.Subtitle(seasons[0], seasons) == "Saison 1 · Épisode 1 / 12 · Le monde des épées" && PlayerText.Subtitle(seasons[13], seasons) == "Saison 2 · Épisode 2 / 10"
+        && PlayerText.Subtitle(seasons[^1], seasons) == "Hors-série · Épisode 1 / 1 · OVA", "Seasons: " + PlayerText.Subtitle(seasons[13], seasons));
+    Assert(PlayerText.Subtitle(Episode("e30", 1, 30), single.Take(10).ToList()) == "Épisode 30", "A partial list claims a total");
+    Assert(PlayerText.Subtitle(new MediaItem { Name = "Your Name", Type = "Movie", ProductionYear = 2016, RunTimeTicks = TimeSpan.FromMinutes(106).Ticks }) == "2016  ·  1 h 46", "Film line changed");
+    Assert(PlayerText.Track("2", null, "jpn", "aac", 2) == ("Japonais", "AAC · stéréo") && PlayerText.Track("3", "Signs & Songs", "fre", "ass", forced: true) == ("Signs & Songs", "Français · ASS · forcés")
+        && PlayerText.Track("4", "", "und", "") == ("Piste 4", "") && PlayerText.Track("5", "japanese", "pt-BR", "eac3", 6) == ("Japanese", "Portugais · Dolby Digital Plus · 5.1"), "Track names");
+    Assert(PlayerText.Speed(.75) == "0,75×" && PlayerText.Speed(1) == "1×" && PlayerText.Delay(.5) == "+0,5 s" && PlayerText.Delay(-1.5) == "−1,5 s" && PlayerText.Delay(0) == "0,0 s", "Speed or offset formatting");
+    return Task.CompletedTask;
+});
+await Test("Mises à jour : manifeste signé accepté ; modifié, mal formé ou d’une autre clé, refusé", () =>
+{
+    using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256); using var other = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+    var manifest = new UpdateManifest("Mira", new Version(0, 5, 3), [new("zip", "Mira-0.5.3-win-x64.zip", 10, new string('a', 64))]).ToJson();
+    var signature = UpdateSignature.Sign(manifest, key); string[] trusted = [UpdateSignature.PublicKey(key)];
+    Assert(UpdateSignature.Verify(manifest, signature, trusted), "Valid signature refused");
+    var altered = manifest.ToArray(); altered[^3] ^= 1;
+    Assert(!UpdateSignature.Verify(altered, signature, trusted), "Altered manifest accepted");
+    Assert(!UpdateSignature.Verify(manifest, UpdateSignature.Sign(manifest, other), trusted) && !UpdateSignature.Verify(manifest, signature, ["garbage", ""]), "Another or an invalid key accepted");
+    Assert(!UpdateSignature.Verify(manifest, signature[..63], trusted) && UpdateSignature.Decode("pas du base64") is null && UpdateSignature.Decode(UpdateSignature.Encode(signature)) is { Length: 64 }, "Signature encoding");
+    Assert(UpdateKeys.Trusted.Count > 0 && UpdateKeys.Trusted.All(k => { using var e = ECDsa.Create(); e.ImportSubjectPublicKeyInfo(Convert.FromBase64String(k), out _); return e.KeySize == 256; }), "Built-in key missing or not P-256");
+    var parsed = UpdateManifest.Parse(manifest);
+    Assert(parsed.Version == new Version(0, 5, 3) && parsed.Files.Single() is { Kind: "zip", Name: "Mira-0.5.3-win-x64.zip", Size: 10 }, "Manifest round trip");
+    string Json(string files, string product = "Mira", string version = "0.5.3") => $$"""{"product":"{{product}}","version":"{{version}}","files":[{{files}}]}""";
+    var good = $$"""{"kind":"zip","name":"Mira-0.5.3-win-x64.zip","size":10,"sha256":"{{new string('a', 64)}}"}""";
+    foreach (var bad in new[] { Json(good, product: "Autre"), Json(good, version: "0.5"), Json(""), Json(good.Replace("Mira-0.5.3-win-x64.zip", "..\\\\evil.exe")), Json(good.Replace("\"size\":10", "\"size\":0")),
+        Json(good.Replace(new string('a', 64), "abc")), Json(good + "," + good), Json(good.Replace("\"zip\"", "\"script\"")), "{" })
+    {
+        var rejected = false; try { UpdateManifest.Parse(Encoding.UTF8.GetBytes(bad)); } catch (UpdateException) { rejected = true; }
+        Assert(rejected, "Invalid manifest accepted: " + bad);
+    }
+    return Task.CompletedTask;
+});
+await Test("Mises à jour : la version signée la plus récente est proposée, jamais une antérieure ; téléchargement vérifié", async () =>
+{
+    using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256); using var other = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+    var files = new Dictionary<string, byte[]>();
+    byte[] zip = Encoding.UTF8.GetBytes("nouvelle archive"), setup = Encoding.UTF8.GetBytes("nouvel installateur");
+    string Sha(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    var manifest = new UpdateManifest("Mira", new Version(0, 5, 3), [new("zip", "Mira-0.5.3-win-x64.zip", zip.Length, Sha(zip)), new("installer", "Mira-0.5.3-win-x64-setup.exe", setup.Length, Sha(setup))]).ToJson();
+    files["/0.5.3/mira-update.json"] = manifest; files["/0.5.3/mira-update.json.sig"] = Encoding.ASCII.GetBytes(UpdateSignature.Encode(UpdateSignature.Sign(manifest, key)));
+    files["/0.5.3/Mira-0.5.3-win-x64.zip"] = zip; files["/0.5.3/Mira-0.5.3-win-x64-setup.exe"] = setup;
+    object Asset(string version, string name) => new { name, size = files[$"/{version}/{name}"].Length, browser_download_url = $"https://github.com/sasou-web/Mira/releases/download/v{version}/{name}" };
+    var releases = new object[]
+    {
+        new { tag_name = "v0.6.0", draft = true, html_url = "https://github.com/sasou-web/Mira/releases/tag/v0.6.0", assets = new[] { Asset("0.5.3", "mira-update.json") } },
+        new { tag_name = "v0.5.4", draft = false, html_url = "https://github.com/sasou-web/Mira/releases/tag/v0.5.4", assets = Array.Empty<object>() },
+        new { tag_name = "nightly", draft = false, html_url = "https://github.com/sasou-web/Mira/releases/tag/nightly", assets = Array.Empty<object>() },
+        new { tag_name = "v0.5.3", draft = false, prerelease = true, html_url = "https://github.com/sasou-web/Mira/releases/tag/v0.5.3",
+            assets = new[] { Asset("0.5.3", "mira-update.json"), Asset("0.5.3", "mira-update.json.sig"), Asset("0.5.3", "Mira-0.5.3-win-x64.zip"), Asset("0.5.3", "Mira-0.5.3-win-x64-setup.exe") } },
+        new { tag_name = "v0.5.1", draft = false, html_url = "https://github.com/sasou-web/Mira/releases/tag/v0.5.1", assets = Array.Empty<object>() }
+    };
+    var requested = new List<Uri>();
+    using var handler = new Handler(request =>
+    {
+        var url = request.RequestUri!; requested.Add(url);
+        if (url.Host == "api.github.com") return Task.FromResult(JsonResponse(releases));
+        var path = url.AbsolutePath.Replace("/sasou-web/Mira/releases/download/v", "/");
+        return Task.FromResult(files.TryGetValue(path, out var bytes) ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) } : new HttpResponseMessage(HttpStatusCode.NotFound));
+    });
+    async Task<bool> Fails(Func<Task> action) { try { await action(); return false; } catch (UpdateException) { return true; } }
+    using var client = new UpdateClient(new Version(0, 5, 2), [UpdateSignature.PublicKey(key)], handler: handler);
+    var offer = await client.CheckAsync("zip");
+    Assert(offer is { Version: { Major: 0, Minor: 5, Build: 3 }, File.Name: "Mira-0.5.3-win-x64.zip" } && offer.Page?.AbsoluteUri == "https://github.com/sasou-web/Mira/releases/tag/v0.5.3", "Newest signed release not offered");
+    Assert((await client.CheckAsync("installer"))?.File.Name == "Mira-0.5.3-win-x64-setup.exe" && await Fails(() => client.CheckAsync("portable")), "File for the installation kind");
+    Assert(requested.All(u => u.Host is "api.github.com" or "github.com"), "Another host was contacted");
+    using (var same = new UpdateClient(new Version(0, 5, 3), [UpdateSignature.PublicKey(key)], handler: handler)) Assert(await same.CheckAsync("zip") is null, "The running version is offered again");
+    using (var newer = new UpdateClient(new Version(0, 6, 1), [UpdateSignature.PublicKey(key)], handler: handler)) Assert(await newer.CheckAsync("zip") is null, "An older version is offered");
+    using (var stranger = new UpdateClient(new Version(0, 5, 2), [UpdateSignature.PublicKey(other)], handler: handler)) Assert(await Fails(() => stranger.CheckAsync("zip")), "A manifest signed by an unknown key is accepted");
+    var folder = Path.Combine(testRoot, "update-download");
+    var path = await client.DownloadAsync(offer!, folder);
+    Assert(File.ReadAllBytes(path).SequenceEqual(zip) && !File.Exists(path + ".partial") && UpdateClient.Matches(path, offer!.File), "Download not kept or not verified");
+    Assert(await client.DownloadAsync(offer!, folder) == path, "A verified download is fetched again");
+    File.Delete(path); files["/0.5.3/Mira-0.5.3-win-x64.zip"] = Encoding.UTF8.GetBytes("nouvelle archivf");
+    Assert(await Fails(() => client.DownloadAsync(offer!, folder)) && !Directory.EnumerateFiles(folder).Any(), "A download that does not match the signature was kept");
+    Assert(await Fails(() => client.DownloadAsync(offer! with { Url = new Uri("https://example.com/Mira.zip") }, folder)) && requested.All(u => u.Host != "example.com"), "A download outside GitHub was attempted");
+    var feedRefused = false; try { new UpdateClient(new Version(0, 5, 2), [], new Uri("https://example.com/releases")).Dispose(); } catch (ArgumentException) { feedRefused = true; }
+    Assert(feedRefused, "A feed outside GitHub was accepted");
+});
+await Test("Mises à jour : chaque redirection vérifiée, reprise d’un téléchargement interrompu, réponse inattendue refusée", async () =>
+{
+    var payload = Encoding.UTF8.GetBytes(new string('m', 200_000));
+    var file = new UpdateFile("zip", "Mira-0.5.3-win-x64.zip", payload.Length, Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant());
+    var requested = new List<Uri>(); var honourRange = true; var redirect = "https://release-assets.githubusercontent.com/github-production-release-asset/1/a";
+    using var handler = new Handler(request =>
+    {
+        var url = request.RequestUri!; requested.Add(url);
+        if (url.Host == "github.com") { var moved = new HttpResponseMessage(HttpStatusCode.Found); moved.Headers.Location = new Uri(redirect); return Task.FromResult(moved); }
+        if (request.Headers.Range?.Ranges.FirstOrDefault()?.From is { } from && honourRange)
+        {
+            var rest = new HttpResponseMessage(HttpStatusCode.PartialContent) { Content = new ByteArrayContent(payload[(int)from..]) };
+            rest.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(from, payload.Length - 1, payload.Length);
+            return Task.FromResult(rest);
+        }
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
+    });
+    async Task<bool> Fails(Func<Task> action) { try { await action(); return false; } catch (UpdateException) { return true; } }
+    using var client = new UpdateClient(new Version(0, 5, 2), [], handler: handler);
+    var offer = new UpdateOffer(new Version(0, 5, 3), "v0.5.3", null, file, new Uri("https://github.com/sasou-web/Mira/releases/download/v0.5.3/Mira-0.5.3-win-x64.zip"));
+    var folder = Path.Combine(testRoot, "update-resume"); Directory.CreateDirectory(folder);
+    // Interrupted after 80 000 bytes: the rest is asked for with Range and the hash covers the whole file.
+    File.WriteAllBytes(Path.Combine(folder, file.Name + ".partial"), payload[..80_000]);
+    var path = await client.DownloadAsync(offer, folder);
+    Assert(File.ReadAllBytes(path).SequenceEqual(payload) && requested.Any(u => u.Host == "release-assets.githubusercontent.com"), "Download not resumed through GitHub's file server");
+    File.Delete(path); File.WriteAllBytes(Path.Combine(folder, file.Name + ".partial"), payload[..80_000]); honourRange = false;
+    Assert(File.ReadAllBytes(await client.DownloadAsync(offer, folder)).SequenceEqual(payload), "A server ignoring Range was not downloaded again from the start");
+    File.Delete(Path.Combine(folder, file.Name)); requested.Clear(); redirect = "https://evil.example/Mira.zip";
+    Assert(await Fails(() => client.DownloadAsync(offer, folder)) && requested.All(u => u.Host != "evil.example"), "A redirect outside GitHub was followed");
+    redirect = "http://release-assets.githubusercontent.com/x";
+    Assert(await Fails(() => client.DownloadAsync(offer, folder)) && requested.All(u => u.Scheme == "https"), "A redirect to plain HTTP was followed");
+    foreach (var bad in new[] { "[1, \"x\", null]", "[{\"tag_name\":\"v0.5.3\",\"assets\":[1,{\"name\":\"a\",\"size\":\"big\",\"browser_download_url\":\"https://github.com/a\"}]}]", "{\"message\":\"Not Found\"}" })
+    {
+        var parsed = false; try { var releases = ReleaseFeed.Parse(bad); parsed = releases.All(r => r.Assets.All(a => a.Size == -1)); } catch (UpdateException) { parsed = true; }
+        Assert(parsed, "Unexpected JSON not handled: " + bad);
+    }
+    var manifestRefused = false; try { UpdateManifest.Parse(Encoding.UTF8.GetBytes("{\"product\":\"Mira\",\"version\":\"0.5.3\",\"files\":[1,2]}")); } catch (UpdateException) { manifestRefused = true; }
+    Assert(manifestRefused, "A manifest with unexpected entries was not refused cleanly");
+});
+await Test("Mises à jour : copie en deux temps, dossier intact si la préparation échoue, résultat annoncé une fois", () =>
+{
+    var root = Path.Combine(testRoot, "update-two-phase"); var app = Path.Combine(root, "app"); var incoming = Path.Combine(root, "incoming");
+    Directory.CreateDirectory(Path.Combine(app, "data", "updates")); Directory.CreateDirectory(incoming);
+    File.WriteAllText(Path.Combine(app, "Mira.dll"), "ancienne"); File.WriteAllText(Path.Combine(app, "b.dll"), "ancienne b");
+    File.WriteAllText(Path.Combine(incoming, "Mira.dll"), "nouvelle"); File.WriteAllText(Path.Combine(incoming, "b.dll"), "nouvelle b");
+    // The new file cannot even be prepared: nothing of the installed copy has moved.
+    using (new FileStream(Path.Combine(app, "b.dll" + UpdateApplier.NewSuffix), FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+    {
+        var failed = false; try { UpdateApplier.CopyFolder(incoming, app, Path.Combine(app, "data", "updates", "rollback-a"), attempts: 2); } catch (IOException) { failed = true; }
+        Assert(failed && File.ReadAllText(Path.Combine(app, "Mira.dll")) == "ancienne" && File.ReadAllText(Path.Combine(app, "b.dll")) == "ancienne b" && !File.Exists(Path.Combine(app, "Mira.dll" + UpdateApplier.NewSuffix)),
+            "A failed preparation touched the installed copy");
+    }
+    UpdateApplier.CopyFolder(incoming, app, Path.Combine(app, "data", "updates", "rollback-b"));
+    Assert(File.ReadAllText(Path.Combine(app, "b.dll")) == "nouvelle b" && !Directory.EnumerateFiles(app, "*" + UpdateApplier.NewSuffix, SearchOption.AllDirectories).Any(), "Two-phase copy incomplete");
+    // Result of the last installation, reported once whatever the updater of this run.
+    var pending = Path.Combine(app, "data", "updates", "pending.json");
+    File.WriteAllText(pending, $$"""{"Version":"{{JellyfinClient.AppVersion}}","From":"0.0.1","Attempts":1,"Reported":false}""");
+    Assert(Updater.TakeResult(Path.Combine(app, "data")) is { Installed: true } && !File.Exists(pending), "An installed version was not reported, or its record stayed");
+    File.WriteAllText(pending, """{"Version":"99.0.0","From":"0.0.1","Attempts":1,"Reported":false}""");
+    Assert(Updater.TakeResult(Path.Combine(app, "data")) is { Installed: false } && Updater.TakeResult(Path.Combine(app, "data")) is null && File.Exists(pending), "A failed installation was not reported exactly once");
+    return Task.CompletedTask;
+});
+await Test("Mises à jour : type d’installation, dossier remplacé sans toucher aux données, retour arrière sur erreur", () =>
+{
+    var root = Path.Combine(testRoot, "update-apply"); var app = Path.Combine(root, "app"); var incoming = Path.Combine(root, "incoming");
+    Directory.CreateDirectory(Path.Combine(app, "data")); Directory.CreateDirectory(Path.Combine(incoming, "sub")); Directory.CreateDirectory(Path.Combine(incoming, "data"));
+    File.WriteAllText(Path.Combine(app, "Mira.dll"), "ancienne"); File.WriteAllText(Path.Combine(app, "seulement-avant.txt"), "gardé"); File.WriteAllText(Path.Combine(app, "data", "settings.json"), "mes réglages");
+    File.WriteAllText(Path.Combine(incoming, "Mira.dll"), "nouvelle"); File.WriteAllText(Path.Combine(incoming, "sub", "ajout.txt"), "ajouté"); File.WriteAllText(Path.Combine(incoming, "data", "settings.json"), "autres réglages");
+    Assert(Updater.Detect(app, singleFile: true) == InstallKind.Portable && Updater.Detect(app, singleFile: false) == InstallKind.Folder
+        && Updater.Detect(@"C:\src\Mira\src\Mira.Desktop\bin\Release\net8.0-windows10.0.19041.0\", false) == InstallKind.Development, "Installation kind");
+    UpdateApplier.CopyFolder(incoming, app, Path.Combine(app, "data", "updates", "rollback-1"));
+    Assert(File.ReadAllText(Path.Combine(app, "Mira.dll")) == "nouvelle" && File.ReadAllText(Path.Combine(app, "sub", "ajout.txt")) == "ajouté" && File.ReadAllText(Path.Combine(app, "seulement-avant.txt")) == "gardé", "Folder not updated");
+    Assert(File.ReadAllText(Path.Combine(app, "data", "settings.json")) == "mes réglages" && !Directory.Exists(Path.Combine(app, "data", "updates", "rollback-1")), "Data touched or rollback copy left behind");
+    // A file that cannot be replaced: what was already replaced comes back, and nothing new stays.
+    File.WriteAllText(Path.Combine(incoming, "Mira.dll"), "plus récente"); File.WriteAllText(Path.Combine(incoming, "verrou.bin"), "x"); File.WriteAllText(Path.Combine(app, "verrou.bin"), "ancien");
+    using (new FileStream(Path.Combine(app, "verrou.bin"), FileMode.Open, FileAccess.Read, FileShare.None))
+    {
+        var failed = false; try { UpdateApplier.CopyFolder(incoming, app, Path.Combine(app, "data", "updates", "rollback-2"), attempts: 2); } catch (IOException) { failed = true; }
+        Assert(failed && File.ReadAllText(Path.Combine(app, "Mira.dll")) == "nouvelle" && File.ReadAllText(Path.Combine(app, "data", "settings.json")) == "mes réglages"
+            && !Directory.EnumerateFiles(app, "*" + UpdateApplier.NewSuffix, SearchOption.AllDirectories).Any(), "A failed update was not rolled back, or left new files behind");
+    }
+    File.WriteAllText(Path.Combine(app, "unins000.exe"), ""); File.WriteAllText(Path.Combine(app, "unins000.dat"), "");
+    Assert(Updater.Detect(app, singleFile: false) == InstallKind.Installer, "Inno Setup installation not recognised");
+    var exe = Path.Combine(root, "Mira-portable.exe"); var fresh = Path.Combine(root, "nouveau.exe"); File.WriteAllText(exe, "ancien exe"); File.WriteAllText(fresh, "nouvel exe");
+    UpdateApplier.ReplaceFile(fresh, exe);
+    Assert(File.ReadAllText(exe) == "nouvel exe" && !File.Exists(exe + ".previous") && !File.Exists(exe + ".update"), "Portable executable not replaced cleanly");
+    return Task.CompletedTask;
 });
 if (args.Contains("--torlink-integration"))
 {

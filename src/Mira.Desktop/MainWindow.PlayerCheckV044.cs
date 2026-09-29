@@ -25,7 +25,7 @@ public partial class MainWindow
         GetWindowRect(hwnd, out var outer); GetClientRect(hwnd, out var inner);
         require((GetWindowLong(hwnd, -16) & 0x00C00000) == 0x00C00000 && inner.Right - inner.Left == outer.Right - outer.Left && inner.Bottom - inner.Top == outer.Bottom - outer.Top,
             "window keeps the caption style for Windows animations, with no native title bar visible");
-        foreach (var button in new Button[] { PlayerBackButton, MuteButton, RewindButton, PauseButton, ForwardButton, PlayerOptionsButton, MiniPlayerButton, FullscreenButton })
+        foreach (var button in new Button[] { PlayerBackButton, PauseButton, MuteButton, PlayerMoreButton, PlayerTracksButton, MiniPlayerButton, FullscreenButton })
         {
             var icon = FindVisual<Icon>(button);
             if (icon is null || LayoutInformation.GetLayoutClip(icon) is not null) throw new InvalidOperationException($"{button.Name} icon is cropped");
@@ -63,8 +63,8 @@ public partial class MainWindow
 
         ShowPlayerControls(); await Task.Delay(60);
         var before = mpv.Number("time-pos"); var wasPaused = mpv.Flag("pause");
-        var space = Press(ForwardButton, Key.Space); await Task.Delay(150); mpv.Poll();
-        require(space && mpv.Flag("pause") != wasPaused && Math.Abs(mpv.Number("time-pos") - before) < 2, "Space toggles pause even when the event targets the forward button");
+        var space = Press(PlayerTracksButton, Key.Space); await Task.Delay(150); mpv.Poll();
+        require(space && mpv.Flag("pause") != wasPaused && Math.Abs(mpv.Number("time-pos") - before) < 2 && !PlayerOptionsPopup.IsOpen, "Space toggles pause even when the event targets the subtitles button");
         mpv.Set("pause", "yes"); await Task.Delay(120); mpv.Poll();
         var start = mpv.Number("time-pos"); _position = start;
         var right = Press(PauseButton, Key.Right); await Task.Delay(400); mpv.Poll();
@@ -158,14 +158,21 @@ public partial class MainWindow
         }
         return null;
     }
-    /// <summary>Renders overlay controls over a neutral grey for review (the native video is not part of WPF).</summary>
-    private static void CaptureElement(string directory, string name, FrameworkElement element)
+    /// <summary>Renders overlay controls for review, over a neutral grey or over a video frame letterboxed like mpv
+    /// does (the native video is not part of WPF).</summary>
+    private static void CaptureElement(string directory, string name, FrameworkElement element, BitmapSource? background = null)
     {
         var dpi = VisualTreeHelper.GetDpi(element); var size = new Size(element.ActualWidth, element.ActualHeight);
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
-            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(62, 66, 74)), null, new Rect(size));
+            dc.DrawRectangle(background is null ? new SolidColorBrush(Color.FromRgb(62, 66, 74)) : Brushes.Black, null, new Rect(size));
+            if (background is { PixelWidth: > 0, PixelHeight: > 0 })
+            {
+                var scale = Math.Min(size.Width / background.PixelWidth, size.Height / background.PixelHeight);
+                var frame = new Size(background.PixelWidth * scale, background.PixelHeight * scale);
+                dc.DrawImage(background, new Rect(new Point((size.Width - frame.Width) / 2, (size.Height - frame.Height) / 2), frame));
+            }
             dc.DrawRectangle(new VisualBrush(element), null, new Rect(size));
         }
         var bitmap = new RenderTargetBitmap((int)Math.Ceiling(size.Width * dpi.DpiScaleX), (int)Math.Ceiling(size.Height * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);

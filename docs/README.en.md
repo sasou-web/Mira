@@ -8,7 +8,8 @@
 
 Mira keeps Jellyfin as your library server. It provides a cinematic desktop UI, search and filters, favourites, movie and series details, and playback in the same application through libmpv.
 
-- Fullscreen and movable mini-player, audio/subtitle tracks, speed, chapters and next episode.
+- A clean playback bar split by chapters, fullscreen and movable mini-player, audio/subtitle tracks, speed and next episode.
+- Automatic updates from 0.5.2: each new release is downloaded in the background, checked (Mira's signature, size and SHA-256) and installed when Mira closes, leaving the `data` folder untouched.
 - Most recently watched titles first, persistent playback reports and synchronization retries.
 - Windows Start Menu identity, notification-area controls, taskbar thumbnail controls and system media session.
 - Local artwork/cache, bundled typography, responsive hover transitions and reduced-motion preference.
@@ -23,7 +24,7 @@ Requires Windows 10 2004+ or Windows 11 **x64**, a running Jellyfin server, and 
 3. Connect to Jellyfin. A server on the same PC commonly uses `http://127.0.0.1:8096`.
 4. In **Réglages → Lecture**, check player-engine detection or select `libmpv-2.dll` / `mpv-2.dll`. `mpv.exe` alone is insufficient. See the [mpv installation page](https://mpv.io/installation/) for Windows distributions.
 
-The preview is unsigned and updates are manual. Preserve the `data` folder when updating; it contains settings, protected session credentials and pending playback reports. Do not publish it.
+The preview is unsigned. From 0.5.2 on, Mira updates itself (**Réglages → Mises à jour**); older copies need 0.5.2 installed once by hand. When updating by hand, preserve the `data` folder: it contains settings, protected session credentials and pending playback reports. Do not publish it.
 
 ## Build
 

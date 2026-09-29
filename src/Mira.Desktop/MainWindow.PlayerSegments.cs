@@ -30,7 +30,7 @@ public partial class MainWindow
     {
         _serverSegments = []; _segments = []; _fileChapters = []; _serverChapters = [];
         _activeSkip = null; _nextItem = null; _skipToNext = false; _countdownEnd = null; _autoNextCancelled = false;
-        SeekBar.Reset(); SetSkipVisible(false, immediate: true);
+        SeekBar.Reset(); SetSkipVisible(false, immediate: true); UpdateChapterText(0);
     }
     private void SkipCancel_Click(object sender, RoutedEventArgs e)
     {
@@ -44,20 +44,21 @@ public partial class MainWindow
         if (_demo || _client is not { } client) return;
         var segments = client.SegmentsAsync(item.Id);
         var chapters = client.ChaptersAsync(item.Id);
-        var next = item.Type == "Episode" ? GetNextAsync(item, quiet: true) : Task.FromResult<MediaItem?>(null);
+        var next = item.Type == "Episode" ? EpisodeContextAsync(item, quiet: true) : Task.FromResult<(MediaItem? Next, List<MediaItem> Episodes)>((null, []));
         // Older servers, or servers without a segment provider, simply have no markers.
         try { var result = await segments; if (generation == _playGeneration) _serverSegments = PlaybackMarkers.FromJellyfin(result); }
         catch (Exception ex) when (IsExpected(ex)) { }
         try { var result = await chapters; if (generation == _playGeneration) _serverChapters = PlaybackMarkers.FromJellyfin(result); }
         catch (Exception ex) when (IsExpected(ex)) { }
-        var following = await next;
+        var (following, episodes) = await next;
         if (generation != _playGeneration) return;
         _nextItem = following;
         UpdateWindowsPlayback();
         if (item.Type == "Episode")
         {
             NextButton.IsEnabled = following is not null;
-            NextButton.ToolTip = following is null ? "Dernier épisode disponible" : "Épisode suivant · " + following.Subtitle;
+            NextButton.ToolTip = following is null ? "Dernier épisode disponible" : "Épisode suivant · " + PlayerText.Subtitle(following, episodes);
+            if (episodes.Count > 0) PlayingSubtitle.Text = PlayerText.Subtitle(item, episodes);
         }
         RebuildSegments();
     }
@@ -72,7 +73,7 @@ public partial class MainWindow
         var chapters = _fileChapters.Count > 0 ? _fileChapters : _serverChapters;
         SeekBar.SetChapters(chapters);
         _segments = PlaybackMarkers.Merge(_serverSegments, PlaybackMarkers.FromChapters(chapters, _duration));
-        _activeSkip = null; UpdateSkip();
+        _activeSkip = null; UpdateSkip(); UpdateChapterText(_position);
     }
     private void UpdateSkip()
     {
@@ -109,8 +110,8 @@ public partial class MainWindow
         if (counting && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);
         else if (!counting && SkipCancel.Visibility == Visibility.Visible && SkipCancel.IsHitTestVisible) _ = Motion.HideAsync(SkipCancel, 140);
         SetSkipVisible(_activeSkip is not null && (_controlsVisible || counting || (!_paused && DateTimeOffset.UtcNow - _skipSince < SkipLinger)));
-        // Sits just above the control bar while it is shown, near the bottom edge otherwise.
-        var lift = _controlsVisible ? -(PlayerControls.Height - 14) : 0;
+        // Sits just above the bar's title and time while they are shown, near the bottom edge otherwise.
+        var lift = _controlsVisible ? -Math.Max(0, PlayerControlsBody.ActualHeight + PlayerControlsBody.Margin.Bottom + 16 - SkipHost.Margin.Bottom) : 0;
         if (lift != _skipLift) { _skipLift = lift; Motion.Animate(SkipShift, TranslateTransform.YProperty, lift, 260, ease: Motion.EaseOut); }
     }
     private void SetSkipVisible(bool show, bool immediate = false)

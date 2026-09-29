@@ -25,7 +25,8 @@ public partial class MainWindow
         || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim())
         || _settings.TorLinkAutoImport != (TorLinkAutoImportCheck.IsChecked == true) || _settings.TorLinkKeepSeeding != (TorLinkKeepSeedingCheck.IsChecked == true)
         || _settings.TorLinkPath != TorLinkPathBox.Text.Trim() || _settings.TorLinkMoviesFolder != TorLinkMoviesBox.Text.Trim()
-        || _settings.TorLinkSeriesFolder != TorLinkSeriesBox.Text.Trim() || _settings.TorLinkAnimeFolder != TorLinkAnimeBox.Text.Trim();
+        || _settings.TorLinkSeriesFolder != TorLinkSeriesBox.Text.Trim() || _settings.TorLinkAnimeFolder != TorLinkAnimeBox.Text.Trim()
+        || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true);
     private bool _settingsBusy;
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
@@ -44,6 +45,7 @@ public partial class MainWindow
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
         DescribeTorLinkSettings();
+        AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); UpdateHeroClock();
         SettingsSaveStatus.Text = "Les changements s’appliquent après enregistrement.";
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
@@ -60,11 +62,12 @@ public partial class MainWindow
         AppearanceSettings.Visibility = tab == "appearance" ? Visibility.Visible : Visibility.Collapsed;
         ServerSettings.Visibility = tab == "server" ? Visibility.Visible : Visibility.Collapsed;
         TorLinkSettings.Visibility = tab == "torlink" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsSectionTitle.Text = tab switch { "subtitles" => "Audio & sous-titres", "appearance" => "Apparence", "server" => "Jellyfin & synchronisation", "torlink" => "TorLink", _ => "Lecture" };
-        SettingsSectionDescription.Text = tab switch { "subtitles" => "Les bonnes langues, dès le premier épisode.", "appearance" => "Ajuste le confort de navigation à tes habitudes.", "server" => "Ta bibliothèque et ta progression, toujours à portée de main.", "torlink" => "Tes téléchargements rangés dans Jellyfin, sans rien déplacer à la main.", _ => "Le confort de lecture, sans avoir à y penser." };
+        UpdateSettings.Visibility = tab == "updates" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsSectionTitle.Text = tab switch { "subtitles" => "Audio & sous-titres", "appearance" => "Apparence", "server" => "Jellyfin & synchronisation", "torlink" => "TorLink", "updates" => "Mises à jour", _ => "Lecture" };
+        SettingsSectionDescription.Text = tab switch { "subtitles" => "Les bonnes langues, dès le premier épisode.", "appearance" => "Ajuste le confort de navigation à tes habitudes.", "server" => "Ta bibliothèque et ta progression, toujours à portée de main.", "torlink" => "Tes téléchargements rangés dans Jellyfin, sans rien déplacer à la main.", "updates" => "Les nouvelles versions de Mira, installées sans y penser.", _ => "Le confort de lecture, sans avoir à y penser." };
         foreach (var button in SettingsNavigation.Children.OfType<Button>()) { var active = button.Tag?.ToString() == tab; button.Background = active ? Brush("#F4F4F5") : Brushes.Transparent; button.Foreground = active ? Brush("#161618") : Brush("#D0D0D5"); }
         SettingsScroll.ScrollToTop();
-        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "torlink" => TorLinkSettings, _ => PlaybackSettings };
+        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, _ => PlaybackSettings };
         SmoothScroll.Jump(SettingsScroll); Motion.Reveal(body, 230, 7);
     }
     private void LanguageChoice_Changed(object sender, SelectionChangedEventArgs e)
@@ -95,7 +98,11 @@ public partial class MainWindow
         _settings.TorLinkAutoImport = TorLinkAutoImportCheck.IsChecked == true; _settings.TorLinkKeepSeeding = TorLinkKeepSeedingCheck.IsChecked == true;
         _settings.TorLinkPath = TorLinkPathBox.Text.Trim(); _settings.TorLinkMoviesFolder = TorLinkMoviesBox.Text.Trim();
         _settings.TorLinkSeriesFolder = TorLinkSeriesBox.Text.Trim(); _settings.TorLinkAnimeFolder = TorLinkAnimeBox.Text.Trim();
+        // Switched back on: look for a new version now rather than at the next scheduled check.
+        var updatesAgain = !_settings.AutoUpdate && AutoUpdateCheck.IsChecked == true;
+        _settings.AutoUpdate = AutoUpdateCheck.IsChecked == true;
         _profile.SaveSettings(_settings);
+        if (updatesAgain) _ = _updater?.CheckAsync();
         if (automaticAgain) _torlinkImporter?.RestartBaseline();
         if (_torlinkEnabled) ApplyTorLinkLibraries();
         _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.Set("sub-font-size", _settings.SubtitleSize.ToString(CultureInfo.InvariantCulture));

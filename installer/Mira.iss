@@ -40,6 +40,8 @@ Compression=lzma2/max
 SolidCompression=yes
 ; A running Mira is closed (it saves its progress and stops TorLink) before its files are replaced.
 CloseApplications=yes
+; Held while Setup runs: an installed Mira started meanwhile waits for it instead of loading half-replaced files.
+SetupMutex=MiraSetup
 RestartApplications=no
 VersionInfoVersion={#AppVersion}.0
 VersionInfoProductName=Mira
@@ -67,7 +69,21 @@ Filename: "{app}\Mira.exe"; Parameters: "--register-windows"; StatusMsg: "{cm:Mi
 Filename: "{app}\Mira.exe"; Parameters: "--register-windows --shortcut ""{userdesktop}\Mira.lnk"""; Tasks: desktopicon; Flags: runhidden waituntilterminated
 Filename: "{app}\Mira.exe"; Description: "{cm:LaunchProgram,Mira}"; Flags: nowait postinstall skipifsilent
 
+
 [Code]
+{ Automatic update started by Mira with "Redémarrer" (/SILENT /RELAUNCH=1 /FROM=x.y.z /MIRA=<its Mira.exe>): Mira reopens
+  when Setup ends, installed or not (a failed or cancelled Setup restores the previous files), and reports the outcome. }
+procedure DeinitializeSetup();
+var
+  Exe: String;
+  Code: Integer;
+begin
+  if ExpandConstant('{param:RELAUNCH|0}') <> '1' then Exit;
+  Exe := ExpandConstant('{param:MIRA|}');
+  if (Exe = '') or (CompareText(ExtractFileName(Exe), 'Mira.exe') <> 0) or not FileExists(Exe) then Exit;
+  Exec(Exe, '--updated-from "' + ExpandConstant('{param:FROM|0.0.0}') + '"', ExtractFileDir(Exe), SW_SHOWNORMAL, ewNoWait, Code);
+end;
+
 { Removes a shortcut only when it opens this installation: a portable Mira elsewhere keeps its own. }
 procedure RemoveShortcutIfOurs(const Path: String);
 var

@@ -1,6 +1,5 @@
-Mira 0.5.1 - local validation, 2026-09-29
-
-Core behaviour and persistence (with --torlink-integration):
+Mira 0.5.2 - local validation, 2026-09-29
+Core behaviour and persistence (without --torlink-integration: the real TorLink test was not re-run):
 PASS  Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture
 PASS  Reprise : ordre persistant et réponse serveur retardée après une lecture locale
 PASS  Reprise : une ancienne lecture absente du serveur ne revient que si sa synchronisation attend
@@ -40,10 +39,100 @@ PASS  TorLink : fichier déjà présent jamais déplacé, classement conservé, 
 PASS  TorLink : fichiers exacts du .torrent, chemins normalisés et fichiers incomplets attendus
 PASS  Jellyfin : dossiers des bibliothèques et signalement des médias, sans déconnexion en cas de refus
 PASS  Pseudo-console : sortie UTF-8, taille et code de sortie d’un programme console
-PASS  TorLink réel : écran d’accueil dans la pseudo-console, redimensionnement, arrêt propre et état isolé
-40 tests réussis.
-
-TorLink end-to-end fixture (portable single-file exe, real keyboard, isolated TorLink state and library, demo mode):
+PASS  Lecteur : « Épisode 3 / 12 », pistes nommées en français, vitesse et décalage
+PASS  Mises à jour : manifeste signé accepté ; modifié, mal formé ou d’une autre clé, refusé
+PASS  Mises à jour : la version signée la plus récente est proposée, jamais une antérieure ; téléchargement vérifié
+PASS  Mises à jour : chaque redirection vérifiée, reprise d’un téléchargement interrompu, réponse inattendue refusée
+PASS  Mises à jour : copie en deux temps, dossier intact si la préparation échoue, résultat annoncé une fois
+PASS  Mises à jour : type d’installation, dossier remplacé sans toucher aux données, retour arrière sur erreur
+45 tests réussis.
+Automatic updates fixture (tools/update-check.ps1: packages 0.5.2 and 0.5.3, loopback release feed, throwaway signing key, isolated profiles):
+PASS packages 0.5.2 (old) and 0.5.3 (new, manifest signed with a test key)
+PASS folder: 0.5.3 zip found on the feed, downloaded and verified (signature, size, SHA-256), then unpacked
+PASS folder: installed when Mira closed, Mira.exe now 0.5.3.0
+PASS folder: data folder untouched
+PASS folder: the new version finds itself up to date and clears its download
+PASS portable: 0.5.3 executable downloaded and verified
+PASS portable: replaced in place and reopened in 0.5.3.0 after the restart button
+PASS portable: data folder untouched, the reopened version records the installation
+PASS installer: 0.5.2 installed in a test folder
+PASS installer: 0.5.3 setup downloaded and verified
+PASS installer: updated silently by its setup to 0.5.3.0 when Mira closed, data folder untouched
+PASS installer: uninstalled silently (data kept, as on any silent uninstall)
+PASS installer: updated by its setup through the restart button, reopened in 0.5.3.0, data folder untouched
+INFO Start menu shortcut and Windows identity given back to the local dist\Mira
+Native player fixture (installed dist\Mira 0.5.2, synthetic chaptered media with an external .srt track; the Release build passed the same 67 checks):
+PASS native video host loads the synthetic clip
+PASS loading indicator and busy cursor clear once the first frame is ready
+PASS hidden controls keep a mouse-sensitive video surface and hide the cursor
+PASS mouse activity can interrupt the fade without a stale hide closing the controls
+PASS window keeps the caption style for Windows animations, with no native title bar visible
+PASS player icons are laid out uncropped and centred in their buttons
+PASS timeline advances between mpv polls (0.713 -> 0.759 s)
+PASS Space toggles pause even when the event targets the subtitles button
+PASS Right arrow seeks 10 s from any control (0.8 -> 10.8 s)
+PASS paused controls and cursor leave after idling, for clean screenshots
+PASS player controls are excluded from screen captures
+INFO chapters 0 s Opening, 6 s Partie A, 14 s Ending; passages Intro 0-6 s, Outro 14-18 s
+PASS named file chapters become opening and ending passages
+PASS skip button offers « Passer l’intro » during the opening
+PASS skip jumps to the end of the opening (6.0 s)
+PASS credits offer « Épisode suivant dans 10 s » with a cancel button
+PASS cancelling keeps the episode and stops the countdown
+PASS the title, its second line and the time sit above the timeline, the buttons below it
+PASS the first and last buttons line up with the title and the time (0.0 / -1.0 px)
+PASS the time reads « 0:02 / 0:18 »
+PASS chapters split the timeline into 3 segments separated by 3 px
+PASS the chapter being played is named above the time: « Opening » at 1 s
+PASS the chapter being played is named above the time: « Partie A » at 7 s
+PASS the chapter being played is named above the time: « Ending » at 15 s
+PASS pointing at the speaker slides the volume slider out
+PASS the volume slider tucks back once the pointer has left
+PASS a keyboard volume change shows the level for a moment
+PASS the subtitles button opens audio and subtitles, the loaded track checked (« Essai · Français · SRT · fichier externe »)
+PASS the menu opens right above its button, aligned on its right edge, at the current DPI
+PASS choosing « Désactivés » reaches mpv, unchecks the track and keeps the menu open
+PASS choosing the track again turns the subtitles back on
+PASS the same button closes its menu
+PASS ⋮ opens the speeds, the subtitle timing and the playback information
+PASS a speed chip reaches mpv and becomes the chosen one
+PASS seek moves to four seconds
+PASS mini-player preserves the video engine and exposes the library
+PASS mini-player rests rounded and shadowed in the bottom-right corner
+PASS a released mini-player glides to the nearest corner
+PASS pushed past the right edge, the mini-player tucks away behind a handle and keeps playing
+PASS a tucked mini-player keeps its controls closed
+PASS the handle brings the mini-player back to the right edge
+INFO mini-player drag, snapping and tuck-away checked with the native video kept alive
+PASS navigation keeps the mini-player alive
+PASS expanded player restores its full layout
+PASS play, volume, slider, menus and fullscreen share one vertical center
+PASS bottom controls stay inside the video with breathing room
+INFO fullscreen rectangle -30000,-30000,1600,900; logical size 800 × 450
+PASS fullscreen uses the requested screen rectangle including its full height
+PASS fullscreen retains the same full-height video host and hides window chrome
+PASS fullscreen drops the native caption style: no title bar or border can appear
+PASS leaving fullscreen restores the prior window dimensions
+PASS leaving fullscreen restores the caption style used by Windows animations
+PASS mute control changes the native audio state
+PASS unmute restores the native audio state
+PASS unmuting zero volume restores the last audible level
+PASS speed menu selection reaches mpv
+PASS subtitle timing buttons reach mpv and show the new offset
+PASS the ⋮ menu aligns on its button inside the player at current DPI
+PASS native keyboard F reaches the application fullscreen action
+PASS native Escape exits fullscreen without stopping playback
+PASS starting the next video preserves fullscreen
+PASS next video preserves mini-player browsing mode
+PASS stop releases mpv and closes player overlays
+PASS manual next in the middle keeps the episode unwatched and resumable
+PASS outro shortcut identifies the next-episode action below 90 percent
+PASS next-episode pill marks the previous episode watched below 90 percent
+PASS automatic countdown marks the previous episode watched and clears its progress
+PASS end-of-file completes playback even when mpv retains an earlier time position
+PASS returning after playback puts the last watched film first in the rendered resume row
+PASS mini-player updates recency and returns the resume row to its left edge without stopping playback
+TorLink end-to-end fixture (0.5.1 results, not re-run since; portable single-file exe, real keyboard, isolated TorLink state and library, demo mode):
 PASS the rail opens the TorLink page and marks it active
 PASS TorLink runs from its own folder in Mira's pseudo console
 PASS TorLink's interface is drawn inside the page
@@ -69,7 +158,7 @@ PASS Escape outside the terminal (real keyboard) leaves the page, TorLink keeps 
 PASS closing Mira ends TorLink cleanly
 PASS no WebView2 process outlives Mira
 
-Installer fixture (silent per-user install, update and uninstall in a test folder):
+Installer fixture (0.5.1 results, not re-run since; silent per-user install, update and uninstall in a test folder):
 PASS the installer runs silently for the current user, without administrator rights
 PASS Mira 0.5.1 is installed in the chosen folder
 PASS licences and notices are installed, no data folder is created
@@ -82,58 +171,6 @@ PASS the uninstaller removes Mira and its entry in the installed apps
 PASS a silent uninstall keeps the data folder
 PASS the Start menu shortcut and the Windows identity of that installation are removed
 PASS the Start menu shortcut opens the local dist\Mira again
-
-Native player fixture (portable single-file exe, synthetic media):
-PASS native video host loads the synthetic clip
-PASS loading indicator and busy cursor clear once the first frame is ready
-PASS hidden controls keep a mouse-sensitive video surface and hide the cursor
-PASS mouse activity can interrupt the fade without a stale hide closing the controls
-PASS window keeps the caption style for Windows animations, with no native title bar visible
-PASS player icons are laid out uncropped and centred in their buttons
-PASS timeline advances between mpv polls (0.708 -> 0.753 s)
-PASS Space toggles pause even when the event targets the forward button
-PASS Right arrow seeks 10 s from any control (0.8 -> 10.8 s)
-PASS paused controls and cursor leave after idling, for clean screenshots
-PASS player controls are excluded from screen captures
-PASS named file chapters become opening and ending passages
-PASS skip button offers « Passer l’intro » during the opening
-PASS skip jumps to the end of the opening (6.0 s)
-PASS credits offer « Épisode suivant dans 10 s » with a cancel button
-PASS cancelling keeps the episode and stops the countdown
-PASS seek moves to four seconds
-PASS mini-player preserves the video engine and exposes the library
-PASS mini-player rests rounded and shadowed in the bottom-right corner
-PASS a released mini-player glides to the nearest corner
-PASS pushed past the right edge, the mini-player tucks away behind a handle and keeps playing
-PASS a tucked mini-player keeps its controls closed
-PASS the handle brings the mini-player back to the right edge
-PASS navigation keeps the mini-player alive
-PASS expanded player restores its full layout
-PASS volume, slider and transport controls share a vertical center
-PASS bottom controls stay inside the video with breathing room
-PASS fullscreen uses the requested screen rectangle including its full height
-PASS fullscreen retains the same full-height video host and hides window chrome
-PASS fullscreen drops the native caption style: no title bar or border can appear
-PASS leaving fullscreen restores the prior window dimensions
-PASS leaving fullscreen restores the caption style used by Windows animations
-PASS mute control changes the native audio state
-PASS unmute restores the native audio state
-PASS unmuting zero volume restores the last audible level
-PASS speed menu selection reaches mpv
-PASS subtitle timing buttons reach mpv
-PASS options panel aligns to the player right edge at current DPI
-PASS native keyboard F reaches the application fullscreen action
-PASS native Escape exits fullscreen without stopping playback
-PASS starting the next video preserves fullscreen
-PASS next video preserves mini-player browsing mode
-PASS stop releases mpv and closes player overlays
-PASS manual next in the middle keeps the episode unwatched and resumable
-PASS outro shortcut identifies the next-episode action below 90 percent
-PASS next-episode pill marks the previous episode watched below 90 percent
-PASS automatic countdown marks the previous episode watched and clears its progress
-PASS end-of-file completes playback even when mpv retains an earlier time position
-PASS returning after playback puts the last watched film first in the rendered resume row
-PASS mini-player updates recency and returns the resume row to its left edge without stopping playback
 
 Windows media fixture (synthetic media, 0.4.9 results, not re-run since):
 PASS Windows media broker and notification-area icon initialize
@@ -161,7 +198,7 @@ PASS stopping withdraws the active Windows media session
 PASS Windows operations complete without COM errors
 PASS closing cleans up the tray and taskbar integration
 
-Motion fixture (personal library, read-only, 0.5.0):
+Motion fixture (personal library, read-only, 0.5.0 results, not re-run since):
 PASS unchanged cards retain their instances across refresh
 PASS wheel over resume card interpolates 67.1 -> 108.0 px
 PASS carousel advances and progress segment reaches 50 percent

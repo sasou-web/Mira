@@ -51,6 +51,7 @@ public partial class MainWindow : Window
         InitializePlayerProbe();
         InitializeWindowsIntegration();
         InitializeTorLink();
+        InitializeUpdates();
         Activated += (_, _) => UpdateHeroClock(); Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Tab) _keyboardNavigation = true; };
         PreviewMouseDown += (_, e) =>
@@ -90,6 +91,7 @@ public partial class MainWindow : Window
         if (_args.Contains("--windows-check")) { await RunWindowsCheckAsync(); return; }
         if (_args.Contains("--torlink-check")) { await RunTorLinkCheckAsync(); return; }
         _fallbackRefresh.Start();
+        AnnounceUpdateResult();
         if (_testMedia is not null && _args.Contains("--autoplay")) await PlayAsync(DemoLibrary.Items()[0]);
     }
     private Task? _startupRevealTask;
@@ -302,14 +304,20 @@ public partial class MainWindow : Window
         SyncLabel.Foreground = pending > 0 ? Brush("#D5B787") : Brush("#91BAA7");
     });
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(8) };
-    /// <summary>Messages slide in, then leave on their own after a few seconds (unless the pointer is on them).</summary>
-    private void SetNotice(string message)
+    private Action? _noticeAction;
+    private void SetNotice(string message) => SetNotice(message, null, null);
+    /// <summary>Messages slide in, then leave on their own after a few seconds (unless the pointer is on them).
+    /// <paramref name="action"/> adds a button, such as "Redémarrer" for a downloaded update.</summary>
+    private void SetNotice(string message, string? action, Action? onAction)
     {
+        _noticeAction = onAction; NoticeAction.Content = action;
+        NoticeAction.Visibility = onAction is null ? Visibility.Collapsed : Visibility.Visible;
         NoticeText.Text = message;
         if (Notice.Visibility != Visibility.Visible || !Notice.IsHitTestVisible) Motion.Reveal(Notice, 220, 10);
         _noticeTimer.Stop(); _noticeTimer.Start();
     }
     private void HideNotice() { _noticeTimer.Stop(); if (Notice.Visibility == Visibility.Visible) _ = Motion.HideAsync(Notice, 180); }
+    private void NoticeAction_Click(object sender, RoutedEventArgs e) { var action = _noticeAction; HideNotice(); action?.Invoke(); }
     private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver) return; HideNotice(); }
     private static bool IsExpected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException or OperationCanceledException or System.Text.Json.JsonException;
     private static string Friendly(Exception ex) => ex switch { UnauthorizedAccessException => ex.Message, ArgumentException => ex.Message, OperationCanceledException => "Jellyfin met trop de temps à répondre.", HttpRequestException h when h.StatusCode is not null => h.Message, HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.", _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie." };

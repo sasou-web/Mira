@@ -30,6 +30,7 @@ public partial class MainWindow
             await Task.Delay(70); ShowPlayerControls(); await Task.Delay(260);
             Require(_controlsVisible && PlayerControls.IsHitTestVisible && PlayerControls.Opacity > .99 && PlayerSurface.Cursor == System.Windows.Input.Cursors.Arrow, "mouse activity can interrupt the fade without a stale hide closing the controls");
             await RunPlayerV044ChecksAsync(output, checks, Require);
+            await RunPlayerBarChecksAsync(output, checks, Require);
             _mpv!.Set("pause", "yes"); await Task.Delay(200);
             var engine = _mpv; var handle = _videoHandle;
             _mpv.Command("seek", "4", "absolute+exact"); await Task.Delay(240); _mpv.Poll();
@@ -41,11 +42,14 @@ public partial class MainWindow
             Require(_miniPlayer && _playing && ReferenceEquals(engine, _mpv), "navigation keeps the mini-player alive");
             SetMiniPlayer(false); await Task.Delay(120);
             Require(!_miniPlayer && !LibraryShell.IsVisible && PlayerShell.ActualWidth > 900, "expanded player restores its full layout");
-            var volumeCenter = MuteButton.TranslatePoint(new Point(0, MuteButton.ActualHeight / 2), PlayerSurface).Y;
-            var sliderCenter = VolumeSlider.TranslatePoint(new Point(0, VolumeSlider.ActualHeight / 2), PlayerSurface).Y;
-            var playCenter = PauseButton.TranslatePoint(new Point(0, PauseButton.ActualHeight / 2), PlayerSurface).Y;
-            Require(Math.Abs(volumeCenter - sliderCenter) < 1 && Math.Abs(volumeCenter - playCenter) < 1, "volume, slider and transport controls share a vertical center");
-            Require(PauseButton.TranslatePoint(new Point(0, PauseButton.ActualHeight), PlayerSurface).Y <= PlayerSurface.Height - 20, "bottom controls stay inside the video with breathing room");
+            SetVolumeReveal(true); UpdateLayout(); await Task.Delay(260);
+            double Middle(FrameworkElement element) => element.TranslatePoint(new Point(0, element.ActualHeight / 2), PlayerSurface).Y;
+            var volumeCenter = Middle(MuteButton);
+            Require(Math.Abs(volumeCenter - Middle(VolumeSlider)) < 1 && Math.Abs(volumeCenter - Middle(PauseButton)) < 1 && Math.Abs(volumeCenter - Middle(PlayerMoreButton)) < 1 && Math.Abs(volumeCenter - Middle(FullscreenButton)) < 1,
+                "play, volume, slider, menus and fullscreen share one vertical center");
+            SetVolumeReveal(false);
+            var playGlyph = FindVisual<Views.Icon>(PauseButton)!;
+            Require(playGlyph.TranslatePoint(new Point(0, playGlyph.ActualHeight), PlayerSurface).Y <= PlayerSurface.Height - 20, "bottom controls stay inside the video with breathing room");
             var original = new Rect(Left, Top, Width, Height);
             ToggleFullscreen(); await Task.Delay(200);
             var pixels = _fullscreenWindow!.WindowPixels();
@@ -62,15 +66,17 @@ public partial class MainWindow
             VolumeSlider.Value = 0; Mute_Click(this, new());
             Require(!_mpv.Flag("mute") && Math.Abs(VolumeSlider.Value - 20) < .1, "unmuting zero volume restores the last audible level");
             VolumeSlider.Value = 0;
-            Tracks_Click(this, new()); UpdateLayout(); await Task.Delay(100);
-            SelectChoice(SpeedChoice, "1.25"); Require(Math.Abs(_mpv.Number("speed") - 1.25) < .001, "speed menu selection reaches mpv");
-            SubtitleDelay_Click(new Button { Tag = "0.5" }, new()); Require(Math.Abs(_mpv.Number("sub-delay") - .5) < .001, "subtitle timing buttons reach mpv");
+            More_Click(this, new()); UpdateLayout(); await Task.Delay(100);
+            ChooseSpeed(1.25); Require(Math.Abs(_mpv.Number("speed") - 1.25) < .001, "speed menu selection reaches mpv");
+            SubtitleDelay_Click(new Button { Tag = "0.5" }, new());
+            Require(Math.Abs(_mpv.Number("sub-delay") - .5) < .001 && Equals(SubtitleDelayReset.Content, DelayLabel(.5)), "subtitle timing buttons reach mpv and show the new offset");
             var panel = (FrameworkElement)PlayerOptionsPopup.Child;
             var dpi = VisualTreeHelper.GetDpi(PlayerShell);
             var panelPixels = new Size(panel.ActualWidth * dpi.DpiScaleX, panel.ActualHeight * dpi.DpiScaleY);
             var shellPixels = new Size(PlayerShell.ActualWidth * dpi.DpiScaleX, PlayerShell.ActualHeight * dpi.DpiScaleY);
             var placement = PlayerOptionsPopup.CustomPopupPlacementCallback(panelPixels, shellPixels, new())[0].Point;
-            Require(Math.Abs(placement.X + panelPixels.Width - shellPixels.Width + 34 * dpi.DpiScaleX) < 1 && placement.Y >= 0 && placement.Y + panelPixels.Height < shellPixels.Height, "options panel aligns to the player right edge at current DPI");
+            var moreRight = PlayerMoreButton.TranslatePoint(new Point(PlayerMoreButton.ActualWidth, 0), PlayerSurface).X * dpi.DpiScaleX;
+            Require(Math.Abs(placement.X + panelPixels.Width - moreRight) < 1 && placement.Y >= 0 && placement.Y + panelPixels.Height < shellPixels.Height, "the ⋮ menu aligns on its button inside the player at current DPI");
             PlayerOptionsPopup.IsOpen = false;
             var messageSeen = false; _mpv.Message += message => { if (message == "mira-fullscreen") messageSeen = true; };
             // The command is routed by input.conf exactly as a native F key would be.

@@ -1,5 +1,23 @@
 # Historique
 
+## 0.5.2 — non publiée
+
+Mises à jour automatiques et nouvelle barre de lecture.
+
+- **Mises à jour automatiques** : Mira cherche une nouvelle version sur GitHub à l’ouverture, puis toutes les 6 heures, télécharge le fichier qui correspond à sa copie (installateur, exécutable portable ou archive) et l’installe à la fermeture. **Redémarrer** l’installe tout de suite et rouvre Mira. Le dossier `data` n’est jamais modifié.
+- Chaque version passe une vérification avant d’être installée : manifeste `mira-update.json` signé (ECDSA P-256) par une clé intégrée à Mira, puis taille et empreinte SHA-256 du fichier. Une release modifiée sur GitHub ou en chemin, non signée ou plus ancienne est refusée.
+- Un téléchargement interrompu reprend où il s’était arrêté. Mira attend la fin d’une installation en cours avant de démarrer, annonce au démarrage suivant si la mise à jour a réussi, et ne relance plus à chaque fermeture une version qui a échoué deux fois.
+- **Réglages → Mises à jour** : version, état, recherche manuelle, redémarrage pour installer, lien vers les nouveautés, et interrupteur des mises à jour automatiques.
+- **Barre de lecture** redessinée : titre et épisode (« Épisode 3 / 12 · nom ») à gauche, chapitre en cours et temps à droite, au-dessus d’une barre découpée par chapitres ; lecture, épisode suivant et volume à gauche ; options, audio et sous-titres, mini-lecteur et plein écran à droite.
+- Le curseur de volume sort du haut-parleur au survol, et un instant après ↑ / ↓. L’icône indique son niveau.
+- Menus du lecteur ouverts au-dessus de leur bouton : pistes audio et sous-titres en deux colonnes, cochées, avec langue, codec et canaux ; vitesses, décalage des sous-titres et informations de lecture sous **⋮**.
+- Les boutons ±10 secondes quittent la barre, comme sur la référence choisie ; ← et → restent les raccourcis.
+- Outils de release : `tools/Mira.Release` (clé de signature protégée par Windows, hors du dépôt), manifeste signé par `tools/package.ps1`, essai de bout en bout `tools/update-check.ps1`.
+
+### À savoir
+
+Les copies en 0.5.1 ou plus ancienne n’ont pas ces mises à jour : il faut installer la 0.5.2 une fois à la main. Une release publiée sans `mira-update.json` signé n’est pas proposée aux copies installées.
+
 ## 0.5.1 — 2026-09-29
 
 Installation simplifiée.

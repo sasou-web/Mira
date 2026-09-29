@@ -6,17 +6,17 @@
 - Un serveur Jellyfin accessible, sur le même PC ou le réseau, et un compte sur ce serveur.
 - Une bibliothèque **libmpv x64** pour lire les vidéos. `mpv.exe` seul ne suffit pas.
 
-L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. La version 0.5.1 est une préversion de développement non signée.
+L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. Mira est une préversion de développement non signée.
 
 Facultatif : [TorLink](#torlink), installé séparément, et le runtime Microsoft Edge WebView2 (présent sur Windows 11 et la plupart des Windows 10) pour afficher son terminal dans Mira.
 
 ## Installation
 
-La [release](https://github.com/sasou-web/Mira/releases) propose trois fichiers ; un seul suffit.
+La [dernière release](https://github.com/sasou-web/Mira/releases) propose trois fichiers, où `<version>` est son numéro ; un seul suffit.
 
-- **`Mira-0.5.1-win-x64-setup.exe`, recommandé.** L’installateur place Mira dans `%LOCALAPPDATA%\Programs\Mira`, pour ton compte uniquement et sans droits administrateur. Il ajoute le raccourci Démarrer, un raccourci Bureau si tu le coches, et une entrée de désinstallation dans **Paramètres → Applications**.
-- **`Mira-0.5.1-win-x64-portable.exe`.** Mira en un seul fichier, sans installation. Range-le dans un dossier à lui où ton compte peut écrire, par exemple `Documents\Mira` : il y crée son dossier `data`. Au premier lancement, .NET extrait quelques bibliothèques natives dans `%TEMP%\.net`.
-- **`Mira-0.5.1-win-x64.zip`.** Le dossier complet de l’application. Extraire **tout** le dossier `Mira` dans un emplacement accessible en écriture, sans lancer l’exécutable depuis l’archive ni copier uniquement `Mira.exe`.
+- **`Mira-<version>-win-x64-setup.exe`, recommandé.** L’installateur place Mira dans `%LOCALAPPDATA%\Programs\Mira`, pour ton compte uniquement et sans droits administrateur. Il ajoute le raccourci Démarrer, un raccourci Bureau si tu le coches, et une entrée de désinstallation dans **Paramètres → Applications**.
+- **`Mira-<version>-win-x64-portable.exe`.** Mira en un seul fichier, sans installation. Range-le dans un dossier à lui où ton compte peut écrire, par exemple `Documents\Mira` : il y crée son dossier `data`. Au premier lancement, .NET extrait quelques bibliothèques natives dans `%TEMP%\.net`.
+- **`Mira-<version>-win-x64.zip`.** Le dossier complet de l’application. Extraire **tout** le dossier `Mira` dans un emplacement accessible en écriture, sans lancer l’exécutable depuis l’archive ni copier uniquement `Mira.exe`.
 
 Les fichiers ne sont pas encore signés : Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Vérifier l’empreinte du fichier (plus bas), puis choisir **Informations complémentaires → Exécuter quand même**.
 
@@ -68,6 +68,10 @@ Mira ne vérifie pas ce qui est téléchargé. Les sources intégrées à TorLin
 
 Le dossier `data`, à côté de `Mira.exe`, contient la session protégée, les préférences, la progression en attente, le cache et le journal des rangements TorLink. Ne jamais le publier ou le joindre à une issue. La session protégée n’est pas portable vers un autre compte Windows.
 
+**Mises à jour automatiques, à partir de la 0.5.2.** Quelques secondes après son ouverture, puis toutes les 6 heures, Mira cherche une nouvelle version sur GitHub. Il télécharge en arrière-plan le fichier de sa forme d’installation (installateur, exécutable portable ou archive), vérifie qu’il est signé par Mira, avec la taille et l’empreinte SHA-256 annoncées, et l’installe quand tu fermes Mira. **Redémarrer**, dans le message qui s’affiche ou dans **Réglages → Mises à jour**, l’installe tout de suite et rouvre Mira. Le dossier `data` reste en place ; les préversions sont proposées, comme toutes les versions publiées jusqu’ici. L’interrupteur de **Réglages → Mises à jour** arrête la recherche automatique ; **Rechercher** reste disponible. Le détail de chaque vérification est noté dans `data\updates\update.log`.
+
+Une copie en 0.5.1 ou plus ancienne ne se met pas à jour seule : installer une fois à la main la 0.5.2 ou une version plus récente suffit. Pour mettre à jour à la main :
+
 - **Installateur** : lancer celui de la nouvelle version ; il ferme Mira s’il est ouvert, remplace l’application et garde `data`. La désinstallation demande avant de supprimer ces données (non par défaut).
 - **Exécutable portable** : fermer Mira et remplacer le fichier `.exe`, dans le même dossier que son `data`.
 - **Archive** : fermer Mira, sauvegarder `data`, puis remplacer les fichiers de l’application par ceux de la nouvelle archive, **en conservant `data`**.
@@ -75,7 +79,7 @@ Le dossier `data`, à côté de `Mira.exe`, contient la session protégée, les 
 Chaque fichier de la release est accompagné de son empreinte SHA-256 (fichier `.sha256`). Pour vérifier un fichier téléchargé :
 
 ```powershell
-Get-FileHash .\Mira-0.5.1-win-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Mira-<version>-win-x64-setup.exe -Algorithm SHA256
 ```
 
 Pour passer d’une copie portable à l’installateur en gardant sa session : installer, fermer toutes les fenêtres Mira, puis copier le dossier `data` de l’ancienne copie dans `%LOCALAPPDATA%\Programs\Mira`, en remplaçant celui qui s’y trouve.
@@ -93,5 +97,6 @@ Pour passer d’une copie portable à l’installateur en gardant sa session : i
 | « TorLink est déjà ouvert » | Quitter l’autre fenêtre TorLink (q ou Ctrl + C), puis choisir **Réessayer**. |
 | Terminal intégré indisponible | Installer le runtime Microsoft Edge WebView2. En attendant, **Ouvrir dans une fenêtre** lance TorLink à part ; ses téléchargements terminés sont quand même rangés, au plus tard à la prochaine ouverture de Mira. |
 | Téléchargement non rangé | Lire son état dans **Vers Jellyfin**, sur la page TorLink. Choisir les dossiers manquants dans les réglages, puis **Réessayer**. |
+| Mise à jour qui ne s’installe pas | **Réglages → Mises à jour** donne la dernière erreur, `data\updates\update.log` le détail. Le dossier de Mira doit rester accessible en écriture ; une copie lancée depuis un dossier de développement (`bin\Release`) ne se met jamais à jour. |
 
 Pour un problème reproductible, [ouvrir une issue](https://github.com/sasou-web/Mira/issues/new/choose) avec les versions de Mira, Windows, Jellyfin et du moteur. Ne joindre aucun identifiant ni média personnel.
