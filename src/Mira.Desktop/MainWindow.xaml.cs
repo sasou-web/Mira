@@ -50,6 +50,7 @@ public partial class MainWindow : Window
         InitializePlayerControls();
         InitializePlayerProbe();
         InitializeWindowsIntegration();
+        InitializeTorLink();
         Activated += (_, _) => UpdateHeroClock(); Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Tab) _keyboardNavigation = true; };
         PreviewMouseDown += (_, e) =>
@@ -62,7 +63,13 @@ public partial class MainWindow : Window
         StateChanged += (_, _) => UpdateMaximizeButtons();
         SettingsVersion.Text = $"Mira {JellyfinClient.AppVersion} · Jellyfin + mpv";
         _searchTimer.Tick += async (_, _) => { _searchTimer.Stop(); await RefreshAsync(); };
-        _externalRefresh.Tick += async (_, _) => { _externalRefresh.Stop(); if (!_playing && !_demo) { _metadata?.Clear(); _heroSeries.Clear(); await RefreshAsync(quiet: true); } };
+        _externalRefresh.Tick += async (_, _) =>
+        {
+            _externalRefresh.Stop();
+            // A library change may be a title TorLink just brought in.
+            _ = CheckTorLinkAvailabilityAsync();
+            if (!_playing && !_demo) { _metadata?.Clear(); _heroSeries.Clear(); await RefreshAsync(quiet: true); }
+        };
         _fallbackRefresh.Tick += async (_, _) => { if (!_demo && !_playing && _client is not null && IsActive) await RefreshAsync(quiet: true); };
         _playerTimer.Tick += PlayerTick;
         VolumeSlider.Value = _settings.Volume;
@@ -75,12 +82,13 @@ public partial class MainWindow : Window
     {
         if (_args.Contains("--demo")) await ShowDemoAsync();
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
-        else LoginOverlay.Visibility = Visibility.Visible;
+        else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); }
         await RevealStartupAsync();
         if (_args.Contains("--public-gallery")) { await RunPublicGalleryAsync(); return; }
         if (_args.Contains("--visual-check")) { await RunVisualCheckAsync(); return; }
         if (_args.Contains("--player-check")) { await RunPlayerCheckAsync(); return; }
         if (_args.Contains("--windows-check")) { await RunWindowsCheckAsync(); return; }
+        if (_args.Contains("--torlink-check")) { await RunTorLinkCheckAsync(); return; }
         _fallbackRefresh.Start();
         if (_testMedia is not null && _args.Contains("--autoplay")) await PlayAsync(DemoLibrary.Items()[0]);
     }
@@ -107,6 +115,8 @@ public partial class MainWindow : Window
         _view = "home"; _parentId = null; SearchBox.Text = "";
         PopulateFilters(new CatalogFilters { Genres = DemoLibrary.Items().SelectMany(x => x.Genres).Distinct().ToArray(), Years = DemoLibrary.Items().Select(x => x.ProductionYear ?? 0).Where(x => x > 0).Distinct().ToArray() });
         RenderDemo();
+        // Without Jellyfin, only folders chosen in Réglages → TorLink receive downloads.
+        _ = RefreshTorLinkLibrariesAsync();
     }
     private void Login_KeyDown(object sender, KeyEventArgs e)
     {
@@ -160,6 +170,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         SyncChanged();
+        _ = RefreshTorLinkLibrariesAsync();
     }
     private async Task ListenSafelyAsync(JellyfinClient client, CancellationToken ct)
     {
@@ -321,7 +332,7 @@ public partial class MainWindow : Window
     private async void Logout_Click(object sender, RoutedEventArgs e)
     {
         await DisconnectServicesAsync(); _profile.ClearConnection(); PasswordBox.Clear(); _items = []; _resume = []; _nextUp = []; _hero = null; _totalCount = 0;
-        RenderLibrary();
+        RenderLibrary(); _ = RefreshTorLinkLibrariesAsync();
         LoginArt.Source = null;
         LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed; LoginError.Text = "Session déconnectée sur ce PC."; FocusLogin();
     }

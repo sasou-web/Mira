@@ -81,6 +81,8 @@ public partial class MainWindow
             DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
             LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
             NavigationRail.Visibility = Visibility.Collapsed;
+            // The player's keys must reach Mira, not the TorLink terminal left open underneath.
+            if (TorLinkOverlay.IsKeyboardFocusWithin) Focus();
             NextButton.IsEnabled = !_demo && item.Type == "Episode";
             if (_videoHost is null)
             {
@@ -318,6 +320,8 @@ public partial class MainWindow
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Handled) return;
+        // Keys typed in TorLink belong to TorLink (Escape, arrows, shortcuts); Alt+← and the "back" key still leave its page.
+        if (FromTorLinkTerminal(e) && !IsBackKey(e)) return;
         if (e.Key == Key.Escape)
         {
             foreach (var combo in new[] { GenreFilter, YearFilter, WatchedFilter, SortFilter, LibraryFilter, SeasonSelector, AudioLanguageChoice, SubtitleLanguageChoice, DensityChoice })
@@ -325,12 +329,14 @@ public partial class MainWindow
             GoBack(); e.Handled = true; return;
         }
         // Alt+← and the browser "back" key behave like Escape and the mouse's back button.
-        if ((Keyboard.Modifiers == ModifierKeys.Alt && e.SystemKey == Key.Left) || e.Key == Key.BrowserBack) { if (GoBack()) e.Handled = true; return; }
+        if (IsBackKey(e)) { if (GoBack()) e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
         if (e.OriginalSource is TextBox or System.Windows.Controls.PasswordBox || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.
         if (e.Key == Key.I && !e.IsRepeat) { SetMiniPlayer(!_miniPlayer); e.Handled = true; }
     }
+    /// <summary>Alt+← or the "back" key. WPF reports Alt+← as Key.System; keys forwarded by WebView2 carry the arrow itself.</summary>
+    private static bool IsBackKey(KeyEventArgs e) => e.Key == Key.BrowserBack || Keyboard.Modifiers == ModifierKeys.Alt && (e.SystemKey == Key.Left || e.Key == Key.Left);
     /// <summary>One step back: menu, account screen, settings, title page, then the player.</summary>
     private bool GoBack()
     {
@@ -338,6 +344,7 @@ public partial class MainWindow
         if (LoginOverlay.Visibility == Visibility.Visible) { if (BackToLibrary.Visibility != Visibility.Visible) return false; CloseAccount_Click(this, new()); return true; }
         if (SettingsOverlay.Visibility == Visibility.Visible) { _ = CloseSettingsAnimatedAsync(); return true; }
         if (DetailOverlay.Visibility == Visibility.Visible && (!_playing || _miniPlayer)) { _ = CloseDetailsAsync(); return true; }
+        if (TorLinkOverlay.Visibility == Visibility.Visible && TorLinkOverlay.IsHitTestVisible && (!_playing || _miniPlayer)) { _ = CloseTorLinkAsync(); return true; }
         if (_playing && !_miniPlayer) { BackFromPlayer_Click(this, new()); return true; }
         return false;
     }
@@ -349,7 +356,7 @@ public partial class MainWindow
         _windows?.Dispose(); _windows = null;
         UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll);
         _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
-        await StopPlaybackAsync(); _profile.SaveSettings(_settings); await DisconnectServicesAsync();
+        await StopPlaybackAsync(); await StopTorLinkAsync(); _profile.SaveSettings(_settings); await DisconnectServicesAsync();
         _videoHost?.Dispose(); _ = Dispatcher.BeginInvoke(Close);
     }
     private static string TimeLabel(double seconds) { var time = TimeSpan.FromSeconds(Math.Max(0, double.IsFinite(seconds) ? seconds : 0)); return time.TotalHours >= 1 ? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}" : $"{(int)time.TotalMinutes}:{time.Seconds:00}"; }

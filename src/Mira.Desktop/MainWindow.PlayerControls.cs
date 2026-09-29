@@ -142,7 +142,7 @@ public partial class MainWindow
     /// replay its action on Space, and a clicked slider no longer swallows the arrows.</summary>
     private void Player_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Handled || !_playing || PlayerOptionsPopup.IsOpen || Keyboard.Modifiers != ModifierKeys.None) return;
+        if (e.Handled || !_playing || PlayerOptionsPopup.IsOpen || Keyboard.Modifiers != ModifierKeys.None || FromTorLinkTerminal(e)) return;
         if (e.OriginalSource is TextBoxBase or System.Windows.Controls.PasswordBox or ComboBox or ComboBoxItem) return;
         // While browsing with the mini-player, the library keeps its keys unless the player has focus.
         if (_miniPlayer && !ReferenceEquals(sender, PlayerSurface) && !IsInPlayer(e.OriginalSource as DependencyObject)) return;

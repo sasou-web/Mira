@@ -113,6 +113,55 @@ public sealed class JellyfinClient : IDisposable
         using var response = played ? await _http.PostAsync(path, null, ct) : await _http.DeleteAsync(path, ct);
         await CheckAsync(response);
     }
+    /// <summary>
+    /// Library folders of the server, with their paths. Reading them needs administrator rights: null when the
+    /// account may not, without ending the session (folders are then chosen in Réglages → TorLink).
+    /// </summary>
+    public async Task<List<VirtualFolder>?> VirtualFoldersAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Library/VirtualFolders", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        return await response.Content.ReadFromJsonAsync<List<VirtualFolder>>(Json.Options, ct) ?? [];
+    }
+    /// <summary>
+    /// Reports new or removed media paths, the same signal Jellyfin's own folder monitor produces
+    /// (the server rescans them after its monitor delay). Optional: false when refused or unreachable.
+    /// </summary>
+    public async Task<bool> ReportMediaChangedAsync(IEnumerable<string> created, IEnumerable<string>? deleted = null, CancellationToken ct = default)
+    {
+        var updates = created.Select(x => new MediaUpdate(x, "Created")).Concat((deleted ?? []).Select(x => new MediaUpdate(x, "Deleted"))).ToArray();
+        if (updates.Length == 0) return true;
+        try
+        {
+            // Json.Options keeps Jellyfin's own property casing ("Updates", "Path", "UpdateType").
+            using var response = await _http.PostAsJsonAsync("Library/Media/Updated", new MediaUpdates(updates), Json.Options, ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested)) { return false; }
+    }
+    private sealed record MediaUpdate(string Path, string UpdateType);
+    private sealed record MediaUpdates(MediaUpdate[] Updates);
+    /// <summary>
+    /// The titles owning these files once Jellyfin has indexed them, among its 100 latest films and episodes, in one
+    /// request: file path → the film, or the series of an episode. Paths must match exactly the ones the server sees.
+    /// </summary>
+    public async Task<Dictionary<string, string>> FindIndexedAsync(IReadOnlyCollection<string> files, CancellationToken ct = default)
+    {
+        var wanted = new HashSet<string>(files, StringComparer.OrdinalIgnoreCase);
+        var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (wanted.Count == 0) return found;
+        var result = await GetAsync<JsonElement>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Episode&sortBy=DateCreated&sortOrder=Descending&limit=100&fields=Path&enableImages=false&enableUserData=false", ct);
+        if (!result.TryGetProperty("Items", out var items) || items.ValueKind != JsonValueKind.Array) return found;
+        foreach (var item in items.EnumerateArray())
+        {
+            if (!item.TryGetProperty("Path", out var path) || path.ValueKind != JsonValueKind.String || path.GetString() is not { } value || !wanted.Contains(value) || found.ContainsKey(value)) continue;
+            var owner = item.TryGetProperty("SeriesId", out var series) && series.ValueKind == JsonValueKind.String && series.GetString() is { Length: > 0 } seriesId ? seriesId
+                : item.TryGetProperty("Id", out var own) && own.ValueKind == JsonValueKind.String ? own.GetString() : null;
+            if (owner is not null) found[value] = owner;
+        }
+        return found;
+    }
     /// <summary>The episode Jellyfin would play next for one series (resumable first, then the following one).</summary>
     public async Task<MediaItem?> NextEpisodeAsync(string seriesId, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Shows/NextUp?userId={Connection.UserId}&seriesId={Uri.EscapeDataString(seriesId)}&limit=1&enableResumable=true&fields=Overview", ct)).Items.FirstOrDefault();

@@ -1,4 +1,4 @@
-# Architecture de Mira 0.4.9
+# Architecture de Mira 0.5.0
 
 ## Découpage
 
@@ -13,7 +13,8 @@ Mira.Desktop (WPF)
   │   ├─ PlayerControls : surimpression, masquage, raccourcis et menus
   │   ├─ MiniPlayer : glisser, aimantation aux coins, rangement derrière la languette
   │   ├─ PlayerSegments : chapitres, passages à sauter et épisode suivant
-  │   └─ Settings : préférences et sections de réglages
+  │   ├─ Settings : préférences et sections de réglages
+  │   └─ TorLink : page TorLink, surveillance des téléchargements terminés, liste « Vers Jellyfin »
   ├─ Themes/Cinema.xaml : composants, couleurs, focus et contrôles sombres
   ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions et défilement progressif
   ├─ Playback/MpvEngine : API C libmpv, rendu dans un HWND enfant
@@ -21,6 +22,7 @@ Mira.Desktop (WPF)
   ├─ Playback/FullscreenWindow : limites du moniteur et restauration de fenêtre
   ├─ Playback/PlayerOverlay : couche native de commandes et réception de la souris
   ├─ Playback/VideoHost : surface native de la vidéo
+  ├─ TorLink : pseudo-console Windows, installation TorLink, terminal WebView2 + xterm.js (Assets/TorLink)
   └─ Services : images, partage des requêtes de métadonnées, session DPAPI et préférences
           │
 Mira.Core
@@ -30,7 +32,8 @@ Mira.Core
   ├─ ContinueWatching : classement de la reprise par activité, une carte par série
   ├─ PlaybackMarkers : segments Jellyfin, titres de chapitres et passage actif
   ├─ ArtworkPalette : couleur dominante lisible du bandeau
-  └─ SyncService : livraison ordonnée, coalescence et reprise après erreur
+  ├─ SyncService : livraison ordonnée, coalescence et reprise après erreur
+  └─ TorLink : état TorLink, lecture des .torrent, noms de sortie, plan de rangement, importeur et journal
 ```
 
 Une application native C# / WPF permet de compiler et de livrer immédiatement sur le PC Windows équipé de .NET. libmpv est appelé directement par son API C ; aucun terminal, processus mpv externe ou lecteur HTML n’est utilisé pour la vidéo. Le rendu dispose de sa propre surface native. Une surface HwndSource transparente, possédée par la fenêtre et non activable, superpose les commandes au HWND vidéo. Elle reste ouverte lorsque les panneaux s'effacent : le fond d'alpha 1/255 conserve la réception de la souris, et WPF gère son curseur. Elle se ferme à la désactivation et à l'arrêt. Elle n'utilise pas Popup pour cette grande surface : WPF limite les Popup à 75 % de l'aire du moniteur. Seuls les menus de réglages restent des Popup. La source est créée masquée, puis montrée sans activation pour éviter un transfert de focus et une boucle de fermeture/réouverture.
@@ -117,6 +120,23 @@ La fenêtre est déclarée `SingleBorderWindow` : ce style de légende natif est
 Sous Windows 11, DWM dessine le cadre arrondi, son contour discret et son ombre. WindowChrome conserve une extension de verre minimale pour laisser DWM composer ces bords ; la grande couche de commandes vidéo est découpée au même rayon. Le plein écran et la fenêtre maximisée retirent les arrondis. Les limites physiques de la zone de travail compensent la partie invisible du cadre de redimensionnement en fenêtre maximisée.
 
 Nunito Sans est embarquée en quatre graisses, sans téléchargement au lancement. La palette générale est blanche sur noir. Le bandeau extrait sa couleur d’une miniature de 64 × 48 pixels : les pixels transparents, presque blancs/noirs ou neutres sont exclus, puis un histogramme pondéré choisit la famille chromatique dominante. La teinte est éclaircie pour les contrôles ; une image neutre conserve du blanc. Les résultats sont mémorisés par image et la couleur change par fondu.
+
+## TorLink
+
+TorLink reste un programme séparé, lancé sans modification depuis son dossier : `node\node.exe dist\cli.cjs`, ou le Node.js du PC à défaut. `TorLinkInstallation` prend le dossier choisi dans les réglages, sinon la cible des raccourcis `torlink*.lnk` du menu Démarrer et du Bureau, puis une installation npm globale ; il vérifie `package.json` (paquet `torlnk`) et `dist/cli.cjs`. Avant un lancement, les lignes de commande des processus `node` sont lues par `NtQueryInformationProcess` : si TorLink tourne déjà ailleurs, Mira n’en démarre pas un second, car les deux partageraient la même file et les mêmes fichiers.
+
+**Terminal.** `PseudoConsole` crée une pseudo-console Windows (ConPTY) et démarre TorLink suspendu dans un Job Object `KILL_ON_JOB_CLOSE`, si bien qu’aucun processus TorLink ou Node lancé dans la page ne survit à Mira. Sans WebView2, « Ouvrir dans une fenêtre » lance TorLink à part, comme son raccourci, après la même vérification d’instance ; ce TorLink-là vit indépendamment de Mira. La sortie UTF-8 est lue sur un thread dédié, regroupée jusqu’au prochain passage du dispatcher, puis dessinée par xterm.js 6 dans `Assets/TorLink/terminal.html`. `WebView2CompositionControl` est composé par WPF, sans HWND superposé : mini-lecteur, notifications, fiche et réglages passent au-dessus du terminal. La page n’envoie que quatre messages validés : prête, taille (20 à 500 colonnes, 5 à 300 lignes), saisie (64 Kio au plus) et retour. Les touches que WebView2 transmet à WPF restent à TorLink, Échap et flèches comprises, sauf Alt + ← et la touche « précédent ». La molette devient des flèches, comme TorLink l’attend. À la fermeture, Ctrl + C est envoyé, puis le Job est terminé après 3 secondes. TorLink quitte avec le code 0 quand on le lui demande ; un autre code affiche dans la page la dernière ligne qu’il a écrite, par exemple une version de Node.js trop ancienne.
+
+**Isolation de la page.** Elle est servie depuis le dossier de l’application par un nom d’hôte virtuel réservé (`https://torlink.mira.example/`), avec une CSP `default-src 'none'` : ni réseau, ni cadre, ni formulaire. Les autres navigations, nouvelles fenêtres, téléchargements et demandes d’autorisation sont refusés ; outils de développement, menus contextuels, zoom, remplissage automatique, accélérateurs du navigateur et services réseau d’arrière-plan sont désactivés. Le profil WebView2 est isolé dans `data/webview2`. Mira n’ouvre aucun port : il échange avec TorLink uniquement par la pseudo-console. TorLink hérite de l’environnement de Mira, qui ne contient aucun jeton Jellyfin.
+
+**Rangement.** `TorLinkState` lit l’état de TorLink sans jamais l’écrire : `config.json` (dossier de téléchargement), `history.json` (téléchargements terminés), `queue.json` et les `.torrent` de `Data/torrents`. Ces lectures partagent l’écriture et la suppression : TorLink remplace ses fichiers en renommant une copie, et une lecture de Mira ne doit jamais faire échouer ce remplacement. La variable `TORLINK_STATE_DIR` est respectée. Un `FileSystemWatcher` sur `history.json`, regroupé sur 1,2 s et doublé d’un contrôle toutes les 20 s, déclenche `TorLinkImporter` sur le pool de threads, une passe à la fois.
+
+1. La liste exacte des fichiers vient du `.torrent`, avec les chemins reconstruits comme WebTorrent (`fs-chunk-store`) ; à défaut, du dossier téléchargé. Un fichier absent ou de taille différente fait attendre, jusqu’à 6 essais.
+2. `ReleaseName` et `MediaPlanner` déduisent le type (source TorLink, dossier existant, nom de fansub, numérotation absolue), le titre, l’année, la saison et l’épisode. Les dossiers existants sont réutilisés par clé normalisée et année ; les noms sont rendus valides sous Windows. Jeux et téléchargements sans vidéo sont ignorés.
+3. `MediaImporter` n’accepte que des destinations sous la racine de la bibliothèque et des extensions vidéo ou sous-titres. Il crée un lien physique (`CreateHardLinkW`) sur le même volume, sinon copie vers un fichier `.mira-part` renommé à la fin ; le déplacement est facultatif. Un fichier existant n’est jamais remplacé : de même taille, il compte comme déjà présent ; sinon, c’est un conflit. Un fichier présent qui n’est ni suivi ni un lien physique du téléchargement est noté « trouvé » : « Classer » ne le déplace jamais. L’élagage des dossiers vidés s’arrête à la première racine de bibliothèque, qui n’est jamais supprimée, même imbriquée dans une autre.
+4. `data/torlink-imports.json` garde la date d’activation, puis l’état, les chemins et le type choisi par « Classer » pour chaque téléchargement (500 au plus), sans lien magnet. Seuls les téléchargements terminés après cette date sont rangés automatiquement. Une nouvelle tentative garde le type choisi et les fichiers déjà rangés, y compris ceux qu’un déplacement a sortis du dossier de TorLink ; une passe interrompue par la fermeture enregistre ce qui est fait. Un journal illisible est mis de côté (`.bad-…`) avant d’en commencer un autre.
+
+**Jellyfin.** Les dossiers proviennent de `GET /Library/VirtualFolders` : la première bibliothèque de films, une bibliothèque de séries dont le nom ou le dossier contient le mot « anime », « animes » ou « animés » (pas « Animation » ni « Dessins animés ») pour les animes, l’autre pour les séries. Ils ne sont retenus que s’ils existent sur ce PC, et les dossiers choisis dans les réglages passent avant. Cet appel demande un compte administrateur ; un refus 401/403 ne ferme pas la session. Après un rangement, `POST /Library/Media/Updated` signale les dossiers créés, et ceux quittés après un reclassement ; la surveillance de Jellyfin les trouverait aussi, après son délai. La disponibilité est vérifiée toutes les 20 s et à chaque changement de bibliothèque reçu par WebSocket, pendant 6 heures : une seule requête `Items?fields=Path` pour tous les titres en attente, parmi les 100 derniers films et épisodes ajoutés, avec comparaison exacte des chemins. `Library/Media/Updated` n’exige qu’un compte connecté (vérifié dans la description OpenAPI de Jellyfin 12.1.0).
 
 ## Session et fichiers
 

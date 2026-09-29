@@ -1,6 +1,6 @@
 # Mira
 
-Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vidéos avec **mpv intégré**. Version de développement : **0.4.9**.
+Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vidéos avec **mpv intégré**. Version de développement : **0.5.0**.
 
 ## Démarrer
 
@@ -49,13 +49,30 @@ Le moteur déjà installé avec Jellyfin MPV Shim ou mpv.net est détecté autom
 
 Les commandes **Favoris** et la lecture mettent à jour le compte connecté. Le mode démo ne communique pas avec Jellyfin ; son bouton de lecture permet de choisir une vidéo locale.
 
+## TorLink
+
+Le bouton **TorLink** du rail (flèche de téléchargement) ouvre la page TorLink. L’interface de TorLink, installé séparément, y tourne telle quelle : recherche, file, pause, reprise, partage et réglages restent ceux de TorLink. Mira le retrouve par son raccourci Démarrer ou par le dossier indiqué dans les réglages, et le démarre une seule fois. Si TorLink est déjà ouvert dans une autre fenêtre, la page le signale au lieu d’en lancer un second. Sans le moteur WebView2, **Ouvrir dans une fenêtre** lance TorLink à part, comme son raccourci, avec la même vérification.
+
+- Dans le terminal, les touches vont à TorLink, y compris Échap et les flèches ; **Alt + ←** revient à Mira. La molette fait défiler les listes. **Ctrl + C** copie le texte sélectionné ; sans sélection, il est transmis à TorLink, qui se ferme comme dans un terminal. **Ctrl + V** colle.
+- Le panneau **Vers Jellyfin** suit chaque téléchargement terminé : en attente des fichiers, rangé, disponible, déjà présent, ignoré ou en échec. Selon l’état : **Voir** ouvre la fiche Mira, **Dossier** montre le fichier dans l’Explorateur, **Réessayer** relance le rangement et **Classer** le déplace vers Films, Séries ou Animes.
+- Films : `Titre (Année)\Titre (Année).mkv`, sous-titres `Titre (Année).fr.srt` et bonus dans `Extras`. Séries et animes : `Série\Season 01\Série - S01E02.mkv`, génériques sans texte dans `Extras`. Un dossier existant du même titre est réutilisé, avec sa saison nommée. Échantillons, notes et fichiers annexes restent dans TorLink ; les jeux et téléchargements sans vidéo sont ignorés.
+- Les animes sont reconnus par leur source TorLink (Nyaa, SubsPlease), un dossier existant dans Animes, ou un nom de sortie de fansub. Sans dossier Animes, ils rejoignent les séries.
+- Un fichier existant n’est jamais remplacé. Mira ne crée de fichiers que dans les dossiers de la bibliothèque, et seulement des vidéos et des sous-titres. Un fichier identique qui s’y trouvait déjà est compté comme présent, mais **Classer** ne le déplace jamais.
+- Jellyfin est prévenu des nouveaux dossiers ; une pastille sur le bouton TorLink et une notification annoncent le rangement, puis la disponibilité dans la bibliothèque, quand Jellyfin voit les fichiers au même chemin que Mira.
+- TorLink reste un client BitTorrent : tant qu’il tourne, il échange avec des pairs, écoute un port et peut demander au routeur de l’ouvrir (UPnP, NAT-PMP). Mira n’ajoute ni port ni service réseau.
+- Fermer Mira demande à TorLink de quitter, comme Ctrl + C, puis le termine au bout de 3 secondes s’il tourne encore. Ses téléchargements reprennent à la prochaine ouverture de la page. Réduire Mira dans la zone de notification laisse TorLink tourner.
+
+**Réglages → TorLink** : rangement automatique, partage conservé (lien physique ou copie ; désactivé, le fichier est déplacé et TorLink cesse de le partager), emplacement de TorLink et dossiers Films, Séries et Animes. Laissés vides, ces dossiers sont ceux des bibliothèques Jellyfin, lus avec un compte administrateur, s’ils existent sur ce PC. Seuls les téléchargements terminés après la première activation, ou après la réactivation du rangement automatique, sont rangés d’eux-mêmes ; les cinq plus récents d’avant restent proposés avec **Importer**. Un reclassement est mémorisé : **Réessayer** garde la bibliothèque choisie.
+
+Mira ne choisit ni ne vérifie les contenus. Les sources intégrées à TorLink indexent surtout des copies dont la diffusion n’est pas autorisée : ne télécharger que ce que tu as le droit d’obtenir.
+
 ## Raccourcis du lecteur
 
 **Espace** ou **K** : lecture / pause · **← / →** : −10 / +10 secondes · **↑ / ↓** : volume · **F** ou double-clic vidéo : plein écran · **I** : mini-lecteur / agrandir · **M** : couper / réactiver le son · **S** : passer l’opening, l’ending ou lancer l’épisode suivant quand le bouton est affiché. Ces raccourcis restent actifs après un clic sur un bouton ou sur la barre. **Échap** ferme le menu ouvert, quitte le plein écran, puis réduit la lecture dans la bibliothèque. Un clic sur la vidéo met en pause ou reprend ; un double-clic sur le mini-lecteur l’agrandit. Le **×** du mini-lecteur arrête la lecture.
 
 ## Données locales
 
-Le dossier `data` situé à côté de l’exécutable contient les préférences, le cache, la file de synchronisation et la session. Le mot de passe n’est pas enregistré. Le jeton de session est protégé avec **Windows DPAPI**, lié au compte Windows courant. Les URL de lecture utilisent un en-tête d’authentification ; elles ne contiennent pas le jeton. Le protocole WebSocket Jellyfin requiert un jeton dans son URL, qui n’est pas journalisée.
+Le dossier `data` situé à côté de l’exécutable contient les préférences, le cache, la file de synchronisation et la session. Il contient aussi `torlink-imports.json`, le journal des rangements TorLink (noms, chemins et états, sans lien magnet), et `webview2`, le profil du terminal intégré. Mira lit l’état de TorLink sans le modifier. Le mot de passe n’est pas enregistré. Le jeton de session est protégé avec **Windows DPAPI**, lié au compte Windows courant. Les URL de lecture utilisent un en-tête d’authentification ; elles ne contiennent pas le jeton. Le protocole WebSocket Jellyfin requiert un jeton dans son URL, qui n’est pas journalisée.
 
 Pour un serveur distant, utiliser HTTPS. Pour déplacer l’application, copier son dossier complet. Une session protégée sur un autre compte Windows nécessite une nouvelle connexion.
 
@@ -84,6 +101,8 @@ La lecture native et les échanges HTTP ont été testés avec des médias synth
 La prise en charge d’anciennes versions de l’API Jellyfin n’est pas encore garantie. Le HDR, les sous-titres ASS complexes, les sorties audio multicanales, les configurations multi-écrans et les bibliothèques très volumineuses nécessitent des essais dédiés. La sélection de versions multiples d’un même film, les collections éditables et les profils avancés de rendu mpv sont également à venir.
 
 La distribution ne contient pas libmpv. Les notices des composants inclus sont dans [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). La signature de l’exécutable reste à prévoir.
+
+TorLink a été vérifié avec sa version 1.1.1 et des téléchargements terminés synthétiques, dans un état et une bibliothèque isolés ; aucun vrai téléchargement n’a été rangé pendant les essais. Les dossiers de bibliothèque sont lus sur Jellyfin 12.1.0 ; le signalement à Jellyfin et le bouton « Voir » ont été vérifiés avec un serveur simulé. Avec Jellyfin dans Docker ou sur un autre PC, les dossiers se choisissent à la main et l’ajout peut attendre la prochaine analyse de la bibliothèque.
 
 Le logo et les icônes actuels sont dessinés dans `Views/Icon.cs`, sans dépendance externe. Les SVG Phosphor de l’ancienne interface restent archivés sous licence MIT dans `Assets/Phosphor`.
 

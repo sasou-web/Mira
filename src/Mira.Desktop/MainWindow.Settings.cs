@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -21,7 +22,10 @@ public partial class MainWindow
         _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true)
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
-        || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim());
+        || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim())
+        || _settings.TorLinkAutoImport != (TorLinkAutoImportCheck.IsChecked == true) || _settings.TorLinkKeepSeeding != (TorLinkKeepSeedingCheck.IsChecked == true)
+        || _settings.TorLinkPath != TorLinkPathBox.Text.Trim() || _settings.TorLinkMoviesFolder != TorLinkMoviesBox.Text.Trim()
+        || _settings.TorLinkSeriesFolder != TorLinkSeriesBox.Text.Trim() || _settings.TorLinkAnimeFolder != TorLinkAnimeBox.Text.Trim();
     private bool _settingsBusy;
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
@@ -35,6 +39,11 @@ public partial class MainWindow
         SubtitleSizeSlider.Value = _settings.SubtitleSize; MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;
         EngineStatus.Text = MpvEngine.FindLibrary(_settings.MpvPath) is null ? "Sélectionne une bibliothèque mpv 64 bits pour activer la lecture." : "Prêt pour la lecture · moteur détecté sur ce PC.";
         SubtitlePreviewImage.Source = HeroImage.Source;
+        TorLinkAutoImportCheck.IsChecked = _settings.TorLinkAutoImport; TorLinkKeepSeedingCheck.IsChecked = _settings.TorLinkKeepSeeding;
+        TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
+        TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
+        TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
+        DescribeTorLinkSettings();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); UpdateHeroClock();
         SettingsSaveStatus.Text = "Les changements s’appliquent après enregistrement.";
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
@@ -50,11 +59,12 @@ public partial class MainWindow
         SubtitleSettings.Visibility = tab == "subtitles" ? Visibility.Visible : Visibility.Collapsed;
         AppearanceSettings.Visibility = tab == "appearance" ? Visibility.Visible : Visibility.Collapsed;
         ServerSettings.Visibility = tab == "server" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsSectionTitle.Text = tab switch { "subtitles" => "Audio & sous-titres", "appearance" => "Apparence", "server" => "Jellyfin & synchronisation", _ => "Lecture" };
-        SettingsSectionDescription.Text = tab switch { "subtitles" => "Les bonnes langues, dès le premier épisode.", "appearance" => "Ajuste le confort de navigation à tes habitudes.", "server" => "Ta bibliothèque et ta progression, toujours à portée de main.", _ => "Le confort de lecture, sans avoir à y penser." };
+        TorLinkSettings.Visibility = tab == "torlink" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsSectionTitle.Text = tab switch { "subtitles" => "Audio & sous-titres", "appearance" => "Apparence", "server" => "Jellyfin & synchronisation", "torlink" => "TorLink", _ => "Lecture" };
+        SettingsSectionDescription.Text = tab switch { "subtitles" => "Les bonnes langues, dès le premier épisode.", "appearance" => "Ajuste le confort de navigation à tes habitudes.", "server" => "Ta bibliothèque et ta progression, toujours à portée de main.", "torlink" => "Tes téléchargements rangés dans Jellyfin, sans rien déplacer à la main.", _ => "Le confort de lecture, sans avoir à y penser." };
         foreach (var button in SettingsNavigation.Children.OfType<Button>()) { var active = button.Tag?.ToString() == tab; button.Background = active ? Brush("#F4F4F5") : Brushes.Transparent; button.Foreground = active ? Brush("#161618") : Brush("#D0D0D5"); }
         SettingsScroll.ScrollToTop();
-        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, _ => PlaybackSettings };
+        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "torlink" => TorLinkSettings, _ => PlaybackSettings };
         SmoothScroll.Jump(SettingsScroll); Motion.Reveal(body, 230, 7);
     }
     private void LanguageChoice_Changed(object sender, SelectionChangedEventArgs e)
@@ -80,9 +90,44 @@ public partial class MainWindow
         _settings.HeroAutoPlay = HeroAutoPlayCheck.IsChecked == true; Motion.Reduced = _settings.ReduceMotion;
         _settings.AudioLanguage = AudioLanguageBox.Text.Trim(); _settings.SubtitleLanguage = SubtitleLanguageBox.Text.Trim();
         _settings.SubtitleSize = (int)SubtitleSizeSlider.Value; _settings.MpvPath = MpvPathBox.Text.Trim();
+        // Switching automatic placement back on starts from now: downloads finished meanwhile stay listed, to import by hand.
+        var automaticAgain = !_settings.TorLinkAutoImport && TorLinkAutoImportCheck.IsChecked == true;
+        _settings.TorLinkAutoImport = TorLinkAutoImportCheck.IsChecked == true; _settings.TorLinkKeepSeeding = TorLinkKeepSeedingCheck.IsChecked == true;
+        _settings.TorLinkPath = TorLinkPathBox.Text.Trim(); _settings.TorLinkMoviesFolder = TorLinkMoviesBox.Text.Trim();
+        _settings.TorLinkSeriesFolder = TorLinkSeriesBox.Text.Trim(); _settings.TorLinkAnimeFolder = TorLinkAnimeBox.Text.Trim();
         _profile.SaveSettings(_settings);
+        if (automaticAgain) _torlinkImporter?.RestartBaseline();
+        if (_torlinkEnabled) ApplyTorLinkLibraries();
         _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.Set("sub-font-size", _settings.SubtitleSize.ToString(CultureInfo.InvariantCulture));
         RenderLibrary(); UpdateHeroClock(); SettingsSaveStatus.Text = "Préférences enregistrées.";
+    }
+    /// <summary>What Mira found: the TorLink installation and the library folders read from Jellyfin.</summary>
+    private void DescribeTorLinkSettings()
+    {
+        var installation = TorLink.TorLinkInstallation.Locate(TorLinkPathBox.Text);
+        TorLinkPathStatus.Text = installation is null
+            ? "TorLink introuvable : indique le dossier qui contient torlink.bat."
+            : $"TorLink trouvé dans {installation.Root} · " + (!installation.HasRuntime ? "Node.js 22 ou plus récent est nécessaire." : installation.Node.StartsWith(installation.Root, StringComparison.OrdinalIgnoreCase) ? "Node.js inclus." : "Node.js de ce PC.")
+              + (TorLinkPathBox.Text.Trim().Length == 0 ? " Retrouvé par son raccourci : laisse vide pour garder ce choix automatique." : "");
+        string Folder(string? path) => path ?? "non disponible";
+        var detected = _torlinkDetected;
+        TorLinkFoldersStatus.Text = _demo
+            ? "En démonstration, Jellyfin n’est pas consulté : seuls les dossiers choisis ici reçoivent les téléchargements."
+            : detected.IsEmpty
+            ? "Laisse vide pour utiliser les dossiers de tes bibliothèques Jellyfin. Ils n’ont pas pu être lus : il faut un compte administrateur et un serveur sur ce PC. Choisis-les ici sinon."
+            : $"Laisse vide pour utiliser les dossiers de Jellyfin : Films → {Folder(detected.Movies)} · Séries → {Folder(detected.Series)} · Animes → {Folder(detected.Anime ?? detected.Series)}.";
+    }
+    private void BrowseTorLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (ChooseTorLinkFolder() is not { } root) return;
+        TorLinkPathBox.Text = root; DescribeTorLinkSettings();
+    }
+    private void BrowseTorLinkFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var target = ((Button)sender).Tag?.ToString() switch { "movies" => TorLinkMoviesBox, "series" => TorLinkSeriesBox, _ => TorLinkAnimeBox };
+        var dialog = new OpenFolderDialog { Title = "Dossier de la bibliothèque Jellyfin" };
+        if (Directory.Exists(target.Text.Trim())) dialog.InitialDirectory = target.Text.Trim();
+        if (dialog.ShowDialog(this) == true) target.Text = dialog.FolderName;
     }
     private async void SyncNow_Click(object sender, RoutedEventArgs e)
     { await RefreshAsync(quiet: true); if (_demo) SettingsSaveStatus.Text = "La démonstration utilise des données fictives."; else SettingsSaveStatus.Text = "Actualisation demandée."; }

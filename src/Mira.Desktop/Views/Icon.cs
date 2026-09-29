@@ -48,7 +48,9 @@ public sealed class Icon : FrameworkElement
         ["mini"] = Shape("M9 20H7Q3 20 3 16V8Q3 4 7 4H17Q21 4 21 8V10 M14 13H19Q21 13 21 15V18Q21 20 19 20H14Q12 20 12 18V15Q12 13 14 13Z"),
         ["rewind"] = Shape("M4 8A8.5 8.5 0 1 1 3.5 14M3 3V8H8"),
         ["forward"] = Shape("M20 8A8.5 8.5 0 1 0 20.5 14M21 3V8H16"),
-        ["skip"] = Shape("M5 5Q3 4 3 6V18Q3 20 5 19L15 13Q17 12 15 11Z M20 5V19")
+        ["skip"] = Shape("M5 5Q3 4 3 6V18Q3 20 5 19L15 13Q17 12 15 11Z M20 5V19"),
+        ["download"] = Shape("M12 3.5V14.5 M7.5 10.5L12 15L16.5 10.5 M4 16V17Q4 20.5 7.5 20.5H16.5Q20 20.5 20 17V16"),
+        ["folder"] = Shape("M3.5 7.5Q3.5 4.5 6.5 4.5H9.2Q10.2 4.5 10.9 5.3L11.9 6.5H17.5Q20.5 6.5 20.5 9.5V16.5Q20.5 19.5 17.5 19.5H6.5Q3.5 19.5 3.5 16.5Z")
     };
     protected override Size MeasureOverride(Size availableSize) => new(double.IsNaN(Width) ? 22 : Width, double.IsNaN(Height) ? 22 : Height);
     protected override void OnRender(DrawingContext dc)

@@ -78,6 +78,8 @@ public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? 
         });
 }
 public sealed record LibrarySection(string Id, string Name, string? CollectionType);
+/// <summary>A server library with its folders, as returned by Library/VirtualFolders.</summary>
+public sealed record VirtualFolder(string Name, string? CollectionType, string[] Locations);
 public sealed record AuthUser(string Id, string Name);
 public sealed record AuthenticationResult(string AccessToken, AuthUser User);
 public sealed record Connection(string Server, string UserId, string UserName, string Token, string DeviceId);
@@ -133,4 +135,13 @@ public sealed class PlayerSettings
     public string PosterDensity { get; set; } = "Comfortable";
     public bool RememberPosition { get; set; } = true;
     public bool HeroAutoPlay { get; set; } = true;
+    /// <summary>TorLink folder; empty: found through its shortcuts.</summary>
+    public string TorLinkPath { get; set; } = "";
+    public bool TorLinkAutoImport { get; set; } = true;
+    /// <summary>True: hard link (or copy) so TorLink keeps sharing; false: the download is moved into the library.</summary>
+    public bool TorLinkKeepSeeding { get; set; } = true;
+    /// <summary>Manual library folders; empty: the folders of the Jellyfin libraries.</summary>
+    public string TorLinkMoviesFolder { get; set; } = "";
+    public string TorLinkSeriesFolder { get; set; } = "";
+    public string TorLinkAnimeFolder { get; set; } = "";
 }

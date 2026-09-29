@@ -49,8 +49,8 @@ public partial class MainWindow
     {
         if (SettingsOverlay.Visibility == Visibility.Visible) AutoSaveSettings();
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
-        var closing = Task.WhenAll(Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay));
-        DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = false;
+        var closing = Task.WhenAll(Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay), Motion.HideAsync(TorLinkOverlay));
+        DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = false;
         _catalogLoading = true;
         var key = $"{_view}:{_parentId}:{SearchBox.Text.Trim()}:{CurrentQuery().CacheKey}";
         var cached = _store?.Load<ItemsResult>(_view == "home" ? "home" : key);
@@ -62,9 +62,11 @@ public partial class MainWindow
     }
     private void UpdateNavigation()
     {
-        foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, SettingsNav })
+        var settings = SettingsOverlay.IsHitTestVisible && SettingsOverlay.Visibility == Visibility.Visible;
+        var torlink = !settings && TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
+        foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, TorLinkNav, SettingsNav })
         {
-            var active = SettingsOverlay.IsHitTestVisible && SettingsOverlay.Visibility == Visibility.Visible ? button == SettingsNav : button.Tag?.ToString() == _view;
+            var active = settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _view;
             button.Background = active ? Brush("#F4F4F5") : Brushes.Transparent;
             button.Foreground = active ? Brush("#151516") : Brush("#B8B8BE");
         }

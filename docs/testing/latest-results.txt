@@ -1,6 +1,6 @@
-Mira 0.4.9 - local validation, 2026-09-29
+Mira 0.5.0 - local validation, 2026-09-29
 
-Core behaviour and persistence:
+Core behaviour and persistence (with --torlink-integration):
 PASS  Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture
 PASS  Reprise : ordre persistant et réponse serveur retardée après une lecture locale
 PASS  Reprise : une ancienne lecture absente du serveur ne revient que si sa synchronisation attend
@@ -31,7 +31,42 @@ PASS  Couleur du bandeau : transparence et images neutres gardent un accent blan
 PASS  Segments Jellyfin : types demandés, passages inconnus ou trop courts ignorés
 PASS  Chapitres nommés : opening, ending, récap, aperçu et générique selon sa position
 PASS  Passages : segments serveur prioritaires, passage actif et fin vers l’épisode suivant
-30 tests réussis.
+PASS  TorLink : titres, années et épisodes lus dans des noms de sortie réels
+PASS  TorLink : sous-titres, bonus, clés de dossiers et noms Windows
+PASS  TorLink : films, épisodes, packs et bonus rangés dans les dossiers existants
+PASS  TorLink : lien physique, copie entre disques, fichier existant jamais remplacé, rien hors de la bibliothèque
+PASS  TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé
+PASS  TorLink : fichier déjà présent jamais déplacé, classement conservé, déplacement repris et journal illisible gardé
+PASS  TorLink : fichiers exacts du .torrent, chemins normalisés et fichiers incomplets attendus
+PASS  Jellyfin : dossiers des bibliothèques et signalement des médias, sans déconnexion en cas de refus
+PASS  Pseudo-console : sortie UTF-8, taille et code de sortie d’un programme console
+PASS  TorLink réel : écran d’accueil dans la pseudo-console, redimensionnement, arrêt propre et état isolé
+40 tests réussis.
+
+TorLink end-to-end fixture (final installed build, browser key events: the check window did not have the foreground; isolated TorLink state and library, demo mode):
+PASS the rail opens the TorLink page and marks it active
+PASS TorLink runs from its own folder in Mira's pseudo console
+PASS TorLink's interface is drawn inside the page
+PASS only one TorLink runs
+PASS Escape coming from the terminal is left to TorLink
+PASS keys typed in the terminal (browser key events) reach TorLink, and its exit is shown in the page
+PASS « Relancer » starts TorLink again
+PASS a film arrives as Title (Year)/Title (Year).mkv with its subtitle
+PASS release notes and other annex files stay in TorLink
+PASS the film is a hard link: no second copy, TorLink keeps its file
+PASS an episode arrives as Show/Season 01/Show - S01E02.mkv
+PASS an anime from an anime source goes to the anime library
+PASS a game is not placed in Jellyfin
+PASS the page lists each download and what became of it
+PASS « Classer comme anime » moves the episode and removes the emptied folders
+PASS the reclassified episode is still a hard link of TorLink's file
+PASS a second pass imports nothing twice
+PASS Réglages → TorLink shows the installation found
+PASS closing the settings returns to the TorLink page
+PASS Alt+← typed in the terminal (browser key events) leaves the page, TorLink keeps running
+INFO WPF key events from the terminal: none (the page asked to go back)
+PASS closing Mira ends TorLink cleanly
+PASS no WebView2 process outlives Mira
 
 Native player fixture (synthetic media):
 PASS native video host loads the synthetic clip
@@ -40,7 +75,7 @@ PASS hidden controls keep a mouse-sensitive video surface and hide the cursor
 PASS mouse activity can interrupt the fade without a stale hide closing the controls
 PASS window keeps the caption style for Windows animations, with no native title bar visible
 PASS player icons are laid out uncropped and centred in their buttons
-PASS timeline advances between mpv polls (0.704 -> 0.749 s)
+PASS timeline advances between mpv polls (0.701 -> 0.751 s)
 PASS Space toggles pause even when the event targets the forward button
 PASS Right arrow seeks 10 s from any control (0.8 -> 10.8 s)
 PASS paused controls and cursor leave after idling, for clean screenshots
@@ -85,7 +120,7 @@ PASS end-of-file completes playback even when mpv retains an earlier time positi
 PASS returning after playback puts the last watched film first in the rendered resume row
 PASS mini-player updates recency and returns the resume row to its left edge without stopping playback
 
-Windows media fixture (synthetic media):
+Windows media fixture (synthetic media, 0.4.9 results, not re-run for 0.5.0):
 PASS Windows media broker and notification-area icon initialize
 PASS taskbar buttons remain absent outside playback
 PASS Windows logo is present both as a multi-size ICO and a window resource
@@ -111,9 +146,9 @@ PASS stopping withdraws the active Windows media session
 PASS Windows operations complete without COM errors
 PASS closing cleans up the tray and taskbar integration
 
-Motion fixture:
+Motion fixture (personal library, read-only):
 PASS unchanged cards retain their instances across refresh
-PASS wheel over resume card interpolates 67.3 -> 108.0 px
+PASS wheel over resume card interpolates 67.1 -> 108.0 px
 PASS carousel advances and progress segment reaches 50 percent
 PASS hover reacts immediately, interpolates highlight and zoom together, and reverses without a jump
 PASS moving content transfers hover under a stationary pointer during scroll inertia without changing layout

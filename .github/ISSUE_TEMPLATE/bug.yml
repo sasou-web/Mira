@@ -9,7 +9,7 @@ body:
     id: version
     attributes:
       label: Version de Mira
-      placeholder: "0.4.9"
+      placeholder: "0.5.0"
     validations:
       required: true
   - type: input

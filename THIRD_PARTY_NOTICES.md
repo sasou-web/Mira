@@ -13,11 +13,17 @@ Mira's original source code is licensed under MIT. This does not replace the lic
 | Windows SDK .NET targeting pack 10.0.19041.56 | Windows API projections | Microsoft Corporation; [Windows SDK licence](https://aka.ms/WinSDKLicenseURL) |
 | Nunito Sans | Bundled typefaces | SIL Open Font License 1.1; `licenses/NUNITO-SANS-OFL.txt`, upstream revision in `src/Mira.Desktop/Assets/Fonts/SOURCE.txt` |
 | Phosphor Icons | Archived SVG assets from an earlier interface | MIT; `licenses/PHOSPHOR-MIT.txt`, revision in `src/Mira.Desktop/Assets/Phosphor/SOURCE.txt` |
+| Microsoft.Web.WebView2 1.0.4258.31 | WebView2 SDK for the embedded TorLink terminal (managed assemblies and `WebView2Loader.dll`) | Microsoft Corporation, BSD-style licence; `licenses/WEBVIEW2-BSD.txt` |
+| xterm.js 6.0.0 and @xterm/addon-fit 0.11.0 | Terminal renderer of the TorLink page, unmodified npm builds | MIT, the xterm.js authors; `licenses/XTERM-MIT.txt`, versions and integrity in `src/Mira.Desktop/Assets/TorLink/xterm/SOURCE.txt` |
 
-The current logo, icon geometry and fictional demo illustrations are original Mira assets. The screenshots show that offline demo; no movies, series, personal media or Jellyfin cache are included in the repository or release.
+The current logo, icon geometry and fictional demo illustrations are original Mira assets. The gallery (`docs/SCREENSHOTS.md`) shows that offline demo. The three screenshots at the top of the README show Mira connected to a personal Jellyfin library: the posters and artwork visible in them belong to their respective rights holders and are shown only to illustrate the software. No media file, personal library data or Jellyfin cache is included in the repository or release.
 
 ## External player
 
 **libmpv is not included.** Mira loads a separately installed x64 library. mpv and its dependencies have their own licences, depending on the build. Obtain the library and its notices from its distributor; Mira's MIT licence does not relicense it. See the [mpv project](https://github.com/mpv-player/mpv) and its [installation page](https://mpv.io/installation/).
 
-Mira is an independent client. It is not an official Jellyfin or mpv release.
+## Optional external components
+
+**TorLink is not included.** The TorLink page runs a copy installed separately on the PC, unmodified, with its own Node.js runtime and licences. **The Microsoft Edge WebView2 Runtime is not included** either: the terminal uses the runtime provided with Windows or installed from Microsoft.
+
+Mira is an independent client. It is not an official Jellyfin, mpv or TorLink release.

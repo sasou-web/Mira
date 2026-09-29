@@ -17,6 +17,23 @@ if (args.Contains("--prepare-ui"))
     profile.SaveSettings(new() { Volume = 0, AutoNext = false });
     Console.WriteLine("Profil de test isolé créé."); return;
 }
+// Read-only probe of a real server through a validation profile's protected session: the library folders TorLink
+// imports would use, and the lookup behind « Voir ». Only GET requests; nothing is reported to or changed on the server.
+if (Array.IndexOf(args, "--jellyfin-live") is var liveArg and >= 0)
+{
+    if (liveArg + 1 >= args.Length || new LocalProfile(Path.GetFullPath(args[liveArg + 1])).LoadConnection() is not { } connection) { Console.WriteLine("Profil sans session protégée valide."); return; }
+    using var client = new JellyfinClient(connection);
+    var folders = await client.VirtualFoldersAsync();
+    Console.WriteLine(folders is null ? "Dossiers refusés : compte non administrateur." : $"{folders.Count} bibliothèque(s) : " + string.Join(" · ", folders.Select(x => $"{x.Name} [{x.CollectionType}] {x.Locations.Length} dossier(s)")));
+    var libraries = MediaLibraries.FromJellyfin(folders);
+    string Describe(string? path) => path is null ? "non trouvé" : Directory.Exists(path) ? "dossier présent sur ce PC" : "dossier absent de ce PC";
+    Console.WriteLine($"Films : {Describe(libraries.Movies)} · Séries : {Describe(libraries.Series)} · Animes : {Describe(libraries.Anime)}");
+    var newest = libraries.Movies is { } films && Directory.Exists(films)
+        ? Directory.EnumerateFiles(films, "*", SearchOption.AllDirectories).Where(ReleaseName.IsVideo).OrderByDescending(File.GetCreationTimeUtc).FirstOrDefault() : null;
+    Console.WriteLine(newest is null ? "Aucune vidéo de film à rechercher." : (await client.FindIndexedAsync([newest])).Count > 0
+        ? "La vidéo de film la plus récente est retrouvée dans Jellyfin par son chemin exact." : "La vidéo de film la plus récente n’est pas parmi les 100 derniers ajouts indexés.");
+    return;
+}
 var passed = 0;
 void Assert(bool value, string message) { if (!value) throw new Exception(message); }
 async Task Test(string name, Func<Task> body) { await body(); passed++; Console.WriteLine("PASS  " + name); }
@@ -348,6 +365,317 @@ await Test("Passages : segments serveur prioritaires, passage actif et fin vers 
     Assert(PlaybackMarkers.Label(SkipKind.Intro, true, false) == "Passer l’opening" && PlaybackMarkers.Label(SkipKind.Outro, false, false) == "Passer le générique" && PlaybackMarkers.Label(SkipKind.Outro, true, true) == "Épisode suivant", "Skip labels changed");
     return Task.CompletedTask;
 });
+await Test("TorLink : titres, années et épisodes lus dans des noms de sortie réels", () =>
+{
+    void Movie(string name, string title, int? year) { var (t, y) = ReleaseName.Movie(name); Assert(t == title && y == year, $"Film mal lu : {name} → {t} ({y})"); }
+    Movie("Helter Skelter (2012) [1080p] [BluRay] [5.1] [YTS.MX]", "Helter Skelter", 2012);
+    Movie("L'argent.1983.Criterion.1080p.BluRay.x265.HEVC.FLAC-SARTRE", "L'argent", 1983);
+    Movie("Torrenting.org   -   Beau.Travail.1999.iNTERNAL.BDRip.x264-MANiC", "Beau Travail", 1999);
+    Movie("www.Torrenting.com - The Doom Generation 1995 UHD BluRay 1080p DDP 5 1 SDR x265-SM737", "The Doom Generation", 1995);
+    Movie("2001.A.Space.Odyssey.1968.2160p.UHD.BluRay.x265-GROUP", "2001 A Space Odyssey", 1968);
+    Movie("1917 (2019) [1080p] [WEBRip]", "1917", 2019);
+    Movie("Call.Me.By.Your.Name.2017.1080p", "Call Me By Your Name", 2017);
+    Movie("Kite.1998.DVDRip.x264", "Kite", 1998);
+    var jojo = "JoJos.Bizarre.Adventure.S06E02.The.Sheriffs.Request.to.Mountain.Tim.1080p.NF.WEB-DL.DUAL.AAC2.0.H.264.MSubs-ToonsHub.mkv";
+    Assert(ReleaseName.Show(jojo).Title == "JoJos Bizarre Adventure" && ReleaseName.Episode(jojo, false)?.Label == "S06E02", "SxxEyy episode misread");
+    Assert(ReleaseName.Show("Doctor.Who.2005.S13E01.1080p") == ("Doctor Who", 2005), "Series year lost");
+    Assert(ReleaseName.Episode("Show.Name.2019.S02E10E11.1080p.WEB.h264-GRP", false)?.Label == "S02E10-E11", "Double episode lost");
+    var pack = "[Marin] My Dress-Up Darling - S01 [PROPER BD 1080p HEVC FLAC] [Dual-Audio]";
+    Assert(ReleaseName.Show(pack) == ("My Dress-Up Darling", null) && ReleaseName.Season(pack) == 1, "Season pack misread");
+    Assert(ReleaseName.Episode("[SubsPlease] Sousou no Frieren S2 - 05 (1080p) [ABCD1234].mkv", true) is { Season: 2, Episode: 5, Absolute: false }, "Fansub season and number misread");
+    Assert(ReleaseName.Episode("[Group] Show - 07 [1080p].mkv", true) is { Season: 1, Episode: 7, Absolute: true }, "Absolute anime number misread");
+    Assert(ReleaseName.Episode("Some.Film.2010.1080p.BluRay", false) is null && ReleaseName.Episode("[YTS] Film - 2014 [1080p]", true) is null, "A film or a year read as an episode");
+    Assert(ReleaseName.Season("Show.S01-S03.Complete.1080p") is null, "A multi-season pack was given one season");
+    return Task.CompletedTask;
+});
+await Test("TorLink : sous-titres, bonus, clés de dossiers et noms Windows", () =>
+{
+    Assert(ReleaseName.SubtitleTags(@"Film\Subs\2_English.srt") == ".en" && ReleaseName.SubtitleTags(@"Film\Film.2012.en.forced.srt") == ".en.forced" && ReleaseName.SubtitleTags(@"Film\French.srt") == ".fr"
+        && ReleaseName.SubtitleTags(@"Film\Film.2012.srt") == "" && ReleaseName.SubtitleTags(@"Show\Show.S01E01.eng.SDH.srt") == ".en.sdh", "Subtitle language tags");
+    Assert(ReleaseName.CreditlessLabel("[Group] Show - NCOP1 [1080p].mkv", false) == "NCOP01" && ReleaseName.CreditlessLabel("Show - Creditless Ending 2.mkv", false) == "NCED02"
+        && ReleaseName.CreditlessLabel("Show - OP1.mkv", false) is null && ReleaseName.CreditlessLabel("Show - OP1.mkv", true) == "NCOP01", "Creditless openings and endings");
+    Assert(ReleaseName.Key("JoJo's Bizarre Adventure (2012)") == ReleaseName.Key("JoJos Bizarre Adventure") && ReleaseName.Key("L'Argent (1983)") == ReleaseName.Key("L'argent")
+        && ReleaseName.Key("Les Bronzés font du ski") == "les bronzes font du ski", "Folder matching keys");
+    Assert(ReleaseName.SafeName("Mission: Impossible - Fallout (2018)") == "Mission - Impossible - Fallout (2018)" && ReleaseName.SafeName("CON") == "CON_"
+        && ReleaseName.SafeName("What?/Why* (2020)") == "What Why (2020)" && ReleaseName.SafeName("Trailing dots...") == "Trailing dots", "Windows-safe names");
+    Assert(ReleaseName.SeasonOfFolder("Season 17 - Thousand-Year Blood War") == 17 && ReleaseName.SeasonOfFolder("Specials") == 0 && ReleaseName.SeasonOfFolder("Extras") is null, "Season folders");
+    Assert(ReleaseName.IsSample(@"Film\Sample\film-sample.mkv") && !ReleaseName.IsSample(@"Film\Film.2019.mkv"), "Sample detection");
+    return Task.CompletedTask;
+});
+await Test("TorLink : films, épisodes, packs et bonus rangés dans les dossiers existants", () =>
+{
+    var root = Path.Combine(testRoot, "planner-library"); var films = Path.Combine(root, "FILMS"); var series = Path.Combine(root, "SERIES"); var anime = Path.Combine(root, "ANIME");
+    foreach (var folder in new[] { Path.Combine(films, "L'Argent (1983)"), series, Path.Combine(anime, "Jujutsu Kaisen (2020)", "Season 01"), Path.Combine(anime, "Bleach (2004)", "Season 17 - Thousand-Year Blood War") }) Directory.CreateDirectory(folder);
+    var libraries = new MediaLibraries(films, series, anime);
+    SourceFile File(string relative, long length) => new(Path.Combine(@"C:\downloads", relative), relative, length);
+    HashSet<string> Targets(ImportPlan plan) => plan.Operations.Select(x => x.Destination).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var a = "L'argent.1983.Criterion.1080p.BluRay.x265.HEVC.FLAC-SARTRE";
+    var argent = MediaPlanner.Plan(a, "tpb-movies", [File($@"{a}\{a}.mkv", 6_900_000_000), File($@"{a}\Cannes Film Festival 1983.mkv", 121_000_000), File($@"{a}\Sample\sample.mkv", 50_000_000), File($@"{a}\L'argent.1983.French.srt", 90_000), File($@"{a}\info.txt", 1_898)], libraries);
+    var argentFolder = Path.Combine(films, "L'Argent (1983)");
+    Assert(argent.Kind == MediaKind.Movie && argent.Title == "L'Argent (1983)" && Targets(argent).SetEquals(new[] { Path.Combine(argentFolder, "L'Argent (1983).mkv"), Path.Combine(argentFolder, "Extras", "Cannes Film Festival 1983.mkv"), Path.Combine(argentFolder, "L'Argent (1983).fr.srt") }),
+        "Film with extras, sample and notes: " + string.Join(" | ", Targets(argent)));
+    Assert(argent.Notes.Any(x => x.Contains("échantillon")) && argent.Notes.Any(x => x.Contains("annexe")), "Left-out files are not reported");
+    var jujutsu = MediaPlanner.Plan("[SubsPlease] Jujutsu Kaisen - 05 (1080p) [ABCD1234].mkv", "subsplease", [File("[SubsPlease] Jujutsu Kaisen - 05 (1080p) [ABCD1234].mkv", 1_400_000_000)], libraries);
+    Assert(jujutsu.Kind == MediaKind.Anime && jujutsu.Operations.Single().Destination == Path.Combine(anime, "Jujutsu Kaisen (2020)", "Season 01", "Jujutsu Kaisen (2020) - S01E05.mkv"), "Existing anime folder not reused: " + string.Join(" | ", Targets(jujutsu)));
+    var bleach = MediaPlanner.Plan("Bleach.S17E49.1080p.WEB.H264-GRP", null, [File(@"Bleach.S17E49.1080p.WEB.H264-GRP\Bleach.S17E49.1080p.WEB.H264-GRP.mkv", 1_000_000_000)], libraries);
+    Assert(bleach.Kind == MediaKind.Anime && bleach.Operations.Single().Destination == Path.Combine(anime, "Bleach (2004)", "Season 17 - Thousand-Year Blood War", "Bleach (2004) - S17E49.mkv"), "Named season folder not reused: " + string.Join(" | ", Targets(bleach)));
+    var jojoName = "JoJos.Bizarre.Adventure.S06E02.The.Sheriffs.Request.to.Mountain.Tim.1080p.NF.WEB-DL.DUAL.AAC2.0.H.264.MSubs-ToonsHub.mkv";
+    var jojo = MediaPlanner.Plan(jojoName, "x1337-tv", [File(jojoName, 942_154_418)], libraries);
+    Assert(jojo.Kind == MediaKind.Series && jojo.Operations.Single().Destination == Path.Combine(series, "JoJos Bizarre Adventure", "Season 06", "JoJos Bizarre Adventure - S06E02.mkv"), "TV episode: " + string.Join(" | ", Targets(jojo)));
+    var p = "[Marin] My Dress-Up Darling - S01 [PROPER BD 1080p HEVC FLAC] [Dual-Audio]";
+    var pack = MediaPlanner.Plan(p, null, [File($@"{p}\[Marin] My Dress-Up Darling - 01 [BD 1080p HEVC FLAC] [ABCDEF12].mkv", 1_064_000_000), File($@"{p}\[Marin] My Dress-Up Darling - 02 [BD 1080p HEVC FLAC] [ABCDEF13].mkv", 1_277_000_000),
+        File($@"{p}\[Marin] My Dress-Up Darling - 01 [BD 1080p HEVC FLAC] [ABCDEF12].fr.ass", 40_000), File($@"{p}\Extras\[Marin] My Dress-Up Darling - NCOP [BD 1080p].mkv", 113_000_000)], libraries);
+    var show = Path.Combine(anime, "My Dress-Up Darling");
+    Assert(pack.Kind == MediaKind.Anime && pack.Title == "My Dress-Up Darling · 2 épisodes" && Targets(pack).SetEquals(new[] { Path.Combine(show, "Season 01", "My Dress-Up Darling - S01E01.mkv"), Path.Combine(show, "Season 01", "My Dress-Up Darling - S01E02.mkv"),
+        Path.Combine(show, "Season 01", "My Dress-Up Darling - S01E01.fr.ass"), Path.Combine(show, "Extras", "My Dress-Up Darling - NCOP.mkv") }), "Anime season pack: " + string.Join(" | ", Targets(pack)));
+    var lone = MediaPlanner.Plan("Sample.2019.1080p", null, [File(@"Sample.2019.1080p\Sample.2019.1080p.mkv", 2_000_000_000)], libraries);
+    Assert(lone.Operations.Count == 1 && lone.Title == "Sample (2019)", "A lone feature titled Sample was dropped");
+    Assert(MediaPlanner.Plan("Some.Game-FitGirl", "fitgirl", [File(@"Some.Game-FitGirl\setup.exe", 1000)], libraries).Ignored is not null, "A game would reach Jellyfin");
+    Assert(MediaPlanner.Plan("Album.2020.FLAC", null, [File(@"Album.2020.FLAC\01.flac", 1000)], libraries).Ignored is not null, "A download without video would reach Jellyfin");
+    Assert(MediaPlanner.Plan("Film.2020.1080p.mkv", null, [File("Film.2020.1080p.mkv", 1000)], new MediaLibraries(null, series, anime)).Problem is not null, "A missing film library must wait for a folder, not guess one");
+    Assert(MediaPlanner.Plan("Tears.of.Steel.2012.mkv", null, [File("Tears.of.Steel.2012.mkv", 1000)], libraries, MediaKind.Anime).Kind == MediaKind.Anime, "A forced kind is ignored");
+    return Task.CompletedTask;
+});
+await Test("TorLink : lien physique, copie entre disques, fichier existant jamais remplacé, rien hors de la bibliothèque", async () =>
+{
+    var dir = Path.Combine(testRoot, "importer"); var downloads = Path.Combine(dir, "downloads"); var films = Path.Combine(dir, "FILMS");
+    Directory.CreateDirectory(downloads); Directory.CreateDirectory(films);
+    var video = Path.Combine(downloads, "Big.Buck.Bunny.2008.1080p.mkv"); File.WriteAllBytes(video, new byte[4096]);
+    var plan = MediaPlanner.Plan("Big.Buck.Bunny.2008.1080p.mkv", "yts", [new SourceFile(video, "Big.Buck.Bunny.2008.1080p.mkv", 4096)], new MediaLibraries(films, null, null));
+    var target = Path.Combine(films, "Big Buck Bunny (2008)", "Big Buck Bunny (2008).mkv");
+    var first = await MediaImporter.ExecuteAsync(plan, ImportMode.KeepSeeding);
+    Assert(first.Placed.Count == 1 && first.Linked && !first.Copied && File.Exists(target) && File.Exists(video), "Hard link not created, or the download moved");
+    using (var stream = new FileStream(video, FileMode.Append)) stream.WriteByte(1);
+    Assert(new FileInfo(target).Length == 4097, "The library file is a copy instead of a hard link");
+    var again = await MediaImporter.ExecuteAsync(plan, ImportMode.KeepSeeding);
+    Assert(again.AlreadyThere.Count == 1 && again.Placed.Count == 0, "A second run duplicated the file");
+    var other = Path.Combine(downloads, "other.mkv"); File.WriteAllBytes(other, new byte[10]);
+    var conflict = await MediaImporter.ExecuteAsync(plan with { Operations = [plan.Operations[0] with { Source = other }] }, ImportMode.KeepSeeding);
+    Assert(conflict.Conflicts.Count == 1 && new FileInfo(target).Length == 4097, "An existing library file was replaced");
+    foreach (var outside in new[] { Path.Combine(dir, "outside.mkv"), Path.Combine(films, "..", "escaped.mkv"), Path.Combine(films, "tool", "tool.exe") })
+    {
+        var refused = await MediaImporter.ExecuteAsync(plan with { Operations = [plan.Operations[0] with { Destination = outside }] }, ImportMode.KeepSeeding);
+        Assert(refused.Failures.Count == 1 && !File.Exists(Path.GetFullPath(outside)), "A file was written outside the library or with a program extension: " + outside);
+    }
+    // A \\?\ library path does not share the downloads' root: this exercises the copy used between two drives.
+    var copies = Path.Combine(dir, "COPIES"); Directory.CreateDirectory(copies);
+    var tears = Path.Combine(downloads, "Tears.of.Steel.2012.mkv"); File.WriteAllBytes(tears, Enumerable.Range(0, 5000).Select(i => (byte)i).ToArray());
+    var copy = await MediaImporter.ExecuteAsync(MediaPlanner.Plan("Tears.of.Steel.2012.mkv", null, [new SourceFile(tears, "Tears.of.Steel.2012.mkv", 5000)], new MediaLibraries(@"\\?\" + copies, null, null)), ImportMode.KeepSeeding);
+    var copied = Path.Combine(copies, "Tears of Steel (2012)", "Tears of Steel (2012).mkv");
+    Assert(copy is { Copied: true, Linked: false, Placed.Count: 1 } && File.ReadAllBytes(copied).SequenceEqual(File.ReadAllBytes(tears)) && File.Exists(tears), "Copy between drives: " + copy.Method);
+    using (var stream = new FileStream(tears, FileMode.Append)) stream.WriteByte(1);
+    Assert(new FileInfo(copied).Length == 5000 && !Directory.EnumerateFiles(copies, "*" + MediaImporter.PartialSuffix, SearchOption.AllDirectories).Any(), "The copy is not independent, or a partial file was left");
+    var sintel = Path.Combine(downloads, "Sintel.2010.mkv"); File.WriteAllBytes(sintel, new byte[100]);
+    var moved = await MediaImporter.ExecuteAsync(MediaPlanner.Plan("Sintel.2010.mkv", null, [new SourceFile(sintel, "Sintel.2010.mkv", 100)], new MediaLibraries(films, null, null)), ImportMode.Move);
+    Assert(moved.Moved && !File.Exists(sintel) && File.Exists(Path.Combine(films, "Sintel (2010)", "Sintel (2010).mkv")), "Move mode");
+    Directory.CreateDirectory(Path.Combine(films, "Empty Show", "Season 01"));
+    MediaImporter.PruneEmptyFolders([Path.Combine(films, "Empty Show", "Season 01")], [films]);
+    Assert(!Directory.Exists(Path.Combine(films, "Empty Show")) && Directory.Exists(films) && File.Exists(target), "Empty folders were kept, or more was removed");
+    // Nested library folders: an anime root inside the series one is never removed, even once empty.
+    var seriesRoot = Path.Combine(dir, "SERIES"); var nestedAnime = Path.Combine(seriesRoot, "Anime");
+    Directory.CreateDirectory(Path.Combine(nestedAnime, "Show", "Season 01"));
+    MediaImporter.PruneEmptyFolders([Path.Combine(nestedAnime, "Show", "Season 01")], [seriesRoot, nestedAnime]);
+    Assert(Directory.Exists(nestedAnime) && !Directory.Exists(Path.Combine(nestedAnime, "Show")), "A nested library root was removed, or the emptied show was kept");
+});
+await Test("TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé", async () =>
+{
+    var dir = Path.Combine(testRoot, "torlink-ledger"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+    var downloads = Path.Combine(dir, "downloads"); var films = Path.Combine(dir, "FILMS");
+    foreach (var folder in new[] { state.ConfigDirectory, state.DataDirectory, downloads, films }) Directory.CreateDirectory(folder);
+    Assert(state.ReadHistory() is { Count: 0 } && state.DownloadDirectory() == TorLinkState.DefaultDownloadDirectory, "Missing TorLink files");
+    File.WriteAllText(state.ConfigFile, JsonSerializer.Serialize(new { downloadDir = downloads }));
+    File.WriteAllText(state.QueueFile, "[{\"id\":\"x\",\"status\":\"downloading\"},{\"id\":\"y\",\"status\":\"paused\"}]");
+    Assert(state.DownloadDirectory() == downloads && state.ActiveDownloads() == 1, "TorLink config or queue misread");
+    var custom = TorLinkState.ForCurrentUser(Path.Combine(dir, "portable"));
+    Assert(custom.DataDirectory == Path.Combine(dir, "portable", "data") && custom.ConfigDirectory == Path.Combine(dir, "portable", "config"), "TORLINK_STATE_DIR layout");
+    var profile = Path.Combine(dir, "profile"); var importer = new TorLinkImporter(profile);
+    string Id(char c) => new(c, 40);
+    var before = importer.Baseline.AddMinutes(-5).ToUnixTimeMilliseconds(); var after = importer.Baseline.AddSeconds(5).ToUnixTimeMilliseconds();
+    object Item(string id, string name, long at) => new { id, name, source = "yts", sizeBytes = 10, magnet = "magnet:?xt=urn:btih:" + id, dir = downloads, completedAt = at };
+    void History(params object[] items) => File.WriteAllText(state.HistoryFile, JsonSerializer.Serialize(items));
+    File.WriteAllText(state.HistoryFile, "[{\"id\":");
+    Assert(state.ReadHistory() is null, "A half-written history must be retried, not read as empty");
+    History(Item(Id('a'), "Old.Film.2001.mkv", before), Item(Id('b'), "New.Film.2002.mkv", after), new { id = "../../evil", name = "x", dir = downloads }, Item(Id('b'), "Duplicate.mkv", after));
+    Assert(state.ReadHistory() is { Count: 2 } history && history.All(x => TorLinkState.IsInfoHash(x.Id)) && history.Single(x => x.Id == Id('b')).Name == "New.Film.2002.mkv", "Invalid or duplicate history entries");
+    File.WriteAllBytes(Path.Combine(downloads, "Old.Film.2001.mkv"), new byte[10]);
+    var libraries = new MediaLibraries(films, null, null);
+    await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true);
+    Assert(importer.Find(Id('a')) is null, "A download finished before activation was imported automatically");
+    Assert(importer.Find(Id('b')) is { State: TorLinkImportState.Waiting, Attempts: 1 }, "Missing files are not awaited");
+    File.WriteAllBytes(Path.Combine(downloads, "New.Film.2002.mkv"), new byte[10]);
+    await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true);
+    Assert(importer.Find(Id('b')) is { State: TorLinkImportState.Imported, Kind: MediaKind.Movie } && File.Exists(Path.Combine(films, "New Film (2002)", "New Film (2002).mkv")), "The awaited download was not imported");
+    await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true, requested: [Id('a')]);
+    Assert(importer.Find(Id('a'))?.State == TorLinkImportState.Imported, "An earlier download asked for was not imported");
+    History(Item(Id('a'), "Old.Film.2001.mkv", before), Item(Id('b'), "New.Film.2002.mkv", after), Item(Id('c'), "Third.Film.2003.mkv", after));
+    File.WriteAllBytes(Path.Combine(downloads, "Third.Film.2003.mkv"), new byte[10]);
+    await importer.ProcessAsync(state, new MediaLibraries(null, null, null), ImportMode.KeepSeeding, automatic: true);
+    Assert(importer.Find(Id('c'))?.State == TorLinkImportState.Blocked, "A missing library folder must block the import");
+    await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true);
+    Assert(importer.Find(Id('c'))?.State == TorLinkImportState.Imported, "A blocked download is not retried once the folder is known");
+    var reopened = new TorLinkImporter(profile);
+    Assert(reopened.Entries.Count == 3 && reopened.Baseline == importer.Baseline && reopened.Find(Id('b'))!.Files.Count == 1, "The import log was not kept");
+    Assert(!File.ReadAllText(Path.Combine(profile, "torlink-imports.json")).Contains("magnet:"), "Mira stored a magnet link");
+});
+await Test("TorLink : fichier déjà présent jamais déplacé, classement conservé, déplacement repris et journal illisible gardé", async () =>
+{
+    var dir = Path.Combine(testRoot, "torlink-recovery"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+    var downloads = Path.Combine(dir, "downloads"); var films = Path.Combine(dir, "FILMS"); var series = Path.Combine(dir, "SERIES"); var anime = Path.Combine(dir, "ANIME");
+    foreach (var folder in new[] { state.ConfigDirectory, state.DataDirectory, downloads, films, series, anime }) Directory.CreateDirectory(folder);
+    var libraries = new MediaLibraries(films, series, anime);
+    var importer = new TorLinkImporter(Path.Combine(dir, "profile"));
+    var at = importer.Baseline.AddSeconds(5).ToUnixTimeMilliseconds();
+    var history = new List<object>();
+    string Finished(char c, string name, string source) { var id = new string(c, 40); history.Add(new { id, name, source, sizeBytes = 10, dir = downloads, completedAt = at }); File.WriteAllText(state.HistoryFile, JsonSerializer.Serialize(history)); return id; }
+    string Download(string relative, int size) { var path = Path.Combine(downloads, relative); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllBytes(path, new byte[size]); return path; }
+
+    // A same-size film that was already in the library: found there, never moved by « Classer ».
+    Download("Dune.2021.1080p.mkv", 64);
+    var existing = Path.Combine(films, "Dune (2021)", "Dune (2021).mkv"); Directory.CreateDirectory(Path.GetDirectoryName(existing)!); File.WriteAllBytes(existing, new byte[64]);
+    var dune = Finished('a', "Dune.2021.1080p.mkv", "yts");
+    await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true);
+    Assert(importer.Find(dune) is { State: TorLinkImportState.Imported, Files: [{ Found: true }] }, "A file already in the library was taken for Mira's own");
+    var (left, _) = await importer.ReclassifyAsync(dune, MediaKind.Series, libraries);
+    Assert(File.Exists(existing) && left?.Kind == MediaKind.Movie && !Directory.EnumerateFileSystemEntries(series).Any(), "« Classer » moved a file Mira did not place");
+
+    // A hard link of TorLink's own file is Mira's, even without its log line: it can move.
+    var sintelSource = Download("Sintel.2010.mkv", 32);
+    Assert((await MediaImporter.ExecuteAsync(MediaPlanner.Plan("Sintel.2010.mkv", "yts", [new SourceFile(sintelSource, "Sintel.2010.mkv", 32)], libraries), ImportMode.KeepSeeding)).Linked, "Hard link");
+    var sintel = Finished('b', "Sintel.2010.mkv", "yts");
+    await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true);
+    Assert(importer.Find(sintel) is { State: TorLinkImportState.Imported, Files: [{ Found: false }] }, "A hard link of TorLink's file was not recognised");
+
+    // « Réessayer » after « Classer comme anime » keeps the anime library: no second link among the series.
+    Download("Show.S01E02.1080p.mkv", 16);
+    var show = Finished('c', "Show.S01E02.1080p.mkv", "eztv");
+    await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true);
+    Assert(importer.Find(show)?.Kind == MediaKind.Series, "Episode not placed among the series");
+    await importer.ReclassifyAsync(show, MediaKind.Anime, libraries);
+    Assert(importer.Find(show) is { Kind: MediaKind.Anime, ForcedKind: MediaKind.Anime, Files: [var moved] } && File.Exists(moved.Destination) && moved.Destination.StartsWith(anime), "Reclassification");
+    await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true, requested: [show]);
+    Assert(importer.Find(show) is { Kind: MediaKind.Anime, State: TorLinkImportState.Imported } && !Directory.EnumerateFiles(series, "*", SearchOption.AllDirectories).Any(), "A new attempt put the reclassified episode back among the series");
+
+    // Move mode stopped by a conflicting subtitle: the moved video stays tracked and the subtitle follows on the next attempt.
+    var packFiles = new[] { Download(@"Pack.S02E01\Pack.S02E01.mkv", 24), Download(@"Pack.S02E01\Pack.S02E01.en.srt", 5) };
+    var packPlan = MediaPlanner.Plan("Pack.S02E01", "eztv", packFiles.Select(x => new SourceFile(x, Path.GetRelativePath(downloads, x), new FileInfo(x).Length)).ToList(), libraries);
+    var subtitle = packPlan.Operations.Single(x => x.Role == "subtitle").Destination; var packVideo = packPlan.Operations.Single(x => x.Role == "video").Destination;
+    Directory.CreateDirectory(Path.GetDirectoryName(subtitle)!); File.WriteAllBytes(subtitle, new byte[3]);
+    var pack = Finished('d', "Pack.S02E01", "eztv");
+    await importer.ProcessAsync(state, libraries, ImportMode.Move, automatic: true);
+    Assert(importer.Find(pack) is { State: TorLinkImportState.Partial } && File.Exists(packVideo) && !File.Exists(packFiles[0]), "Move with a conflicting subtitle");
+    File.Delete(subtitle);
+    await importer.ProcessAsync(state, libraries, ImportMode.Move, automatic: true, requested: [pack]);
+    Assert(importer.Find(pack) is { State: TorLinkImportState.Imported, Files.Count: 2 } && File.Exists(subtitle) && new FileInfo(subtitle).Length == 5 && File.Exists(packVideo) && !File.Exists(packFiles[1]),
+        "The rest of a moved download could not be placed any more: " + importer.Find(pack)?.Message);
+
+    // An unreadable log is kept aside instead of lost; incomplete entries are dropped without failing.
+    var broken = Path.Combine(dir, "broken"); Directory.CreateDirectory(broken);
+    File.WriteAllText(Path.Combine(broken, "torlink-imports.json"), "{\"Baseline\":\"2026-01-01T00:00:00+00:00\",\"Entries\":[{\"Id\":");
+    Assert(new TorLinkImporter(broken).Entries.Count == 0 && Directory.EnumerateFiles(broken, "torlink-imports.json.bad-*").Any(), "An unreadable log was overwritten without a copy");
+    var partial = Path.Combine(dir, "partial"); Directory.CreateDirectory(partial);
+    File.WriteAllText(Path.Combine(partial, "torlink-imports.json"), "{\"Baseline\":\"2026-01-01T00:00:00+00:00\",\"Entries\":[null,{\"Id\":\"zz\"},{\"Id\":\"" + new string('e', 40) + "\",\"Files\":null,\"Title\":null}]}");
+    Assert(new TorLinkImporter(partial) is { Entries: [{ Files.Count: 0, Title: "" }] } loaded && loaded.Baseline.Year == 2026, "A log with incomplete entries");
+    File.WriteAllText(Path.Combine(partial, "torlink-imports.json"), "{\"Baseline\":\"2026-01-01T00:00:00+00:00\",\"Entries\":null}");
+    Assert(new TorLinkImporter(partial).Entries.Count == 0, "A log without entries");
+});
+await Test("TorLink : fichiers exacts du .torrent, chemins normalisés et fichiers incomplets attendus", () =>
+{
+    var multi = Bencode.ReadTorrent(TorrentBytes("Film: Cut?", [(["a", "b?.mkv"], 1)]))!;
+    Assert(multi.Name == "Film: Cut?" && multi.Files.Single().RelativePath == Path.Combine("Film: Cut?", "a", "b.mkv"), "Multi-file layout differs from WebTorrent");
+    var single = Bencode.ReadTorrent(TorrentBytes("Film: Cut?.mkv", [([], 7)], single: true))!;
+    Assert(single.Files.Single() == new TorrentFileEntry("Film Cut.mkv", 7), "Single-file name not sanitised like fs-chunk-store");
+    Assert(Bencode.ReadTorrent(Encoding.ASCII.GetBytes("d4:infod4:name")) is null && Bencode.ReadTorrent(Encoding.ASCII.GetBytes("l99999999999:")) is null, "Corrupt metadata accepted");
+    var dir = Path.Combine(testRoot, "torrent-files"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data")); var downloads = Path.Combine(dir, "downloads");
+    var id = new string('d', 40); const string name = "Pack.2004";
+    Directory.CreateDirectory(state.TorrentsDirectory); Directory.CreateDirectory(Path.Combine(downloads, name, "Subs"));
+    File.WriteAllBytes(Path.Combine(state.TorrentsDirectory, id + ".torrent"), TorrentBytes(name, [(["Pack.2004.mkv"], 20), (["Subs", "English.srt"], 5), (["..", "..", "notes.txt"], 3)]));
+    File.WriteAllBytes(Path.Combine(downloads, name, "Pack.2004.mkv"), new byte[20]); File.WriteAllBytes(Path.Combine(downloads, name, "Subs", "English.srt"), new byte[4]);
+    var completion = new TorLinkCompletion(id, name, "yts", 25, downloads, DateTimeOffset.UtcNow);
+    Assert(TorLinkImporter.DownloadedFiles(state, completion) is null, "An incomplete subtitle was accepted");
+    File.WriteAllBytes(Path.Combine(downloads, name, "Subs", "English.srt"), new byte[5]);
+    var files = TorLinkImporter.DownloadedFiles(state, completion);
+    Assert(files is { Count: 2 } && files.Any(x => x.RelativePath == Path.Combine(name, "Subs", "English.srt")) && files.All(x => x.Path.StartsWith(downloads, StringComparison.OrdinalIgnoreCase)), "Torrent file list not used exactly");
+    return Task.CompletedTask;
+});
+await Test("Jellyfin : dossiers des bibliothèques et signalement des médias, sans déconnexion en cas de refus", async () =>
+{
+    var requests = new List<(string Method, string Path, string Body)>(); var refuse = false;
+    using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+    {
+        var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync();
+        lock (requests) requests.Add((request.Method.Method, request.RequestUri!.PathAndQuery, body));
+        if (refuse) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+        if (request.RequestUri.AbsolutePath.EndsWith("/Library/VirtualFolders")) return JsonResponse(new object[]
+        {
+            new { Name = "Movies", CollectionType = "movies", Locations = new[] { @"C:\Media\FILMS" } }, new { Name = "Anime", CollectionType = "tvshows", Locations = new[] { @"C:\Media\ANIME" } },
+            new { Name = "Shows", CollectionType = "tvshows", Locations = new[] { @"C:\Media\SERIES" } }, new { Name = "Music", CollectionType = "music", Locations = new[] { @"C:\Media\MUSIC" } }
+        });
+        if (request.RequestUri.AbsolutePath.EndsWith("/Items")) return JsonResponse(new { Items = new object[]
+        {
+            new { Id = "movie-1", Type = "Movie", Path = @"C:\Media\FILMS\Big Buck Bunny (2008)\Big Buck Bunny (2008).mkv" },
+            new { Id = "episode-1", Type = "Episode", SeriesId = "series-9", Path = @"C:\Media\SERIES\Show\Season 01\Show - S01E02.mkv" }
+        }, TotalRecordCount = 2 });
+        return new HttpResponseMessage(HttpStatusCode.NoContent);
+    }));
+    var folders = await client.VirtualFoldersAsync();
+    Assert(MediaLibraries.FromJellyfin(folders) == new MediaLibraries(@"C:\Media\FILMS", @"C:\Media\SERIES", @"C:\Media\ANIME"), "Libraries not matched to films, series and anime");
+    Assert(MediaLibraries.FromJellyfin(folders, anime: @"D:\Anime").Anime == @"D:\Anime" && MediaLibraries.FromJellyfin(null).IsEmpty, "Manual folder or missing server data");
+    Assert(await client.ReportMediaChangedAsync([@"C:\Media\FILMS\Big Buck Bunny (2008)"]), "Media report failed");
+    var report = requests.Last();
+    Assert(report.Method == "POST" && report.Path == "/jellyfin/Library/Media/Updated" && report.Body.Contains("\"Updates\"") && report.Body.Contains("\"UpdateType\":\"Created\"") && report.Body.Contains("Big Buck Bunny (2008)"), "Media report request changed: " + report.Body);
+    var before = requests.Count;
+    var indexed = await client.FindIndexedAsync([@"c:\media\films\big buck bunny (2008)\big buck bunny (2008).mkv", @"C:\Media\SERIES\Show\Season 01\Show - S01E02.mkv", @"C:\Elsewhere.mkv"]);
+    Assert(indexed.Count == 2 && indexed[@"C:\MEDIA\FILMS\Big Buck Bunny (2008)\Big Buck Bunny (2008).mkv"] == "movie-1" && indexed[@"C:\Media\SERIES\Show\Season 01\Show - S01E02.mkv"] == "series-9"
+        && !indexed.ContainsKey(@"C:\Elsewhere.mkv") && requests.Count == before + 1, "Indexed file lookup, in a single request");
+    Assert((await client.FindIndexedAsync([])).Count == 0 && requests.Count == before + 1, "An empty lookup reached the server");
+    Assert(requests.Any(x => x.Path.Contains("fields=Path") && x.Path.Contains("includeItemTypes=Movie,Episode")), "Indexed lookup query changed");
+    VirtualFolder Tv(string name, string folder) => new(name, "tvshows", [folder]);
+    Assert(MediaLibraries.FromJellyfin([Tv("Dessins animés", @"D:\Cartoons"), Tv("Séries", @"D:\TV")]).Anime is null
+        && MediaLibraries.FromJellyfin([Tv("Animation", @"D:\Animation"), Tv("Animaux", @"D:\Nature")]).Anime is null
+        && MediaLibraries.FromJellyfin([Tv("Séries", @"D:\TV"), Tv("Japon", @"D:\Médias\Animés")]) is { Anime: @"D:\Médias\Animés", Series: @"D:\TV" }, "Anime library matched on a partial word");
+    refuse = true;
+    Assert(await client.VirtualFoldersAsync() is null && !await client.ReportMediaChangedAsync([@"C:\Media\FILMS\x"]), "A refused optional call must not end the session");
+});
+await Test("Pseudo-console : sortie UTF-8, taille et code de sortie d’un programme console", async () =>
+{
+    var output = new StringBuilder();
+    var exitedEarly = new TaskCompletionSource<int>();
+    using var console = Mira.Desktop.TorLink.PseudoConsole.Start(Path.Combine(Environment.SystemDirectory, "cmd.exe"), ["/d", "/c", "echo mira-conpty-ok é & mode con"], testRoot, EnvironmentBlock(), 90, 20,
+        text => { lock (output) output.Append(text); }, code => exitedEarly.TrySetResult(code));
+    var code = await console.Completion.WaitAsync(TimeSpan.FromSeconds(10));
+    Assert(await exitedEarly.Task.WaitAsync(TimeSpan.FromSeconds(2)) == code, "The exit callback given at start was not called");
+    // The exit can be reported before the last output is read: wait for the text itself.
+    string Text() { lock (output) return Plain(output.ToString()); }
+    try { await WaitUntil(() => Text() is var t && t.Contains("mira-conpty-ok é") && t.Contains("90") && t.Contains("20"), 6); } catch (TimeoutException) { }
+    Assert(code == 0, "Console program exit code lost: " + code);
+    Assert(Text() is var text && text.Contains("mira-conpty-ok é") && text.Contains("90") && text.Contains("20"), "Pseudo console output or size lost: " + Text());
+});
+if (args.Contains("--torlink-integration"))
+{
+    await Test("TorLink réel : écran d’accueil dans la pseudo-console, redimensionnement, arrêt propre et état isolé", async () =>
+    {
+        var installation = Mira.Desktop.TorLink.TorLinkInstallation.Locate(null) ?? throw new Exception("TorLink not found on this PC");
+        Assert(installation.HasRuntime, "Node.js runtime not found for TorLink");
+        var state = Path.Combine(testRoot, "torlink-state");
+        var real = TorLinkState.ForCurrentUser(stateOverride: null);
+        var realStamp = File.Exists(real.QueueFile) ? File.GetLastWriteTimeUtc(real.QueueFile) : DateTime.MinValue;
+        var environment = EnvironmentBlock(); environment["TORLINK_STATE_DIR"] = state; environment["COLORTERM"] = "truecolor";
+        var before = installation.RunningElsewhere(null);
+        var output = new StringBuilder();
+        using var console = Mira.Desktop.TorLink.PseudoConsole.Start(installation.Node, [installation.Entry], installation.Root, environment, 110, 32, text => { lock (output) output.Append(text); });
+        await WaitUntil(() => { lock (output) return Plain(output.ToString()).Contains("torrent downloader"); }, 20);
+        Assert(before is not null || installation.RunningElsewhere(null) == console.ProcessId, "A running TorLink is not detected from its command line");
+        Assert(installation.RunningElsewhere(console.ProcessId) == before, "Mira's own TorLink is reported as another instance");
+        console.Resize(130, 40); await Task.Delay(600);
+        Assert(!console.HasExited, "TorLink stopped after a resize");
+        console.Write("\u0003");
+        var code = await console.Completion.WaitAsync(TimeSpan.FromSeconds(8));
+        Assert(code == 0, "TorLink did not quit cleanly on Ctrl+C: " + code);
+        Assert(File.Exists(Path.Combine(state, "data", "queue.json")), "TorLink did not use the isolated state folder");
+        Assert((File.Exists(real.QueueFile) ? File.GetLastWriteTimeUtc(real.QueueFile) : DateTime.MinValue) == realStamp, "The real TorLink queue was touched");
+        await WaitUntil(() => installation.RunningElsewhere(null) == before, 5);
+    });
+}
 if (args.Contains("--mpv-integration"))
 {
     await Test("libmpv réel : flux HTTP authentifié, reprise, pause, seek et synchronisation", async () =>
@@ -377,6 +705,39 @@ if (args.Contains("--mpv-integration"))
 Console.WriteLine($"\n{passed} tests réussis.");
 
 static HttpResponseMessage JsonResponse(object value) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
-static async Task WaitUntil(Func<bool> ready) { var timeout = DateTime.UtcNow.AddSeconds(4); while (!ready()) { if (DateTime.UtcNow > timeout) throw new TimeoutException(); await Task.Delay(20); } }
+static async Task WaitUntil(Func<bool> ready, int seconds = 4) { var timeout = DateTime.UtcNow.AddSeconds(seconds); while (!ready()) { if (DateTime.UtcNow > timeout) throw new TimeoutException(); await Task.Delay(20); } }
+static Dictionary<string, string> EnvironmentBlock()
+{
+    var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+        if (entry.Key is string key && key.Length > 0 && !key.StartsWith('=') && entry.Value is string value) values[key] = value;
+    return values;
+}
+// Minimal bencode writer for synthetic .torrent metadata (dictionary keys sorted, as the format requires).
+static byte[] Ben(object value)
+{
+    using var stream = new MemoryStream();
+    void Write(object item)
+    {
+        switch (item)
+        {
+            case long number: stream.Write(Encoding.ASCII.GetBytes($"i{number}e")); break;
+            case string text: var bytes = Encoding.UTF8.GetBytes(text); stream.Write(Encoding.ASCII.GetBytes($"{bytes.Length}:")); stream.Write(bytes); break;
+            case IEnumerable<KeyValuePair<string, object>> map: stream.WriteByte((byte)'d'); foreach (var (key, entry) in map.OrderBy(x => x.Key, StringComparer.Ordinal)) { Write(key); Write(entry); } stream.WriteByte((byte)'e'); break;
+            case System.Collections.IEnumerable list: stream.WriteByte((byte)'l'); foreach (var entry in list) Write(entry!); stream.WriteByte((byte)'e'); break;
+        }
+    }
+    Write(value);
+    return stream.ToArray();
+}
+static byte[] TorrentBytes(string name, (string[] Path, long Length)[] files, bool single = false)
+{
+    var info = new Dictionary<string, object> { ["name"] = name, ["piece length"] = 16384L, ["pieces"] = "" };
+    if (single) info["length"] = files[0].Length;
+    else info["files"] = files.Select(f => (object)new Dictionary<string, object> { ["length"] = f.Length, ["path"] = f.Path.Cast<object>().ToList() }).ToList();
+    return Ben(new Dictionary<string, object> { ["announce"] = "udp://tracker.invalid:1337", ["info"] = info });
+}
+// Terminal text without VT control sequences (cursor moves, colours, titles).
+static string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\x1b\[[0-9;?<>=]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]", "");
 sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
 { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request).WaitAsync(cancellationToken); }

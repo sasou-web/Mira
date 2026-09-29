@@ -2,6 +2,20 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## TorLink 0.5.0
+
+- Compilation Release complète sans erreur ni avertissement. **40 tests** réussis avec `-- --torlink-integration`, 39 sans le test du vrai TorLink. Nouveaux : noms de sortie réels (films, épisodes, packs, fansubs), sous-titres, bonus et noms Windows, plan de rangement dans des dossiers existants, lien physique et copie entre disques sans remplacement ni écriture hors de la bibliothèque, racine imbriquée jamais supprimée, journal (activation, attente des fichiers, dossier manquant, rechargement, aucun lien magnet), fichier déjà présent jamais déplacé par « Classer », type choisi conservé par « Réessayer », reprise d’un déplacement partiel, journal illisible mis de côté, fichiers exacts d’un `.torrent`, API Jellyfin simulée (une requête pour tous les titres suivis, bibliothèque d’animes reconnue par mot entier), pseudo-console, et TorLink 1.1.1 réel dans la pseudo-console avec un état isolé (`TORLINK_STATE_DIR`).
+- Une revue indépendante du diff a relevé, puis vu corriger : fichiers présents adoptés puis déplacés par « Classer », élagage d’une racine imbriquée, reclassement oublié par « Réessayer », déplacement partiel impossible à reprendre, journal écrasé sur erreur de lecture (tous couverts par les tests ci-dessus), ainsi qu’une seconde instance possible par « Ouvrir dans une fenêtre » et des lectures de l’état de TorLink qui pouvaient faire échouer son remplacement atomique (corrigés, sans test dédié).
+- Contrôle de bout en bout `tools/torlink-check.ps1` : **23 vérifications** réussies au clavier réel sur la première version installée, puis **22** sur la version finale installée (`dist/Mira`) et sur la compilation Release, avec des événements clavier du navigateur (fenêtre de contrôle sans premier plan). Vrai TorLink dans la page, profil, état TorLink et bibliothèque isolés, mode démonstration sans Jellyfin. Couverts : ouverture depuis le rail, une seule instance, Échap laissé à TorLink, saisie reçue par TorLink et fin affichée, relance, film et sous-titre, fichiers annexes laissés dans TorLink, lien physique (deux liens sur le même fichier), épisode, anime, jeu ignoré, liste « Vers Jellyfin », reclassement en anime avec suppression des dossiers vidés, seconde passe sans doublon, réglages, Alt + ← depuis le terminal, Échap hors du terminal, arrêt de TorLink et aucun processus WebView2 restant après Mira. Résultats et captures : `.artifacts/torlink-check`.
+- WebView2 transmet Alt + ← à WPF comme une flèche gauche avec Alt enfoncé, et non comme une touche système : Mira reconnaît les deux formes. Si WPF ne reçoit pas la touche, la page demande elle-même le retour ; ce chemin est vérifié par des événements clavier du navigateur, utilisés quand la fenêtre de contrôle n’a pas le premier plan (22 contrôles réussis sur la compilation Release).
+- Lecture seule sur le serveur personnel (Jellyfin 12.1.0) avec le code de Mira (`--jellyfin-live`) : trois bibliothèques lues et associées à Films, Séries et Animes, dossiers présents sur ce PC ; la vidéo de film la plus récente est retrouvée par son chemin exact, comme pour « Voir ». Aucun signalement ni modification n’a été envoyé au serveur.
+- Non-régression : **50 contrôles du lecteur** réussis (média synthétique chapitré), rendus et **9 contrôles de mouvement** réussis sur la bibliothèque réelle en lecture seule. En mode démonstration, le contrôle de mouvement échoue au transfert du survol, de la même façon avec la version 0.4.9 installée : le catalogue fictif est trop court pour défiler d’une rangée. Les 24 contrôles Windows n’ont pas été relancés.
+- Distribution autonome installée dans `dist/Mira`, sauvegarde de 0.4.9 dans `.artifacts/previous-mira-0.4.9`, puis version finale réinstallée après la revue. Les 468 fichiers du profil sont inchangés après la copie et après le contrôle TorLink de la version installée (SHA-256) ; les 494 fichiers distribués correspondent à la version préparée, page du terminal et `WebView2Loader.dll` compris. Raccourcis du projet et du menu Démarrer réenregistrés.
+- Un passage du contrôle a échoué au démarrage du terminal, probablement parce qu’un autre TorLink tournait alors sur ce PC : Mira refuse bien une seconde instance. Le contrôle le signale désormais dès le départ, et la page propose « Réessayer » si le terminal ne s’affiche pas en 20 secondes.
+- Archive `Mira-0.5.0-win-x64.zip` (SHA-256 `d3dc735e6d4c1393b3ece40f40c31c614d1f9b995daa5a552b5a41bafe3068ca`) : 510 entrées, aucun fichier de profil. Ses 493 fichiers d’application sont identiques à ceux de la version installée vérifiée ; démarrage et export des 14 vues de démonstration réussis depuis l’archive extraite. Le contrôle TorLink n’y a pas été relancé : un TorLink tournait alors dans le Mira de ce PC, et le contrôle refuse à raison d’en démarrer un second.
+- État TorLink réel (`history.json`, `queue.json`, `seeds.json`, `config.json`) et dossiers `MEDIAS` inchangés par les essais.
+- Non vérifié : un vrai téléchargement rangé de bout en bout, `Library/Media/Updated` sur le serveur personnel (la surveillance en temps réel de Jellyfin y est activée), le bouton « précédent » de la souris au-dessus du terminal, copier-coller, l’absence de WebView2 (« Ouvrir dans une fenêtre »), un serveur Docker ou distant, et une copie vers un autre disque physique ou un partage réseau (le chemin de copie est testé sur le même volume NTFS).
+
 ## Fluidité et reprise 0.4.9
 
 - Distribution autonome installée dans `dist/Mira`, sauvegarde de 0.4.7 dans `.artifacts/previous-mira-0.4.7`. Les 184 fichiers du profil sont inchangés après copie (SHA-256), les 478 fichiers distribués correspondent à la version préparée. Raccourcis du projet et du menu Démarrer vérifiés : exécutable installé, logo dédié et AppUserModelID `Mira.Desktop`.
@@ -147,7 +161,18 @@ Le contrôle du lecteur se lance sur un profil isolé :
 src/Mira.Desktop/bin/Release/net8.0-windows10.0.19041.0/Mira.exe --data .artifacts/player-check/profile --demo --test-media .artifacts/lecture-test.mp4 --player-check .artifacts/player-check
 ```
 
-Le résultat est écrit dans `result.txt`. Les changements de modes utilisent le lecteur natif et un rectangle physique hors du bureau ; les vérifications à la souris complètent ce contrôle pour les fenêtres superposées. Avec une vidéo chapitrée, le contrôle vérifie aussi les passages à sauter :
+Le résultat est écrit dans `result.txt`. Les changements de modes utilisent le lecteur natif et un rectangle physique hors du bureau ; les vérifications à la souris complètent ce contrôle pour les fenêtres superposées.
+
+TorLink, installé sur le PC, est vérifié sans toucher à son état réel ni à Jellyfin. Le contrôle de bout en bout ouvre une fenêtre visible ; il n’envoie de vraies touches que si elle a le premier plan :
+
+```powershell
+dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build -- --torlink-integration
+./tools/torlink-check.ps1                                   # build Release
+./tools/torlink-check.ps1 -Executable dist/Mira/Mira.exe    # version publiée
+dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build -- --jellyfin-live <profil de validation>
+```
+
+La dernière commande lit seulement les bibliothèques et les derniers ajouts du serveur, avec la session protégée d’un profil de validation. Avec une vidéo chapitrée, le contrôle vérifie aussi les passages à sauter :
 
 ```powershell
 ffmpeg -i .artifacts/lecture-test.mp4 -i .artifacts/chapitres.txt -map_metadata 1 -map_chapters 1 -c copy .artifacts/lecture-chapitres.mkv

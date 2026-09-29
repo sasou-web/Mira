@@ -1,0 +1,8 @@
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0e0e10; }
+/* The margins are the terminal's inner padding; FitAddon measures this box. */
+#terminal { position: absolute; top: 14px; right: 10px; bottom: 10px; left: 16px; }
+#terminal .xterm { height: 100%; }
+/* TorLink draws full screens without scrollback: no native scrollbar, and the leftover strip below the last row keeps the page colour. */
+#terminal .xterm-viewport { overflow: hidden !important; background-color: transparent !important; }
+::-webkit-scrollbar { width: 0; height: 0; }
+#terminal.closed { opacity: .45; transition: opacity .2s ease; }

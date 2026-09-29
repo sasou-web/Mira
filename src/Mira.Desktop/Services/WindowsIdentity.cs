@@ -53,6 +53,21 @@ internal static class WindowsIdentity
         finally { Marshal.FinalReleaseComObject(instance); }
     }
 
+    /// <summary>The file a Shell shortcut points to, or null when it cannot be read.</summary>
+    public static string? ShortcutTarget(string path)
+    {
+        var instance = new ShellLink();
+        try
+        {
+            ((IPersistFile)instance).Load(path, 0);
+            var target = new StringBuilder(1024);
+            ((IShellLinkW)instance).GetPath(target, target.Capacity, IntPtr.Zero, 0);
+            return target.Length > 0 ? target.ToString() : null;
+        }
+        catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException or ArgumentException) { return null; }
+        finally { Marshal.FinalReleaseComObject(instance); }
+    }
+
     public static void ApplyToWindow(IntPtr hwnd, string id, bool validation)
     {
         var iid = typeof(IPropertyStore).GUID;
