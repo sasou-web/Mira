@@ -29,7 +29,7 @@ Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau ce
 - **TorLink intégré, si tu l’utilises** : son interface s’ouvre dans une page de Mira et chaque téléchargement terminé est rangé dans les dossiers de Jellyfin, nommé comme il l’attend. TorLink s’installe à part ; Mira ne fournit ni sources ni contenus.
 
 <table>
-  <tr><td><img src="docs/screenshots/readme-library.jpg" alt="Toute la bibliothèque, avec recherche, genres, années, progression et tri" /></td><td><img src="docs/screenshots/readme-subtitles.jpg" alt="Réglages audio et sous-titres, avec aperçu de la taille des sous-titres" /></td></tr>
+  <tr><td width="50%"><img src="docs/screenshots/readme-library.jpg" alt="Toute la bibliothèque, avec recherche, genres, années, progression et tri" /></td><td width="50%"><img src="docs/screenshots/readme-subtitles.jpg" alt="Réglages audio et sous-titres, avec aperçu de la taille des sous-titres" /></td></tr>
   <tr><td align="center">Toute la bibliothèque et ses filtres</td><td align="center">Langues et taille des sous-titres</td></tr>
 </table>
 
