@@ -2,7 +2,7 @@
 
 **Your Jellyfin library, with an integrated mpv player and a native Windows interface.**
 
-[Download Windows preview](https://github.com/sasou-web/Mira/releases/tag/v0.4.9) · [Screenshot gallery](SCREENSHOTS.md) · [Français](../README.md)
+[Download Windows preview](https://github.com/sasou-web/Mira/releases/tag/v0.5.0) · [Screenshot gallery](SCREENSHOTS.md) · [Français](../README.md)
 
 ![Mira home screen](screenshots/01-home.png)
 
@@ -12,12 +12,13 @@ Mira keeps Jellyfin as your library server. It provides a cinematic desktop UI, 
 - Most recently watched titles first, persistent playback reports and synchronization retries.
 - Windows Start Menu identity, notification-area controls, taskbar thumbnail controls and system media session.
 - Local artwork/cache, bundled typography, responsive hover transitions and reduced-motion preference.
+- Optional TorLink page: if TorLink is installed separately, its terminal interface opens inside Mira and each finished download is placed in the Jellyfin library folders with Jellyfin-style names. Mira provides no sources or content.
 
 ## Install
 
 Requires Windows 10 2004+ or Windows 11 **x64**, a running Jellyfin server, and a separately installed **x64 libmpv DLL**. The self-contained ZIP includes .NET, but not libmpv. The UI is currently in French.
 
-1. Download and fully extract `Mira-0.4.9-win-x64.zip` from the release.
+1. Download and fully extract `Mira-0.5.0-win-x64.zip` from the release.
 2. Run `Mira.exe` from a writable folder.
 3. Connect to Jellyfin. A server on the same PC commonly uses `http://127.0.0.1:8096`.
 4. In **Réglages → Lecture**, check player-engine detection or select `libmpv-2.dll` / `mpv-2.dll`. `mpv.exe` alone is insufficient. See the [mpv installation page](https://mpv.io/installation/) for Windows distributions.
