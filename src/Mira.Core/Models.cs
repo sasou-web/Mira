@@ -1,0 +1,136 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Mira.Core;
+
+public static class Json
+{
+    public static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
+}
+
+public sealed record UserData
+{
+    public long PlaybackPositionTicks { get; set; }
+    public bool Played { get; set; }
+    public bool IsFavorite { get; set; }
+    public double? PlayedPercentage { get; set; }
+    public DateTimeOffset? LastPlayedDate { get; set; }
+}
+
+public sealed record MediaItem
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Type { get; init; } = "Movie";
+    public string? SeriesName { get; init; }
+    public string? SeriesId { get; init; }
+    public string? SeasonId { get; init; }
+    public string? Overview { get; init; }
+    public int? ProductionYear { get; init; }
+    public int? IndexNumber { get; init; }
+    public int? ParentIndexNumber { get; init; }
+    public long? RunTimeTicks { get; init; }
+    public float? CommunityRating { get; init; }
+    public string[] Genres { get; init; } = [];
+    public Dictionary<string, string> ImageTags { get; init; } = [];
+    public string[] BackdropImageTags { get; init; } = [];
+    public string? ParentBackdropItemId { get; init; }
+    public string[] ParentBackdropImageTags { get; init; } = [];
+    public string? SeriesPrimaryImageTag { get; init; }
+    public string? ParentLogoItemId { get; init; }
+    public string? ParentLogoImageTag { get; init; }
+    public int? ChildCount { get; init; }
+    public string? OfficialRating { get; init; }
+    public UserData UserData { get; set; } = new();
+    [JsonIgnore] public string DisplayTitle => Type == "Episode" ? SeriesName ?? Name : Name;
+    [JsonIgnore]
+    public string Subtitle => Type == "Episode"
+        ? $"S{ParentIndexNumber ?? 1:00} · E{IndexNumber ?? 1:00}  —  {Name}"
+        : string.Join("  ·  ", new[] { ProductionYear?.ToString(), Type == "Series" ? "Série" : DurationLabel }.Where(s => !string.IsNullOrEmpty(s)));
+    [JsonIgnore] public string DurationLabel => RunTimeTicks is > 0 ? FormatDuration(TimeSpan.FromTicks(RunTimeTicks.Value)) : "";
+    [JsonIgnore] public double Progress => RunTimeTicks is > 0 ? Math.Clamp((double)UserData.PlaybackPositionTicks / RunTimeTicks.Value, 0, 1) : 0;
+    public static string FormatDuration(TimeSpan span) => span.TotalHours >= 1 ? $"{(int)span.TotalHours} h {span.Minutes:00}" : $"{Math.Max(1, span.Minutes)} min";
+}
+
+public sealed record ItemsResult
+{
+    public List<MediaItem> Items { get; init; } = [];
+    public int TotalRecordCount { get; init; }
+}
+public sealed record CatalogFilters
+{
+    public string[] Genres { get; init; } = [];
+    public int[] Years { get; init; } = [];
+}
+public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? Played = null, string Sort = "recent")
+{
+    public string CacheKey => $"{Genre}|{Year}|{Played}|{Sort}";
+    public string Parameters =>
+        (string.IsNullOrWhiteSpace(Genre) ? "" : "&genres=" + Uri.EscapeDataString(Genre)) +
+        (Year is null ? "" : "&years=" + Year.Value) +
+        (Played is null ? "" : "&isPlayed=" + Played.Value.ToString().ToLowerInvariant()) +
+        (Sort switch
+        {
+            "title" => "&sortBy=SortName&sortOrder=Ascending",
+            "year" => "&sortBy=ProductionYear,SortName&sortOrder=Descending",
+            "rating" => "&sortBy=CommunityRating,SortName&sortOrder=Descending",
+            _ => "&sortBy=DateCreated,SortName&sortOrder=Descending"
+        });
+}
+public sealed record LibrarySection(string Id, string Name, string? CollectionType);
+public sealed record AuthUser(string Id, string Name);
+public sealed record AuthenticationResult(string AccessToken, AuthUser User);
+public sealed record Connection(string Server, string UserId, string UserName, string Token, string DeviceId);
+public sealed record MediaStream
+{
+    public int Index { get; init; }
+    public string Type { get; init; } = "";
+    public string? Codec { get; init; }
+    public string? Language { get; init; }
+    public string? DisplayTitle { get; init; }
+    public bool IsExternal { get; init; }
+    public string? DeliveryUrl { get; init; }
+}
+public sealed record MediaSource
+{
+    public string Id { get; init; } = "";
+    public string? Container { get; init; }
+    public string? Path { get; init; }
+    public string? Protocol { get; init; }
+    public List<MediaStream> MediaStreams { get; init; } = [];
+}
+public sealed record PlaybackInfo
+{
+    public string PlaySessionId { get; init; } = "";
+    public List<MediaSource> MediaSources { get; init; } = [];
+    public string? ErrorCode { get; init; }
+}
+public sealed record PlaybackReport
+{
+    public string ItemId { get; init; } = "";
+    public string MediaSourceId { get; init; } = "";
+    public string PlaySessionId { get; init; } = "";
+    public long PositionTicks { get; init; }
+    public bool IsPaused { get; init; }
+    public bool IsMuted { get; init; }
+    public int VolumeLevel { get; init; } = 80;
+    public bool CanSeek { get; init; } = true;
+    public string PlayMethod { get; init; } = "DirectPlay";
+    public string RepeatMode { get; init; } = "RepeatNone";
+}
+public sealed record PendingReport(long Id, string Kind, PlaybackReport Report);
+public sealed class PlayerSettings
+{
+    public string MpvPath { get; set; } = "";
+    public double Volume { get; set; } = 80;
+    public string AudioLanguage { get; set; } = "jpn,ja,fre,fra,fr,eng,en";
+    public string SubtitleLanguage { get; set; } = "fre,fra,fr,eng,en";
+    public bool HardwareDecoding { get; set; } = true;
+    public bool AutoNext { get; set; } = true;
+    public int SubtitleSize { get; set; } = 40;
+    public bool ShowProgress { get; set; } = true;
+    public bool ReduceMotion { get; set; }
+    public string PosterDensity { get; set; } = "Comfortable";
+    public bool RememberPosition { get; set; } = true;
+    public bool HeroAutoPlay { get; set; } = true;
+}

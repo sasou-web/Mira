@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Only NotifyIcon uses WinForms; WPF owns DPI via app.manifest. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>Mira</AssemblyName>
+    <Version>0.4.9</Version>
+    <Product>Mira</Product>
+    <Title>Mira</Title>
+    <Description>Ta bibliothèque Jellyfin avec mpv intégré</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/mira.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <Resource Include="Assets/mira.ico" />
+    <None Include="Assets/mira.ico" Link="Assets/mira-mark-v1.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="mira-input.conf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets/Phosphor/LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets/Phosphor/SOURCE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Assets/Fonts/*.ttf" />
+    <Content Include="Assets/Fonts/OFL.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets/Fonts/SOURCE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Assets/mira.png" />
+    <ProjectReference Include="../Mira.Core/Mira.Core.csproj" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+</Project>

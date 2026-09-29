@@ -1,0 +1,123 @@
+Mira 0.4.9 - local validation, 2026-09-29
+
+Core behaviour and persistence:
+PASS  Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture
+PASS  Reprise : ordre persistant et réponse serveur retardée après une lecture locale
+PASS  Reprise : une ancienne lecture absente du serveur ne revient que si sa synchronisation attend
+PASS  URL de serveur : sous-chemin conservé, URL invalide refusée
+PASS  Authentification : corps JSON, jeton dans l’en-tête, recherche encodée
+PASS  Filtres : recherche, genre, année et pagination envoyés ensemble à Jellyfin
+PASS  Facettes : genres récursifs et années de toute la bibliothèque
+PASS  Préférences : migration des anciens réglages et persistance de l’apparence
+PASS  File durable : démarrage et arrêt préservés, progression coalescée
+PASS  Une réponse ancienne ne supprime pas une progression plus récente
+PASS  Reprise locale et séparation des comptes
+PASS  Un serveur lent ne bloque pas la sauvegarde de progression
+PASS  Coupure puis reconnexion : livraison ordonnée sans perte
+PASS  Fin de lecture locale : au-delà de 90 %, titre vu et reprise à zéro
+PASS  Générique terminé avant 90 % : vu et reprise effacée, même après redémarrage hors ligne
+PASS  Marquage vu : échec puis reprise sans renvoyer l’arrêt déjà livré
+PASS  Synchronisation : un rapport refusé définitivement ne bloque pas la file
+PASS  Synchronisation : l’arrêt final part avant la fermeture
+PASS  Session protégée par Windows, mot de passe absent du stockage
+PASS  Progression bornée et libellés d’épisodes
+PASS  Défilement : même distance à 30, 60 et 144 images/s
+PASS  Défilement : inversion immédiate et bornes après changement du contenu
+PASS  Carrousel : progression, pause, reprise et changement manuel
+PASS  Préchargement : une seule requête partagée, données invalidées à l’actualisation
+PASS  Préchargement : une erreur temporaire ne bloque pas la prochaine ouverture
+PASS  Couleur du bandeau : teintes différentes pour des images rouges et bleues
+PASS  Couleur du bandeau : transparence et images neutres gardent un accent blanc
+PASS  Segments Jellyfin : types demandés, passages inconnus ou trop courts ignorés
+PASS  Chapitres nommés : opening, ending, récap, aperçu et générique selon sa position
+PASS  Passages : segments serveur prioritaires, passage actif et fin vers l’épisode suivant
+30 tests réussis.
+
+Native player fixture (synthetic media):
+PASS native video host loads the synthetic clip
+PASS loading indicator and busy cursor clear once the first frame is ready
+PASS hidden controls keep a mouse-sensitive video surface and hide the cursor
+PASS mouse activity can interrupt the fade without a stale hide closing the controls
+PASS window keeps the caption style for Windows animations, with no native title bar visible
+PASS player icons are laid out uncropped and centred in their buttons
+PASS timeline advances between mpv polls (0.704 -> 0.749 s)
+PASS Space toggles pause even when the event targets the forward button
+PASS Right arrow seeks 10 s from any control (0.8 -> 10.8 s)
+PASS paused controls and cursor leave after idling, for clean screenshots
+PASS player controls are excluded from screen captures
+PASS named file chapters become opening and ending passages
+PASS skip button offers « Passer l’intro » during the opening
+PASS skip jumps to the end of the opening (6.0 s)
+PASS credits offer « Épisode suivant dans 10 s » with a cancel button
+PASS cancelling keeps the episode and stops the countdown
+PASS seek moves to four seconds
+PASS mini-player preserves the video engine and exposes the library
+PASS mini-player rests rounded and shadowed in the bottom-right corner
+PASS a released mini-player glides to the nearest corner
+PASS pushed past the right edge, the mini-player tucks away behind a handle and keeps playing
+PASS a tucked mini-player keeps its controls closed
+PASS the handle brings the mini-player back to the right edge
+PASS navigation keeps the mini-player alive
+PASS expanded player restores its full layout
+PASS volume, slider and transport controls share a vertical center
+PASS bottom controls stay inside the video with breathing room
+PASS fullscreen uses the requested screen rectangle including its full height
+PASS fullscreen retains the same full-height video host and hides window chrome
+PASS fullscreen drops the native caption style: no title bar or border can appear
+PASS leaving fullscreen restores the prior window dimensions
+PASS leaving fullscreen restores the caption style used by Windows animations
+PASS mute control changes the native audio state
+PASS unmute restores the native audio state
+PASS unmuting zero volume restores the last audible level
+PASS speed menu selection reaches mpv
+PASS subtitle timing buttons reach mpv
+PASS options panel aligns to the player right edge at current DPI
+PASS native keyboard F reaches the application fullscreen action
+PASS native Escape exits fullscreen without stopping playback
+PASS starting the next video preserves fullscreen
+PASS next video preserves mini-player browsing mode
+PASS stop releases mpv and closes player overlays
+PASS manual next in the middle keeps the episode unwatched and resumable
+PASS outro shortcut identifies the next-episode action below 90 percent
+PASS next-episode pill marks the previous episode watched below 90 percent
+PASS automatic countdown marks the previous episode watched and clears its progress
+PASS end-of-file completes playback even when mpv retains an earlier time position
+PASS returning after playback puts the last watched film first in the rendered resume row
+PASS mini-player updates recency and returns the resume row to its left edge without stopping playback
+
+Windows media fixture (synthetic media):
+PASS Windows media broker and notification-area icon initialize
+PASS taskbar buttons remain absent outside playback
+PASS Windows logo is present both as a multi-size ICO and a window resource
+PASS taskbar enables seek and pause but disables next when no following episode exists
+PASS Windows accepts pause
+PASS repeated Windows pause is idempotent
+PASS Windows receives the title and episode metadata
+PASS Windows receives artwork through a private in-memory stream
+PASS Windows can read the published artwork
+PASS taskbar pause label follows the system state
+PASS Windows accepts a timeline seek
+PASS Windows seek reaches mpv and returns the corrected timeline
+PASS repeated Windows play is idempotent
+PASS notification-area reduction keeps playback running
+PASS media keys can pause the hidden window without stealing focus
+PASS a second launch restores the same window without resetting playback
+PASS shared taskbar/tray commands seek by ten seconds and clamp at zero
+PASS next becomes available only when the episode has been resolved
+PASS Windows accepts next episode
+PASS next uses Mira playback and updates the window identity
+PASS stopping removes all taskbar playback buttons
+PASS stopping withdraws the active Windows media session
+PASS Windows operations complete without COM errors
+PASS closing cleans up the tray and taskbar integration
+
+Motion fixture:
+PASS unchanged cards retain their instances across refresh
+PASS wheel over resume card interpolates 67.3 -> 108.0 px
+PASS carousel advances and progress segment reaches 50 percent
+PASS hover reacts immediately, interpolates highlight and zoom together, and reverses without a jump
+PASS moving content transfers hover under a stationary pointer during scroll inertia without changing layout
+PASS scrolling leaves the title bar transparent
+PASS detail title is presented synchronously in 1 ms before awaiting metadata
+PASS reduced motion scrolls without interpolation
+PASS rapid navigation keeps the latest page visible

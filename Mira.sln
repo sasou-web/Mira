@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{35C3BF49-7544-473F-BD13-F9C6D1477A2A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mira.Core", "src\Mira.Core\Mira.Core.csproj", "{D204D976-C5AE-4F6E-8CD4-0C25D34AC01F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mira.Desktop", "src\Mira.Desktop\Mira.Desktop.csproj", "{66E0A974-FAD8-4B89-93F5-AA92780E0789}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{125E7EC5-1A2D-460F-A8DC-0D9CE6FE7C01}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mira.Tests", "tests\Mira.Tests\Mira.Tests.csproj", "{21339EB7-B2C0-40F7-928D-26CF35C917A9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D204D976-C5AE-4F6E-8CD4-0C25D34AC01F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D204D976-C5AE-4F6E-8CD4-0C25D34AC01F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D204D976-C5AE-4F6E-8CD4-0C25D34AC01F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D204D976-C5AE-4F6E-8CD4-0C25D34AC01F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66E0A974-FAD8-4B89-93F5-AA92780E0789}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66E0A974-FAD8-4B89-93F5-AA92780E0789}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66E0A974-FAD8-4B89-93F5-AA92780E0789}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66E0A974-FAD8-4B89-93F5-AA92780E0789}.Release|Any CPU.Build.0 = Release|Any CPU
+		{21339EB7-B2C0-40F7-928D-26CF35C917A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{21339EB7-B2C0-40F7-928D-26CF35C917A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{21339EB7-B2C0-40F7-928D-26CF35C917A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{21339EB7-B2C0-40F7-928D-26CF35C917A9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D204D976-C5AE-4F6E-8CD4-0C25D34AC01F} = {35C3BF49-7544-473F-BD13-F9C6D1477A2A}
+		{66E0A974-FAD8-4B89-93F5-AA92780E0789} = {35C3BF49-7544-473F-BD13-F9C6D1477A2A}
+		{21339EB7-B2C0-40F7-928D-26CF35C917A9} = {125E7EC5-1A2D-460F-A8DC-0D9CE6FE7C01}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,17 @@
+name: Proposer une amélioration
+description: Décrire un besoin ou une amélioration de l’expérience
+title: "[Idée] "
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Quel problème rencontres-tu ?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Comportement souhaité
+      description: Un exemple concret ou un croquis peut aider.
+    validations:
+      required: true

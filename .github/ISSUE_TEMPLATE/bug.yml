@@ -1,0 +1,33 @@
+name: Signaler un bug
+description: Un problème de lecture, de synchronisation ou d’interface
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Merci de ne joindre aucun jeton, mot de passe, dossier data ou média personnel. Pour une vulnérabilité, voir SECURITY.md."
+  - type: input
+    id: version
+    attributes:
+      label: Version de Mira
+      placeholder: "0.4.9"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environnement
+      description: Version de Windows, version Jellyfin et moteur mpv utilisé. Ne pas mettre l’adresse privée du serveur.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      description: Préciser le résultat observé et celui attendu.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Captures et informations utiles
+      description: Masquer les informations personnelles avant de joindre une capture.

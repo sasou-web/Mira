@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation et installation
+    url: https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION.md
+    about: Vérifier les prérequis et les solutions aux problèmes courants.
