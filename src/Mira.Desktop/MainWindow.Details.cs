@@ -15,6 +15,7 @@ public partial class MainWindow
     private IInputElement? _detailOrigin;
     private (string Id, bool Favorite)? _favoriteOverride;
     private MediaItem? _detailNext;
+    private List<MediaItem> _similar = [];
     private async void DetailPlay_Click(object sender, RoutedEventArgs e)
     { if (_detail is not null) await PlayAsync(_detailNext is { } next && _detail.Type == "Series" ? next : _detail); }
     private async void CloseDetails_Click(object sender, RoutedEventArgs e) => await CloseDetailsAsync();
@@ -31,7 +32,8 @@ public partial class MainWindow
         var version = ++_detailVersion;
         var previewArt = _hoverCard?.Item.Id == item.Id ? _hoverCard.ImageSource : null;
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
-        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _favoriteOverride = null;
+        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _favoriteOverride = null; _similar = [];
+        SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed;
         _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
@@ -49,9 +51,13 @@ public partial class MainWindow
         {
             tasks.Add(LoadDetailMetadataAsync(item, version));
             if (item.Type == "Series") tasks.Add(LoadDetailEpisodesAsync(item, version));
+            tasks.Add(LoadSimilarAsync(item, version));
         }
-        else if (_demo && item.Type == "Series")
-        { EpisodesPanel.Children.Clear(); EpisodesPanel.Children.Add(new TextBlock { Text = "Les épisodes de ta bibliothèque apparaîtront ici après connexion à Jellyfin.", Foreground = Brush("#91919B"), TextWrapping = TextWrapping.Wrap }); SeasonSelector.Visibility = Visibility.Collapsed; }
+        else if (_demo)
+        {
+            if (item.Type == "Series") { EpisodesPanel.Children.Clear(); EpisodesPanel.Children.Add(new TextBlock { Text = "Les épisodes de ta bibliothèque apparaîtront ici après connexion à Jellyfin.", Foreground = Brush("#91919B"), TextWrapping = TextWrapping.Wrap }); SeasonSelector.Visibility = Visibility.Collapsed; }
+            _similar = (_demoItems ?? DemoLibrary.Items()).Where(x => x.Id != item.Id && x.Genres.Intersect(item.Genres).Any()).ToList(); RenderSimilar();
+        }
         await Task.WhenAll(tasks);
     }
     /// <summary>Reloads progress and watched marks of the open page (after playback) without moving it.</summary>
@@ -117,6 +123,46 @@ public partial class MainWindow
             EpisodesPanel.Children.Add(retry);
         }
     }
+    /// <summary>"Titres similaires" under the page. Optional: without an answer the page is complete as it is.</summary>
+    private async Task LoadSimilarAsync(MediaItem item, int version)
+    {
+        try
+        {
+            var result = await _metadata!.SimilarAsync(item.Id); if (version != _detailVersion) return;
+            var similar = result.Items.Where(x => x.Id != item.Id).ToList();
+            if (_store is { } store) { await Task.Run(() => store.ApplyLocalProgress(similar)); if (version != _detailVersion) return; }
+            _similar = similar; RenderSimilar();
+        }
+        catch (Exception ex) when (IsExpected(ex)) { }
+    }
+    /// <summary>One row of posters, as many as the page is wide, sized like the library grid.</summary>
+    private void RenderSimilar()
+    {
+        SimilarCards.Children.Clear();
+        var available = EpisodesPanel.ActualWidth > 200 ? EpisodesPanel.ActualWidth : Math.Max(600, DetailScroll.ActualWidth - 100);
+        var (columns, width) = PosterLayout(available);
+        foreach (var (similar, index) in _similar.Take(columns).Select((x, i) => (x, i)))
+        {
+            var card = new MediaCard(similar, false, _demo ? Math.Max(0, (_demoItems ?? []).FindIndex(x => x.Id == similar.Id)) : index, _settings, _demo);
+            card.Resize(width);
+            card.Click += async (_, _) => await ShowDetailsAsync(similar);
+            // The library's hover tracking stops under an open page: these cards light up on their own.
+            card.HoverEntered += x => x.SetHover(true); card.FocusEntered += x => x.SetHover(true); card.HoverLeft += x => x.SetHover(false);
+            card.ContextMenu = CardMenu(card, false);
+            SimilarCards.Children.Add(card); _ = card.LoadImageAsync(_images, false);
+        }
+        SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" ? 36 : 0, 0, 0);
+        SimilarSection.Visibility = SimilarCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _similarColumns = columns;
+    }
+    private int _similarColumns;
+    private void SimilarSection_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!e.WidthChanged || _similar.Count == 0) return;
+        var (columns, width) = PosterLayout(EpisodesPanel.ActualWidth);
+        if (columns != _similarColumns) { RenderSimilar(); return; }
+        foreach (var card in SimilarCards.Children.OfType<MediaCard>()) card.Resize(width);
+    }
     private async Task<MediaItem?> NextEpisodeAsync(JellyfinClient client, string seriesId)
     {
         try
@@ -145,6 +191,8 @@ public partial class MainWindow
         DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
         DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is > 0 ? $"★ {item.CommunityRating:0.0}" : "", item.OfficialRating ?? "" }.Where(x => x.Length > 0));
         DetailOverview.Text = PlainText(item.Overview ?? "Aucun résumé disponible pour ce titre."); DetailGenres.Text = item.Genres.Length > 0 ? string.Join("  ·  ", item.Genres) : "Non renseignés";
+        DetailCast.Text = string.Join("  ·  ", item.Cast); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        DetailDirectors.Text = string.Join("  ·  ", item.Directors); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (item.Type != "Series") DetailPlay.Content = ActionLabel("play", item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition ? "Reprendre" : item.UserData.Played ? "Revoir" : "Regarder");
         else UpdateDetailPlayLabel();
         FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
@@ -213,7 +261,7 @@ public partial class MainWindow
             if (_client is not null) await _client.SetFavoriteAsync(item.Id, favorite);
             else if (!_demo) return;
             item.UserData.IsFavorite = favorite; _favoriteOverride = (item.Id, favorite);
-            foreach (var known in _items.Concat(_resume).Concat(_nextUp).Where(x => x.Id == item.Id)) known.UserData.IsFavorite = favorite;
+            foreach (var known in _items.Concat(_resume).Concat(_nextUp).Concat(_similar).Where(x => x.Id == item.Id)) known.UserData.IsFavorite = favorite;
             if (_detail is { } open && open.Id == item.Id) open.UserData.IsFavorite = favorite;
             _metadata?.Clear();
             // In the favourites view, a removed title leaves the list.

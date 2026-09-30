@@ -21,7 +21,7 @@
 
 Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau centrée sur le visionnage. Parcours tes films et séries, retrouve ta dernière lecture et regarde directement dans la même fenêtre avec **libmpv**.
 
-- **Une bibliothèque visuelle** : bandeau panoramique, couleur adaptée à l’image, recherche, filtres, favoris et fiches avec saisons et épisodes.
+- **Une bibliothèque visuelle** : bandeau panoramique, couleur adaptée à l’image, recherche, filtres, favoris et fiches avec saisons, épisodes, distribution et titres similaires.
 - **Une navigation soignée** : typographie embarquée, icônes arrondies, défilement progressif, survol continu et préférence de réduction des animations.
 - **Un lecteur intégré** : barre de lecture épurée découpée par chapitres, plein écran, mini-lecteur déplaçable, pistes audio et sous-titres, vitesse et passage à l’épisode suivant.
 - **Une reprise fiable** : dernière lecture à gauche, progression locale, statut vu, file d’envoi persistante et reprise de synchronisation après coupure.
@@ -47,7 +47,7 @@ Dans la [release 0.5.2](https://github.com/sasou-web/Mira/releases/tag/v0.5.2), 
 | **Mira-0.5.2-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
 
 1. Lancer l’installateur ou l’exécutable. Windows peut afficher un avertissement SmartScreen : les fichiers ne sont pas encore signés (**Informations complémentaires → Exécuter quand même**).
-2. Connecter ton serveur Jellyfin — généralement `http://127.0.0.1:8096` sur le même PC.
+2. Connecter ton serveur Jellyfin (10.9 ou plus récent) — généralement `http://127.0.0.1:8096` sur le même PC ; sur le réseau, son adresse IP ou son nom suffit.
 3. Vérifier **Réglages → Lecture** : un moteur **libmpv x64** est requis. Mira détecte certains moteurs installés avec mpv.net ou Jellyfin MPV Shim ; un chemin peut être choisi manuellement.
 
 **Le runtime .NET est inclus ; libmpv ne l’est pas.** Windows 10 2004+ / Windows 11 x64, interface française, préversion non signée. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
@@ -88,7 +88,7 @@ La compilation et les tests de base sont lancés sur Windows dans GitHub Actions
 
 ## État du projet
 
-Mira **0.5.2** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. La compatibilité avec toutes les versions de Jellyfin n’est pas garantie. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
+Mira **0.5.2** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
 
 - [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md) et [validation](docs/VALIDATION.md)

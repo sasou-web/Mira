@@ -21,7 +21,7 @@ La [dernière release](https://github.com/sasou-web/Mira/releases) propose trois
 Les fichiers ne sont pas encore signés : Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Vérifier l’empreinte du fichier (plus bas), puis choisir **Informations complémentaires → Exécuter quand même**.
 
 1. Ouvrir Mira. Un raccourci Mira est ajouté au menu Démarrer au premier lancement du profil principal, ou dès l’installation.
-2. Entrer l’adresse de Jellyfin, le nom d’utilisateur et le mot de passe. Pour Jellyfin sur le même PC, l’adresse habituelle est `http://127.0.0.1:8096`.
+2. Entrer l’adresse de Jellyfin, le nom d’utilisateur et le mot de passe. Pour Jellyfin sur le même PC, l’adresse habituelle est `http://127.0.0.1:8096`. Sur le réseau, l’adresse IP ou le nom du PC suffit (`192.168.1.20`, `nas:8096`), comme l’adresse copiée depuis la page web de Jellyfin. Jellyfin 10.9 ou plus récent est nécessaire.
 3. Dans **Réglages → Lecture**, vérifier que le moteur mpv est détecté. Si besoin, déplier son emplacement et sélectionner `libmpv-2.dll` ou `mpv-2.dll` x64.
 
 Le bouton **Essayer sans se connecter** ouvre un catalogue fictif pour explorer l’interface.
@@ -89,6 +89,9 @@ Pour passer d’une copie portable à l’installateur en gardant sa session : i
 | Symptôme | Vérification |
 | --- | --- |
 | Serveur inaccessible | Jellyfin doit être lancé ; vérifier l’adresse, le port et l’accès réseau. Pour un serveur distant, utiliser HTTPS. |
+| « Ce n’est pas un serveur Jellyfin » | L’adresse répond, mais pas Jellyfin (routeur, NAS, Emby…) : vérifier le port, 8096 par défaut. |
+| « Mira a besoin de Jellyfin 10.9 » | Mettre Jellyfin à jour ; Mira utilise des routes introduites par cette version. |
+| « Certificat HTTPS non reconnu » | Le certificat du serveur n’est pas approuvé par Windows : utiliser son adresse `http://` sur le réseau local, ou installer un certificat valide. |
 | Bibliothèque visible mais lecture impossible | Choisir une DLL libmpv **64 bits**, avec ses dépendances, dans les réglages. |
 | Progression qui tarde à remonter | Consulter **Réglages → Jellyfin & synchronisation** ; les envois restent en attente quand le serveur est indisponible. |
 | Icône de notification absente | Regarder les icônes masquées près de l’horloge. |

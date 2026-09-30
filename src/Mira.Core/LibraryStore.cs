@@ -26,6 +26,27 @@ public sealed class LibraryStore
             CREATE TABLE IF NOT EXISTS outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, session TEXT NOT NULL, item TEXT NOT NULL, json TEXT NOT NULL);
             """;
         cmd.ExecuteNonQuery();
+        Prune(DateTimeOffset.UtcNow - CacheLifetime);
+    }
+    /// <summary>Pages kept for an offline start: each filter, library and sort has its own, so unused ones expire.</summary>
+    public static readonly TimeSpan CacheLifetime = TimeSpan.FromDays(30);
+    /// <summary>
+    /// Forgets cached pages, and local positions already delivered, not updated since <paramref name="before"/>.
+    /// The home page, the resume row, the playback history and anything still waiting to be sent stay.
+    /// </summary>
+    public int Prune(DateTimeOffset before)
+    {
+        lock (_gate)
+        {
+            using var db = Open(); using var cmd = db.CreateCommand();
+            cmd.CommandText = """
+                DELETE FROM cache WHERE updated < $before AND key NOT IN ('home', 'resume', 'recent-playback');
+                DELETE FROM progress WHERE updated < $before AND item NOT IN (SELECT item FROM outbox);
+                DELETE FROM completed WHERE updated < $before AND item NOT IN (SELECT item FROM outbox);
+                """;
+            cmd.Parameters.AddWithValue("$before", before.ToUniversalTime().ToString("O"));
+            return cmd.ExecuteNonQuery();
+        }
     }
     private SqliteConnection Open() { var db = new SqliteConnection(_connectionString); db.Open(); return db; }
     public void Save<T>(string key, T value)
