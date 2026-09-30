@@ -1,8 +1,8 @@
-# Validation — 29 septembre 2026
+# Validation — 1er octobre 2026
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Connexion, fiches et caches (non publié)
+## Connexion, fiches et caches 0.5.3
 
 - GitHub Actions sur Windows (exécution manuelle de la branche, [run 36787107476](https://github.com/sasou-web/Mira/actions/runs/36787107476)) : compilation Release sans erreur ni avertissement, **51 tests** réussis, archive, exécutable portable et installateur produits. Nouveaux tests : adresses saisies (sans schéma, avec port, IPv6, copiée depuis la page web, serveur nommé « web ») ; recherche du serveur (ordre HTTPS → 8096 → HTTP, redirection vers HTTPS conservée, HTTPS muet abandonné après le délai de grâce, Emby, 404, Jellyfin 10.8, certificat refusé, serveur injoignable, seule `System/Info/Public` demandée) ; distribution, réalisation, titres similaires et tri par dernière lecture ; cache disque (budget, fichiers les moins récemment vus, `.tmp` abandonnés, fichier relu « touché ») ; élagage SQLite (pages anciennes oubliées ; accueil, reprise, historique et envoi en attente gardés) ; images en mémoire (budget respecté, les plus anciennes libérées puis relues sur disque sans nouveau téléchargement).
 - Les tests de `Mira.Core` concernés ont aussi été exécutés sous Linux, et le code WPF compilé contre les assemblages de référence de Windows Desktop pendant le développement.

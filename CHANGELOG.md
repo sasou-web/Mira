@@ -1,6 +1,6 @@
 # Historique
 
-## Non publié
+## 0.5.3 — 2026-10-01
 
 Connexion plus simple, fiches plus riches et caches qui ne grossissent plus sans fin.
 
