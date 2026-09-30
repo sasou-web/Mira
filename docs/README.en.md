@@ -6,7 +6,7 @@
 
 ![Mira home screen](screenshots/01-home.png)
 
-Mira keeps Jellyfin as your library server. It provides a cinematic desktop UI, search and filters, favourites, movie and series details, and playback in the same application through libmpv.
+Mira keeps Jellyfin as your library server. It provides a cinematic desktop UI, search and filters, favourites, movie and series details with cast and similar titles, and playback in the same application through libmpv.
 
 - A clean playback bar split by chapters, fullscreen and movable mini-player, audio/subtitle tracks, speed and next episode.
 - Automatic updates from 0.5.2: each new release is downloaded in the background, checked (Mira's signature, size and SHA-256) and installed when Mira closes, leaving the `data` folder untouched.
@@ -21,7 +21,7 @@ Requires Windows 10 2004+ or Windows 11 **x64**, a running Jellyfin server, and 
 
 1. From the release, run `Mira-0.5.2-win-x64-setup.exe` (per-user install, no administrator rights), or use `Mira-0.5.2-win-x64-portable.exe` (one file that creates its `data` folder beside it) or the `Mira-0.5.2-win-x64.zip` folder. The files are not signed yet, so SmartScreen may ask for confirmation.
 2. Keep a portable copy in a writable folder of its own.
-3. Connect to Jellyfin. A server on the same PC commonly uses `http://127.0.0.1:8096`.
+3. Connect to Jellyfin 10.9 or later. A server on the same PC commonly uses `http://127.0.0.1:8096`; on the network, its IP address or name is enough (`192.168.1.20`, `nas:8096`), as is the address copied from Jellyfin's web page.
 4. In **Réglages → Lecture**, check player-engine detection or select `libmpv-2.dll` / `mpv-2.dll`. `mpv.exe` alone is insufficient. See the [mpv installation page](https://mpv.io/installation/) for Windows distributions.
 
 The preview is unsigned. From 0.5.2 on, Mira updates itself (**Réglages → Mises à jour**); older copies need 0.5.2 installed once by hand. When updating by hand, preserve the `data` folder: it contains settings, protected session credentials and pending playback reports. Do not publish it.

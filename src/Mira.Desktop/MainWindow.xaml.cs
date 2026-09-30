@@ -132,7 +132,11 @@ public partial class MainWindow : Window
         try
         {
             if (string.IsNullOrWhiteSpace(UsernameBox.Text)) throw new ArgumentException("Indique ton nom d’utilisateur Jellyfin.");
-            client = new JellyfinClient(new(ServerBox.Text, "", UsernameBox.Text.Trim(), "", _profile.DeviceId));
+            // "192.168.1.20", "nas:8096" or the address of Jellyfin's web page: find the server before sending the password.
+            ConnectText.Text = "Recherche du serveur…";
+            var server = await ServerAddress.DiscoverAsync(ServerBox.Text);
+            ServerBox.Text = server.Address; ConnectText.Text = "Connexion…";
+            client = new JellyfinClient(new(server.Address, "", UsernameBox.Text.Trim(), "", _profile.DeviceId));
             var connection = await client.LoginAsync(UsernameBox.Text.Trim(), PasswordBox.Password);
             _profile.SaveConnection(connection); PasswordBox.Clear();
             await ActivateConnectionAsync(connection);
@@ -289,7 +293,8 @@ public partial class MainWindow : Window
         {
             var query = CurrentQuery();
             _items = _items.Where(x => (query.Genre is null || x.Genres.Contains(query.Genre)) && (query.Year is null || x.ProductionYear == query.Year) && (query.Played is null || x.UserData.Played == query.Played)).ToList();
-            _items = query.Sort switch { "title" => _items.OrderBy(x => x.Name).ToList(), "year" => _items.OrderByDescending(x => x.ProductionYear).ToList(), "rating" => _items.OrderByDescending(x => x.CommunityRating).ToList(), _ => _items };
+            _items = query.Sort switch { "title" => _items.OrderBy(x => x.Name).ToList(), "year" => _items.OrderByDescending(x => x.ProductionYear).ToList(), "rating" => _items.OrderByDescending(x => x.CommunityRating).ToList(),
+                "played" => _items.OrderByDescending(x => x.UserData.LastPlayedDate ?? DateTimeOffset.MinValue).ThenByDescending(x => x.Progress).ToList(), _ => _items };
         }
         _totalCount = _items.Count; RenderLibrary();
     }
@@ -320,7 +325,7 @@ public partial class MainWindow : Window
     private void NoticeAction_Click(object sender, RoutedEventArgs e) { var action = _noticeAction; HideNotice(); action?.Invoke(); }
     private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver) return; HideNotice(); }
     private static bool IsExpected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException or OperationCanceledException or System.Text.Json.JsonException;
-    private static string Friendly(Exception ex) => ex switch { UnauthorizedAccessException => ex.Message, ArgumentException => ex.Message, OperationCanceledException => "Jellyfin met trop de temps à répondre.", HttpRequestException h when h.StatusCode is not null => h.Message, HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.", _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie." };
+    private static string Friendly(Exception ex) => ex switch { UnauthorizedAccessException => ex.Message, ArgumentException => ex.Message, ServerDiscoveryException => ex.Message, OperationCanceledException => "Jellyfin met trop de temps à répondre.", HttpRequestException h when h.StatusCode is not null => h.Message, HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.", _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie." };
     private async void Demo_Click(object sender, RoutedEventArgs e) => await ShowDemoAsync();
     private void Account_Click(object sender, RoutedEventArgs e)
     {

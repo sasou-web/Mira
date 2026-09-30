@@ -41,6 +41,8 @@ public sealed record MediaItem
     public string? ParentLogoImageTag { get; init; }
     public int? ChildCount { get; init; }
     public string? OfficialRating { get; init; }
+    /// <summary>Cast and crew, returned by the single-item request only.</summary>
+    public List<PersonInfo> People { get; init; } = [];
     public UserData UserData { get; set; } = new();
     [JsonIgnore] public string DisplayTitle => Type == "Episode" ? SeriesName ?? Name : Name;
     [JsonIgnore]
@@ -49,7 +51,20 @@ public sealed record MediaItem
         : string.Join("  ·  ", new[] { ProductionYear?.ToString(), Type == "Series" ? "Série" : DurationLabel }.Where(s => !string.IsNullOrEmpty(s)));
     [JsonIgnore] public string DurationLabel => RunTimeTicks is > 0 ? FormatDuration(TimeSpan.FromTicks(RunTimeTicks.Value)) : "";
     [JsonIgnore] public double Progress => RunTimeTicks is > 0 ? Math.Clamp((double)UserData.PlaybackPositionTicks / RunTimeTicks.Value, 0, 1) : 0;
+    /// <summary>The leading actors, in the order Jellyfin credits them.</summary>
+    [JsonIgnore] public string[] Cast => Credited("Actor", 6);
+    [JsonIgnore] public string[] Directors => Credited("Director", 3);
+    private string[] Credited(string type, int count) => People.Where(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase))
+        .Select(x => x.Name.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.CurrentCultureIgnoreCase).Take(count).ToArray();
     public static string FormatDuration(TimeSpan span) => span.TotalHours >= 1 ? $"{(int)span.TotalHours} h {span.Minutes:00}" : $"{Math.Max(1, span.Minutes)} min";
+}
+
+public sealed record PersonInfo
+{
+    public string Name { get; init; } = "";
+    public string? Role { get; init; }
+    /// <summary>"Actor", "Director", "Writer", "Producer", "GuestStar"…</summary>
+    public string? Type { get; init; }
 }
 
 public sealed record ItemsResult
@@ -74,6 +89,7 @@ public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? 
             "title" => "&sortBy=SortName&sortOrder=Ascending",
             "year" => "&sortBy=ProductionYear,SortName&sortOrder=Descending",
             "rating" => "&sortBy=CommunityRating,SortName&sortOrder=Descending",
+            "played" => "&sortBy=DatePlayed,SortName&sortOrder=Descending",
             _ => "&sortBy=DateCreated,SortName&sortOrder=Descending"
         });
 }

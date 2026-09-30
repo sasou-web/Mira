@@ -27,7 +27,9 @@ Mira.Desktop (WPF)
           │
 Mira.Core
   ├─ JellyfinClient : requêtes HTTP, métadonnées, lecture et WebSocket
+  ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques et version minimale
   ├─ LibraryStore : cache SQLite, progression locale et file persistante
+  ├─ DiskCache : budget des fichiers d’images, les moins récemment utilisés d’abord
   ├─ MotionState : interpolation du défilement et durée du carrousel, testables sans UI
   ├─ ContinueWatching : classement de la reprise par activité, une carte par série
   ├─ PlaybackMarkers : segments Jellyfin, titres de chapitres et passage actif
@@ -79,7 +81,9 @@ La livraison est **au moins une fois** : si le serveur accepte un envoi et que l
 - Les événements WebSocket sont regroupés avant de demander une actualisation ; la lecture en cours ne déclenche pas de reconstruction de bibliothèque.
 - Les cartes inchangées conservent leur instance et leur image après actualisation. La position du défilement en cours reste intacte.
 - Les métadonnées au survol et à l’ouverture partagent les requêtes en cours via un cache de deux minutes, attaché au client connecté. Les erreurs ne restent pas en cache ; les notifications Jellyfin invalident les métadonnées.
-- Les fiches présentent immédiatement le titre déjà connu, puis chargent en parallèle image, métadonnées et épisodes. Un numéro de requête empêche une ancienne fiche d’écraser la suivante.
+- Les fiches présentent immédiatement le titre déjà connu, puis chargent en parallèle image, métadonnées, épisodes et titres similaires (`Items/{id}/Similar`, facultatif : une erreur laisse la fiche complète). Un numéro de requête empêche une ancienne fiche d’écraser la suivante. La distribution vient de `People`, que seule la requête d’un titre renvoie.
+- Les images décodées sont partagées par clé et gardées au plus 512 Mo (largeur × hauteur × octets par pixel), ramenées à 384 Mo en libérant les moins récemment demandées ; les cartes affichées gardent leur propre référence. Sur disque, le dossier `images` de tous les comptes est ramené à 768 Mo au-delà de 1 Go à chaque connexion, hors du fil de l’interface, selon la date de dernière écriture : un fichier relu est « touché » au plus une fois par jour. Un fichier supprimé entre-temps est simplement retéléchargé ; un fichier ouvert est laissé. Les `.tmp` de plus d’une heure partent aussi.
+- Dans SQLite, les pages de catalogue (une par vue, bibliothèque, filtre et tri) non réécrites depuis 30 jours sont oubliées à l’ouverture, comme les positions locales déjà livrées. L’accueil, la reprise, l’historique de lecture et tout ce qui attend un envoi restent.
 
 ## Mouvement et navigation
 
@@ -142,11 +146,13 @@ TorLink reste un programme séparé, lancé sans modification depuis son dossier
 
 ## Session et fichiers
 
+Avant l’authentification, `ServerAddress` transforme l’adresse saisie en candidates : une adresse avec son schéma est seule candidate ; sans schéma, HTTPS puis HTTP en premier selon le port (443 et 8920 : HTTPS), ou, sans port, HTTPS, `http://…:8096` puis HTTP. La partie `/web…`, la requête et le fragment d’une adresse copiée depuis la page web sont retirés. Toutes sont interrogées en même temps sur `System/Info/Public` (6 s au plus) ; la première dans l’ordre qui répond comme Jellyfin (identifiant présent, produit Jellyfin) est retenue, et une candidate préférée encore en attente n’a plus que 1,5 s une fois qu’une autre a répondu. L’adresse finale d’une redirection (HTTP vers HTTPS) est conservée. Une version antérieure à 10.9 est refusée : Mira utilise `UserItems`, `UserViews`, `UserPlayedItems` et `UserFavoriteItems`. Aucun identifiant n’est envoyé pendant cette recherche.
+
 Le mot de passe ne sert qu’à l’authentification. Le jeton est chiffré par DPAPI pour l’utilisateur Windows courant. Les requêtes multimédias utilisent un en-tête d’authentification. Les caches et files sont isolés par serveur et identifiant de compte.
 
 La lecture directe d’un chemin local est utilisée uniquement si le serveur est une adresse de boucle locale, si Jellyfin décrit la source comme un fichier et si ce fichier est accessible. Sinon, le lecteur utilise le flux original fourni par Jellyfin. La conversion vidéo n’est pas implémentée dans cette version.
 
-Les choix de pistes, paramètres avancés et sources multiples devront à terme être réunis dans un contrôleur de lecture distinct des événements de fenêtre. Les migrations de base, une limite de taille du cache et une abstraction de vues plus complète font partie des étapes suivantes avant une diffusion large.
+Les choix de pistes, paramètres avancés et sources multiples devront à terme être réunis dans un contrôleur de lecture distinct des événements de fenêtre. Les migrations de base et une abstraction de vues plus complète font partie des étapes suivantes avant une diffusion large.
 
 ## Distribution
 

@@ -108,9 +108,7 @@ public partial class MainWindow
     {
         if (!visible) { if (CatalogSkeleton.Visibility == Visibility.Visible) { Motion.Pulse(CatalogSkeleton, false); CatalogSkeleton.Visibility = Visibility.Collapsed; } return; }
         var available = Math.Max(PosterCards.ActualWidth, CatalogSkeleton.ActualWidth); if (available < 200) available = Math.Max(600, LibraryRows.ActualWidth);
-        var target = _settings.PosterDensity == "Compact" ? 161 : 192;
-        var columns = Math.Max(3, (int)Math.Round((available + 22) / (target + 22)));
-        var width = Math.Floor((available - 1) / columns) - 22;
+        var (columns, width) = PosterLayout(available);
         CatalogSkeleton.Children.Clear();
         for (var i = 0; i < columns * 2; i++)
         {
@@ -205,11 +203,16 @@ public partial class MainWindow
     private void ResizePosters()
     {
         var available = PosterCards.ActualWidth; if (available < 200) return;
-        var target = _settings.PosterDensity == "Compact" ? 161 : 192;
-        var columns = Math.Max(3, (int)Math.Round((available + 22) / (target + 22)));
-        var width = Math.Floor((available - 1) / columns) - 22;
+        var (_, width) = PosterLayout(available);
         foreach (var card in PosterCards.Children.OfType<MediaCard>()) card.Resize(width);
         foreach (var card in CatalogSkeleton.Children.OfType<Border>()) { card.Width = width; card.Height = width * 1.48; }
+    }
+    /// <summary>Columns and card width of a row of posters filling <paramref name="available"/>, at the chosen density.</summary>
+    private (int Columns, double Width) PosterLayout(double available)
+    {
+        var target = _settings.PosterDensity == "Compact" ? 161 : 192;
+        var columns = Math.Max(3, (int)Math.Round((available + 22) / (target + 22)));
+        return (columns, Math.Floor((available - 1) / columns) - 22);
     }
     private void PosterGrid_SizeChanged(object sender, SizeChangedEventArgs e) { if (e.WidthChanged) ResizePosters(); }
     private void Library_Scrolled(object sender, ScrollChangedEventArgs e)
@@ -232,7 +235,7 @@ public partial class MainWindow
             else if (!_demo) return;
             if (_store is { } store) await Task.Run(() => store.ForgetProgress(item.Id));
             _recentPlayback.RemoveAll(x => x.Id == item.Id || x.SeriesId == item.Id);
-            foreach (var known in _items.Concat(_resume).Concat(_nextUp).Concat(_episodes).Append(item).Where(x => x.Id == item.Id))
+            foreach (var known in _items.Concat(_resume).Concat(_nextUp).Concat(_episodes).Concat(_similar).Append(item).Where(x => x.Id == item.Id))
             { known.UserData.Played = played; known.UserData.PlaybackPositionTicks = 0; }
             if (item.Type == "Series") foreach (var episode in _episodes.Concat(_resume).Where(x => x.SeriesId == item.Id)) { episode.UserData.Played = played; episode.UserData.PlaybackPositionTicks = 0; }
             _metadata?.Clear();
@@ -247,7 +250,7 @@ public partial class MainWindow
     {
         if (_demo) { _resume = (_demoItems ?? []).Where(x => x.Progress > 0).ToList(); }
         RenderLibrary();
-        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); }
+        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0) RenderSimilar(); }
     }
     private void ResumePrevious_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, -624, true);
     private void ResumeNext_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, 624, true);

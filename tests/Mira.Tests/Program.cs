@@ -131,6 +131,62 @@ await Test("URL de serveur : sous-chemin conservé, URL invalide refusée", () =
     { try { JellyfinClient.NormalizeServer(bad); throw new Exception("Accepted invalid URI"); } catch (ArgumentException) { } }
     return Task.CompletedTask;
 });
+await Test("Adresse saisie : sans http://, avec port, ou copiée depuis la page web de Jellyfin", () =>
+{
+    void Expect(string input, params string[] expected)
+    { var actual = ServerAddress.Candidates(input); Assert(actual.SequenceEqual(expected), $"{input} → {string.Join(" ; ", actual)}"); }
+    Expect("192.168.1.20", "https://192.168.1.20/", "http://192.168.1.20:8096/", "http://192.168.1.20/");
+    Expect(" nas:8096 ", "http://nas:8096/", "https://nas:8096/");
+    Expect("jellyfin.example.test:8920", "https://jellyfin.example.test:8920/", "http://jellyfin.example.test:8920/");
+    Expect("example.test/jellyfin", "https://example.test/jellyfin/", "http://example.test:8096/jellyfin/", "http://example.test/jellyfin/");
+    Expect("http://192.168.1.20:8096/web/#/home.html", "http://192.168.1.20:8096/");
+    Expect("https://example.test/jellyfin/web/index.html#!/details?id=1", "https://example.test/jellyfin/");
+    Expect("localhost:8096/web", "http://localhost:8096/", "https://localhost:8096/");
+    Expect("http://web:8096/", "http://web:8096/");
+    Expect("[::1]:8096", "http://[::1]:8096/", "https://[::1]:8096/");
+    foreach (var bad in new[] { "", "   ", "http://user:secret@localhost", "ftp://example.test" })
+    { try { ServerAddress.Candidates(bad); throw new Exception("Accepted invalid address: " + bad); } catch (ArgumentException) { } }
+    Assert(ServerAddress.ParseVersion("10.11.0-rc2") == new Version(10, 11, 0) && ServerAddress.ParseVersion("inconnue") is null, "Server version parsing");
+    return Task.CompletedTask;
+});
+await Test("Recherche du serveur : première adresse Jellyfin dans l’ordre, autres serveurs et versions anciennes refusés", async () =>
+{
+    HttpResponseMessage Info(string version = "10.10.3", string product = "Jellyfin Server") => JsonResponse(new { ServerName = "Salon", Version = version, ProductName = product, Id = "server-1" });
+    Handler Serve(Func<Uri, HttpResponseMessage> answer) => new(request => Task.FromResult(answer(request.RequestUri!)));
+    var asked = new System.Collections.Concurrent.ConcurrentBag<string>();
+    // The HTTPS port is closed and port 80 is a router page: the server is on 8096.
+    var found = await ServerAddress.DiscoverAsync("nas", Serve(uri =>
+    {
+        asked.Add(uri.AbsoluteUri);
+        return uri.Scheme == "https" ? throw new HttpRequestException("refusé") : uri.Port == 8096 ? Info() : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>routeur</html>") };
+    }));
+    Assert(found == new ServerInfo("http://nas:8096/", "Salon", "10.10.3"), "Wrong server: " + found);
+    Assert(asked.All(x => x.EndsWith("/System/Info/Public")), "Something other than the public information was requested");
+    // Both answer: HTTPS wins.
+    Assert((await ServerAddress.DiscoverAsync("nas", Serve(_ => Info()))).Address == "https://nas/", "HTTPS not preferred");
+    // HTTPS never answers (a firewall dropping it): port 8096 is used after a short grace, not the whole timeout.
+    var clock = Stopwatch.StartNew();
+    var silent = await ServerAddress.DiscoverAsync("nas", new Handler(async request =>
+    {
+        if (request.RequestUri!.Scheme == "https") await Task.Delay(Timeout.Infinite);
+        return request.RequestUri.Port == 8096 ? Info() : new HttpResponseMessage(HttpStatusCode.NotFound);
+    }));
+    Assert(silent.Address == "http://nas:8096/" && clock.Elapsed < ServerAddress.ProbeTimeout - TimeSpan.FromSeconds(2), $"Waited {clock.Elapsed} for {silent.Address}");
+    // A proxy redirecting to HTTPS: the final address is kept.
+    var redirected = await ServerAddress.DiscoverAsync("http://example.test/jellyfin", Serve(uri =>
+    { var response = Info(); response.RequestMessage = new HttpRequestMessage(HttpMethod.Get, "https://example.test/jellyfin/System/Info/Public"); return response; }));
+    Assert(redirected.Address == "https://example.test/jellyfin/", "Redirected address not kept: " + redirected.Address);
+    async Task Refused(string input, Handler handler, string expected)
+    {
+        try { await ServerAddress.DiscoverAsync(input, handler); throw new Exception("Accepted: " + input); }
+        catch (ServerDiscoveryException ex) { Assert(ex.Message.Contains(expected), $"Unexpected message for {input}: {ex.Message}"); }
+    }
+    await Refused("http://nas:8096", Serve(_ => Info("4.8.10", "Emby Server")), "pas un serveur Jellyfin");
+    await Refused("http://nas:8096", Serve(_ => new HttpResponseMessage(HttpStatusCode.NotFound)), "pas un serveur Jellyfin");
+    await Refused("http://nas:8096", Serve(_ => Info("10.8.13")), "10.8.13");
+    await Refused("https://nas", Serve(_ => throw new HttpRequestException("TLS", new System.Security.Authentication.AuthenticationException())), "certificat");
+    await Refused("nas", Serve(_ => throw new HttpRequestException("refusé")), "Aucun serveur Jellyfin");
+});
 await Test("Authentification : corps JSON, jeton dans l’en-tête, recherche encodée", async () =>
 {
     var requests = new List<(string Url, string Header, string Body)>();
@@ -158,6 +214,22 @@ await Test("Filtres : recherche, genre, année et pagination envoyés ensemble �
     foreach (var part in new[] { "years=2024", "isPlayed=false", "sortBy=SortName", "sortOrder=Ascending", "startIndex=60", "parentId=library-1", "isFavorite=true", "includeItemTypes=Series" }) Assert(query.Contains(part), "Missing query component: " + part);
     Assert(new CatalogQuery(Played: false).CacheKey != new CatalogQuery(Played: true).CacheKey, "Watched filters share a cache key");
     Assert(new CatalogQuery().Parameters.Contains("DateCreated"), "Default sort changed");
+});
+await Test("Fiche : distribution, réalisation, titres similaires et tri par dernière lecture", async () =>
+{
+    var film = JsonSerializer.Deserialize<MediaItem>("""
+        {"Id":"f","Name":"Film","People":[{"Name":"Ana","Role":"Mia","Type":"Actor"},{"Name":"Ben","Type":"Director"},{"Name":" ana ","Type":"Actor"},
+        {"Name":"Chloé","Type":"Writer"},{"Name":"Dan","Type":"actor"},{"Name":"","Type":"Actor"}]}
+        """, Json.Options)!;
+    Assert(film.Cast.SequenceEqual(["Ana", "Dan"]) && film.Directors.SequenceEqual(["Ben"]), $"Credits: {string.Join(", ", film.Cast)} / {string.Join(", ", film.Directors)}");
+    // Pages cached before people were read still load.
+    Assert(JsonSerializer.Deserialize<ItemsResult>("""{"Items":[{"Id":"old","Name":"Ancien"}]}""", Json.Options)!.Items[0].Cast.Length == 0, "Old cached page");
+    Assert(new CatalogQuery(Sort: "played").Parameters.Contains("sortBy=DatePlayed,SortName&sortOrder=Descending"), "Last played sort");
+    Uri? asked = null;
+    using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+    { asked = request.RequestUri; return Task.FromResult(JsonResponse(new { Items = new[] { new { Id = "g", Name = "Autre" } }, TotalRecordCount = 1 })); }));
+    var similar = await client.SimilarAsync("film 1");
+    Assert(similar.Items.Single().Id == "g" && asked!.AbsolutePath == "/jellyfin/Items/film%201/Similar" && asked.Query.Contains("userId=user-1") && asked.Query.Contains("limit=12"), "Similar request: " + asked);
 });
 await Test("Facettes : genres récursifs et années de toute la bibliothèque", async () =>
 {
@@ -352,6 +424,59 @@ await Test("Préchargement : une erreur temporaire ne bloque pas la prochaine ou
     var cache = new MetadataCache(client);
     try { await cache.ItemAsync("x"); throw new Exception("Expected temporary HTTP failure"); } catch (HttpRequestException) { }
     Assert((await cache.ItemAsync("x")).Name == "Rétabli" && count == 2, "Faulted prefetch remains cached");
+});
+await Test("Cache disque : au-delà du budget, les images les moins récemment vues partent", () =>
+{
+    var folder = Path.Combine(testRoot, "disk-cache"); Directory.CreateDirectory(Path.Combine(folder, "compte-2"));
+    string Make(string name, int size, double daysAgo)
+    { var path = Path.Combine(folder, name); File.WriteAllBytes(path, new byte[size]); File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-daysAgo)); return path; }
+    var oldest = Make("a.img", 400, 30); var old = Make(Path.Combine("compte-2", "b.img"), 400, 20); var recent = Make("c.img", 400, 2); var fresh = Make("d.img", 400, 0);
+    var interrupted = Make("e.img.tmp", 100, 1); var writing = Make("f.img.tmp", 100, 0); var other = Make("notes.txt", 5000, 40);
+    Assert(DiskCache.Trim(folder, 2000, 1000) == (1, 100) && !File.Exists(interrupted) && File.Exists(writing), "Trimmed under budget, or temporary files mishandled");
+    var touched = File.GetLastWriteTimeUtc(fresh); DiskCache.Touch(fresh);
+    Assert(File.GetLastWriteTimeUtc(fresh) == touched, "A file used today was written again");
+    DiskCache.Touch(oldest);
+    Assert(DiskCache.Trim(folder, 1500, 800) == (2, 800), "Wrong amount trimmed");
+    Assert(File.Exists(oldest) && File.Exists(fresh) && !File.Exists(old) && !File.Exists(recent) && File.Exists(other), "Least recently used files not chosen, or another file touched");
+    Assert(DiskCache.Trim(Path.Combine(testRoot, "absent"), 1, 0) == (0, 0), "Missing folder");
+    return Task.CompletedTask;
+});
+await Test("Cache de bibliothèque : pages anciennes oubliées ; accueil, reprise, historique et envois en attente gardés", () =>
+{
+    var store = Store("prune");
+    store.Save("home", new ItemsResult()); store.Save("Movie::|2024||recent", new ItemsResult { TotalRecordCount = 3 });
+    store.RememberPlayback(new MediaItem { Id = "vu", RunTimeTicks = 1000, UserData = new() { LastPlayedDate = DateTimeOffset.UtcNow, PlaybackPositionTicks = 500 } });
+    store.Enqueue("stop", Report(400) with { ItemId = "livré" }); store.Acknowledge(store.Peek()!.Id);
+    store.Enqueue("progress", Report(300));
+    Assert(Store("prune").Load<ItemsResult>("Movie::|2024||recent") is { TotalRecordCount: 3 }, "A recent page expired on opening");
+    store.Prune(DateTimeOffset.UtcNow.AddMinutes(1));
+    Assert(store.Load<ItemsResult>("Movie::|2024||recent") is null, "Old filtered page kept");
+    Assert(store.Load<ItemsResult>("home") is not null && store.Load<List<MediaItem>>("resume") is { Count: 1 } && store.RecentPlayback().Count == 1, "Home, resume row or history pruned");
+    var items = new[] { new MediaItem { Id = "item-1" }, new MediaItem { Id = "livré" } }; store.ApplyLocalProgress(items);
+    Assert(items[0].UserData.PlaybackPositionTicks == 300 && items[1].UserData.PlaybackPositionTicks == 0 && store.PendingCount == 1, "Pending position lost, or delivered one kept");
+    return Task.CompletedTask;
+});
+await Test("Images : mémoire bornée, les moins récentes libérées puis relues sur disque sans nouveau téléchargement", async () =>
+{
+    // 500 × 500 artwork, decoded at the poster width: 1 000 000 bytes each.
+    var pixels = new byte[500 * 500 * 4]; Array.Fill(pixels, (byte)180);
+    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(System.Windows.Media.Imaging.BitmapSource.Create(500, 500, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, 2000)));
+    using var png = new MemoryStream(); encoder.Save(png); var bytes = png.ToArray();
+    var downloads = 0;
+    using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(_ =>
+    { Interlocked.Increment(ref downloads); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }); }));
+    const long each = 1_000_000;
+    var cache = new ImageCache(client, Path.Combine(testRoot, "image-cache")) { MemoryLimit = each * 3, MemoryTarget = each * 2 };
+    MediaItem Poster(int i) => new() { Id = "poster-" + i, ImageTags = new() { ["Primary"] = "tag" } };
+    var requests = new List<Task<System.Windows.Media.Imaging.BitmapSource?>>();
+    for (var i = 0; i < 5; i++) { requests.Add(cache.GetAsync(Poster(i))); Assert(await requests[i] is { PixelWidth: 500 }, "Image not decoded"); }
+    await WaitUntil(() => cache.Settled == 5);
+    Assert(cache.MemoryBytes == each * 3, "Memory not trimmed to its target: " + cache.MemoryBytes);
+    Assert(ReferenceEquals(cache.GetAsync(Poster(4)), requests[4]), "The most recent image left memory");
+    var again = cache.GetAsync(Poster(0));
+    Assert(!ReferenceEquals(again, requests[0]), "The oldest image stayed in memory past the budget");
+    Assert(await again is { PixelWidth: 500 } && downloads == 5, "An image evicted from memory was downloaded again instead of read from disk");
 });
 await Test("Couleur du bandeau : teintes différentes pour des images rouges et bleues", () =>
 {

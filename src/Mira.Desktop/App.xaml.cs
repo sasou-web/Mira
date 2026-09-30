@@ -60,8 +60,16 @@ public partial class App : Application
                 args.Handled = true; Shutdown(1); return;
             }
             // Do not log exception messages: HTTP errors can contain credentials or private media paths.
-            var path = Path.Combine(AppContext.BaseDirectory, "data"); Directory.CreateDirectory(path);
-            File.AppendAllText(Path.Combine(path, "errors.log"), $"{DateTimeOffset.Now:O} {args.Exception.GetType().Name}\n");
+            // The type and the method that failed are enough to find the fault; kept in this run's profile, 256 KB at most.
+            try
+            {
+                Directory.CreateDirectory(AppFiles.ProfileDirectory);
+                var log = Path.Combine(AppFiles.ProfileDirectory, "errors.log");
+                if (File.Exists(log) && new FileInfo(log).Length > 256 * 1024) File.Move(log, log + ".old", true);
+                var site = args.Exception.TargetSite is { } method ? $" {method.DeclaringType?.FullName}.{method.Name}" : "";
+                File.AppendAllText(log, $"{DateTimeOffset.Now:O} {args.Exception.GetType().Name}{site}\n");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             MessageBox.Show("Une opération n’a pas abouti. Tu peux réessayer ; la progression déjà enregistrée reste conservée.", "Mira", MessageBoxButton.OK, MessageBoxImage.Information);
             args.Handled = true;
         };

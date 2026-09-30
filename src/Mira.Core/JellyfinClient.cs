@@ -86,6 +86,9 @@ public sealed class JellyfinClient : IDisposable
         GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&fields=Overview&limit=500", ct);
     public Task<MediaItem> ItemAsync(string id, CancellationToken ct = default) =>
         GetAsync<MediaItem>($"Items/{Uri.EscapeDataString(id)}?userId={Connection.UserId}", ct);
+    /// <summary>Titles Jellyfin finds close to this one (shared genres, people, studios).</summary>
+    public Task<ItemsResult> SimilarAsync(string id, int limit = 12, CancellationToken ct = default) =>
+        GetAsync<ItemsResult>($"Items/{Uri.EscapeDataString(id)}/Similar?userId={Connection.UserId}&limit={limit}&fields=Overview,Genres,ChildCount", ct);
     public Task<PlaybackInfo> PlaybackAsync(string id, CancellationToken ct = default) =>
         GetAsync<PlaybackInfo>($"Items/{Uri.EscapeDataString(id)}/PlaybackInfo?userId={Connection.UserId}", ct);
     /// <summary>Typed intro/credits markers (Jellyfin 10.10+, filled by the server or a plugin such as Intro Skipper).</summary>

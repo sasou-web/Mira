@@ -1,5 +1,16 @@
 # Historique
 
+## Non publié
+
+Connexion plus simple, fiches plus riches et caches qui ne grossissent plus sans fin.
+
+- **Connexion** : l’adresse du serveur peut s’écrire sans `http://` (`192.168.1.20`, `nas:8096`, `jellyfin.maison.lan`) ou se coller depuis la barre d’adresse de la page web de Jellyfin (`…:8096/web/#/home.html`). Mira essaie HTTPS, puis le port 8096 de Jellyfin, puis HTTP, et garde la première adresse où un serveur Jellyfin répond, avant d’envoyer le mot de passe. Une adresse passée en HTTPS par le serveur est retenue telle quelle.
+- Messages de connexion explicites : adresse qui n’est pas un serveur Jellyfin (Emby compris), certificat HTTPS non reconnu, serveur muet, et version trop ancienne. Mira utilise les routes de **Jellyfin 10.9** : un serveur plus ancien est refusé avec sa version au lieu d’échouer ensuite sur des erreurs 404.
+- **Fiches** : distribution (« Avec », six premiers rôles) et réalisation dans la colonne des genres ; rangée **Titres similaires** sous la fiche, d’après Jellyfin, aussi large que la fenêtre. Clic pour ouvrir, clic droit pour lire, marquer vu ou ajouter aux favoris.
+- Nouveau tri **Dernière lecture** dans le catalogue.
+- **Caches bornés** : les images sur disque (tous comptes confondus) sont ramenées à 768 Mo au-delà de 1 Go, les moins récemment vues d’abord ; les images décodées gardées en mémoire sont limitées à 512 Mo ; les pages de catalogue et positions locales déjà envoyées de plus de 30 jours sont oubliées. L’accueil, la reprise, l’historique et les envois en attente restent.
+- `errors.log` est écrit dans le profil utilisé (`--data` compris), avec la méthode en cause et sans message d’erreur, et plafonné à 256 Ko.
+
 ## 0.5.2 — 2026-09-29
 
 Mises à jour automatiques et nouvelle barre de lecture.
