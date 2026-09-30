@@ -88,7 +88,7 @@ La compilation et les tests de base sont lancés sur Windows dans GitHub Actions
 
 ## État du projet
 
-Mira **0.5.2** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
+Mira **0.5.3** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
 
 - [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md) et [validation](docs/VALIDATION.md)
