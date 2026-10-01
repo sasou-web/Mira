@@ -364,11 +364,51 @@ await Test("Synchronisation : l’arrêt final part avant la fermeture", async (
     await sync.DisposeAsync();
     Assert(received.Contains("/Sessions/Playing/Stopped") && store.PendingCount == 0, "Closing cancelled the stop report");
 });
+await Test("Stockage local en panne : rien ne remonte au lecteur, l’erreur est affichée et la fermeture ne bloque pas", async () =>
+{
+    var folder = Path.Combine(testRoot, "broken-storage"); var store = new LibraryStore(folder, "panne");
+    using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent))));
+    var sync = new SyncService(client, store);
+    // Then the database becomes unopenable (a folder where the file was): every SQLite call fails from now on.
+    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    var database = Directory.GetFiles(folder, "library-*.db").Single();
+    foreach (var file in Directory.GetFiles(folder)) File.Delete(file);
+    Directory.CreateDirectory(database);
+    await new SyncService(client, store).DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+    await sync.RecordAsync("start", Report()).WaitAsync(TimeSpan.FromSeconds(5));
+    await sync.RecordAsync("progress", Report(40)).WaitAsync(TimeSpan.FromSeconds(5));
+    await sync.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+    Assert(sync.Error == SyncService.StorageError, "Storage failure not reported: " + sync.Error);
+    // The flush lock must be released even though counting failed, or closing Mira waits for it forever.
+    await sync.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+});
+await Test("Cache de bibliothèque illisible : mis de côté et recréé, le compte s’ouvre", () =>
+{
+    var folder = Path.Combine(testRoot, "damaged-store");
+    var first = new LibraryStore(folder, "abîmé"); first.Save("home", new ItemsResult { TotalRecordCount = 1 });
+    Assert(first.DamagedCopy is null, "An intact database was set aside");
+    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    var database = Directory.GetFiles(folder, "library-*.db").Single();
+    foreach (var journal in new[] { database + "-wal", database + "-shm" }) if (File.Exists(journal)) File.Delete(journal);
+    File.WriteAllText(database, "Pas une base SQLite : un fichier coupé par une panne de courant, qui ne commence pas par l’en-tête attendu.");
+    var store = new LibraryStore(folder, "abîmé");
+    store.Save("home", new ItemsResult { TotalRecordCount = 2 }); store.Enqueue("start", Report());
+    Assert(store.Load<ItemsResult>("home") is { TotalRecordCount: 2 } && store.PendingCount == 1, "The recreated database does not work");
+    Assert(store.DamagedCopy is { } copy && File.Exists(copy) && File.ReadAllText(copy).StartsWith("Pas une base"), "The damaged file was not kept aside");
+    return Task.CompletedTask;
+});
 await Test("Session protégée par Windows, mot de passe absent du stockage", () =>
 {
     var profile = new LocalProfile(Path.Combine(testRoot, "protected")); var connection = new Connection("http://localhost/", "user", "Alice", "secret-session-token", profile.DeviceId);
     profile.SaveConnection(connection); Assert(profile.LoadConnection() == connection, "Session round trip failed");
     var disk = File.ReadAllBytes(Path.Combine(profile.DirectoryPath, "session.protected")); Assert(!Encoding.UTF8.GetString(disk).Contains("secret-session-token"), "Token stored as plain text"); return Task.CompletedTask;
+});
+await Test("Profil : un identifiant d’appareil vide est remplacé, puis gardé", () =>
+{
+    var folder = Path.Combine(testRoot, "empty-device"); Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder, "device-id"), "  \n");
+    var id = new LocalProfile(folder).DeviceId;
+    Assert(id.Length == 32 && new LocalProfile(folder).DeviceId == id && File.ReadAllText(Path.Combine(folder, "device-id")) == id, "Empty device id kept, or not persisted: '" + id + "'");
+    return Task.CompletedTask;
 });
 await Test("Progression bornée et libellés d’épisodes", () =>
 {

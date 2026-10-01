@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Data.Sqlite;
 
 namespace Mira.Core;
 
@@ -20,7 +21,7 @@ public sealed class SyncService : IAsyncDisposable
     public DateTimeOffset? LastSynced { get; private set; }
     public SyncService(JellyfinClient client, LibraryStore store)
     {
-        _client = client; _store = store; _pending = store.PendingCount;
+        _client = client; _store = store; RefreshPending();
         // The retry loop and its SQLite reads run on the thread pool, never on the caller's UI thread.
         _loop = Task.Run(RetryLoopAsync);
     }
@@ -30,10 +31,24 @@ public sealed class SyncService : IAsyncDisposable
     {
         Task write;
         lock (_writeGate)
-            write = _writes = _writes.ContinueWith(_ => { _store.Enqueue(kind, report); Volatile.Write(ref _pending, _store.PendingCount); },
-                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+            write = _writes = _writes.ContinueWith(_ => Store(kind, report), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
         return AfterWriteAsync(write);
     }
+    /// <summary>Shown when the local database cannot be written (full disk, file locked or damaged).</summary>
+    public const string StorageError = "Stockage local indisponible : la progression n’est pas enregistrée";
+    /// <summary>The player records every few seconds: a storage failure must reach the status line, never the player.</summary>
+    private void Store(string kind, PlaybackReport report)
+    {
+        try { _store.Enqueue(kind, report); }
+        catch (Exception ex) when (IsStorage(ex)) { Error = StorageError; }
+        RefreshPending();
+    }
+    private void RefreshPending()
+    {
+        try { Volatile.Write(ref _pending, _store.PendingCount); }
+        catch (Exception ex) when (IsStorage(ex)) { Error = StorageError; }
+    }
+    private static bool IsStorage(Exception ex) => ex is SqliteException or IOException or UnauthorizedAccessException;
     private async Task AfterWriteAsync(Task write)
     {
         await write.ConfigureAwait(false);
@@ -57,7 +72,7 @@ public sealed class SyncService : IAsyncDisposable
                 catch (HttpRequestException ex) when (IsPermanent(ex.StatusCode))
                 {
                     // Refused for good (deleted item, rejected report): retrying forever would block every later report.
-                    _store.Acknowledge(next.Id); Discarded++;
+                    _store.Acknowledge(next.Id); Discarded++; Error = null;
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UnauthorizedAccessException)
                 {
@@ -66,7 +81,9 @@ public sealed class SyncService : IAsyncDisposable
                 }
             }
         }
-        finally { Volatile.Write(ref _pending, _store.PendingCount); _flush.Release(); Changed?.Invoke(); }
+        catch (Exception ex) when (IsStorage(ex)) { Error = StorageError; }
+        // Released first: a failing count must not leave every later flush, and the shutdown, waiting for it.
+        finally { _flush.Release(); RefreshPending(); Changed?.Invoke(); }
     }
     private static bool IsPermanent(HttpStatusCode? status) => status is { } code && (int)code is >= 400 and < 500
         && code is not (HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);

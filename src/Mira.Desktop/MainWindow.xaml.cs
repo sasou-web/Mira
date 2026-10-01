@@ -149,6 +149,7 @@ public partial class MainWindow : Window
         await DisconnectServicesAsync();
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
         _client = new JellyfinClient(connection); _store = new LibraryStore(_profile.DirectoryPath, connection.Server + "|" + connection.UserId);
+        var damaged = _store.DamagedCopy is not null;
         _items = []; _resume = []; _nextUp = []; _recentPlayback = []; _episodes = []; _detail = null; _hero = null; _totalCount = 0; _returnToDetail = null;
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
         // Never leave the previous account's posters on screen while this one loads.
@@ -176,6 +177,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         SyncChanged();
+        // Said once the first refresh is done, which would otherwise hide it at once.
+        if (damaged) SetNotice("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.");
         _ = RefreshTorLinkLibrariesAsync();
     }
     private async Task ListenSafelyAsync(JellyfinClient client, CancellationToken ct)
@@ -303,10 +306,13 @@ public partial class MainWindow : Window
     {
         if (_sync is null || _demo) return;
         var pending = _sync.PendingCount;
+        var error = _sync.Error;
         SyncLabel.Text = pending > 0
-            ? $"◌  {pending} envoi{(pending > 1 ? "s" : "")} en attente{(_sync.Error is { } error ? " · " + error : "")}"
+            ? $"◌  {pending} envoi{(pending > 1 ? "s" : "")} en attente{(error is not null ? " · " + error : "")}"
+            // A local storage failure matters even with nothing waiting: the next reports will not be kept.
+            : error is not null ? "◌  " + error
             : _sync.LastSynced is { } t ? $"●  Synchronisé à {t:HH:mm:ss}" : "●  Connecté à Jellyfin";
-        SyncLabel.Foreground = pending > 0 ? Brush("#D5B787") : Brush("#91BAA7");
+        SyncLabel.Foreground = pending > 0 || error is not null ? Brush("#D5B787") : Brush("#91BAA7");
     });
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(8) };
     private Action? _noticeAction;

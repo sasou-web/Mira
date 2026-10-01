@@ -192,7 +192,6 @@ public sealed class JellyfinClient : IDisposable
                 var b = new UriBuilder(new Uri(_http.BaseAddress!, "socket")) { Scheme = _http.BaseAddress!.Scheme == "https" ? "wss" : "ws" };
                 b.Query = $"api_key={Uri.EscapeDataString(Connection.Token)}&deviceId={Uri.EscapeDataString(Connection.DeviceId)}";
                 await socket.ConnectAsync(b.Uri, ct);
-                delay = 2;
                 using var heartbeatStop = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 var heartbeat = KeepAliveAsync(socket, heartbeatStop.Token);
                 var buffer = new byte[8192];
@@ -210,9 +209,12 @@ public sealed class JellyfinClient : IDisposable
                             if (message.Length > 1_000_000) throw new IOException("Message trop volumineux.");
                         } while (!part.EndOfMessage);
                         if (part.MessageType == WebSocketMessageType.Close) break;
+                        // Only a socket that actually talks resets the back-off: one closed right after opening keeps waiting longer.
+                        delay = 2;
                         using var doc = JsonDocument.Parse(message.ToArray());
-                        if (doc.RootElement.TryGetProperty("MessageType", out var type) &&
-                            type.GetString() is "LibraryChanged" or "UserDataChanged") changed();
+                        // Any other shape is ignored: an exception here would end the listening for the whole session.
+                        if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("MessageType", out var type) &&
+                            type.ValueKind == JsonValueKind.String && type.GetString() is "LibraryChanged" or "UserDataChanged") changed();
                     }
                 }
                 finally

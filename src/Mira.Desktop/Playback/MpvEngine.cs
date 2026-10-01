@@ -86,6 +86,8 @@ public sealed class MpvEngine : IDisposable
     public bool Flag(string name) => Get(name) == "yes";
     public void Command(params string[] arguments)
     {
+        // A native call on a destroyed handle would end the whole process, not just this playback.
+        if (_handle == IntPtr.Zero) throw new IOException("La lecture est arrêtée.");
         var pointers = arguments.Select(Marshal.StringToCoTaskMemUTF8).ToArray();
         var array = Marshal.AllocHGlobal((pointers.Length + 1) * IntPtr.Size);
         try
