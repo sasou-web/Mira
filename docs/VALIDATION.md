@@ -2,7 +2,18 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Installation de Jellyfin : corrections (non publié)
+## Accueil, guide et nouveautés 0.5.5
+
+- Choix de l’écran à l’ouverture testé :
+  - profil neuf → bienvenue ;
+  - profil existant sans trace (mise à jour depuis 0.5.4 ou avant) → nouveautés de la version en cours ;
+  - version vue → rien ; version plus récente vue → rien ;
+  - versions sautées → les deux dernières, au plus.
+- Tests : points forts courts pour chaque version, entrée présente pour la version en construction, icônes existantes dans Mira, texte de release (résumé, points, lien vers le CHANGELOG de la version, moins de 1 500 caractères), choix de l’adresse réseau (adaptateurs virtuels et 169.254 écartés, passerelle d’abord).
+- Captures de la CI Windows (galerie de démonstration, hors ligne) : bienvenue, nouveautés (une version, puis deux dans une fenêtre de 1024 × 720), guide (haut et bas) et bibliothèque vide, relues avant la publication.
+- Non vérifié : l’ouverture des dossiers dans l’Explorateur et de la page de Jellyfin dans le navigateur, la copie de l’adresse et la détection de l’adresse réseau sur un vrai PC.
+
+## Installation de Jellyfin : corrections 0.5.5
 
 - Premier essai réel, sur le PC de l’utilisateur (Windows 11, 10.0.26200) : l’installateur de Jellyfin a affiché « Could not start the Jellyfin Server service », et Mira s’est arrêté.
   - Le journal Application de Windows ne montre pourtant qu’un démarrage du service, réussi (nssm : « Démarrage réussi », 19 h 37). Le message de l’installateur était donc une fausse alerte : `nssm start` rend la main avant que le service tourne.

@@ -1,6 +1,19 @@
 # Historique
 
-## Non publié
+## 0.5.5 — 2026-10-01
+
+Un guide pour bien démarrer, les nouveautés résumées après chaque mise à jour, et Jellyfin plus fiable.
+
+- **Bienvenue** : au tout premier lancement, Mira explique en trois cartes ce que font Jellyfin et Mira, puis propose trois façons de commencer : installer Jellyfin sur ce PC, se connecter à son serveur, ou découvrir la démo.
+- **Guide de démarrage** : bouton **?** de la barre de gauche, touche **F1**, **Réglages → Jellyfin**, ou **Où mettre mes vidéos ?** quand la bibliothèque est vide. Il montre :
+  - les dossiers de chaque bibliothèque Jellyfin, avec un bouton **Ouvrir**, et des exemples de noms que Jellyfin reconnaît ;
+  - le bouton **Ouvrir Jellyfin dans le navigateur**, vers son tableau de bord (bibliothèques, comptes, accès depuis Internet) ;
+  - l’adresse à entrer dans l’application Jellyfin d’un téléphone ou d’une TV (celle du PC sur le réseau de la maison), avec **Copier** ;
+  - l’essentiel de Mira.
+
+  Il s’ouvre une fois après la première connexion, et juste après l’installation de Jellyfin par Mira.
+- **Nouveautés** : après une mise à jour, un écran plein résume les points forts de la version, sans le détail. Les pages de release sur GitHub reprennent ce même résumé court ; le détail reste ici.
+- Bibliothèque vide : au lieu de « Rien à afficher ici », Mira dit où ranger les vidéos et ouvre le guide.
 
 Installation de Jellyfin depuis Mira : corrections après le premier essai sur un vrai PC.
 

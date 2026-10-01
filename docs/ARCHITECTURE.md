@@ -1,4 +1,4 @@
-# Architecture de Mira 0.5.4
+# Architecture de Mira 0.5.5
 
 ## Découpage
 
@@ -23,6 +23,7 @@ Mira.Desktop (WPF)
   ├─ Playback/PlayerOverlay : couche native de commandes et réception de la souris
   ├─ Playback/VideoHost : surface native de la vidéo
   ├─ ServerSetup : « Installer Jellyfin sur ce PC », de l’écran de connexion jusqu’à la bibliothèque
+  ├─ Guide : bienvenue d’un nouveau profil, guide de démarrage (dossiers, page de Jellyfin, autres appareils), nouveautés après une mise à jour
   ├─ TorLink : pseudo-console Windows, installation TorLink, terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
   └─ Services : images, partage des requêtes de métadonnées, session DPAPI, préférences, mises à jour (Updater, UpdateApplier), installateur de Jellyfin
           │
@@ -34,6 +35,8 @@ Mira.Core
   ├─ VerifiedDownload : téléchargement vérifié (taille, SHA-256, jamais vers HTTP, transfert muet abandonné)
   ├─ MpvPackage / MpvInstaller : build libmpv figée, téléchargement et extraction vérifiés dans data\mpv
   ├─ JellyfinSetup : installateur de Jellyfin figé, dossiers médias, droit de lecture du service, assistant de premier démarrage
+  ├─ WhatsNew : points forts de chaque version (WhatsNew.json intégré), écran à l’ouverture, texte court des releases
+  ├─ LocalNetwork : adresse de ce PC sur le réseau de la maison, pour les autres appareils
   ├─ MotionState : interpolation du défilement et durée du carrousel, testables sans UI
   ├─ ContinueWatching : classement de la reprise par activité, une carte par série
   ├─ PlaybackMarkers : segments Jellyfin, titres de chapitres et passage actif
