@@ -1,10 +1,16 @@
 # Mira
 
-Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vidéos avec **mpv intégré**. Version de développement : **0.5.4**.
+Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vidéos avec **mpv intégré**. Version de développement : **0.5.5**.
 
 ## Démarrer
 
 Ouvrir **`dist/Mira/Mira.exe`**. L’adresse proposée est `http://127.0.0.1:8096` : Jellyfin reste lancé en arrière-plan sur le PC. Se connecter avec son compte Jellyfin, ou choisir **Explorer la démo** pour découvrir l’interface avec des titres et illustrations fictifs.
+
+Au tout premier lancement, un écran de bienvenue explique ce que font Jellyfin (le serveur qui garde tes vidéos) et Mira (le lecteur), puis propose d’installer Jellyfin sur ce PC, de se connecter à un serveur ou de découvrir la démo.
+
+**Guide de démarrage** : bouton **?** de la barre de gauche, touche **F1**, **Réglages → Jellyfin & synchronisation**, ou **Où mettre mes vidéos ?** quand la bibliothèque est vide. Il montre les dossiers de chaque bibliothèque Jellyfin (bouton **Ouvrir**) avec des exemples de noms reconnus. Il ouvre aussi la page d’administration de Jellyfin dans le navigateur, pour ajouter une bibliothèque, créer un compte ou ouvrir l’accès depuis Internet. Enfin, il donne l’adresse à entrer dans l’application Jellyfin d’un téléphone ou d’une TV : celle de ce PC sur le réseau de la maison, quand Jellyfin y tourne. Il s’ouvre une fois après la première connexion.
+
+Après une mise à jour, un écran **Nouveautés** résume les points forts de la version ; **Tous les détails** ouvre sa page sur GitHub.
 
 Sans serveur, **Pas encore de serveur ? Installer Jellyfin sur ce PC** installe Jellyfin et crée `Films`, `Séries` et `Animes` dans `Vidéos\Jellyfin`, ou dans un autre dossier choisi. Il configure aussi Jellyfin en français avec ton compte, puis te connecte. Windows demande une autorisation pendant l’installation. Détails dans [INSTALLATION.md](INSTALLATION.md#installer-jellyfin-depuis-mira).
 
