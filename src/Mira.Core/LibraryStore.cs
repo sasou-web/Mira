@@ -7,7 +7,7 @@ namespace Mira.Core;
 
 public sealed class LibraryStore
 {
-    private readonly string _connectionString;
+    private readonly string _connectionString, _path;
     private readonly object _gate = new();
     /// <summary>Jellyfin's default "maximum resume percentage".</summary>
     public const double WatchedThreshold = .9;
@@ -15,7 +15,18 @@ public sealed class LibraryStore
     {
         Directory.CreateDirectory(directory);
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(profile)))[..24];
-        _connectionString = new SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, $"library-{hash}.db") }.ToString();
+        _path = Path.Combine(directory, $"library-{hash}.db");
+        _connectionString = new SqliteConnectionStringBuilder { DataSource = _path }.ToString();
+        try { CreateSchema(); }
+        // A damaged file (power cut, failing disk) would refuse this account at every start. Everything in it but the
+        // reports not yet sent comes back from Jellyfin, so a fresh one replaces it and the damaged copy is kept beside.
+        catch (SqliteException ex) when (ex.SqliteErrorCode is 11 or 26) { SetAside(); CreateSchema(); }
+        Prune(DateTimeOffset.UtcNow - CacheLifetime);
+    }
+    /// <summary>Where this opening set aside a database SQLite could not read; null when it was intact.</summary>
+    public string? DamagedCopy { get; private set; }
+    private void CreateSchema()
+    {
         using var db = Open();
         using var cmd = db.CreateCommand();
         cmd.CommandText = """
@@ -26,7 +37,13 @@ public sealed class LibraryStore
             CREATE TABLE IF NOT EXISTS outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, session TEXT NOT NULL, item TEXT NOT NULL, json TEXT NOT NULL);
             """;
         cmd.ExecuteNonQuery();
-        Prune(DateTimeOffset.UtcNow - CacheLifetime);
+    }
+    private void SetAside()
+    {
+        using (var pooled = new SqliteConnection(_connectionString)) SqliteConnection.ClearPool(pooled);
+        DamagedCopy = $"{_path}.bad-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        foreach (var suffix in new[] { "", "-wal", "-shm" })
+            if (File.Exists(_path + suffix)) File.Move(_path + suffix, DamagedCopy + suffix, overwrite: true);
     }
     /// <summary>Pages kept for an offline start: each filter, library and sort has its own, so unused ones expire.</summary>
     public static readonly TimeSpan CacheLifetime = TimeSpan.FromDays(30);

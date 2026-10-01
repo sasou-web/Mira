@@ -15,8 +15,10 @@ public sealed class LocalProfile
         DirectoryPath = path ?? Path.Combine(AppContext.BaseDirectory, "data");
         Directory.CreateDirectory(DirectoryPath);
         var deviceFile = Path.Combine(DirectoryPath, "device-id");
-        DeviceId = File.Exists(deviceFile) ? File.ReadAllText(deviceFile).Trim() : Guid.NewGuid().ToString("N");
-        if (!File.Exists(deviceFile)) File.WriteAllText(deviceFile, DeviceId);
+        var stored = File.Exists(deviceFile) ? File.ReadAllText(deviceFile).Trim() : "";
+        // An empty file (cut off while being written) would send Jellyfin an empty device id: start a new one.
+        DeviceId = stored.Length > 0 ? stored : Guid.NewGuid().ToString("N");
+        if (stored.Length == 0) File.WriteAllText(deviceFile, DeviceId);
     }
     public Connection? LoadConnection()
     {

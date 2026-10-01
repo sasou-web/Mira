@@ -1,5 +1,15 @@
 # Historique
 
+## Non publié
+
+Stabilité : des pannes rares qui pouvaient bloquer Mira sont maintenant contenues.
+
+- Un disque plein, une base locale verrouillée ou abîmée pendant une lecture n’ouvre plus une fenêtre d’erreur toutes les 3 secondes : la lecture continue et la ligne de synchronisation indique « Stockage local indisponible ».
+- Dans ce cas, Mira ne pouvait plus se fermer : la fenêtre disparaissait mais le processus restait ouvert, et les envois suivants de la session étaient bloqués. Corrigé.
+- Un cache local illisible (coupure de courant, disque défaillant) empêchait d’ouvrir le compte à chaque démarrage. Il est maintenant mis de côté (`.bad-…`) et recréé depuis Jellyfin, avec un message ; seuls les envois de progression qui n’étaient pas encore partis sont perdus.
+- L’écoute des changements de Jellyfin ne s’arrête plus pour la session sur un message inattendu, et un serveur qui ferme la connexion aussitôt ouverte n’est plus recontacté toutes les 2 secondes.
+- Un fichier `device-id` vide n’envoie plus un identifiant d’appareil vide à Jellyfin ; une commande envoyée au lecteur juste après son arrêt ne peut plus fermer Mira.
+
 ## 0.5.3 — 2026-10-01
 
 Connexion plus simple, fiches plus riches et caches qui ne grossissent plus sans fin.
