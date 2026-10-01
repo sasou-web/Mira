@@ -2,6 +2,25 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Installation de Jellyfin : corrections (non publié)
+
+- Premier essai réel, sur le PC de l’utilisateur : l’installateur de Jellyfin a affiché « Could not start the Jellyfin Server service ». La cause n’est pas encore connue.
+- Relu dans le script de l’installateur (`jellyfin.nsi`) :
+  - pas de `SetRegView 64` : la clé `Software\Jellyfin\Server` est écrite sous `WOW6432Node`, que Mira ne lisait pas ;
+  - en mise à jour silencieuse d’un Jellyfin existant, l’installateur continue sans demander (`/SD IDOK`) ;
+  - ses messages d’erreur (`ShowError`) s’affichent même en silencieux.
+- Observé sur un vrai Jellyfin 12.1 au démarrage, réponses de `System/Info/Public` dans l’ordre :
+  - rien ;
+  - 200 en camelCase avec `startupWizardCompleted: false`, de sa page de démarrage ;
+  - 503 « Jellyfin Server is loading » ;
+  - 200 du serveur, en PascalCase.
+  L’ancienne détection voyait la deuxième réponse comme « autre programme ». La nouvelle passe par rien, en démarrage, prêt. Avec elle, l’essai complet lancé pendant le démarrage aboutit : attente, assistant, connexion, trois bibliothèques. Il a été fait avec un nom accentué et un chemin contenant une virgule.
+- Nouveaux tests :
+  - détection : rien, 503 avec ou sans texte, page de démarrage de Jellyfin 12, page web, 404, JSON sans `Id`, serveur prêt ;
+  - port occupé ou libre ;
+  - journal de Jellyfin : cause d’un échec de démarrage (exception de Kestrel) lue, erreurs ordinaires, échecs plus anciens et vieux fichiers ignorés.
+- Non vérifié : la lecture du registre 32 bits et du service sur Windows (pas de Windows dans le conteneur) ; la cause réelle de l’échec chez l’utilisateur.
+
 ## Jellyfin installé par Mira 0.5.4
 
 - Release v0.5.4 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.4. La taille et le SHA-256 des trois paquets y sont ceux que donne GitHub. Sa signature, téléchargée depuis la release, est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`.

@@ -462,6 +462,7 @@ await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en fra
             case "GET /System/Info/Public":
                 return loading-- > 0 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("Jellyfin Server is loading") }
                     : JsonResponse(new { Id = "server-1", Version = "12.1", StartupWizardCompleted = completed });
+            case "GET /System/Ping": return new(HttpStatusCode.OK) { Content = new StringContent("\"Jellyfin Server\"") };
             case "POST /Startup/Configuration": culture = Field(body, "UICulture").GetString() + "/" + Field(body, "MetadataCountryCode").GetString(); return new(HttpStatusCode.NoContent);
             case "GET /Startup/User": return JsonResponse(new { Name = name ?? "jellyfin", Password = "" });
             case "POST /Startup/User":
@@ -522,9 +523,53 @@ await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en fra
     var page = new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>box</html>") }));
     var nothing = new Handler(_ => throw new HttpRequestException("Connection refused"));
     Assert(await JellyfinSetup.StateAsync(server, page) is null && await JellyfinSetup.StateAsync(server, nothing) is null, "Not a Jellyfin, yet a state");
+    // Told apart, so that Jellyfin is never installed over one that is starting, nor beside another program on its port.
+    HttpMessageHandler Answer(HttpStatusCode status, string body) => new Handler(_ => Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) }));
+    var answers = new[]
+    {
+        (await JellyfinSetup.ProbeAsync(server, nothing)).Answer, (await JellyfinSetup.ProbeAsync(server, Answer(HttpStatusCode.ServiceUnavailable, "Jellyfin Server is loading"))).Answer,
+        (await JellyfinSetup.ProbeAsync(server, Answer(HttpStatusCode.ServiceUnavailable, ""))).Answer, (await JellyfinSetup.ProbeAsync(server, page)).Answer,
+        (await JellyfinSetup.ProbeAsync(server, Answer(HttpStatusCode.NotFound, ""))).Answer, (await JellyfinSetup.ProbeAsync(server, Answer(HttpStatusCode.OK, "{\"Name\":\"box\"}"))).Answer,
+    };
+    Assert(answers.SequenceEqual([ServerAnswer.Nothing, ServerAnswer.Loading, ServerAnswer.Loading, ServerAnswer.Other, ServerAnswer.Other, ServerAnswer.Other]), "Probe: " + string.Join(", ", answers));
+    // Jellyfin 12's startup page, seen on a real 12.1: this route in camelCase, "wizard not completed" even when it is, and 503 everywhere else.
+    var startupPage = new Handler(request => Task.FromResult(request.RequestUri!.AbsolutePath == "/System/Info/Public"
+        ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"localAddress\":\"http://127.0.0.1:8096\",\"version\":\"12.1.0\",\"productName\":\"Jellyfin Server\",\"id\":\"a\",\"startupWizardCompleted\":false}") }
+        : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("Jellyfin Server is loading. Please try again shortly.") }));
+    Assert(await JellyfinSetup.ProbeAsync(server, startupPage) is { Answer: ServerAnswer.Loading, State: null }, "Jellyfin's startup page taken for the server");
+    Assert(await JellyfinSetup.ProbeAsync(server, Answer(HttpStatusCode.OK, "{\"Id\":\"a\",\"Version\":\"12.1.0\",\"StartupWizardCompleted\":true}")) is { Answer: ServerAnswer.Ready, State: { Version: "12.1.0", WizardCompleted: true } }, "Ready probe");
+    using (var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0))
+    {
+        listener.Start(); var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        Assert(JellyfinSetup.PortInUse(port), "A listening port seen as free");
+        listener.Stop(); Assert(!JellyfinSetup.PortInUse(port), "A closed port seen as taken");
+    }
     await Refused(() => JellyfinSetup.WaitAsync(server, TimeSpan.FromMilliseconds(50), nothing, TimeSpan.FromMilliseconds(10)), "Jellyfin ne répond pas");
     var package = JellyfinServerPackage.Current;
     Assert(package.Url.Scheme == "https" && package.Url.Host == "repo.jellyfin.org" && package.FileName.EndsWith(".exe") && package.Sha256.Length == 64, "Pinned Jellyfin installer");
+});
+await Test("Journal de Jellyfin : la cause d’un démarrage raté est lue, pas les erreurs ordinaires ni les anciennes", () =>
+{
+    // The format of Jellyfin 12.1's log files, with the errors a running server logs and a start that fails.
+    var folder = Path.Combine(testRoot, "jellyfin-log"); Directory.CreateDirectory(folder);
+    File.WriteAllLines(Path.Combine(folder, "log_20261001.log"), [
+        "[2026-10-01 09:00:00.000 +02:00] [FTL] [1] Main: Error while starting server",
+        "System.InvalidOperationException: An old failure",
+        "[2026-10-01 13:33:26.446 +02:00] [INF] [11] Main: Jellyfin version: \"12.1.0\"",
+        "[2026-10-01 13:33:36.267 +02:00] [ERR] [10] Emby.Server.Implementations.Updates.InstallationManager: An error occurred while accessing the plugin manifest: \"https://repo.jellyfin.org/files/plugin/manifest.json\"",
+        "System.Net.Http.HttpRequestException: No such host is known.",
+        "[2026-10-01 13:33:40.100 +02:00] [FTL] [1] Main: Error while starting server",
+        "System.IO.IOException: Failed to bind to address http://[::]:8096: address already in use.",
+        " ---> Microsoft.AspNetCore.Connections.AddressInUseException: Only one usage of each socket address is normally permitted.",
+        "   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure.TransportManager.BindAsync()",
+        "[2026-10-01 13:33:41.000 +02:00] [INF] [1] Main: Received a SIGTERM signal, shutting down"]);
+    var cause = JellyfinLog.LastFatal(folder, new DateTimeOffset(2026, 10, 1, 13, 30, 0, TimeSpan.FromHours(2)));
+    Assert(cause == "Error while starting server (Failed to bind to address http://[::]:8096: address already in use.)", "Cause: " + cause);
+    Assert(JellyfinLog.LastFatal(folder, new DateTimeOffset(2026, 10, 1, 13, 35, 0, TimeSpan.FromHours(2))) is null, "An earlier failure reported as the latest");
+    File.SetLastWriteTimeUtc(Path.Combine(folder, "log_20261001.log"), new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc));
+    Assert(JellyfinLog.LastFatal(folder, new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero)) is null, "An old log file read as recent");
+    Assert(JellyfinLog.LastFatal(Path.Combine(testRoot, "no-jellyfin-log"), DateTimeOffset.MinValue) is null, "A missing folder");
+    return Task.CompletedTask;
 });
 await Test("Dossiers médias : le service Jellyfin peut les lire, fichiers liés ou déplacés compris", async () =>
 {

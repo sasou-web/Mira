@@ -1,5 +1,13 @@
 # Historique
 
+## Non publié
+
+Installation de Jellyfin depuis Mira : corrections après le premier essai sur un vrai PC.
+
+- Un Jellyfin déjà installé sur le PC, même arrêté, n’était pas reconnu : son installateur écrit sa clé dans la partie 32 bits du registre, que Mira ne lisait pas. Mira pouvait donc relancer l’installateur par-dessus. Il le reconnaît maintenant, par cette clé ou par son service, et ne réinstalle jamais par-dessus un Jellyfin existant.
+- Quand Jellyfin ne démarre pas (« Could not start the Jellyfin Server service »), Mira affiche la cause écrite dans le journal de Jellyfin, par exemple un port déjà pris, au lieu d’un simple « ne répond pas ».
+- Un Jellyfin 12 en plein démarrage n’est plus pris pour absent. Sa page de démarrage annonce « assistant non terminé » même quand il l’est : Mira attend que le serveur lui-même réponde. Un autre programme sur le port 8096 est signalé avant toute installation.
+
 ## 0.5.4 — 2026-10-01
 
 Jellyfin et le moteur vidéo s’installent depuis Mira, et des pannes rares qui pouvaient bloquer Mira sont maintenant contenues.

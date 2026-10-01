@@ -9,15 +9,37 @@ namespace Mira.Desktop.Services;
 /// <summary>Jellyfin Server installed on this PC by its official installer, run silently with the administrator rights it asks for.</summary>
 internal static class JellyfinInstaller
 {
+    /// <summary>
+    /// True when Jellyfin is installed on this PC, running or not: its installer's registry key, or its service. Mira
+    /// never runs the installer over an existing Jellyfin, whose library and settings are someone's.
+    /// </summary>
+    public static bool IsInstalled() => InstalledFolder() is not null || ServiceExists();
     /// <summary>Where Jellyfin's installer put it, from the registry key it writes; null when it is not installed.</summary>
-    public static string? InstalledFolder()
+    public static string? InstalledFolder() => Setting("InstallFolder") is { } folder && Directory.Exists(folder) ? folder : null;
+    /// <summary>Jellyfin's data folder, where its <c>log</c> folder is: the installer's choice, or its default.</summary>
+    public static string DataFolder() => Setting("DataFolder") is { Length: > 0 } folder ? folder
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Jellyfin", "Server");
+    /// <summary>
+    /// A value of <c>HKLM\Software\Jellyfin\Server</c>. Its installer is a 32-bit program, so the key is under
+    /// WOW6432Node; the 64-bit view is read too, in case a later installer writes there.
+    /// </summary>
+    private static string? Setting(string name)
     {
-        try
+        foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
         {
-            using var key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64).OpenSubKey(@"Software\Jellyfin\Server");
-            return key?.GetValue("InstallFolder") is string folder && Directory.Exists(folder) ? folder : null;
+            try
+            {
+                using var key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view).OpenSubKey(@"Software\Jellyfin\Server");
+                if (key?.GetValue(name) is string value && value.Length > 0) return value;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return null; }
+        return null;
+    }
+    private static bool ServiceExists()
+    {
+        try { using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\JellyfinServer"); return key is not null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return false; }
     }
     /// <summary>
     /// Downloads the installer into the profile, checks its SHA-256, runs it silently (Windows asks for the administrator's
