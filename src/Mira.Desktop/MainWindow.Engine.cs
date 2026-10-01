@@ -48,7 +48,7 @@ public partial class MainWindow
         }
         catch (Exception ex) when (ex is IOException or HttpRequestException or UnauthorizedAccessException)
         {
-            var message = ex is MpvInstallException ? ex.Message : "Le moteur vidéo n’a pas pu être installé. Réessaie dans un instant.";
+            var message = ex is InstallException ? ex.Message : "Le moteur vidéo n’a pas pu être installé. Réessaie dans un instant.";
             _engineInstalling = false; ShowEngineState(); EngineStatus.Text = message; SetNotice(message);
             return false;
         }

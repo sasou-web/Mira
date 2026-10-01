@@ -22,15 +22,18 @@ Mira.Desktop (WPF)
   ├─ Playback/FullscreenWindow : limites du moniteur et restauration de fenêtre
   ├─ Playback/PlayerOverlay : couche native de commandes et réception de la souris
   ├─ Playback/VideoHost : surface native de la vidéo
+  ├─ ServerSetup : « Installer Jellyfin sur ce PC », de l’écran de connexion jusqu’à la bibliothèque
   ├─ TorLink : pseudo-console Windows, installation TorLink, terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
-  └─ Services : images, partage des requêtes de métadonnées, session DPAPI, préférences, mises à jour (Updater, UpdateApplier)
+  └─ Services : images, partage des requêtes de métadonnées, session DPAPI, préférences, mises à jour (Updater, UpdateApplier), installateur de Jellyfin
           │
 Mira.Core
   ├─ JellyfinClient : requêtes HTTP, métadonnées, lecture et WebSocket
   ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques et version minimale
   ├─ LibraryStore : cache SQLite, progression locale et file persistante
   ├─ DiskCache : budget des fichiers d’images, les moins récemment utilisés d’abord
+  ├─ VerifiedDownload : téléchargement vérifié (taille, SHA-256, jamais vers HTTP, transfert muet abandonné)
   ├─ MpvPackage / MpvInstaller : build libmpv figée, téléchargement et extraction vérifiés dans data\mpv
+  ├─ JellyfinSetup : installateur de Jellyfin figé, dossiers médias, droit de lecture du service, assistant de premier démarrage
   ├─ MotionState : interpolation du défilement et durée du carrousel, testables sans UI
   ├─ ContinueWatching : classement de la reprise par activité, une carte par série
   ├─ PlaybackMarkers : segments Jellyfin, titres de chapitres et passage actif
@@ -164,6 +167,17 @@ Les choix de pistes, paramètres avancés et sources multiples devront à terme 
 - `Mira-<version>-win-x64-setup.exe` : l’installateur Inno Setup 6 (`installer/Mira.iss`) du dossier de l’application, pour l’utilisateur courant et sans droits administrateur, dans `%LOCALAPPDATA%\Programs\Mira`. Mira y écrit lui-même son raccourci Démarrer (`--register-windows`). Une mise à jour ferme Mira par le Restart Manager et garde `data` ; la désinstallation retire les raccourcis et l’identité Windows seulement s’ils désignent cette installation, et demande avant de supprimer `data`.
 
 **Moteur vidéo.** libmpv n’est pas dans ces fichiers. `MpvPackage.Current` fige une archive des builds Windows de mpv que liste mpv.io (shinchiro, sur SourceForge) : adresse, taille, SHA-256 de l’archive et de `libmpv-2.dll` ; ses SHA-1 et MD5 correspondent à ceux que SourceForge publie. `MpvInstaller` la télécharge (redirections vers les miroirs suivies, jamais vers HTTP ; taille et empreinte vérifiées au fil de l’eau ; transfert muet abandonné après 60 s), extrait la seule bibliothèque avec SharpCompress (LZMA2 et BCJ2), vérifie son empreinte, puis la range dans `data\mpv` avec `version.txt` et `SOURCE.txt`. L’archive et les fichiers `.partial` sont effacés dans tous les cas. `MpvEngine.FindLibrary` cherche le chemin choisi dans les réglages, puis ce moteur, puis les emplacements connus. L’installateur lance `Mira.exe --install-engine` (sans fenêtre, ni verrou d’instance) pour sa tâche « Télécharger le moteur vidéo mpv » ; un moteur déjà trouvé est gardé, et un échec ne bloque pas l’installation. La même tâche passe à chaque mise à jour silencieuse et ne télécharge rien quand un moteur existe.
+
+**Serveur Jellyfin.** `JellyfinServerPackage.Current` fige l’installateur Windows officiel de Jellyfin 12.1, à l’adresse et avec la SHA-256 du manifeste winget `Jellyfin.Server`. `MainWindow.ServerSetup` enchaîne les étapes :
+
+1. `JellyfinSetup.StateAsync` interroge `http://127.0.0.1:8096/System/Info/Public`. Un 503 (« Jellyfin Server is loading ») ou une réponse sans `Id` compte comme absence de serveur.
+2. Sans serveur ni clé `HKLM\Software\Jellyfin\Server`, `JellyfinInstaller` télécharge l’installateur avec `VerifiedDownload` et le lance avec `/S` et l’élévation demandée (`runas`). En silencieux, il installe le service `JellyfinServer` sous Network Service et le démarre. L’installateur téléchargé est effacé dans tous les cas.
+3. `WaitAsync` attend que Jellyfin réponde. Un serveur dont l’assistant est déjà terminé est rendu à l’écran de connexion, adresse remplie.
+4. `MediaFolders` crée `Films`, `Séries` et `Animes`. `JellyfinServiceAccess.Grant` donne à Network Service la lecture héritée sur la racine (le créateur en est propriétaire : pas besoin d’être administrateur), **avant** l’ajout des bibliothèques, pour que leur première analyse voie les fichiers.
+5. `ConfigureAsync` passe par les routes anonymes de l’assistant, comme sa page web : `Startup/Configuration` (fr, FR), `Startup/User` (lu pour le créer, puis nommé), `Library/VirtualFolders` (chemin dans le corps : la forme en paramètre coupe aux virgules), `Startup/RemoteAccess` (désactivé) et `Startup/Complete`. Les bibliothèques déjà présentes sont sautées. Un 403 sur le compte signifie qu’un mot de passe existe déjà : la configuration ne continue que si ce compte se connecte.
+6. Mira se connecte comme depuis le formulaire.
+
+Un lien physique ou un déplacement sur le même disque garde les droits du fichier d’origine : `MediaImporter` appelle `JellyfinServiceAccess.ShareWithFolder` sur le fichier placé, qui ne reçoit le droit que si son dossier le donne déjà au service.
 
 Aucun de ces fichiers n’est encore signé. Quand la clé de signature des mises à jour est sur le PC, `package.ps1` écrit aussi `mira-update.json` (version, nom, taille et SHA-256 de chaque fichier) et sa signature `mira-update.json.sig`, par `tools/Mira.Release`.
 

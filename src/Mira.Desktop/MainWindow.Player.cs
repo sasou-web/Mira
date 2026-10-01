@@ -359,7 +359,12 @@ public partial class MainWindow
     private bool GoBack()
     {
         if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.IsOpen = false; return true; }
-        if (LoginOverlay.Visibility == Visibility.Visible) { if (BackToLibrary.Visibility != Visibility.Visible) return false; CloseAccount_Click(this, new()); return true; }
+        if (LoginOverlay.Visibility == Visibility.Visible)
+        {
+            // From the Jellyfin setup, one step back is the sign-in form (nothing while an installation runs).
+            if (ServerSetupPanel.Visibility == Visibility.Visible) { ShowServerSetup(false); return true; }
+            if (BackToLibrary.Visibility != Visibility.Visible) return false; CloseAccount_Click(this, new()); return true;
+        }
         if (SettingsOverlay.Visibility == Visibility.Visible) { _ = CloseSettingsAnimatedAsync(); return true; }
         if (DetailOverlay.Visibility == Visibility.Visible && (!_playing || _miniPlayer)) { _ = CloseDetailsAsync(); return true; }
         if (TorLinkOverlay.Visibility == Visibility.Visible && TorLinkOverlay.IsHitTestVisible && (!_playing || _miniPlayer)) { _ = CloseTorLinkAsync(); return true; }

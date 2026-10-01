@@ -416,7 +416,7 @@ await Test("Moteur mpv : téléchargé, vérifié et extrait dans le profil ; al
     {
         var target = Path.Combine(testRoot, folder);
         try { await MpvInstaller.InstallAsync(target, package, handler); throw new Exception("Installed: " + folder); }
-        catch (MpvInstallException ex) { Assert(ex.Message.Contains(expected), $"{folder}: {ex.Message}"); }
+        catch (InstallException ex) { Assert(ex.Message.Contains(expected), $"{folder}: {ex.Message}"); }
         Assert(!MpvInstaller.IsInstalled(target, package) && !Directory.EnumerateFiles(MpvInstaller.Folder(target)).Any(), folder + " left files behind");
     }
     served = archive.ToArray(); served[^8] ^= 0xFF;
@@ -442,6 +442,109 @@ await Test("Moteur mpv : celui installé par Mira est trouvé, un chemin choisi 
     }
     finally { AppFiles.ProfileDirectory = saved; }
     return Task.CompletedTask;
+});
+await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en français, reprise possible avec le même compte", async () =>
+{
+    // Answers like Jellyfin 12.1 on its first run: "loading" at first, then the wizard's routes, open until the wizard is completed.
+    var loading = 2; var completed = false; string? name = null, password = null, culture = null; bool? remote = null; var failLibrary = false; var signed = true; var requests = 0;
+    var libraries = new List<(string Name, string Type, string Path)>();
+    // Jellyfin reads JSON names in any case, as ASP.NET does: Mira's bodies go out in camelCase.
+    static JsonElement Field(JsonElement? json, params string[] path) => path.Aggregate(json!.Value, (x, name) => x.EnumerateObject().First(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).Value);
+    var handler = new Handler(async request =>
+    {
+        Interlocked.Increment(ref requests);
+        signed &= request.Headers.TryGetValues("Authorization", out var values) && values.Single().Contains("Client=\"Mira\"");
+        var path = request.RequestUri!.AbsolutePath; JsonElement? body = request.Content is null ? null : JsonDocument.Parse(await request.Content.ReadAsStringAsync()).RootElement;
+        var query = request.RequestUri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Split('=', 2)).ToDictionary(x => x[0], x => Uri.UnescapeDataString(x[1]));
+        if (path.StartsWith("/Startup/") && completed) return new HttpResponseMessage(HttpStatusCode.Unauthorized);
+        switch (request.Method.Method + " " + path)
+        {
+            case "GET /System/Info/Public":
+                return loading-- > 0 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("Jellyfin Server is loading") }
+                    : JsonResponse(new { Id = "server-1", Version = "12.1", StartupWizardCompleted = completed });
+            case "POST /Startup/Configuration": culture = Field(body, "UICulture").GetString() + "/" + Field(body, "MetadataCountryCode").GetString(); return new(HttpStatusCode.NoContent);
+            case "GET /Startup/User": return JsonResponse(new { Name = name ?? "jellyfin", Password = "" });
+            case "POST /Startup/User":
+                if (password is not null) return new(HttpStatusCode.Forbidden);
+                if (Field(body, "Password").GetString() is not { Length: > 0 } chosen) return new(HttpStatusCode.BadRequest);
+                name = Field(body, "Name").GetString(); password = chosen; return new(HttpStatusCode.NoContent);
+            case "POST /Users/AuthenticateByName":
+                return Field(body, "Username").GetString() == name && Field(body, "Pw").GetString() == password
+                    ? JsonResponse(new { AccessToken = "token-1", User = new { Id = "user-1", Name = name } }) : new(HttpStatusCode.Unauthorized);
+            case "GET /Library/VirtualFolders": return JsonResponse(libraries.Select(x => new { x.Name, CollectionType = x.Type, Locations = new[] { x.Path } }));
+            case "POST /Library/VirtualFolders":
+                if (failLibrary) return new(HttpStatusCode.InternalServerError);
+                libraries.Add((query["name"], query["collectionType"], Field(Field(body, "LibraryOptions", "PathInfos")[0], "Path").GetString()!)); return new(HttpStatusCode.NoContent);
+            case "POST /Startup/RemoteAccess": remote = Field(body, "EnableRemoteAccess").GetBoolean(); return new(HttpStatusCode.NoContent);
+            case "POST /Startup/Complete": completed = true; return new(HttpStatusCode.NoContent);
+            default: return new(HttpStatusCode.NotFound);
+        }
+    });
+    var server = new Uri("http://127.0.0.1:8096/");
+    Assert(await JellyfinSetup.StateAsync(server, handler) is null, "A loading server was taken as ready");
+    var state = await JellyfinSetup.WaitAsync(server, TimeSpan.FromSeconds(5), handler, TimeSpan.FromMilliseconds(10));
+    Assert(state == new ServerState("12.1", false), "Server state: " + state);
+    // A comma in the path: Jellyfin's query form would split it, the body keeps it whole.
+    var folders = MediaFolders.Under(Path.Combine(testRoot, "Vidéos, à moi") + " ");
+    // The service may read the whole root: never a drive or the user's own folder.
+    var drive = Path.GetPathRoot(testRoot)!;
+    Assert(MediaFolders.Refusal(folders.Root) is null && MediaFolders.Refusal(drive) is { } whole && whole.Contains("tout le disque")
+        && MediaFolders.Refusal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + Path.DirectorySeparatorChar) is not null
+        && MediaFolders.Refusal("Vidéos") is not null && MediaFolders.Refusal(" ") is not null, "Media root refusals");
+    folders.Create(); folders.AllowJellyfinService();
+    Assert(new[] { folders.Movies, folders.Series, folders.Anime }.All(Directory.Exists) && Path.GetFileName(folders.Series) == "Séries" && !folders.Root.EndsWith(' '), "Media folders");
+    await JellyfinSetup.ConfigureAsync(server, "Alice", "secret", folders, handler);
+    (string, string, string)[] expected = [("Films", "movies", folders.Movies), ("Séries", "tvshows", folders.Series), ("Animes", "tvshows", folders.Anime)];
+    Assert(completed && name == "Alice" && password == "secret" && culture == "fr/FR" && remote == false && signed, $"Wizard: {completed} {name} {culture} {remote} {signed}");
+    Assert(libraries.SequenceEqual(expected), "Libraries: " + string.Join(", ", libraries));
+    // Cut off before its end: run again with the same account, the missing library is added once.
+    completed = false; libraries.RemoveAt(2);
+    await JellyfinSetup.ConfigureAsync(server, "Alice", "secret", folders, handler);
+    Assert(completed && libraries.SequenceEqual(expected), "Resumed setup: " + string.Join(", ", libraries));
+    async Task Refused(Func<Task> setup, string message)
+    {
+        try { await setup(); throw new Exception("Accepted: " + message); }
+        catch (InstallException ex) { Assert(ex.Message.Contains(message), ex.Message); }
+    }
+    completed = false;
+    await Refused(() => JellyfinSetup.ConfigureAsync(server, "Alice", "autre", folders, handler), "déjà un compte administrateur");
+    libraries.Clear(); failLibrary = true;
+    await Refused(() => JellyfinSetup.ConfigureAsync(server, "Alice", "secret", folders, handler), "la bibliothèque Films (code 500)");
+    var sent = requests;
+    foreach (var (user, secret) in new[] { (" Alice", "secret"), ("a/b", "secret"), ("Alice", "") })
+    {
+        try { await JellyfinSetup.ConfigureAsync(server, user, secret, folders, handler); throw new Exception("Accepted: " + user); }
+        catch (ArgumentException) { }
+    }
+    Assert(requests == sent, "An invalid account reached the server");
+    Assert(new[] { "Alice", "Jean-Luc O'Neil", "Élodie", "a.b@c+d" }.All(JellyfinSetup.IsValidUserName) && !new[] { "", " ", "..", "Alice ", "a\\b", "a<b" }.Any(JellyfinSetup.IsValidUserName), "User name rule");
+    // Another program on that port, or nothing at all: not a Jellyfin, and the wait ends with a clear message.
+    var page = new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>box</html>") }));
+    var nothing = new Handler(_ => throw new HttpRequestException("Connection refused"));
+    Assert(await JellyfinSetup.StateAsync(server, page) is null && await JellyfinSetup.StateAsync(server, nothing) is null, "Not a Jellyfin, yet a state");
+    await Refused(() => JellyfinSetup.WaitAsync(server, TimeSpan.FromMilliseconds(50), nothing, TimeSpan.FromMilliseconds(10)), "Jellyfin ne répond pas");
+    var package = JellyfinServerPackage.Current;
+    Assert(package.Url.Scheme == "https" && package.Url.Host == "repo.jellyfin.org" && package.FileName.EndsWith(".exe") && package.Sha256.Length == 64, "Pinned Jellyfin installer");
+});
+await Test("Dossiers médias : le service Jellyfin peut les lire, fichiers liés ou déplacés compris", async () =>
+{
+    // Jellyfin's Windows service runs as Network Service: a hard link or a move keeps the download's own permissions.
+    var folders = MediaFolders.Under(Path.Combine(testRoot, "service-access")); folders.Create(); folders.AllowJellyfinService();
+    var downloads = Path.Combine(testRoot, "service-downloads"); Directory.CreateDirectory(downloads);
+    var other = Path.Combine(testRoot, "service-other"); Directory.CreateDirectory(other);
+    Assert(JellyfinServiceAccess.HasOwnRule(folders.Root) && !JellyfinServiceAccess.HasOwnRule(downloads), "Root not shared with the service");
+    async Task<string> Import(string file, string library, ImportMode mode)
+    {
+        var source = Path.Combine(downloads, file); File.WriteAllBytes(source, new byte[64]);
+        var result = await MediaImporter.ExecuteAsync(MediaPlanner.Plan(file, null, [new SourceFile(source, file, 64)], new MediaLibraries(library, null, null)), mode);
+        Assert(result.Placed.Count == 1 && (mode == ImportMode.Move ? result.Moved : result.Linked), "Import: " + result.Method);
+        return result.Placed[0].Destination;
+    }
+    var linked = await Import("Big.Buck.Bunny.2008.mkv", folders.Movies, ImportMode.KeepSeeding);
+    var moved = await Import("Sintel.2010.mkv", folders.Movies, ImportMode.Move);
+    var elsewhere = await Import("Tears.of.Steel.2012.mkv", other, ImportMode.KeepSeeding);
+    Assert(JellyfinServiceAccess.HasOwnRule(linked) && JellyfinServiceAccess.HasOwnRule(moved), "A placed file stays unreadable by the service");
+    Assert(!JellyfinServiceAccess.HasOwnRule(elsewhere), "A folder the service was not given received the right anyway");
 });
 await Test("Session protégée par Windows, mot de passe absent du stockage", () =>
 {

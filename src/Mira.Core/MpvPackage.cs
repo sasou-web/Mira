@@ -3,9 +3,6 @@ using SharpCompress.Archives.SevenZip;
 
 namespace Mira.Core;
 
-/// <summary>A libmpv install that could not be completed; the message is written for the person waiting for it.</summary>
-public sealed class MpvInstallException(string message) : IOException(message);
-
 /// <summary>
 /// The libmpv build Mira installs on request: one fixed archive of the Windows builds listed on mpv.io (shinchiro,
 /// published on SourceForge), checked by its SHA-256 before anything is extracted, and the extracted library by its own.
@@ -25,8 +22,6 @@ public sealed record MpvPackage(string Version, Uri Url, long Size, string Archi
 public static class MpvInstaller
 {
     public const string VersionFile = "version.txt", SourceFile = "SOURCE.txt";
-    /// <summary>A transfer that receives nothing for this long is abandoned.</summary>
-    public static TimeSpan StallTimeout { get; set; } = TimeSpan.FromSeconds(60);
     public static string Folder(string profile) => Path.Combine(profile, "mpv");
     public static string LibraryPath(string profile) => Path.Combine(Folder(profile), MpvPackage.LibraryName);
     public static bool IsInstalled(string profile, MpvPackage? package = null)
@@ -49,12 +44,13 @@ public static class MpvInstaller
         var extracted = library + ".partial";
         try
         {
-            await DownloadAsync(package, archive, handler, progress, ct).ConfigureAwait(false);
+            await VerifiedDownload.DownloadAsync(package.Url, archive, package.ArchiveSha256, package.Size, package.Size, "Le moteur vidéo", handler,
+                Scaled.By(progress, .8), ct).ConfigureAwait(false);
             await Task.Run(() => Extract(package, archive, extracted), ct).ConfigureAwait(false);
             progress?.Report(.98);
             try { File.Move(extracted, library, overwrite: true); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            { throw new MpvInstallException("Le moteur vidéo actuel est en cours d’utilisation : arrête la lecture, puis réessaie."); }
+            { throw new InstallException("Le moteur vidéo actuel est en cours d’utilisation : arrête la lecture, puis réessaie."); }
             await File.WriteAllTextAsync(Path.Combine(folder, SourceFile),
                 $"libmpv {package.Version}, installé par Mira depuis {package.Url}\nSHA-256 de l’archive : {package.ArchiveSha256}\nSHA-256 de {MpvPackage.LibraryName} : {package.LibrarySha256}\n" +
                 "Build Windows de mpv par shinchiro (https://github.com/shinchiro/mpv-winbuild-cmake), listée sur https://mpv.io/installation/.\n" +
@@ -63,48 +59,8 @@ public static class MpvInstaller
             progress?.Report(1);
             return library;
         }
-        catch (Exception ex) when (ex is not MpvInstallException && ex is IOException or UnauthorizedAccessException) { throw DiskError(); }
+        catch (Exception ex) when (ex is not InstallException && ex is IOException or UnauthorizedAccessException) { throw DiskError(); }
         finally { TryDelete(archive); TryDelete(extracted); }
-    }
-    private static async Task DownloadAsync(MpvPackage package, string target, HttpMessageHandler? handler, IProgress<double>? progress, CancellationToken ct)
-    {
-        using var http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
-        http.Timeout = Timeout.InfiniteTimeSpan;
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("Mira/" + JellyfinClient.AppVersion);
-        HttpResponseMessage response;
-        using (var headers = CancellationTokenSource.CreateLinkedTokenSource(ct))
-        {
-            headers.CancelAfter(StallTimeout);
-            try { response = await http.GetAsync(package.Url, HttpCompletionOption.ResponseHeadersRead, headers.Token).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new MpvInstallException("Le serveur du moteur vidéo ne répond pas. Réessaie plus tard."); }
-            catch (HttpRequestException) { throw new MpvInstallException("Le moteur vidéo n’a pas pu être téléchargé : vérifie la connexion Internet, puis réessaie."); }
-        }
-        using (response)
-        {
-            // A redirect may land on any mirror, but never back to plain HTTP: HttpClient refuses that downgrade.
-            if (!response.IsSuccessStatusCode) throw new MpvInstallException($"Le moteur vidéo n’a pas pu être téléchargé (code {(int)response.StatusCode}). Réessaie plus tard.");
-            if (response.Content.Headers.ContentLength is { } length && length != package.Size) throw new MpvInstallException("Le fichier proposé n’est pas celui attendu : il n’est pas installé.");
-            using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            var buffer = new byte[1 << 16]; long total = 0;
-            await using var input = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-            await using var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true);
-            while (true)
-            {
-                using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct); stall.CancelAfter(StallTimeout);
-                int read;
-                try { read = await input.ReadAsync(buffer, stall.Token).ConfigureAwait(false); }
-                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new MpvInstallException("Le téléchargement du moteur vidéo s’est interrompu. Réessaie."); }
-                catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new MpvInstallException("Le téléchargement du moteur vidéo s’est interrompu. Réessaie."); }
-                if (read == 0) break;
-                total += read;
-                if (total > package.Size) throw new MpvInstallException("Le fichier proposé n’est pas celui attendu : il n’est pas installé.");
-                sha.AppendData(buffer, 0, read);
-                await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
-                progress?.Report(.8 * total / package.Size);
-            }
-            if (total != package.Size) throw new MpvInstallException("Le téléchargement du moteur vidéo est incomplet. Réessaie.");
-            if (!Matches(sha.GetHashAndReset(), package.ArchiveSha256)) throw new MpvInstallException("Le fichier téléchargé ne correspond pas à la version vérifiée par Mira : il n’est pas installé.");
-        }
     }
     /// <summary>Only the library leaves the archive, and only if its own SHA-256 is the expected one.</summary>
     private static void Extract(MpvPackage package, string archivePath, string target)
@@ -113,7 +69,7 @@ public static class MpvInstaller
         {
             using var archive = SevenZipArchive.Open(archivePath);
             var entry = archive.Entries.FirstOrDefault(x => !x.IsDirectory && x.Key is MpvPackage.LibraryName)
-                ?? throw new MpvInstallException("L’archive téléchargée ne contient pas le moteur vidéo attendu.");
+                ?? throw new InstallException("L’archive téléchargée ne contient pas le moteur vidéo attendu.");
             using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             using (var input = entry.OpenEntryStream())
             using (var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
@@ -121,15 +77,14 @@ public static class MpvInstaller
                 var buffer = new byte[1 << 16]; int read;
                 while ((read = input.Read(buffer, 0, buffer.Length)) > 0) { sha.AppendData(buffer, 0, read); output.Write(buffer, 0, read); }
             }
-            if (!Matches(sha.GetHashAndReset(), package.LibrarySha256)) throw new MpvInstallException("Le moteur extrait ne correspond pas à la version vérifiée par Mira : il n’est pas installé.");
+            if (!VerifiedDownload.Matches(sha.GetHashAndReset(), package.LibrarySha256)) throw new InstallException("Le moteur extrait ne correspond pas à la version vérifiée par Mira : il n’est pas installé.");
         }
-        catch (MpvInstallException) { throw; }
+        catch (InstallException) { throw; }
         // The archive was checked by its hash before this point: a read or write failure here comes from the disk.
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { throw DiskError(); }
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException))
-        { throw new MpvInstallException("L’archive du moteur vidéo est illisible : elle n’est pas installée."); }
+        { throw new InstallException("L’archive du moteur vidéo est illisible : elle n’est pas installée."); }
     }
-    private static MpvInstallException DiskError() => new("Le moteur vidéo n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie.");
-    private static bool Matches(byte[] hash, string expected) => string.Equals(Convert.ToHexString(hash), expected, StringComparison.OrdinalIgnoreCase);
+    private static InstallException DiskError() => new("Le moteur vidéo n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie.");
     private static void TryDelete(string path) { try { File.Delete(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
 }
