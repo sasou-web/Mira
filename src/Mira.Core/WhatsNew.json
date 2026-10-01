@@ -1,0 +1,21 @@
+[
+  {
+    "version": "0.5.5",
+    "summary": "Un guide pour bien démarrer, et Jellyfin plus fiable.",
+    "items": [
+      { "icon": "help", "title": "Un guide pour bien démarrer", "text": "Où mettre tes vidéos, comment gérer Jellyfin, comment regarder sur tes autres appareils : tout est expliqué. Bouton ? à gauche, ou F1." },
+      { "icon": "sparkle", "title": "Les nouveautés en un coup d’œil", "text": "Après chaque mise à jour, cet écran résume ce qui change." },
+      { "icon": "refresh", "title": "Ta bibliothèque à jour en direct", "text": "Avec les versions récentes de Jellyfin, les ajouts et les épisodes vus ailleurs apparaissent sans actualiser." },
+      { "icon": "server", "title": "Installation de Jellyfin plus fiable", "text": "Mira reconnaît un Jellyfin déjà installé, passe outre la fausse alerte de son installateur et explique pourquoi s’il ne démarre pas." }
+    ]
+  },
+  {
+    "version": "0.5.4",
+    "summary": "Jellyfin et le moteur vidéo s’installent depuis Mira.",
+    "items": [
+      { "icon": "server", "title": "Jellyfin installé pour toi", "text": "Pas encore de serveur ? Mira l’installe sur ce PC, crée tes dossiers Films, Séries et Animes et le configure en français." },
+      { "icon": "download", "title": "Le moteur vidéo s’installe tout seul", "text": "Avec l’installateur de Mira, ou en un clic à la première lecture." },
+      { "icon": "check", "title": "Plus stable", "text": "Un disque plein ou un cache abîmé ne bloquent plus Mira." }
+    ]
+  }
+]

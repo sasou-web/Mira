@@ -614,6 +614,53 @@ await Test("Dossiers médias : le service Jellyfin peut les lire, fichiers liés
     Assert(JellyfinServiceAccess.HasOwnRule(linked) && JellyfinServiceAccess.HasOwnRule(moved), "A placed file stays unreadable by the service");
     Assert(!JellyfinServiceAccess.HasOwnRule(elsewhere), "A folder the service was not given received the right anyway");
 });
+await Test("Nouveautés : bienvenue sur un profil neuf, points forts après une mise à jour, notes de version courtes", () =>
+{
+    var all = WhatsNew.All;
+    Assert(all.Count >= 2 && all.Select(x => x.Number).SequenceEqual(all.Select(x => x.Number).OrderDescending()), "Versions not newest first");
+    foreach (var release in all)
+        Assert(release.Summary.Length is > 10 and <= 100 && release.Items.Count is >= 2 and <= 5 && release.Items.All(x => x.Icon.Length > 0 && x.Title.Length is > 3 and <= 50 && x.Text.Length is > 10 and <= 200),
+            "Highlights of " + release.Version + " are not short");
+    // The version being built has its main points: the screen after the update and the release page need them.
+    var project = Path.Combine("src", "Mira.Desktop", "Mira.Desktop.csproj");
+    if (File.Exists(project) && System.Text.RegularExpressions.Regex.Match(File.ReadAllText(project), "<Version>([^<]+)</Version>") is { Success: true } version)
+        Assert(all.Any(x => x.Version == version.Groups[1].Value), $"WhatsNew.json has no entry for {version.Groups[1].Value}");
+    var entries = WhatsNew.Parse("""[{"version":"0.5.4","summary":"Quatre","items":[]},{"version":"0.5.6","summary":"Six","items":[]},{"version":"0.5.5","summary":"Cinq","items":[]}]""");
+    Assert(entries.Select(x => x.Version).SequenceEqual(["0.5.6", "0.5.5", "0.5.4"]), "Parsed order");
+    Assert(WhatsNew.Since(new Version(0, 5, 3), new Version(0, 5, 5), entries).Select(x => x.Version).SequenceEqual(["0.5.5", "0.5.4"]), "Versions skipped by an update");
+    Assert(WhatsNew.Since(null, new Version(0, 5, 5), entries).Select(x => x.Version).SequenceEqual(["0.5.5"]), "Unknown previous version");
+    var decisions = new[]
+    {
+        WhatsNew.Decide("", new Version(0, 5, 5), knownProfile: false, entries), WhatsNew.Decide("", new Version(0, 5, 5), knownProfile: true, entries),
+        WhatsNew.Decide("0.5.4", new Version(0, 5, 5), true, entries), WhatsNew.Decide("0.5.5", new Version(0, 5, 5), true, entries),
+        WhatsNew.Decide("0.5.6", new Version(0, 5, 5), true, entries), WhatsNew.Decide("0.5.6", new Version(0, 5, 7), true, entries),
+        WhatsNew.Decide("pas une version", new Version(0, 5, 5), false, entries),
+    };
+    Assert(decisions.SequenceEqual([StartupScreen.Welcome, StartupScreen.WhatsNew, StartupScreen.WhatsNew, StartupScreen.None, StartupScreen.None, StartupScreen.None, StartupScreen.Welcome]),
+        "Startup screens: " + string.Join(", ", decisions));
+    var notes = WhatsNew.ReleaseNotes(all[0]);
+    Assert(notes.StartsWith(all[0].Summary) && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe")
+        && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Length < 1500, "Release notes:\n" + notes);
+    return Task.CompletedTask;
+});
+await Test("Nouveautés : chaque icône citée est dessinée par Mira", () =>
+{
+    var missing = WhatsNew.All.SelectMany(x => x.Items).Select(x => x.Icon).Where(x => !Mira.Desktop.Views.Icon.Draws(x)).Distinct().ToArray();
+    Assert(missing.Length == 0, "Icons not drawn: " + string.Join(", ", missing));
+    return Task.CompletedTask;
+});
+await Test("Autres appareils : l’adresse du PC sur le réseau de la maison, pas celle d’un adaptateur virtuel", () =>
+{
+    LocalNetwork.Candidate C(string address, bool gateway = true, bool isVirtual = false) => new(address, gateway, isVirtual);
+    Assert(LocalNetwork.PreferredIPv4([C("172.24.80.1", isVirtual: true), C("169.254.10.2"), C("127.0.0.1"), C("192.168.1.20")]) == "192.168.1.20", "Home network address");
+    Assert(LocalNetwork.PreferredIPv4([C("10.0.0.5", gateway: false), C("192.168.0.12")]) == "192.168.0.12", "An adapter with the box's gateway comes first");
+    Assert(LocalNetwork.PreferredIPv4([C("fe80::1"), C("169.254.3.3")]) is null, "No usable address");
+    Assert(LocalNetwork.ForOtherDevices("http://127.0.0.1:8096/", "192.168.1.20") == "http://192.168.1.20:8096"
+        && LocalNetwork.ForOtherDevices("http://localhost:8096", "192.168.1.20") == "http://192.168.1.20:8096"
+        && LocalNetwork.ForOtherDevices("https://media.example.org/jellyfin/", "192.168.1.20") == "https://media.example.org/jellyfin"
+        && LocalNetwork.ForOtherDevices("http://127.0.0.1:8096/", null) is null && LocalNetwork.ForOtherDevices("pas une adresse", "192.168.1.20") is null, "Address for other devices");
+    return Task.CompletedTask;
+});
 await Test("Session protégée par Windows, mot de passe absent du stockage", () =>
 {
     var profile = new LocalProfile(Path.Combine(testRoot, "protected")); var connection = new Connection("http://localhost/", "user", "Alice", "secret-session-token", profile.DeviceId);

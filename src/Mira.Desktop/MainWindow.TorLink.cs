@@ -224,7 +224,7 @@ public partial class MainWindow
     {
         if (!_torlinkEnabled) return;
         if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); }
-        ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay);
+        ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay);
         if (TorLinkOverlay.Visibility != Visibility.Visible || !TorLinkOverlay.IsHitTestVisible) Motion.Reveal(TorLinkOverlay, 260, 10);
         TorLinkBadge.Visibility = Visibility.Collapsed;
         UpdateNavigation(); UpdateHeroClock(); RenderTorLinkImports(); UpdateTorLinkState();

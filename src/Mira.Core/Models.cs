@@ -162,4 +162,8 @@ public sealed class PlayerSettings
     public string TorLinkMoviesFolder { get; set; } = "";
     public string TorLinkSeriesFolder { get; set; } = "";
     public string TorLinkAnimeFolder { get; set; } = "";
+    /// <summary>The last version whose welcome or "what's new" screen this profile went past; empty before 0.5.5.</summary>
+    public string SeenVersion { get; set; } = "";
+    /// <summary>The guide opened once already: it is not offered again after a connection.</summary>
+    public bool GuideSeen { get; set; }
 }

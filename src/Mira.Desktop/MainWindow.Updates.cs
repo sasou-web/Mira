@@ -85,22 +85,20 @@ public partial class MainWindow
     }
     private void ShowPendingUpdateNotice() { if (_updateNoticePending && _updater?.Offer is { } offer) AnnounceUpdate(offer); }
     /// <summary>After an installation Mira says whether the new version is the one running: from what the updater recorded
-    /// before closing, or from --updated-from for a validation profile.</summary>
-    private void AnnounceUpdateResult()
+    /// before closing, or from --updated-from for a validation profile. A success shown by the "what's new" screen needs no notice.</summary>
+    private void AnnounceUpdateResult(bool whatsNewShown)
     {
         if (_updateResult is { } result)
         {
-            SetNotice(result.Installed
-                ? $"Mira est passée en version {JellyfinClient.AppVersion}."
-                : $"La mise à jour vers Mira {result.Version.ToString(3)} n’a pas pu s’installer : Mira reste en version {JellyfinClient.AppVersion}. Le détail est dans data\\updates.");
+            if (!result.Installed) SetNotice($"La mise à jour vers Mira {result.Version.ToString(3)} n’a pas pu s’installer : Mira reste en version {JellyfinClient.AppVersion}. Le détail est dans data\\updates.");
+            else if (!whatsNewShown) SetNotice($"Mira est passée en version {JellyfinClient.AppVersion}.");
             return;
         }
         var index = Array.IndexOf(_args, "--updated-from");
         if (index < 0 || index + 1 >= _args.Length) return;
         var current = ReleaseFeed.ParseVersion(JellyfinClient.AppVersion); var previous = ReleaseFeed.ParseVersion(_args[index + 1]);
-        SetNotice(current is not null && previous is not null && current > previous
-            ? $"Mira est passée en version {current.ToString(3)}."
-            : $"La mise à jour n’a pas pu s’installer : Mira reste en version {JellyfinClient.AppVersion}. Le détail est dans data\\updates.");
+        if (current is not null && previous is not null && current > previous) { if (!whatsNewShown) SetNotice($"Mira est passée en version {current.ToString(3)}."); }
+        else SetNotice($"La mise à jour n’a pas pu s’installer : Mira reste en version {JellyfinClient.AppVersion}. Le détail est dans data\\updates.");
     }
     private async void RestartForUpdate()
     {

@@ -53,8 +53,15 @@ public sealed class Icon : FrameworkElement
         ["forward"] = Shape("M20 8A8.5 8.5 0 1 0 20.5 14M21 3V8H16"),
         ["skip"] = Shape("M5 5Q3 4 3 6V18Q3 20 5 19L15 13Q17 12 15 11Z M20 5V19"),
         ["download"] = Shape("M12 3.5V14.5 M7.5 10.5L12 15L16.5 10.5 M4 16V17Q4 20.5 7.5 20.5H16.5Q20 20.5 20 17V16"),
-        ["folder"] = Shape("M3.5 7.5Q3.5 4.5 6.5 4.5H9.2Q10.2 4.5 10.9 5.3L11.9 6.5H17.5Q20.5 6.5 20.5 9.5V16.5Q20.5 19.5 17.5 19.5H6.5Q3.5 19.5 3.5 16.5Z")
+        ["folder"] = Shape("M3.5 7.5Q3.5 4.5 6.5 4.5H9.2Q10.2 4.5 10.9 5.3L11.9 6.5H17.5Q20.5 6.5 20.5 9.5V16.5Q20.5 19.5 17.5 19.5H6.5Q3.5 19.5 3.5 16.5Z"),
+        // Guide and "what's new": a question in a circle, a four-pointed spark, Jellyfin's web page, a phone.
+        ["help"] = Shape("M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M9.4 9.4Q9.6 7 12 7Q14.6 7 14.6 9.4Q14.6 11.1 12.8 11.9Q12 12.3 12 13.4V13.8 M12 17V17.15"),
+        ["sparkle"] = Shape("M12 3Q12.9 10.2 20 12Q12.9 13.8 12 21Q11.1 13.8 4 12Q11.1 10.2 12 3Z M19 3V6M17.5 4.5H20.5"),
+        ["globe"] = Shape("M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M3.5 12H20.5 M12 3Q8 7 8 12Q8 17 12 21 M12 3Q16 7 16 12Q16 17 12 21"),
+        ["phone"] = Shape("M9 2.5H15Q18 2.5 18 5.5V18.5Q18 21.5 15 21.5H9Q6 21.5 6 18.5V5.5Q6 2.5 9 2.5Z M11 18.2H13")
     };
+    /// <summary>True for a kind this family draws (used to check the icons named in WhatsNew.json).</summary>
+    public static bool Draws(string kind) => kind == "brand" || Shapes.ContainsKey(kind) || Solids.ContainsKey(kind);
     private static readonly Geometry Speaker = Shape("M10.3 4.9Q12 3.8 12 5.8V18.2Q12 20.2 10.3 19.1L6.5 16.2H4.6Q2.6 16.2 2.6 14.2V9.8Q2.6 7.8 4.6 7.8H6.5Z");
     /// <summary>Solid parts, drawn under the strokes of the same kind: the player bar uses filled glyphs.</summary>
     private static readonly IReadOnlyDictionary<string, Geometry> Solids = new Dictionary<string, Geometry>

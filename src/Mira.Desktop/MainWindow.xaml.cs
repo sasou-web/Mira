@@ -91,7 +91,7 @@ public partial class MainWindow : Window
         if (_args.Contains("--windows-check")) { await RunWindowsCheckAsync(); return; }
         if (_args.Contains("--torlink-check")) { await RunTorLinkCheckAsync(); return; }
         _fallbackRefresh.Start();
-        AnnounceUpdateResult();
+        ShowStartupScreen();
         if (_testMedia is not null && _args.Contains("--autoplay")) await PlayAsync(DemoLibrary.Items()[0]);
     }
     private Task? _startupRevealTask;
@@ -140,6 +140,7 @@ public partial class MainWindow : Window
             var connection = await client.LoginAsync(UsernameBox.Text.Trim(), PasswordBox.Password);
             _profile.SaveConnection(connection); PasswordBox.Clear();
             await ActivateConnectionAsync(connection);
+            OfferGuide("Te voilà connecté. Voici l’essentiel pour ajouter tes vidéos et regarder partout.");
         }
         catch (Exception ex) when (IsExpected(ex)) { LoginError.Text = Friendly(ex); }
         finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = "Ouvrir ma bibliothèque"; }

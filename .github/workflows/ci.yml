@@ -21,6 +21,23 @@ jobs:
         run: dotnet build Mira.sln -c Release --no-restore
       - name: Behaviour and persistence tests
         run: dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build
+      # The real window, offline demo only: every main screen is rendered once and kept as an image for review.
+      - name: Interface captures (offline demo)
+        shell: pwsh
+        run: |
+          $exe = 'src/Mira.Desktop/bin/Release/net8.0-windows10.0.19041.0/Mira.exe'
+          $output = Join-Path $PWD '.artifacts/interface'
+          $profile = Join-Path $PWD '.artifacts/interface-profile'
+          $run = Start-Process -FilePath $exe -ArgumentList @('--demo', '--data', "`"$profile`"", '--public-gallery', "`"$output`"") -PassThru
+          if (-not $run.WaitForExit(240000)) { $run.Kill(); throw 'The interface captures did not finish within 4 minutes.' }
+          $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
+          Write-Output $result
+          if ($run.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'Interface captures failed.' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Mira-interface
+          path: .artifacts/interface/*.png
+          retention-days: 7
       - name: Package without user data
         shell: pwsh
         run: ./tools/package.ps1

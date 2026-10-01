@@ -1,11 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
+using Mira.Core;
 using Mira.Core.Updates;
 
 // Signing of Mira's automatic updates (see docs/SECURITY.md and CONTRIBUTING.md).
 //   keygen [--key <file>]                                 creates the signing key; never overwrites one
 //   public-key [--key <file>]                             prints the public key to list in UpdateKeys.Trusted
 //   manifest --version x.y.z --packages <dir> [--key <file>]   writes and signs mira-update.json for the release files
+//   notes --version x.y.z --out <file>                    the release page's text, from the version's entry in WhatsNew.json
 //   export-backup --out <file> [--key <file>]             copy protected by a passphrase (PKCS#8, AES-256, PBKDF2)
 //   import-backup --in <file> [--key <file>]              restores that copy for the current Windows account
 // The key file is encrypted by Windows (DPAPI) for the current account. It never belongs in the repository.
@@ -75,6 +77,17 @@ try
             Console.WriteLine(Path.Combine(packages, UpdateManifest.SignatureName));
             return 0;
         }
+        case "notes":
+        {
+            var version = Arg("--version") ?? throw new InvalidOperationException("Indique --version x.y.z.");
+            var output = Path.GetFullPath(Arg("--out") ?? throw new InvalidOperationException("Indique --out <fichier>."));
+            var release = WhatsNew.All.FirstOrDefault(x => x.Version == version)
+                ?? throw new InvalidOperationException($"src/Mira.Core/WhatsNew.json n’a pas d’entrée pour {version} : écris ses points forts avant de publier.");
+            Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+            File.WriteAllText(output, WhatsNew.ReleaseNotes(release), new UTF8Encoding(false));
+            Console.WriteLine(output);
+            return 0;
+        }
         case "export-backup":
         {
             var output = Path.GetFullPath(Arg("--out") ?? throw new InvalidOperationException("Indique --out <fichier>."));
@@ -99,7 +112,7 @@ try
             return 0;
         }
         default:
-            Console.Error.WriteLine("Commandes : keygen, public-key, manifest --version x.y.z --packages <dossier>, export-backup --out <fichier>, import-backup --in <fichier> ; option --key <fichier>.");
+            Console.Error.WriteLine("Commandes : keygen, public-key, manifest --version x.y.z --packages <dossier>, notes --version x.y.z --out <fichier>, export-backup --out <fichier>, import-backup --in <fichier> ; option --key <fichier>.");
             return 2;
     }
 }
