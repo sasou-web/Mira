@@ -15,13 +15,14 @@ Mira's original source code is licensed under MIT. This does not replace the lic
 | Phosphor Icons | Archived SVG assets from an earlier interface | MIT; `licenses/PHOSPHOR-MIT.txt`, revision in `src/Mira.Desktop/Assets/Phosphor/SOURCE.txt` |
 | Microsoft.Web.WebView2 1.0.4258.31 | WebView2 SDK for the embedded TorLink terminal (managed assemblies and `WebView2Loader.dll`) | Microsoft Corporation, BSD-style licence; `licenses/WEBVIEW2-BSD.txt` |
 | xterm.js 6.0.0 and @xterm/addon-fit 0.11.0 | Terminal renderer of the TorLink page, unmodified npm builds embedded as resources | MIT, the xterm.js authors; `licenses/XTERM-MIT.txt`, versions and integrity in `src/Mira.Desktop/Assets/TorLink/xterm/SOURCE.txt` |
+| SharpCompress 1.0.0 | Reads the `.7z` archive of the libmpv build Mira installs on request | MIT, Adam Hathcock; `licenses/SHARPCOMPRESS-MIT.txt` |
 | Inno Setup 6.7.3 | Builds the Windows installer; its setup and uninstall program is part of `Mira-*-setup.exe` | Copyright Jordan Russell and Martijn Laan, [Inno Setup License](https://jrsoftware.org/files/is/license.txt); not part of the zip or the portable executable |
 
 The current logo, icon geometry and fictional demo illustrations are original Mira assets. The gallery (`docs/SCREENSHOTS.md`) shows that offline demo. The three screenshots at the top of the README show Mira connected to a personal Jellyfin library: the posters and artwork visible in them belong to their respective rights holders and are shown only to illustrate the software. No media file, personal library data or Jellyfin cache is included in the repository or release.
 
 ## External player
 
-**libmpv is not included.** Mira loads a separately installed x64 library. mpv and its dependencies have their own licences, depending on the build. Obtain the library and its notices from its distributor; Mira's MIT licence does not relicense it. See the [mpv project](https://github.com/mpv-player/mpv) and its [installation page](https://mpv.io/installation/).
+**libmpv is not included.** Mira loads a separately installed x64 library. On request (the installer's "Télécharger le moteur vidéo mpv" task or **Réglages → Lecture**), Mira downloads one fixed archive of the Windows builds listed on the [mpv installation page](https://mpv.io/installation/) (shinchiro's [mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake), from SourceForge), checks its SHA-256, and extracts `libmpv-2.dll` into the profile (`data\mpv`, with a `SOURCE.txt` naming its origin). The file comes from its distributor, not from Mira's releases. mpv and the libraries it includes, such as FFmpeg, keep their own licences (GPL for these builds); Mira's MIT licence does not relicense them. Sources: the [mpv project](https://github.com/mpv-player/mpv) and the build scripts linked above.
 
 ## Optional external components
 

@@ -48,9 +48,9 @@ Dans la [release 0.5.3](https://github.com/sasou-web/Mira/releases/tag/v0.5.3), 
 
 1. Lancer l’installateur ou l’exécutable. Windows peut afficher un avertissement SmartScreen : les fichiers ne sont pas encore signés (**Informations complémentaires → Exécuter quand même**).
 2. Connecter ton serveur Jellyfin (10.9 ou plus récent) — généralement `http://127.0.0.1:8096` sur le même PC ; sur le réseau, son adresse IP ou son nom suffit.
-3. Vérifier **Réglages → Lecture** : un moteur **libmpv x64** est requis. Mira détecte certains moteurs installés avec mpv.net ou Jellyfin MPV Shim ; un chemin peut être choisi manuellement.
+3. Le moteur vidéo **mpv** : laisser cochée la case « Télécharger le moteur vidéo mpv » de l’installateur, ou choisir **Installer le moteur mpv** dans **Réglages → Lecture** (Mira le propose aussi à la première lecture). Un moteur déjà installé avec mpv.net ou Jellyfin MPV Shim est réutilisé.
 
-**Le runtime .NET est inclus ; libmpv ne l’est pas.** Windows 10 2004+ / Windows 11 x64, interface française, préversion non signée. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
+**Le runtime .NET est inclus ; libmpv est téléchargé à la demande** (31 Mo, depuis les builds Windows de mpv, empreinte vérifiée). Windows 10 2004+ / Windows 11 x64, interface française, préversion non signée. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
 
 La page **TorLink** est facultative : TorLink s’installe séparément et Mira le retrouve par son raccourci Démarrer, ou par le dossier indiqué dans **Réglages → TorLink**. Son terminal utilise le runtime Microsoft Edge WebView2 de Windows.
 
@@ -99,4 +99,4 @@ Mira **0.5.3** est une préversion utilisable pour tester le projet, avec des é
 
 Code original sous [licence MIT](LICENSE). Le logo, les icônes actuelles et les illustrations de démonstration sont dessinés pour Mira. Police **Nunito Sans** sous SIL OFL 1.1 ; composants .NET, SQLite, WebView2 et Windows selon leurs licences respectives ; **xterm.js** sous licence MIT pour le terminal TorLink. Les anciens SVG Phosphor sont conservés avec leur notice MIT. TorLink est un projet tiers, ni inclus ni modifié.
 
-Voir [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) pour les attributions et [licenses](licenses) pour les textes inclus. libmpv est un composant externe, non distribué dans l’archive.
+Voir [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) pour les attributions et [licenses](licenses) pour les textes inclus. libmpv est un composant externe, non distribué avec Mira : Mira le télécharge depuis son distributeur quand tu le lui demandes.

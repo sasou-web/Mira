@@ -17,12 +17,12 @@ Mira keeps Jellyfin as your library server. It provides a cinematic desktop UI, 
 
 ## Install
 
-Requires Windows 10 2004+ or Windows 11 **x64**, a running Jellyfin server, and a separately installed **x64 libmpv DLL**. The self-contained ZIP includes .NET, but not libmpv. The UI is currently in French.
+Requires Windows 10 2004+ or Windows 11 **x64** and a running Jellyfin server. The packages include .NET; the **libmpv** player engine is downloaded on request (31 MB, from mpv's Windows builds, SHA-256 checked), or an existing one is reused. The UI is currently in French.
 
 1. From the release, run `Mira-0.5.3-win-x64-setup.exe` (per-user install, no administrator rights), or use `Mira-0.5.3-win-x64-portable.exe` (one file that creates its `data` folder beside it) or the `Mira-0.5.3-win-x64.zip` folder. The files are not signed yet, so SmartScreen may ask for confirmation.
 2. Keep a portable copy in a writable folder of its own.
 3. Connect to Jellyfin 10.9 or later. A server on the same PC commonly uses `http://127.0.0.1:8096`; on the network, its IP address or name is enough (`192.168.1.20`, `nas:8096`), as is the address copied from Jellyfin's web page.
-4. In **Réglages → Lecture**, check player-engine detection or select `libmpv-2.dll` / `mpv-2.dll`. `mpv.exe` alone is insufficient. See the [mpv installation page](https://mpv.io/installation/) for Windows distributions.
+4. Keep the installer's "Télécharger le moteur vidéo mpv" box ticked, or use **Installer le moteur mpv** in **Réglages → Lecture** (Mira also offers it before the first playback). A `libmpv-2.dll` / `mpv-2.dll` already on the PC can be selected there instead; `mpv.exe` alone is insufficient.
 
 The preview is unsigned. From 0.5.2 on, Mira updates itself (**Réglages → Mises à jour**); older copies need 0.5.2 installed once by hand. When updating by hand, preserve the `data` folder: it contains settings, protected session credentials and pending playback reports. Do not publish it.
 

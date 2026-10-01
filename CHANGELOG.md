@@ -2,7 +2,10 @@
 
 ## Non publié
 
-Stabilité : des pannes rares qui pouvaient bloquer Mira sont maintenant contenues.
+Le moteur vidéo s’installe tout seul, et des pannes rares qui pouvaient bloquer Mira sont maintenant contenues.
+
+- **Moteur vidéo mpv installé par Mira** : une case « Télécharger le moteur vidéo mpv » dans l’installateur (cochée par défaut), un bouton **Installer le moteur mpv** dans **Réglages → Lecture**, et un bouton **Installer** proposé à la première lecture quand aucun moteur n’est trouvé. La lecture démarre une fois le moteur prêt.
+- Mira télécharge une build précise des builds Windows de mpv (31 Mo, depuis SourceForge), vérifie son empreinte SHA-256, extrait `libmpv-2.dll`, vérifie aussi la sienne, et la range dans `data\mpv`, que les mises à jour ne touchent pas. Un fichier altéré n’est jamais installé. Un moteur déjà présent (mpv.net, Jellyfin MPV Shim, ou choisi dans les réglages) est gardé.
 
 - Un disque plein, une base locale verrouillée ou abîmée pendant une lecture n’ouvre plus une fenêtre d’erreur toutes les 3 secondes : la lecture continue et la ligne de synchronisation indique « Stockage local indisponible ».
 - Dans ce cas, Mira ne pouvait plus se fermer : la fenêtre disparaissait mais le processus restait ouvert, et les envois suivants de la session étaient bloqués. Corrigé.

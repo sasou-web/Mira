@@ -2,6 +2,13 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Moteur mpv installé par Mira (non publié)
+
+- Build figée : `mpv-dev-x86_64-20260927-git-a1bf4b6559.7z` (31 487 676 octets). Téléchargée depuis `downloads.sourceforge.net` (redirection vers un miroir) : ses SHA-1 et MD5 sont ceux que publie SourceForge pour ce fichier. SHA-256 figés : archive `3a80c48d…74ac5c`, `libmpv-2.dll` `0a81c004…de6f6a` (120 812 544 octets, identique à l’extraction par 7-Zip).
+- Essai réel sous Linux avec le code de Mira : téléchargement, vérifications et extraction en 10 s ; il ne reste dans `data\mpv` que la bibliothèque, `version.txt` et `SOURCE.txt` ; un second appel ne télécharge rien.
+- Nouveaux tests : installation depuis une petite archive au format des builds mpv, aucun nouveau téléchargement une fois installé, archive altérée, trop longue, bibliothèque d’une autre empreinte ou fichier absent (404) jamais installés et sans fichier laissé ; ordre de recherche (chemin choisi, puis moteur de Mira).
+- Non vérifié : l’installateur avec la case cochée sur un vrai Windows, le chargement de cette `libmpv-2.dll` par Mira et une lecture (pas de Windows dans le conteneur), l’interface (bouton, avis à la première lecture).
+
 ## Stabilité (non publié)
 
 - Revue du code à la recherche de pannes possibles. Corrigées : erreurs SQLite remontées jusqu’au lecteur (fenêtre d’erreur répétée pendant la lecture), verrou d’envoi jamais rendu après une erreur de stockage (fermeture bloquée), base locale abîmée qui empêchait d’ouvrir le compte, écoute WebSocket arrêtée par un message inattendu ou relancée toutes les 2 s, identifiant d’appareil vide, commande mpv sur un lecteur déjà détruit.

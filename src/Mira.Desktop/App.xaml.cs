@@ -35,6 +35,8 @@ public partial class App : Application
         if (e.Args.Contains("--public-gallery") && Directory.Exists(directory) && Directory.EnumerateFileSystemEntries(directory).Any())
         { Shutdown(2); return; }
         AppFiles.ProfileDirectory = Path.GetFullPath(directory);
+        // Setup's "Télécharger le moteur vidéo mpv" task: no window, and an engine already on this PC is kept.
+        if (e.Args.Contains("--install-engine")) { Shutdown(InstallEngine(directory)); return; }
         // The files of this copy are being replaced by an update, or its installer runs: wait rather than start half-replaced.
         var installed = Updater.Detect(AppContext.BaseDirectory, !File.Exists(Path.Combine(AppContext.BaseDirectory, "Mira.dll"))) == InstallKind.Installer;
         if (!UpdateLock.WaitIdle(directory, installed, TimeSpan.FromSeconds(30)))
@@ -81,6 +83,13 @@ public partial class App : Application
         _activation = new InstanceActivation(key, () => Dispatcher.BeginInvoke(window.RestoreFromWindows));
         window.Show();
         if (!ShellValidation) Dispatcher.BeginInvoke(WindowsIdentity.Register, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+    }
+    private static int InstallEngine(string directory)
+    {
+        if (Playback.MpvEngine.FindLibrary(new LocalProfile(directory).LoadSettings().MpvPath) is not null) return 0;
+        try { Task.Run(() => Mira.Core.MpvInstaller.InstallAsync(AppFiles.ProfileDirectory)).GetAwaiter().GetResult(); return 0; }
+        // Setup goes on: Mira offers the engine again before the first playback.
+        catch (Exception ex) when (ex is IOException or HttpRequestException or UnauthorizedAccessException) { return 1; }
     }
     protected override void OnExit(ExitEventArgs e)
     {

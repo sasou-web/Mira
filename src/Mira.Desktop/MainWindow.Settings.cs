@@ -38,7 +38,7 @@ public partial class MainWindow
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
         SelectChoice(AudioLanguageChoice, _settings.AudioLanguage); SelectChoice(SubtitleLanguageChoice, _settings.SubtitleLanguage); SelectChoice(DensityChoice, _settings.PosterDensity);
         SubtitleSizeSlider.Value = _settings.SubtitleSize; MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;
-        EngineStatus.Text = MpvEngine.FindLibrary(_settings.MpvPath) is null ? "Sélectionne une bibliothèque mpv 64 bits pour activer la lecture." : "Prêt pour la lecture · moteur détecté sur ce PC.";
+        ShowEngineState();
         SubtitlePreviewImage.Source = HeroImage.Source;
         TorLinkAutoImportCheck.IsChecked = _settings.TorLinkAutoImport; TorLinkKeepSeedingCheck.IsChecked = _settings.TorLinkKeepSeeding;
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;

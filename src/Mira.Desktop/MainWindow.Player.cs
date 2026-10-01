@@ -38,6 +38,12 @@ public partial class MainWindow
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is not null) _returnToDetail = _detail;
         try
         {
+            // Without an engine nothing can play: say so before any request, with the one click that fixes it.
+            if (MpvEngine.FindLibrary(_settings.MpvPath) is null)
+            {
+                SetNotice("Pour lire tes vidéos, Mira a besoin du moteur mpv (31 Mo).", "Installer", () => _ = InstallEngineThenPlayAsync(item, keepMini));
+                return;
+            }
             if (item.Type == "Series" && !_demo && _client is not null)
             {
                 // Jellyfin's own "next up" for the series: the episode in progress, else the one after the last watched.

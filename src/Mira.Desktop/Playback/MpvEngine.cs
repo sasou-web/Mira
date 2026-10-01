@@ -36,6 +36,8 @@ public sealed class MpvEngine : IDisposable
     public static string? FindLibrary(string? custom = null)
     {
         var candidates = new[] { custom,
+            // Installed by Mira on request (Setup's task or Réglages → Lecture), in the profile that updates never touch.
+            MpvInstaller.LibraryPath(Services.AppFiles.ProfileDirectory),
             Path.Combine(AppContext.BaseDirectory, "mpv-2.dll"),
             Path.Combine(AppContext.BaseDirectory, "libmpv-2.dll"),
             Path.Combine(AppContext.BaseDirectory, "native", "mpv-2.dll"),
