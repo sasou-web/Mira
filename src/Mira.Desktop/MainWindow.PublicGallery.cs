@@ -49,10 +49,12 @@ public partial class MainWindow
             LoginOverlay.Visibility = Visibility.Visible; LoginOverlay.Opacity = 1;
             await CaptureAsync(output, "14-login");
             // Help for someone new: the welcome, the main points of an update, the guide and an empty library.
-            ShowWelcome(); await CaptureAsync(output, "15-welcome");
-            WelcomeOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
-            ShowWhatsNew(WhatsNew.All.Take(1).ToList()); await CaptureAsync(output, "16-whats-new");
-            ShowWhatsNew(WhatsNew.All.Take(2).ToList()); Width = 1024; Height = 720; await CaptureAsync(output, "17-whats-new-compact");
+            // Each screen must fit the window, down to the smallest size Mira allows (1024 × 700).
+            ShowWelcome(); await CaptureAsync(output, "15-welcome"); AssertContained(WelcomeContent, "Welcome");
+            Width = 1024; Height = 720; await CaptureAsync(output, "15-welcome-compact"); AssertContained(WelcomeContent, "Compact welcome");
+            Width = 1440; Height = 960; WelcomeOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
+            ShowWhatsNew(WhatsNew.All.Take(1).ToList()); await CaptureAsync(output, "16-whats-new"); AssertContained(WhatsNewCard, "What's new");
+            ShowWhatsNew(WhatsNew.All.Take(2).ToList()); Width = 1024; Height = 720; await CaptureAsync(output, "17-whats-new-compact"); AssertContained(WhatsNewCard, "Compact what's new");
             Width = 1440; Height = 960; WhatsNewOverlay.Visibility = Visibility.Collapsed;
             OpenGuide("Jellyfin est installé et configuré. Range tes vidéos dans C:\\Users\\Toi\\Videos\\Jellyfin : voici comment, et tout ce qu’il faut savoir pour la suite.");
             // Fictional folders and address: the demo has no server to read them from.
@@ -61,13 +63,14 @@ public partial class MainWindow
             GuideJellyfinActions.Visibility = GuideRemote.Visibility = Visibility.Visible; GuideServerAddress.Text = "http://127.0.0.1:8096";
             GuideRemoteAddress.Text = "http://192.168.1.20:8096";
             GuideRemoteHint.Text = "Ce PC doit rester allumé : Jellyfin y tourne en arrière-plan, même quand Mira est fermée. Les appareils doivent être connectés à la même box.";
-            await CaptureAsync(output, "18-guide");
+            await CaptureAsync(output, "18-guide"); AssertContained(GuideContent, "Guide");
             SmoothScroll.Jump(GuideScroll, GuideScroll.ScrollableHeight); await CaptureAsync(output, "19-guide-end");
             GuideOverlay.Visibility = Visibility.Collapsed;
             _demo = false; _items = []; _resume = []; _nextUp = []; _totalCount = 0; _catalogLoading = false; _view = "home"; RenderLibrary();
-            await CaptureAsync(output, "20-empty-library");
+            await CaptureAsync(output, "20-empty-library"); AssertContained(EmptyState, "Empty library");
+            if (EmptyGuide.Visibility != Visibility.Visible) throw new InvalidOperationException("The empty library does not lead to the guide.");
             _demo = true;
-            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), "PASS: 20 application views; built-in fictional catalogue; no account, server or personal media used.");
+            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), "PASS: 21 application views; built-in fictional catalogue; no account, server or personal media used.");
         }
         catch (Exception ex)
         {
