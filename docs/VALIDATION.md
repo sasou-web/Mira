@@ -4,6 +4,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 
 ## Jellyfin installé par Mira 0.5.4
 
+- Release v0.5.4 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.4. La taille et le SHA-256 des trois paquets y sont ceux que donne GitHub. Sa signature, téléchargée depuis la release, est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`.
 - Comportement de l’installateur relevé dans son script NSIS (`jellyfin-server-windows`) : en silencieux (`/S`), service `JellyfinServer` via nssm sous Network Service, démarré à la fin ; clé `HKLM\Software\Jellyfin\Server\InstallFolder` ; élévation requise. Adresse et SHA-256 de `jellyfin_12.1_windows-x64.exe` repris du manifeste winget `Jellyfin.Server` 12.1.
 - Essai réel de `JellyfinSetup` contre un Jellyfin 12.1 neuf, compilé depuis ses sources sous Linux :
   - assistant terminé ; compte administrateur créé ; bibliothèques Films (movies), Séries et Animes (tvshows) sur les bons chemins ; langue fr/FR ; accès distant désactivé ;
