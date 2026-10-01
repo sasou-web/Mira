@@ -28,4 +28,6 @@ The current logo, icon geometry and fictional demo illustrations are original Mi
 
 **TorLink is not included.** The TorLink page runs a copy installed separately on the PC, unmodified, with its own Node.js runtime and licences. **The Microsoft Edge WebView2 Runtime is not included** either: the terminal uses the runtime provided with Windows or installed from Microsoft.
 
+**Jellyfin Server is not included.** When asked to ("Installer Jellyfin sur ce PC"), Mira downloads the official Windows installer from `repo.jellyfin.org` (the release and SHA-256 listed in winget's `Jellyfin.Server` manifest) and runs it; Jellyfin is then installed and updated as its own program, under its own licence (GPL-2.0). Source: the [Jellyfin project](https://github.com/jellyfin/jellyfin).
+
 Mira is an independent client. It is not an official Jellyfin, mpv or TorLink release.

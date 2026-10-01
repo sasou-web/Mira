@@ -266,7 +266,7 @@ public partial class MainWindow : Window
             if (ex is UnauthorizedAccessException)
             {
                 ServerBox.Text = client.Connection.Server; UsernameBox.Text = client.Connection.UserName; LoginError.Text = Friendly(ex);
-                LogoutButton.Visibility = Visibility.Visible; BackToLibrary.Visibility = Visibility.Collapsed;
+                LogoutButton.Visibility = Visibility.Visible; BackToLibrary.Visibility = Visibility.Collapsed; ShowSignInForm();
                 if (LoginOverlay.Visibility != Visibility.Visible) Motion.Reveal(LoginOverlay);
                 FocusLogin();
             }
@@ -339,7 +339,7 @@ public partial class MainWindow : Window
         LoginArt.Source = _demo ? null : HeroImage.Source;
         LogoutButton.Visibility = _profile.LoadConnection() is null ? Visibility.Collapsed : Visibility.Visible;
         BackToLibrary.Visibility = _client is not null || _demo ? Visibility.Visible : Visibility.Collapsed;
-        LoginError.Text = ""; Motion.Reveal(LoginOverlay); UpdateHeroClock(); FocusLogin();
+        LoginError.Text = ""; ShowSignInForm(); Motion.Reveal(LoginOverlay); UpdateHeroClock(); FocusLogin();
     }
     /// <summary>The first empty field gets the caret, so typing can start at once.</summary>
     private void FocusLogin() => Dispatcher.BeginInvoke(() =>

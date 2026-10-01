@@ -2,8 +2,10 @@
 
 ## Non publié
 
-Le moteur vidéo s’installe tout seul, et des pannes rares qui pouvaient bloquer Mira sont maintenant contenues.
+Jellyfin et le moteur vidéo s’installent depuis Mira, et des pannes rares qui pouvaient bloquer Mira sont maintenant contenues.
 
+- **Jellyfin installé et configuré depuis Mira** : sous le formulaire de connexion, **Pas encore de serveur ? Installer Jellyfin sur ce PC**. Mira télécharge l’installateur officiel de Jellyfin 12.1 et vérifie son empreinte SHA-256, la même que celle du manifeste winget de Jellyfin. Il le lance (Windows demande une autorisation), crée `Films`, `Séries` et `Animes` dans `Vidéos\Jellyfin` ou dans un autre dossier choisi, remplit l’assistant de premier démarrage de Jellyfin et se connecte. L’assistant reçoit : interface et métadonnées en français, ton compte administrateur, trois bibliothèques, accès depuis Internet désactivé. TorLink retrouve ces trois bibliothèques sans réglage.
+- Jellyfin tourne comme service Windows, sous le compte Network Service : Mira lui donne le droit de lire le dossier choisi. Un fichier que TorLink y range par lien physique ou par déplacement garde les droits de son dossier de téléchargement ; il reçoit maintenant ce même droit, sinon Jellyfin ne le verrait pas.
 - **Moteur vidéo mpv installé par Mira** : une case « Télécharger le moteur vidéo mpv » dans l’installateur (cochée par défaut), un bouton **Installer le moteur mpv** dans **Réglages → Lecture**, et un bouton **Installer** proposé à la première lecture quand aucun moteur n’est trouvé. La lecture démarre une fois le moteur prêt.
 - Mira télécharge une build précise des builds Windows de mpv (31 Mo, depuis SourceForge), vérifie son empreinte SHA-256, extrait `libmpv-2.dll`, vérifie aussi la sienne, et la range dans `data\mpv`, que les mises à jour ne touchent pas. Un fichier altéré n’est jamais installé. Un moteur déjà présent (mpv.net, Jellyfin MPV Shim, ou choisi dans les réglages) est gardé.
 

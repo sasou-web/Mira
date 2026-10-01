@@ -3,7 +3,7 @@
 ## Prérequis
 
 - Windows 10 version 2004 ou plus récent, ou Windows 11, **x64**. Les coins natifs arrondis dépendent de Windows 11.
-- Un serveur Jellyfin accessible, sur le même PC ou le réseau, et un compte sur ce serveur.
+- Un serveur Jellyfin accessible, sur le même PC ou le réseau, et un compte sur ce serveur. Sans serveur, Mira peut [installer Jellyfin sur ce PC](#installer-jellyfin-depuis-mira).
 - Le moteur vidéo **libmpv x64**. Mira l’installe à la demande (31 Mo) ; un moteur déjà présent est réutilisé. `mpv.exe` seul ne suffit pas.
 
 L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. Mira est une préversion de développement non signée.
@@ -24,7 +24,28 @@ Les fichiers ne sont pas encore signés : Windows SmartScreen peut afficher « W
 2. Entrer l’adresse de Jellyfin, le nom d’utilisateur et le mot de passe. Pour Jellyfin sur le même PC, l’adresse habituelle est `http://127.0.0.1:8096`. Sur le réseau, l’adresse IP ou le nom du PC suffit (`192.168.1.20`, `nas:8096`), comme l’adresse copiée depuis la page web de Jellyfin. Jellyfin 10.9 ou plus récent est nécessaire.
 3. Le moteur vidéo : avec l’installateur, laisser cochée la case **Télécharger le moteur vidéo mpv**. Sinon, **Réglages → Lecture → Installer le moteur mpv**, proposé aussi à la première lecture.
 
-Le bouton **Essayer sans se connecter** ouvre un catalogue fictif pour explorer l’interface.
+Le bouton **Essayer sans se connecter** ouvre un catalogue fictif pour explorer l’interface. Sans serveur Jellyfin, **Pas encore de serveur ? Installer Jellyfin sur ce PC** l’installe et le prépare (section suivante).
+
+## Installer Jellyfin depuis Mira
+
+Sous le formulaire de connexion, choisir **Pas encore de serveur ? Installer Jellyfin sur ce PC**, puis :
+
+1. **Dossier de tes vidéos** : `Vidéos\Jellyfin` par défaut, ou un autre avec **Parcourir** (un disque de stockage, par exemple). Mira y crée `Films`, `Séries` et `Animes`.
+2. **Nom d’utilisateur** et **mot de passe** : ils deviennent le compte administrateur de Jellyfin.
+3. **Installer et configurer**. Mira télécharge l’installateur officiel de Jellyfin 12.1 depuis `repo.jellyfin.org` et vérifie son empreinte SHA-256, celle du manifeste winget de Jellyfin. Un fichier différent n’est jamais lancé. Windows demande ensuite une autorisation : Jellyfin s’installe pour tout le PC, comme un service qui démarre avec Windows.
+
+Mira remplit alors l’assistant de premier démarrage de Jellyfin :
+
+- interface et métadonnées en français ;
+- ton compte administrateur ;
+- trois bibliothèques : **Films** (type films), **Séries** et **Animes** (type séries) ;
+- accès depuis Internet désactivé ; les appareils du réseau local se connectent.
+
+Puis il se connecte. Il reste à ranger les vidéos dans ces dossiers, sous les noms attendus par Jellyfin (`Titre (Année)\Titre (Année).mkv`, `Série\Season 01\Série - S01E02.mkv`), ou à laisser TorLink le faire : il retrouve les trois bibliothèques sans réglage.
+
+Le service de Jellyfin tourne sous le compte Windows **Network Service**, qui ne lit pas les dossiers personnels. Mira lui donne le droit de lire, sans modifier, le dossier choisi et tout ce qui y est ajouté. Une vidéo copiée ou déplacée avec l’Explorateur prend ce droit. Un fichier rangé par TorLink, par lien physique ou par déplacement, le reçoit aussi.
+
+Si Jellyfin est déjà installé et configuré sur ce PC, Mira le signale et propose de se connecter avec son compte. Une installation interrompue se relance avec le même compte : les étapes déjà faites sont gardées. Jellyfin se désinstalle depuis **Paramètres → Applications → Jellyfin Server** ; ses données sont dans `%ProgramData%\Jellyfin\Server`. Ses autres réglages, dont l’accès depuis Internet, se font sur sa page web, `http://127.0.0.1:8096`.
 
 ## Obtenir le moteur vidéo
 
@@ -93,6 +114,9 @@ Pour passer d’une copie portable à l’installateur en gardant sa session : i
 | Serveur inaccessible | Jellyfin doit être lancé ; vérifier l’adresse, le port et l’accès réseau. Pour un serveur distant, utiliser HTTPS. |
 | « Ce n’est pas un serveur Jellyfin » | L’adresse répond, mais pas Jellyfin (routeur, NAS, Emby…) : vérifier le port, 8096 par défaut. |
 | « Mira a besoin de Jellyfin 10.9 » | Mettre Jellyfin à jour ; Mira utilise des routes introduites par cette version. |
+| « Jellyfin ne répond pas » après son installation | Redémarrer le PC, ou lancer **Jellyfin Server** depuis le menu Démarrer, puis **Installer et configurer** de nouveau : Mira reprend où il s’était arrêté. |
+| « Ce Jellyfin a déjà un compte administrateur » | Sa configuration a été commencée avec un autre compte : la terminer sur `http://127.0.0.1:8096`, puis se connecter. |
+| Vidéo rangée mais absente de Jellyfin | Vérifier qu’elle est dans `Films`, `Séries` ou `Animes`. Un fichier déplacé par un autre programme peut garder les droits de son ancien dossier : le copier avec l’Explorateur à la place. |
 | « Certificat HTTPS non reconnu » | Le certificat du serveur n’est pas approuvé par Windows : utiliser son adresse `http://` sur le réseau local, ou installer un certificat valide. |
 | Bibliothèque visible mais lecture impossible | **Réglages → Lecture** : installer le moteur mpv, ou choisir une DLL libmpv **64 bits** avec ses dépendances. |
 | « Le moteur vidéo n’a pas pu être téléchargé » | Vérifier la connexion Internet puis réessayer depuis **Réglages → Lecture**. Le téléchargement passe par `downloads.sourceforge.net` et ses miroirs. |

@@ -2,6 +2,25 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Jellyfin installé par Mira (non publié)
+
+- Comportement de l’installateur relevé dans son script NSIS (`jellyfin-server-windows`) : en silencieux (`/S`), service `JellyfinServer` via nssm sous Network Service, démarré à la fin ; clé `HKLM\Software\Jellyfin\Server\InstallFolder` ; élévation requise. Adresse et SHA-256 de `jellyfin_12.1_windows-x64.exe` repris du manifeste winget `Jellyfin.Server` 12.1.
+- Essai réel de `JellyfinSetup` contre un Jellyfin 12.1 neuf, compilé depuis ses sources sous Linux :
+  - assistant terminé ; compte administrateur créé ; bibliothèques Films (movies), Séries et Animes (tvshows) sur les bons chemins ; langue fr/FR ; accès distant désactivé ;
+  - `MediaLibraries.FromJellyfin` retrouve les trois dossiers pour TorLink ;
+  - une reprise avec le même compte aboutit ; avec un autre mot de passe, elle est refusée proprement ;
+  - pendant son démarrage, le serveur répond 503 : ce cas est géré.
+- Nouveaux tests :
+  - assistant rempli par un faux serveur aux réponses relevées sur Jellyfin 12.1 ;
+  - reprise sans bibliothèque en double ; autre mot de passe refusé ; échec d’une bibliothèque signalé ;
+  - compte invalide refusé sans requête ; chemin avec virgule ; serveur absent ou autre programme sur le port.
+  - Sous Windows (CI) : droit de lecture du service sur la racine, puis sur un fichier lié et un fichier déplacé ; pas d’ajout de droit dans un dossier qui ne le donne pas.
+- Non vérifié :
+  - le téléchargement depuis `repo.jellyfin.org` (inaccessible depuis le conteneur) ;
+  - l’installation silencieuse et l’autorisation Windows sur un vrai PC ;
+  - la lecture des dossiers par le service ;
+  - l’écran lui-même.
+
 ## Moteur mpv installé par Mira (non publié)
 
 - Build figée : `mpv-dev-x86_64-20260927-git-a1bf4b6559.7z` (31 487 676 octets). Téléchargée depuis `downloads.sourceforge.net` (redirection vers un miroir) : ses SHA-1 et MD5 sont ceux que publie SourceForge pour ce fichier. SHA-256 figés : archive `3a80c48d…74ac5c`, `libmpv-2.dll` `0a81c004…de6f6a` (120 812 544 octets, identique à l’extraction par 7-Zip).

@@ -50,8 +50,8 @@ public static class MediaImporter
                 try
                 {
                     Directory.CreateDirectory(target.DirectoryName!);
-                    if (mode == ImportMode.Move && SameVolume(source.FullName, destination)) { File.Move(source.FullName, destination, false); moved = true; }
-                    else if (mode == ImportMode.KeepSeeding && TryHardLink(source.FullName, destination)) linked = true;
+                    if (mode == ImportMode.Move && SameVolume(source.FullName, destination)) { File.Move(source.FullName, destination, false); moved = true; JellyfinServiceAccess.ShareWithFolder(destination); }
+                    else if (mode == ImportMode.KeepSeeding && TryHardLink(source.FullName, destination)) { linked = true; JellyfinServiceAccess.ShareWithFolder(destination); }
                     else
                     {
                         await CopyAsync(source.FullName, destination, ct);

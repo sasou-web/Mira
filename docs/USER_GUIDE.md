@@ -6,6 +6,8 @@ Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vi
 
 Ouvrir **`dist/Mira/Mira.exe`**. L’adresse proposée est `http://127.0.0.1:8096` : Jellyfin reste lancé en arrière-plan sur le PC. Se connecter avec son compte Jellyfin, ou choisir **Explorer la démo** pour découvrir l’interface avec des titres et illustrations fictifs.
 
+Sans serveur, **Pas encore de serveur ? Installer Jellyfin sur ce PC** installe Jellyfin et crée `Films`, `Séries` et `Animes` dans `Vidéos\Jellyfin`, ou dans un autre dossier choisi. Il configure aussi Jellyfin en français avec ton compte, puis te connecte. Windows demande une autorisation pendant l’installation. Détails dans [INSTALLATION.md](INSTALLATION.md#installer-jellyfin-depuis-mira).
+
 Le moteur vidéo mpv s’installe depuis l’installateur (case cochée par défaut), depuis **Réglages → Lecture → Installer le moteur mpv**, ou en un clic à la première lecture : Mira télécharge une build Windows précise de mpv (31 Mo), vérifie ses empreintes et la range dans `data\mpv`. Un moteur déjà installé avec Jellyfin MPV Shim ou mpv.net est détecté et réutilisé ; un autre `mpv-2.dll` ou `libmpv-2.dll` 64 bits peut être sélectionné dans **Réglages**. Mira charge directement la bibliothèque vidéo. La version publiée inclut le runtime .NET.
 
 ## Disponible

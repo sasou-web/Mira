@@ -244,7 +244,7 @@
    </Grid>
    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="38,40,0,0" IsHitTestVisible="False"><v:Icon Kind="brand" Width="31" Height="31"/><TextBlock Text="mira" FontSize="25" FontWeight="ExtraBold" Margin="12,-1,0,0"/></StackPanel>
    <Button x:Name="BackToLibrary" Style="{StaticResource Quiet}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,42,38,0" Padding="13,8" Click="CloseAccount_Click" ToolTip="Retour à la bibliothèque · Échap" AutomationProperties.Name="Retour à la bibliothèque" Visibility="Collapsed"><StackPanel Orientation="Horizontal"><v:Icon Kind="back" Width="15" Height="15" Margin="0,0,7,0"/><TextBlock Text="Bibliothèque" FontSize="12"/></StackPanel></Button>
-   <ScrollViewer x:Name="LoginScroll" Margin="24,95,24,24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+   <ScrollViewer x:Name="LoginScroll" Margin="24,95,24,24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><Grid>
     <Border x:Name="LoginPanel" Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="36,32" Background="#EE101012" BorderBrush="#29292D" BorderThickness="1" CornerRadius="20">
      <StackPanel>
       <TextBlock Text="Retrouve ta&#10;bibliothèque." FontSize="32" LineHeight="36" FontWeight="Bold" Margin="0,0,0,12"/>
@@ -259,9 +259,25 @@
       <Button x:Name="ConnectButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="Connect_Click" Height="46" Margin="0,24,0,0"><StackPanel Orientation="Horizontal"><TextBlock x:Name="ConnectText" Text="Ouvrir ma bibliothèque" FontSize="13"/><v:Icon Kind="next" Width="16" Height="16" Margin="10,0,0,0"/></StackPanel></Button>
       <Button Content="Essayer sans se connecter" Style="{StaticResource Quiet}" Click="Demo_Click" FontSize="12" Foreground="#B7B7BE" Margin="0,10,0,0" Height="40"/>
       <Button x:Name="LogoutButton" Content="Déconnecter ce compte" Style="{StaticResource Quiet}" Click="Logout_Click" FontSize="12" Foreground="#A2A2AA" Margin="0,3,0,0" Visibility="Collapsed"/>
+      <Button x:Name="ServerSetupLink" Content="Pas encore de serveur ? Installer Jellyfin sur ce PC" Style="{StaticResource Quiet}" Click="ServerSetupOpen_Click" FontSize="12" Foreground="#A2A2AA" Margin="0,3,0,0" Height="40"/>
      </StackPanel>
     </Border>
-   </ScrollViewer>
+    <Border x:Name="ServerSetupPanel" Visibility="Collapsed" Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="36,32" Background="#EE101012" BorderBrush="#29292D" BorderThickness="1" CornerRadius="20">
+     <StackPanel>
+      <TextBlock Text="Ton serveur Jellyfin,&#10;prêt en quelques minutes." FontSize="28" LineHeight="33" FontWeight="Bold" Margin="0,0,0,12"/>
+      <TextBlock Text="Mira installe Jellyfin sur ce PC, crée les dossiers Films, Séries et Animes, le configure en français et te connecte. Windows te demandera une autorisation pendant l’installation." FontSize="13" LineHeight="20" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,26"/>
+      <TextBlock Text="Dossier de tes vidéos" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
+      <DockPanel Margin="0,0,0,19"><Button x:Name="SetupFolderBrowse" Content="Parcourir" DockPanel.Dock="Right" Margin="10,0,0,0" Click="SetupFolderBrowse_Click"/><TextBox x:Name="SetupFolderBox" Height="44" FontSize="13" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Dossier de tes vidéos"/></DockPanel>
+      <TextBlock Text="Ton nom d’utilisateur Jellyfin" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
+      <TextBox x:Name="SetupUserBox" Height="44" FontSize="13" Margin="0,0,0,19" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Nom d’utilisateur Jellyfin"/>
+      <TextBlock Text="Son mot de passe" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
+      <PasswordBox x:Name="SetupPasswordBox" Height="44" FontSize="13" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Mot de passe Jellyfin"/>
+      <TextBlock x:Name="SetupStatus" FontSize="12" TextWrapping="Wrap" Margin="0,14,0,0" Foreground="#C5C5CA" AutomationProperties.LiveSetting="Polite"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+      <Button x:Name="SetupStartButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="ServerSetupStart_Click" Height="46" Margin="0,22,0,0"><TextBlock x:Name="SetupStartText" Text="Installer et configurer" FontSize="13"/></Button>
+      <Button x:Name="SetupBackButton" Content="Retour à la connexion" Style="{StaticResource Quiet}" Click="ServerSetupBack_Click" FontSize="12" Foreground="#B7B7BE" Margin="0,10,0,0" Height="40"/>
+     </StackPanel>
+    </Border>
+   </Grid></ScrollViewer>
   </Grid>
 
   <Grid x:Name="TitleBar" Panel.ZIndex="80" Background="Transparent"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right" shell:WindowChrome.IsHitTestVisibleInChrome="True"><Button Width="46" Height="32" Padding="0" Style="{StaticResource Quiet}" Click="Minimize_Click" ToolTip="Réduire la fenêtre" AutomationProperties.Name="Réduire la fenêtre"><v:Icon Kind="minus" Width="16" Height="16"/></Button><Button x:Name="MaximizeButton" Width="46" Height="32" Padding="0" Style="{StaticResource Quiet}" Click="Maximize_Click" ToolTip="Agrandir la fenêtre" AutomationProperties.Name="Agrandir la fenêtre"><v:Icon x:Name="MaximizeIcon" Kind="maximize" Width="15" Height="15"/></Button><Button Width="46" Height="32" Padding="0" Style="{StaticResource Quiet}" Click="Close_Click" ToolTip="Fermer Mira" AutomationProperties.Name="Fermer Mira"><v:Icon Kind="close" Width="17" Height="17"/></Button></StackPanel></Grid>
