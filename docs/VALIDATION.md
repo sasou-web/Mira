@@ -4,6 +4,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 
 ## Accueil, guide et nouveautés 0.5.5
 
+- Release v0.5.5 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.5, avec la taille et le SHA-256 des trois paquets tels que GitHub les donne ; sa signature est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`. La page de release porte le texte court tiré de `WhatsNew.json` : résumé, quatre points et lien vers le CHANGELOG.
 - Choix de l’écran à l’ouverture testé :
   - profil neuf → bienvenue ;
   - profil existant sans trace (mise à jour depuis 0.5.4 ou avant) → nouveautés de la version en cours ;
