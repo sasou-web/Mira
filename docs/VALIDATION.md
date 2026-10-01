@@ -4,7 +4,14 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 
 ## Installation de Jellyfin : corrections (non publié)
 
-- Premier essai réel, sur le PC de l’utilisateur : l’installateur de Jellyfin a affiché « Could not start the Jellyfin Server service ». La cause n’est pas encore connue.
+- Premier essai réel, sur le PC de l’utilisateur (Windows 11, 10.0.26200) : l’installateur de Jellyfin a affiché « Could not start the Jellyfin Server service », et Mira s’est arrêté.
+  - Le journal Application de Windows ne montre pourtant qu’un démarrage du service, réussi (nssm : « Démarrage réussi », 19 h 37). Le message de l’installateur était donc une fausse alerte : `nssm start` rend la main avant que le service tourne.
+  - Au second essai, Mira a trouvé Jellyfin en marche et terminé la configuration : connexion du compte et analyse des bibliothèques visibles dans le journal de Jellyfin.
+  - Le même journal montrait « Token is required » sur `/socket` toutes les 30 s : l’écoute en temps réel de Mira était refusée.
+- Écoute en temps réel, reproduite sur un vrai Jellyfin 12.1 :
+  - `/socket?api_key=…` reçoit 403 et le journal écrit « Token is required ». Le code de 12.1 n’accepte `api_key` qu’avec `EnableLegacyAuthorization`, désactivé par défaut.
+  - Avec la session dans l’en-tête `Authorization`, la connexion est acceptée (« WS request » dans le journal).
+  - Nouveau test : un serveur WebSocket local vérifie que l’adresse est `/socket` sans jeton, que l’en-tête porte la session et qu’un changement de bibliothèque arrive. Il échoue sur l’ancien code.
 - Relu dans le script de l’installateur (`jellyfin.nsi`) :
   - pas de `SetRegView 64` : la clé `Software\Jellyfin\Server` est écrite sous `WOW6432Node`, que Mira ne lisait pas ;
   - en mise à jour silencieuse d’un Jellyfin existant, l’installateur continue sans demander (`/SD IDOK`) ;

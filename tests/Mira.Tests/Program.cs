@@ -187,6 +187,29 @@ await Test("Recherche du serveur : première adresse Jellyfin dans l’ordre, au
     await Refused("https://nas", Serve(_ => throw new HttpRequestException("TLS", new System.Security.Authentication.AuthenticationException())), "certificat");
     await Refused("nas", Serve(_ => throw new HttpRequestException("refusé")), "Aucun serveur Jellyfin");
 });
+await Test("Écoute de Jellyfin : la session part dans l’en-tête, jamais dans l’adresse (Jellyfin 10.11 et suivants)", async () =>
+{
+    // Jellyfin 10.11+ answers 403 "Token is required" to /socket?api_key=… unless legacy authorization is on.
+    using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0); listener.Start();
+    var port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
+    using var server = new HttpListener(); server.Prefixes.Add($"http://127.0.0.1:{port}/"); server.Start();
+    string? url = null, authorization = null;
+    var serving = Task.Run(async () =>
+    {
+        var context = await server.GetContextAsync();
+        url = context.Request.RawUrl; authorization = context.Request.Headers["Authorization"];
+        var socket = (await context.AcceptWebSocketAsync(null)).WebSocket;
+        await socket.SendAsync(Encoding.UTF8.GetBytes("{\"MessageType\":\"LibraryChanged\",\"Data\":{}}"), System.Net.WebSockets.WebSocketMessageType.Text, true, default);
+        await Task.Delay(500);
+    });
+    using var client = new JellyfinClient(new Connection($"http://127.0.0.1:{port}/", "user-1", "Alice", "jeton-secret", "device-1"));
+    using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10)); var changed = 0;
+    var listening = client.ListenAsync(() => { changed++; stop.Cancel(); }, stop.Token);
+    try { await listening; } catch (OperationCanceledException) { }
+    await serving.WaitAsync(TimeSpan.FromSeconds(5)); server.Stop();
+    Assert(changed == 1, "The library change was not received");
+    Assert(url == "/socket" && authorization is { } header && header.Contains("Token=\"jeton-secret\"") && header.Contains("Client=\"Mira\""), $"Socket request: {url} | {authorization}");
+});
 await Test("Authentification : corps JSON, jeton dans l’en-tête, recherche encodée", async () =>
 {
     var requests = new List<(string Url, string Header, string Body)>();

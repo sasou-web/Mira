@@ -188,9 +188,10 @@ public sealed class JellyfinClient : IDisposable
             try
             {
                 using var socket = new ClientWebSocket();
-                // Jellyfin's WebSocket protocol requires its token in the connection URI. Never log this URI.
+                // The session goes in the Authorization header, as for every other request. Jellyfin 10.11 and later
+                // refuse an "api_key" in the address unless legacy authorization is turned on ("Token is required").
+                socket.Options.SetRequestHeader("Authorization", AuthorizationHeader);
                 var b = new UriBuilder(new Uri(_http.BaseAddress!, "socket")) { Scheme = _http.BaseAddress!.Scheme == "https" ? "wss" : "ws" };
-                b.Query = $"api_key={Uri.EscapeDataString(Connection.Token)}&deviceId={Uri.EscapeDataString(Connection.DeviceId)}";
                 await socket.ConnectAsync(b.Uri, ct);
                 using var heartbeatStop = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 var heartbeat = KeepAliveAsync(socket, heartbeatStop.Token);

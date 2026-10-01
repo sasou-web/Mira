@@ -44,9 +44,10 @@ internal static class JellyfinInstaller
     /// <summary>
     /// Downloads the installer into the profile, checks its SHA-256, runs it silently (Windows asks for the administrator's
     /// consent) and deletes it. The silent installer sets Jellyfin up as a service that starts with Windows.
-    /// <paramref name="progress"/> covers the download; it reaches 1 when Windows asks for that consent.
+    /// <paramref name="progress"/> covers the download; it reaches 1 when Windows asks for that consent. Returns the
+    /// installer's exit code: it can report a failure while Jellyfin did install (see the caller).
     /// </summary>
-    public static async Task InstallAsync(string profile, IProgress<double>? progress = null, CancellationToken ct = default)
+    public static async Task<int> InstallAsync(string profile, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         var package = JellyfinServerPackage.Current;
         var folder = Path.Combine(profile, "downloads"); Directory.CreateDirectory(folder);
@@ -63,7 +64,7 @@ internal static class JellyfinInstaller
             {
                 if (process is null) throw new InstallException("L’installateur de Jellyfin n’a pas pu démarrer.");
                 await process.WaitForExitAsync(ct);
-                if (process.ExitCode != 0) throw new InstallException($"L’installateur de Jellyfin s’est arrêté sans terminer (code {process.ExitCode}).");
+                return process.ExitCode;
             }
         }
         finally { TryDelete(partial); TryDelete(setup); }
