@@ -67,8 +67,9 @@ try {
         Write-Warning 'Inno Setup 6 (ISCC.exe) not found: the installer was not built. Install it or pass -Iscc <path>.'
     }
 
-    # The release page says what changes in a few lines; the details stay in CHANGELOG.md.
-    if (-not $Output) {
+    # The release page says what changes in a few lines; the details stay in CHANGELOG.md. Only for release builds:
+    # PowerShell names ignore case, so $Output itself now holds the packages folder and cannot tell a test build.
+    if (-not $PSBoundParameters.ContainsKey('Output')) {
         dotnet run --project (Join-Path $workspace 'tools/Mira.Release/Mira.Release.csproj') -c $Configuration -- notes --version $version --out (Join-Path $workspace ".artifacts/release-notes-$version.md")
         if ($LASTEXITCODE -ne 0) { Write-Warning "No release notes for ${version}: add its entry to src/Mira.Core/WhatsNew.json." }
     }
