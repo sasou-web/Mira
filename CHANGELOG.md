@@ -1,6 +1,6 @@
 # Historique
 
-## Non publié
+## 0.5.4 — 2026-10-01
 
 Jellyfin et le moteur vidéo s’installent depuis Mira, et des pannes rares qui pouvaient bloquer Mira sont maintenant contenues.
 
