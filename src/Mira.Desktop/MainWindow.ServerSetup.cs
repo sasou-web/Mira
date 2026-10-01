@@ -74,14 +74,13 @@ public partial class MainWindow
                     if (JellyfinSetup.PortInUse(server.Port))
                         throw new InstallException("Le port 8096, celui de Jellyfin, est déjà pris sur ce PC, peut-être par un autre Jellyfin. Ferme le programme qui l’utilise, puis réessaie.");
                     var version = JellyfinServerPackage.Current.Version; SetupStatus.Text = $"Téléchargement de Jellyfin {version}…";
-                    try
-                    {
-                        await JellyfinInstaller.InstallAsync(_profile.DirectoryPath, new Progress<double>(p => SetupStatus.Text = p < 1
-                            ? $"Téléchargement de Jellyfin {version}… {Math.Floor(p * 100):0} %"
-                            : "Installation de Jellyfin : accepte la demande d’autorisation de Windows…"));
-                    }
-                    // Its own message ("Could not start the Jellyfin Server service") says nothing of the cause; its log does.
-                    catch (InstallException ex) { throw new InstallException(ex.Message + LoggedCause(started, orWhere: false)); }
+                    var code = await JellyfinInstaller.InstallAsync(_profile.DirectoryPath, new Progress<double>(p => SetupStatus.Text = p < 1
+                        ? $"Téléchargement de Jellyfin {version}… {Math.Floor(p * 100):0} %"
+                        : "Installation de Jellyfin : accepte la demande d’autorisation de Windows. S’il affiche « Could not start the Jellyfin Server service », choisis Ignorer : Mira vérifie lui-même son démarrage."));
+                    // "Could not start the Jellyfin Server service" can come while the service does start ("nssm start" gives
+                    // up before it runs; seen on a real PC): once installed, whether Jellyfin answers is what counts.
+                    if (code != 0 && !JellyfinInstaller.IsInstalled())
+                        throw new InstallException($"L’installateur de Jellyfin s’est arrêté sans terminer (code {code})." + LoggedCause(started, orWhere: false));
                     installed = true;
                 }
                 SetupStatus.Text = existing && probe.Answer == ServerAnswer.Nothing ? "Jellyfin est déjà installé sur ce PC : attente de son démarrage…"
