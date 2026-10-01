@@ -10,10 +10,13 @@ public sealed class LocalProfile
 {
     public string DirectoryPath { get; }
     public string DeviceId { get; }
+    /// <summary>True when Mira had never opened this profile: no settings and no session yet (read before anything is written).</summary>
+    public bool IsNew { get; }
     public LocalProfile(string? path = null)
     {
         DirectoryPath = path ?? Path.Combine(AppContext.BaseDirectory, "data");
         Directory.CreateDirectory(DirectoryPath);
+        IsNew = !File.Exists(Path.Combine(DirectoryPath, "settings.json")) && !File.Exists(Path.Combine(DirectoryPath, "session.protected"));
         var deviceFile = Path.Combine(DirectoryPath, "device-id");
         var stored = File.Exists(deviceFile) ? File.ReadAllText(deviceFile).Trim() : "";
         // An empty file (cut off while being written) would send Jellyfin an empty device id: start a new one.

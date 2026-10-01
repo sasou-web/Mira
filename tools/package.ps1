@@ -5,6 +5,7 @@ param([string]$Configuration = 'Release', [string]$Iscc = '', [string]$SigningKe
 #   Mira-<version>-win-x64-setup.exe      per-user installer (Inno Setup 6), when ISCC.exe is available
 #   mira-update.json + .sig               signed manifest of those files, read by the automatic updates, when the
 #                                         signing key is on this PC (tools/Mira.Release; default %APPDATA%\Mira Release)
+# and .artifacts/release-notes-<version>.md, the release page's short text (the version's entry in WhatsNew.json).
 # -Version and -Output build test packages under another version number and folder (update checks), never in dist.
 $ErrorActionPreference = 'Stop'
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -64,6 +65,12 @@ try {
         Write-Hash (Join-Path $output "Mira-$version-win-x64-setup.exe")
     } else {
         Write-Warning 'Inno Setup 6 (ISCC.exe) not found: the installer was not built. Install it or pass -Iscc <path>.'
+    }
+
+    # The release page says what changes in a few lines; the details stay in CHANGELOG.md.
+    if (-not $Output) {
+        dotnet run --project (Join-Path $workspace 'tools/Mira.Release/Mira.Release.csproj') -c $Configuration -- notes --version $version --out (Join-Path $workspace ".artifacts/release-notes-$version.md")
+        if ($LASTEXITCODE -ne 0) { Write-Warning "No release notes for ${version}: add its entry to src/Mira.Core/WhatsNew.json." }
     }
 
     # Installed copies update themselves only from a release whose mira-update.json is signed by a key they trust.

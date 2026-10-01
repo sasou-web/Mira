@@ -349,6 +349,7 @@ public partial class MainWindow
         // Alt+← and the browser "back" key behave like Escape and the mouse's back button.
         if (IsBackKey(e)) { if (GoBack()) e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
+        if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { OpenGuide(); e.Handled = true; return; }
         if (e.OriginalSource is TextBox or System.Windows.Controls.PasswordBox || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.
         if (e.Key == Key.I && !e.IsRepeat) { SetMiniPlayer(!_miniPlayer); e.Handled = true; }
@@ -359,6 +360,10 @@ public partial class MainWindow
     private bool GoBack()
     {
         if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.IsOpen = false; return true; }
+        if (WhatsNewOverlay.Visibility == Visibility.Visible && WhatsNewOverlay.IsHitTestVisible) { _ = CloseWhatsNewAsync(); return true; }
+        // From the welcome, one step back is the sign-in form it leads to.
+        if (WelcomeOverlay.Visibility == Visibility.Visible && WelcomeOverlay.IsHitTestVisible) { WelcomeConnect_Click(this, new()); return true; }
+        if (GuideOverlay.Visibility == Visibility.Visible && GuideOverlay.IsHitTestVisible) { _ = CloseGuideAsync(); return true; }
         if (LoginOverlay.Visibility == Visibility.Visible)
         {
             // From the Jellyfin setup, one step back is the sign-in form (nothing while an installation runs).

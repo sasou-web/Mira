@@ -106,7 +106,8 @@ public partial class MainWindow
     private void UpdateHeroClock()
     {
         UpdateHeroSegments();
-        var enabled = !_closing && IsActive && _view == "home" && LibraryShell.IsVisible && DetailOverlay.Visibility != Visibility.Visible && SettingsOverlay.Visibility != Visibility.Visible && TorLinkOverlay.Visibility != Visibility.Visible && LoginOverlay.Visibility != Visibility.Visible && !_playing && _settings.HeroAutoPlay && !Motion.Reduced && _heroCandidates.Count > 1;
+        var enabled = !_closing && IsActive && _view == "home" && LibraryShell.IsVisible && DetailOverlay.Visibility != Visibility.Visible && SettingsOverlay.Visibility != Visibility.Visible && TorLinkOverlay.Visibility != Visibility.Visible && LoginOverlay.Visibility != Visibility.Visible
+            && GuideOverlay.Visibility != Visibility.Visible && WelcomeOverlay.Visibility != Visibility.Visible && WhatsNewOverlay.Visibility != Visibility.Visible && !_playing && _settings.HeroAutoPlay && !Motion.Reduced && _heroCandidates.Count > 1;
         if (enabled == _heroClockAttached) return;
         _heroClockAttached = enabled;
         if (enabled) { _heroLastFrame = Stopwatch.GetTimestamp(); CompositionTarget.Rendering += HeroFrame; }

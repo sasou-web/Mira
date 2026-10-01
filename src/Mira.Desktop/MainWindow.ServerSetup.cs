@@ -114,7 +114,7 @@ public partial class MainWindow
             _profile.SaveConnection(connection); SetupPasswordBox.Clear();
             _serverSetupBusy = false; ShowSignInForm();
             await ActivateConnectionAsync(connection);
-            SetNotice($"Jellyfin est prêt. Range tes vidéos dans {folders.Root} : Films, Séries ou Animes.");
+            OpenGuide($"Jellyfin est installé et configuré. Range tes vidéos dans {folders.Root} : voici comment, et tout ce qu’il faut savoir pour la suite.");
         }
         catch (Exception ex) when (ex is InstallException or ArgumentException) { SetupFailed(ex.Message); }
         catch (Exception ex) when (IsExpected(ex)) { SetupFailed(Friendly(ex)); }

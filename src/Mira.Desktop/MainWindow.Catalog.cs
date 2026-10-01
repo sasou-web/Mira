@@ -49,8 +49,8 @@ public partial class MainWindow
     {
         if (SettingsOverlay.Visibility == Visibility.Visible) AutoSaveSettings();
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
-        var closing = Task.WhenAll(Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay), Motion.HideAsync(TorLinkOverlay));
-        DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = false;
+        var closing = Task.WhenAll(Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay), Motion.HideAsync(TorLinkOverlay), Motion.HideAsync(GuideOverlay));
+        DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = GuideOverlay.IsHitTestVisible = false;
         _catalogLoading = true;
         var key = $"{_view}:{_parentId}:{SearchBox.Text.Trim()}:{CurrentQuery().CacheKey}";
         var cached = _store?.Load<ItemsResult>(_view == "home" ? "home" : key);
@@ -62,11 +62,12 @@ public partial class MainWindow
     }
     private void UpdateNavigation()
     {
-        var settings = SettingsOverlay.IsHitTestVisible && SettingsOverlay.Visibility == Visibility.Visible;
-        var torlink = !settings && TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
-        foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, TorLinkNav, SettingsNav })
+        var guide = GuideOverlay.IsHitTestVisible && GuideOverlay.Visibility == Visibility.Visible;
+        var settings = !guide && SettingsOverlay.IsHitTestVisible && SettingsOverlay.Visibility == Visibility.Visible;
+        var torlink = !guide && !settings && TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
+        foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, TorLinkNav, GuideNav, SettingsNav })
         {
-            var active = settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _view;
+            var active = guide ? button == GuideNav : settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _view;
             button.Background = active ? Brush("#F4F4F5") : Brushes.Transparent;
             button.Foreground = active ? Brush("#151516") : Brush("#B8B8BE");
         }
@@ -124,14 +125,18 @@ public partial class MainWindow
     {
         var query = CurrentQuery();
         var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || _parentId is not null;
+        // Nothing at all in the library (not a search, a filter or the favourites): where videos go is what is missing.
+        var emptyLibrary = !_demo && search.Length == 0 && !filtered && _view is "home" or "library" && _resume.Count == 0;
         (EmptyIcon.Kind, EmptyTitle.Text, EmptyHint.Text) = (_view, search.Length, filtered) switch
         {
             (_, > 0, _) => ("search", $"Aucun résultat pour « {search} »", "Vérifie l’orthographe ou essaie un autre titre."),
             (_, _, true) => ("sliders", "Aucun titre ne correspond à ces filtres", "Élargis ta sélection pour retrouver tes titres."),
             ("favorites", _, _) => ("bookmark", "Aucun favori pour l’instant", "Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici."),
+            _ when emptyLibrary => ("folder", "Ta bibliothèque est encore vide", "Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici tout seuls, avec leurs affiches."),
             _ => ("library", "Rien à afficher ici", "Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.")
         };
         EmptyReset.Visibility = filtered || search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyGuide.Visibility = emptyLibrary ? Visibility.Visible : Visibility.Collapsed;
     }
     private void UpdateResumeArrows()
     {
