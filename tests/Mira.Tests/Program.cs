@@ -397,6 +397,52 @@ await Test("Cache de bibliothèque illisible : mis de côté et recréé, le com
     Assert(store.DamagedCopy is { } copy && File.Exists(copy) && File.ReadAllText(copy).StartsWith("Pas une base"), "The damaged file was not kept aside");
     return Task.CompletedTask;
 });
+await Test("Moteur mpv : téléchargé, vérifié et extrait dans le profil ; altéré ou incomplet, jamais installé", async () =>
+{
+    // A small archive shaped like mpv's Windows builds: libmpv-2.dll and its headers.
+    var archive = Convert.FromBase64String("N3q8ryccAAQSc70DwgAAAAAAAAAiAAAAAAAAABwWbsgBADQvKiBlbi10ZXRlICovCmZhdXggbW90ZXVyIG1wdiBwb3VyIGxlcyB0ZXN0cyBkZSBNaXJhCgAAAIEzB64P0YkKnKCQoHdexUAYjoQJNqTpTtdkwHH/AlkW0BAA/Bkz01eGX3Anuuait2gpZTXZf9jAC7J3/dXvw+tz35fkNTgXZ9k+YJs57syaM+RclR0pc/nBp46uaTmsVW1bYGi/WuClG7sn7CLBB8/0KodMIp0c0SrMXAIplkuFPaS65AAAABcGOQEJgIkABwsBAAEjAwEBBV0AEAAADIDWCgF5nvznAAA=");
+    MpvPackage Package(string? libraryHash = null) => new("test-1", new("https://downloads.example.test/mpv/mpv-dev-test.7z"), archive.Length,
+        "9ec0036370600d637114441debcdd6ba663a3b295264dff5240c28557c7f934d", libraryHash ?? "7306c02a18fb46f612ba938a15f9e7b8c0313c1f1e1eb67ead4565729a7403c2");
+    var requests = 0; var served = archive; var status = HttpStatusCode.OK;
+    var handler = new Handler(_ => { Interlocked.Increment(ref requests); return Task.FromResult(new HttpResponseMessage(status) { Content = new ByteArrayContent(served) }); });
+    var profile = Path.Combine(testRoot, "engine");
+    var path = await MpvInstaller.InstallAsync(profile, Package(), handler);
+    Assert(path == MpvInstaller.LibraryPath(profile) && File.ReadAllText(path) == "faux moteur mpv pour les tests de Mira\n" && MpvInstaller.IsInstalled(profile, Package()), "Engine not installed");
+    var kept = Directory.GetFiles(MpvInstaller.Folder(profile)).Select(Path.GetFileName).Order().ToArray();
+    Assert(kept.SequenceEqual(new[] { "libmpv-2.dll", "SOURCE.txt", "version.txt" }.Order()), "Unexpected files: " + string.Join(", ", kept));
+    await MpvInstaller.InstallAsync(profile, Package(), handler);
+    Assert(requests == 1 && !MpvInstaller.IsInstalled(profile, Package() with { Version = "test-2" }), "Installed engine downloaded again, or another version taken for it");
+    async Task Refused(string folder, MpvPackage package, string expected)
+    {
+        var target = Path.Combine(testRoot, folder);
+        try { await MpvInstaller.InstallAsync(target, package, handler); throw new Exception("Installed: " + folder); }
+        catch (MpvInstallException ex) { Assert(ex.Message.Contains(expected), $"{folder}: {ex.Message}"); }
+        Assert(!MpvInstaller.IsInstalled(target, package) && !Directory.EnumerateFiles(MpvInstaller.Folder(target)).Any(), folder + " left files behind");
+    }
+    served = archive.ToArray(); served[^8] ^= 0xFF;
+    await Refused("engine-altered", Package(), "ne correspond pas à la version vérifiée");
+    served = [.. archive, 0, 0, 0];
+    await Refused("engine-longer", Package(), "n’est pas celui attendu");
+    served = archive;
+    await Refused("engine-library", Package(new string('0', 64)), "extrait ne correspond pas");
+    status = HttpStatusCode.NotFound;
+    await Refused("engine-missing", Package(), "404");
+    var current = MpvPackage.Current;
+    Assert(current.Url.Scheme == "https" && current.ArchiveName.EndsWith(".7z") && current.ArchiveSha256.Length == 64 && current.LibrarySha256.Length == 64 && current.Size > 1_000_000, "Pinned engine");
+});
+await Test("Moteur mpv : celui installé par Mira est trouvé, un chemin choisi passe avant", () =>
+{
+    var saved = AppFiles.ProfileDirectory;
+    try
+    {
+        AppFiles.ProfileDirectory = Path.Combine(testRoot, "engine-profile");
+        var installed = MpvInstaller.LibraryPath(AppFiles.ProfileDirectory); Directory.CreateDirectory(Path.GetDirectoryName(installed)!); File.WriteAllText(installed, "x");
+        var chosen = Path.Combine(testRoot, "engine-chosen.dll"); File.WriteAllText(chosen, "x");
+        Assert(MpvEngine.FindLibrary() == installed && MpvEngine.FindLibrary(chosen) == chosen, "Engine lookup order");
+    }
+    finally { AppFiles.ProfileDirectory = saved; }
+    return Task.CompletedTask;
+});
 await Test("Session protégée par Windows, mot de passe absent du stockage", () =>
 {
     var profile = new LocalProfile(Path.Combine(testRoot, "protected")); var connection = new Connection("http://localhost/", "user", "Alice", "secret-session-token", profile.DeviceId);

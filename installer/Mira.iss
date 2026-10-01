@@ -54,11 +54,19 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 french.MiraRegister=Ajout de Mira au menu Démarrer…
 english.MiraRegister=Adding Mira to the Start menu…
-french.MiraDeleteData=Supprimer aussi les données de Mira (session Jellyfin, préférences, cache et journal TorLink) ?%n%nSinon, elles restent dans %1 et servent à la prochaine installation.
-english.MiraDeleteData=Also delete Mira's data (Jellyfin session, preferences, cache and TorLink log)?%n%nOtherwise they stay in %1 for a later installation.
+french.MiraDeleteData=Supprimer aussi les données de Mira (session Jellyfin, préférences, cache, moteur vidéo et journal TorLink) ?%n%nSinon, elles restent dans %1 et servent à la prochaine installation.
+english.MiraDeleteData=Also delete Mira's data (Jellyfin session, preferences, cache, video engine and TorLink log)?%n%nOtherwise they stay in %1 for a later installation.
+french.MiraEngineGroup=Lecture :
+english.MiraEngineGroup=Playback:
+french.MiraEngineTask=Télécharger le moteur vidéo mpv (31 Mo), nécessaire à la lecture
+english.MiraEngineTask=Download the mpv video engine (31 MB), needed for playback
+french.MiraEngineStatus=Téléchargement et vérification du moteur vidéo mpv…
+english.MiraEngineStatus=Downloading and checking the mpv video engine…
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+; Mira fetches the pinned libmpv build itself (checked by SHA-256) into data\mpv; an engine already on the PC is kept.
+Name: "mpvengine"; Description: "{cm:MiraEngineTask}"; GroupDescription: "{cm:MiraEngineGroup}"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "\data,\data\*"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -67,6 +75,8 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "\data,\data\*"; Flags: ig
 ; Mira writes its own Start menu shortcut and Windows identity, as on its first launch.
 Filename: "{app}\Mira.exe"; Parameters: "--register-windows"; StatusMsg: "{cm:MiraRegister}"; Flags: runhidden waituntilterminated
 Filename: "{app}\Mira.exe"; Parameters: "--register-windows --shortcut ""{userdesktop}\Mira.lnk"""; Tasks: desktopicon; Flags: runhidden waituntilterminated
+; A failed download does not stop Setup: Mira offers the engine again before the first playback.
+Filename: "{app}\Mira.exe"; Parameters: "--install-engine"; StatusMsg: "{cm:MiraEngineStatus}"; Tasks: mpvengine; Flags: runhidden waituntilterminated
 Filename: "{app}\Mira.exe"; Description: "{cm:LaunchProgram,Mira}"; Flags: nowait postinstall skipifsilent
 
 

@@ -17,7 +17,7 @@ Mira.Desktop (WPF)
   │   ├─ TorLink : page TorLink, surveillance des téléchargements terminés, liste « Vers Jellyfin »
   ├─ Themes/Cinema.xaml : composants, couleurs, focus et contrôles sombres
   ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions et défilement progressif
-  ├─ Playback/MpvEngine : API C libmpv, rendu dans un HWND enfant
+  ├─ Playback/MpvEngine : API C libmpv, rendu dans un HWND enfant, recherche du moteur (choisi, installé par Mira, connu)
   ├─ Playback/WindowFrame : coins, contour DWM et marges de fenêtre agrandie
   ├─ Playback/FullscreenWindow : limites du moniteur et restauration de fenêtre
   ├─ Playback/PlayerOverlay : couche native de commandes et réception de la souris
@@ -30,6 +30,7 @@ Mira.Core
   ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques et version minimale
   ├─ LibraryStore : cache SQLite, progression locale et file persistante
   ├─ DiskCache : budget des fichiers d’images, les moins récemment utilisés d’abord
+  ├─ MpvPackage / MpvInstaller : build libmpv figée, téléchargement et extraction vérifiés dans data\mpv
   ├─ MotionState : interpolation du défilement et durée du carrousel, testables sans UI
   ├─ ContinueWatching : classement de la reprise par activité, une carte par série
   ├─ PlaybackMarkers : segments Jellyfin, titres de chapitres et passage actif
@@ -161,6 +162,8 @@ Les choix de pistes, paramètres avancés et sources multiples devront à terme 
 - `Mira-<version>-win-x64.zip` : le dossier de l’application, avec notices et licences.
 - `Mira-<version>-win-x64-portable.exe` : une publication en un seul fichier (`PublishSingleFile`, assemblages compressés, bibliothèques natives extraites par .NET au premier lancement). Rien n’y dépend de fichiers voisins : la page TorLink vient des ressources, et `AppFiles` écrit dans `data/app` les liaisons clavier de mpv et l’icône Windows intégrées. Le dossier `data` reste à côté de l’exécutable.
 - `Mira-<version>-win-x64-setup.exe` : l’installateur Inno Setup 6 (`installer/Mira.iss`) du dossier de l’application, pour l’utilisateur courant et sans droits administrateur, dans `%LOCALAPPDATA%\Programs\Mira`. Mira y écrit lui-même son raccourci Démarrer (`--register-windows`). Une mise à jour ferme Mira par le Restart Manager et garde `data` ; la désinstallation retire les raccourcis et l’identité Windows seulement s’ils désignent cette installation, et demande avant de supprimer `data`.
+
+**Moteur vidéo.** libmpv n’est pas dans ces fichiers. `MpvPackage.Current` fige une archive des builds Windows de mpv que liste mpv.io (shinchiro, sur SourceForge) : adresse, taille, SHA-256 de l’archive et de `libmpv-2.dll` ; ses SHA-1 et MD5 correspondent à ceux que SourceForge publie. `MpvInstaller` la télécharge (redirections vers les miroirs suivies, jamais vers HTTP ; taille et empreinte vérifiées au fil de l’eau ; transfert muet abandonné après 60 s), extrait la seule bibliothèque avec SharpCompress (LZMA2 et BCJ2), vérifie son empreinte, puis la range dans `data\mpv` avec `version.txt` et `SOURCE.txt`. L’archive et les fichiers `.partial` sont effacés dans tous les cas. `MpvEngine.FindLibrary` cherche le chemin choisi dans les réglages, puis ce moteur, puis les emplacements connus. L’installateur lance `Mira.exe --install-engine` (sans fenêtre, ni verrou d’instance) pour sa tâche « Télécharger le moteur vidéo mpv » ; un moteur déjà trouvé est gardé, et un échec ne bloque pas l’installation. La même tâche passe à chaque mise à jour silencieuse et ne télécharge rien quand un moteur existe.
 
 Aucun de ces fichiers n’est encore signé. Quand la clé de signature des mises à jour est sur le PC, `package.ps1` écrit aussi `mira-update.json` (version, nom, taille et SHA-256 de chaque fichier) et sa signature `mira-update.json.sig`, par `tools/Mira.Release`.
 

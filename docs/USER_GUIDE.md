@@ -6,7 +6,7 @@ Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vi
 
 Ouvrir **`dist/Mira/Mira.exe`**. L’adresse proposée est `http://127.0.0.1:8096` : Jellyfin reste lancé en arrière-plan sur le PC. Se connecter avec son compte Jellyfin, ou choisir **Explorer la démo** pour découvrir l’interface avec des titres et illustrations fictifs.
 
-Le moteur déjà installé avec Jellyfin MPV Shim ou mpv.net est détecté automatiquement. Un autre `mpv-2.dll` ou `libmpv-2.dll` 64 bits peut être sélectionné dans **Réglages**. Mira charge directement la bibliothèque vidéo. La version publiée inclut le runtime .NET.
+Le moteur vidéo mpv s’installe depuis l’installateur (case cochée par défaut), depuis **Réglages → Lecture → Installer le moteur mpv**, ou en un clic à la première lecture : Mira télécharge une build Windows précise de mpv (31 Mo), vérifie ses empreintes et la range dans `data\mpv`. Un moteur déjà installé avec Jellyfin MPV Shim ou mpv.net est détecté et réutilisé ; un autre `mpv-2.dll` ou `libmpv-2.dll` 64 bits peut être sélectionné dans **Réglages**. Mira charge directement la bibliothèque vidéo. La version publiée inclut le runtime .NET.
 
 ## Disponible
 
@@ -105,7 +105,7 @@ La lecture native et les échanges HTTP ont été testés avec des médias synth
 
 Jellyfin 10.9 ou plus récent est nécessaire : un serveur plus ancien est refusé à la connexion. Le HDR, les sous-titres ASS complexes, les sorties audio multicanales, les configurations multi-écrans et les bibliothèques très volumineuses nécessitent des essais dédiés. La sélection de versions multiples d’un même film, les collections éditables et les profils avancés de rendu mpv sont également à venir.
 
-La distribution ne contient pas libmpv. Les notices des composants inclus sont dans [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). La signature de l’exécutable reste à prévoir.
+La distribution ne contient pas libmpv : il est téléchargé depuis son distributeur à la demande. Les notices des composants inclus sont dans [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). La signature de l’exécutable reste à prévoir.
 
 TorLink a été vérifié avec sa version 1.1.1 et des téléchargements terminés synthétiques, dans un état et une bibliothèque isolés ; aucun vrai téléchargement n’a été rangé pendant les essais. Les dossiers de bibliothèque sont lus sur Jellyfin 12.1.0 ; le signalement à Jellyfin et le bouton « Voir » ont été vérifiés avec un serveur simulé. Avec Jellyfin dans Docker ou sur un autre PC, les dossiers se choisissent à la main et l’ajout peut attendre la prochaine analyse de la bibliothèque.
 

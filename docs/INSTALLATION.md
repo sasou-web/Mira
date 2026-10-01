@@ -4,7 +4,7 @@
 
 - Windows 10 version 2004 ou plus récent, ou Windows 11, **x64**. Les coins natifs arrondis dépendent de Windows 11.
 - Un serveur Jellyfin accessible, sur le même PC ou le réseau, et un compte sur ce serveur.
-- Une bibliothèque **libmpv x64** pour lire les vidéos. `mpv.exe` seul ne suffit pas.
+- Le moteur vidéo **libmpv x64**. Mira l’installe à la demande (31 Mo) ; un moteur déjà présent est réutilisé. `mpv.exe` seul ne suffit pas.
 
 L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. Mira est une préversion de développement non signée.
 
@@ -22,15 +22,17 @@ Les fichiers ne sont pas encore signés : Windows SmartScreen peut afficher « W
 
 1. Ouvrir Mira. Un raccourci Mira est ajouté au menu Démarrer au premier lancement du profil principal, ou dès l’installation.
 2. Entrer l’adresse de Jellyfin, le nom d’utilisateur et le mot de passe. Pour Jellyfin sur le même PC, l’adresse habituelle est `http://127.0.0.1:8096`. Sur le réseau, l’adresse IP ou le nom du PC suffit (`192.168.1.20`, `nas:8096`), comme l’adresse copiée depuis la page web de Jellyfin. Jellyfin 10.9 ou plus récent est nécessaire.
-3. Dans **Réglages → Lecture**, vérifier que le moteur mpv est détecté. Si besoin, déplier son emplacement et sélectionner `libmpv-2.dll` ou `mpv-2.dll` x64.
+3. Le moteur vidéo : avec l’installateur, laisser cochée la case **Télécharger le moteur vidéo mpv**. Sinon, **Réglages → Lecture → Installer le moteur mpv**, proposé aussi à la première lecture.
 
 Le bouton **Essayer sans se connecter** ouvre un catalogue fictif pour explorer l’interface.
 
 ## Obtenir le moteur vidéo
 
-Si mpv.net ou Jellyfin MPV Shim est déjà installé à un emplacement détecté par Mira, sa bibliothèque peut être réutilisée. Une version de [mpv.net](https://github.com/mpvnet-player/mpv.net/releases) contenant `libmpv-2.dll` est une possibilité. La [page d’installation officielle de mpv](https://mpv.io/installation/) référence également des distributions Windows : choisir une build **libmpv x64**, puis conserver ensemble la DLL et ses éventuelles dépendances.
+**Automatiquement.** La case **Télécharger le moteur vidéo mpv** de l’installateur (cochée par défaut), le bouton **Installer le moteur mpv** de **Réglages → Lecture** ou le bouton **Installer** proposé à la première lecture font la même chose : Mira télécharge une build précise des [builds Windows de mpv](https://mpv.io/installation/) (shinchiro, publiée sur SourceForge, 31 Mo), vérifie son empreinte SHA-256, extrait `libmpv-2.dll` et vérifie aussi la sienne, puis la range dans `data\mpv`. Les mises à jour de Mira n’y touchent pas. Un fichier différent de celui attendu n’est jamais installé. Avec l’installateur, un échec du téléchargement (pas de connexion) n’empêche pas l’installation : Mira le propose de nouveau à la première lecture.
 
-Mira ne télécharge ni n’installe automatiquement le moteur. Les licences du moteur et de ses dépendances sont celles de leur distributeur.
+**Avec un moteur déjà présent.** Si mpv.net ou Jellyfin MPV Shim est installé à un emplacement connu de Mira, sa bibliothèque est réutilisée et rien n’est téléchargé. Une autre `libmpv-2.dll` ou `mpv-2.dll` x64 peut être choisie dans **Réglages → Lecture → Emplacement du moteur** ; elle passe avant celle de Mira.
+
+Le moteur n’est pas inclus dans les fichiers de Mira : il est téléchargé depuis son distributeur, et ses licences (GPL pour mpv et FFmpeg) restent les siennes. `data\mpv\SOURCE.txt` indique sa provenance et ses empreintes.
 
 ## Utilisation
 
@@ -92,7 +94,8 @@ Pour passer d’une copie portable à l’installateur en gardant sa session : i
 | « Ce n’est pas un serveur Jellyfin » | L’adresse répond, mais pas Jellyfin (routeur, NAS, Emby…) : vérifier le port, 8096 par défaut. |
 | « Mira a besoin de Jellyfin 10.9 » | Mettre Jellyfin à jour ; Mira utilise des routes introduites par cette version. |
 | « Certificat HTTPS non reconnu » | Le certificat du serveur n’est pas approuvé par Windows : utiliser son adresse `http://` sur le réseau local, ou installer un certificat valide. |
-| Bibliothèque visible mais lecture impossible | Choisir une DLL libmpv **64 bits**, avec ses dépendances, dans les réglages. |
+| Bibliothèque visible mais lecture impossible | **Réglages → Lecture** : installer le moteur mpv, ou choisir une DLL libmpv **64 bits** avec ses dépendances. |
+| « Le moteur vidéo n’a pas pu être téléchargé » | Vérifier la connexion Internet puis réessayer depuis **Réglages → Lecture**. Le téléchargement passe par `downloads.sourceforge.net` et ses miroirs. |
 | Progression qui tarde à remonter | Consulter **Réglages → Jellyfin & synchronisation** ; les envois restent en attente quand le serveur est indisponible. |
 | Icône de notification absente | Regarder les icônes masquées près de l’horloge. |
 | Mira est déjà ouvert | Relancer le raccourci doit restaurer la fenêtre existante. |

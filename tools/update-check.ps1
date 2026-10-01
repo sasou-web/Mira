@@ -145,7 +145,7 @@ try {
         # Left behind by an interrupted run.
         if ((Test-Install) -and (Test-Path -LiteralPath (Join-Path $installed 'unins000.exe')) -and -not (Uninstall-Test)) { Fail 'installer: earlier test installation removed' }
         if (Test-Path -LiteralPath $installed) { Remove-Item -LiteralPath $installed -Recurse -Force }
-        $setup = Start-Process -FilePath (Join-Path $oldPackages "Mira-$old-win-x64-setup.exe") -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=`"$installed`" /LOG=`"$root\install-old.log`"" -PassThru -Wait
+        $setup = Start-Process -FilePath (Join-Path $oldPackages "Mira-$old-win-x64-setup.exe") -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /MERGETASKS=`"!mpvengine`" /DIR=`"$installed`" /LOG=`"$root\install-old.log`"" -PassThru -Wait
         $exe = Join-Path $installed 'Mira.exe'; $data = Join-Path $installed 'data'
         if ($setup.ExitCode -ne 0 -or (Version-Of $exe) -ne "$old.0" -or -not (Test-Path -LiteralPath (Join-Path $installed 'unins000.exe'))) { Fail "installer: $old installed silently" }
         Pass "installer: $old installed in a test folder"
@@ -164,7 +164,7 @@ try {
         Remove-Item -LiteralPath $installed -Recurse -Force
 
         # 5. Installer through the restart button: Setup shows its progress, then reopens the installed Mira (normal profile).
-        $setup = Start-Process -FilePath (Join-Path $oldPackages "Mira-$old-win-x64-setup.exe") -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=`"$installed`" /LOG=`"$root\install-old-2.log`"" -PassThru -Wait
+        $setup = Start-Process -FilePath (Join-Path $oldPackages "Mira-$old-win-x64-setup.exe") -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /MERGETASKS=`"!mpvengine`" /DIR=`"$installed`" /LOG=`"$root\install-old-2.log`"" -PassThru -Wait
         if ($setup.ExitCode -ne 0 -or (Version-Of $exe) -ne "$old.0" -or -not (Test-Path -LiteralPath (Join-Path $installed 'unins000.exe'))) { Fail "installer restart: $old installed again" }
         New-Item -ItemType Directory -Path $data -Force | Out-Null; Set-Content -LiteralPath (Join-Path $data 'marker.txt') -Value 'donnees de test' -Encoding ascii
         $mira = Start-Mira $exe $data
