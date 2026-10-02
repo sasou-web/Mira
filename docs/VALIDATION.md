@@ -2,6 +2,23 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## TorLink depuis la page Téléchargements, écrans à la taille de l’écran (non publié)
+
+- **Node.js 24.21.0** :
+  - SHA-256 du zip win-x64 vérifié contre `SHASUMS256.txt` ;
+  - signature GPG de ce fichier vérifiée avec les clés de `nodejs/release-keys` (« Good signature », clé d’Antoine du Hamel) ;
+  - installation réelle par le code de Mira : 3 s après téléchargement, 106 Mo, sans corepack.
+- **TorLink** : `npm install torlnk@1.9.0 --prefix … --ignore-scripts`, lancé avec le npm de ce zip, installe 226 paquets en 11 s. `torlnk --version` répond `torlink v1.9.0` avec `TORLINK_NO_WEBRTC`.
+- **Nouveaux tests** :
+  - installation de Node.js depuis un zip au format officiel ; seuls `node.exe`, npm et `LICENSE` sont gardés ;
+  - pas de nouveau téléchargement une fois installé ;
+  - archive altérée, chemin qui sort du dossier ou zip sans Node.js : refusés, aucun fichier laissé ;
+  - version majeure lue ; arguments de npm (version exacte, `--ignore-scripts`, dossier de Mira) ; résumé des erreurs de npm.
+- **Galerie de la CI Windows** : accueil, connexion, installation de Jellyfin et nouveautés rendus à 1920 × 1032, 1536 × 826, 1280 × 688 (1080p à 100, 125 et 150 %) et 960 × 600. Chacun tient entier dans la fenêtre (`AssertFits`, qui tient compte de la mise à l’échelle). Le guide, la page Téléchargements et la bibliothèque vide tiennent en largeur.
+- **Non vérifié sur un vrai PC** :
+  - l’installation complète depuis Mira (Node.js puis npm sous Windows) et l’ouverture de TorLink ;
+  - la fenêtre agrandie au démarrage sur un écran à 125 ou 150 %.
+
 ## Images de « Continuer à regarder » (non publié)
 
 - Signalé par l’utilisateur : un épisode d’une saison montrait l’image d’une autre saison de la même série.

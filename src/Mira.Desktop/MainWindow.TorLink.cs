@@ -34,6 +34,7 @@ public partial class MainWindow
     private (DateTime Stamp, long Length) _torlinkHistoryStamp;
     private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling;
     private string? _torlinkBlocker, _torlinkAction, _torlinkSecondary;
+    private TorLinkSetup.Step? _torlinkStep;
 
     private void InitializeTorLink()
     {
@@ -255,6 +256,8 @@ public partial class MainWindow
 
     private void DescribeTorLinkSetup(string? progress = null, double? share = null)
     {
+        // Back on the page during an installation: its last step, not « Désactivé ».
+        if (progress is null && _torlinkInstalling && _torlinkStep is { } step) (progress, share) = (step.Text, step.Progress);
         TorLinkSetupTrack.Visibility = share is null ? Visibility.Collapsed : Visibility.Visible;
         if (share is { } value) TorLinkSetupScale.ScaleX = Math.Clamp(value, 0, 1);
         var active = TorLinkActive(); var installation = _torlinkInstallation;
@@ -288,7 +291,8 @@ public partial class MainWindow
             _torlinkInstalling = true; ShowDownloaders(true);
             try
             {
-                _torlinkInstallation = await TorLinkSetup.InstallAsync(_profile.DirectoryPath, new Progress<TorLinkSetup.Step>(step => DescribeTorLinkSetup(step.Text, step.Progress)), _torlinkLifetime.Token);
+                _torlinkStep = null;
+                _torlinkInstallation = await TorLinkSetup.InstallAsync(_profile.DirectoryPath, new Progress<TorLinkSetup.Step>(step => { _torlinkStep = step; DescribeTorLinkSetup(step.Text, step.Progress); }), _torlinkLifetime.Token);
                 // Mira's own TorLink from now on, not a folder chosen earlier that no longer works.
                 if (TorLinkInstallation.Validate(_settings.TorLinkPath, _profile.DirectoryPath) is null) _settings.TorLinkPath = "";
             }
