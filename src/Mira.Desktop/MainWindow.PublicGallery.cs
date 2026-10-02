@@ -48,33 +48,52 @@ public partial class MainWindow
             BackToLibrary.Visibility = LogoutButton.Visibility = Visibility.Collapsed;
             LoginOverlay.Visibility = Visibility.Visible; LoginOverlay.Opacity = 1;
             await CaptureAsync(output, "14-login");
-            // Help for someone new: the welcome, the main points of an update, the guide and an empty library.
-            // Each screen must fit the window, down to the smallest size Mira allows (1024 × 700).
-            ShowWelcome(); await CaptureAsync(output, "15-welcome"); AssertContained(WelcomeContent, "Welcome");
-            Width = 1024; Height = 720; await CaptureAsync(output, "15-welcome-compact"); AssertContained(WelcomeContent, "Compact welcome");
-            Width = 1440; Height = 960; WelcomeOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
-            ShowWhatsNew(WhatsNew.All.Take(1).ToList()); await CaptureAsync(output, "16-whats-new"); AssertContained(WhatsNewCard, "What's new");
-            ShowWhatsNew(WhatsNew.All.Take(2).ToList()); Width = 1024; Height = 720; await CaptureAsync(output, "17-whats-new-compact"); AssertContained(WhatsNewCard, "Compact what's new");
-            Width = 1440; Height = 960; WhatsNewOverlay.Visibility = Visibility.Collapsed;
-            OpenGuide("Jellyfin est installé et configuré. Range tes vidéos dans C:\\Users\\Toi\\Videos\\Jellyfin : voici comment, et tout ce qu’il faut savoir pour la suite.");
+            // Help for someone new, at the sizes of a 1080p screen (100, 125 and 150 % scaling) and of Mira's smallest
+            // window: the welcome, sign-in, Jellyfin setup and "what's new" must fit whole, with nothing to scroll to.
+            var sizes = new (int Width, int Height, string Name)[] { (1920, 1032, "1080p-100"), (1536, 826, "1080p-125"), (1280, 688, "1080p-150"), (960, 600, "minimum") };
+            var drawn = new List<string>();
+            async Task At((int Width, int Height, string Name) size, string name, FrameworkElement? fit, FrameworkElement? across = null)
+            {
+                Width = size.Width; Height = size.Height; await CaptureAsync(output, $"{name}-{size.Name}");
+                var root = (FrameworkElement)Content; drawn.Add($"{name}-{size.Name}: {root.ActualWidth:0} × {root.ActualHeight:0}");
+                if (fit is not null) AssertFits(fit, $"{name} at {size.Name}");
+                if (across is not null) AssertContained(across, $"{name} at {size.Name}");
+            }
+            foreach (var size in sizes)
+            {
+                LoginOverlay.Visibility = Visibility.Visible; LoginOverlay.Opacity = 1; ShowWelcome(); await At(size, "15-welcome", WelcomeContent);
+                WelcomeOverlay.Visibility = Visibility.Collapsed; ShowSignInForm(); LoginError.Text = "Nom d’utilisateur ou mot de passe incorrect."; await At(size, "16-sign-in", LoginPanel);
+                LoginError.Text = ""; ShowServerSetup(true); SetupFolderBox.Text = @"C:\Users\Toi\Videos\Jellyfin"; SetupUserBox.Text = "Toi";
+                SetupStatus.Text = "Accepte l’autorisation de Windows. Si l’installateur affiche « Could not start the Jellyfin Server service », choisis Ignorer.";
+                await At(size, "17-jellyfin-setup", ServerSetupPanel);
+                ShowSignInForm(); LoginOverlay.Visibility = Visibility.Collapsed;
+                ShowWhatsNew(WhatsNew.All.Take(3).ToList()); await At(size, "18-whats-new", WhatsNewCard);
+                WhatsNewOverlay.Visibility = Visibility.Collapsed;
+            }
+            OpenGuide("Jellyfin est prêt. Range tes vidéos dans C:\\Users\\Toi\\Videos\\Jellyfin.");
             // Fictional folders and address: the demo has no server to read them from.
-            await Task.Delay(50); GuideFolders.Children.Clear(); GuideFoldersHint.Visibility = Visibility.Collapsed;
+            await Task.Delay(50); GuideFolders.Children.Clear(); GuideFoldersHint.Visibility = Visibility.Collapsed; GuideTorLink.Visibility = Visibility.Visible;
             foreach (var (library, folder) in new[] { ("Animes", "Animes"), ("Films", "Films"), ("Séries", "Séries") }) GuideFolders.Children.Add(FolderRow(library, $@"C:\Users\Toi\Videos\Jellyfin\{folder}", true));
             GuideJellyfinActions.Visibility = GuideRemote.Visibility = Visibility.Visible; GuideServerAddress.Text = "http://127.0.0.1:8096";
             GuideRemoteAddress.Text = "http://192.168.1.20:8096";
-            GuideRemoteHint.Text = "Ce PC doit rester allumé : Jellyfin y tourne en arrière-plan, même quand Mira est fermée. Les appareils doivent être connectés à la même box.";
-            await CaptureAsync(output, "18-guide"); AssertContained(GuideContent, "Guide");
-            SmoothScroll.Jump(GuideScroll, GuideScroll.ScrollableHeight); await CaptureAsync(output, "19-guide-end");
+            GuideRemoteHint.Text = "Ce PC doit rester allumé et sur la même box. Si un appareil ne trouve pas le serveur, autorise Jellyfin dans le pare-feu de Windows.";
+            foreach (var size in new[] { sizes[0], sizes[2] }) { SmoothScroll.Jump(GuideScroll); await At(size, "19-guide", null, GuideContent); }
             GuideOverlay.Visibility = Visibility.Collapsed;
+            // The downloads page before TorLink is turned on: the list of downloaders.
+            TorLinkOverlay.Visibility = Visibility.Visible; TorLinkOverlay.Opacity = 1; ShowDownloaders(true);
+            foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20-downloads", null, DownloadersPanel);
+            TorLinkOverlay.Visibility = Visibility.Collapsed;
             _demo = false; _items = []; _resume = []; _nextUp = []; _totalCount = 0; _catalogLoading = false; _view = "home"; RenderLibrary();
-            await CaptureAsync(output, "20-empty-library"); AssertContained(EmptyState, "Empty library");
+            await At(sizes[2], "21-empty-library", null, EmptyState);
             if (EmptyGuide.Visibility != Visibility.Visible) throw new InvalidOperationException("The empty library does not lead to the guide.");
             _demo = true;
-            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), "PASS: 21 application views; built-in fictional catalogue; no account, server or personal media used.");
+            await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
+            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {14 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }
         catch (Exception ex)
         {
-            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), "FAIL: " + ex.GetType().Name);
+            // The message names the view and the sizes; the gallery only ever shows the fictional catalogue.
+            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"FAIL: {ex.GetType().Name}: {ex.Message}");
             Environment.ExitCode = 1;
         }
         finally { Close(); }

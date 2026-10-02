@@ -119,7 +119,7 @@ internal sealed class TorLinkTerminal : IDisposable
     public void Start(TorLinkInstallation installation)
     {
         if (Running || State == TerminalState.Unavailable) return;
-        _installation = installation; _environment = ChildEnvironment();
+        _installation = installation; _environment = ChildEnvironment(installation.Managed);
         SetState(TerminalState.Starting);
         if (_pageReady) Launch(); else _startWhenReady = true;
     }
@@ -266,13 +266,18 @@ internal sealed class TorLinkTerminal : IDisposable
         root.TryGetProperty("cols", out var c) && c.TryGetInt32(out var columns) && root.TryGetProperty("rows", out var r) && r.TryGetInt32(out var rows)
         && columns is >= 20 and <= 500 && rows is >= 5 and <= 300 ? ((short)columns, (short)rows) : null;
 
-    /// <summary>Mira's own environment, plus true-colour support for TorLink's palette. No Jellyfin credential lives in it.</summary>
-    private static IReadOnlyDictionary<string, string> ChildEnvironment()
+    /// <summary>
+    /// Mira's own environment, plus true-colour support for TorLink's palette. No Jellyfin credential lives in it. Mira's
+    /// own TorLink is updated with Mira (its update notice would point to npm commands) and was installed without its
+    /// optional WebRTC module.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> ChildEnvironment(bool managed)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
             if (entry.Key is string key && key.Length > 0 && !key.StartsWith('=') && entry.Value is string value) values[key] = value;
         values["COLORTERM"] = "truecolor";
+        if (managed) { values["TORLINK_NO_UPDATE_CHECK"] = "1"; values["TORLINK_NO_WEBRTC"] = "1"; }
         return values;
     }
 

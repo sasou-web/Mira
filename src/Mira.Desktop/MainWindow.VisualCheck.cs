@@ -85,6 +85,14 @@ public partial class MainWindow
         bitmap.Render(visual); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var file = File.Create(Path.Combine(directory, name + ".png")); encoder.Save(file);
     }
+    /// <summary>The element, as drawn (a Viewbox may scale it), lies wholly inside the window: nothing to scroll to.</summary>
+    private void AssertFits(FrameworkElement element, string label)
+    {
+        var root = (FrameworkElement)Content;
+        var bounds = element.TransformToAncestor(root).TransformBounds(new Rect(element.RenderSize));
+        if (bounds.Left < -1 || bounds.Top < -1 || bounds.Right > root.ActualWidth + 1 || bounds.Bottom > root.ActualHeight + 1)
+            throw new InvalidOperationException($"{label} does not fit the window: {bounds} in {root.ActualWidth:0} × {root.ActualHeight:0}.");
+    }
     private void AssertContained(FrameworkElement element, string label)
     {
         var point = element.TranslatePoint(new Point(), (UIElement)Content);

@@ -4,6 +4,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      previews:
+        description: "Captures to print in the log as small JPEG previews (names or wildcards, comma-separated)"
+        required: false
+        default: ""
 permissions:
   contents: read
 jobs:
@@ -32,7 +37,34 @@ jobs:
           if (-not $run.WaitForExit(240000)) { $run.Kill(); throw 'The interface captures did not finish within 4 minutes.' }
           $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
           Write-Output $result
+          $sizes = Join-Path $output 'sizes.txt'
+          if (Test-Path -LiteralPath $sizes) { Get-Content -LiteralPath $sizes }
           if ($run.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'Interface captures failed.' }
+      # On request only (Run workflow → previews): small JPEG copies of chosen captures, in base64, for a review
+      # without downloading the artifact. Lines read: MIRA-PREVIEW <name> <width>x<height> <part>/<parts> <base64>.
+      - name: Interface previews in the log
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.previews != '' }}
+        shell: pwsh
+        env:
+          PREVIEWS: ${{ inputs.previews }}
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $folder = Join-Path $PWD '.artifacts/interface'
+          $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object MimeType -eq 'image/jpeg'
+          $parameters = [System.Drawing.Imaging.EncoderParameters]::new(1)
+          $parameters.Param[0] = [System.Drawing.Imaging.EncoderParameter]::new([System.Drawing.Imaging.Encoder]::Quality, [long]60)
+          $patterns = $env:PREVIEWS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+          $files = Get-ChildItem -LiteralPath $folder -Filter '*.png' | Where-Object { $name = $_.BaseName; $patterns | Where-Object { $name -like $_ } } | Sort-Object Name
+          foreach ($file in $files) {
+            $image = [System.Drawing.Image]::FromFile($file.FullName)
+            $width = [Math]::Min(720, $image.Width); $height = [int]($image.Height * $width / $image.Width)
+            $small = [System.Drawing.Bitmap]::new($width, $height)
+            $graphics = [System.Drawing.Graphics]::FromImage($small); $graphics.InterpolationMode = 'HighQualityBicubic'; $graphics.DrawImage($image, 0, 0, $width, $height); $graphics.Dispose()
+            $stream = [IO.MemoryStream]::new(); $small.Save($stream, $codec, $parameters); $small.Dispose()
+            $data = [Convert]::ToBase64String($stream.ToArray()); $parts = [Math]::Ceiling($data.Length / 4000)
+            for ($i = 0; $i -lt $parts; $i++) { Write-Output ("MIRA-PREVIEW {0} {1}x{2} {3}/{4} {5}" -f $file.BaseName, $image.Width, $image.Height, ($i + 1), $parts, $data.Substring($i * 4000, [Math]::Min(4000, $data.Length - $i * 4000))) }
+            $image.Dispose()
+          }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-interface

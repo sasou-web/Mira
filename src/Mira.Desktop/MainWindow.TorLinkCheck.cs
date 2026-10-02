@@ -38,7 +38,7 @@ public partial class MainWindow
             Width = 1440; Height = 900;
             // Another TorLink on this PC (a Mira in use, its shortcut): Mira rightly refuses a second one. The page itself is
             // still checked (served from Mira's resources and drawn by xterm.js with its style sheet), then the check stops.
-            if (TorLinkInstallation.Locate(_settings.TorLinkPath) is { } found && await Task.Run(() => found.RunningElsewhere(null)) is { } other)
+            if (TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath) is { } found && await Task.Run(() => found.RunningElsewhere(null)) is { } other)
             {
                 await ShowTorLinkAsync();
                 await Until(() => _torlinkTerminal?.PageReady == true, 25, "The terminal page did not load");
