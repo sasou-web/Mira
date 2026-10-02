@@ -37,18 +37,14 @@ public sealed class ImageCache
     internal long MemoryTarget { get; init; } = MemoryKeep;
     public Task<BitmapSource?> GetAsync(MediaItem item, bool backdrop = false, int? targetWidth = null)
     {
-        string id = item.Id, type = "Primary", tag = "";
-        if (backdrop)
-        {
-            if (item.BackdropImageTags.Length > 0) { type = "Backdrop"; tag = item.BackdropImageTags[0]; }
-            else if (item.ParentBackdropItemId is not null) { id = item.ParentBackdropItemId; type = "Backdrop"; tag = item.ParentBackdropImageTags.FirstOrDefault() ?? ""; }
-            else if (item.ImageTags.TryGetValue("Thumb", out var thumb)) { type = "Thumb"; tag = thumb; }
-        }
-        else if (item.Type == "Episode" && item.SeriesId is not null) { id = item.SeriesId; tag = item.SeriesPrimaryImageTag ?? ""; }
-        if (tag.Length == 0) tag = item.ImageTags.GetValueOrDefault(type) ?? "";
-        var width = targetWidth ?? (backdrop ? 2560 : 500);
-        return Cached($"{id}-{type}-{tag}-{width}", id, type, width);
+        var image = backdrop ? Artwork.Backdrop(item)
+            : item.Type == "Episode" && item.SeriesId is not null ? new ImageRef(item.SeriesId, "Primary", item.SeriesPrimaryImageTag ?? "")
+            : new ImageRef(item.Id, "Primary", item.ImageTags.GetValueOrDefault("Primary") ?? "");
+        return Load(image, targetWidth ?? (backdrop ? 2560 : 500));
     }
+    /// <summary>A wide card: for an episode, art of its season or of the episode itself before the series' (see Artwork.Landscape).</summary>
+    public Task<BitmapSource?> LandscapeAsync(MediaItem item, int width) => Load(Artwork.Landscape(item), width);
+    private Task<BitmapSource?> Load(ImageRef image, int width) => Cached($"{image.ItemId}-{image.Type}-{image.Tag}-{width}", image.ItemId, image.Type, width);
     public Task<BitmapSource?> LogoAsync(MediaItem item)
     {
         var id = item.ImageTags.ContainsKey("Logo") ? item.Id : item.ParentLogoItemId ?? item.SeriesId;

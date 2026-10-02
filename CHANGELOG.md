@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **« Continuer à regarder » montre la bonne saison** : un épisode n’affiche plus l’image générale de la série, qui pouvait montrer une autre saison, avec un autre arc ou d’autres personnages. Mira choisit dans cet ordre : la vignette de la saison, son fond, l’image de l’épisode lui-même, et en dernier recours l’image de la série. Le bandeau du haut garde l’image de la série, avec son logo.
+
 ## 0.5.5 — 2026-10-01
 
 Un guide pour bien démarrer, les nouveautés résumées après chaque mise à jour, et Jellyfin plus fiable.

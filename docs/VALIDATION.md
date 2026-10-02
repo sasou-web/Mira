@@ -2,6 +2,20 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Images de « Continuer à regarder » (non publié)
+
+- Signalé par l’utilisateur : un épisode d’une saison montrait l’image d’une autre saison de la même série.
+  - Cause, relue dans le code de Jellyfin 12.1 (`DtoService`) : un épisode sans fond hérite de celui du parent le plus proche qui en a un, presque toujours la série.
+  - Jellyfin n’envoie pas la vignette de la saison avec l’épisode. Une vignette de série a même priorité sur celle de la saison dans `ParentThumbItemId`.
+- Vrai Jellyfin 12.1, série de test à deux saisons, avec un fond de série et une vignette pour la saison 7 seulement :
+  - la carte de l’épisode de la saison 7 montre la vignette de la saison ;
+  - celle de la saison 6 montre l’image de l’épisode (image tirée de la vidéo par Jellyfin) ;
+  - le bandeau garde le fond de la série.
+- Tests :
+  - ordre de choix : vignette de l’épisode, vignette puis fond de la saison, image de l’épisode, fond de la série ; un film garde son fond ;
+  - saisons demandées une seule fois ;
+  - une seule requête pour toutes les vignettes de saison, avec `null` pour une saison sans vignette.
+
 ## Accueil, guide et nouveautés 0.5.5
 
 - Release v0.5.5 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.5, avec la taille et le SHA-256 des trois paquets tels que GitHub les donne ; sa signature est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`. La page de release porte le texte court tiré de `WhatsNew.json` : résumé, quatre points et lien vers le CHANGELOG.

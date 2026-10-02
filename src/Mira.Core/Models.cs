@@ -39,6 +39,8 @@ public sealed record MediaItem
     public string? SeriesPrimaryImageTag { get; init; }
     public string? ParentLogoItemId { get; init; }
     public string? ParentLogoImageTag { get; init; }
+    /// <summary>The thumbnail of the episode's season, filled in by Mira (Jellyfin does not send it with the episode).</summary>
+    public string? SeasonThumbImageTag { get; set; }
     public int? ChildCount { get; init; }
     public string? OfficialRating { get; init; }
     /// <summary>Cast and crew, returned by the single-item request only.</summary>

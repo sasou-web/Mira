@@ -168,6 +168,17 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>The episode Jellyfin would play next for one series (resumable first, then the following one).</summary>
     public async Task<MediaItem?> NextEpisodeAsync(string seriesId, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Shows/NextUp?userId={Connection.UserId}&seriesId={Uri.EscapeDataString(seriesId)}&limit=1&enableResumable=true&fields=Overview", ct)).Items.FirstOrDefault();
+    /// <summary>The thumbnail tag of each of these seasons, null when it has none: one request for all of them.</summary>
+    public async Task<Dictionary<string, string?>> SeasonThumbsAsync(IReadOnlyCollection<string> seasonIds, CancellationToken ct = default)
+    {
+        var found = new Dictionary<string, string?>();
+        if (seasonIds.Count == 0) return found;
+        var result = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&ids={string.Join(',', seasonIds.Select(Uri.EscapeDataString))}" +
+            "&enableImageTypes=Thumb&imageTypeLimit=1&enableUserData=false&fields=", ct);
+        foreach (var id in seasonIds) found[id] = null;
+        foreach (var season in result.Items) if (found.ContainsKey(season.Id)) found[season.Id] = season.ImageTags.GetValueOrDefault("Thumb");
+        return found;
+    }
     public async Task SetFavoriteAsync(string id, bool favorite, CancellationToken ct = default)
     {
         var path = $"UserFavoriteItems/{Uri.EscapeDataString(id)}?userId={Connection.UserId}";

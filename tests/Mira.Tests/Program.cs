@@ -760,6 +760,42 @@ await Test("Cache de bibliothèque : pages anciennes oubliées ; accueil, repris
     Assert(items[0].UserData.PlaybackPositionTicks == 300 && items[1].UserData.PlaybackPositionTicks == 0 && store.PendingCount == 1, "Pending position lost, or delivered one kept");
     return Task.CompletedTask;
 });
+await Test("Continuer à regarder : un épisode montre sa saison ou lui-même, pas l’image d’une autre saison", async () =>
+{
+    // A series whose seasons look nothing alike: its backdrop shows one season, the episode belongs to another.
+    MediaItem Episode(string? seasonThumb = null, string? backdropParent = "series", Dictionary<string, string>? own = null) => new()
+    {
+        Id = "episode", Type = "Episode", SeriesId = "series", SeasonId = "season-7", ImageTags = own ?? [],
+        ParentBackdropItemId = backdropParent, ParentBackdropImageTags = backdropParent is null ? [] : ["backdrop-tag"], SeasonThumbImageTag = seasonThumb,
+    };
+    var choices = new[]
+    {
+        Artwork.Landscape(Episode(own: new() { ["Thumb"] = "own-thumb", ["Primary"] = "still" })),
+        Artwork.Landscape(Episode(seasonThumb: "season-thumb", own: new() { ["Primary"] = "still" })),
+        Artwork.Landscape(Episode(backdropParent: "season-7", own: new() { ["Primary"] = "still" })),
+        Artwork.Landscape(Episode(own: new() { ["Primary"] = "still" })),
+        Artwork.Landscape(Episode()),
+        Artwork.Landscape(new MediaItem { Id = "movie", Type = "Movie", BackdropImageTags = ["movie-backdrop"], ImageTags = new() { ["Primary"] = "poster" } }),
+    };
+    Assert(choices.SequenceEqual([
+        new ImageRef("episode", "Thumb", "own-thumb"), new ImageRef("season-7", "Thumb", "season-thumb"), new ImageRef("season-7", "Backdrop", "backdrop-tag"),
+        new ImageRef("episode", "Primary", "still"), new ImageRef("series", "Backdrop", "backdrop-tag"), new ImageRef("movie", "Backdrop", "movie-backdrop")]),
+        "Choices: " + string.Join(" | ", choices.Select(x => $"{x.ItemId}/{x.Type}/{x.Tag}")));
+    // The home banner keeps the series' backdrop: it presents the series, with its logo.
+    Assert(Artwork.Backdrop(Episode(own: new() { ["Primary"] = "still" })) == new ImageRef("series", "Backdrop", "backdrop-tag"), "Banner of an episode");
+    Assert(Artwork.Seasons([Episode(), Episode(), new MediaItem { Type = "Movie", SeasonId = "x" }, new MediaItem { Type = "Episode" }]).SequenceEqual(["season-7"]), "Seasons asked for");
+    // One request for every season; a season without a thumbnail answers null.
+    string? url = null;
+    using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "token", "device"), new Handler(request =>
+    {
+        url = request.RequestUri!.PathAndQuery;
+        return Task.FromResult(JsonResponse(new { Items = new object[] { new { Id = "season-7", ImageTags = new { Thumb = "t7" } }, new { Id = "season-2", ImageTags = new { } } }, TotalRecordCount = 2 }));
+    }));
+    var thumbs = await client.SeasonThumbsAsync(["season-7", "season-2", "season-9"]);
+    Assert(url is not null && url.StartsWith("/Items?userId=user-1&ids=season-7,season-2,season-9&") && url.Contains("enableImageTypes=Thumb"), "Request: " + url);
+    Assert(thumbs.Count == 3 && thumbs["season-7"] == "t7" && thumbs["season-2"] is null && thumbs["season-9"] is null, "Thumbnails by season");
+    url = null; Assert((await client.SeasonThumbsAsync([])).Count == 0 && url is null, "A request without any season");
+});
 await Test("Images : mémoire bornée, les moins récentes libérées puis relues sur disque sans nouveau téléchargement", async () =>
 {
     // 500 × 500 artwork, decoded at the poster width: 1 000 000 bytes each.

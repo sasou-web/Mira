@@ -35,6 +35,7 @@ Mira.Core
   ├─ VerifiedDownload : téléchargement vérifié (taille, SHA-256, jamais vers HTTP, transfert muet abandonné)
   ├─ MpvPackage / MpvInstaller : build libmpv figée, téléchargement et extraction vérifiés dans data\mpv
   ├─ JellyfinSetup : installateur de Jellyfin figé, dossiers médias, droit de lecture du service, assistant de premier démarrage
+  ├─ Artwork : image d’une carte large (épisode : sa saison ou lui-même avant la série) et d’un bandeau
   ├─ WhatsNew : points forts de chaque version (WhatsNew.json intégré), écran à l’ouverture, texte court des releases
   ├─ LocalNetwork : adresse de ce PC sur le réseau de la maison, pour les autres appareils
   ├─ MotionState : interpolation du défilement et durée du carrousel, testables sans UI
