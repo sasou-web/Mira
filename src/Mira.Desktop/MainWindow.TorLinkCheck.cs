@@ -99,7 +99,9 @@ public partial class MainWindow
             var film = Path.Combine(library, "FILMS", "Big Buck Bunny (2008)", "Big Buck Bunny (2008).mkv");
             Require(File.Exists(film) && File.Exists(Path.Combine(library, "FILMS", "Big Buck Bunny (2008)", "Big Buck Bunny (2008).en.srt")), "a film arrives as Title (Year)/Title (Year).mkv with its subtitle");
             Require(!Directory.EnumerateFiles(library, "*.txt", SearchOption.AllDirectories).Any(), "release notes and other annex files stay in TorLink");
-            Require(LinkCount(film) == 2, "the film is a hard link: no second copy, TorLink keeps its file");
+            var release = Path.Combine(downloads, "Big.Buck.Bunny.2008.1080p.BluRay.x264-MIRA");
+            Require(LinkCount(film) == 1 && !File.Exists(Path.Combine(release, "Big.Buck.Bunny.2008.1080p.BluRay.x264-MIRA.mkv")) && !Directory.Exists(Path.Combine(release, "Subs")) && File.Exists(Path.Combine(release, "RELEASE.txt")),
+                "the film is moved, not copied: one file on disk; TorLink's emptied subtitle folder goes, its release note stays");
             var episode = Path.Combine(library, "SERIES", "Sintel Show", "Season 01", "Sintel Show - S01E02.mkv");
             Require(File.Exists(episode), "an episode arrives as Show/Season 01/Show - S01E02.mkv");
             Require(File.Exists(Path.Combine(library, "ANIME", "Tears of Steel", "Season 01", "Tears of Steel - S01E03.mkv")), "an anime from an anime source goes to the anime library");
@@ -110,7 +112,7 @@ public partial class MainWindow
             var series = _torlinkImporter.Entries.First(x => x.Kind == MediaKind.Series);
             await ReclassifyTorLinkAsync(series.Id, MediaKind.Anime);
             Require(File.Exists(Path.Combine(library, "ANIME", "Sintel Show", "Season 01", "Sintel Show - S01E02.mkv")) && !Directory.Exists(Path.Combine(library, "SERIES", "Sintel Show")), "« Classer comme anime » moves the episode and removes the emptied folders");
-            Require(_torlinkImporter.Find(series.Id) is { Kind: MediaKind.Anime, Method: "lien physique" } && LinkCount(Path.Combine(library, "ANIME", "Sintel Show", "Season 01", "Sintel Show - S01E02.mkv")) == 2, "the reclassified episode is still a hard link of TorLink's file");
+            Require(_torlinkImporter.Find(series.Id) is { Kind: MediaKind.Anime, Method: "déplacement", MovedOut: true } && LinkCount(Path.Combine(library, "ANIME", "Sintel Show", "Season 01", "Sintel Show - S01E02.mkv")) == 1, "the reclassified episode is still the one moved file");
             var entries = _torlinkImporter.Entries.Count;
             await ProcessTorLinkAsync();
             Require(_torlinkImporter.Entries.Count == entries && _torlinkImporter.Entries.All(x => x.State is TorLinkImportState.Imported or TorLinkImportState.Ignored), "a second pass imports nothing twice");

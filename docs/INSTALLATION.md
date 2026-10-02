@@ -86,7 +86,11 @@ TorLink est un client de téléchargement en terminal ([projet indépendant](htt
 
 Désactiver TorLink le ferme ; il reste installé. Le TorLink installé par Mira est mis à jour avec Mira. Il tourne sans son module WebRTC facultatif, qui demande des outils de compilation : les pairs TCP, uTP et DHT suffisent.
 
-Chaque téléchargement terminé rejoint la bibliothèque sous les noms attendus par Jellyfin, par exemple `Titre (Année)\Titre (Année).mkv` ou `Série\Season 01\Série - S01E02.mkv`. Sur le même disque, un lien physique évite toute copie et TorLink continue de partager le fichier ; sinon il est copié. Jellyfin est prévenu, puis le titre apparaît dans Mira.
+Chaque téléchargement terminé est **déplacé** dans la bibliothèque, sous les noms attendus par Jellyfin, par exemple `Titre (Année)\Titre (Année).mkv` ou `Série\Season 01\Série - S01E02.mkv`. Il n’existe jamais en double :
+- sur le même disque, le déplacement est instantané : le fichier change seulement de dossier ;
+- sur un autre disque, chaque fichier est copié puis aussitôt supprimé du dossier de TorLink. Pour éviter ce cas, Mira fait télécharger TorLink sur le disque de la bibliothèque, dans « Téléchargements TorLink », quand TorLink n’a pas encore de dossier. Sinon, choisir ce dossier dans TorLink avec la touche **o**.
+
+TorLink arrête de partager un téléchargement déplacé. Pour qu’il continue, activer **Réglages → TorLink → Continuer à partager** : sur le même disque, un lien physique met aussi le fichier dans la bibliothèque, sans prendre plus de place. Il apparaît alors dans les deux dossiers. Jellyfin est prévenu, puis le titre apparaît dans Mira.
 
 Quitter Mira ferme aussi TorLink ; ses téléchargements reprennent à la prochaine ouverture. TorLink ne peut pas tourner en même temps dans Mira et dans une autre fenêtre. Avec Jellyfin dans Docker ou sur un autre PC, choisir les dossiers locaux que le serveur partage : les nouveaux titres apparaissent alors à sa prochaine analyse de la bibliothèque.
 

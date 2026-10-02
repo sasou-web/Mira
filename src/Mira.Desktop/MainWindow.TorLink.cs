@@ -134,7 +134,7 @@ public partial class MainWindow
                 _torlinkAgain = false;
                 _torlinkHistoryStamp = HistoryStamp();
                 var libraries = _torlinkLibraries; var automatic = _settings.TorLinkAutoImport; var token = _torlinkLifetime.Token;
-                var mode = _settings.TorLinkKeepSeeding ? ImportMode.KeepSeeding : ImportMode.Move;
+                var mode = _settings.TorLinkKeepShared ? ImportMode.KeepSeeding : ImportMode.Move;
                 var requested = _torlinkRequested.ToList(); _torlinkRequested.Clear();
                 var state = _torlinkState;
                 // File work stays on the thread pool: a copy never slows the interface or the video.
@@ -346,7 +346,20 @@ public partial class MainWindow
         var installation = _torlinkInstallation;
         if (await Task.Run(() => installation.RunningElsewhere(null)) is not null) { SetTorLinkBlocker("elsewhere"); return; }
         SetTorLinkBlocker(null);
+        PrepareTorLinkStart();
         _torlinkTerminal.Start(installation);
+    }
+
+    /// <summary>
+    /// Just before Mira starts TorLink, closed at this point: the downloads moved into the library stop being shared
+    /// (started again, TorLink would fetch pieces of them back), and a TorLink never set up downloads on the library's
+    /// drive, where each move is a rename.
+    /// </summary>
+    private void PrepareTorLinkStart()
+    {
+        if (_torlinkImporter is { } importer && importer.MovedSeeds() is { Count: > 0 } moved) importer.MarkSeedPaused(_torlinkState.PauseSeeds(moved));
+        if (_torlinkReady && TorLinkState.DownloadFolderBeside(_torlinkLibraries, _torlinkState.DownloadDirectory()) is { } folder && _torlinkState.ChooseDownloadDirectory(folder))
+            SetNotice($"TorLink télécharge dans « {folder} », sur le disque de ta bibliothèque : chaque fichier terminé y est déplacé sans copie.");
     }
 
     private TorLinkTerminal CreateTorLinkTerminal()
@@ -421,6 +434,7 @@ public partial class MainWindow
             case "window" when _torlinkInstallation is { } installation:
                 // Its own window is a TorLink like the one of its shortcut: still only one at a time.
                 if (await Task.Run(() => installation.RunningElsewhere(null)) is not null) { SetNotice("TorLink est déjà ouvert dans une autre fenêtre."); break; }
+                PrepareTorLinkStart();
                 try { installation.OpenInWindow(); SetNotice("TorLink s’ouvre dans sa propre fenêtre ; ses téléchargements terminés seront rangés."); }
                 catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { SetNotice("TorLink n’a pas pu s’ouvrir dans une fenêtre."); }
                 break;

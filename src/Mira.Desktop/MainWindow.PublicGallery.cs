@@ -18,17 +18,17 @@ public partial class MainWindow
             if (!_demo || _client is not null) throw new InvalidOperationException("Public captures require an offline demo.");
             _fallbackRefresh.Stop(); _searchTimer.Stop(); Width = 1440; Height = 960;
             BrandAssets.Export(output);
-            async Task Page(string view, string name)
+            async Task Page(string view, string name, bool favorites = false)
             {
                 SettingsOverlay.Visibility = DetailOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
-                ResetFilters(); _view = view; RenderDemo(); SmoothScroll.Jump(LibraryScroll);
+                ResetFilters(); _view = view; _favorites = favorites; ShowFavoritesFilter(); RenderDemo(); SmoothScroll.Jump(LibraryScroll);
                 await _heroReady; await CaptureAsync(output, name);
             }
             await Page("home", "01-home");
             await Page("library", "02-library");
             await Page("Movie", "03-films");
             await Page("Series", "04-series");
-            await Page("favorites", "05-favorites");
+            await Page("library", "05-favorites", favorites: true);
             await ShowDetailsAsync(_demoItems!.First(x => x.Type == "Movie"));
             await CaptureAsync(output, "06-film-details");
             Settings_Click(this, new()); await CaptureAsync(output, "07-playback-settings");

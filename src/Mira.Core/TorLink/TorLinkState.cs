@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace Mira.Core;
@@ -7,9 +8,10 @@ namespace Mira.Core;
 public sealed record TorLinkCompletion(string Id, string Name, string? Source, long SizeBytes, string Directory, DateTimeOffset CompletedAt);
 
 /// <summary>
-/// Read-only view of TorLink's own state files, at the places TorLink itself uses
-/// (env-paths "torlink": %APPDATA%\torlink\Config and %LOCALAPPDATA%\torlink\Data, or TORLINK_STATE_DIR).
-/// Mira never writes these files: TorLink stays the only owner of its queue, history and seeds.
+/// View of TorLink's own state files, at the places TorLink itself uses (env-paths "torlink":
+/// %APPDATA%\torlink\Config and %LOCALAPPDATA%\torlink\Data, or TORLINK_STATE_DIR). TorLink stays the owner of its
+/// queue and history. Mira writes only two things, and only while TorLink is closed: a download folder when TorLink
+/// has none yet (<see cref="ChooseDownloadDirectory"/>), and a pause on the sharing of downloads it moved (<see cref="PauseSeeds"/>).
 /// </summary>
 public sealed partial class TorLinkState
 {
@@ -32,6 +34,7 @@ public sealed partial class TorLinkState
     public string ConfigFile => Path.Combine(ConfigDirectory, "config.json");
     public string HistoryFile => Path.Combine(DataDirectory, "history.json");
     public string QueueFile => Path.Combine(DataDirectory, "queue.json");
+    public string SeedsFile => Path.Combine(DataDirectory, "seeds.json");
     public string TorrentsDirectory => Path.Combine(DataDirectory, "torrents");
     public static string DefaultDownloadDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "torlink");
     [GeneratedRegex("^[0-9a-fA-F]{40}$")] private static partial Regex InfoHash();
@@ -47,6 +50,81 @@ public sealed partial class TorLinkState
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
         return DefaultDownloadDirectory;
+    }
+
+    /// <summary>
+    /// A download moved into the library is no longer in TorLink's folder: started again, TorLink would look for it on
+    /// the network for a few seconds and write pieces back before giving up. Its sharing is set to "paused" in
+    /// seeds.json, as TorLink's Seeding tab does with p; the person can resume it there. Only while TorLink is closed:
+    /// it keeps this file in memory and writes it again. Returns the downloads found in the file, paused now or before.
+    /// </summary>
+    public IReadOnlyList<string> PauseSeeds(IReadOnlyCollection<string> ids)
+    {
+        if (ids.Count == 0) return [];
+        JsonArray seeds;
+        try { if (JsonNode.Parse(ReadShared(SeedsFile)) is not JsonArray parsed) return []; seeds = parsed; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return []; }
+        var wanted = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var found = new List<string>(); var changed = false;
+        for (var i = 0; i < seeds.Count; i++)
+        {
+            // TorLink writes {"id", "status"}; older versions wrote the bare id of a download being shared.
+            var (id, status) = seeds[i] switch
+            {
+                JsonValue value when value.TryGetValue<string>(out var bare) => (bare, "seeding"),
+                JsonObject item when item["id"] is JsonValue idValue && idValue.TryGetValue<string>(out var text) =>
+                    (text, item["status"] is JsonValue statusValue && statusValue.TryGetValue<string>(out var s) ? s : null),
+                _ => (null, null)
+            };
+            if (id is null || !wanted.Contains(id)) continue;
+            found.Add(id.ToLowerInvariant());
+            if (status != "seeding") continue;
+            seeds[i] = new JsonObject { ["id"] = id, ["status"] = "paused" };
+            changed = true;
+        }
+        if (changed && !Replace(SeedsFile, seeds.ToJsonString(new JsonSerializerOptions { WriteIndented = true }))) return [];
+        return found;
+    }
+
+    /// <summary>
+    /// Sets TorLink's download folder when it has none yet (no config.json: TorLink has never been set up), so that
+    /// downloads land on the drive of the library and move there by a rename. An existing choice is never changed.
+    /// </summary>
+    public bool ChooseDownloadDirectory(string folder)
+    {
+        if (File.Exists(ConfigFile)) return false;
+        try
+        {
+            Directory.CreateDirectory(folder); Directory.CreateDirectory(ConfigDirectory);
+            var temporary = ConfigFile + ".mira.tmp";
+            File.WriteAllText(temporary, new JsonObject { ["downloadDir"] = Path.GetFullPath(folder), ["trackers"] = new JsonArray() }.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            try { File.Move(temporary, ConfigFile, false); return true; }
+            catch (IOException) { File.Delete(temporary); return false; }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
+    }
+
+    /// <summary>
+    /// A download folder on the library's drive when TorLink's is on another one, beside the library folders (never
+    /// inside one, where Jellyfin would list unfinished files): "Téléchargements TorLink". Null when the drive is the
+    /// same already, or when the library folders are spread over several drives.
+    /// </summary>
+    public static string? DownloadFolderBeside(MediaLibraries libraries, string downloads)
+    {
+        try
+        {
+            var full = new[] { libraries.Movies, libraries.Series, libraries.Anime }.OfType<string>().Where(x => x.Trim().Length > 0)
+                .Select(x => Path.GetFullPath(x.Trim())).ToList();
+            var drives = full.Select(Path.GetPathRoot).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (drives is not [{ Length: > 0 } drive] || string.Equals(drive, Path.GetPathRoot(Path.GetFullPath(downloads)), StringComparison.OrdinalIgnoreCase)) return null;
+            var roots = full.Select(x => x.TrimEnd('\\', '/')).ToList();
+            const string name = "Téléchargements TorLink";
+            bool InsideLibrary(string folder) => roots.Any(root => folder.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || string.Equals(folder, root, StringComparison.OrdinalIgnoreCase));
+            // Beside the first library folder, otherwise at the root of its drive; a library at the root of a drive leaves no room.
+            return new[] { Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent ? Path.Combine(parent, name) : null, Path.Combine(drive, name) }
+                .OfType<string>().FirstOrDefault(x => !InsideLibrary(x));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
     }
 
     /// <summary>Finished downloads, newest first. Null while the file cannot be read yet (TorLink replaces it atomically: try again).</summary>
@@ -111,6 +189,18 @@ public sealed partial class TorLinkState
     {
         using var reader = new StreamReader(OpenShared(path), System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         return reader.ReadToEnd();
+    }
+
+    /// <summary>Written beside, then renamed over the file, as TorLink writes its own.</summary>
+    private static bool Replace(string path, string content)
+    {
+        var temporary = path + ".mira.tmp";
+        try { File.WriteAllText(temporary, content); File.Move(temporary, path, true); return true; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            try { File.Delete(temporary); } catch (Exception again) when (again is IOException or UnauthorizedAccessException) { }
+            return false;
+        }
     }
 
     private static string? Text(JsonElement element, string name) =>

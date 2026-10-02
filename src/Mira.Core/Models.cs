@@ -139,6 +139,8 @@ public sealed record PlaybackReport
     public string RepeatMode { get; init; } = "RepeatNone";
 }
 public sealed record PendingReport(long Id, string Kind, PlaybackReport Report);
+/// <summary>Jellyfin's library scan: Progress from 0 to 100 while it runs; LastEnded, when the previous one finished.</summary>
+public sealed record LibraryScan(bool Running, double? Progress, DateTimeOffset? LastEnded);
 public sealed class PlayerSettings
 {
     public string MpvPath { get; set; } = "";
@@ -160,8 +162,11 @@ public sealed class PlayerSettings
     public bool TorLinkAutoImport { get; set; } = true;
     /// <summary>TorLink turned on or off in the Downloads page; null until chosen: on when a TorLink is already installed.</summary>
     public bool? TorLinkActive { get; set; }
-    /// <summary>True: hard link (or copy) so TorLink keeps sharing; false: the download is moved into the library.</summary>
-    public bool TorLinkKeepSeeding { get; set; } = true;
+    /// <summary>
+    /// False (default): the download moves into the library. True: a hard link on the same drive, so TorLink keeps
+    /// sharing it. Replaces TorLinkKeepSeeding (on by default before 0.5.7), which saved profiles leave behind: they move too.
+    /// </summary>
+    public bool TorLinkKeepShared { get; set; }
     /// <summary>Manual library folders; empty: the folders of the Jellyfin libraries.</summary>
     public string TorLinkMoviesFolder { get; set; } = "";
     public string TorLinkSeriesFolder { get; set; } = "";

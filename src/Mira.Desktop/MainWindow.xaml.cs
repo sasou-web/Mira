@@ -28,6 +28,8 @@ public partial class MainWindow : Window
     private List<MediaItem> _items = [], _resume = [], _nextUp = [], _episodes = [];
     private MediaItem? _hero, _detail;
     private string _view = "home";
+    /// <summary>Only the favourites of the current view (films, series, library, search): a filter like the others.</summary>
+    private bool _favorites;
     private string? _parentId;
     private int _totalCount;
     private bool _demo, _initializing = true;
@@ -234,7 +236,37 @@ public partial class MainWindow : Window
         if (_initializing || _filterBusy) return;
         _browseCancellation?.Cancel(); _searchTimer.Stop(); _searchTimer.Start();
     }
-    private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
+    private bool _scanning;
+    /// <summary>
+    /// « Actualiser » asks Jellyfin to look through its folders (what an added file needs), shows how far it is, then
+    /// reloads the list and says what changed. Without administrator rights, only the list is reloaded, and Mira says why.
+    /// </summary>
+    private async void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        if (_scanning) return;
+        _scanning = true; var before = _totalCount; var view = (_view, _favorites, _parentId, SearchBox.Text); var shown = Task.Delay(700);
+        SpinRefresh(true); RefreshLabel.Text = "Analyse…";
+        try
+        {
+            var scanned = false;
+            if (!_demo && _client is { } client)
+            {
+                var progress = new Progress<double?>(p => RefreshLabel.Text = p is { } share ? $"Analyse… {share * 100:0} %" : "Analyse…");
+                scanned = await client.ScanAndWaitAsync(progress, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), _connectionLifetime.Token);
+                RefreshLabel.Text = "Chargement…";
+            }
+            await RefreshAsync(quiet: true); await shown;
+            // Counted only on the list it started from: another view has another total.
+            var added = view == (_view, _favorites, _parentId, SearchBox.Text) ? _totalCount - before : 0;
+            SetNotice(_demo ? "Démo à jour."
+                : !scanned ? "Liste rechargée. Seul un administrateur de Jellyfin peut lui faire analyser les dossiers : un nouveau fichier apparaît après sa prochaine analyse."
+                : added > 0 ? $"Bibliothèque à jour : {added} nouveau{(added > 1 ? "x" : "")} titre{(added > 1 ? "s" : "")}."
+                : "Bibliothèque à jour : Jellyfin a vérifié tous tes dossiers.");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        finally { _scanning = false; SpinRefresh(false); RefreshLabel.Text = "Actualiser"; }
+    }
     private async void LoadMore_Click(object sender, RoutedEventArgs e) => await RefreshAsync(more: true);
     private async Task RefreshAsync(bool more = false, bool quiet = false)
     {
@@ -245,7 +277,7 @@ public partial class MainWindow : Window
         var ct = _browseCancellation.Token; var version = ++_viewVersion;
         var search = SearchBox.Text.Trim(); var home = _view == "home" && search.Length == 0;
         var filters = home ? new CatalogQuery() : CurrentQuery();
-        var key = $"{_view}:{_parentId}:{search}:{filters.CacheKey}";
+        var key = CatalogKey(search, filters);
         var client = _client; var store = _store;
         LoadMore.IsEnabled = false; var startOffset = LibraryScroll.VerticalOffset;
         if (!quiet && !more) { SyncLabel.Text = "↻  Actualisation…"; SpinRefresh(true); }
@@ -253,7 +285,7 @@ public partial class MainWindow : Window
         {
             // A background refresh keeps every page already loaded instead of shrinking the grid back to one page.
             var limit = quiet && !more ? Math.Max(JellyfinClient.PageSize, _items.Count) : JellyfinClient.PageSize;
-            var browse = client.BrowseAsync(_view is "Movie" or "Series" ? _view : "Movie,Series", _parentId, search, more ? _items.Count : 0, _view == "favorites", ct, filters, limit);
+            var browse = client.BrowseAsync(_view is "Movie" or "Series" ? _view : "Movie,Series", _parentId, search, more ? _items.Count : 0, !home && _favorites, ct, filters, limit);
             Task<ItemsResult>? resume = home ? client.ResumeAsync(ct) : null;
             Task<ItemsResult>? next = home ? client.NextUpAsync(ct) : null;
             var result = await browse;
@@ -301,6 +333,8 @@ public partial class MainWindow : Window
     /// <summary>The refresh icon turns while a requested refresh is running.</summary>
     private void SpinRefresh(bool active)
     {
+        // A list reload during a scan (Jellyfin reports each addition) leaves the scan's spinner turning.
+        if (!active && _scanning) return;
         if (RefreshIcon.RenderTransform is not RotateTransform spin) { spin = new RotateTransform(); RefreshIcon.RenderTransformOrigin = new Point(.5, .5); RefreshIcon.RenderTransform = spin; }
         if (active && !Motion.Reduced) spin.BeginAnimation(RotateTransform.AngleProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(900)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
         else { spin.BeginAnimation(RotateTransform.AngleProperty, null); spin.Angle = 0; }
@@ -308,7 +342,7 @@ public partial class MainWindow : Window
     private void RenderDemo()
     {
         var all = _demoItems ??= DemoLibrary.Items(); _resume = all.Where(x => x.Progress > 0).ToList(); _nextUp = [];
-        _items = all.Where(x => (_view is not ("Movie" or "Series") || x.Type == _view) && (_view != "favorites" || x.UserData.IsFavorite) &&
+        _items = all.Where(x => (_view is not ("Movie" or "Series") || x.Type == _view) && (!_favorites || x.UserData.IsFavorite) &&
             (SearchBox.Text.Length == 0 || x.Name.Contains(SearchBox.Text, StringComparison.CurrentCultureIgnoreCase))).ToList();
         if (_view != "home")
         {
