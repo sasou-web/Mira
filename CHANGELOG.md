@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.5.6 — 2026-10-02
+
+TorLink s’installe d’un clic depuis Mira, les écrans tiennent sur un écran 1080p même à 150 %, et des textes plus courts.
 
 - **TorLink s’installe depuis Mira** : la page **Téléchargements** (flèche du rail) liste les téléchargeurs. Activer **TorLink** l’ouvre s’il est déjà sur le PC (copie de `npx torlnk`, installation npm globale, raccourci). Sinon, Mira installe pour ce compte, sans droits administrateur :
   - Node.js 24.21.0, le zip officiel vérifié par son SHA-256 ;

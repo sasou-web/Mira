@@ -2,7 +2,7 @@
 
 **Your Jellyfin library, with an integrated mpv player and a native Windows interface.**
 
-[Download Windows preview](https://github.com/sasou-web/Mira/releases/tag/v0.5.5) · [Screenshot gallery](SCREENSHOTS.md) · [Français](../README.md)
+[Download Windows preview](https://github.com/sasou-web/Mira/releases/tag/v0.5.6) · [Screenshot gallery](SCREENSHOTS.md) · [Français](../README.md)
 
 ![Mira home screen](screenshots/01-home.png)
 
@@ -19,7 +19,7 @@ Mira keeps Jellyfin as your library server. It provides a cinematic desktop UI, 
 
 Requires Windows 10 2004+ or Windows 11 **x64** and a running Jellyfin server. The packages include .NET; the **libmpv** player engine is downloaded on request (31 MB, from mpv's Windows builds, SHA-256 checked), or an existing one is reused. The UI is currently in French.
 
-1. From the release, run `Mira-0.5.5-win-x64-setup.exe` (per-user install, no administrator rights), or use `Mira-0.5.5-win-x64-portable.exe` (one file that creates its `data` folder beside it) or the `Mira-0.5.5-win-x64.zip` folder. The files are not signed yet, so SmartScreen may ask for confirmation.
+1. From the release, run `Mira-0.5.6-win-x64-setup.exe` (per-user install, no administrator rights), or use `Mira-0.5.6-win-x64-portable.exe` (one file that creates its `data` folder beside it) or the `Mira-0.5.6-win-x64.zip` folder. The files are not signed yet, so SmartScreen may ask for confirmation.
 2. Keep a portable copy in a writable folder of its own.
 3. Connect to Jellyfin 10.9 or later. A server on the same PC commonly uses `http://127.0.0.1:8096`; on the network, its IP address or name is enough (`192.168.1.20`, `nas:8096`), as is the address copied from Jellyfin's web page. With no server yet, "Installer Jellyfin sur ce PC" below the sign-in form handles the rest. Mira downloads Jellyfin's official installer (SHA-256 checked) and runs it after Windows asks for consent. It creates Films, Séries and Animes folders and completes Jellyfin's first-run wizard in French with your account. Then it signs in.
 4. Keep the installer's "Télécharger le moteur vidéo mpv" box ticked, or use **Installer le moteur mpv** in **Réglages → Lecture** (Mira also offers it before the first playback). A `libmpv-2.dll` / `mpv-2.dll` already on the PC can be selected there instead; `mpv.exe` alone is insufficient.

@@ -1,8 +1,8 @@
-# Validation — 1er octobre 2026
+# Validation — 2 octobre 2026
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## TorLink depuis la page Téléchargements, écrans à la taille de l’écran (non publié)
+## TorLink depuis la page Téléchargements, écrans à la taille de l’écran 0.5.6
 
 - **Node.js 24.21.0** :
   - SHA-256 du zip win-x64 vérifié contre `SHASUMS256.txt` ;
@@ -22,7 +22,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - l’installation complète depuis Mira (Node.js puis npm sous Windows) et l’ouverture de TorLink ;
   - la fenêtre agrandie au démarrage sur un écran à 125 ou 150 %.
 
-## Images de « Continuer à regarder » (non publié)
+## Images de « Continuer à regarder » 0.5.6
 
 - Signalé par l’utilisateur : un épisode d’une saison montrait l’image d’une autre saison de la même série.
   - Cause, relue dans le code de Jellyfin 12.1 (`DtoService`) : un épisode sans fond hérite de celui du parent le plus proche qui en a un, presque toujours la série.
