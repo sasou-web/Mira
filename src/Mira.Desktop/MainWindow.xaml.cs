@@ -91,7 +91,10 @@ public partial class MainWindow : Window
         var area = SystemParameters.WorkArea;
         if (area.Width <= 0 || area.Height <= 0) return;
         MinWidth = Math.Min(MinWidth, area.Width); MinHeight = Math.Min(MinHeight, area.Height);
-        if (Width > area.Width - 40 || Height > area.Height - 40) WindowState = WindowState.Maximized;
+        if (Width <= area.Width - 40 && Height <= area.Height - 40) return;
+        // Restored later, the window keeps a size the screen can hold.
+        Width = Math.Max(MinWidth, Math.Floor(area.Width * .9)); Height = Math.Max(MinHeight, Math.Floor(area.Height * .9));
+        WindowState = WindowState.Maximized;
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {

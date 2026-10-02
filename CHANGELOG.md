@@ -2,6 +2,14 @@
 
 ## Non publié
 
+- **TorLink s’installe depuis Mira** : la page **Téléchargements** (flèche du rail) liste les téléchargeurs. Activer **TorLink** l’ouvre s’il est déjà sur le PC (copie de `npx torlnk`, installation npm globale, raccourci). Sinon, Mira installe pour ce compte, sans droits administrateur :
+  - Node.js 24.21.0, le zip officiel vérifié par son SHA-256 ;
+  - TorLink 1.9.0, installé par npm dans son dossier `data`.
+  Le désactiver le ferme. Plus besoin de dossier ni de `torlink.bat`.
+- **Adapté à l’écran** : sur un écran 1080p à 125 % ou 150 %, la fenêtre dépassait de l’écran. Elle s’ouvre maintenant agrandie, et sa taille minimale passe à 960 × 600.
+  - L’accueil, la connexion, l’installation de Jellyfin et les nouveautés rétrécissent au lieu de déborder.
+  - Le guide passe sur deux colonnes quand la place le permet.
+- **Textes plus courts** : « Nom d’utilisateur » et « Mot de passe » à la création du compte Jellyfin (au lieu de « Son mot de passe »), boutons « Se connecter » et « Installer », et des explications réduites à l’essentiel. Les nouveautés détaillent seulement la dernière version.
 - **« Continuer à regarder » montre la bonne saison** : un épisode n’affiche plus l’image générale de la série, qui pouvait montrer une autre saison, avec un autre arc ou d’autres personnages. Mira choisit dans cet ordre : la vignette de la saison, son fond, l’image de l’épisode lui-même, et en dernier recours l’image de la série. Le bandeau du haut garde l’image de la série, avec son logo.
 
 ## 0.5.5 — 2026-10-01
