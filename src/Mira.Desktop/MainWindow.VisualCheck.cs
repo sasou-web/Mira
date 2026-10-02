@@ -93,6 +93,20 @@ public partial class MainWindow
         if (bounds.Left < -1 || bounds.Top < -1 || bounds.Right > root.ActualWidth + 1 || bounds.Bottom > root.ActualHeight + 1)
             throw new InvalidOperationException($"{label} does not fit the window: {bounds} in {root.ActualWidth:0} × {root.ActualHeight:0}.");
     }
+    /// <summary>
+    /// Maximized, Mira's content covers the screen's work area exactly: none of it (title bar buttons, rail, bottom
+    /// edge) hidden in the resize frame Windows puts beyond the screen. Returns what was measured, in physical pixels.
+    /// </summary>
+    private string AssertMaximizedOnScreen()
+    {
+        var root = (FrameworkElement)Content;
+        var work = Playback.FullscreenWindow.WorkArea(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        var shown = new Rect(root.PointToScreen(new Point()), root.PointToScreen(new Point(root.ActualWidth, root.ActualHeight)));
+        var measured = $"content {shown.Left:0},{shown.Top:0} → {shown.Right:0},{shown.Bottom:0} on work area {work.Left:0},{work.Top:0} → {work.Right:0},{work.Bottom:0}";
+        if (Math.Abs(shown.Left - work.Left) > 1 || Math.Abs(shown.Top - work.Top) > 1 || Math.Abs(shown.Right - work.Right) > 1 || Math.Abs(shown.Bottom - work.Bottom) > 1)
+            throw new InvalidOperationException("The maximized window does not match the screen: " + measured + ".");
+        return measured;
+    }
     private void AssertContained(FrameworkElement element, string label)
     {
         var point = element.TranslatePoint(new Point(), (UIElement)Content);

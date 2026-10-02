@@ -131,7 +131,9 @@ Le mini-lecteur garde le même HWND vidéo. Ses coins sont arrondis par une rég
 
 La fenêtre est déclarée `SingleBorderWindow` : ce style de légende natif est la condition pour que Windows joue ses animations d’ouverture, de fermeture et de réduction. WindowChrome étend la zone client sur toute la fenêtre, donc aucune barre native n’apparaît. Le plein écran passe temporairement en `WindowStyle.None` pour rester une surface nue.
 
-Sous Windows 11, DWM dessine le cadre arrondi, son contour discret et son ombre. WindowChrome conserve une extension de verre minimale pour laisser DWM composer ces bords ; la grande couche de commandes vidéo est découpée au même rayon. Le plein écran et la fenêtre maximisée retirent les arrondis. Les limites physiques de la zone de travail compensent la partie invisible du cadre de redimensionnement en fenêtre maximisée.
+Sous Windows 11, DWM dessine le cadre arrondi, son contour discret et son ombre. WindowChrome conserve une extension de verre minimale pour laisser DWM composer ces bords ; la grande couche de commandes vidéo est découpée au même rayon. Le plein écran et la fenêtre maximisée retirent les arrondis. Sous Windows 10 comme 11, une fenêtre maximisée déborde de l’écran de la largeur de son cadre de redimensionnement : le contenu est décalé de l’écart mesuré entre la fenêtre et la zone de travail du moniteur (`WindowFrame`), pour que rien ne soit caché hors de l’écran.
+
+Une fenêtre de 1480 × 930 ne tient pas sur un écran 1080p à 125 % (environ 1536 × 826 utiles) ni à 150 % (environ 1280 × 688) : Mira s’ouvre alors agrandie, avec une taille de restauration à 90 % de l’écran. Sa taille minimale est de 960 × 600.
 
 Nunito Sans est embarquée en quatre graisses, sans téléchargement au lancement. La palette générale est blanche sur noir. Le bandeau extrait sa couleur d’une miniature de 64 × 48 pixels : les pixels transparents, presque blancs/noirs ou neutres sont exclus, puis un histogramme pondéré choisit la famille chromatique dominante. La teinte est éclaircie pour les contrôles ; une image neutre conserve du blanc. Les résultats sont mémorisés par image et la couleur change par fondu.
 

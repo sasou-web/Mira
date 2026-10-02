@@ -32,7 +32,7 @@ public partial class MainWindow
     private MediaLibraries _torlinkLibraries = new(null, null, null), _torlinkDetected = new(null, null, null);
     private List<TorLinkCompletion> _torlinkEarlier = [];
     private (DateTime Stamp, long Length) _torlinkHistoryStamp;
-    private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling;
+    private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling, _torlinkLooked;
     private string? _torlinkBlocker, _torlinkAction, _torlinkSecondary;
     private TorLinkSetup.Step? _torlinkStep;
 
@@ -238,8 +238,16 @@ public partial class MainWindow
 
     // ---- Downloaders ------------------------------------------------------------------------------
 
-    /// <summary>Turned on in the list; before any choice, on when a TorLink is already installed (as before this list existed).</summary>
-    private bool TorLinkActive() => _settings.TorLinkActive ?? (_torlinkInstallation ??= TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath)) is not null;
+    /// <summary>
+    /// Turned on in the list; before any choice, on when a TorLink is already installed (as before this list existed).
+    /// That search reads shortcuts and npm's cache: it runs once, not at each step of an installation.
+    /// </summary>
+    private bool TorLinkActive()
+    {
+        if (_settings.TorLinkActive is { } chosen) return chosen;
+        if (!_torlinkLooked) { _torlinkInstallation ??= TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath); _torlinkLooked = true; }
+        return _torlinkInstallation is not null;
+    }
 
     /// <summary>The list of downloaders, over the terminal: where TorLink is turned on or off.</summary>
     private void ShowDownloaders(bool show)
@@ -247,8 +255,8 @@ public partial class MainWindow
         var active = TorLinkActive(); UpdateTorLinkState();
         if (show && DownloadersPanel.Visibility != Visibility.Visible) Motion.Reveal(DownloadersPanel, 200, 6);
         else if (!show) DownloadersPanel.Visibility = Visibility.Collapsed;
-        TorLinkKeysHint.Visibility = TorLinkFolderButton.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
-        DownloadersButton.Visibility = active || show ? Visibility.Visible : Visibility.Collapsed;
+        // Over the list, its card opens TorLink: the header only serves the terminal.
+        TorLinkKeysHint.Visibility = TorLinkFolderButton.Visibility = DownloadersButton.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
         TorLinkToggle.IsChecked = active || _torlinkInstalling; TorLinkToggle.IsEnabled = !_torlinkInstalling;
         DescribeTorLinkSetup();
         if (show) _ = Dispatcher.BeginInvoke(() => TorLinkToggle.Focus(), DispatcherPriority.Input);
@@ -266,12 +274,7 @@ public partial class MainWindow
             : (active ? "Activé" : "Désactivé") + $" · TorLink {installation.Version}" + (installation.Managed ? ", installé par Mira." : $" ({installation.Root})."));
     }
 
-    private async void Downloaders_Click(object sender, RoutedEventArgs e)
-    {
-        if (DownloadersPanel.Visibility != Visibility.Visible) { ShowDownloaders(true); return; }
-        if (!TorLinkActive()) return;
-        ShowDownloaders(false); await StartTorLinkAsync(restart: false);
-    }
+    private void Downloaders_Click(object sender, RoutedEventArgs e) => ShowDownloaders(true);
     private async void TorLinkOpen_Click(object sender, RoutedEventArgs e) { ShowDownloaders(false); await StartTorLinkAsync(restart: false); }
     private async void TorLinkToggle_Click(object sender, RoutedEventArgs e)
     {

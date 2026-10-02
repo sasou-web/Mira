@@ -24,7 +24,7 @@ internal static class TorLinkSetup
         { progress.Report(new("TorLink est prêt.", 1)); return ready; }
         var node = NodePackage.Current;
         progress.Report(new($"Téléchargement de Node.js {node.Version}…", 0));
-        await NodeInstaller.InstallAsync(profile, node, progress: new Progress<double>(p => progress.Report(new($"Téléchargement de Node.js {node.Version}… {Math.Floor(p * 100):0} %", p * .6))), ct: ct);
+        await NodeInstaller.InstallAsync(profile, node, progress: new Percent((percent, p) => progress.Report(new($"Téléchargement de Node.js {node.Version}… {percent} %", p * .6))), ct: ct);
         progress.Report(new($"Installation de TorLink {package.Version}…", .65));
         await RunNpmAsync(profile, package, ct);
         var installed = TorLinkInstallation.Validate(TorLinkPackage.PackageRoot(profile), profile);
@@ -35,6 +35,17 @@ internal static class TorLinkSetup
             "Projet indépendant de Mira, sous licence MIT : https://github.com/baairon/torlink\n", ct);
         progress.Report(new("TorLink est prêt.", 1));
         return installed;
+    }
+
+    /// <summary>Whole percents only: the download reports each block it reads, the page needs a hundred steps at most.</summary>
+    private sealed class Percent(Action<int, double> report) : IProgress<double>
+    {
+        private int _shown = -1;
+        public void Report(double value)
+        {
+            var percent = (int)Math.Floor(Math.Clamp(value, 0, 1) * 100);
+            if (Interlocked.Exchange(ref _shown, percent) != percent) report(percent, value);
+        }
     }
 
     /// <summary>npm, run by Mira's Node.js in a hidden window; its errors become one readable line.</summary>

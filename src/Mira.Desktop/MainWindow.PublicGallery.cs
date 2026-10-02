@@ -87,6 +87,10 @@ public partial class MainWindow
             await At(sizes[2], "21-empty-library", null, EmptyState);
             if (EmptyGuide.Visibility != Visibility.Visible) throw new InvalidOperationException("The empty library does not lead to the guide.");
             _demo = true;
+            // Maximized, as Mira opens on a screen smaller than its default size: everything on the screen, to its edges.
+            ResetFilters(); _view = "home"; RenderDemo(); SmoothScroll.Jump(LibraryScroll); WindowState = WindowState.Maximized; await CaptureAsync(output, "22-maximized");
+            drawn.Add($"22-maximized (Windows {Environment.OSVersion.Version.Build}): {AssertMaximizedOnScreen()}");
+            WindowState = WindowState.Normal;
             await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {14 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }

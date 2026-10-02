@@ -14,7 +14,10 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - pas de nouveau téléchargement une fois installé ;
   - archive altérée, chemin qui sort du dossier ou zip sans Node.js : refusés, aucun fichier laissé ;
   - version majeure lue ; arguments de npm (version exacte, `--ignore-scripts`, dossier de Mira) ; résumé des erreurs de npm.
-- **Galerie de la CI Windows** : accueil, connexion, installation de Jellyfin et nouveautés rendus à 1920 × 1032, 1536 × 826, 1280 × 688 (1080p à 100, 125 et 150 %) et 960 × 600. Chacun tient entier dans la fenêtre (`AssertFits`, qui tient compte de la mise à l’échelle). Le guide, la page Téléchargements et la bibliothèque vide tiennent en largeur.
+- **Galerie de la CI Windows** : accueil, connexion, installation de Jellyfin et nouveautés demandés à 1920 × 1032, 1536 × 826, 1280 × 688 (1080p à 100, 125 et 150 %) et 960 × 600. Chacun tient entier dans la fenêtre (`AssertFits`, qui tient compte de la mise à l’échelle). Le guide, la page Téléchargements et la bibliothèque vide tiennent en largeur.
+  - L’écran du runner (1024 × 768) plafonne la fenêtre à 1044 × 788 : les deux plus grandes tailles y sont rendues à 1044 × 788, celle de 150 % à 1044 × 688. Les tailles réellement rendues sont écrites dans `sizes.txt`.
+  - Aperçus regardés à 1044 × 688 : accueil, installation de Jellyfin, page Téléchargements.
+- **Fenêtre agrandie** : la galerie agrandit la fenêtre et vérifie que son contenu couvre exactement la zone de travail de l’écran, à 1 pixel près (`22-maximized`, mesure dans `sizes.txt`). Sous Windows 10, ce décalage n’était pas appliqué ; la CI tourne sur un Windows plus récent et ne couvre pas ce cas.
 - **Non vérifié sur un vrai PC** :
   - l’installation complète depuis Mira (Node.js puis npm sous Windows) et l’ouverture de TorLink ;
   - la fenêtre agrandie au démarrage sur un écran à 125 ou 150 %.

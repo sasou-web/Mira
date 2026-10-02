@@ -29,10 +29,11 @@ public sealed class WindowFrame
 
     private void Apply()
     {
-        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
         var handle = new WindowInteropHelper(_window).Handle;
         if (handle == IntPtr.Zero) return;
+        // Windows 10 hides the resize frame beyond the screen too: only the outline and corners are Windows 11's.
         UpdateContentInset(handle);
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
         Set(handle, 20, 1); // DWMWA_USE_IMMERSIVE_DARK_MODE
         Set(handle, 33, Rounded ? 2 : 1); // DWMWA_WINDOW_CORNER_PREFERENCE
         // COLORREF is BGR. DWM draws a single physical-pixel outline.

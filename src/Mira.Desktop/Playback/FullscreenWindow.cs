@@ -54,6 +54,13 @@ public sealed class FullscreenWindow(Window window)
         if (!GetMonitorInfo(MonitorFromWindow(handle, 2), ref info)) throw new Win32Exception(Marshal.GetLastWin32Error());
         return info.Monitor.ToRect();
     }
+    /// <summary>The monitor's area without the taskbar, in physical pixels: where a maximized window is visible.</summary>
+    public static Rect WorkArea(IntPtr handle)
+    {
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(MonitorFromWindow(handle, 2), ref info)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        return info.Work.ToRect();
+    }
     [StructLayout(LayoutKind.Sequential)] private struct NativeRect
     { public int Left, Top, Right, Bottom; public readonly Rect ToRect() => new(Left, Top, Right - Left, Bottom - Top); }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect Monitor, Work; public uint Flags; }
