@@ -4,6 +4,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 
 ## Téléchargements déplacés, Actualiser et Favoris 0.5.7
 
+- Release v0.5.7 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.7, avec la taille et le SHA-256 des trois paquets tels que GitHub les donne ; sa signature est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`, et refusée sur une copie modifiée. La page de release porte le texte court tiré de `WhatsNew.json` : résumé, trois points et lien vers le CHANGELOG.
 - **Partage de TorLink 1.9.0**, relu dans son code (`dist/index.js`) :
   - au démarrage, TorLink relance chaque partage noté `seeding` dans `Data/seeds.json` ; ceux notés `paused` restent arrêtés, sans réseau ;
   - un partage dont les fichiers ont disparu se remet à télécharger. TorLink ne l’arrête qu’après 10 s (marqué « missing »), et ce qu’il a téléchargé entre-temps reste dans son dossier. D’où la pause, posée par Mira avant de lancer TorLink.
