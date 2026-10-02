@@ -13,7 +13,7 @@ Mira keeps Jellyfin as your library server. It provides a cinematic desktop UI, 
 - Most recently watched titles first, persistent playback reports and synchronization retries.
 - Windows Start Menu identity, notification-area controls, taskbar thumbnail controls and system media session.
 - Local artwork/cache, bundled typography, responsive hover transitions and reduced-motion preference.
-- Optional TorLink page: if TorLink is installed separately, its terminal interface opens inside Mira and each finished download is placed in the Jellyfin library folders with Jellyfin-style names. Mira provides no sources or content.
+- Optional downloads page: turning TorLink on installs it when needed (Node.js and the torlnk npm package, checked, in Mira's data folder) and opens its terminal interface inside Mira; each finished download is placed in the Jellyfin library folders with Jellyfin-style names. TorLink is an independent project; Mira provides no sources or content.
 
 ## Install
 

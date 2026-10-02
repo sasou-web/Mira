@@ -8,7 +8,7 @@
 
 L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. Mira est une préversion de développement non signée.
 
-Facultatif : [TorLink](#torlink), installé séparément, et le runtime Microsoft Edge WebView2 (présent sur Windows 11 et la plupart des Windows 10) pour afficher son terminal dans Mira.
+Facultatif : [TorLink](#torlink), que Mira installe quand tu l’actives, et le runtime Microsoft Edge WebView2 (présent sur Windows 11 et la plupart des Windows 10) pour afficher son terminal dans Mira.
 
 ## Installation
 
@@ -75,11 +75,16 @@ La zone de notification permet de masquer puis de retrouver Mira sans arrêter l
 
 ## TorLink
 
-TorLink est un client de téléchargement en terminal, installé séparément. Mira ne le modifie pas : il le lance depuis son dossier, avec le Node.js qu’il contient ou celui du PC (22 ou plus récent), et affiche son interface dans la page **TorLink** du rail.
+TorLink est un client de téléchargement en terminal ([projet indépendant](https://github.com/baairon/torlink), licence MIT), publié sur npm (`npx torlnk`). Mira affiche son interface dans la page **Téléchargements** du rail.
 
-1. Installer TorLink et vérifier qu’il démarre depuis son raccourci.
-2. Ouvrir **TorLink** dans le rail de Mira. S’il n’est pas retrouvé, choisir son dossier, celui qui contient `torlink.bat`.
+1. Ouvrir **Téléchargements** (flèche du rail), puis activer **TorLink** dans la liste des téléchargeurs.
+2. Si TorLink est déjà sur ce PC (copie de `npx torlnk`, installation npm globale, raccourci), Mira l’utilise tel quel. Sinon, il l’installe pour ce compte Windows, sans droits administrateur et sans modifier le PATH :
+   - **Node.js 24.21.0** : le zip officiel de nodejs.org (38 Mo), vérifié par sa taille et son SHA-256, et rangé dans `data\node` ;
+   - **TorLink 1.9.0**, installé par ce npm dans `data\torlink`.
+   Compter une minute environ.
 3. Dans **Réglages → TorLink**, vérifier les dossiers Films, Séries et Animes. Laissés vides, ils sont lus dans Jellyfin : il faut un compte administrateur et un serveur sur ce PC.
+
+Désactiver TorLink le ferme ; il reste installé. Le TorLink installé par Mira est mis à jour avec Mira. Il tourne sans son module WebRTC facultatif, qui demande des outils de compilation : les pairs TCP, uTP et DHT suffisent.
 
 Chaque téléchargement terminé rejoint la bibliothèque sous les noms attendus par Jellyfin, par exemple `Titre (Année)\Titre (Année).mkv` ou `Série\Season 01\Série - S01E02.mkv`. Sur le même disque, un lien physique évite toute copie et TorLink continue de partager le fichier ; sinon il est copié. Jellyfin est prévenu, puis le titre apparaît dans Mira.
 
@@ -125,10 +130,11 @@ Pour passer d’une copie portable à l’installateur en gardant sa session : i
 | Progression qui tarde à remonter | Consulter **Réglages → Jellyfin & synchronisation** ; les envois restent en attente quand le serveur est indisponible. |
 | Icône de notification absente | Regarder les icônes masquées près de l’horloge. |
 | Mira est déjà ouvert | Relancer le raccourci doit restaurer la fenêtre existante. |
-| TorLink introuvable | Indiquer son dossier, celui qui contient `torlink.bat`, dans **Réglages → TorLink**. |
+| TorLink introuvable | Dans la page **Téléchargements**, choisir **Réinstaller**. |
+| « TorLink n’a pas pu s’installer » | Vérifier la connexion à Internet (nodejs.org et registry.npmjs.org), puis réactiver TorLink. |
 | « TorLink est déjà ouvert » | Quitter l’autre fenêtre TorLink (q ou Ctrl + C), puis choisir **Réessayer**. |
 | Terminal intégré indisponible | Installer le runtime Microsoft Edge WebView2. En attendant, **Ouvrir dans une fenêtre** lance TorLink à part ; ses téléchargements terminés sont quand même rangés, au plus tard à la prochaine ouverture de Mira. |
-| Téléchargement non rangé | Lire son état dans **Vers Jellyfin**, sur la page TorLink. Choisir les dossiers manquants dans les réglages, puis **Réessayer**. |
+| Téléchargement non rangé | Lire son état dans **Vers Jellyfin**, sur la page Téléchargements. Choisir les dossiers manquants dans les réglages, puis **Réessayer**. |
 | Mise à jour qui ne s’installe pas | **Réglages → Mises à jour** donne la dernière erreur, `data\updates\update.log` le détail. Le dossier de Mira doit rester accessible en écriture ; une copie lancée depuis un dossier de développement (`bin\Release`) ne se met jamais à jour. |
 
 Pour un problème reproductible, [ouvrir une issue](https://github.com/sasou-web/Mira/issues/new/choose) avec les versions de Mira, Windows, Jellyfin et du moteur. Ne joindre aucun identifiant ni média personnel.

@@ -14,7 +14,7 @@ Mira.Desktop (WPF)
   │   ├─ MiniPlayer : glisser, aimantation aux coins, rangement derrière la languette
   │   ├─ PlayerSegments : chapitres, passages à sauter et épisode suivant
   │   ├─ Settings : préférences et sections de réglages
-  │   ├─ TorLink : page TorLink, surveillance des téléchargements terminés, liste « Vers Jellyfin »
+  │   ├─ TorLink : page Téléchargements (liste des téléchargeurs, TorLink activé ou non), surveillance des téléchargements terminés, liste « Vers Jellyfin »
   ├─ Themes/Cinema.xaml : composants, couleurs, focus et contrôles sombres
   ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions et défilement progressif
   ├─ Playback/MpvEngine : API C libmpv, rendu dans un HWND enfant, recherche du moteur (choisi, installé par Mira, connu)
@@ -24,7 +24,7 @@ Mira.Desktop (WPF)
   ├─ Playback/VideoHost : surface native de la vidéo
   ├─ ServerSetup : « Installer Jellyfin sur ce PC », de l’écran de connexion jusqu’à la bibliothèque
   ├─ Guide : bienvenue d’un nouveau profil, guide de démarrage (dossiers, page de Jellyfin, autres appareils), nouveautés après une mise à jour
-  ├─ TorLink : pseudo-console Windows, installation TorLink, terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
+  ├─ TorLink : pseudo-console Windows, recherche et installation de TorLink (TorLinkSetup), terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
   └─ Services : images, partage des requêtes de métadonnées, session DPAPI, préférences, mises à jour (Updater, UpdateApplier), installateur de Jellyfin
           │
 Mira.Core
@@ -137,7 +137,22 @@ Nunito Sans est embarquée en quatre graisses, sans téléchargement au lancemen
 
 ## TorLink
 
-TorLink reste un programme séparé, lancé sans modification depuis son dossier : `node\node.exe dist\cli.cjs`, ou le Node.js du PC à défaut. `TorLinkInstallation` prend le dossier choisi dans les réglages, sinon la cible des raccourcis `torlink*.lnk` du menu Démarrer et du Bureau, puis une installation npm globale ; il vérifie `package.json` (paquet `torlnk`) et `dist/cli.cjs`. Avant un lancement, les lignes de commande des processus `node` sont lues par `NtQueryInformationProcess` : si TorLink tourne déjà ailleurs, Mira n’en démarre pas un second, car les deux partageraient la même file et les mêmes fichiers.
+TorLink reste un programme séparé, lancé sans modification : `node.exe dist\cli.cjs`. `TorLinkInstallation` prend, dans l’ordre :
+- le dossier choisi dans les réglages ;
+- le TorLink de Mira (`data\torlink\node_modules\torlnk`) ;
+- la cible des raccourcis `torlink*.lnk` ;
+- une installation npm globale ;
+- la copie la plus récente que `npx torlnk` garde dans le cache de npm (`npm-cache\_npx`).
+
+Il vérifie `package.json` (paquet `torlnk`) et `dist/cli.cjs`. Le Node.js utilisé est celui du dossier de TorLink, sinon celui de Mira (`data\node`), sinon celui du PATH, à partir de la version 22, lue dans la version de fichier de `node.exe`.
+
+**Installation à l’activation.** `TorLinkSetup` installe d’abord `NodePackage.Current` :
+- le zip win-x64 officiel de Node.js 24.21.0, figé par sa taille et son SHA-256 ; ce SHA-256 est celui de `SHASUMS256.txt`, dont la signature GPG par un membre de l’équipe de publication de Node.js a été vérifiée au moment de figer la version ;
+- seuls `node.exe`, `LICENSE` et npm sont extraits, avec un contrôle des chemins, dans un dossier temporaire mis en place à la fin.
+
+Ce npm lance ensuite `npm install torlnk@1.9.0 --prefix data\torlink --ignore-scripts` dans une fenêtre cachée, limité à 10 minutes. Son erreur est résumée en une ligne. Le seul script d’installation construit un module WebRTC facultatif, qui demande des outils C++.
+
+Le TorLink de Mira tourne avec `TORLINK_NO_UPDATE_CHECK` (Mira le met à jour en relevant la version figée) et `TORLINK_NO_WEBRTC`. Désactiver TorLink (`PlayerSettings.TorLinkActive`) le ferme sans le désinstaller. Tant que rien n’est choisi, un TorLink déjà installé compte comme activé. Avant un lancement, les lignes de commande des processus `node` sont lues par `NtQueryInformationProcess` : si TorLink tourne déjà ailleurs, Mira n’en démarre pas un second, car les deux partageraient la même file et les mêmes fichiers.
 
 **Terminal.** `PseudoConsole` crée une pseudo-console Windows (ConPTY) et démarre TorLink suspendu dans un Job Object `KILL_ON_JOB_CLOSE`, si bien qu’aucun processus TorLink ou Node lancé dans la page ne survit à Mira. Sans WebView2, « Ouvrir dans une fenêtre » lance TorLink à part, comme son raccourci, après la même vérification d’instance ; ce TorLink-là vit indépendamment de Mira. La sortie UTF-8 est lue sur un thread dédié, regroupée jusqu’au prochain passage du dispatcher, puis dessinée par xterm.js 6 dans `Assets/TorLink/terminal.html`. `WebView2CompositionControl` est composé par WPF, sans HWND superposé : mini-lecteur, notifications, fiche et réglages passent au-dessus du terminal. La page n’envoie que quatre messages validés : prête, taille (20 à 500 colonnes, 5 à 300 lignes), saisie (64 Kio au plus) et retour. Les touches que WebView2 transmet à WPF restent à TorLink, Échap et flèches comprises, sauf Alt + ← et la touche « précédent ». La molette devient des flèches, comme TorLink l’attend. À la fermeture, Ctrl + C est envoyé, puis le Job est terminé après 3 secondes. TorLink quitte avec le code 0 quand on le lui demande ; un autre code affiche dans la page la dernière ligne qu’il a écrite, par exemple une version de Node.js trop ancienne.
 
