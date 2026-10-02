@@ -2,7 +2,7 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Téléchargements déplacés, Actualiser et Favoris (non publié)
+## Téléchargements déplacés, Actualiser et Favoris 0.5.7
 
 - **Partage de TorLink 1.9.0**, relu dans son code (`dist/index.js`) :
   - au démarrage, TorLink relance chaque partage noté `seeding` dans `Data/seeds.json` ; ceux notés `paused` restent arrêtés, sans réseau ;

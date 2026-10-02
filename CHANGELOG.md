@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.5.7 — 2026-10-02
+
+Les téléchargements TorLink sont déplacés sans doublon, Actualiser fait vraiment analyser les dossiers par Jellyfin, et Favoris devient un filtre.
 
 - **Téléchargements TorLink déplacés, jamais en double** : un téléchargement terminé est maintenant **déplacé** dans la bibliothèque. Avant, il y était copié, ou lié par un lien physique qui le faisait apparaître dans deux dossiers.
   - Sur le même disque, c’est un simple changement de dossier : instantané, sans place en plus.
