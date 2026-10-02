@@ -4,6 +4,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 
 ## TorLink depuis la page Téléchargements, écrans à la taille de l’écran 0.5.6
 
+- Release v0.5.6 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.6, avec la taille et le SHA-256 des trois paquets tels que GitHub les donne ; sa signature est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`, et refusée sur une copie modifiée. La page de release porte le texte court tiré de `WhatsNew.json` : résumé, quatre points et lien vers le CHANGELOG.
 - **Node.js 24.21.0** :
   - SHA-256 du zip win-x64 vérifié contre `SHASUMS256.txt` ;
   - signature GPG de ce fichier vérifiée avec les clés de `nodejs/release-keys` (« Good signature », clé d’Antoine du Hamel) ;
