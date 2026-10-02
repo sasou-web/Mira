@@ -26,7 +26,7 @@ The current logo, icon geometry and fictional demo illustrations are original Mi
 
 ## Optional external components
 
-**TorLink is not included.** The TorLink page runs a copy installed separately on the PC, unmodified, with its own Node.js runtime and licences. **The Microsoft Edge WebView2 Runtime is not included** either: the terminal uses the runtime provided with Windows or installed from Microsoft.
+**TorLink and Node.js are not included.** The Downloads page runs TorLink unmodified: a copy already on the PC, or, when it is turned on there, one Mira installs for the current Windows account. That install is the official Node.js 24.21.0 Windows zip from nodejs.org (SHA-256 checked; `node.exe`, npm and `LICENSE` kept in `data\node`, MIT and the licences listed in that file), then the npm package `torlnk` 1.9.0 ([TorLink](https://github.com/baairon/torlink), MIT, by bairon) with its npm dependencies in `data\torlink`. Both come from their publishers, not from Mira's releases, and keep their own licences. **The Microsoft Edge WebView2 Runtime is not included** either: the terminal uses the runtime provided with Windows or installed from Microsoft.
 
 **Jellyfin Server is not included.** When asked to ("Installer Jellyfin sur ce PC"), Mira downloads the official Windows installer from `repo.jellyfin.org` (the release and SHA-256 listed in winget's `Jellyfin.Server` manifest) and runs it; Jellyfin is then installed and updated as its own program, under its own licence (GPL-2.0). Source: the [Jellyfin project](https://github.com/jellyfin/jellyfin).
 

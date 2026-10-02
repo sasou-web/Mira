@@ -28,7 +28,7 @@ Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau ce
 - **Une place dans Windows** : logo et raccourci Démarrer, icône de notification, commandes dans l’aperçu de la barre des tâches et session multimédia système.
 - **Toujours à jour** (à partir de la 0.5.2) : chaque nouvelle version est téléchargée en arrière-plan, vérifiée (signature, SHA-256) et installée à la fermeture de Mira, sans toucher à tes données.
 - **Un guide pour bien démarrer** : au premier lancement, Mira explique ce que font Jellyfin et Mira ; le guide (bouton **?** ou **F1**) montre où ranger tes vidéos, ouvre la page d’administration de Jellyfin et donne l’adresse à entrer sur ton téléphone ou ta TV. Après chaque mise à jour, les nouveautés sont résumées en un écran.
-- **TorLink intégré, si tu l’utilises** : son interface s’ouvre dans une page de Mira et chaque téléchargement terminé est rangé dans les dossiers de Jellyfin, nommé comme il l’attend. TorLink s’installe à part ; Mira ne fournit ni sources ni contenus.
+- **TorLink, si tu l’actives** : dans la page Téléchargements, un interrupteur installe TorLink (avec son Node.js) et ouvre son interface dans Mira ; chaque téléchargement terminé est rangé dans les dossiers de Jellyfin, nommé comme il l’attend. TorLink est un projet indépendant ; Mira ne fournit ni sources ni contenus.
 
 <table>
   <tr><td width="50%"><img src="docs/screenshots/readme-library.jpg" alt="Toute la bibliothèque, avec recherche, genres, années, progression et tri" /></td><td width="50%"><img src="docs/screenshots/readme-subtitles.jpg" alt="Réglages audio et sous-titres, avec aperçu de la taille des sous-titres" /></td></tr>
@@ -53,7 +53,7 @@ Dans la [release 0.5.5](https://github.com/sasou-web/Mira/releases/tag/v0.5.5), 
 
 **Le runtime .NET est inclus ; libmpv est téléchargé à la demande** (31 Mo, depuis les builds Windows de mpv, empreinte vérifiée). Windows 10 2004+ / Windows 11 x64, interface française, préversion non signée. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
 
-La page **TorLink** est facultative : TorLink s’installe séparément et Mira le retrouve par son raccourci Démarrer, ou par le dossier indiqué dans **Réglages → TorLink**. Son terminal utilise le runtime Microsoft Edge WebView2 de Windows.
+La page **Téléchargements** est facultative : TorLink s’y active d’un clic, et Mira l’installe (Node.js et TorLink, vérifiés, dans son dossier `data`) s’il n’est pas déjà sur le PC. Son terminal utilise le runtime Microsoft Edge WebView2 de Windows.
 
 [Guide complet : moteur vidéo, raccourcis, mise à jour et dépannage](docs/INSTALLATION.md)
 
