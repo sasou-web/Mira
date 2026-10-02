@@ -151,7 +151,7 @@ public partial class MainWindow : Window
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
         _client = new JellyfinClient(connection); _store = new LibraryStore(_profile.DirectoryPath, connection.Server + "|" + connection.UserId);
         var damaged = _store.DamagedCopy is not null;
-        _items = []; _resume = []; _nextUp = []; _recentPlayback = []; _episodes = []; _detail = null; _hero = null; _totalCount = 0; _returnToDetail = null;
+        _items = []; _resume = []; _nextUp = []; _recentPlayback = []; _episodes = []; _detail = null; _hero = null; _totalCount = 0; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
         // Never leave the previous account's posters on screen while this one loads.
         _catalogLoading = true; RenderLibrary();
@@ -240,15 +240,15 @@ public partial class MainWindow : Window
             Task<ItemsResult>? resume = home ? client.ResumeAsync(ct) : null;
             Task<ItemsResult>? next = home ? client.NextUpAsync(ct) : null;
             var result = await browse;
-            if (home) await Task.WhenAll(resume!, next!);
+            if (home) { await Task.WhenAll(resume!, next!); await LoadSeasonThumbsAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
             var resumeItems = home ? resume!.Result.Items : null;
-            List<MediaItem>? recent = null;
+            List<MediaItem>? recent = null; var seasonThumbs = new Dictionary<string, string?>(_seasonThumbs);
             // SQLite work stays off the UI thread; the page only redraws when it is done.
             await Task.Run(() =>
             {
                 store.ApplyLocalProgress(result.Items);
-                if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); store.Save("home", result); store.Save("resume", resumeItems); }
+                if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); ApplySeasonThumbs(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); store.Save("home", result); store.Save("resume", resumeItems); }
                 else if (!more && search.Length == 0) store.Save(key, result);
             }, CancellationToken.None);
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;

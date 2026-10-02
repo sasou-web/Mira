@@ -72,7 +72,7 @@ public partial class MainWindow
     }
     private async Task SettleVisualAsync()
     {
-        if (_images is { } cache) { await Task.WhenAll(_items.Select(x => cache.GetAsync(x)).Concat(_resume.Concat(_nextUp).Select(x => cache.GetAsync(x, true, 720)))); if (_hero is { } hero) await LoadHeroImageAsync(hero); }
+        if (_images is { } cache) { await Task.WhenAll(_items.Select(x => cache.GetAsync(x)).Concat(_resume.Concat(_nextUp).Select(x => cache.LandscapeAsync(x, 720)))); if (_hero is { } hero) await LoadHeroImageAsync(hero); }
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
     }
     private async Task CaptureAsync(string directory, string name)

@@ -111,9 +111,9 @@ public sealed class MediaCard : Button
     private async Task LoadArtworkAsync(ImageCache? images, bool wide)
     {
         if (images is null) return;
-        var request = images.GetAsync(Item, wide, wide ? 720 : 500); var cached = request.IsCompletedSuccessfully;
+        var request = wide ? images.LandscapeAsync(Item, 720) : images.GetAsync(Item, false, 500); var cached = request.IsCompletedSuccessfully;
         var bitmap = await request;
         if (bitmap is not null) { var initial = _image.Source is null; _image.Source = bitmap; if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft); }
     }
-    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview, item.ProductionYear, item.Subtitle, item.UserData.Played, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), settings.ShowProgress);
+    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview, item.ProductionYear, item.Subtitle, item.UserData.Played, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress);
 }
