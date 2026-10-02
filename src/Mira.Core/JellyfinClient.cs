@@ -143,6 +143,50 @@ public sealed class JellyfinClient : IDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested)) { return false; }
     }
+    /// <summary>
+    /// Asks Jellyfin to look through every library folder for new, changed or removed files, like « Analyser toutes
+    /// les médiathèques » in its dashboard. False when this account may not: only an administrator can.
+    /// </summary>
+    public async Task<bool> ScanLibrariesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync("Library/Refresh", null, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(response);
+        return true;
+    }
+    /// <summary>Jellyfin's library scan task: running or not, its progress (0 to 100), when it last ended. Null when unreadable (not an administrator).</summary>
+    public async Task<LibraryScan?> LibraryScanAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("ScheduledTasks?isHidden=false", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        var tasks = await response.Content.ReadFromJsonAsync<List<ScheduledTask>>(Json.Options, ct) ?? [];
+        return tasks.FirstOrDefault(x => x?.Key == "RefreshLibrary") is { } task
+            ? new(task.State is "Running" or "Cancelling", task.CurrentProgressPercentage, task.LastExecutionResult?.EndTimeUtc) : null;
+    }
+    /// <summary>
+    /// Scans the libraries and follows the scan to its end, reporting its progress from 0 to 1 (null before it
+    /// starts). False when this account may not scan. A scan that does not start within <paramref name="startLimit"/>
+    /// (queued behind another task) or whose progress cannot be read is not waited for.
+    /// </summary>
+    public async Task<bool> ScanAndWaitAsync(IProgress<double?>? progress, TimeSpan poll, TimeSpan startLimit, CancellationToken ct = default)
+    {
+        var before = await LibraryScanAsync(ct);
+        if (!await ScanLibrariesAsync(ct)) return false;
+        progress?.Report(null);
+        var started = DateTime.UtcNow; var seen = false;
+        while (DateTime.UtcNow - started < TimeSpan.FromMinutes(30))
+        {
+            await Task.Delay(poll, ct);
+            if (await LibraryScanAsync(ct) is not { } scan) return true;
+            if (scan.Running) { seen = true; progress?.Report(scan.Progress is { } p ? Math.Clamp(p / 100, 0, 1) : null); continue; }
+            // Ended: seen running, or finished between two looks (a small library takes less than a second).
+            if (seen || scan.LastEnded != before?.LastEnded || DateTime.UtcNow - started > startLimit) return true;
+        }
+        return true;
+    }
+    private sealed record ScheduledTask(string? Key, string? State, double? CurrentProgressPercentage, ScheduledTaskResult? LastExecutionResult);
+    private sealed record ScheduledTaskResult(DateTimeOffset? EndTimeUtc);
     private sealed record MediaUpdate(string Path, string UpdateType);
     private sealed record MediaUpdates(MediaUpdate[] Updates);
     /// <summary>

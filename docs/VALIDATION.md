@@ -2,6 +2,30 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Téléchargements déplacés, Actualiser et Favoris (non publié)
+
+- **Partage de TorLink 1.9.0**, relu dans son code (`dist/index.js`) :
+  - au démarrage, TorLink relance chaque partage noté `seeding` dans `Data/seeds.json` ; ceux notés `paused` restent arrêtés, sans réseau ;
+  - un partage dont les fichiers ont disparu se remet à télécharger. TorLink ne l’arrête qu’après 10 s (marqué « missing »), et ce qu’il a téléchargé entre-temps reste dans son dossier. D’où la pause, posée par Mira avant de lancer TorLink.
+  - Son `config.json` ne contient que `downloadDir` et `trackers`. La TUI n’a pas d’API de contrôle.
+- **Déplacement de bout en bout** (Linux, code de Mira) :
+  - un épisode et son sous-titre sont déplacés et renommés pour Jellyfin ;
+  - le dossier du téléchargement, vidé, disparaît ; celui de TorLink reste ;
+  - `seeds.json` passe de `seeding` à `paused` pour ce téléchargement seulement, une fois ;
+  - le journal garde l’état après rechargement.
+- **Nouveaux tests** :
+  - entre deux disques, les deux modes déplacent sans laisser de copie, ni de `.mira-part` ;
+  - le dossier vidé quitte celui de TorLink ;
+  - pause du partage : ancienne forme (identifiant seul) et nouvelle forme, fichier à moitié écrit laissé tel quel, fichier absent ;
+  - dossier de téléchargement choisi seulement sans `config.json` : à côté des dossiers de la bibliothèque, jamais dedans, et rien si deux disques ou une bibliothèque à la racine ;
+  - Actualiser : analyse suivie jusqu’à la fin, analyse terminée entre deux lectures, compte non administrateur, analyse qui ne démarre pas.
+- **Vrai Jellyfin 12.1**, configuré par Mira :
+  - un film ajouté dans `Films`, puis Actualiser : avancement 12 %, 48 %, 97 %, fin en 2,7 s, et la liste passe de 0 à 1 titre ;
+  - un compte invité : tâche illisible et analyse refusée, sans fermer sa session.
+- **Non vérifié sur un vrai PC** :
+  - un vrai téléchargement TorLink déplacé pendant que TorLink le partage. Node.js ouvre ses fichiers en autorisant leur déplacement, ce qui est attendu ;
+  - l’apparence du bouton Favoris allumé et du bouton Actualiser, visibles dans la galerie de la CI (05-favorites).
+
 ## TorLink depuis la page Téléchargements, écrans à la taille de l’écran 0.5.6
 
 - Release v0.5.6 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.6, avec la taille et le SHA-256 des trois paquets tels que GitHub les donne ; sa signature est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`, et refusée sur une copie modifiée. La page de release porte le texte court tiré de `WhatsNew.json` : résumé, quatre points et lien vers le CHANGELOG.

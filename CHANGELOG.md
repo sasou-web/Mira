@@ -1,5 +1,16 @@
 # Historique
 
+## Non publié
+
+- **Téléchargements TorLink déplacés, jamais en double** : un téléchargement terminé est maintenant **déplacé** dans la bibliothèque. Avant, il y était copié, ou lié par un lien physique qui le faisait apparaître dans deux dossiers.
+  - Sur le même disque, c’est un simple changement de dossier : instantané, sans place en plus.
+  - Sur un autre disque, chaque fichier est copié puis aussitôt supprimé du dossier de TorLink, un par un.
+  - Quand TorLink n’a pas encore de dossier, Mira le fait télécharger sur le disque de la bibliothèque, dans « Téléchargements TorLink » : les déplacements y sont toujours instantanés.
+  - TorLink cesse de partager ce qui a été déplacé : relancé, il ne va plus chercher les fichiers disparus sur le réseau. Les dossiers vidés quittent celui de TorLink.
+  - **Réglages → TorLink → Continuer à partager** (désactivé par défaut, y compris pour les profils existants) garde l’ancien lien physique, sans place en plus, mais jamais de copie.
+- **Actualiser, pour de vrai** : le bouton **Actualiser** demande à Jellyfin d’analyser tes dossiers, affiche l’avancement (« Analyse… 48 % »), recharge la liste et annonce les nouveaux titres. Avant, il relisait seulement la liste, sans voir les fichiers ajoutés, et presque sans signe visible. Sans droits d’administrateur sur Jellyfin, Mira recharge la liste et dit pourquoi elle ne peut pas lancer l’analyse.
+- **Favoris** : c’est maintenant un filtre qui s’allume, se combine avec Films, Séries ou la recherche, et se désactive au second clic. **Réinitialiser** le désactive : avant, la page restait sur les favoris.
+
 ## 0.5.6 — 2026-10-02
 
 TorLink s’installe d’un clic depuis Mira, les écrans tiennent sur un écran 1080p même à 150 %, et des textes plus courts.

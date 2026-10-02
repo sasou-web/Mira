@@ -2,15 +2,23 @@ using System.Runtime.InteropServices;
 
 namespace Mira.Core;
 
-/// <summary>KeepSeeding: a hard link on the same NTFS volume (no second copy, TorLink keeps sharing), otherwise a copy. Move: the download itself moves.</summary>
+/// <summary>
+/// Move: the download itself goes into the library. On the same drive it is renamed: instant, nothing written, no
+/// extra space. Between two drives the data has to cross: each file is copied, then removed from TorLink's folder at
+/// once, one file at a time. KeepSeeding: a hard link on the same NTFS drive, so TorLink keeps sharing without a
+/// second copy; where no link is possible, the file moves as with Move. Neither mode leaves a download twice on disk.
+/// </summary>
 public enum ImportMode { KeepSeeding, Move }
 
 public sealed record ImportFailure(ImportOperation Operation, string Reason);
 
-/// <summary>Canceled: the pass stopped early (Mira closing); what is listed was done and stays done.</summary>
-public sealed record ImportResult(IReadOnlyList<ImportOperation> Placed, IReadOnlyList<ImportOperation> AlreadyThere, IReadOnlyList<ImportFailure> Conflicts, IReadOnlyList<ImportFailure> Failures, bool Linked, bool Copied, bool Moved, bool Canceled = false)
+/// <summary>
+/// Canceled: the pass stopped early (Mira closing); what is listed was done and stays done. Copied: a copy stayed
+/// beside its source, which was in use and could not be removed. OtherDrive: files crossed from another drive.
+/// </summary>
+public sealed record ImportResult(IReadOnlyList<ImportOperation> Placed, IReadOnlyList<ImportOperation> AlreadyThere, IReadOnlyList<ImportFailure> Conflicts, IReadOnlyList<ImportFailure> Failures, bool Linked, bool Copied, bool Moved, bool Canceled = false, bool OtherDrive = false)
 {
-    public string? Method => Moved ? "déplacement" : Copied ? "copie" : Linked ? "lien physique" : null;
+    public string? Method => Copied ? "copie" : Moved ? (OtherDrive ? "déplacement depuis un autre disque" : "déplacement") : Linked ? "lien physique" : null;
 }
 
 /// <summary>Executes an import plan. Never replaces an existing file and never writes outside the plan's library folder.</summary>
@@ -23,7 +31,7 @@ public static class MediaImporter
     {
         var placed = new List<ImportOperation>(); var already = new List<ImportOperation>();
         var conflicts = new List<ImportFailure>(); var failures = new List<ImportFailure>();
-        bool linked = false, copied = false, moved = false, canceled = false;
+        bool linked = false, copied = false, moved = false, canceled = false, otherDrive = false;
         if (plan.LibraryRoot is null) return new(placed, already, conflicts, failures, linked, copied, moved);
         var root = Path.GetFullPath(plan.LibraryRoot).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
         try
@@ -50,18 +58,16 @@ public static class MediaImporter
                 try
                 {
                     Directory.CreateDirectory(target.DirectoryName!);
-                    if (mode == ImportMode.Move && SameVolume(source.FullName, destination)) { File.Move(source.FullName, destination, false); moved = true; JellyfinServiceAccess.ShareWithFolder(destination); }
-                    else if (mode == ImportMode.KeepSeeding && TryHardLink(source.FullName, destination)) { linked = true; JellyfinServiceAccess.ShareWithFolder(destination); }
+                    if (mode == ImportMode.KeepSeeding && TryHardLink(source.FullName, destination)) { linked = true; JellyfinServiceAccess.ShareWithFolder(destination); }
+                    else if (SameVolume(source.FullName, destination)) { await MoveAsync(source.FullName, destination, ct); moved = true; JellyfinServiceAccess.ShareWithFolder(destination); }
                     else
                     {
+                        // Another drive: copied under a temporary name, then the download is removed right away, so at
+                        // most one file exists twice, for the time of its copy.
                         await CopyAsync(source.FullName, destination, ct);
-                        copied = true;
-                        if (mode == ImportMode.Move)
-                        {
-                            // The copy is in place either way; a source still in use simply stays in TorLink's folder.
-                            try { File.Delete(source.FullName); moved = true; }
-                            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-                        }
+                        try { File.Delete(source.FullName); moved = otherDrive = true; }
+                        // Still in use by another program: both stay, and the entry says it is a copy.
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { copied = true; }
                     }
                     placed.Add(operation);
                 }
@@ -70,7 +76,7 @@ public static class MediaImporter
         }
         // Closing Mira: the files already placed are reported, so that they stay tracked.
         catch (OperationCanceledException) { canceled = true; }
-        return new(placed, already, conflicts, failures, linked, copied, moved, canceled);
+        return new(placed, already, conflicts, failures, linked, copied, moved, canceled, otherDrive);
     }
 
     /// <summary>
@@ -95,6 +101,19 @@ public static class MediaImporter
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { break; }
                 folder = (Path.GetDirectoryName(folder) ?? "").TrimEnd('\\', '/');
             }
+        }
+    }
+
+    /// <summary>
+    /// A rename on the same drive. A file just finished is often read for a moment by an antivirus or an indexer that
+    /// does not allow it to move: tried again a few times over about 7 seconds before giving up.
+    /// </summary>
+    private static async Task MoveAsync(string source, string destination, CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try { File.Move(source, destination, false); return; }
+            catch (IOException ex) when ((ex.HResult & 0xFFFF) is 32 or 33 && attempt < 3) { await Task.Delay(TimeSpan.FromSeconds(1 << attempt), ct); }
         }
     }
 

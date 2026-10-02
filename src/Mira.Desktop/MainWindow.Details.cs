@@ -265,7 +265,7 @@ public partial class MainWindow
             if (_detail is { } open && open.Id == item.Id) open.UserData.IsFavorite = favorite;
             _metadata?.Clear();
             // In the favourites view, a removed title leaves the list.
-            if (_view == "favorites" && !favorite) { _items.RemoveAll(x => x.Id == item.Id); _totalCount = Math.Max(0, _totalCount - 1); RenderLibrary(); }
+            if (_favorites && !favorite) { _items.RemoveAll(x => x.Id == item.Id); _totalCount = Math.Max(0, _totalCount - 1); RenderLibrary(); }
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
     }

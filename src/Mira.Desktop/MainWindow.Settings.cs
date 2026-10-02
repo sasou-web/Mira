@@ -23,7 +23,7 @@ public partial class MainWindow
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
         || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim())
-        || _settings.TorLinkAutoImport != (TorLinkAutoImportCheck.IsChecked == true) || _settings.TorLinkKeepSeeding != (TorLinkKeepSeedingCheck.IsChecked == true)
+        || _settings.TorLinkAutoImport != (TorLinkAutoImportCheck.IsChecked == true) || _settings.TorLinkKeepShared != (TorLinkKeepSharedCheck.IsChecked == true)
         || _settings.TorLinkPath != TorLinkPathBox.Text.Trim() || _settings.TorLinkMoviesFolder != TorLinkMoviesBox.Text.Trim()
         || _settings.TorLinkSeriesFolder != TorLinkSeriesBox.Text.Trim() || _settings.TorLinkAnimeFolder != TorLinkAnimeBox.Text.Trim()
         || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true);
@@ -40,7 +40,7 @@ public partial class MainWindow
         SubtitleSizeSlider.Value = _settings.SubtitleSize; MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;
         ShowEngineState();
         SubtitlePreviewImage.Source = HeroImage.Source;
-        TorLinkAutoImportCheck.IsChecked = _settings.TorLinkAutoImport; TorLinkKeepSeedingCheck.IsChecked = _settings.TorLinkKeepSeeding;
+        TorLinkAutoImportCheck.IsChecked = _settings.TorLinkAutoImport; TorLinkKeepSharedCheck.IsChecked = _settings.TorLinkKeepShared;
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
@@ -95,7 +95,7 @@ public partial class MainWindow
         _settings.SubtitleSize = (int)SubtitleSizeSlider.Value; _settings.MpvPath = MpvPathBox.Text.Trim();
         // Switching automatic placement back on starts from now: downloads finished meanwhile stay listed, to import by hand.
         var automaticAgain = !_settings.TorLinkAutoImport && TorLinkAutoImportCheck.IsChecked == true;
-        _settings.TorLinkAutoImport = TorLinkAutoImportCheck.IsChecked == true; _settings.TorLinkKeepSeeding = TorLinkKeepSeedingCheck.IsChecked == true;
+        _settings.TorLinkAutoImport = TorLinkAutoImportCheck.IsChecked == true; _settings.TorLinkKeepShared = TorLinkKeepSharedCheck.IsChecked == true;
         _settings.TorLinkPath = TorLinkPathBox.Text.Trim(); _settings.TorLinkMoviesFolder = TorLinkMoviesBox.Text.Trim();
         _settings.TorLinkSeriesFolder = TorLinkSeriesBox.Text.Trim(); _settings.TorLinkAnimeFolder = TorLinkAnimeBox.Text.Trim();
         // Switched back on: look for a new version now rather than at the next scheduled check.

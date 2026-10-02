@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.5.7",
+    "summary": "Les téléchargements se déplacent sans doublon, et Actualiser trouve tes nouveaux fichiers.",
+    "items": [
+      { "icon": "download", "title": "Jamais en double", "text": "Chaque téléchargement TorLink est déplacé dans ta bibliothèque, sans copie." },
+      { "icon": "refresh", "title": "Actualiser, pour de vrai", "text": "Jellyfin analyse tes dossiers et Mira montre l’avancement, puis les nouveaux titres." },
+      { "icon": "heart", "title": "Favoris en un clic", "text": "Un filtre qui s’allume, et que Réinitialiser éteint." }
+    ]
+  },
+  {
     "version": "0.5.6",
     "summary": "TorLink s’installe d’un clic, et tout tient à l’écran.",
     "items": [

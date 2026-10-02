@@ -33,10 +33,20 @@ public partial class MainWindow
     }
     private void ResetFilters()
     {
-        _filterBusy = true; SearchBox.Text = ""; _parentId = null;
+        _filterBusy = true; SearchBox.Text = ""; _parentId = null; _favorites = false;
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = WatchedFilter.SelectedIndex = SortFilter.SelectedIndex = LibraryFilter.SelectedIndex = 0;
-        _filterBusy = false;
+        _filterBusy = false; ShowFavoritesFilter();
     }
+    private async void Favorites_Click(object sender, RoutedEventArgs e) { _favorites = !_favorites; ShowFavoritesFilter(); await RefreshAsync(); }
+    /// <summary>Lit like the rail's current page while only the favourites show; a second click shows everything again.</summary>
+    private void ShowFavoritesFilter()
+    {
+        if (_favorites) { FavoritesFilter.Background = Brush("#F4F4F5"); FavoritesFilter.Foreground = FavoritesIcon.Foreground = Brush("#151516"); }
+        else { FavoritesFilter.ClearValue(BackgroundProperty); FavoritesFilter.ClearValue(ForegroundProperty); FavoritesIcon.ClearValue(Views.Icon.ForegroundProperty); }
+        System.Windows.Automation.AutomationProperties.SetName(FavoritesFilter, _favorites ? "Favoris seulement, activé" : "Favoris seulement");
+        FavoritesFilter.ToolTip = _favorites ? "Afficher tous les titres" : "Afficher seulement tes favoris";
+    }
+    private string CatalogKey(string search, CatalogQuery filters) => $"{_view}:{(_favorites ? "favorites" : "")}:{_parentId}:{search}:{filters.CacheKey}";
     private async void ResetFilters_Click(object sender, RoutedEventArgs e) { ResetFilters(); await RefreshAsync(); }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing && !_filterBusy) await RefreshAsync(); }
     private async void LibraryFilter_Changed(object sender, SelectionChangedEventArgs e)
@@ -52,7 +62,7 @@ public partial class MainWindow
         var closing = Task.WhenAll(Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay), Motion.HideAsync(TorLinkOverlay), Motion.HideAsync(GuideOverlay));
         DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = GuideOverlay.IsHitTestVisible = false;
         _catalogLoading = true;
-        var key = $"{_view}:{_parentId}:{SearchBox.Text.Trim()}:{CurrentQuery().CacheKey}";
+        var key = CatalogKey(SearchBox.Text.Trim(), CurrentQuery());
         var cached = _store?.Load<ItemsResult>(_view == "home" ? "home" : key);
         _items = cached?.Items ?? []; _totalCount = cached?.TotalRecordCount ?? 0;
         if (cached is not null || _demo) _catalogLoading = false;
@@ -76,14 +86,14 @@ public partial class MainWindow
     {
         var search = SearchBox.Text.Trim(); var home = _view == "home" && search.Length == 0;
         UpdateNavigation();
-        PageTitle.Text = _view switch { "Movie" => "Films", "Series" => "Séries & animes", "favorites" => "Tes favoris", "library" => "Ta bibliothèque", _ => "Explorer" };
-        CatalogDescription.Text = _view == "favorites" ? "Les histoires que tu gardes à portée de main." : "Trouve ta prochaine séance dans ta bibliothèque.";
+        PageTitle.Text = _view switch { "Movie" => "Films", "Series" => "Séries & animes", "library" => "Ta bibliothèque", _ => "Explorer" };
+        CatalogDescription.Text = _favorites ? "Les histoires que tu gardes à portée de main." : "Trouve ta prochaine séance dans ta bibliothèque.";
         Hero.Visibility = home && _items.Count + _resume.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         CatalogHeader.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
         LibraryRows.Margin = new Thickness(110, home && Hero.Visibility == Visibility.Collapsed ? 80 : 0, 40, 42);
         ResumeSection.Visibility = home && _resume.Count + _nextUp.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
-        GridTitle.Text = home ? "Ajoutés récemment" : search.Length > 0 ? $"Résultats pour « {search} »" : _view == "favorites" ? "Ta sélection" : "Tous les titres";
+        GridTitle.Text = home ? "Ajoutés récemment" : search.Length > 0 ? $"Résultats pour « {search} »" : _favorites ? "Tes favoris" : "Tous les titres";
         ItemCount.Text = $"{_totalCount:N0} titre{(_totalCount > 1 ? "s" : "")}";
         if (home)
         {
@@ -126,16 +136,16 @@ public partial class MainWindow
         var query = CurrentQuery();
         var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || _parentId is not null;
         // Nothing at all in the library (not a search, a filter or the favourites): where videos go is what is missing.
-        var emptyLibrary = !_demo && search.Length == 0 && !filtered && _view is "home" or "library" && _resume.Count == 0;
+        var emptyLibrary = !_demo && search.Length == 0 && !filtered && !_favorites && _view is "home" or "library" && _resume.Count == 0;
         (EmptyIcon.Kind, EmptyTitle.Text, EmptyHint.Text) = (_view, search.Length, filtered) switch
         {
             (_, > 0, _) => ("search", $"Aucun résultat pour « {search} »", "Vérifie l’orthographe ou essaie un autre titre."),
             (_, _, true) => ("sliders", "Aucun titre ne correspond à ces filtres", "Élargis ta sélection pour retrouver tes titres."),
-            ("favorites", _, _) => ("bookmark", "Aucun favori pour l’instant", "Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici."),
+            _ when _favorites => ("heart", "Aucun favori ici pour l’instant", "Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici."),
             _ when emptyLibrary => ("folder", "Ta bibliothèque est vide", "Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici."),
             _ => ("library", "Rien à afficher ici", "Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.")
         };
-        EmptyReset.Visibility = filtered || search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyReset.Visibility = filtered || search.Length > 0 || _favorites ? Visibility.Visible : Visibility.Collapsed;
         EmptyGuide.Visibility = emptyLibrary ? Visibility.Visible : Visibility.Collapsed;
     }
     private void UpdateResumeArrows()

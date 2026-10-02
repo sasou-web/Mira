@@ -28,6 +28,10 @@ public sealed record TorLinkImportEntry
     public IReadOnlyList<string> Folders { get; init; } = [];
     public IReadOnlyList<TorLinkImportedFile> Files { get; init; } = [];
     public string? Method { get; init; }
+    /// <summary>Files left TorLink's folder for the library: TorLink must not share this download any more.</summary>
+    public bool MovedOut { get; init; }
+    /// <summary>TorLink's sharing of the moved download is paused (see <see cref="TorLinkState.PauseSeeds"/>).</summary>
+    public bool SeedPaused { get; init; }
     public string? Message { get; init; }
     public int Attempts { get; init; }
     public bool Notified { get; init; }
@@ -128,7 +132,11 @@ public sealed class TorLinkImporter
             return;
         }
         var result = await MediaImporter.ExecuteAsync(plan, mode, ct);
+        // The download's folders in TorLink's, once emptied by the move, go too; TorLink's own folder stays.
+        if (result.Moved) MediaImporter.PruneEmptyFolders(result.Placed.Select(x => Path.GetDirectoryName(x.Source)), [completion.Directory]);
         var outcome = Outcome(entry, plan, result, tracked);
+        // Only for a download leaving TorLink: a reclassified file crossing drives says nothing about TorLink's folder.
+        if (result.OtherDrive) outcome = outcome with { Message = string.Join(" · ", new[] { outcome.Message, OtherDriveHint }.OfType<string>()) };
         // Interrupted by closing Mira: what was placed is kept, the rest follows at the next start.
         Update(result.Canceled ? outcome with { State = TorLinkImportState.Waiting, Message = "Rangement interrompu : il reprendra à la prochaine ouverture de Mira." } : outcome);
         ct.ThrowIfCancellationRequested();
@@ -175,7 +183,7 @@ public sealed class TorLinkImporter
                     Files = stayed.Concat(result.Placed.Select(x => new TorLinkImportedFile(x.RelativePath, x.Destination, x.Role))).ToList(),
                     Message = "Classement interrompu : choisis à nouveau « Classer » pour le terminer.", Notified = false, UpdatedAt = DateTimeOffset.UtcNow
                 }
-                : Outcome(entry, plan, result, stayed) with { Method = entry.Method, ForcedKind = kind };
+                : Outcome(entry, plan, result, stayed) with { Method = entry.Method, MovedOut = entry.MovedOut, ForcedKind = kind };
             Update(updated);
             return (updated, entry.Folders.Where(x => !Directory.Exists(x) || !updated.Folders.Contains(x, StringComparer.OrdinalIgnoreCase)).ToList());
         }
@@ -183,6 +191,9 @@ public sealed class TorLinkImporter
     }
 
     public void MarkNotified(string id) => Change(id, x => x with { Notified = true });
+    /// <summary>Downloads moved out of TorLink's folder whose sharing is not paused yet.</summary>
+    public IReadOnlyList<string> MovedSeeds() { lock (_sync) return _log.Entries.Where(x => x.MovedOut && !x.SeedPaused).Select(x => x.Id).ToList(); }
+    public void MarkSeedPaused(IEnumerable<string> ids) { foreach (var id in ids) Change(id, x => x with { SeedPaused = true }); }
     public void MarkAvailable(string id, string jellyfinId) => Change(id, x => x with { JellyfinId = jellyfinId });
 
     /// <summary>
@@ -247,6 +258,9 @@ public sealed class TorLinkImporter
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
     }
 
+    /// <summary>Said when files crossed from another drive: the way to make the next moves instant.</summary>
+    public const string OtherDriveHint = "TorLink télécharge sur un autre disque que la bibliothèque : chaque fichier a été copié puis supprimé. Pour un déplacement instantané, choisis dans TorLink (touche o) un dossier sur le disque de la bibliothèque.";
+
     private static TorLinkImportEntry Outcome(TorLinkImportEntry entry, ImportPlan plan, ImportResult result, IReadOnlyList<TorLinkImportedFile> kept)
     {
         var placed = result.Placed.Concat(result.AlreadyThere).ToList();
@@ -273,6 +287,7 @@ public sealed class TorLinkImporter
         {
             State = state, Kind = plan.Kind, Title = plan.Title, LibraryRoot = plan.LibraryRoot, Folders = plan.Folders, Files = files,
             Method = result.Method ?? entry.Method ?? (result.AlreadyThere.Count > 0 ? "déjà présent" : null), Message = message,
+            MovedOut = entry.MovedOut || result.Moved,
             Notified = false, JellyfinId = null, UpdatedAt = DateTimeOffset.UtcNow
         };
     }

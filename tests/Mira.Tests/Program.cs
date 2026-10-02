@@ -226,6 +226,33 @@ await Test("Authentification : corps JSON, jeton dans l’en-tête, recherche en
     Assert(!requests.Any(r => r.Url.Contains("test-secret") || r.Url.Contains("password-test")), "Credential in request URI");
     Assert(requests[1].Url.Contains("%26"), "Search not escaped");
 });
+await Test("Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu’à la fin, refus d’un compte non administrateur", async () =>
+{
+    // The scan task as Jellyfin lists it: Idle with the end of the last scan, then Running with its progress.
+    object ScanTask(string state, double? progress, string ended) => new[] { new { Key = "RefreshLibrary", State = state, CurrentProgressPercentage = progress, LastExecutionResult = new { EndTimeUtc = ended } } };
+    async Task<(bool Scanned, List<double?> Seen, List<string> Calls)> Run(Queue<object> states, bool admin = true, int startLimitMs = 2000)
+    {
+        var seen = new List<double?>(); var calls = new List<string>(); object last = states.Peek();
+        using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+        {
+            calls.Add(request.Method + " " + request.RequestUri!.PathAndQuery);
+            if (!admin) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+            if (request.Method == HttpMethod.Post) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            if (states.Count > 0) last = states.Dequeue();
+            return Task.FromResult(JsonResponse(last));
+        }));
+        var scanned = await client.ScanAndWaitAsync(new SyncProgress<double?>(seen.Add), TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(startLimitMs));
+        return (scanned, seen, calls);
+    }
+    var followed = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z"), ScanTask("Running", 40, "2026-10-01T10:00:00Z"), ScanTask("Running", 80, "2026-10-01T10:00:00Z"), ScanTask("Idle", null, "2026-10-02T09:00:00Z")]));
+    Assert(followed.Scanned && followed.Seen.SequenceEqual([null, .4, .8]) && followed.Calls.Count(x => x == "POST /Library/Refresh") == 1, "Followed scan: " + string.Join(", ", followed.Seen) + " · " + string.Join(", ", followed.Calls));
+    var quick = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z"), ScanTask("Idle", null, "2026-10-02T09:00:00Z")]));
+    Assert(quick.Scanned && quick.Seen.SequenceEqual([(double?)null]), "A scan over before the first look was not seen ending");
+    var refused = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z")]), admin: false);
+    Assert(!refused.Scanned && refused.Seen.Count == 0, "A non-administrator was told the folders were scanned");
+    var stuck = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z")]), startLimitMs: 60);
+    Assert(stuck.Scanned && stuck.Calls.Count < 200, "A scan that never starts is waited for: " + stuck.Calls.Count + " requests");
+});
 await Test("Filtres : recherche, genre, année et pagination envoyés ensemble à Jellyfin", async () =>
 {
     Uri? requestUri = null;
@@ -1001,7 +1028,7 @@ await Test("TorLink : films, épisodes, packs et bonus rangés dans les dossiers
     Assert(MediaPlanner.Plan("Tears.of.Steel.2012.mkv", null, [File("Tears.of.Steel.2012.mkv", 1000)], libraries, MediaKind.Anime).Kind == MediaKind.Anime, "A forced kind is ignored");
     return Task.CompletedTask;
 });
-await Test("TorLink : lien physique, copie entre disques, fichier existant jamais remplacé, rien hors de la bibliothèque", async () =>
+await Test("TorLink : lien physique, déplacement entre disques sans copie restante, fichier existant jamais remplacé, rien hors de la bibliothèque", async () =>
 {
     var dir = Path.Combine(testRoot, "importer"); var downloads = Path.Combine(dir, "downloads"); var films = Path.Combine(dir, "FILMS");
     Directory.CreateDirectory(downloads); Directory.CreateDirectory(films);
@@ -1022,17 +1049,24 @@ await Test("TorLink : lien physique, copie entre disques, fichier existant jamai
         var refused = await MediaImporter.ExecuteAsync(plan with { Operations = [plan.Operations[0] with { Destination = outside }] }, ImportMode.KeepSeeding);
         Assert(refused.Failures.Count == 1 && !File.Exists(Path.GetFullPath(outside)), "A file was written outside the library or with a program extension: " + outside);
     }
-    // A \\?\ library path does not share the downloads' root: this exercises the copy used between two drives.
+    // A \\?\ library path does not share the downloads' root: this exercises the way between two drives, where no
+    // link is possible. Even when sharing is kept, the download moves: nothing stays twice on disk.
     var copies = Path.Combine(dir, "COPIES"); Directory.CreateDirectory(copies);
-    var tears = Path.Combine(downloads, "Tears.of.Steel.2012.mkv"); File.WriteAllBytes(tears, Enumerable.Range(0, 5000).Select(i => (byte)i).ToArray());
-    var copy = await MediaImporter.ExecuteAsync(MediaPlanner.Plan("Tears.of.Steel.2012.mkv", null, [new SourceFile(tears, "Tears.of.Steel.2012.mkv", 5000)], new MediaLibraries(@"\\?\" + copies, null, null)), ImportMode.KeepSeeding);
-    var copied = Path.Combine(copies, "Tears of Steel (2012)", "Tears of Steel (2012).mkv");
-    Assert(copy is { Copied: true, Linked: false, Placed.Count: 1 } && File.ReadAllBytes(copied).SequenceEqual(File.ReadAllBytes(tears)) && File.Exists(tears), "Copy between drives: " + copy.Method);
-    using (var stream = new FileStream(tears, FileMode.Append)) stream.WriteByte(1);
-    Assert(new FileInfo(copied).Length == 5000 && !Directory.EnumerateFiles(copies, "*" + MediaImporter.PartialSuffix, SearchOption.AllDirectories).Any(), "The copy is not independent, or a partial file was left");
+    var bytes = Enumerable.Range(0, 5000).Select(i => (byte)i).ToArray();
+    foreach (var mode in new[] { ImportMode.KeepSeeding, ImportMode.Move })
+    {
+        var name = mode == ImportMode.Move ? "Elephants.Dream.2006.mkv" : "Tears.of.Steel.2012.mkv";
+        var source = Path.Combine(downloads, name); File.WriteAllBytes(source, bytes);
+        var crossed = await MediaImporter.ExecuteAsync(MediaPlanner.Plan(name, null, [new SourceFile(source, name, 5000)], new MediaLibraries(@"\\?\" + copies, null, null)), mode);
+        var arrived = crossed.Placed.Single().Destination;
+        Assert(crossed is { Moved: true, OtherDrive: true, Copied: false, Linked: false, Placed.Count: 1 } && !File.Exists(source) && File.ReadAllBytes(arrived).SequenceEqual(bytes),
+            $"{mode} between drives left a copy behind, or lost data: " + crossed.Method);
+        Assert(crossed.Method == "déplacement depuis un autre disque", "Method shown after crossing drives: " + crossed.Method);
+    }
+    Assert(!Directory.EnumerateFiles(copies, "*" + MediaImporter.PartialSuffix, SearchOption.AllDirectories).Any(), "A partial file was left");
     var sintel = Path.Combine(downloads, "Sintel.2010.mkv"); File.WriteAllBytes(sintel, new byte[100]);
     var moved = await MediaImporter.ExecuteAsync(MediaPlanner.Plan("Sintel.2010.mkv", null, [new SourceFile(sintel, "Sintel.2010.mkv", 100)], new MediaLibraries(films, null, null)), ImportMode.Move);
-    Assert(moved.Moved && !File.Exists(sintel) && File.Exists(Path.Combine(films, "Sintel (2010)", "Sintel (2010).mkv")), "Move mode");
+    Assert(moved is { Moved: true, OtherDrive: false, Copied: false } && moved.Method == "déplacement" && !File.Exists(sintel) && File.Exists(Path.Combine(films, "Sintel (2010)", "Sintel (2010).mkv")), "Move mode: " + moved.Method);
     Directory.CreateDirectory(Path.Combine(films, "Empty Show", "Season 01"));
     MediaImporter.PruneEmptyFolders([Path.Combine(films, "Empty Show", "Season 01")], [films]);
     Assert(!Directory.Exists(Path.Combine(films, "Empty Show")) && Directory.Exists(films) && File.Exists(target), "Empty folders were kept, or more was removed");
@@ -1081,6 +1115,26 @@ await Test("TorLink : historique sans lien magnet, activation, attente des fichi
     var reopened = new TorLinkImporter(profile);
     Assert(reopened.Entries.Count == 3 && reopened.Baseline == importer.Baseline && reopened.Find(Id('b'))!.Files.Count == 1, "The import log was not kept");
     Assert(!File.ReadAllText(Path.Combine(profile, "torlink-imports.json")).Contains("magnet:"), "Mira stored a magnet link");
+});
+await Test("TorLink : dossier de téléchargement sur le disque de la bibliothèque, choisi seulement si TorLink n’en a pas", () =>
+{
+    var dir = Path.Combine(testRoot, "torlink-drive"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+    var chosen = Path.Combine(dir, "Téléchargements TorLink");
+    Assert(state.ChooseDownloadDirectory(chosen) && state.DownloadDirectory() == Path.GetFullPath(chosen) && Directory.Exists(chosen), "First download folder");
+    Assert(!state.ChooseDownloadDirectory(Path.Combine(dir, "other")) && state.DownloadDirectory() == Path.GetFullPath(chosen), "An existing choice was replaced");
+    if (OperatingSystem.IsWindows())
+    {
+        var downloads = @"C:\Users\Toi\Downloads\torlink";
+        string? Beside(string? movies, string? series = null, string? anime = null) => TorLinkState.DownloadFolderBeside(new(movies, series, anime), downloads);
+        Assert(Beside(@"C:\Users\Toi\Videos\Jellyfin\Films", @"C:\Users\Toi\Videos\Jellyfin\Séries") is null, "Same drive: nothing to change");
+        Assert(Beside(@"D:\Media\Films", @"D:\Media\Séries", @"D:\Media\Animes") == @"D:\Media\Téléchargements TorLink", "Beside the library folders");
+        Assert(Beside(@"D:\Films") == @"D:\Téléchargements TorLink", "Library folder at the top of a drive");
+        Assert(Beside(@"D:\Séries\Films", @"D:\Séries") == @"D:\Téléchargements TorLink", "A folder inside another library folder");
+        Assert(Beside(@"D:\") is null, "A library at the root of a drive leaves no room");
+        Assert(Beside(@"D:\Films", @"E:\Séries") is null, "Library folders on two drives");
+        Assert(Beside(null) is null, "No library folder");
+    }
+    return Task.CompletedTask;
 });
 await Test("TorLink : fichier déjà présent jamais déplacé, classement conservé, déplacement repris et journal illisible gardé", async () =>
 {
@@ -1132,6 +1186,22 @@ await Test("TorLink : fichier déjà présent jamais déplacé, classement conse
     await importer.ProcessAsync(state, libraries, ImportMode.Move, automatic: true, requested: [pack]);
     Assert(importer.Find(pack) is { State: TorLinkImportState.Imported, Files.Count: 2 } && File.Exists(subtitle) && new FileInfo(subtitle).Length == 5 && File.Exists(packVideo) && !File.Exists(packFiles[1]),
         "The rest of a moved download could not be placed any more: " + importer.Find(pack)?.Message);
+    // Emptied by the move, the download's folder leaves TorLink's; TorLink's own folder stays.
+    Assert(!Directory.Exists(Path.Combine(downloads, "Pack.S02E01")) && Directory.Exists(downloads), "The emptied download folder stayed in TorLink's, or TorLink's folder went");
+    Assert(importer.Find(pack) is { MovedOut: true, SeedPaused: false } && importer.MovedSeeds().Contains(pack) && !importer.MovedSeeds().Contains(dune), "A moved download is not set for its sharing to pause");
+
+    // Before Mira starts TorLink again: the moved download stops being shared; anything else is left as it was.
+    var other = new string('f', 40);
+    File.WriteAllText(state.SeedsFile, JsonSerializer.Serialize(new object[] { pack.ToUpperInvariant(), new { id = other, status = "seeding" } }));
+    var paused = state.PauseSeeds([pack]);
+    var seeds = JsonDocument.Parse(File.ReadAllText(state.SeedsFile)).RootElement.EnumerateArray().ToList();
+    Assert(paused.SequenceEqual([pack]) && seeds.Count == 2 && seeds[0].GetProperty("status").GetString() == "paused" && seeds[1].GetProperty("status").GetString() == "seeding" && seeds[1].GetProperty("id").GetString() == other,
+        "seeds.json after pausing: " + File.ReadAllText(state.SeedsFile));
+    importer.MarkSeedPaused(paused);
+    Assert(!importer.MovedSeeds().Contains(pack) && state.PauseSeeds([pack]).SequenceEqual([pack]), "A paused download is paused again, or no longer found");
+    File.WriteAllText(state.SeedsFile, "[{\"id\":");
+    Assert(state.PauseSeeds([pack]).Count == 0 && File.ReadAllText(state.SeedsFile) == "[{\"id\":", "A half-written seeds.json was rewritten");
+    Assert(new TorLinkState(Path.Combine(dir, "none"), Path.Combine(dir, "none")).PauseSeeds([pack]).Count == 0, "Pausing without seeds.json");
 
     // An unreadable log is kept aside instead of lost; incomplete entries are dropped without failing.
     var broken = Path.Combine(dir, "broken"); Directory.CreateDirectory(broken);
@@ -1478,5 +1548,7 @@ static byte[] TorrentBytes(string name, (string[] Path, long Length)[] files, bo
 }
 // Terminal text without VT control sequences (cursor moves, colours, titles).
 static string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\x1b\[[0-9;?<>=]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]", "");
+/// <summary>Progress reported on the caller's thread, in order (Progress<T> would post it to the thread pool).</summary>
+sealed class SyncProgress<T>(Action<T> report) : IProgress<T> { public void Report(T value) => report(value); }
 sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
 { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request).WaitAsync(cancellationToken); }
