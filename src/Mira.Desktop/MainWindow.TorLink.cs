@@ -32,7 +32,7 @@ public partial class MainWindow
     private MediaLibraries _torlinkLibraries = new(null, null, null), _torlinkDetected = new(null, null, null);
     private List<TorLinkCompletion> _torlinkEarlier = [];
     private (DateTime Stamp, long Length) _torlinkHistoryStamp;
-    private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking;
+    private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling;
     private string? _torlinkBlocker, _torlinkAction, _torlinkSecondary;
 
     private void InitializeTorLink()
@@ -229,7 +229,91 @@ public partial class MainWindow
         TorLinkBadge.Visibility = Visibility.Collapsed;
         UpdateNavigation(); UpdateHeroClock(); RenderTorLinkImports(); UpdateTorLinkState();
         _ = RefreshTorLinkLibrariesAsync();
+        // Not turned on yet: the list of downloaders, where it is.
+        if (!TorLinkActive()) { ShowDownloaders(true); return; }
+        ShowDownloaders(false);
         await StartTorLinkAsync(restart: false);
+    }
+
+    // ---- Downloaders ------------------------------------------------------------------------------
+
+    /// <summary>Turned on in the list; before any choice, on when a TorLink is already installed (as before this list existed).</summary>
+    private bool TorLinkActive() => _settings.TorLinkActive ?? (_torlinkInstallation ??= TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath)) is not null;
+
+    /// <summary>The list of downloaders, over the terminal: where TorLink is turned on or off.</summary>
+    private void ShowDownloaders(bool show)
+    {
+        var active = TorLinkActive(); UpdateTorLinkState();
+        if (show && DownloadersPanel.Visibility != Visibility.Visible) Motion.Reveal(DownloadersPanel, 200, 6);
+        else if (!show) DownloadersPanel.Visibility = Visibility.Collapsed;
+        TorLinkKeysHint.Visibility = TorLinkFolderButton.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        DownloadersButton.Visibility = active || show ? Visibility.Visible : Visibility.Collapsed;
+        TorLinkToggle.IsChecked = active || _torlinkInstalling; TorLinkToggle.IsEnabled = !_torlinkInstalling;
+        DescribeTorLinkSetup();
+        if (show) _ = Dispatcher.BeginInvoke(() => TorLinkToggle.Focus(), DispatcherPriority.Input);
+    }
+
+    private void DescribeTorLinkSetup(string? progress = null, double? share = null)
+    {
+        TorLinkSetupTrack.Visibility = share is null ? Visibility.Collapsed : Visibility.Visible;
+        if (share is { } value) TorLinkSetupScale.ScaleX = Math.Clamp(value, 0, 1);
+        var active = TorLinkActive(); var installation = _torlinkInstallation;
+        TorLinkOpenButton.Visibility = active && !_torlinkInstalling ? Visibility.Visible : Visibility.Collapsed;
+        TorLinkSetupStatus.Text = progress ?? (installation is null ? "Désactivé."
+            : (active ? "Activé" : "Désactivé") + $" · TorLink {installation.Version}" + (installation.Managed ? ", installé par Mira." : $" ({installation.Root})."));
+    }
+
+    private async void Downloaders_Click(object sender, RoutedEventArgs e)
+    {
+        if (DownloadersPanel.Visibility != Visibility.Visible) { ShowDownloaders(true); return; }
+        if (!TorLinkActive()) return;
+        ShowDownloaders(false); await StartTorLinkAsync(restart: false);
+    }
+    private async void TorLinkOpen_Click(object sender, RoutedEventArgs e) { ShowDownloaders(false); await StartTorLinkAsync(restart: false); }
+    private async void TorLinkToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_torlinkInstalling) return;
+        if (TorLinkToggle.IsChecked == true) await ActivateTorLinkAsync(); else await DeactivateTorLinkAsync();
+    }
+
+    /// <summary>
+    /// TorLink on: an installed TorLink (Mira's, its shortcut, npx's copy) is used as it is; otherwise Mira installs its own
+    /// Node.js and TorLink, then opens it. A failure leaves it off, with the reason on the card.
+    /// </summary>
+    private async Task ActivateTorLinkAsync(bool reinstall = false)
+    {
+        _torlinkInstallation = TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath);
+        if (reinstall || _torlinkInstallation is not { HasRuntime: true })
+        {
+            _torlinkInstalling = true; ShowDownloaders(true);
+            try
+            {
+                _torlinkInstallation = await TorLinkSetup.InstallAsync(_profile.DirectoryPath, new Progress<TorLinkSetup.Step>(step => DescribeTorLinkSetup(step.Text, step.Progress)), _torlinkLifetime.Token);
+                // Mira's own TorLink from now on, not a folder chosen earlier that no longer works.
+                if (TorLinkInstallation.Validate(_settings.TorLinkPath, _profile.DirectoryPath) is null) _settings.TorLinkPath = "";
+            }
+            catch (OperationCanceledException) { return; }
+            catch (Exception ex) when (ex is InstallException || IsExpected(ex))
+            {
+                _torlinkInstalling = false; ShowDownloaders(true);
+                DescribeTorLinkSetup(ex is InstallException ? ex.Message : Friendly(ex));
+                TorLinkToggle.IsChecked = false;
+                return;
+            }
+            finally { _torlinkInstalling = false; }
+        }
+        _settings.TorLinkActive = true; _profile.SaveSettings(_settings);
+        ShowDownloaders(false);
+        await StartTorLinkAsync(restart: true);
+    }
+
+    /// <summary>TorLink off: it quits (its downloads resume when it is turned on again) and stays installed.</summary>
+    private async Task DeactivateTorLinkAsync()
+    {
+        _settings.TorLinkActive = false; _profile.SaveSettings(_settings);
+        _torlinkStartWatch.Stop(); SetTorLinkBlocker(null);
+        if (_torlinkTerminal is { } terminal) await terminal.StopAsync();
+        ShowDownloaders(true); UpdateTorLinkState();
     }
 
     private async Task CloseTorLinkAsync()
@@ -243,7 +327,7 @@ public partial class MainWindow
     private async Task StartTorLinkAsync(bool restart)
     {
         if (_torlinkTerminal?.Running != true) { _torlinkStartWatch.Stop(); _torlinkStartWatch.Start(); }
-        _torlinkInstallation = TorLinkInstallation.Locate(_settings.TorLinkPath);
+        _torlinkInstallation = TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath);
         if (_torlinkInstallation is null) { SetTorLinkBlocker("missing"); return; }
         if (!_torlinkInstallation.HasRuntime) { SetTorLinkBlocker("runtime"); return; }
         _torlinkTerminal ??= CreateTorLinkTerminal();
@@ -272,19 +356,19 @@ public partial class MainWindow
     {
         var state = _torlinkTerminal?.State ?? TerminalState.Idle;
         if (_torlinkBlocker is not null || state is TerminalState.Running or TerminalState.Exited or TerminalState.Unavailable) _torlinkStartWatch.Stop();
-        var (status, dot) = _torlinkBlocker is not null ? ("Indisponible", "#D5B787") : state switch
+        var (status, dot) = _torlinkInstalling ? ("Installation…", "#D5B787") : !TorLinkActive() ? ("Désactivé", "#6B6B74") : _torlinkBlocker is not null ? ("Indisponible", "#D5B787") : state switch
         {
             TerminalState.Running => ("En cours", "#86C6A2"),
             TerminalState.Starting => ("Démarrage…", "#D5B787"),
             _ => ("Fermé", "#6B6B74")
         };
-        TorLinkStatusText.Text = status; TorLinkStatusDot.Fill = Brush(dot);
+        TorLinkStatusText.Text = "TorLink · " + status; TorLinkStatusDot.Fill = Brush(dot);
         switch (_torlinkBlocker)
         {
             case "missing":
-                ShowTorLinkPanel("folder", "TorLink est introuvable", "Indique le dossier de TorLink, celui qui contient torlink.bat. Mira le retrouvera ensuite tout seul.", "Choisir le dossier…", "browse"); return;
+                ShowTorLinkPanel("folder", "TorLink est introuvable", "Mira peut le réinstaller.", "Réinstaller", "install", "Choisir son dossier…", "browse"); return;
             case "runtime":
-                ShowTorLinkPanel("info", "Node.js est nécessaire", "TorLink a besoin de Node.js 22 ou plus récent, dans son dossier « node » ou installé sur ce PC (nodejs.org).", "Réessayer", "retry"); return;
+                ShowTorLinkPanel("info", "Node.js est nécessaire", "TorLink a besoin de Node.js 22 ou plus récent. Mira peut l’installer, avec TorLink.", "Installer", "install"); return;
             case "elsewhere":
                 ShowTorLinkPanel("info", "TorLink est déjà ouvert", "Il tourne dans une autre fenêtre. Quitte-le (q ou Ctrl+C) puis réessaie : deux TorLink ne peuvent pas gérer les mêmes téléchargements.", "Réessayer", "retry"); return;
             case "webview":
@@ -318,6 +402,7 @@ public partial class MainWindow
         switch (action)
         {
             case "retry": await StartTorLinkAsync(restart: true); break;
+            case "install": await ActivateTorLinkAsync(reinstall: true); break;
             case "reload":
                 _torlinkTerminal?.Reload();
                 UpdateTorLinkState();
@@ -340,7 +425,7 @@ public partial class MainWindow
     {
         var dialog = new OpenFolderDialog { Title = "Dossier de TorLink (celui qui contient torlink.bat)" };
         if (dialog.ShowDialog(this) != true) return null;
-        if (TorLinkInstallation.Validate(dialog.FolderName) is { } found) return found.Root;
+        if (TorLinkInstallation.Validate(dialog.FolderName, _profile.DirectoryPath) is { } found) return found.Root;
         SetNotice("Ce dossier ne contient pas TorLink (package torlnk avec dist\\cli.cjs).");
         return null;
     }

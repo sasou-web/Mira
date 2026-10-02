@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     public MainWindow(string[] args)
     {
         _args = args;
+        FitToScreen();
         var dataArg = Array.IndexOf(args, "--data");
         _profile = new LocalProfile(dataArg >= 0 && dataArg + 1 < args.Length ? args[dataArg + 1] : null);
         _settings = _profile.LoadSettings();
@@ -78,6 +79,19 @@ public partial class MainWindow : Window
         if (testArg >= 0 && testArg + 1 < args.Length) _testMedia = args[testArg + 1];
         Loaded += OnLoaded;
         _initializing = false;
+    }
+    /// <summary>
+    /// The default size (1480 × 930) is taller than a 1080p screen at 125 % (about 1536 × 826 usable) and wider and
+    /// taller than one at 150 % (about 1280 × 688): there Mira opens maximized instead of overflowing the screen.
+    /// </summary>
+    private void FitToScreen()
+    {
+        // Validation runs set their own sizes, off screen.
+        if (_args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--offscreen")) return;
+        var area = SystemParameters.WorkArea;
+        if (area.Width <= 0 || area.Height <= 0) return;
+        MinWidth = Math.Min(MinWidth, area.Width); MinHeight = Math.Min(MinHeight, area.Height);
+        if (Width > area.Width - 40 || Height > area.Height - 40) WindowState = WindowState.Maximized;
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -140,10 +154,10 @@ public partial class MainWindow : Window
             var connection = await client.LoginAsync(UsernameBox.Text.Trim(), PasswordBox.Password);
             _profile.SaveConnection(connection); PasswordBox.Clear();
             await ActivateConnectionAsync(connection);
-            OfferGuide("Te voilà connecté. Voici l’essentiel pour ajouter tes vidéos et regarder partout.");
+            OfferGuide("Connecté. Voici l’essentiel.");
         }
         catch (Exception ex) when (IsExpected(ex)) { LoginError.Text = Friendly(ex); }
-        finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = "Ouvrir ma bibliothèque"; }
+        finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = "Se connecter"; }
     }
     private async Task ActivateConnectionAsync(Connection connection)
     {

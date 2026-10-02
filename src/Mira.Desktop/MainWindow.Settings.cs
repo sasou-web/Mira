@@ -111,11 +111,12 @@ public partial class MainWindow
     /// <summary>What Mira found: the TorLink installation and the library folders read from Jellyfin.</summary>
     private void DescribeTorLinkSettings()
     {
-        var installation = TorLink.TorLinkInstallation.Locate(TorLinkPathBox.Text);
+        var installation = TorLink.TorLinkInstallation.Locate(TorLinkPathBox.Text, _profile.DirectoryPath);
         TorLinkPathStatus.Text = installation is null
-            ? "TorLink introuvable : indique le dossier qui contient torlink.bat."
-            : $"TorLink trouvé dans {installation.Root} · " + (!installation.HasRuntime ? "Node.js 22 ou plus récent est nécessaire." : installation.Node.StartsWith(installation.Root, StringComparison.OrdinalIgnoreCase) ? "Node.js inclus." : "Node.js de ce PC.")
-              + (TorLinkPathBox.Text.Trim().Length == 0 ? " Retrouvé par son raccourci : laisse vide pour garder ce choix automatique." : "");
+            ? "Pas installé : active TorLink dans la page Téléchargements."
+            : installation.Managed ? $"TorLink trouvé : version {installation.Version}, installée par Mira."
+            : $"TorLink trouvé : {installation.Root}" + (installation.HasRuntime ? "." : " · Node.js 22 ou plus récent est nécessaire.")
+              + (TorLinkPathBox.Text.Trim().Length == 0 ? " Laisse vide pour le retrouver automatiquement." : "");
         string Folder(string? path) => path ?? "non disponible";
         var detected = _torlinkDetected;
         TorLinkFoldersStatus.Text = _demo

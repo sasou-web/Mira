@@ -49,13 +49,10 @@ public partial class MainWindow
         var latest = releases[0];
         WhatsNewTitle.Text = $"Mira {latest.Version}"; WhatsNewSummary.Text = latest.Summary;
         WhatsNewItems.Children.Clear();
-        // A jump over several versions shows the previous one too, never a long list.
-        foreach (var release in releases.Take(2))
-        {
-            if (release != latest)
-                WhatsNewItems.Children.Add(new TextBlock { Text = $"Aussi depuis la version {release.Version}", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Brush("#8E8E96"), Margin = new Thickness(0, 6, 0, 14) });
-            foreach (var item in release.Items) WhatsNewItems.Children.Add(HighlightRow(item));
-        }
+        foreach (var item in latest.Items) WhatsNewItems.Children.Add(HighlightRow(item));
+        // Versions skipped by this update: one line each, never a long list.
+        foreach (var release in releases.Skip(1).Take(2))
+            WhatsNewItems.Children.Add(new TextBlock { Text = $"Aussi en {release.Version} : {release.Summary}", FontSize = 12, Foreground = Brush("#8E8E96"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 6) });
         Motion.Reveal(WhatsNewOverlay, 260, 0); Motion.Reveal(WhatsNewCard, 360, 16);
         _ = Dispatcher.BeginInvoke(() => WhatsNewDone.Focus(), DispatcherPriority.Input);
     }
@@ -90,7 +87,7 @@ public partial class MainWindow
         _settings.GuideSeen = true;
         if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); }
         ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(TorLinkOverlay);
-        GuideIntro.Text = intro ?? "L’essentiel pour profiter de Mira et de Jellyfin.";
+        GuideIntro.Text = intro ?? "L’essentiel pour bien démarrer.";
         GuideTorLink.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
         DescribeServerForGuide();
         SmoothScroll.Jump(GuideScroll);
@@ -110,12 +107,12 @@ public partial class MainWindow
         GuideRemoteAddress.Text = _remoteAddress ?? "";
         var local = server is not null && Uri.TryCreate(server, UriKind.Absolute, out var uri) && uri.IsLoopback;
         GuideRemoteHint.Text = server is null
-            ? "Connecte-toi d’abord à Jellyfin : Mira t’indiquera ici l’adresse à utiliser."
+            ? "Connecte-toi d’abord à Jellyfin : l’adresse s’affichera ici."
             : _remoteAddress is null
-                ? "Ce PC n’a pas d’adresse sur un réseau local pour l’instant : connecte-le à ta box, en Wi-Fi ou par câble, puis rouvre ce guide."
+                ? "Connecte ce PC à ta box (Wi-Fi ou câble), puis rouvre ce guide."
                 : local
-                    ? "Ce PC doit rester allumé : Jellyfin y tourne en arrière-plan, même quand Mira est fermée. Les appareils doivent être connectés à la même box. Si l’un d’eux ne trouve pas le serveur, autorise Jellyfin dans le pare-feu de Windows quand il le demande."
-                    : "C’est l’adresse de ton serveur Jellyfin. L’application Jellyfin te demandera ensuite ton nom d’utilisateur et ton mot de passe.";
+                    ? "Ce PC doit rester allumé et sur la même box. Si un appareil ne trouve pas le serveur, autorise Jellyfin dans le pare-feu de Windows."
+                    : "Puis connecte-toi avec ton compte Jellyfin.";
     }
     /// <summary>The folders of each Jellyfin library, with a button to open them when they are on this PC.</summary>
     private async Task ShowGuideFoldersAsync(int version)
@@ -123,22 +120,28 @@ public partial class MainWindow
         GuideFolders.Children.Clear(); GuideFoldersHint.Visibility = Visibility.Collapsed;
         if (_demo || _client is not { } client)
         {
-            ShowGuideFoldersHint("En démonstration, rien n’est relié à un serveur. Connecte-toi à Jellyfin, ou installe-le depuis l’écran de compte, pour voir tes dossiers ici.");
+            ShowGuideFoldersHint("En démonstration, aucun serveur n’est relié : connecte-toi pour voir tes dossiers ici.");
             return;
         }
         List<VirtualFolder>? libraries;
         try { libraries = await client.VirtualFoldersAsync(); }
         catch (Exception ex) when (IsExpected(ex)) { libraries = null; }
         if (version != _guideVersion) return;
-        if (libraries is null) { ShowGuideFoldersHint("Seul un administrateur de Jellyfin voit où sont rangées les bibliothèques. Demande à la personne qui gère ton serveur dans quels dossiers déposer tes vidéos."); return; }
-        if (libraries.Count == 0) { ShowGuideFoldersHint("Ton serveur n’a pas encore de bibliothèque : ajoute-en une dans Jellyfin (Tableau de bord → Bibliothèques), en choisissant le dossier de tes vidéos."); return; }
+        if (libraries is null) { ShowGuideFoldersHint("Seul un administrateur de Jellyfin voit ces dossiers : demande-les à la personne qui gère le serveur."); return; }
+        if (libraries.Count == 0) { ShowGuideFoldersHint("Aucune bibliothèque : ajoutes-en une dans Jellyfin (Tableau de bord → Bibliothèques)."); return; }
         var reachable = await Task.Run(() => libraries.SelectMany(x => x.Locations).Distinct().ToDictionary(x => x, Exists));
         if (version != _guideVersion) return;
         foreach (var library in libraries.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase))
             foreach (var location in library.Locations.DefaultIfEmpty(""))
                 GuideFolders.Children.Add(FolderRow(library.Name, location, location.Length > 0 && reachable.GetValueOrDefault(location)));
         if (!reachable.Values.Any(x => x))
-            ShowGuideFoldersHint("Ces dossiers sont sur l’ordinateur où tourne Jellyfin : dépose tes vidéos depuis cet ordinateur, ou par le partage réseau qu’il propose.");
+            ShowGuideFoldersHint("Ces dossiers sont sur l’ordinateur où tourne Jellyfin.");
+    }
+    /// <summary>Two columns of cards on a wide window, one on a narrow one.</summary>
+    private void GuideGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var width = GuideGrid.ActualWidth;
+        if (width > 0) GuideGrid.ItemWidth = width >= 1000 ? Math.Floor(width / 2) : width;
     }
     private void ShowGuideFoldersHint(string text) { GuideFoldersHint.Text = text; GuideFoldersHint.Visibility = Visibility.Visible; }
     private UIElement FolderRow(string library, string location, bool here)
@@ -165,7 +168,7 @@ public partial class MainWindow
     private void CopyRemoteAddress_Click(object sender, RoutedEventArgs e)
     {
         if (_remoteAddress is null) return;
-        try { Clipboard.SetText(_remoteAddress); SetNotice("Adresse copiée : colle-la dans l’application Jellyfin."); }
+        try { Clipboard.SetText(_remoteAddress); SetNotice("Adresse copiée."); }
         catch (System.Runtime.InteropServices.ExternalException) { SetNotice("Le presse-papiers est occupé : réessaie."); }
     }
     /// <summary>Jellyfin's own web page, signed in with the same account: its dashboard holds the libraries, users and network.</summary>

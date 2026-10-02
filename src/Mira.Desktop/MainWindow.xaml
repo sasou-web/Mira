@@ -1,5 +1,5 @@
 <Window x:Class="Mira.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework" xmlns:v="clr-namespace:Mira.Desktop.Views" xmlns:playback="clr-namespace:Mira.Desktop.Playback"
- UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Grayscale" Icon="Assets/mira.ico" Title="Mira" Width="1480" Height="930" MinWidth="1024" MinHeight="700" Background="#070708" Foreground="#F4F4F5" FontFamily="{StaticResource AppFont}" FontSize="14" WindowStyle="SingleBorderWindow" ResizeMode="CanResize" WindowStartupLocation="CenterScreen" PreviewKeyDown="Player_PreviewKeyDown" KeyDown="Window_KeyDown" Closing="Window_Closing" SizeChanged="Window_SizeChanged">
+ UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Grayscale" Icon="Assets/mira.ico" Title="Mira" Width="1480" Height="930" MinWidth="960" MinHeight="600" Background="#070708" Foreground="#F4F4F5" FontFamily="{StaticResource AppFont}" FontSize="14" WindowStyle="SingleBorderWindow" ResizeMode="CanResize" WindowStartupLocation="CenterScreen" PreviewKeyDown="Player_PreviewKeyDown" KeyDown="Window_KeyDown" Closing="Window_Closing" SizeChanged="Window_SizeChanged">
  <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="34" ResizeBorderThickness="6" CornerRadius="8" GlassFrameThickness="1"/></shell:WindowChrome.WindowChrome>
  <Grid>
   <Grid.RowDefinitions><RowDefinition Height="34"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -134,15 +134,16 @@
    <Grid Margin="44,50,40,22"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <DockPanel Margin="0,0,0,22">
      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
-      <Button Style="{StaticResource Quiet}" Click="TorLinkFolder_Click" ToolTip="Ouvrir le dossier de téléchargement de TorLink" AutomationProperties.Name="Ouvrir le dossier de téléchargement de TorLink" Margin="0,0,6,0"><StackPanel Orientation="Horizontal"><v:Icon Kind="folder" Width="17" Height="17" Margin="0,0,8,0"/><TextBlock Text="Téléchargements"/></StackPanel></Button>
+      <Button x:Name="DownloadersButton" Style="{StaticResource Quiet}" Click="Downloaders_Click" ToolTip="Activer ou désactiver un téléchargeur" AutomationProperties.Name="Téléchargeurs" Margin="0,0,6,0"><StackPanel Orientation="Horizontal"><v:Icon Kind="library" Width="17" Height="17" Margin="0,0,8,0"/><TextBlock Text="Téléchargeurs"/></StackPanel></Button>
+      <Button x:Name="TorLinkFolderButton" Style="{StaticResource Quiet}" Click="TorLinkFolder_Click" ToolTip="Ouvrir le dossier de téléchargement de TorLink" AutomationProperties.Name="Ouvrir le dossier de téléchargement de TorLink" Margin="0,0,6,0"><StackPanel Orientation="Horizontal"><v:Icon Kind="folder" Width="17" Height="17" Margin="0,0,8,0"/><TextBlock Text="Dossier"/></StackPanel></Button>
       <Button Style="{StaticResource Quiet}" Click="TorLinkSettings_Click" ToolTip="Rangement, dossiers et emplacement de TorLink" AutomationProperties.Name="Réglages de TorLink"><StackPanel Orientation="Horizontal"><v:Icon Kind="sliders" Width="17" Height="17" Margin="0,0,8,0"/><TextBlock Text="Réglages"/></StackPanel></Button>
      </StackPanel>
      <StackPanel>
       <StackPanel Orientation="Horizontal">
-       <TextBlock Text="TorLink" FontSize="31" FontWeight="SemiBold"/>
-       <Border CornerRadius="10" Background="#18181C" Padding="10,4" Margin="14,7,0,0" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><Ellipse x:Name="TorLinkStatusDot" Width="7" Height="7" Fill="#6B6B74" VerticalAlignment="Center" Margin="0,0,7,0"/><TextBlock x:Name="TorLinkStatusText" Text="Fermé" FontSize="11.5" Foreground="#C9C9CF"/></StackPanel></Border>
+       <TextBlock Text="Téléchargements" FontSize="31" FontWeight="SemiBold"/>
+       <Border CornerRadius="10" Background="#18181C" Padding="10,4" Margin="14,7,0,0" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><Ellipse x:Name="TorLinkStatusDot" Width="7" Height="7" Fill="#6B6B74" VerticalAlignment="Center" Margin="0,0,7,0"/><TextBlock x:Name="TorLinkStatusText" Text="TorLink · Fermé" FontSize="11.5" Foreground="#C9C9CF"/></StackPanel></Border>
       </StackPanel>
-      <TextBlock Text="Cherche et télécharge : chaque fichier terminé rejoint ta bibliothèque Jellyfin." Foreground="{StaticResource Muted}" Margin="0,9,0,0"/>
+      <TextBlock Text="Chaque téléchargement terminé rejoint ta bibliothèque." Foreground="{StaticResource Muted}" Margin="0,9,0,0"/>
      </StackPanel>
     </DockPanel>
     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="22"/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions>
@@ -159,15 +160,33 @@
        </Grid>
       </Grid>
      </Border>
-     <DockPanel Grid.Column="2">
+     <DockPanel x:Name="TorLinkImportsColumn" Grid.Column="2">
       <StackPanel DockPanel.Dock="Top" Margin="2,0,0,14"><TextBlock Text="Vers Jellyfin" FontSize="18" FontWeight="SemiBold"/><TextBlock x:Name="TorLinkImportSummary" Style="{StaticResource SettingDescription}" Margin="0,6,0,0"/></StackPanel>
       <Grid>
        <ScrollViewer Style="{StaticResource {x:Type ScrollViewer}}" x:Name="TorLinkImportsScroll" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="TorLinkImports" Margin="0,0,8,0"/></ScrollViewer>
        <StackPanel x:Name="TorLinkImportsEmpty" VerticalAlignment="Top" Margin="2,26,0,0"><v:Icon Kind="library" Width="28" Height="28" Foreground="#5E5E66" HorizontalAlignment="Left" Margin="0,0,0,12"/><TextBlock Text="Rien de nouveau pour l’instant" FontSize="14" FontWeight="SemiBold"/><TextBlock Text="Dès qu’un téléchargement se termine, il apparaît ici, rangé dans Films, Séries ou Animes." Style="{StaticResource SettingDescription}"/></StackPanel>
       </Grid>
      </DockPanel>
+     <ScrollViewer x:Name="DownloadersPanel" Grid.ColumnSpan="3" Visibility="Collapsed" Background="#070708" Style="{StaticResource {x:Type ScrollViewer}}" VerticalScrollBarVisibility="Auto">
+      <StackPanel MaxWidth="760" HorizontalAlignment="Left" Margin="0,0,8,0">
+       <TextBlock Text="Téléchargeurs" FontSize="18" FontWeight="SemiBold"/>
+       <TextBlock Text="Active celui que tu veux utiliser." Style="{StaticResource SettingDescription}" Margin="0,6,0,16"/>
+       <Border Style="{StaticResource SettingRow}" Padding="24,22"><DockPanel>
+        <CheckBox x:Name="TorLinkToggle" DockPanel.Dock="Right" VerticalAlignment="Top" Click="TorLinkToggle_Click" AutomationProperties.Name="Activer TorLink"/>
+        <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="12" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="download" Width="22" Height="22" Foreground="#F5F5F7"/></Border>
+        <StackPanel Margin="0,0,16,0">
+         <TextBlock Text="TorLink" FontSize="16" FontWeight="SemiBold"/>
+         <TextBlock Text="Recherche et téléchargement de films, séries et animes, dans un terminal intégré." Style="{StaticResource SettingDescription}" Margin="0,5,0,0"/>
+         <TextBlock x:Name="TorLinkSetupStatus" FontSize="12" Foreground="#C9C9CF" TextWrapping="Wrap" Margin="0,12,0,0" AutomationProperties.LiveSetting="Polite"/>
+         <Border x:Name="TorLinkSetupTrack" Height="3" Margin="0,10,0,0" Background="#2C2C31" CornerRadius="1.5" ClipToBounds="True" Visibility="Collapsed"><Border Background="#F5F5F7" CornerRadius="1.5" RenderTransformOrigin="0,0.5"><Border.RenderTransform><ScaleTransform x:Name="TorLinkSetupScale" ScaleX="0"/></Border.RenderTransform></Border></Border>
+         <Button x:Name="TorLinkOpenButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Content="Ouvrir TorLink" HorizontalAlignment="Left" Padding="18,9" Margin="0,14,0,0" Click="TorLinkOpen_Click" Visibility="Collapsed"/>
+         <TextBlock Text="Projet indépendant, open source. Mira installe Node.js et TorLink à l’activation." FontSize="11.5" Foreground="#7C7C85" TextWrapping="Wrap" Margin="0,12,0,0"/>
+        </StackPanel>
+       </DockPanel></Border>
+      </StackPanel>
+     </ScrollViewer>
     </Grid>
-    <TextBlock Grid.Row="2" Text="Dans TorLink : ↑ ↓ naviguer · Entrée ouvrir · d télécharger · ? aide. Alt + ← revient à Mira. Fermer Mira ferme TorLink ; ses téléchargements reprennent à la prochaine ouverture." FontSize="11.5" Foreground="#7C7C85" TextWrapping="Wrap" Margin="2,14,0,0"/>
+    <TextBlock x:Name="TorLinkKeysHint" Grid.Row="2" Text="↑ ↓ naviguer · Entrée ouvrir · d télécharger · ? aide · Alt + ← revenir à Mira" FontSize="11.5" Foreground="#7C7C85" TextWrapping="Wrap" Margin="2,14,0,0"/>
    </Grid>
   </Grid>
   <Grid x:Name="DetailOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#070708" Margin="68,0,0,0" KeyboardNavigation.TabNavigation="Cycle">
@@ -228,57 +247,56 @@
    </Grid>
   </Grid>
   <Grid x:Name="GuideOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#070708" KeyboardNavigation.TabNavigation="Cycle">
-   <ScrollViewer x:Name="GuideScroll" Style="{StaticResource {x:Type ScrollViewer}}" v:SmoothScroll.Enabled="True" Margin="112,57,20,0" VerticalScrollBarVisibility="Auto">
-    <StackPanel x:Name="GuideContent" MaxWidth="900" HorizontalAlignment="Left" Margin="0,0,24,48">
-     <DockPanel><Button x:Name="GuideClose" DockPanel.Dock="Right" VerticalAlignment="Top" Style="{StaticResource IconButton}" Click="CloseGuide_Click" ToolTip="Fermer le guide · Échap" AutomationProperties.Name="Fermer le guide"><v:Icon Kind="close" Width="17" Height="17"/></Button>
-      <StackPanel><TextBlock Text="Guide de démarrage" FontSize="31" FontWeight="SemiBold"/><TextBlock x:Name="GuideIntro" Text="L’essentiel pour profiter de Mira et de Jellyfin." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,9,20,0"/></StackPanel></DockPanel>
-     <Border Height="1" Background="#222225" Margin="0,23,0,24"/>
-     <Border Style="{StaticResource SettingRow}" Padding="26,24"><DockPanel>
-      <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="12" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,20,0"><v:Icon Kind="folder" Width="22" Height="22" Foreground="#F5F5F7"/></Border>
-      <StackPanel>
-       <TextBlock Text="Ajouter tes vidéos" FontSize="18" FontWeight="SemiBold"/>
-       <TextBlock Style="{StaticResource SettingDescription}" Margin="0,8,0,0" Text="Range tes fichiers dans les dossiers de tes bibliothèques Jellyfin. Jellyfin les repère tout seul et récupère affiches et résumés : ils apparaissent dans Mira au bout de quelques minutes."/>
-       <StackPanel x:Name="GuideFolders" Margin="0,14,0,0"/>
-       <TextBlock x:Name="GuideFoldersHint" Style="{StaticResource SettingDescription}" Margin="0,2,0,0" Visibility="Collapsed"/>
-       <Border Background="#151518" CornerRadius="8" Padding="16,13" Margin="0,14,0,0"><StackPanel>
-        <TextBlock Text="Des noms que Jellyfin reconnaît" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
-        <TextBlock FontSize="12" Foreground="#9A9AA1" TextWrapping="Wrap" LineHeight="20"><Run Text="Film" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="   Films\Inception (2010)\Inception (2010).mkv" FontFamily="Consolas"/><LineBreak/><Run Text="Série" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="  Séries\Breaking Bad\Season 01\Breaking Bad - S01E01.mkv" FontFamily="Consolas"/></TextBlock>
-        <TextBlock Text="Un titre tarde à apparaître ? Le bouton Actualiser, au-dessus de la bibliothèque, le cherche tout de suite." Style="{StaticResource SettingDescription}" Margin="0,8,0,0"/>
-       </StackPanel></Border>
-      </StackPanel></DockPanel></Border>
-     <Border Style="{StaticResource SettingRow}" Padding="26,24"><DockPanel>
-      <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="12" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,20,0"><v:Icon Kind="globe" Width="22" Height="22" Foreground="#F5F5F7"/></Border>
-      <StackPanel>
-       <TextBlock Text="Gérer Jellyfin" FontSize="18" FontWeight="SemiBold"/>
-       <TextBlock Style="{StaticResource SettingDescription}" Margin="0,8,0,0" Text="Jellyfin a sa propre page d’administration, dans ton navigateur. C’est là que tu ajoutes une bibliothèque, crées un compte pour un proche, ouvres l’accès depuis Internet ou corriges un titre mal reconnu. Connecte-toi avec ton compte Jellyfin, puis ouvre le menu ☰ → Tableau de bord."/>
-       <WrapPanel x:Name="GuideJellyfinActions" Margin="0,16,0,0"><Button Content="Ouvrir Jellyfin dans le navigateur" Style="{StaticResource Primary}" Click="OpenJellyfin_Click" Margin="0,0,14,0"/><TextBlock x:Name="GuideServerAddress" VerticalAlignment="Center" FontSize="12" Foreground="#8E8E96"/></WrapPanel>
-      </StackPanel></DockPanel></Border>
-     <Border Style="{StaticResource SettingRow}" Padding="26,24"><DockPanel>
-      <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="12" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,20,0"><v:Icon Kind="phone" Width="22" Height="22" Foreground="#F5F5F7"/></Border>
-      <StackPanel>
-       <TextBlock Text="Regarder sur tes autres appareils" FontSize="18" FontWeight="SemiBold"/>
-       <TextBlock Style="{StaticResource SettingDescription}" Margin="0,8,0,0" Text="Sur ton téléphone, ta tablette ou ta TV, installe l’application gratuite Jellyfin, puis entre cette adresse :"/>
-       <WrapPanel x:Name="GuideRemote" Margin="0,12,0,0"><TextBlock x:Name="GuideRemoteAddress" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0"/><Button x:Name="GuideCopyAddress" Content="Copier" Style="{StaticResource Quiet}" Padding="13,6" Click="CopyRemoteAddress_Click"/></WrapPanel>
-       <TextBlock x:Name="GuideRemoteHint" Style="{StaticResource SettingDescription}" Margin="0,10,0,0"/>
-      </StackPanel></DockPanel></Border>
-     <Border Style="{StaticResource SettingRow}" Padding="26,24"><DockPanel>
-      <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="12" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,20,0"><v:Icon Kind="play" Width="20" Height="20" Foreground="#F5F5F7"/></Border>
-      <StackPanel>
-       <TextBlock Text="Dans Mira" FontSize="18" FontWeight="SemiBold"/>
-       <TextBlock Style="{StaticResource SettingDescription}" Margin="0,8,0,0"><Run Text="Accueil" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text=" : reprends là où tu t’étais arrêté, et découvre les derniers ajouts."/><LineBreak/><Run Text="Ctrl + K" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text=" : chercher un titre. Films, Séries et toute la bibliothèque sont dans la barre de gauche."/><LineBreak/><Run Text="Pendant la lecture" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text=" : Espace pour la pause, ← → pour 10 secondes, F pour le plein écran, I pour le mini-lecteur, S pour passer le générique."/><LineBreak/><Run Text="Réglages" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text=" (roue dentée) : langues audio et sous-titres, taille des sous-titres, mises à jour."/></TextBlock>
-      </StackPanel></DockPanel></Border>
-     <Border x:Name="GuideTorLink" Style="{StaticResource SettingRow}" Padding="26,24" Visibility="Collapsed"><DockPanel>
-      <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="12" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,20,0"><v:Icon Kind="download" Width="22" Height="22" Foreground="#F5F5F7"/></Border>
-      <StackPanel>
-       <TextBlock Text="TorLink" FontSize="18" FontWeight="SemiBold"/>
-       <TextBlock Style="{StaticResource SettingDescription}" Margin="0,8,0,0" Text="Chaque téléchargement terminé dans TorLink est rangé tout seul dans tes dossiers Films, Séries ou Animes, sous un nom que Jellyfin reconnaît. Ouvre TorLink avec la flèche de la barre de gauche."/>
-      </StackPanel></DockPanel></Border>
-     <TextBlock Text="Ce guide reste accessible avec le bouton ? de la barre de gauche, ou la touche F1." FontSize="12" Foreground="#77777F" Margin="2,10,0,0"/>
+   <ScrollViewer x:Name="GuideScroll" Style="{StaticResource {x:Type ScrollViewer}}" v:SmoothScroll.Enabled="True" Margin="112,52,20,0" VerticalScrollBarVisibility="Auto">
+    <StackPanel x:Name="GuideContent" MaxWidth="1240" HorizontalAlignment="Left" Margin="0,0,10,40">
+     <DockPanel Margin="0,0,14,0"><Button x:Name="GuideClose" DockPanel.Dock="Right" VerticalAlignment="Top" Style="{StaticResource IconButton}" Click="CloseGuide_Click" ToolTip="Fermer le guide · Échap" AutomationProperties.Name="Fermer le guide"><v:Icon Kind="close" Width="17" Height="17"/></Button>
+      <StackPanel><TextBlock Text="Guide" FontSize="31" FontWeight="SemiBold"/><TextBlock x:Name="GuideIntro" Text="L’essentiel pour bien démarrer." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,20,0"/></StackPanel></DockPanel>
+     <Border Height="1" Background="#222225" Margin="0,20,14,20"/>
+     <!-- Two columns on a wide window, one on a narrow one (MainWindow.Guide). -->
+     <WrapPanel x:Name="GuideGrid" SizeChanged="GuideGrid_SizeChanged">
+      <Border Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
+       <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="folder" Width="20" Height="20" Foreground="#F5F5F7"/></Border>
+       <StackPanel>
+        <TextBlock Text="Ajouter tes vidéos" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Style="{StaticResource SettingDescription}" Margin="0,6,0,0" Text="Range tes fichiers dans ces dossiers : ils apparaissent dans Mira en quelques minutes, avec leurs affiches."/>
+        <StackPanel x:Name="GuideFolders" Margin="0,12,0,0"/>
+        <TextBlock x:Name="GuideFoldersHint" Style="{StaticResource SettingDescription}" Margin="0,2,0,0" Visibility="Collapsed"/>
+        <Border Background="#151518" CornerRadius="8" Padding="14,11" Margin="0,10,0,0"><TextBlock FontSize="12" Foreground="#9A9AA1" TextWrapping="Wrap" LineHeight="19"><Run Text="Noms reconnus" FontWeight="SemiBold" Foreground="#C5C5CA"/><LineBreak/><Run Text="Films\Inception (2010)\Inception (2010).mkv" FontFamily="Consolas"/><LineBreak/><Run Text="Séries\Dark\Season 01\Dark - S01E01.mkv" FontFamily="Consolas"/></TextBlock></Border>
+       </StackPanel></DockPanel></Border>
+      <Border Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
+       <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="globe" Width="20" Height="20" Foreground="#F5F5F7"/></Border>
+       <StackPanel>
+        <TextBlock Text="Gérer Jellyfin" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Style="{StaticResource SettingDescription}" Margin="0,6,0,0" Text="Bibliothèques, comptes, accès depuis Internet : tout se règle sur sa page web, dans le menu ☰ → Tableau de bord."/>
+        <WrapPanel x:Name="GuideJellyfinActions" Margin="0,14,0,0"><Button Content="Ouvrir Jellyfin" Style="{StaticResource Primary}" v:Motion.Radius="9" Padding="18,9" Click="OpenJellyfin_Click" Margin="0,0,14,0"/><TextBlock x:Name="GuideServerAddress" VerticalAlignment="Center" FontSize="12" Foreground="#8E8E96"/></WrapPanel>
+       </StackPanel></DockPanel></Border>
+      <Border Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
+       <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="phone" Width="20" Height="20" Foreground="#F5F5F7"/></Border>
+       <StackPanel>
+        <TextBlock Text="Sur tes autres appareils" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Style="{StaticResource SettingDescription}" Margin="0,6,0,0" Text="Installe l’application Jellyfin, puis entre cette adresse :"/>
+        <WrapPanel x:Name="GuideRemote" Margin="0,10,0,0"><TextBlock x:Name="GuideRemoteAddress" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/><Button x:Name="GuideCopyAddress" Content="Copier" Style="{StaticResource Quiet}" Padding="13,6" Click="CopyRemoteAddress_Click"/></WrapPanel>
+        <TextBlock x:Name="GuideRemoteHint" Style="{StaticResource SettingDescription}" Margin="0,8,0,0"/>
+       </StackPanel></DockPanel></Border>
+      <Border Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
+       <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="play" Width="18" Height="18" Foreground="#F5F5F7"/></Border>
+       <StackPanel>
+        <TextBlock Text="Dans Mira" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Style="{StaticResource SettingDescription}" Margin="0,6,0,0"><Run Text="Ctrl + K" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="  chercher"/><LineBreak/><Run Text="Espace" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="  pause · "/><Run Text="← →" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="  10 secondes · "/><Run Text="F" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="  plein écran"/><LineBreak/><Run Text="S" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="  passer le générique · "/><Run Text="I" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="  mini-lecteur"/><LineBreak/><Run Text="Roue dentée" FontWeight="SemiBold" Foreground="#C5C5CA"/><Run Text="  langues, sous-titres, mises à jour"/></TextBlock>
+       </StackPanel></DockPanel></Border>
+      <Border x:Name="GuideTorLink" Visibility="Collapsed" Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
+       <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="download" Width="20" Height="20" Foreground="#F5F5F7"/></Border>
+       <StackPanel>
+        <TextBlock Text="Téléchargements" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Style="{StaticResource SettingDescription}" Margin="0,6,0,0" Text="Active TorLink dans la page Téléchargements : chaque téléchargement terminé rejoint Films, Séries ou Animes."/>
+       </StackPanel></DockPanel></Border>
+     </WrapPanel>
+     <TextBlock Text="Ce guide : bouton ? à gauche, ou F1." FontSize="12" Foreground="#77777F" Margin="2,6,0,0"/>
     </StackPanel>
    </ScrollViewer>
   </Grid>
   <Border x:Name="NavigationRail" Grid.RowSpan="2" Width="68" HorizontalAlignment="Left" Background="Transparent" BorderThickness="0">
-   <DockPanel><Button DockPanel.Dock="Top" Style="{StaticResource Quiet}" Height="72" Padding="0" Click="Navigate_Click" Tag="home" ToolTip="Mira · Accueil" AutomationProperties.Name="Mira, accueil"><v:Icon Kind="brand" Width="32" Height="32" Foreground="#FAFAFA"/></Button><StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,18"><TextBlock x:Name="DemoBadge" Visibility="Collapsed" Text="DÉMO" HorizontalAlignment="Center" FontSize="10" FontWeight="SemiBold" Foreground="#DEDEE4" Margin="0,0,0,12"/><Button x:Name="GuideNav" Style="{StaticResource RailButton}" Click="Guide_Click" ToolTip="Guide · F1" AutomationProperties.Name="Guide de démarrage"><v:Icon Kind="help"/></Button><Button x:Name="SettingsNav" Style="{StaticResource RailButton}" Click="Settings_Click" ToolTip="Réglages" AutomationProperties.Name="Réglages"><v:Icon Kind="settings"/></Button><Button x:Name="AccountButton" Padding="0" Style="{StaticResource RailButton}" Click="Account_Click" ToolTip="Compte Jellyfin" AutomationProperties.Name="Compte Jellyfin"><Border Background="#373833" CornerRadius="10" Width="29" Height="29"><TextBlock x:Name="AvatarLetter" Text="M" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" Foreground="#DEDEE4" FontWeight="SemiBold"/></Border></Button></StackPanel><StackPanel><Button x:Name="HomeNav" Tag="home" Style="{StaticResource RailButton}" Click="Navigate_Click" ToolTip="Accueil" AutomationProperties.Name="Accueil"><v:Icon Kind="home"/></Button><Button x:Name="SearchNav" Tag="search" Style="{StaticResource RailButton}" Click="SearchNav_Click" ToolTip="Rechercher · Ctrl+K ou Ctrl+F" AutomationProperties.Name="Rechercher"><v:Icon Kind="search"/></Button><Button x:Name="MoviesNav" Tag="Movie" Style="{StaticResource RailButton}" Click="Navigate_Click" ToolTip="Films" AutomationProperties.Name="Films"><v:Icon Kind="film"/></Button><Button x:Name="SeriesNav" Tag="Series" Style="{StaticResource RailButton}" Click="Navigate_Click" ToolTip="Séries &amp; animes" AutomationProperties.Name="Séries et animes"><v:Icon Kind="series"/></Button><Button x:Name="LibraryNav" Tag="library" Style="{StaticResource RailButton}" Click="Navigate_Click" ToolTip="Toute la bibliothèque" AutomationProperties.Name="Toute la bibliothèque"><v:Icon Kind="library"/></Button><Button x:Name="TorLinkNav" Tag="torlink" Style="{StaticResource RailButton}" Click="TorLinkNav_Click" ToolTip="TorLink · téléchargements rangés dans Jellyfin" AutomationProperties.Name="TorLink, téléchargements"><Grid><v:Icon Kind="download"/><Ellipse x:Name="TorLinkBadge" Width="7" Height="7" Fill="#86C6A2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0" Visibility="Collapsed" IsHitTestVisible="False"/></Grid></Button></StackPanel></DockPanel>
+   <DockPanel><Button DockPanel.Dock="Top" Style="{StaticResource Quiet}" Height="72" Padding="0" Click="Navigate_Click" Tag="home" ToolTip="Mira · Accueil" AutomationProperties.Name="Mira, accueil"><v:Icon Kind="brand" Width="32" Height="32" Foreground="#FAFAFA"/></Button><StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,18"><TextBlock x:Name="DemoBadge" Visibility="Collapsed" Text="DÉMO" HorizontalAlignment="Center" FontSize="10" FontWeight="SemiBold" Foreground="#DEDEE4" Margin="0,0,0,12"/><Button x:Name="GuideNav" Style="{StaticResource RailButton}" Click="Guide_Click" ToolTip="Guide · F1" AutomationProperties.Name="Guide de démarrage"><v:Icon Kind="help"/></Button><Button x:Name="SettingsNav" Style="{StaticResource RailButton}" Click="Settings_Click" ToolTip="Réglages" AutomationProperties.Name="Réglages"><v:Icon Kind="settings"/></Button><Button x:Name="AccountButton" Padding="0" Style="{StaticResource RailButton}" Click="Account_Click" ToolTip="Compte Jellyfin" AutomationProperties.Name="Compte Jellyfin"><Border Background="#373833" CornerRadius="10" Width="29" Height="29"><TextBlock x:Name="AvatarLetter" Text="M" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" Foreground="#DEDEE4" FontWeight="SemiBold"/></Border></Button></StackPanel><StackPanel><Button x:Name="HomeNav" Tag="home" Style="{StaticResource RailButton}" Click="Navigate_Click" ToolTip="Accueil" AutomationProperties.Name="Accueil"><v:Icon Kind="home"/></Button><Button x:Name="SearchNav" Tag="search" Style="{StaticResource RailButton}" Click="SearchNav_Click" ToolTip="Rechercher · Ctrl+K ou Ctrl+F" AutomationProperties.Name="Rechercher"><v:Icon Kind="search"/></Button><Button x:Name="MoviesNav" Tag="Movie" Style="{StaticResource RailButton}" Click="Navigate_Click" ToolTip="Films" AutomationProperties.Name="Films"><v:Icon Kind="film"/></Button><Button x:Name="SeriesNav" Tag="Series" Style="{StaticResource RailButton}" Click="Navigate_Click" ToolTip="Séries &amp; animes" AutomationProperties.Name="Séries et animes"><v:Icon Kind="series"/></Button><Button x:Name="LibraryNav" Tag="library" Style="{StaticResource RailButton}" Click="Navigate_Click" ToolTip="Toute la bibliothèque" AutomationProperties.Name="Toute la bibliothèque"><v:Icon Kind="library"/></Button><Button x:Name="TorLinkNav" Tag="torlink" Style="{StaticResource RailButton}" Click="TorLinkNav_Click" ToolTip="Téléchargements" AutomationProperties.Name="Téléchargements"><Grid><v:Icon Kind="download"/><Ellipse x:Name="TorLinkBadge" Width="7" Height="7" Fill="#86C6A2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0" Visibility="Collapsed" IsHitTestVisible="False"/></Grid></Button></StackPanel></DockPanel>
   </Border>
   <Grid x:Name="StartupVeil" Grid.RowSpan="2" Panel.ZIndex="70" Background="#070708" AutomationProperties.Name="Ouverture de Mira">
    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -294,75 +312,73 @@
    </Grid>
    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="38,40,0,0" IsHitTestVisible="False"><v:Icon Kind="brand" Width="31" Height="31"/><TextBlock Text="mira" FontSize="25" FontWeight="ExtraBold" Margin="12,-1,0,0"/></StackPanel>
    <Button x:Name="BackToLibrary" Style="{StaticResource Quiet}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,42,38,0" Padding="13,8" Click="CloseAccount_Click" ToolTip="Retour à la bibliothèque · Échap" AutomationProperties.Name="Retour à la bibliothèque" Visibility="Collapsed"><StackPanel Orientation="Horizontal"><v:Icon Kind="back" Width="15" Height="15" Margin="0,0,7,0"/><TextBlock Text="Bibliothèque" FontSize="12"/></StackPanel></Button>
-   <ScrollViewer x:Name="LoginScroll" Margin="24,95,24,24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><Grid>
-    <Border x:Name="LoginPanel" Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="36,32" Background="#EE101012" BorderBrush="#29292D" BorderThickness="1" CornerRadius="20">
+   <!-- Shrinks as a whole on short screens (1080p at 150 %) instead of overflowing; text stays crisp when scaled. -->
+   <Viewbox x:Name="LoginScroll" Margin="24,84,24,20" Stretch="Uniform" StretchDirection="DownOnly" TextOptions.TextFormattingMode="Ideal"><Grid>
+    <Border x:Name="LoginPanel" Width="420" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="34,30" Background="#EE101012" BorderBrush="#29292D" BorderThickness="1" CornerRadius="20">
      <StackPanel>
-      <TextBlock Text="Retrouve ta&#10;bibliothèque." FontSize="32" LineHeight="36" FontWeight="Bold" Margin="0,0,0,12"/>
-      <TextBlock Text="Tes films, tes séries. Là où tu en étais." FontSize="13" Foreground="{StaticResource Muted}" Margin="0,0,0,28"/>
-      <TextBlock Text="Serveur Jellyfin" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
-      <Grid Margin="0,0,0,19"><TextBox x:Name="ServerBox" Text="http://127.0.0.1:8096" Height="44" Padding="38,12,12,10" FontSize="13" KeyDown="Login_KeyDown" AutomationProperties.Name="Serveur Jellyfin" ToolTip="Une adresse IP, un nom (nas:8096) ou l’adresse de la page web de Jellyfin"/><v:Icon Kind="server" Width="17" Height="17" Foreground="#898991" HorizontalAlignment="Left" Margin="13,0,0,0" IsHitTestVisible="False"/></Grid>
-      <TextBlock Text="Nom d’utilisateur" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
-      <TextBox x:Name="UsernameBox" Height="44" FontSize="13" Margin="0,0,0,19" KeyDown="Login_KeyDown" AutomationProperties.Name="Nom d’utilisateur"/>
-      <TextBlock Text="Mot de passe" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
-      <PasswordBox x:Name="PasswordBox" Height="44" FontSize="13" KeyDown="Login_KeyDown" AutomationProperties.Name="Mot de passe"/>
+      <TextBlock Text="Se connecter" FontSize="30" FontWeight="Bold" Margin="0,0,0,24"/>
+      <TextBlock Text="Serveur Jellyfin" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,7"/>
+      <Grid Margin="0,0,0,16"><TextBox x:Name="ServerBox" Text="http://127.0.0.1:8096" Height="42" Padding="38,11,12,9" FontSize="13" KeyDown="Login_KeyDown" AutomationProperties.Name="Serveur Jellyfin" ToolTip="Une adresse IP, un nom (nas:8096) ou l’adresse de la page web de Jellyfin"/><v:Icon Kind="server" Width="17" Height="17" Foreground="#898991" HorizontalAlignment="Left" Margin="13,0,0,0" IsHitTestVisible="False"/></Grid>
+      <TextBlock Text="Nom d’utilisateur" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,7"/>
+      <TextBox x:Name="UsernameBox" Height="42" FontSize="13" Margin="0,0,0,16" KeyDown="Login_KeyDown" AutomationProperties.Name="Nom d’utilisateur"/>
+      <TextBlock Text="Mot de passe" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,7"/>
+      <PasswordBox x:Name="PasswordBox" Height="42" FontSize="13" KeyDown="Login_KeyDown" AutomationProperties.Name="Mot de passe"/>
       <TextBlock x:Name="LoginError" Foreground="#F3AD99" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
-      <Button x:Name="ConnectButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="Connect_Click" Height="46" Margin="0,24,0,0"><StackPanel Orientation="Horizontal"><TextBlock x:Name="ConnectText" Text="Ouvrir ma bibliothèque" FontSize="13"/><v:Icon Kind="next" Width="16" Height="16" Margin="10,0,0,0"/></StackPanel></Button>
-      <Button Content="Essayer sans se connecter" Style="{StaticResource Quiet}" Click="Demo_Click" FontSize="12" Foreground="#B7B7BE" Margin="0,10,0,0" Height="40"/>
-      <Button x:Name="LogoutButton" Content="Déconnecter ce compte" Style="{StaticResource Quiet}" Click="Logout_Click" FontSize="12" Foreground="#A2A2AA" Margin="0,3,0,0" Visibility="Collapsed"/>
-      <Button x:Name="ServerSetupLink" Content="Pas encore de serveur ? Installer Jellyfin sur ce PC" Style="{StaticResource Quiet}" Click="ServerSetupOpen_Click" FontSize="12" Foreground="#A2A2AA" Margin="0,3,0,0" Height="40"/>
+      <Button x:Name="ConnectButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="Connect_Click" Height="44" Margin="0,22,0,0"><StackPanel Orientation="Horizontal"><TextBlock x:Name="ConnectText" Text="Se connecter" FontSize="13"/><v:Icon Kind="next" Width="16" Height="16" Margin="10,0,0,0"/></StackPanel></Button>
+      <UniformGrid Columns="2" Margin="0,10,0,0"><Button Content="Essayer la démo" Style="{StaticResource Quiet}" Click="Demo_Click" FontSize="12" Foreground="#B7B7BE" Height="38" Margin="0,0,4,0"/><Button x:Name="ServerSetupLink" Content="Installer Jellyfin" Style="{StaticResource Quiet}" Click="ServerSetupOpen_Click" FontSize="12" Foreground="#B7B7BE" Height="38" Margin="4,0,0,0" ToolTip="Pas encore de serveur : Mira installe Jellyfin sur ce PC"/></UniformGrid>
+      <Button x:Name="LogoutButton" Content="Déconnecter ce compte" Style="{StaticResource Quiet}" Click="Logout_Click" FontSize="12" Foreground="#A2A2AA" Margin="0,2,0,0" Height="36" Visibility="Collapsed"/>
      </StackPanel>
     </Border>
-    <Border x:Name="ServerSetupPanel" Visibility="Collapsed" Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="36,32" Background="#EE101012" BorderBrush="#29292D" BorderThickness="1" CornerRadius="20">
+    <Border x:Name="ServerSetupPanel" Visibility="Collapsed" Width="420" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="34,30" Background="#EE101012" BorderBrush="#29292D" BorderThickness="1" CornerRadius="20">
      <StackPanel>
-      <TextBlock Text="Ton serveur Jellyfin,&#10;prêt en quelques minutes." FontSize="28" LineHeight="33" FontWeight="Bold" Margin="0,0,0,12"/>
-      <TextBlock Text="Mira installe Jellyfin sur ce PC, crée les dossiers Films, Séries et Animes, le configure en français et te connecte. Windows te demandera une autorisation pendant l’installation." FontSize="13" LineHeight="20" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,26"/>
-      <TextBlock Text="Dossier de tes vidéos" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
-      <DockPanel Margin="0,0,0,19"><Button x:Name="SetupFolderBrowse" Content="Parcourir" DockPanel.Dock="Right" Margin="10,0,0,0" Click="SetupFolderBrowse_Click"/><TextBox x:Name="SetupFolderBox" Height="44" FontSize="13" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Dossier de tes vidéos"/></DockPanel>
-      <TextBlock Text="Ton nom d’utilisateur Jellyfin" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
-      <TextBox x:Name="SetupUserBox" Height="44" FontSize="13" Margin="0,0,0,19" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Nom d’utilisateur Jellyfin"/>
-      <TextBlock Text="Son mot de passe" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,8"/>
-      <PasswordBox x:Name="SetupPasswordBox" Height="44" FontSize="13" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Mot de passe Jellyfin"/>
-      <TextBlock x:Name="SetupStatus" FontSize="12" TextWrapping="Wrap" Margin="0,14,0,0" Foreground="#C5C5CA" AutomationProperties.LiveSetting="Polite"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
-      <Button x:Name="SetupStartButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="ServerSetupStart_Click" Height="46" Margin="0,22,0,0"><TextBlock x:Name="SetupStartText" Text="Installer et configurer" FontSize="13"/></Button>
-      <Button x:Name="SetupBackButton" Content="Retour à la connexion" Style="{StaticResource Quiet}" Click="ServerSetupBack_Click" FontSize="12" Foreground="#B7B7BE" Margin="0,10,0,0" Height="40"/>
+      <TextBlock Text="Installer Jellyfin" FontSize="30" FontWeight="Bold" Margin="0,0,0,8"/>
+      <TextBlock Text="Sur ce PC, configuré en français, avec tes dossiers Films, Séries et Animes. Windows demandera une autorisation." FontSize="13" LineHeight="19" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,22"/>
+      <TextBlock Text="Dossier des vidéos" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,7"/>
+      <DockPanel Margin="0,0,0,16"><Button x:Name="SetupFolderBrowse" Content="Parcourir" DockPanel.Dock="Right" Margin="10,0,0,0" Click="SetupFolderBrowse_Click"/><TextBox x:Name="SetupFolderBox" Height="42" FontSize="13" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Dossier des vidéos"/></DockPanel>
+      <TextBlock Text="Nom d’utilisateur" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,7"/>
+      <TextBox x:Name="SetupUserBox" Height="42" FontSize="13" Margin="0,0,0,16" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Nom d’utilisateur"/>
+      <TextBlock Text="Mot de passe" FontSize="12" FontWeight="SemiBold" Foreground="#C5C5CA" Margin="0,0,0,7"/>
+      <PasswordBox x:Name="SetupPasswordBox" Height="42" FontSize="13" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="Mot de passe"/>
+      <TextBlock x:Name="SetupStatus" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0" Foreground="#C5C5CA" AutomationProperties.LiveSetting="Polite"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+      <Button x:Name="SetupStartButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="ServerSetupStart_Click" Height="44" Margin="0,22,0,0"><TextBlock x:Name="SetupStartText" Text="Installer" FontSize="13"/></Button>
+      <Button x:Name="SetupBackButton" Content="Retour" Style="{StaticResource Quiet}" Click="ServerSetupBack_Click" FontSize="12" Foreground="#B7B7BE" Margin="0,10,0,0" Height="38"/>
      </StackPanel>
     </Border>
-   </Grid></ScrollViewer>
+   </Grid></Viewbox>
   </Grid>
 
   <Grid x:Name="WelcomeOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#070708" KeyboardNavigation.TabNavigation="Cycle">
    <Ellipse Width="760" Height="760" VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0.04" IsHitTestVisible="False"><Ellipse.Fill><RadialGradientBrush><GradientStop Color="White"/><GradientStop Color="#00FFFFFF" Offset="1"/></RadialGradientBrush></Ellipse.Fill></Ellipse>
-   <ScrollViewer Margin="24,40,24,24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel x:Name="WelcomeContent" MaxWidth="900" HorizontalAlignment="Center" VerticalAlignment="Center">
-     <v:Icon Kind="brand" Width="52" Height="52" HorizontalAlignment="Center"/>
-     <TextBlock Text="Bienvenue dans Mira" FontSize="36" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,22,0,10"/>
-     <TextBlock Text="Le lecteur de ta bibliothèque de films et de séries. Voici comment ça marche." FontSize="14" Foreground="{StaticResource Muted}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
-     <UniformGrid Columns="3" Margin="0,34,0,0">
-      <Border Background="#101012" BorderBrush="#202024" BorderThickness="1" CornerRadius="14" Padding="22,22" Margin="7"><StackPanel><Border Width="42" Height="42" CornerRadius="12" Background="#1B1B1F" HorizontalAlignment="Left"><v:Icon Kind="server" Width="21" Height="21" Foreground="#F5F5F7"/></Border><TextBlock Text="Jellyfin garde tes vidéos" FontSize="16" FontWeight="SemiBold" Margin="0,16,0,0"/><TextBlock Text="Un serveur gratuit qui range tes films et séries, avec affiches, résumés et progression. Il tourne en arrière-plan, sur ce PC ou un autre." Style="{StaticResource SettingDescription}" Margin="0,7,0,0"/></StackPanel></Border>
-      <Border Background="#101012" BorderBrush="#202024" BorderThickness="1" CornerRadius="14" Padding="22,22" Margin="7"><StackPanel><Border Width="42" Height="42" CornerRadius="12" Background="#1B1B1F" HorizontalAlignment="Left"><v:Icon Kind="play" Width="21" Height="21" Foreground="#F5F5F7"/></Border><TextBlock Text="Mira les lit" FontSize="16" FontWeight="SemiBold" Margin="0,16,0,0"/><TextBlock Text="Parcours ta bibliothèque, reprends là où tu t’étais arrêté et regarde en plein écran." Style="{StaticResource SettingDescription}" Margin="0,7,0,0"/></StackPanel></Border>
-      <Border Background="#101012" BorderBrush="#202024" BorderThickness="1" CornerRadius="14" Padding="22,22" Margin="7"><StackPanel><Border Width="42" Height="42" CornerRadius="12" Background="#1B1B1F" HorizontalAlignment="Left"><v:Icon Kind="folder" Width="21" Height="21" Foreground="#F5F5F7"/></Border><TextBlock Text="Tu ajoutes tes fichiers" FontSize="16" FontWeight="SemiBold" Margin="0,16,0,0"/><TextBlock Text="Dépose tes vidéos dans les dossiers Films, Séries ou Animes : elles apparaissent toutes seules." Style="{StaticResource SettingDescription}" Margin="0,7,0,0"/></StackPanel></Border>
+   <Viewbox Margin="28,44,28,24" Stretch="Uniform" StretchDirection="DownOnly" TextOptions.TextFormattingMode="Ideal">
+    <StackPanel x:Name="WelcomeContent" Width="860">
+     <v:Icon Kind="brand" Width="48" Height="48" HorizontalAlignment="Center"/>
+     <TextBlock Text="Bienvenue dans Mira" FontSize="34" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,18,0,8"/>
+     <TextBlock Text="Le lecteur de tes films et séries." FontSize="14" Foreground="{StaticResource Muted}" HorizontalAlignment="Center"/>
+     <UniformGrid Columns="3" Margin="0,28,0,0">
+      <Border Background="#101012" BorderBrush="#202024" BorderThickness="1" CornerRadius="14" Padding="20,20" Margin="7"><StackPanel><Border Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" HorizontalAlignment="Left"><v:Icon Kind="server" Width="20" Height="20" Foreground="#F5F5F7"/></Border><TextBlock Text="Jellyfin" FontSize="16" FontWeight="SemiBold" Margin="0,14,0,0"/><TextBlock Text="Le serveur qui range tes vidéos, avec affiches et progression." Style="{StaticResource SettingDescription}" Margin="0,6,0,0"/></StackPanel></Border>
+      <Border Background="#101012" BorderBrush="#202024" BorderThickness="1" CornerRadius="14" Padding="20,20" Margin="7"><StackPanel><Border Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" HorizontalAlignment="Left"><v:Icon Kind="play" Width="20" Height="20" Foreground="#F5F5F7"/></Border><TextBlock Text="Mira" FontSize="16" FontWeight="SemiBold" Margin="0,14,0,0"/><TextBlock Text="Le lecteur : tu reprends là où tu t’étais arrêté." Style="{StaticResource SettingDescription}" Margin="0,6,0,0"/></StackPanel></Border>
+      <Border Background="#101012" BorderBrush="#202024" BorderThickness="1" CornerRadius="14" Padding="20,20" Margin="7"><StackPanel><Border Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" HorizontalAlignment="Left"><v:Icon Kind="folder" Width="20" Height="20" Foreground="#F5F5F7"/></Border><TextBlock Text="Tes fichiers" FontSize="16" FontWeight="SemiBold" Margin="0,14,0,0"/><TextBlock Text="Dans Films, Séries ou Animes : ils apparaissent tout seuls." Style="{StaticResource SettingDescription}" Margin="0,6,0,0"/></StackPanel></Border>
      </UniformGrid>
-     <TextBlock Text="Pour commencer" FontSize="13" FontWeight="SemiBold" Foreground="#C5C5CA" HorizontalAlignment="Center" Margin="0,34,0,8"/>
-     <UniformGrid Columns="2" MaxWidth="660">
-      <Button x:Name="WelcomeInstall" Style="{StaticResource Primary}" Click="WelcomeInstall_Click" Padding="22,16" Margin="6" v:Motion.Radius="12" HorizontalContentAlignment="Left"><StackPanel><TextBlock Text="Installer Jellyfin sur ce PC" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="Je n’ai pas encore de serveur : Mira l’installe et le configure." FontSize="12" FontWeight="Normal" Opacity="0.72" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel></Button>
-      <Button x:Name="WelcomeConnect" Click="WelcomeConnect_Click" Padding="22,16" Margin="6" v:Motion.Radius="12" HorizontalContentAlignment="Left"><StackPanel><TextBlock Text="Me connecter à mon serveur" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="J’ai déjà Jellyfin, ici ou sur un autre appareil." FontSize="12" FontWeight="Normal" Opacity="0.72" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel></Button>
+     <UniformGrid Columns="2" Width="620" Margin="0,26,0,0">
+      <Button x:Name="WelcomeInstall" Style="{StaticResource Primary}" Click="WelcomeInstall_Click" Padding="20,14" Margin="6" v:Motion.Radius="12" HorizontalContentAlignment="Left"><StackPanel><TextBlock Text="Installer Jellyfin" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="Sur ce PC, en quelques minutes." FontSize="12" FontWeight="Normal" Opacity="0.72" Margin="0,3,0,0" TextWrapping="Wrap"/></StackPanel></Button>
+      <Button x:Name="WelcomeConnect" Click="WelcomeConnect_Click" Padding="20,14" Margin="6" v:Motion.Radius="12" HorizontalContentAlignment="Left"><StackPanel><TextBlock Text="Me connecter" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="J’ai déjà un serveur Jellyfin." FontSize="12" FontWeight="Normal" Opacity="0.72" Margin="0,3,0,0" TextWrapping="Wrap"/></StackPanel></Button>
      </UniformGrid>
-     <Button Content="Découvrir avec la démo" Style="{StaticResource Quiet}" HorizontalAlignment="Center" Margin="0,12,0,0" Click="WelcomeDemo_Click"/>
+     <Button Content="Essayer la démo" Style="{StaticResource Quiet}" HorizontalAlignment="Center" Margin="0,10,0,0" Click="WelcomeDemo_Click"/>
     </StackPanel>
-   </ScrollViewer>
+   </Viewbox>
   </Grid>
   <Grid x:Name="WhatsNewOverlay" Grid.RowSpan="2" Panel.ZIndex="75" Visibility="Collapsed" Background="#F4070708" KeyboardNavigation.TabNavigation="Cycle">
-   <ScrollViewer Margin="24,40,24,24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <Border x:Name="WhatsNewCard" MaxWidth="660" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="40,36" Background="#F2101012" BorderBrush="#29292D" BorderThickness="1" CornerRadius="20">
+   <Viewbox Margin="28,44,28,24" Stretch="Uniform" StretchDirection="DownOnly" TextOptions.TextFormattingMode="Ideal">
+    <Border x:Name="WhatsNewCard" Width="600" Padding="38,34" Background="#F2101012" BorderBrush="#29292D" BorderThickness="1" CornerRadius="20">
      <StackPanel>
       <StackPanel Orientation="Horizontal"><v:Icon Kind="sparkle" Width="16" Height="16" Foreground="#C9C9CF"/><TextBlock Text="NOUVEAUTÉS" FontSize="11" FontWeight="SemiBold" Foreground="#C9C9CF" Margin="8,1,0,0"/></StackPanel>
-      <TextBlock x:Name="WhatsNewTitle" FontSize="34" FontWeight="Bold" Margin="0,12,0,6"/>
+      <TextBlock x:Name="WhatsNewTitle" FontSize="32" FontWeight="Bold" Margin="0,10,0,6"/>
       <TextBlock x:Name="WhatsNewSummary" FontSize="14" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
-      <StackPanel x:Name="WhatsNewItems" Margin="0,24,0,0"/>
-      <DockPanel Margin="0,22,0,0"><Button x:Name="WhatsNewDone" DockPanel.Dock="Right" Style="{StaticResource Primary}" v:Motion.Radius="9" Content="C’est parti" Padding="26,11" Click="WhatsNewDone_Click"/><Button x:Name="WhatsNewDetails" Style="{StaticResource Quiet}" Content="Tous les détails" HorizontalAlignment="Left" Click="WhatsNewDetails_Click"/></DockPanel>
+      <StackPanel x:Name="WhatsNewItems" Margin="0,22,0,0"/>
+      <DockPanel Margin="0,18,0,0"><Button x:Name="WhatsNewDone" DockPanel.Dock="Right" Style="{StaticResource Primary}" v:Motion.Radius="9" Content="C’est parti" Padding="26,11" Click="WhatsNewDone_Click"/><Button x:Name="WhatsNewDetails" Style="{StaticResource Quiet}" Content="Tous les détails" HorizontalAlignment="Left" Click="WhatsNewDetails_Click"/></DockPanel>
      </StackPanel>
     </Border>
-   </ScrollViewer>
+   </Viewbox>
   </Grid>
   <Grid x:Name="TitleBar" Panel.ZIndex="80" Background="Transparent"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right" shell:WindowChrome.IsHitTestVisibleInChrome="True"><Button Width="46" Height="32" Padding="0" Style="{StaticResource Quiet}" Click="Minimize_Click" ToolTip="Réduire la fenêtre" AutomationProperties.Name="Réduire la fenêtre"><v:Icon Kind="minus" Width="16" Height="16"/></Button><Button x:Name="MaximizeButton" Width="46" Height="32" Padding="0" Style="{StaticResource Quiet}" Click="Maximize_Click" ToolTip="Agrandir la fenêtre" AutomationProperties.Name="Agrandir la fenêtre"><v:Icon x:Name="MaximizeIcon" Kind="maximize" Width="15" Height="15"/></Button><Button Width="46" Height="32" Padding="0" Style="{StaticResource Quiet}" Click="Close_Click" ToolTip="Fermer Mira" AutomationProperties.Name="Fermer Mira"><v:Icon Kind="close" Width="17" Height="17"/></Button></StackPanel></Grid>
   <Border x:Name="Notice" Grid.RowSpan="2" Panel.ZIndex="90" Visibility="Collapsed" VerticalAlignment="Bottom" HorizontalAlignment="Center" MaxWidth="760" Margin="80,0,30,25" Padding="17,10,8,10" Background="#F0222227" BorderBrush="#43434A" BorderThickness="1" CornerRadius="8"><DockPanel><Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="30" Height="30" Click="DismissNotice_Click" ToolTip="Masquer" AutomationProperties.Name="Masquer le message"><v:Icon Kind="close" Width="15" Height="15"/></Button><Button x:Name="NoticeAction" DockPanel.Dock="Right" Visibility="Collapsed" Style="{StaticResource Primary}" Padding="13,6" FontSize="12" Margin="4,0,6,0" VerticalAlignment="Center" Click="NoticeAction_Click"/><TextBlock x:Name="NoticeText" VerticalAlignment="Center" FontSize="12" Foreground="#DDDEE4" TextWrapping="Wrap" Margin="0,0,10,0"/></DockPanel></Border>

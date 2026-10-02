@@ -132,7 +132,7 @@ public partial class MainWindow
             (_, > 0, _) => ("search", $"Aucun résultat pour « {search} »", "Vérifie l’orthographe ou essaie un autre titre."),
             (_, _, true) => ("sliders", "Aucun titre ne correspond à ces filtres", "Élargis ta sélection pour retrouver tes titres."),
             ("favorites", _, _) => ("bookmark", "Aucun favori pour l’instant", "Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici."),
-            _ when emptyLibrary => ("folder", "Ta bibliothèque est encore vide", "Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici tout seuls, avec leurs affiches."),
+            _ when emptyLibrary => ("folder", "Ta bibliothèque est vide", "Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici."),
             _ => ("library", "Rien à afficher ici", "Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.")
         };
         EmptyReset.Visibility = filtered || search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;

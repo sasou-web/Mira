@@ -453,6 +453,66 @@ await Test("Moteur mpv : téléchargé, vérifié et extrait dans le profil ; al
     var current = MpvPackage.Current;
     Assert(current.Url.Scheme == "https" && current.ArchiveName.EndsWith(".7z") && current.ArchiveSha256.Length == 64 && current.LibrarySha256.Length == 64 && current.Size > 1_000_000, "Pinned engine");
 });
+await Test("TorLink : Node.js installé par Mira depuis le zip officiel vérifié, TorLink figé et installé par npm sans scripts", async () =>
+{
+    // A zip shaped like nodejs.org's: one top folder, node.exe, npm, corepack and scripts Mira leaves out.
+    byte[] Zip(Action<System.IO.Compression.ZipArchive> fill)
+    {
+        using var memory = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(memory, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true)) fill(zip);
+        return memory.ToArray();
+    }
+    void Entry(System.IO.Compression.ZipArchive zip, string name, string text) { using var writer = new StreamWriter(zip.CreateEntry(name).Open()); writer.Write(text); }
+    var good = Zip(zip =>
+    {
+        foreach (var (name, text) in new[] { ("node.exe", "faux node"), ("LICENSE", "MIT"), ("node_modules/npm/bin/npm-cli.js", "// npm"), ("node_modules/npm/package.json", "{}"),
+            ("node_modules/corepack/package.json", "{}"), ("npm.cmd", "@echo off"), ("install_tools.bat", "@echo off") })
+            Entry(zip, "node-v24.0.0-win-x64/" + name, text);
+    });
+    string Sha(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    NodePackage Package(byte[] bytes) => new("24.0.0", new("https://nodejs.example.test/dist/v24.0.0/node-v24.0.0-win-x64.zip"), bytes.Length, Sha(bytes));
+    var served = good; var requests = 0;
+    var handler = new Handler(_ => { Interlocked.Increment(ref requests); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(served) }); });
+    var profile = Path.Combine(testRoot, "node-profile");
+    var node = await NodeInstaller.InstallAsync(profile, Package(good), handler);
+    Assert(node == NodeInstaller.Executable(profile) && File.ReadAllText(node) == "faux node" && File.Exists(NodeInstaller.NpmCli(profile)) && NodeInstaller.IsInstalled(profile, Package(good)), "Node.js not installed");
+    var kept = Directory.EnumerateFiles(NodeInstaller.Folder(profile), "*", SearchOption.AllDirectories).Select(x => Path.GetRelativePath(NodeInstaller.Folder(profile), x).Replace('\\', '/')).Order().ToArray();
+    Assert(kept.SequenceEqual(new[] { "LICENSE", "node.exe", "node_modules/npm/bin/npm-cli.js", "node_modules/npm/package.json", "SOURCE.txt", "version.txt" }.Order()), "Unexpected files: " + string.Join(", ", kept));
+    await NodeInstaller.InstallAsync(profile, Package(good), handler);
+    Assert(requests == 1 && !Directory.EnumerateFileSystemEntries(profile).Any(x => x.EndsWith(".partial")), "Installed Node.js downloaded again, or a partial file left");
+    async Task Refused(string folder, NodePackage package, byte[] bytes, string expected)
+    {
+        served = bytes; var target = Path.Combine(testRoot, folder);
+        try { await NodeInstaller.InstallAsync(target, package, handler); throw new Exception("Installed: " + folder); }
+        catch (InstallException ex) { Assert(ex.Message.Contains(expected), $"{folder}: {ex.Message}"); }
+        Assert(!File.Exists(NodeInstaller.Executable(target)) && !Directory.Exists(NodeInstaller.Folder(target) + ".partial"), folder + " left Node.js behind");
+    }
+    var altered = good.ToArray(); altered[^30] ^= 0xFF;
+    await Refused("node-altered", Package(good), altered, "ne correspond pas à la version vérifiée");
+    var escape = Zip(zip => { Entry(zip, "node-v24.0.0-win-x64/node.exe", "x"); Entry(zip, "node-v24.0.0-win-x64/node_modules/npm/../../../../evil.txt", "x"); Entry(zip, "node-v24.0.0-win-x64/node_modules/npm/bin/npm-cli.js", "x"); });
+    await Refused("node-escape", Package(escape), escape, "chemin inattendu");
+    Assert(!File.Exists(Path.Combine(testRoot, "evil.txt")), "A file was written outside Node.js's folder");
+    var empty = Zip(zip => Entry(zip, "autre/README.md", "x"));
+    await Refused("node-empty", Package(empty), empty, "ne contient pas Node.js");
+    Assert(NodeInstaller.MajorVersion("24.21.0") == 24 && NodeInstaller.MajorVersion("v22.15.0") == 22 && NodeInstaller.MajorVersion("") is null && NodeInstaller.MajorVersion(null) is null, "Node.js major version");
+    var current = NodePackage.Current;
+    Assert(current.Url.Host == "nodejs.org" && current.Url.Scheme == "https" && current.ArchiveName.EndsWith("-win-x64.zip") && current.Root == $"node-v{current.Version}-win-x64/"
+        && current.Sha256.Length == 64 && current.Size > 20_000_000 && NodeInstaller.MajorVersion(current.Version) >= NodeInstaller.MinimumMajor, "Pinned Node.js");
+    // TorLink: one exact version of the npm package, into Mira's own folder, without install scripts.
+    var arguments = Mira.Core.TorLink.TorLinkPackage.Current.NpmArguments(@"C:\Mira\data\node\node_modules\npm\bin\npm-cli.js", @"C:\Mira\data");
+    Assert(arguments[0].EndsWith("npm-cli.js") && arguments[1] == "install" && arguments[2] == $"torlnk@{Mira.Core.TorLink.TorLinkPackage.Current.Version}"
+        && arguments.Contains("--ignore-scripts") && arguments[arguments.ToList().IndexOf("--prefix") + 1] == Path.Combine(@"C:\Mira\data", "torlink"), "npm arguments: " + string.Join(" ", arguments));
+    Assert(System.Text.RegularExpressions.Regex.IsMatch(Mira.Core.TorLink.TorLinkPackage.Current.Version, @"^\d+\.\d+\.\d+$"), "TorLink version is not exact");
+    var problems = new[]
+    {
+        Mira.Core.TorLink.TorLinkPackage.NpmProblem("npm error code ENOTFOUND\nnpm error syscall getaddrinfo\nnpm error A complete log of this run can be found in: C:\\x.log\n"),
+        Mira.Core.TorLink.TorLinkPackage.NpmProblem("npm ERR! code E404\nnpm ERR! 404 Not Found - GET https://registry.npmjs.org/torlnk\n"),
+        Mira.Core.TorLink.TorLinkPackage.NpmProblem("quelque chose\nune dernière ligne\n"),
+        Mira.Core.TorLink.TorLinkPackage.NpmProblem(""),
+    };
+    Assert(problems[0] == "ENOTFOUND · syscall getaddrinfo" && problems[1] == "E404 · 404 Not Found - GET https://registry.npmjs.org/torlnk" && problems[2] == "une dernière ligne" && problems[3] is null,
+        "npm problems: " + string.Join(" | ", problems));
+});
 await Test("Moteur mpv : celui installé par Mira est trouvé, un chemin choisi passe avant", () =>
 {
     var saved = AppFiles.ProfileDirectory;

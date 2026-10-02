@@ -158,6 +158,8 @@ public sealed class PlayerSettings
     /// <summary>TorLink folder; empty: found through its shortcuts.</summary>
     public string TorLinkPath { get; set; } = "";
     public bool TorLinkAutoImport { get; set; } = true;
+    /// <summary>TorLink turned on or off in the Downloads page; null until chosen: on when a TorLink is already installed.</summary>
+    public bool? TorLinkActive { get; set; }
     /// <summary>True: hard link (or copy) so TorLink keeps sharing; false: the download is moved into the library.</summary>
     public bool TorLinkKeepSeeding { get; set; } = true;
     /// <summary>Manual library folders; empty: the folders of the Jellyfin libraries.</summary>
