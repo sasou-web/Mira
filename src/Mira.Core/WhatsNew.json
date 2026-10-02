@@ -4,7 +4,7 @@
     "summary": "TorLink s’installe d’un clic, et tout tient à l’écran.",
     "items": [
       { "icon": "download", "title": "TorLink en un clic", "text": "Page Téléchargements : active TorLink, Mira installe Node.js et TorLink pour toi." },
-      { "icon": "series", "title": "La bonne saison", "text": "« Continuer à regarder » montre l’image de la saison, plus celle d’une autre." },
+      { "icon": "series", "title": "La bonne saison", "text": "« Continuer à regarder » montre la saison de l’épisode, et non plus l’image de la série." },
       { "icon": "fullscreen", "title": "Adapté à ton écran", "text": "Accueil, connexion et installation tiennent sur un écran 1080p, même à 150 %." },
       { "icon": "check", "title": "Plus simple", "text": "Des textes plus courts, à l’essentiel." }
     ]
