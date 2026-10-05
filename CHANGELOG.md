@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.5.8 — 2026-10-05
+
+Une fenêtre à la taille de l’écran, la même barre de gauche partout, et Jellyfin accessible hors de chez soi avec Tailscale.
 
 - **Fenêtre normale au démarrage** ([#13](https://github.com/sasou-web/Mira/issues/13)) : Mira ne s’ouvre plus agrandie. Sur un écran trop petit pour sa taille par défaut (1080p à 125 ou 150 %), la fenêtre prend 90 % de l’écran, centrée.
 - **Barre de gauche identique sur toutes les pages** ([#13](https://github.com/sasou-web/Mira/issues/13)) : la fiche d’un titre et la page Téléchargements commençaient à droite de la barre, qui laissait voir derrière elle l’accueil et les couleurs de son bandeau. Elles passent maintenant dessous, comme les Réglages et le Guide.
