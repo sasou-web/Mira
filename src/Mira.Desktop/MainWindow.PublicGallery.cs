@@ -77,6 +77,8 @@ public partial class MainWindow
             GuideJellyfinActions.Visibility = GuideRemote.Visibility = Visibility.Visible; GuideServerAddress.Text = "http://127.0.0.1:8096";
             GuideRemoteAddress.Text = "http://192.168.1.20:8096";
             GuideRemoteHint.Text = "Ce PC doit rester allumé et sur la même box. Si un appareil ne trouve pas le serveur, autorise Jellyfin dans le pare-feu de Windows.";
+            // Away from home, before Tailscale is installed: what to do.
+            _awayAddress = null; GuideAway.Visibility = Visibility.Visible; ShowAway(null);
             foreach (var size in new[] { sizes[0], sizes[2] }) { SmoothScroll.Jump(GuideScroll); await At(size, "19-guide", null, GuideContent); }
             GuideOverlay.Visibility = Visibility.Collapsed;
             // The downloads page before TorLink is turned on: the list of downloaders.

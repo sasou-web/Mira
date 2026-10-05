@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.5.8",
+    "summary": "Une fenêtre à la taille de ton écran, et ta bibliothèque hors de chez toi.",
+    "items": [
+      { "icon": "fullscreen", "title": "Fenêtre normale", "text": "Mira s’ouvre en fenêtre, à la taille de ton écran." },
+      { "icon": "phone", "title": "Hors de chez toi", "text": "Avec Tailscale, regarde ta bibliothèque partout : le guide t’explique tout." },
+      { "icon": "check", "title": "Plus net", "text": "La barre de gauche garde le même aspect sur toutes les pages." }
+    ]
+  },
+  {
     "version": "0.5.7",
     "summary": "Les téléchargements se déplacent sans doublon, et Actualiser trouve tes nouveaux fichiers.",
     "items": [

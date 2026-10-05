@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Mira.Core;
 
@@ -185,6 +186,39 @@ public sealed class JellyfinClient : IDisposable
         }
         return true;
     }
+    /// <summary>
+    /// Whether Jellyfin lets in devices on Tailscale: its access from elsewhere is on, or Tailscale's range counts as
+    /// local. Null when its network settings cannot be read (not an administrator).
+    /// </summary>
+    public async Task<bool?> TailnetAllowedAsync(CancellationToken ct = default)
+    {
+        if (await NetworkSettingsAsync(ct) is not { } network) return null;
+        return network["EnableRemoteAccess"] is JsonValue remote && remote.TryGetValue<bool>(out var on) && on || Subnets(network).Contains(LocalNetwork.TailnetRange, StringComparer.OrdinalIgnoreCase);
+    }
+    /// <summary>
+    /// Counts Tailscale's range as local in Jellyfin's network settings, every other setting kept as it was: devices
+    /// on Tailscale connect, the Internet stays refused. Applied at once, without restarting Jellyfin (checked on 12.1).
+    /// False when this account may not change them.
+    /// </summary>
+    public async Task<bool> AllowTailnetAsync(CancellationToken ct = default)
+    {
+        if (await NetworkSettingsAsync(ct) is not { } network) return false;
+        network["LocalNetworkSubnets"] = new JsonArray(LocalNetwork.WithTailnet(Subnets(network)).Select(x => (JsonNode?)x).ToArray());
+        using var content = new StringContent(network.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync("System/Configuration/network", content, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(response);
+        return true;
+    }
+    private async Task<JsonObject?> NetworkSettingsAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("System/Configuration/network", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject;
+    }
+    private static List<string> Subnets(JsonObject network) =>
+        network["LocalNetworkSubnets"] is JsonArray list ? list.Select(x => x is JsonValue value && value.TryGetValue<string>(out var text) ? text : null).OfType<string>().ToList() : [];
     private sealed record ScheduledTask(string? Key, string? State, double? CurrentProgressPercentage, ScheduledTaskResult? LastExecutionResult);
     private sealed record ScheduledTaskResult(DateTimeOffset? EndTimeUtc);
     private sealed record MediaUpdate(string Path, string UpdateType);

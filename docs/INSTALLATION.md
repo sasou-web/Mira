@@ -120,6 +120,7 @@ Pour passer d’une copie portable à l’installateur en gardant sa session : i
 
 | Symptôme | Vérification |
 | --- | --- |
+| Jellyfin injoignable hors de chez soi | L’adresse du guide (192.168…) ne marche que sur le réseau de la maison. Installer Tailscale sur ce PC et sur l’appareil, avec le même compte, puis **Autoriser Tailscale** dans le guide (**?** à gauche) et utiliser l’adresse affichée. Ouvrir la box (redirection de port) exposerait Jellyfin à tout Internet : c’est déconseillé. |
 | Serveur inaccessible | Jellyfin doit être lancé ; vérifier l’adresse, le port et l’accès réseau. Pour un serveur distant, utiliser HTTPS. |
 | « Ce n’est pas un serveur Jellyfin » | L’adresse répond, mais pas Jellyfin (routeur, NAS, Emby…) : vérifier le port, 8096 par défaut. |
 | « Mira a besoin de Jellyfin 10.9 » | Mettre Jellyfin à jour ; Mira utilise des routes introduites par cette version. |

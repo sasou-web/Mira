@@ -226,6 +226,45 @@ await Test("Authentification : corps JSON, jeton dans l’en-tête, recherche en
     Assert(!requests.Any(r => r.Url.Contains("test-secret") || r.Url.Contains("password-test")), "Credential in request URI");
     Assert(requests[1].Url.Contains("%26"), "Search not escaped");
 });
+await Test("Hors de chez toi : adresse Tailscale de ce PC, et Jellyfin qui accepte ses appareils sans s’ouvrir à Internet", async () =>
+{
+    Assert(new[] { "100.64.0.1", "100.101.102.103", "100.127.255.254" }.All(LocalNetwork.IsTailnet) && !new[] { "100.63.255.255", "100.128.0.1", "192.168.1.20", "fd7a:115c:a1e0::1", "x" }.Any(LocalNetwork.IsTailnet), "Tailscale's range");
+    Assert(LocalNetwork.TailnetIPv4([("100.70.0.9", "Ethernet Realtek PCIe"), ("192.168.1.20", "Tailscale Tailscale Tunnel"), ("100.101.102.103", "Tailscale Tailscale Tunnel")]) == "100.101.102.103", "Only an address of the Tailscale adapter counts");
+    Assert(LocalNetwork.TailnetIPv4([("100.70.0.9", "Ethernet Realtek PCIe")]) is null, "A 100.64 address from the Internet provider is not Tailscale");
+    Assert(LocalNetwork.ForOtherDevices("http://127.0.0.1:8096", "100.101.102.103") == "http://100.101.102.103:8096", "Address on Tailscale");
+    Assert(LocalNetwork.WithTailnet([]).SequenceEqual(LocalNetwork.JellyfinDefaultSubnets.Append(LocalNetwork.TailnetRange)), "Jellyfin's defaults kept, Tailscale added");
+    Assert(LocalNetwork.WithTailnet(["192.168.1.0/24"]).SequenceEqual(["192.168.1.0/24", LocalNetwork.TailnetRange]) && LocalNetwork.WithTailnet(["100.64.0.0/10"]).Count == 1, "A chosen list is kept; no duplicate");
+
+    // Jellyfin's network settings, read then written back whole with only the local networks changed.
+    var stored = """{"EnableRemoteAccess":false,"LocalNetworkSubnets":[],"KnownProxies":["10.0.0.1"],"EnableHttps":false,"InternalHttpPort":8096}""";
+    var admin = true; string? posted = null;
+    using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+    {
+        if (!admin && request.Method == HttpMethod.Post) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+        if (request.Method == HttpMethod.Post) { stored = posted = await request.Content!.ReadAsStringAsync(); return new HttpResponseMessage(HttpStatusCode.NoContent); }
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(stored, Encoding.UTF8, "application/json") };
+    }));
+    Assert(await client.TailnetAllowedAsync() == false, "Tailscale allowed before being asked");
+    Assert(await client.AllowTailnetAsync() && await client.TailnetAllowedAsync() == true, "Tailscale not allowed after being asked");
+    var sent = JsonDocument.Parse(posted!).RootElement;
+    Assert(sent.GetProperty("LocalNetworkSubnets").EnumerateArray().Select(x => x.GetString()).SequenceEqual(LocalNetwork.WithTailnet([])) && !sent.GetProperty("EnableRemoteAccess").GetBoolean()
+        && sent.GetProperty("KnownProxies")[0].GetString() == "10.0.0.1" && sent.GetProperty("InternalHttpPort").GetInt32() == 8096, "Other network settings changed: " + posted);
+    stored = """{"EnableRemoteAccess":true,"LocalNetworkSubnets":[]}""";
+    Assert(await client.TailnetAllowedAsync() == true, "Access from elsewhere already on lets Tailscale in");
+    admin = false; stored = """{"EnableRemoteAccess":false,"LocalNetworkSubnets":[]}""";
+    Assert(!await client.AllowTailnetAsync(), "A guest changed Jellyfin's network settings");
+});
+await Test("Fenêtre : taille normale sur un grand écran, réduite et jamais agrandie sur un petit", () =>
+{
+    ScreenFit.Fit? Open(double width, double height) => ScreenFit.Window(new(1480, 930), new(960, 600), new(width, height));
+    Assert(Open(2560, 1392) is { Size: { Width: 1480, Height: 930 }, Minimum: { Width: 960, Height: 600 } }, "A large screen keeps the default size");
+    Assert(Open(1920, 1032) is { Size: { Width: 1480, Height: 928 } }, "1080p at 100 %: 930 px do not fit in 90 % of 1032");
+    Assert(Open(1536, 826) is { Size: { Width: 1382, Height: 743 } }, "1080p at 125 %: 90 % of the screen");
+    Assert(Open(1280, 688) is { Size: { Width: 1152, Height: 619 } }, "1080p at 150 %: 90 % of the screen, above the minimum height");
+    Assert(Open(900, 560) is { Size: { Width: 900, Height: 560 }, Minimum: { Width: 900, Height: 560 } }, "A screen smaller than the minimum lowers the minimum to the screen");
+    Assert(Open(0, 0) is null, "An unknown screen changes nothing");
+    return Task.CompletedTask;
+});
 await Test("Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu’à la fin, refus d’un compte non administrateur", async () =>
 {
     // The scan task as Jellyfin lists it: Idle with the end of the last scan, then Running with its progress.
