@@ -4,13 +4,13 @@
   <p><strong>Ta bibliothèque Jellyfin. Le confort d’un lecteur fait pour elle.</strong></p>
   <p>Un client Windows natif, une interface cinéma et mpv directement dans l’application.</p>
   <p>
-    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.5.7_preview-e8e8ed?style=flat-square" alt="Version 0.5.7 preview" /></a>
+    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.5.8_preview-e8e8ed?style=flat-square" alt="Version 0.5.8 preview" /></a>
     <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
     <img src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square" alt=".NET 8" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Windows build" /></a>
   </p>
-  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.5.7">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
+  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.5.8">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
 </div>
 
 ![Accueil de Mira : bandeau Jujutsu Kaisen et rangée « Continuer à regarder »](docs/screenshots/readme-home.jpg)
@@ -27,7 +27,7 @@ Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau ce
 - **Une reprise fiable** : dernière lecture à gauche, progression locale, statut vu, file d’envoi persistante et reprise de synchronisation après coupure.
 - **Une place dans Windows** : logo et raccourci Démarrer, icône de notification, commandes dans l’aperçu de la barre des tâches et session multimédia système.
 - **Toujours à jour** (à partir de la 0.5.2) : chaque nouvelle version est téléchargée en arrière-plan, vérifiée (signature, SHA-256) et installée à la fermeture de Mira, sans toucher à tes données.
-- **Un guide pour bien démarrer** : au premier lancement, Mira explique ce que font Jellyfin et Mira ; le guide (bouton **?** ou **F1**) montre où ranger tes vidéos, ouvre la page d’administration de Jellyfin et donne l’adresse à entrer sur ton téléphone ou ta TV. Après chaque mise à jour, les nouveautés sont résumées en un écran.
+- **Un guide pour bien démarrer** : au premier lancement, Mira explique ce que font Jellyfin et Mira ; le guide (bouton **?** ou **F1**) montre où ranger tes vidéos, ouvre la page d’administration de Jellyfin et donne l’adresse à entrer sur ton téléphone ou ta TV, même hors de chez toi avec Tailscale. Après chaque mise à jour, les nouveautés sont résumées en un écran.
 - **TorLink, si tu l’actives** : dans la page Téléchargements, un interrupteur installe TorLink (avec son Node.js) et ouvre son interface dans Mira ; chaque téléchargement terminé est déplacé dans les dossiers de Jellyfin, sans doublon, et nommé comme il l’attend. TorLink est un projet indépendant ; Mira ne fournit ni sources ni contenus.
 
 <table>
@@ -39,13 +39,13 @@ Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau ce
 
 ## Installer
 
-Dans la [release 0.5.7](https://github.com/sasou-web/Mira/releases/tag/v0.5.7), choisir l’un des trois fichiers :
+Dans la [release 0.5.8](https://github.com/sasou-web/Mira/releases/tag/v0.5.8), choisir l’un des trois fichiers :
 
 | Fichier | Pour qui |
 | --- | --- |
-| **Mira-0.5.7-win-x64-setup.exe** | Recommandé. Installe Mira pour ton compte, sans droits administrateur, avec son raccourci Démarrer et sa désinstallation depuis les paramètres de Windows. |
-| **Mira-0.5.7-win-x64-portable.exe** | Un seul fichier à lancer tel quel. À ranger dans son propre dossier : il y crée son dossier `data`. |
-| **Mira-0.5.7-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
+| **Mira-0.5.8-win-x64-setup.exe** | Recommandé. Installe Mira pour ton compte, sans droits administrateur, avec son raccourci Démarrer et sa désinstallation depuis les paramètres de Windows. |
+| **Mira-0.5.8-win-x64-portable.exe** | Un seul fichier à lancer tel quel. À ranger dans son propre dossier : il y crée son dossier `data`. |
+| **Mira-0.5.8-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
 
 1. Lancer l’installateur ou l’exécutable. Windows peut afficher un avertissement SmartScreen : les fichiers ne sont pas encore signés (**Informations complémentaires → Exécuter quand même**).
 2. Connecter ton serveur Jellyfin (10.9 ou plus récent) — généralement `http://127.0.0.1:8096` sur le même PC ; sur le réseau, son adresse IP ou son nom suffit. Pas encore de serveur ? **Installer Jellyfin sur ce PC**, sous le formulaire de connexion, l’installe, crée les dossiers Films, Séries et Animes, le configure en français et te connecte.
@@ -89,7 +89,7 @@ La compilation et les tests de base sont lancés sur Windows dans GitHub Actions
 
 ## État du projet
 
-Mira **0.5.7** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
+Mira **0.5.8** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
 
 - [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md) et [validation](docs/VALIDATION.md)

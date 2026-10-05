@@ -2,7 +2,7 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Fenêtre, barre de gauche et accès hors de chez soi (non publié)
+## Fenêtre, barre de gauche et accès hors de chez soi 0.5.8
 
 - **Vrai Jellyfin 12.1**, configuré comme le fait Mira (accès depuis Internet désactivé). Les adresses de test sont données par `X-Forwarded-For`, avec 127.0.0.1 déclaré comme proxy de confiance pour ce seul essai :
   - avant : une adresse Tailscale (100.101.102.103) est refusée comme une adresse d’Internet (8.8.8.8), en 503 avec le motif `RejectDueToRemoteAccessDisabled`. Une adresse de la box (192.168.1.20) passe ;
