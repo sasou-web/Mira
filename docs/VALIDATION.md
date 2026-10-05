@@ -2,6 +2,23 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Fenêtre, barre de gauche et accès hors de chez soi (non publié)
+
+- **Vrai Jellyfin 12.1**, configuré comme le fait Mira (accès depuis Internet désactivé). Les adresses de test sont données par `X-Forwarded-For`, avec 127.0.0.1 déclaré comme proxy de confiance pour ce seul essai :
+  - avant : une adresse Tailscale (100.101.102.103) est refusée comme une adresse d’Internet (8.8.8.8), en 503 avec le motif `RejectDueToRemoteAccessDisabled`. Une adresse de la box (192.168.1.20) passe ;
+  - après `AllowTailnetAsync`, sans redémarrage : l’adresse Tailscale passe, 8.8.8.8 reste refusée, la box passe ;
+  - les autres réglages réseau sont renvoyés tels quels, et l’accès depuis Internet reste désactivé ;
+  - un second appel n’ajoute rien, et un compte invité peut lire ce réglage mais pas le modifier.
+- **Nouveaux tests** :
+  - plage de Tailscale ;
+  - adresse retenue seulement sur la carte nommée Tailscale (une adresse 100.64 de fournisseur d’accès est ignorée) ;
+  - liste des réseaux locaux (valeurs par défaut gardées, pas de doublon) ;
+  - réglages relus puis renvoyés entiers ; refus d’un compte non administrateur ;
+  - taille de fenêtre sur des écrans de 1440p à plus petit que la taille minimale.
+- **Non vérifié** :
+  - un vrai Tailscale sous Windows : nom exact de sa carte réseau, et pare-feu de Windows pour ce réseau. L’installateur de Jellyfin ne crée aucune règle de pare-feu ;
+  - l’interface n’a pas été lancée sur un vrai PC. La CI dessine le guide, la fiche et la page Téléchargements avec les nouvelles marges.
+
 ## Téléchargements déplacés, Actualiser et Favoris 0.5.7
 
 - Release v0.5.7 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.7, avec la taille et le SHA-256 des trois paquets tels que GitHub les donne ; sa signature est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`, et refusée sur une copie modifiée. La page de release porte le texte court tiré de `WhatsNew.json` : résumé, trois points et lien vers le CHANGELOG.

@@ -83,20 +83,16 @@ public partial class MainWindow : Window
         _initializing = false;
     }
     /// <summary>
-    /// The default size (1480 × 930) is taller than a 1080p screen at 125 % (about 1536 × 826 usable) and wider and
-    /// taller than one at 150 % (about 1280 × 688): there Mira opens maximized instead of overflowing the screen.
+    /// The default size (1480 × 930) is taller than a 1080p screen at 125 % (about 1536 × 826 usable) and larger than
+    /// one at 150 % (about 1280 × 688): there the window opens smaller, centred, never maximized (see <see cref="ScreenFit"/>).
     /// </summary>
     private void FitToScreen()
     {
         // Validation runs set their own sizes, off screen.
         if (_args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--offscreen")) return;
         var area = SystemParameters.WorkArea;
-        if (area.Width <= 0 || area.Height <= 0) return;
-        MinWidth = Math.Min(MinWidth, area.Width); MinHeight = Math.Min(MinHeight, area.Height);
-        if (Width <= area.Width - 40 && Height <= area.Height - 40) return;
-        // Restored later, the window keeps a size the screen can hold.
-        Width = Math.Max(MinWidth, Math.Floor(area.Width * .9)); Height = Math.Max(MinHeight, Math.Floor(area.Height * .9));
-        WindowState = WindowState.Maximized;
+        if (ScreenFit.Window(new(Width, Height), new(MinWidth, MinHeight), new(area.Width, area.Height)) is not { } fit) return;
+        (MinWidth, MinHeight, Width, Height) = (fit.Minimum.Width, fit.Minimum.Height, fit.Size.Width, fit.Size.Height);
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {

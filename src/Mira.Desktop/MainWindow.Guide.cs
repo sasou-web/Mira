@@ -16,7 +16,7 @@ namespace Mira.Desktop;
 public partial class MainWindow
 {
     private int _guideVersion;
-    private string? _remoteAddress;
+    private string? _remoteAddress, _awayAddress, _awayAction;
 
     /// <summary>On opening: the welcome on a new profile, the main points after an update, or nothing.</summary>
     private void ShowStartupScreen()
@@ -94,7 +94,65 @@ public partial class MainWindow
         Motion.Reveal(GuideOverlay, 260, 0); Motion.Reveal(GuideContent, 300, 10);
         UpdateNavigation(); UpdateHeroClock();
         _ = Dispatcher.BeginInvoke(() => GuideClose.Focus(), DispatcherPriority.Input);
-        await ShowGuideFoldersAsync(++_guideVersion);
+        var version = ++_guideVersion;
+        _ = DescribeAwayAsync(version);
+        await ShowGuideFoldersAsync(version);
+    }
+    /// <summary>
+    /// « Hors de chez toi », for a Jellyfin on this PC: the home address only works on the home network. With Tailscale
+    /// connected here, its address, once Jellyfin lets Tailscale's devices in; otherwise, how to get one.
+    /// </summary>
+    private async Task DescribeAwayAsync(int version)
+    {
+        var server = _demo ? null : _client?.Connection.Server;
+        var local = server is not null && Uri.TryCreate(server, UriKind.Absolute, out var uri) && uri.IsLoopback;
+        GuideAway.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
+        if (!local || _client is not { } client) return;
+        var tailnet = await Task.Run(LocalNetwork.ThisPcOnTailnet);
+        if (version != _guideVersion) return;
+        _awayAddress = tailnet is null ? null : LocalNetwork.ForOtherDevices(server!, tailnet);
+        bool? allowed = null;
+        if (_awayAddress is not null)
+        {
+            try { allowed = await client.TailnetAllowedAsync(); }
+            catch (Exception ex) when (IsExpected(ex)) { }
+        }
+        if (version == _guideVersion) ShowAway(allowed);
+    }
+    /// <summary>Without Tailscale: how to get it. With it: its address, and whether Jellyfin still has to let it in.</summary>
+    private void ShowAway(bool? allowed)
+    {
+        GuideAwayLine.Visibility = _awayAddress is null ? Visibility.Collapsed : Visibility.Visible;
+        GuideAwayAddress.Text = _awayAddress ?? "";
+        (GuideAwayHint.Text, _awayAction) = (_awayAddress, allowed) switch
+        {
+            (null, _) => ("L’adresse ci-dessus ne marche que chez toi. Pour regarder ailleurs sans ouvrir ta box à Internet, installe Tailscale (gratuit) sur ce PC et sur l’appareil, avec le même compte.", "install"),
+            (_, false) => ("Jellyfin refuse encore les appareils Tailscale. Autorise-les : le reste d’Internet reste bloqué.", "allow"),
+            (_, null) => ("Seul un administrateur de Jellyfin peut autoriser les appareils Tailscale.", null),
+            _ => ("Tailscale doit aussi être ouvert sur l’appareil, avec le même compte.", null)
+        };
+        GuideAwayAction.Content = _awayAction == "install" ? "Installer Tailscale" : "Autoriser Tailscale";
+        GuideAwayAction.Visibility = _awayAction is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+    private async void GuideAwayAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (_awayAction == "install") { OpenWebPage("https://tailscale.com/download/windows"); return; }
+        if (_awayAction != "allow" || _client is not { } client) return;
+        GuideAwayAction.IsEnabled = false;
+        try
+        {
+            var allowed = await client.AllowTailnetAsync();
+            ShowAway(allowed ? true : null);
+            if (allowed) SetNotice("Jellyfin accepte maintenant tes appareils Tailscale.");
+        }
+        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        finally { GuideAwayAction.IsEnabled = true; }
+    }
+    private void CopyAwayAddress_Click(object sender, RoutedEventArgs e)
+    {
+        if (_awayAddress is null) return;
+        try { Clipboard.SetText(_awayAddress); SetNotice("Adresse copiée."); }
+        catch (System.Runtime.InteropServices.ExternalException) { SetNotice("Le presse-papiers est occupé : réessaie."); }
     }
     /// <summary>Jellyfin's page and the address for other devices: this PC's network address when Jellyfin runs here.</summary>
     private void DescribeServerForGuide()

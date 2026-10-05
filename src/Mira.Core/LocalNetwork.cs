@@ -40,6 +40,41 @@ public static partial class LocalNetwork
         }
         catch (NetworkInformationException) { return null; }
     }
+    /// <summary>
+    /// Tailscale's private network: each device gets an address from 100.64.0.0/10. Jellyfin counts only the home
+    /// network ranges as local, and Mira's setup leaves its access from elsewhere off: this range has to be added.
+    /// </summary>
+    public const string TailnetRange = "100.64.0.0/10";
+    /// <summary>What Jellyfin counts as local when it is given no list: loopback and the private ranges (IPv4 and IPv6).</summary>
+    public static readonly IReadOnlyList<string> JellyfinDefaultSubnets = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7", "fe80::/10"];
+    public static bool IsTailnet(string address) =>
+        IPAddress.TryParse(address, out var ip) && ip.AddressFamily == AddressFamily.InterNetwork && ip.GetAddressBytes() is [100, var second, _, _] && second is >= 64 and < 128;
+    /// <summary>This PC's Tailscale address among its adapters: a 100.64.0.0/10 address on an adapter named Tailscale.</summary>
+    public static string? TailnetIPv4(IEnumerable<(string Address, string Adapter)> addresses) =>
+        addresses.Where(x => IsTailnet(x.Address) && x.Adapter.Contains("tailscale", StringComparison.OrdinalIgnoreCase)).Select(x => x.Address).FirstOrDefault();
+    /// <summary>This PC's address on Tailscale, when Tailscale is installed and connected; null otherwise.</summary>
+    public static string? ThisPcOnTailnet()
+    {
+        try
+        {
+            return TailnetIPv4(
+                from nic in NetworkInterface.GetAllNetworkInterfaces()
+                where nic.OperationalStatus == OperationalStatus.Up
+                from address in nic.GetIPProperties().UnicastAddresses
+                select (address.Address.ToString(), nic.Name + " " + nic.Description));
+        }
+        catch (NetworkInformationException) { return null; }
+    }
+    /// <summary>
+    /// Jellyfin's local networks with Tailscale's added: an empty list stands for Jellyfin's defaults, which are kept,
+    /// so the home network still counts. Access from the Internet stays off.
+    /// </summary>
+    public static List<string> WithTailnet(IReadOnlyList<string> subnets)
+    {
+        var list = (subnets.Count == 0 ? JellyfinDefaultSubnets : subnets).ToList();
+        if (!list.Contains(TailnetRange, StringComparer.OrdinalIgnoreCase)) list.Add(TailnetRange);
+        return list;
+    }
     private static bool IsPrivate(string address) => address.StartsWith("192.168.", StringComparison.Ordinal) || address.StartsWith("10.", StringComparison.Ordinal)
         || Regex.IsMatch(address, @"^172\.(1[6-9]|2\d|3[01])\.");
     [GeneratedRegex("virtual|hyper-v|vethernet|vmware|virtualbox|wsl|docker|tailscale|zerotier|wireguard|vpn|tap-", RegexOptions.IgnoreCase)] private static partial Regex VirtualAdapter();

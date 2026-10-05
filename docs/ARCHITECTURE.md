@@ -134,7 +134,9 @@ La fenêtre est déclarée `SingleBorderWindow` : ce style de légende natif est
 
 Sous Windows 11, DWM dessine le cadre arrondi, son contour discret et son ombre. WindowChrome conserve une extension de verre minimale pour laisser DWM composer ces bords ; la grande couche de commandes vidéo est découpée au même rayon. Le plein écran et la fenêtre maximisée retirent les arrondis. Sous Windows 10 comme 11, une fenêtre maximisée déborde de l’écran de la largeur de son cadre de redimensionnement : le contenu est décalé de l’écart mesuré entre la fenêtre et la zone de travail du moniteur (`WindowFrame`), pour que rien ne soit caché hors de l’écran.
 
-Une fenêtre de 1480 × 930 ne tient pas sur un écran 1080p à 125 % (environ 1536 × 826 utiles) ni à 150 % (environ 1280 × 688) : Mira s’ouvre alors agrandie, avec une taille de restauration à 90 % de l’écran. Sa taille minimale est de 960 × 600.
+Une fenêtre de 1480 × 930 ne tient pas sur un écran 1080p à 125 % (environ 1536 × 826 utiles) ni à 150 % (environ 1280 × 688) : `ScreenFit` la ramène alors à 90 % de la zone de travail, centrée, sans jamais l’agrandir. Sa taille minimale est de 960 × 600, abaissée à l’écran s’il est plus petit.
+
+La barre de navigation est transparente. Toutes les pages qui se superposent à la bibliothèque (fiche, Téléchargements, Réglages, Guide) couvrent aussi sa zone, avec leur propre fond : elle ne laisse jamais voir une autre page derrière. Sur l’accueil, le bandeau passe dessous.
 
 Nunito Sans est embarquée en quatre graisses, sans téléchargement au lancement. La palette générale est blanche sur noir. Le bandeau extrait sa couleur d’une miniature de 64 × 48 pixels : les pixels transparents, presque blancs/noirs ou neutres sont exclus, puis un histogramme pondéré choisit la famille chromatique dominante. La teinte est éclaircie pour les contrôles ; une image neutre conserve du blanc. Les résultats sont mémorisés par image et la couleur change par fondu.
 
@@ -202,6 +204,8 @@ Les choix de pistes, paramètres avancés et sources multiples devront à terme 
 4. `MediaFolders` crée `Films`, `Séries` et `Animes`. `JellyfinServiceAccess.Grant` donne à Network Service la lecture héritée sur la racine (le créateur en est propriétaire : pas besoin d’être administrateur), **avant** l’ajout des bibliothèques, pour que leur première analyse voie les fichiers.
 5. `ConfigureAsync` passe par les routes anonymes de l’assistant, comme sa page web : `Startup/Configuration` (fr, FR), `Startup/User` (lu pour le créer, puis nommé), `Library/VirtualFolders` (chemin dans le corps : la forme en paramètre coupe aux virgules), `Startup/RemoteAccess` (désactivé) et `Startup/Complete`. Les bibliothèques déjà présentes sont sautées. Un 403 sur le compte signifie qu’un mot de passe existe déjà : la configuration ne continue que si ce compte se connecte.
 6. Mira se connecte comme depuis le formulaire.
+
+**Hors de chez soi.** L’accès depuis Internet reste désactivé : Jellyfin n’accepte que ses réseaux locaux, par défaut 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7 et fe80::/10. Le guide propose Tailscale. `LocalNetwork.ThisPcOnTailnet` lit l’adresse 100.64.0.0/10 de la carte réseau nommée Tailscale. « Autoriser Tailscale » (`AllowTailnetAsync`) relit `System/Configuration/network`, ajoute 100.64.0.0/10 aux réseaux locaux (les valeurs par défaut sont écrites quand la liste était vide) et renvoie tout le reste tel quel. Vérifié sur Jellyfin 12.1 : appliqué sans redémarrage, une adresse 100.64 passe, une adresse d’Internet reste refusée (503, `RejectDueToRemoteAccessDisabled`). Un compte non administrateur peut lire ce réglage, mais pas l’écrire.
 
 Un lien physique ou un déplacement sur le même disque garde les droits du fichier d’origine : `MediaImporter` appelle `JellyfinServiceAccess.ShareWithFolder` sur le fichier placé, qui ne reçoit le droit que si son dossier le donne déjà au service.
 

@@ -1,5 +1,15 @@
 # Historique
 
+## Non publié
+
+- **Fenêtre normale au démarrage** ([#13](https://github.com/sasou-web/Mira/issues/13)) : Mira ne s’ouvre plus agrandie. Sur un écran trop petit pour sa taille par défaut (1080p à 125 ou 150 %), la fenêtre prend 90 % de l’écran, centrée.
+- **Barre de gauche identique sur toutes les pages** ([#13](https://github.com/sasou-web/Mira/issues/13)) : la fiche d’un titre et la page Téléchargements commençaient à droite de la barre, qui laissait voir derrière elle l’accueil et les couleurs de son bandeau. Elles passent maintenant dessous, comme les Réglages et le Guide.
+- **Regarder hors de chez toi** ([#12](https://github.com/sasou-web/Mira/issues/12)) : l’adresse donnée par le guide ne marche que sur le réseau de la maison. Le guide ajoute une partie **Hors de chez toi** :
+  - sans Tailscale, il explique comment l’installer, gratuitement, sur ce PC et sur l’appareil ;
+  - avec Tailscale, il affiche l’adresse à utiliser et un bouton **Autoriser Tailscale**.
+  
+  À l’installation, Mira laisse l’accès depuis Internet désactivé dans Jellyfin, qui refusait donc aussi les appareils Tailscale. Ce bouton ajoute seulement le réseau de Tailscale aux réseaux locaux de Jellyfin : le reste d’Internet reste refusé, sans rien ouvrir sur la box.
+
 ## 0.5.7 — 2026-10-02
 
 Les téléchargements TorLink sont déplacés sans doublon, Actualiser fait vraiment analyser les dossiers par Jellyfin, et Favoris devient un filtre.
