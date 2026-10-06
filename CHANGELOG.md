@@ -1,5 +1,10 @@
 # Historique
 
+## Non publié
+
+- **La fenêtre tient vraiment dans l’écran** : depuis la 0.5.6, la taille adaptée à l’écran (90 % sur un écran 1080p à 125 ou 150 %) était calculée trop tôt, puis remplacée par la taille par défaut de 1480 × 930. Sur ces écrans, la fenêtre redébordait en 0.5.8.
+- **Mira retient sa fenêtre** : elle se rouvre à la taille où tu l’as laissée, agrandie si elle l’était, sans jamais dépasser l’écran. Le plein écran et le mini-lecteur ne sont pas retenus.
+
 ## 0.5.8 — 2026-10-05
 
 Une fenêtre à la taille de l’écran, la même barre de gauche partout, et Jellyfin accessible hors de chez soi avec Tailscale.
