@@ -173,6 +173,10 @@ public sealed class PlayerSettings
     public string TorLinkAnimeFolder { get; set; } = "";
     /// <summary>The last version whose welcome or "what's new" screen this profile went past; empty before 0.5.5.</summary>
     public string SeenVersion { get; set; } = "";
+    /// <summary>The window's size (outside fullscreen and the mini-player) and state when Mira last closed; 0: never saved.</summary>
+    public double WindowWidth { get; set; }
+    public double WindowHeight { get; set; }
+    public bool WindowMaximized { get; set; }
     /// <summary>The guide opened once already: it is not offered again after a connection.</summary>
     public bool GuideSeen { get; set; }
 }

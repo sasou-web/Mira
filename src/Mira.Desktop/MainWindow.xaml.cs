@@ -42,12 +42,13 @@ public partial class MainWindow : Window
     public MainWindow(string[] args)
     {
         _args = args;
-        FitToScreen();
         var dataArg = Array.IndexOf(args, "--data");
         _profile = new LocalProfile(dataArg >= 0 && dataArg + 1 < args.Length ? args[dataArg + 1] : null);
         _settings = _profile.LoadSettings();
         Motion.Reduced = _settings.ReduceMotion;
         InitializeComponent();
+        // After InitializeComponent: the XAML's 1480 × 930 would otherwise replace the size chosen here.
+        FitToScreen();
         InitializeFilters();
         InitializePreview();
         InitializePlayerControls();
@@ -83,16 +84,30 @@ public partial class MainWindow : Window
         _initializing = false;
     }
     /// <summary>
-    /// The default size (1480 × 930) is taller than a 1080p screen at 125 % (about 1536 × 826 usable) and larger than
-    /// one at 150 % (about 1280 × 688): there the window opens smaller, centred, never maximized (see <see cref="ScreenFit"/>).
+    /// The size the window had when Mira last closed, or the default one (1480 × 930), kept within the screen: a 1080p
+    /// screen at 125 % has about 1536 × 826 usable, at 150 % about 1280 × 688 (see <see cref="ScreenFit"/>). Centred,
+    /// and maximized only when it was maximized on closing.
     /// </summary>
     private void FitToScreen()
     {
-        // Validation runs set their own sizes, off screen.
-        if (_args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--offscreen")) return;
+        if (ValidationRun) return;
         var area = SystemParameters.WorkArea;
-        if (ScreenFit.Window(new(Width, Height), new(MinWidth, MinHeight), new(area.Width, area.Height)) is not { } fit) return;
+        var size = _settings.WindowWidth > 0 && _settings.WindowHeight > 0 ? new ScreenFit.Extent(_settings.WindowWidth, _settings.WindowHeight) : new(Width, Height);
+        if (ScreenFit.Window(size, new(MinWidth, MinHeight), new(area.Width, area.Height)) is not { } fit) return;
         (MinWidth, MinHeight, Width, Height) = (fit.Minimum.Width, fit.Minimum.Height, fit.Size.Width, fit.Size.Height);
+        if (_settings.WindowMaximized) WindowState = WindowState.Maximized;
+    }
+    /// <summary>Validation runs set their own sizes, off screen: nothing is remembered from them.</summary>
+    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--offscreen");
+    /// <summary>The window as the person left it; fullscreen and the mini-player are passing states, not a size to reopen at.</summary>
+    private void RememberWindow()
+    {
+        if (ValidationRun || _fullscreen || _miniPlayer) return;
+        var maximized = WindowState == WindowState.Maximized || WindowState == WindowState.Minimized && _lastVisibleState == WindowState.Maximized;
+        var bounds = WindowState == WindowState.Normal ? new Size(ActualWidth, ActualHeight) : RestoreBounds.Size;
+        // Maximized or minimized, RestoreBounds is the size it returns to.
+        if (bounds.IsEmpty || !(bounds.Width > 0 && bounds.Height > 0) || !double.IsFinite(bounds.Width) || !double.IsFinite(bounds.Height)) return;
+        (_settings.WindowWidth, _settings.WindowHeight, _settings.WindowMaximized) = (Math.Round(bounds.Width), Math.Round(bounds.Height), maximized);
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {

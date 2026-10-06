@@ -379,6 +379,7 @@ public partial class MainWindow
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
         if (_closing) return; e.Cancel = true; _closing = true;
+        RememberWindow();
         // Feels instant: the last progress report is still delivered while the window is already gone.
         Hide();
         _windows?.Dispose(); _windows = null;

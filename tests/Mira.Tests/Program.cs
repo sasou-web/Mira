@@ -263,6 +263,9 @@ await Test("Fenêtre : taille normale sur un grand écran, réduite et jamais ag
     Assert(Open(1280, 688) is { Size: { Width: 1152, Height: 619 } }, "1080p at 150 %: 90 % of the screen, above the minimum height");
     Assert(Open(900, 560) is { Size: { Width: 900, Height: 560 }, Minimum: { Width: 900, Height: 560 } }, "A screen smaller than the minimum lowers the minimum to the screen");
     Assert(Open(0, 0) is null, "An unknown screen changes nothing");
+    // The size remembered from the last session: kept when it fits, never larger than the screen nor below the minimum.
+    Assert(ScreenFit.Window(new(1700, 1000), new(960, 600), new(1920, 1032)) is { Size: { Width: 1700, Height: 928 } }, "A remembered size taller than the screen");
+    Assert(ScreenFit.Window(new(500, 300), new(960, 600), new(1920, 1032)) is { Size: { Width: 960, Height: 600 } }, "A remembered size below the minimum");
     return Task.CompletedTask;
 });
 await Test("Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu’à la fin, refus d’un compte non administrateur", async () =>
