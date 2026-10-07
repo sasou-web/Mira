@@ -2,7 +2,7 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Taille de la fenêtre retenue, Retirer de Continuer à regarder (non publié)
+## Taille de la fenêtre retenue, Retirer de Continuer à regarder 0.5.9
 
 - **Retirer de Continuer à regarder**, vérifié sur un vrai Jellyfin 12.1 avec un film en favori. `POST UserItems/{id}/UserData` avec seulement `PlaybackPositionTicks` :
   - à 20 s, le film apparaît dans « Reprendre » ;
