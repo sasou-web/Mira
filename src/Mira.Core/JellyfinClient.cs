@@ -110,6 +110,15 @@ public sealed class JellyfinClient : IDisposable
         using var response = await _http.PostAsJsonAsync(path, report, Json.Options, ct);
         await CheckAsync(response);
     }
+    /// <summary>
+    /// Where a title resumes, the rest of its user data kept (checked on Jellyfin 12.1): 0 takes it out of
+    /// « Reprendre » on every device.
+    /// </summary>
+    public async Task SetPlaybackPositionAsync(string id, long ticks, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync($"UserItems/{Uri.EscapeDataString(id)}/UserData?userId={Connection.UserId}", new { PlaybackPositionTicks = Math.Max(0, ticks) }, Json.Options, ct);
+        await CheckAsync(response);
+    }
     /// <summary>Marks an item (or every episode of a series) as watched or not watched.</summary>
     public async Task SetPlayedAsync(string id, bool played, CancellationToken ct = default)
     {

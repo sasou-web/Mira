@@ -2,7 +2,19 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Taille de la fenêtre retenue (non publié)
+## Taille de la fenêtre retenue, Retirer de Continuer à regarder (non publié)
+
+- **Retirer de Continuer à regarder**, vérifié sur un vrai Jellyfin 12.1 avec un film en favori. `POST UserItems/{id}/UserData` avec seulement `PlaybackPositionTicks` :
+  - à 20 s, le film apparaît dans « Reprendre » ;
+  - à 0, il en sort ; le favori et l’état « vu » restent inchangés.
+  
+  Jellyfin n’a pas de fonction « masquer de la reprise » : l’épisode suivant d’une série (NextUp) est masqué par Mira, dans le cache du compte (`resume-hidden`), jusqu’à une lecture plus récente.
+- Tests du retrait :
+  - film retiré, et épisode suivant d’une série retirée ;
+  - retour après une nouvelle lecture, ici ou ailleurs ;
+  - liste gardée au-delà du nettoyage des 30 jours, et « Annuler » ;
+  - requête envoyée à Jellyfin.
+- Non vérifié : le menu et l’annulation dans l’interface lancée.
 
 - Cause du débordement : `FitToScreen` était appelé avant `InitializeComponent`. Le XAML remettait ensuite 1480 × 930, donc seul l’ancien passage en plein écran prenait effet. L’appel vient maintenant après `InitializeComponent`.
 - Test : une taille retenue plus haute que l’écran est ramenée à 90 % ; une taille sous le minimum est remontée au minimum.

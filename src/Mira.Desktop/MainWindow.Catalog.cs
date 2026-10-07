@@ -91,19 +91,22 @@ public partial class MainWindow
         Hero.Visibility = home && _items.Count + _resume.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         CatalogHeader.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
         LibraryRows.Margin = new Thickness(110, home && Hero.Visibility == Visibility.Collapsed ? 80 : 0, 40, 42);
-        ResumeSection.Visibility = home && _resume.Count + _nextUp.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(_resume, _nextUp, _recentPlayback), _hiddenResume, _recentPlayback);
+        ResumeSection.Visibility = home && row.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
         GridTitle.Text = home ? "Ajoutés récemment" : search.Length > 0 ? $"Résultats pour « {search} »" : _favorites ? "Tes favoris" : "Tous les titres";
         ItemCount.Text = $"{_totalCount:N0} titre{(_totalCount > 1 ? "s" : "")}";
         if (home)
         {
             var previousCandidates = string.Join('|', _heroCandidates.Select(x => x.Id));
-            _heroCandidates = _resume.Concat(_nextUp).Concat(_items).DistinctBy(x => x.SeriesId ?? x.Id).Take(5).ToList();
+            // A title taken out of the row does not come back in the banner either.
+            var kept = row.Select(ContinueWatching.Group).ToHashSet();
+            _heroCandidates = _resume.Concat(_nextUp).Where(x => kept.Contains(ContinueWatching.Group(x))).Concat(_items).DistinctBy(x => x.SeriesId ?? x.Id).Take(5).ToList();
             var candidate = _heroCandidates.FirstOrDefault(x => x.Id == _heroSelectedId) ?? _heroCandidates.FirstOrDefault();
             if (candidate is not null && !_heroBusy) RenderHero(candidate);
             if (previousCandidates != string.Join('|', _heroCandidates.Select(x => x.Id))) BuildHeroDots();
         }
-        AddCards(ResumeCards, ContinueWatching.Order(_resume, _nextUp, _recentPlayback), true); AddCards(PosterCards, _items, false);
+        AddCards(ResumeCards, row, true); AddCards(PosterCards, _items, false);
         ResizePosters();
         var empty = !_catalogLoading && _items.Count == 0;
         if (empty) DescribeEmptyState(search);
@@ -190,9 +193,50 @@ public partial class MainWindow
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuAction(item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu", item.UserData.Played ? "refresh" : "check", async () => await SetPlayedAsync(item, !item.UserData.Played)));
             menu.Items.Add(MenuAction(item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
+            if (wide) menu.Items.Add(MenuAction("Retirer de Continuer à regarder", "close", async () => await HideFromResumeAsync(item)));
         };
         menu.Items.Add(new MenuItem { Header = "…" }); // replaced when opened
         return menu;
+    }
+    /// <summary>
+    /// Takes a film or series out of « Continuer à regarder » until it is played again. A title in progress also loses
+    /// its resume point, on Jellyfin too, so that no other device offers it; « Annuler » puts both back.
+    /// </summary>
+    private async Task HideFromResumeAsync(MediaItem item)
+    {
+        var group = ContinueWatching.Group(item); var ticks = item.UserData.PlaybackPositionTicks;
+        var resumable = ticks > 0 && !item.UserData.Played;
+        var client = _demo ? null : _client; var store = _store;
+        var at = DateTimeOffset.UtcNow; _hiddenResume[group] = at;
+        if (resumable) _recentPlayback.RemoveAll(x => x.Id == item.Id);
+        RenderLibrary();
+        SetNotice($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", "Annuler", () => _ = ShowInResumeAsync(item, group, resumable ? ticks : 0));
+        _resumeChange = Save();
+        await _resumeChange;
+        async Task Save()
+        {
+            try
+            {
+                if (store is not null) await Task.Run(() => { store.HideFromResume(group, at); if (resumable) store.ForgetProgress(item.Id); });
+                if (resumable && client is not null) await client.SetPlaybackPositionAsync(item.Id, 0);
+            }
+            catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex) + " Le titre est retiré de Mira seulement."); }
+        }
+    }
+    /// <summary>The last removal still being saved: « Annuler » waits for it, so that it cannot land after the undo.</summary>
+    private Task _resumeChange = Task.CompletedTask;
+    private async Task ShowInResumeAsync(MediaItem item, string group, long ticks)
+    {
+        await _resumeChange;
+        _hiddenResume.Remove(group);
+        var client = _demo ? null : _client; var store = _store;
+        try
+        {
+            if (store is not null) await Task.Run(() => store.HideFromResume(group, null));
+            if (ticks > 0 && client is not null) await client.SetPlaybackPositionAsync(item.Id, ticks);
+        }
+        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        RenderLibrary(); await RefreshAsync(quiet: true);
     }
     private static MenuItem MenuAction(string header, string icon, Func<Task> action)
     {

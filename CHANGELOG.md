@@ -3,6 +3,7 @@
 ## Non publié
 
 - **La fenêtre tient vraiment dans l’écran** : depuis la 0.5.6, la taille adaptée à l’écran (90 % sur un écran 1080p à 125 ou 150 %) était calculée trop tôt, puis remplacée par la taille par défaut de 1480 × 930. Sur ces écrans, la fenêtre redébordait en 0.5.8.
+- **Retirer de Continuer à regarder** : clic droit sur une carte de la rangée. Le film ou la série en disparaît, ainsi que du bandeau, jusqu’à sa prochaine lecture. Un titre en cours perd aussi son point de reprise, sur Jellyfin également, pour ne plus être proposé sur tes autres appareils. **Annuler**, dans la notification, remet tout.
 - **Mira retient sa fenêtre** : elle se rouvre à la taille où tu l’as laissée, agrandie si elle l’était, sans jamais dépasser l’écran. Le plein écran et le mini-lecteur ne sont pas retenus.
 
 ## 0.5.8 — 2026-10-05
