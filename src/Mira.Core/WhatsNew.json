@@ -1,5 +1,13 @@
 [
   {
+    "version": "0.5.9",
+    "summary": "Une fenêtre qui tient vraiment dans l’écran, et une rangée Continuer à regarder que tu ranges toi-même.",
+    "items": [
+      { "icon": "fullscreen", "title": "La bonne taille", "text": "Mira tient dans ton écran et se rouvre comme tu l’as laissée." },
+      { "icon": "close", "title": "Ta rangée, à ton goût", "text": "Clic droit sur une carte de Continuer à regarder : Retirer. Annuler reste possible." }
+    ]
+  },
+  {
     "version": "0.5.8",
     "summary": "Une fenêtre à la taille de ton écran, et ta bibliothèque hors de chez toi.",
     "items": [

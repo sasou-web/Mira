@@ -181,7 +181,7 @@ public partial class MainWindow : Window
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
         _client = new JellyfinClient(connection); _store = new LibraryStore(_profile.DirectoryPath, connection.Server + "|" + connection.UserId);
         var damaged = _store.DamagedCopy is not null;
-        _items = []; _resume = []; _nextUp = []; _recentPlayback = []; _episodes = []; _detail = null; _hero = null; _totalCount = 0; _returnToDetail = null; _seasonThumbs.Clear();
+        _items = []; _resume = []; _nextUp = []; _recentPlayback = []; _hiddenResume = []; _episodes = []; _detail = null; _hero = null; _totalCount = 0; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
         // Never leave the previous account's posters on screen while this one loads.
         _catalogLoading = true; RenderLibrary();
@@ -196,8 +196,8 @@ public partial class MainWindow : Window
         try
         {
             var store = _store;
-            var (cached, cachedResume, history) = await Task.Run(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume"), store.RecentPlayback()));
-            if (ReferenceEquals(store, _store)) _recentPlayback = history;
+            var (cached, cachedResume, history, hidden) = await Task.Run(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume"), store.RecentPlayback(), store.HiddenFromResume()));
+            if (ReferenceEquals(store, _store)) { _recentPlayback = history; _hiddenResume = hidden; }
             if (cached is not null && ReferenceEquals(store, _store)) { _items = cached.Items; _totalCount = cached.TotalRecordCount; _resume = cachedResume ?? []; _catalogLoading = false; RenderLibrary(); }
             await RefreshAsync();
             var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear();
@@ -226,7 +226,7 @@ public partial class MainWindow : Window
         _connectionLifetime.Cancel(); _browseCancellation?.Cancel();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _images = null; _store = null;
-        _recentPlayback = [];
+        _recentPlayback = []; _hiddenResume = [];
     }
     private void AddLibraryButton(string name, string? id)
     {

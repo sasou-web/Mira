@@ -5,6 +5,8 @@ namespace Mira.Desktop;
 public partial class MainWindow
 {
     private List<MediaItem> _recentPlayback = [];
+    /// <summary>Films and series taken out of « Continuer à regarder », with when; kept per account in its library cache.</summary>
+    private Dictionary<string, DateTimeOffset> _hiddenResume = [];
     private async Task RememberCurrentPlaybackAsync()
     {
         if (_playingItem is not { } item || !_loaded) return;

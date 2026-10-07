@@ -57,7 +57,7 @@ public sealed class LibraryStore
         {
             using var db = Open(); using var cmd = db.CreateCommand();
             cmd.CommandText = """
-                DELETE FROM cache WHERE updated < $before AND key NOT IN ('home', 'resume', 'recent-playback');
+                DELETE FROM cache WHERE updated < $before AND key NOT IN ('home', 'resume', 'recent-playback', 'resume-hidden');
                 DELETE FROM progress WHERE updated < $before AND item NOT IN (SELECT item FROM outbox);
                 DELETE FROM completed WHERE updated < $before AND item NOT IN (SELECT item FROM outbox);
                 """;
@@ -144,6 +144,18 @@ public sealed class LibraryStore
         }
     }
     public List<MediaItem> RecentPlayback() => Load<List<MediaItem>>("recent-playback") ?? [];
+    /// <summary>Films and series removed from « Continuer à regarder », with when (see <see cref="ContinueWatching.WithoutHidden"/>).</summary>
+    public Dictionary<string, DateTimeOffset> HiddenFromResume() => Load<Dictionary<string, DateTimeOffset>>("resume-hidden") ?? [];
+    /// <summary>Removes a film or series from the row, or puts it back (<paramref name="at"/> null); the 200 latest are kept.</summary>
+    public void HideFromResume(string group, DateTimeOffset? at)
+    {
+        lock (_gate)
+        {
+            var hidden = HiddenFromResume();
+            if (at is { } when) hidden[group] = when; else hidden.Remove(group);
+            Save("resume-hidden", hidden.OrderByDescending(x => x.Value).Take(200).ToDictionary());
+        }
+    }
     public void RememberPlayback(MediaItem item)
     {
         lock (_gate)

@@ -254,6 +254,37 @@ await Test("Hors de chez toi : adresse Tailscale de ce PC, et Jellyfin qui accep
     admin = false; stored = """{"EnableRemoteAccess":false,"LocalNetworkSubnets":[]}""";
     Assert(!await client.AllowTailnetAsync(), "A guest changed Jellyfin's network settings");
 });
+await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro", async () =>
+{
+    var removed = DateTimeOffset.UtcNow.AddHours(-1);
+    MediaItem Film(string id, DateTimeOffset? played) => new() { Id = id, Name = id, Type = "Movie", UserData = new() { PlaybackPositionTicks = 600_000_000, LastPlayedDate = played } };
+    MediaItem Next(string id, string series) => new() { Id = id, Name = id, Type = "Episode", SeriesId = series, SeriesName = "Show", UserData = new() };
+    var row = new List<MediaItem> { Film("dropped", removed.AddDays(-2)), Next("e4", "show"), Film("kept", removed.AddDays(-1)) };
+    var hidden = new Dictionary<string, DateTimeOffset> { ["dropped"] = removed, ["show"] = removed };
+    Assert(ContinueWatching.WithoutHidden(row, hidden, []).Select(x => x.Id).SequenceEqual(["kept"]), "A removed film, or the next episode of a removed series, stayed in the row");
+    Assert(ContinueWatching.WithoutHidden(row, new Dictionary<string, DateTimeOffset>(), []).Count == 3, "Nothing removed, everything shown");
+    var playedAgain = new List<MediaItem> { new() { Id = "e3", Type = "Episode", SeriesId = "show", UserData = new() { LastPlayedDate = removed.AddMinutes(5) } } };
+    Assert(ContinueWatching.WithoutHidden(row, hidden, playedAgain).Select(x => x.Id).SequenceEqual(["e4", "kept"]), "A series played again since did not come back");
+    Assert(ContinueWatching.WithoutHidden([Film("dropped", removed.AddMinutes(1))], hidden, []).Count == 1, "A film resumed elsewhere since did not come back");
+
+    // Kept per account, beyond the 30 days after which cached pages are forgotten; « Annuler » puts it back.
+    var store = Store("resume-hidden");
+    store.HideFromResume("dropped", removed); store.HideFromResume("show", removed);
+    store.Prune(DateTimeOffset.UtcNow.AddDays(31));
+    Assert(store.HiddenFromResume() is { Count: 2 } kept && kept["show"] == removed, "The removed titles were forgotten with the cache");
+    store.HideFromResume("show", null);
+    Assert(store.HiddenFromResume().Keys.SequenceEqual(["dropped"]), "« Annuler » did not put the series back");
+
+    // On Jellyfin: only the resume point changes (its other user data are kept, checked on 12.1).
+    string? sent = null;
+    using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+    {
+        sent = request.Method + " " + request.RequestUri!.PathAndQuery + " " + await request.Content!.ReadAsStringAsync();
+        return new HttpResponseMessage(HttpStatusCode.OK);
+    }));
+    await client.SetPlaybackPositionAsync("film 1", -5);
+    Assert(sent == "POST /UserItems/film%201/UserData?userId=user-1 {\"PlaybackPositionTicks\":0}", "Request: " + sent);
+});
 await Test("Fenêtre : taille normale sur un grand écran, réduite et jamais agrandie sur un petit", () =>
 {
     ScreenFit.Fit? Open(double width, double height) => ScreenFit.Window(new(1480, 930), new(960, 600), new(width, height));
