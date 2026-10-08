@@ -48,6 +48,27 @@ Mira.Core
 
 Une application native C# / WPF permet de compiler et de livrer immédiatement sur le PC Windows équipé de .NET. libmpv est appelé directement par son API C ; aucun terminal, processus mpv externe ou lecteur HTML n’est utilisé pour la vidéo. Le rendu dispose de sa propre surface native. Une surface HwndSource transparente, possédée par la fenêtre et non activable, superpose les commandes au HWND vidéo. Elle reste ouverte lorsque les panneaux s'effacent : le fond d'alpha 1/255 conserve la réception de la souris, et WPF gère son curseur. Elle se ferme à la désactivation et à l'arrêt. Elle n'utilise pas Popup pour cette grande surface : WPF limite les Popup à 75 % de l'aire du moniteur. Seuls les menus de réglages restent des Popup. La source est créée masquée, puis montrée sans activation pour éviter un transfert de focus et une boucle de fermeture/réouverture.
 
+## Mira pour Mac
+
+`src/Mira.Mac` est une application Avalonia 11 pour macOS (Apple Silicon), à part : l’application Windows n’en dépend pas et n’est pas modifiée. Elle partage tout Mira.Core (client Jellyfin, cache SQLite et file d’envoi, reprise, marqueurs de passages, épisodes par tranches, volume au-delà de 100 %).
+
+```text
+Mira.Mac (Avalonia)
+  ├─ MainWindow : barre latérale, historique des pages, notifications, compte
+  ├─ Views : Login, Home, Browse (films, séries, bibliothèque, recherche, une personne), Detail, Settings, Player
+  ├─ Playback
+  │   ├─ MpvPlayer : libmpv chargée depuis Mira.app/Contents/Frameworks, mêmes options et volume que sous Windows
+  │   ├─ VideoView : l’image dessinée par mpv avec OpenGL dans la fenêtre (API de rendu de libmpv)
+  │   ├─ SoftwareVideoView : repli en rendu logiciel, sur son propre fil
+  │   └─ Timeline : barre de progression découpée par chapitres
+  ├─ Services : Profile (Application Support), Session, Images, Updates (version Mac sur GitHub)
+  └─ Checks : --self-check (chaque écran et la lecture, avec un Jellyfin réel ou simulé), --video-probe, --export-icon
+```
+
+Sur Mac, mpv n’a pas de fenêtre à lui : `vo=libmpv`, et Mira dessine chaque image dans un `OpenGlControlBase`. Le contexte de rendu de mpv doit exister avant l’ouverture d’un fichier (sinon mpv lit sans image), mpv délie le framebuffer à la fin de son dessin (Mira le relie, sinon Avalonia affiche du noir) et il est libéré, contexte OpenGL actif, quand la vue quitte la fenêtre, avant `mpv_terminate_destroy`. Avec un OpenGL logiciel (Mesa llvmpipe), mpv dessine du noir dans ses tampons en virgule flottante : Mira passe alors aux tampons 8 bits. Sans OpenGL, la vue logicielle prend le relais.
+
+`tools/mac/package.sh` construit Mira.app (runtime .NET inclus), y copie libmpv et toutes ses bibliothèques depuis Homebrew en réécrivant leurs chemins (`dylibbundler`), signe le tout ad hoc et crée l’image disque. Le workflow `mac.yml` le lance sur un Mac de GitHub, exécute le contrôle complet de l’application et joint l’image disque à chaque release publiée.
+
 ## Intégration Windows
 
 `WindowsIdentity` attribue l’AppUserModelID stable `Mira.Desktop` au processus, à la fenêtre et aux raccourcis. Le logo ICO comporte sept tailles (16 à 256 px) ; une copie avec un chemin propre sert à Explorer et à l’icône de notification. Le raccourci Démarrer et les métadonnées Shell sont enregistrés pour l’utilisateur courant. Aucun service, démarrage automatique ou changement de préférence Windows n’est ajouté. `--register-windows --shortcut <chemin>` permet au script de publication de créer aussi le raccourci du dossier.

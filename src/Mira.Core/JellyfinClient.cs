@@ -22,6 +22,8 @@ public sealed class JellyfinClient : IDisposable
     }
     /// <summary>Version of the running application, read once from the entry assembly.</summary>
     public static string AppVersion { get; } = (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "0.0.0");
+    /// <summary>The kind of device Jellyfin's dashboard shows for this app: "Windows", or "Mac" for Mira on macOS.</summary>
+    public static string DeviceName { get; set; } = "Windows";
     public static string NormalizeServer(string server)
     {
         if (!Uri.TryCreate(server.Trim(), UriKind.Absolute, out var uri) ||
@@ -35,7 +37,7 @@ public sealed class JellyfinClient : IDisposable
         _http.DefaultRequestHeaders.Remove("Authorization");
         var token = Connection.Token.Replace("\"", "").Replace("\r", "").Replace("\n", "");
         _http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization",
-            $"MediaBrowser Client=\"Mira\", Device=\"Windows\", DeviceId=\"{Connection.DeviceId}\", Version=\"{AppVersion}\"" +
+            $"MediaBrowser Client=\"Mira\", Device=\"{DeviceName}\", DeviceId=\"{Connection.DeviceId}\", Version=\"{AppVersion}\"" +
             (token.Length > 0 ? $", Token=\"{token}\"" : ""));
     }
     public async Task<Connection> LoginAsync(string username, string password, CancellationToken ct = default)
