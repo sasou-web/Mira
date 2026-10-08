@@ -65,6 +65,9 @@ public partial class MainWindow
             Mute_Click(this, new()); Require(!_mpv.Flag("mute"), "unmute restores the native audio state");
             VolumeSlider.Value = 0; Mute_Click(this, new());
             Require(!_mpv.Flag("mute") && Math.Abs(VolumeSlider.Value - 20) < .1, "unmuting zero volume restores the last audible level");
+            VolumeSlider.Value = 150;
+            Require(Math.Abs(_mpv.Level - 150) < .1 && Math.Abs(_mpv.Number("volume") - 100) < .1 && (_mpv.Get("af") ?? "").Contains(Mira.Core.VolumeBoost.Label) && VolumeText.Text == "150 %",
+                "above 100 %, mpv stays at 100 and the boost filter adds the rest");
             VolumeSlider.Value = 0;
             More_Click(this, new()); UpdateLayout(); await Task.Delay(100);
             ChooseSpeed(1.25); Require(Math.Abs(_mpv.Number("speed") - 1.25) < .001, "speed menu selection reaches mpv");

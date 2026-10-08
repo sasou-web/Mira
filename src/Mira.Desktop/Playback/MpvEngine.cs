@@ -26,6 +26,12 @@ public sealed class MpvEngine : IDisposable
     private readonly CommandFn _command;
     private readonly FreeFn _free, _destroy;
     private readonly WaitFn _wait;
+    /// <summary>The volume from 0 to 200, and where the part above 100 stands (see <see cref="SetLevel"/>).</summary>
+    private double _level;
+    private Boost _boost;
+    private enum Boost { None, Installed, Unavailable }
+    /// <summary>A file is open, so mpv checks a new audio filter before using it.</summary>
+    private bool _open;
     public event Action? FileLoaded;
     public event Action? PlaybackRestarted;
     public event Action<bool>? Ended;
@@ -68,7 +74,10 @@ public sealed class MpvEngine : IDisposable
             Option("vo", headless ? "null" : "gpu-next,gpu");
             if (headless) Option("ao", "null");
             Option("hwdec", !headless && settings.HardwareDecoding ? "auto" : "no");
-            Option("volume", settings.Volume.ToString(CultureInfo.InvariantCulture));
+            _level = VolumeBoost.Clamp(settings.Volume);
+            // Room for mpv's own volume above 100, used only by an mpv without the boost filter.
+            Option("volume-max", Format(VolumeBoost.Maximum));
+            Option("volume", Format(VolumeBoost.Split(_level).Volume));
             Option("alang", settings.AudioLanguage); Option("slang", settings.SubtitleLanguage);
             Option("sub-font-size", settings.SubtitleSize.ToString(CultureInfo.InvariantCulture));
             if (initialize(_handle) < 0) throw new IOException("Échec de l’initialisation du rendu mpv.");
@@ -90,13 +99,18 @@ public sealed class MpvEngine : IDisposable
     {
         // A native call on a destroyed handle would end the whole process, not just this playback.
         if (_handle == IntPtr.Zero) throw new IOException("La lecture est arrêtée.");
+        if (!Run(arguments)) throw new IOException("La commande de lecture a échoué.");
+    }
+    private bool TryCommand(params string[] arguments) => _handle != IntPtr.Zero && Run(arguments);
+    private bool Run(string[] arguments)
+    {
         var pointers = arguments.Select(Marshal.StringToCoTaskMemUTF8).ToArray();
         var array = Marshal.AllocHGlobal((pointers.Length + 1) * IntPtr.Size);
         try
         {
             for (var i = 0; i < pointers.Length; i++) Marshal.WriteIntPtr(array, i * IntPtr.Size, pointers[i]);
             Marshal.WriteIntPtr(array, pointers.Length * IntPtr.Size, IntPtr.Zero);
-            if (_command(_handle, array) < 0) throw new IOException("La commande de lecture a échoué.");
+            return _command(_handle, array) >= 0;
         }
         finally { foreach (var p in pointers) Marshal.FreeCoTaskMem(p); Marshal.FreeHGlobal(array); }
     }
@@ -105,8 +119,36 @@ public sealed class MpvEngine : IDisposable
         // Tokens are sent as request headers, never in media URLs, logs or shell commands.
         Set("http-header-fields", authorization is null ? "" : "Authorization: " + authorization.Replace(",", "\\,"));
         Set("start", startSeconds.ToString(CultureInfo.InvariantCulture)); Set("pause", "no");
+        _open = false;
         Command("loadfile", location, "replace");
     }
+    /// <summary>The volume as the slider shows it, from 0 to <see cref="VolumeBoost.Maximum"/>.</summary>
+    public double Level => _level;
+    /// <summary>
+    /// Sets the volume from 0 to 200. Above 100, mpv stays at 100 and the boost filter adds the rest, limited so that
+    /// nothing clips. The filter is added while a file is open, when mpv checks it: an mpv without it refuses it and
+    /// keeps playing, and Mira then falls back on mpv's own volume above 100.
+    /// </summary>
+    public void SetLevel(double level) { _level = VolumeBoost.Clamp(level); ApplyLevel(); }
+    private void ApplyLevel(bool loading = false)
+    {
+        if (_handle == IntPtr.Zero) return;
+        var (volume, gain) = VolumeBoost.Split(_level);
+        if (_boost == Boost.Unavailable) { Set("volume", Format(_level)); return; }
+        Set("volume", Format(volume));
+        // Back to 100 or less: a new file starts without the filter; the open one keeps it at gain 1, without a gap.
+        if (_boost == Boost.Installed && gain <= 1 && (loading || !_open))
+        { if (TryCommand("af", "remove", "@" + VolumeBoost.Label)) _boost = Boost.None; }
+        // Live while the audio plays; otherwise the filter's own settings are what the next file starts with.
+        else if (_boost == Boost.Installed)
+        { if (!TryCommand("af-command", VolumeBoost.Label, "volume", VolumeBoost.Gain(gain), VolumeBoost.Target)) TryCommand("af", "set", VolumeBoost.Filter(gain)); }
+        else if (gain > 1 && _open)
+        {
+            if (TryCommand("af", "set", VolumeBoost.Filter(gain))) _boost = Boost.Installed;
+            else { _boost = Boost.Unavailable; Set("volume", Format(_level)); }
+        }
+    }
+    private static string Format(double value) => value.ToString(CultureInfo.InvariantCulture);
     public void Poll()
     {
         if (_handle == IntPtr.Zero) return;
@@ -114,11 +156,11 @@ public sealed class MpvEngine : IDisposable
         {
             var p = _wait(_handle, 0); if (p == IntPtr.Zero) break;
             var ev = Marshal.PtrToStructure<MpvEvent>(p); if (ev.Id == 0) break;
-            if (ev.Id == 8) FileLoaded?.Invoke();
+            if (ev.Id == 8) { _open = true; ApplyLevel(loading: true); FileLoaded?.Invoke(); }
             else if (ev.Id == 21) PlaybackRestarted?.Invoke();
             else if (ev.Id == 7 && ev.Data != IntPtr.Zero)
             {
-                var end = Marshal.PtrToStructure<EndFile>(ev.Data);
+                var end = Marshal.PtrToStructure<EndFile>(ev.Data); _open = false;
                 if (end.Reason == 4) Error?.Invoke("mpv n’a pas pu lire ce média. Vérifie l’accès au fichier et la connexion Jellyfin.");
                 Ended?.Invoke(end.Reason == 0);
             }

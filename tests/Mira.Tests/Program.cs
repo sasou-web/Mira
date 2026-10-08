@@ -304,6 +304,19 @@ await Test("Fiche : un acteur ou un réalisateur mène à ses titres de la bibli
     // Checked on Jellyfin 12.1 with actors and a director read from .nfo files: the people come with their id, and
     // personIds returns exactly their films, also with a year and a sort.
 });
+await Test("Volume : au-delà de 100 %, mpv reste à 100 et le filtre amplifie sans saturer", () =>
+{
+    Assert(VolumeBoost.Split(80) == (80, 1) && VolumeBoost.Split(100) == (100, 1), "Up to 100, mpv's own volume and no gain");
+    Assert(VolumeBoost.Split(150) is (100, var gain) && Math.Abs(gain - 3.375) < 1e-9, "150 is mpv's 150: 100 then 1.5³ of gain");
+    Assert(VolumeBoost.Split(200) is (100, 8) && VolumeBoost.Split(260) is (100, 8), "The level stops at 200, 8 times louder (+18 dB)");
+    Assert(VolumeBoost.Split(-5) == (0, 1) && VolumeBoost.Clamp(double.NaN) == 80, "Below zero is silence; a broken saved level is the default");
+    Assert(VolumeBoost.Filter(3.375) == "@mira-boost:lavfi=[volume@gain=volume=3.375:precision=float,alimiter=limit=0.95:level=disabled]",
+        "Gain in floating point, then a limiter at −0.4 dB without gain of its own, under a label for live changes");
+    Assert(VolumeBoost.Filter(1.157625) == "@mira-boost:lavfi=[volume@gain=volume=1.1576:precision=float,alimiter=limit=0.95:level=disabled]", "Gain written with a dot, four decimals");
+    Assert(VolumeBoost.Reported(150) == 100 && VolumeBoost.Reported(42.4) == 42, "Jellyfin's scale stops at 100");
+    Assert(VolumeBoost.Text(135.2) == "135 %" && VolumeBoost.Text(0) == "0 %", "The level beside the slider");
+    return Task.CompletedTask;
+});
 await Test("Fenêtre : taille normale sur un grand écran, réduite et jamais agrandie sur un petit", () =>
 {
     ScreenFit.Fit? Open(double width, double height) => ScreenFit.Window(new(1480, 930), new(960, 600), new(width, height));

@@ -2,6 +2,20 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Volume jusqu’à 200 % (non publié)
+
+- **mpv 0.37 et libmpv** sous Linux, son de test à −24,1 dB, sortie PCM :
+  - le volume d’mpv seul à 200 sature 60 % des échantillons d’un son fort, parce qu’il s’applique après les filtres ;
+  - le filtre de Mira (gain en virgule flottante puis `alimiter` à 0,95, sans gain propre) n’en sature aucun : crête à −0,4 dB.
+- **Vrai `MpvEngine` de Mira** sur libmpv, source cadencée en temps réel :
+  - 150 % dès l’ouverture : −13,5 dB (+10,6) ; retour à 100 % pendant la lecture : −24,1 dB ; 200 % : −6,0 dB (+18) ;
+  - 60 puis 180 % réglés entre deux fichiers : le suivant démarre à −8,8 dB (+15,3) ;
+  - à 90 %, le filtre quitte la chaîne à l’ouverture du fichier suivant ;
+  - aucun échantillon saturé.
+- **Filtre refusé** (mpv sans `alimiter`, simulé avec un filtre inexistant) : mpv l’écarte sans couper le son, et Mira repasse sur le volume d’mpv seul (−13,5 dB à 150 %). Le même filtre ajouté avant l’ouverture d’un fichier coupait tout le son : Mira ne l’ajoute donc qu’une fois le fichier ouvert.
+- **Test** : partage entre volume d’mpv et gain, plafond à 200, filtre écrit avec un point décimal, niveau envoyé à Jellyfin plafonné à 100.
+- **Non vérifié** : le curseur, le repère et la molette dans l’interface lancée, et l’écoute sur Windows.
+
 ## Titres d’un acteur ou d’un réalisateur (non publié)
 
 - **Vrai Jellyfin 12.1**, trois films dont les acteurs et la réalisatrice viennent de fichiers `.nfo` :
