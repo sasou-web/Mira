@@ -89,7 +89,7 @@ public static class SelfCheck
                 await window.PlayAsync(movie, fromStart: true);
                 var player = window.Player;
                 var started = await Until(() => player is { IsFileLoaded: true, Surface.Frames: > 12 }, 40);
-                Check(started, $"lecture ({renderer}) : images", $"{player?.Surface?.GetType().Name}, {player?.Surface?.Frames} images{(player?.Surface is Playback.VideoView { Renderer.Length: > 0 } gl ? ", " + gl.Renderer : "")}");
+                Check(started, $"lecture ({renderer}) : images", $"{player?.Surface?.GetType().Name}, {player?.Surface?.Frames} images{(player?.Surface is Playback.VideoView { Renderer.Length: > 0 } gl ? ", " + gl.Renderer : "")}{(player?.VideoFallback is { } why ? " — repli : " + why : "")}");
                 if (player?.Engine is not { } engine) continue;
                 var audio = engine.Get("current-ao");
                 if (string.IsNullOrEmpty(audio)) Check(true, $"volume à 150 % ({renderer})", "pas de sortie audio sur cette machine : non mesurable");

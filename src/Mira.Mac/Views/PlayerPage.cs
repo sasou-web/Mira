@@ -61,6 +61,8 @@ public sealed class PlayerPage : UserControl
     /// <summary>For the self-check.</summary>
     public MpvPlayer? Engine => _mpv;
     public IVideoSurface? Surface => _surface;
+    /// <summary>Why the software view replaced OpenGL, when it did (diagnostics, self-check).</summary>
+    public string? VideoFallback { get; private set; }
     public bool IsFileLoaded => _loaded;
     public double Position => _position;
     public MediaItem? Item => _item;
@@ -215,8 +217,9 @@ public sealed class PlayerPage : UserControl
         player.Ended += eof => Dispatcher.UIThread.Post(() => _ = EndedAsync(eof, generation));
         player.Error += message => _failure = message;
         IVideoSurface surface = Environment.GetEnvironmentVariable("MIRA_SOFTWARE_VIDEO") is { Length: > 0 } ? new SoftwareVideoView() : new VideoView();
-        if (!await AttachAsync(surface, player) && surface is VideoView)
+        if (!await AttachAsync(surface, player) && surface is VideoView gl)
         {
+            VideoFallback = gl.Problem ?? (gl.Initialized ? "contexte de rendu mpv non créé" : "OpenGL indisponible dans cette fenêtre");
             // This window has no OpenGL: the software view always works.
             await DetachAsync(surface);
             surface = new SoftwareVideoView();
