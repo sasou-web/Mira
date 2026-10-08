@@ -252,6 +252,7 @@ public sealed class PlayerPage : UserControl
         if (_stopped) return;
         _stopped = true; ++_generation;
         _tick.Stop(); _hide.Stop(); Cursor = Cursor.Default;
+        SleepGuard.Set(false);
         var session = _shell.Session;
         if (_loaded && _mpv is not null && !completed) _position = Reported(_mpv.Number("time-pos", _position));
         completed = _loaded && (completed || _duration > 0 && _position >= _duration * LibraryStore.WatchedThreshold);
@@ -332,6 +333,7 @@ public sealed class PlayerPage : UserControl
             if (_mpv is null || !_loaded || _stopped) return;
             _position = Reported(mpv.Number("time-pos", _position)); _duration = mpv.Number("duration", _duration);
             var paused = mpv.Flag("pause");
+            SleepGuard.Set(!paused);
             if (paused != _paused) { _paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _lastReport = DateTimeOffset.MinValue; }
             _timeline.SetPlayback(_position, _duration, mpv.Number("demuxer-cache-time", 0));
             _time.Text = $"{Timeline.Clock(_position)} / {Timeline.Clock(_duration)}";

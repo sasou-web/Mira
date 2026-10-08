@@ -16,6 +16,15 @@
     <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#0B0B0C"/>
     <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#0B0B0C"/>
   </Application.Resources>
+  <!-- The Mira menu of the menu bar (macOS adds Hide and Quit itself). -->
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="À propos de Mira" Click="About_Click"/>
+      <NativeMenuItemSeparator/>
+      <NativeMenuItem Header="Réglages…" Gesture="Meta+OemComma" Click="Settings_Click"/>
+      <NativeMenuItem Header="Rechercher une mise à jour…" Click="Updates_Click"/>
+    </NativeMenu>
+  </NativeMenu.Menu>
   <Application.Styles>
     <FluentTheme>
       <FluentTheme.Palettes>
