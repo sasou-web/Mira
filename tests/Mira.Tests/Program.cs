@@ -304,6 +304,35 @@ await Test("Fiche : un acteur ou un réalisateur mène à ses titres de la bibli
     // Checked on Jellyfin 12.1 with actors and a director read from .nfo files: the people come with their id, and
     // personIds returns exactly their films, also with a year and a sort.
 });
+await Test("Série : tous ses épisodes, même au-delà de 500, sans ceux que Jellyfin liste comme manquants", async () =>
+{
+    // Jellyfin 12.1 with a 523-episode series cut the list at S01E500 when asked for 500: no season 2 on the title page,
+    // and no next episode after the 500th.
+    Uri? requested = null;
+    var episodes = Enumerable.Range(1, 523).Select(i => new { Id = $"e{i}", Name = $"Épisode {i}", Type = "Episode", SeriesId = "long", ParentIndexNumber = i <= 520 ? 1 : 2, IndexNumber = i <= 520 ? i : i - 520 }).ToArray();
+    using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => { requested = request.RequestUri; return Task.FromResult(JsonResponse(new { Items = episodes, TotalRecordCount = episodes.Length })); }));
+    var result = await client.EpisodesAsync("long");
+    Assert(!requested!.Query.Contains("limit=") && requested.Query.Contains("isMissing=false"), "Every episode, none missing: " + requested);
+    Assert(result.Items.Count == 523 && result.Items[^1] is { ParentIndexNumber: 2, IndexNumber: 3 }, "The last season arrives");
+});
+await Test("Série : une saison de plus de 100 épisodes se choisit par tranches de 100", () =>
+{
+    MediaItem Episode(int season, int number) => new() { Id = $"s{season}e{number}", Name = $"Épisode {number}", Type = "Episode", ParentIndexNumber = season, IndexNumber = number };
+    var episodes = new[] { Episode(0, 1) }.Concat(Enumerable.Range(1, 520).Select(i => Episode(1, i))).Concat(Enumerable.Range(1, 3).Select(i => Episode(2, i))).ToList();
+    var pages = EpisodePages.From(episodes);
+    Assert(pages.Select(x => x.Label).SequenceEqual(["Épisodes spéciaux", "Saison 1 · 1–100", "Saison 1 · 101–200", "Saison 1 · 201–300", "Saison 1 · 301–400", "Saison 1 · 401–500", "Saison 1 · 501–520", "Saison 2"]),
+        "Pages: " + string.Join(" | ", pages.Select(x => x.Label)));
+    Assert(EpisodePages.Episodes(episodes, pages[6]).Select(x => x.IndexNumber).SequenceEqual(Enumerable.Range(501, 20).Select(x => (int?)x)), "The last slice holds 501 to 520");
+    Assert(EpisodePages.Holding(pages, episodes, episodes.Single(x => x.Id == "s1e250")) == pages[3] && EpisodePages.Holding(pages, episodes, episodes[^1]) == pages[^1], "The page of an episode");
+    Assert(EpisodePages.Holding(pages, episodes, Episode(1, 999)) is null && EpisodePages.Holding(pages, episodes, null) is null, "An episode not in the list has no page");
+    // Numbered from where the season starts, as anime often are, and without numbers.
+    var numbered = Enumerable.Range(1, 150).Select(i => Episode(3, 400 + i)).ToList();
+    Assert(EpisodePages.From(numbered).Select(x => x.Label).SequenceEqual(["Saison 3 · 401–500", "Saison 3 · 501–550"]), "Labels use the episode numbers");
+    var unnumbered = Enumerable.Range(1, 101).Select(i => new MediaItem { Id = $"u{i}", Name = "?", Type = "Episode" }).ToList();
+    Assert(EpisodePages.From(unnumbered).Select(x => x.Label).SequenceEqual(["Saison 1 · 1–100", "Saison 1 · 101"]), "Without numbers, their position");
+    Assert(EpisodePages.From(Enumerable.Range(1, 100).Select(i => Episode(1, i)).ToList()).Single().Label == "Saison 1", "100 episodes stay one page");
+    return Task.CompletedTask;
+});
 await Test("Volume : au-delà de 100 %, mpv reste à 100 et le filtre amplifie sans saturer", () =>
 {
     Assert(VolumeBoost.Split(80) == (80, 1) && VolumeBoost.Split(100) == (100, 1), "Up to 100, mpv's own volume and no gain");
