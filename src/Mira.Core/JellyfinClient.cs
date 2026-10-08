@@ -83,8 +83,12 @@ public sealed class JellyfinClient : IDisposable
         return result.GetProperty("Items").EnumerateArray().Select(x => new LibrarySection(x.GetProperty("Id").GetString()!,
             x.GetProperty("Name").GetString()!, x.TryGetProperty("CollectionType", out var c) ? c.GetString() : null)).ToList();
     }
+    /// <summary>
+    /// Every episode of a series, in order: long anime run past a thousand. Without the episodes Jellyfin lists as missing
+    /// (its "afficher les épisodes manquants" option), which have no file to play.
+    /// </summary>
     public Task<ItemsResult> EpisodesAsync(string seriesId, CancellationToken ct = default) =>
-        GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&fields=Overview&limit=500", ct);
+        GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&fields=Overview&isMissing=false", ct);
     public Task<MediaItem> ItemAsync(string id, CancellationToken ct = default) =>
         GetAsync<MediaItem>($"Items/{Uri.EscapeDataString(id)}?userId={Connection.UserId}", ct);
     /// <summary>Titles Jellyfin finds close to this one (shared genres, people, studios).</summary>

@@ -106,11 +106,16 @@ public partial class MainWindow
             _episodes = result.Items;
             if (_store is { } store) { var episodes = _episodes; await Task.Run(() => store.ApplyLocalProgress(episodes)); if (version != _detailVersion) return; }
             _detailNext = next is null ? null : _episodes.FirstOrDefault(x => x.Id == next.Id) ?? next;
-            var previous = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as int?;
+            var previous = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
             _seasonBusy = true; SeasonSelector.Items.Clear();
-            foreach (var season in _episodes.Select(x => x.ParentIndexNumber ?? 1).Distinct().Order()) SeasonSelector.Items.Add(new ComboBoxItem { Content = season == 0 ? "Épisodes spéciaux" : $"Saison {season}", Tag = season });
-            var resumeSeason = previous ?? _detailNext?.ParentIndexNumber ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played)?.ParentIndexNumber ?? _episodes.FirstOrDefault(x => !x.UserData.Played)?.ParentIndexNumber;
-            SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => (int)x.Tag == resumeSeason) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
+            var pages = EpisodePages.From(_episodes);
+            foreach (var page in pages) SeasonSelector.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
+            // « Saison 1 · 1001–1100 » needs more room than « Saison 1 ».
+            SeasonSelector.Width = pages.GroupBy(x => x.Season).Any(x => x.Count() > 1) ? 230 : 180;
+            // The page shown before a refresh, else the one of the next episode, of an episode in progress, of the first unwatched.
+            var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip))
+                ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played));
+            SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
             _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel();
         }
         catch (Exception ex) when (IsExpected(ex))
@@ -205,9 +210,10 @@ public partial class MainWindow
     private void RenderEpisodes()
     {
         EpisodesPanel.Children.Clear();
-        var season = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as int?;
-        var episodes = _episodes.Where(x => (x.ParentIndexNumber ?? 1) == season).ToList();
-        EpisodeHeading.Text = $"Épisodes  ·  {episodes.Count}";
+        var page = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
+        var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
+        // The whole season's count, also on a slice of a long one.
+        EpisodeHeading.Text = $"Épisodes  ·  {(page is null ? 0 : _episodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
         if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = "Aucun épisode disponible dans cette bibliothèque.", Foreground = Brush("#93939D") }); return; }
         foreach (var episode in episodes)
         {
