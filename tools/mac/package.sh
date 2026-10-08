@@ -67,5 +67,12 @@ codesign --verify --deep --strict --verbose=1 "$APP"
 # 6. The disk image: Mira and a link to Applications, to drag one onto the other.
 STAGE="$OUT/dmg"; mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"; ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Mira $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$OUT/Mira-$VERSION-mac-arm64.dmg"
-du -sh "$APP" "$OUT/Mira-$VERSION-mac-arm64.dmg"
+# hdiutil sometimes answers « Resource busy » while macOS still scans the new files (seen on GitHub's Macs): try again.
+DMG="$OUT/Mira-$VERSION-mac-arm64.dmg"
+for attempt in 1 2 3 4 5; do
+  if hdiutil create -volname "Mira $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"; then break; fi
+  rm -f "$DMG"
+  if [ "$attempt" -eq 5 ]; then echo "hdiutil failed 5 times" >&2; exit 1; fi
+  sleep $((attempt * 5))
+done
+du -sh "$APP" "$DMG"
