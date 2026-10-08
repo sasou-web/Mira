@@ -2,8 +2,20 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Titres d’un acteur ou d’un réalisateur (non publié)
+
+- **Vrai Jellyfin 12.1**, trois films dont les acteurs et la réalisatrice viennent de fichiers `.nfo` :
+  - la fiche reçoit chaque personne avec son identifiant ;
+  - `personIds` renvoie exactement ses films : 2 pour l’actrice, 2 pour la réalisatrice, et 1 avec l’année 2002 et le tri par titre en plus.
+- **Test** :
+  - distribution sans doublon de nom, identifiants gardés ;
+  - filtre envoyé à Jellyfin avec les autres filtres ;
+  - clé de cache distincte par personne.
+- **Non vérifié** : les liens, la pastille et le retour dans l’interface lancée.
+
 ## Taille de la fenêtre retenue, Retirer de Continuer à regarder 0.5.9
 
+- Release v0.5.9 publiée (stable) : 8 fichiers en ligne. Le `mira-update.json` publié annonce la 0.5.9, avec la taille et le SHA-256 des trois paquets tels que GitHub les donne ; sa signature est acceptée par `UpdateSignature.Verify` avec `UpdateKeys.Trusted`, et refusée sur une copie modifiée. Le build Windows de `main` est vert.
 - **Retirer de Continuer à regarder**, vérifié sur un vrai Jellyfin 12.1 avec un film en favori. `POST UserItems/{id}/UserData` avec seulement `PlaybackPositionTicks` :
   - à 20 s, le film apparaît dans « Reprendre » ;
   - à 0, il en sort ; le favori et l’état « vu » restent inchangés.

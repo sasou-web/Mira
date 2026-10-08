@@ -285,6 +285,25 @@ await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa pr
     await client.SetPlaybackPositionAsync("film 1", -5);
     Assert(sent == "POST /UserItems/film%201/UserData?userId=user-1 {\"PlaybackPositionTicks\":0}", "Request: " + sent);
 });
+await Test("Fiche : un acteur ou un réalisateur mène à ses titres de la bibliothèque, avec les autres filtres", async () =>
+{
+    var item = new MediaItem { Id = "film", Name = "Aube Claire", Type = "Movie", People =
+    [
+        new() { Id = "p1", Name = " Jeanne Essai ", Type = "Actor" }, new() { Id = "p1b", Name = "jeanne essai", Type = "Actor" },
+        new() { Name = "Sans Fiche", Type = "Actor" }, new() { Id = "d1", Name = "Réa Lisatrice", Type = "Director" }, new() { Id = "w1", Name = "Scé Nariste", Type = "Writer" }
+    ] };
+    Assert(item.CastPeople.Select(x => (x.Id, x.Name)).SequenceEqual([("p1", "Jeanne Essai"), ((string?)null, "Sans Fiche")]) && item.Cast.SequenceEqual(["Jeanne Essai", "Sans Fiche"]), "Cast: names trimmed, one per name, ids kept");
+    Assert(item.DirectorPeople.Single() is { Id: "d1", Name: "Réa Lisatrice" }, "Director");
+    var query = new CatalogQuery(Year: 2002, Sort: "title", PersonId: "p 1");
+    Assert(query.Parameters.Contains("&personIds=p%201") && query.Parameters.Contains("&years=2002") && query.CacheKey != (query with { PersonId = null }).CacheKey, "Person filter: " + query.Parameters);
+    Assert(!new CatalogQuery().Parameters.Contains("personIds"), "No person, no filter");
+    Uri? requested = null;
+    using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => { requested = request.RequestUri; return Task.FromResult(JsonResponse(new { Items = Array.Empty<object>(), TotalRecordCount = 0 })); }));
+    await client.BrowseAsync(filters: new CatalogQuery(PersonId: "d1"));
+    Assert(requested!.Query.Contains("personIds=d1") && requested.Query.Contains("includeItemTypes=Movie,Series"), "Request: " + requested);
+    // Checked on Jellyfin 12.1 with actors and a director read from .nfo files: the people come with their id, and
+    // personIds returns exactly their films, also with a year and a sort.
+});
 await Test("Fenêtre : taille normale sur un grand écran, réduite et jamais agrandie sur un petit", () =>
 {
     ScreenFit.Fit? Open(double width, double height) => ScreenFit.Window(new(1480, 930), new(960, 600), new(width, height));

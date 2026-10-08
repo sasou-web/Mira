@@ -54,15 +54,19 @@ public sealed record MediaItem
     [JsonIgnore] public string DurationLabel => RunTimeTicks is > 0 ? FormatDuration(TimeSpan.FromTicks(RunTimeTicks.Value)) : "";
     [JsonIgnore] public double Progress => RunTimeTicks is > 0 ? Math.Clamp((double)UserData.PlaybackPositionTicks / RunTimeTicks.Value, 0, 1) : 0;
     /// <summary>The leading actors, in the order Jellyfin credits them.</summary>
-    [JsonIgnore] public string[] Cast => Credited("Actor", 6);
-    [JsonIgnore] public string[] Directors => Credited("Director", 3);
-    private string[] Credited(string type, int count) => People.Where(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase))
-        .Select(x => x.Name.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.CurrentCultureIgnoreCase).Take(count).ToArray();
+    [JsonIgnore] public string[] Cast => CastPeople.Select(x => x.Name).ToArray();
+    [JsonIgnore] public string[] Directors => DirectorPeople.Select(x => x.Name).ToArray();
+    /// <summary>The same people with their Jellyfin id, to list their other titles.</summary>
+    [JsonIgnore] public PersonInfo[] CastPeople => Credited("Actor", 6);
+    [JsonIgnore] public PersonInfo[] DirectorPeople => Credited("Director", 3);
+    private PersonInfo[] Credited(string type, int count) => People.Where(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase))
+        .Select(x => x with { Name = x.Name.Trim() }).Where(x => x.Name.Length > 0).DistinctBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Take(count).ToArray();
     public static string FormatDuration(TimeSpan span) => span.TotalHours >= 1 ? $"{(int)span.TotalHours} h {span.Minutes:00}" : $"{Math.Max(1, span.Minutes)} min";
 }
 
 public sealed record PersonInfo
 {
+    public string? Id { get; init; }
     public string Name { get; init; } = "";
     public string? Role { get; init; }
     /// <summary>"Actor", "Director", "Writer", "Producer", "GuestStar"…</summary>
@@ -79,11 +83,13 @@ public sealed record CatalogFilters
     public string[] Genres { get; init; } = [];
     public int[] Years { get; init; } = [];
 }
-public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? Played = null, string Sort = "recent")
+/// <summary>Catalog filters; <paramref name="PersonId"/>: only the titles with this actor or director.</summary>
+public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? Played = null, string Sort = "recent", string? PersonId = null)
 {
-    public string CacheKey => $"{Genre}|{Year}|{Played}|{Sort}";
+    public string CacheKey => $"{Genre}|{Year}|{Played}|{Sort}|{PersonId}";
     public string Parameters =>
         (string.IsNullOrWhiteSpace(Genre) ? "" : "&genres=" + Uri.EscapeDataString(Genre)) +
+        (string.IsNullOrWhiteSpace(PersonId) ? "" : "&personIds=" + Uri.EscapeDataString(PersonId)) +
         (Year is null ? "" : "&years=" + Year.Value) +
         (Played is null ? "" : "&isPlayed=" + Played.Value.ToString().ToLowerInvariant()) +
         (Sort switch

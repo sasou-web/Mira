@@ -374,6 +374,8 @@ public partial class MainWindow
         if (DetailOverlay.Visibility == Visibility.Visible && (!_playing || _miniPlayer)) { _ = CloseDetailsAsync(); return true; }
         if (TorLinkOverlay.Visibility == Visibility.Visible && TorLinkOverlay.IsHitTestVisible && (!_playing || _miniPlayer)) { _ = CloseTorLinkAsync(); return true; }
         if (_playing && !_miniPlayer) { BackFromPlayer_Click(this, new()); return true; }
+        // A person's titles, opened from a title page: back to that page.
+        if (_person is not null && _personFrom is not null) { _ = BackFromPersonAsync(); return true; }
         return false;
     }
     private async void Window_Closing(object? sender, CancelEventArgs e)
