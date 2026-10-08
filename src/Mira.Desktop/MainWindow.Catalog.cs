@@ -16,7 +16,35 @@ public partial class MainWindow
     private static string Choice(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
     private CatalogQuery CurrentQuery() => new(Choice(GenreFilter) is { Length: > 0 } genre ? genre : null,
         int.TryParse(Choice(YearFilter), out var year) ? year : null,
-        Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, Choice(SortFilter));
+        Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, Choice(SortFilter), _person?.Id);
+    /// <summary>Only the titles of one actor or director, chosen from a title page; <see cref="_personFrom"/> is that page.</summary>
+    private (string Id, string Name, bool Directed)? _person;
+    private MediaItem? _personFrom;
+    private string _personReturnView = "home";
+    /// <summary>A name clicked on a title page: the library with this person's titles, the page kept to come back to.</summary>
+    private async Task ShowPersonAsync(PersonInfo person, bool directed)
+    {
+        if (person.Id is not { Length: > 0 } id) return;
+        var from = _detail; var view = _view;
+        ResetFilters();
+        (_person, _personFrom, _personReturnView, _view) = ((id, person.Name, directed), from, view, "library");
+        ShowPersonFilter();
+        await NavigateLibraryAsync();
+    }
+    /// <summary>Back from a person's titles: the page they were chosen from, over the view it was opened from.</summary>
+    private async Task BackFromPersonAsync()
+    {
+        var title = _personFrom; var view = _personReturnView;
+        ResetFilters(); _view = view;
+        await NavigateLibraryAsync();
+        if (title is not null) await ShowDetailsAsync(title);
+    }
+    private async void PersonFilter_Click(object sender, RoutedEventArgs e) { _person = null; _personFrom = null; ShowPersonFilter(); await RefreshAsync(); }
+    private void ShowPersonFilter()
+    {
+        PersonFilter.Visibility = _person is null ? Visibility.Collapsed : Visibility.Visible;
+        PersonFilterText.Text = _person is { } person ? (person.Directed ? "Réalisés par " : "Avec ") + person.Name : "";
+    }
     private void InitializeFilters()
     {
         PopulateFilters(new CatalogFilters());
@@ -33,9 +61,9 @@ public partial class MainWindow
     }
     private void ResetFilters()
     {
-        _filterBusy = true; SearchBox.Text = ""; _parentId = null; _favorites = false;
+        _filterBusy = true; SearchBox.Text = ""; _parentId = null; _favorites = false; _person = null; _personFrom = null;
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = WatchedFilter.SelectedIndex = SortFilter.SelectedIndex = LibraryFilter.SelectedIndex = 0;
-        _filterBusy = false; ShowFavoritesFilter();
+        _filterBusy = false; ShowFavoritesFilter(); ShowPersonFilter();
     }
     private async void Favorites_Click(object sender, RoutedEventArgs e) { _favorites = !_favorites; ShowFavoritesFilter(); await RefreshAsync(); }
     /// <summary>Lit like the rail's current page while only the favourites show; a second click shows everything again.</summary>
@@ -94,7 +122,7 @@ public partial class MainWindow
         var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(_resume, _nextUp, _recentPlayback), _hiddenResume, _recentPlayback);
         ResumeSection.Visibility = home && row.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
-        GridTitle.Text = home ? "Ajoutés récemment" : search.Length > 0 ? $"Résultats pour « {search} »" : _favorites ? "Tes favoris" : "Tous les titres";
+        GridTitle.Text = home ? "Ajoutés récemment" : search.Length > 0 ? $"Résultats pour « {search} »" : _person is { } shown ? (shown.Directed ? "Réalisés par " : "Avec ") + shown.Name : _favorites ? "Tes favoris" : "Tous les titres";
         ItemCount.Text = $"{_totalCount:N0} titre{(_totalCount > 1 ? "s" : "")}";
         if (home)
         {
@@ -137,7 +165,7 @@ public partial class MainWindow
     private void DescribeEmptyState(string search)
     {
         var query = CurrentQuery();
-        var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || _parentId is not null;
+        var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || _parentId is not null || query.PersonId is not null;
         // Nothing at all in the library (not a search, a filter or the favourites): where videos go is what is missing.
         var emptyLibrary = !_demo && search.Length == 0 && !filtered && !_favorites && _view is "home" or "library" && _resume.Count == 0;
         (EmptyIcon.Kind, EmptyTitle.Text, EmptyHint.Text) = (_view, search.Length, filtered) switch

@@ -191,8 +191,8 @@ public partial class MainWindow
         DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
         DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is > 0 ? $"★ {item.CommunityRating:0.0}" : "", item.OfficialRating ?? "" }.Where(x => x.Length > 0));
         DetailOverview.Text = PlainText(item.Overview ?? "Aucun résumé disponible pour ce titre."); DetailGenres.Text = item.Genres.Length > 0 ? string.Join("  ·  ", item.Genres) : "Non renseignés";
-        DetailCast.Text = string.Join("  ·  ", item.Cast); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        DetailDirectors.Text = string.Join("  ·  ", item.Directors); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowPeople(DetailCast, item.CastPeople, false); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (item.Type != "Series") DetailPlay.Content = ActionLabel("play", item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition ? "Reprendre" : item.UserData.Played ? "Revoir" : "Regarder");
         else UpdateDetailPlayLabel();
         FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
@@ -252,6 +252,29 @@ public partial class MainWindow
         image.Source = await task;
         // Thumbnails downloaded now fade in; cached ones appear at once.
         if (!cached && image.Source is not null) Motion.Fade(image, 1, 240, 0, Motion.Soft);
+    }
+    /// <summary>
+    /// Names separated by a dot; each one with a Jellyfin id is a link to this person's titles in the library
+    /// (underlined under the pointer, reachable with Tab and Enter).
+    /// </summary>
+    private void ShowPeople(TextBlock target, IReadOnlyList<PersonInfo> people, bool directed)
+    {
+        target.Inlines.Clear();
+        for (var i = 0; i < people.Count; i++)
+        {
+            var person = people[i];
+            if (i > 0) target.Inlines.Add(new System.Windows.Documents.Run("  ·  "));
+            if (_demo || person.Id is not { Length: > 0 }) { target.Inlines.Add(new System.Windows.Documents.Run(person.Name)); continue; }
+            var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(person.Name))
+            {
+                Foreground = target.Foreground, TextDecorations = null, Cursor = Cursors.Hand,
+                ToolTip = (directed ? "Les titres réalisés par " : "Les titres avec ") + person.Name + " dans ta bibliothèque"
+            };
+            link.MouseEnter += (_, _) => link.TextDecorations = TextDecorations.Underline;
+            link.MouseLeave += (_, _) => link.TextDecorations = null;
+            link.Click += async (_, _) => await ShowPersonAsync(person, directed);
+            target.Inlines.Add(link);
+        }
     }
     private async Task ToggleFavoriteAsync(MediaItem item)
     {

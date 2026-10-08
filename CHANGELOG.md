@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Les titres d’un acteur ou d’un réalisateur** : sur une fiche, les noms de la distribution et de la réalisation sont cliquables. Un clic affiche tous ses titres présents dans ta bibliothèque, avec une pastille « Avec … » (ou « Réalisés par … ») qui retire ce filtre. Les autres filtres et le tri s’y ajoutent, et Retour ramène à la fiche.
+
 ## 0.5.9 — 2026-10-07
 
 La fenêtre tient vraiment dans l’écran et se rouvre comme on l’a laissée, et un titre peut être retiré de Continuer à regarder.
