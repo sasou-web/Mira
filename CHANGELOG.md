@@ -3,6 +3,8 @@
 ## Non publié
 
 - **Volume jusqu’à 200 %** : pour un film ou un épisode enregistré trop bas, le curseur de volume va au-delà de 100 %, repère au milieu. Le son est amplifié avant d’arriver à la sortie, puis un limiteur retient les crêtes : même les passages forts ne saturent pas, contrairement au volume au-delà de 100 % d’mpv seul. Le niveau s’affiche à côté du curseur, en blanc quand le son est amplifié, et la molette sur le haut-parleur règle le volume.
+- **Séries de plus de 500 épisodes** : Mira n’en demandait que les 500 premiers. Sur un long animé, les saisons suivantes manquaient sur la fiche, et l’épisode suivant n’était plus trouvé après le 500ᵉ. Toute la série est maintenant chargée, sans les épisodes que Jellyfin affiche comme manquants (sans fichier à lire).
+- **Longues saisons par tranches de 100** : une saison de plus de 100 épisodes se choisit par tranche (« Saison 1 · 101–200 »), et la fiche s’ouvre sur celle de l’épisode à suivre. Elle n’affiche plus des centaines d’épisodes et de vignettes d’un coup.
 - **Les titres d’un acteur ou d’un réalisateur** : sur une fiche, les noms de la distribution et de la réalisation sont cliquables. Un clic affiche tous ses titres présents dans ta bibliothèque, avec une pastille « Avec … » (ou « Réalisés par … ») qui retire ce filtre. Les autres filtres et le tri s’y ajoutent, et Retour ramène à la fiche.
 
 ## 0.5.9 — 2026-10-07
