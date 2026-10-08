@@ -16,6 +16,17 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 - **Test** : partage entre volume d’mpv et gain, plafond à 200, filtre écrit avec un point décimal, niveau envoyé à Jellyfin plafonné à 100.
 - **Non vérifié** : le curseur, le repère et la molette dans l’interface lancée, et l’écoute sur Windows.
 
+## Séries de plus de 500 épisodes (non publié)
+
+- **Vrai Jellyfin 12.1**, une série de 523 épisodes (520 en saison 1, 3 en saison 2) :
+  - avant : 500 épisodes reçus, saison 1 seule, rien après S01E500 ;
+  - après : 523 reçus, S01E500 mène à S01E501 et S01E520 à S02E001. `isMissing=false` ne retire aucun épisode présent.
+- **Tests** :
+  - requête sans limite et sans épisodes manquants ;
+  - tranches de 100 avec les numéros des épisodes (ou leur position), une seule page jusqu’à 100 ;
+  - la tranche d’un épisode donné.
+- **Non vérifié** : un vrai épisode manquant (il faut une source de métadonnées en ligne), et le sélecteur dans l’interface lancée.
+
 ## Titres d’un acteur ou d’un réalisateur (non publié)
 
 - **Vrai Jellyfin 12.1**, trois films dont les acteurs et la réalisatrice viennent de fichiers `.nfo` :
