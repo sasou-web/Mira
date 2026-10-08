@@ -2,10 +2,11 @@
   <img src="src/Mira.Desktop/Assets/mira.png" width="88" alt="Logo Mira" />
   <h1>Mira</h1>
   <p><strong>Ta bibliothèque Jellyfin. Le confort d’un lecteur fait pour elle.</strong></p>
-  <p>Un client Windows natif, une interface cinéma et mpv directement dans l’application.</p>
+  <p>Un client Windows natif (et sa version Mac), une interface cinéma et mpv directement dans l’application.</p>
   <p>
     <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.5.9_preview-e8e8ed?style=flat-square" alt="Version 0.5.9 preview" /></a>
     <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
+    <img src="https://img.shields.io/badge/macOS-14+_Apple_Silicon-555555?style=flat-square" alt="macOS 14 et plus, Apple Silicon" />
     <img src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square" alt=".NET 8" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Windows build" /></a>
@@ -56,6 +57,10 @@ Dans la [release 0.5.9](https://github.com/sasou-web/Mira/releases/tag/v0.5.9), 
 La page **Téléchargements** est facultative : TorLink s’y active d’un clic, et Mira l’installe (Node.js et TorLink, vérifiés, dans son dossier `data`) s’il n’est pas déjà sur le PC. Son terminal utilise le runtime Microsoft Edge WebView2 de Windows.
 
 [Guide complet : moteur vidéo, raccourcis, mise à jour et dépannage](docs/INSTALLATION.md)
+
+### Sur Mac
+
+Mira existe aussi pour les Mac à puce Apple (macOS 14 Sonoma ou plus récent) : **Mira-x.y.z-mac-arm64.dmg**, dans la même release à partir de la prochaine version. Elle se connecte à un serveur Jellyfin existant et lit avec le même moteur mpv, intégré à l’application. Elle n’est pas signée par Apple : macOS demande de l’autoriser une fois. [Installer Mira sur Mac](docs/INSTALLATION-MAC.md)
 
 ## Développer
 

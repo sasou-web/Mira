@@ -1,0 +1,93 @@
+name: Mac build
+# Mira for Mac (Apple Silicon): built, packaged with libmpv, checked on a real Mac, then attached to each release.
+on:
+  push:
+    branches: [main]
+    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "tools/mac/**", ".github/workflows/mac.yml"]
+  pull_request:
+    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "tools/mac/**", ".github/workflows/mac.yml"]
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  AVALONIA_TELEMETRY_OPTOUT: "1"
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+jobs:
+  build:
+    # Apple Silicon. The libraries come from Homebrew built for this macOS: Mira then needs it or later.
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+      - name: mpv and dylibbundler
+        run: brew install mpv dylibbundler
+      - name: Version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then version="${GITHUB_REF_NAME#v}"
+          else version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Mac/Mira.Mac.csproj); fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"; echo "Mira $version"
+      - name: Package Mira.app and the disk image
+        run: tools/mac/package.sh "${{ steps.version.outputs.version }}"
+      # The app itself, on this Mac: every screen against a stand-in Jellyfin, then playback in OpenGL and in software.
+      - name: Self-check
+        run: |
+          mkdir -p .artifacts/media
+          ffmpeg -loglevel error -y -f lavfi -i testsrc2=duration=30:size=1280x720:rate=24 -f lavfi -i sine=frequency=440:duration=30 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest .artifacts/media/test.mkv
+          ffmpeg -loglevel error -y -f lavfi -i testsrc2=duration=6:size=1280x720:rate=24 -f lavfi -i sine=frequency=550:duration=6 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest .artifacts/media/short.mkv
+          app=dist/mac/Mira.app/Contents/MacOS/Mira
+          status=0
+          "$app" --data "$PWD/.artifacts/profile" --self-check "$PWD/.artifacts/check" --mock --media "$PWD/.artifacts/media/test.mkv" --short "$PWD/.artifacts/media/short.mkv" > .artifacts/check.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 300); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+          if kill -0 $pid 2>/dev/null; then echo "self-check still running after 5 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
+          cat .artifacts/check/results.txt 2>/dev/null || tail -40 .artifacts/check.log
+          exit $status
+      # Small JPEG copies of the captures, in base64, to review them without downloading the artifact.
+      # Lines read: MIRA-PREVIEW <name> <part>/<parts> <base64>.
+      - name: Capture previews in the log
+        if: always()
+        run: |
+          for file in .artifacts/check/*.png; do
+            [ -f "$file" ] || continue
+            name=$(basename "$file" .png); small=".artifacts/$name.jpg"
+            sips -s format jpeg -s formatOptions 45 -Z 720 "$file" --out "$small" >/dev/null
+            data=$(base64 -i "$small" | tr -d '\n'); parts=$(( (${#data} + 3999) / 4000 ))
+            for ((i = 0; i < parts; i++)); do echo "MIRA-PREVIEW $name $((i + 1))/$parts ${data:$((i * 4000)):4000}"; done
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: Mira-mac-check
+          path: |
+            .artifacts/check
+            .artifacts/check.log
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Mira-mac-arm64
+          path: dist/mac/*.dmg
+          retention-days: 14
+  release:
+    # The release Windows publishes from the PC gets its Mac disk image here, built from the same tag.
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Mira-mac-arm64
+          path: mac
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" mac/*.dmg --clobber --repo "${{ github.repository }}"

@@ -2,6 +2,19 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Mira pour Mac (non publié)
+
+- **Sous Linux, même code et libmpv 0.37, affichage virtuel (Xvfb, OpenGL logiciel Mesa)** :
+  - contrôle complet face au **vrai Jellyfin 12.1** : **21/21** (connexion par le formulaire avec « 127.0.0.1 », accueil, films, recherche, fiche, série de 523 épisodes en tranches de 100, lecture OpenGL puis logicielle avec image visible à l’écran, avance de 10 s, pause, retour, épisode suivant automatique) ;
+  - contrôle face au Jellyfin simulé (celui du Mac de GitHub) : **23/23**, dont les rapports envoyés (début, progression, arrêt, volume signalé plafonné à 100) et la déconnexion ;
+  - Jellyfin voit la session « Mira » sur l’appareil « Mac », le titre en cours et sa position.
+- **Trois défauts trouvés et corrigés en cours de route** :
+  - un fichier ouvert avant que le contexte de rendu de mpv existe se lit sans image : Mira attend ce contexte ;
+  - mpv délie le framebuffer après son dessin : sans le relier, Avalonia affichait du noir ;
+  - avec l’OpenGL logiciel de Mesa, mpv dessinait du noir 8 fois sur 10 (tampons en virgule flottante) ; tampons 8 bits sur ce seul type de rendu : 8/8 avec image.
+- **Fin de fichier sans sortie son** : mpv la signale comme une erreur (`AO_INIT_FAILED`) ; elle compte comme une fin normale, sans message d’erreur, et l’épisode suivant démarre.
+- **Non vérifié ici** : macOS lui-même ; c’est le rôle du workflow Mac (voir sa dernière exécution), puis d’un essai sur un vrai Mac.
+
 ## Volume jusqu’à 200 % (non publié)
 
 - **mpv 0.37 et libmpv** sous Linux, son de test à −24,1 dB, sortie PCM :
