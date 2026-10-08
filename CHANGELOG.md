@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.6.0 — 2026-10-08
+
+Mira arrive sur Mac, le volume monte jusqu’à 200 % sans saturer, et les séries de plus de 500 épisodes sont complètes.
 
 - **Mira pour Mac** : une application pour les Mac à puce Apple (macOS 14 ou plus récent), avec l’interface cinéma et le lecteur mpv intégré de la version Windows. Connexion à un serveur Jellyfin existant, accueil avec bandeau et Continuer à regarder, films, séries, recherche, filtres et favoris, fiches avec saisons, distribution et titres similaires, lecture avec reprise, chapitres, opening à passer, épisode suivant, pistes audio et sous-titres, volume jusqu’à 200 % et plein écran. La progression passe par la même file d’envoi que sous Windows. Livrée en image disque (`.dmg`) dans chaque release ; non signée par Apple, elle s’autorise une fois dans Réglages Système. L’application Windows ne change pas.
 - **Volume jusqu’à 200 %** : pour un film ou un épisode enregistré trop bas, le curseur de volume va au-delà de 100 %, repère au milieu. Le son est amplifié avant d’arriver à la sortie, puis un limiteur retient les crêtes : même les passages forts ne saturent pas, contrairement au volume au-delà de 100 % d’mpv seul. Le niveau s’affiche à côté du curseur, en blanc quand le son est amplifié, et la molette sur le haut-parleur règle le volume.

@@ -2,7 +2,7 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Mira pour Mac (non publié)
+## Mira pour Mac 0.6.0
 
 - **Sous Linux, même code et libmpv 0.37, affichage virtuel (Xvfb, OpenGL logiciel Mesa)** :
   - contrôle complet face au **vrai Jellyfin 12.1** : **21/21** (connexion par le formulaire avec « 127.0.0.1 », accueil, films, recherche, fiche, série de 523 épisodes en tranches de 100, lecture OpenGL puis logicielle avec image visible à l’écran, avance de 10 s, pause, retour, épisode suivant automatique) ;
@@ -20,7 +20,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - ce Mac virtuel n’a pas de processeur graphique : Avalonia y dessine en logiciel (« Compositor backend doesn't support GPU interop ») et le lecteur passe sur l’affichage vidéo logiciel, qui fonctionne. La voie OpenGL, vérifiée sous Linux, reste à voir sur un vrai Mac.
 - **Non vérifié** : un vrai Mac (processeur graphique Apple, écran Retina, Gatekeeper au premier lancement) ; c’est l’essai prévu avec un utilisateur.
 
-## Volume jusqu’à 200 % (non publié)
+## Volume jusqu’à 200 % 0.6.0
 
 - **mpv 0.37 et libmpv** sous Linux, son de test à −24,1 dB, sortie PCM :
   - le volume d’mpv seul à 200 sature 60 % des échantillons d’un son fort, parce qu’il s’applique après les filtres ;
@@ -34,7 +34,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 - **Test** : partage entre volume d’mpv et gain, plafond à 200, filtre écrit avec un point décimal, niveau envoyé à Jellyfin plafonné à 100.
 - **Non vérifié** : le curseur, le repère et la molette dans l’interface lancée, et l’écoute sur Windows.
 
-## Séries de plus de 500 épisodes (non publié)
+## Séries de plus de 500 épisodes 0.6.0
 
 - **Vrai Jellyfin 12.1**, une série de 523 épisodes (520 en saison 1, 3 en saison 2) :
   - avant : 500 épisodes reçus, saison 1 seule, rien après S01E500 ;
@@ -45,7 +45,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - la tranche d’un épisode donné.
 - **Non vérifié** : un vrai épisode manquant (il faut une source de métadonnées en ligne), et le sélecteur dans l’interface lancée.
 
-## Titres d’un acteur ou d’un réalisateur (non publié)
+## Titres d’un acteur ou d’un réalisateur 0.6.0
 
 - **Vrai Jellyfin 12.1**, trois films dont les acteurs et la réalisatrice viennent de fichiers `.nfo` :
   - la fiche reçoit chaque personne avec son identifiant ;

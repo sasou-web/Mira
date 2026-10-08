@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.6.0",
+    "summary": "Mira arrive sur Mac, le volume monte jusqu’à 200 %, et les très longues séries sont complètes.",
+    "items": [
+      { "icon": "sparkle", "title": "Mira sur Mac", "text": "Une app pour les Mac à puce Apple : ta bibliothèque, le même lecteur et ta reprise partagée." },
+      { "icon": "volume", "title": "Jusqu’à 200 %", "text": "Un film enregistré trop bas ? Monte le volume au-delà de 100 %, sans saturer." },
+      { "icon": "series", "title": "Séries complètes", "text": "Plus de 500 épisodes : tout s’affiche, les longues saisons par tranches de 100." },
+      { "icon": "user", "title": "Acteurs et réalisateurs", "text": "Sur une fiche, clique sur un nom pour voir ses titres dans ta bibliothèque." }
+    ]
+  },
+  {
     "version": "0.5.9",
     "summary": "Une fenêtre qui tient dans l’écran, et Continuer à regarder que tu ranges toi-même.",
     "items": [
