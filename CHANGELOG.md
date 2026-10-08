@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Volume jusqu’à 200 %** : pour un film ou un épisode enregistré trop bas, le curseur de volume va au-delà de 100 %, repère au milieu. Le son est amplifié avant d’arriver à la sortie, puis un limiteur retient les crêtes : même les passages forts ne saturent pas, contrairement au volume au-delà de 100 % d’mpv seul. Le niveau s’affiche à côté du curseur, en blanc quand le son est amplifié, et la molette sur le haut-parleur règle le volume.
 - **Les titres d’un acteur ou d’un réalisateur** : sur une fiche, les noms de la distribution et de la réalisation sont cliquables. Un clic affiche tous ses titres présents dans ta bibliothèque, avec une pastille « Avec … » (ou « Réalisés par … ») qui retire ce filtre. Les autres filtres et le tri s’y ajoutent, et Retour ramène à la fiche.
 
 ## 0.5.9 — 2026-10-07

@@ -164,7 +164,7 @@ public partial class MainWindow
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
             UpdateSkip();
             UpdateWindowsPlayback();
-            var vol = _mpv.Number("volume", _settings.Volume); if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
+            var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
             if (_playingItem is not null) _playingItem.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
             if (!_demo && _sync is not null && _playWasReported && (changed || DateTimeOffset.Now - _lastReport >= TimeSpan.FromSeconds(3)))
             { _lastReport = DateTimeOffset.Now; await _sync.RecordAsync("progress", Report()); }
@@ -179,7 +179,7 @@ public partial class MainWindow
         PlaySessionId = _playSession,
         PositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks,
         IsPaused = _paused,
-        VolumeLevel = (int)(_mpv?.Number("volume", _settings.Volume) ?? _settings.Volume),
+        VolumeLevel = VolumeBoost.Reported(_mpv?.Level ?? _settings.Volume),
         IsMuted = _mpv?.Flag("mute") ?? false
     };
     private void PlaybackEnded(bool eof, int generation)
@@ -240,7 +240,7 @@ public partial class MainWindow
             await RememberCurrentPlaybackAsync();
         }
         _loaded = false;
-        if (_mpv is not null) { _settings.Volume = _mpv.Number("volume", _settings.Volume); _mpv.Dispose(); _mpv = null; }
+        if (_mpv is not null) { _settings.Volume = _mpv.Level; _mpv.Dispose(); _mpv = null; }
         if (hadPlayback && !_closing) RenderAfterUserDataChange();
     }
     private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false) => (await EpisodeContextAsync(current, quiet)).Next;
@@ -311,7 +311,7 @@ public partial class MainWindow
     }
     private double ReportedPosition(double reported) =>
         DateTimeOffset.UtcNow < _pendingSeekUntil && Math.Abs(reported - _pendingSeek) > 1.5 ? _pendingSeek : reported;
-    private void Volume_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { if (_initializing) return; _settings.Volume = e.NewValue; _mpv?.Set("volume", e.NewValue.ToString(CultureInfo.InvariantCulture)); if (e.NewValue > 0) { _lastAudibleVolume = e.NewValue; _mpv?.Set("mute", "no"); } }
+    private void Volume_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { ShowVolumeLevel(); if (_initializing) return; _settings.Volume = e.NewValue; _mpv?.SetLevel(e.NewValue); if (e.NewValue > 0) { _lastAudibleVolume = e.NewValue; _mpv?.Set("mute", "no"); } }
     private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
     private void ToggleFullscreen()
     {

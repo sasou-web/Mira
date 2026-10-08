@@ -77,7 +77,7 @@ public partial class MainWindow : Window
         };
         _fallbackRefresh.Tick += async (_, _) => { if (!_demo && !_playing && _client is not null && IsActive) await RefreshAsync(quiet: true); };
         _playerTimer.Tick += PlayerTick;
-        VolumeSlider.Value = _settings.Volume;
+        VolumeSlider.Value = VolumeBoost.Clamp(_settings.Volume); ShowVolumeLevel();
         var testArg = Array.IndexOf(args, "--test-media");
         if (testArg >= 0 && testArg + 1 < args.Length) _testMedia = args[testArg + 1];
         Loaded += OnLoaded;

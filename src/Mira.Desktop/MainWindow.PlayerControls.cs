@@ -31,7 +31,7 @@ public partial class MainWindow
     private Button? _menuAnchor;
     private static readonly double[] Speeds = [.5, .75, 1, 1.25, 1.5, 2];
     // Slider width plus its margins, revealed beside the speaker.
-    private const double VolumeRevealWidth = 100;
+    private const double VolumeRevealWidth = 174;
     private readonly DispatcherTimer _volumeHide = new() { Interval = TimeSpan.FromMilliseconds(900) };
     private bool _volumeShown;
     private void InitializePlayerControls()
@@ -197,7 +197,7 @@ public partial class MainWindow
     }
     private void ChangeVolume(double delta)
     {
-        VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + delta, 0, 100); UpdateMuteIcon();
+        VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + delta, 0, VolumeBoost.Maximum); UpdateMuteIcon();
         // The level shows for a moment beside the speaker.
         if (!_miniPlayer) { SetVolumeReveal(true); HideVolumeSoon(); }
     }
@@ -306,6 +306,18 @@ public partial class MainWindow
     private void VolumeGroup_MouseLeave(object sender, MouseEventArgs e) => HideVolumeSoon();
     private void VolumeGroup_FocusChanged(object sender, KeyboardFocusChangedEventArgs e) { if (MuteButton.IsKeyboardFocused && _keyboardNavigation) { _volumeHide.Stop(); SetVolumeReveal(true); } else HideVolumeSoon(); }
     private void VolumeSlider_LostMouseCapture(object sender, MouseEventArgs e) => HideVolumeSoon();
+    // The wheel over the speaker or its slider changes the volume, as the arrow keys do.
+    private void VolumeGroup_MouseWheel(object sender, MouseWheelEventArgs e) { ChangeVolume(e.Delta > 0 ? 5 : -5); e.Handled = true; }
+    /// <summary>The level beside the slider, brighter above 100 % where the sound is amplified.</summary>
+    private void ShowVolumeLevel()
+    {
+        if (VolumeText is null) return;
+        var boosted = VolumeSlider.Value > 100.5;
+        VolumeText.Text = VolumeBoost.Text(VolumeSlider.Value);
+        VolumeText.Foreground = boosted ? Brushes.White : VolumeQuiet;
+        VolumeText.FontWeight = boosted ? FontWeights.SemiBold : FontWeights.Normal;
+    }
+    private static readonly Brush VolumeQuiet = (Brush)new SolidColorBrush(Color.FromRgb(0xA9, 0xA9, 0xB1)).GetAsFrozen();
     private void HideVolumeSoon() { _volumeHide.Stop(); _volumeHide.Start(); }
     private void SetVolumeReveal(bool shown)
     {

@@ -64,7 +64,7 @@ Le serveur Jellyfin reste lancé : il gère la bibliothèque, les affiches, les 
 | Recherche | Ctrl + K / Ctrl + F |
 | Lecture / pause | Espace / K |
 | Reculer / avancer de 10 secondes | ← / → |
-| Volume | ↑ / ↓ |
+| Volume (jusqu’à 200 %) | ↑ / ↓, molette sur le haut-parleur |
 | Couper le son | M |
 | Plein écran | F / double-clic sur la vidéo |
 | Mini-lecteur / agrandir | I |
