@@ -9,6 +9,10 @@ namespace Mira.Mac;
 public partial class App : Application
 {
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    private static MainWindow? Main => (Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow as MainWindow;
+    private void About_Click(object? sender, EventArgs e) => Updates.Open("https://github.com/sasou-web/Mira");
+    private void Settings_Click(object? sender, EventArgs e) => Main?.Go("settings");
+    private void Updates_Click(object? sender, EventArgs e) { if (Main is { } window) _ = Updates.CheckAsync(window, asked: true); }
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

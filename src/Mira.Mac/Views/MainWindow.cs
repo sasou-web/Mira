@@ -75,6 +75,18 @@ public sealed class MainWindow : Window
         Grid.SetColumnSpan(_overlay, 2); _root.Children.Add(_overlay);
         _toast = BuildToast();
         Grid.SetColumnSpan(_toast, 2); _root.Children.Add(_toast);
+        if (TitleBarInset > 0)
+        {
+            // The strip where the title bar was: drags the window, and a double click zooms it, as on any Mac window.
+            var strip = new Border { Height = TitleBarInset, VerticalAlignment = VerticalAlignment.Top, Background = Brushes.Transparent, Margin = new Thickness(84, 0, 0, 0) };
+            strip.PointerPressed += (_, e) =>
+            {
+                if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+                if (e.ClickCount == 2) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+                else BeginMoveDrag(e);
+            };
+            Grid.SetColumnSpan(strip, 2); _root.Children.Add(strip);
+        }
         Content = _root;
         _toastTimer.Tick += (_, _) => HideNotice();
         _serverChanged.Tick += (_, _) => { _serverChanged.Stop(); _ = RefreshPagesAsync(fromServer: true); };
