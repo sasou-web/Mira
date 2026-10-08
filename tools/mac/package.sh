@@ -57,9 +57,10 @@ install_name_tool -id @rpath/libmpv.2.dylib "$APP/Contents/Frameworks/libmpv.2.d
 # Nothing may still point into Homebrew: a Mac without it would fail to load mpv.
 if otool -L "$APP"/Contents/Frameworks/*.dylib | grep -E "^\s+($BREW|/usr/local/(opt|Cellar))"; then echo "libraries still linked to Homebrew" >&2; exit 1; fi
 
-# 5. Signed ad hoc, from the inside out: Apple Silicon runs no unsigned code.
-find "$APP/Contents/Frameworks" "$APP/Contents/MacOS" -type f \( -name "*.dylib" -o -perm -u+x \) -print0 |
-  xargs -0 -n 1 codesign --force --sign - --timestamp=none
+# 5. Signed ad hoc, from the inside out: Apple Silicon runs no unsigned code, and the bundle's signature covers every
+# file beside the executable (.NET's .dll and .json too, signed in their extended attributes), as Avalonia documents.
+find "$APP/Contents/Frameworks" -type f -name "*.dylib" -print0 | xargs -0 -n 1 codesign --force --sign - --timestamp=none
+find "$APP/Contents/MacOS" -type f ! -name Mira -print0 | xargs -0 -n 1 codesign --force --sign - --timestamp=none
 codesign --force --sign - --timestamp=none "$APP"
 codesign --verify --deep --strict --verbose=1 "$APP"
 
