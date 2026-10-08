@@ -1,4 +1,4 @@
-# Architecture de Mira 0.5.9
+# Architecture de Mira 0.6.0
 
 ## Découpage
 

@@ -860,7 +860,7 @@ await Test("Nouveautés : bienvenue sur un profil neuf, points forts après une 
     Assert(decisions.SequenceEqual([StartupScreen.Welcome, StartupScreen.WhatsNew, StartupScreen.WhatsNew, StartupScreen.None, StartupScreen.None, StartupScreen.None, StartupScreen.Welcome]),
         "Startup screens: " + string.Join(", ", decisions));
     var notes = WhatsNew.ReleaseNotes(all[0]);
-    Assert(notes.StartsWith(all[0].Summary) && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe")
+    Assert(notes.StartsWith(all[0].Summary) && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg")
         && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Length < 1500, "Release notes:\n" + notes);
     return Task.CompletedTask;
 });
