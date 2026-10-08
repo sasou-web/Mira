@@ -13,7 +13,12 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - mpv délie le framebuffer après son dessin : sans le relier, Avalonia affichait du noir ;
   - avec l’OpenGL logiciel de Mesa, mpv dessinait du noir 8 fois sur 10 (tampons en virgule flottante) ; tampons 8 bits sur ce seul type de rendu : 8/8 avec image.
 - **Fin de fichier sans sortie son** : mpv la signale comme une erreur (`AO_INIT_FAILED`) ; elle compte comme une fin normale, sans message d’erreur, et l’épisode suivant démarre.
-- **Non vérifié ici** : macOS lui-même ; c’est le rôle du workflow Mac (voir sa dernière exécution), puis d’un essai sur un vrai Mac.
+- **Sur un Mac de GitHub (macOS 14.6 Sonoma, Darwin 23.6, Apple Silicon, machine virtuelle)**, l’application empaquetée telle que dans l’image disque (`Mira.app`, libmpv et ses bibliothèques dans `Frameworks`, signature ad hoc vérifiée par `codesign --verify --deep --strict`) :
+  - contrôle face au Jellyfin simulé : **23/23** ;
+  - son par CoreAudio, volume à 150 % par le filtre de Mira (`volume=3.375`, `alimiter`) ;
+  - lecture, avance de 10 s, pause, retour, épisode suivant automatique ; image visible à l’écran (86 à 100 % de pixels colorés au centre) ;
+  - ce Mac virtuel n’a pas de processeur graphique : Avalonia y dessine en logiciel (« Compositor backend doesn't support GPU interop ») et le lecteur passe sur l’affichage vidéo logiciel, qui fonctionne. La voie OpenGL, vérifiée sous Linux, reste à voir sur un vrai Mac.
+- **Non vérifié** : un vrai Mac (processeur graphique Apple, écran Retina, Gatekeeper au premier lancement) ; c’est l’essai prévu avec un utilisateur.
 
 ## Volume jusqu’à 200 % (non publié)
 
