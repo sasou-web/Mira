@@ -78,7 +78,11 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
         _player = null;
         if (_context != IntPtr.Zero) Failed?.Invoke("Le rendu vidéo n’a pas été libéré à temps.");
     }
-    protected override void OnOpenGlInit(GlInterface gl) => _gl = gl;
+    protected override void OnOpenGlInit(GlInterface gl) { _gl = gl; Initialized = true; }
+    /// <summary>OpenGL started for this view (Avalonia called OnOpenGlInit).</summary>
+    public new bool Initialized { get; private set; }
+    /// <summary>Why mpv could not draw here, when it could not.</summary>
+    public string? Problem { get; private set; }
     protected override void OnOpenGlDeinit(GlInterface gl) => FreeContext();
     private void FreeContext()
     {
@@ -137,6 +141,7 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
         {
             if (_self.IsAllocated) _self.Free();
             _player = null;
+            Problem = ex.Message + (Renderer.Length > 0 ? $" ({Renderer})" : "");
             _ready?.TrySetResult(false);
             Dispatcher.UIThread.Post(() => Failed?.Invoke(ex.Message));
             return false;

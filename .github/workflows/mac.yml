@@ -49,7 +49,16 @@ jobs:
           for i in $(seq 1 300); do kill -0 $pid 2>/dev/null || break; sleep 1; done
           if kill -0 $pid 2>/dev/null; then echo "self-check still running after 5 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
           cat .artifacts/check/results.txt 2>/dev/null || tail -40 .artifacts/check.log
+          echo "— Avalonia et OpenGL :"; grep -a -i -E "opengl|gpu|metal|render|exception" .artifacts/check.log | head -30 || true
           exit $status
+      # The renderer alone, for a diagnosis: which OpenGL this Mac gives Mira, and whether mpv's picture reaches the screen.
+      - name: Video probe
+        if: always()
+        run: |
+          system_profiler SPDisplaysDataType | grep -E "Chipset|Metal|Resolution" || true
+          app=dist/mac/Mira.app/Contents/MacOS/Mira
+          ( "$app" --video-probe "$PWD/.artifacts/media/test.mkv" > .artifacts/probe.log 2>&1 & pid=$!; for i in $(seq 1 60); do kill -0 $pid 2>/dev/null || break; sleep 1; done; kill $pid 2>/dev/null ) || true
+          grep -a -i -E "probe|opengl|gpu|metal|exception" .artifacts/probe.log | head -30 || true
       # Small JPEG copies of the captures, in base64, to review them without downloading the artifact.
       # Lines read: MIRA-PREVIEW <name> <part>/<parts> <base64>.
       - name: Capture previews in the log

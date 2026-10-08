@@ -14,7 +14,7 @@ public static class VideoProbe
     public static void Start(IClassicDesktopStyleApplicationLifetime desktop, string media, bool software)
     {
         IVideoSurface surface = software ? new SoftwareVideoView() : new VideoView();
-        var window = new Window { Title = "Mira", Width = 960, Height = 540, Content = surface.View };
+        var window = new Window { Title = "Mira", Width = 960, Height = 540, Content = surface.View, WindowStartupLocation = WindowStartupLocation.CenterScreen };
         desktop.MainWindow = window;
         window.Opened += async (_, _) => await RunAsync(desktop, window, surface, media);
     }
@@ -33,8 +33,8 @@ public static class VideoProbe
         timer.Start();
         await Task.Delay(4000);
         var file = Path.Combine(Path.GetTempPath(), $"mira-probe-{Environment.ProcessId}.png");
-        var colour = SelfCheck.ScreenColour(file, centre: false);
-        Console.WriteLine($"probe ready={ready} frames={surface.Frames} colour={colour:P0} pos={player.Get("time-pos")} drop={player.Get("frame-drop-count")} delayed={player.Get("vo-delayed-frame-count")} vparams={player.Get("video-params/w")}x{player.Get("video-params/h")} osd={player.Get("osd-width")}x{player.Get("osd-height")} vo={player.Get("current-vo")}");
+        var colour = SelfCheck.ScreenColour(file);
+        Console.WriteLine($"probe ready={ready} renderer={(surface as VideoView)?.Renderer} problem={(surface as VideoView)?.Problem} frames={surface.Frames} colour={colour:P0} pos={player.Get("time-pos")} drop={player.Get("frame-drop-count")} delayed={player.Get("vo-delayed-frame-count")} vparams={player.Get("video-params/w")}x{player.Get("video-params/h")} osd={player.Get("osd-width")}x{player.Get("osd-height")} vo={player.Get("current-vo")}");
         timer.Stop();
         window.Content = null; surface.Release(); player.Dispose();
         desktop.Shutdown(colour > 0.2 ? 0 : 1);
