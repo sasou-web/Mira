@@ -2,6 +2,21 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Mira web : retours du premier essai sur iPhone (non publié)
+
+- **Défauts signalés par l’utilisateur** (iPhone, app de l’écran d’accueil) :
+  - au démarrage du PC, l’app affichait la page d’erreur de Safari et n’en sortait plus seule ;
+  - la lecture dans la page faisait apparaître la Dynamic Island, comme une lecture en arrière-plan.
+- **Causes établies** :
+  - sans service worker (HTTP local), une app ouverte avant que Jellyfin réponde ne peut afficher que l’erreur de Safari, sans bouton pour recharger. Pendant son démarrage, Jellyfin 12.1 coupe d’abord la connexion, puis sert une page de démarrage (503) et répond même à `System/Info/Public` (en camelCase) : vu sur un Jellyfin 12.1 redémarré pendant qu’on l’interrogeait ;
+  - lu dans le script de l’installateur de Jellyfin (`nsis/jellyfin.nsi`, branche `master`) : service en démarrage automatique, compte Network Service, `AppExit Default Exit`, aucune règle de pare-feu. Un service ne reçoit jamais la demande « Autoriser » du pare-feu ;
+  - lu dans WebKit (`HTMLMediaElement.cpp`, `HTMLVideoElement.cpp`, `MediaElementSession.cpp`) : sans `playsinline`, un iPhone ne lit qu’en plein écran ; le premier geste lève `RequireUserGestureForFullscreen` ; les `<track>` sont passées à AVFoundation au chargement (`outOfBandTrackSources`) ; retirer la `<video>` du document quitte le plein écran ; sur Mac, la vidéo en plein écran passe par le plein écran d’élément, qui veut un geste.
+- **Contrôle Chromium local** sur Jellyfin 12.1 (Docker), avec l’extension compilée : **29/29**. En plus des 18 points d’avant :
+  - pistes de départ par les langues des réglages, changées sur la fiche, demandées à Jellyfin (`AudioStreamIndex` 4, `SubtitleStreamIndex` 1), puis lues : flux converti avec la piste anglaise, sous-titre français affiché (« Lueur en VF. ») ;
+  - Jellyfin arrêté : Mira s’ouvre depuis la page gardée et affiche « Serveur injoignable » ; relancé : tout reprend seul ;
+  - lecteur d’Apple simulé (`webkitPresentationMode` et son événement) : plein écran dès Lecture, épisode suivant sans quitter le plein écran, image dans l’image puis retour, fermeture vers la fiche avec la position gardée.
+- **Défaut trouvé en cours de route** : pendant le chargement des pistes, un changement fait par le navigateur passait pour un choix et affichait les sous-titres anglais au lieu des français demandés.
+
 ## Mira web 0.7.0
 
 - **Extension sur un vrai Jellyfin 12.1** (local) :

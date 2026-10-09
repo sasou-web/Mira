@@ -127,7 +127,8 @@ try {
   for (const item of [movie, ...episodes]) await api(`UserPlayedItems/${item.Id}?userId=${signed.userId}`, 'DELETE');
   await wd('POST', s('/url'), { url: `${base}#/titre/${movie.Id}` });
   await sleep(3000);
-  check('lecteur d’Apple : réglage pris en compte', await run("return !document.createElement('video').hasAttribute('playsinline') && JSON.parse(localStorage.getItem('mira.settings')).nativePlayer === true;"));
+  check('lecteur d’Apple : réglage pris en compte', await runAsync(`const { appleNative } = await import(document.querySelector('script[type=module]').src.replace('app.js', 'player/video.js'));
+    return appleNative();`) === true);
   // French subtitles chosen under Lecture, before playback: the only place for them with a conversion.
   await click('.tracks-line'); await sleep(700);
   const chose = await run(`const items = [...document.querySelectorAll('.sheet-item')]; const item = items.reverse().find((b) => /Français/.test(b.textContent));
