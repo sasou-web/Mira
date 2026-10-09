@@ -37,8 +37,25 @@ const tapControl = async (css) => {
 const shot = async (name) => fs.writeFileSync(`${out}/${name}.png`, Buffer.from(await wd('GET', s('/screenshot')), 'base64'));
 const video = () => run(`const v = document.querySelector('video'); return v ? { t: v.currentTime, paused: v.paused, ready: v.readyState, error: v.error && v.error.code,
   src: v.currentSrc, tracks: v.textTracks.length, hash: location.hash } : null;`);
-// Safari may want a tap before sound: Mira then shows a play button, clicked here as a person would.
-const startPlayback = async () => { await sleep(3500); if (await find('.p-message:not([hidden]) .round.big')) { await click('.p-message .round.big'); await sleep(1500); } };
+// Waits for the picture to move, up to 20 s: the first video on a fresh Mac takes a few seconds to start. If Safari
+// wants a tap before sound, Mira shows a play button, touched here as a person would.
+const playing = async (seconds = 20) => {
+  const start = Date.now();
+  let tapped = false;
+  for (; Date.now() - start < seconds * 1000; await sleep(500)) {
+    if (!tapped && await find('.p-message:not([hidden]) .round.big')) { tapped = await click('.p-message .round.big'); continue; }
+    const state = await video();
+    if (state && !state.paused && state.t > 1) return { ...state, after: (Date.now() - start) / 1000, tapped };
+  }
+  return { ...(await video()), after: null, tapped };
+};
+// The shared video's events, caught on their way down (media events do not bubble), to tell where a start stalls.
+const recordEvents = () => run(`window.miraEvents = []; const t0 = performance.now();
+  for (const name of ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'play', 'playing', 'waiting', 'stalled', 'pause', 'error'])
+    document.addEventListener(name, (e) => { if (e.target.tagName === 'VIDEO') miraEvents.push(name + ' ' + Math.round(performance.now() - t0)); }, true);`);
+const events = () => run('return (window.miraEvents || []).join(', ');');
+const started = (state) => `${state?.t?.toFixed(1)} s${state?.after != null ? `, partie en ${state.after.toFixed(1)} s` : ''}${state?.tapped ? ' après un toucher' : ''}`
+  + `, readyState ${state?.ready}, ${state?.paused ? 'en pause' : 'en lecture'}, erreur ${state?.error ?? 'aucune'}`;
 
 try {
   await wd('POST', s('/window/rect'), { width: 430, height: 932, x: 0, y: 0 }).catch(() => {});
@@ -58,12 +75,12 @@ try {
   await go('#/'); await sleep(3000); await shot('01-home');
   await go(`#/titre/${movie.Id}`); await sleep(2500); await shot('02-title');
 
-  await go(`#/lecture/${movie.Id}?debut=1`);
-  await startPlayback();
-  await sleep(5000);
-  let state = await video();
+  // Lecture, touched on the title page as a person would: the tap also lets Safari start the sound.
+  await recordEvents();
+  check('fiche : bouton Lecture', await click('a.btn.primary[href*="lecture"]'));
+  let state = await playing();
   check('Safari : flux HLS converti par Jellyfin', /\.m3u8/.test(state?.src ?? ''), (state?.src ?? '').split('?')[0]);
-  check('Safari : lecture', state && !state.paused && state.t > 2 && !state.error, `${state?.t?.toFixed(1)} s, readyState ${state?.ready}, erreur ${state?.error ?? 'aucune'}`);
+  check('Safari : lecture', state && !state.paused && state.t > 1 && !state.error, state?.after != null ? started(state) : `${started(state)} — ${await events()}`);
   check('Safari : sous-titres à côté de la vidéo', state?.tracks >= 1, `${state?.tracks} piste(s)`);
   // Safari draws subtitles at the bottom of the video's box: fitted to the picture, they sit on it.
   const box = await run(`const v = document.querySelector('video'), b = v.getBoundingClientRect();
@@ -92,7 +109,7 @@ try {
   check('Jellyfin : position du film', saved.UserData.PlaybackPositionTicks > 100_000_000, `${(saved.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
 
   await go(`#/lecture/${episodes[0].Id}?debut=1`);
-  await startPlayback();
+  await playing();
   let moved = false;
   for (let i = 0; i < 30 && !moved; i++) { await sleep(1000); moved = (await run('return location.hash;')).includes(episodes[1].Id); }
   check('Safari : épisode suivant automatique', moved);
