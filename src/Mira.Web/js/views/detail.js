@@ -4,9 +4,11 @@ import { api } from '../api.js';
 import { h, icon, clear, duration, seconds, progress, remaining, episodeCode, plural } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import {
-  row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, itemMenu, toast,
+  row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, itemMenu, toast, sheet,
 } from '../components.js';
 import { goBack } from '../app.js';
+import { settings } from '../session.js';
+import { trackText, chooseTracks } from '../player/tracks.js';
 
 const SLICE = 100;
 const seasonOf = (x) => x.ParentIndexNumber ?? 1;
@@ -89,31 +91,102 @@ export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': 'Retour', on: { click: () => goBack('#/') } }, icon('back'));
   let item = null, episodes = [], next = null, similar = [], page = null, stale = false, loadedAt = 0;
+  let actionsBox = null, toolsBox = null;
+  // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
+  let streams = null, chosen = null;
   const wanted = query.get('episode');
 
+  const playTarget = () => (item.Type === 'Series' ? next ?? episodes[0] : item);
+
+  /** The tracks the player will start with: the choice made here, else its own (the series' last, the settings). */
+  function tracksFor(target) {
+    if (!streams || streams.for !== target.Id) return null;
+    if (chosen?.for === target.Id) return chosen;
+    const memory = target.SeriesId ? settings.get('seriesTracks')?.[target.SeriesId] ?? null : null;
+    return chooseTracks(streams.source, { memory, audioOrder: settings.get('audioLanguages'), subtitleOrder: settings.get('subtitleLanguages') });
+  }
+
   function primaryAction() {
-    const target = item.Type === 'Series' ? next ?? episodes[0] : item;
-    if (!target) return h('button', { class: 'btn primary block', disabled: true }, 'Aucun épisode à lire');
+    const target = playTarget();
+    if (!target) return h('div', { class: 'detail-actions' }, h('button', { class: 'btn primary block', disabled: true }, 'Aucun épisode à lire'));
     const resume = progress(target) > 0;
     let label = resume ? 'Reprendre' : 'Lecture';
     if (item.Type === 'Series') label = `${resume ? 'Reprendre' : 'Regarder'} ${episodeCode(target)}`;
     const left = resume ? remaining(target) : '';
     return h('div', { class: 'detail-actions' },
-      h('a', { class: 'btn primary block', href: playHref(target) }, icon('play', { size: 20 }), label),
+      h('a', { class: 'btn primary block', href: playHref(target, false, chosen?.for === target.Id ? chosen : null) }, icon('play', { size: 20 }), label),
       resume ? h('div', { style: { display: 'grid', gap: '6px' } },
         h('div', { class: 'progress-line' }, h('i', { style: { width: `${(progress(target) * 100).toFixed(1)}%` } })),
-        h('div', { class: 'meta' }, left)) : null);
+        h('div', { class: 'meta' }, left)) : null,
+      tracksLine(target));
+  }
+
+  /** « Audio : Japonais · Sous-titres : Français », a tap away from the other tracks. */
+  function tracksLine(target) {
+    const pick = tracksFor(target);
+    if (!pick) return null;
+    const all = streams.source.MediaStreams ?? [];
+    const audios = all.filter((s) => s.Type === 'Audio'), subs = all.filter((s) => s.Type === 'Subtitle');
+    if (audios.length < 2 && !subs.length) return null;
+    const audio = audios.find((s) => s.Index === pick.audio), sub = subs.find((s) => s.Index === pick.subtitle);
+    const name = (s, list) => trackText(s, list.indexOf(s) + 1).label + (s.IsForced ? ' (forcés)' : '');
+    // A single audio track of unknown language says nothing worth a line.
+    const showAudio = audio && (audios.length > 1 || audio.Language);
+    return h('button', { class: 'tracks-line', 'aria-haspopup': 'dialog', on: { click: () => tracksSheet(target, pick) } },
+      icon('subtitles', { size: 20 }),
+      h('span', { class: 'grow' },
+        showAudio ? h('span', {}, 'Audio : ', h('b', {}, name(audio, audios))) : null,
+        h('span', {}, 'Sous-titres : ', h('b', {}, sub ? name(sub, subs) : 'aucun'))),
+      icon('right', { size: 18 }));
+  }
+
+  function tracksSheet(target, pick) {
+    const all = streams.source.MediaStreams ?? [];
+    const audios = all.filter((s) => s.Type === 'Audio'), subs = all.filter((s) => s.Type === 'Subtitle');
+    const choose = (change) => { chosen = { audio: pick.audio, subtitle: pick.subtitle, ...change, for: target.Id }; refreshActions(); };
+    const details = (s, list) => [trackText(s, list.indexOf(s) + 1).details, s.Type === 'Subtitle' && !s.IsTextSubtitleStream ? 'incrustés dans l’image' : '']
+      .filter(Boolean).join(' · ');
+    sheet({
+      title: item.Type === 'Series' ? `Audio et sous-titres · ${episodeCode(target)}` : 'Audio et sous-titres',
+      items: [
+        ...(audios.length > 1 ? [{ heading: 'Audio' }, ...audios.map((s) => ({
+          label: trackText(s, audios.indexOf(s) + 1).label, sub: details(s, audios), selected: s.Index === pick.audio, run: () => choose({ audio: s.Index }),
+        }))] : []),
+        { heading: 'Sous-titres' },
+        { label: 'Aucun', selected: pick.subtitle === -1 || !subs.some((s) => s.Index === pick.subtitle), run: () => choose({ subtitle: -1 }) },
+        ...subs.map((s) => ({ label: trackText(s, subs.indexOf(s) + 1).label, sub: details(s, subs), selected: s.Index === pick.subtitle, run: () => choose({ subtitle: s.Index }) })),
+      ],
+    });
+  }
+
+  /** Lecture, its tracks and Du début again, without rebuilding the page. */
+  function refreshActions() {
+    if (!item || !actionsBox?.isConnected) return;
+    const actions = primaryAction(), secondary = tools();
+    actionsBox.replaceWith(actions); toolsBox.replaceWith(secondary);
+    actionsBox = actions; toolsBox = secondary;
+  }
+
+  /** The streams of the title Lecture plays: a film's are in its details, an episode's are asked for. */
+  async function loadStreams() {
+    const target = playTarget();
+    if (!target || streams?.for === target.Id) return;
+    if (target === item) { streams = item.MediaSources?.[0] ? { for: item.Id, source: item.MediaSources[0] } : null; return; }
+    const full = await api.item(target.Id).catch(() => null);
+    if (!full?.MediaSources?.[0] || playTarget()?.Id !== target.Id) return;
+    streams = { for: target.Id, source: full.MediaSources[0] };
+    refreshActions();
   }
 
   function tools() {
-    const target = item.Type === 'Series' ? next ?? episodes[0] : item;
+    const target = playTarget();
     const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
     const tool = (symbol, label, on, run) => h('button', { class: ['tool', on && 'on'], 'aria-pressed': String(!!on), on: { click: run } }, icon(symbol), label);
     return h('div', { class: 'detail-secondary' },
       tool(favorite ? 'heart-fill' : 'heart', favorite ? 'Favori' : 'Favoris', favorite, () => setFavorite(item, !favorite)),
       tool('check', played ? 'Vu' : 'Marquer vu', played, async () => { await setPlayed(item, !played); if (item.Type === 'Series') load(true); }),
       target && progress(target) > 0
-        ? h('a', { class: 'tool', href: playHref(target, true) }, icon('back10'), 'Du début')
+        ? h('a', { class: 'tool', href: playHref(target, true, chosen?.for === target.Id ? chosen : null) }, icon('back10'), 'Du début')
         : null);
   }
 
@@ -156,7 +229,7 @@ export function create({ id, query }) {
         h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: innerWidth > 900 ? 1600 : 900, eager: true }) : null),
         h('div', { class: 'detail-head' },
           poster ? picture(poster, { kind: 'poster', width: 140, eager: true, className: 'detail-poster' }) : null,
-          headTitle, meta(item, episodes), primaryAction(), tools(), overview(item.Overview),
+          headTitle, meta(item, episodes), (actionsBox = primaryAction()), (toolsBox = tools()), overview(item.Overview),
           item.Genres?.length ? h('div', { class: 'genres' }, item.Genres.join(' · ')) : null,
           credits(item))),
       seasonsSection() ?? '',
@@ -178,6 +251,9 @@ export function create({ id, query }) {
       }
       item = fresh; episodes = eps; next = nextUp; stale = false; loadedAt = Date.now();
       document.title = `${item.Name} · Mira`;
+      // A film's streams come with it, fresh; an episode's are asked for once its page is drawn.
+      if (item.Type !== 'Series') streams = null;
+      loadStreams();
       render();
       if (!similar.length) {
         api.similar(id).then((r) => { similar = r?.Items ?? []; if (similar.length && el.isConnected) render(); }).catch(() => {});

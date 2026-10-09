@@ -1,8 +1,14 @@
 // Mira web against a real Jellyfin, in Chromium at an iPhone's size: the sign-in form, every screen, playback, the
-// next episode, resume, the reports Jellyfin receives, sign-out. Screenshots for review; results.txt; exit 1 on failure.
+// next episode, resume, the reports Jellyfin receives, the choice of tracks on a title page, sign-out. Screenshots for
+// review; results.txt; exit 1 on failure.
 //   node tools/web/check.mjs <Mira web url> <user> <password> <series name> <out folder>
-// Chromium has no H.264: the series checked here is in WebM; Safari's HLS path is checked by safari.mjs.
+// Chromium has no H.264: the titles checked here are in WebM; Safari's HLS path is checked by safari.mjs.
+// Apple's full screen player is simulated here (Chromium has none), to check what Mira does around it: start, next
+// episode in place, Picture in Picture, back to the title page once closed. safari.mjs checks it in Safari itself.
+// With MIRA_STOP and MIRA_START (commands that stop and start Jellyfin), Mira is also opened while Jellyfin is away,
+// as when a phone opens it before the PC has started: the page kept by the phone opens and waits for the server.
 import fs from 'node:fs';
+import { execSync } from 'node:child_process';
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
 const [base = 'http://127.0.0.1:8096/Mira/', user = 'sasou', password = 'premier', seriesName = 'Courte Web', out = 'shots/e2e'] = process.argv.slice(2);
 fs.mkdirSync(out, { recursive: true });
@@ -80,6 +86,53 @@ try {
   check('reprise au bon endroit', resumed >= second.UserData.PlaybackPositionTicks / 1e7 - 1, `${resumed.toFixed(1)} s`);
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
+  // Tracks chosen on a title page: Lueur Web has French and English audio, and subtitles in both beside it.
+  const film = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];
+  const streams = (await api(`Items/${film.Id}`)).MediaSources[0].MediaStreams;
+  const english = streams.find((x) => x.Type === 'Audio' && x.Language === 'eng'), frenchSubs = streams.find((x) => x.Type === 'Subtitle' && x.Language === 'fra');
+  await api(`UserPlayedItems/${film.Id}`, 'DELETE');
+  await page.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await wait(2000);
+  const line = await page.locator('.tracks-line').innerText().catch(() => '');
+  check('fiche : pistes choisies par les langues des réglages', /Audio : Français/.test(line) && /Sous-titres : aucun/.test(line), line.replace(/\s+/g, ' '));
+  await page.locator('.tracks-line').click(); await wait(500);
+  await shot('11-tracks');
+  await page.locator('.sheet-item', { hasText: 'Anglais' }).first().click(); await wait(300);
+  await page.locator('.tracks-line').click(); await wait(500);
+  await page.locator('.sheet-item', { hasText: 'Français' }).last().click(); await wait(300);
+  const chosenLine = await page.locator('.tracks-line').innerText();
+  check('fiche : audio et sous-titres changés', /Audio : Anglais/.test(chosenLine) && /Sous-titres : Français/.test(chosenLine), chosenLine.replace(/\s+/g, ' '));
+  const asked = page.waitForRequest((r) => /PlaybackInfo/.test(r.url()) && r.method() === 'POST', { timeout: 15000 });
+  await page.locator('.detail-actions .btn.primary').click();
+  const body = (await asked).postDataJSON();
+  check('lecture : pistes de la fiche demandées à Jellyfin', body.AudioStreamIndex === english.Index && body.SubtitleStreamIndex === frenchSubs.Index,
+    `audio ${body.AudioStreamIndex}, sous-titres ${body.SubtitleStreamIndex}`);
+  await wait(5000);
+  const shown = await page.evaluate(() => {
+    const v = document.querySelector('video'), t = [...v.textTracks].find((x) => x.mode === 'showing');
+    return { t: v.currentTime, paused: v.paused, label: t?.label ?? '', cue: t?.activeCues?.[0]?.text ?? '', converted: !/[?&]Static=true/i.test(v.currentSrc) };
+  });
+  // Without audioTracks, Chromium plays a file's first audio track only: Jellyfin sends the English one in a new stream.
+  check('lecture : piste anglaise et sous-titres français', !shown.paused && shown.t > 1 && shown.converted && shown.label === 'Français' && shown.cue === 'Lueur en VF.',
+    `${shown.t.toFixed(1)} s, ${shown.converted ? 'flux converti' : 'fichier tel quel'}, ${shown.label} « ${shown.cue} »`);
+  await shot('12-tracks-playing');
+  await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
+
+  if (process.env.MIRA_STOP && process.env.MIRA_START) {
+    // The PC is off or still starting: the page the phone keeps opens, says so, and comes back by itself.
+    execSync(process.env.MIRA_STOP, { stdio: 'ignore' });
+    try {
+      await page.goto(base); await wait(1500);
+      const away = await page.locator('.netbar').isVisible().catch(() => false);
+      check('serveur éteint : Mira s’ouvre et attend', away && await page.locator('.tabbar').count() === 1, await page.locator('.netbar').innerText().catch(() => 'pas de bandeau'));
+      await shot('13-server-away');
+    } catch (error) {
+      check('serveur éteint : Mira s’ouvre et attend', false, error.message.split('\n')[0]);
+    } finally { execSync(process.env.MIRA_START, { stdio: 'ignore' }); }
+    const back = await page.locator('.netbar').waitFor({ state: 'hidden', timeout: 180_000 }).then(() => true, () => false);
+    await wait(3000);
+    check('serveur revenu : Mira reprend toute seule', back && await page.locator('.section').count() > 0, `${await page.locator('.section h2').allInnerTexts()}`);
+  }
+
   await page.locator('.tabbar a[data-tab="settings"]').click(); await wait(1500);
   await shot('08-settings');
   await page.evaluate(() => { location.hash = '#/partager'; }); await wait(1500);
@@ -99,6 +152,67 @@ try {
   await shot('error').catch(() => {});
 }
 check('aucune erreur JavaScript', errors.length === 0, errors.slice(0, 3).join(' | '));
+
+// Apple's player, simulated: full screen as WebKit reports it (webkitPresentationMode and its event).
+const apple = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+await apple.addInitScript(() => {
+  const proto = HTMLVideoElement.prototype, modes = new WeakMap();
+  const set = (video, mode) => {
+    if ((modes.get(video) ?? 'inline') === mode) return;
+    modes.set(video, mode);
+    setTimeout(() => video.dispatchEvent(new Event('webkitpresentationmodechanged')), 60);
+  };
+  Object.defineProperty(proto, 'webkitPresentationMode', { configurable: true, get() { return modes.get(this) ?? 'inline'; } });
+  Object.defineProperty(proto, 'webkitDisplayingFullscreen', { configurable: true, get() { return modes.get(this) === 'fullscreen'; } });
+  proto.webkitEnterFullscreen = function () { if (!this.getAttribute('src')) throw new DOMException('no media', 'InvalidStateError'); set(this, 'fullscreen'); };
+  proto.webkitExitFullscreen = function () { set(this, 'inline'); };
+  proto.webkitSetPresentationMode = function (mode) { set(this, mode); };
+  proto.webkitSupportsPresentationMode = () => true;
+});
+const ap = await apple.newPage();
+const appleErrors = [];
+ap.on('pageerror', (e) => appleErrors.push(e.message));
+const state = () => ap.evaluate(() => { const v = document.querySelector('video'); return v ? { mode: v.webkitPresentationMode, paused: v.paused, t: v.currentTime, hash: location.hash } : { hash: location.hash }; });
+try {
+  await ap.goto(`${base}#/connexion`); await ap.waitForTimeout(1500);
+  if (await ap.locator('.users').count()) await ap.getByRole('button', { name: 'Autre compte' }).click();
+  await ap.fill('#login-name', user); await ap.fill('#login-password', password);
+  await ap.getByRole('button', { name: 'Se connecter' }).click();
+  await ap.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
+  const token = await ap.evaluate(() => JSON.parse(localStorage.getItem('mira.session')));
+  const call = (path, method = 'GET') => ap.evaluate(async ([p, m, t]) => {
+    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/${p}`, { method: m, headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${t}"` } });
+    const x = await r.text(); return x ? JSON.parse(x) : null;
+  }, [path, method, token.token]);
+  const series = (await call(`Items?recursive=true&includeItemTypes=Series&searchTerm=${encodeURIComponent(seriesName)}`)).Items[0];
+  const episodes = (await call(`Shows/${series.Id}/Episodes?userId=${token.userId}`)).Items;
+  for (const e of episodes) await call(`UserPlayedItems/${e.Id}`, 'DELETE');
+  await ap.evaluate((id) => { location.hash = `#/titre/${id}`; }, series.Id); await ap.waitForTimeout(2500);
+  await ap.locator('.detail-actions .btn.primary').click(); await ap.waitForTimeout(3500);
+  let now = await state();
+  check('lecteur d’Apple (simulé) : plein écran dès Lecture', now.mode === 'fullscreen' && !now.paused && now.t > 0.5, `${now.mode}, ${now.t?.toFixed(1)} s`);
+  const moved = await ap.waitForFunction((id) => location.hash.includes(id), episodes[1].Id, { timeout: 30000 }).then(() => true, () => false);
+  await ap.waitForTimeout(3000);
+  now = await state();
+  check('lecteur d’Apple (simulé) : épisode suivant sans quitter le plein écran', moved && now.mode === 'fullscreen' && !now.paused && now.t > 0.5, `${now.mode}, ${now.t?.toFixed(1)} s`);
+  await ap.evaluate(() => document.querySelector('video').webkitSetPresentationMode('picture-in-picture')); await ap.waitForTimeout(500);
+  const pip = await ap.locator('.n-status').innerText();
+  await ap.screenshot({ path: `${out}/14-apple-pip.png` });
+  await ap.evaluate(() => document.querySelector('video').webkitSetPresentationMode('fullscreen')); await ap.waitForTimeout(500);
+  now = await state();
+  check('lecteur d’Apple (simulé) : image dans l’image, puis retour', /image dans l’image/.test(pip) && now.mode === 'fullscreen' && !now.paused, pip.replace(/\s+/g, ' '));
+  await ap.evaluate(() => document.querySelector('video').webkitExitFullscreen());
+  const closed = await ap.waitForFunction((id) => location.hash.startsWith(`#/titre/${id}`), series.Id, { timeout: 8000 }).then(() => true, () => false);
+  await ap.waitForTimeout(1500);
+  const kept = await call(`Items/${episodes[1].Id}?userId=${token.userId}`);
+  check('lecteur d’Apple (simulé) : fermé, retour à la fiche et position gardée', closed && !(await ap.locator('video').count()) && kept.UserData.PlaybackPositionTicks > 5_000_000,
+    `${(await state()).hash.split('?')[0]}, ${(kept.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
+  await ap.screenshot({ path: `${out}/15-apple-closed.png` });
+} catch (error) {
+  check('lecteur d’Apple (simulé) : déroulé', false, error.message.split('\n')[0]);
+  await ap.screenshot({ path: `${out}/error-apple.png` }).catch(() => {});
+}
+check('lecteur d’Apple (simulé) : aucune erreur JavaScript', appleErrors.length === 0, appleErrors.slice(0, 3).join(' | '));
 fs.writeFileSync(`${out}/results.txt`, results.join('\n') + '\n');
 await browser.close();
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

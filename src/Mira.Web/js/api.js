@@ -9,11 +9,28 @@ export const base = location.pathname.replace(/\/Mira\/?.*$/i, '');
 export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
   get offline() { return this.status === 0; }
+  /** Nothing answers (PC off, no network) or Jellyfin is still starting: Mira waits for it. */
+  get unreachable() { return this.status === 0 || this.status === 503; }
 }
 
 const listeners = new Set();
 /** Called when Jellyfin refuses the session (signed out elsewhere, password changed). */
 export const onUnauthorized = (fn) => listeners.add(fn);
+
+const STARTING = 'Jellyfin ne répond pas encore : il est sans doute en train de démarrer. Mira réessaie toute seule.';
+const watchers = new Set();
+let reachable = true;
+/**
+ * Called with (false, 'offline' | 'starting') when Jellyfin stops answering, and with (true) once it answers again.
+ * 'starting': Jellyfin answers 503 while it starts, or while it turns away a network it does not count as local.
+ */
+export const onReachable = (fn) => watchers.add(fn);
+function setReachable(value, reason = '') {
+  if (value === reachable) return;
+  reachable = value;
+  watchers.forEach((fn) => fn(value, reason));
+}
+export const isReachable = () => reachable;
 
 export function authorization(token = session.current?.token) {
   const quote = (value) => String(value).replace(/["\\]/g, '');
@@ -51,11 +68,17 @@ export async function request(method, path, { params, body, signal, timeout = 20
     });
   } catch (error) {
     if (signal?.aborted) throw error;
+    setReachable(false, 'offline');
     throw new ApiError(0, controller.signal.aborted
-      ? 'Le serveur met trop de temps à répondre. Réessaie dans un instant.'
-      : 'Serveur injoignable. Vérifie le Wi-Fi, ou Tailscale hors de chez toi.');
+      ? 'Le serveur met trop de temps à répondre. Mira réessaie dès qu’il répond.'
+      : 'Serveur injoignable : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.');
   } finally { clearTimeout(timer); }
 
+  if (response.status === 503) {
+    setReachable(false, 'starting');
+    throw new ApiError(503, STARTING);
+  }
+  // Back up is for ping() to say: while Jellyfin starts, its startup page answers some routes too.
   if (response.status === 401) {
     if (session.current) { session.clear(); listeners.forEach((fn) => fn()); }
     throw new ApiError(401, 'Ta session a pris fin. Reconnecte-toi.');
@@ -77,8 +100,22 @@ const user = () => session.current?.userId;
 const CARD_FIELDS = 'Overview,Genres,ChildCount,PrimaryImageAspectRatio';
 const CARD_IMAGES = { enableImageTypes: 'Primary,Backdrop,Thumb,Logo', imageTypeLimit: 1 };
 
+/** True once Jellyfin itself answers: while it starts, a page about it answers in its place, but not to Ping. */
+export async function ping() {
+  try {
+    const response = await fetch(url('System/Ping'), { cache: 'no-store', signal: AbortSignal.timeout?.(6000) });
+    if (response.ok) setReachable(true);
+    return response.ok;
+  } catch { return false; }
+}
+
 export const api = {
-  publicInfo: () => get('System/Info/Public', null, { timeout: 8000 }),
+  async publicInfo() {
+    const info = await get('System/Info/Public', null, { timeout: 8000 });
+    // While Jellyfin starts, its startup page answers here too (in camelCase): that is not the server yet.
+    if (!info?.Id) { setReachable(false, 'starting'); throw new ApiError(503, STARTING); }
+    return info;
+  },
   publicUsers: () => get('Users/Public'),
 
   async signIn(username, password) {

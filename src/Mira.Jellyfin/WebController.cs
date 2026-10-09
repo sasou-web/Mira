@@ -29,12 +29,14 @@ public sealed class WebController : ControllerBase
 
         Response.Headers.ContentSecurityPolicy = Policy;
         Response.Headers["Referrer-Policy"] = "no-referrer";
-        return Serve("index.html", cache: false);
+        // The phone keeps the page a month: Mira opens even while the PC is off or Jellyfin is starting, then waits for
+        // it. At each start the app asks for the page again and reloads when its revision changed (an update).
+        return Serve("index.html", WebFiles.Current.Immutable ? PageCache : NoCache);
     }
 
     /// <summary>What the phone needs to add Mira to its home screen: name, colours, icons.</summary>
     [HttpGet("manifest.webmanifest")]
-    public IActionResult Manifest() => Serve("manifest.webmanifest", cache: false);
+    public IActionResult Manifest() => Serve("manifest.webmanifest", NoCache);
 
     /// <summary>Scripts, styles, fonts and images, kept by the phone until the next version of Mira.</summary>
     [HttpGet("v/{revision}/{**path}")]
@@ -42,17 +44,21 @@ public sealed class WebController : ControllerBase
     {
         var files = WebFiles.Current;
         // The page itself is only served at /Mira/, with its security policy.
-        return path == "index.html" ? NotFound() : Serve(path, cache: files.Immutable && revision == files.Revision);
+        return path == "index.html" ? NotFound() : Serve(path, files.Immutable && revision == files.Revision ? AssetCache : NoCache);
     }
 
-    private IActionResult Serve(string path, bool cache)
+    private const string AssetCache = "public, max-age=31536000, immutable";
+    private const string PageCache = "max-age=2592000";
+    private const string NoCache = "no-cache";
+
+    private IActionResult Serve(string path, string cache)
     {
         if (!WebFiles.Current.TryGet(path, out var file))
         {
             return NotFound();
         }
 
-        Response.Headers.CacheControl = cache ? "public, max-age=31536000, immutable" : "no-cache";
+        Response.Headers.CacheControl = cache;
         Response.Headers.XContentTypeOptions = "nosniff";
         return File(file.Content, file.ContentType, lastModified: null, new EntityTagHeaderValue(file.ETag));
     }

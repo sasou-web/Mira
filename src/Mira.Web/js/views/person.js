@@ -27,5 +27,5 @@ export function create({ id }) {
     }
   }
   load();
-  return { el, title: 'Personne', keep: true };
+  return { el, title: 'Personne', keep: true, refresh: load };
 }

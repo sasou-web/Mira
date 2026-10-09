@@ -9,6 +9,8 @@ const mse = (type) => !!Source?.isTypeSupported?.(type);
 export const nativeHls = can('application/vnd.apple.mpegurl') || can('application/x-mpegURL');
 /** hls.js is only loaded where HLS is not built in (not Safari) and Media Source Extensions exist. */
 export const useHlsJs = !nativeHls && !!Source;
+/** Safari lists a file's audio tracks and switches between them; elsewhere, another track means a conversion. */
+export const audioTracks = 'audioTracks' in HTMLMediaElement.prototype;
 
 export const support = (() => {
   const h264 = can('video/mp4; codecs="avc1.640029"');
@@ -81,9 +83,11 @@ export function deviceProfile(bitrate) {
         condition('LessThanEqual', 'VideoLevel', 52),
       ] },
       { Type: 'Video', Codec: 'hevc', Conditions: [condition('EqualsAny', 'VideoProfile', 'main|main 10')] },
+      // Without audioTracks, a file plays its first audio track only: Jellyfin converts for any other.
+      ...(audioTracks ? [] : [{ Type: 'VideoAudio', Conditions: [condition('Equals', 'IsSecondaryAudio', false)] }]),
     ],
     SubtitleProfiles: [
-      // Text subtitles come as WebVTT beside the video (iOS shows them in its own full screen too);
+      // Text subtitles come as WebVTT beside the video (Apple's player lists them in its menu);
       // pictures (PGS, DVD) are drawn into the video by the conversion.
       { Format: 'vtt', Method: 'External' },
       { Format: 'pgssub', Method: 'Encode' },

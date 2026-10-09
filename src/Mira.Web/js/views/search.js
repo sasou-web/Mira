@@ -71,6 +71,7 @@ export function create({ query }) {
 
   return {
     el, title: 'Recherche', keep: true,
+    refresh() { lastText = null; update(); },
     // The keyboard opens when the tab is tapped, as in Apple's apps (only with nothing typed yet).
     enter() { if (!input.value && matchMedia('(pointer: coarse)').matches) input.focus({ preventScroll: true }); },
     dispose() { controller?.abort(); clearTimeout(timer); },

@@ -1,5 +1,5 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
-import { onUnauthorized } from './api.js';
+import { onUnauthorized, onReachable, ping } from './api.js';
 import { h, icon, clear } from './dom.js';
 import { session } from './session.js';
 import { toast } from './components.js';
@@ -38,7 +38,12 @@ const tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Navigation' },
 
 const cache = new Map(); // hash → { view, scroll }
 const MAX_CACHED = 8;
-let current = null, currentKey = '', hiddenAt = 0, navigation = 0;
+let current = null, currentKey = '', hiddenAt = 0, navigation = 0, loadFailed = false;
+
+// While Jellyfin does not answer (PC off or starting), a bar says so and Mira asks again until it does.
+const netText = h('span', {});
+const netbar = h('div', { class: 'netbar', role: 'status', 'aria-live': 'polite', hidden: true }, h('div', { class: 'spinner' }), netText);
+let probeTimer = 0, probeDelay = 0;
 
 function markSvg(size) {
   const NS = 'http://www.w3.org/2000/svg';
@@ -67,6 +72,7 @@ export function resetScreens() {
 }
 
 async function route() {
+  if (pendingUpdate) applyUpdate();
   const key = location.hash || '#/';
   // A new entry (a link followed) gets its depth; going back finds the depth it had.
   if (history.state?.depth == null) history.replaceState({ depth: navigation === 0 ? 0 : (lastDepth + 1) }, '');
@@ -128,30 +134,80 @@ function trimCache() {
 }
 
 function showLoadFailure() {
+  loadFailed = true;
   clear(viewHost).append(h('div', { class: 'state' }, icon('offline'), h('h2', {}, 'Mira n’a pas pu se charger'),
-    h('p', {}, 'Le serveur ne répond pas. Vérifie le Wi-Fi, ou Tailscale hors de chez toi.'),
+    h('p', {}, 'Le serveur ne répond pas : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.'),
     h('button', { class: 'btn small', on: { click: () => location.reload() } }, 'Réessayer')));
+  serverDown('offline');
+}
+
+function serverDown(reason) {
+  netText.textContent = reason === 'starting'
+    ? 'Jellyfin démarre… Mira reprend dès qu’il répond.'
+    : 'Serveur injoignable. Mira réessaie toute seule.';
+  netbar.hidden = false;
+  if (!probeTimer) { probeDelay = 2000; probe(); }
+}
+function probe() {
+  probeTimer = setTimeout(async () => {
+    if (await ping()) { serverUp(); return; }
+    probeDelay = Math.min(probeDelay * 1.5, 10_000);
+    probe();
+  }, probeDelay);
+}
+function serverUp() {
+  clearTimeout(probeTimer); probeTimer = 0;
+  if (netbar.hidden) return;
+  netbar.hidden = true;
+  toast('Connexion au serveur rétablie.');
+  if (loadFailed) { loadFailed = false; route(); } else current?.refresh?.();
+  checkForUpdate();
+}
+
+// ---------- Updates of Mira web ----------
+// The phone keeps the page for a month (Mira opens even while the server is off). At each start, and when it comes
+// back, Mira asks the server for the page: a new revision means Mira web was updated there, and it reloads.
+const REVISION = new URL(import.meta.url).pathname.match(/\/v\/([^/]+)\//)?.[1] ?? '';
+let pendingUpdate = '';
+async function checkForUpdate() {
+  if (!REVISION) return;
+  try {
+    // cache: 'reload' also refreshes the copy of the page that the phone keeps.
+    const page = await (await fetch(location.pathname, { cache: 'reload', headers: { Accept: 'text/html' } })).text();
+    const revision = page.match(/v\/([0-9a-z]+)\/js\/app\.js/i)?.[1];
+    if (revision && revision !== REVISION) { pendingUpdate = revision; applyUpdate(); }
+  } catch { /* Server away: checked again when it answers. */ }
+}
+function applyUpdate() {
+  // Never in the middle of a film, and once per revision, should the reload bring the same page back.
+  if (!pendingUpdate || location.hash.startsWith('#/lecture/')) return;
+  if (sessionStorage.getItem('mira.update') === pendingUpdate) return;
+  sessionStorage.setItem('mira.update', pendingUpdate);
+  location.reload();
 }
 
 function updateScrolled() { document.body.classList.toggle('scrolled', scrollY > 8); }
 
 function start() {
   history.scrollRestoration = 'manual';
-  clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, tabbar);
+  clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, tabbar, netbar);
   addEventListener('hashchange', route);
   addEventListener('scroll', updateScrolled, { passive: true });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) hiddenAt = Date.now();
-    else if (hiddenAt && Date.now() - hiddenAt > 60_000) current?.refresh?.();
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (probeTimer) { clearTimeout(probeTimer); probeDelay = 1000; probe(); }
+    else if (hiddenAt && Date.now() - hiddenAt > 60_000) { current?.refresh?.(); checkForUpdate(); }
   });
   addEventListener('offline', () => toast('Plus de connexion : Mira reprendra dès le retour du réseau.'));
-  addEventListener('online', () => current?.refresh?.());
+  addEventListener('online', () => { if (probeTimer) { clearTimeout(probeTimer); probeDelay = 500; probe(); } else current?.refresh?.(); });
+  onReachable((up, reason) => (up ? serverUp() : serverDown(reason)));
   onUnauthorized(() => {
     resetScreens();
     sessionStorage.setItem('mira.notice', 'Ta session a pris fin. Reconnecte-toi.');
     location.replace('#/connexion');
   });
   route();
+  checkForUpdate();
 }
 
 start();

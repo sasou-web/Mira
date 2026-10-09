@@ -78,10 +78,13 @@ export function create() {
     body.append(list, errorBox, h('button', { class: 'btn quiet', on: { click: () => { lead.textContent = 'Connecte-toi avec ton compte Jellyfin.'; form(null, users); } } }, 'Autre compte'));
   }
 
+  let failed = false;
   async function load() {
+    failed = false;
     clear(body).append(h('div', { class: 'spinner', role: 'status', 'aria-label': 'Chargement' }));
     const [info, users] = await Promise.all([api.publicInfo().catch((e) => ({ error: e })), api.publicUsers().catch(() => [])]);
     if (info.error) {
+      failed = true;
       clear(body).append(h('p', { class: 'lead' }, info.error.message), h('button', { class: 'btn', on: { click: load } }, icon('refresh', { size: 20 }), 'Réessayer'));
       return;
     }
@@ -90,5 +93,6 @@ export function create() {
   }
 
   load();
-  return { el, title: 'Connexion' };
+  // Back from a server that did not answer: only a failed load is tried again, never a form being filled in.
+  return { el, title: 'Connexion', refresh: () => { if (failed) load(); } };
 }
