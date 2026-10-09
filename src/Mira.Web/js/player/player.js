@@ -456,12 +456,19 @@ export function create({ id, query }) {
   }
 
   // ---------- Video events ----------
+  function fitPicture() {
+    const ratio = video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 0;
+    el.classList.toggle('fitted', ratio > 0);
+    if (ratio) el.style.setProperty('--ratio', ratio.toFixed(4));
+  }
   const on = {
     loadedmetadata: () => {
       if (pendingStart > 0 && !progressive) { try { video.currentTime = pendingStart; } catch { /* set again on canplay */ } }
       pendingStart = 0;
+      fitPicture();
       updateTime();
     },
+    resize: fitPicture,
     playing: () => {
       busy.hidden = true; hideMessage(); updatePlayIcon(); showControls();
       if (!started) {

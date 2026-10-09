@@ -1,6 +1,6 @@
 // Mira web in Safari itself (WebKit, Apple's video engine, HLS built in): the path an iPhone takes. Driven through
 // safaridriver's WebDriver API, without dependencies. Checks HLS playback from Jellyfin's conversion, French
-// subtitles beside the video, the 10-second skip, the position Jellyfin keeps, and the next episode starting alone.
+// subtitles beside the video and on the picture, the 10-second skip, the position Jellyfin keeps, and the next episode starting alone.
 //   safaridriver -p 4444 &   then   node tools/web/safari.mjs <Mira web url> <user> <password> <out folder>
 import fs from 'node:fs';
 const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-check', out = 'safari'] = process.argv.slice(2);
@@ -64,6 +64,11 @@ try {
   check('Safari : flux HLS converti par Jellyfin', /\.m3u8/.test(state?.src ?? ''), (state?.src ?? '').split('?')[0]);
   check('Safari : lecture', state && !state.paused && state.t > 2 && !state.error, `${state?.t?.toFixed(1)} s, readyState ${state?.ready}, erreur ${state?.error ?? 'aucune'}`);
   check('Safari : sous-titres à côté de la vidéo', state?.tracks >= 1, `${state?.tracks} piste(s)`);
+  // Safari draws subtitles at the bottom of the video's box: fitted to the picture, they sit on it.
+  const box = await run(`const v = document.querySelector('video'), b = v.getBoundingClientRect();
+    return { w: b.width, h: b.height, vw: v.videoWidth, vh: v.videoHeight };`);
+  check('Safari : cadre de la vidéo ajusté à l’image', box.vw > 0 && Math.abs(box.w / box.h - box.vw / box.vh) < 0.02,
+    `${Math.round(box.w)}×${Math.round(box.h)} pour une image ${box.vw}×${box.vh}`);
   await shot('03-player');
 
   // Subtitles: chosen in the tracks sheet, then read from the cue Safari shows.
