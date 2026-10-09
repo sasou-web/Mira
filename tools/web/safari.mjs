@@ -119,13 +119,17 @@ try {
   state = await video();
   check('Safari : l’épisode suivant joue', state && !state.paused && state.t > 1, `${state?.t?.toFixed(1)} s`);
   await shot('06-next-episode');
-  await tapControl('.p-top button[aria-label="Retour"]'); await sleep(1000);
+  await tapControl('.p-top button[aria-label="Retour"]');
+  // Retour reports the stop to Jellyfin, then goes back: done once the player's address is gone.
+  for (let i = 0; i < 20 && (await run('return location.hash;')).startsWith('#/lecture/'); i++) await sleep(500);
+  await sleep(1000);
 
   // ---------- Apple's player, in full screen ----------
-  // The setting is read when Mira starts: the page is opened again, its <video> made without playsinline.
+  // The setting is read when Mira starts: the page is loaded again (another query: not a move within the page), its
+  // <video> made without playsinline.
   await run(`const s = JSON.parse(localStorage.getItem('mira.settings') || '{}'); s.nativePlayer = true; localStorage.setItem('mira.settings', JSON.stringify(s));`);
   for (const item of [movie, ...episodes]) await api(`UserPlayedItems/${item.Id}?userId=${signed.userId}`, 'DELETE');
-  await wd('POST', s('/url'), { url: `${base}#/titre/${movie.Id}` });
+  await wd('POST', s('/url'), { url: `${base}?lecteur=apple#/titre/${movie.Id}` });
   await sleep(3000);
   check('lecteur d’Apple : réglage pris en compte', await runAsync(`const { appleNative } = await import(document.querySelector('script[type=module]').src.replace('app.js', 'player/video.js'));
     return appleNative();`) === true);
@@ -153,7 +157,7 @@ try {
   check('lecteur d’Apple : lecture en plein écran', state?.full && state.mode === 'fullscreen' && !state.paused, `${state?.mode}, ${state?.t?.toFixed(1)} s, ${(state?.src ?? '').split('?')[0].split('/').pop()}`);
   check('lecteur d’Apple : sous-titres français dans son menu', state?.tracks >= 1 && state?.showing === 'Français', `${state?.tracks} piste(s), affichée : ${state?.showing || 'aucune'}`);
   await shot('08-apple-player').catch(() => {});
-  await run("document.querySelector('video').webkitExitFullscreen();");
+  await run("document.querySelector('video')?.webkitExitFullscreen?.();");
   let back = false;
   for (let i = 0; i < 16 && !back; i++) { await sleep(500); back = (await run('return location.hash;')).startsWith(`#/titre/${movie.Id}`); }
   await sleep(1500);
@@ -167,9 +171,9 @@ try {
   moved = false;
   for (let i = 0; i < 40 && !moved; i++) { await sleep(1000); moved = (await run('return location.hash;')).includes(episodes[1].Id); }
   await sleep(4000);
-  state = await run("const v = document.querySelector('video'); return { full: v.webkitDisplayingFullscreen, t: v.currentTime, paused: v.paused };");
+  state = await run("const v = document.querySelector('video'); return v ? { full: v.webkitDisplayingFullscreen, t: v.currentTime, paused: v.paused } : { full: false, t: 0, paused: true };");
   check('lecteur d’Apple : épisode suivant sans quitter le plein écran', moved && state.full && !state.paused && state.t > 1, `${moved ? 'É2' : 'resté sur É1'}, ${state.full ? 'plein écran' : 'dans la page'}, ${state.t.toFixed(1)} s`);
-  await run("document.querySelector('video').webkitExitFullscreen();"); await sleep(2000);
+  await run("document.querySelector('video')?.webkitExitFullscreen?.();"); await sleep(2000);
   check('lecteur d’Apple : fermé, retour à l’écran d’avant', (await run('return location.hash;')).startsWith('#/titre/'), (await run('return location.hash;')).split('?')[0]);
 } catch (error) {
   check('déroulé', false, String(error.message ?? error).split('\n')[0]);
