@@ -15,12 +15,14 @@ rm -rf "$OUT" && mkdir -p "$BUILD"
 dotnet publish "$ROOT/src/Mira.Jellyfin/Mira.Jellyfin.csproj" -c Release -o "$BUILD" -p:Version="$VERSION" -p:DebugType=none -nologo -v q
 ZIP="mira-jellyfin-$VERSION.zip"
 (cd "$BUILD" && zip -q -X "$OUT/$ZIP" Mira.Jellyfin.dll)
-CHECKSUM=$(md5sum "$OUT/$ZIP" | cut -d' ' -f1)
 
 # Jellyfin loads a plugin only if its own version is at least targetAbi: 10.9, the oldest Mira supports.
-VERSION="$VERSION" BASE="$BASE" ZIP="$ZIP" CHECKSUM="$CHECKSUM" python3 - > "$OUT/jellyfin-manifest.json" <<'PY'
-import json, os, datetime
+# The checksum is the zip's MD5, which Jellyfin checks before installing it (computed here: macOS has no md5sum).
+VERSION="$VERSION" BASE="$BASE" ZIP="$ZIP" OUT="$OUT" python3 - > "$OUT/jellyfin-manifest.json" <<'PY'
+import datetime, hashlib, json, os
 version = os.environ["VERSION"]
+with open(os.path.join(os.environ["OUT"], os.environ["ZIP"]), "rb") as archive:
+    checksum = hashlib.md5(archive.read()).hexdigest()
 print(json.dumps([{
     "guid": "4ea89259-3350-45b0-8045-f1ab627214dd",
     "name": "Mira",
@@ -33,7 +35,7 @@ print(json.dumps([{
         "changelog": f"https://github.com/sasou-web/Mira/blob/v{version}/CHANGELOG.md",
         "targetAbi": "10.9.0.0",
         "sourceUrl": f"{os.environ['BASE']}/{os.environ['ZIP']}",
-        "checksum": os.environ["CHECKSUM"],
+        "checksum": checksum,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }],
 }], ensure_ascii=False, indent=2))
