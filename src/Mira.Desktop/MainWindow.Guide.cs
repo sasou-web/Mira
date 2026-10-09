@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using Mira.Core;
 using Mira.Core.Updates;
+using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
@@ -156,7 +157,44 @@ public partial class MainWindow
         GuideWeb.Visibility = server is null ? Visibility.Collapsed : Visibility.Visible;
         if (server is null || _client is not { } client || _webState == "installing") return;
         var ready = await client.WebAppAvailableAsync();
-        if (version == _guideVersion) ShowWeb(ready ? "ready" : "install");
+        if (version != _guideVersion) return;
+        ShowWeb(ready ? "ready" : "install");
+        await DescribeBootAsync(version);
+    }
+    /// <summary>
+    /// For a Jellyfin on this PC: whether phones find Mira web as soon as the PC is on, before anyone signs in, and the
+    /// button that sets it up when they do not.
+    /// </summary>
+    private async Task DescribeBootAsync(int version)
+    {
+        var local = !_demo && _client?.Connection.Server is { } server && Uri.TryCreate(server, UriKind.Absolute, out var uri) && uri.IsLoopback;
+        if (!local) { GuideWebBoot.Visibility = GuideWebBootAction.Visibility = Visibility.Collapsed; return; }
+        var state = await Task.Run(() => JellyfinAutostart.Read());
+        if (version != _guideVersion) return;
+        var missing = state.Missing();
+        GuideWebBoot.Text = !state.HasService
+            ? "Jellyfin tourne ici sans service Windows : il ne démarre qu’une fois ta session ouverte, et ton téléphone ne le trouve qu’ensuite."
+            : missing.Count == 0
+                ? "Dès que ce PC est allumé, même avant d’ouvrir ta session, ton téléphone trouve Mira web : Jellyfin démarre avec Windows, repart s’il s’arrête sur une erreur, et le pare-feu laisse entrer ton réseau et Tailscale."
+                : $"Pour que ton téléphone trouve Mira web dès l’allumage du PC : {string.Join(", ", missing)}. Mira règle tout en une fois, avec l’autorisation de Windows.";
+        GuideWebBoot.Visibility = Visibility.Visible;
+        GuideWebBootAction.Visibility = state.HasService && missing.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+    private async void GuideWebBoot_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client?.Connection.Server is not { } server || !Uri.TryCreate(server, UriKind.Absolute, out var uri)) return;
+        GuideWebBootAction.IsEnabled = false;
+        try
+        {
+            SetNotice((await JellyfinAutostart.ApplyAsync(uri.Port)) switch
+            {
+                AutostartResult.Done => "C’est réglé : ton téléphone trouvera Mira web dès l’allumage du PC.",
+                AutostartResult.Refused => "Rien n’a changé : Windows n’a pas reçu l’autorisation.",
+                _ => "Le réglage n’a pas abouti. Réessaie, ou règle le service « Jellyfin Server » et le pare-feu de Windows à la main.",
+            });
+            await DescribeBootAsync(_guideVersion);
+        }
+        finally { GuideWebBootAction.IsEnabled = true; }
     }
     private void ShowWeb(string state)
     {
