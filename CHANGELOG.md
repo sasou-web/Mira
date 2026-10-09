@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.7.0 — 2026-10-09
+
+Mira arrive sur iPhone, iPad et Android : ton serveur Jellyfin la sert lui-même, sans App Store ni compte Apple, et Mira pour Windows l’installe en un clic.
 
 - **Mira sur iPhone, iPad et Android (Mira web)** : la version de Mira pour téléphone et tablette, servie par ton serveur Jellyfin grâce à l’extension Mira. Rien à installer sur le téléphone, ni App Store ni compte Apple. Ouvre `http://<adresse du serveur>:8096/Mira`, puis, sur iPhone, **Partager → Sur l’écran d’accueil** : elle s’ouvre en plein écran comme une app.
   - Choix du profil à la connexion, accueil avec bandeau et Continuer à regarder, films et séries avec filtres, recherche (titres et personnes), fiches avec distribution, titres similaires et longues saisons par tranches de 100, favoris, vu ou non vu, retrait de Continuer à regarder.
