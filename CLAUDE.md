@@ -76,7 +76,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 
 ## État actuel
 - 0.7.0 publiée le 2026-10-09 : Windows, Mac (`.dmg`) et Mira web (extension et manifeste dans la release).
-- Branche `claude/upbeat-franklin-y2n2dw` (non publiée, section « Non publié » du CHANGELOG) : retours du premier essai sur iPhone — lecture dans le lecteur d'Apple, pistes choisies sur la fiche, langues des réglages, Mira qui s'ouvre et attend le serveur, Jellyfin joignable dès l'allumage du PC (guide Windows), intros passées automatiquement (réglage).
+- 0.7.1 préparée (PR sasou-web/Mira#23, à publier depuis le PC de l'utilisateur après la fusion) : retours du premier essai sur iPhone — lecture dans le lecteur d'Apple, pistes choisies sur la fiche, langues des réglages, Mira qui s'ouvre et attend le serveur, Jellyfin joignable dès l'allumage du PC (guide Windows), intros passées automatiquement (réglage).
 - Vérifié en CI sur la branche : Windows 76 tests (dont vrais `sc`/`netsh`), Chromium 29/29 (dont serveur arrêté puis relancé, lecteur d'Apple simulé), Safari 20/20 (dont lecteur d'Apple en plein écran de WebKit). Détails : `docs/VALIDATION.md`.
 - Non vérifié sur un vrai iPhone : le lecteur d'Apple (plein écran sans toucher après le premier geste, menu des sous-titres, épisode suivant en plein écran, Dynamic Island), l'ouverture depuis le cache PC éteint. Non vérifié sur le PC de l'utilisateur : « Disponible dès l'allumage du PC » (consentement UAC réel).
-- Prochaine étape : essai par l'utilisateur sur son iPhone et son PC, puis préparation de la version (WhatsNew.json, version).
+- Prochaine étape : fusion de la PR, publication de la 0.7.1, puis essai par l'utilisateur sur son iPhone et son PC.

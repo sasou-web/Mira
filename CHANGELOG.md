@@ -1,6 +1,6 @@
 # Historique
 
-## Non publié
+## 0.7.1 — 2026-10-09
 
 Mira web après le premier essai sur un vrai iPhone : la lecture passe par le lecteur d’Apple, et Mira s’ouvre même quand le PC démarre.
 
