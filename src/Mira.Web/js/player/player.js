@@ -9,6 +9,7 @@ import { sheet, toast, changed, titleHref } from '../components.js';
 import { goBack } from '../app.js';
 import { deviceProfile, nativeHls, useHlsJs } from './profile.js';
 import { sharedVideo } from './video.js';
+import { trackText } from './tracks.js';
 import { QUALITIES } from '../views/settings.js';
 
 const SKIP_LABELS = { Intro: 'Passer l’intro', Recap: 'Passer le récap', Preview: 'Passer l’aperçu', Commercial: 'Passer la pub' };
@@ -85,9 +86,10 @@ export function create({ id, query }) {
     h('div', { class: 'p-center' }, back10, playButton, fwd10),
     h('div', { class: 'p-bottom' },
       timeline,
-      h('div', { class: 'p-row' }, now, h('div', { class: 'spacer' }), muteButton, nextButton, fullButton, left)));
+      h('div', { class: 'p-row' }, now, h('div', { class: 'spacer' }), muteButton, nextButton, fullButton, left)),
+    busy);
   const surface = h('div', { class: 'layer', 'aria-hidden': 'true' });
-  el.append(video, surface, busy, controls, pillLayer, message);
+  el.append(video, surface, controls, pillLayer, message);
 
   // ---------- Controls visibility ----------
   function showControls(hold = false) {
@@ -359,7 +361,7 @@ export function create({ id, query }) {
     for (const stream of streams) {
       if (stream.Type !== 'Subtitle' || stream.DeliveryMethod !== 'External' || !stream.DeliveryUrl) continue;
       video.append(h('track', {
-        kind: 'subtitles', label: stream.DisplayTitle ?? stream.Language ?? 'Sous-titres', srclang: stream.Language ?? 'und',
+        kind: 'subtitles', label: trackText(stream, streams.filter((s) => s.Type === 'Subtitle').indexOf(stream) + 1).label, srclang: stream.Language ?? 'und',
         src: signed(stream.DeliveryUrl), default: stream.Index === subtitleIndex, dataset: { index: String(stream.Index) },
       }));
     }
@@ -375,6 +377,7 @@ export function create({ id, query }) {
   }
 
   // ---------- Tracks, speed and quality ----------
+  const describe = (kind, stream, number) => [kind, trackText(stream, number).details].filter(Boolean).join(' · ');
   function tracksSheet() {
     const streams = source?.MediaStreams ?? [];
     const audio = streams.filter((s) => s.Type === 'Audio');
@@ -382,9 +385,9 @@ export function create({ id, query }) {
     sheet({
       title: 'Audio et sous-titres',
       items: [
-        ...audio.map((s) => ({ label: s.DisplayTitle ?? s.Language ?? `Piste ${s.Index}`, sub: 'Audio', selected: s.Index === audioIndex, run: () => switchTracks({ audio: s.Index }) })),
+        ...audio.map((s, i) => ({ label: trackText(s, i + 1).label, sub: describe('Audio', s, i + 1), selected: s.Index === audioIndex, run: () => switchTracks({ audio: s.Index }) })),
         { label: 'Sans sous-titres', sub: 'Sous-titres', selected: subtitleIndex === -1 || subtitleIndex == null, run: () => switchTracks({ subtitle: -1 }) },
-        ...subs.map((s) => ({ label: s.DisplayTitle ?? s.Language ?? `Sous-titres ${s.Index}`, sub: s.IsExternal ? 'Sous-titres · fichier à part' : 'Sous-titres', selected: s.Index === subtitleIndex, run: () => switchTracks({ subtitle: s.Index }) })),
+        ...subs.map((s, i) => ({ label: trackText(s, i + 1).label, sub: describe('Sous-titres', s, i + 1), selected: s.Index === subtitleIndex, run: () => switchTracks({ subtitle: s.Index }) })),
       ],
     });
   }

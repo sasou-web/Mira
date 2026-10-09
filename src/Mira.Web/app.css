@@ -407,7 +407,9 @@ button.item:active, a.item:active { background: var(--raised); }
 .player.fitted video { margin: auto; width: min(100%, calc(100dvh * var(--ratio))); height: min(100%, calc(100vw / var(--ratio))); }
 .player video::cue { font-family: 'Nunito Sans', system-ui, sans-serif; font-weight: 700; background: rgba(0, 0, 0, 0.55); font-size: var(--cue, 100%); }
 .player .layer { position: absolute; inset: 0; transition: opacity var(--slow) linear; }
-.player.idle .controls { opacity: 0; }
+/* Hidden controls fade out, but not the spinner, which stays where the play button is. */
+.controls > *, .controls::before { transition: opacity var(--slow) linear; }
+.player.idle .controls > :not(.p-busy), .player.idle .controls::before { opacity: 0; }
 /* Taps between the buttons reach the video's surface (show or hide the controls, double tap to skip). */
 .controls { pointer-events: none; }
 .controls button, .controls a, .controls .timeline { pointer-events: auto; }
@@ -444,7 +446,10 @@ button.item:active, a.item:active { background: var(--raised); }
 .scrub-tip { position: absolute; bottom: 40px; transform: translateX(-50%); display: grid; justify-items: center; gap: 6px; pointer-events: none; }
 .scrub-tip .thumb { border-radius: var(--r-s); background: #111 no-repeat; box-shadow: var(--shadow); border: 2px solid rgba(255, 255, 255, 0.85); }
 .scrub-tip span { font-size: 14px; font-weight: 800; padding: 2px 8px; border-radius: var(--r-s); background: rgba(0, 0, 0, 0.7); font-variant-numeric: tabular-nums; }
-.p-busy { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.p-busy { position: relative; z-index: 1; grid-area: 2 / 1; display: grid; place-items: center; pointer-events: none; }
+.p-top { grid-row: 1; } .p-center { grid-area: 2 / 1; } .p-bottom { grid-row: 3; }
+/* While the video loads, the spinner takes the play button's place instead of showing through it. */
+.controls:has(.p-busy:not([hidden])) .p-center .round.big { visibility: hidden; }
 .p-flash { position: absolute; top: 50%; width: 92px; height: 92px; margin-top: -46px; border-radius: 50%; display: grid; place-items: center; gap: 0; background: rgba(255, 255, 255, 0.12); font-size: 13px; font-weight: 800; animation: flash 520ms var(--ease) forwards; pointer-events: none; }
 .p-flash.left { left: 12%; } .p-flash.right { right: 12%; }
 @keyframes flash { 0% { opacity: 0; transform: scale(0.8); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.06); } }
