@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function wd(method, path, body) {
   const response = await fetch(`${driver}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`${method} ${path}: ${data?.value?.message ?? response.status}`);
+  if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${data?.value?.error ?? ''} ${data?.value?.message ?? ''}`.trim());
   return data.value;
 }
 const { sessionId: id } = await wd('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari' } } });
@@ -26,6 +26,13 @@ const runAsync = (body, ...args) => wd('POST', s('/execute/async'), {
 const go = (hash) => run('location.hash = arguments[0];', hash);
 const find = async (css) => { try { return (await wd('POST', s('/element'), { using: 'css selector', value: css }))[ELEMENT]; } catch { return null; } };
 const click = async (css) => { const el = await find(css); if (el) await wd('POST', s(`/element/${el}/click`), {}); return !!el; };
+// The player's controls fade out after 3 s of playback: the mouse passing over the picture, as on a Mac, brings them
+// back before each button is clicked (Safari refuses a click on a hidden control).
+const tapControl = async (css) => {
+  await run("document.querySelector('.player')?.dispatchEvent(new PointerEvent('pointermove', { pointerType: 'mouse', bubbles: true }));");
+  await sleep(300);
+  return click(css);
+};
 const shot = async (name) => fs.writeFileSync(`${out}/${name}.png`, Buffer.from(await wd('GET', s('/screenshot')), 'base64'));
 const video = () => run(`const v = document.querySelector('video'); return v ? { t: v.currentTime, paused: v.paused, ready: v.readyState, error: v.error && v.error.code,
   src: v.currentSrc, tracks: v.textTracks.length, hash: location.hash } : null;`);
@@ -60,7 +67,7 @@ try {
   await shot('03-player');
 
   // Subtitles: chosen in the tracks sheet, then read from the cue Safari shows.
-  await click('button[aria-label="Audio et sous-titres"]'); await sleep(700);
+  await tapControl('button[aria-label="Audio et sous-titres"]'); await sleep(700);
   await shot('04-tracks');
   const picked = await run(`const item = [...document.querySelectorAll('.sheet-item')].find((b) => /fr|fran/i.test(b.textContent) && /Sous-titres/.test(b.textContent));
     if (item) item.click(); return item ? item.textContent : '';`);
@@ -71,10 +78,10 @@ try {
   await shot('05-subtitles');
 
   const before = (await video()).t;
-  await click('button[aria-label="Avancer de 10 secondes"]'); await sleep(2500);
+  await tapControl('button[aria-label="Avancer de 10 secondes"]'); await sleep(2500);
   const after = (await video()).t;
   check('Safari : avance de 10 s', after - before >= 9, `${before.toFixed(1)} → ${after.toFixed(1)} s`);
-  await click('.p-top button[aria-label="Retour"]'); await sleep(2500);
+  await tapControl('.p-top button[aria-label="Retour"]'); await sleep(2500);
   const saved = await api(`Items/${movie.Id}?userId=${signed.userId}`);
   check('Jellyfin : position du film', saved.UserData.PlaybackPositionTicks > 100_000_000, `${(saved.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
 
@@ -87,7 +94,7 @@ try {
   state = await video();
   check('Safari : l’épisode suivant joue', state && !state.paused && state.t > 1, `${state?.t?.toFixed(1)} s`);
   await shot('06-next-episode');
-  await click('.p-top button[aria-label="Retour"]'); await sleep(1000);
+  await tapControl('.p-top button[aria-label="Retour"]'); await sleep(1000);
 } catch (error) {
   check('déroulé', false, String(error.message ?? error).split('\n')[0]);
   await shot('error').catch(() => {});
