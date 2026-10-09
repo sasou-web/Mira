@@ -858,6 +858,56 @@ await Test("Journal de Jellyfin : la cause d’un démarrage raté est lue, pas 
     Assert(JellyfinLog.LastFatal(Path.Combine(testRoot, "no-jellyfin-log"), DateTimeOffset.MinValue) is null, "A missing folder");
     return Task.CompletedTask;
 });
+await Test("Démarrage avec Windows : service, relance après une erreur et pare-feu, lus puis réglés", () =>
+{
+    // SERVICE_FAILURE_ACTIONS as Windows stores it: reset period, two unused fields, the count, an unused field, then each type and delay.
+    static byte[] Actions(params (int Type, int Delay)[] actions)
+    {
+        var bytes = new List<byte>();
+        foreach (var value in new[] { 86400, 0, 0, actions.Length, 0 }) bytes.AddRange(BitConverter.GetBytes(value));
+        foreach (var (type, delay) in actions) { bytes.AddRange(BitConverter.GetBytes(type)); bytes.AddRange(BitConverter.GetBytes(delay)); }
+        return bytes.ToArray();
+    }
+    Assert(JellyfinStartup.RestartsAfterError(Actions((1, 15000), (1, 30000)), 1), "Restart actions not read");
+    Assert(!JellyfinStartup.RestartsAfterError(Actions((1, 15000)), 0), "Without the non-crash flag, NSSM's stop on an error restarts nothing");
+    Assert(!JellyfinStartup.RestartsAfterError(Actions((0, 0)), 1) && !JellyfinStartup.RestartsAfterError(null, 1) && !JellyfinStartup.RestartsAfterError(new byte[8], 1), "No action, no value, a short value");
+    var delayed = new JellyfinStartup.State(true, true, true, false, false);
+    Assert(!delayed.Ready && delayed.Missing().Count == 3 && delayed.Missing()[0].Contains("deux minutes"), "Delayed start, no restart, no rule");
+    Assert(new JellyfinStartup.State(true, true, false, true, true).Ready && new JellyfinStartup.State(false, false, false, false, false).Missing().Count == 0, "Ready; without a service, nothing to set");
+    var commands = JellyfinStartup.Commands(@"C:\Program Files\Jellyfin\Server\jellyfin.exe", 8096);
+    var rules = commands.Where(c => c.Arguments.Contains("add rule")).Select(c => c.Arguments).ToList();
+    Assert(rules.Count == 2 && rules.All(r => r.Contains("localport=8096") && r.Contains("program=\"C:\\Program Files\\Jellyfin\\Server\\jellyfin.exe\"") && r.Contains("dir=in") && r.Contains("protocol=TCP")), "Rules for Jellyfin's program and port only");
+    Assert(rules[0].Contains("remoteip=localsubnet") && rules[1].Contains("remoteip=" + LocalNetwork.TailnetRange), "Home network and Tailscale only");
+    Assert(commands[0].Arguments == "config JellyfinServer start= auto" && commands.Any(c => c.Arguments == $"failure JellyfinServer reset= 86400 actions= {JellyfinStartup.RestartActions}")
+        && commands.Any(c => c.Arguments == "failureflag JellyfinServer 1") && commands.All(c => c.File is "sc.exe" or "netsh.exe"), "Service set to start with Windows and to restart after an error");
+    foreach (var (program, port) in new[] { ("jellyfin.exe", 8096), (@"C:\a\jellyfin.exe", 0), (@"C:\a\b"" & calc.exe", 8096) })
+    {
+        var refused = false;
+        try { JellyfinStartup.Commands(program, port); } catch (ArgumentException) { refused = true; }
+        Assert(refused, $"Accepted: {program} {port}");
+    }
+    // GitHub's Windows runners are administrators without a consent prompt: the real sc and netsh, on a service of the test's own.
+    if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+        && new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator))
+    {
+        const string service = "MiraStartupCheck", rule = "Mira - startup check";
+        var program = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        Assert(JellyfinAutostart.RunSystem("sc.exe", $"create {service} binPath= \"{program}\" start= delayed-auto") == 0, "Test service not created");
+        try
+        {
+            var before = JellyfinAutostart.Read(service, rule);
+            Assert(before.HasService && before.StartsWithWindows && before.Delayed && !before.RestartsAfterError && !before.FirewallOpen, $"Before: {before}");
+            Assert(JellyfinAutostart.Apply(program, 18096, service, rule, start: false), "sc or netsh failed");
+            var after = JellyfinAutostart.Read(service, rule);
+            Assert(after.Ready, $"After: {after}");
+            Assert(JellyfinAutostart.Apply(program, 18096, service, rule, start: false) && JellyfinAutostart.RunSystem("netsh.exe", $"advfirewall firewall show rule name=\"{rule}\"") == 0, "Not set up again over itself");
+        }
+        finally { JellyfinAutostart.RunSystem("sc.exe", $"delete {service}"); JellyfinAutostart.RemoveRule(rule); }
+        Assert(!JellyfinAutostart.Read(service, rule).HasService && JellyfinAutostart.RunSystem("netsh.exe", $"advfirewall firewall show rule name=\"{rule}\"") != 0, "Test service or rule left behind");
+        Console.WriteLine("      (sc et netsh réels, service de test créé puis supprimé)");
+    }
+    return Task.CompletedTask;
+});
 await Test("Dossiers médias : le service Jellyfin peut les lire, fichiers liés ou déplacés compris", async () =>
 {
     // Jellyfin's Windows service runs as Network Service: a hard link or a move keeps the download's own permissions.
