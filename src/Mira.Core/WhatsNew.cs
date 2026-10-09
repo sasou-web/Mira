@@ -45,7 +45,8 @@ public static class WhatsNew
         if (seen is not null && Trim(seen) >= Trim(current)) return StartupScreen.None;
         return Since(seen, current, entries).Count > 0 ? StartupScreen.WhatsNew : StartupScreen.None;
     }
-    /// <summary>The release page's text on GitHub: the summary, the highlights, how to install on Windows and on a Mac, and where the details are.</summary>
+    /// <summary>The release page's text on GitHub: the summary, the highlights, how to install on Windows, on a Mac and on a
+    /// phone, and where the details are.</summary>
     public static string ReleaseNotes(ReleaseHighlights release)
     {
         var text = new StringBuilder();
@@ -54,6 +55,8 @@ public static class WhatsNew
         text.Append("\n**Sur Windows** : `Mira-").Append(release.Version).Append("-win-x64-setup.exe`. Les copies déjà installées se mettent à jour toutes seules.\n\n");
         text.Append("**Sur Mac** (puce Apple, macOS 14 ou plus) : `Mira-").Append(release.Version).Append("-mac-arm64.dmg`. La première ouverture demande une autorisation : [installer Mira sur Mac](https://github.com/sasou-web/Mira/blob/v")
             .Append(release.Version).Append("/docs/INSTALLATION-MAC.md).\n\n");
+        text.Append("**Sur iPhone, iPad et Android** : Mira web, servie par Jellyfin. Dans Mira pour Windows, **Guide → Sur tes autres appareils → Installer Mira web** : [Mira sur iPhone, iPad et Android](https://github.com/sasou-web/Mira/blob/v")
+            .Append(release.Version).Append("/docs/INSTALLATION-WEB.md).\n\n");
         text.Append("Tous les détails : [CHANGELOG](https://github.com/sasou-web/Mira/blob/v").Append(release.Version).Append("/CHANGELOG.md)\n");
         return text.ToString();
     }

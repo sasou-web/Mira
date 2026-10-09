@@ -2,7 +2,7 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Mira web (non publié)
+## Mira web 0.7.0
 
 - **Extension sur un vrai Jellyfin 12.1** (local) :
   - compilée contre Jellyfin 10.9, elle est chargée par la 12.1 (« Loaded plugin: Mira ») ;

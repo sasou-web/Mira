@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.7.0",
+    "summary": "Mira arrive sur iPhone, iPad et Android, servie par ton serveur Jellyfin.",
+    "items": [
+      { "icon": "phone", "title": "Mira sur ton téléphone", "text": "Ajoute-la à l’écran d’accueil de l’iPhone : elle s’ouvre comme une app, sans App Store." },
+      { "icon": "sparkle", "title": "Installée en un clic", "text": "Guide → Sur tes autres appareils → Installer Mira web, puis scanne le QR code." },
+      { "icon": "refresh", "title": "Reprise partagée", "text": "Commence un film sur le PC, finis-le sur le téléphone, au même endroit." }
+    ]
+  },
+  {
     "version": "0.6.0",
     "summary": "Mira arrive sur Mac, le volume monte jusqu’à 200 %, et les très longues séries sont complètes.",
     "items": [

@@ -6,7 +6,7 @@
   <PropertyGroup>
     <AssemblyName>Mira.Jellyfin</AssemblyName>
     <RootNamespace>Mira.Jellyfin</RootNamespace>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
     <!-- Only Mira.Jellyfin.dll goes in the plugin: Jellyfin provides its own libraries. -->
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
