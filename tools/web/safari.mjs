@@ -1,6 +1,7 @@
 // Mira web in Safari itself (WebKit, Apple's video engine, HLS built in): the path an iPhone takes. Driven through
 // safaridriver's WebDriver API, without dependencies. Checks HLS playback from Jellyfin's conversion, French
-// subtitles beside the video and on the picture, the 10-second skip, the position Jellyfin keeps, and the next episode starting alone.
+// subtitles beside the video and on the picture, the 10-second skip, the position Jellyfin keeps, and the next
+// episode starting alone.
 //   safaridriver -p 4444 &   then   node tools/web/safari.mjs <Mira web url> <user> <password> <out folder>
 import fs from 'node:fs';
 const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-check', out = 'safari'] = process.argv.slice(2);
