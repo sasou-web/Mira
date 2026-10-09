@@ -110,7 +110,8 @@ jobs:
         run: |
           sudo safaridriver --enable
           (safaridriver -p 4444 > .artifacts/safaridriver.log 2>&1 &)
-          sleep 2
+          # On a fresh runner, safaridriver may take more than a few seconds to listen: wait for it, 30 s at most.
+          for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:4444/status && break; sleep 1; done
           node tools/web/safari.mjs http://127.0.0.1:8096/Mira/ mira mira-check .artifacts/safari
       - name: Jellyfin log
         if: failure()
