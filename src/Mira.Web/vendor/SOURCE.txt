@@ -1,0 +1,5 @@
+hls.js 1.7.3 (https://github.com/video-dev/hls.js), Apache License 2.0: dist/hls.light.min.mjs from the npm package,
+without its source map comment. Loaded only by browsers that do not play HLS themselves (not Safari).
+
+qrcode-generator 2.0.4 (https://github.com/kazuhikoarase/qrcode-generator), MIT licence, Copyright (c) 2009
+Kazuhiko Arase: dist/qrcode.mjs from the npm package, unchanged.

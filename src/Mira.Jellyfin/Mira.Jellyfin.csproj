@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Mira web, served by Jellyfin itself at /Mira: a Jellyfin plugin with the web app (src/Mira.Web) built in.
+    Built against the oldest Jellyfin Mira supports (10.9, .NET 8): the plugin loads on it and on every later version.
+  -->
+  <PropertyGroup>
+    <AssemblyName>Mira.Jellyfin</AssemblyName>
+    <RootNamespace>Mira.Jellyfin</RootNamespace>
+    <Version>0.6.0</Version>
+    <!-- Only Mira.Jellyfin.dll goes in the plugin: Jellyfin provides its own libraries. -->
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Jellyfin.Controller" Version="10.9.11" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../Mira.Web/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
