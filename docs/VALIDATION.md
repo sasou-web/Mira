@@ -15,7 +15,22 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - pistes de départ par les langues des réglages, changées sur la fiche, demandées à Jellyfin (`AudioStreamIndex` 4, `SubtitleStreamIndex` 1), puis lues : flux converti avec la piste anglaise, sous-titre français affiché (« Lueur en VF. ») ;
   - Jellyfin arrêté : Mira s’ouvre depuis la page gardée et affiche « Serveur injoignable » ; relancé : tout reprend seul ;
   - lecteur d’Apple simulé (`webkitPresentationMode` et son événement) : plein écran dès Lecture, épisode suivant sans quitter le plein écran, image dans l’image puis retour, fermeture vers la fiche avec la position gardée.
+- **GitHub Actions, sur la branche** :
+  - **Windows** : compilation sans avertissement, **76 tests**. Le nouveau test crée un service sur le runner (administrateur, sans demande d’autorisation), le règle avec les vrais `sc` et `netsh`, puis l’efface. Il vérifie d’abord le démarrage différé, sans relance ni règle, puis le service prêt, et qu’un second passage ne casse rien. La galerie de l’interface (36 vues) est inchangée ;
+  - **Chromium** : **29/29**, Jellyfin arrêté puis relancé pendant le contrôle (`docker stop`, `docker start`) ;
+  - **Safari sur Mac** : **20/20**. En plus des 11 points d’avant, le lecteur d’Apple (réglage `nativePlayer`, plein écran de WebKit) :
+    - sous-titres français choisis sur la fiche ;
+    - lecture HLS en plein écran, avec un toucher, comme Safari le demande sur Mac ;
+    - le sous-titre dans son menu et affiché sur l’image (« Bonjour depuis Mira web. ») ;
+    - fermé, retour à la fiche et position gardée (8,2 s) ;
+    - épisode suivant sans quitter le plein écran, puis retour.
+  - Deux échecs du nouveau contrôle Safari, venus du script et non de Mira, ont été corrigés :
+    - il continuait pendant que Retour envoyait encore l’arrêt : son retour arrière arrivait après la navigation suivante ;
+    - il fermait le film après 1 s, sous le minimum de Jellyfin pour une reprise (5 %, soit 2 s de ce film).
 - **Défaut trouvé en cours de route** : pendant le chargement des pistes, un changement fait par le navigateur passait pour un choix et affichait les sous-titres anglais au lieu des français demandés.
+- **Pas encore vérifié** :
+  - sur un vrai iPhone : le plein écran sans toucher après le premier geste, le menu des sous-titres d’iOS, l’absence de Dynamic Island, l’ouverture depuis la page gardée PC éteint ;
+  - sur le PC de l’utilisateur : **Disponible dès l’allumage du PC**, avec la vraie demande d’autorisation de Windows.
 
 ## Mira web 0.7.0
 
