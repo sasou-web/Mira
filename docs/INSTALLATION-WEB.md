@@ -2,7 +2,7 @@
 
 Mira web est la version de Mira pour téléphone et tablette. Ton serveur Jellyfin la sert lui-même : il n’y a rien à installer sur le téléphone, ni App Store, ni compte Apple, ni application à rafraîchir. Sur iPhone, une fois ajoutée à l’écran d’accueil, elle s’ouvre comme une app, en plein écran, avec son icône.
 
-Tu y retrouves l’interface de Mira : l’accueil avec Continuer à regarder, les films et les séries avec leurs filtres, la recherche, les fiches avec la distribution et les longues saisons par tranches de 100. Le lecteur gère la reprise, l’intro à passer, l’épisode suivant, les pistes audio et sous-titres, AirPlay et l’image dans l’image. Ta progression est partagée avec Mira sur Windows et sur Mac.
+Tu y retrouves l’interface de Mira : l’accueil avec Continuer à regarder, les films et les séries avec leurs filtres, la recherche, les fiches avec la distribution et les longues saisons par tranches de 100. Sur iPhone et iPad, les vidéos se lisent dans le lecteur d’Apple, en plein écran. Ailleurs, le lecteur de Mira gère la reprise, l’intro à passer, l’épisode suivant, les pistes audio et sous-titres, AirPlay et l’image dans l’image. Ta progression est partagée avec Mira sur Windows et sur Mac.
 
 ## 1. Ajouter Mira web à Jellyfin (une fois)
 
@@ -31,6 +31,17 @@ Le téléphone doit être sur le même Wi-Fi que le serveur. Ouvre l’adresse d
 
 Connecte-toi ensuite avec ton compte Jellyfin.
 
+### Dès l’allumage du PC
+
+Pour que le téléphone trouve Mira web dès que le PC est allumé, même avant l’ouverture de ta session, ouvre le **Guide** de Mira pour Windows : la carte **Mira sur iPhone et Android** dit si c’est le cas. Sinon, **Disponible dès l’allumage du PC** règle tout en une fois, avec l’autorisation de Windows :
+- le service **Jellyfin Server** démarre avec Windows, sans le délai de deux minutes de certaines installations ;
+- Windows le relance s’il s’arrête sur une erreur (un arrêt demandé depuis le tableau de bord de Jellyfin est respecté) ;
+- le pare-feu laisse entrer, sur le port de Jellyfin et pour Jellyfin seulement, les appareils de ton réseau local et de Tailscale. L’installateur de Jellyfin n’ajoute aucune règle pour son service.
+
+Si le PC n’est pas encore prêt quand tu ouvres Mira, l’app s’ouvre quand même (dès qu’elle a été ouverte une fois), indique que le serveur ne répond pas encore et reprend toute seule dès qu’il répond.
+
+Garde aussi la même adresse au PC : dans l’interface de ta box, réserve-lui son adresse IP (bail DHCP fixe, ou « IP fixe » selon la box). Sinon, après un redémarrage, la box peut lui en donner une autre, et l’app de l’écran d’accueil ne le trouve plus.
+
 ### Sur iPhone et iPad : l’avoir comme une app
 
 Dans Safari, touche **Partager**, puis **Sur l’écran d’accueil**, et laisse **Ouvrir comme app web** activé. Mira apparaît sur l’écran d’accueil et s’ouvre en plein écran. La connexion est à faire une fois de plus dans cette app, qui garde ses propres données.
@@ -50,13 +61,16 @@ Hors de chez toi, la qualité **Automatique** mesure la connexion et demande à 
 
 ## Ce qui change par rapport à Mira sur Windows et Mac
 
-- **Le lecteur est celui de Safari.** Il lit directement les fichiers MP4 et MOV en H.264 ou HEVC. Les autres, par exemple les MKV, sont convertis à la volée par Jellyfin. Le plus souvent, c’est une simple remise en forme, sans réencodage, donc légère pour le PC. Les fichiers en H.264 10 bits ou avec des sous-titres en image (PGS, DVD) demandent un vrai réencodage : le PC doit être assez puissant.
+- **Sur iPhone et iPad, c’est le lecteur d’Apple.** La vidéo s’ouvre en plein écran, avec ses commandes : lecture, barre de progression, ±10 s, vitesse, AirPlay, image dans l’image, et le menu des sous-titres et de l’audio. L’épisode suivant démarre dans le même lecteur. **Terminé** (ou glisser vers le bas) ramène à la fiche, à l’endroit où tu t’es arrêté.
+- **L’audio et les sous-titres se choisissent sur la fiche**, sous **Lecture**. Mira part des langues de **Réglages** (les mêmes que sur Windows et Mac) et retient celles choisies pour une série. Dans le lecteur d’Apple, le menu change les sous-titres texte. Il ne change l’audio que pour un fichier lu tel quel : pour un fichier converti par Jellyfin, choisis l’audio sur la fiche.
+- **Le lecteur lit directement les fichiers MP4 et MOV** en H.264 ou HEVC. Les autres, par exemple les MKV, sont convertis à la volée par Jellyfin. Le plus souvent, c’est une simple remise en forme, sans réencodage, donc légère pour le PC. Les fichiers en H.264 10 bits ou avec des sous-titres en image (PGS, DVD) demandent un vrai réencodage : le PC doit être assez puissant.
 - **Le volume** se règle avec les boutons du téléphone. Le volume au-delà de 100 % n’existe que sur Windows et Mac.
-- **Les sous-titres texte** (SRT, ASS) sont affichés par Safari, aussi dans le plein écran d’iOS. Les sous-titres en image sont incrustés dans la vidéo par Jellyfin.
+- **Les sous-titres texte** (SRT, ASS) apparaissent dans le menu du lecteur d’Apple ; leur aspect se règle dans **Réglages → Accessibilité → Sous-titres et sous-titres codés → Style** de l’iPhone. Les sous-titres en image sont incrustés dans la vidéo par Jellyfin.
 
 ## Si quelque chose ne va pas
 
-- **« Serveur injoignable »** : le téléphone n’est pas sur le même Wi-Fi, ou Tailscale est éteint. Vérifie aussi que le pare-feu de Windows autorise Jellyfin.
+- **« Serveur injoignable »** : le PC est éteint ou en train de démarrer, le téléphone n’est pas sur le même Wi-Fi, ou Tailscale est éteint. Mira réessaie toute seule. Si ça dure, vérifie dans le **Guide** de Mira pour Windows que Mira web est **disponible dès l’allumage du PC** (service et pare-feu).
+- **Page d’erreur de Safari à l’ouverture** : la toute première ouverture, ou après que l’iPhone a vidé sa mémoire de Safari, il faut que le serveur réponde. Ferme l’app (balaye-la vers le haut dans le sélecteur d’apps), puis rouvre-la une fois le PC démarré.
 - **La page `/Mira` n’existe pas** : l’extension n’est pas installée, ou Jellyfin n’a pas redémarré depuis. Regarde dans **Tableau de bord → Extensions → Mes extensions** que **Mira** y figure, « Actif ».
-- **La vidéo ne démarre pas, ou saccade hors de chez toi** : baisse la qualité dans le lecteur (bouton des réglages, en haut à droite).
-- **Pas d’image mais le son** : touche le bouton de plein écran. Le lecteur d’iOS lit alors la vidéo directement. Signale-le dans une [issue](https://github.com/sasou-web/Mira/issues).
+- **La vidéo ne démarre pas, ou saccade hors de chez toi** : baisse la qualité dans **Réglages → Qualité** (ou dans le lecteur, hors iPhone et iPad).
+- **« Touche pour lancer la lecture en plein écran »** : Safari veut un toucher avant d’ouvrir le lecteur d’Apple. Touche le bouton Lecture.
