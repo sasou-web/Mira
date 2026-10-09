@@ -69,6 +69,26 @@ Sur Mac, mpv n’a pas de fenêtre à lui : `vo=libmpv`, et Mira dessine chaque 
 
 `tools/mac/package.sh` construit Mira.app (runtime .NET inclus), y copie libmpv et toutes ses bibliothèques depuis Homebrew en réécrivant leurs chemins (`dylibbundler`), signe le tout ad hoc et crée l’image disque. Le workflow `mac.yml` le lance sur un Mac de GitHub, exécute le contrôle complet de l’application et joint l’image disque à chaque release publiée.
 
+## Mira web
+
+`src/Mira.Web` est l’application pour téléphone et tablette : HTML, CSS et modules JavaScript, sans étape de construction. `src/Mira.Jellyfin` est une extension Jellyfin (compilée contre Jellyfin 10.9, .NET 8, chargée par 10.9 jusqu’à 12.x) qui contient ces fichiers et les sert à `/Mira`, après l’URL de base de Jellyfin. La page vient donc de la même adresse que l’API : pas d’adresse de serveur à saisir, pas de requête vers un autre site, et l’accès suit les réglages réseau de Jellyfin (maison, Tailscale).
+
+```text
+Mira.Jellyfin (extension Jellyfin)
+  ├─ Plugin : se déclare à Jellyfin (aucun réglage, ne modifie rien sur le serveur)
+  ├─ WebController : /Mira (page et politique de sécurité), /Mira/manifest.webmanifest, /Mira/v/<révision>/…
+  └─ WebFiles : fichiers intégrés ; leur révision (empreinte de tous) rend les ressources mémorisables jusqu’à la version suivante
+Mira.Web
+  ├─ app.js : barre d’onglets (barre latérale sur grand écran), routes par ancre, écrans gardés pour un retour instantané
+  ├─ api.js, session.js : API Jellyfin, session sur l’appareil (jamais le mot de passe), réglages
+  ├─ views : connexion (profils), accueil, films et séries, recherche, fiche, personne, réglages, QR code
+  └─ player : profil de lecture selon le navigateur, HLS natif (Safari) ou hls.js, commandes, rapports
+```
+
+Le lecteur décrit à Jellyfin ce que le navigateur lit (`canPlayType`) : MP4 et MOV en H.264 ou HEVC sont lus tels quels, le reste est converti en HLS fMP4, H.264 en premier. Une vidéo déjà en H.264 n’est alors que remise en forme, sans réencodage. Les sous-titres texte arrivent en WebVTT à côté de la vidéo, les sous-titres en image sont incrustés. Si Safari refuse un fichier annoncé comme lisible, Mira redemande une conversion. Un seul élément `<video>`, touché au premier geste, sert toute l’application : iOS laisse alors démarrer l’épisode suivant sans nouveau toucher. La progression part vers Jellyfin comme sur Windows (début, toutes les 10 s, pause, fin, et en quittant la page).
+
+`tools/web/package.sh` construit l’extension et le manifeste de dépôt. Le workflow `web.yml` installe l’extension depuis ce dépôt sur un vrai Jellyfin 12.1, teste toute l’application dans Chromium à la taille d’un iPhone et la lecture HLS dans Safari, puis joint l’extension et le manifeste à chaque release. Mira pour Windows installe l’extension à la demande (`JellyfinClient.InstallWebAppAsync` : dépôt ajouté, extension installée, Jellyfin redémarré) et ouvre la page du QR code à l’adresse du PC sur le réseau.
+
 ## Intégration Windows
 
 `WindowsIdentity` attribue l’AppUserModelID stable `Mira.Desktop` au processus, à la fenêtre et aux raccourcis. Le logo ICO comporte sept tailles (16 à 256 px) ; une copie avec un chemin propre sert à Explorer et à l’icône de notification. Le raccourci Démarrer et les métadonnées Shell sont enregistrés pour l’utilisateur courant. Aucun service, démarrage automatique ou changement de préférence Windows n’est ajouté. `--register-windows --shortcut <chemin>` permet au script de publication de créer aussi le raccourci du dossier.
