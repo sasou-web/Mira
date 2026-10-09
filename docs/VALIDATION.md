@@ -2,6 +2,26 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Mira web (non publié)
+
+- **Extension sur un vrai Jellyfin 12.1** (local) :
+  - compilée contre Jellyfin 10.9, elle est chargée par la 12.1 (« Loaded plugin: Mira ») ;
+  - installée depuis un dépôt comme le fait Mira pour Windows (`JellyfinClient.InstallWebAppAsync`) : dépôt ajouté, extension téléchargée et vérifiée (MD5), Jellyfin redémarré, `/Mira` servi en 5 s ;
+  - fichiers servis depuis la DLL, ressources mémorisées jusqu’à la version suivante, politique de sécurité sur la page.
+- **Contrôle complet dans Chromium à la taille d’un iPhone** (393 × 852, écran ×3), sur un Jellyfin 12.1 neuf préparé par son API : **18/18**. Il couvre :
+  - la connexion par le formulaire ;
+  - l’accueil, les films, la recherche et la fiche d’une série ;
+  - la lecture puis l’épisode suivant automatique ;
+  - côté Jellyfin, l’épisode vu, la position gardée et les rapports (début, progression, fin) ;
+  - la reprise proposée et au bon endroit ;
+  - le QR code, la barre latérale sur grand écran et la déconnexion, sans aucune erreur JavaScript.
+- **Voie de l’iPhone, côté serveur** : avec les réponses de Safari pour iPhone, Jellyfin propose un HLS fMP4 H.264 et AAC (`CODECS="avc1.64001F,mp4a.40.2"`), vidéo copiée sans réencodage. ffmpeg en lit les 6 premières secondes.
+- **Défauts trouvés et corrigés en cours de route** :
+  - un appel sans paramètres échouait avant d’atteindre le serveur et se lisait comme « Serveur injoignable » ;
+  - le serveur refusait les modules `.mjs`, donc la page du QR code ne se chargeait pas ;
+  - l’extension sans la classe de base de Jellyfin qui note sa version était marquée « en défaut ».
+- **Non vérifié ici** : un vrai iPhone. Le workflow `web.yml` rejoue le contrôle complet et la lecture HLS dans Safari sur un Mac de GitHub.
+
 ## Mira pour Mac 0.6.0
 
 - **Sous Linux, même code et libmpv 0.37, affichage virtuel (Xvfb, OpenGL logiciel Mesa)** :

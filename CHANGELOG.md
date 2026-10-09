@@ -1,5 +1,13 @@
 # Historique
 
+## Non publié
+
+- **Mira sur iPhone, iPad et Android (Mira web)** : la version de Mira pour téléphone et tablette, servie par ton serveur Jellyfin grâce à l’extension Mira. Rien à installer sur le téléphone, ni App Store ni compte Apple. Ouvre `http://<adresse du serveur>:8096/Mira`, puis, sur iPhone, **Partager → Sur l’écran d’accueil** : elle s’ouvre en plein écran comme une app.
+  - Choix du profil à la connexion, accueil avec bandeau et Continuer à regarder, films et séries avec filtres, recherche (titres et personnes), fiches avec distribution, titres similaires et longues saisons par tranches de 100, favoris, vu ou non vu, retrait de Continuer à regarder.
+  - Lecteur fait pour Safari : le fichier tel quel quand l’iPhone le lit, sinon une conversion HLS par Jellyfin, le plus souvent sans réencodage. Reprise, ±10 s (double toucher sur les côtés), aperçus sur la barre de progression, intro et récap à passer, épisode suivant avec décompte, pistes audio et sous-titres, vitesse, qualité (automatique hors de chez toi), AirPlay, image dans l’image, plein écran d’iOS, commandes sur l’écran verrouillé.
+  - Progression partagée avec Mira sur Windows et Mac. L’extension se met à jour avec Jellyfin à chaque version de Mira.
+- **Installer Mira web depuis Mira pour Windows** : **Guide → Sur tes autres appareils → Installer Mira web** ajoute l’extension à Jellyfin, le redémarre, puis affiche un QR code à scanner avec le téléphone.
+
 ## 0.6.0 — 2026-10-08
 
 Mira arrive sur Mac, le volume monte jusqu’à 200 % sans saturer, et les séries de plus de 500 épisodes sont complètes.

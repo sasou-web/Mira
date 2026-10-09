@@ -2,11 +2,12 @@
   <img src="src/Mira.Desktop/Assets/mira.png" width="88" alt="Logo Mira" />
   <h1>Mira</h1>
   <p><strong>Ta bibliothèque Jellyfin. Le confort d’un lecteur fait pour elle.</strong></p>
-  <p>Un client Windows natif (et sa version Mac), une interface cinéma et mpv directement dans l’application.</p>
+  <p>Un client Windows natif, sa version Mac et Mira web pour iPhone et Android, une interface cinéma et mpv directement dans l’application.</p>
   <p>
     <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.6.0_preview-e8e8ed?style=flat-square" alt="Version 0.6.0 preview" /></a>
     <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
     <img src="https://img.shields.io/badge/macOS-14+_Apple_Silicon-555555?style=flat-square" alt="macOS 14 et plus, Apple Silicon" />
+    <img src="https://img.shields.io/badge/iPhone_·_Android-Mira_web-555555?style=flat-square" alt="iPhone et Android : Mira web" />
     <img src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square" alt=".NET 8" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Windows build" /></a>
@@ -61,6 +62,10 @@ La page **Téléchargements** est facultative : TorLink s’y active d’un clic
 ### Sur Mac
 
 Mira existe aussi pour les Mac à puce Apple (macOS 14 Sonoma ou plus récent) : **Mira-0.6.0-mac-arm64.dmg**, dans la même [release 0.6.0](https://github.com/sasou-web/Mira/releases/tag/v0.6.0). Elle se connecte à un serveur Jellyfin existant et lit avec le même moteur mpv, intégré à l’application. Elle n’est pas signée par Apple : macOS demande de l’autoriser une fois. [Installer Mira sur Mac](docs/INSTALLATION-MAC.md)
+
+### Sur iPhone, iPad et Android
+
+**Mira web** est servie par ton serveur Jellyfin lui-même, grâce à l’extension Mira : rien à installer sur le téléphone, ni App Store ni compte Apple. Ouvre `http://<adresse du serveur>:8096/Mira`, puis, sur iPhone, **Partager → Sur l’écran d’accueil** : elle s’ouvre comme une app. Mira pour Windows ajoute l’extension en un clic (**Guide → Sur tes autres appareils → Installer Mira web**) et affiche un QR code pour le téléphone. [Mira sur iPhone, iPad et Android](docs/INSTALLATION-WEB.md)
 
 ## Développer
 
