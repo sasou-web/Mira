@@ -2,7 +2,7 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Mira web : retours du premier essai sur iPhone (non publié)
+## Mira web 0.7.1 : retours du premier essai sur iPhone
 
 - **Défauts signalés par l’utilisateur** (iPhone, app de l’écran d’accueil) :
   - au démarrage du PC, l’app affichait la page d’erreur de Safari et n’en sortait plus seule ;

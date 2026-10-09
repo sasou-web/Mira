@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.7.1",
+    "summary": "Sur iPhone, la lecture passe par le lecteur d’Apple, et Mira attend ton PC quand il démarre.",
+    "items": [
+      { "icon": "fullscreen", "title": "Le lecteur d’Apple sur iPhone", "text": "Les vidéos s’ouvrent en plein écran avec ses commandes et ses sous-titres. L’épisode suivant suit, et plus rien dans la Dynamic Island." },
+      { "icon": "subtitles", "title": "Audio et sous-titres sur la fiche", "text": "Choisis-les sous Lecture : Mira part de tes langues préférées et retient celles de chaque série." },
+      { "icon": "server", "title": "Prêt dès l’allumage du PC", "text": "Guide → Disponible dès l’allumage du PC : Jellyfin démarre avec Windows et ton téléphone le trouve tout de suite." },
+      { "icon": "refresh", "title": "Mira attend ton serveur", "text": "Ouverte pendant que le PC démarre, Mira web patiente, puis reprend toute seule." }
+    ]
+  },
+  {
     "version": "0.7.0",
     "summary": "Mira arrive sur iPhone, iPad et Android, servie par ton serveur Jellyfin.",
     "items": [
