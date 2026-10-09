@@ -254,6 +254,49 @@ await Test("Hors de chez toi : adresse Tailscale de ce PC, et Jellyfin qui accep
     admin = false; stored = """{"EnableRemoteAccess":false,"LocalNetworkSubnets":[]}""";
     Assert(!await client.AllowTailnetAsync(), "A guest changed Jellyfin's network settings");
 });
+await Test("Mira web : installé sur Jellyfin depuis le dépôt de Mira, les autres dépôts gardés, puis Jellyfin redémarré", async () =>
+{
+    var repositories = """[{"Name":"Jellyfin Stable","Url":"https://repo.jellyfin.org/files/plugin/manifest.json","Enabled":true}]""";
+    var calls = new List<string>();
+    bool installed = false, restarted = false, admin = true, available = true;
+    using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+    {
+        var path = request.RequestUri!.AbsolutePath.TrimStart('/');
+        calls.Add($"{request.Method} {path}");
+        if (!admin && path != "Mira/manifest.webmanifest") return new HttpResponseMessage(HttpStatusCode.Forbidden);
+        switch (path)
+        {
+            case "Repositories" when request.Method == HttpMethod.Get:
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(repositories, Encoding.UTF8, "application/json") };
+            case "Repositories":
+                repositories = await request.Content!.ReadAsStringAsync();
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            case "Packages/Installed/Mira":
+                if (!available) return new HttpResponseMessage(HttpStatusCode.NotFound);
+                Assert(request.RequestUri.Query.Contains("assemblyGuid=4ea89259-3350-45b0-8045-f1ab627214dd") && request.RequestUri.Query.Contains("repositoryUrl=https%3A%2F%2Fgithub.com"), "Install request: " + request.RequestUri.Query);
+                installed = true;
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            case "System/Restart":
+                restarted = true;
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            case "Mira/manifest.webmanifest":
+                return new HttpResponseMessage(installed && restarted ? HttpStatusCode.OK : HttpStatusCode.NotFound);
+        }
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
+    }));
+    Assert(!await client.WebAppAvailableAsync(), "Mira web available before its installation");
+    Assert(await client.InstallWebAppAsync(restartLimit: TimeSpan.FromSeconds(10)) == WebAppInstall.Ready, "Installation not ready");
+    var list = JsonDocument.Parse(repositories).RootElement;
+    Assert(list.GetArrayLength() == 2 && list[0].GetProperty("Url").GetString()!.Contains("repo.jellyfin.org") && list[1].GetProperty("Url").GetString() == MiraWeb.Repository, "Repositories: " + repositories);
+    Assert(await client.WebAppAvailableAsync(), "Mira web not available after its installation");
+    calls.Clear();
+    Assert(await client.InstallWebAppAsync(restartLimit: TimeSpan.FromSeconds(10)) == WebAppInstall.Ready && !calls.Contains("POST Repositories"), "Mira's repository added twice");
+    available = false;
+    Assert(await client.InstallWebAppAsync(restartLimit: TimeSpan.FromSeconds(1)) == WebAppInstall.Unavailable, "No version for this Jellyfin: not reported");
+    admin = false;
+    Assert(await client.InstallWebAppAsync() == WebAppInstall.NotAllowed, "A guest installed a plugin");
+    Assert(MiraWeb.SharePage("http://192.168.1.20:8096/") == "http://192.168.1.20:8096/Mira/#/partager", "Share page address");
+});
 await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro", async () =>
 {
     var removed = DateTimeOffset.UtcNow.AddHours(-1);

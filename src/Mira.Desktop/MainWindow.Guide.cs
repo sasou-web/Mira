@@ -16,7 +16,7 @@ namespace Mira.Desktop;
 public partial class MainWindow
 {
     private int _guideVersion;
-    private string? _remoteAddress, _awayAddress, _awayAction;
+    private string? _remoteAddress, _awayAddress, _awayAction, _webState;
 
     /// <summary>On opening: the welcome on a new profile, the main points after an update, or nothing.</summary>
     private void ShowStartupScreen()
@@ -96,6 +96,7 @@ public partial class MainWindow
         _ = Dispatcher.BeginInvoke(() => GuideClose.Focus(), DispatcherPriority.Input);
         var version = ++_guideVersion;
         _ = DescribeAwayAsync(version);
+        _ = DescribeWebAsync(version);
         await ShowGuideFoldersAsync(version);
     }
     /// <summary>
@@ -147,6 +148,56 @@ public partial class MainWindow
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         finally { GuideAwayAction.IsEnabled = true; }
+    }
+    /// <summary>« Mira sur iPhone et Android »: Mira web on this Jellyfin, or the button that adds it.</summary>
+    private async Task DescribeWebAsync(int version)
+    {
+        var server = _demo ? null : _client?.Connection.Server;
+        GuideWeb.Visibility = server is null ? Visibility.Collapsed : Visibility.Visible;
+        if (server is null || _client is not { } client || _webState == "installing") return;
+        var ready = await client.WebAppAvailableAsync();
+        if (version == _guideVersion) ShowWeb(ready ? "ready" : "install");
+    }
+    private void ShowWeb(string state)
+    {
+        _webState = state;
+        (GuideWebHint.Text, var action) = state switch
+        {
+            "ready" => ("Ouvre Mira dans Safari ou Chrome sur ton téléphone, puis ajoute-la à l’écran d’accueil : elle s’ouvre comme une app.", "Afficher le QR code"),
+            "installing" => ("Installation de Mira web dans Jellyfin, qui redémarre ensuite quelques secondes…", "Installation…"),
+            "admin" => ("Seul un administrateur de Jellyfin peut ajouter Mira web : connecte Mira avec son compte, ou installe l’extension « Mira » depuis le tableau de bord de Jellyfin.", null),
+            "unavailable" => ("Jellyfin n’a pas pu télécharger Mira web. Vérifie que ce PC a accès à Internet, puis réessaie.", "Réessayer"),
+            _ => ("Ajoute Mira à ton serveur Jellyfin : ton téléphone l’ouvre ensuite comme une app, sans rien installer ni compte Apple.", "Installer Mira web")
+        };
+        GuideWebAction.Content = action;
+        GuideWebAction.Visibility = action is null ? Visibility.Collapsed : Visibility.Visible;
+        GuideWebAction.IsEnabled = state != "installing";
+    }
+    private async void GuideWebAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client is not { } client) return;
+        // Phones reach Jellyfin at this PC's address on the home network, not at 127.0.0.1.
+        var share = MiraWeb.SharePage(_remoteAddress ?? client.Connection.Server);
+        if (_webState == "ready") { OpenWebPage(share); return; }
+        ShowWeb("installing");
+        try
+        {
+            switch (await client.InstallWebAppAsync())
+            {
+                case WebAppInstall.Ready:
+                    ShowWeb("ready");
+                    SetNotice("Mira web est prêt : scanne le QR code avec ton téléphone.");
+                    OpenWebPage(share);
+                    break;
+                case WebAppInstall.Restarting:
+                    ShowWeb("ready");
+                    SetNotice("Mira web est installé ; Jellyfin redémarre encore. Le QR code s’affichera dans un instant.");
+                    break;
+                case WebAppInstall.NotAllowed: ShowWeb("admin"); break;
+                default: ShowWeb("unavailable"); break;
+            }
+        }
+        catch (Exception ex) when (IsExpected(ex)) { ShowWeb("unavailable"); SetNotice(Friendly(ex)); }
     }
     private void CopyAwayAddress_Click(object sender, RoutedEventArgs e)
     {

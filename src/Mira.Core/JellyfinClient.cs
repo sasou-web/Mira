@@ -225,6 +225,55 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return true;
     }
+    /// <summary>Whether this server serves Mira web at /Mira (its plugin installed and loaded).</summary>
+    public async Task<bool> WebAppAvailableAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await _http.GetAsync("Mira/manifest.webmanifest", ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException) { return false; }
+    }
+    /// <summary>
+    /// Installs Mira web on Jellyfin as its dashboard would: Mira's repository added to the plugin catalogue (the
+    /// others kept), the plugin installed from it, then Jellyfin restarted to load it, and waited for until /Mira answers
+    /// (checked on 12.1, which restarts within its own process). Needs an administrator account.
+    /// </summary>
+    public async Task<WebAppInstall> InstallWebAppAsync(string repository = MiraWeb.Repository, TimeSpan? restartLimit = null, CancellationToken ct = default)
+    {
+        using (var listed = await _http.GetAsync("Repositories", ct))
+        {
+            if (listed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
+            await CheckAsync(listed);
+            var repositories = JsonNode.Parse(await listed.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+            if (!repositories.Any(x => string.Equals((string?)x?["Url"], repository, StringComparison.OrdinalIgnoreCase)))
+            {
+                repositories.Add(new JsonObject { ["Name"] = MiraWeb.RepositoryName, ["Url"] = repository, ["Enabled"] = true });
+                using var content = new StringContent(repositories.ToJsonString(), Encoding.UTF8, "application/json");
+                using var saved = await _http.PostAsync("Repositories", content, ct);
+                if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
+                await CheckAsync(saved);
+            }
+        }
+        var install = $"Packages/Installed/{Uri.EscapeDataString(MiraWeb.PluginName)}?assemblyGuid={MiraWeb.PluginId}&repositoryUrl={Uri.EscapeDataString(repository)}";
+        using (var installed = await _http.PostAsync(install, null, ct))
+        {
+            if (installed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
+            if (installed.StatusCode == HttpStatusCode.NotFound) return WebAppInstall.Unavailable;
+            await CheckAsync(installed);
+        }
+        using (var restart = await _http.PostAsync("System/Restart", null, ct)) await CheckAsync(restart);
+        // Jellyfin stops answering while it restarts, then serves the plugin's pages.
+        var limit = DateTime.UtcNow + (restartLimit ?? TimeSpan.FromSeconds(90));
+        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        while (DateTime.UtcNow < limit)
+        {
+            if (await WebAppAvailableAsync(ct)) return WebAppInstall.Ready;
+            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        }
+        return WebAppInstall.Restarting;
+    }
     private async Task<JsonObject?> NetworkSettingsAsync(CancellationToken ct)
     {
         using var response = await _http.GetAsync("System/Configuration/network", ct);
