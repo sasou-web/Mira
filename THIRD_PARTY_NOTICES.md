@@ -11,14 +11,20 @@ Mira's original source code is licensed under MIT. This does not replace the lic
 | SQLite | Native database engine in the SQLitePCL.raw package | Public domain; [SQLite copyright statement](https://www.sqlite.org/copyright.html) |
 | C#/WinRT runtime | Windows media-session interop | MIT, Microsoft Corporation; `licenses/CSWINRT-MIT.txt` |
 | Windows SDK .NET targeting pack 10.0.19041.56 | Windows API projections | Microsoft Corporation; [Windows SDK licence](https://aka.ms/WinSDKLicenseURL) |
-| Nunito Sans | Bundled typefaces | SIL Open Font License 1.1; `licenses/NUNITO-SANS-OFL.txt`, upstream revision in `src/Mira.Desktop/Assets/Fonts/SOURCE.txt` |
-| Phosphor Icons | Archived SVG assets from an earlier interface | MIT; `licenses/PHOSPHOR-MIT.txt`, revision in `src/Mira.Desktop/Assets/Phosphor/SOURCE.txt` |
+| Nunito Sans | Bundled typefaces (Mira web: Latin subsets in WOFF2) | SIL Open Font License 1.1; `licenses/NUNITO-SANS-OFL.txt`, upstream revision in `src/Mira.Desktop/Assets/Fonts/SOURCE.txt` |
+| Phosphor Icons | Archived SVG assets from an earlier interface; icon paths of Mira web | MIT; `licenses/PHOSPHOR-MIT.txt`, revision in `src/Mira.Desktop/Assets/Phosphor/SOURCE.txt` |
 | Microsoft.Web.WebView2 1.0.4258.31 | WebView2 SDK for the embedded TorLink terminal (managed assemblies and `WebView2Loader.dll`) | Microsoft Corporation, BSD-style licence; `licenses/WEBVIEW2-BSD.txt` |
 | xterm.js 6.0.0 and @xterm/addon-fit 0.11.0 | Terminal renderer of the TorLink page, unmodified npm builds embedded as resources | MIT, the xterm.js authors; `licenses/XTERM-MIT.txt`, versions and integrity in `src/Mira.Desktop/Assets/TorLink/xterm/SOURCE.txt` |
 | SharpCompress 1.0.0 | Reads the `.7z` archive of the libmpv build Mira installs on request | MIT, Adam Hathcock; `licenses/SHARPCOMPRESS-MIT.txt` |
+| hls.js 1.7.3 | Mira web: plays HLS in browsers that do not have it built in (not Safari); unmodified npm build (`dist/hls.light.min.mjs`, without its source map comment) inside the Jellyfin plugin | Apache-2.0, Dailymotion and contributors; `licenses/HLSJS-APACHE-2.0.txt`, version in `src/Mira.Web/vendor/SOURCE.txt` |
+| qrcode-generator 2.0.4 | Mira web: the QR code of its address, unmodified npm build inside the Jellyfin plugin | MIT, Kazuhiko Arase; `licenses/QRCODE-GENERATOR-MIT.txt` |
 | Inno Setup 6.7.3 | Builds the Windows installer; its setup and uninstall program is part of `Mira-*-setup.exe` | Copyright Jordan Russell and Martijn Laan, [Inno Setup License](https://jrsoftware.org/files/is/license.txt); not part of the zip or the portable executable |
 
 The current logo, icon geometry and fictional demo illustrations are original Mira assets. The gallery (`docs/SCREENSHOTS.md`) shows that offline demo. The three screenshots at the top of the README show Mira connected to a personal Jellyfin library: the posters and artwork visible in them belong to their respective rights holders and are shown only to illustrate the software. No media file, personal library data or Jellyfin cache is included in the repository or release.
+
+## Mira web
+
+The Jellyfin plugin `mira-jellyfin-*.zip` contains Mira's own code, the web app and, inside it, hls.js, qrcode-generator, Nunito Sans and Phosphor paths with their licence files (`vendor/`, `fonts/OFL.txt`). It is built against Jellyfin's public libraries (`Jellyfin.Controller`, GPL-2.0) but does not include them: the Jellyfin server that loads the plugin provides them.
 
 ## External player
 

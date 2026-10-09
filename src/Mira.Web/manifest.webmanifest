@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "Mira",
+  "short_name": "Mira",
+  "description": "Ta bibliothèque Jellyfin dans Mira, sur ton téléphone.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#070708",
+  "theme_color": "#070708",
+  "icons": [
+    { "src": "v/{{rev}}/img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "v/{{rev}}/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "v/{{rev}}/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

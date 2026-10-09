@@ -7,6 +7,13 @@
 *.md text eol=lf
 *.yml text eol=lf
 *.json text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.webmanifest text eol=lf
+*.svg text eol=lf
+*.woff2 binary
 *.png binary
 *.ico binary
 *.ttf binary
