@@ -16,11 +16,22 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - la reprise proposée et au bon endroit ;
   - le QR code, la barre latérale sur grand écran et la déconnexion, sans aucune erreur JavaScript.
 - **Voie de l’iPhone, côté serveur** : avec les réponses de Safari pour iPhone, Jellyfin propose un HLS fMP4 H.264 et AAC (`CODECS="avc1.64001F,mp4a.40.2"`), vidéo copiée sans réencodage. ffmpeg en lit les 6 premières secondes.
+- **Dans Safari, sur un Mac de GitHub** (workflow `web.yml`) : Jellyfin 12.1 compilé depuis ses sources, extension installée depuis son dépôt, Safari piloté par `safaridriver` à la taille d’un iPhone (430 × 932). **10/10** :
+  - le film en MKV est converti par Jellyfin en HLS (`master.m3u8`) et lu par le lecteur vidéo d’Apple, sans erreur ;
+  - le sous-titre français, un fichier `.srt` à côté de la vidéo, est choisi dans le menu des pistes et affiché (« Bonjour depuis Mira web. ») ;
+  - le cadre de la vidéo épouse l’image (430 × 242 pour 1280 × 720), donc le sous-titre s’affiche sur l’image ;
+  - l’avance de 10 s, puis la position gardée par Jellyfin au retour (18,9 s) ;
+  - l’épisode suivant démarre tout seul, puis joue.
 - **Défauts trouvés et corrigés en cours de route** :
   - un appel sans paramètres échouait avant d’atteindre le serveur et se lisait comme « Serveur injoignable » ;
   - le serveur refusait les modules `.mjs`, donc la page du QR code ne se chargeait pas ;
-  - l’extension sans la classe de base de Jellyfin qui note sa version était marquée « en défaut ».
-- **Non vérifié ici** : un vrai iPhone. Le workflow `web.yml` rejoue le contrôle complet et la lecture HLS dans Safari sur un Mac de GitHub.
+  - l’extension sans la classe de base de Jellyfin qui note sa version était marquée « en défaut » ;
+  - l’empaquetage utilisait `md5sum`, absent de macOS ;
+  - en portrait, Safari affichait le sous-titre tout en bas de l’écran, sous la barre d’accueil de l’iPhone, loin de l’image ;
+  - les pages plus courtes que l’écran défilaient de la hauteur de la barre d’onglets ;
+  - le menu des pistes reprenait les noms anglais de Jellyfin (« French - SUBRIP - External ») ; il dit maintenant « Français · SRT · fichier externe », comme Mira pour Windows et Mac ;
+  - pendant le chargement, le cercle d’attente se voyait à travers le bouton pause, un peu plus bas.
+- **Non vérifié** : un vrai iPhone. Safari sur Mac a le même moteur et le même lecteur vidéo, mais pas le plein écran d’iOS, l’ajout à l’écran d’accueil, AirPlay ni les zones sûres d’un écran à encoche.
 
 ## Mira pour Mac 0.6.0
 
