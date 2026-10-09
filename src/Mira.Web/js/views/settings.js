@@ -5,6 +5,8 @@ import { session, settings, isIOS, isStandalone } from '../session.js';
 import { sheet } from '../components.js';
 import { resetScreens } from '../app.js';
 import { installHint } from './login.js';
+import { appleNative } from '../player/video.js';
+import { AUDIO_LANGUAGES, SUBTITLE_LANGUAGES } from '../player/tracks.js';
 
 export const QUALITIES = [
   ['auto', 'Automatique', 'Pleine qualité à la maison, adaptée à la connexion ailleurs'],
@@ -35,6 +37,11 @@ export function create() {
     const current = session.current ?? {};
     const quality = QUALITIES.find(([k]) => k === settings.get('quality')) ?? QUALITIES[0];
     const size = SIZES.find(([k]) => k === settings.get('subtitleSize')) ?? SIZES[1];
+    const audio = AUDIO_LANGUAGES.find(([k]) => k === settings.get('audioLanguages')) ?? AUDIO_LANGUAGES[0];
+    const subtitles = SUBTITLE_LANGUAGES.find(([k]) => k === settings.get('subtitleLanguages')) ?? SUBTITLE_LANGUAGES[0];
+    const languages = (title, list, current, key) => () => sheet({
+      title, items: list.map(([value, label]) => ({ label, selected: value === current[0], run: () => { settings.set(key, value); render(user, info); } })),
+    });
     const avatar = h('div', { class: 'avatar' });
     if (user?.PrimaryImageTag) avatar.append(h('img', { alt: '', src: `${base}/Users/${user.Id}/Images/Primary?maxWidth=160&tag=${user.PrimaryImageTag}` }));
     else avatar.textContent = initials(current.userName);
@@ -53,10 +60,17 @@ export function create() {
         })),
         toggle('resume', 'Reprendre là où tu t’es arrêté', 'Sinon, chaque titre repart du début.'),
         toggle('autoNext', 'Épisode suivant automatique', 'À la fin d’un épisode, le suivant démarre.'),
-        choice('Taille des sous-titres', size[1], () => sheet({
-          title: 'Taille des sous-titres',
-          items: SIZES.map(([key, label]) => ({ label, selected: key === size[0], run: () => { settings.set('subtitleSize', key); render(user, info); } })),
-        }))),
+        toggle('autoSkip', 'Passer les intros et les récaps', 'Quand Jellyfin les a repérés, la lecture saute par-dessus.'),
+        choice('Langue audio', audio[1], languages('Langue audio préférée', AUDIO_LANGUAGES, audio, 'audioLanguages')),
+        choice('Langue des sous-titres', subtitles[1], languages('Langue des sous-titres', SUBTITLE_LANGUAGES, subtitles, 'subtitleLanguages')),
+        appleNative()
+          ? h('div', { class: 'item static' }, h('span', { class: 'grow' }, 'Lecteur d’Apple',
+            h('span', { class: 'sub' }, 'Les vidéos s’ouvrent en plein écran, avec les pistes et les sous-titres de son menu. Leur aspect se règle dans Réglages → Accessibilité → Sous-titres et sous-titres codés → Style.')))
+          : choice('Taille des sous-titres', size[1], () => sheet({
+            title: 'Taille des sous-titres',
+            items: SIZES.map(([key, label]) => ({ label, selected: key === size[0], run: () => { settings.set('subtitleSize', key); render(user, info); } })),
+          }))),
+      h('p', { class: 'group-note' }, 'Les langues choisissent les pistes au début de chaque titre, comme Mira sur Windows et Mac. Sur la fiche d’un titre, « Audio et sous-titres » en choisit d’autres : Mira les retient pour les épisodes suivants de la série.'),
 
       h('h2', { class: 'label group-title' }, 'Cet appareil'),
       h('div', { class: 'group' },

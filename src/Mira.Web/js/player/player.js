@@ -1,18 +1,21 @@
-// The player: Jellyfin's stream in Safari's own video engine, with Mira's controls on top: resume, ±10 s, a
-// timeline with previews, opening and recap to skip, the next episode, audio and subtitle tracks, speed, quality,
-// AirPlay, Picture in Picture and iOS's own full screen. Progress goes to Jellyfin as on Windows.
+// The player: Jellyfin's stream in the browser's own video engine. On iPhone and iPad, Apple's player does it all,
+// in full screen: play and pause, the timeline, AirPlay, Picture in Picture, speed, and the subtitles and audio tracks
+// of its menu. Elsewhere, Mira's controls on top: resume, ±10 s, a timeline with previews, opening and recap to skip,
+// the next episode, audio and subtitle tracks, speed, quality, AirPlay and Picture in Picture. Progress goes to
+// Jellyfin as on Windows, and the next episode follows in the same player.
 import { api, signed } from '../api.js';
 import { h, icon, clear, clock, seconds, ticks, episodeCode } from '../dom.js';
 import { settings, device } from '../session.js';
 import { artFor, imageUrl, picture } from '../images.js';
 import { sheet, toast, changed, titleHref } from '../components.js';
 import { goBack } from '../app.js';
-import { deviceProfile, nativeHls, useHlsJs } from './profile.js';
-import { sharedVideo } from './video.js';
-import { trackText } from './tracks.js';
+import { deviceProfile, useHlsJs, audioTracks as switchesAudio } from './profile.js';
+import { sharedVideo, appleNative } from './video.js';
+import { trackText, chooseTracks, trackMemory } from './tracks.js';
 import { QUALITIES } from '../views/settings.js';
 
 const SKIP_LABELS = { Intro: 'Passer l’intro', Recap: 'Passer le récap', Preview: 'Passer l’aperçu', Commercial: 'Passer la pub' };
+const AUTO_SKIP = ['Intro', 'Recap'];
 const NEXT_LEAD = 20;      // seconds before the end when, without an end credits marker, the next episode is offered
 const COUNTDOWN = 10;      // seconds before it starts by itself
 const PROGRESS_EVERY = 10_000;
@@ -38,20 +41,32 @@ const ERRORS = {
   RateLimitExceeded: 'Le serveur a atteint sa limite de lectures simultanées.',
 };
 
+/** Tracks chosen on the title page, from the player's address (« ?audio=2&sous-titres=-1 »). */
+function chosenTracks(query) {
+  const number = (key) => (query.has(key) && /^-?\d+$/.test(query.get(key)) ? Number(query.get(key)) : null);
+  const tracks = { audio: number('audio'), subtitle: number('sous-titres') };
+  return tracks.audio == null && tracks.subtitle == null ? null : tracks;
+}
+
 export function create({ id, query }) {
   const video = sharedVideo();
-  const fromStart = query.get('debut') === '1';
-  const el = h('div', { class: 'player', role: 'region', 'aria-label': 'Lecteur vidéo' });
+  const native = appleNative();
+  const el = h('div', { class: ['player', native && 'native'], role: 'region', 'aria-label': 'Lecteur vidéo' });
 
-  // ---------- State ----------
+  // ---------- The title playing (the next episode replaces it in the same player) ----------
   let item = null, source = null, playSessionId = '', playMethod = 'DirectPlay', hls = null;
   let offset = 0;             // progressive conversions start at the requested point: their time 0 is `offset`
   let progressive = false, total = 0, audioIndex = null, subtitleIndex = null, forceTranscode = false;
-  let started = false, ended = false, disposed = false, progressTimer = 0, lastReport = 0;
+  let started = false, ended = false, progressTimer = 0, lastReport = 0;
   let segments = [], chapters = [], trick = null, next = null, nextDismissed = false, countdown = 0, countdownTimer = 0;
-  let hideTimer = 0, scrubbing = false, pendingStart = 0, opening = 0;
+  let pendingStart = 0, opening = 0, beginning = 0, target = { id, fromStart: query.get('debut') === '1', tracks: chosenTracks(query) };
+  const skipped = new Set();
+  // ---------- The player itself ----------
+  let disposed = false, closing = false, switching = false, failed = false;
+  let hideTimer = 0, scrubbing = false, mode = 'inline', nativeCheck = 0, tracksSettle = 0;
 
   const position = () => offset + (video.currentTime || 0);
+  const presentation = () => video.webkitPresentationMode ?? (video.webkitDisplayingFullscreen ? 'fullscreen' : 'inline');
 
   // ---------- Elements ----------
   const title = h('div', { class: 'p-title' }, h('strong', {}, ''), h('span', {}, ''));
@@ -79,19 +94,52 @@ export function create({ id, query }) {
   const busy = h('div', { class: 'p-busy', hidden: true }, h('div', { class: 'spinner' }));
   const pillLayer = h('div');
   const message = h('div', { class: 'p-message', hidden: true });
-  const controls = h('div', { class: 'controls layer' },
-    h('div', { class: 'p-top' },
-      h('button', { class: 'round flat', 'aria-label': 'Retour', on: { click: leave } }, icon('back')),
-      title, airplay, pip, tracksButton, moreButton),
-    h('div', { class: 'p-center' }, back10, playButton, fwd10),
-    h('div', { class: 'p-bottom' },
-      timeline,
-      h('div', { class: 'p-row' }, now, h('div', { class: 'spacer' }), muteButton, nextButton, fullButton, left)),
-    busy);
-  const surface = h('div', { class: 'layer', 'aria-hidden': 'true' });
-  el.append(video, surface, controls, pillLayer, message);
 
-  // ---------- Controls visibility ----------
+  // Apple's player covers the screen: under it, the title and what Mira is doing, seen while it opens and closes.
+  const nativeStatus = h('div', { class: 'n-status', role: 'status', 'aria-live': 'polite' });
+  const nativeScreen = h('div', { class: 'n-screen' });
+
+  if (native) {
+    video.controls = false;
+    nativeScreen.append(video);
+    el.append(
+      h('div', { class: 'n-top' }, h('button', { class: 'round', 'aria-label': 'Retour', on: { click: close } }, icon('back'))),
+      h('div', { class: 'n-stage' }, nativeScreen, title, nativeStatus),
+      message);
+  } else {
+    const controls = h('div', { class: 'controls layer' },
+      h('div', { class: 'p-top' },
+        h('button', { class: 'round flat', 'aria-label': 'Retour', on: { click: close } }, icon('back')),
+        title, airplay, pip, tracksButton, moreButton),
+      h('div', { class: 'p-center' }, back10, playButton, fwd10),
+      h('div', { class: 'p-bottom' },
+        timeline,
+        h('div', { class: 'p-row' }, now, h('div', { class: 'spacer' }), muteButton, nextButton, fullButton, left)),
+      busy);
+    const surface = h('div', { class: 'layer', 'aria-hidden': 'true' });
+    el.append(video, surface, controls, pillLayer, message);
+    setupSurface(surface, controls);
+  }
+
+  /** What the page under Apple's player says: preparing, a tap to start, Picture in Picture, or nothing. */
+  function showNative(state) {
+    if (!native) return;
+    clear(nativeStatus);
+    if (state === 'loading') nativeStatus.append(h('div', { class: 'spinner' }), h('p', {}, 'Préparation de la lecture…'));
+    if (state === 'tap') {
+      nativeStatus.append(
+        h('button', { class: 'round big n-play', 'aria-label': 'Lecture', on: { click: () => { showNative('loading'); if (enterNative()) play(); else showNative('tap'); } } }, icon('play', { size: 36 })),
+        h('p', {}, 'Touche pour lancer la lecture en plein écran.'));
+    }
+    if (state === 'pip') {
+      nativeStatus.append(h('p', {}, 'Lecture en image dans l’image.'),
+        h('div', { class: 'actions' },
+          h('button', { class: 'btn', on: { click: close } }, 'Arrêter'),
+          h('button', { class: 'btn primary', on: { click: () => { try { video.webkitSetPresentationMode('fullscreen'); } catch { enterNative(); } } } }, icon('fullscreen', { size: 20 }), 'Plein écran')));
+    }
+  }
+
+  // ---------- Controls visibility (Mira's controls) ----------
   function showControls(hold = false) {
     el.classList.remove('idle');
     clearTimeout(hideTimer);
@@ -100,24 +148,26 @@ export function create({ id, query }) {
   function hideControls() { if (!video.paused && !scrubbing) el.classList.add('idle'); }
 
   // A tap shows or hides the controls; a double tap on a side skips 10 s, as in the Apple TV app.
-  let lastTap = 0, lastSide = '', tapTimer = 0;
-  surface.addEventListener('click', (e) => {
-    const rect = el.getBoundingClientRect();
-    const side = e.clientX < rect.width * 0.35 ? 'left' : e.clientX > rect.width * 0.65 ? 'right' : 'middle';
-    const time = Date.now();
-    if (time - lastTap < 300 && side === lastSide && side !== 'middle') {
+  function setupSurface(surface, controls) {
+    let lastTap = 0, lastSide = '', tapTimer = 0;
+    surface.addEventListener('click', (e) => {
+      const rect = el.getBoundingClientRect();
+      const side = e.clientX < rect.width * 0.35 ? 'left' : e.clientX > rect.width * 0.65 ? 'right' : 'middle';
+      const time = Date.now();
+      if (time - lastTap < 300 && side === lastSide && side !== 'middle') {
+        clearTimeout(tapTimer);
+        jump(side === 'left' ? -10 : 10);
+        flash(side);
+        lastTap = 0;
+        return;
+      }
+      lastTap = time; lastSide = side;
       clearTimeout(tapTimer);
-      jump(side === 'left' ? -10 : 10);
-      flash(side);
-      lastTap = 0;
-      return;
-    }
-    lastTap = time; lastSide = side;
-    clearTimeout(tapTimer);
-    tapTimer = setTimeout(() => (el.classList.contains('idle') ? showControls() : hideControls()), side === 'middle' ? 0 : 260);
-  });
-  el.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') showControls(); });
-  controls.addEventListener('click', () => showControls());
+      tapTimer = setTimeout(() => (el.classList.contains('idle') ? showControls() : hideControls()), side === 'middle' ? 0 : 260);
+    });
+    el.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') showControls(); });
+    controls.addEventListener('click', () => showControls());
+  }
 
   function flash(side) {
     const mark = h('div', { class: ['p-flash', side] }, icon(side === 'left' ? 'back10' : 'forward10', { size: 28 }), '10 s');
@@ -136,17 +186,43 @@ export function create({ id, query }) {
     }
   }
   function showTapToPlay() {
+    if (native) { showNative('tap'); return; }
     showMessage(h('div', {},
       h('button', { class: 'round big', style: { width: '84px', height: '84px', background: 'rgba(245,245,247,.95)', color: '#0b0b0c' }, 'aria-label': 'Lecture', on: { click: () => { hideMessage(); play(); } } }, icon('play', { size: 36 })),
       h('p', {}, item ? item.Name : '')));
   }
   function jump(delta) { seek(position() + delta); showControls(); }
-  function seek(target) {
+  function seek(at) {
     const end = total || video.duration || 0;
-    const value = Math.max(0, end ? Math.min(target, end - 1) : target);
+    const value = Math.max(0, end ? Math.min(at, end - 1) : at);
     if (progressive) { open(ticks(value)); return; }
     video.currentTime = value - offset;
     report('progress');
+  }
+
+  /** Apple's full screen player, asked for at once; false when Safari wants a tap for it first. */
+  function enterNative() {
+    if (!native || presentation() !== 'inline') return true;
+    try { video.webkitEnterFullscreen(); return true; } catch { return false; }
+  }
+  function exitPresentation() {
+    if (!native) return;
+    try {
+      if (presentation() === 'picture-in-picture') video.webkitSetPresentationMode('inline');
+      else if (presentation() === 'fullscreen') video.webkitExitFullscreen();
+    } catch { /* Already back in the page. */ }
+  }
+  /** Apple's player opened, closed, or went to Picture in Picture. */
+  function presentationChanged() {
+    const was = mode;
+    mode = presentation();
+    if (!native || disposed || mode === was) return;
+    if (mode === 'fullscreen') { showNative(''); return; }
+    if (mode === 'picture-in-picture') { showNative('pip'); return; }
+    // Back in the page: Apple's player was closed (Terminé, a swipe down), or Picture in Picture was.
+    if (closing || failed || switching || ended || video.ended) return;
+    if (was === 'picture-in-picture' && !video.paused) { if (!enterNative()) { video.pause(); showNative('tap'); } return; }
+    close();
   }
 
   function updatePlayIcon() {
@@ -158,6 +234,8 @@ export function create({ id, query }) {
   function updateTime() {
     if (scrubbing) return;
     const end = total || video.duration || 0, at = position();
+    markers(at, end);
+    if (native) return;
     const ratio = end ? Math.min(1, at / end) : 0;
     played.style.width = `${ratio * 100}%`;
     knob.style.left = `${ratio * 100}%`;
@@ -171,7 +249,6 @@ export function create({ id, query }) {
       for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= video.currentTime + 1) far = Math.max(far, video.buffered.end(i));
       buffered.style.width = `${Math.min(1, (offset + far) / end) * 100}%`;
     }
-    markers(at, end);
   }
 
   // ---------- Timeline scrubbing, with trickplay previews when Jellyfin has made them ----------
@@ -220,6 +297,14 @@ export function create({ id, query }) {
   let currentSkip = null;
   function markers(at, end) {
     const segment = segments.find((s) => SKIP_LABELS[s.Type] && at >= seconds(s.StartTicks) && at < seconds(s.EndTicks) - 1);
+    // Skipped once by itself when the settings say so: going back into it plays it.
+    if (segment && settings.get('autoSkip') && AUTO_SKIP.includes(segment.Type) && !skipped.has(segment)) {
+      skipped.add(segment);
+      seek(seconds(segment.EndTicks));
+      return;
+    }
+    // Apple's player has no room for Mira's buttons: there, the next episode starts at the end.
+    if (native) return;
     if (segment !== currentSkip) {
       currentSkip = segment;
       pillLayer.querySelector('.pill')?.remove();
@@ -255,13 +340,30 @@ export function create({ id, query }) {
     clearInterval(countdownTimer); countdownTimer = 0;
     pillLayer.querySelector('.up-next')?.remove();
   }
+  /** The next episode in this same player: Apple's full screen stays open, and Back still leads to the title page. */
   async function playNext() {
-    if (!next) return;
+    if (!next || switching || closing) return;
+    const upcoming = next, resume = progressFraction(upcoming) > 0;
+    switching = true;
     clearInterval(countdownTimer); countdownTimer = 0;
+    clear(pillLayer);
     await stop();
-    location.replace(`#/lecture/${next.Id}${progressFraction(next) > 0 ? '' : '?debut=1'}`);
+    if (disposed || closing) return;
+    history.replaceState(history.state, '', `#/lecture/${upcoming.Id}${resume ? '' : '?debut=1'}`);
+    resetTitle();
+    target = { id: upcoming.Id, fromStart: !resume, tracks: null };
+    await begin();
   }
   const progressFraction = (x) => (x.RunTimeTicks ? (x.UserData?.PlaybackPositionTicks ?? 0) / x.RunTimeTicks : 0);
+
+  function resetTitle() {
+    clearInterval(progressTimer);
+    item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0;
+    audioIndex = null; subtitleIndex = null; forceTranscode = false; started = false; ended = false;
+    segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
+    skipped.clear();
+    nextButton.hidden = true;
+  }
 
   // ---------- Reports to Jellyfin ----------
   function body(extra = {}) {
@@ -287,10 +389,29 @@ export function create({ id, query }) {
     changed(item, { position: final.PositionTicks });
   }
 
+  // ---------- Tracks a title starts with ----------
+  function pickTracks(chosen) {
+    if (!source?.MediaStreams?.length) { audioIndex = chosen?.audio ?? null; subtitleIndex = chosen?.subtitle ?? null; return; }
+    const memory = item.SeriesId ? settings.get('seriesTracks')?.[item.SeriesId] ?? null : null;
+    const auto = chooseTracks(source, { memory, audioOrder: settings.get('audioLanguages'), subtitleOrder: settings.get('subtitleLanguages') });
+    const has = (type, index) => source.MediaStreams.some((s) => s.Type === type && s.Index === index);
+    audioIndex = chosen?.audio != null && has('Audio', chosen.audio) ? chosen.audio : auto.audio;
+    subtitleIndex = chosen?.subtitle === -1 || (chosen?.subtitle != null && has('Subtitle', chosen.subtitle)) ? chosen.subtitle : auto.subtitle;
+    if (chosen) remember();
+  }
+  /** The languages chosen for a series, for its next episodes on this phone. */
+  function remember() {
+    if (!item?.SeriesId || !source) return;
+    const all = { ...settings.get('seriesTracks') };
+    delete all[item.SeriesId];
+    all[item.SeriesId] = trackMemory(source, audioIndex, subtitleIndex);
+    settings.set('seriesTracks', Object.fromEntries(Object.entries(all).slice(-100)));
+  }
+
   // ---------- Opening the stream ----------
   async function open(startTicks, { keepPaused = false } = {}) {
     const attempt = ++opening;
-    busy.hidden = false; hideMessage();
+    busy.hidden = false; hideMessage(); failed = false;
     if (started) { await report('progress'); }
     try {
       const max = await bitrate();
@@ -326,7 +447,7 @@ export function create({ id, query }) {
         throw new Error('Jellyfin ne propose aucun flux lisible pour cet appareil.');
       }
       await attach(url, hlsStream, progressive ? 0 : seconds(startTicks));
-      addSubtitles();
+      if (native && !enterNative()) { busy.hidden = true; showNative('tap'); return; }
       if (!keepPaused) play();
     } catch (error) {
       if (attempt !== opening || disposed) return;
@@ -339,6 +460,9 @@ export function create({ id, query }) {
     hls?.destroy(); hls = null;
     for (const t of [...video.querySelectorAll('track')]) t.remove();
     pendingStart = startSeconds;
+    // Subtitles go in before the stream: Safari hands the tracks it finds at loading to Apple's player and its menu.
+    addSubtitles();
+    tracksSettle = Date.now() + 1500;
     if (hlsStream && useHlsJs) {
       const { default: Hls } = await import('../../vendor/hls.light.min.mjs');
       hls = new Hls({ startPosition: startSeconds, maxBufferLength: 30, backBufferLength: 60, enableWorker: true });
@@ -354,29 +478,64 @@ export function create({ id, query }) {
       video.src = url;
       video.load();
     }
+    showTrack();
+    setTimeout(showTrack, 300);
   }
 
   function addSubtitles() {
     const streams = source?.MediaStreams ?? [];
-    for (const stream of streams) {
-      if (stream.Type !== 'Subtitle' || stream.DeliveryMethod !== 'External' || !stream.DeliveryUrl) continue;
+    const subtitles = streams.filter((s) => s.Type === 'Subtitle');
+    for (const stream of subtitles) {
+      if (stream.DeliveryMethod !== 'External' || !stream.DeliveryUrl) continue;
       video.append(h('track', {
-        kind: 'subtitles', label: trackText(stream, streams.filter((s) => s.Type === 'Subtitle').indexOf(stream) + 1).label, srclang: stream.Language ?? 'und',
+        kind: stream.IsForced ? 'forced' : 'subtitles', label: trackText(stream, subtitles.indexOf(stream) + 1).label, srclang: stream.Language ?? 'und',
         src: signed(stream.DeliveryUrl), default: stream.Index === subtitleIndex, dataset: { index: String(stream.Index) },
       }));
     }
-    const show = () => {
-      for (const t of video.textTracks) {
-        const el2 = [...video.querySelectorAll('track')].find((x) => x.track === t);
-        t.mode = el2 && Number(el2.dataset.index) === subtitleIndex ? 'showing' : 'disabled';
-      }
-    };
-    show();
-    setTimeout(show, 300);
     el.style.setProperty('--cue', `${settings.get('subtitleSize')}%`);
   }
+  const trackIndex = (textTrack) => {
+    const node = [...video.querySelectorAll('track')].find((x) => x.track === textTrack);
+    return node ? Number(node.dataset.index) : null;
+  };
+  /** Shows the chosen subtitles among those beside the video, hides the others. */
+  function showTrack() {
+    for (const t of video.textTracks) {
+      const index = trackIndex(t);
+      if (index != null) t.mode = index === subtitleIndex ? 'showing' : 'disabled';
+    }
+  }
+  /**
+   * Subtitles chosen in Apple's menu (or Safari's own full screen): Mira follows, reports and remembers. In the page,
+   * only Mira's controls choose: the browser's own moves while tracks load are not a choice.
+   */
+  const fromSystemMenu = () => presentation() !== 'inline' && Date.now() > tracksSettle;
+  function textTracksChanged() {
+    if (!source || !item || !fromSystemMenu()) return;
+    const showing = [...video.textTracks].find((t) => t.mode === 'showing' && trackIndex(t) != null);
+    const index = showing ? trackIndex(showing) : -1;
+    // The burned-in subtitles are in the picture, not in the menu: « Off » there changes nothing.
+    if (index === subtitleIndex || (index === -1 && burned())) return;
+    switchTracks({ subtitle: index });
+  }
+  /** The audio track of a file Safari plays as it is: false when it cannot be switched there. */
+  function selectAudioTrack() {
+    const list = video.audioTracks, audios = (source?.MediaStreams ?? []).filter((s) => s.Type === 'Audio');
+    const at = audios.findIndex((s) => s.Index === audioIndex);
+    if (!switchesAudio || !list || list.length < 2 || list.length !== audios.length || at < 0) return false;
+    for (let i = 0; i < list.length; i++) list[i].enabled = i === at;
+    return true;
+  }
+  /** Audio chosen in Apple's menu: Mira follows, reports and remembers. */
+  function audioTracksChanged() {
+    const list = video.audioTracks, audios = (source?.MediaStreams ?? []).filter((s) => s.Type === 'Audio');
+    if (playMethod !== 'DirectPlay' || !list || list.length !== audios.length || !fromSystemMenu()) return;
+    const index = audios[Array.from({ length: list.length }, (_, i) => list[i]).findIndex((t) => t.enabled)]?.Index;
+    if (index == null || index === audioIndex) return;
+    audioIndex = index; remember(); report('progress');
+  }
 
-  // ---------- Tracks, speed and quality ----------
+  // ---------- Tracks, speed and quality (Mira's controls) ----------
   const describe = (kind, stream, number) => [kind, trackText(stream, number).details].filter(Boolean).join(' · ');
   function tracksSheet() {
     const streams = source?.MediaStreams ?? [];
@@ -393,17 +552,22 @@ export function create({ id, query }) {
   }
   function switchTracks({ audio, subtitle }) {
     const at = position(), wasPaused = video.paused;
-    if (audio != null && audio !== audioIndex) { audioIndex = audio; open(ticks(at), { keepPaused: wasPaused }); return; }
+    if (audio != null && audio !== audioIndex) {
+      audioIndex = audio; remember();
+      // A file's own tracks switch at once in Safari; a conversion is asked again with the new one.
+      if (playMethod === 'DirectPlay' && selectAudioTrack()) { report('progress'); return; }
+      open(ticks(at), { keepPaused: wasPaused });
+      return;
+    }
     if (subtitle != null && subtitle !== subtitleIndex) {
       const stream = (source?.MediaStreams ?? []).find((s) => s.Index === subtitle);
-      subtitleIndex = subtitle;
-      // Text subtitles already beside the video switch at once; pictures need a new conversion.
+      const wasBurned = burned();
+      subtitleIndex = subtitle; remember();
+      // Text subtitles already beside the video switch at once; pictures need a new conversion, and so does
+      // leaving them.
       if (subtitle === -1 || stream?.DeliveryMethod === 'External') {
-        for (const t of video.textTracks) {
-          const node = [...video.querySelectorAll('track')].find((x) => x.track === t);
-          t.mode = node && Number(node.dataset.index) === subtitle ? 'showing' : 'disabled';
-        }
-        if (subtitle === -1 && playMethod !== 'DirectPlay' && burned()) open(ticks(at), { keepPaused: wasPaused });
+        showTrack();
+        if (wasBurned) open(ticks(at), { keepPaused: wasPaused });
         else report('progress');
       } else open(ticks(at), { keepPaused: wasPaused });
     }
@@ -425,7 +589,7 @@ export function create({ id, query }) {
     });
   }
 
-  // ---------- Picture in Picture, AirPlay, full screen ----------
+  // ---------- Picture in Picture, AirPlay, full screen (Mira's controls) ----------
   function pipSupported() {
     return !!(video.webkitSupportsPresentationMode?.('picture-in-picture') || document.pictureInPictureEnabled);
   }
@@ -436,9 +600,6 @@ export function create({ id, query }) {
       } else if (document.pictureInPictureElement) await document.exitPictureInPicture();
       else await video.requestPictureInPicture();
     } catch { toast('L’image dans l’image n’est pas disponible ici.'); }
-  }
-  if (window.WebKitPlaybackTargetAvailabilityEvent) {
-    video.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => { airplay.hidden = e.availability !== 'available'; });
   }
   function fullscreen() {
     // iPhone: iOS's own player, with its controls, AirPlay and subtitles. Elsewhere: the whole player.
@@ -451,15 +612,24 @@ export function create({ id, query }) {
   function showMessage(content) { clear(message).append(content); message.hidden = false; }
   function hideMessage() { message.hidden = true; }
   function fail(text) {
+    failed = true; switching = false;
     busy.hidden = true;
+    clearTimeout(nativeCheck);
+    exitPresentation();
+    showNative('');
     showMessage(h('div', {}, icon('warning', { size: 36 }), h('h2', { class: 'h3' }, 'Lecture impossible'), h('p', {}, text),
       h('div', { class: 'actions' },
-        h('button', { class: 'btn', on: { click: leave } }, 'Retour'),
-        h('button', { class: 'btn primary', on: { click: () => { hideMessage(); open(ticks(position())); } } }, 'Réessayer'))));
+        h('button', { class: 'btn', on: { click: close } }, 'Retour'),
+        h('button', { class: 'btn primary', on: { click: retry } }, 'Réessayer'))));
+  }
+  function retry() {
+    hideMessage(); failed = false; showNative('loading');
+    if (item) open(ticks(position())); else begin();
   }
 
   // ---------- Video events ----------
   function fitPicture() {
+    if (native) return;
     const ratio = video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 0;
     el.classList.toggle('fitted', ratio > 0);
     if (ratio) el.style.setProperty('--ratio', ratio.toFixed(4));
@@ -468,17 +638,26 @@ export function create({ id, query }) {
     loadedmetadata: () => {
       if (pendingStart > 0 && !progressive) { try { video.currentTime = pendingStart; } catch { /* set again on canplay */ } }
       pendingStart = 0;
+      if (playMethod === 'DirectPlay') selectAudioTrack();
       fitPicture();
       updateTime();
     },
     resize: fitPicture,
     playing: () => {
       busy.hidden = true; hideMessage(); updatePlayIcon(); showControls();
+      switching = false;
       if (!started) {
         started = true;
         report('start');
         clearInterval(progressTimer);
         progressTimer = setInterval(() => { if (!video.paused && Date.now() - lastReport >= PROGRESS_EVERY - 200) report('progress'); }, PROGRESS_EVERY);
+      }
+      // Safari may refuse full screen without a word: still in the page a moment later, Mira asks for a tap.
+      if (native && presentation() === 'inline') {
+        clearTimeout(nativeCheck);
+        nativeCheck = setTimeout(() => {
+          if (!disposed && !closing && presentation() === 'inline' && !video.paused) { video.pause(); showNative('tap'); }
+        }, 1500);
       }
     },
     pause: () => { updatePlayIcon(); showControls(true); report('progress'); },
@@ -491,26 +670,31 @@ export function create({ id, query }) {
     progress: updateTime,
     ratechange: () => report('progress'),
     ended: async () => {
-      if (ended) return;
+      if (ended || disposed) return;
       ended = true;
       await stop({ finished: true });
+      if (disposed || closing) return;
       if (next && settings.get('autoNext') && !nextDismissed) playNext();
-      else leave();
+      else close();
     },
     error: () => {
-      if (disposed || !item) return;
+      if (disposed || !item || !video.getAttribute('src')) return;
       // A file Safari was thought to play directly but cannot: Jellyfin converts it instead.
       if (playMethod === 'DirectPlay' && !forceTranscode) { forceTranscode = true; open(ticks(position())); return; }
-      fail('Cet appareil ne peut pas lire ce flux. Essaie une qualité plus basse dans les réglages du lecteur.');
+      fail('Cet appareil ne peut pas lire ce flux. Essaie une qualité plus basse dans les réglages.');
     },
+    webkitpresentationmodechanged: presentationChanged,
+    webkitplaybacktargetavailabilitychanged: (e) => { airplay.hidden = e.availability !== 'available'; },
   };
   for (const [name, fn] of Object.entries(on)) video.addEventListener(name, fn);
+  video.textTracks.addEventListener('change', textTracksChanged);
+  video.audioTracks?.addEventListener?.('change', audioTracksChanged);
 
   function keys(e) {
     if (e.target.closest?.('input, .sheet')) return;
     const actions = {
       ' ': togglePlay, k: togglePlay, ArrowLeft: () => jump(-10), ArrowRight: () => jump(10), j: () => jump(-10), l: () => jump(10),
-      f: fullscreen, m: () => { video.muted = !video.muted; updateMute(); }, n: () => next && playNext(), Escape: leave,
+      f: fullscreen, m: () => { video.muted = !video.muted; updateMute(); }, n: () => next && playNext(), Escape: close,
     };
     const action = actions[e.key];
     if (action) { e.preventDefault(); action(); showControls(); }
@@ -519,12 +703,19 @@ export function create({ id, query }) {
   const onHide = () => { if (document.hidden) report('progress', true); };
   const onPageHide = () => { if (started) api.report('stop', body(), true).catch(() => {}); };
 
-  async function leave() {
+  /** Back to the title page, from Retour or from Apple's player once closed. */
+  async function close() {
+    if (closing) return;
+    closing = true;
+    clearTimeout(nativeCheck);
+    exitPresentation();
+    video.pause();
     await stop();
     goBack(item ? titleHref(item) : '#/');
   }
 
   // ---------- Media Session: lock screen and Control Center ----------
+  const ACTIONS = ['play', 'pause', 'seekbackward', 'seekforward', 'seekto', 'nexttrack'];
   function mediaSession() {
     if (!('mediaSession' in navigator)) return;
     const art = artFor(item, item.Type === 'Episode' ? 'still' : 'backdrop') ?? artFor(item, 'poster');
@@ -540,39 +731,47 @@ export function create({ id, query }) {
         seekbackward: () => jump(-10), seekforward: () => jump(10),
         seekto: (d) => seek(d.seekTime), nexttrack: next ? () => playNext() : null,
       };
-      for (const [action, fn] of Object.entries(handlers)) { try { navigator.mediaSession.setActionHandler(action, fn); } catch { /* unsupported action */ } }
+      for (const action of ACTIONS) { try { navigator.mediaSession.setActionHandler(action, handlers[action]); } catch { /* unsupported action */ } }
     } catch { /* No Media Session here. */ }
   }
 
   // ---------- Start ----------
   async function begin() {
-    busy.hidden = false;
+    const attempt = ++beginning;
+    busy.hidden = false; showNative('loading');
     try {
-      let target = await api.item(id);
-      if (target.Type === 'Series') {
-        target = (await api.seriesNext(target.Id)) ?? null;
-        if (!target) throw new Error('Cette série n’a aucun épisode à lire.');
-        target = await api.item(target.Id);
+      let found = await api.item(target.id);
+      if (found.Type === 'Series') {
+        const up = await api.seriesNext(found.Id);
+        if (!up) throw new Error('Cette série n’a aucun épisode à lire.');
+        found = await api.item(up.Id);
       }
-      if (disposed) return;
-      item = target;
+      if (disposed || attempt !== beginning) return;
+      item = found;
       document.title = `${item.Type === 'Episode' ? item.SeriesName : item.Name} · Mira`;
       title.firstChild.textContent = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
       title.lastChild.textContent = item.Type === 'Episode' ? `${episodeCode(item)} · ${item.Name ?? ''}` : [item.ProductionYear, item.OfficialRating].filter(Boolean).join(' · ');
       chapters = item.Chapters ?? [];
       const fraction = progressFraction(item);
-      const resume = !fromStart && settings.get('resume') && fraction > 0 && fraction < 0.95 ? item.UserData.PlaybackPositionTicks : 0;
+      const resume = !target.fromStart && settings.get('resume') && fraction > 0 && fraction < 0.95 ? item.UserData.PlaybackPositionTicks : 0;
       total = seconds(item.RunTimeTicks);
+      // The title's own streams choose its tracks before Jellyfin is asked for a stream.
+      source = item.MediaSources?.[0] ?? null;
+      pickTracks(target.tracks);
+      if (native) {
+        const art = artFor(item, item.Type === 'Episode' ? 'still' : 'backdrop') ?? artFor(item, 'wide') ?? artFor(item, 'poster');
+        if (art) video.poster = imageUrl(art, 640); else video.removeAttribute('poster');
+      }
       drawChapters();
       setupTrickplay();
       mediaSession();
       await open(resume);
-      api.segments(item.Id).then((list) => { segments = list; });
+      api.segments(item.Id).then((list) => { if (attempt === beginning) segments = list; });
       if (item.Type === 'Episode') {
-        api.nextEpisode(item).then((n) => { next = n; nextButton.hidden = !n; mediaSession(); }).catch(() => {});
+        api.nextEpisode(item).then((n) => { if (attempt !== beginning) return; next = n; nextButton.hidden = !n; mediaSession(); }).catch(() => {});
       }
     } catch (error) {
-      fail(error.message);
+      if (attempt === beginning && !disposed) fail(error.message);
     }
   }
 
@@ -594,7 +793,7 @@ export function create({ id, query }) {
     trick = { ...info, url: (tile) => signed(`Videos/${item.Id}/Trickplay/${width}/${tile}.jpg?mediaSourceId=${sourceId}`) };
   }
 
-  addEventListener('keydown', keys);
+  if (!native) addEventListener('keydown', keys);
   document.addEventListener('visibilitychange', onHide);
   addEventListener('pagehide', onPageHide);
   begin();
@@ -604,18 +803,26 @@ export function create({ id, query }) {
     leave() { if (started) stop(); },
     dispose() {
       disposed = true;
-      clearInterval(progressTimer); clearInterval(countdownTimer); clearTimeout(hideTimer);
+      clearInterval(progressTimer); clearInterval(countdownTimer); clearTimeout(hideTimer); clearTimeout(nativeCheck);
       removeEventListener('keydown', keys);
       document.removeEventListener('visibilitychange', onHide);
       removeEventListener('pagehide', onPageHide);
       for (const [name, fn] of Object.entries(on)) video.removeEventListener(name, fn);
+      video.textTracks.removeEventListener('change', textTracksChanged);
+      video.audioTracks?.removeEventListener?.('change', audioTracksChanged);
+      exitPresentation();
       hls?.destroy(); hls = null;
       video.pause();
       for (const t of [...video.querySelectorAll('track')]) t.remove();
       video.removeAttribute('src');
+      video.removeAttribute('poster');
       video.load();
       video.remove();
-      if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
+      if ('mediaSession' in navigator) {
+        // Nothing left for the lock screen or the Dynamic Island once the player is gone.
+        navigator.mediaSession.metadata = null;
+        for (const action of ACTIONS) { try { navigator.mediaSession.setActionHandler(action, null); } catch { /* unsupported action */ } }
+      }
     },
   };
 }

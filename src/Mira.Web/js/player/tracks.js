@@ -50,3 +50,81 @@ export function trackText(stream, number = stream.Index) {
   if (stream.IsExternal) details.push('fichier externe');
   return { label: capitalize(label), details: details.join(' · ') };
 }
+
+// ---------- Which tracks a title starts with ----------
+
+/** The language orders of Mira on Windows and Mac (Mira.Core PlayerSettings), with the same defaults. */
+export const AUDIO_LANGUAGES = [
+  ['jpn,ja,fre,fra,fr,eng,en', 'Japonais, puis français'],
+  ['fre,fra,fr,eng,en', 'Français, puis anglais'],
+  ['eng,en,fre,fra,fr', 'Anglais, puis français'],
+];
+export const SUBTITLE_LANGUAGES = [
+  ['fre,fra,fr,eng,en', 'Français, puis anglais'],
+  ['eng,en', 'Anglais'],
+  ['jpn,ja', 'Japonais'],
+];
+
+/** One key per language, whatever its code: « fre », « fra » and « fr » are all French. */
+function languageKey(code) {
+  const main = String(code ?? '').trim().split(/[-_]/)[0].toLowerCase();
+  if (!main || ['und', 'zxx', 'mis', 'mul'].includes(main)) return null;
+  return byCode.get(main) ?? main;
+}
+export const sameLanguage = (a, b) => { const key = languageKey(a); return key !== null && key === languageKey(b); };
+
+/** Position of a language in an order (« jpn,ja,fre… »); Infinity when absent. */
+function rank(code, order) {
+  const key = languageKey(code);
+  const position = key === null ? -1 : String(order ?? '').split(',').findIndex((x) => languageKey(x) === key);
+  return position < 0 ? Infinity : position;
+}
+
+/** The best stream in an order: its language first, then the one the file marks as default, then the file's order. */
+function best(streams, order) {
+  const ranked = streams.map((s, i) => ({ s, i, r: rank(s.Language, order) })).filter((x) => x.r !== Infinity);
+  ranked.sort((a, b) => a.r - b.r || Number(!!b.s.IsDefault) - Number(!!a.s.IsDefault) || a.i - b.i);
+  return ranked[0]?.s ?? null;
+}
+
+/**
+ * The audio and subtitle streams a title starts with, as Jellyfin indexes (-1: no subtitles). In order: the tracks
+ * last chosen for this series (same languages), the language orders of the settings, then Jellyfin's own choice.
+ * Subtitles in the language of the audio are left off, except forced ones (signs, foreign lines); with an audio track
+ * of unknown language, Jellyfin decides.
+ */
+export function chooseTracks(source, { memory = null, audioOrder = '', subtitleOrder = '' } = {}) {
+  const streams = source?.MediaStreams ?? [];
+  const audios = streams.filter((s) => s.Type === 'Audio');
+  const subtitles = streams.filter((s) => s.Type === 'Subtitle');
+  const fallbackAudio = audios.find((s) => s.Index === source?.DefaultAudioStreamIndex) ?? audios[0] ?? null;
+  const audio = (memory?.audio && audios.find((s) => sameLanguage(s.Language, memory.audio)))
+    || best(audios, audioOrder) || fallbackAudio;
+  // Text before pictures: pictures need a conversion that draws them into the video.
+  const readable = [...subtitles].sort((a, b) => Number(!a.IsTextSubtitleStream) - Number(!b.IsTextSubtitleStream));
+  const forcedIn = (language) => readable.find((s) => s.IsForced && sameLanguage(s.Language, language)) ?? null;
+
+  let subtitle;
+  if (memory && 'subtitle' in memory) {
+    subtitle = memory.subtitle === null ? -1
+      : (readable.find((s) => sameLanguage(s.Language, memory.subtitle) && !!s.IsForced === !!memory.forced)
+        ?? readable.find((s) => sameLanguage(s.Language, memory.subtitle)))?.Index;
+  }
+  if (subtitle === undefined && languageKey(audio?.Language) !== null) {
+    const first = String(subtitleOrder).split(',')[0];
+    if (sameLanguage(audio.Language, first)) subtitle = forcedIn(audio.Language)?.Index ?? -1;
+    else subtitle = (best(readable.filter((s) => !s.IsForced), subtitleOrder) ?? forcedIn(audio.Language))?.Index;
+  }
+  return {
+    audio: audio?.Index ?? null,
+    subtitle: subtitle ?? source?.DefaultSubtitleStreamIndex ?? -1,
+  };
+}
+
+/** What a choice of tracks leaves for the next episodes of the series: languages, not indexes. */
+export function trackMemory(source, audioIndex, subtitleIndex) {
+  const streams = source?.MediaStreams ?? [];
+  const audio = streams.find((s) => s.Type === 'Audio' && s.Index === audioIndex);
+  const subtitle = streams.find((s) => s.Type === 'Subtitle' && s.Index === subtitleIndex);
+  return { audio: audio?.Language ?? null, subtitle: subtitle ? subtitle.Language ?? 'und' : null, forced: !!subtitle?.IsForced };
+}

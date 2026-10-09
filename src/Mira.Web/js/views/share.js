@@ -50,5 +50,5 @@ export function create() {
   }
 
   render();
-  return { el, title: 'Sur ton téléphone' };
+  return { el, title: 'Sur ton téléphone', refresh: render };
 }

@@ -250,6 +250,7 @@ body.scrolled .status-scrim { opacity: 1; }
 .sheet-item .sub { display: block; font-size: 13px; color: var(--faint); font-weight: 400; }
 .sheet-item .tick { color: var(--accent); }
 .sheet-item.danger { color: var(--danger); }
+.sheet-heading { padding: 14px 20px 4px; font-size: 12px; font-weight: 800; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
@@ -261,6 +262,15 @@ body.scrolled .status-scrim { opacity: 1; }
 }
 .toast button { color: var(--accent); font-weight: 800; padding: 4px 6px; }
 
+/* Jellyfin away (PC off or starting): said above the tab bar while Mira asks again; notices then rise above it. */
+.netbar {
+  position: fixed; z-index: 60; bottom: calc(var(--tabbar) + 12px); left: calc(50% + (var(--rail) + var(--left)) / 2); transform: translateX(-50%);
+  width: max-content; max-width: min(460px, calc(100% - var(--rail) - 32px)); display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px 9px 12px; border-radius: var(--r-full); background: var(--raised-2); color: var(--ink);
+  font-size: 13px; font-weight: 700; line-height: 1.3; box-shadow: var(--shadow); animation: fade var(--slow) linear;
+}
+.netbar .spinner { flex: none; width: 16px; height: 16px; border-width: 2px; }
+body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px); }
 .banner {
   display: flex; align-items: center; gap: 12px; margin: 0 var(--gutter) 16px; padding: 12px 14px; border-radius: var(--r-m);
   background: var(--surface); border: 1px solid var(--line); font-size: 14px; color: var(--muted);
@@ -316,6 +326,15 @@ body.scrolled .status-scrim { opacity: 1; }
 .detail-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .detail-actions .progress-line { height: 4px; border-radius: var(--r-full); background: var(--raised); overflow: hidden; }
 .detail-actions .progress-line i { display: block; height: 100%; background: var(--accent); }
+.tracks-line {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 12px 8px 14px; border-radius: var(--r-m);
+  background: var(--surface); color: var(--muted); font-size: 14px; text-align: left; transition: background var(--fast) linear;
+}
+.tracks-line:active { background: var(--raised); }
+.tracks-line .grow { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
+.tracks-line .grow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tracks-line b { color: var(--ink); font-weight: 700; }
+@media (hover: hover) { .tracks-line:hover { background: var(--raised); } }
 .detail-secondary { display: flex; gap: 6px; }
 .detail-secondary .tool { flex: 1; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: var(--r-m); color: var(--muted); font-size: 12px; font-weight: 700; }
 .detail-secondary .tool.on { color: var(--ink); }
@@ -374,6 +393,8 @@ body.scrolled .status-scrim { opacity: 1; }
 .item .sub { display: block; font-size: 13px; font-weight: 400; color: var(--faint); margin-top: 1px; }
 .item .value { color: var(--faint); font-size: 15px; font-weight: 600; }
 .item.danger { color: var(--danger); }
+.item.static .sub { margin-top: 3px; line-height: 1.4; }
+.group-note { margin: -14px calc(var(--gutter) + 4px) 24px; color: var(--faint); font-size: 13px; line-height: 1.45; }
 button.item:active, a.item:active { background: var(--raised); }
 .switch { position: relative; width: 51px; height: 31px; flex: none; border-radius: var(--r-full); background: var(--raised-2); transition: background var(--fast) linear; }
 .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--ink); transition: transform var(--fast) var(--ease); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
@@ -472,6 +493,24 @@ button.item:active, a.item:active { background: var(--raised); }
 .p-message > div { display: grid; justify-items: center; gap: 12px; max-width: 360px; }
 .p-message p { color: rgba(255, 255, 255, 0.75); }
 .p-message .actions { display: flex; gap: 10px; margin-top: 6px; }
+/* Apple's player (iPhone, iPad) plays in full screen: under it, the title and what Mira is doing, seen as it opens and closes. */
+.player.native { display: grid; grid-template-rows: auto 1fr; background: var(--bg); }
+.n-top { padding: calc(var(--top) + 8px) calc(var(--right) + 12px) 0 calc(var(--left) + 12px); }
+.n-stage { display: grid; align-content: center; justify-items: center; gap: 16px; padding: 0 calc(var(--right) + 24px) calc(var(--bottom) + 48px) calc(var(--left) + 24px); text-align: center; }
+.n-screen { width: min(100%, 560px); aspect-ratio: 16 / 9; border-radius: var(--r-m); overflow: hidden; background: #000; box-shadow: var(--shadow); }
+.player.native video { position: static; display: block; width: 100%; height: 100%; object-fit: cover; }
+.player.native .p-title { flex: none; max-width: 560px; }
+.player.native .p-title strong { font-size: 20px; white-space: normal; }
+.player.native .p-title span { margin-top: 2px; font-size: 14px; white-space: normal; }
+.n-status { display: grid; justify-items: center; align-content: start; gap: 12px; min-height: 104px; color: var(--muted); font-size: 14px; }
+.n-status .actions { display: flex; gap: 10px; }
+.n-play { width: 76px; height: 76px; background: var(--accent); color: var(--on-accent); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .n-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 28px; text-align: left; justify-items: start; padding-bottom: calc(var(--bottom) + 16px); }
+  .n-screen { grid-row: span 2; justify-self: end; }
+  .n-status { justify-items: start; min-height: 0; }
+}
+
 @media (orientation: landscape) and (max-height: 500px) {
   .p-center .round.big { width: 64px; height: 64px; }
   .pill, .up-next { bottom: calc(var(--bottom) + 84px); }

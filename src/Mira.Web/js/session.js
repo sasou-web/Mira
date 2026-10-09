@@ -49,7 +49,12 @@ const defaults = {
   quality: 'auto',      // 'auto', 'max' or a bitrate in bits per second
   autoNext: true,       // the next episode starts by itself
   resume: true,         // a title resumes where it was left
-  subtitleSize: 100,    // percent, for subtitles drawn by Mira (not in iOS's own full screen)
+  subtitleSize: 100,    // percent, for subtitles drawn by Mira (Apple's player follows iOS's own settings)
+  audioLanguages: 'jpn,ja,fre,fra,fr,eng,en', // as Mira on Windows and Mac
+  subtitleLanguages: 'fre,fra,fr,eng,en',
+  autoSkip: false,      // openings and recaps skipped without a tap (Apple's player has no room for the button)
+  seriesTracks: {},     // series id → { audio, subtitle, forced }: the languages last chosen for it
+  nativePlayer: null,   // null: Apple's player on iPhone and iPad; true or false forces it (Safari's check)
   recentSearches: [],
   hiddenResume: {},     // id → time removed from Continuer à regarder
   installHintDismissed: false,

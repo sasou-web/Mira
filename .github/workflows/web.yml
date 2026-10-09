@@ -48,6 +48,8 @@ jobs:
         run: |
           npm install --silent --no-audit --no-fund --prefix .artifacts/pw playwright@1.56.1
           npx --prefix .artifacts/pw playwright install --with-deps chromium >/dev/null
+          # Jellyfin stopped then started again during the check: Mira web must open meanwhile and come back by itself.
+          export MIRA_STOP="docker stop jellyfin" MIRA_START="docker start jellyfin"
           PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs" node tools/web/check.mjs http://127.0.0.1:8096/Mira/ mira mira-check "Courte Web" .artifacts/check
       - name: Jellyfin log
         if: failure()

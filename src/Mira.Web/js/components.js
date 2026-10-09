@@ -11,7 +11,15 @@ export function changed(item, detail = {}) { changes.dispatchEvent(new CustomEve
 export const titleHref = (item) => item.Type === 'Episode' && item.SeriesId
   ? `#/titre/${item.SeriesId}?episode=${item.Id}`
   : `#/titre/${item.Id}`;
-export const playHref = (item, fromStart = false) => `#/lecture/${item.Id}${fromStart ? '?debut=1' : ''}`;
+/** The player for an item: from the start, or with tracks chosen on its page ({ audio, subtitle } as Jellyfin indexes). */
+export function playHref(item, fromStart = false, tracks = null) {
+  const params = new URLSearchParams();
+  if (fromStart) params.set('debut', '1');
+  if (tracks?.audio != null) params.set('audio', String(tracks.audio));
+  if (tracks?.subtitle != null) params.set('sous-titres', String(tracks.subtitle));
+  const text = params.toString();
+  return `#/lecture/${item.Id}${text ? `?${text}` : ''}`;
+}
 
 /** « 2023 », « 3 saisons », « S1 · É3 · reste 12 min ». */
 export function subtitle(item) {
@@ -92,8 +100,8 @@ export function emptyState({ symbol = 'films', title, text = '', action = null }
 }
 
 export function errorState(error, retry) {
-  return h('div', { class: 'state', role: 'alert' }, icon(error?.offline ? 'offline' : 'warning'),
-    h('h2', {}, error?.offline ? 'Pas de connexion au serveur' : 'Ça n’a pas marché'),
+  return h('div', { class: 'state', role: 'alert' }, icon(error?.unreachable ? 'offline' : 'warning'),
+    h('h2', {}, error?.unreachable ? 'Le serveur ne répond pas' : 'Ça n’a pas marché'),
     h('p', {}, error?.message ?? 'Une erreur inattendue est survenue.'),
     retry ? h('button', { class: 'btn small', on: { click: retry } }, icon('refresh', { size: 16 }), 'Réessayer') : null);
 }
@@ -114,8 +122,8 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
 }
 
 /**
- * A sheet of choices from the bottom of the screen. items: { label, sub, symbol, selected, danger, run }.
- * Closes on a choice, on the backdrop, or with Escape.
+ * A sheet of choices from the bottom of the screen. items: { label, sub, symbol, selected, danger, run }, or
+ * { heading } above a group of them. Closes on a choice, on the backdrop, or with Escape.
  */
 export function sheet({ title = '', items = [], body = null }) {
   const previous = document.activeElement;
@@ -129,7 +137,7 @@ export function sheet({ title = '', items = [], body = null }) {
     h('div', { class: 'sheet-grip' }),
     title ? h('div', { class: 'sheet-title' }, title) : null,
     body,
-    items.map((item) => h('button', {
+    items.map((item) => item.heading ? h('div', { class: 'sheet-heading', role: 'presentation' }, item.heading) : h('button', {
       class: ['sheet-item', item.danger && 'danger'], role: item.selected != null ? 'menuitemradio' : 'menuitem',
       'aria-checked': item.selected != null ? String(!!item.selected) : null,
       on: { click: () => { close(); item.run?.(); } },

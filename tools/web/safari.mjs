@@ -1,7 +1,9 @@
 // Mira web in Safari itself (WebKit, Apple's video engine, HLS built in): the path an iPhone takes. Driven through
 // safaridriver's WebDriver API, without dependencies. Checks HLS playback from Jellyfin's conversion, French
 // subtitles beside the video and on the picture, the 10-second skip, the position Jellyfin keeps, and the next
-// episode starting alone.
+// episode starting alone; then Apple's full screen player, as iPhones and iPads use it (turned on here by the
+// nativePlayer setting): subtitles chosen on the title page, the next episode without leaving full screen, and back
+// to the title page once it is closed.
 //   safaridriver -p 4444 &   then   node tools/web/safari.mjs <Mira web url> <user> <password> <out folder>
 import fs from 'node:fs';
 const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-check', out = 'safari'] = process.argv.slice(2);
@@ -118,10 +120,61 @@ try {
   check('Safari : l’épisode suivant joue', state && !state.paused && state.t > 1, `${state?.t?.toFixed(1)} s`);
   await shot('06-next-episode');
   await tapControl('.p-top button[aria-label="Retour"]'); await sleep(1000);
+
+  // ---------- Apple's player, in full screen ----------
+  // The setting is read when Mira starts: the page is opened again, its <video> made without playsinline.
+  await run(`const s = JSON.parse(localStorage.getItem('mira.settings') || '{}'); s.nativePlayer = true; localStorage.setItem('mira.settings', JSON.stringify(s));`);
+  for (const item of [movie, ...episodes]) await api(`UserPlayedItems/${item.Id}?userId=${signed.userId}`, 'DELETE');
+  await wd('POST', s('/url'), { url: `${base}#/titre/${movie.Id}` });
+  await sleep(3000);
+  check('lecteur d’Apple : réglage pris en compte', await run("return !document.createElement('video').hasAttribute('playsinline') && JSON.parse(localStorage.getItem('mira.settings')).nativePlayer === true;"));
+  // French subtitles chosen under Lecture, before playback: the only place for them with a conversion.
+  await click('.tracks-line'); await sleep(700);
+  const chose = await run(`const items = [...document.querySelectorAll('.sheet-item')]; const item = items.reverse().find((b) => /Français/.test(b.textContent));
+    if (item) item.click(); return item ? item.textContent : '';`);
+  await sleep(500);
+  const line = await run("return document.querySelector('.tracks-line')?.textContent ?? '';");
+  check('fiche : sous-titres choisis avant la lecture', /Sous-titres : Français/.test(line), `${chose.trim()} → ${line}`);
+  await shot('07-tracks');
+  // Full screen without a tap is iOS's way; Safari on a Mac asks for one: Mira's play button is touched then.
+  const fullscreen = async (seconds = 25) => {
+    const start = Date.now();
+    for (; Date.now() - start < seconds * 1000; await sleep(500)) {
+      if (await find('.n-status .n-play')) { await click('.n-status .n-play'); await sleep(1500); continue; }
+      const state = await run(`const v = document.querySelector('video'); return v ? { full: v.webkitDisplayingFullscreen, mode: v.webkitPresentationMode, t: v.currentTime, paused: v.paused,
+        src: v.currentSrc, showing: ([...v.textTracks].find((x) => x.mode === 'showing') || {}).label || '', tracks: v.querySelectorAll('track').length, hash: location.hash } : null;`);
+      if (state?.full && !state.paused && state.t > 1) return state;
+    }
+    return run(`const v = document.querySelector('video'); return v ? { full: v.webkitDisplayingFullscreen, mode: v.webkitPresentationMode, t: v.currentTime, paused: v.paused, hash: location.hash } : { hash: location.hash };`);
+  };
+  check('fiche : bouton Lecture (lecteur d’Apple)', await click('a.btn.primary[href*="lecture"]'));
+  state = await fullscreen();
+  check('lecteur d’Apple : lecture en plein écran', state?.full && state.mode === 'fullscreen' && !state.paused, `${state?.mode}, ${state?.t?.toFixed(1)} s, ${(state?.src ?? '').split('?')[0].split('/').pop()}`);
+  check('lecteur d’Apple : sous-titres français dans son menu', state?.tracks >= 1 && state?.showing === 'Français', `${state?.tracks} piste(s), affichée : ${state?.showing || 'aucune'}`);
+  await shot('08-apple-player').catch(() => {});
+  await run("document.querySelector('video').webkitExitFullscreen();");
+  let back = false;
+  for (let i = 0; i < 16 && !back; i++) { await sleep(500); back = (await run('return location.hash;')).startsWith(`#/titre/${movie.Id}`); }
+  await sleep(1500);
+  const kept = await api(`Items/${movie.Id}?userId=${signed.userId}`);
+  check('lecteur d’Apple : fermé, retour à la fiche, position gardée', back && kept.UserData.PlaybackPositionTicks > 10_000_000,
+    `${(await run('return location.hash;')).split('?')[0]}, ${(kept.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
+
+  await go(`#/lecture/${episodes[0].Id}?debut=1`);
+  state = await fullscreen();
+  check('lecteur d’Apple : épisode en plein écran', state?.full && !state.paused, `${state?.t?.toFixed(1)} s`);
+  moved = false;
+  for (let i = 0; i < 40 && !moved; i++) { await sleep(1000); moved = (await run('return location.hash;')).includes(episodes[1].Id); }
+  await sleep(4000);
+  state = await run("const v = document.querySelector('video'); return { full: v.webkitDisplayingFullscreen, t: v.currentTime, paused: v.paused };");
+  check('lecteur d’Apple : épisode suivant sans quitter le plein écran', moved && state.full && !state.paused && state.t > 1, `${moved ? 'É2' : 'resté sur É1'}, ${state.full ? 'plein écran' : 'dans la page'}, ${state.t.toFixed(1)} s`);
+  await run("document.querySelector('video').webkitExitFullscreen();"); await sleep(2000);
+  check('lecteur d’Apple : fermé, retour à l’écran d’avant', (await run('return location.hash;')).startsWith('#/titre/'), (await run('return location.hash;')).split('?')[0]);
 } catch (error) {
   check('déroulé', false, String(error.message ?? error).split('\n')[0]);
   await shot('error').catch(() => {});
 } finally {
+  await run(`const s = JSON.parse(localStorage.getItem('mira.settings') || '{}'); delete s.nativePlayer; localStorage.setItem('mira.settings', JSON.stringify(s));`).catch(() => {});
   await wd('DELETE', s('')).catch(() => {});
 }
 fs.writeFileSync(`${out}/results.txt`, results.join('\n') + '\n');
