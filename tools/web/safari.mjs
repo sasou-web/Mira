@@ -157,12 +157,14 @@ try {
   check('lecteur d’Apple : lecture en plein écran', state?.full && state.mode === 'fullscreen' && !state.paused, `${state?.mode}, ${state?.t?.toFixed(1)} s, ${(state?.src ?? '').split('?')[0].split('/').pop()}`);
   check('lecteur d’Apple : sous-titres français dans son menu', state?.tracks >= 1 && state?.showing === 'Français', `${state?.tracks} piste(s), affichée : ${state?.showing || 'aucune'}`);
   await shot('08-apple-player').catch(() => {});
+  // Jellyfin keeps a position past 5 % of the title only (2 s of this 40 s film): a few seconds played first.
+  for (let i = 0; i < 30 && ((await run("return document.querySelector('video')?.currentTime ?? 99;")) < 8); i++) await sleep(500);
   await run("document.querySelector('video')?.webkitExitFullscreen?.();");
   let back = false;
   for (let i = 0; i < 16 && !back; i++) { await sleep(500); back = (await run('return location.hash;')).startsWith(`#/titre/${movie.Id}`); }
   await sleep(1500);
   const kept = await api(`Items/${movie.Id}?userId=${signed.userId}`);
-  check('lecteur d’Apple : fermé, retour à la fiche, position gardée', back && kept.UserData.PlaybackPositionTicks > 10_000_000,
+  check('lecteur d’Apple : fermé, retour à la fiche, position gardée', back && kept.UserData.PlaybackPositionTicks > 50_000_000,
     `${(await run('return location.hash;')).split('?')[0]}, ${(kept.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
 
   await go(`#/lecture/${episodes[0].Id}?debut=1`);
