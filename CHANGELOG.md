@@ -1,5 +1,22 @@
 # Historique
 
+## Non publié
+
+Mira web après le premier essai sur un vrai iPhone : la lecture passe par le lecteur d’Apple, et Mira s’ouvre même quand le PC démarre.
+
+- **Lecture dans le lecteur d’Apple sur iPhone et iPad** : la vidéo jouait dans la page de Safari, avec les commandes de Mira, et iOS la prenait pour une page qui joue en arrière-plan (Dynamic Island). Elle s’ouvre maintenant uniquement dans le lecteur plein écran d’Apple, avec ses commandes : barre de lecture, ±10 s, vitesse, AirPlay, image dans l’image, et son menu de sous-titres et de pistes audio.
+  - Les sous-titres texte du fichier et ceux à côté de lui apparaissent dans ce menu. Un choix fait là est suivi, envoyé à Jellyfin et retenu pour la série.
+  - L’épisode suivant démarre dans le même lecteur, sans quitter le plein écran.
+  - Fermer le lecteur (**Terminé**, ou glisser vers le bas) ramène à la fiche, la position gardée par Jellyfin. Plus rien ne reste dans la Dynamic Island.
+  - Si Safari demande un toucher avant de passer en plein écran, Mira affiche un bouton Lecture.
+- **Audio et sous-titres choisis sur la fiche** : sous **Lecture**, une ligne indique la piste audio et les sous-titres de départ, et en propose d’autres. Avec une conversion par Jellyfin, c’est le seul endroit pour changer d’audio : le menu d’Apple ne le peut pas. Les sous-titres en image (PGS, DVD) y sont marqués « incrustés dans l’image ».
+- **Langues comme sur Windows et Mac** : **Réglages → Langue audio** et **Langue des sous-titres**, avec les mêmes choix et les mêmes valeurs par défaut (japonais puis français ; sous-titres français puis anglais). Les sous-titres dans la langue de l’audio restent éteints, sauf les forcés. Les langues choisies pour une série valent pour ses épisodes suivants.
+- **Mira s’ouvre même quand le PC est éteint ou démarre** : ouverte trop tôt, l’app de l’écran d’accueil affichait la page d’erreur de Safari et y restait. Le téléphone garde maintenant la page de Mira : elle s’ouvre, un bandeau indique que le serveur ne répond pas encore, et tout reprend seul dès que Jellyfin répond. Après une mise à jour de Mira web, la page se recharge d’elle-même.
+- **Jellyfin joignable dès l’allumage du PC** (Mira pour Windows) : le guide indique, pour un Jellyfin sur ce PC, si ton téléphone le trouve dès l’allumage, avant même l’ouverture de ta session. Sinon, **Disponible dès l’allumage du PC** règle tout en une fois, avec l’autorisation de Windows : le service de Jellyfin démarre avec Windows sans délai, Windows le relance s’il s’arrête sur une erreur, et le pare-feu laisse entrer ton réseau local et Tailscale, sur le port de Jellyfin seulement. L’installateur de Jellyfin n’ajoute aucune règle de pare-feu pour son service.
+- **Passer les intros et les récaps** : nouveau réglage, éteint par défaut. Quand Jellyfin a repéré ces passages, la lecture saute par-dessus, aussi dans le lecteur d’Apple, qui n’a pas de place pour le bouton.
+- **Autre piste audio sur Android et dans Chrome** : sans liste de pistes audio dans le navigateur, le choix d’une autre piste était ignoré et la première jouait. Jellyfin envoie maintenant un flux avec la piste choisie.
+- **Sous-titres changés tout seuls** : pendant le chargement des pistes, un changement fait par le navigateur pouvait être pris pour un choix, et d’autres sous-titres s’affichaient. Seul le menu du lecteur d’Apple est suivi.
+
 ## 0.7.0 — 2026-10-09
 
 Mira arrive sur iPhone, iPad et Android : ton serveur Jellyfin la sert lui-même, sans App Store ni compte Apple, et Mira pour Windows l’installe en un clic.
