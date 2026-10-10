@@ -296,10 +296,13 @@ try {
         }
         await click('a.btn.primary[href*="lecture"]');
         const st = await fullscreen(45);
-        const at = await stream();
         const from = f.resume ?? 0;
-        // Playing from where it was asked to start (the resume point, or the beginning).
-        let ok = !!st?.full && !st.paused && st.t > Math.max(1, from - 2) && st.t < from + 40;
+        // Moving on from where it was asked to start (the resume point, or the beginning): a resumed title is already
+        // at its point before anything plays.
+        for (let i = 0; i < 40 && st?.full && ((await video())?.t ?? 0) <= from + 1; i++) await sleep(500);
+        st.t = (await video())?.t ?? st.t;
+        const at = await stream();
+        let ok = !!st?.full && !st.paused && st.t > from + 1 && st.t < from + 40;
         let detail = `${at.kind}${at.video ? `, ${at.video}` : ''}${at.audio ? `, ${at.audio}` : ''}, ${st?.full ? 'plein écran' : 'pas en plein écran'}, ${(st?.t ?? 0).toFixed(1)} s`;
         if (ok && f.cue) {
           let cue = null;

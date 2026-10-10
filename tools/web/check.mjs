@@ -402,6 +402,7 @@ const tabs = await browser.newContext({ ...devices['iPhone 15 Pro'] });
 await tabs.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { configurable: true, get: () => true }));
 const tp = await tabs.newPage();
 const tabErrors = [];
+let restoreFavorite = null;   // the favourite changed for a check, put back whatever happens
 tp.on('pageerror', (e) => tabErrors.push(e.message));
 try {
   await tp.goto(`${base}#/connexion`); await tp.waitForTimeout(1500);
@@ -427,14 +428,18 @@ try {
     }
     return frames;
   }, tab);
+  // The first page a little slow, as from a PC at home: the tab must light up before its screen comes.
+  const firstPage = (url) => /\/Items$/i.test(url.pathname) && /IncludeItemTypes=Movie/i.test(url.search);
+  await tp.route(firstPage, async (r) => { await new Promise((s) => setTimeout(s, 150)); await r.continue(); });
   let frames = await record('films');
+  await tp.unroute(firstPage);
   const shown = frames.find((f) => f.library);
   const tops = [...new Set(frames.filter((f) => f.top != null).map((f) => f.top))];
   check('onglets : Films s’affiche entier, sans emplacements vides ni décalage', !!shown && !frames.some((f) => f.skeleton) && tops.length === 1,
     `${shown ? `à ${shown.t} ms` : 'jamais affiché'}, ${frames.some((f) => f.skeleton) ? 'emplacements vides vus' : 'aucun emplacement vide'}, haut de la grille ${tops.join(' → ') || '?'}`);
   const lit = frames.find((f) => f.lit === 'films')?.t;
   check('onglets : l’écran quitté se fond dans le suivant, l’onglet s’allume au toucher',
-    frames.some((f) => f.leaving) && !frames.at(-1).leaving && frames.every((f) => f.views <= 1) && lit != null && lit <= 80 && (!shown || lit <= shown.t),
+    frames.some((f) => f.leaving) && !frames.at(-1).leaving && frames.every((f) => f.views <= 1) && lit != null && lit <= 80 && !!shown && lit < shown.t,
     `fondu ${frames.some((f) => f.leaving) ? 'vu' : 'absent'}${frames.at(-1).leaving ? ', resté' : ''}, onglet allumé à ${lit ?? '?'} ms, écran à ${shown?.t ?? '?'} ms`);
   frames = await record('home');
   check('onglets : retour à l’Accueil gardé, en fondu aussi', frames.some((f) => f.leaving) && !frames.at(-1).leaving && await tp.locator('#view > .view.home').count() === 1,
@@ -477,6 +482,7 @@ try {
   }, [latest.Id, method]);
   const wasFavorite = !!latest.UserData?.IsFavorite;
   await favorite(wasFavorite ? 'DELETE' : 'POST');
+  restoreFavorite = () => favorite(wasFavorite ? 'POST' : 'DELETE');
   const asked = tp.waitForRequest((r) => /UserItems\/Resume/.test(r.url()), { timeout: 6000 }).then(() => true, () => false);
   await tp.evaluate(() => window.dispatchEvent(new Event('online')));
   const refreshed = await asked;
@@ -485,12 +491,14 @@ try {
     const cards = [...document.querySelectorAll('#view .section .row > a.card')];
     return { total: cards.length, kept: cards.filter((c) => c.dataset.mark != null).length, made: cards.filter((c) => c.dataset.mark == null).length };
   });
-  await favorite(wasFavorite ? 'POST' : 'DELETE');
+  await restoreFavorite(); restoreFavorite = null;
   check('accueil : actualisé sur place, seules les cartes changées sont refaites', refreshed && marked > 0 && after.kept > 0 && after.made >= 1 && after.made < after.total,
     `${marked} cartes, puis ${after.kept} gardées et ${after.made} refaites${refreshed ? '' : ', pas actualisé'}`);
 } catch (error) {
   check('onglets : déroulé', false, error.message.split('\n')[0]);
   await tp.screenshot({ path: `${out}/error-tabs.png` }).catch(() => {});
+} finally {
+  await restoreFavorite?.().catch(() => {});
 }
 check('onglets : aucune erreur JavaScript', tabErrors.length === 0, tabErrors.slice(0, 3).join(' | '));
 await tabs.close();

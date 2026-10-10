@@ -62,7 +62,9 @@ export function posterCard(item, { width = posterWidth(), eager = false } = {}) 
   const card = h('a', { class: 'card', href: titleHref(item), 'aria-label': name },
     art, h('div', { class: 'card-title clamp-1' }, name), h('div', { class: 'card-sub clamp-1' }, subtitle(item)));
   card.dataset.sig = cardSig(item);
-  card.addEventListener('click', () => remember(item));
+  // The item the card shows now (reconcile keeps a card and gives it the item as the server just sent it).
+  card.item = item;
+  card.addEventListener('click', () => remember(card.item));
   withActions(card, item);
   return card;
 }
@@ -77,6 +79,7 @@ export function wideCard(item, { width = wideWidth(), play = true, eager = false
     h('div', { class: 'card-title clamp-1' }, series ? item.SeriesName : item.Name),
     h('div', { class: 'card-sub clamp-1' }, series ? [episodeCode(item), item.Name].filter(Boolean).join(' · ') : subtitle(item)));
   card.dataset.sig = cardSig(item);
+  card.item = item;
   withActions(card, item, { resumeRow: play });
   return card;
 }
@@ -94,7 +97,7 @@ export function reconcile(container, items, make) {
   for (const el of container.children) if (el.dataset.sig && !old.has(el.dataset.sig)) old.set(el.dataset.sig, el);
   const next = items.map((item) => {
     const kept = old.get(cardSig(item));
-    if (kept) { old.delete(kept.dataset.sig); return kept; }
+    if (kept) { old.delete(kept.dataset.sig); kept.item = item; return kept; }
     return make(item);
   });
   const same = next.length === container.children.length && next.every((el, i) => container.children[i] === el);
@@ -126,7 +129,7 @@ export function row(title, items, card, { wide = false, more = '', people = fals
 }
 
 /** A card's place while it loads, with the card's own lines: nothing moves when the card takes it. */
-const skeletonCard = (kind) => h('div', { class: ['card', kind === 'wide' && 'wide-card'] }, h('div', { class: ['skeleton', 'art', kind] }),
+const skeletonCard = (kind) => h('div', { class: ['card', kind === 'wide' && 'wide-card'], 'aria-hidden': 'true' }, h('div', { class: ['skeleton', 'art', kind] }),
   h('div', { class: 'card-title' }, h('span', { class: 'skeleton' })), h('div', { class: 'card-sub' }, h('span', { class: 'skeleton' })));
 
 export function skeletonRow({ wide = false, count = 6, title = true } = {}) {
@@ -277,7 +280,7 @@ function dragToClose(panel, close) {
 export function withActions(card, item, { resumeRow = false, inTitle = false } = {}) {
   let timer = 0, lift = 0, startX = 0, startY = 0, fired = false;
   const stop = () => { clearTimeout(timer); clearTimeout(lift); card.classList.remove('holding'); };
-  const open = () => { stop(); if (fired) return; fired = true; itemMenu(item, { resumeRow, inTitle, held: true }); };
+  const open = () => { stop(); if (fired) return; fired = true; itemMenu(card.item ?? item, { resumeRow, inTitle, held: true }); };
   card.addEventListener('touchstart', (e) => {
     fired = false; startX = e.touches[0].clientX; startY = e.touches[0].clientY;
     lift = setTimeout(() => card.classList.add('holding'), 180);

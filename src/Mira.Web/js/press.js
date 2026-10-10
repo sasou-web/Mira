@@ -1,7 +1,7 @@
 // Pressed looks on touch screens, drawn the way iOS draws them: a moment after the finger lands (70 ms), gone as
 // soon as it moves or the page scrolls, kept a little after a tap. WebKit keeps :active for the whole of a scroll
 // that starts on an element, so app.css styles .pressed there, and :active only for a mouse.
-const PRESSABLE = '.card, .btn, .chip, .round, .item, .sheet-item, .tracks-line, .tool, .tabbar a, .section-head a, .user-pick, .recent button';
+const PRESSABLE = 'a.card, .btn, .chip, .round, .item, .sheet-item, .tracks-line, .tool, .tabbar a, .section-head a, .user-pick, .recent button';
 
 export function setupPress() {
   if (!matchMedia('(pointer: coarse)').matches && !('ontouchstart' in window)) return;
