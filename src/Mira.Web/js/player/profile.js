@@ -40,8 +40,8 @@ const condition = (Condition, Property, Value, IsRequired = false) => ({ Conditi
 
 /**
  * The profile Jellyfin's PlaybackInfo decides with. `bitrate` caps both direct play and conversions. With
- * `hlsSubtitles` (Apple's player), a conversion carries its text subtitles in the HLS stream itself: Apple's player
- * ignores the subtitles beside an HLS stream, and lists the stream's own in its menu.
+ * `hlsSubtitles` (Apple's player), a conversion carries its text subtitles in the HLS stream itself: Apple's menu lists
+ * them, and they follow the video over AirPlay.
  */
 export function deviceProfile(bitrate, { hlsSubtitles = false } = {}) {
   const s = support;
@@ -93,8 +93,13 @@ export function deviceProfile(bitrate, { hlsSubtitles = false } = {}) {
     SubtitleProfiles: [
       // Text subtitles come as WebVTT: in the HLS stream for Apple's player (Jellyfin tries the profiles in this order,
       // Hls only for a conversion), beside the video otherwise; pictures (PGS, DVD) are drawn into the video.
+      // Jellyfin never converts ASS and SSA (anime) by profile: without their own entries it would draw them into the
+      // picture, re-encoding the whole video. As files beside the video, Mira asks for them as WebVTT (their styling
+      // is lost, the lines are not).
       ...(hlsSubtitles ? [{ Format: 'vtt', Method: 'Hls' }] : []),
       { Format: 'vtt', Method: 'External' },
+      { Format: 'ass', Method: 'External' },
+      { Format: 'ssa', Method: 'External' },
       { Format: 'pgssub', Method: 'Encode' },
       { Format: 'dvdsub', Method: 'Encode' },
       { Format: 'dvbsub', Method: 'Encode' },

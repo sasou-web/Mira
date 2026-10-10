@@ -872,6 +872,10 @@ await Test("Mira web : sous-titres d’une conversion à l’heure dans le lecte
     var names = Mira.Jellyfin.HlsPlaylists.Names("3:Français|x:Bad|5:\"Anglais\"\n|7:");
     Assert(names.Count == 2 && names[3] == "Français" && names[5] == "Anglais", "Names: " + string.Join(", ", names));
     Assert(Mira.Jellyfin.HlsPlaylists.Master(master, "/jf/videos/item/", "/jf/Mira/hls/item/", names).Contains("NAME=\"Français\",DEFAULT=NO"), "Name not given");
+    Assert(Mira.Jellyfin.HlsPlaylists.Master(master, "/v/", "/m/", Mira.Jellyfin.HlsPlaylists.Names("3:Prix $1 $0")).Contains("NAME=\"Prix $1 $0\""), "Name read as a pattern");
+    // A subtitle of no known language: « und » for HLS, where Jellyfin writes « Unknown ».
+    var unknown = Mira.Jellyfin.HlsPlaylists.Master(master.Replace("LANGUAGE=\"fra\"", "LANGUAGE=\"Unknown\""), "/v/", "/m/");
+    Assert(unknown.Contains("LANGUAGE=\"und\"") && !unknown.Contains("Unknown"), "Unknown language kept: " + unknown);
     // Its subtitle playlist: WebVTT straight from Jellyfin, without the MPEG-TS time map (10 s late on fMP4).
     var subtitles = "#EXTM3U\n#EXTINF:30,\nstream.vtt?CopyTimestamps=true&AddVttTimeMap=true&StartPositionTicks=0&EndPositionTicks=300000000&ApiKey=k\n#EXT-X-ENDLIST\n";
     var segments = Mira.Jellyfin.HlsPlaylists.Subtitles(subtitles, "/jf/videos/item/source/Subtitles/3/");

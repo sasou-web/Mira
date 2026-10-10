@@ -11,7 +11,7 @@ import { sheet, toast, changed, titleHref } from '../components.js';
 import { goBack } from '../app.js';
 import { deviceProfile, useHlsJs, audioTracks as switchesAudio } from './profile.js';
 import { sharedVideo, appleNative } from './video.js';
-import { trackText, chooseTracks, trackMemory } from './tracks.js';
+import { trackText, chooseTracks, trackMemory, textSubtitles as textOf, menuNames as namesOf, appleStream } from './tracks.js';
 import { QUALITIES } from '../views/settings.js';
 
 const SKIP_LABELS = { Intro: 'Passer l’intro', Recap: 'Passer le récap', Preview: 'Passer l’aperçu', Commercial: 'Passer la pub' };
@@ -442,20 +442,8 @@ export function create({ id, query }) {
       } else if (source.TranscodingUrl) {
         let address = source.TranscodingUrl;
         hlsStream = source.TranscodingSubProtocol === 'hls' || /\.m3u8/i.test(address);
-        // Apple's player: every text subtitle in the stream, for its menu. Jellyfin writes them there only with
-        // SubtitleMethod=Hls, which it adds when a text subtitle is chosen; with none chosen, Mira asks for it (all
-        // are then off at first). Never with burned-in pictures (SubtitleMethod=Encode).
-        if (native && hlsStream && textSubtitles().length) {
-          if (!/[?&]SubtitleMethod=/i.test(address)) address += `${address.includes('?') ? '&' : '?'}SubtitleMethod=Hls`;
-          inband = /[?&]SubtitleMethod=Hls/i.test(address);
-          // Jellyfin times them for MPEG-TS segments (10 s late on fMP4 in Apple's player): Mira's plugin serves the
-          // same playlists with the subtitles in time (Mira.Jellyfin, HlsPlaylists).
-          if (inband && /[?&]SegmentContainer=mp4/i.test(address)) {
-            address = address.replace(/^\/videos\/([0-9a-f-]+)\/master\.m3u8/i, '/Mira/hls/$1/master.m3u8');
-            // Apple's menu shows the stream's names: Mira's, in French, rather than Jellyfin's (« French - SUBRIP - External »).
-            address += `&MiraNames=${encodeURIComponent(textSubtitles().map((s) => `${s.Index}:${menuName(s).replace(/\|/g, '/')}`).join('|'))}`;
-          }
-        }
+        // Apple's player: every text subtitle in the HLS stream, for its menu (see appleStream).
+        if (native && hlsStream) ({ address, inband } = appleStream(address, source, subtitleIndex));
         url = signed(address);
         playMethod = source.SupportsDirectStream && !/VideoCodec=|videoBitrate=/i.test(source.TranscodingUrl) ? 'DirectStream' : 'Transcode';
         progressive = !hlsStream;
@@ -477,6 +465,7 @@ export function create({ id, query }) {
     hls?.destroy(); hls = null;
     for (const t of [...video.querySelectorAll('track')]) t.remove();
     pendingStart = startSeconds;
+    touched = new WeakSet();
     // Subtitles go in before the stream: Safari hands the tracks it finds at loading to Apple's player and its menu.
     addSubtitles();
     tracksSettle = Date.now() + 1500;
@@ -507,21 +496,23 @@ export function create({ id, query }) {
     const subtitles = streams.filter((s) => s.Type === 'Subtitle');
     for (const stream of subtitles) {
       if (stream.DeliveryMethod !== 'External' || !stream.DeliveryUrl) continue;
+      // ASS and SSA (anime) come as files beside the video: a browser only reads WebVTT, which Jellyfin makes of them.
+      const src = stream.DeliveryUrl.replace(/\/Stream\.(ass|ssa)(?=\?|$)/i, '/Stream.vtt');
       video.append(h('track', {
         kind: stream.IsForced ? 'forced' : 'subtitles', label: trackText(stream, subtitles.indexOf(stream) + 1).label, srclang: stream.Language ?? 'und',
-        src: signed(stream.DeliveryUrl), default: stream.Index === subtitleIndex, dataset: { index: String(stream.Index) },
+        src: signed(src), default: stream.Index === subtitleIndex, dataset: { index: String(stream.Index) },
       }));
     }
   }
-  /** A subtitle's name in Apple's menu: Mira's, with its details when another one has the same. */
-  function menuName(stream) {
-    const subtitles = (source?.MediaStreams ?? []).filter((s) => s.Type === 'Subtitle');
-    const text = (s) => trackText(s, subtitles.indexOf(s) + 1);
-    const { label, details } = text(stream);
-    return textSubtitles().some((s) => s !== stream && text(s).label === label) && details ? `${label} (${details})` : label;
-  }
+  const subtitleStream = (index) => (source?.MediaStreams ?? []).find((s) => s.Type === 'Subtitle' && s.Index === index) ?? null;
+  const menuNames = () => namesOf(source);
+  /**
+   * Text that Safari reads from the file itself when it plays it as it is (an MP4's own subtitles): beside them, a
+   * <track> of the same subtitles would show each one twice in Apple's menu.
+   */
+  const fileText = () => (playMethod === 'DirectPlay' ? textSubtitles().filter((s) => !s.IsExternal && /^(mov_text|tx3g|wvtt)$/i.test(s.Codec ?? '')) : []);
   /** The text subtitles Jellyfin can send as text, in its order: the order of the HLS stream's subtitles. */
-  const textSubtitles = () => (source?.MediaStreams ?? []).filter((s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream);
+  const textSubtitles = () => textOf(source);
   const trackNode = (textTrack) => [...video.querySelectorAll('track')].find((x) => x.track === textTrack) ?? null;
   /** The subtitle tracks the HLS stream carries, as the browser lists them. */
   const streamTracks = () => [...video.textTracks].filter((t) => !trackNode(t) && ['subtitles', 'captions', 'forced'].includes(t.kind));
@@ -529,13 +520,20 @@ export function create({ id, query }) {
   function trackIndex(textTrack) {
     const node = trackNode(textTrack);
     if (node) return Number(node.dataset.index);
-    if (!inband) return null;
-    const carried = streamTracks(), streams = textSubtitles(), at = carried.indexOf(textTrack);
+    const carried = streamTracks(), at = carried.indexOf(textTrack);
     if (at < 0) return null;
-    if (carried.length === streams.length) return streams[at].Index;
-    const named = streams.filter((s) => s.DisplayTitle === textTrack.label || menuName(s) === textTrack.label);
-    return named.length === 1 ? named[0].Index : null;
+    // The file's own subtitles, read by Safari: in the file's order.
+    if (!inband) { const own = fileText(); return carried.length === own.length ? own[at].Index : null; }
+    // In the stream: by the name Mira gave it, else by Jellyfin's, else by its place.
+    const streams = textSubtitles();
+    for (const [index, name] of menuNames()) if (name === textTrack.label) return index;
+    const named = streams.filter((s) => s.DisplayTitle === textTrack.label);
+    if (named.length === 1) return named[0].Index;
+    return carried.length === streams.length ? streams[at].Index : null;
   }
+  // The tracks Mira has set itself. WebKit chooses for any other (the phone's language, a default or forced track),
+  // and such a choice must not be taken for one made in Apple's menu.
+  let touched = new WeakSet();
   /** Shows the chosen subtitles among those the browser has, beside the video or in the stream; hides the others. */
   function showTrack() {
     for (const t of video.textTracks) {
@@ -543,7 +541,21 @@ export function create({ id, query }) {
       if (index == null) continue;
       const mode = index === subtitleIndex ? 'showing' : 'disabled';
       if (t.mode !== mode) t.mode = mode;
+      // Setting the mode a track already has changes nothing in WebKit, not even who set it: one step through
+      // « hidden » makes it Mira's.
+      else if (native && !touched.has(t) && mode === 'disabled') { t.mode = 'hidden'; t.mode = 'disabled'; }
+      touched.add(t);
     }
+  }
+  /** A track appears (the HLS stream's, the file's own): Mira sets it, and the browser's moves for a moment are not a choice. */
+  function trackAdded() {
+    tracksSettle = Math.max(tracksSettle, Date.now() + 1500);
+    // The file's own subtitles are there: Mira's copies of them go.
+    const own = fileText();
+    if (own.length && streamTracks().length === own.length) {
+      for (const stream of own) video.querySelector(`track[data-index="${stream.Index}"]`)?.remove();
+    }
+    showTrack();
   }
   /**
    * Subtitles chosen in Apple's menu (or Safari's own full screen): Mira follows, reports and remembers. In the page,
@@ -612,7 +624,11 @@ export function create({ id, query }) {
       } else open(ticks(at), { keepPaused: wasPaused });
     }
   }
-  const burned = () => /SubtitleMethod=Encode/i.test(source?.TranscodingUrl ?? '');
+  /** The chosen subtitles are pictures, drawn into the video by Jellyfin (Apple's menu cannot turn those off). */
+  const burned = () => {
+    const stream = subtitleStream(subtitleIndex);
+    return !!stream && !stream.IsTextSubtitleStream && /SubtitleMethod=Encode/i.test(source?.TranscodingUrl ?? '');
+  };
 
   function moreSheet() {
     const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -729,7 +745,7 @@ export function create({ id, query }) {
   for (const [name, fn] of Object.entries(on)) video.addEventListener(name, fn);
   video.textTracks.addEventListener('change', textTracksChanged);
   // The HLS stream's subtitles appear once it loads: the chosen one shows, the others stay off.
-  video.textTracks.addEventListener('addtrack', showTrack);
+  video.textTracks.addEventListener('addtrack', trackAdded);
   video.audioTracks?.addEventListener?.('change', audioTracksChanged);
 
   function keys(e) {
@@ -866,7 +882,7 @@ export function create({ id, query }) {
       removeEventListener('pagehide', onPageHide);
       for (const [name, fn] of Object.entries(on)) video.removeEventListener(name, fn);
       video.textTracks.removeEventListener('change', textTracksChanged);
-      video.textTracks.removeEventListener('addtrack', showTrack);
+      video.textTracks.removeEventListener('addtrack', trackAdded);
       video.audioTracks?.removeEventListener?.('change', audioTracksChanged);
       exitPresentation();
       hls?.destroy(); hls = null;

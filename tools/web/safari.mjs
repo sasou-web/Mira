@@ -190,6 +190,49 @@ try {
   check('lecteur d’Apple : fermé, retour à la fiche, position gardée', back && kept.UserData.PlaybackPositionTicks > 50_000_000,
     `${(await run('return location.hash;')).split('?')[0]}, ${(kept.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
 
+  // ---------- An anime in Apple's player: its ASS subtitles, inside the file, in the HLS stream ----------
+  // « Aucun » on the title page: the stream still carries every subtitle, all off, and WebKit turns none on by itself.
+  // Then French as Apple's menu would set it: its line from 5 s to 8 s, then after a jump, from 35 s to 38 s (the
+  // second 30 s segment of Jellyfin's subtitles), never early, never 10 s late.
+  const anime = (await api(`Items?recursive=true&includeItemTypes=Movie&searchTerm=Signes%20Test&userId=${signed.userId}`)).Items[0];
+  await api(`UserPlayedItems/${anime.Id}?userId=${signed.userId}`, 'DELETE');
+  await go(`#/titre/${anime.Id}`); await sleep(2500);
+  await click('.tracks-line'); await sleep(700);
+  await run(`const item = [...document.querySelectorAll('.sheet-item')].find((b) => /^Aucun/.test(b.textContent.trim())); if (item) item.click();`);
+  await sleep(500);
+  const animeLine = await run("return document.querySelector('.tracks-line')?.textContent ?? '';");
+  check('fiche : animé, sous-titres « aucun »', /Sous-titres : aucun/.test(animeLine), animeLine);
+  await click('a.btn.primary[href*="lecture"]');
+  state = await fullscreen();
+  const animeStart = await carried();
+  check('lecteur d’Apple : animé, ses sous-titres ASS dans le flux, aucun affiché', state?.full && animeStart.hls && animeStart.beside === 0 && animeStart.count >= 3
+    && /Français \(ASS\)/.test(animeStart.labels) && !animeStart.showing,
+    `${animeStart.count} piste(s) : ${animeStart.labels || 'aucune'} ; affichée : ${animeStart.showing || 'aucune'} à ${animeStart.t.toFixed(1)} s`);
+  await run(`for (const t of document.querySelector('video').textTracks) if (t.label === 'Français (ASS)') t.mode = 'showing';`);
+  const watchCue = async (until) => {
+    const seen = { early: '', first: null, text: '' };
+    for (let i = 0; i < 120; i++) {
+      const now = await carried();
+      if (now.cue && seen.first == null) { seen.first = now.t; seen.text = now.cue; }
+      if (now.cue && now.t < until - 0.6) seen.early = `${now.cue} à ${now.t.toFixed(1)} s`;
+      if (now.t > until + 3.5 || (seen.first != null && now.t > seen.first + 1)) break;
+      await sleep(250);
+    }
+    return seen;
+  };
+  const five = await watchCue(5);
+  check('lecteur d’Apple : animé, ligne ASS à l’heure (5 s)', five.text === 'Cinq secondes' && five.first >= 4.4 && five.first <= 6.5 && !five.early,
+    `« ${five.text || 'aucune'} »${five.first != null ? ` vue à ${five.first.toFixed(1)} s` : ''}${five.early ? `, trop tôt : ${five.early}` : ''}`);
+  await run("document.querySelector('video').currentTime = 33;");
+  await sleep(500);
+  const later = await watchCue(35);
+  check('lecteur d’Apple : animé, ligne à l’heure après un saut (35 s)', later.text === 'Trente-cinq' && later.first >= 34.4 && later.first <= 36.5 && !later.early,
+    `« ${later.text || 'aucune'} »${later.first != null ? ` vue à ${later.first.toFixed(1)} s` : ''}${later.early ? `, trop tôt : ${later.early}` : ''}`);
+  await shot('09-apple-anime').catch(() => {});
+  await run("document.querySelector('video')?.webkitExitFullscreen?.();");
+  for (let i = 0; i < 16 && (await run('return location.hash;')).startsWith('#/lecture/'); i++) await sleep(500);
+  await sleep(1000);
+
   await go(`#/lecture/${episodes[0].Id}?debut=1`);
   state = await fullscreen();
   check('lecteur d’Apple : épisode en plein écran', state?.full && !state.paused, `${state?.t?.toFixed(1)} s`);

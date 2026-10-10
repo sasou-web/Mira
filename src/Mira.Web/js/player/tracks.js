@@ -51,6 +51,51 @@ export function trackText(stream, number = stream.Index) {
   return { label: capitalize(label), details: details.join(' · ') };
 }
 
+// ---------- Subtitles in Apple's player ----------
+
+/** The text subtitles Jellyfin can send as text, in its order: the order of the HLS stream's subtitles. */
+export const textSubtitles = (source) => (source?.MediaStreams ?? []).filter((s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream);
+
+/**
+ * Each text subtitle's name in Apple's menu, by Jellyfin index: Mira's, with its details when another one has the
+ * same, and numbered if they still match (« Français », « Français 2 »).
+ */
+export function menuNames(source) {
+  const subtitles = (source?.MediaStreams ?? []).filter((s) => s.Type === 'Subtitle'), texts = textSubtitles(source);
+  const text = (s) => trackText(s, subtitles.indexOf(s) + 1);
+  const names = new Map(), counts = new Map();
+  for (const stream of texts) {
+    const { label, details } = text(stream);
+    const name = texts.some((s) => s !== stream && text(s).label === label) && details ? `${label} (${details})` : label;
+    const n = (counts.get(name) ?? 0) + 1;
+    counts.set(name, n);
+    names.set(stream.Index, n > 1 ? `${name} ${n}` : name);
+  }
+  return names;
+}
+
+/**
+ * The address of a conversion for Apple's player, from Jellyfin's (its TranscodingUrl): every text subtitle in the
+ * HLS stream, for Apple's menu, the chosen one shown first. Jellyfin lists them there only with SubtitleMethod=Hls; it
+ * writes SubtitleMethod=Encode even with none chosen (not a burn-in: there is nothing to burn), and none for a file
+ * beside the video. Never for pictures (PGS, DVD): Jellyfin must draw those into the video. Jellyfin times these
+ * subtitles for MPEG-TS segments (10 s late on fMP4 in Apple's player), so fMP4 goes through Mira's plugin, which
+ * serves the same playlists with the subtitles in time and with Mira's names (Mira.Jellyfin, HlsPlaylists).
+ * Returns { address, inband }: inband when the subtitles are in the stream.
+ */
+export function appleStream(address, source, subtitleIndex) {
+  const chosen = (source?.MediaStreams ?? []).find((s) => s.Type === 'Subtitle' && s.Index === subtitleIndex);
+  if (!textSubtitles(source).length || (chosen && !chosen.IsTextSubtitleStream)) return { address, inband: false };
+  let next = address.replace(/&SubtitleMethod=[^&]*/gi, '');
+  if (chosen && !/[?&]SubtitleStreamIndex=/i.test(next)) next += `&SubtitleStreamIndex=${chosen.Index}`;
+  next += `${next.includes('?') ? '&' : '?'}SubtitleMethod=Hls`;
+  if (/[?&]SegmentContainer=mp4/i.test(next)) {
+    next = next.replace(/^\/videos\/([0-9a-f-]+)\/master\.m3u8/i, '/Mira/hls/$1/master.m3u8');
+    next += `&MiraNames=${encodeURIComponent([...menuNames(source)].map(([index, name]) => `${index}:${name.replace(/\|/g, '/')}`).join('|'))}`;
+  }
+  return { address: next, inband: true };
+}
+
 // ---------- Which tracks a title starts with ----------
 
 /** The language orders of Mira on Windows and Mac (Mira.Core PlayerSettings), with the same defaults. */

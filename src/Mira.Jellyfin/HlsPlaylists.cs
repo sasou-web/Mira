@@ -20,7 +20,8 @@ public static partial class HlsPlaylists
     /// <summary>
     /// A master playlist served by Mira: its subtitle playlists are Mira's (<paramref name="miraPath"/>, ending in a
     /// slash), every other address is Jellyfin's own, next to <paramref name="videosPath"/> (/videos/{item}/). The
-    /// subtitles take the names Mira gives them, by Jellyfin index (Apple's menu shows them; Jellyfin's are in English).
+    /// subtitles take the names Mira gives them, by Jellyfin index (Apple's menu shows them; Jellyfin's are in English),
+    /// and a subtitle of no known language says so the way HLS does (« und », where Jellyfin writes « Unknown »).
     /// </summary>
     public static string Master(string text, string videosPath, string miraPath, IReadOnlyDictionary<int, string>? names = null)
     {
@@ -53,7 +54,13 @@ public static partial class HlsPlaylists
                 && int.TryParse(named.Groups["index"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var index)
                 && names.TryGetValue(index, out var name))
             {
-                lines[i] = NameAttribute().Replace(lines[i], $"NAME=\"{name}\"", 1);
+                // Taken as it is: a name is text, not a replacement pattern (« $1 » stays « $1 »).
+                lines[i] = NameAttribute().Replace(lines[i], _ => $"NAME=\"{name}\"", 1);
+            }
+
+            if (subtitles)
+            {
+                lines[i] = UnknownLanguage().Replace(lines[i], "LANGUAGE=\"und\"");
             }
         }
 
@@ -114,6 +121,9 @@ public static partial class HlsPlaylists
 
     [GeneratedRegex("NAME=\"[^\"]*\"")]
     private static partial Regex NameAttribute();
+
+    [GeneratedRegex("LANGUAGE=\"Unknown\"", RegexOptions.IgnoreCase)]
+    private static partial Regex UnknownLanguage();
 
     [GeneratedRegex("(?:^|/)(?<source>[0-9a-fA-F]{32})/Subtitles/(?<index>[0-9]+)/subtitles\\.m3u8(?<query>\\?.*)?$")]
     private static partial Regex SubtitlePlaylist();
