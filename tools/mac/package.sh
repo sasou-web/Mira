@@ -58,6 +58,16 @@ cp "$BREW/lib/libmpv.2.dylib" "$APP/Contents/Frameworks/"
 chmod u+w "$APP/Contents/Frameworks/libmpv.2.dylib"
 dylibbundler -of -b -ns -x "$APP/Contents/Frameworks/libmpv.2.dylib" -d "$APP/Contents/Frameworks/" -p @loader_path/ -s "$BREW/lib"
 install_name_tool -id @rpath/libmpv.2.dylib "$APP/Contents/Frameworks/libmpv.2.dylib"
+# dylibbundler turns every rpath into @loader_path/: Homebrew's libmpv has two (Swift's, in Xcode and in macOS), and
+# macOS 15 refuses a library that names the same rpath twice (dyld: « duplicate LC_RPATH »). One of each is kept.
+rpaths() { otool -l "$1" | awk '$1 == "cmd" { rpath = ($2 == "LC_RPATH") } rpath && $1 == "path" { print $2 }'; }
+for binary in "$APP"/Contents/Frameworks/*.dylib; do
+  for path in $(rpaths "$binary" | sort | uniq -d); do
+    while [ "$(rpaths "$binary" | grep -c -x -F "$path")" -gt 1 ]; do install_name_tool -delete_rpath "$path" "$binary"; done
+    # Some versions of install_name_tool delete every copy at once: one is put back.
+    if [ "$(rpaths "$binary" | grep -c -x -F "$path")" -eq 0 ]; then install_name_tool -add_rpath "$path" "$binary"; fi
+  done
+done
 # Nothing may still point into Homebrew: a Mac without it would fail to load mpv.
 if otool -L "$APP"/Contents/Frameworks/*.dylib | grep -E "^\s+($BREW|/usr/local/(opt|Cellar))"; then echo "libraries still linked to Homebrew" >&2; exit 1; fi
 # Nothing may ask for a macOS newer than the one Mira declares: it would fail to load there, after the Mac let it open.
@@ -80,6 +90,9 @@ find "$APP/Contents/Frameworks" -type f -name "*.dylib" -print0 | xargs -0 -n 1 
 find "$APP/Contents/MacOS" -type f ! -name Mira -print0 | xargs -0 -n 1 codesign --force --sign - --timestamp=none
 codesign --force --sign - --timestamp=none "$APP"
 codesign --verify --deep --strict --verbose=1 "$APP"
+# libmpv loaded here from the bundle, as Mira loads it: whatever dyld refuses (a library missing, an rpath twice) stops
+# the build with its reason, instead of a player that never starts on every Mac.
+python3 -c 'import ctypes, sys; ctypes.CDLL(sys.argv[1])' "$APP/Contents/Frameworks/libmpv.2.dylib"
 
 # 6. The disk image: Mira and a link to Applications, to drag one onto the other.
 STAGE="$OUT/dmg"; mkdir -p "$STAGE"
