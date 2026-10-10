@@ -68,6 +68,8 @@ public partial class App : Application
             File.WriteAllText(Path.Combine(output, "failure.txt"), exception.ToString());
             return true;
         }
+        // The only Mira of this profile, before any engine is loaded: a newer engine prepared last time replaces Mira's own.
+        MpvInstaller.ActivatePrepared(AppFiles.ProfileDirectory);
         DispatcherUnhandledException += (_, args) =>
         {
             if (CheckFailed(args.Exception)) { args.Handled = true; Shutdown(1); return; }

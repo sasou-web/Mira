@@ -875,10 +875,10 @@ await Test("TorLink : Node.js installé par Mira depuis le zip officiel vérifi�
     var current = NodePackage.Current;
     Assert(current.Url.Host == "nodejs.org" && current.Url.Scheme == "https" && current.ArchiveName.EndsWith("-win-x64.zip") && current.Root == $"node-v{current.Version}-win-x64/"
         && current.Sha256.Length == 64 && current.Size > 20_000_000 && NodeInstaller.MajorVersion(current.Version) >= NodeInstaller.MinimumMajor, "Pinned Node.js");
-    // TorLink: one exact version of the npm package, into Mira's own folder, without install scripts.
-    var arguments = Mira.Core.TorLink.TorLinkPackage.Current.NpmArguments(@"C:\Mira\data\node\node_modules\npm\bin\npm-cli.js", @"C:\Mira\data");
-    Assert(arguments[0].EndsWith("npm-cli.js") && arguments[1] == "install" && arguments[2] == $"torlnk@{Mira.Core.TorLink.TorLinkPackage.Current.Version}"
-        && arguments.Contains("--ignore-scripts") && arguments[arguments.ToList().IndexOf("--prefix") + 1] == Path.Combine(@"C:\Mira\data", "torlink"), "npm arguments: " + string.Join(" ", arguments));
+    // TorLink: the tree of the lock shipped in Mira, into the folder being prepared, without install scripts.
+    var arguments = Mira.Core.TorLink.TorLinkPackage.NpmArguments(@"C:\Mira\data\node\node_modules\npm\bin\npm-cli.js", @"C:\Mira\data\torlink-next.partial");
+    Assert(arguments[0].EndsWith("npm-cli.js") && arguments[1] == "ci" && arguments.Contains("--omit=dev")
+        && arguments.Contains("--ignore-scripts") && arguments[arguments.ToList().IndexOf("--prefix") + 1] == @"C:\Mira\data\torlink-next.partial", "npm arguments: " + string.Join(" ", arguments));
     Assert(System.Text.RegularExpressions.Regex.IsMatch(Mira.Core.TorLink.TorLinkPackage.Current.Version, @"^\d+\.\d+\.\d+$"), "TorLink version is not exact");
     var problems = new[]
     {

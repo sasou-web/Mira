@@ -59,6 +59,51 @@ public static class VerifiedDownload
     private static InstallException Unexpected() => new("Le fichier proposé n’est pas celui attendu : il n’est pas installé.");
 }
 
+/// <summary>
+/// A newer version of something Mira installed (Node.js, TorLink) is built in a folder beside the one in use, then takes its
+/// place by two renames while nothing runs from it.
+/// </summary>
+public static class PreparedFolder
+{
+    /// <summary>
+    /// Puts <paramref name="prepared"/> in place of <paramref name="current"/>. False when <paramref name="current"/> could not
+    /// move (a program still runs from it): nothing changed. A swap cut short between its two renames is completed the
+    /// next time, the previous folder coming back first.
+    /// </summary>
+    public static bool Replace(string current, string prepared)
+    {
+        var previous = current + ".old";
+        if (!Settle(current)) return false;
+        try { if (Directory.Exists(current)) Directory.Move(current, previous); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        try { Directory.Move(prepared, current); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            try { if (Directory.Exists(previous)) Directory.Move(previous, current); } catch (Exception again) when (again is IOException or UnauthorizedAccessException) { }
+            return false;
+        }
+        Delete(previous);
+        return true;
+    }
+    /// <summary>What a swap cut short left behind: the previous folder comes back if the current one is missing, else it goes.</summary>
+    public static bool Settle(string current)
+    {
+        var previous = current + ".old";
+        try
+        {
+            if (!Directory.Exists(current) && Directory.Exists(previous)) Directory.Move(previous, current);
+            if (Directory.Exists(previous)) Directory.Delete(previous, recursive: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+    public static void Delete(string folder)
+    {
+        try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+}
+
 /// <summary>Reports a step of a longer task as its share of the whole, on the caller's thread.</summary>
 internal sealed class Scaled(IProgress<double> inner, double offset, double share) : IProgress<double>
 {

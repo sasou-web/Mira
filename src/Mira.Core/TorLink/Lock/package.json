@@ -1,0 +1,7 @@
+{
+  "name": "mira-torlink",
+  "private": true,
+  "dependencies": {
+    "torlnk": "1.9.0"
+  }
+}

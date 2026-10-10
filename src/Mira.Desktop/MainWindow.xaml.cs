@@ -122,6 +122,7 @@ public partial class MainWindow : Window
         if (_args.Contains("--windows-check")) { await RunWindowsCheckAsync(); return; }
         if (_args.Contains("--torlink-check")) { await RunTorLinkCheckAsync(); return; }
         _fallbackRefresh.Start();
+        _ = RefreshEngineAsync();
         ShowStartupScreen();
         _ = NoticeStaleRuleAsync();
         // Once, after the first refresh, which would otherwise hide it at once, and beside what the start already said

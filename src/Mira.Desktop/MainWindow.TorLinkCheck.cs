@@ -59,6 +59,15 @@ public partial class MainWindow
             PrepareSyntheticDownloads(state, downloads);
 
             await ShowTorLinkAsync();
+            // Found through its shortcut or npm's global folder, this PC's TorLink waits for the person's word before it runs.
+            if (_torlinkBlocker == "confirm" && _torlinkInstallation is { Detected: true } detected)
+            {
+                Require(TorLinkStatePanel.Visibility == Visibility.Visible && TorLinkStateHint.Text.Contains(detected.Root, StringComparison.Ordinal) && _torlinkTerminal?.Running != true,
+                    "a TorLink found on this PC is shown with its folder and does not run before it is confirmed");
+                await CaptureAsync(output, "00-torlink-confirm");
+                await RunTorLinkActionAsync("trust");
+                Require(string.Equals(_settings.TorLinkPath, detected.Root, StringComparison.OrdinalIgnoreCase) && _torlinkInstallation is { Detected: false }, "the confirmation is remembered as the chosen folder");
+            }
             Require(TorLinkOverlay.Visibility == Visibility.Visible && TorLinkNav.Background is SolidColorBrush { Color.R: 0xF4 }, "the rail opens the TorLink page and marks it active");
             await Until(() => _torlinkTerminal?.State == TerminalState.Running, 25, "TorLink did not start in the page");
             var terminal = _torlinkTerminal ?? throw new InvalidOperationException("No terminal");

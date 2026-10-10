@@ -16,7 +16,8 @@ public partial class MainWindow
         var found = MpvEngine.FindLibrary(_settings.MpvPath);
         if (!_engineInstalling)
             EngineStatus.Text = found is null ? "Aucun moteur mpv sur ce PC. Mira peut l’installer pour toi (31 Mo, depuis les builds Windows de mpv), ou tu peux choisir une bibliothèque mpv 64 bits ci-dessous."
-                : string.Equals(found, MpvInstaller.LibraryPath(AppFiles.ProfileDirectory), StringComparison.OrdinalIgnoreCase) ? "Prêt pour la lecture · moteur installé par Mira."
+                : string.Equals(found, MpvInstaller.LibraryPath(AppFiles.ProfileDirectory), StringComparison.OrdinalIgnoreCase)
+                    ? "Prêt pour la lecture · moteur installé par Mira." + (MpvInstaller.IsPrepared(AppFiles.ProfileDirectory) ? " Sa mise à jour est prête : elle sera utilisée au prochain démarrage de Mira." : "")
                 : "Prêt pour la lecture · moteur détecté sur ce PC.";
         EngineCheck.Visibility = found is null ? Visibility.Collapsed : Visibility.Visible;
         InstallEngineButton.Visibility = found is null || _engineInstalling ? Visibility.Visible : Visibility.Collapsed;
@@ -53,6 +54,23 @@ public partial class MainWindow
             return false;
         }
         finally { _engineInstalling = false; }
+    }
+    /// <summary>
+    /// Mira's own engine older than the build this version pins: the new one is downloaded and checked beside it
+    /// ("data\mpv-next"), and replaces it at the next start, before anything loads it (App). An engine chosen in the
+    /// settings is left alone. A failed download changes nothing and says nothing: the next start tries again.
+    /// </summary>
+    private async Task RefreshEngineAsync()
+    {
+        var profile = AppFiles.ProfileDirectory;
+        if (!string.Equals(MpvEngine.FindLibrary(_settings.MpvPath), MpvInstaller.LibraryPath(profile), StringComparison.OrdinalIgnoreCase) || !MpvInstaller.IsOutdated(profile)) return;
+        try
+        {
+            // After the start's own requests: the library and its images come first.
+            await Task.Delay(TimeSpan.FromSeconds(30));
+            if (await MpvInstaller.PrepareUpdateAsync(profile) && SettingsOverlay.Visibility == Visibility.Visible) ShowEngineState();
+        }
+        catch (Exception ex) when (ex is IOException or HttpRequestException or UnauthorizedAccessException) { }
     }
     /// <summary>"Installer" on the notice shown when playback had no engine: the title starts once it is ready.</summary>
     private async Task InstallEngineThenPlayAsync(MediaItem item, bool keepMini)

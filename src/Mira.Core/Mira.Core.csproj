@@ -7,5 +7,8 @@
   <ItemGroup>
     <!-- The main points of each version: the "what's new" screen and the release page on GitHub. -->
     <EmbeddedResource Include="WhatsNew.json" LogicalName="Mira.Core.WhatsNew.json" />
+    <!-- The project npm installs TorLink from: every dependency at a reviewed version, each archive checked by its sha512. -->
+    <EmbeddedResource Include="TorLink/Lock/package.json" LogicalName="Mira.Core.TorLink.package.json" />
+    <EmbeddedResource Include="TorLink/Lock/package-lock.json" LogicalName="Mira.Core.TorLink.package-lock.json" />
   </ItemGroup>
 </Project>

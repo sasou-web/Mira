@@ -7,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Mira.Core;
+using Mira.Core.TorLink;
 using Mira.Desktop.TorLink;
 using Mira.Desktop.Views;
 
@@ -32,7 +33,7 @@ public partial class MainWindow
     private MediaLibraries _torlinkLibraries = new(null, null, null), _torlinkDetected = new(null, null, null);
     private List<TorLinkCompletion> _torlinkEarlier = [];
     private (DateTime Stamp, long Length) _torlinkHistoryStamp;
-    private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling, _torlinkLooked;
+    private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling, _torlinkLooked, _torlinkRefreshTried;
     private string? _torlinkBlocker, _torlinkAction, _torlinkSecondary;
     private TorLinkSetup.Step? _torlinkStep;
 
@@ -240,7 +241,7 @@ public partial class MainWindow
 
     /// <summary>
     /// Turned on in the list; before any choice, on when a TorLink is already installed (as before this list existed).
-    /// That search reads shortcuts and npm's cache: it runs once, not at each step of an installation.
+    /// That search reads shortcuts and npm's global folder: it runs once, not at each step of an installation.
     /// </summary>
     private bool TorLinkActive()
     {
@@ -271,7 +272,8 @@ public partial class MainWindow
         var active = TorLinkActive(); var installation = _torlinkInstallation;
         TorLinkOpenButton.Visibility = active && !_torlinkInstalling ? Visibility.Visible : Visibility.Collapsed;
         TorLinkSetupStatus.Text = progress ?? (installation is null ? "Désactivé."
-            : (active ? "Activé" : "Désactivé") + $" · TorLink {installation.Version}" + (installation.Managed ? ", installé par Mira." : $" ({installation.Root})."));
+            : (active ? "Activé" : "Désactivé") + $" · TorLink {installation.Version}" + (installation.Managed ? ", installé par Mira." : $" ({installation.Root}).")
+              + (installation.Managed && TorLinkSetup.IsPrepared(_profile.DirectoryPath) ? " Sa mise à jour est prête : elle sera utilisée à sa prochaine ouverture." : ""));
     }
 
     private void Downloaders_Click(object sender, RoutedEventArgs e) => ShowDownloaders(true);
@@ -283,8 +285,9 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// TorLink on: an installed TorLink (Mira's, its shortcut, npx's copy) is used as it is; otherwise Mira installs its own
-    /// Node.js and TorLink, then opens it. A failure leaves it off, with the reason on the card.
+    /// TorLink on: an installed TorLink (Mira's, or one found through its shortcut or npm's global folder, confirmed before
+    /// its first start) is used as it is; otherwise Mira installs its own Node.js and TorLink, then opens it. A failure
+    /// leaves it off, with the reason on the card.
     /// </summary>
     private async Task ActivateTorLinkAsync(bool reinstall = false)
     {
@@ -345,9 +348,41 @@ public partial class MainWindow
         // Two TorLink would share the same queue and write the same files.
         var installation = _torlinkInstallation;
         if (await Task.Run(() => installation.RunningElsewhere(null)) is not null) { SetTorLinkBlocker("elsewhere"); return; }
+        // Found by searching this PC, neither installed by Mira nor chosen: it runs only once the person says it is theirs.
+        if (installation.Detected) { SetTorLinkBlocker("confirm"); return; }
+        installation = await TakePreparedTorLinkAsync(installation);
         SetTorLinkBlocker(null);
         PrepareTorLinkStart();
         _torlinkTerminal.Start(installation);
+        _ = RefreshTorLinkAsync(installation);
+    }
+
+    /// <summary>
+    /// Mira's own TorLink, closed at this point: the Node.js and TorLink prepared since its last opening take their place
+    /// now. Anything still in use keeps the current version, which starts as it is.
+    /// </summary>
+    private async Task<TorLinkInstallation> TakePreparedTorLinkAsync(TorLinkInstallation installation)
+    {
+        var profile = _profile.DirectoryPath;
+        if (!installation.Managed || !TorLinkSetup.IsPrepared(profile)) return installation;
+        var updated = await Task.Run(() => { TorLinkSetup.Activate(profile); return TorLinkInstallation.Validate(TorLinkPackage.PackageRoot(profile), profile); });
+        if (updated is not { HasRuntime: true }) return installation;
+        DescribeTorLinkSetup();
+        return _torlinkInstallation = updated;
+    }
+
+    /// <summary>
+    /// Mira's own TorLink older than what this Mira pins (Node.js, TorLink, or installed by an older Mira without the lock):
+    /// the new versions are prepared beside it while it runs, once per start of Mira, and take its place at its next opening.
+    /// A failure changes nothing and says nothing: the next start of Mira tries again.
+    /// </summary>
+    private async Task RefreshTorLinkAsync(TorLinkInstallation installation)
+    {
+        var profile = _profile.DirectoryPath;
+        if (_torlinkRefreshTried || !installation.Managed || await Task.Run(() => TorLinkSetup.IsCurrent(profile))) return;
+        _torlinkRefreshTried = true;
+        try { await TorLinkSetup.PrepareAsync(profile, null, _torlinkLifetime.Token); DescribeTorLinkSetup(); }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or HttpRequestException or UnauthorizedAccessException or System.ComponentModel.Win32Exception) { }
     }
 
     /// <summary>
@@ -391,6 +426,9 @@ public partial class MainWindow
                 ShowTorLinkPanel("info", "Node.js est nécessaire", "TorLink a besoin de Node.js 22 ou plus récent. Mira peut l’installer, avec TorLink.", "Installer", "install"); return;
             case "elsewhere":
                 ShowTorLinkPanel("info", "TorLink est déjà ouvert", "Il tourne dans une autre fenêtre. Quitte-le (q ou Ctrl+C) puis réessaie : deux TorLink ne peuvent pas gérer les mêmes téléchargements.", "Réessayer", "retry"); return;
+            case "confirm" when _torlinkInstallation is { } found:
+                ShowTorLinkPanel("folder", "Utiliser ce TorLink ?", $"Mira a trouvé TorLink {found.Version ?? "(version inconnue)"} dans {found.Root}. Il n’a pas été installé par Mira : utilise-le seulement si c’est toi qui l’as installé. Mira s’en souviendra.",
+                    "Utiliser ce TorLink", "trust", "Installer celui de Mira", "install"); return;
             case "webview":
                 ShowTorLinkPanel("info", "Terminal intégré indisponible", (_torlinkTerminal?.Problem ?? "") + " TorLink peut s’ouvrir dans sa propre fenêtre ; ses téléchargements terminés seront quand même rangés.", "Ouvrir dans une fenêtre", "window"); return;
         }
@@ -431,11 +469,20 @@ public partial class MainWindow
             case "browse":
                 if (ChooseTorLinkFolder() is { } root) { _settings.TorLinkPath = root; _profile.SaveSettings(_settings); await StartTorLinkAsync(restart: true); }
                 break;
+            // Confirmed: this folder is the chosen one from now on, asked about no more.
+            case "trust" when _torlinkInstallation is { Detected: true } found:
+                _settings.TorLinkPath = found.Root; _profile.SaveSettings(_settings);
+                await StartTorLinkAsync(restart: true);
+                break;
+            case "window" when _torlinkInstallation is { Detected: true }:
+                SetTorLinkBlocker("confirm");
+                break;
             case "window" when _torlinkInstallation is { } installation:
                 // Its own window is a TorLink like the one of its shortcut: still only one at a time.
                 if (await Task.Run(() => installation.RunningElsewhere(null)) is not null) { SetNotice("TorLink est déjà ouvert dans une autre fenêtre."); break; }
+                installation = await TakePreparedTorLinkAsync(installation);
                 PrepareTorLinkStart();
-                try { installation.OpenInWindow(); SetNotice("TorLink s’ouvre dans sa propre fenêtre ; ses téléchargements terminés seront rangés."); }
+                try { installation.OpenInWindow(); SetNotice("TorLink s’ouvre dans sa propre fenêtre ; ses téléchargements terminés seront rangés."); _ = RefreshTorLinkAsync(installation); }
                 catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { SetNotice("TorLink n’a pas pu s’ouvrir dans une fenêtre."); }
                 break;
         }
