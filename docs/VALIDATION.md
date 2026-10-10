@@ -17,10 +17,11 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - lecteur d’Apple simulé fermé pendant le chargement de l’épisode suivant : retour à la fiche, pas de nouveau plein écran (le défaut se reproduisait : Mira redemandait le plein écran 43 ms après la fermeture) ;
   - app de l’écran d’accueil simulée : Retour dessine le mouvement d’iOS, le glissement d’iOS n’en reçoit pas un second, la barre du petit titre ramène en haut sans ouvrir ce qu’elle couvre ;
   - plein écran de Mira (Android) : la feuille des pistes s’y affiche.
-- **GitHub Actions, sur la branche** (commit `31e425e`) :
+- **GitHub Actions, sur la branche** (commit `31e425e`, puis `87dc56d` après la revue) :
   - **Chromium** : **43/43**, Jellyfin arrêté puis relancé pendant le contrôle ;
   - **Safari sur Mac** : **26/26**, dont, dans le vrai lecteur d’Apple (plein écran de WebKit, AVFoundation) : l’animé avec « Aucun », ses quatre sous-titres dans le flux, aucun affiché ; « Français (ASS) » choisi comme le ferait le menu, « Cinq secondes » vue à 5,3 s ; après un saut à 33 s, « Trente-cinq » vue à 35,1 s ; l’épisode suivant toujours sans quitter le plein écran ;
   - **Windows** : compilation et tests réussis (dont `HlsPlaylists` : noms pris tels quels, `und`).
+  - un échec de Safari en cours de route : Jellyfin a refusé la liste des sous-titres forcés d’un film qu’il venait d’ajouter (« HLS Subtitles are not supported for this media », durée encore inconnue), et le lecteur d’Apple a refusé tout le flux. L’extension répond maintenant une liste vide dans ce cas, et `setup.mjs` attend les durées ; `scrollbar-gutter` rétrécissait la vidéo dans Safari avec des barres de défilement classiques : retiré.
 - **Revue adverse** (quatre relecteurs indépendants, un vérificateur) : 20 défauts confirmés et corrigés, dont :
   - une erreur du flux alors que Jellyfin répond (500, conversion ratée) relançait la lecture sans fin sous « Connexion au serveur perdue » : reproduit (8 demandes de lecture en 24 s), puis « Lecture impossible » après une seule ;
   - après une vraie coupure, la reprise repartait de 0 : reproduit, puis reprise à 20 s ;
