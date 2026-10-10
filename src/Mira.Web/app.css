@@ -16,6 +16,9 @@
   --muted: #a2a2a6;
   --faint: #8a8a90;
   --accent: #f5f5f7;
+  --glass: rgba(11, 11, 12, 0.78);       /* the bars' frosted material, over a blur */
+  --glass-solid: rgba(11, 11, 12, 0.97); /* the same where nothing can be blurred */
+  --blur: saturate(160%) blur(20px);
   --on-accent: #0b0b0c;
   --danger: #ff6b5f;
   --scrim: rgba(7, 7, 8, 0.72);
@@ -59,7 +62,7 @@ html {
 html.android { overscroll-behavior-y: contain; }
 /* Nor does it select its text or open link previews on a long press: only fields and addresses select. */
 body { margin: 0; min-height: 100dvh; background: var(--bg); overflow-x: hidden; -webkit-user-select: none; user-select: none; }
-a, img { -webkit-touch-callout: none; }
+a, img { -webkit-touch-callout: none; -webkit-user-drag: none; }
 input, textarea { -webkit-user-select: text; user-select: text; }
 img { display: block; max-width: 100%; -webkit-user-drag: none; }
 button, input, select { font: inherit; color: inherit; }
@@ -95,7 +98,10 @@ h1, h2, h3, p { margin: 0; }
 .toast-layer { view-transition-name: toast; }
 .netbar { view-transition-name: netbar; }
 /* Captured on their own, the bars lose their blur while a move is drawn: they stay plain dark until it ends. */
-html[data-nav] .tabbar, html[data-nav] .topbar { background: rgba(11, 11, 12, 0.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-nav] .tabbar, html[data-nav] .topbar { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* The small title bar changes in place, at once, rather than riding in on the new screen. */
+.topbar { view-transition-name: topbar; }
+::view-transition-old(topbar), ::view-transition-new(topbar) { animation-duration: 180ms; }
 ::view-transition-group(root) { animation-duration: var(--push); animation-timing-function: var(--ios); }
 html[data-nav='push']::view-transition-old(root) { animation: var(--push) var(--ios) both nav-under; }
 html[data-nav='push']::view-transition-new(root) { animation: var(--push) var(--ios) both nav-from-right; }
@@ -105,62 +111,71 @@ html[data-nav='pop']::view-transition-new(root) { animation: var(--push) var(--i
 @keyframes nav-to-right { to { transform: translateX(100%); } }
 @keyframes nav-under { to { transform: translateX(-30%); filter: brightness(0.6); } }
 @keyframes nav-from-under { from { transform: translateX(-30%); filter: brightness(0.6); } }
-/* Without View Transitions (iOS 17 and older): the new screen alone moves in. */
-.view.enter-push { animation: var(--push) var(--ios) both nav-from-right; }
-.view.enter-pop { animation: var(--push) var(--ios) both nav-from-under; }
+/* Without View Transitions (iOS 17 and older): the new screen alone moves in. Not held once in place: a transform
+   left on it would carry its fixed Back button away with the page. */
+.view.enter-push { animation: var(--push) var(--ios) backwards nav-from-right; }
+.view.enter-pop { animation: var(--push) var(--ios) backwards nav-from-under; }
 
 
-/* What lies under the status bar of a home screen app stays legible once the page scrolls. */
+/* What lies under the status bar of a home screen app stays legible once the page scrolls: the bars' frosted glass,
+   hidden while the small title bar (which has its own) is there. */
 .status-scrim {
   position: fixed; inset: 0 0 auto 0; height: var(--top); z-index: 40; pointer-events: none;
-  background: var(--bg); opacity: 0; transition: opacity var(--fast) linear;
+  background: var(--glass-solid); opacity: 0; transition: opacity var(--fast) linear;
 }
 body.scrolled .status-scrim { opacity: 1; }
+#app:has(> .topbar.on) > .status-scrim { visibility: hidden; }
+/* The small title fades in as the large one goes under it (app.js sets its opacity with the scroll); touched, it
+   brings the screen back to its top, as iOS's bar does. */
 .topbar {
-  position: fixed; z-index: 44; inset: 0 0 auto calc(var(--rail) + var(--left)); height: var(--bar); padding: var(--top) 64px 0;
-  display: grid; place-items: center; background: rgba(11, 11, 12, 0.97); border-bottom: 1px solid var(--line);
-  opacity: 0; pointer-events: none; transition: opacity var(--fast) linear;
+  position: fixed; z-index: 44; inset: 0 var(--right) auto calc(var(--rail) + var(--left)); height: var(--bar); padding: var(--top) 64px 0;
+  display: grid; place-items: center; background: var(--glass-solid); border-bottom: 1px solid var(--line);
+  opacity: 0; visibility: hidden; pointer-events: none;
 }
 .topbar span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 800; }
-.topbar.on { opacity: 1; }
+.topbar.on { visibility: visible; pointer-events: auto; }
 /* Pull to refresh (Home Screen app): an arrow that turns as the page is pulled, then spins while the server answers. */
 .pull {
-  position: fixed; z-index: 46; top: calc(var(--top) + 14px); left: calc(50% + (var(--rail) + var(--left)) / 2);
+  position: fixed; z-index: 46; top: calc(var(--top) + 14px); left: calc(50% + (var(--rail) + var(--left) - var(--right)) / 2);
   width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--r-full); pointer-events: none;
   background: var(--raised-2); color: var(--muted); box-shadow: var(--shadow); opacity: 0; transform: translate(-50%, 0);
   transition: opacity var(--fast) linear, color var(--fast) linear;
 }
 .pull .icon { width: 20px; height: 20px; }
 .pull.armed { color: var(--ink); }
-.pull.busy { opacity: 1 !important; color: var(--ink); animation: spin 0.8s linear infinite; transform: translate(-50%, 24px) !important; }
+.pull.busy { opacity: 1 !important; color: var(--ink); transform: translate(-50%, 24px) !important; }
+/* The icon turns, not the box: the box's place is held by !important, which an animation could not move. */
+.pull.busy .icon { animation: spin 0.8s linear infinite; }
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .topbar { background: rgba(11, 11, 12, 0.78); -webkit-backdrop-filter: saturate(160%) blur(20px); backdrop-filter: saturate(160%) blur(20px); }
+  .topbar, .status-scrim { background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
 }
 
 .tabbar {
   position: fixed; z-index: 50; inset: auto 0 0 0; height: var(--tabbar);
   padding: 0 calc(8px + var(--right)) var(--bottom) calc(8px + var(--left));
   display: flex; justify-content: space-around; align-items: stretch;
-  background: rgba(11, 11, 12, 0.97); border-top: 1px solid var(--line);
+  background: var(--glass-solid); border-top: 1px solid var(--line);
 }
 /* Frosted where the browser can blur behind it, as iOS's bar. */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .tabbar { background: rgba(11, 11, 12, 0.78); -webkit-backdrop-filter: saturate(160%) blur(20px); backdrop-filter: saturate(160%) blur(20px); }
+  .tabbar { background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
 }
 .tabbar a {
   flex: 1; max-width: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   color: var(--faint); font-size: 11px; font-weight: 700; letter-spacing: 0.01em;
 }
 .tabbar a[aria-current='page'] { color: var(--ink); }
-.tabbar a:active .icon { transform: scale(0.9); }
+html:not(.touch) .tabbar a:active .icon, .tabbar a.pressed .icon { transform: scale(0.9); }
 .tabbar .icon { transition: transform var(--fast) var(--ease); }
 .rail-mark { display: none; }
 
-@media (min-width: 900px) {
+/* Tablets and computers: a rail at the left. A phone in landscape (wide but short) keeps the phone's layout. */
+@media (min-width: 900px) and (min-height: 600px) {
   :root { --rail: 88px; --gutter: 32px; --tabbar: 0px; --poster-w: 156px; --wide-w: 340px; }
   .tabbar {
     inset: 0 auto 0 0; width: calc(var(--rail) + var(--left)); height: auto; padding: calc(24px + var(--top)) 0 24px var(--left);
     flex-direction: column; justify-content: flex-start; gap: 6px; border-top: 0; border-right: 1px solid var(--line); background: var(--bg);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
   }
   .tabbar a { flex: none; height: 64px; max-width: none; border-radius: var(--r-m); margin: 0 12px; }
   .tabbar a:hover { color: var(--ink); background: var(--surface); }
@@ -187,7 +202,7 @@ body.scrolled .status-scrim { opacity: 1; }
   background: var(--raised); color: var(--ink); white-space: nowrap;
   transition: transform var(--fast) var(--ease), background var(--fast) linear, opacity var(--fast) linear;
 }
-.btn:active { transform: scale(0.97); transition-delay: 70ms; }
+html:not(.touch) .btn:active, .btn.pressed { transform: scale(0.97); }
 .btn.primary { background: var(--accent); color: var(--on-accent); }
 .btn.quiet { background: transparent; color: var(--muted); padding: 0 12px; }
 .btn.small { height: 36px; padding: 0 14px; font-size: 14px; border-radius: var(--r-full); }
@@ -199,7 +214,7 @@ body.scrolled .status-scrim { opacity: 1; }
   width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: var(--r-full);
   color: var(--ink); background: rgba(20, 20, 22, 0.66); transition: transform var(--fast) var(--ease), background var(--fast) linear;
 }
-.round:active { transform: scale(0.92); transition-delay: 40ms; }
+html:not(.touch) .round:active, .round.pressed { transform: scale(0.92); }
 .round.flat { background: transparent; }
 .round.solid { background: var(--raised); }
 @media (hover: hover) { .round:hover { background: var(--raised-2); } }
@@ -212,7 +227,7 @@ body.scrolled .status-scrim { opacity: 1; }
 }
 .chip[aria-pressed='true'], .chip.on { background: var(--accent); color: var(--on-accent); }
 .chip { transition: transform var(--fast) var(--ease), background var(--fast) linear; }
-.chip:active { transform: scale(0.96); transition-delay: 50ms; }
+html:not(.touch) .chip:active, .chip.pressed { transform: scale(0.96); }
 .chip .icon { width: 16px; height: 16px; }
 
 .field { display: grid; gap: 6px; }
@@ -249,9 +264,9 @@ img.fade.ready { opacity: 1; }
 /* ---------- Cards, rows and grids ---------- */
 .card { display: block; min-width: 0; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
 .card .art { transition: transform var(--fast) var(--ease); }
-/* Pressed only once the finger has rested a moment (70 ms), as in iOS's lists: a scroll that starts under it cancels
-   the press before it shows; the release is immediate. */
-.card:active .art { transform: scale(0.97); transition-delay: 70ms; }
+/* Pressed (press.js on touch screens): once the finger has rested a moment, as in iOS's lists; a scroll that starts
+   under it takes the press away. */
+html:not(.touch) .card:active .art, .card.pressed .art { transform: scale(0.97); }
 /* Held for a menu: the card lifts before it opens, like iOS's context menus. */
 .card.holding .art { transform: scale(1.03); box-shadow: var(--shadow); transition: transform 300ms var(--ios), box-shadow 300ms var(--ios); }
 .card-title { margin-top: 8px; font-size: 14px; font-weight: 700; line-height: 1.3; }
@@ -261,7 +276,7 @@ img.fade.ready { opacity: 1; }
 .section { margin-top: 28px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 var(--gutter); margin-bottom: 12px; }
 .section-head a { color: var(--muted); font-size: 14px; font-weight: 700; transition: opacity var(--fast) linear; }
-.section-head a:active { opacity: 0.55; }
+html:not(.touch) .section-head a:active, .section-head a.pressed { opacity: 0.55; }
 .row {
   display: grid; grid-auto-flow: column; grid-auto-columns: var(--poster-w); gap: 12px;
   overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding: 0 var(--gutter);
@@ -296,8 +311,10 @@ img.fade.ready { opacity: 1; }
 /* ---------- Sheets and toasts ---------- */
 .sheet-layer { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-layer { overscroll-behavior: contain; }
+/* While a sheet is open the page under it stays where it is, whatever the finger does on a short sheet. */
+html:has(.sheet-layer) { overflow: hidden; }
 /* The page behind a sheet does not scroll under the finger. */
-.sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); animation: fade var(--fast) linear; touch-action: none; }
+.sheet-backdrop { position: absolute; inset: 0; background: var(--scrim); animation: fade var(--fast) linear; touch-action: none; }
 .sheet {
   position: relative; width: 100%; max-width: 560px; max-height: min(78dvh, 640px); overflow-y: auto; overscroll-behavior: contain;
   background: var(--surface); border-radius: 16px 16px 0 0; padding: 8px 0 calc(12px + var(--bottom));
@@ -310,7 +327,7 @@ img.fade.ready { opacity: 1; }
 .sheet-layer.leaving .sheet-backdrop { animation: fade-out 260ms linear forwards; }
 @keyframes sheet-up { from { transform: translate3d(0, 100%, 0); } }
 @keyframes sheet-down { from { transform: translate3d(0, var(--from, 0px), 0); } to { transform: translate3d(0, 100%, 0); } }
-@media (min-width: 600px) {
+@media (min-width: 600px) and (min-height: 600px) {
   .sheet-layer { align-items: center; } .sheet { border-radius: 16px; padding-bottom: 12px; animation: rise var(--slow) var(--ease); }
   .sheet-layer.leaving .sheet { animation: fade-out 180ms linear forwards; }
 }
@@ -322,7 +339,7 @@ img.fade.ready { opacity: 1; }
 .sheet-item {
   width: 100%; min-height: 52px; display: flex; align-items: center; gap: 14px; padding: 10px 20px; text-align: left; font-size: 16px; font-weight: 600;
 }
-.sheet-item:active { background: var(--raised); transition: background 0s linear 60ms; }
+html:not(.touch) .sheet-item:active, .sheet-item.pressed { background: var(--raised); }
 @media (hover: hover) { .sheet-item:hover { background: var(--raised); } }
 .sheet-item .grow { flex: 1; min-width: 0; }
 .sheet-item .sub { display: block; font-size: 13px; color: var(--faint); font-weight: 400; }
@@ -345,13 +362,16 @@ img.fade.ready { opacity: 1; }
 
 /* Jellyfin away (PC off or starting): said above the tab bar while Mira asks again; notices then rise above it. */
 .netbar {
-  position: fixed; z-index: 60; bottom: calc(var(--tabbar) + 12px); left: calc(50% + (var(--rail) + var(--left)) / 2); transform: translateX(-50%);
+  position: fixed; z-index: 60; bottom: calc(var(--tabbar) + 12px); left: calc(50% + (var(--rail) + var(--left) - var(--right)) / 2); transform: translateX(-50%);
   width: max-content; max-width: min(460px, calc(100% - var(--rail) - 32px)); display: flex; align-items: center; gap: 10px;
   padding: 9px 16px 9px 12px; border-radius: var(--r-full); background: var(--raised-2); color: var(--ink);
   font-size: 13px; font-weight: 700; line-height: 1.3; box-shadow: var(--shadow); animation: fade var(--slow) linear;
 }
 .netbar .spinner { flex: none; width: 16px; height: 16px; border-width: 2px; }
 body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px); }
+/* Under an open sheet rather than over its last rows; near the bottom on screens without a tab bar. */
+body:has(.sheet-layer) .toast-layer { z-index: 89; }
+#app:not(.with-tabs) ~ .toast-layer { bottom: calc(var(--bottom) + 16px); }
 .banner {
   display: flex; align-items: center; gap: 12px; margin: 0 var(--gutter) 16px; padding: 12px 14px; border-radius: var(--r-m);
   background: var(--surface); border: 1px solid var(--line); font-size: 14px; color: var(--muted);
@@ -378,13 +398,13 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .dots { position: absolute; z-index: 2; right: var(--gutter); bottom: 30px; display: flex; gap: 6px; }
 .dots i { width: 6px; height: 6px; border-radius: var(--r-full); background: rgba(255, 255, 255, 0.35); transition: width var(--slow) var(--ease), background var(--fast) linear; }
 .dots i.on { width: 18px; background: var(--accent); }
-@media (orientation: landscape) and (max-height: 500px) and (max-width: 899px) {
+@media (orientation: landscape) and (max-height: 500px) {
   .hero { height: calc(100dvh - var(--tabbar)); }
   .slide::after { background: linear-gradient(90deg, rgba(7, 7, 8, 0.9) 0, rgba(7, 7, 8, 0.5) 40%, rgba(7, 7, 8, 0) 70%), linear-gradient(to bottom, rgba(7, 7, 8, 0) 60%, var(--bg) 100%); }
   .slide-body { right: auto; max-width: 60%; padding-left: calc(var(--gutter) + var(--left)); }
   .slide-title { font-size: 28px; }
 }
-@media (min-width: 900px) {
+@media (min-width: 900px) and (min-height: 600px) {
   .hero { height: min(78vh, 760px); }
   .slide::after { background: linear-gradient(90deg, rgba(7, 7, 8, 0.92) 0, rgba(7, 7, 8, 0.55) 38%, rgba(7, 7, 8, 0) 66%), linear-gradient(to bottom, rgba(7, 7, 8, 0) 60%, var(--bg) 100%); }
   .slide-body { right: auto; max-width: 560px; padding-bottom: 72px; }
@@ -418,7 +438,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 12px 8px 14px; border-radius: var(--r-m);
   background: var(--surface); color: var(--muted); font-size: 14px; text-align: left; transition: background var(--fast) linear;
 }
-.tracks-line:active { background: var(--raised); }
+html:not(.touch) .tracks-line:active, .tracks-line.pressed { background: var(--raised); }
 .tracks-line .grow { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
 .tracks-line .grow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tracks-line b { color: var(--ink); font-weight: 700; }
@@ -426,7 +446,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .detail-secondary { display: flex; gap: 6px; }
 .detail-secondary .tool { flex: 1; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: var(--r-m); color: var(--muted); font-size: 12px; font-weight: 700; }
 .detail-secondary .tool.on { color: var(--ink); }
-.detail-secondary .tool:active { background: var(--surface); }
+html:not(.touch) .detail-secondary .tool:active, .detail-secondary .tool.pressed { background: var(--surface); }
 .detail-secondary .tool.pop .icon { animation: pop 320ms var(--ios); }
 @keyframes pop { 40% { transform: scale(1.28); } }
 .overview { color: rgba(244, 244, 245, 0.9); font-size: 15px; line-height: 1.55; max-width: 70ch; }
@@ -434,7 +454,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .genres { color: var(--faint); font-size: 13px; }
 .credits { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
 .credits a { color: var(--ink); font-weight: 700; }
-@media (min-width: 900px) {
+@media (min-width: 900px) and (min-height: 600px) {
   .detail-backdrop { height: min(74vh, 720px); }
   .detail-backdrop::after { background: linear-gradient(90deg, rgba(7, 7, 8, 0.9) 0, rgba(7, 7, 8, 0.4) 45%, rgba(7, 7, 8, 0) 70%), linear-gradient(to bottom, rgba(7, 7, 8, 0) 55%, var(--bg) 100%); }
   .detail-head { margin-top: -340px; max-width: 640px; }
@@ -443,7 +463,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 
 .seasons { margin-top: 28px; }
 .episode { display: grid; grid-template-columns: 136px 1fr; gap: 12px; padding: 10px var(--gutter); align-items: start; }
-.episode:active { background: var(--surface); transition: background 0s linear 70ms; }
+html:not(.touch) .episode:active, .episode.pressed { background: var(--surface); }
 .episode .art { width: 136px; }
 .episode .ep-title { font-size: 15px; font-weight: 700; line-height: 1.3; }
 .episode .ep-meta { font-size: 13px; color: var(--faint); margin-top: 2px; }
@@ -472,7 +492,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .recent { display: grid; padding: 0 var(--gutter); }
 .search .pending { opacity: 0.55; transition: opacity var(--fast) linear 120ms; }
 .recent button { display: flex; align-items: center; gap: 12px; height: 48px; text-align: left; color: var(--muted); font-size: 16px; border-bottom: 1px solid var(--line); transition: color var(--fast) linear; }
-.recent button:active { color: var(--ink); }
+html:not(.touch) .recent button:active, .recent button.pressed { color: var(--ink); }
 
 /* ---------- Settings ---------- */
 .settings { padding-bottom: 32px; }
@@ -493,7 +513,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .item.danger { color: var(--danger); }
 .item.static .sub { margin-top: 3px; line-height: 1.4; }
 .group-note { margin: -14px calc(var(--gutter) + 4px) 24px; color: var(--faint); font-size: 13px; line-height: 1.45; }
-button.item:active, a.item:active { background: var(--raised); transition: background 0s linear 60ms; }
+html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item.pressed, a.item.pressed { background: var(--raised); }
 .switch { position: relative; width: 51px; height: 31px; flex: none; border-radius: var(--r-full); background: var(--raised-2); transition: background var(--fast) linear; }
 .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--ink); transition: transform var(--fast) var(--ease); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
 [aria-checked='true'] .switch { background: var(--accent); }
@@ -508,7 +528,7 @@ button.item:active, a.item:active { background: var(--raised); transition: backg
 .users { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px 22px; max-width: 520px; }
 .user-pick { display: grid; justify-items: center; gap: 8px; width: 88px; font-weight: 700; font-size: 14px; }
 .user-pick .avatar { width: 76px; height: 76px; font-size: 26px; transition: transform var(--fast) var(--ease); }
-.user-pick:active .avatar { transform: scale(0.94); }
+html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transform: scale(0.94); }
 .user-pick.busy .avatar { opacity: 0.5; animation: breathe 0.9s ease-in-out infinite alternate; }
 .login-form { width: 100%; max-width: 360px; display: grid; gap: 14px; text-align: left; }
 .login-form.shake { animation: shake 360ms var(--ease); }
@@ -619,4 +639,6 @@ button.item:active, a.item:active { background: var(--raised); transition: backg
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+  /* What says « loading » keeps turning, as iOS's own indicators do. */
+  .spinner, .pull.busy .icon { animation-duration: 0.8s !important; animation-iteration-count: infinite !important; }
 }

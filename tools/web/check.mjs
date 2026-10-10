@@ -131,6 +131,17 @@ try {
   check('lecture : sous-titres ASS d’un animé, en texte à côté de la vidéo', assCue?.text === 'Cinq secondes' && assCue.t > 4.5 && assCue.t < 8.5 && !/SubtitleMethod=Encode/i.test(assCue.src),
     assCue ? `${assCue.label} « ${assCue.text} » à ${assCue.t.toFixed(1)} s${/SubtitleMethod=Encode/i.test(assCue.src) ? ', incrustés dans l’image' : ''}` : 'aucune ligne affichée');
   await shot('13-ass');
+  // Mira's own full screen (Android, a computer): its sheets show in it, not under it.
+  await page.locator('.player .controls button[aria-label="Plein écran"]').click({ force: true }); await wait(800);
+  await page.locator('.player .controls button[aria-label="Audio et sous-titres"]').click({ force: true }); await wait(700);
+  const inFull = await page.evaluate(() => {
+    const full = document.fullscreenElement, layer = document.querySelector('.sheet-layer');
+    return { full: !!full, inside: !!(full && layer && full.contains(layer)), visible: !!layer && layer.getBoundingClientRect().height > 0 };
+  });
+  check('plein écran de Mira : la feuille des pistes s’y affiche', inFull.full && inFull.inside && inFull.visible,
+    `${inFull.full ? 'plein écran' : 'pas de plein écran'}, feuille ${inFull.inside ? 'dedans' : 'en dehors'}`);
+  await page.keyboard.press('Escape'); await wait(300);
+  await page.evaluate(() => document.exitFullscreen?.().catch(() => {})); await wait(500);
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
   if (process.env.MIRA_STOP && process.env.MIRA_START) {
@@ -224,6 +235,14 @@ try {
   check('lecteur d’Apple (simulé) : fermé, retour à la fiche et position gardée', closed && !(await ap.locator('video').count()) && kept.UserData.PlaybackPositionTicks > 5_000_000,
     `${(await state()).hash.split('?')[0]}, ${(kept.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
   await ap.screenshot({ path: `${out}/15-apple-closed.png` });
+  // Closed by the person while the next episode loads: Mira closes, and does not open Apple's player again.
+  await ap.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, episodes[0].Id);
+  const switched = await ap.waitForFunction((id) => location.hash.includes(id), episodes[1].Id, { timeout: 30000, polling: 50 }).then(() => true, () => false);
+  await ap.evaluate(() => document.querySelector('video')?.webkitExitFullscreen());
+  await ap.waitForTimeout(3000);
+  now = await state();
+  check('lecteur d’Apple (simulé) : fermé pendant le chargement de l’épisode suivant, il ne revient pas', switched && now.hash.startsWith(`#/titre/${series.Id}`) && now.mode !== 'fullscreen',
+    `${switched ? 'É2 en chargement' : 'É2 jamais atteint'}, puis ${now.hash.split('?')[0]}${now.mode ? `, ${now.mode}` : ''}`);
 } catch (error) {
   check('lecteur d’Apple (simulé) : déroulé', false, error.message.split('\n')[0]);
   await ap.screenshot({ path: `${out}/error-apple.png` }).catch(() => {});
@@ -356,6 +375,17 @@ try {
   const box = await hp.locator('.sheet').boundingBox();
   await drag(box.x + box.width / 2, box.y + 14, box.x + box.width / 2, box.y + 14 + Math.max(260, box.height * 0.6)); await hp.waitForTimeout(800);
   check('app (simulée) : feuille fermée en la tirant vers le bas', await hp.locator('.sheet-layer').count() === 0);
+  // The small title bar, once there, takes a touch itself (back to the top) rather than letting it through to what it covers.
+  const size = hp.viewportSize();
+  await hp.setViewportSize({ width: size.width, height: 360 }); await hp.waitForTimeout(300);
+  await hp.evaluate(() => scrollTo(0, document.documentElement.scrollHeight)); await hp.waitForTimeout(400);
+  const bar = await hp.evaluate(() => { const b = document.querySelector('.topbar'), r = b.getBoundingClientRect(); return { on: b.classList.contains('on'), x: r.left + r.width / 2, y: r.bottom - 14 }; });
+  if (bar.on) await hp.mouse.click(bar.x, bar.y);
+  await hp.waitForTimeout(900);
+  const afterBar = await hp.evaluate(() => ({ hash: location.hash, y: scrollY }));
+  await hp.setViewportSize(size);
+  check('app (simulée) : la barre du titre ramène en haut, sans ouvrir ce qu’elle couvre', bar.on && afterBar.hash === film && afterBar.y < 5,
+    `${bar.on ? 'barre affichée' : 'barre absente'}, ${afterBar.hash}, ${Math.round(afterBar.y)} px`);
   await hp.screenshot({ path: `${out}/16-app-title.png` });
 } catch (error) {
   check('app (simulée) : déroulé', false, error.message.split('\n')[0]);

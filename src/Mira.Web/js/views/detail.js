@@ -89,7 +89,8 @@ export function create({ id, query }) {
   let actionsBox = null, toolsBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
-  const wanted = query.get('episode');
+  // The episode the page was opened for (« Voir la série » from it): marked, its season shown, until Lecture moves on.
+  let wanted = query.get('episode');
 
   const playTarget = () => (item.Type === 'Series' ? next ?? episodes[0] : item);
 
@@ -277,7 +278,7 @@ export function create({ id, query }) {
     metaBox.replaceWith(facts); metaBox = facts;
     refreshActions();
     if (item.Type !== 'Series') return;
-    if (episodes.map((x) => x.Id).join() !== shownIds || !listBox || !el.contains(listBox)) {
+    if (!page || episodes.map((x) => x.Id).join() !== shownIds || !listBox || !el.contains(listBox)) {
       clear(seasonsBox).append(seasonsSection() ?? '');
       return;
     }
@@ -307,6 +308,8 @@ export function create({ id, query }) {
         return;
       }
       const inPlace = quiet && item?.Type === fresh.Type && !!actionsBox && el.contains(actionsBox);
+      // Episodes played since (one after the other in the player): the page follows the one Lecture now plays.
+      if (quiet && next && nextUp && nextUp.Id !== next.Id) { wanted = null; page = null; }
       item = fresh; episodes = eps; next = nextUp; stale = false; loadedAt = Date.now();
       document.title = `${item.Name} · Mira`;
       // A film's streams come with it, fresh; a series' come with the episode it picks up at (else they are asked for).

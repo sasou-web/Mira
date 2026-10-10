@@ -129,10 +129,17 @@ export function errorState(error, retry) {
 
 export function spinner(label = 'Chargement') { return h('div', { class: 'state', role: 'status' }, h('div', { class: 'spinner' }), h('span', { class: 'sr' }, label)); }
 
+/**
+ * Where notices and sheets go: in the element shown full screen when there is one (Mira's player on Android or a
+ * computer), since nothing outside it shows then.
+ */
+const overlayHost = () => document.fullscreenElement ?? document.webkitFullscreenElement ?? document.body;
+
 /** A notice at the bottom of the screen, with an optional action (« Annuler »). */
 export function toast(text, { action = null, duration = 4000 } = {}) {
   let layer = document.querySelector('.toast-layer');
-  if (!layer) { layer = h('div', { class: 'toast-layer', role: 'status', 'aria-live': 'polite' }); document.body.append(layer); }
+  if (!layer) layer = h('div', { class: 'toast-layer', role: 'status', 'aria-live': 'polite' });
+  if (layer.parentNode !== overlayHost()) overlayHost().append(layer);
   clear(layer);
   let timer = 0;
   // It sinks away rather than vanishing; a swipe down sends it away sooner.
@@ -197,7 +204,7 @@ export function sheet({ title = '', items = [], body = null, held = false }) {
     item.selected ? h('span', { class: 'tick' }, icon('check', { size: 20 })) : null)));
   layer.append(h('div', { class: 'sheet-backdrop', on: { click: () => { if (!early()) close(); } } }), panel);
   dragToClose(panel, close);
-  document.body.append(layer);
+  overlayHost().append(layer);
   addEventListener('keydown', keys);
   addEventListener('hashchange', close);
   // The panel takes the focus, so that screen readers and Tab start there, without a ring on touch screens.

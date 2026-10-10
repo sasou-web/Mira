@@ -3,7 +3,7 @@
 // of its menu. Elsewhere, Mira's controls on top: resume, ±10 s, a timeline with previews, opening and recap to skip,
 // the next episode, audio and subtitle tracks, speed, quality, AirPlay and Picture in Picture. Progress goes to
 // Jellyfin as on Windows, and the next episode follows in the same player.
-import { api, signed } from '../api.js';
+import { api, signed, ping } from '../api.js';
 import { h, icon, clear, clock, seconds, ticks, episodeCode } from '../dom.js';
 import { settings, device } from '../session.js';
 import { artFor, imageUrl, picture } from '../images.js';
@@ -16,8 +16,8 @@ import { QUALITIES } from '../views/settings.js';
 
 const SKIP_LABELS = { Intro: 'Passer l’intro', Recap: 'Passer le récap', Preview: 'Passer l’aperçu', Commercial: 'Passer la pub' };
 const AUTO_SKIP = ['Intro', 'Recap'];
-const NEXT_LEAD = 20;      // seconds before the end when, without an end credits marker, the next episode is offered
-const COUNTDOWN = 10;      // seconds before it starts by itself
+const COUNTDOWN = 10;      // seconds the next episode is offered before it starts by itself: from the end credits when
+                           // Jellyfin has them marked, else over the last seconds, so that nothing of the end is cut
 const PROGRESS_EVERY = 10_000;
 
 function isLocalHost(host) {
@@ -64,7 +64,9 @@ export function create({ id, query }) {
   const skipped = new Set();
   // ---------- The player itself ----------
   let disposed = false, closing = false, switching = false, failed = false;
-  let hideTimer = 0, scrubbing = false, mode = 'inline', nativeCheck = 0, tracksSettle = 0;
+  let hideTimer = 0, scrubbing = false, mode = 'inline', nativeCheck = 0, tracksSettle = 0, waitingForServer = false, retryTimer = 0;
+  let resumedByUser = true;   // the next 'playing' follows a pause the person made: the controls show then, not after a stall
+  let switchFrom = '';        // how the title that ended was shown (Apple's full screen, Picture in Picture) when the next began
 
   const position = () => offset + (video.currentTime || 0);
   const presentation = () => video.webkitPresentationMode ?? (video.webkitDisplayingFullscreen ? 'fullscreen' : 'inline');
@@ -127,6 +129,7 @@ export function create({ id, query }) {
     if (!native) return;
     clear(nativeStatus);
     if (state === 'loading') nativeStatus.append(h('div', { class: 'spinner' }), h('p', {}, 'Préparation de la lecture…'));
+    if (state === 'lost') nativeStatus.append(h('div', { class: 'spinner' }), h('p', {}, 'Connexion au serveur perdue. La lecture reprend dès qu’il répond.'));
     if (state === 'tap') {
       nativeStatus.append(
         h('button', { class: 'round big n-play', 'aria-label': 'Lecture', on: { click: () => { showNative('loading'); if (enterNative()) play(); else showNative('tap'); } } }, icon('play', { size: 36 })),
@@ -148,20 +151,29 @@ export function create({ id, query }) {
   }
   function hideControls() { if (!video.paused && !scrubbing) el.classList.add('idle'); }
 
-  // A tap shows or hides the controls; a double tap on a side skips 10 s, as in the Apple TV app.
+  // A tap shows or hides the controls; a double tap on a side skips 10 s, as in the Apple TV app, and each tap after
+  // it on the same side 10 s more, at once, the controls staying hidden.
   function setupSurface(surface, controls) {
-    let lastTap = 0, lastSide = '', tapTimer = 0;
+    let lastTap = 0, lastSide = '', tapTimer = 0, streak = 0, streakTimer = 0;
+    const step = (side) => {
+      streak += 1;
+      seek(position() + (side === 'left' ? -10 : 10));
+      flash(side, streak * 10);
+      try { navigator.vibrate?.(8); } catch { /* no vibration here */ }
+      clearTimeout(streakTimer);
+      streakTimer = setTimeout(() => { streak = 0; }, 700);
+    };
     surface.addEventListener('click', (e) => {
       const rect = el.getBoundingClientRect();
       const side = e.clientX < rect.width * 0.35 ? 'left' : e.clientX > rect.width * 0.65 ? 'right' : 'middle';
       const time = Date.now();
-      if (time - lastTap < 300 && side === lastSide && side !== 'middle') {
+      if (side !== 'middle' && side === lastSide && (streak || time - lastTap < 300)) {
         clearTimeout(tapTimer);
-        jump(side === 'left' ? -10 : 10);
-        flash(side);
+        step(side);
         lastTap = 0;
         return;
       }
+      streak = 0;
       lastTap = time; lastSide = side;
       clearTimeout(tapTimer);
       tapTimer = setTimeout(() => (el.classList.contains('idle') ? showControls() : hideControls()), side === 'middle' ? 0 : 260);
@@ -170,8 +182,11 @@ export function create({ id, query }) {
     controls.addEventListener('click', () => showControls());
   }
 
-  function flash(side) {
-    const mark = h('div', { class: ['p-flash', side] }, icon(side === 'left' ? 'back10' : 'forward10', { size: 28 }), '10 s');
+  let flashMark = null;
+  function flash(side, amount = 10) {
+    flashMark?.remove();
+    const mark = h('div', { class: ['p-flash', side] }, icon(side === 'left' ? 'back10' : 'forward10', { size: 28 }), `${amount} s`);
+    flashMark = mark;
     el.append(mark);
     setTimeout(() => mark.remove(), 600);
   }
@@ -220,10 +235,15 @@ export function create({ id, query }) {
     if (!native || disposed || mode === was) return;
     if (mode === 'fullscreen') { showNative(''); return; }
     if (mode === 'picture-in-picture') { showNative('pip'); return; }
-    // Back in the page: Apple's player was closed (Terminé, a swipe down), or Picture in Picture was.
-    if (closing || failed || switching || ended || video.ended) return;
+    // Back in the page: Apple's player was closed (Terminé, a swipe down), or Picture in Picture was. Mira itself only
+    // leaves it when it closes or fails, both said first.
+    if (closing || failed) return;
     if (was === 'picture-in-picture' && !video.paused) { if (!enterNative()) { video.pause(); showNative('tap'); } return; }
-    close();
+    // At the very end of a title, iOS may leave full screen by itself: the next episode, or the title page, follows.
+    // (While the next one loads, the video still says the last one ended: that says nothing.)
+    if (ended || (video.ended && !switching)) return;
+    // Closed by the person, even while the next episode loads: Mira closes, and does not open it again.
+    close({ landing: was === 'fullscreen' });
   }
 
   function updatePlayIcon() {
@@ -262,6 +282,7 @@ export function create({ id, query }) {
     played.style.width = `${ratio * 100}%`; knob.style.left = `${ratio * 100}%`;
     tip.hidden = false; tip.style.left = `${Math.min(Math.max(ratio * 100, 12), 88)}%`;
     tipTime.textContent = clock(at); now.textContent = clock(at);
+    tipThumb.hidden = !trick;
     if (trick) {
       const index = Math.min(trick.ThumbnailCount - 1, Math.floor((at * 1000) / trick.Interval));
       const perTile = trick.TileWidth * trick.TileHeight, tile = Math.floor(index / perTile), cell = index % perTile;
@@ -315,7 +336,9 @@ export function create({ id, query }) {
     }
     if (!next || nextDismissed || !settings.get('autoNext') || !end) return;
     const outro = segments.find((s) => s.Type === 'Outro');
-    const from = outro ? seconds(outro.StartTicks) : end - NEXT_LEAD;
+    const from = outro ? seconds(outro.StartTicks) : end - COUNTDOWN;
+    // Gone back before it, to watch again: the offer goes, and comes back when that point is reached again.
+    if (countdownTimer && at < from - 2) { clearInterval(countdownTimer); countdownTimer = 0; pillLayer.querySelector('.up-next')?.remove(); return; }
     if (at >= from && !countdownTimer && !video.paused) offerNext();
   }
 
@@ -346,11 +369,19 @@ export function create({ id, query }) {
     if (!next || switching || closing) return;
     const upcoming = next, resume = progressFraction(upcoming) > 0;
     switching = true;
+    switchFrom = presentation();
     clearInterval(countdownTimer); countdownTimer = 0;
     clear(pillLayer);
+    // The episode that ends stops at once, and the next one's name is there while it loads.
+    if (!video.ended) video.pause();
+    busy.hidden = false;
+    title.firstChild.textContent = upcoming.SeriesName ?? '';
+    title.lastChild.textContent = `${episodeCode(upcoming)} · ${upcoming.Name ?? ''}`;
+    played.style.width = '0%'; knob.style.left = '0%'; now.textContent = '0:00'; left.textContent = '';
     await stop();
     if (disposed || closing) return;
-    history.replaceState(history.state, '', `#/lecture/${upcoming.Id}${resume ? '' : '?debut=1'}`);
+    // Its address says which episode, not « from the start »: if iOS reloads the page later, it resumes where it was.
+    history.replaceState(history.state, '', `#/lecture/${upcoming.Id}`);
     resetTitle();
     target = { id: upcoming.Id, fromStart: !resume, tracks: null };
     await begin();
@@ -364,6 +395,7 @@ export function create({ id, query }) {
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
     skipped.clear();
     nextButton.hidden = true;
+    tipThumb.hidden = true; tipThumb.style.backgroundImage = '';
   }
 
   // ---------- Reports to Jellyfin ----------
@@ -422,7 +454,7 @@ export function create({ id, query }) {
         EnableDirectPlay: !forceTranscode, EnableDirectStream: !forceTranscode, EnableTranscoding: true,
         AllowVideoStreamCopy: !forceTranscode, AllowAudioStreamCopy: true, AutoOpenLiveStream: true,
       });
-      if (attempt !== opening || disposed) return;
+      if (attempt !== opening || disposed || closing) return;
       if (info?.ErrorCode) throw new Error(ERRORS[info.ErrorCode] ?? 'Jellyfin n’a pas pu préparer ce titre pour cet appareil.');
       const previousSession = playSessionId;
       source = info.MediaSources?.[0];
@@ -451,17 +483,22 @@ export function create({ id, query }) {
       } else {
         throw new Error('Jellyfin ne propose aucun flux lisible pour cet appareil.');
       }
-      await attach(url, hlsStream, progressive ? 0 : seconds(startTicks));
+      if (!(await attach(url, hlsStream, progressive ? 0 : seconds(startTicks), attempt)) || attempt !== opening || disposed || closing) return;
+      // Apple's player was left while the next episode loaded: the person closed it, before WebKit even said so.
+      if (native && switching && switchFrom === 'fullscreen' && presentation() === 'inline') { close({ landing: true }); return; }
       if (native && !enterNative()) { busy.hidden = true; showNative('tap'); return; }
       if (!keepPaused) play();
     } catch (error) {
-      if (attempt !== opening || disposed) return;
+      if (attempt !== opening || disposed || closing) return;
       busy.hidden = true;
+      // Jellyfin did not answer (PC asleep, network changing): Mira waits for it rather than giving up.
+      if (error?.unreachable && item) { waitForServer(startTicks); return; }
       fail(error.message || 'La lecture n’a pas pu démarrer.');
     }
   }
 
-  async function attach(url, hlsStream, startSeconds) {
+  /** The stream in the video; false when a newer opening, or the player's end, came first. */
+  async function attach(url, hlsStream, startSeconds, attempt) {
     hls?.destroy(); hls = null;
     for (const t of [...video.querySelectorAll('track')]) t.remove();
     pendingStart = startSeconds;
@@ -471,10 +508,12 @@ export function create({ id, query }) {
     tracksSettle = Date.now() + 1500;
     if (hlsStream && useHlsJs) {
       const { default: Hls } = await import('../../vendor/hls.light.min.mjs');
+      if (disposed || closing || attempt !== opening) return false;
       hls = new Hls({ startPosition: startSeconds, maxBufferLength: 30, backBufferLength: 60, enableWorker: true });
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) waitForServer(ticks(position()));
         else fail('Le flux vidéo s’est interrompu. Vérifie la connexion au serveur.');
       });
       hls.loadSource(url);
@@ -486,6 +525,7 @@ export function create({ id, query }) {
     }
     showTrack();
     setTimeout(showTrack, 300);
+    return true;
   }
 
   function addSubtitles() {
@@ -636,7 +676,8 @@ export function create({ id, query }) {
     sheet({
       title: 'Vitesse et qualité',
       items: [
-        ...speeds.map((s) => ({ label: s === 1 ? 'Vitesse normale' : `Vitesse × ${String(s).replace('.', ',')}`, selected: video.playbackRate === s, run: () => { video.playbackRate = s; } })),
+        // The default rate too: a new stream (another track, quality or episode) keeps the speed chosen.
+        ...speeds.map((s) => ({ label: s === 1 ? 'Vitesse normale' : `Vitesse × ${String(s).replace('.', ',')}`, selected: video.defaultPlaybackRate === s, run: () => { video.defaultPlaybackRate = s; video.playbackRate = s; } })),
         ...QUALITIES.map(([key, label, sub]) => ({ label: `Qualité : ${label}`, sub, selected: key === quality, run: () => {
           settings.set('quality', key);
           open(ticks(position()), { keepPaused: video.paused });
@@ -658,10 +699,24 @@ export function create({ id, query }) {
     } catch { toast('L’image dans l’image n’est pas disponible ici.'); }
   }
   function fullscreen() {
-    // iPhone: iOS's own player, with its controls, AirPlay and subtitles. Elsewhere: the whole player.
+    // iPhone: iOS's own player, with its controls, AirPlay and subtitles. Elsewhere: the whole player, turned to
+    // landscape for a landscape picture.
     if (!document.fullscreenEnabled && video.webkitEnterFullscreen) { video.webkitEnterFullscreen(); return; }
     if (document.fullscreenElement) document.exitFullscreen?.();
-    else el.requestFullscreen?.().then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => video.webkitEnterFullscreen?.());
+    else {
+      el.requestFullscreen?.().then(() => {
+        if (video.videoWidth >= video.videoHeight) screen.orientation?.lock?.('landscape').catch(() => {});
+      }).catch(() => video.webkitEnterFullscreen?.());
+    }
+  }
+  function fullscreenChanged() {
+    const full = document.fullscreenElement === el;
+    clear(fullButton).append(icon(full ? 'exit-fullscreen' : 'fullscreen'));
+    fullButton.setAttribute('aria-label', full ? 'Quitter le plein écran' : 'Plein écran');
+    if (!full) { try { screen.orientation?.unlock?.(); } catch { /* not locked */ } }
+  }
+  function leaveFullscreen() {
+    if (document.fullscreenElement === el) document.exitFullscreen?.().catch(() => {});
   }
 
   // ---------- Errors and messages ----------
@@ -682,6 +737,29 @@ export function create({ id, query }) {
     hideMessage(); failed = false; showNative('loading');
     if (item) open(ticks(position())); else begin();
   }
+  /**
+   * The connection dropped (PC asleep, Wi-Fi to 4G): not this stream's fault. Apple's player stays open, Mira says
+   * so under it or over its own controls, asks the server again every few seconds, and picks up where it was.
+   */
+  function waitForServer(at) {
+    if (waitingForServer || disposed || closing) return;
+    waitingForServer = true;
+    busy.hidden = false;
+    showNative('lost');
+    if (!native) {
+      showMessage(h('div', {}, h('div', { class: 'spinner' }), h('p', {}, 'Connexion au serveur perdue. La lecture reprend dès qu’il répond.'),
+        h('div', { class: 'actions' }, h('button', { class: 'btn', on: { click: close } }, 'Retour'))));
+    }
+    const again = async () => {
+      if (disposed || closing) return;
+      if (!(await ping())) { retryTimer = setTimeout(again, 3000); return; }
+      if (disposed || closing) return;
+      waitingForServer = false;
+      hideMessage(); showNative('');
+      open(at, { keepPaused: false });
+    };
+    retryTimer = setTimeout(again, 2000);
+  }
 
   // ---------- Video events ----------
   function fitPicture() {
@@ -700,13 +778,24 @@ export function create({ id, query }) {
     },
     resize: fitPicture,
     playing: () => {
-      busy.hidden = true; hideMessage(); updatePlayIcon(); showControls();
+      busy.hidden = true; hideMessage(); updatePlayIcon();
+      // After a stall, only the spinner went: the controls show at the start and after a pause made by the person.
+      if (!started || resumedByUser) showControls();
+      resumedByUser = false;
       switching = false;
       if (!started) {
         started = true;
         report('start');
+        // Paused too: Jellyfin ends a conversion a minute after its last news of the player.
         clearInterval(progressTimer);
-        progressTimer = setInterval(() => { if (!video.paused && Date.now() - lastReport >= PROGRESS_EVERY - 200) report('progress'); }, PROGRESS_EVERY);
+        progressTimer = setInterval(() => { if (Date.now() - lastReport >= PROGRESS_EVERY - 200) report('progress'); }, PROGRESS_EVERY);
+        // « From the start » was for this opening: a reload of the page later resumes where the title is.
+        const [path, search = ''] = location.hash.split('?');
+        const params = new URLSearchParams(search);
+        if (params.has('debut') && path === `#/lecture/${item.Id}`) {
+          params.delete('debut');
+          history.replaceState(history.state, '', `${path}${params.toString() ? `?${params}` : ''}`);
+        }
       }
       // Safari may refuse full screen without a word: still in the page a moment later, Mira asks for a tap.
       if (native && presentation() === 'inline') {
@@ -716,7 +805,7 @@ export function create({ id, query }) {
         }, 1500);
       }
     },
-    pause: () => { updatePlayIcon(); showControls(true); report('progress'); },
+    pause: () => { if (!video.seeking && !video.ended) resumedByUser = true; updatePlayIcon(); showControls(true); report('progress'); },
     play: () => updatePlayIcon(),
     waiting: () => { busy.hidden = false; },
     seeking: () => { busy.hidden = false; },
@@ -734,15 +823,24 @@ export function create({ id, query }) {
       else close();
     },
     error: () => {
-      if (disposed || !item || !video.getAttribute('src')) return;
-      // A file Safari was thought to play directly but cannot: Jellyfin converts it instead.
-      if (playMethod === 'DirectPlay' && !forceTranscode) { forceTranscode = true; open(ticks(position())); return; }
-      fail('Cet appareil ne peut pas lire ce flux. Essaie une qualité plus basse dans les réglages.');
+      if (disposed || closing || !item || !video.getAttribute('src')) return;
+      const code = video.error?.code;
+      // The connection, not the stream (MEDIA_ERR_NETWORK): Mira waits for the server.
+      if (code === 2) { waitForServer(ticks(position())); return; }
+      // A file Safari was thought to play directly but cannot (decode, format): Jellyfin converts it instead.
+      if (playMethod === 'DirectPlay' && !forceTranscode && (code === 3 || code === 4)) { forceTranscode = true; open(ticks(position())); return; }
+      // Nothing answers: the same wait, whatever the error says.
+      ping().then((up) => {
+        if (disposed || closing) return;
+        if (!up) waitForServer(ticks(position()));
+        else fail('Cet appareil ne peut pas lire ce flux. Essaie une qualité plus basse dans les réglages.');
+      });
     },
     webkitpresentationmodechanged: presentationChanged,
     webkitplaybacktargetavailabilitychanged: (e) => { airplay.hidden = e.availability !== 'available'; },
   };
   for (const [name, fn] of Object.entries(on)) video.addEventListener(name, fn);
+  document.addEventListener('fullscreenchange', fullscreenChanged);
   video.textTracks.addEventListener('change', textTracksChanged);
   // The HLS stream's subtitles appear once it loads: the chosen one shows, the others stay off.
   video.textTracks.addEventListener('addtrack', trackAdded);
@@ -765,14 +863,20 @@ export function create({ id, query }) {
    * Back to the title page, from Retour or from Apple's player once closed: at once, the stop going to Jellyfin on its
    * way (its report is built before anything changes, and sent even if the page goes).
    */
-  function close() {
+  function close({ landing = false } = {}) {
     if (closing) return;
     closing = true;
-    clearTimeout(nativeCheck);
+    clearTimeout(nativeCheck); clearTimeout(retryTimer);
     exitPresentation();
+    leaveFullscreen();
     video.pause();
     stop();
-    goBack(item ? titleHref(item) : '#/');
+    const back = item ? titleHref(item) : '#/';
+    // Closed from Apple's player: its picture shrinks back onto the page first, then Mira leaves (unless something
+    // else moved Mira meanwhile).
+    if (!landing) { goBack(back); return; }
+    const at = location.hash;
+    setTimeout(() => { if (!disposed && location.hash === at) goBack(back); }, 450);
   }
 
   // ---------- Media Session: lock screen and Control Center ----------
@@ -819,7 +923,7 @@ export function create({ id, query }) {
         if (!up) throw new Error('Cette série n’a aucun épisode à lire.');
         found = await api.item(up.Id);
       }
-      if (disposed || attempt !== beginning) return;
+      if (disposed || closing || attempt !== beginning) return;
       item = found;
       document.title = `${item.Type === 'Episode' ? item.SeriesName : item.Name} · Mira`;
       title.firstChild.textContent = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
@@ -844,8 +948,22 @@ export function create({ id, query }) {
         api.nextEpisode(item).then((n) => { if (attempt !== beginning) return; next = n; nextButton.hidden = !n; mediaSession(); }).catch(() => {});
       }
     } catch (error) {
-      if (attempt === beginning && !disposed) fail(error.message);
+      if (attempt !== beginning || disposed || closing) return;
+      if (error?.unreachable && target) { waitForBegin(); return; }
+      fail(error.message);
     }
+  }
+  /** Jellyfin unreachable before the title was even known: asked again until it answers. */
+  function waitForBegin() {
+    showNative('lost');
+    if (!native) showMessage(h('div', {}, h('div', { class: 'spinner' }), h('p', {}, 'Le serveur ne répond pas. La lecture commence dès qu’il répond.'),
+      h('div', { class: 'actions' }, h('button', { class: 'btn', on: { click: close } }, 'Retour'))));
+    const again = async () => {
+      if (disposed || closing) return;
+      if (!(await ping())) { retryTimer = setTimeout(again, 3000); return; }
+      if (!disposed && !closing) { hideMessage(); begin(); }
+    };
+    retryTimer = setTimeout(again, 2000);
   }
 
   function drawChapters() {
@@ -876,7 +994,9 @@ export function create({ id, query }) {
     leave() { if (started) stop(); },
     dispose() {
       disposed = true;
-      clearInterval(progressTimer); clearInterval(countdownTimer); clearTimeout(hideTimer); clearTimeout(nativeCheck);
+      clearInterval(progressTimer); clearInterval(countdownTimer); clearTimeout(hideTimer); clearTimeout(nativeCheck); clearTimeout(retryTimer);
+      document.removeEventListener('fullscreenchange', fullscreenChanged);
+      leaveFullscreen();
       removeEventListener('keydown', keys);
       document.removeEventListener('visibilitychange', onHide);
       removeEventListener('pagehide', onPageHide);

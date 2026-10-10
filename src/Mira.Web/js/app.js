@@ -3,6 +3,7 @@ import { onUnauthorized, onReachable, ping } from './api.js';
 import { h, icon, clear, haptic } from './dom.js';
 import { session, device, isStandalone } from './session.js';
 import { toast } from './components.js';
+import { setupPress } from './press.js';
 import './player/video.js';
 
 const TABS = [
@@ -52,7 +53,7 @@ let edgeSwipe = 0;          // when a touch from a screen edge last turned into 
 const netText = h('span', {});
 const netbar = h('div', { class: 'netbar', role: 'status', 'aria-live': 'polite', hidden: true }, h('div', { class: 'spinner' }), netText);
 // The bar iOS shows once a screen's large title has scrolled away: the same title, small, on frosted glass.
-const topbar = h('div', { class: 'topbar', 'aria-hidden': 'true' }, h('span', {}));
+const topbar = h('div', { class: 'topbar', 'aria-hidden': 'true', on: { click: () => scrollTo({ top: 0, behavior: 'smooth' }) } }, h('span', {}));
 let probeTimer = 0, probeDelay = 0;
 
 function markSvg(size) {
@@ -285,16 +286,21 @@ function applyUpdate(hidden = false) {
 }
 let touched = false;
 
+let fadedTitle = null;
 function updateScrolled() {
   document.body.classList.toggle('scrolled', scrollY > 8);
-  // The small title comes as the large one starts to go under the status bar, under the bar with it.
+  // As the large title goes under the bar, it fades out and the small one fades in, over 24 px of scroll: never both
+  // at once.
   const big = currentBare ? null : current?.el.querySelector('.page-title, .detail-title, .detail-logo');
-  const show = !!big && big.getBoundingClientRect().top < topbar.offsetHeight - 52;
-  if (show) {
+  const fade = big ? Math.max(0, Math.min(1, (topbar.offsetHeight - big.getBoundingClientRect().bottom - 4) / 24)) : 0;
+  if (fade > 0) {
     const text = big.tagName === 'IMG' ? big.alt : big.textContent;
     if (topbar.firstChild.textContent !== text) topbar.firstChild.textContent = text;
   }
-  topbar.classList.toggle('on', show);
+  if (fadedTitle && fadedTitle !== big) fadedTitle.style.opacity = '';
+  if (big) { big.style.opacity = fade ? String(1 - fade) : ''; fadedTitle = big; }
+  topbar.style.opacity = fade ? String(fade) : '';
+  topbar.classList.toggle('on', fade > 0);
 }
 
 // ---------- Pull to refresh ----------
@@ -369,6 +375,7 @@ function watchEdgeSwipes() {
 
 function start() {
   history.scrollRestoration = 'manual';
+  setupPress();
   // Chrome on Android reloads the whole page when it is pulled down at its top: Mira refreshes the screen instead.
   document.documentElement.classList.toggle('android', device.name === 'Android');
   clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, topbar, tabbar, netbar);
