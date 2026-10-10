@@ -1893,7 +1893,7 @@ await Test("Mises à jour : type d’installation, dossier remplacé sans touche
     File.WriteAllText(Path.Combine(app, "Mira.dll"), "ancienne"); File.WriteAllText(Path.Combine(app, "seulement-avant.txt"), "gardé"); File.WriteAllText(Path.Combine(app, "data", "settings.json"), "mes réglages");
     File.WriteAllText(Path.Combine(incoming, "Mira.dll"), "nouvelle"); File.WriteAllText(Path.Combine(incoming, "sub", "ajout.txt"), "ajouté"); File.WriteAllText(Path.Combine(incoming, "data", "settings.json"), "autres réglages");
     Assert(Updater.Detect(app, singleFile: true) == InstallKind.Portable && Updater.Detect(app, singleFile: false) == InstallKind.Folder
-        && Updater.Detect(@"C:\src\Mira\src\Mira.Desktop\bin\Release\net8.0-windows10.0.19041.0\", false) == InstallKind.Development, "Installation kind");
+        && Updater.Detect(@"C:\src\Mira\src\Mira.Desktop\bin\Release\net10.0-windows10.0.19041.0\", false) == InstallKind.Development, "Installation kind");
     UpdateApplier.CopyFolder(incoming, app, Path.Combine(app, "data", "updates", "rollback-1"));
     Assert(File.ReadAllText(Path.Combine(app, "Mira.dll")) == "nouvelle" && File.ReadAllText(Path.Combine(app, "sub", "ajout.txt")) == "ajouté" && File.ReadAllText(Path.Combine(app, "seulement-avant.txt")) == "gardé", "Folder not updated");
     Assert(File.ReadAllText(Path.Combine(app, "data", "settings.json")) == "mes réglages" && !Directory.Exists(Path.Combine(app, "data", "updates", "rollback-1")), "Data touched or rollback copy left behind");

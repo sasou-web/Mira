@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Stop'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $workspace = Split-Path -Parent $PSScriptRoot
 $output = Join-Path $workspace '.artifacts\torlink-check'
-$exe = if ($Executable) { [IO.Path]::GetFullPath($Executable) } else { Join-Path $workspace "src\Mira.Desktop\bin\$Configuration\net8.0-windows10.0.19041.0\Mira.exe" }
+$exe = if ($Executable) { [IO.Path]::GetFullPath($Executable) } else { Join-Path $workspace "src\Mira.Desktop\bin\$Configuration\net10.0-windows10.0.19041.0\Mira.exe" }
 if (-not (Test-Path -LiteralPath $exe)) { throw "Build Mira first: dotnet build Mira.sln -c $Configuration" }
 if (Test-Path -LiteralPath $output) {
     # A browser process of the previous run may still be closing its profile, or a scanner may hold a file briefly.

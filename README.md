@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
     <img src="https://img.shields.io/badge/macOS-15+_Apple_Silicon-555555?style=flat-square" alt="macOS 15 et plus, Apple Silicon" />
     <img src="https://img.shields.io/badge/iPhone_·_Android-Mira_web-555555?style=flat-square" alt="iPhone et Android : Mira web" />
-    <img src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square" alt=".NET 8" />
+    <img src="https://img.shields.io/badge/.NET-10-512BD4?style=flat-square" alt=".NET 10" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Windows build" /></a>
   </p>
@@ -69,7 +69,7 @@ Mira existe aussi pour les Mac à puce Apple (macOS 15 Sequoia ou plus récent ;
 
 ## Développer
 
-Prérequis : Windows x64 et SDK .NET 8. Les tests de base n’exigent ni serveur Jellyfin ni libmpv.
+Prérequis : Windows x64 et SDK .NET 10. Les tests de base n’exigent ni serveur Jellyfin ni libmpv.
 
 ```powershell
 git clone https://github.com/sasou-web/Mira.git

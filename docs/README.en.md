@@ -28,7 +28,7 @@ The preview is unsigned. From 0.5.2 on, Mira updates itself (**Réglages → Mis
 
 ## Build
 
-On Windows, install the .NET 8 SDK, then run from the repository root:
+On Windows, install the .NET 10 SDK, then run from the repository root:
 
 ```powershell
 dotnet restore Mira.sln --configfile NuGet.Config

@@ -36,6 +36,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Restore failed.' }
     dotnet publish $project --no-restore -c $Configuration -r win-x64 --self-contained true -o $bundle -p:DebugType=None -p:DebugSymbols=false "-p:Version=$version"
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+    # The .NET runtime these packages carry, to compare with the latest patch (https://dotnet.microsoft.com/download).
+    $runtime = (Get-Item -LiteralPath (Join-Path $bundle 'System.Private.CoreLib.dll')).VersionInfo.ProductVersion -replace '[-+].*$', ''
+    Write-Output ".NET runtime included: $runtime"
     foreach ($name in @('LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md', 'SECURITY.md')) {
         Copy-Item -LiteralPath (Join-Path $workspace $name) -Destination $bundle
     }

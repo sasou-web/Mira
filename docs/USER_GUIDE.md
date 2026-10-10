@@ -96,7 +96,7 @@ Pour un serveur distant, utiliser HTTPS. Pour déplacer l’application, copier 
 
 ## Développement
 
-Prérequis : Windows 10 2004 ou plus récent, x64, SDK .NET 8, une bibliothèque libmpv x64. La solution utilise C# / WPF pour l’interface native, SQLite pour le stockage et `HttpClient` pour Jellyfin. Le SDK Windows est référencé par le framework cible ; Windows Forms sert uniquement à l’icône de notification et à son menu.
+Prérequis : Windows 10 2004 ou plus récent, x64, SDK .NET 10, une bibliothèque libmpv x64. La solution utilise C# / WPF pour l’interface native, SQLite pour le stockage et `HttpClient` pour Jellyfin. Le SDK Windows est référencé par le framework cible ; Windows Forms sert uniquement à l’icône de notification et à son menu.
 
 ```powershell
 dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config

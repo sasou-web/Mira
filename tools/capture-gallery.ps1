@@ -10,7 +10,7 @@ Push-Location $workspace
 try {
     dotnet build src/Mira.Desktop/Mira.Desktop.csproj -c $Configuration
     if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
-    $exe = Join-Path $workspace "src/Mira.Desktop/bin/$Configuration/net8.0-windows10.0.19041.0/Mira.exe"
+    $exe = Join-Path $workspace "src/Mira.Desktop/bin/$Configuration/net10.0-windows10.0.19041.0/Mira.exe"
     $capture = Start-Process -FilePath $exe -ArgumentList @('--demo', '--data', ('"' + $profile + '"'), '--public-gallery', ('"' + $output + '"')) -WindowStyle Hidden -PassThru -Wait
     $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
     if ($capture.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'Gallery capture failed.' }

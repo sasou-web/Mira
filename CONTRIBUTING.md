@@ -4,7 +4,7 @@ Mira est encore une version de développement. Les retours précis sur la lectur
 
 ## Préparer le projet
 
-Windows 10 2004+ ou Windows 11 x64, Git et le SDK .NET 8 sont nécessaires. Node.js n’est utile que pour le serveur Jellyfin fictif. Une bibliothèque libmpv x64 est nécessaire aux essais de lecture, et une installation de TorLink aux essais TorLink, pas aux tests de base. `tools/import-xterm.ps1` réimporte xterm.js depuis npm en vérifiant son intégrité.
+Windows 10 2004+ ou Windows 11 x64, Git et le SDK .NET 10 sont nécessaires. Node.js n’est utile que pour le serveur Jellyfin fictif. Une bibliothèque libmpv x64 est nécessaire aux essais de lecture, et une installation de TorLink aux essais TorLink, pas aux tests de base. `tools/import-xterm.ps1` réimporte xterm.js depuis npm en vérifiant son intégrité.
 
 ```powershell
 git clone https://github.com/sasou-web/Mira.git
