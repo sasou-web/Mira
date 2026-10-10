@@ -78,13 +78,13 @@ La zone de notification permet de masquer puis de retrouver Mira sans arrêter l
 TorLink est un client de téléchargement en terminal ([projet indépendant](https://github.com/baairon/torlink), licence MIT), publié sur npm (`npx torlnk`). Mira affiche son interface dans la page **Téléchargements** du rail.
 
 1. Ouvrir **Téléchargements** (flèche du rail), puis activer **TorLink** dans la liste des téléchargeurs.
-2. Si TorLink est déjà sur ce PC (copie de `npx torlnk`, installation npm globale, raccourci), Mira l’utilise tel quel. Sinon, il l’installe pour ce compte Windows, sans droits administrateur et sans modifier le PATH :
+2. Si TorLink est déjà sur ce PC (installation npm globale, raccourci), Mira te montre son dossier et sa version, et ne le lance qu’une fois que tu as confirmé que c’est le tien ; il s’en souvient ensuite. Sinon, il l’installe pour ce compte Windows, sans droits administrateur et sans modifier le PATH :
    - **Node.js 24.21.0** : le zip officiel de nodejs.org (38 Mo), vérifié par sa taille et son SHA-256, et rangé dans `data\node` ;
-   - **TorLink 1.9.0**, installé par ce npm dans `data\torlink`.
+   - **TorLink 1.9.0**, installé par ce npm dans `data\torlink`, avec chacune de ses dépendances à la version fixée par Mira et vérifiée par son empreinte.
    Compter une minute environ.
 3. Dans **Réglages → TorLink**, vérifier les dossiers Films, Séries et Animes. Laissés vides, ils sont lus dans Jellyfin : il faut un compte administrateur et un serveur sur ce PC.
 
-Désactiver TorLink le ferme ; il reste installé. Le TorLink installé par Mira est mis à jour avec Mira. Il tourne sans son module WebRTC facultatif, qui demande des outils de compilation : les pairs TCP, uTP et DHT suffisent.
+Désactiver TorLink le ferme ; il reste installé. Le TorLink installé par Mira suit Mira : quand une nouvelle version de Mira fixe un Node.js ou un TorLink plus récent, il est préparé à côté pendant que TorLink tourne, puis utilisé à son ouverture suivante. Il tourne sans son module WebRTC facultatif, qui demande des outils de compilation : les pairs TCP, uTP et DHT suffisent.
 
 Chaque téléchargement terminé est **déplacé** dans la bibliothèque, sous les noms attendus par Jellyfin, par exemple `Titre (Année)\Titre (Année).mkv` ou `Série\Season 01\Série - S01E02.mkv`. Il n’existe jamais en double :
 - sur le même disque, le déplacement est instantané : le fichier change seulement de dossier ;
