@@ -6,7 +6,7 @@
     <AssemblyName>Mira</AssemblyName>
     <RootNamespace>Mira.Mac</RootNamespace>
     <!-- Release builds take the version from the release tag (see .github/workflows/mac.yml). -->
-    <Version>0.7.2</Version>
+    <Version>0.7.3</Version>
     <Product>Mira</Product>
     <Description>Ta bibliothèque Jellyfin avec mpv intégré</Description>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>

@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.7.3",
+    "summary": "Sur iPhone, un titre refusé est redemandé converti, et les onglets passent en fondu.",
+    "items": [
+      { "icon": "play", "title": "Des titres qui jouent", "text": "Un titre que le lecteur d’Apple refuse est redemandé à Jellyfin, la vidéo puis tout converti, là où il en était." },
+      { "icon": "sparkle", "title": "Des onglets fluides", "text": "Chaque onglet arrive entier, en fondu, sans cases vides ni saut, et ce qui n’a pas changé reste à l’écran." },
+      { "icon": "sliders", "title": "Masquer la Dynamic Island", "text": "Le réglage dit son prix : iPhone en mode silencieux, film sans son. iOS ne laisse pas une app web avoir les deux." }
+    ]
+  },
+  {
     "version": "0.7.2",
     "summary": "Sur iPhone, les sous-titres des animés arrivent dans le menu d’Apple, et Mira se comporte en app.",
     "items": [

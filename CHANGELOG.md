@@ -1,5 +1,23 @@
 # Historique
 
+## 0.7.3 — 2026-10-10
+
+Mira web après le troisième essai sur iPhone (iOS 27) : les titres que le lecteur d’Apple refusait, et des onglets qui s’enchaînent sans à-coups.
+
+- **Titres refusés** : certains affichaient « Cet appareil ne peut pas lire ce flux », et une qualité plus basse n’y changeait rien.
+  - Jellyfin copie la vidéo tant que le fichier tient sous le débit choisi, et l’audio à toutes les qualités : baisser la qualité ne changeait donc pas ce que le lecteur recevait.
+  - Mira redemande maintenant le titre à Jellyfin, la vidéo convertie, puis tout converti (H.264 et AAC stéréo), là où il en était, sans quitter le plein écran. Le message ne vient que si rien ne passe, avec l’erreur du lecteur en petit dessous.
+  - Reproduit dans le vrai lecteur d’Apple, sur un Mac : un HEVC 10 bits HDR10 copié tel quel était refusé (« Media failed to decode ») ; il joue maintenant, converti.
+  - Ce que Mira annonce à Jellyfin suit celui de Jellyfin pour Safari : HDR10 et HLG sur les appareils d’Apple, Dolby Vision seulement si l’appareil le lit (Jellyfin enlève sinon ce qu’il ne peut pas lire, ou convertit), vidéo entrelacée convertie et désentrelacée, niveau HEVC et images par seconde plafonnés.
+- **Onglets** : passer d’Accueil à Films était brut et l’écran se redessinait plusieurs fois.
+  - L’onglet touché s’allume tout de suite ; son écran vient entier (ses premières affiches comprises, 250 ms au plus), et l’écran quitté s’y fond en 180 ms, sous les barres qui ne bougent pas.
+  - Films et Séries s’ouvrent sur ce qu’ils montraient la dernière fois, puis se mettent à jour sur place : les cartes qui n’ont pas changé restent, avec leur affiche. L’Accueil fait de même rangée par rangée, et Réglages ne se redessine plus à chaque visite.
+  - Les emplacements vides ont la forme des cartes, la ligne « N films » sa hauteur : rien ne bouge quand les cartes arrivent. Les affiches déjà chargées apparaissent sans fondu.
+  - Au lancement, le logo de Mira reste jusqu’à ce que l’Accueil soit prêt, au lieu d’un écran noir avec la barre du bas.
+- **Recherche** : le champ ne prend plus le clavier à l’arrivée sur l’onglet (iOS ne l’ouvrait pas, et une app de l’écran d’accueil garde parfois un écran plus court après le clavier, ce qui remonte la barre du bas). Touche l’onglet une seconde fois pour écrire.
+- **Masquer la Dynamic Island** (ex-« Lecture discrète », iPhone seulement) : le réglage dit maintenant clairement que le film est muet quand l’iPhone est en mode silencieux. Établi dans les sources de WebKit : la seule session audio qu’iOS ne montre pas dans la Dynamic Island est aussi celle que le mode silencieux coupe ; une app web ne peut pas avoir les deux.
+- **Plus de vibration** : elle ne fonctionnait pas sur iOS 27.
+
 ## 0.7.2 — 2026-10-10
 
 Mira web après le deuxième essai sur iPhone : les sous-titres des animés dans le menu du lecteur d’Apple, et une app qui se comporte comme une app.
