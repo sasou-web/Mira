@@ -184,14 +184,19 @@ public sealed class MainWindow : Window
         await NavigateAsync(new HomePage(this));
         if (Session.Store.DamagedCopy is not null) Notice("Le cache local de ce compte était illisible : il a été recréé.");
     }
-    public async Task SignOutAsync()
+    /// <summary>« Se déconnecter »: the session ends here and on Jellyfin, and with <paramref name="erase"/> this account's data leaves this Mac.</summary>
+    public async Task SignOutAsync(bool erase = false)
     {
         await StopPlaybackAsync();
+        var session = Session; Session = null;
+        // Jellyfin is told first, a few seconds at most: an unreachable server never holds the sign-out.
+        var closed = session is not null && await session.SignOutAsync();
         Profile.ClearConnection();
-        var server = Session?.Connection.Server;
-        await CloseSessionAsync();
+        var erased = erase && session is not null ? await AccountData.EraseAsync(Profile.DirectoryPath, session.Connection) : (bool?)null;
         ShowLogin();
-        if (_overlay.Children.FirstOrDefault() is LoginPage login && server is not null) login.Server = server;
+        if (session is null) return;
+        if (_overlay.Children.FirstOrDefault() is LoginPage login) login.Server = session.Connection.Server;
+        Notice(AccountData.SignedOut("ce Mac", closed, erased));
     }
     private async Task CloseSessionAsync()
     {

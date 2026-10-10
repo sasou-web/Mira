@@ -187,6 +187,58 @@ await Test("Recherche du serveur : première adresse Jellyfin dans l’ordre, au
     await Refused("https://nas", Serve(_ => throw new HttpRequestException("TLS", new System.Security.Authentication.AuthenticationException())), "certificat");
     await Refused("nas", Serve(_ => throw new HttpRequestException("refusé")), "Aucun serveur Jellyfin");
 });
+await Test("Certificat HTTPS refusé : jamais de repli en http:// sur le même serveur, et la raison est dite", async () =>
+{
+    HttpResponseMessage Info() => JsonResponse(new { ServerName = "Salon", Version = "10.10.3", ProductName = "Jellyfin Server", Id = "server-1" });
+    HttpRequestException Untrusted() => new("TLS", new System.Security.Authentication.AuthenticationException("certificat refusé"));
+    async Task Refused(string input, Handler handler, params string[] expected)
+    {
+        try { await ServerAddress.DiscoverAsync(input, handler); throw new Exception("Accepted: " + input); }
+        catch (ServerDiscoveryException ex) { Assert(expected.All(ex.Message.Contains), $"Unexpected message for {input}: {ex.Message}"); }
+    }
+    // HTTPS shows a certificate the computer refuses while HTTP answers: someone on the way could stage exactly this.
+    await Refused("nas", new Handler(request => request.RequestUri!.Scheme == "https" ? throw Untrusted() : Task.FromResult(Info())), "certificat", "en clair", "http://nas:8096");
+    // The certificate is refused after HTTP has already answered, within the moment HTTPS is given: refused all the same.
+    await Refused("jellyfin.example.test", new Handler(async request =>
+    {
+        if (request.RequestUri!.Scheme == "https") { await Task.Delay(300); throw Untrusted(); }
+        return Info();
+    }), "certificat", "http://jellyfin.example.test:8096");
+    // Nothing answers in HTTP: the certificate is still the reason given, with the address to type at home.
+    await Refused("nas", new Handler(request => throw (request.RequestUri!.Scheme == "https" ? Untrusted() : new HttpRequestException("refusé"))), "certificat", "http://nas:8096");
+    // A port typed for HTTP: HTTP comes first, and HTTPS failing on it (TLS spoken to a plain port) changes nothing.
+    Assert((await ServerAddress.DiscoverAsync("nas:8096", new Handler(request => request.RequestUri!.Scheme == "https" ? throw Untrusted() : Task.FromResult(Info())))).Address == "http://nas:8096/", "HTTP refused on its own port");
+    // http:// typed in full is a choice: it is the only address tried.
+    Assert((await ServerAddress.DiscoverAsync("http://nas:8096", new Handler(_ => Task.FromResult(Info())))).Address == "http://nas:8096/", "Typed http:// refused");
+});
+await Test("Mot de passe en http:// : demandé seulement hors de chez toi (adresses résolues), jamais pour le réseau local ni Tailscale", async () =>
+{
+    var looked = new List<string>();
+    var names = new Dictionary<string, string[]>
+    {
+        ["nas"] = ["192.168.1.20", "fe80::1"], ["localhost"] = ["::1", "127.0.0.1"], ["jellyfin.example.com"] = ["203.0.113.7"],
+        ["mixte.example.com"] = ["192.168.1.20", "203.0.113.7"], ["vide.example.com"] = []
+    };
+    Task<IPAddress[]> Resolve(string host, CancellationToken ct)
+    {
+        looked.Add(host);
+        return names.TryGetValue(host, out var found) ? Task.FromResult(found.Select(IPAddress.Parse).ToArray()) : throw new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.HostNotFound);
+    }
+    foreach (var home in new[] { "https://jellyfin.example.com/", "http://nas:8096/", "http://localhost:8096/", "http://127.0.0.1:8096/", "http://10.0.0.5:8096/", "http://172.16.0.1/",
+        "http://172.31.255.254/", "http://192.168.1.20:8096/jellyfin/", "http://169.254.10.1:8096/", "http://100.101.102.103:8096/", "http://[fd7a:115c:a1e0::1]:8096/",
+        "http://[fe80::1]:8096/", "http://[::1]:8096/", "http://[::ffff:192.168.1.20]:8096/", "http://pc.tail1234.ts.net:8096/", "http://NAS.local.:8096/" })
+        Assert(!await ServerAddress.ExposesPasswordAsync(home, Resolve), "Asked for a home address: " + home);
+    Assert(looked.SequenceEqual(["nas", "localhost"]), "Looked up: " + string.Join(", ", looked));
+    foreach (var internet in new[] { "http://jellyfin.example.com:8096/", "http://mixte.example.com/", "http://vide.example.com/", "http://inconnu.example.com/",
+        "http://8.8.8.8:8096/", "http://172.32.0.1/", "http://100.128.0.1/", "http://[2001:db8::1]:8096/" })
+        Assert(await ServerAddress.ExposesPasswordAsync(internet, Resolve), "Not asked for an Internet address: " + internet);
+    // Home networks also give each device a global IPv6 address: one on this computer's own /64 stays at home.
+    (IPAddress, int)[] own = [(IPAddress.Parse("2a01:e0a:1f2:3c40::12"), 64)];
+    Assert(LocalNetwork.SharesNetwork(IPAddress.Parse("2a01:e0a:1f2:3c40:aaaa::5"), own) && !LocalNetwork.SharesNetwork(IPAddress.Parse("2a01:e0a:1f2:3c41::5"), own), "Same /64");
+    Assert(!LocalNetwork.SharesNetwork(IPAddress.Parse("2a01:e0a:1f2:3c41::5"), [(IPAddress.Parse("2a01:e0a:1f2:3c40::12"), 48)]), "A /48 counted as one house");
+    Assert(LocalNetwork.SharesNetwork(IPAddress.Parse("2a01:e0a::7"), [(IPAddress.Parse("2a01:e0a::7"), 128)]) && !LocalNetwork.SharesNetwork(IPAddress.Parse("2a01:e0a::8"), [(IPAddress.Parse("2a01:e0a::7"), 127)]), "Prefix bits");
+    Assert(!LocalNetwork.SharesNetwork(IPAddress.Parse("10.0.0.1"), own), "IPv4 compared with IPv6");
+});
 await Test("Écoute de Jellyfin : la session part dans l’en-tête, jamais dans l’adresse (Jellyfin 10.11 et suivants)", async () =>
 {
     // Jellyfin 10.11+ answers 403 "Token is required" to /socket?api_key=… unless legacy authorization is on.
@@ -672,6 +724,66 @@ await Test("Cache de bibliothèque aux pages abîmées, en-tête intact : mis de
     Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
     Assert(new LibraryStore(folder, "pages").DamagedCopy is null, "The recreated database was set aside again");
     return Task.CompletedTask;
+});
+await Test("Déconnexion : Jellyfin oublie la session (Sessions/Logout), sans jamais bloquer ni lever", async () =>
+{
+    string? asked = null, header = null;
+    using (var client = new JellyfinClient(new("http://localhost/jellyfin/", "u", "Alice", "jeton-secret", "device"), new Handler(request =>
+    {
+        asked = $"{request.Method} {request.RequestUri!.AbsolutePath}"; header = request.Headers.TryGetValues("Authorization", out var values) ? values.Single() : null;
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+    })))
+        Assert(await client.LogoutAsync(), "Logout not confirmed");
+    Assert(asked == "POST /jellyfin/Sessions/Logout" && header is { } sent && sent.Contains("Token=\"jeton-secret\""), $"Logout request: {asked} | {header}");
+    JellyfinClient Answering(Func<Task<HttpResponseMessage>> answer) => new(new("http://localhost/", "u", "Alice", "jeton", "device"), new Handler(_ => answer()));
+    // Already revoked from Jellyfin's dashboard: nothing is left to close.
+    using (var client = Answering(() => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)))) Assert(await client.LogoutAsync(), "A revoked session reported as still open");
+    using (var client = Answering(() => Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError)))) Assert(!await client.LogoutAsync(), "A server error reported as closed");
+    using (var client = Answering(() => throw new HttpRequestException("refusé"))) Assert(!await client.LogoutAsync(), "A refused connection reported as closed");
+    // A server that never answers (the PC that hosts it is off): the sign-out goes on after a few seconds.
+    var clock = Stopwatch.StartNew();
+    using (var client = Answering(() => new TaskCompletionSource<HttpResponseMessage>().Task)) Assert(!await client.LogoutAsync(), "A silent server reported as closed");
+    Assert(clock.Elapsed < JellyfinClient.LogoutTimeout + TimeSpan.FromSeconds(2), $"Logout waited {clock.Elapsed}");
+    // Never signed in: nothing to send.
+    var requested = false;
+    using (var client = new JellyfinClient(new("http://localhost/", "", "", "", "device"), new Handler(_ => { requested = true; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent)); })))
+        Assert(!await client.LogoutAsync() && !requested, "Logout sent without a session");
+    Assert(AccountData.SignedOut("ce PC", true, null) == "Session fermée sur ce PC et sur Jellyfin.", "Sign-out message");
+    Assert(AccountData.SignedOut("ce Mac", false, true) is var message && message.Contains("Appareils") && message.EndsWith("effacées de ce Mac."), "Sign-out message: " + message);
+});
+await Test("Effacer les données d’un compte : son cache et ses affiches seulement, ni les autres comptes ni les réglages", async () =>
+{
+    var folder = Path.Combine(testRoot, "erase-account");
+    Connection Account(string user) => new("http://nas:8096/", user, user, "jeton-" + user, "device");
+    var (alice, bob) = (Account("alice"), Account("bob"));
+    // The names already on disk: a cache written by an earlier version is the one erased.
+    Assert(AccountData.LibraryProfile(alice) == "http://nas:8096/|alice", "Library cache renamed");
+    Assert(AccountData.ImageFolder(folder, alice) == Path.Combine(folder, "images", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("http://nas:8096/alice")))[..16]), "Artwork folder renamed");
+    File.WriteAllText(Path.Combine(Directory.CreateDirectory(folder).FullName, "settings.json"), "{}"); File.WriteAllText(Path.Combine(folder, "device-id"), "device");
+    LibraryStore Fill(Connection account)
+    {
+        var store = new LibraryStore(folder, AccountData.LibraryProfile(account));
+        store.Save("home", new ItemsResult { TotalRecordCount = 1 }); store.Enqueue("start", Report());
+        File.WriteAllBytes(Path.Combine(Directory.CreateDirectory(AccountData.ImageFolder(folder, account)).FullName, "affiche.img"), [1, 2, 3]);
+        return store;
+    }
+    var before = Directory.GetFiles(folder).ToHashSet();
+    var kept = Fill(alice);
+    var aliceFiles = Directory.GetFiles(folder).Where(x => !before.Contains(x)).ToList();
+    // A copy set aside as damaged is this account's too.
+    var damaged = aliceFiles.Single(x => x.EndsWith(".db")) + ".bad-20261010120000"; File.WriteAllText(damaged, "abîmée"); aliceFiles.Add(damaged);
+    Fill(bob);
+    // The store is still referenced, its connections pooled, as when Mira has just closed the session.
+    Assert(await AccountData.EraseAsync(folder, alice), "Erase reported a file left");
+    Assert(aliceFiles.All(x => !File.Exists(x)) && !Directory.Exists(AccountData.ImageFolder(folder, alice)), "Alice's data left: " + string.Join(", ", aliceFiles.Where(File.Exists)));
+    var other = new LibraryStore(folder, AccountData.LibraryProfile(bob));
+    Assert(other.Load<ItemsResult>("home") is { TotalRecordCount: 1 } && other.PendingCount == 1 && File.Exists(Path.Combine(AccountData.ImageFolder(folder, bob), "affiche.img")), "Bob's data touched");
+    Assert(File.Exists(Path.Combine(folder, "settings.json")) && File.Exists(Path.Combine(folder, "device-id")), "Settings or device identity erased");
+    var fresh = new LibraryStore(folder, AccountData.LibraryProfile(alice));
+    Assert(fresh.Load<ItemsResult>("home") is null && fresh.PendingCount == 0 && fresh.DamagedCopy is null, "Alice's cache came back");
+    GC.KeepAlive(kept);
+    // Nothing to erase is not a failure.
+    Assert(await AccountData.EraseAsync(Path.Combine(testRoot, "erase-nothing"), alice), "Erasing nothing failed");
 });
 await Test("Moteur mpv : téléchargé, vérifié et extrait dans le profil ; altéré ou incomplet, jamais installé", async () =>
 {

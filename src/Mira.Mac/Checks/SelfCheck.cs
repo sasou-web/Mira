@@ -130,6 +130,8 @@ public static class SelfCheck
             {
                 await window.SignOutAsync();
                 Check(window.Login is not null && window.Session is null, "déconnexion");
+                bool told; lock (mock.Calls) told = mock.Calls.Contains("POST Sessions/Logout");
+                Check(told, "session fermée sur Jellyfin aussi");
             }
             exit = results.All(x => x.Ok) ? 0 : 1;
         }

@@ -23,9 +23,13 @@ public sealed class SettingsPage : Page
         page.Children.Add(Ui.Text("Réglages", 34, FontWeight.ExtraBold));
 
         var connection = shell.Session?.Connection;
+        // Read when « Se déconnecter » is clicked, never kept: each sign-out asks anew.
+        var erase = new ToggleSwitch { IsChecked = false, OnContent = null, OffContent = null, MinWidth = 0 };
+        Avalonia.Automation.AutomationProperties.SetName(erase, "Effacer aussi les données de ce compte sur ce Mac");
         page.Children.Add(Section("Compte",
             Row("Serveur Jellyfin", connection?.Server ?? "—", null),
-            Row("Utilisateur", connection?.UserName ?? "—", Ui.Action("Se déconnecter", "exit", "", () => _ = Shell.SignOutAsync()))));
+            Row("Utilisateur", connection?.UserName ?? "—", SignOut(erase)),
+            Row("Effacer aussi les données de ce compte sur ce Mac", "En te déconnectant : le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.", erase)));
 
         page.Children.Add(Section("Lecture",
             Toggle("Reprendre là où tu t’es arrêté", "Sinon, chaque titre repart du début.", settings.RememberPosition, v => settings.RememberPosition = v),
@@ -48,6 +52,13 @@ public sealed class SettingsPage : Page
         Content = new ScrollViewer { Content = page };
     }
     private void Save() => Shell.Profile.SaveSettings(Shell.Settings);
+    /// <summary>« Se déconnecter »: one click, as telling Jellyfin can take a few seconds.</summary>
+    private Button SignOut(ToggleSwitch erase)
+    {
+        Button? button = null;
+        button = Ui.Action("Se déconnecter", "exit", "", () => { button!.IsEnabled = false; _ = Shell.SignOutAsync(erase.IsChecked == true); });
+        return button;
+    }
 
     private static Control Section(string title, params Control[] rows)
     {

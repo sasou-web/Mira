@@ -28,6 +28,8 @@ public sealed class LoginPage : UserControl
         _connect = Ui.Action("Se connecter", null, "primary", () => _ = ConnectAsync());
         _connect.HorizontalAlignment = HorizontalAlignment.Stretch; _connect.HorizontalContentAlignment = HorizontalAlignment.Center; _connect.Padding = new Thickness(18, 13);
         foreach (var box in new[] { _server, _user, _password }) box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; _ = ConnectAsync(); } };
+        // Another address is another question: the warning given for the previous one no longer answers it.
+        _server.TextChanged += (_, _) => { if (_warned is not null && !_busy && _server.Text != _warned) { _warned = null; Label.Text = "Se connecter"; _error.IsVisible = false; } };
         if (error is not null) ShowError(error);
 
         var form = Ui.Column(14,
@@ -56,11 +58,14 @@ public sealed class LoginPage : UserControl
     public string? Error => _error.IsVisible ? _error.Text : null;
 
     private bool _busy;
+    /// <summary>The http:// address on the Internet whose warning was shown: the next click on it signs in anyway.</summary>
+    private string? _warned;
+    private TextBlock Label => ((StackPanel)_connect.Content!).Children.OfType<TextBlock>().Single();
     private async Task ConnectAsync()
     {
         if (_busy) return; _busy = true;
         _connect.IsEnabled = false; _error.IsVisible = false;
-        var label = ((StackPanel)_connect.Content!).Children.OfType<TextBlock>().Single();
+        var label = Label;
         JellyfinClient? client = null;
         try
         {
@@ -68,14 +73,16 @@ public sealed class LoginPage : UserControl
             // Find the server before sending the password.
             label.Text = "Recherche du serveur…";
             var server = await ServerAddress.DiscoverAsync(_server.Text ?? "");
-            _server.Text = server.Address; label.Text = "Connexion…";
+            _server.Text = server.Address;
+            if (server.Address != _warned && await ServerAddress.ExposesPasswordAsync(server.Address)) { _warned = server.Address; ShowError(ServerAddress.PlainHttpWarning); return; }
+            label.Text = "Connexion…";
             JellyfinClient.DeviceName = "Mac";
             client = new JellyfinClient(new(server.Address, "", _user.Text.Trim(), "", _shell.Profile.DeviceId));
             var connection = await client.LoginAsync(_user.Text.Trim(), _password.Text ?? "");
-            _shell.Profile.SaveConnection(connection); _password.Text = "";
+            _shell.Profile.SaveConnection(connection); _password.Text = ""; _warned = null;
             await _shell.ActivateAsync(connection);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { ShowError(Errors.Friendly(ex)); }
-        finally { client?.Dispose(); _connect.IsEnabled = true; label.Text = "Se connecter"; _busy = false; }
+        finally { client?.Dispose(); _connect.IsEnabled = true; label.Text = _warned == _server.Text ? "Se connecter quand même" : "Se connecter"; _busy = false; }
     }
 }

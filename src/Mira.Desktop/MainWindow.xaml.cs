@@ -160,6 +160,14 @@ public partial class MainWindow : Window
         if (e.Key != Key.Enter || !ConnectButton.IsEnabled) return;
         e.Handled = true; Connect_Click(ConnectButton, new());
     }
+    /// <summary>The http:// address on the Internet whose warning was shown: the next click on it signs in anyway.</summary>
+    private string? _warnedPlainHttp;
+    private void ServerBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        // Another address is another question: the warning given for the previous one no longer answers it.
+        if (_warnedPlainHttp is null || !ConnectButton.IsEnabled || ServerBox.Text == _warnedPlainHttp) return;
+        _warnedPlainHttp = null; ConnectText.Text = "Se connecter"; LoginError.Text = "";
+    }
     private async void Connect_Click(object sender, RoutedEventArgs e)
     {
         ConnectButton.IsEnabled = false; ConnectText.Text = "Connexion…"; LoginError.Text = "";
@@ -170,22 +178,24 @@ public partial class MainWindow : Window
             // "192.168.1.20", "nas:8096" or the address of Jellyfin's web page: find the server before sending the password.
             ConnectText.Text = "Recherche du serveur…";
             var server = await ServerAddress.DiscoverAsync(ServerBox.Text);
-            ServerBox.Text = server.Address; ConnectText.Text = "Connexion…";
+            ServerBox.Text = server.Address;
+            if (server.Address != _warnedPlainHttp && await ServerAddress.ExposesPasswordAsync(server.Address)) { _warnedPlainHttp = server.Address; LoginError.Text = ServerAddress.PlainHttpWarning; return; }
+            ConnectText.Text = "Connexion…";
             client = new JellyfinClient(new(server.Address, "", UsernameBox.Text.Trim(), "", _profile.DeviceId));
             var connection = await client.LoginAsync(UsernameBox.Text.Trim(), PasswordBox.Password);
-            _profile.SaveConnection(connection); PasswordBox.Clear();
+            _profile.SaveConnection(connection); PasswordBox.Clear(); _warnedPlainHttp = null;
             await ActivateConnectionAsync(connection);
             OfferGuide("Connecté. Voici l’essentiel.");
         }
         catch (Exception ex) when (IsExpected(ex)) { LoginError.Text = Friendly(ex); }
-        finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = "Se connecter"; }
+        finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = _warnedPlainHttp == ServerBox.Text ? "Se connecter quand même" : "Se connecter"; }
     }
     private async Task ActivateConnectionAsync(Connection connection)
     {
         await DisconnectServicesAsync();
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
         _client = new JellyfinClient(connection);
-        try { _store = new LibraryStore(_profile.DirectoryPath, connection.Server + "|" + connection.UserId); }
+        try { _store = new LibraryStore(_profile.DirectoryPath, AccountData.LibraryProfile(connection)); }
         // Even a new cache cannot be written (full disk, data folder read-only): no library without it. A damaged one
         // is replaced by LibraryStore itself.
         catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
@@ -439,7 +449,7 @@ public partial class MainWindow : Window
     {
         ClosePreview(); ServerBox.Text = _client?.Connection.Server ?? "http://127.0.0.1:8096"; UsernameBox.Text = _client?.Connection.UserName ?? "";
         LoginArt.Source = _demo ? null : HeroImage.Source;
-        LogoutButton.Visibility = _profile.LoadConnection() is null ? Visibility.Collapsed : Visibility.Visible;
+        LogoutButton.Visibility = _profile.LoadConnection() is null ? Visibility.Collapsed : Visibility.Visible; EraseAccountData.IsChecked = false;
         BackToLibrary.Visibility = _client is not null || _demo ? Visibility.Visible : Visibility.Collapsed;
         LoginError.Text = ""; ShowSignInForm(); Motion.Reveal(LoginOverlay); UpdateHeroClock(); FocusLogin();
     }
@@ -450,12 +460,29 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(UsernameBox.Text)) UsernameBox.Focus(); else PasswordBox.Focus();
     }, DispatcherPriority.Input);
     private async void CloseAccount_Click(object sender, RoutedEventArgs e) { PasswordBox.Clear(); await Motion.HideAsync(LoginOverlay); UpdateHeroClock(); }
+    /// <summary>
+    /// « Déconnecter ce compte »: the session ends on this PC and on Jellyfin, and with the switch beside it, this
+    /// account's data leaves this PC (other accounts' and the settings stay).
+    /// </summary>
     private async void Logout_Click(object sender, RoutedEventArgs e)
     {
-        await DisconnectServicesAsync(); _profile.ClearConnection(); PasswordBox.Clear(); _items = []; _resume = []; _nextUp = []; _hero = null; _totalCount = 0;
-        RenderLibrary(); _ = RefreshTorLinkLibrariesAsync();
-        LoginArt.Source = null;
-        LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed; LoginError.Text = "Session déconnectée sur ce PC."; FocusLogin();
+        // The saved session: also when the library could not open (no client then), or in the demo.
+        var connection = _profile.LoadConnection(); var erase = EraseAccountData.IsChecked == true;
+        LogoutButton.IsEnabled = false; LogoutButton.Content = "Déconnexion…";
+        try
+        {
+            await DisconnectServicesAsync();
+            // After the last progress reports, which still need the session; a few seconds at most, answered or not.
+            var closed = false;
+            if (connection is not null) using (var client = new JellyfinClient(connection)) closed = await client.LogoutAsync();
+            _profile.ClearConnection(); PasswordBox.Clear(); _items = []; _resume = []; _nextUp = []; _hero = null; _totalCount = 0;
+            var erased = erase && connection is not null ? await AccountData.EraseAsync(_profile.DirectoryPath, connection) : (bool?)null;
+            RenderLibrary(); _ = RefreshTorLinkLibrariesAsync();
+            LoginArt.Source = null;
+            LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed;
+            LoginError.Text = connection is null ? "Session déconnectée sur ce PC." : AccountData.SignedOut("ce PC", closed, erased); FocusLogin();
+        }
+        finally { LogoutButton.IsEnabled = true; LogoutButton.Content = "Déconnecter ce compte"; EraseAccountData.IsChecked = false; }
     }
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void Maximize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;

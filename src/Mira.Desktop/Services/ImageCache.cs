@@ -23,9 +23,8 @@ public sealed class ImageCache
     public ImageCache(JellyfinClient client, string directory)
     {
         _client = client;
-        var profile = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(client.Connection.Server + client.Connection.UserId)))[..16];
-        var root = Path.Combine(directory, "images");
-        _directory = Path.Combine(root, profile); Directory.CreateDirectory(_directory);
+        _directory = AccountData.ImageFolder(directory, client.Connection); Directory.CreateDirectory(_directory);
+        var root = Path.GetDirectoryName(_directory)!;
         // Artwork replaced on the server, or of an account no longer used, leaves with the oldest files.
         _ = Task.Run(() => DiskCache.Trim(root, DiskBudget, DiskKeep));
     }
