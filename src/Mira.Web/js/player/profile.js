@@ -52,7 +52,8 @@ export function deviceProfile(bitrate, { hlsSubtitles = false } = {}) {
   // H.264 first: when Jellyfin must convert, it encodes the first codec, and H.264 costs a home server far less.
   // HEVC sources are still sent as they are (stream copy) where the phone plays them.
   const hlsVideo = list([[s.hlsH264, 'h264'], [s.hlsHevc, 'hevc']]);
-  const hlsAudio = list([[s.aac, 'aac'], [s.mp3, 'mp3'], [s.hlsAc3, 'ac3'], [s.hlsEac3, 'eac3']]);
+  // MP3 in fMP4 segments: Safari reads it in MPEG-TS only (jellyfin-web says so too), so Jellyfin converts it to AAC.
+  const hlsAudio = list([[s.aac, 'aac'], [!nativeHls && mse('audio/mp4; codecs="mp3"'), 'mp3'], [s.hlsAc3, 'ac3'], [s.hlsEac3, 'eac3']]);
   const surround = s.hlsAc3 || s.hlsEac3;
 
   const direct = [];
