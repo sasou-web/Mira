@@ -19,11 +19,13 @@ public static class PhoneSetup
     /// (<see cref="JellyfinFirewall.Reach"/>), null when it cannot be read, Mira's rule (<paramref name="MiraRule"/>,
     /// judged by its content) then deciding; <paramref name="Program"/>: whether Mira found Jellyfin's program on this
     /// PC, which the firewall is opened for. <paramref name="Answering"/>: Jellyfin answers (it may be restarting, or
-    /// stopped). Null: not known, or not readable with this account.
+    /// stopped). <paramref name="NetworkKept"/>: Windows did not let « Tout préparer » make the public network
+    /// (<see cref="JellyfinFirewall.Reach.Public"/>) private, as for a network it cannot identify. Null: not known, or
+    /// not readable with this account.
     /// </summary>
     public sealed record Facts(string Server, bool Local, bool? Web, string? Home, bool? Admin = null, string? Tailnet = null, bool? TailnetAllowed = null,
         JellyfinFirewall.Reach? Firewall = null, JellyfinFirewall.RuleState MiraRule = JellyfinFirewall.RuleState.Missing, JellyfinStartup.State? Boot = null,
-        bool Program = true, bool Answering = true);
+        bool Program = true, bool Answering = true, bool NetworkKept = false);
 
     public static IReadOnlyList<Step> Steps(Facts facts)
     {
@@ -48,19 +50,29 @@ public static class PhoneSetup
             steps.Add(new("network", Mark.Yours, "Connecter ce PC à ta box", "En Wi-Fi ou par câble : c’est par elle que ton téléphone le trouve."));
         var network = facts.Firewall?.Profile switch { JellyfinFirewall.Public => "Réseau public", JellyfinFirewall.Domain => "Réseau de domaine", _ => "Réseau privé" };
         // What Mira cannot change is the person's, said where: « Tout préparer » never asks again for what it cannot do.
-        // Phones getting through by other rules leave Mira's own, when it is not as Mira writes it, to replace.
+        // Phones getting through by other rules leave Mira's own, when it is not as Mira writes it, to replace. A home
+        // network counted as public, where Mira's rule never applies, is made private, rather than every public network
+        // opened (or its « block all » unticked).
+        var adapter = facts.Firewall?.Public;
         steps.Add(Firewall(facts) switch
         {
             JellyfinFirewall.Verdict.Open when facts.MiraRule != JellyfinFirewall.RuleState.Stale =>
                 new("firewall", Mark.Done, "Le pare-feu laisse passer ton téléphone", "Sur le port de Jellyfin seulement, depuis ton Wi-Fi et Tailscale."),
+            _ when adapter is not null && facts.NetworkKept => new("firewall", Mark.Yours, "Passer ton réseau en privé",
+                $"Windows prend ton réseau « {adapter} » pour un réseau public et ne laisse pas Mira le changer : dans Paramètres → Réseau et Internet → {adapter}, "
+                + "choisis « Réseau privé » (pour le Wi-Fi, dans les propriétés de ton réseau)."),
+            _ when adapter is not null => new("firewall", Mark.ToDo, "Laisser passer ton téléphone",
+                $"Windows prend ton réseau « {adapter} » pour un réseau public, comme celui d’un café, où Mira n’ouvre pas le pare-feu : Mira le passe en réseau privé, "
+                + "puis laisse passer ton téléphone sur le port de Jellyfin."),
             JellyfinFirewall.Verdict.Closed => new("firewall", Mark.Yours, "Le pare-feu bloque toutes les connexions",
                 $"Dans Sécurité Windows → Pare-feu et protection du réseau → {network}, décoche « Bloque toutes les connexions entrantes »."),
             _ when facts.Firewall?.Kept is { } rule => new("firewall", Mark.Yours, "Une règle du pare-feu bloque Jellyfin",
                 $"Dans « Pare-feu Windows Defender avec fonctions avancées » → Règles de trafic entrant, désactive « {rule} »."),
             _ when !facts.Program => new("firewall", Mark.Yours, "Autoriser Jellyfin dans le pare-feu",
-                "Mira ne trouve pas le programme de Jellyfin sur ce PC : autorise-le dans le pare-feu de Windows, pour les réseaux privés et publics."),
+                "Mira ne trouve pas le programme de Jellyfin sur ce PC : autorise-le dans le pare-feu de Windows pour les réseaux privés, "
+                + "et vérifie que Windows compte ton Wi-Fi comme réseau privé."),
             JellyfinFirewall.Verdict.Open => new("firewall", Mark.ToDo, "Mettre à jour la règle du pare-feu",
-                "La règle « Mira - Jellyfin » du pare-feu n’est plus celle de Mira (autre port, autre programme…) : Mira la remplace."),
+                "La règle « Mira - Jellyfin » du pare-feu n’est plus celle de Mira (autre port, autre programme, ouverte aussi aux réseaux publics…) : Mira la remplace."),
             _ => new("firewall", Mark.ToDo, "Laisser passer ton téléphone", "Le pare-feu de Windows bloque Jellyfin : sur le téléphone, la page reste blanche."),
         });
         steps.Add((facts.Tailnet, facts.TailnetAllowed) switch
