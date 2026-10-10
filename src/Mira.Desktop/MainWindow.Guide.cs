@@ -135,18 +135,19 @@ public partial class MainWindow
         }
         string? tailnet = null, program = null;
         JellyfinFirewall.Reach? firewall = null;
+        var rule = JellyfinFirewall.RuleState.Missing;
         JellyfinStartup.State? boot = null;
         if (local)
         {
-            (var address, program, firewall, boot) = await Task.Run(() =>
+            (var address, program, firewall, rule, boot) = await Task.Run(() =>
             {
                 var found = JellyfinAutostart.Program();
-                return (LocalNetwork.ThisPcOnTailnet(), found, JellyfinAutostart.Phones(found, uri.Port), JellyfinAutostart.Read());
+                return (LocalNetwork.ThisPcOnTailnet(), found, JellyfinAutostart.Phones(found, uri.Port), JellyfinAutostart.MiraRule(found, uri.Port), JellyfinAutostart.Read());
             });
             tailnet = AtThisPc(address);
         }
         if (version != _phoneVersion) return;
-        _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, boot?.FirewallOpen ?? false, boot, Program: program is not null, Answering: answering);
+        _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, rule, boot, Program: program is not null, Answering: answering);
         ShowPhone(_phone);
         if (!answering) _ = WaitForJellyfinAsync(client, version);
     }

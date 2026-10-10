@@ -22,19 +22,19 @@ internal static class JellyfinAutostart
 {
     private static string ServiceKey(string service) => @"SYSTEM\CurrentControlSet\Services\" + service;
 
-    /// <summary>The service's start mode, its restart after an error, and Mira's firewall rule (with or without the service).</summary>
-    public static JellyfinStartup.State Read(string service = JellyfinStartup.ServiceName, string rule = JellyfinStartup.RuleName)
+    /// <summary>The service's start mode and its restart after an error.</summary>
+    public static JellyfinStartup.State Read(string service = JellyfinStartup.ServiceName)
     {
         try
         {
             using var key = Registry.LocalMachine.OpenSubKey(ServiceKey(service));
-            if (key is null) return new(false, false, false, false, RuleExists(rule));
+            if (key is null) return new(false, false, false, false);
             var start = key.GetValue("Start") is int value ? value : 3;
             var delayed = key.GetValue("DelayedAutostart") is int flag && flag == 1;
             var restarts = JellyfinStartup.RestartsAfterError(key.GetValue("FailureActions") as byte[], key.GetValue("FailureActionsOnNonCrashFailures") is int nonCrash ? nonCrash : 0);
-            return new(true, start == 2, delayed, restarts, RuleExists(rule));
+            return new(true, start == 2, delayed, restarts);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return new(false, false, false, false, false); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return new(false, false, false, false); }
     }
 
     /// <summary>
@@ -65,8 +65,27 @@ internal static class JellyfinAutostart
         return null;
     }
 
-    /// <summary>Whether the firewall has Mira's rule: <c>netsh … show rule</c> needs no administrator rights.</summary>
-    private static bool RuleExists(string rule) => Execute(new("netsh.exe", $"advfirewall firewall show rule name=\"{rule}\"")) == 0;
+    /// <summary>
+    /// Mira's firewall rule, judged by its content (<see cref="JellyfinFirewall.MiraRule"/>) from the rules bearing its
+    /// name, read through the firewall's COM interface without administrator rights. When that cannot be read, its name
+    /// is all Mira has (<c>netsh … show rule</c>, whose text is in Windows' language), and a rule Mira wrote whole counts
+    /// as ready: otherwise « Tout préparer » would ask for Windows' consent at every click.
+    /// </summary>
+    public static JellyfinFirewall.RuleState MiraRule(string? program, int port, string rule = JellyfinStartup.RuleName)
+    {
+        try
+        {
+            dynamic policy = Policy();
+            var named = new List<JellyfinFirewall.Rule>();
+            foreach (dynamic found in policy.Rules)
+                if ((string?)found.Name == rule) named.Add(Describe((object)found));
+            return JellyfinFirewall.MiraRule(named, program, port);
+        }
+        catch (Exception ex) when (IsFirewallError(ex))
+        {
+            return Execute(new("netsh.exe", $"advfirewall firewall show rule name=\"{rule}\"")) == 0 ? JellyfinFirewall.RuleState.Ready : JellyfinFirewall.RuleState.Missing;
+        }
+    }
 
     /// <summary>Asks Windows for the administrator's consent, once, and sets it all up in a copy of Mira that has it.</summary>
     public static Task<AutostartResult> ApplyAsync(int port) => ElevatedAsync($"--jellyfin-startup {port}");
@@ -243,14 +262,21 @@ internal static class JellyfinAutostart
             if ((int)rule.Direction != 1 || !(bool)rule.Enabled) continue;
             string? application = rule.ApplicationName;
             if (!string.IsNullOrWhiteSpace(application) && !JellyfinFirewall.SameProgram(application, program)) continue;
-            // A rule naming no program may be for one service only.
-            string? service = string.IsNullOrWhiteSpace(application) ? rule.serviceName : null;
-            object? interfaces = rule.Interfaces;
-            rules.Add((new JellyfinFirewall.Rule((string?)rule.Name ?? "", true, true, (int)rule.Action == 1, (int)rule.Profiles, application, (int)rule.Protocol,
-                (string?)rule.LocalPorts, (string?)rule.RemoteAddresses, interfaces is object[] names ? names.OfType<string>().ToList() : null, (string?)rule.InterfaceTypes,
-                service), rule));
+            rules.Add((Describe((object)rule), rule));
         }
         return (rules, settings, active);
+    }
+    /// <summary>A rule of the firewall (INetFwRule) as <see cref="JellyfinFirewall"/> judges it.</summary>
+    private static JellyfinFirewall.Rule Describe(object com)
+    {
+        dynamic rule = com;
+        string? application = rule.ApplicationName;
+        // A rule naming no program may be for one service only.
+        string? service = string.IsNullOrWhiteSpace(application) ? rule.serviceName : null;
+        object? interfaces = rule.Interfaces;
+        // NET_FW_RULE_DIRECTION: 1 incoming; NET_FW_ACTION: 1 allow.
+        return new((string?)rule.Name ?? "", (bool)rule.Enabled, (int)rule.Direction == 1, (int)rule.Action == 1, (int)rule.Profiles, application, (int)rule.Protocol,
+            (string?)rule.LocalPorts, (string?)rule.RemoteAddresses, interfaces is object[] names ? names.OfType<string>().ToList() : null, (string?)rule.InterfaceTypes, service);
     }
     /// <summary>The incoming rules that may concern <paramref name="program"/>, as <see cref="Phones"/> reads them (the tests' check).</summary>
     internal static List<JellyfinFirewall.Rule> FirewallRules(string program) => ReadFirewall(Policy(), program).Rules.Select(x => x.Rule).ToList();
