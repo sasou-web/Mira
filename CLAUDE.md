@@ -54,7 +54,10 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - 2026-10-09 — Dépôt de l'extension = `releases/latest/download/jellyfin-manifest.json` — Jellyfin met l'extension à jour à chaque release.
 - 2026-10-09 — Une seule `<video>` partagée, débloquée au premier toucher — iOS n'autorise le son qu'après un geste ; l'épisode suivant démarre ainsi seul.
 - 2026-10-09 — Profil d'appareil : H.264 avant HEVC en HLS — conversion le plus souvent sans réencodage.
-- 2026-10-09 — iPhone et iPad : lecture uniquement dans le lecteur plein écran d'Apple (pas de `playsinline`) — en ligne, iOS prenait Mira pour une page qui joue en arrière-plan (Dynamic Island). Audio et sous-titres choisis sur la fiche : le menu d'Apple ne change pas l'audio d'une conversion.
+- 2026-10-09 — iPhone et iPad : lecture uniquement dans le lecteur plein écran d'Apple (pas de `playsinline`) — demandé par l'utilisateur (commandes d'Apple). Audio et sous-titres choisis sur la fiche : le menu d'Apple ne change pas l'audio d'une conversion.
+- 2026-10-10 — Dynamic Island : défaut d'iOS pour les apps de l'écran d'accueil (WebKit la masque par identifiants d'app qui ne correspondent pas), en ligne comme en plein écran ; seul levier : session audio `ambient`, en option (« Essai : sans Dynamic Island »), car le son suit alors le mode silencieux.
+- 2026-10-10 — Sous-titres d'une conversion dans le flux HLS (`SubtitleMethod=Hls`), liste principale servie par `/Mira/hls/…` (extension) : le lecteur d'Apple ignore les `<track>` à côté d'un HLS, et Jellyfin date ses WebVTT HLS pour des segments TS (`MPEGTS:900000`, 10 s de retard en fMP4).
+- 2026-10-10 — Navigation d'app iOS : View Transitions (glissement à droite), onglets qui reviennent au bas de l'historique, glissement depuis le bord dans l'app de l'écran d'accueil.
 - 2026-10-09 — Épisode suivant dans le même lecteur (`history.replaceState`) — retirer la `<video>` du document quitte le plein écran.
 - 2026-10-09 — `/Mira/` gardée un mois par le téléphone, révision vérifiée à chaque démarrage — l'app s'ouvre PC éteint et attend le serveur ; pas de service worker en HTTP.
 - 2026-10-09 — Démarrage avec Windows : `sc config start= auto`, `sc failure` + `failureflag 1` (pas `AppExit Restart` : un arrêt voulu reste un arrêt), règles de pare-feu `localsubnet` et `100.64.0.0/10` pour `jellyfin.exe` — l'installateur n'ajoute aucune règle pour son service.
@@ -67,6 +70,10 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Le cadre de la `<video>` épouse l'image (`.player.fitted`) : Safari place les sous-titres en bas du cadre.
 - Lecteur d'Apple : les `<track>` doivent être ajoutées **avant** `src` (WebKit les passe à AVFoundation au chargement). Les changements de pistes ne sont suivis qu'en plein écran et 1,5 s après le chargement (sinon le navigateur en fait de faux choix). Sur Mac, le plein écran demande un toucher (plein écran d'élément) ; sur iPhone, non après le premier geste.
 - Pendant son démarrage, Jellyfin 12 répond à `System/Info/Public` (en camelCase) et 503 au reste : seul `System/Ping` prouve qu'il est prêt.
+- `EnableSubtitlesInManifest` n'est lu par Jellyfin que pour `live.m3u8` : pour un film, c'est `SubtitleMethod=Hls` dans l'adresse (sans `SubtitleStreamIndex`, tous les sous-titres sont `DEFAULT=NO`).
+- Jellyfin : segments HLS TS à 10 s, fMP4 à 0 ; ses WebVTT HLS ont `MPEGTS:900000` en dur. hls.js s'en moque, le lecteur d'Apple non.
+- View Transitions : le changement d'écran se fait dans un rappel différé ; `enter()` et tout ce qui touche l'écran affiché vont dans `swap`.
+- Vérifier la syntaxe des modules avec `node --experimental-default-type=module --check` (sans l'option, une redéclaration passe).
 - Avec `MIRA_WEB_DIR`, la page n'est pas gardée (no-cache) : tester « serveur éteint » avec l'extension compilée.
 - Fichiers `.srt` de test : pas d'accents (Jellyfin devine mal l'encodage d'un fichier d'une ligne).
 - Safari peut attendre un geste avant de lire : les tests partent du bouton « Lecture » de la fiche, pas d'un changement d'adresse.
@@ -75,7 +82,13 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Scripts lancés sur Mac : pas de `md5sum` ni de `base64 -w`.
 
 ## État actuel
-- 0.7.1 publiée le 2026-10-09 (11 fichiers : Windows signés, `.dmg`, extension, manifeste ; signature et empreintes vérifiées) : retours du premier essai sur iPhone — lecture dans le lecteur d'Apple, pistes choisies sur la fiche, langues des réglages, Mira qui s'ouvre et attend le serveur, Jellyfin joignable dès l'allumage du PC (guide Windows), intros passées automatiquement (réglage).
-- Vérifié en CI sur la branche : Windows 76 tests (dont vrais `sc`/`netsh`), Chromium 29/29 (dont serveur arrêté puis relancé, lecteur d'Apple simulé), Safari 20/20 (dont lecteur d'Apple en plein écran de WebKit). Détails : `docs/VALIDATION.md`.
-- Non vérifié sur un vrai iPhone : le lecteur d'Apple (plein écran sans toucher après le premier geste, menu des sous-titres, épisode suivant en plein écran, Dynamic Island), l'ouverture depuis le cache PC éteint. Non vérifié sur le PC de l'utilisateur : « Disponible dès l'allumage du PC » (consentement UAC réel).
-- Prochaine étape : essai de la 0.7.1 par l'utilisateur sur son iPhone et son PC, puis corrections.
+- 0.7.1 publiée le 2026-10-09 (11 fichiers : Windows signés, `.dmg`, extension, manifeste ; signature et empreintes vérifiées).
+- Branche `claude/upbeat-franklin-y2n2dw` (non publiée, « Non publié » du CHANGELOG), retours du 2e essai sur iPhone : sous-titres d'une conversion dans le flux HLS par `/Mira/hls` (noms en français, à l'heure), essai « sans Dynamic Island » (session audio `ambient`), navigation d'app iOS (View Transitions, onglets, barre du haut, tirer pour actualiser), écrans qui ne se redessinent plus. Vérifié : Chromium local 33/33, CI Safari 22/22 (sous-titres à 1,4 s pour 1 s), Windows (tests dont `HlsPlaylists`).
+- En pause, à faire ensuite (recherches et revue du 2026-10-10) :
+  - retirer le glissement retour maison (`setupSwipeBack`) : les apps de l'écran d'accueil ont celui d'iOS depuis 12.2 ; détecter son geste (toucher au bord, `hasUAVisualTransition`) pour ne pas animer deux fois, et adapter `check.mjs` ;
+  - sous-titres ASS/SSA (animés) : Jellyfin refuse de les convertir et les incruste (`SupportsSubtitleConversionTo`) → profils `ass`/`ssa` External, adresse `.vtt` pour les `<track>`, et pour le lecteur d'Apple réécrire `SubtitleMethod`/`SubtitleStreamIndex` (Jellyfin met `Encode` même avec -1) ; `LANGUAGE="Unknown"` → `und` dans `HlsPlaylists` ; média de test MKV avec ASS intégré ;
+  - pistes : toucher chaque piste dans `showTrack` (sinon WebKit choisit lui-même), repousser `tracksSettle` à chaque `addtrack`, pas de `<track>` en double pour `mov_text` en lecture directe ;
+  - onglets sans fondu, poussée ≈ 360 ms, contenu de la fiche affiché tout de suite depuis la carte, modules préchargés ;
+  - retour d'appui différé (comme UIKit), vrais interrupteurs `<input switch>` (retour haptique), Android : `overscroll-behavior` et `CloseWatcher` pour les feuilles, premières affiches en `eager`, barre d'onglets cachée pendant la saisie ;
+  - résultats des audits par écran et de la revue adverse (workflows en cours dans la session), puis docs (VALIDATION.md) et CI.
+- Non vérifié sur un vrai iPhone : lecteur d'Apple (menu des sous-titres, Dynamic Island avec l'essai `ambient`), ouverture PC éteint ; sur le PC : « Disponible dès l'allumage du PC ».

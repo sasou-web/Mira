@@ -1,5 +1,15 @@
 # Historique
 
+## Non publié
+
+Mira web après le deuxième essai sur iPhone : les sous-titres dans le menu du lecteur d’Apple, et une app qui se comporte comme une app.
+
+- **Sous-titres dans le menu du lecteur d’Apple** : avec une conversion par Jellyfin (un MKV, le plus souvent), le menu n’en proposait aucun : le lecteur d’Apple ignore les sous-titres placés à côté d’un flux HLS. Les sous-titres texte font maintenant partie du flux : ils sont tous dans le menu, celui choisi sur la fiche s’affiche, et un autre choix dans le menu se fait sans relancer la vidéo. Jellyfin les date pour des segments MPEG-TS, et ils seraient arrivés 10 s en retard dans le lecteur d’Apple : l’extension Mira sert la même liste de lecture, les sous-titres à l’heure.
+- **Dynamic Island** : elle s’affiche parce qu’iOS ne reconnaît pas une app de l’écran d’accueil comme l’app au premier plan pendant une vidéo. Ça ne dépend ni du lecteur ni de Mira : contrairement à ce que disait la 0.7.1, le lecteur d’Apple n’y change rien. **Réglages → Essai : sans Dynamic Island** tente de l’éviter (le son suit alors le mode silencieux et se mêle à la musique des autres apps). À la fermeture du lecteur, plus rien ne reste dans le Centre de contrôle ni sur l’écran verrouillé.
+- **Comme une app iOS** : un écran arrive par la droite et repart par la droite, les onglets changent sans s’empiler dans l’historique (un onglet touché revient à son premier écran), et, dans l’app de l’écran d’accueil, un glissement depuis le bord gauche revient en arrière en suivant le doigt. Les feuilles de choix glissent en se fermant et se tirent vers le bas ; les notifications s’effacent. Les boutons réagissent au toucher, l’app ne zoome plus, ne sélectionne plus son texte et n’ouvre plus d’aperçu de lien. La barre d’onglets est translucide.
+- **Plus de sauts ni de clignotements** : l’accueil ne se redessine plus à chaque retour (les rangées restent où le doigt les a laissées), la grille des films et séries se met à jour sur place au lieu de repartir en haut, la fiche ne se redessine plus quand les titres similaires arrivent, et une image déjà vue ne refait pas son fondu.
+- **Retour en arrière après la connexion** : le premier écran après la connexion croyait avoir un écran derrière lui.
+
 ## 0.7.1 — 2026-10-09
 
 Mira web après le premier essai sur un vrai iPhone : la lecture passe par le lecteur d’Apple, et Mira s’ouvre même quand le PC démarre.
