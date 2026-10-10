@@ -16,13 +16,14 @@ public static class PhoneSetup
     /// What the guide found. <paramref name="Server"/> is Jellyfin's address in Mira (<paramref name="Local"/>: on this
     /// PC); <paramref name="Home"/> the one phones use on the home network; <paramref name="Tailnet"/> this PC's on
     /// Tailscale, when Tailscale is connected here. <paramref name="Firewall"/>: what phones meet
-    /// (<see cref="JellyfinFirewall.Reach"/>), null when it cannot be read, Mira's rule (<paramref name="MiraRule"/>)
-    /// then deciding; <paramref name="Program"/>: whether Mira found Jellyfin's program on this PC, which the firewall
-    /// is opened for. <paramref name="Answering"/>: Jellyfin answers (it may be restarting, or stopped). Null: not
-    /// known, or not readable with this account.
+    /// (<see cref="JellyfinFirewall.Reach"/>), null when it cannot be read, Mira's rule (<paramref name="MiraRule"/>,
+    /// judged by its content) then deciding; <paramref name="Program"/>: whether Mira found Jellyfin's program on this
+    /// PC, which the firewall is opened for. <paramref name="Answering"/>: Jellyfin answers (it may be restarting, or
+    /// stopped). Null: not known, or not readable with this account.
     /// </summary>
     public sealed record Facts(string Server, bool Local, bool? Web, string? Home, bool? Admin = null, string? Tailnet = null, bool? TailnetAllowed = null,
-        JellyfinFirewall.Reach? Firewall = null, bool MiraRule = false, JellyfinStartup.State? Boot = null, bool Program = true, bool Answering = true);
+        JellyfinFirewall.Reach? Firewall = null, JellyfinFirewall.RuleState MiraRule = JellyfinFirewall.RuleState.Missing, JellyfinStartup.State? Boot = null,
+        bool Program = true, bool Answering = true);
 
     public static IReadOnlyList<Step> Steps(Facts facts)
     {
@@ -47,15 +48,19 @@ public static class PhoneSetup
             steps.Add(new("network", Mark.Yours, "Connecter ce PC à ta box", "En Wi-Fi ou par câble : c’est par elle que ton téléphone le trouve."));
         var network = facts.Firewall?.Profile switch { JellyfinFirewall.Public => "Réseau public", JellyfinFirewall.Domain => "Réseau de domaine", _ => "Réseau privé" };
         // What Mira cannot change is the person's, said where: « Tout préparer » never asks again for what it cannot do.
+        // Phones getting through by other rules leave Mira's own, when it is not as Mira writes it, to replace.
         steps.Add(Firewall(facts) switch
         {
-            JellyfinFirewall.Verdict.Open => new("firewall", Mark.Done, "Le pare-feu laisse passer ton téléphone", "Sur le port de Jellyfin seulement, depuis ton Wi-Fi et Tailscale."),
+            JellyfinFirewall.Verdict.Open when facts.MiraRule != JellyfinFirewall.RuleState.Stale =>
+                new("firewall", Mark.Done, "Le pare-feu laisse passer ton téléphone", "Sur le port de Jellyfin seulement, depuis ton Wi-Fi et Tailscale."),
             JellyfinFirewall.Verdict.Closed => new("firewall", Mark.Yours, "Le pare-feu bloque toutes les connexions",
                 $"Dans Sécurité Windows → Pare-feu et protection du réseau → {network}, décoche « Bloque toutes les connexions entrantes »."),
             _ when facts.Firewall?.Kept is { } rule => new("firewall", Mark.Yours, "Une règle du pare-feu bloque Jellyfin",
                 $"Dans « Pare-feu Windows Defender avec fonctions avancées » → Règles de trafic entrant, désactive « {rule} »."),
             _ when !facts.Program => new("firewall", Mark.Yours, "Autoriser Jellyfin dans le pare-feu",
                 "Mira ne trouve pas le programme de Jellyfin sur ce PC : autorise-le dans le pare-feu de Windows, pour les réseaux privés et publics."),
+            JellyfinFirewall.Verdict.Open => new("firewall", Mark.ToDo, "Mettre à jour la règle du pare-feu",
+                "La règle « Mira - Jellyfin » du pare-feu n’est plus celle de Mira (autre port, autre programme…) : Mira la remplace."),
             _ => new("firewall", Mark.ToDo, "Laisser passer ton téléphone", "Le pare-feu de Windows bloque Jellyfin : sur le téléphone, la page reste blanche."),
         });
         steps.Add((facts.Tailnet, facts.TailnetAllowed) switch
@@ -82,9 +87,9 @@ public static class PhoneSetup
     public static bool NeedsWindows(IReadOnlyList<Step> steps) => steps.Any(x => x.Mark == Mark.ToDo && x.Key is "firewall" or "boot");
     public static bool Is(IReadOnlyList<Step> steps, string key, Mark mark) => steps.Any(x => x.Key == key && x.Mark == mark);
 
-    /// <summary>The firewall for phones, the worse of the home network and Tailscale: read, or Mira's rule when it cannot be.</summary>
+    /// <summary>The firewall for phones, the worse of the home network and Tailscale: read, or Mira's rule, ready, when it cannot be.</summary>
     public static JellyfinFirewall.Verdict Firewall(Facts facts) =>
-        facts.Firewall?.Verdict ?? (facts.MiraRule ? JellyfinFirewall.Verdict.Open : JellyfinFirewall.Verdict.Blocked);
+        facts.Firewall?.Verdict ?? (facts.MiraRule == JellyfinFirewall.RuleState.Ready ? JellyfinFirewall.Verdict.Open : JellyfinFirewall.Verdict.Blocked);
 
     /// <summary>
     /// This PC on Tailscale, once phones get through there (whatever the home network's firewall): the address that

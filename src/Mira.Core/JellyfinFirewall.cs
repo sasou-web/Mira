@@ -36,6 +36,36 @@ public static class JellyfinFirewall
     /// which Mira leaves alone (someone's own, or a security suite's).
     /// </summary>
     public sealed record Reach(Verdict Verdict, int Profile, Verdict? Tailnet = null, string? Kept = null);
+    /// <summary>
+    /// Mira's own rule (<see cref="JellyfinStartup.RuleName"/>): none; ready, as Mira writes it now; or there but not as
+    /// Mira writes it (another port or program, turned off, edited, an older version's), which « Tout préparer » replaces.
+    /// </summary>
+    public enum RuleState { Missing, Ready, Stale }
+
+    /// <summary>
+    /// Mira's rule judged by its content, from the rules bearing its name (<paramref name="named"/>, whatever their
+    /// program or direction): ready when each one is an enabled incoming TCP allow rule for <paramref name="program"/>,
+    /// on <paramref name="port"/> alone, on Mira's profiles, for every interface, from the home network or from
+    /// Tailscale, and both are there. A rule left on another port or for another program is not, nor one opened wider.
+    /// Without <paramref name="program"/> (Mira does not find Jellyfin's), the rest is judged.
+    /// </summary>
+    public static RuleState MiraRule(IEnumerable<Rule> named, string? program, int port)
+    {
+        var rules = named.ToList();
+        if (rules.Count == 0) return RuleState.Missing;
+        bool AsWritten(Rule x) => x.Enabled && x.Inbound && x.Allow && x.Protocol == Tcp && (x.Profiles & AllProfiles) == JellyfinStartup.RuleProfiles
+            && !string.IsNullOrWhiteSpace(x.Program) && (program is null || SameProgram(x.Program, program)) && string.IsNullOrWhiteSpace(x.Service)
+            && int.TryParse(x.LocalPorts, out var only) && only == port
+            && x.Interfaces is not { Count: > 0 } && (string.IsNullOrWhiteSpace(x.InterfaceTypes) || x.InterfaceTypes.Equals("All", StringComparison.OrdinalIgnoreCase))
+            && (IsLocalSubnet(x.RemoteAddresses) || IsTailnetRange(x.RemoteAddresses));
+        return rules.All(AsWritten) && rules.Any(x => IsLocalSubnet(x.RemoteAddresses)) && rules.Any(x => IsTailnetRange(x.RemoteAddresses))
+            ? RuleState.Ready : RuleState.Stale;
+    }
+    private static bool IsLocalSubnet(string? addresses) => string.Equals(addresses?.Trim(), "LocalSubnet", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Tailscale's range and nothing else: 100.64.0.0/10 as Mira writes it, or with a mask, as the firewall reads it back.</summary>
+    public static bool IsTailnetRange(string? addresses) =>
+        addresses?.Split('/', StringSplitOptions.TrimEntries) is [var address, var size] && IPv4(address) == (100u << 24 | 64u << 16)
+        && (size == "10" || IPv4(size) == 0xFFC0_0000);
 
     /// <summary>
     /// The profile of Tailscale's adapter, from the profiles active on this PC (CurrentProfileTypes): Tailscale marks

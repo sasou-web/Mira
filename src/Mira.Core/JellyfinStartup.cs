@@ -13,12 +13,11 @@ public static class JellyfinStartup
     public const string RuleName = "Mira - Jellyfin";
     /// <summary>15 s after a first error, then 30 s, then a minute; the count starts again after a day without one.</summary>
     public const string RestartActions = "restart/15000/restart/30000/restart/60000";
+    /// <summary>The network profiles Mira's rule applies to (<see cref="JellyfinFirewall"/>'s bits).</summary>
+    public const int RuleProfiles = JellyfinFirewall.AllProfiles;
 
-    /// <summary>
-    /// What Mira reads of the service and of its firewall rule (<paramref name="FirewallOpen"/>: Mira's rule exists),
-    /// without administrator rights.
-    /// </summary>
-    public sealed record State(bool HasService, bool StartsWithWindows, bool Delayed, bool RestartsAfterError, bool FirewallOpen)
+    /// <summary>What Mira reads of the service, without administrator rights.</summary>
+    public sealed record State(bool HasService, bool StartsWithWindows, bool Delayed, bool RestartsAfterError)
     {
         /// <summary>The service starts with Windows, not delayed, and again after an error: Jellyfin answers before anyone signs in.</summary>
         public bool StartsAtBoot => HasService && StartsWithWindows && !Delayed && RestartsAfterError;
@@ -69,7 +68,7 @@ public static class JellyfinStartup
         if (!Path.IsPathFullyQualified(program) || program.Contains('"')) throw new ArgumentException("A full path to jellyfin.exe is expected.", nameof(program));
         if (rule.Contains('"')) throw new ArgumentException("Unexpected rule name.");
         string Allow(string from) => $"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol=TCP localport={port} " +
-            $"remoteip={from} profile=any program=\"{program}\" enable=yes description=\"Mira web : Jellyfin pour tes appareils, chez toi et sur Tailscale.\"";
+            $"remoteip={from} profile={Profiles(RuleProfiles)} program=\"{program}\" enable=yes description=\"Mira web : Jellyfin pour tes appareils, chez toi et sur Tailscale.\"";
         return
         [
             new("netsh.exe", $"advfirewall firewall delete rule name=\"{rule}\"", Optional: true),
@@ -77,6 +76,9 @@ public static class JellyfinStartup
             new("netsh.exe", Allow(LocalNetwork.TailnetRange)),
         ];
     }
+    /// <summary>Profiles as netsh writes them: "any", or a list ("domain,private"), in the order of their bits.</summary>
+    public static string Profiles(int profiles) => (profiles & JellyfinFirewall.AllProfiles) == JellyfinFirewall.AllProfiles ? "any"
+        : string.Join(",", new[] { "domain", "private", "public" }.Where((_, bit) => (profiles & 1 << bit) != 0));
 }
 
 /// <summary>A program of Windows (in System32) and its arguments.</summary>
