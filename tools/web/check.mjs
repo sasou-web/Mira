@@ -395,6 +395,153 @@ try {
   await hp.screenshot({ path: `${out}/error-app.png` }).catch(() => {});
 }
 check('app (simulée) : aucune erreur JavaScript', homeErrors.length === 0, homeErrors.slice(0, 3).join(' | '));
+
+// Tabs as an app's: a tab's screen shows whole (no placeholders, nothing moving) and the one left dissolves into it;
+// Recherche takes the keyboard only when touched again; Réglages and Home change in place.
+const tabs = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+await tabs.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { configurable: true, get: () => true }));
+const tp = await tabs.newPage();
+const tabErrors = [];
+tp.on('pageerror', (e) => tabErrors.push(e.message));
+try {
+  await tp.goto(`${base}#/connexion`); await tp.waitForTimeout(1500);
+  if (await tp.locator('.users').count()) await tp.getByRole('button', { name: 'Autre compte' }).click();
+  await tp.fill('#login-name', user); await tp.fill('#login-password', password);
+  await tp.getByRole('button', { name: 'Se connecter' }).click();
+  await tp.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
+  await tp.waitForTimeout(2500);
+  // Every frame for a second after the tap: the dissolving layer, a placeholder seen in the screen, the grid's top,
+  // and when the tab lit up and the new screen came.
+  const record = (tab) => tp.evaluate(async (name) => {
+    const frames = [], t0 = performance.now();
+    document.querySelector(`.tabbar a[data-tab="${name}"]`).click();
+    while (performance.now() - t0 < 1000) {
+      await new Promise((r) => requestAnimationFrame(r));
+      const grid = document.querySelector('#view .library-grid');
+      frames.push({
+        t: Math.round(performance.now() - t0), leaving: !!document.querySelector('.view-leaving'),
+        skeleton: [...document.querySelectorAll('#view .skeleton')].some((x) => x.getClientRects().length),
+        lit: document.querySelector('.tabbar a[aria-current="page"]')?.dataset.tab ?? '', views: document.querySelectorAll('#view > .view').length,
+        library: !!document.querySelector('#view > .view.library'), top: grid ? Math.round(grid.getBoundingClientRect().top) : null,
+      });
+    }
+    return frames;
+  }, tab);
+  let frames = await record('films');
+  const shown = frames.find((f) => f.library);
+  const tops = [...new Set(frames.filter((f) => f.top != null).map((f) => f.top))];
+  check('onglets : Films s’affiche entier, sans emplacements vides ni décalage', !!shown && !frames.some((f) => f.skeleton) && tops.length === 1,
+    `${shown ? `à ${shown.t} ms` : 'jamais affiché'}, ${frames.some((f) => f.skeleton) ? 'emplacements vides vus' : 'aucun emplacement vide'}, haut de la grille ${tops.join(' → ') || '?'}`);
+  const lit = frames.find((f) => f.lit === 'films')?.t;
+  check('onglets : l’écran quitté se fond dans le suivant, l’onglet s’allume au toucher',
+    frames.some((f) => f.leaving) && !frames.at(-1).leaving && frames.every((f) => f.views <= 1) && lit != null && lit <= 80 && (!shown || lit <= shown.t),
+    `fondu ${frames.some((f) => f.leaving) ? 'vu' : 'absent'}${frames.at(-1).leaving ? ', resté' : ''}, onglet allumé à ${lit ?? '?'} ms, écran à ${shown?.t ?? '?'} ms`);
+  frames = await record('home');
+  check('onglets : retour à l’Accueil gardé, en fondu aussi', frames.some((f) => f.leaving) && !frames.at(-1).leaving && await tp.locator('#view > .view.home').count() === 1,
+    `fondu ${frames.some((f) => f.leaving) ? 'vu' : 'absent'}`);
+
+  // Recherche: no keyboard on arrival (iOS opens none for a focus given later, and the screen may stay shorter);
+  // the tab touched again, at the top, gives the field the keyboard.
+  await tp.locator('.tabbar a[data-tab="search"]').click(); await tp.waitForTimeout(700);
+  const first = await tp.evaluate(() => document.activeElement?.matches('.search input') ?? false);
+  await tp.locator('.tabbar a[data-tab="search"]').click(); await tp.waitForTimeout(300);
+  const second = await tp.evaluate(() => document.activeElement?.matches('.search input') ?? false);
+  check('recherche : le champ ne prend le clavier qu’au second toucher de l’onglet', !first && second, `${first ? 'clavier à l’arrivée' : 'pas de clavier à l’arrivée'}, ${second ? 'clavier au second toucher' : 'pas de clavier au second toucher'}`);
+  await tp.evaluate(() => document.activeElement?.blur());
+
+  // Réglages, seen again: the same screen, not drawn anew.
+  await tp.locator('.tabbar a[data-tab="settings"]').click(); await tp.waitForTimeout(1200);
+  await tp.evaluate(() => { document.querySelector('#view .settings .group').dataset.mark = 'kept'; });
+  await tp.locator('.tabbar a[data-tab="home"]').click(); await tp.waitForTimeout(600);
+  await tp.locator('.tabbar a[data-tab="settings"]').click(); await tp.waitForTimeout(800);
+  check('réglages : revus sans être redessinés', await tp.evaluate(() => document.querySelector('#view .settings .group')?.dataset.mark === 'kept'));
+
+  // Home, refreshed after a change on the server: the cards that did not change stay as they were (pictures and all).
+  await tp.locator('.tabbar a[data-tab="home"]').click(); await tp.waitForTimeout(800);
+  const marked = await tp.evaluate(() => {
+    const cards = [...document.querySelectorAll('#view .section .row > a.card')];
+    cards.forEach((c, i) => { c.dataset.mark = String(i); });
+    return cards.length;
+  });
+  const latest = await tp.evaluate(async () => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    const root = location.pathname.replace(/\/Mira\/?.*$/i, '');
+    const r = await fetch(`${root}/Items?recursive=true&includeItemTypes=Movie&sortBy=DateCreated&sortOrder=Descending&limit=1&userId=${s.userId}`,
+      { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+    return (await r.json()).Items[0];
+  });
+  const favorite = (method) => tp.evaluate(async ([id, m]) => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/UserFavoriteItems/${id}?userId=${s.userId}`,
+      { method: m, headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+  }, [latest.Id, method]);
+  const wasFavorite = !!latest.UserData?.IsFavorite;
+  await favorite(wasFavorite ? 'DELETE' : 'POST');
+  const asked = tp.waitForRequest((r) => /UserItems\/Resume/.test(r.url()), { timeout: 6000 }).then(() => true, () => false);
+  await tp.evaluate(() => window.dispatchEvent(new Event('online')));
+  const refreshed = await asked;
+  await tp.waitForTimeout(1500);
+  const after = await tp.evaluate(() => {
+    const cards = [...document.querySelectorAll('#view .section .row > a.card')];
+    return { total: cards.length, kept: cards.filter((c) => c.dataset.mark != null).length, made: cards.filter((c) => c.dataset.mark == null).length };
+  });
+  await favorite(wasFavorite ? 'POST' : 'DELETE');
+  check('accueil : actualisé sur place, seules les cartes changées sont refaites', refreshed && marked > 0 && after.kept > 0 && after.made >= 1 && after.made < after.total,
+    `${marked} cartes, puis ${after.kept} gardées et ${after.made} refaites${refreshed ? '' : ', pas actualisé'}`);
+} catch (error) {
+  check('onglets : déroulé', false, error.message.split('\n')[0]);
+  await tp.screenshot({ path: `${out}/error-tabs.png` }).catch(() => {});
+}
+check('onglets : aucune erreur JavaScript', tabErrors.length === 0, tabErrors.slice(0, 3).join(' | '));
+await tabs.close();
+
+// A stream the player refuses while Jellyfin answers: asked again with its video converted, then with everything
+// converted, then said once nothing is left (here the conversions are cut off by the test on purpose). An H.264 film:
+// Chromium converts it, as an iPhone converts what it cannot play (Jellyfin 12.1 fails to convert a VP9 file of an
+// unknown level into VP9, « level -99 »: not a case for a phone).
+const fall = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+const fp = await fall.newPage();
+const fallErrors = [], asks = [];
+fp.on('pageerror', (e) => fallErrors.push(e.message));
+fp.on('request', (r) => {
+  if (!/\/PlaybackInfo/i.test(r.url()) || r.method() !== 'POST') return;
+  try { const b = JSON.parse(r.postData() ?? '{}'); asks.push([b.EnableDirectPlay, b.AllowVideoStreamCopy, b.AllowAudioStreamCopy].map((x) => (x ? 1 : 0)).join('')); } catch { asks.push('?'); }
+});
+let cut = 0, cutUntil = 0;
+await fp.route((url) => /\/videos\/[^/]+\/stream\.webm/i.test(url.pathname), (route) => (cut++ < cutUntil ? route.abort('failed') : route.continue()));
+try {
+  await fp.goto(`${base}#/connexion`); await fp.waitForTimeout(1500);
+  const film = await fp.evaluate(async ([name, secret]) => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { api } = await import(`${root}api.js`);
+    await api.signIn(name, secret);
+    return (await api.browse({ types: 'Movie', search: 'Aube' })).Items[0];
+  }, [user, password]);
+  const play = async (cuts) => {
+    cut = 0; cutUntil = cuts; asks.length = 0;
+    await fp.evaluate(() => { location.hash = '#/'; }); await fp.waitForTimeout(1500);
+    await fp.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
+    // A software VP9 conversion takes a while to start on a small machine.
+    for (let i = 0; i < 90; i++) {
+      await fp.waitForTimeout(500);
+      const state = await fp.evaluate(() => ({ t: document.querySelector('video')?.currentTime ?? 0, failed: !!document.querySelector('.p-message:not([hidden]) .detail') }));
+      if (state.t > 1.5 || state.failed) break;
+    }
+    return fp.evaluate(() => ({ t: document.querySelector('video')?.currentTime ?? 0, message: document.querySelector('.p-message:not([hidden])')?.textContent ?? '',
+      detail: document.querySelector('.p-message:not([hidden]) .detail')?.textContent ?? '' }));
+  };
+  let state = await play(2);
+  check('lecture refusée : demandée à nouveau, vidéo puis tout converti, et elle joue', asks.join(',') === '111,001,000' && state.t > 1.5 && !state.message,
+    `demandes ${asks.join(', ')} (lecture directe, vidéo copiée, audio copié), ${state.t.toFixed(1)} s`);
+  state = await play(99);
+  check('lecture refusée partout : le dit, avec l’erreur du navigateur', asks.join(',') === '111,001,000' && /même entièrement converti/.test(state.message) && /^Erreur/.test(state.detail),
+    `demandes ${asks.join(', ')}, « ${state.detail} »`);
+  await fp.screenshot({ path: `${out}/17-refused.png` });
+} catch (error) {
+  check('lecture refusée : déroulé', false, error.message.split('\n')[0]);
+}
+check('lecture refusée : aucune erreur JavaScript', fallErrors.length === 0, fallErrors.slice(0, 3).join(' | '));
+await fall.close();
 fs.writeFileSync(`${out}/results.txt`, results.join('\n') + '\n');
 await browser.close();
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

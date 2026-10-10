@@ -279,11 +279,13 @@ try {
       if ((await run('return location.hash;')).startsWith('#/lecture/')) { await click('.player button[aria-label="Retour"]'); await sleep(1500); }
       await sleep(1000);
     };
+    // Found by their folder: Jellyfin's search missed one of them once, though it was in the library.
+    const films = (await api(`Items?recursive=true&includeItemTypes=Movie&fields=Path&userId=${signed.userId}`)).Items ?? [];
     for (const f of FORMATS) {
       const name = `lecteur d’Apple : ${f.what}`;
       try {
-        const found = (await api(`Items?recursive=true&includeItemTypes=Movie&searchTerm=${encodeURIComponent(f.name)}&userId=${signed.userId}`)).Items?.[0];
-        if (!found) { check(name, false, 'absent de Jellyfin'); continue; }
+        const found = films.find((x) => (x.Path ?? '').includes(`/${f.name} (2023)/`));
+        if (!found) { check(name, false, `absent de Jellyfin (${films.map((x) => x.Name).join(', ')})`); continue; }
         await api(`UserPlayedItems/${found.Id}?userId=${signed.userId}`, 'DELETE');
         await api(`UserItems/${found.Id}/UserData?userId=${signed.userId}`, 'POST', { PlaybackPositionTicks: (f.resume ?? 0) * 10_000_000 });
         await go(`#/titre/${found.Id}`); await sleep(2500);
