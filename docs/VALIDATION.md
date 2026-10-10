@@ -19,6 +19,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - Mira revenu au premier plan pendant la relecture de fin de « Tout préparer » : seconde lecture qui effaçait le message et empêchait l’ouverture du QR code.
   - Jellyfin de ce PC joint par son adresse réseau (`http://192.168.1.20:8096`) : pris pour un autre ordinateur.
   - Tests ajoutés : chacun de ces cas dans `PhoneSetup`, une adresse seule à masque plein (`/255.255.255.255`) qui ne compte pas pour la maison, et sur le vrai pare-feu une règle de blocage de port sans programme, nommée et gardée.
+- **CI du commit `867b8ef`** (correctifs de la revue) : tout vert. Windows 79 tests réussis (dont la règle de port sans programme sur le vrai pare-feu, nommée et gardée) et 38 vues de l’interface, Mac, Chromium, Safari avec les 8 formats.
 - **Non vérifié** : « Tout préparer » sur un vrai PC (autorisation de Windows, puis le téléphone) ; l’interface n’a pas été lancée avec un vrai Tailscale.
 
 ## Mira web 0.7.3 : retours du troisième essai sur iPhone
