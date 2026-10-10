@@ -5,7 +5,7 @@
 // Chromium has no H.264: the titles checked here are in WebM; Safari's HLS path is checked by safari.mjs.
 // Apple's full screen player is simulated here (Chromium has none), to check what Mira does around it: start, next
 // episode in place, Picture in Picture, back to the title page once closed. safari.mjs checks it in Safari itself.
-// So is the Home Screen app on iPhone (navigator.standalone): swipe back from the edge, tabs, sheets pulled down.
+// So is the Home Screen app on iPhone (navigator.standalone): pull to refresh, swipe back from the edge, tabs, sheets pulled down.
 // With MIRA_STOP and MIRA_START (commands that stop and start Jellyfin), Mira is also opened while Jellyfin is away,
 // as when a phone opens it before the PC has started: the page kept by the phone opens and waits for the server.
 import fs from 'node:fs';
@@ -239,6 +239,11 @@ try {
   await hp.getByRole('button', { name: 'Se connecter' }).click();
   await hp.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   await hp.waitForTimeout(2500);
+  // Pulled down from the top, Home asks Jellyfin again.
+  const asked = hp.waitForRequest((r) => /UserItems\/Resume/.test(r.url()), { timeout: 6000 }).then(() => true, () => false);
+  await drag(200, 260, 205, 520, 16);
+  check('app (simulée) : tirer vers le bas pour actualiser', await asked);
+  await hp.waitForTimeout(1500);
   const openTitle = async () => { await hp.locator('a.card[href^="#/titre/"]').first().click(); await hp.waitForTimeout(1500); return where(); };
   const opened = await openTitle();
   await drag(4, 420, 330, 430); await hp.waitForTimeout(1200);
