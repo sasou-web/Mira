@@ -137,10 +137,11 @@ internal static class JellyfinAutostart
     }
 
     /// <summary>
-    /// Lets Tailscale's devices through to <paramref name="program"/>: the block rules that keep them out (Windows'
+    /// Lets Tailscale's devices through to <paramref name="program"/>: its own block rules that keep them out (Windows'
     /// prompt makes one for each kind of network left unticked) stop applying to Tailscale's profile, and are turned off
-    /// when it was their only one; then Mira's rule (<see cref="JellyfinStartup.FirewallCommands"/>). Needs
-    /// administrator rights. True once the firewall, read again, lets them in.
+    /// when it was their only one; then Mira's rule (<see cref="JellyfinStartup.FirewallCommands"/>). A block rule for
+    /// any program is someone's own and stays. Needs administrator rights. True once the firewall, read again, lets
+    /// Tailscale's devices in.
     /// </summary>
     public static bool OpenFirewall(string? program, int port, string rule = JellyfinStartup.RuleName)
     {
@@ -149,7 +150,7 @@ internal static class JellyfinAutostart
         {
             var (rules, _, profile) = ReadFirewall(Policy(), program);
             var adapter = TailnetAdapter();
-            foreach (var (found, com) in rules.Where(x => !x.Rule.Allow && JellyfinFirewall.Applies(x.Rule, program, port, profile, adapter)))
+            foreach (var (found, com) in rules.Where(x => !x.Rule.Allow && !string.IsNullOrWhiteSpace(x.Rule.Program) && JellyfinFirewall.Applies(x.Rule, program, port, profile, adapter)))
             {
                 var others = JellyfinFirewall.WithoutProfile(found.Profiles, profile);
                 if (others != 0) com.Profiles = others; else com.Enabled = false;
@@ -172,15 +173,30 @@ internal static class JellyfinAutostart
         // NET_FW_ACTION: 0 block, 1 allow. Indexed properties of the profile, read through IDispatch.
         var settings = new JellyfinFirewall.Profile((bool)policy.FirewallEnabled[profile], (int)policy.DefaultInboundAction[profile] == 1, (bool)policy.BlockAllInboundTraffic[profile]);
         var rules = new List<(JellyfinFirewall.Rule, dynamic)>();
+        bool? packages = null;
         foreach (dynamic rule in policy.Rules)
         {
             // NET_FW_RULE_DIRECTION: 1 incoming.
             if ((int)rule.Direction != 1 || !(bool)rule.Enabled) continue;
             string? application = rule.ApplicationName;
             if (!string.IsNullOrWhiteSpace(application) && !JellyfinFirewall.SameProgram(application, program)) continue;
+            string? service = null, package = null;
+            if (string.IsNullOrWhiteSpace(application))
+            {
+                // Windows' own apps have rules naming no program, for their package only (INetFwRule3): read once it
+                // is known to be there; a firewall that does not say is never taken as one for any program.
+                service = rule.serviceName;
+                if (packages != false)
+                {
+                    try { package = rule.LocalAppPackageId; packages = true; }
+                    catch (Exception ex) when (ex is RuntimeBinderException or COMException) { packages = false; }
+                }
+                if (packages == false) package = "?";
+            }
             object? interfaces = rule.Interfaces;
             rules.Add((new JellyfinFirewall.Rule((string?)rule.Name ?? "", true, true, (int)rule.Action == 1, (int)rule.Profiles, application, (int)rule.Protocol,
-                (string?)rule.LocalPorts, (string?)rule.RemoteAddresses, interfaces is object[] names ? names.OfType<string>().ToList() : null, (string?)rule.InterfaceTypes), rule));
+                (string?)rule.LocalPorts, (string?)rule.RemoteAddresses, interfaces is object[] names ? names.OfType<string>().ToList() : null, (string?)rule.InterfaceTypes,
+                service, package), rule));
         }
         return (rules, settings, profile);
     }
