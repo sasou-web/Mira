@@ -767,9 +767,20 @@ export function create({ id, query }) {
   }
 
   // ---------- Start ----------
+  /**
+   * The audio session the film plays in: WebKit's own (sound even in Silent mode), or, when the settings ask for it on
+   * iPhone, « ambient », which iOS does not make the Now Playing app (the Dynamic Island).
+   */
+  function audioSession(ambient) {
+    try { if ('audioSession' in navigator) navigator.audioSession.type = ambient ? 'ambient' : 'auto'; } catch { /* not settable here */ }
+  }
+
   async function begin() {
     const attempt = ++beginning;
     busy.hidden = false; showNative('loading');
+    audioSession(native && settings.get('ambientAudio'));
+    // Muted when the player closed (see dispose): the title plays with its sound.
+    video.muted = false; updateMute();
     try {
       let found = await api.item(target.id);
       if (found.Type === 'Series') {
@@ -845,11 +856,15 @@ export function create({ id, query }) {
       exitPresentation();
       hls?.destroy(); hls = null;
       video.pause();
+      audioSession(false);
       for (const t of [...video.querySelectorAll('track')]) t.remove();
       video.removeAttribute('src');
       video.removeAttribute('poster');
       video.load();
       video.remove();
+      // A video that once had sound stays iOS's « Now Playing » item, paused, until it is muted: muted once out of
+      // Apple's player (muting in full screen changes nothing), it leaves the lock screen and Control Center.
+      video.muted = true;
       if ('mediaSession' in navigator) {
         // Nothing left for the lock screen or the Dynamic Island once the player is gone.
         navigator.mediaSession.metadata = null;
