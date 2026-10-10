@@ -144,7 +144,8 @@ public sealed class MainWindow : Window
     private async Task StartAsync()
     {
         if (Args.Contains("--self-check")) { await Checks.SelfCheck.RunAsync(this); return; }
-        if (Profile.LoadConnection() is { } connection) await ActivateAsync(connection);
+        // Off the interface thread: after an update, macOS may ask before Mira reads its keychain.
+        if (await Task.Run(Profile.LoadConnection) is { } connection) await ActivateAsync(connection);
         else ShowLogin();
         // Once, beside what the opening already said (a cache recreated) rather than in its place.
         if (Profile.SettingsUnreadable)

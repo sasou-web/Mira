@@ -6,4 +6,6 @@
     <Compile Include="../../src/Mira.Jellyfin/HlsPlaylists.cs" Link="Plugin/HlsPlaylists.cs" />
     <Compile Include="../../src/Mira.Jellyfin/ContentPolicy.cs" Link="Plugin/ContentPolicy.cs" />
   </ItemGroup>
+  <!-- Nor the Mac app's profile, where its session goes: the keychain is replaced there by a stand-in. -->
+  <ItemGroup><Compile Include="../../src/Mira.Mac/Services/Profile.cs" Link="Mac/Profile.cs" /></ItemGroup>
 </Project>

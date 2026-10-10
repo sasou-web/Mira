@@ -33,7 +33,7 @@ Cette commande retire seulement la marque « téléchargé depuis Internet » de
 
 Saisis l’adresse de ton serveur Jellyfin (par exemple `192.168.1.20` ou `nas:8096`), ton nom d’utilisateur et ton mot de passe. Mira trouve seule le bon port et le bon protocole. Hors de chez toi, utilise l’adresse Tailscale du serveur (`100.x.y.z`) ; le guide de Mira sur Windows explique comment l’obtenir.
 
-Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin, dans `~/Library/Application Support/Mira`, lisible par ton compte macOS uniquement.
+Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin. Son code d’accès va dans le trousseau de ton Mac (élément « Mira »), le reste dans `~/Library/Application Support/Mira`, lisible par ton compte macOS uniquement. **Se déconnecter** (Réglages → Compte) efface les deux.
 
 ## Raccourcis
 
@@ -52,7 +52,7 @@ Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ou
 
 ## Mises à jour
 
-Mira vérifie à chaque lancement si une nouvelle version existe pour Mac et propose de la télécharger. Remplace alors l’ancienne Mira dans Applications par la nouvelle ; tes réglages et ta session restent dans `~/Library/Application Support/Mira`. L’autorisation de la première fois est à refaire pour chaque nouvelle version.
+Mira vérifie à chaque lancement si une nouvelle version existe pour Mac et propose de la télécharger. Remplace alors l’ancienne Mira dans Applications par la nouvelle ; tes réglages et ta session restent en place. L’autorisation de la première fois est à refaire pour chaque nouvelle version. Au premier lancement de la nouvelle version, macOS peut aussi demander ton mot de passe pour la laisser lire la session rangée dans le trousseau : choisis **Toujours autoriser**. Si tu refuses, Mira te demande simplement de te reconnecter.
 
 Pour que Mira ne contacte plus GitHub à chaque lancement, désactive **Réglages → Mira → Rechercher les nouvelles versions** ; le bouton **Rechercher une mise à jour** reste disponible.
 
