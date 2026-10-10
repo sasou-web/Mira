@@ -4,6 +4,12 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 
 ## Mira web 0.7.3 : retours du troisième essai sur iPhone
 
+- **Release v0.7.3** (2026-10-10, `tools/release.ps1` sur le PC qui a la clé, commit `9248e03`) : 11 fichiers en ligne.
+  - Les trois paquets Windows correspondent à leur `.sha256` et à `mira-update.json`.
+  - La signature est acceptée par la clé de `UpdateKeys.Trusted` et refusée sur une copie modifiée.
+  - `Mira.exe`, `Mira.dll`, `Mira.Core.dll`, l’exécutable portable et l’extension portent `0.7.3+9248e03…` ; ni profil, ni clé, ni libmpv.
+  - `mira-jellyfin-0.7.3.zip` : MD5 identique au manifeste (0.7.3.0), les 39 fichiers de Mira web du tag dans la DLL, `releases/latest` sert ce manifeste.
+  - `.dmg` construit et joint par `mac.yml` depuis le même tag.
 - **Défauts signalés par l’utilisateur** (iPhone sous iOS 27, app de l’écran d’accueil) :
   - certains titres affichent « Cet appareil ne peut pas lire ce flux », et une qualité plus basse n’y change rien ;
   - « Lecture discrète » masque la Dynamic Island mais coupe le son ;
