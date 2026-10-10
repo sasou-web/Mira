@@ -2,7 +2,7 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Mira sur ton téléphone, en un clic (non publié)
+## Mira 0.7.4 : Mira sur ton téléphone, en un clic
 
 - **Défaut signalé** (2026-10-10, PC d’un ami de l’utilisateur) : Tailscale ouvert sur le PC et le téléphone, `http://100.x.y.z:8096/Mira` n’affiche rien, ni même `http://100.x.y.z:8096`.
 - **Causes, sur ce PC** (sorties PowerShell relevées par l’utilisateur) : aucune règle de pare-feu pour `jellyfin.exe` (invite de Windows jamais validée, Jellyfin sans service), donc Jellyfin bloqué partout ; Jellyfin qui refusait Tailscale (`EnableRemoteAccess` faux, `LocalNetworkSubnets` vide) ; Mira web absent (`http://localhost:8096/Mira` introuvable). Réglé à la main avec les boutons du guide et deux règles `New-NetFirewallRule`.
