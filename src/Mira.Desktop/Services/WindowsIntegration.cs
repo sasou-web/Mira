@@ -192,8 +192,10 @@ internal sealed class WindowsIntegration : IDisposable
                 media.PlaybackStatus = !ready ? MediaPlaybackStatus.Changing : paused ? MediaPlaybackStatus.Paused : MediaPlaybackStatus.Playing;
                 media.PlaybackRate = double.IsFinite(rate) && rate > 0 ? rate : 1;
                 media.UpdateTimelineProperties(new SystemMediaTransportControlsTimelineProperties
-                { StartTime = TimeSpan.Zero, EndTime = TimeSpan.FromSeconds(duration), MinSeekTime = TimeSpan.Zero,
-                    MaxSeekTime = TimeSpan.FromSeconds(duration), Position = TimeSpan.FromSeconds(position) });
+                {
+                    StartTime = TimeSpan.Zero, EndTime = TimeSpan.FromSeconds(duration), MinSeekTime = TimeSpan.Zero,
+                    MaxSeekTime = TimeSpan.FromSeconds(duration), Position = TimeSpan.FromSeconds(position)
+                });
             });
         }
     }

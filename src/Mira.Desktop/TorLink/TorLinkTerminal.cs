@@ -65,8 +65,11 @@ internal sealed class TorLinkTerminal : IDisposable
         buffer.Position = 0;
         var type = Path.GetExtension(path).ToLowerInvariant() switch
         {
-            ".html" => "text/html; charset=utf-8", ".js" => "text/javascript; charset=utf-8", ".css" => "text/css; charset=utf-8",
-            ".txt" => "text/plain; charset=utf-8", _ => "application/octet-stream"
+            ".html" => "text/html; charset=utf-8",
+            ".js" => "text/javascript; charset=utf-8",
+            ".css" => "text/css; charset=utf-8",
+            ".txt" => "text/plain; charset=utf-8",
+            _ => "application/octet-stream"
         };
         return environment.CreateWebResourceResponse(buffer, 200, "OK", $"Content-Type: {type}\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store");
     }

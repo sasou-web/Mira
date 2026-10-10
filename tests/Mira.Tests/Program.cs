@@ -336,11 +336,15 @@ await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa pr
 });
 await Test("Fiche : un acteur ou un réalisateur mène à ses titres de la bibliothèque, avec les autres filtres", async () =>
 {
-    var item = new MediaItem { Id = "film", Name = "Aube Claire", Type = "Movie", People =
-    [
-        new() { Id = "p1", Name = " Jeanne Essai ", Type = "Actor" }, new() { Id = "p1b", Name = "jeanne essai", Type = "Actor" },
-        new() { Name = "Sans Fiche", Type = "Actor" }, new() { Id = "d1", Name = "Réa Lisatrice", Type = "Director" }, new() { Id = "w1", Name = "Scé Nariste", Type = "Writer" }
-    ] };
+    var item = new MediaItem
+    {
+        Id = "film", Name = "Aube Claire", Type = "Movie",
+        People =
+        [
+            new() { Id = "p1", Name = " Jeanne Essai ", Type = "Actor" }, new() { Id = "p1b", Name = "jeanne essai", Type = "Actor" },
+            new() { Name = "Sans Fiche", Type = "Actor" }, new() { Id = "d1", Name = "Réa Lisatrice", Type = "Director" }, new() { Id = "w1", Name = "Scé Nariste", Type = "Writer" }
+        ]
+    };
     Assert(item.CastPeople.Select(x => (x.Id, x.Name)).SequenceEqual([("p1", "Jeanne Essai"), ((string?)null, "Sans Fiche")]) && item.Cast.SequenceEqual(["Jeanne Essai", "Sans Fiche"]), "Cast: names trimmed, one per name, ids kept");
     Assert(item.DirectorPeople.Single() is { Id: "d1", Name: "Réa Lisatrice" }, "Director");
     var query = new CatalogQuery(Year: 2002, Sort: "title", PersonId: "p 1");
@@ -1364,11 +1368,17 @@ await Test("Segments Jellyfin : types demandés, passages inconnus ou trop court
     using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
     {
         requestUri = request.RequestUri;
-        return Task.FromResult(JsonResponse(new { Items = new object[] {
-            new { Type = "Outro", StartTicks = 1_300 * TimeSpan.TicksPerSecond, EndTicks = 1_390 * TimeSpan.TicksPerSecond },
-            new { Type = "Intro", StartTicks = 60 * TimeSpan.TicksPerSecond, EndTicks = 150 * TimeSpan.TicksPerSecond },
-            new { Type = "Unknown", StartTicks = 0L, EndTicks = 30 * TimeSpan.TicksPerSecond },
-            new { Type = "Recap", StartTicks = 0L, EndTicks = TimeSpan.TicksPerSecond } }, TotalRecordCount = 4 }));
+        return Task.FromResult(JsonResponse(new
+        {
+            Items = new object[]
+            {
+                new { Type = "Outro", StartTicks = 1_300 * TimeSpan.TicksPerSecond, EndTicks = 1_390 * TimeSpan.TicksPerSecond },
+                new { Type = "Intro", StartTicks = 60 * TimeSpan.TicksPerSecond, EndTicks = 150 * TimeSpan.TicksPerSecond },
+                new { Type = "Unknown", StartTicks = 0L, EndTicks = 30 * TimeSpan.TicksPerSecond },
+                new { Type = "Recap", StartTicks = 0L, EndTicks = TimeSpan.TicksPerSecond }
+            },
+            TotalRecordCount = 4
+        }));
     }));
     var segments = PlaybackMarkers.FromJellyfin(await client.SegmentsAsync("episode 1"));
     Assert(requestUri!.AbsolutePath == "/jellyfin/MediaSegments/episode%201", "Segment path or escaping changed");
@@ -1684,11 +1694,15 @@ await Test("Jellyfin : dossiers des bibliothèques et signalement des médias, s
             new { Name = "Movies", CollectionType = "movies", Locations = new[] { @"C:\Media\FILMS" } }, new { Name = "Anime", CollectionType = "tvshows", Locations = new[] { @"C:\Media\ANIME" } },
             new { Name = "Shows", CollectionType = "tvshows", Locations = new[] { @"C:\Media\SERIES" } }, new { Name = "Music", CollectionType = "music", Locations = new[] { @"C:\Media\MUSIC" } }
         });
-        if (request.RequestUri.AbsolutePath.EndsWith("/Items")) return JsonResponse(new { Items = new object[]
+        if (request.RequestUri.AbsolutePath.EndsWith("/Items")) return JsonResponse(new
         {
-            new { Id = "movie-1", Type = "Movie", Path = @"C:\Media\FILMS\Big Buck Bunny (2008)\Big Buck Bunny (2008).mkv" },
-            new { Id = "episode-1", Type = "Episode", SeriesId = "series-9", Path = @"C:\Media\SERIES\Show\Season 01\Show - S01E02.mkv" }
-        }, TotalRecordCount = 2 });
+            Items = new object[]
+            {
+                new { Id = "movie-1", Type = "Movie", Path = @"C:\Media\FILMS\Big Buck Bunny (2008)\Big Buck Bunny (2008).mkv" },
+                new { Id = "episode-1", Type = "Episode", SeriesId = "series-9", Path = @"C:\Media\SERIES\Show\Season 01\Show - S01E02.mkv" }
+            },
+            TotalRecordCount = 2
+        });
         return new HttpResponseMessage(HttpStatusCode.NoContent);
     }));
     var folders = await client.VirtualFoldersAsync();

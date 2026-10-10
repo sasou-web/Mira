@@ -43,8 +43,11 @@ public sealed class MediaCard : Button
         placeholder.Children.Add(new Icon { Kind = wide ? "play" : "film", Width = 30, Height = 30, Foreground = new SolidColorBrush(Color.FromRgb(78, 78, 87)), Margin = new Thickness(0, 0, 0, 15) });
         placeholder.Children.Add(new TextBlock { Text = item.DisplayTitle, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 140)), FontSize = 13 });
         _visual.Children.Add(placeholder);
-        _image = new Image { Source = demo ? DemoLibrary.Artwork(index, wide) : null, Stretch = Stretch.UniformToFill,
-            SnapsToDevicePixels = false, UseLayoutRounding = false };
+        _image = new Image
+        {
+            Source = demo ? DemoLibrary.Artwork(index, wide) : null, Stretch = Stretch.UniformToFill,
+            SnapsToDevicePixels = false, UseLayoutRounding = false
+        };
         _image.RenderTransformOrigin = new Point(.5, .5); _image.RenderTransform = _zoom;
         RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.HighQuality); _visual.Children.Add(_image);
         if (item.UserData.Played)

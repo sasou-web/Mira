@@ -75,7 +75,9 @@ public static class Errors
         or OperationCanceledException or System.Text.Json.JsonException or TimeoutException;
     public static string Friendly(Exception ex) => ex switch
     {
-        UnauthorizedAccessException => ex.Message, ArgumentException => ex.Message, ServerDiscoveryException => ex.Message,
+        UnauthorizedAccessException => ex.Message,
+        ArgumentException => ex.Message,
+        ServerDiscoveryException => ex.Message,
         OperationCanceledException or TimeoutException => "Jellyfin met trop de temps à répondre.",
         HttpRequestException h when h.StatusCode is not null => h.Message,
         HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.",
