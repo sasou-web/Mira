@@ -18,6 +18,8 @@ $bundle = Join-Path $buildRoot 'Mira'
 $single = Join-Path $buildRoot 'single'
 $output = if ($Output) { [IO.Path]::GetFullPath($Output) } else { Join-Path $workspace 'dist/packages' }
 New-Item -ItemType Directory -Path $bundle, $single, $output -Force | Out-Null
+# tools/release.ps1 publishes only packages it built itself from the published commit, recorded in this file.
+Remove-Item -LiteralPath (Join-Path $output 'source-commit.txt') -ErrorAction SilentlyContinue
 
 function Write-Hash([string]$file) {
     $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()

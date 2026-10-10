@@ -28,6 +28,14 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - les sous-titres forcés (`kind="forced"`) n’étaient jamais affichés hors de Safari (metadata) ;
   - la vitesse d’un titre suivait dans les autres, les commandes restaient affichées après une pause pendant un saut, le grand titre était à moitié effacé au repos, un clic droit avalait le suivant, la fiche se chargeait deux fois à l’ouverture.
   Contrôle Chromium local après corrections : **42/42** (nouveau point : sous-titres forcés affichables).
+- **Publication en une commande** (`tools/release.ps1`) : revue adverse (deux relecteurs : PowerShell, git et gh), 8 défauts corrigés :
+  - `-SkipBuild` publiait des paquets construits sur un autre commit que celui du tag ;
+  - un manifeste signé qui ne décrivait plus les fichiers (construction interrompue) passait ;
+  - un brouillon laissé par un envoi interrompu faisait dire « existe déjà » ;
+  - un commit local absent de GitHub n’était vu qu’à la fin, un tag déjà présent jamais ;
+  - un autre compte gh en défaut passait pour « non connecté ».
+  Banc d’essai sous PowerShell 7 (dépôt Git local, faux `gh`, chemin avec espaces et accents) : **21/21** scénarios. Syntaxe de Windows PowerShell 5.1 et 7 contrôlée par `ci.yml`.
+- **Contrôle Safari** : la position gardée à la fermeture du lecteur d’Apple est relue pendant 8 s au plus. Jellyfin arrête la conversion avant de l’enregistrer : une lecture après 1,5 s avait échoué une fois en CI (3,0 s lus, 8,1 s envoyés). CI sur `e7f7b3e` : Safari 26/26 (8,3 s), Chromium, Windows et Mac réussis.
 - **Pas encore vérifié** : sur un vrai iPhone, le menu des sous-titres d’un vrai animé, l’épisode suivant en plein écran et la fermeture pendant son chargement, la Dynamic Island avec « Lecture discrète », le retour haptique.
 
 ## Mira web 0.7.1 : retours du premier essai sur iPhone

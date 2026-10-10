@@ -26,6 +26,7 @@ Mira web après le deuxième essai sur iPhone : les sous-titres des animés dans
 - **Plus de sauts ni de clignotements** : la fiche ne repart plus en haut au retour du lecteur, ne referme plus un résumé ouvert, et coche l’épisode vu sur place ; elle s’affiche dès le toucher avec l’image et le titre de la carte, et le logo ne décale plus les boutons en arrivant. L’accueil, les grilles et la recherche se mettent à jour sur place. Les images qui n’avaient pas pu se charger réessaient quand le serveur revient.
 - **Connexion** : la touche « suivant » du clavier passe au mot de passe au lieu d’envoyer le formulaire, le clavier s’ouvre dès le choix du profil, un mot de passe faux fait trembler le champ. **Se déconnecter** est immédiat.
 - **Autres** : la photo d’un acteur s’affiche, avec sa biographie ; **Ouvrir sur un autre appareil** est un écran comme les autres, avec Retour et **Copier l’adresse** ; les réglages changés dans le lecteur s’y voient au retour ; le bandeau « serveur injoignable » attend un vrai silence avant de s’afficher.
+- **Publication** : `tools/release.ps1` construit, vérifie et publie une version en une commande.
 
 ## 0.7.1 — 2026-10-09
 
