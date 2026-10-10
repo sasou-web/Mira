@@ -37,6 +37,8 @@ Avant une release, ajouter l’entrée de la version dans `src/Mira.Core/WhatsNe
 
 Les fichiers de release sont produits dans `dist/packages`, depuis des dossiers neufs, sans toucher au profil d’une installation locale : archive, exécutable portable et, si [Inno Setup 6](https://jrsoftware.org/isinfo.php) est installé (ou indiqué par `-Iscc`), l’installateur décrit par `installer/Mira.iss`. Aucun ne contient libmpv. Le script de captures génère un profil temporaire et exporte les vues publiques dans `docs/screenshots`.
 
+Pour publier, sur le PC qui a la clé de signature : `git checkout main; git pull --ff-only; .\tools\release.ps1`. Le script vérifie gh, la clé, Inno Setup, un arbre propre, que `main` est celui de GitHub et que le tag n’existe pas encore. Il construit les paquets, vérifie que le manifeste signé décrit bien ces fichiers, puis crée la release `vX.Y.Z` avec ses 8 fichiers et ses notes. `-DryRun` fait tout sauf publier ; `-SkipBuild` reprend les paquets qu’il a construits depuis le même commit.
+
 ### Signature des mises à jour
 
 Les copies installées ne se mettent à jour que depuis une release qui publie `mira-update.json` et `mira-update.json.sig`, signés par une clé listée dans `UpdateKeys.Trusted` (`src/Mira.Core/Updates/UpdateManifest.cs`). `package.ps1` les écrit dans `dist/packages` quand la clé est sur le PC ; il faut ensuite les joindre à la release avec les trois fichiers.
