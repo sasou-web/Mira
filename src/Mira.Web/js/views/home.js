@@ -179,7 +179,7 @@ export function create() {
     if (parts.length !== el.children.length || parts.some((part, i) => el.children[i] !== part)) { el.replaceChildren(...parts); restore(kept); }
   }
   /** The banner's first picture and each row's first cards, decoded: the screen can show whole. */
-  const firstPictures = () => Promise.all([...el.querySelectorAll('.hero .slide:first-child img, .row > :nth-child(-n+3) img')]
+  const firstPictures = () => Promise.all([...el.querySelectorAll('.hero .slide:first-child img, .row img[loading="eager"]')]
     .map((img) => img.decode?.().catch(() => {})));
 
   async function load() {

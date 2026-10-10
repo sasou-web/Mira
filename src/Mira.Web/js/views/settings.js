@@ -1,7 +1,7 @@
 // Settings: playback quality and behaviour, this phone, the account; what Mira and the server are.
 import { api, base, VERSION } from '../api.js';
 import { h, icon, clear, initials } from '../dom.js';
-import { session, settings, isIOS, isStandalone } from '../session.js';
+import { session, settings, isIOS, isStandalone, device } from '../session.js';
 import { sheet, toast } from '../components.js';
 import { resetScreens, replaceRoute } from '../app.js';
 import { installHint } from './login.js';
@@ -87,7 +87,7 @@ export function create() {
         // iOS shows a Home Screen app's video in the Dynamic Island, even in front. Only a mixable audio session keeps
         // it out, and the only one WebKit gives a page, « ambient », obeys the Silent switch (checked on iOS 27): no
         // session type gives both, hence a choice, off at first, said plainly.
-        appleNative() && 'audioSession' in navigator
+        appleNative() && device.name === 'iPhone' && 'audioSession' in navigator
           ? toggle('ambientAudio', 'Masquer la Dynamic Island',
             'Le son suit alors le mode silencieux : iPhone en silencieux, film sans son. Il se mêle aussi à la musique des autres apps. Sur iPhone, une app web ne peut pas avoir les deux.',
             { onTurnOn: () => toast('Coupe le mode silencieux pour avoir le son.', { duration: 6000 }) })

@@ -76,6 +76,7 @@ export function create({ id, query }) {
   // video or audio copied into HLS), 1 its video converted, 2 everything converted (lastResortProfile). Kept for the
   // title (seeks, other tracks), back to 0 for the next one.
   let fallback = 0, lastError = '';
+  let streamAttempt = 0;      // the opening whose stream is in the <video>: errors of an older one say nothing
   let inband = false;         // the HLS stream carries the text subtitles (Apple's player): no <track> beside it
   let started = false, ended = false, progressTimer = 0, lastReport = 0;
   let segments = [], chapters = [], trick = null, next = null, nextDismissed = false, countdown = 0, countdownTimer = 0;
@@ -389,6 +390,8 @@ export function create({ id, query }) {
     if (!next || switching || closing) return;
     const upcoming = next, resume = progressFraction(upcoming) > 0;
     switching = true;
+    // An opening of this title still on its way (a fallback) must not land while the next one starts.
+    opening++;
     switchFrom = presentation();
     clearInterval(countdownTimer); countdownTimer = 0;
     clear(pillLayer);
@@ -411,6 +414,8 @@ export function create({ id, query }) {
   function resetTitle() {
     clearInterval(progressTimer);
     stopWaiting();
+    // An opening or a check of the server still on its way for the title before lands on nothing.
+    opening++;
     item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0; inband = false;
     audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; started = false; ended = false;
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
@@ -523,6 +528,7 @@ export function create({ id, query }) {
   /** The stream in the video; false when a newer opening, or the player's end, came first. */
   async function attach(url, hlsStream, startSeconds, attempt) {
     hls?.destroy(); hls = null;
+    streamAttempt = attempt;
     for (const t of [...video.querySelectorAll('track')]) t.remove();
     pendingStart = startSeconds;
     streamPlaying = false;
@@ -536,12 +542,15 @@ export function create({ id, query }) {
       hls = new Hls({ startPosition: startSeconds, maxBufferLength: 30, backBufferLength: 60, enableWorker: true });
       let recovered = false;
       hls.on(Hls.Events.ERROR, (_, data) => {
-        if (!data.fatal) return;
+        if (!data.fatal || attempt !== opening) return;
         // A decoding hiccup: hls.js starts the decoder again, once. Twice, or anything else with Jellyfin answering
         // (a segment it could not make), the stream is asked again with more of it converted.
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) { recovered = true; hls.recoverMediaError(); return; }
         lastError = `Erreur ${data.details ?? data.type} (${fallback === 0 ? 'conversion de Jellyfin' : fallback === 1 ? 'vidéo convertie' : 'tout converti'}).`;
-        streamFailed(REFUSED, { then: nextFallback(), detail: lastError });
+        // Read before hls.js resets the video (its time back to 0); the failed stream stops there.
+        const at = resumeAt(), paused = streamPlaying && video.paused;
+        hls.stopLoad();
+        streamFailed(REFUSED, { then: nextFallback(), detail: lastError, at, paused });
       });
       hls.loadSource(url);
       hls.attachMedia(video);
@@ -764,7 +773,7 @@ export function create({ id, query }) {
   }
   function retry() {
     hideMessage(); failed = false; showNative('loading');
-    if (item) open(ticks(position())); else begin();
+    if (item) open(resumeAt()); else begin();
   }
   /** Where to pick the title up again: where it plays, or, before it has played, where it was asked to start. */
   const resumeAt = () => (streamPlaying || progressive ? ticks(position()) : currentStart);
@@ -773,12 +782,12 @@ export function create({ id, query }) {
    * The stream stopped on an error that may be the connection's: Mira asks the server. Silent (PC asleep, Wi-Fi to
    * 4G), Mira waits for it; answering, the stream itself is at fault, and that is said (no endless reopening).
    */
-  function streamFailed(text, { then = null, detail = '' } = {}) {
+  function streamFailed(text, { then = null, detail = '', at = resumeAt(), paused = streamPlaying && video.paused } = {}) {
     const attempt = opening;
     ping().then((up) => {
       if (disposed || closing || attempt !== opening) return;
-      if (!up) waitForServer();
-      else if (then) then();
+      if (!up) waitForServer(at, paused);
+      else if (then) then(at, paused);
       else fail(text, detail);
     });
   }
@@ -786,17 +795,17 @@ export function create({ id, query }) {
    * A stream the player refused while Jellyfin answers: asked again, its video converted, then everything converted,
    * from where the title was. Null once nothing is left to try.
    */
-  const nextFallback = () => (fallback >= 2 ? null : () => { fallback++; open(resumeAt()); });
+  const nextFallback = () => (fallback >= 2 ? null : (at = resumeAt(), paused = false) => { fallback++; open(at, { keepPaused: paused }); });
   const REFUSED = 'Ce titre n’a pas pu être lu sur cet appareil, même entièrement converti par Jellyfin.';
   /**
    * Jellyfin does not answer: not this stream's fault. Apple's player stays open, Mira says so under it or over its
    * own controls, asks again every few seconds, and picks up where the title was, paused if it was.
    */
-  function waitForServer(at = null) {
+  function waitForServer(at = null, pausedThen = null) {
     if (waitingForServer || disposed || closing) return;
     waitingForServer = true;
     const mine = ++waitToken;
-    const from = at ?? resumeAt(), paused = streamPlaying && video.paused;
+    const from = at ?? resumeAt(), paused = pausedThen ?? (streamPlaying && video.paused);
     busy.hidden = false;
     showNative('lost');
     if (!native) {
@@ -881,11 +890,12 @@ export function create({ id, query }) {
       else close();
     },
     error: () => {
-      if (disposed || closing || !item || !video.getAttribute('src')) return;
+      // An opening on its way replaces this stream: what it still reports says nothing of the next one.
+      if (disposed || closing || !item || !video.getAttribute('src') || streamAttempt !== opening) return;
       const code = video.error?.code;
       lastError = `Erreur ${code ?? '?'}${video.error?.message ? ` : ${video.error.message}` : ''} (${playMethod === 'DirectPlay' ? 'fichier lu tel quel' : fallback === 0 ? 'conversion de Jellyfin' : fallback === 1 ? 'vidéo convertie' : 'tout converti'}).`;
       // A file Safari was thought to play directly but cannot (decode, format): Jellyfin converts it instead, at once.
-      if (playMethod === 'DirectPlay' && fallback === 0 && (code === 3 || code === 4)) { nextFallback()(); return; }
+      if (playMethod === 'DirectPlay' && fallback === 0 && (code === 3 || code === 4)) { nextFallback()(resumeAt(), streamPlaying && video.paused); return; }
       // Anything else: the server is asked. Silent, Mira waits for it; answering, the stream is at fault: asked again,
       // more of it converted (a lower quality alone would change nothing: Jellyfin copies what fits under it), until
       // nothing is left to convert.
@@ -967,7 +977,7 @@ export function create({ id, query }) {
   async function begin() {
     const attempt = ++beginning;
     busy.hidden = false; showNative('loading');
-    audioSession(native && settings.get('ambientAudio'));
+    audioSession(native && device.name === 'iPhone' && settings.get('ambientAudio'));
     // Muted when Apple's player closed (see dispose): the title plays with its sound. Mira's own mute button stays
     // as it was left elsewhere.
     if (native) { video.muted = false; updateMute(); }

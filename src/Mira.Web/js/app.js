@@ -102,8 +102,8 @@ function openTab(href) {
     return;
   }
   // The tab of the screen shown, touched again: back to the top, or, at the top, what the screen does then (Recherche
-  // opens the keyboard).
-  if ((location.hash || '#/') === href) { if (!current?.retap?.()) scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  // opens the keyboard). Touched again while its screen is on its way, it waits: the screen shown is still the last one.
+  if ((location.hash || '#/') === href) { if (currentKey === href && !current?.retap?.()) scrollTo({ top: 0, behavior: 'smooth' }); return; }
   replaceRoute(href);
 }
 
@@ -145,9 +145,6 @@ async function route() {
     return;
   }
 
-  // Leaving: remember where the page was scrolled.
-  if (current) { const left = cache.get(currentKey); if (left) left.scroll = scrollY; }
-
   const id = ++routeToken;
   let entry = cache.get(key);
   if (entry) {
@@ -181,6 +178,8 @@ async function route() {
     // A later move (a second tap during this one) has the last word.
     if (id !== routeToken) return;
     endDissolve();
+    // Leaving: remember where the page was scrolled (now: it may have moved while the next screen got ready).
+    if (current) { const left = cache.get(currentKey); if (left) left.scroll = scrollY; }
     if (current && current !== entry.view) {
       current.leave?.();
       if (!current.keep) { current.dispose?.(); cache.delete(currentKey); }
@@ -206,6 +205,8 @@ async function route() {
   const style = animate && (move === 'push' || move === 'pop' || move === 'tab') && !bare && !wasBare() && !reducedMotion() ? move : '';
   if (style === 'tab') swap();
   else if (style && document.startViewTransition) {
+    // A tab's dissolve still running ends first: the move captures the screen of the tab touched, not the one before.
+    endDissolve();
     const mine = ++transitions;
     document.documentElement.dataset.nav = style;
     try {
@@ -242,6 +243,8 @@ function endDissolve() {
 }
 function dissolve(el) {
   endDissolve();
+  // Its big title stays as faded as it was under the small title bar (updateScrolled lights the next screen's).
+  if (fadedTitle && el.contains(fadedTitle)) fadedTitle = null;
   // Moved, a scrolled row or banner would jump back to its start: it is put back where it was.
   const scrolled = [...el.querySelectorAll('.row, .hero-track, .chips')].filter((x) => x.scrollLeft).map((x) => [x, x.scrollLeft]);
   el.style.top = `${-scrollY}px`;

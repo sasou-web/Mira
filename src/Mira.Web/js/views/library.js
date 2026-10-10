@@ -5,10 +5,12 @@ import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast
 import { session } from '../session.js';
 
 /** What a card needs of an item, kept on the phone so that the tab opens with its first page at once next time. */
+// Every field cardSig reads (components.js): a card drawn from it is kept as it is once the server answers the same.
 const slim = (x) => ({
   Id: x.Id, Name: x.Name, Type: x.Type, SeriesId: x.SeriesId, SeriesName: x.SeriesName, SeriesPrimaryImageTag: x.SeriesPrimaryImageTag,
-  ProductionYear: x.ProductionYear, RunTimeTicks: x.RunTimeTicks, ChildCount: x.ChildCount,
-  ImageTags: x.ImageTags?.Primary ? { Primary: x.ImageTags.Primary } : {},
+  IndexNumber: x.IndexNumber, ParentIndexNumber: x.ParentIndexNumber, ProductionYear: x.ProductionYear, RunTimeTicks: x.RunTimeTicks,
+  ChildCount: x.ChildCount, ImageTags: x.ImageTags, BackdropImageTags: x.BackdropImageTags,
+  ParentBackdropImageTags: x.ParentBackdropImageTags, ParentThumbImageTag: x.ParentThumbImageTag,
   ImageBlurHashes: x.ImageBlurHashes?.Primary ? { Primary: x.ImageBlurHashes.Primary } : undefined,
   UserData: x.UserData ? { Played: x.UserData.Played, PlaybackPositionTicks: x.UserData.PlaybackPositionTicks, IsFavorite: x.UserData.IsFavorite } : undefined,
 });
@@ -31,10 +33,15 @@ export function create({ type, query }) {
   const ready = new Promise((resolve) => { markReady = resolve; });
   const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite].join('|')}`;
   function readStore() { try { return JSON.parse(localStorage.getItem(storeKey()) ?? 'null'); } catch { return null; } }
-  function writeStore(items, all) { try { localStorage.setItem(storeKey(), JSON.stringify({ items: items.slice(0, PAGE).map(slim), total: all })); } catch { /* full */ } }
+  // Kept for each sort, unfiltered only: a few keys per account, never one per genre or year.
+  function writeStore(items, all) {
+    if (filtered()) return;
+    try { localStorage.setItem(storeKey(), JSON.stringify({ items: items.slice(0, PAGE).map(slim), total: all })); } catch { /* full */ }
+  }
   /** Cards for a first page: those of the first screenful load their pictures at once. */
   const firstCards = (items) => { const eager = new Set(items.slice(0, firstScreen()).map((x) => x.Id)); return (item) => posterCard(item, { eager: eager.has(item.Id) }); };
-  const decoded = () => Promise.all([...grid.querySelectorAll('img')].slice(0, firstScreen()).map((img) => img.decode?.().catch(() => {})));
+  // Only the pictures loading at once: a lazy one in a screen not shown yet never loads, its decode() never ends.
+  const decoded = () => Promise.all([...grid.querySelectorAll('img[loading="eager"]')].map((img) => img.decode?.().catch(() => {})));
 
   const chips = h('div', { class: 'chips', role: 'toolbar', 'aria-label': 'Filtres' });
   const count = h('div', { class: 'library-count', 'aria-live': 'polite' });
@@ -135,7 +142,7 @@ export function create({ type, query }) {
       const items = result?.Items ?? [];
       total = result?.TotalRecordCount ?? items.length;
       reconcile(grid, items, (item) => posterCard(item));
-      if (items.length) writeStore(items, total);
+      writeStore(items, total);
       start = items.length; done = start >= total; loadedAt = Date.now(); stale = false;
       count.textContent = total ? plural(total, noun[0], noun[1]) : '';
       if (total === 0) showEmpty();

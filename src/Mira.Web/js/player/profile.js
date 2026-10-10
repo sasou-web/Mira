@@ -18,8 +18,11 @@ const webkit = nativeHls && /AppleWebKit/.test(agent) && !/Chrome|Android/.test(
 export const support = (() => {
   const h264 = can('video/mp4; codecs="avc1.640029"');
   const hevc = can('video/mp4; codecs="hvc1.1.6.L120.90"') || can('video/mp4; codecs="hev1.1.6.L120.90"');
-  // The highest HEVC level WebKit says it decodes (jellyfin-web asks the same way); 4.0 when it does not say.
-  const hevcLevel = [186, 183, 153, 123].find((l) => can(`video/mp4; codecs="hvc1.2.4.L${l}"`)) ?? 120;
+  // The highest HEVC level the browser says it decodes, in Main 10 then Main (jellyfin-web asks the same way): a GPU
+  // without Main 10 still plays 8-bit HEVC at 4.1; 4.0 when it says nothing.
+  const hevcLevel = [186, 183, 153, 123].find((l) => can(`video/mp4; codecs="hvc1.2.4.L${l}"`))
+    ?? [153, 123].find((l) => can(`video/mp4; codecs="hvc1.1.6.L${l}.90"`) || can(`video/mp4; codecs="hev1.1.6.L${l}.90"`))
+    ?? 120;
   return {
     h264, hevc, hevcLevel,
     av1: can('video/mp4; codecs="av01.0.08M.08"'),
@@ -164,7 +167,9 @@ export function lastResortProfile(bitrate, { hlsSubtitles = false } = {}) {
       { Type: 'Video', Codec: 'h264', Conditions: [
         condition('LessThanEqual', 'VideoBitDepth', 8),
         condition('EqualsAny', 'VideoProfile', 'high|main|baseline|constrained baseline'),
-        condition('LessThanEqual', 'VideoLevel', 41),
+        // 1080p at most, where every player takes the level Jellyfin writes (a 4K H.264 needs 5.1 in Safari's fMP4).
+        condition('LessThanEqual', 'Width', 1920),
+        condition('LessThanEqual', 'VideoLevel', 51),
         condition('EqualsAny', 'VideoRangeType', 'SDR'),
         condition('NotEquals', 'IsInterlaced', true),
       ] },
