@@ -17,7 +17,10 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - lecteur d’Apple simulé fermé pendant le chargement de l’épisode suivant : retour à la fiche, pas de nouveau plein écran (le défaut se reproduisait : Mira redemandait le plein écran 43 ms après la fermeture) ;
   - app de l’écran d’accueil simulée : Retour dessine le mouvement d’iOS, le glissement d’iOS n’en reçoit pas un second, la barre du petit titre ramène en haut sans ouvrir ce qu’elle couvre ;
   - plein écran de Mira (Android) : la feuille des pistes s’y affiche.
-- **GitHub Actions, sur la branche** (commit `be77112`) : **Chromium** et **Windows** réussis ; **Safari sur Mac** : **26/26**, dont, dans le vrai lecteur d’Apple (plein écran de WebKit, AVFoundation) : l’animé avec « Aucun », ses quatre sous-titres dans le flux, aucun affiché ; « Français (ASS) » choisi comme le ferait le menu, « Cinq secondes » vue à 5,1 s ; après un saut à 33 s, « Trente-cinq » vue à 35,1 s.
+- **GitHub Actions, sur la branche** (commit `31e425e`) :
+  - **Chromium** : **43/43**, Jellyfin arrêté puis relancé pendant le contrôle ;
+  - **Safari sur Mac** : **26/26**, dont, dans le vrai lecteur d’Apple (plein écran de WebKit, AVFoundation) : l’animé avec « Aucun », ses quatre sous-titres dans le flux, aucun affiché ; « Français (ASS) » choisi comme le ferait le menu, « Cinq secondes » vue à 5,3 s ; après un saut à 33 s, « Trente-cinq » vue à 35,1 s ; l’épisode suivant toujours sans quitter le plein écran ;
+  - **Windows** : compilation et tests réussis (dont `HlsPlaylists` : noms pris tels quels, `und`).
 - **Pas encore vérifié** : sur un vrai iPhone, le menu des sous-titres d’un vrai animé, l’épisode suivant en plein écran et la fermeture pendant son chargement, la Dynamic Island avec « Lecture discrète », le retour haptique.
 
 ## Mira web 0.7.1 : retours du premier essai sur iPhone
