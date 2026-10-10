@@ -868,6 +868,10 @@ await Test("Mira web : sous-titres d’une conversion à l’heure dans le lecte
     Assert(rewritten.Contains("URI=\"/jf/Mira/hls/item/0123456789abcdef0123456789abcdef/Subtitles/3/subtitles.m3u8?SegmentLength=30&ApiKey=k\""), "Subtitles not through Mira: " + rewritten);
     Assert(rewritten.Contains("\n/jf/videos/item/main.m3u8?DeviceId=d&ApiKey=k\n"), "Video not Jellyfin's: " + rewritten);
     Assert(Mira.Jellyfin.HlsPlaylists.Master("#EXTM3U\r\n/x/main.m3u8\r\n", "/v/", "/m/") == "#EXTM3U\n/x/main.m3u8\n", "Absolute address changed");
+    // Apple's menu shows Mira's French names, given by Jellyfin index; quotes and control characters cannot get in.
+    var names = Mira.Jellyfin.HlsPlaylists.Names("3:Français|x:Bad|5:\"Anglais\"\n|7:");
+    Assert(names.Count == 2 && names[3] == "Français" && names[5] == "Anglais", "Names: " + string.Join(", ", names));
+    Assert(Mira.Jellyfin.HlsPlaylists.Master(master, "/jf/videos/item/", "/jf/Mira/hls/item/", names).Contains("NAME=\"Français\",DEFAULT=NO"), "Name not given");
     // Its subtitle playlist: WebVTT straight from Jellyfin, without the MPEG-TS time map (10 s late on fMP4).
     var subtitles = "#EXTM3U\n#EXTINF:30,\nstream.vtt?CopyTimestamps=true&AddVttTimeMap=true&StartPositionTicks=0&EndPositionTicks=300000000&ApiKey=k\n#EXT-X-ENDLIST\n";
     var segments = Mira.Jellyfin.HlsPlaylists.Subtitles(subtitles, "/jf/videos/item/source/Subtitles/3/");

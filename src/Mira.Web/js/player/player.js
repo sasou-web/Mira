@@ -450,7 +450,11 @@ export function create({ id, query }) {
           inband = /[?&]SubtitleMethod=Hls/i.test(address);
           // Jellyfin times them for MPEG-TS segments (10 s late on fMP4 in Apple's player): Mira's plugin serves the
           // same playlists with the subtitles in time (Mira.Jellyfin, HlsPlaylists).
-          if (inband && /[?&]SegmentContainer=mp4/i.test(address)) address = address.replace(/^\/videos\/([0-9a-f-]+)\/master\.m3u8/i, '/Mira/hls/$1/master.m3u8');
+          if (inband && /[?&]SegmentContainer=mp4/i.test(address)) {
+            address = address.replace(/^\/videos\/([0-9a-f-]+)\/master\.m3u8/i, '/Mira/hls/$1/master.m3u8');
+            // Apple's menu shows the stream's names: Mira's, in French, rather than Jellyfin's (« French - SUBRIP - External »).
+            address += `&MiraNames=${encodeURIComponent(textSubtitles().map((s) => `${s.Index}:${menuName(s).replace(/\|/g, '/')}`).join('|'))}`;
+          }
         }
         url = signed(address);
         playMethod = source.SupportsDirectStream && !/VideoCodec=|videoBitrate=/i.test(source.TranscodingUrl) ? 'DirectStream' : 'Transcode';
@@ -509,6 +513,13 @@ export function create({ id, query }) {
       }));
     }
   }
+  /** A subtitle's name in Apple's menu: Mira's, with its details when another one has the same. */
+  function menuName(stream) {
+    const subtitles = (source?.MediaStreams ?? []).filter((s) => s.Type === 'Subtitle');
+    const text = (s) => trackText(s, subtitles.indexOf(s) + 1);
+    const { label, details } = text(stream);
+    return textSubtitles().some((s) => s !== stream && text(s).label === label) && details ? `${label} (${details})` : label;
+  }
   /** The text subtitles Jellyfin can send as text, in its order: the order of the HLS stream's subtitles. */
   const textSubtitles = () => (source?.MediaStreams ?? []).filter((s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream);
   const trackNode = (textTrack) => [...video.querySelectorAll('track')].find((x) => x.track === textTrack) ?? null;
@@ -522,7 +533,7 @@ export function create({ id, query }) {
     const carried = streamTracks(), streams = textSubtitles(), at = carried.indexOf(textTrack);
     if (at < 0) return null;
     if (carried.length === streams.length) return streams[at].Index;
-    const named = streams.filter((s) => s.DisplayTitle === textTrack.label);
+    const named = streams.filter((s) => s.DisplayTitle === textTrack.label || menuName(s) === textTrack.label);
     return named.length === 1 ? named[0].Index : null;
   }
   /** Shows the chosen subtitles among those the browser has, beside the video or in the stream; hides the others. */
