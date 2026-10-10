@@ -24,6 +24,30 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 8.0.x
+      # The scripts run on the publishing PC, in Windows PowerShell 5.1 (the one Windows starts) or PowerShell 7: both
+      # read them here, encoding and syntax, as they would there.
+      - name: PowerShell scripts read by Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $failed = $false
+          foreach ($script in Get-ChildItem -Path tools -Filter *.ps1 -Recurse) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$null, [ref]$errors)
+            if ($errors) { $failed = $true; $errors | ForEach-Object { Write-Output "$($script.Name): $_" } }
+          }
+          if ($failed) { exit 1 }
+          Write-Output "Windows PowerShell $($PSVersionTable.PSVersion): every script reads."
+      - name: PowerShell scripts read by PowerShell 7
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($script in Get-ChildItem -Path tools -Filter *.ps1 -Recurse) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$null, [ref]$errors)
+            if ($errors) { $failed = $true; $errors | ForEach-Object { Write-Output "$($script.Name): $_" } }
+          }
+          if ($failed) { exit 1 }
+          Write-Output "PowerShell $($PSVersionTable.PSVersion): every script reads."
       - name: Restore
         run: dotnet restore Mira.sln --configfile NuGet.Config
       - name: Build
