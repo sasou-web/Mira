@@ -2,6 +2,24 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Mira web : retours du deuxième essai sur iPhone (non publié)
+
+- **Défauts signalés par l’utilisateur** (iPhone sous iOS 26, app de l’écran d’accueil) : la Dynamic Island apparaît encore, le menu du lecteur d’Apple ne propose aucun sous-titre, et l’interface ne se comporte pas comme une app (mouvements, transitions, réactions capricieuses).
+- **Causes établies** (sources de Jellyfin 10.9 à 12.1 et de WebKit, puis essais sur Jellyfin 12.1) :
+  - Jellyfin ne convertit jamais l’ASS ni le SSA par le profil (`MediaStream.SupportsSubtitleConversionTo`) : les sous-titres d’un animé étaient incrustés, la vidéo entière réencodée, et le menu vide ;
+  - avec « Aucun », Jellyfin écrit `SubtitleMethod=Encode` sans index : le flux n’avait aucun sous-titre ;
+  - ses WebVTT HLS ont `X-TIMESTAMP-MAP=MPEGTS:900000`, juste pour des segments TS (à 10 s), pas pour ses segments fMP4 (à 0) ;
+  - WebKit choisit lui-même toute piste que la page n’a jamais réglée, et un mode inchangé ne compte pas ;
+  - Dynamic Island : WebKit la masque devant l’app par identifiants d’app, qui ne sont pas ceux d’une app de l’écran d’accueil ; en plein écran, il lève même ce masque. Rien dans la page n’y change rien.
+- **Contrôle Chromium local** sur Jellyfin 12.1 (Docker) : **41/41**. Nouveaux points :
+  - film « animé » (MKV, ASS français par défaut, ASS forcés, SRT anglais, SRT sans langue) : ASS lu en texte à côté de la vidéo (« Cinq secondes » à 5,1 s), sans incrustation ;
+  - le même film demandé avec le profil d’un iPhone : jamais d’incrustation pour -1, l’ASS ou le SRT ; dans la liste de `/Mira/hls`, les quatre sous-titres nommés « Français (ASS) », « Français (ASS · forcés) », « Anglais », « Piste 4 », langues `fra, fra, eng, und`, seul le choix de la fiche en `DEFAULT=YES` ; deux segments WebVTT sans correspondance MPEG-TS, aux heures du fichier (5 s et 35 s) ;
+  - lecteur d’Apple simulé fermé pendant le chargement de l’épisode suivant : retour à la fiche, pas de nouveau plein écran (le défaut se reproduisait : Mira redemandait le plein écran 43 ms après la fermeture) ;
+  - app de l’écran d’accueil simulée : Retour dessine le mouvement d’iOS, le glissement d’iOS n’en reçoit pas un second, la barre du petit titre ramène en haut sans ouvrir ce qu’elle couvre ;
+  - plein écran de Mira (Android) : la feuille des pistes s’y affiche.
+- **GitHub Actions, sur la branche** (commit `be77112`) : **Chromium** et **Windows** réussis ; **Safari sur Mac** : **26/26**, dont, dans le vrai lecteur d’Apple (plein écran de WebKit, AVFoundation) : l’animé avec « Aucun », ses quatre sous-titres dans le flux, aucun affiché ; « Français (ASS) » choisi comme le ferait le menu, « Cinq secondes » vue à 5,1 s ; après un saut à 33 s, « Trente-cinq » vue à 35,1 s.
+- **Pas encore vérifié** : sur un vrai iPhone, le menu des sous-titres d’un vrai animé, l’épisode suivant en plein écran et la fermeture pendant son chargement, la Dynamic Island avec « Lecture discrète », le retour haptique.
+
 ## Mira web 0.7.1 : retours du premier essai sur iPhone
 
 - **Défauts signalés par l’utilisateur** (iPhone, app de l’écran d’accueil) :

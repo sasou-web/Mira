@@ -2,13 +2,30 @@
 
 ## Non publié
 
-Mira web après le deuxième essai sur iPhone : les sous-titres dans le menu du lecteur d’Apple, et une app qui se comporte comme une app.
+Mira web après le deuxième essai sur iPhone : les sous-titres des animés dans le menu du lecteur d’Apple, et une app qui se comporte comme une app.
 
-- **Sous-titres dans le menu du lecteur d’Apple** : avec une conversion par Jellyfin (un MKV, le plus souvent), le menu n’en proposait aucun : le lecteur d’Apple ignore les sous-titres placés à côté d’un flux HLS. Les sous-titres texte font maintenant partie du flux : ils sont tous dans le menu, celui choisi sur la fiche s’affiche, et un autre choix dans le menu se fait sans relancer la vidéo. Jellyfin les date pour des segments MPEG-TS, et ils seraient arrivés 10 s en retard dans le lecteur d’Apple : l’extension Mira sert la même liste de lecture, les sous-titres à l’heure.
-- **Dynamic Island** : elle s’affiche parce qu’iOS ne reconnaît pas une app de l’écran d’accueil comme l’app au premier plan pendant une vidéo. Ça ne dépend ni du lecteur ni de Mira : contrairement à ce que disait la 0.7.1, le lecteur d’Apple n’y change rien. **Réglages → Essai : sans Dynamic Island** tente de l’éviter (le son suit alors le mode silencieux et se mêle à la musique des autres apps). À la fermeture du lecteur, plus rien ne reste dans le Centre de contrôle ni sur l’écran verrouillé.
-- **Comme une app iOS** : un écran arrive par la droite et repart par la droite, les onglets changent sans s’empiler dans l’historique (un onglet touché revient à son premier écran), et, dans l’app de l’écran d’accueil, un glissement depuis le bord gauche revient en arrière en suivant le doigt. Les feuilles de choix glissent en se fermant et se tirent vers le bas ; les notifications s’effacent. Les boutons réagissent au toucher, l’app ne zoome plus, ne sélectionne plus son texte et n’ouvre plus d’aperçu de lien. La barre d’onglets est translucide.
-- **Plus de sauts ni de clignotements** : l’accueil ne se redessine plus à chaque retour (les rangées restent où le doigt les a laissées), la grille des films et séries se met à jour sur place au lieu de repartir en haut, la fiche ne se redessine plus quand les titres similaires arrivent, et une image déjà vue ne refait pas son fondu.
-- **Retour en arrière après la connexion** : le premier écran après la connexion croyait avoir un écran derrière lui.
+- **Sous-titres dans le menu du lecteur d’Apple** : le menu n’en proposait souvent aucun.
+  - Les sous-titres ASS et SSA (ceux des animés) étaient incrustés dans l’image : Jellyfin ne les convertit jamais tout seul, et réencodait toute la vidéo pour les dessiner. Ils arrivent maintenant en texte, dans le menu, et la vidéo n’est plus réencodée pour eux (leur mise en forme, couleurs et positions, est perdue ; le texte reste).
+  - Avec « Aucun » choisi sur la fiche, le menu restait vide : tous les sous-titres texte sont maintenant dans le flux, éteints, et un choix dans le menu les affiche sans relancer la vidéo.
+  - Ils s’affichent à l’heure, aussi après un saut dans la vidéo : Jellyfin les datait pour un autre format de segments, avec 10 s de retard dans le lecteur d’Apple, que l’extension Mira corrige.
+  - Leurs noms sont en français et distincts (« Français (ASS) », « Français (ASS · forcés) », « Anglais »), et un choix fait par iOS lui-même n’est plus pris pour le tien.
+- **Dynamic Island** : elle s’affiche parce qu’iOS ne reconnaît pas une app de l’écran d’accueil comme l’app au premier plan pendant une vidéo ; rien dans la page n’y change rien, et, contrairement à ce que disait la 0.7.1, le lecteur d’Apple non plus. **Réglages → Lecture discrète** tente de l’éviter (le son suit alors le mode silencieux et se mêle à la musique des autres apps). À la fermeture du lecteur, plus rien ne reste dans le Centre de contrôle ni sur l’écran verrouillé.
+- **Lecteur moins capricieux** :
+  - Fermer le lecteur d’Apple pendant que l’épisode suivant se charge ferme vraiment : il ne se rouvre plus tout seul, et Retour pendant la préparation non plus. La fiche revient une fois l’image du lecteur rétractée.
+  - Une pause de plus d’une minute ne coupe plus la conversion de Jellyfin : la lecture reprend aussitôt.
+  - Une coupure de réseau (PC en veille, passage du Wi-Fi à la 4G) n’affiche plus « Cet appareil ne peut pas lire ce flux » : Mira attend le serveur et reprend là où elle en était, sans quitter le plein écran.
+  - Sans générique repéré par Jellyfin, le décompte de l’épisode suivant ne coupe plus ses 10 dernières secondes, et revenir en arrière l’annule.
+  - Sur Android : la vitesse choisie reste d’un épisode à l’autre, les commandes ne surgissent plus à chaque chargement, les doubles touchers s’additionnent (20 s, 30 s…), et les feuilles et notifications s’affichent aussi en plein écran.
+- **Comme une app iOS** :
+  - Un écran arrive par la droite et repart par la droite ; dans l’app de l’écran d’accueil, le glissement depuis le bord est celui d’iOS, sans mouvement en double. Les onglets ne s’empilent pas dans l’historique, et deux touchers rapides ne se marchent plus dessus.
+  - Le grand titre s’efface quand le petit apparaît dans la barre, qui ramène en haut d’un toucher (elle laissait passer le toucher vers l’affiche cachée dessous). La barre d’état est en verre dépoli.
+  - Les appuis se dessinent comme sur iPhone, et un défilement qui commence sur une carte ne la laisse plus enfoncée. Un appui long soulève la carte avant son menu, sans ouvrir la fiche en relâchant. Les feuilles ne s’empilent plus, se tirent vers le bas, et la page dessous ne défile plus.
+  - **Favori** et **Vu** changent à l’instant, avec un petit rebond et une vibration (si le téléphone le permet), et reviennent en arrière si Jellyfin refuse.
+  - Tirer vers le bas actualise l’écran (app de l’écran d’accueil et Android), avec un indicateur qui tourne vraiment.
+  - Sur un iPhone Pro Max en paysage, la mise en page reste celle d’un téléphone.
+- **Plus de sauts ni de clignotements** : la fiche ne repart plus en haut au retour du lecteur, ne referme plus un résumé ouvert, et coche l’épisode vu sur place ; elle s’affiche dès le toucher avec l’image et le titre de la carte, et le logo ne décale plus les boutons en arrivant. L’accueil, les grilles et la recherche se mettent à jour sur place. Les images qui n’avaient pas pu se charger réessaient quand le serveur revient.
+- **Connexion** : la touche « suivant » du clavier passe au mot de passe au lieu d’envoyer le formulaire, le clavier s’ouvre dès le choix du profil, un mot de passe faux fait trembler le champ. **Se déconnecter** est immédiat.
+- **Autres** : la photo d’un acteur s’affiche, avec sa biographie ; **Ouvrir sur un autre appareil** est un écran comme les autres, avec Retour et **Copier l’adresse** ; les réglages changés dans le lecteur s’y voient au retour ; le bandeau « serveur injoignable » attend un vrai silence avant de s’afficher.
 
 ## 0.7.1 — 2026-10-09
 
