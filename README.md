@@ -82,6 +82,7 @@ dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .arti
 
 ```powershell
 ./tools/package.ps1          # Archive, exécutable portable, installateur (Inno Setup 6), empreintes et manifeste signé
+./tools/release.ps1          # Tout cela, puis la release GitHub vX.Y.Z avec ses fichiers et ses notes (gh)
 ./tools/capture-gallery.ps1  # Captures avec un profil fictif isolé
 ./tools/torlink-check.ps1    # TorLink réel dans Mira, état et bibliothèque isolés
 ./tools/update-check.ps1     # Mises à jour de bout en bout : archive, portable et installateur, flux local et clé d’essai

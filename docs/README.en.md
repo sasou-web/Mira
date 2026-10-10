@@ -36,6 +36,7 @@ dotnet build Mira.sln -c Release --no-restore
 dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build
 dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .artifacts/dev-profile
 ./tools/package.ps1
+./tools/release.ps1   # packages, then the GitHub release vX.Y.Z with its files and notes (gh)
 ```
 
 Tests use an executable harness, not `dotnet test`. Baseline tests require neither a live server nor libmpv. Native playback and Windows integration checks are separate local fixtures. [Contribution guide](../CONTRIBUTING.md).

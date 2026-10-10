@@ -22,7 +22,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - `src/Mira.Web/` → `index.html`, `app.css`, `js/app.js` (routes en `#/...`, bandeau « serveur injoignable », mise à jour par révision), `js/api.js`, `js/views/*`, `js/player/` (`player.js` = lecteur d'Apple ou commandes de Mira, `profile.js` = profil d'appareil, `video.js` = `<video>` partagée et `appleNative()`, `tracks.js` = noms et choix des pistes).
 - `src/Mira.Core/JellyfinStartup.cs` + `src/Mira.Desktop/Services/JellyfinAutostart.cs` → Jellyfin joignable dès l'allumage du PC (service, relance, pare-feu) ; `Mira.exe --jellyfin-startup <port>` = copie élevée.
 - `tests/Mira.Tests/` → exécutable d'assertions (pas `dotnet test`).
-- `tools/` → `package.ps1` (paquets Windows signés), `mac/package.sh`, `web/` (empaquetage et contrôles de Mira web).
+- `tools/` → `release.ps1` (publication en une commande), `package.ps1` (paquets Windows signés), `publish.ps1` (copie locale `dist/Mira`), `mac/package.sh`, `web/` (empaquetage et contrôles de Mira web).
 - `.github/workflows/` → `ci.yml` (Windows), `mac.yml` (Mac, `.dmg` joint aux releases), `web.yml` (Chromium et Safari, extension et manifeste joints aux releases).
 - Flux de Mira web : téléphone → `http://<serveur>:8096/Mira` → extension → app web → API Jellyfin. Lecture : Safari lit le fichier tel quel, sinon Jellyfin convertit en HLS fMP4 (H.264 d'abord).
 
@@ -37,7 +37,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - CI d'une branche : `web.yml` et `ci.yml` se lancent par `workflow_dispatch` (outil GitHub `actions_run_trigger`).
 - Contrôle Safari (Mac, `safaridriver -p 4444`, 26 points dont le lecteur d'Apple) : `node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dossier>`.
 - Servir Mira web depuis le disque sans recompiler : lancer Jellyfin avec `MIRA_WEB_DIR=<chemin de src/Mira.Web>`.
-- Publication, sur le PC de l'utilisateur, où est la clé de signature : `git pull`, `./tools/package.ps1`, puis `gh release create vX.Y.Z <8 fichiers> --notes-file .artifacts/release-notes-X.Y.Z.md`. Les workflows ajoutent le `.dmg`, `mira-jellyfin-X.Y.Z.zip` et `jellyfin-manifest.json`.
+- Publication, sur le PC de l'utilisateur, où est la clé de signature : `./tools/release.ps1` (vérifie gh, la clé, Inno Setup et un arbre propre, met `main` à jour, lance `package.ps1`, crée la release `vX.Y.Z` avec ses 8 fichiers et ses notes ; `-DryRun` pour essayer, `-SkipBuild` pour des paquets déjà faits). Les workflows ajoutent le `.dmg`, `mira-jellyfin-X.Y.Z.zip` et `jellyfin-manifest.json`. Le reste (fusion de la PR, vérification de la release) se fait depuis la session.
 
 ## Conventions
 - Interface et docs en français, en tutoyant ; messages de commit en anglais.
@@ -45,7 +45,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Chaque version a son entrée dans `WhatsNew.json` (résumé ≤ 100 caractères, 2 à 5 points, icônes dessinées par Mira) : le test « Nouveautés : bienvenue… » le vérifie.
 - `CHANGELOG.md` : section « Non publié » en haut, datée à la publication.
 - Version : `<Version>` dans les csproj Desktop, Mac et Jellyfin ; ne la change qu'à la préparation d'une release demandée.
-- L'utilisateur fusionne les PR lui-même (rebase) et publie depuis son PC.
+- Les PR se fusionnent en rebase (depuis la session, à la demande de l'utilisateur) ; la publication se fait depuis son PC.
 - Mira web : design sombre (tokens dans `:root` de `app.css`), police Nunito Sans auto-hébergée, icônes Phosphor (`js/icons.js`).
 
 ## Décisions (et pourquoi)
@@ -92,4 +92,5 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - 0.7.1 publiée le 2026-10-09 (11 fichiers : Windows signés, `.dmg`, extension, manifeste ; signature et empreintes vérifiées).
 - 0.7.2 préparée (PR sasou-web/Mira#24, à publier depuis le PC de l'utilisateur après la fusion), retours du 2e essai sur iPhone : sous-titres ASS/SRT d'une conversion dans le menu d'Apple (flux HLS par `/Mira/hls`, noms en français, à l'heure, même avec « Aucun »), « Lecture discrète » (session `ambient`), lecteur qui ne se rouvre plus seul et attend le serveur, navigation et appuis d'app iOS, fiche mise à jour sur place, Favori/Vu instantanés. Vérifié : Chromium local 42/42 (dont film « animé » avec profil d'iPhone), revue adverse (20 défauts corrigés), CI Safari 26/26 (ASS à 5,1 s et 35,1 s après un saut dans le vrai lecteur d'Apple), Windows. Détails : `docs/VALIDATION.md`.
 - Non vérifié sur un vrai iPhone : lecteur d'Apple (menu des sous-titres sur un vrai animé, épisode suivant en plein écran, fermeture pendant son chargement, Dynamic Island avec « Lecture discrète »), retour haptique, ouverture PC éteint ; sur le PC : « Disponible dès l'allumage du PC ».
-- Prochaine étape : fusion de la PR sasou-web/Mira#24, publication de la 0.7.2 (`./tools/package.ps1`, `gh release create v0.7.2`), mise à jour de l'extension sur Jellyfin, essai sur iPhone.
+- Prochaine étape : publication de la 0.7.2 par l'utilisateur (`./tools/release.ps1`), mise à jour de l'extension sur Jellyfin, essai sur iPhone.
+- L'utilisateur veut que je fasse tout ce que je peux moi-même (fusion des PR comprise) et ne lui laisse que ce qui exige son PC, son serveur ou son iPhone.
