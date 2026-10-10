@@ -2,7 +2,8 @@
 // next episode, resume, the reports Jellyfin receives, the choice of tracks on a title page, sign-out. Screenshots for
 // review; results.txt; exit 1 on failure.
 //   node tools/web/check.mjs <Mira web url> <user> <password> <series name> <out folder>
-// Chromium has no H.264: the titles checked here are in WebM; Safari's HLS path is checked by safari.mjs.
+// Chromium has no H.264: the titles checked here are in WebM; Safari's HLS path is checked by safari.mjs. What
+// Jellyfin and Mira's plugin send Apple's player for an anime (its ASS subtitles) is checked with an iPhone's profile.
 // Apple's full screen player is simulated here (Chromium has none), to check what Mira does around it: start, next
 // episode in place, Picture in Picture, back to the title page once closed. safari.mjs checks it in Safari itself.
 // So is the Home Screen app on iPhone (navigator.standalone): pull to refresh, swipe back from the edge, tabs, sheets pulled down.
@@ -118,6 +119,20 @@ try {
   await shot('12-tracks-playing');
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
+  // An anime's ASS subtitles, inside its file: Jellyfin would draw them into the picture (it never converts ASS by
+  // profile); Mira asks for them as WebVTT, beside the video. Their line runs from 5 s to 8 s.
+  const anime = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Signes')).Items[0];
+  const dialogue = (await api(`Items/${anime.Id}`)).MediaSources[0].MediaStreams.find((x) => x.Type === 'Subtitle' && x.Codec === 'ass' && !x.IsForced);
+  await page.evaluate(([id, index]) => { location.hash = `#/lecture/${id}?debut=1&sous-titres=${index}`; }, [anime.Id, dialogue.Index]);
+  const assCue = await page.waitForFunction(() => {
+    const v = document.querySelector('video'), t = v && [...v.textTracks].find((x) => x.mode === 'showing');
+    return t?.activeCues?.length ? { text: t.activeCues[0].text, t: v.currentTime, src: v.currentSrc, label: t.label } : null;
+  }, null, { timeout: 30000, polling: 250 }).then((handle) => handle.jsonValue(), () => null);
+  check('lecture : sous-titres ASS d’un animé, en texte à côté de la vidéo', assCue?.text === 'Cinq secondes' && assCue.t > 4.5 && assCue.t < 8.5 && !/SubtitleMethod=Encode/i.test(assCue.src),
+    assCue ? `${assCue.label} « ${assCue.text} » à ${assCue.t.toFixed(1)} s${/SubtitleMethod=Encode/i.test(assCue.src) ? ', incrustés dans l’image' : ''}` : 'aucune ligne affichée');
+  await shot('13-ass');
+  await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
+
   if (process.env.MIRA_STOP && process.env.MIRA_START) {
     // The PC is off or still starting: the page the phone keeps opens, says so, and comes back by itself.
     execSync(process.env.MIRA_STOP, { stdio: 'ignore' });
@@ -214,6 +229,69 @@ try {
   await ap.screenshot({ path: `${out}/error-apple.png` }).catch(() => {});
 }
 check('lecteur d’Apple (simulé) : aucune erreur JavaScript', appleErrors.length === 0, appleErrors.slice(0, 3).join(' | '));
+
+// An anime for Apple's player, asked for as an iPhone does (its codecs are claimed here: Chromium has neither H.264
+// nor HLS). Jellyfin's answers and Mira's plugin are real: the HLS stream lists every text subtitle, ASS included,
+// with Mira's names, and its WebVTT comes without the MPEG-TS time map (10 s late on fMP4), at the file's own times.
+const iphone = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+await iphone.addInitScript(() => {
+  HTMLMediaElement.prototype.canPlayType = (type) => (/mpegurl|avc1|mp4a|hvc1|hev1|audio\/mpeg/i.test(type) ? 'probably' : '');
+});
+const ip = await iphone.newPage();
+try {
+  await ip.goto(`${base}#/connexion`); await ip.waitForTimeout(1500);
+  const seen = await ip.evaluate(async ([name, secret]) => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { api } = await import(`${root}api.js`);
+    const { deviceProfile } = await import(`${root}player/profile.js`);
+    const { appleStream } = await import(`${root}player/tracks.js`);
+    await api.signIn(name, secret);
+    const jellyfin = location.pathname.replace(/\/Mira\/?.*$/i, '');
+    const film = (await api.browse({ types: 'Movie', search: 'Signes' })).Items[0];
+    const source = (await api.item(film.Id)).MediaSources[0];
+    const subtitles = source.MediaStreams.filter((x) => x.Type === 'Subtitle');
+    const dialogue = subtitles.find((x) => x.Codec === 'ass' && !x.IsForced), english = subtitles.find((x) => x.Language === 'eng');
+    const runs = [];
+    for (const choice of [-1, dialogue.Index, english.Index]) {
+      const info = await api.playbackInfo(film.Id, {
+        DeviceProfile: deviceProfile(20_000_000, { hlsSubtitles: true }), MaxStreamingBitrate: 20_000_000, MediaSourceId: source.Id,
+        SubtitleStreamIndex: choice, EnableDirectPlay: true, EnableDirectStream: true, EnableTranscoding: true, AllowVideoStreamCopy: true, AllowAudioStreamCopy: true,
+      });
+      const played = info.MediaSources[0];
+      const { address, inband } = appleStream(played.TranscodingUrl ?? '', played, choice);
+      const master = await (await fetch(jellyfin + address)).text();
+      const lines = master.split('\n').filter((l) => l.includes('TYPE=SUBTITLES'));
+      const attribute = (line, key) => line.match(new RegExp(`${key}="([^"]*)"`))?.[1] ?? line.match(new RegExp(`${key}=([A-Z]+)`))?.[1] ?? '';
+      runs.push({
+        choice, inband, burned: played.MediaStreams.some((x) => x.Type === 'Subtitle' && x.IsTextSubtitleStream && x.DeliveryMethod === 'Encode'),
+        hls: (address.match(/SubtitleMethod=Hls/g) ?? []).length === 1 && !/SubtitleMethod=Encode/.test(address) && address.startsWith('/Mira/hls/'),
+        names: lines.map((l) => attribute(l, 'NAME')), languages: lines.map((l) => attribute(l, 'LANGUAGE')),
+        defaults: lines.map((l) => attribute(l, 'DEFAULT')).join(''), forced: lines.map((l) => attribute(l, 'FORCED')).join(''),
+        mira: lines.every((l) => attribute(l, 'URI').startsWith(`${jellyfin}/Mira/hls/`)), uri: lines.length ? attribute(lines[0], 'URI') : '',
+      });
+    }
+    // The dialogue's subtitle playlist (the first in the stream): its two 30 s WebVTT segments.
+    const playlist = await (await fetch(runs[1].uri)).text();
+    const segments = playlist.split('\n').filter((l) => l && !l.startsWith('#'));
+    const texts = await Promise.all(segments.slice(0, 2).map(async (u) => (await fetch(u)).text()));
+    return { runs, segments, texts };
+  }, [user, password]);
+  const [none, ass, srt] = seen.runs;
+  check('animé (profil d’iPhone) : sous-titres ASS et SRT jamais incrustés', seen.runs.every((r) => !r.burned && r.inband && r.hls),
+    seen.runs.map((r) => `${r.choice} : ${r.burned ? 'incrustés' : r.hls ? 'dans le flux' : 'hors du flux'}`).join(', '));
+  check('animé (profil d’iPhone) : quatre sous-titres nommés en français dans le flux d’Apple',
+    ass.names.join('|') === 'Français (ASS)|Français (ASS · forcés)|Anglais|Piste 4' && ass.languages.join('|') === 'fra|fra|eng|und' && ass.forced === 'NOYESNONO' && ass.mira,
+    `${ass.names.join(', ')} (${ass.languages.join(', ')})`);
+  check('animé (profil d’iPhone) : seul le choix de la fiche est en tête, aucun avec « Aucun »',
+    none.defaults === 'NONONONO' && ass.defaults === 'YESNONONO' && srt.defaults === 'NONOYESNO', `aucun ${none.defaults}, ASS ${ass.defaults}, SRT ${srt.defaults}`);
+  check('animé (profil d’iPhone) : WebVTT à l’heure, sans la carte MPEG-TS',
+    seen.segments.length === 2 && seen.segments.every((u) => /AddVttTimeMap=false/.test(u)) && !seen.texts.some((t) => /X-TIMESTAMP-MAP/.test(t))
+    && /00:00:05\.000 --> 00:00:08\.000\nCinq secondes/.test(seen.texts[0]) && /00:00:35\.000 --> 00:00:38\.000\nTrente-cinq/.test(seen.texts[1] ?? ''),
+    `${seen.segments.length} segment(s), ${seen.texts.map((t) => JSON.stringify(t.slice(0, 60))).join(' ; ')}`);
+} catch (error) {
+  check('animé (profil d’iPhone) : déroulé', false, error.message.split('\n')[0]);
+}
+await iphone.close();
 
 // The Home Screen app on iPhone, simulated (navigator.standalone): pull to refresh, Back and iOS's own swipe from the
 // edge, tabs that do not pile up history, sheets pulled down to close. Touches go through Chromium's DevTools protocol.

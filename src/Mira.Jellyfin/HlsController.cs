@@ -37,7 +37,8 @@ public sealed class HlsController : ControllerBase
 
     /// <summary>
     /// Jellyfin's master playlist for this conversion (same query), its subtitle playlists here, named as Mira names them
-    /// (MiraNames, not passed on to Jellyfin).
+    /// (MiraNames, not passed on to Jellyfin). If this server cannot be reached on its own addresses, the player is sent
+    /// to Jellyfin's playlist itself: the video plays, its subtitles as Jellyfin times them.
     /// </summary>
     [HttpGet("{itemId:guid}/master.m3u8")]
     public async Task<IActionResult> Master(Guid itemId, CancellationToken cancellationToken)
@@ -45,6 +46,11 @@ public sealed class HlsController : ControllerBase
         var item = itemId.ToString("N");
         var query = QueryString.Create(Request.Query.Where(pair => !string.Equals(pair.Key, Names, StringComparison.OrdinalIgnoreCase)));
         var (status, text) = await GetAsync($"videos/{item}/master.m3u8{query}", cancellationToken).ConfigureAwait(false);
+        if (status == (int)HttpStatusCode.BadGateway)
+        {
+            return Redirect($"{Request.PathBase}/videos/{item}/master.m3u8{query}");
+        }
+
         return text is null
             ? StatusCode(status)
             : Playlist(HlsPlaylists.Master(text, $"{Request.PathBase}/videos/{item}/", $"{Request.PathBase}/Mira/hls/{item}/", HlsPlaylists.Names(Request.Query[Names])));

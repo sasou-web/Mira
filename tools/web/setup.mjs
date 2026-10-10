@@ -56,7 +56,7 @@ for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 't
 let scans = 0;
 const items = await until('the library scan', async () => {
   const result = await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Episode`, { token });
-  if (result.TotalRecordCount >= 7) return result.Items;
+  if (result.TotalRecordCount >= 8) return result.Items;
   if (scans++ % 15 === 0) await call('POST', 'Library/Refresh', { token });
   return null;
 }, 240);
