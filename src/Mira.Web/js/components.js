@@ -157,14 +157,15 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
  * A sheet of choices from the bottom of the screen. items: { label, sub, symbol, selected, danger, run }, or
  * { heading } above a group of them. Closes on a choice, on the backdrop, or with Escape.
  */
-export function sheet({ title = '', items = [], body = null }) {
+export function sheet({ title = '', items = [], body = null, held = false }) {
   // A second tap on what opens a sheet (while the first one is still arriving) does not stack another.
   if (document.querySelector('.sheet-layer:not(.leaving)')) return () => {};
   const previous = document.activeElement;
   const layer = h('div', { class: 'sheet-layer' });
   const openedAt = performance.now();
-  // A touch held to open a menu ends with a click where the finger lifts: too soon to be a choice in the sheet.
-  const early = () => performance.now() - openedAt < 350;
+  // A touch held to open a menu ends with a click where the finger lifts: too soon to be a choice in the sheet. A
+  // sheet opened by a plain tap takes the next tap at once.
+  const early = () => held && performance.now() - openedAt < 350;
   // Back on Android (Chrome 120 and later) closes the sheet rather than the screen under it.
   let watcher = null;
   try { if ('CloseWatcher' in window) { watcher = new CloseWatcher(); watcher.onclose = () => close(); } } catch { /* not here */ }
@@ -238,11 +239,14 @@ function dragToClose(panel, close) {
   panel.addEventListener('touchcancel', end, { passive: true });
 }
 
-/** Long press (or right click) on a card: play, open, watched, favourite, and out of Continuer à regarder. */
-export function withActions(card, item, { resumeRow = false } = {}) {
+/**
+ * Long press (or right click) on a card: play, open, watched, favourite, and out of Continuer à regarder. inTitle:
+ * the card is on its own title's page, which the menu does not offer to open again.
+ */
+export function withActions(card, item, { resumeRow = false, inTitle = false } = {}) {
   let timer = 0, lift = 0, startX = 0, startY = 0, fired = false;
   const stop = () => { clearTimeout(timer); clearTimeout(lift); card.classList.remove('holding'); };
-  const open = () => { stop(); if (fired) return; fired = true; itemMenu(item, { resumeRow }); };
+  const open = () => { stop(); if (fired) return; fired = true; itemMenu(item, { resumeRow, inTitle, held: true }); };
   card.addEventListener('touchstart', (e) => {
     fired = false; startX = e.touches[0].clientX; startY = e.touches[0].clientY;
     lift = setTimeout(() => card.classList.add('holding'), 180);
@@ -259,34 +263,59 @@ export function withActions(card, item, { resumeRow = false } = {}) {
   card.addEventListener('contextmenu', (e) => { e.preventDefault(); open(); });
 }
 
-export function itemMenu(item, { resumeRow = false } = {}) {
+export function itemMenu(item, { resumeRow = false, inTitle = false, held = false } = {}) {
   const name = item.Type === 'Episode' ? `${item.SeriesName} · ${episodeCode(item)}` : item.Name;
   const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
   const items = [];
   if (item.Type !== 'Series') items.push({ label: progress(item) > 0 ? 'Reprendre' : 'Lecture', symbol: 'play', run: () => { location.hash = playHref(item); } });
-  items.push({ label: item.Type === 'Episode' ? 'Voir la série' : 'Voir la fiche', symbol: 'info', run: () => { location.hash = titleHref(item); } });
+  if (!inTitle) items.push({ label: item.Type === 'Episode' ? 'Voir la série' : 'Voir la fiche', symbol: 'info', run: () => { location.hash = titleHref(item); } });
   items.push({ label: played ? 'Marquer comme non vu' : 'Marquer comme vu', symbol: 'check', run: () => setPlayed(item, !played) });
   items.push({ label: favorite ? 'Retirer des favoris' : 'Ajouter aux favoris', symbol: favorite ? 'heart-fill' : 'heart', run: () => setFavorite(item, !favorite) });
   if (resumeRow) items.push({ label: 'Retirer de Continuer à regarder', symbol: 'close', run: () => hideFromResume(item) });
-  sheet({ title: name, items });
+  sheet({ title: name, items, held });
 }
 
-export async function setPlayed(item, played) {
+/**
+ * Watched or not, favourite or not: the item says so at once (a screen redrawn right after the call shows it), and
+ * goes back as it was if Jellyfin refuses. The other screens hear of it once Jellyfin has it. quiet: the button
+ * touched shows the change itself, without a notice. Resolves to true once Jellyfin has it.
+ */
+export async function setPlayed(item, played, { quiet = false } = {}) {
+  const before = item.UserData;
+  item.UserData = { ...before, Played: played, PlaybackPositionTicks: played ? 0 : before?.PlaybackPositionTicks };
   try {
     await api.setPlayed(item.Id, played);
-    item.UserData = { ...item.UserData, Played: played, PlaybackPositionTicks: played ? 0 : item.UserData?.PlaybackPositionTicks };
     changed(item, { played });
-    toast(played ? 'Marqué comme vu.' : 'Marqué comme non vu.');
-  } catch (error) { toast(error.message); }
+    if (!quiet) toast(played ? 'Marqué comme vu.' : 'Marqué comme non vu.');
+    return true;
+  } catch (error) { item.UserData = before; toast(error.message); return false; }
 }
 
-export async function setFavorite(item, favorite) {
+export async function setFavorite(item, favorite, { quiet = false } = {}) {
+  const before = item.UserData;
+  item.UserData = { ...before, IsFavorite: favorite };
   try {
     await api.setFavorite(item.Id, favorite);
-    item.UserData = { ...item.UserData, IsFavorite: favorite };
     changed(item, { favorite });
-    toast(favorite ? 'Ajouté à tes favoris.' : 'Retiré de tes favoris.');
-  } catch (error) { toast(error.message); }
+    if (!quiet) toast(favorite ? 'Ajouté à tes favoris.' : 'Retiré de tes favoris.');
+    return true;
+  } catch (error) { item.UserData = before; toast(error.message); return false; }
+}
+
+/**
+ * A text cut at four lines, with « Plus » once it really is cut (measured whenever its box changes size, not once:
+ * a screen still sliding in has no size yet). A tap on the text opens it too.
+ */
+export function overview(text, className = 'overview') {
+  if (!text) return null;
+  const body = h('p', { class: [className, 'clamp-4'] }, text);
+  const open = () => { if (!body.classList.contains('clamp-4')) return; body.classList.remove('clamp-4'); more.remove(); watcher?.disconnect(); };
+  const more = h('button', { class: 'more-link', hidden: true, on: { click: open } }, 'Plus');
+  const fits = () => { more.hidden = body.scrollHeight <= body.clientHeight + 2; };
+  const watcher = typeof ResizeObserver === 'function' ? new ResizeObserver(fits) : null;
+  if (watcher) watcher.observe(body); else requestAnimationFrame(fits);
+  body.addEventListener('click', open);
+  return h('div', { class: 'overview-box' }, body, more);
 }
 
 /**

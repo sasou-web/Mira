@@ -1,6 +1,6 @@
 // Settings: playback quality and behaviour, this phone, the account; what Mira and the server are.
 import { api, base, VERSION } from '../api.js';
-import { h, icon, clear, initials } from '../dom.js';
+import { h, icon, clear, initials, haptic } from '../dom.js';
 import { session, settings, isIOS, isStandalone } from '../session.js';
 import { sheet } from '../components.js';
 import { resetScreens, replaceRoute } from '../app.js';
@@ -25,7 +25,7 @@ export function create() {
   function toggle(key, label, sub) {
     const button = h('button', {
       class: 'item', role: 'switch', 'aria-checked': String(!!settings.get(key)),
-      on: { click: () => { settings.set(key, !settings.get(key)); button.setAttribute('aria-checked', String(!!settings.get(key))); } },
+      on: { click: () => { haptic(); settings.set(key, !settings.get(key)); button.setAttribute('aria-checked', String(!!settings.get(key))); } },
     }, h('span', { class: 'grow' }, label, sub ? h('span', { class: 'sub' }, sub) : null), h('span', { class: 'switch', 'aria-hidden': 'true' }));
     return button;
   }
@@ -33,18 +33,23 @@ export function create() {
     return h('button', { class: 'item', on: { click: run } }, h('span', { class: 'grow' }, label), h('span', { class: 'value' }, value), icon('right', { size: 20 }));
   }
 
-  function render(user = null, info = null) {
+  // The account and the server, once Jellyfin has said: kept for the next times the screen is drawn.
+  let user = null, info = null;
+  function render() {
     const current = session.current ?? {};
     const quality = QUALITIES.find(([k]) => k === settings.get('quality')) ?? QUALITIES[0];
     const size = SIZES.find(([k]) => k === settings.get('subtitleSize')) ?? SIZES[1];
     const audio = AUDIO_LANGUAGES.find(([k]) => k === settings.get('audioLanguages')) ?? AUDIO_LANGUAGES[0];
     const subtitles = SUBTITLE_LANGUAGES.find(([k]) => k === settings.get('subtitleLanguages')) ?? SUBTITLE_LANGUAGES[0];
     const languages = (title, list, current, key) => () => sheet({
-      title, items: list.map(([value, label]) => ({ label, selected: value === current[0], run: () => { settings.set(key, value); render(user, info); } })),
+      title, items: list.map(([value, label]) => ({ label, selected: value === current[0], run: () => { settings.set(key, value); render(); } })),
     });
-    const avatar = h('div', { class: 'avatar' });
-    if (user?.PrimaryImageTag) avatar.append(h('img', { alt: '', src: `${base}/Users/${user.Id}/Images/Primary?maxWidth=160&tag=${user.PrimaryImageTag}` }));
-    else avatar.textContent = initials(current.userName);
+    if (!photo || photo.dataset.tag !== String(user?.PrimaryImageTag ?? '')) {
+      photo = h('div', { class: 'avatar', dataset: { tag: String(user?.PrimaryImageTag ?? '') } });
+      if (user?.PrimaryImageTag) photo.append(h('img', { alt: '', src: `${base}/Users/${user.Id}/Images/Primary?maxWidth=160&tag=${user.PrimaryImageTag}` }));
+      else photo.textContent = initials(current.userName);
+    }
+    const avatar = photo;
 
     clear(el).append(
       h('div', { class: 'page', style: { paddingBottom: '16px' } }, h('h1', { class: 'page-title' }, 'Réglages')),
@@ -56,7 +61,7 @@ export function create() {
       h('div', { class: 'group' },
         choice('Qualité', quality[1], () => sheet({
           title: 'Qualité de lecture',
-          items: QUALITIES.map(([key, label, sub]) => ({ label, sub, selected: key === quality[0], run: () => { settings.set('quality', key); render(user, info); } })),
+          items: QUALITIES.map(([key, label, sub]) => ({ label, sub, selected: key === quality[0], run: () => { settings.set('quality', key); render(); } })),
         })),
         toggle('resume', 'Reprendre là où tu t’es arrêté', 'Sinon, chaque titre repart du début.'),
         toggle('autoNext', 'Épisode suivant automatique', 'À la fin d’un épisode, le suivant démarre.'),
@@ -65,15 +70,15 @@ export function create() {
         choice('Langue des sous-titres', subtitles[1], languages('Langue des sous-titres', SUBTITLE_LANGUAGES, subtitles, 'subtitleLanguages')),
         appleNative()
           ? h('div', { class: 'item static' }, h('span', { class: 'grow' }, 'Lecteur d’Apple',
-            h('span', { class: 'sub' }, 'Les vidéos s’ouvrent en plein écran, avec les pistes et les sous-titres de son menu. Leur aspect se règle dans Réglages → Accessibilité → Sous-titres et sous-titres codés → Style.')))
+            h('span', { class: 'sub' }, 'Les vidéos s’ouvrent en plein écran. Audio et sous-titres se choisissent sur la fiche du titre, et les sous-titres aussi dans le menu du lecteur. Leur aspect se règle dans Réglages → Accessibilité → Sous-titres et sous-titres codés → Style.')))
           : choice('Taille des sous-titres', size[1], () => sheet({
             title: 'Taille des sous-titres',
-            items: SIZES.map(([key, label]) => ({ label, selected: key === size[0], run: () => { settings.set('subtitleSize', key); render(user, info); } })),
+            items: SIZES.map(([key, label]) => ({ label, selected: key === size[0], run: () => { settings.set('subtitleSize', key); render(); } })),
           })),
         // iOS shows a Home Screen app's video in the Dynamic Island, even in front: an « ambient » audio session may
         // keep it out, at the price of the Silent mode and of other apps' music, hence a choice, off at first.
         appleNative() && 'audioSession' in navigator
-          ? toggle('ambientAudio', 'Essai : sans Dynamic Island', 'Le son suit alors le mode silencieux et se mêle à la musique des autres apps.')
+          ? toggle('ambientAudio', 'Lecture discrète', 'Un essai pour garder la vidéo hors de la Dynamic Island : le son suit alors le mode silencieux et se mêle à la musique des autres apps.')
           : null),
       h('p', { class: 'group-note' }, 'Les langues choisissent les pistes au début de chaque titre, comme Mira sur Windows et Mac. Sur la fiche d’un titre, « Audio et sous-titres » en choisit d’autres : Mira les retient pour les épisodes suivants de la série.'),
 
@@ -90,14 +95,17 @@ export function create() {
       h('div', { class: 'group' },
         h('button', { class: 'item danger', on: { click: () => sheet({
           title: 'Se déconnecter de Mira sur cet appareil ?',
-          items: [{ label: 'Se déconnecter', symbol: 'sign-out', danger: true, run: async () => { await api.signOut(); resetScreens(); replaceRoute('#/connexion'); } }],
+          // At once: Jellyfin is told behind it (up to 5 s when the PC is off).
+          items: [{ label: 'Se déconnecter', symbol: 'sign-out', danger: true, run: () => { api.signOut(); resetScreens(); replaceRoute('#/connexion'); } }],
         }) } }, icon('sign-out'), h('span', { class: 'grow' }, 'Se déconnecter'))),
 
       h('p', { class: 'about' }, `Mira ${VERSION}`, info?.Version ? ` · Jellyfin ${info.Version}` : ''),
       h('p', { class: 'about' }, 'Ta progression est enregistrée sur ton serveur Jellyfin : elle te suit sur Mira pour Windows et pour Mac.'));
   }
 
+  let photo = null;
   render();
-  Promise.all([api.me().catch(() => null), api.publicInfo().catch(() => null)]).then(([user, info]) => render(user, info));
-  return { el, title: 'Réglages', keep: true };
+  Promise.all([api.me().catch(() => null), api.publicInfo().catch(() => null)]).then(([me, server]) => { user = me; info = server; render(); });
+  // A setting changed elsewhere (the quality, in Mira's player) shows when the screen comes back.
+  return { el, title: 'Réglages', keep: true, enter: () => render() };
 }

@@ -1,10 +1,11 @@
 // A title's page: backdrop and logo, play or resume, watched and favourite, overview, cast and, for a series, its
 // seasons (long ones in slices of 100, as on Windows) and episodes.
 import { api } from '../api.js';
-import { h, icon, clear, duration, seconds, progress, remaining, episodeCode, plural } from '../dom.js';
+import { h, icon, clear, duration, seconds, progress, remaining, episodeCode, plural, haptic } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import {
   row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, toast, sheet, withActions, knownItem,
+  overview,
 } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
 import { settings } from '../session.js';
@@ -48,14 +49,6 @@ function meta(item, episodes) {
   return h('div', { class: 'detail-meta' }, parts.map((p, i) => (i ? [h('span', { class: 'dot', 'aria-hidden': 'true' }), p] : p)));
 }
 
-function overview(text) {
-  if (!text) return null;
-  const body = h('p', { class: 'overview clamp-4' }, text);
-  const more = h('button', { class: 'more-link', hidden: true, on: { click: () => { body.classList.remove('clamp-4'); more.remove(); } } }, 'Plus');
-  requestAnimationFrame(() => { if (body.scrollHeight > body.clientHeight + 2) more.hidden = false; });
-  return h('div', {}, body, more);
-}
-
 function credits(item) {
   const people = item.People ?? [];
   const link = (p) => (p.Id ? h('a', { href: `#/personne/${p.Id}` }, p.Name) : h('span', {}, p.Name));
@@ -68,18 +61,24 @@ function credits(item) {
     actors.length ? h('div', {}, 'Avec ', join(actors)) : null);
 }
 
+/** What an episode's row shows: when it changes, the row is drawn again, and only then. */
+const rowState = (e, current) => [e.UserData?.Played ? 1 : 0, e.UserData?.PlaybackPositionTicks ?? 0, current ? 1 : 0, e.Name ?? '', e.ImageTags?.Primary ?? '', e.RunTimeTicks ?? 0].join('|');
+
 function episodeRow(episode, current) {
   const art = picture(artFor(episode, 'still'), { kind: 'wide', width: 200, label: `${episode.IndexNumber ?? ''}` });
   const done = progress(episode);
   if (done > 0) art.append(h('div', { class: 'progress' }, h('i', { style: { width: `${(done * 100).toFixed(1)}%` } })));
   else if (episode.UserData?.Played) art.append(h('div', { class: 'badge-watched', title: 'Vu' }, icon('check')));
   const facts = [episode.RunTimeTicks ? duration(seconds(episode.RunTimeTicks)) : '', remaining(episode)].filter(Boolean).join(' · ');
-  const link = h('a', { class: ['episode', 'card', current && 'current'], href: playHref(episode), 'aria-label': `Lire ${episodeCode(episode)} ${episode.Name ?? ''}` },
+  const link = h('a', {
+    class: ['episode', 'card', current && 'current'], href: playHref(episode), 'aria-label': `Lire ${episodeCode(episode)} ${episode.Name ?? ''}`,
+    dataset: { id: episode.Id, state: rowState(episode, current) },
+  },
     art,
     h('div', {}, h('div', { class: 'ep-title clamp-2' }, `${episode.IndexNumber != null ? `${episode.IndexNumber}. ` : ''}${episode.Name ?? ''}`), h('div', { class: 'ep-meta' }, facts)),
     episode.Overview ? h('p', { class: 'ep-overview clamp-2' }, episode.Overview) : null);
   // A long press offers the episode's actions (watched, favourite) instead of playing it, as on the cards.
-  withActions(link, episode);
+  withActions(link, episode, { inTitle: true });
   return link;
 }
 
@@ -87,7 +86,7 @@ export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': 'Retour', on: { click: () => goBack('#/') } }, icon('back'));
   let item = null, episodes = [], next = null, similar = [], page = null, stale = false, loadedAt = 0;
-  let actionsBox = null, toolsBox = null, similarBox = null;
+  let actionsBox = null, toolsBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
   const wanted = query.get('episode');
@@ -157,7 +156,7 @@ export function create({ id, query }) {
 
   /** Lecture, its tracks and Du début again, without rebuilding the page. */
   function refreshActions() {
-    if (!item || !actionsBox?.isConnected) return;
+    if (!item || !actionsBox || !el.contains(actionsBox)) return;
     const actions = primaryAction(), secondary = tools();
     actionsBox.replaceWith(actions); toolsBox.replaceWith(secondary);
     actionsBox = actions; toolsBox = secondary;
@@ -177,10 +176,19 @@ export function create({ id, query }) {
   function tools() {
     const target = playTarget();
     const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
-    const tool = (symbol, label, on, run) => h('button', { class: ['tool', on && 'on'], 'aria-pressed': String(!!on), on: { click: run } }, icon(symbol), label);
+    const tool = (key, symbol, label, on, run) => h('button', { class: ['tool', on && 'on'], dataset: { tool: key }, 'aria-pressed': String(!!on), on: { click: run } }, icon(symbol), label);
+    // The button changes at once, with a little bounce, as in iOS; Jellyfin is told behind it, and the button goes back
+    // if it refuses.
+    const flip = (key, set) => {
+      haptic();
+      const done = set();
+      refreshActions();
+      toolsBox.querySelector(`[data-tool="${key}"]`)?.classList.add('pop');
+      done.then((ok) => { if (!ok) refreshActions(); });
+    };
     return h('div', { class: 'detail-secondary' },
-      tool(favorite ? 'heart-fill' : 'heart', favorite ? 'Favori' : 'Favoris', favorite, () => setFavorite(item, !favorite)),
-      tool('check', played ? 'Vu' : 'Marquer vu', played, async () => { await setPlayed(item, !played); if (item.Type === 'Series') load(true); }),
+      tool('favorite', favorite ? 'heart-fill' : 'heart', favorite ? 'Favori' : 'Favoris', favorite, () => flip('favorite', () => setFavorite(item, !favorite, { quiet: true }))),
+      tool('played', 'check', played ? 'Vu' : 'Marquer vu', played, () => flip('played', () => setPlayed(item, !played, { quiet: true }))),
       target && progress(target) > 0
         ? h('a', { class: 'tool', href: playHref(target, true, chosen?.for === target.Id ? chosen : null) }, icon('back10'), 'Du début')
         : null);
@@ -192,13 +200,14 @@ export function create({ id, query }) {
     const pages = episodePages(episodes);
     const focus = episodes.find((x) => x.Id === wanted) ?? next;
     page ??= pageHolding(pages, episodes, focus) ?? pages[0];
-    const list = h('div', { role: 'list' });
+    const list = h('div', { class: 'episodes' });
+    listBox = list; shownIds = episodes.map((x) => x.Id).join();
     const chips = h('div', { class: 'chips', role: 'tablist', 'aria-label': 'Saisons' });
     const show = (p) => {
       page = p;
       chips.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-selected', String(c.dataset.key === `${p.season}:${p.skip}`)));
       chips.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', c.dataset.key === `${p.season}:${p.skip}`));
-      clear(list).append(...pageEpisodes(episodes, p).map((e) => { const r = episodeRow(e, e.Id === (wanted ?? next?.Id)); r.setAttribute('role', 'listitem'); return r; }));
+      clear(list).append(...pageEpisodes(episodes, p).map((e) => episodeRow(e, e.Id === (wanted ?? next?.Id))));
     };
     for (const p of pages) {
       chips.append(h('button', { class: 'chip', role: 'tab', dataset: { key: `${p.season}:${p.skip}` }, on: { click: () => show(p) } }, p.label));
@@ -216,6 +225,8 @@ export function create({ id, query }) {
   }
 
   function render() {
+    // Read before the page is emptied: reading it after would lay out an empty page, and send the scroll to the top.
+    const wide = innerWidth > 900;
     const headTitle = logo(item, 420, 'detail-logo') ?? h('h1', { class: 'detail-title' }, item.Name);
     if (headTitle.tagName === 'IMG') {
       headTitle.addEventListener('error', () => headTitle.replaceWith(h('h1', { class: 'detail-title' }, item.Name)), { once: true });
@@ -226,13 +237,13 @@ export function create({ id, query }) {
     const backdrop = artFor(item, 'backdrop'), poster = backdrop ? null : artFor(item, 'poster');
     clear(el).append(back,
       h('div', { class: 'detail-top' },
-        h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: innerWidth > 900 ? 1600 : 900, eager: true }) : null),
+        h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: wide ? 1600 : 900, eager: true }) : null),
         h('div', { class: 'detail-head' },
           poster ? picture(poster, { kind: 'poster', width: 140, eager: true, className: 'detail-poster' }) : null,
-          headTitle, meta(item, episodes), (actionsBox = primaryAction()), (toolsBox = tools()), overview(item.Overview),
+          headTitle, (metaBox = meta(item, episodes)), (actionsBox = primaryAction()), (toolsBox = tools()), overview(item.Overview),
           item.Genres?.length ? h('div', { class: 'genres' }, item.Genres.join(' · ')) : null,
           credits(item))),
-      seasonsSection() ?? '',
+      (seasonsBox = h('div', {}, seasonsSection())),
       row('Distribution', cast, (p) => personCard(p), { people: true }) ?? '',
       (similarBox = h('div', {}, row('Titres similaires', similar, (x) => posterCard(x)) ?? '')),
       h('div', { style: { height: '32px' } }));
@@ -246,9 +257,10 @@ export function create({ id, query }) {
     const backdrop = artFor(known, 'backdrop'), poster = backdrop ? null : artFor(known, 'poster');
     const headTitle = logo(known, 420, 'detail-logo') ?? h('h1', { class: 'detail-title' }, known.Name);
     if (headTitle.tagName === 'IMG') headTitle.addEventListener('error', () => headTitle.replaceWith(h('h1', { class: 'detail-title' }, known.Name)), { once: true });
+    const wide = innerWidth > 900;
     clear(el).append(back,
       h('div', { class: 'detail-top' },
-        h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: innerWidth > 900 ? 1600 : 900, eager: true }) : null),
+        h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: wide ? 1600 : 900, eager: true }) : null),
         h('div', { class: 'detail-head' },
           poster ? picture(poster, { kind: 'poster', width: 140, eager: true, className: 'detail-poster' }) : null,
           headTitle, meta(known, []),
@@ -256,25 +268,52 @@ export function create({ id, query }) {
           h('div', { class: 'skeleton line', style: { width: '90%' } }), h('div', { class: 'skeleton line', style: { width: '75%' } }))));
   }
 
+  /**
+   * A quiet reload (back from the player, a title marked watched, the server back): what changed is updated where it
+   * is. The page does not move, an opened summary stays open, the rows stay where they were scrolled.
+   */
+  function update() {
+    const facts = meta(item, episodes);
+    metaBox.replaceWith(facts); metaBox = facts;
+    refreshActions();
+    if (item.Type !== 'Series') return;
+    if (episodes.map((x) => x.Id).join() !== shownIds || !listBox || !el.contains(listBox)) {
+      clear(seasonsBox).append(seasonsSection() ?? '');
+      return;
+    }
+    const byId = new Map(episodes.map((x) => [x.Id, x]));
+    const currentId = wanted ?? next?.Id;
+    for (const old of [...listBox.children]) {
+      const e = byId.get(old.dataset.id);
+      if (e && old.dataset.state !== rowState(e, e.Id === currentId)) old.replaceWith(episodeRow(e, e.Id === currentId));
+    }
+  }
+
   async function load(quiet = false) {
     const known = !item && !quiet ? knownItem(id) : null;
     if (known && known.Type !== 'Episode') seed(known);
     else if (!quiet && !item) clear(el).append(back, h('div', { style: { paddingTop: '40vh' } }, spinner()));
+    // A series' episodes and where it picks up are asked for with it when the card already said it is a series.
+    const seriesParts = () => Promise.all([api.episodes(id).then((r) => r?.Items ?? []), api.seriesNext(id).catch(() => null)]);
+    const early = (item ?? known)?.Type === 'Series' ? seriesParts() : null;
+    early?.catch(() => {});
     try {
       const fresh = await api.item(id);
       let eps = [], nextUp = null;
       if (fresh.Type === 'Series') {
-        [eps, nextUp] = await Promise.all([api.episodes(id).then((r) => r?.Items ?? []), api.seriesNext(id).catch(() => null)]);
+        [eps, nextUp] = await (early ?? seriesParts());
       } else if (fresh.Type === 'Episode' && fresh.SeriesId) {
         replaceRoute(`#/titre/${fresh.SeriesId}?episode=${fresh.Id}`);
         return;
       }
+      const inPlace = quiet && item?.Type === fresh.Type && !!actionsBox && el.contains(actionsBox);
       item = fresh; episodes = eps; next = nextUp; stale = false; loadedAt = Date.now();
       document.title = `${item.Name} · Mira`;
-      // A film's streams come with it, fresh; an episode's are asked for once its page is drawn.
+      // A film's streams come with it, fresh; a series' come with the episode it picks up at (else they are asked for).
       if (item.Type !== 'Series') streams = null;
+      else if (next?.MediaSources?.[0]) streams = { for: next.Id, source: next.MediaSources[0] };
       loadStreams();
-      render();
+      if (inPlace) update(); else render();
       if (!similar.length) {
         // Only its row is drawn when it arrives: the page does not jump or flash under the finger.
         api.similar(id).then((r) => {
@@ -291,9 +330,14 @@ export function create({ id, query }) {
   const onChange = (e) => {
     const changed = e.detail.item;
     if (!item) return;
+    // This page's own buttons already show a film's watched state and the favourite: nothing to ask again.
+    if (changed === item && ('favorite' in e.detail || ('played' in e.detail && item.Type !== 'Series'))) { refreshActions(); return; }
     if (changed.Id === item.Id || changed.SeriesId === item.Id || episodes.some((x) => x.Id === changed.Id)) {
       stale = true;
-      if (el.isConnected) load(true);
+      if (!el.isConnected) return;
+      // An episode marked from its long-press menu shows it at once; the rest (where the series picks up) follows.
+      if (episodes.includes(changed) && metaBox && el.contains(metaBox)) update();
+      load(true);
     }
   };
   changes.addEventListener('item', onChange);

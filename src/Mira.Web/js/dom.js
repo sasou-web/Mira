@@ -44,6 +44,25 @@ export function icon(name, { size = 0, label = '' } = {}) {
   return svg;
 }
 
+/**
+ * A light tap felt in the hand, where a web page can have one: Android's vibration, and on iPhone (iOS 18 and later)
+ * the one WebKit plays when a switch is flipped by a touch. Only works from a touch or a click.
+ */
+export function haptic() {
+  try {
+    if (navigator.vibrate) { navigator.vibrate(10); return; }
+    if (!/iP(hone|ad|od)/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))) return;
+    const input = document.createElement('input');
+    input.type = 'checkbox'; input.setAttribute('switch', '');
+    const label = document.createElement('label');
+    label.setAttribute('aria-hidden', 'true'); label.style.display = 'none';
+    label.append(input);
+    document.head.append(label);
+    label.click();
+    label.remove();
+  } catch { /* no haptics here */ }
+}
+
 export function clear(el) { while (el.firstChild) el.firstChild.remove(); return el; }
 
 const TICKS = 10_000_000;

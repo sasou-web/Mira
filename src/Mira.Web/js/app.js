@@ -1,6 +1,6 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
 import { onUnauthorized, onReachable, ping } from './api.js';
-import { h, icon, clear } from './dom.js';
+import { h, icon, clear, haptic } from './dom.js';
 import { session, device, isStandalone } from './session.js';
 import { toast } from './components.js';
 import './player/video.js';
@@ -24,7 +24,8 @@ const ROUTES = [
   { pattern: /^\/personne\/([0-9a-f-]+)$/i, load: () => import('./views/person.js'), args: (m) => ({ id: m[1] }) },
   { pattern: /^\/lecture\/([0-9a-f-]+)$/i, bare: true, load: () => import('./player/player.js'), args: (m) => ({ id: m[1] }) },
   { pattern: /^\/connexion$/, bare: true, open: true, load: () => import('./views/login.js') },
-  { pattern: /^\/partager$/, bare: true, open: true, load: () => import('./views/share.js') },
+  // Opened from Réglages, a screen of its own like the others; opened by Mira for Windows, before any sign-in, alone.
+  { pattern: /^\/partager$/, bare: () => !session.current, open: true, load: () => import('./views/share.js') },
 ];
 
 const app = document.getElementById('app');
@@ -134,6 +135,7 @@ async function route() {
   const match = ROUTES.map((r) => ({ r, m: path.match(r.pattern) })).find((x) => x.m);
   if (!match) { replaceRoute('#/'); return; }
   const { r, m } = match;
+  const bare = typeof r.bare === 'function' ? r.bare() : !!r.bare;
   if (!r.open && !session.current) {
     sessionStorage.setItem('mira.next', key);
     replaceRoute('#/connexion');
@@ -169,14 +171,14 @@ async function route() {
       if (!current.keep) { current.dispose?.(); cache.delete(currentKey); }
       current.el.remove();
     }
-    app.classList.toggle('with-tabs', !r.bare);
-    tabbar.hidden = !!r.bare;
+    app.classList.toggle('with-tabs', !bare);
+    tabbar.hidden = bare;
     // A title or a person belongs to the tab its history started from, which stays lit, as in iOS.
     const tab = r.tab ?? tabOf(trail[0]);
     for (const link of tabbar.querySelectorAll('a')) {
       if (link.dataset.tab === tab) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
     }
-    current = entry.view; currentKey = key; currentBare = !!r.bare;
+    current = entry.view; currentKey = key; currentBare = bare;
     document.title = current.title ? `${current.title} · Mira` : 'Mira';
     current.el.classList.remove('enter-push', 'enter-pop');
     if (current.el.parentNode !== viewHost) clear(viewHost).append(current.el);
@@ -186,7 +188,7 @@ async function route() {
   };
   // iOS's moves: a screen comes in from the right and goes back to it; tabs change at once. The player opens on its
   // own (Apple's full screen, or Mira's), the first screen without a move, and a move iOS drew is not drawn again.
-  const style = animate && (move === 'push' || move === 'pop') && !r.bare && !wasBare() && !reducedMotion() ? move : '';
+  const style = animate && (move === 'push' || move === 'pop') && !bare && !wasBare() && !reducedMotion() ? move : '';
   if (style && document.startViewTransition) {
     const mine = ++transitions;
     document.documentElement.dataset.nav = style;
@@ -335,6 +337,7 @@ function setupPullToRefresh() {
     if (start == null) return;
     start = null;
     if (!armed) { hide(); return; }
+    haptic();
     busy = true;
     mark.classList.add('busy');
     try { await current?.refresh?.(); } catch { /* the screen says what failed */ }

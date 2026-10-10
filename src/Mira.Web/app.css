@@ -270,7 +270,7 @@ img.fade.ready { opacity: 1; }
 .row::-webkit-scrollbar { display: none; }
 .row > * { scroll-snap-align: start; }
 .row.wide { grid-auto-columns: var(--wide-w); }
-.row.people { grid-auto-columns: 84px; }
+.row.people { grid-auto-columns: 84px; scroll-snap-type: x proximity; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 12px; }
 @media (min-width: 600px) { .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 24px 16px; } }
 
@@ -404,7 +404,8 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .detail-poster { width: 140px; box-shadow: var(--shadow); }
 .floating-back { position: fixed; z-index: 45; top: calc(var(--top) + 8px); left: calc(var(--rail) + var(--left) + 10px); }
 .detail-head { position: relative; margin-top: -132px; padding: 0 var(--gutter); display: grid; gap: 12px; }
-.detail-logo { max-width: min(78%, 420px); max-height: 128px; object-fit: contain; object-position: left bottom; filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.6)); }
+/* The logo's box is there before the picture: nothing under it moves when it arrives. */
+.detail-logo { width: min(78%, 420px); height: clamp(72px, 22vw, 120px); object-fit: contain; object-position: left bottom; filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.6)); }
 .detail-title { font-size: 32px; line-height: 1.08; font-weight: 800; letter-spacing: -0.015em; }
 .detail-meta { display: flex; flex-wrap: wrap; align-items: center; row-gap: 4px; color: var(--muted); font-size: 14px; font-weight: 600; }
 .rating { display: inline-flex; align-items: center; gap: 4px; }
@@ -426,8 +427,10 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .detail-secondary .tool { flex: 1; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: var(--r-m); color: var(--muted); font-size: 12px; font-weight: 700; }
 .detail-secondary .tool.on { color: var(--ink); }
 .detail-secondary .tool:active { background: var(--surface); }
+.detail-secondary .tool.pop .icon { animation: pop 320ms var(--ios); }
+@keyframes pop { 40% { transform: scale(1.28); } }
 .overview { color: rgba(244, 244, 245, 0.9); font-size: 15px; line-height: 1.55; max-width: 70ch; }
-.more-link { color: var(--ink); font-weight: 800; font-size: 14px; margin-top: 4px; }
+.more-link { color: var(--ink); font-weight: 800; font-size: 14px; padding: 10px 16px 10px 0; margin: -6px 0 -10px; }
 .genres { color: var(--faint); font-size: 13px; }
 .credits { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
 .credits a { color: var(--ink); font-weight: 700; }
@@ -476,6 +479,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .profile { display: flex; align-items: center; gap: 14px; padding: 8px var(--gutter) 20px; }
 .avatar { width: 56px; height: 56px; border-radius: var(--r-full); overflow: hidden; flex: none; background: var(--raised); display: grid; place-items: center; font-weight: 800; font-size: 20px; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar > .art { width: 100%; height: 100%; border-radius: inherit; }
 .group { margin: 0 var(--gutter) 24px; border-radius: var(--r-m); background: var(--surface); overflow: hidden; }
 .group-title { padding: 0 calc(var(--gutter) + 4px) 8px; }
 .item {
@@ -505,7 +509,10 @@ button.item:active, a.item:active { background: var(--raised); transition: backg
 .user-pick { display: grid; justify-items: center; gap: 8px; width: 88px; font-weight: 700; font-size: 14px; }
 .user-pick .avatar { width: 76px; height: 76px; font-size: 26px; transition: transform var(--fast) var(--ease); }
 .user-pick:active .avatar { transform: scale(0.94); }
+.user-pick.busy .avatar { opacity: 0.5; animation: breathe 0.9s ease-in-out infinite alternate; }
 .login-form { width: 100%; max-width: 360px; display: grid; gap: 14px; text-align: left; }
+.login-form.shake { animation: shake 360ms var(--ease); }
+@keyframes shake { 20% { transform: translateX(-10px); } 40% { transform: translateX(9px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(3px); } }
 .form-error { color: var(--danger); font-size: 14px; font-weight: 600; }
 .hint { width: 100%; max-width: 420px; display: grid; gap: 10px; padding: 16px; border-radius: var(--r-m); background: var(--surface); text-align: left; font-size: 14px; color: var(--muted); }
 .hint b { color: var(--ink); }

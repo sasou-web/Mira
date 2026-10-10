@@ -52,7 +52,7 @@ export function query(params) {
 export const url = (path, params) => `${base}/${path}${query(params)}`;
 
 /** A request to Jellyfin; errors come back in French, ready to show. */
-export async function request(method, path, { params, body, signal, timeout = 20000, keepalive = false } = {}) {
+export async function request(method, path, { params, body, signal, timeout = 20000, keepalive = false, token } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new DOMException('timeout', 'TimeoutError')), timeout);
   signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
@@ -63,7 +63,7 @@ export async function request(method, path, { params, body, signal, timeout = 20
       method,
       keepalive,
       signal: controller.signal,
-      headers: { Authorization: authorization(), Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { Authorization: authorization(token), Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (error) {
@@ -80,7 +80,8 @@ export async function request(method, path, { params, body, signal, timeout = 20
   }
   // Back up is for ping() to say: while Jellyfin starts, its startup page answers some routes too.
   if (response.status === 401) {
-    if (session.current) { session.clear(); listeners.forEach((fn) => fn()); }
+    // Only the session in use ends: a sign-out still on its way with an older token leaves a new sign-in alone.
+    if (session.current && (token == null || token === session.current.token)) { session.clear(); listeners.forEach((fn) => fn()); }
     throw new ApiError(401, 'Ta session a pris fin. Reconnecte-toi.');
   }
   if (!response.ok) {
@@ -126,9 +127,12 @@ export const api = {
     post('Sessions/Capabilities', undefined, { playableMediaTypes: 'Video', supportsMediaControl: false }).catch(() => {});
     return result;
   },
-  async signOut() {
-    await post('Sessions/Logout', undefined, null, { timeout: 5000 }).catch(() => {});
+  /** Signed out here at once; Jellyfin is told with the token that was used, so a new sign-in is never undone. */
+  signOut() {
+    const token = session.current?.token;
     session.clear();
+    if (!token) return Promise.resolve();
+    return post('Sessions/Logout', undefined, null, { timeout: 5000, token, keepalive: true }).catch(() => {});
   },
   me: () => get('Users/Me'),
 
@@ -163,8 +167,8 @@ export const api = {
     const result = await get(`Shows/${encodeURIComponent(item.SeriesId)}/Episodes`, { userId: user(), startItemId: item.Id, limit: 2, isMissing: false, fields: 'Overview', enableImageTypes: 'Primary,Thumb', imageTypeLimit: 1 });
     return result?.Items?.find((x) => x.Id !== item.Id) ?? null;
   },
-  /** Where a series picks up: the episode in progress, or the next one to watch. */
-  seriesNext: (seriesId) => get('Shows/NextUp', { userId: user(), seriesId, limit: 1, enableResumable: true, fields: 'Overview' }).then((r) => r?.Items?.[0] ?? null),
+  /** Where a series picks up: the episode in progress, or the next one to watch, with its tracks for « Audio et sous-titres ». */
+  seriesNext: (seriesId) => get('Shows/NextUp', { userId: user(), seriesId, limit: 1, enableResumable: true, fields: 'Overview,MediaSources' }).then((r) => r?.Items?.[0] ?? null),
   similar: (id) => get(`Items/${encodeURIComponent(id)}/Similar`, { userId: user(), limit: 16, fields: CARD_FIELDS, ...CARD_IMAGES }),
 
   setPlayed: (id, played) => request(played ? 'POST' : 'DELETE', `UserPlayedItems/${encodeURIComponent(id)}`, { params: { userId: user() } }),
