@@ -38,8 +38,12 @@ export const support = (() => {
 const list = (pairs) => pairs.filter(([ok]) => ok).map(([, name]) => name).join(',');
 const condition = (Condition, Property, Value, IsRequired = false) => ({ Condition, Property, Value: String(Value), IsRequired });
 
-/** The profile Jellyfin's PlaybackInfo decides with. `bitrate` caps both direct play and conversions. */
-export function deviceProfile(bitrate) {
+/**
+ * The profile Jellyfin's PlaybackInfo decides with. `bitrate` caps both direct play and conversions. With
+ * `hlsSubtitles` (Apple's player), a conversion carries its text subtitles in the HLS stream itself: Apple's player
+ * ignores the subtitles beside an HLS stream, and lists the stream's own in its menu.
+ */
+export function deviceProfile(bitrate, { hlsSubtitles = false } = {}) {
   const s = support;
   const mp4Video = list([[s.h264, 'h264'], [s.hevc, 'hevc'], [s.av1, 'av1']]);
   const mp4Audio = list([[s.aac, 'aac'], [s.mp3, 'mp3'], [s.ac3, 'ac3'], [s.eac3, 'eac3'], [s.flac, 'flac'], [s.opus, 'opus'], [s.aac, 'alac']]);
@@ -87,8 +91,9 @@ export function deviceProfile(bitrate) {
       ...(audioTracks ? [] : [{ Type: 'VideoAudio', Conditions: [condition('Equals', 'IsSecondaryAudio', false)] }]),
     ],
     SubtitleProfiles: [
-      // Text subtitles come as WebVTT beside the video (Apple's player lists them in its menu);
-      // pictures (PGS, DVD) are drawn into the video by the conversion.
+      // Text subtitles come as WebVTT: in the HLS stream for Apple's player (Jellyfin tries the profiles in this order,
+      // Hls only for a conversion), beside the video otherwise; pictures (PGS, DVD) are drawn into the video.
+      ...(hlsSubtitles ? [{ Format: 'vtt', Method: 'Hls' }] : []),
       { Format: 'vtt', Method: 'External' },
       { Format: 'pgssub', Method: 'Encode' },
       { Format: 'dvdsub', Method: 'Encode' },
