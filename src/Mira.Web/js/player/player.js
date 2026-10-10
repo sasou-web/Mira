@@ -9,7 +9,7 @@ import { settings, device } from '../session.js';
 import { artFor, imageUrl, picture } from '../images.js';
 import { sheet, toast, changed, titleHref } from '../components.js';
 import { goBack } from '../app.js';
-import { deviceProfile, useHlsJs, audioTracks as switchesAudio } from './profile.js';
+import { deviceProfile, lastResortProfile, useHlsJs, audioTracks as switchesAudio } from './profile.js';
 import { sharedVideo, appleNative } from './video.js';
 import { trackText, chooseTracks, trackMemory, textSubtitles as textOf, menuNames as namesOf, appleStream } from './tracks.js';
 import { QUALITIES } from '../views/settings.js';
@@ -37,6 +37,17 @@ async function bitrate() {
   } catch { return 8_000_000; }
 }
 
+/**
+ * Why Jellyfin converts, as its address says (TranscodeReasons): none of these, and the video is copied as it is
+ * (Jellyfin 10.9 and later write VideoCodec= even then).
+ */
+const VIDEO_REASONS = /Video|RefFrames|ContainerBitrate|SubtitleCodec/;
+function copiesVideo(address) {
+  if (/[?&]allowVideoStreamCopy=false/i.test(address)) return false;
+  const reasons = new URLSearchParams(address.split('?')[1] ?? '').get('TranscodeReasons') ?? '';
+  return !VIDEO_REASONS.test(reasons);
+}
+
 const ERRORS = {
   NotAllowed: 'Ton compte Jellyfin n’a pas le droit de lire ce titre.',
   NoCompatibleStream: 'Jellyfin ne sait pas convertir ce fichier pour cet appareil.',
@@ -60,7 +71,11 @@ export function create({ id, query }) {
   // ---------- The title playing (the next episode replaces it in the same player) ----------
   let item = null, source = null, playSessionId = '', playMethod = 'DirectPlay', hls = null;
   let offset = 0;             // progressive conversions start at the requested point: their time 0 is `offset`
-  let progressive = false, total = 0, audioIndex = null, subtitleIndex = null, forceTranscode = false;
+  let progressive = false, total = 0, audioIndex = null, subtitleIndex = null;
+  // What a title refused by the player is asked as next: 0 as Jellyfin decides (the file as it is when it can, its
+  // video or audio copied into HLS), 1 its video converted, 2 everything converted (lastResortProfile). Kept for the
+  // title (seeks, other tracks), back to 0 for the next one.
+  let fallback = 0, lastError = '';
   let inband = false;         // the HLS stream carries the text subtitles (Apple's player): no <track> beside it
   let started = false, ended = false, progressTimer = 0, lastReport = 0;
   let segments = [], chapters = [], trick = null, next = null, nextDismissed = false, countdown = 0, countdownTimer = 0;
@@ -165,7 +180,6 @@ export function create({ id, query }) {
       streak += 1;
       seek(position() + (side === 'left' ? -10 : 10));
       flash(side, streak * 10);
-      try { navigator.vibrate?.(8); } catch { /* no vibration here */ }
       clearTimeout(streakTimer);
       streakTimer = setTimeout(() => { streak = 0; }, 700);
     };
@@ -398,7 +412,7 @@ export function create({ id, query }) {
     clearInterval(progressTimer);
     stopWaiting();
     item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0; inband = false;
-    audioIndex = null; subtitleIndex = null; forceTranscode = false; started = false; ended = false;
+    audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; started = false; ended = false;
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
     skipped.clear();
     nextButton.hidden = true;
@@ -457,10 +471,11 @@ export function create({ id, query }) {
     try {
       const max = await bitrate();
       const info = await api.playbackInfo(item.Id, {
-        DeviceProfile: deviceProfile(max, { hlsSubtitles: native }), MaxStreamingBitrate: max, StartTimeTicks: startTicks,
+        DeviceProfile: fallback >= 2 ? lastResortProfile(max, { hlsSubtitles: native }) : deviceProfile(max, { hlsSubtitles: native }),
+        MaxStreamingBitrate: max, StartTimeTicks: startTicks,
         AudioStreamIndex: audioIndex ?? undefined, SubtitleStreamIndex: subtitleIndex ?? undefined, MediaSourceId: source?.Id,
-        EnableDirectPlay: !forceTranscode, EnableDirectStream: !forceTranscode, EnableTranscoding: true,
-        AllowVideoStreamCopy: !forceTranscode, AllowAudioStreamCopy: true, AutoOpenLiveStream: true,
+        EnableDirectPlay: fallback === 0, EnableDirectStream: fallback === 0, EnableTranscoding: true,
+        AllowVideoStreamCopy: fallback === 0, AllowAudioStreamCopy: fallback < 2, AutoOpenLiveStream: true,
       });
       if (attempt !== opening || disposed || closing) return;
       if (info?.ErrorCode) throw new Error(ERRORS[info.ErrorCode] ?? 'Jellyfin n’a pas pu préparer ce titre pour cet appareil.');
@@ -475,7 +490,7 @@ export function create({ id, query }) {
 
       let url, hlsStream = false;
       inband = false;
-      if (source.SupportsDirectPlay && !source.TranscodingUrl && !forceTranscode) {
+      if (source.SupportsDirectPlay && !source.TranscodingUrl && fallback === 0) {
         const container = (source.Container ?? 'mp4').split(',').find((c) => c === 'mp4') ?? (source.Container ?? 'mp4').split(',')[0];
         url = signed(`Videos/${item.Id}/stream.${container}?Static=true&mediaSourceId=${encodeURIComponent(source.Id)}&deviceId=${device.id}${source.ETag ? `&Tag=${source.ETag}` : ''}`);
         playMethod = 'DirectPlay'; progressive = false; offset = 0;
@@ -485,7 +500,7 @@ export function create({ id, query }) {
         // Apple's player: every text subtitle in the HLS stream, for its menu (see appleStream).
         if (native && hlsStream) ({ address, inband } = appleStream(address, source, subtitleIndex));
         url = signed(address);
-        playMethod = source.SupportsDirectStream && !/VideoCodec=|videoBitrate=/i.test(source.TranscodingUrl) ? 'DirectStream' : 'Transcode';
+        playMethod = copiesVideo(source.TranscodingUrl) ? 'DirectStream' : 'Transcode';
         progressive = !hlsStream;
         offset = progressive ? seconds(startTicks) : 0;
       } else {
@@ -519,11 +534,14 @@ export function create({ id, query }) {
       const { default: Hls } = await import('../../vendor/hls.light.min.mjs');
       if (disposed || closing || attempt !== opening) return false;
       hls = new Hls({ startPosition: startSeconds, maxBufferLength: 30, backBufferLength: 60, enableWorker: true });
+      let recovered = false;
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return;
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) streamFailed('Le flux vidéo s’est interrompu. Vérifie la connexion au serveur.');
-        else fail('Le flux vidéo s’est interrompu. Vérifie la connexion au serveur.');
+        // A decoding hiccup: hls.js starts the decoder again, once. Twice, or anything else with Jellyfin answering
+        // (a segment it could not make), the stream is asked again with more of it converted.
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) { recovered = true; hls.recoverMediaError(); return; }
+        lastError = `Erreur ${data.details ?? data.type} (${fallback === 0 ? 'conversion de Jellyfin' : fallback === 1 ? 'vidéo convertie' : 'tout converti'}).`;
+        streamFailed(REFUSED, { then: nextFallback(), detail: lastError });
       });
       hls.loadSource(url);
       hls.attachMedia(video);
@@ -732,13 +750,14 @@ export function create({ id, query }) {
   // ---------- Errors and messages ----------
   function showMessage(content) { clear(message).append(content); message.hidden = false; }
   function hideMessage() { message.hidden = true; }
-  function fail(text) {
+  function fail(text, detail = '') {
     failed = true; switching = false;
     busy.hidden = true;
     clearTimeout(nativeCheck);
     exitPresentation();
     showNative('');
     showMessage(h('div', {}, icon('warning', { size: 36 }), h('h2', { class: 'h3' }, 'Lecture impossible'), h('p', {}, text),
+      detail ? h('p', { class: 'detail' }, detail) : null,
       h('div', { class: 'actions' },
         h('button', { class: 'btn', on: { click: close } }, 'Retour'),
         h('button', { class: 'btn primary', on: { click: retry } }, 'Réessayer'))));
@@ -754,15 +773,21 @@ export function create({ id, query }) {
    * The stream stopped on an error that may be the connection's: Mira asks the server. Silent (PC asleep, Wi-Fi to
    * 4G), Mira waits for it; answering, the stream itself is at fault, and that is said (no endless reopening).
    */
-  function streamFailed(text, { fallback = null } = {}) {
+  function streamFailed(text, { then = null, detail = '' } = {}) {
     const attempt = opening;
     ping().then((up) => {
       if (disposed || closing || attempt !== opening) return;
       if (!up) waitForServer();
-      else if (fallback) fallback();
-      else fail(text);
+      else if (then) then();
+      else fail(text, detail);
     });
   }
+  /**
+   * A stream the player refused while Jellyfin answers: asked again, its video converted, then everything converted,
+   * from where the title was. Null once nothing is left to try.
+   */
+  const nextFallback = () => (fallback >= 2 ? null : () => { fallback++; open(resumeAt()); });
+  const REFUSED = 'Ce titre n’a pas pu être lu sur cet appareil, même entièrement converti par Jellyfin.';
   /**
    * Jellyfin does not answer: not this stream's fault. Apple's player stays open, Mira says so under it or over its
    * own controls, asks again every few seconds, and picks up where the title was, paused if it was.
@@ -858,12 +883,13 @@ export function create({ id, query }) {
     error: () => {
       if (disposed || closing || !item || !video.getAttribute('src')) return;
       const code = video.error?.code;
-      // A file Safari was thought to play directly but cannot (decode, format): Jellyfin converts it instead.
-      if (playMethod === 'DirectPlay' && !forceTranscode && (code === 3 || code === 4)) { forceTranscode = true; open(resumeAt()); return; }
-      // Anything else: the server is asked. Silent, Mira waits for it; answering, a file read directly is converted
-      // instead (a proxy that breaks byte ranges reads as a network error), and a stream already converted has failed.
-      const convert = playMethod === 'DirectPlay' && !forceTranscode ? () => { forceTranscode = true; open(resumeAt()); } : null;
-      streamFailed('Cet appareil ne peut pas lire ce flux. Essaie une qualité plus basse dans les réglages.', { fallback: convert });
+      lastError = `Erreur ${code ?? '?'}${video.error?.message ? ` : ${video.error.message}` : ''} (${playMethod === 'DirectPlay' ? 'fichier lu tel quel' : fallback === 0 ? 'conversion de Jellyfin' : fallback === 1 ? 'vidéo convertie' : 'tout converti'}).`;
+      // A file Safari was thought to play directly but cannot (decode, format): Jellyfin converts it instead, at once.
+      if (playMethod === 'DirectPlay' && fallback === 0 && (code === 3 || code === 4)) { nextFallback()(); return; }
+      // Anything else: the server is asked. Silent, Mira waits for it; answering, the stream is at fault: asked again,
+      // more of it converted (a lower quality alone would change nothing: Jellyfin copies what fits under it), until
+      // nothing is left to convert.
+      streamFailed(REFUSED, { then: nextFallback(), detail: lastError });
     },
     webkitpresentationmodechanged: presentationChanged,
     webkitplaybacktargetavailabilitychanged: (e) => { airplay.hidden = e.availability !== 'available'; },
@@ -932,7 +958,7 @@ export function create({ id, query }) {
   // ---------- Start ----------
   /**
    * The audio session the film plays in: WebKit's own (sound even in Silent mode), or, when the settings ask for it on
-   * iPhone, « ambient », which iOS does not make the Now Playing app (the Dynamic Island).
+   * iPhone, « ambient », which iOS does not make the Now Playing app (the Dynamic Island) and the Silent mode mutes.
    */
   function audioSession(ambient) {
     try { if ('audioSession' in navigator) navigator.audioSession.type = ambient ? 'ambient' : 'auto'; } catch { /* not settable here */ }
