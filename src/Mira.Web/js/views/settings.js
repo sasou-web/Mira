@@ -69,7 +69,12 @@ export function create() {
           : choice('Taille des sous-titres', size[1], () => sheet({
             title: 'Taille des sous-titres',
             items: SIZES.map(([key, label]) => ({ label, selected: key === size[0], run: () => { settings.set('subtitleSize', key); render(user, info); } })),
-          }))),
+          })),
+        // iOS shows a Home Screen app's video in the Dynamic Island, even in front: an « ambient » audio session may
+        // keep it out, at the price of the Silent mode and of other apps' music, hence a choice, off at first.
+        appleNative() && 'audioSession' in navigator
+          ? toggle('ambientAudio', 'Essai : sans Dynamic Island', 'Le son suit alors le mode silencieux et se mêle à la musique des autres apps.')
+          : null),
       h('p', { class: 'group-note' }, 'Les langues choisissent les pistes au début de chaque titre, comme Mira sur Windows et Mac. Sur la fiche d’un titre, « Audio et sous-titres » en choisit d’autres : Mira les retient pour les épisodes suivants de la série.'),
 
       h('h2', { class: 'label group-title' }, 'Cet appareil'),
