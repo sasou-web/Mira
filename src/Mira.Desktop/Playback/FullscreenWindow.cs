@@ -61,7 +61,8 @@ public sealed class FullscreenWindow(Window window)
         if (!GetMonitorInfo(MonitorFromWindow(handle, 2), ref info)) throw new Win32Exception(Marshal.GetLastWin32Error());
         return info.Work.ToRect();
     }
-    [StructLayout(LayoutKind.Sequential)] private struct NativeRect
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
     { public int Left, Top, Right, Bottom; public readonly Rect ToRect() => new(Left, Top, Right - Left, Bottom - Top); }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect Monitor, Work; public uint Flags; }
     [DllImport("user32")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);

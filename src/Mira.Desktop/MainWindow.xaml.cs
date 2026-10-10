@@ -359,8 +359,14 @@ public partial class MainWindow : Window
         {
             var query = CurrentQuery();
             _items = _items.Where(x => (query.Genre is null || x.Genres.Contains(query.Genre)) && (query.Year is null || x.ProductionYear == query.Year) && (query.Played is null || x.UserData.Played == query.Played)).ToList();
-            _items = query.Sort switch { "title" => _items.OrderBy(x => x.Name).ToList(), "year" => _items.OrderByDescending(x => x.ProductionYear).ToList(), "rating" => _items.OrderByDescending(x => x.CommunityRating).ToList(),
-                "played" => _items.OrderByDescending(x => x.UserData.LastPlayedDate ?? DateTimeOffset.MinValue).ThenByDescending(x => x.Progress).ToList(), _ => _items };
+            _items = query.Sort switch
+            {
+                "title" => _items.OrderBy(x => x.Name).ToList(),
+                "year" => _items.OrderByDescending(x => x.ProductionYear).ToList(),
+                "rating" => _items.OrderByDescending(x => x.CommunityRating).ToList(),
+                "played" => _items.OrderByDescending(x => x.UserData.LastPlayedDate ?? DateTimeOffset.MinValue).ThenByDescending(x => x.Progress).ToList(),
+                _ => _items
+            };
         }
         _totalCount = _items.Count; RenderLibrary();
     }

@@ -104,8 +104,12 @@ public static class PlaybackMarkers
     };
     private static SkipKind? Parse(string? type) => type switch
     {
-        "Intro" => SkipKind.Intro, "Outro" => SkipKind.Outro, "Recap" => SkipKind.Recap,
-        "Preview" => SkipKind.Preview, "Commercial" => SkipKind.Commercial, _ => null
+        "Intro" => SkipKind.Intro,
+        "Outro" => SkipKind.Outro,
+        "Recap" => SkipKind.Recap,
+        "Preview" => SkipKind.Preview,
+        "Commercial" => SkipKind.Commercial,
+        _ => null
     };
     private static string Plain(string text)
     {

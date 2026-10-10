@@ -98,7 +98,8 @@ internal static class WindowsIdentity
     [DllImport("shell32.dll")] private static extern int SHGetPropertyStoreForWindow(IntPtr hwnd, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out IPropertyStore store);
     [DllImport("shell32.dll")] private static extern void SHChangeNotify(uint change, uint flags, IntPtr first, IntPtr second);
     [StructLayout(LayoutKind.Sequential)] private struct PropertyKey { public Guid Format; public uint Id; }
-    [StructLayout(LayoutKind.Explicit, Size = 24)] private struct PropVariant
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
+    private struct PropVariant
     { [FieldOffset(0)] public ushort Type; [FieldOffset(8)] public IntPtr Pointer; }
     [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IPropertyStore

@@ -107,8 +107,8 @@ public sealed class TorLinkImporter
 
     private async Task ImportAsync(TorLinkCompletion completion, TorLinkImportEntry? previous, TorLinkState state, MediaLibraries libraries, ImportMode mode, CancellationToken ct)
     {
-        var entry = (previous ?? new TorLinkImportEntry { Id = completion.Id, Name = completion.Name, Source = completion.Source, CompletedAt = completion.CompletedAt })
-            with { State = TorLinkImportState.Importing, Message = null, UpdatedAt = DateTimeOffset.UtcNow };
+        var entry = previous ?? new TorLinkImportEntry { Id = completion.Id, Name = completion.Name, Source = completion.Source, CompletedAt = completion.CompletedAt };
+        entry = entry with { State = TorLinkImportState.Importing, Message = null, UpdatedAt = DateTimeOffset.UtcNow };
         Update(entry);
         // Files an earlier attempt already placed stay tracked; a move took them out of TorLink's folder.
         var tracked = await Task.Run(() => entry.Files.Where(f => File.Exists(f.Destination)).ToList(), ct);
@@ -118,7 +118,9 @@ public sealed class TorLinkImporter
             var attempts = entry.Attempts + 1;
             Update(entry with
             {
-                State = attempts >= MaxAttempts ? TorLinkImportState.Failed : TorLinkImportState.Waiting, Attempts = attempts, UpdatedAt = DateTimeOffset.UtcNow,
+                State = attempts >= MaxAttempts ? TorLinkImportState.Failed : TorLinkImportState.Waiting,
+                Attempts = attempts,
+                UpdatedAt = DateTimeOffset.UtcNow,
                 Message = attempts >= MaxAttempts ? "Les fichiers terminés sont introuvables dans le dossier de TorLink." : "Fichiers pas encore disponibles, nouvel essai bientôt."
             });
             return;
@@ -179,9 +181,12 @@ public sealed class TorLinkImporter
             var updated = result.Canceled
                 ? entry with
                 {
-                    State = TorLinkImportState.Partial, Folders = entry.Folders.Concat(plan.Folders).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                    State = TorLinkImportState.Partial,
+                    Folders = entry.Folders.Concat(plan.Folders).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                     Files = stayed.Concat(result.Placed.Select(x => new TorLinkImportedFile(x.RelativePath, x.Destination, x.Role))).ToList(),
-                    Message = "Classement interrompu : choisis à nouveau « Classer » pour le terminer.", Notified = false, UpdatedAt = DateTimeOffset.UtcNow
+                    Message = "Classement interrompu : choisis à nouveau « Classer » pour le terminer.",
+                    Notified = false,
+                    UpdatedAt = DateTimeOffset.UtcNow
                 }
                 : Outcome(entry, plan, result, stayed) with { Method = entry.Method, MovedOut = entry.MovedOut, ForcedKind = kind };
             Update(updated);
@@ -285,10 +290,18 @@ public sealed class TorLinkImporter
             .DistinctBy(x => x.Destination, StringComparer.OrdinalIgnoreCase).ToList();
         return entry with
         {
-            State = state, Kind = plan.Kind, Title = plan.Title, LibraryRoot = plan.LibraryRoot, Folders = plan.Folders, Files = files,
-            Method = result.Method ?? entry.Method ?? (result.AlreadyThere.Count > 0 ? "déjà présent" : null), Message = message,
+            State = state,
+            Kind = plan.Kind,
+            Title = plan.Title,
+            LibraryRoot = plan.LibraryRoot,
+            Folders = plan.Folders,
+            Files = files,
+            Method = result.Method ?? entry.Method ?? (result.AlreadyThere.Count > 0 ? "déjà présent" : null),
+            Message = message,
             MovedOut = entry.MovedOut || result.Moved,
-            Notified = false, JellyfinId = null, UpdatedAt = DateTimeOffset.UtcNow
+            Notified = false,
+            JellyfinId = null,
+            UpdatedAt = DateTimeOffset.UtcNow
         };
     }
 
@@ -329,7 +342,10 @@ public sealed class TorLinkImporter
                         .Select(x => x with
                         {
                             State = x.State == TorLinkImportState.Importing ? TorLinkImportState.Waiting : x.State,
-                            Name = x.Name ?? "", Title = x.Title ?? "", Folders = x.Folders ?? [], Files = (x.Files ?? []).Where(f => f is { Destination: not null, RelativePath: not null }).ToList()
+                            Name = x.Name ?? "",
+                            Title = x.Title ?? "",
+                            Folders = x.Folders ?? [],
+                            Files = (x.Files ?? []).Where(f => f is { Destination: not null, RelativePath: not null }).ToList()
                         }).ToList();
                     return log;
                 }

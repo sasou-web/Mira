@@ -188,8 +188,11 @@ internal static class JellyfinAutostart
         if (LocalNetwork.ThisPcOnNetwork() is { } home)
         {
             if (categories.TryGetValue(home.Adapter, out var profile)) origins.Add(new(profile, home.Adapter, home.Address));
-            else foreach (var bit in new[] { JellyfinFirewall.Domain, JellyfinFirewall.Private, JellyfinFirewall.Public }.Where(x => (active & x) != 0))
-                origins.Add(new(bit, home.Adapter, home.Address));
+            else
+            {
+                foreach (var bit in new[] { JellyfinFirewall.Domain, JellyfinFirewall.Private, JellyfinFirewall.Public }.Where(x => (active & x) != 0))
+                    origins.Add(new(bit, home.Adapter, home.Address));
+            }
         }
         if (TailnetAdapter() is { } tailnet)
             origins.Add(new(categories.TryGetValue(tailnet, out var profile) ? profile : JellyfinFirewall.TailnetProfile(active), tailnet, null));
