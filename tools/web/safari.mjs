@@ -66,8 +66,9 @@ try {
   const signed = await runAsync(`const { api } = await import(document.querySelector('script[type=module]').src.replace('app.js', 'api.js'));
     await api.signIn(arguments[0], arguments[1]); return JSON.parse(localStorage.getItem('mira.session'));`, user, password);
   check('connexion', !!signed?.token, signed?.userName ?? String(signed));
-  const api = (path, method = 'GET') => runAsync(`const r = await fetch(arguments[0], { method: arguments[1], headers: { Authorization: 'MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="' + arguments[2] + '"' } });
-    const t = await r.text(); return t ? JSON.parse(t) : null;`, `${new URL(base).pathname.replace(/\/Mira\/?$/i, '')}/${path}`, method, signed.token);
+  const api = (path, method = 'GET', body = null) => runAsync(`const r = await fetch(arguments[0], { method: arguments[1], body: arguments[3],
+    headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="' + arguments[2] + '"' } });
+    const t = await r.text(); return t ? JSON.parse(t) : null;`, `${new URL(base).pathname.replace(/\/Mira\/?$/i, '')}/${path}`, method, signed.token, body ? JSON.stringify(body) : null);
 
   const movie = (await api(`Items?recursive=true&includeItemTypes=Movie&searchTerm=Aube%20Test&userId=${signed.userId}`)).Items[0];
   const series = (await api(`Items?recursive=true&includeItemTypes=Series&searchTerm=Courte%20HLS&userId=${signed.userId}`)).Items[0];
@@ -250,6 +251,81 @@ try {
   check('lecteur d’Apple : épisode suivant sans quitter le plein écran', moved && state.full && !state.paused && state.t > 1, `${moved ? 'É2' : 'resté sur É1'}, ${state.full ? 'plein écran' : 'dans la page'}, ${state.t.toFixed(1)} s`);
   await run("document.querySelector('video')?.webkitExitFullscreen?.();"); await sleep(2000);
   check('lecteur d’Apple : fermé, retour à l’écran d’avant', (await run('return location.hash;')).startsWith('#/titre/'), (await run('return location.hash;')).split('?')[0]);
+
+  // ---------- Kinds of files from a home library, in Apple's player (tools/web/media.sh <folder> formats) ----------
+  // Each must play, and keep playing forward after a jump: Mira asks Jellyfin for a stream Apple's player takes, or
+  // asks again for a full conversion once it refuses one. The stream used is told: direct play or HLS, the video and
+  // the audio copied or not, and the error WebKit gave, if any.
+  if (process.env.MIRA_FORMATS) {
+    const FORMATS = [
+      { name: 'Format MP4 DTS', what: 'MP4 avec DTS (vidéo copiée hors Matroska)', seek: 47, reach: 55 },
+      { name: 'Format Entrelace', what: 'H.264 entrelacé en TS' },
+      { name: 'Format HEVC', what: 'HEVC x265 (GOP ouverts)', seek: 25, reach: 29 },
+      { name: 'Format Open GOP', what: 'H.264 à GOP ouverts', seek: 25, reach: 29 },
+      { name: 'Format HDR10', what: 'HEVC 10 bits HDR10 avec E-AC-3 5.1' },
+      { name: 'Format TS decale', what: 'MPEG-2 en TS dont l’horloge part de 50 000 s, sous-titres français', cue: /Sous-titres du TS/ },
+      { name: 'Format hev1', what: 'HEVC hev1 en MP4' },
+      { name: 'Format Reprise', what: 'Matroska aux images clés irrégulières, repris à 150 s', resume: 150, seek: 205, reach: 211 },
+    ];
+    const stream = () => run(`const v = document.querySelector('video'), src = v ? v.currentSrc : '', q = new URLSearchParams(src.split('?')[1] || '');
+      const get = (name) => q.get(name) ?? q.get(name[0].toUpperCase() + name.slice(1)) ?? '';
+      const m = document.querySelector('.p-message:not([hidden]), .n-status:not([hidden])');
+      return { kind: /Static=true/i.test(src) ? 'lecture directe' : /\\.m3u8/i.test(src) ? 'HLS ' + (get('segmentContainer') || '?') : (src ? 'autre' : 'aucun flux'),
+        video: get('allowVideoStreamCopy') === 'false' ? 'vidéo convertie' : '', audio: get('allowAudioStreamCopy') === 'false' ? 'audio converti' : '',
+        error: v && v.error ? 'erreur ' + v.error.code + (v.error.message ? ' ' + v.error.message : '') : '', message: m ? m.textContent.trim().slice(0, 100) : '' };`);
+    const leave = async () => {
+      await run("document.querySelector('video')?.webkitExitFullscreen?.();");
+      for (let i = 0; i < 16 && (await run('return location.hash;')).startsWith('#/lecture/'); i++) await sleep(500);
+      if ((await run('return location.hash;')).startsWith('#/lecture/')) { await click('.player button[aria-label="Retour"]'); await sleep(1500); }
+      await sleep(1000);
+    };
+    for (const f of FORMATS) {
+      const name = `lecteur d’Apple : ${f.what}`;
+      try {
+        const found = (await api(`Items?recursive=true&includeItemTypes=Movie&searchTerm=${encodeURIComponent(f.name)}&userId=${signed.userId}`)).Items?.[0];
+        if (!found) { check(name, false, 'absent de Jellyfin'); continue; }
+        await api(`UserPlayedItems/${found.Id}?userId=${signed.userId}`, 'DELETE');
+        await api(`UserItems/${found.Id}/UserData?userId=${signed.userId}`, 'POST', { PlaybackPositionTicks: (f.resume ?? 0) * 10_000_000 });
+        await go(`#/titre/${found.Id}`); await sleep(2500);
+        if (f.cue) {
+          await click('.tracks-line'); await sleep(700);
+          await run(`const item = [...document.querySelectorAll('.sheet-item')].reverse().find((b) => /Français/.test(b.textContent)); if (item) item.click();`);
+          await sleep(500);
+        }
+        await click('a.btn.primary[href*="lecture"]');
+        const st = await fullscreen(45);
+        const at = await stream();
+        const from = f.resume ?? 0;
+        let ok = !!st?.full && !st.paused && st.t > from + 1 && st.t < from + 40;
+        let detail = `${at.kind}${at.video ? `, ${at.video}` : ''}${at.audio ? `, ${at.audio}` : ''}, ${st?.full ? 'plein écran' : 'pas en plein écran'}, ${(st?.t ?? 0).toFixed(1)} s`;
+        if (ok && f.cue) {
+          let cue = null;
+          for (let i = 0; i < 40 && !cue; i++) { const c = await carried(); if (c.cue) cue = c; else await sleep(250); }
+          ok = !!cue && f.cue.test(cue.cue) && cue.t >= 1.4 && cue.t <= 8;
+          detail += cue ? `, « ${cue.cue} » à ${cue.t.toFixed(1)} s` : ', aucun sous-titre affiché';
+        }
+        if (ok && f.seek) {
+          await run(`document.querySelector('video').currentTime = ${f.seek};`);
+          let t = f.seek, backwards = '';
+          for (let i = 0; i < 40 && t < f.reach; i++) {
+            await sleep(500);
+            const now = (await video())?.t ?? 0;
+            if (now < t - 1 && !backwards) backwards = `${t.toFixed(1)} → ${now.toFixed(1)} s`;
+            t = Math.max(t, now);
+          }
+          ok = t >= f.reach && !backwards;
+          detail += `, saut à ${f.seek} s → ${t.toFixed(1)} s${backwards ? `, recul ${backwards}` : ''}`;
+        }
+        const after = await stream();
+        if (after.error || after.message) detail += `${after.error ? `, ${after.error}` : ''}${after.message ? ` — « ${after.message} »` : ''}`;
+        check(name, ok, detail);
+        if (!ok) await shot(`format-${f.name.replace(/\W+/g, '-').toLowerCase()}`).catch(() => {});
+      } catch (error) {
+        check(name, false, String(error.message ?? error).split('\n')[0]);
+      }
+      await leave().catch(() => {});
+    }
+  }
 } catch (error) {
   check('déroulé', false, String(error.message ?? error).split('\n')[0]);
   await shot('error').catch(() => {});
