@@ -79,6 +79,7 @@ public sealed class MockJellyfin : HttpMessageHandler
             return new HttpResponseMessage(HttpStatusCode.NoContent);
         }
         if (path.StartsWith("UserPlayedItems/") || path.StartsWith("UserFavoriteItems/")) return Json(new { });
+        if (request.Method == HttpMethod.Post && path == "Sessions/Logout") return new HttpResponseMessage(HttpStatusCode.NoContent);
         if (path.Contains("/Images/")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(await ImageAsync(path)) };
         if (path == "UserItems/Resume") return Items(_movies.Where(x => Id(x) == "movie-1"));
         if (path == "Shows/NextUp") return Items(query["seriesId"] is { } series ? _episodes.GetValueOrDefault(series)?.Take(1) ?? [] : _episodes["series-1"].Take(1));

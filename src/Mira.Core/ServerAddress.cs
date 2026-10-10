@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -53,6 +55,12 @@ public static partial class ServerAddress
         http.Timeout = Timeout.InfiniteTimeSpan;
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var probes = candidates.Select(candidate => ProbeAsync(http, candidate, stop.Token)).ToList();
+        int First(Func<int, bool> match) { for (var i = 0; i < probes.Count; i++) if (match(i)) return i; return -1; }
+        // Never http:// after https:// failed on its certificate (every candidate is the typed host): someone on the way
+        // can make HTTPS fail just so, then answer in plain HTTP and read the password. Typing http:// still reaches it.
+        bool Refused(int index) => candidates[index].StartsWith("http:", StringComparison.Ordinal)
+            && First(i => i < index && probes[i].IsCompleted && probes[i].Result.Failure == ProbeFailure.Certificate) >= 0;
+        bool Answered(int index) => probes[index].IsCompleted && probes[index].Result.Info is not null && !Refused(index);
         try
         {
             DateTime? graceEnds = null;
@@ -60,30 +68,59 @@ public static partial class ServerAddress
             {
                 ct.ThrowIfCancellationRequested();
                 // The first candidate, in order, that has either answered or is still out.
-                var first = probes.FirstOrDefault(x => !x.IsCompleted || x.Result.Info is not null);
-                if (first is null) break;
-                if (first.IsCompleted) return Supported(first.Result.Info!);
+                var first = First(i => !probes[i].IsCompleted || Answered(i));
+                if (first < 0) break;
+                if (probes[first].IsCompleted) return Supported(probes[first].Result.Info!);
                 var pending = Task.WhenAny(probes.Where(x => !x.IsCompleted));
                 // A less preferred address already answers: the preferred one gets a moment, not its whole timeout.
-                if (probes.FirstOrDefault(x => x.IsCompleted && x.Result.Info is not null) is { } answered)
+                if (First(Answered) is var answered and >= 0)
                 {
                     graceEnds ??= DateTime.UtcNow + PreferenceGrace;
                     var left = graceEnds.Value - DateTime.UtcNow;
-                    if (left <= TimeSpan.Zero) return Supported(answered.Result.Info!);
+                    if (left <= TimeSpan.Zero) return Supported(probes[answered].Result.Info!);
                     await Task.WhenAny(pending, Task.Delay(left, ct)).ConfigureAwait(false);
                 }
                 else await pending.ConfigureAwait(false);
             }
         }
         finally { stop.Cancel(); }
+        // Every candidate is done, so one that answered was refused: typing its address is the way to choose it knowingly.
+        if (First(i => probes[i].Result.Info is not null) is var plain and >= 0)
+            throw new ServerDiscoveryException($"Le certificat HTTPS de ce serveur n’est pas reconnu. Mira n’essaie pas http:// à la place : ton mot de passe y passerait en clair. Si ce serveur est chez toi, tape son adresse complète, {candidates[plain].TrimEnd('/')} ; sinon, il lui faut un certificat valide.");
         var failures = probes.Select(x => x.Result).ToList();
         throw new ServerDiscoveryException(
             failures.Any(x => x.Failure == ProbeFailure.NotJellyfin) ? "Cette adresse répond, mais ce n’est pas un serveur Jellyfin. Vérifie le port (8096 par défaut)."
-            : failures.Any(x => x.Failure == ProbeFailure.Certificate) ? "Le certificat HTTPS de ce serveur n’est pas reconnu par Windows. Utilise son adresse http:// sur ton réseau, ou un certificat valide."
+            : failures.Any(x => x.Failure == ProbeFailure.Certificate) ? $"Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://{new Uri(candidates[0]).Host}:8096 ; sinon, il lui faut un certificat valide."
             : failures.All(x => x.Failure == ProbeFailure.Timeout) ? "Le serveur ne répond pas. Vérifie l’adresse et que Jellyfin est bien lancé."
             : "Aucun serveur Jellyfin trouvé à cette adresse. Vérifie qu’il est lancé et que l’adresse est correcte.");
     }
     public static readonly TimeSpan PreferenceGrace = TimeSpan.FromSeconds(1.5);
+    /// <summary>Said on the login screen before the password goes in clear across the Internet; a second click sends it.</summary>
+    public const string PlainHttpWarning = "Ce serveur est sur Internet, en http:// : rien n’y est chiffré, et ton mot de passe y passerait lisible par n’importe qui sur le trajet. Utilise plutôt son adresse https:// ou Tailscale, ou clique sur « Se connecter quand même ».";
+    /// <summary>
+    /// Whether signing in at this address sends the password in clear across the Internet: plain http:// to a server
+    /// that is neither this computer, nor on the home network, nor on Tailscale. Judged by the addresses the name leads
+    /// to, so a name of the home network (« nas ») is home; a name that no longer resolves counts as the Internet.
+    /// </summary>
+    public static async Task<bool> ExposesPasswordAsync(string address, Func<string, CancellationToken, Task<IPAddress[]>>? resolve = null, CancellationToken ct = default)
+    {
+        var uri = new Uri(address);
+        if (uri.Scheme != Uri.UriSchemeHttp) return false;
+        var host = uri.IdnHost.Trim('[', ']').TrimEnd('.');
+        // Tailscale's names and the home network's own (mDNS) are answered by those networks, never by the Internet.
+        if (host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)) return false;
+        IPAddress[] addresses;
+        if (IPAddress.TryParse(host, out var literal)) addresses = [literal];
+        else
+        {
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            limit.CancelAfter(ProbeTimeout);
+            try { addresses = await (resolve ?? Dns.GetHostAddressesAsync)(host, limit.Token).ConfigureAwait(false); }
+            catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException && !ct.IsCancellationRequested) { return true; }
+        }
+        // Every address, as the connection may use any of them.
+        return addresses.Length == 0 || !addresses.All(x => LocalNetwork.IsHome(x) || LocalNetwork.OnThisNetwork(x));
+    }
     private static ServerInfo Supported(ServerInfo info) =>
         ParseVersion(info.Version) is { } version && version < MinimumVersion
             ? throw new ServerDiscoveryException($"Mira a besoin de Jellyfin {MinimumVersion.Major}.{MinimumVersion.Minor} ou plus récent ; ce serveur est en {info.Version}. Mets Jellyfin à jour pour continuer.")

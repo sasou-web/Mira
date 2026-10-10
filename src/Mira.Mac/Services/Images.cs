@@ -23,9 +23,8 @@ public sealed class Images
     public Images(JellyfinClient client, string profileDirectory)
     {
         _client = client;
-        var account = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(client.Connection.Server + client.Connection.UserId)))[..16];
-        var root = Path.Combine(profileDirectory, "images");
-        _directory = Path.Combine(root, account); Directory.CreateDirectory(_directory);
+        _directory = AccountData.ImageFolder(profileDirectory, client.Connection); Directory.CreateDirectory(_directory);
+        var root = Path.GetDirectoryName(_directory)!;
         _ = Task.Run(() => DiskCache.Trim(root, DiskBudget, DiskKeep));
     }
 

@@ -94,6 +94,42 @@ public static partial class LocalNetwork
         if (!list.Contains(TailnetRange, StringComparer.OrdinalIgnoreCase)) list.Add(TailnetRange);
         return list;
     }
+    /// <summary>
+    /// Whether traffic to this address stays at home: this computer, the private and link-local ranges (IPv4 and IPv6,
+    /// what Jellyfin counts as local) or Tailscale's.
+    /// </summary>
+    public static bool IsHome(IPAddress address)
+    {
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        if (IPAddress.IsLoopback(address)) return true;
+        if (address.AddressFamily == AddressFamily.InterNetworkV6) return address.IsIPv6LinkLocal || address.IsIPv6UniqueLocal;
+        return address.GetAddressBytes() is [10, ..] or [172, >= 16 and < 32, ..] or [192, 168, ..] or [169, 254, ..] or [100, >= 64 and < 128, ..];
+    }
+    /// <summary>
+    /// Whether an IPv6 address is on one of this computer's own networks: home networks give every device a global
+    /// IPv6 address too, reached without leaving the house.
+    /// </summary>
+    public static bool OnThisNetwork(IPAddress address)
+    {
+        if (address.AddressFamily != AddressFamily.InterNetworkV6 || address.IsIPv4MappedToIPv6) return false;
+        try
+        {
+            return SharesNetwork(address,
+                from nic in NetworkInterface.GetAllNetworkInterfaces()
+                where nic.OperationalStatus == OperationalStatus.Up
+                from own in nic.GetIPProperties().UnicastAddresses
+                select (own.Address, own.PrefixLength));
+        }
+        catch (Exception ex) when (ex is NetworkInformationException or PlatformNotSupportedException) { return false; }
+    }
+    /// <summary>Same IPv6 network (/64 or narrower) as one of <paramref name="own"/>; a wider prefix is not one house.</summary>
+    public static bool SharesNetwork(IPAddress address, IEnumerable<(IPAddress Address, int PrefixLength)> own) => own.Any(x =>
+    {
+        if (x.Address.AddressFamily != address.AddressFamily || x.PrefixLength is < 64 or > 128) return false;
+        var (a, b) = (address.GetAddressBytes(), x.Address.GetAddressBytes());
+        var bytes = x.PrefixLength / 8; var bits = x.PrefixLength % 8;
+        return a.AsSpan(0, bytes).SequenceEqual(b.AsSpan(0, bytes)) && (bits == 0 || (a[bytes] ^ b[bytes]) >> (8 - bits) == 0);
+    });
     private static bool IsPrivate(string address) => address.StartsWith("192.168.", StringComparison.Ordinal) || address.StartsWith("10.", StringComparison.Ordinal)
         || Regex.IsMatch(address, @"^172\.(1[6-9]|2\d|3[01])\.");
     [GeneratedRegex("virtual|hyper-v|vethernet|vmware|virtualbox|wsl|docker|tailscale|zerotier|wireguard|vpn|tap-", RegexOptions.IgnoreCase)] private static partial Regex VirtualAdapter();

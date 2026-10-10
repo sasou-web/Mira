@@ -14,9 +14,8 @@ public sealed class LibraryStore
     public LibraryStore(string directory, string profile)
     {
         Directory.CreateDirectory(directory);
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(profile)))[..24];
-        _path = Path.Combine(directory, $"library-{hash}.db");
-        _connectionString = new SqliteConnectionStringBuilder { DataSource = _path }.ToString();
+        _path = PathFor(directory, profile);
+        _connectionString = ConnectionString(_path);
         // A damaged file (power cut, failing disk) would refuse this account at every start: a damaged header fails at
         // once, a damaged page only in the query that reads it, hence every page checked first. Everything in it but the
         // reports not yet sent comes back from Jellyfin, so a fresh one replaces it and the damaged copy is kept beside.
@@ -29,6 +28,28 @@ public sealed class LibraryStore
     /// leave the file as it is.
     /// </summary>
     private static bool Unreadable(SqliteException ex) => ex.SqliteExtendedErrorCode is 266 or 8458;
+    private static string PathFor(string directory, string profile) =>
+        Path.Combine(directory, $"library-{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(profile)))[..24]}.db");
+    private static string ConnectionString(string path) => new SqliteConnectionStringBuilder { DataSource = path }.ToString();
+    /// <summary>
+    /// Deletes the cache of one profile (pages, local progress, reports not sent yet), its journal and the copies set
+    /// aside as damaged; nothing of another. Its store must no longer be in use. False when a file stayed (still open).
+    /// </summary>
+    public static bool Delete(string directory, string profile)
+    {
+        if (!Directory.Exists(directory)) return true;
+        var path = PathFor(directory, profile); var name = Path.GetFileName(path);
+        // Connections the pool keeps open would hold the file on Windows.
+        using (var pooled = new SqliteConnection(ConnectionString(path))) SqliteConnection.ClearPool(pooled);
+        var deleted = true;
+        // The database, its journal (-wal, -shm) and its damaged copies (.bad-…) all start with its name.
+        foreach (var file in Directory.EnumerateFiles(directory, name + "*").Where(x => Path.GetFileName(x).StartsWith(name, StringComparison.Ordinal)))
+        {
+            try { File.Delete(file); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { deleted = false; }
+        }
+        return deleted;
+    }
     /// <summary>Where this opening set aside a database SQLite could not read; null when it was intact.</summary>
     public string? DamagedCopy { get; private set; }
     private void CreateSchema()

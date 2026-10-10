@@ -52,6 +52,25 @@ public sealed class JellyfinClient : IDisposable
         SetAuthorization();
         return Connection;
     }
+    /// <summary>The longest « Déconnecter » waits for Jellyfin: a server that is off must not hold the sign-out.</summary>
+    public static readonly TimeSpan LogoutTimeout = TimeSpan.FromSeconds(3);
+    /// <summary>
+    /// Ends this session on Jellyfin too (Sessions/Logout), which then forgets its token: signed out of Mira, it can no
+    /// longer be used. True when Jellyfin confirmed or already no longer knew it; false when it could not be told (the
+    /// session then stays in its list of devices). Never throws: signing out goes on either way.
+    /// </summary>
+    public async Task<bool> LogoutAsync(CancellationToken ct = default)
+    {
+        if (Connection.Token.Length == 0) return false;
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(LogoutTimeout);
+        try
+        {
+            using var response = await _http.PostAsync("Sessions/Logout", null, limit.Token);
+            return response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Unauthorized;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException) { return false; }
+    }
     public async Task<T> GetAsync<T>(string path, CancellationToken ct = default)
     {
         using var response = await _http.GetAsync(path, ct);

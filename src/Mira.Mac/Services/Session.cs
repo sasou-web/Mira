@@ -21,7 +21,7 @@ public sealed class Session : IAsyncDisposable
     public Session(Connection connection, Profile profile, HttpMessageHandler? handler = null)
     {
         // The cache first: when even a new one cannot be written, nothing else has been opened.
-        Store = new LibraryStore(profile.DirectoryPath, connection.Server + "|" + connection.UserId);
+        Store = new LibraryStore(profile.DirectoryPath, AccountData.LibraryProfile(connection));
         Client = new JellyfinClient(connection, handler);
         Sync = new SyncService(Client, Store);
         Images = new Images(Client, profile.DirectoryPath);
@@ -60,13 +60,19 @@ public sealed class Session : IAsyncDisposable
         catch (Exception ex) when (Errors.Expected(ex)) { return null; }
     }
 
-    public async ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync() => await CloseAsync(signOut: false);
+    /// <summary>Closes the session and ends it on Jellyfin too. False when Jellyfin could not be told (see LogoutAsync).</summary>
+    public Task<bool> SignOutAsync() => CloseAsync(signOut: true);
+    private async Task<bool> CloseAsync(bool signOut)
     {
         _lifetime.Cancel();
         // The last reports get a short chance to leave; the rest wait in SQLite for the next launch.
         await Sync.DisposeAsync();
+        // After them: they still need the token Jellyfin forgets.
+        var closed = signOut && await Client.LogoutAsync();
         Client.Dispose();
         _lifetime.Dispose();
+        return closed;
     }
 }
 
