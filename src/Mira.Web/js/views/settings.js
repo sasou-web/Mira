@@ -1,8 +1,8 @@
 // Settings: playback quality and behaviour, this phone, the account; what Mira and the server are.
 import { api, base, VERSION } from '../api.js';
-import { h, icon, clear, initials, haptic } from '../dom.js';
+import { h, icon, clear, initials } from '../dom.js';
 import { session, settings, isIOS, isStandalone } from '../session.js';
-import { sheet } from '../components.js';
+import { sheet, toast } from '../components.js';
 import { resetScreens, replaceRoute } from '../app.js';
 import { installHint } from './login.js';
 import { appleNative } from '../player/video.js';
@@ -22,10 +22,14 @@ const SIZES = [[80, 'Petite'], [100, 'Normale'], [125, 'Grande'], [150, 'Très g
 export function create() {
   const el = h('div', { class: 'view settings' });
 
-  function toggle(key, label, sub) {
+  function toggle(key, label, sub, { onTurnOn = null } = {}) {
     const button = h('button', {
       class: 'item', role: 'switch', 'aria-checked': String(!!settings.get(key)),
-      on: { click: () => { haptic(); settings.set(key, !settings.get(key)); button.setAttribute('aria-checked', String(!!settings.get(key))); } },
+      on: { click: () => {
+        settings.set(key, !settings.get(key));
+        button.setAttribute('aria-checked', String(!!settings.get(key)));
+        if (settings.get(key)) onTurnOn?.();
+      } },
     }, h('span', { class: 'grow' }, label, sub ? h('span', { class: 'sub' }, sub) : null), h('span', { class: 'switch', 'aria-hidden': 'true' }));
     return button;
   }
@@ -34,9 +38,14 @@ export function create() {
   }
 
   // The account and the server, once Jellyfin has said: kept for the next times the screen is drawn.
-  let user = null, info = null;
+  let user = null, info = null, drawn = '';
+  // What the screen shows: drawn again only when one of these changed (coming back to the tab, Jellyfin's answer).
+  const SHOWN = ['quality', 'autoNext', 'resume', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer'];
   function render() {
     const current = session.current ?? {};
+    const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, info?.Version]);
+    if (signature === drawn) return;
+    drawn = signature;
     const quality = QUALITIES.find(([k]) => k === settings.get('quality')) ?? QUALITIES[0];
     const size = SIZES.find(([k]) => k === settings.get('subtitleSize')) ?? SIZES[1];
     const audio = AUDIO_LANGUAGES.find(([k]) => k === settings.get('audioLanguages')) ?? AUDIO_LANGUAGES[0];
@@ -75,10 +84,13 @@ export function create() {
             title: 'Taille des sous-titres',
             items: SIZES.map(([key, label]) => ({ label, selected: key === size[0], run: () => { settings.set('subtitleSize', key); render(); } })),
           })),
-        // iOS shows a Home Screen app's video in the Dynamic Island, even in front: an « ambient » audio session may
-        // keep it out, at the price of the Silent mode and of other apps' music, hence a choice, off at first.
+        // iOS shows a Home Screen app's video in the Dynamic Island, even in front. Only a mixable audio session keeps
+        // it out, and the only one WebKit gives a page, « ambient », obeys the Silent switch (checked on iOS 27): no
+        // session type gives both, hence a choice, off at first, said plainly.
         appleNative() && 'audioSession' in navigator
-          ? toggle('ambientAudio', 'Lecture discrète', 'Un essai pour garder la vidéo hors de la Dynamic Island : le son suit alors le mode silencieux et se mêle à la musique des autres apps.')
+          ? toggle('ambientAudio', 'Masquer la Dynamic Island',
+            'Le son suit alors le mode silencieux : iPhone en silencieux, film sans son. Il se mêle aussi à la musique des autres apps. Sur iPhone, une app web ne peut pas avoir les deux.',
+            { onTurnOn: () => toast('Coupe le mode silencieux pour avoir le son.', { duration: 6000 }) })
           : null),
       h('p', { class: 'group-note' }, 'Les langues choisissent les pistes au début de chaque titre, comme Mira sur Windows et Mac. Sur la fiche d’un titre, « Audio et sous-titres » en choisit d’autres : Mira les retient pour les épisodes suivants de la série.'),
 

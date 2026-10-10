@@ -1,6 +1,6 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
 import { onUnauthorized, onReachable, ping } from './api.js';
-import { h, icon, clear, haptic } from './dom.js';
+import { h, icon, clear } from './dom.js';
 import { session, device, isStandalone } from './session.js';
 import { toast } from './components.js';
 import { setupPress } from './press.js';
@@ -101,7 +101,9 @@ function openTab(href) {
     setTimeout(() => { if (pendingTab) { const to = pendingTab; pendingTab = ''; traversing = false; replacing = 0; location.replace(to); } }, 500);
     return;
   }
-  if ((location.hash || '#/') === href) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  // The tab of the screen shown, touched again: back to the top, or, at the top, what the screen does then (Recherche
+  // opens the keyboard).
+  if ((location.hash || '#/') === href) { if (!current?.retap?.()) scrollTo({ top: 0, behavior: 'smooth' }); return; }
   replaceRoute(href);
 }
 
@@ -163,35 +165,47 @@ async function route() {
     trimCache();
   }
   if (id !== routeToken) return;
+  // A title or a person belongs to the tab its history started from, which stays lit, as in iOS.
+  const tab = r.tab ?? tabOf(trail[0]);
+  // A tab's screen never shown yet waits until it can show whole, its first data and first pictures there, 250 ms at
+  // most: the screen shown until now stays meanwhile (it still answers touches), and the tab touched lights up at
+  // once. At launch, Mira's logo waits the same way, a little longer.
+  if (!entry.shown && entry.view.ready && ((move === 'tab' && current) || (!current && bootScreen))) {
+    if (!bare) lightTab(tab);
+    await Promise.race([entry.view.ready, new Promise((resolve) => setTimeout(resolve, current ? 250 : 700))]);
+    if (id !== routeToken) return;
+  }
 
   // The screens change places: in one step, so that the move from one to the other can be drawn between them.
   const swap = () => {
     // A later move (a second tap during this one) has the last word.
     if (id !== routeToken) return;
+    endDissolve();
     if (current && current !== entry.view) {
       current.leave?.();
       if (!current.keep) { current.dispose?.(); cache.delete(currentKey); }
-      current.el.remove();
+      if (style === 'tab') dissolve(current.el); else current.el.remove();
     }
     app.classList.toggle('with-tabs', !bare);
     tabbar.hidden = bare;
-    // A title or a person belongs to the tab its history started from, which stays lit, as in iOS.
-    const tab = r.tab ?? tabOf(trail[0]);
-    for (const link of tabbar.querySelectorAll('a')) {
-      if (link.dataset.tab === tab) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
-    }
+    lightTab(tab);
+    entry.shown = true;
+    endBoot();
     current = entry.view; currentKey = key; currentBare = bare;
     document.title = current.title ? `${current.title} · Mira` : 'Mira';
     current.el.classList.remove('enter-push', 'enter-pop');
     if (current.el.parentNode !== viewHost) clear(viewHost).append(current.el);
+    else for (const other of [...viewHost.children]) if (other !== current.el) other.remove();
     scrollTo(0, entry.scroll ?? 0);
     updateScrolled();
     current.enter?.({ query });
   };
-  // iOS's moves: a screen comes in from the right and goes back to it; tabs change at once. The player opens on its
-  // own (Apple's full screen, or Mira's), the first screen without a move, and a move iOS drew is not drawn again.
-  const style = animate && (move === 'push' || move === 'pop') && !bare && !wasBare() && !reducedMotion() ? move : '';
-  if (style && document.startViewTransition) {
+  // iOS's moves: a screen comes in from the right and goes back to it; a tab's screen dissolves into the next (see
+  // dissolve). The player opens on its own (Apple's full screen, or Mira's), the first screen without a move, and a
+  // move iOS drew is not drawn again.
+  const style = animate && (move === 'push' || move === 'pop' || move === 'tab') && !bare && !wasBare() && !reducedMotion() ? move : '';
+  if (style === 'tab') swap();
+  else if (style && document.startViewTransition) {
     const mine = ++transitions;
     document.documentElement.dataset.nav = style;
     try {
@@ -204,6 +218,50 @@ async function route() {
   }
 }
 let lastDepth = 0, routeToken = 0, transitions = 0;
+
+function lightTab(tab) {
+  for (const link of tabbar.querySelectorAll('a')) {
+    if (link.dataset.tab === tab) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  }
+}
+
+// Tabs: the screen left stays a moment over the new one, as it was scrolled, and dissolves into it (UIKit's cross
+// dissolve). Only the screen: the bars stay as they are, frosted, and the new screen takes touches at once. Not a View
+// Transition: captured, the frosted bars lose their blur, and the page under it would not answer touches meanwhile.
+const leavingLayer = h('div', { class: 'view-leaving', 'aria-hidden': 'true', inert: '' });
+let dissolving = null;
+/** A dissolve still running ends at once (another tab touched during it): its screen goes, back as it was. */
+function endDissolve() {
+  if (!dissolving) return;
+  const { fade, el } = dissolving;
+  dissolving = null;
+  fade.cancel();
+  el.style.top = '';
+  if (el.parentNode === leavingLayer) el.remove();
+  leavingLayer.remove();
+}
+function dissolve(el) {
+  endDissolve();
+  // Moved, a scrolled row or banner would jump back to its start: it is put back where it was.
+  const scrolled = [...el.querySelectorAll('.row, .hero-track, .chips')].filter((x) => x.scrollLeft).map((x) => [x, x.scrollLeft]);
+  el.style.top = `${-scrollY}px`;
+  leavingLayer.append(el);
+  if (!leavingLayer.isConnected) viewHost.after(leavingLayer);
+  for (const [x, left] of scrolled) { x.style.scrollBehavior = 'auto'; x.scrollLeft = left; x.style.scrollBehavior = ''; }
+  const fade = leavingLayer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-in', fill: 'forwards' });
+  dissolving = { fade, el };
+  fade.finished.then(() => { if (dissolving?.fade === fade) endDissolve(); }, () => {});
+}
+
+// Mira's logo, from index.html, over the first screen until it can show whole.
+let bootScreen = null;
+function endBoot() {
+  const boot = bootScreen;
+  if (!boot) return;
+  bootScreen = null;
+  if (reducedMotion()) { boot.remove(); return; }
+  boot.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-in', fill: 'forwards' }).finished.then(() => boot.remove(), () => boot.remove());
+}
 const wasBare = () => currentBare;
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const tabOf = (key) => ROUTES.find((x) => x.tab && x.pattern.test(parse(key).path))?.tab ?? '';
@@ -219,6 +277,7 @@ function trimCache() {
 
 function showLoadFailure() {
   loadFailed = true;
+  endBoot();
   clear(viewHost).append(h('div', { class: 'state' }, icon('offline'), h('h2', {}, 'Mira n’a pas pu se charger'),
     h('p', {}, 'Le serveur ne répond pas : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.'),
     h('button', { class: 'btn small', on: { click: () => location.reload() } }, 'Réessayer')));
@@ -362,7 +421,6 @@ function setupPullToRefresh() {
     if (start == null) return;
     start = null;
     if (!armed) { hide(); return; }
-    haptic();
     busy = true;
     mark.classList.add('busy');
     try { await current?.refresh?.(); } catch { /* the screen says what failed */ }
@@ -399,7 +457,10 @@ function start() {
   setupPress();
   // Chrome on Android reloads the whole page when it is pulled down at its top: Mira refreshes the screen instead.
   document.documentElement.classList.toggle('android', device.name === 'Android');
+  bootScreen = app.querySelector('.boot');
+  bootScreen?.classList.add('over');
   clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, topbar, tabbar, netbar);
+  if (bootScreen) app.append(bootScreen);
   addEventListener('hashchange', route);
   addEventListener('popstate', (e) => {
     // iOS's own swipe has already shown the move: Mira does not draw a second one.

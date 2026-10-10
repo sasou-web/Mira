@@ -58,8 +58,10 @@ export function placeholder(hash, aspect = 1) {
   if (cache.has(key)) return cache.get(key);
   let result = '';
   try {
-    const width = aspect >= 1 ? 32 : Math.max(8, Math.round(32 * aspect));
-    const height = aspect >= 1 ? Math.max(8, Math.round(32 / aspect)) : 32;
+    // 16 pixels on the long side: stretched over the card, it is as blurred as larger, for a quarter of the work (a
+    // page of 60 cards decodes its placeholders before it shows).
+    const width = aspect >= 1 ? 16 : Math.max(6, Math.round(16 * aspect));
+    const height = aspect >= 1 ? Math.max(6, Math.round(16 / aspect)) : 16;
     const canvas = document.createElement('canvas');
     canvas.width = width; canvas.height = height;
     const context = canvas.getContext('2d');

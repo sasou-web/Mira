@@ -55,7 +55,7 @@ const defaults = {
   autoSkip: false,      // openings and recaps skipped without a tap (Apple's player has no room for the button)
   seriesTracks: {},     // series id → { audio, subtitle, forced }: the languages last chosen for it
   nativePlayer: null,   // null: Apple's player on iPhone and iPad; true or false forces it (Safari's check)
-  ambientAudio: false,  // iPhone: an « ambient » audio session while playing, an attempt to keep the Dynamic Island empty
+  ambientAudio: false,  // iPhone: an « ambient » audio session while playing: no Dynamic Island, but the Silent mode mutes it
   recentSearches: [],
   hiddenResume: {},     // id → time removed from Continuer à regarder
   installHintDismissed: false,

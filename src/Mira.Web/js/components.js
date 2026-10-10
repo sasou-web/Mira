@@ -61,6 +61,7 @@ export function posterCard(item, { width = posterWidth(), eager = false } = {}) 
   marks(item, art);
   const card = h('a', { class: 'card', href: titleHref(item), 'aria-label': name },
     art, h('div', { class: 'card-title clamp-1' }, name), h('div', { class: 'card-sub clamp-1' }, subtitle(item)));
+  card.dataset.sig = cardSig(item);
   card.addEventListener('click', () => remember(item));
   withActions(card, item);
   return card;
@@ -75,8 +76,29 @@ export function wideCard(item, { width = wideWidth(), play = true, eager = false
     art,
     h('div', { class: 'card-title clamp-1' }, series ? item.SeriesName : item.Name),
     h('div', { class: 'card-sub clamp-1' }, series ? [episodeCode(item), item.Name].filter(Boolean).join(' · ') : subtitle(item)));
+  card.dataset.sig = cardSig(item);
   withActions(card, item, { resumeRow: play });
   return card;
+}
+
+/** All that a card shows of an item: a card whose item still reads the same is kept as it is, its picture too. */
+export const cardSig = (x) => JSON.stringify([x.Id, x.Type, x.Name, x.SeriesName, x.IndexNumber, x.ParentIndexNumber, x.ProductionYear,
+  x.ChildCount, x.RunTimeTicks, x.ImageTags, x.SeriesPrimaryImageTag, x.ParentThumbImageTag, x.ParentBackdropImageTags,
+  x.BackdropImageTags, x.UserData?.Played, x.UserData?.PlaybackPositionTicks, x.UserData?.IsFavorite]);
+/**
+ * The container's cards made to match `items`, in their order: a card still showing its item as it is stays (no
+ * second flash of its picture), the others are made by `make`. Nothing moves when nothing changed.
+ */
+export function reconcile(container, items, make) {
+  const old = new Map();
+  for (const el of container.children) if (el.dataset.sig && !old.has(el.dataset.sig)) old.set(el.dataset.sig, el);
+  const next = items.map((item) => {
+    const kept = old.get(cardSig(item));
+    if (kept) { old.delete(kept.dataset.sig); return kept; }
+    return make(item);
+  });
+  const same = next.length === container.children.length && next.every((el, i) => container.children[i] === el);
+  if (!same) container.replaceChildren(...next);
 }
 
 export function personCard(person) {
@@ -98,21 +120,23 @@ export function row(title, items, card, { wide = false, more = '', people = fals
     h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, title), more ? h('a', { href: more }, 'Tout voir') : null),
     h('div', { class: ['row', wide && 'wide', people && 'people'] }, items.map((item, i) => {
       const el = card(item);
-      if (i < first) { const img = el.querySelector('img'); if (img) img.loading = 'eager'; }
+      if (i < first) { const img = el.querySelector('img'); if (img) { img.loading = 'eager'; img.fetchPriority = 'high'; } }
       return el;
     })));
 }
 
+/** A card's place while it loads, with the card's own lines: nothing moves when the card takes it. */
+const skeletonCard = (kind) => h('div', { class: ['card', kind === 'wide' && 'wide-card'] }, h('div', { class: ['skeleton', 'art', kind] }),
+  h('div', { class: 'card-title' }, h('span', { class: 'skeleton' })), h('div', { class: 'card-sub' }, h('span', { class: 'skeleton' })));
+
 export function skeletonRow({ wide = false, count = 6, title = true } = {}) {
   return h('section', { class: 'section', 'aria-hidden': 'true' },
     title ? h('div', { class: 'section-head' }, h('div', { class: 'skeleton', style: { width: '160px', height: '20px' } })) : null,
-    h('div', { class: ['row', wide && 'wide'] }, Array.from({ length: count }, () =>
-      h('div', {}, h('div', { class: ['skeleton', 'art', wide ? 'wide' : 'poster'] }), h('div', { class: 'skeleton line' })))));
+    h('div', { class: ['row', wide && 'wide'] }, Array.from({ length: count }, () => skeletonCard(wide ? 'wide' : 'poster'))));
 }
 
 export function skeletonGrid(count = 18) {
-  return h('div', { class: 'grid', 'aria-hidden': 'true' }, Array.from({ length: count }, () =>
-    h('div', {}, h('div', { class: 'skeleton art poster' }), h('div', { class: 'skeleton line' }))));
+  return h('div', { class: 'grid', 'aria-hidden': 'true' }, Array.from({ length: count }, () => skeletonCard('poster')));
 }
 
 export function emptyState({ symbol = 'films', title, text = '', action = null }) {
