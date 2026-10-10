@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.7.4",
+    "summary": "Mira sur ton téléphone en un clic : le guide prépare tout, et le QR code marche aussi ailleurs.",
+    "items": [
+      { "icon": "phone", "title": "Une seule carte pour le téléphone", "text": "Guide → Mira sur ton téléphone : chaque étape est cochée quand elle est prête, numérotée sinon, et dit où agir si c’est à toi." },
+      { "icon": "sparkle", "title": "Tout préparer", "text": "Pare-feu, Tailscale dans Jellyfin et Mira web en un clic, avec une seule autorisation de Windows, puis le QR code." },
+      { "icon": "check", "title": "Fini la page blanche", "text": "Le pare-feu de Windows est lu et ouvert pour le Wi-Fi de la maison et pour Tailscale, que Jellyfin ait son service ou non." },
+      { "icon": "server", "title": "Un QR code qui marche partout", "text": "Avec Tailscale, le QR code donne l’adresse du PC qui marche chez toi comme ailleurs ; « Chez toi seulement » reste au choix." }
+    ]
+  },
+  {
     "version": "0.7.3",
     "summary": "Sur iPhone, un titre refusé est redemandé converti, et les onglets passent en fondu.",
     "items": [

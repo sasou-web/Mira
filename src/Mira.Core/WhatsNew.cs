@@ -55,7 +55,7 @@ public static class WhatsNew
         text.Append("\n**Sur Windows** : `Mira-").Append(release.Version).Append("-win-x64-setup.exe`. Les copies déjà installées se mettent à jour toutes seules.\n\n");
         text.Append("**Sur Mac** (puce Apple, macOS 14 ou plus) : `Mira-").Append(release.Version).Append("-mac-arm64.dmg`. La première ouverture demande une autorisation : [installer Mira sur Mac](https://github.com/sasou-web/Mira/blob/v")
             .Append(release.Version).Append("/docs/INSTALLATION-MAC.md).\n\n");
-        text.Append("**Sur iPhone, iPad et Android** : Mira web, servie par Jellyfin. Dans Mira pour Windows, **Guide → Sur tes autres appareils → Installer Mira web** : [Mira sur iPhone, iPad et Android](https://github.com/sasou-web/Mira/blob/v")
+        text.Append("**Sur iPhone, iPad et Android** : Mira web, servie par Jellyfin. Dans Mira pour Windows, **Guide → Mira sur ton téléphone → Tout préparer** : [Mira sur iPhone, iPad et Android](https://github.com/sasou-web/Mira/blob/v")
             .Append(release.Version).Append("/docs/INSTALLATION-WEB.md).\n\n");
         text.Append("Tous les détails : [CHANGELOG](https://github.com/sasou-web/Mira/blob/v").Append(release.Version).Append("/CHANGELOG.md)\n");
         return text.ToString();

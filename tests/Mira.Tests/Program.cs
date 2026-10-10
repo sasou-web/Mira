@@ -958,7 +958,7 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
     Assert(Judge(prompt) == blocked && Judge(prompt, pub) == open, "The prompt's rules, judged wrong");
     Assert(JellyfinFirewall.Blocking(prompt, jellyfin, 8096, priv) is [{ Protocol: JellyfinFirewall.Tcp, Profiles: priv }], "Only the TCP block rule on private networks stands in the way");
     Assert(JellyfinFirewall.WithoutProfile(priv, priv) == 0 && JellyfinFirewall.WithoutProfile(all, priv) == (JellyfinFirewall.Domain | pub), "A rule for every network keeps blocking the others");
-    // What « Ouvrir le pare-feu » leaves: that block rule off (private was its only profile), and Mira's rule.
+    // What « Tout préparer » leaves: that block rule off (private was its only profile), and Mira's rule.
     var mira = new[] { Rule("Mira - Jellyfin", true, all, ports: "8096", remote: "LocalSubnet"), Rule("Mira - Jellyfin", true, all, ports: "8096", remote: "100.64.0.0/255.192.0.0") };
     var opened = prompt.Where(x => x.Allow || x.Protocol != JellyfinFirewall.Tcp).Concat(mira).ToList();
     Assert(Judge(opened) == open && Judge(opened, pub) == open, "Still blocked once opened");

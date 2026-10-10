@@ -60,7 +60,7 @@ public static class JellyfinStartup
 
     /// <summary>
     /// Mira's firewall rule, replaced whole: the home network and Tailscale may reach <paramref name="program"/> on
-    /// <paramref name="port"/>, on any profile, and nothing else. Also what the guide's « Ouvrir le pare-feu » sets, with
+    /// <paramref name="port"/>, on any profile, and nothing else. Also what the guide's « Tout préparer » sets, with
     /// or without Jellyfin's service.
     /// </summary>
     public static IReadOnlyList<StartupCommand> FirewallCommands(string program, int port, string rule = RuleName)

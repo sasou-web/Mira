@@ -1,10 +1,14 @@
 # Historique
 
-## Non publié
+## 0.7.4 — 2026-10-10
+
+Mira sur le téléphone en un clic, après la page blanche chez un nouvel utilisateur : le guide de Mira pour Windows prépare tout et dit ce qui reste.
 
 - **Mira sur ton téléphone, en un clic** (Mira pour Windows) : le guide réunit tout ce qu’il faut pour le téléphone dans une seule carte, au lieu de trois parties et cinq boutons à trouver dans le bon ordre.
   - Chaque étape est cochée quand elle est prête, numérotée sinon : Mira web sur Jellyfin, le pare-feu de Windows, Tailscale pour regarder hors de chez toi (facultatif), le démarrage avec Windows.
-  - **Tout préparer** fait toutes les étapes possibles avec une seule autorisation de Windows, puis ouvre le QR code. Seul Tailscale reste à installer soi-même ; de retour dans Mira, le guide se met à jour tout seul.
+  - **Tout préparer** fait toutes les étapes possibles avec une seule autorisation de Windows, puis ouvre le QR code. Tailscale reste à installer soi-même ; de retour dans Mira, le guide se met à jour tout seul.
+  - Ce que Mira ne peut pas changer devient une étape à toi, qui dit où agir : « Bloquer toutes les connexions entrantes » coché dans Windows, une règle de pare-feu qui bloque le port de Jellyfin (son nom est donné), un Jellyfin dont Mira ne trouve pas le programme (lancé par un autre compte, ou dans Docker). **Tout préparer** ne redemande jamais une autorisation pour rien.
+  - Pendant que Jellyfin redémarre (après l’installation de Mira web), ou s’il est arrêté, la carte le dit et se met à jour dès qu’il répond.
   - Le QR code donne l’adresse Tailscale du PC quand elle est prête : elle marche chez toi comme ailleurs, sans recopier d’adresse. **Chez toi seulement** reste au choix sur la page du QR code.
   - L’adresse pour une TV ou une console (application Jellyfin) passe dans **Gérer Jellyfin**.
 - **Page blanche sur le téléphone** : l’adresse du PC pouvait ne rien afficher, même la page de Jellyfin, chez toi comme avec Tailscale, alors que le guide disait que tout était prêt.
