@@ -153,7 +153,8 @@ public static class MediaImporter
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
     }
 
-    private static bool TryHardLink(string source, string destination) =>
+    /// <summary>A second name for <paramref name="source"/> (Windows, same drive); false when none could be made.</summary>
+    public static bool TryHardLink(string source, string destination) =>
         OperatingSystem.IsWindows() && SameVolume(source, destination) && CreateHardLink(Extended(destination), Extended(source), IntPtr.Zero);
     private static bool SameVolume(string a, string b) => string.Equals(Path.GetPathRoot(a), Path.GetPathRoot(b), StringComparison.OrdinalIgnoreCase);
     // Win32 calls need the extended prefix beyond MAX_PATH; .NET adds it itself for its own file APIs.
