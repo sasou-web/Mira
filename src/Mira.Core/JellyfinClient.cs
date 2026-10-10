@@ -202,6 +202,18 @@ public sealed class JellyfinClient : IDisposable
         return true;
     }
     /// <summary>
+    /// Whether this account administers Jellyfin (its policy): only an administrator installs Mira web or lets
+    /// Tailscale in. Null when Jellyfin does not say.
+    /// </summary>
+    public async Task<bool?> IsAdministratorAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Users/Me", ct);
+        if (!response.IsSuccessStatusCode) return null;
+        using var user = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return user.RootElement.ValueKind == JsonValueKind.Object && user.RootElement.TryGetProperty("Policy", out var policy) && policy.ValueKind == JsonValueKind.Object
+            && policy.TryGetProperty("IsAdministrator", out var admin) && admin.ValueKind is JsonValueKind.True or JsonValueKind.False ? admin.GetBoolean() : null;
+    }
+    /// <summary>
     /// Whether Jellyfin lets in devices on Tailscale: its access from elsewhere is on, or Tailscale's range counts as
     /// local. Null when its network settings cannot be read (not an administrator).
     /// </summary>

@@ -14,17 +14,14 @@ public static class JellyfinStartup
     /// <summary>15 s after a first error, then 30 s, then a minute; the count starts again after a day without one.</summary>
     public const string RestartActions = "restart/15000/restart/30000/restart/60000";
 
-    /// <summary>What Mira reads of the service and the firewall, without administrator rights.</summary>
+    /// <summary>
+    /// What Mira reads of the service and of its firewall rule (<paramref name="FirewallOpen"/>: Mira's rule exists),
+    /// without administrator rights.
+    /// </summary>
     public sealed record State(bool HasService, bool StartsWithWindows, bool Delayed, bool RestartsAfterError, bool FirewallOpen)
     {
-        public bool Ready => HasService && StartsWithWindows && !Delayed && RestartsAfterError && FirewallOpen;
-        /// <summary>What is missing, in French, for the guide: empty when ready.</summary>
-        public IReadOnlyList<string> Missing() => !HasService ? [] : new[]
-        {
-            !StartsWithWindows ? "Jellyfin ne démarre pas avec Windows" : Delayed ? "Jellyfin démarre deux minutes après Windows" : null,
-            !RestartsAfterError ? "il n’est pas relancé s’il s’arrête sur une erreur" : null,
-            !FirewallOpen ? "le pare-feu de Windows ne laisse pas entrer ton téléphone" : null,
-        }.OfType<string>().ToList();
+        /// <summary>The service starts with Windows, not delayed, and again after an error: Jellyfin answers before anyone signs in.</summary>
+        public bool StartsAtBoot => HasService && StartsWithWindows && !Delayed && RestartsAfterError;
     }
 
     /// <summary>

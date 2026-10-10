@@ -4,12 +4,13 @@ using System.Net.Sockets;
 namespace Mira.Core;
 
 /// <summary>
-/// Whether Windows' firewall lets a device on Tailscale reach Jellyfin on this PC, judged from its rules the way
-/// Windows applies them: a matching block rule wins, then a matching allow rule (or a profile that allows by default)
-/// lets the connection in. A Jellyfin started without its service gets only the rules of Windows' « Autoriser
-/// l'accès » prompt, made at its first start: allow on the kind of network ticked (often Public, for the box), block
-/// on the others. Tailscale marks its adapter Private (wgengine/router/osrouter/ifconfig_windows.go), so a box counted
-/// as Public lets the home network in and keeps Tailscale out.
+/// Whether Windows' firewall lets a phone reach Jellyfin on this PC, from the home network or from Tailscale, judged
+/// from its rules the way Windows applies them: a matching block rule wins, then a matching allow rule (or a profile
+/// that allows by default) lets the connection in. A Jellyfin started without its service gets only the rules of
+/// Windows' « Autoriser l'accès » prompt, made at its first start: allow on the kind of network ticked, block on the
+/// others, and none at all when the prompt was closed. Tailscale marks its adapter Private
+/// (wgengine/router/osrouter/ifconfig_windows.go), so a box counted as Public lets the home network in and keeps
+/// Tailscale out, and the other way round.
 /// </summary>
 public static class JellyfinFirewall
 {
@@ -27,7 +28,7 @@ public static class JellyfinFirewall
         IReadOnlyList<string>? Interfaces = null, string? InterfaceTypes = "All", string? Service = null);
     /// <summary>The firewall on one profile: on or off, its default for incoming connections, « block all incoming ».</summary>
     public sealed record Profile(bool Enabled, bool DefaultAllow, bool BlockAll);
-    /// <summary>Open: Tailscale's devices get through. Blocked: rules Mira may change keep them out. Closed: the whole profile refuses them.</summary>
+    /// <summary>Open: phones get through. Blocked: rules Mira may change keep them out. Closed: the whole profile refuses them. The worse last.</summary>
     public enum Verdict { Open, Blocked, Closed }
 
     /// <summary>
@@ -37,39 +38,44 @@ public static class JellyfinFirewall
     public static int TailnetProfile(int active) =>
         (active & Private) != 0 || (active & (Domain | Public)) == 0 ? Private : (active & Public) != 0 ? Public : Domain;
 
-    /// <summary>Whether a TCP connection from a Tailscale device to <paramref name="program"/> on <paramref name="port"/> gets in.</summary>
-    public static Verdict Judge(IEnumerable<Rule> rules, Profile settings, string program, int port, int profile, string? adapter = null)
+    /// <summary>
+    /// Whether a TCP connection to <paramref name="program"/> on <paramref name="port"/> gets in: from a Tailscale device,
+    /// or with <paramref name="home"/> (this PC's address on the home network), from a phone on the home network.
+    /// </summary>
+    public static Verdict Judge(IEnumerable<Rule> rules, Profile settings, string program, int port, int profile, string? adapter = null, string? home = null)
     {
         if (!settings.Enabled) return Verdict.Open;
         if (settings.BlockAll) return Verdict.Closed;
-        var matching = rules.Where(x => Applies(x, program, port, profile, adapter)).ToList();
+        var matching = rules.Where(x => Applies(x, program, port, profile, adapter, home)).ToList();
         if (matching.Any(x => !x.Allow)) return Verdict.Blocked;
         return settings.DefaultAllow || matching.Count > 0 ? Verdict.Open : Verdict.Blocked;
     }
 
-    /// <summary>The block rules that keep Tailscale's devices out of <paramref name="program"/> on <paramref name="port"/>.</summary>
-    public static IReadOnlyList<Rule> Blocking(IEnumerable<Rule> rules, string program, int port, int profile, string? adapter = null) =>
-        rules.Where(x => !x.Allow && Applies(x, program, port, profile, adapter)).ToList();
+    /// <summary>The block rules that keep Tailscale's devices (or, with <paramref name="home"/>, the home network's) out.</summary>
+    public static IReadOnlyList<Rule> Blocking(IEnumerable<Rule> rules, string program, int port, int profile, string? adapter = null, string? home = null) =>
+        rules.Where(x => !x.Allow && Applies(x, program, port, profile, adapter, home)).ToList();
 
     /// <summary>
-    /// The profiles a block rule keeps once it no longer applies to Tailscale's: 0 when it covered that profile only,
-    /// and is then turned off. A rule for every network keeps blocking the others.
+    /// The profiles a block rule keeps once it no longer applies to <paramref name="profile"/> (one profile, or several
+    /// as a mask: the home network's and Tailscale's): 0 when it had no other, and is then turned off. A rule for every
+    /// network keeps blocking the others.
     /// </summary>
     public static int WithoutProfile(int profiles, int profile) => profiles & AllProfiles & ~profile;
 
     /// <summary>
-    /// Whether a rule applies to a TCP connection from Tailscale to <paramref name="program"/> on <paramref name="port"/>,
-    /// arriving on Tailscale's adapter (<paramref name="adapter"/>, its name) under <paramref name="profile"/>. A rule
-    /// for only part of Tailscale's range, or named addresses (LocalSubnet…), is someone's own choice and does not count.
+    /// Whether a rule applies to a TCP connection to <paramref name="program"/> on <paramref name="port"/>, arriving on an
+    /// adapter (<paramref name="adapter"/>, its name) under <paramref name="profile"/>: from Tailscale, or with
+    /// <paramref name="home"/>, from the home network. A rule for part of the addresses only, or for named ones (DNS,
+    /// Internet…), is someone's own choice and does not count; LocalSubnet counts for the home network, not Tailscale.
     /// </summary>
-    public static bool Applies(Rule rule, string program, int port, int profile, string? adapter = null) =>
+    public static bool Applies(Rule rule, string program, int port, int profile, string? adapter = null, string? home = null) =>
         rule.Enabled && rule.Inbound && (rule.Profiles & profile) != 0
         && (string.IsNullOrWhiteSpace(rule.Program)
             ? string.IsNullOrWhiteSpace(rule.Service) && !string.IsNullOrWhiteSpace(rule.LocalPorts) && rule.LocalPorts.Trim() != "*"
             : SameProgram(rule.Program, program))
         && rule.Protocol is Tcp or AnyProtocol
         && CoversPort(rule.LocalPorts, port)
-        && CoversTailnet(rule.RemoteAddresses)
+        && (home is null ? CoversTailnet(rule.RemoteAddresses) : CoversHome(rule.RemoteAddresses, home))
         && (rule.Interfaces is not { Count: > 0 } || adapter is not null && rule.Interfaces.Contains(adapter, StringComparer.OrdinalIgnoreCase))
         && (string.IsNullOrWhiteSpace(rule.InterfaceTypes) || rule.InterfaceTypes.Equals("All", StringComparison.OrdinalIgnoreCase));
 
@@ -108,6 +114,33 @@ public static class JellyfinFirewall
             if (part.Split('/', StringSplitOptions.TrimEntries) is not [var address, var size] || IPv4(address) is not { } network) continue;
             uint? mask = int.TryParse(size, out var bits) && bits is >= 0 and <= 32 ? bits == 0 ? 0u : uint.MaxValue << (32 - bits) : IPv4(size);
             if (mask is { } m && (network & m) <= first && last <= ((network & m) | ~m)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Whether remote addresses cover a phone on the home network, which this PC's own address there
+    /// (<paramref name="home"/>) stands for: "*", LocalSubnet, or a range or subnet holding that address (a single
+    /// address is one device's, not the phones').
+    /// </summary>
+    public static bool CoversHome(string? addresses, string home)
+    {
+        if (string.IsNullOrWhiteSpace(addresses) || addresses.Trim() == "*") return true;
+        if (IPv4(home) is not { } pc) return false;
+        foreach (var part in addresses.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part.Equals("LocalSubnet", StringComparison.OrdinalIgnoreCase)) return true;
+            if (part.Split('-', StringSplitOptions.TrimEntries) is [var from, var to] && IPv4(from) is { } low && IPv4(to) is { } high)
+            {
+                if (low <= pc && pc <= high) return true;
+                continue;
+            }
+            if (part.Split('/', StringSplitOptions.TrimEntries) is [var address, var size] && IPv4(address) is { } network)
+            {
+                uint? mask = int.TryParse(size, out var bits) && bits is >= 0 and <= 32 ? bits == 0 ? 0u : uint.MaxValue << (32 - bits) : IPv4(size);
+                if (mask is { } m && (network & m) == (pc & m)) return true;
+                continue;
+            }
         }
         return false;
     }

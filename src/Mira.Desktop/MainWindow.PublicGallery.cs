@@ -76,9 +76,10 @@ public partial class MainWindow
             foreach (var (library, folder) in new[] { ("Animes", "Animes"), ("Films", "Films"), ("Séries", "Séries") }) GuideFolders.Children.Add(FolderRow(library, $@"C:\Users\Toi\Videos\Jellyfin\{folder}", true));
             GuideJellyfinActions.Visibility = GuideRemote.Visibility = Visibility.Visible; GuideServerAddress.Text = "http://127.0.0.1:8096";
             GuideRemoteAddress.Text = "http://192.168.1.20:8096";
-            GuideRemoteHint.Text = "Ce PC doit rester allumé et sur la même box. Si un appareil ne trouve pas le serveur, autorise Jellyfin dans le pare-feu de Windows.";
-            // Away from home, before Tailscale is installed: what to do.
-            _awayAddress = null; GuideAway.Visibility = Visibility.Visible; ShowAway(null);
+            // The phone, half ready: Mira web there, the firewall still in the way, Tailscale not installed yet.
+            ++_phoneVersion; _phone = null; _phoneReadAt = DateTime.MaxValue;
+            ShowPhone(new PhoneSetup.Facts("http://127.0.0.1:8096", true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, TailnetAllowed: false,
+                Firewall: JellyfinFirewall.Verdict.Blocked, Boot: new(true, true, false, true, false)));
             foreach (var size in new[] { sizes[0], sizes[2] }) { SmoothScroll.Jump(GuideScroll); await At(size, "19-guide", null, GuideContent); }
             GuideOverlay.Visibility = Visibility.Collapsed;
             // The downloads page before TorLink is turned on: the list of downloaders.

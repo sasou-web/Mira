@@ -264,22 +264,24 @@
         <Border Background="#151518" CornerRadius="8" Padding="14,11" Margin="0,10,0,0"><TextBlock FontSize="12" Foreground="#9A9AA1" TextWrapping="Wrap" LineHeight="19"><Run Text="Noms reconnus" FontWeight="SemiBold" Foreground="#C5C5CA"/><LineBreak/><Run Text="Films\Inception (2010)\Inception (2010).mkv" FontFamily="Consolas"/><LineBreak/><Run Text="Séries\Dark\Season 01\Dark - S01E01.mkv" FontFamily="Consolas"/></TextBlock></Border>
        </StackPanel></DockPanel></Border>
       <Border Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
+       <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="phone" Width="20" Height="20" Foreground="#F5F5F7"/></Border>
+       <StackPanel>
+        <TextBlock Text="Mira sur ton téléphone" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Style="{StaticResource SettingDescription}" Margin="0,6,0,0" Text="iPhone, iPad ou Android : Mira s’ouvre comme une app, chez toi et ailleurs."/>
+        <!-- What stands between Jellyfin and the phone, each step done or to do (MainWindow.Guide, PhoneSetup). -->
+        <StackPanel x:Name="PhoneSteps" Margin="0,16,0,0"/>
+        <WrapPanel x:Name="PhoneActions" Margin="0,4,0,0"><Button x:Name="PhoneMain" Style="{StaticResource Primary}" v:Motion.Radius="9" Padding="18,9" Margin="0,0,10,8" Click="PhoneMain_Click"/><Button x:Name="PhoneShare" Content="Afficher le QR code" Style="{StaticResource Quiet}" Padding="13,6" Margin="0,0,10,8" VerticalAlignment="Center" Click="PhoneShare_Click"/></WrapPanel>
+        <TextBlock x:Name="PhoneStatus" Style="{StaticResource SettingDescription}" Margin="0,2,0,0"/>
+        <WrapPanel x:Name="PhoneAddressLine" Margin="0,12,0,0"><TextBlock Text="Ou tape dans Safari ou Chrome :" FontSize="12" Foreground="#8E8E96" VerticalAlignment="Center" Margin="0,0,8,0"/><TextBlock x:Name="PhoneAddress" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/><Button Content="Copier" Style="{StaticResource Quiet}" Padding="11,5" Click="CopyPhoneAddress_Click"/></WrapPanel>
+       </StackPanel></DockPanel></Border>
+      <Border Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
        <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="globe" Width="20" Height="20" Foreground="#F5F5F7"/></Border>
        <StackPanel>
         <TextBlock Text="Gérer Jellyfin" FontSize="17" FontWeight="SemiBold"/>
         <TextBlock Style="{StaticResource SettingDescription}" Margin="0,6,0,0" Text="Bibliothèques, comptes, accès depuis Internet : tout se règle sur sa page web, dans le menu ☰ → Tableau de bord."/>
         <WrapPanel x:Name="GuideJellyfinActions" Margin="0,14,0,0"><Button Content="Ouvrir Jellyfin" Style="{StaticResource Primary}" v:Motion.Radius="9" Padding="18,9" Click="OpenJellyfin_Click" Margin="0,0,14,0"/><TextBlock x:Name="GuideServerAddress" VerticalAlignment="Center" FontSize="12" Foreground="#8E8E96"/></WrapPanel>
-       </StackPanel></DockPanel></Border>
-      <Border Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
-       <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="phone" Width="20" Height="20" Foreground="#F5F5F7"/></Border>
-       <StackPanel>
-        <TextBlock Text="Sur tes autres appareils" FontSize="17" FontWeight="SemiBold"/>
-        <TextBlock Style="{StaticResource SettingDescription}" Margin="0,6,0,0" Text="Installe l’application Jellyfin, puis entre cette adresse :"/>
-        <WrapPanel x:Name="GuideRemote" Margin="0,10,0,0"><TextBlock x:Name="GuideRemoteAddress" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/><Button x:Name="GuideCopyAddress" Content="Copier" Style="{StaticResource Quiet}" Padding="13,6" Click="CopyRemoteAddress_Click"/></WrapPanel>
-        <TextBlock x:Name="GuideRemoteHint" Style="{StaticResource SettingDescription}" Margin="0,8,0,0"/>
-        <StackPanel x:Name="GuideAway" Visibility="Collapsed" Margin="0,18,0,0"><TextBlock Text="Hors de chez toi" FontWeight="SemiBold"/><WrapPanel x:Name="GuideAwayLine" Margin="0,8,0,0"><TextBlock x:Name="GuideAwayAddress" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/><Button x:Name="GuideCopyAway" Content="Copier" Style="{StaticResource Quiet}" Padding="13,6" Click="CopyAwayAddress_Click"/></WrapPanel><TextBlock x:Name="GuideAwayHint" Style="{StaticResource SettingDescription}" Margin="0,8,0,0"/><Button x:Name="GuideAwayAction" Style="{StaticResource Quiet}" HorizontalAlignment="Left" Padding="13,6" Margin="0,10,0,0" Click="GuideAwayAction_Click"/></StackPanel>
-        <!-- Mira web: the app for phones, served by Jellyfin once its plugin is installed (MainWindow.Guide). -->
-        <StackPanel x:Name="GuideWeb" Visibility="Collapsed" Margin="0,18,0,0"><TextBlock Text="Mira sur iPhone et Android" FontWeight="SemiBold"/><TextBlock x:Name="GuideWebHint" Style="{StaticResource SettingDescription}" Margin="0,6,0,0"/><TextBlock x:Name="GuideWebBoot" Style="{StaticResource SettingDescription}" Margin="0,8,0,0" Visibility="Collapsed"/><WrapPanel Margin="0,10,0,0"><Button x:Name="GuideWebAction" Style="{StaticResource Quiet}" Padding="13,6" Margin="0,0,10,8" Click="GuideWebAction_Click"/><Button x:Name="GuideWebBootAction" Style="{StaticResource Quiet}" Padding="13,6" Margin="0,0,0,8" Visibility="Collapsed" Content="Disponible dès l’allumage du PC" Click="GuideWebBoot_Click"/></WrapPanel></StackPanel>
+        <!-- TVs and consoles have Jellyfin's own app: the address of this PC on the home network. -->
+        <StackPanel x:Name="GuideRemote" Margin="0,18,0,0"><TextBlock Text="Sur une TV ou une console" FontWeight="SemiBold"/><TextBlock Style="{StaticResource SettingDescription}" Margin="0,4,0,0" Text="Installe l’application Jellyfin, puis entre cette adresse :"/><WrapPanel Margin="0,8,0,0"><TextBlock x:Name="GuideRemoteAddress" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/><Button x:Name="GuideCopyAddress" Content="Copier" Style="{StaticResource Quiet}" Padding="13,6" Click="CopyRemoteAddress_Click"/></WrapPanel></StackPanel>
        </StackPanel></DockPanel></Border>
       <Border Style="{StaticResource SettingRow}" Padding="24,22" Margin="0,0,14,14"><DockPanel>
        <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="11" Background="#1B1B1F" VerticalAlignment="Top" Margin="0,0,18,0"><v:Icon Kind="play" Width="18" Height="18" Foreground="#F5F5F7"/></Border>

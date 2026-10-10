@@ -65,7 +65,7 @@ Mira existe aussi pour les Mac à puce Apple (macOS 14 Sonoma ou plus récent) :
 
 ### Sur iPhone, iPad et Android
 
-**Mira web** est servie par ton serveur Jellyfin lui-même, grâce à l’extension Mira : rien à installer sur le téléphone, ni App Store ni compte Apple. Ouvre `http://<adresse du serveur>:8096/Mira`, puis, sur iPhone, **Partager → Sur l’écran d’accueil** : elle s’ouvre comme une app. Mira pour Windows ajoute l’extension en un clic (**Guide → Sur tes autres appareils → Installer Mira web**) et affiche un QR code pour le téléphone. [Mira sur iPhone, iPad et Android](docs/INSTALLATION-WEB.md)
+**Mira web** est servie par ton serveur Jellyfin lui-même, grâce à l’extension Mira : rien à installer sur le téléphone, ni App Store ni compte Apple. Ouvre `http://<adresse du serveur>:8096/Mira`, puis, sur iPhone, **Partager → Sur l’écran d’accueil** : elle s’ouvre comme une app. Mira pour Windows prépare tout en un clic (**Guide → Mira sur ton téléphone → Tout préparer** : extension, pare-feu, Tailscale pour regarder hors de chez toi) et affiche un QR code pour le téléphone. [Mira sur iPhone, iPad et Android](docs/INSTALLATION-WEB.md)
 
 ## Développer
 

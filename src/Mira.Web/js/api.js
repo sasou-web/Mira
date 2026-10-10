@@ -6,6 +6,22 @@ export const VERSION = document.querySelector('meta[name="mira-version"]')?.cont
 /** Jellyfin's address on this server, with its base URL if it has one: « » or « /jellyfin ». */
 export const base = location.pathname.replace(/\/Mira\/?.*$/i, '');
 
+/** A Tailscale address (100.64.0.0/10): Mira opened through Tailscale. */
+export const isTailnet = (host) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(host);
+const isHomeNetwork = (host) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+/**
+ * Why nothing answers, by the address Mira was opened at: through Tailscale, it is off on the phone or on the PC; at
+ * the home network's, the phone may have left it; otherwise the PC is off or starting. In full for a screen, short for
+ * the bar that says so while Mira asks again.
+ */
+const where = isTailnet(location.hostname) ? 'tailnet' : isHomeNetwork(location.hostname) ? 'home' : '';
+export const UNREACHABLE = {
+  tailnet: 'Serveur injoignable : vérifie que Tailscale est activé sur ce téléphone et que le PC est allumé. Mira réessaie toute seule.',
+  home: 'Serveur injoignable : le PC est éteint, ou ce téléphone n’est pas sur le Wi-Fi de la maison. Mira réessaie toute seule.',
+}[where] ?? 'Serveur injoignable : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.';
+export const UNREACHABLE_SHORT = { tailnet: 'Serveur injoignable. Tailscale est-il activé ?', home: 'Serveur injoignable. Hors du Wi-Fi de la maison ?' }[where]
+  ?? 'Serveur injoignable. Mira réessaie toute seule.';
+
 export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
   get offline() { return this.status === 0; }
@@ -71,7 +87,7 @@ export async function request(method, path, { params, body, signal, timeout = 20
     setReachable(false, 'offline');
     throw new ApiError(0, controller.signal.aborted
       ? 'Le serveur met trop de temps à répondre. Mira réessaie dès qu’il répond.'
-      : 'Serveur injoignable : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.');
+      : UNREACHABLE);
   } finally { clearTimeout(timer); }
 
   if (response.status === 503) {

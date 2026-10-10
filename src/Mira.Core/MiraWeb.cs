@@ -12,8 +12,12 @@ public static class MiraWeb
     public const string Repository = "https://github.com/sasou-web/Mira/releases/latest/download/jellyfin-manifest.json";
     public const string RepositoryName = "Mira";
 
-    /// <summary>The page with the QR code for phones, at an address of the server they can reach.</summary>
-    public static string SharePage(string server) => server.TrimEnd('/') + "/Mira/#/partager";
+    /// <summary>
+    /// The page with the QR code for phones, at an address of the server they can reach; with
+    /// <paramref name="everywhere"/> (this PC on Tailscale), the code is for that one first.
+    /// </summary>
+    public static string SharePage(string server, string? everywhere = null) =>
+        server.TrimEnd('/') + "/Mira/#/partager" + (everywhere is null ? "" : "?partout=" + Uri.EscapeDataString(everywhere.TrimEnd('/')));
 }
 
 /// <summary>How installing Mira web on Jellyfin went.</summary>
