@@ -858,6 +858,23 @@ await Test("Journal de Jellyfin : la cause d’un démarrage raté est lue, pas 
     Assert(JellyfinLog.LastFatal(Path.Combine(testRoot, "no-jellyfin-log"), DateTimeOffset.MinValue) is null, "A missing folder");
     return Task.CompletedTask;
 });
+await Test("Mira web : sous-titres d’une conversion à l’heure dans le lecteur d’Apple (listes HLS de Jellyfin réécrites)", () =>
+{
+    // Jellyfin's master playlist: its subtitles go through Mira, everything else stays Jellyfin's.
+    var master = "#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"French\",DEFAULT=NO,FORCED=NO,AUTOSELECT=YES,"
+        + "URI=\"0123456789abcdef0123456789abcdef/Subtitles/3/subtitles.m3u8?SegmentLength=30&ApiKey=k\",LANGUAGE=\"fra\"\n"
+        + "#EXT-X-STREAM-INF:BANDWIDTH=1,SUBTITLES=\"subs\"\nmain.m3u8?DeviceId=d&ApiKey=k\n";
+    var rewritten = Mira.Jellyfin.HlsPlaylists.Master(master, "/jf/videos/item/", "/jf/Mira/hls/item/");
+    Assert(rewritten.Contains("URI=\"/jf/Mira/hls/item/0123456789abcdef0123456789abcdef/Subtitles/3/subtitles.m3u8?SegmentLength=30&ApiKey=k\""), "Subtitles not through Mira: " + rewritten);
+    Assert(rewritten.Contains("\n/jf/videos/item/main.m3u8?DeviceId=d&ApiKey=k\n"), "Video not Jellyfin's: " + rewritten);
+    Assert(Mira.Jellyfin.HlsPlaylists.Master("#EXTM3U\r\n/x/main.m3u8\r\n", "/v/", "/m/") == "#EXTM3U\n/x/main.m3u8\n", "Absolute address changed");
+    // Its subtitle playlist: WebVTT straight from Jellyfin, without the MPEG-TS time map (10 s late on fMP4).
+    var subtitles = "#EXTM3U\n#EXTINF:30,\nstream.vtt?CopyTimestamps=true&AddVttTimeMap=true&StartPositionTicks=0&EndPositionTicks=300000000&ApiKey=k\n#EXT-X-ENDLIST\n";
+    var segments = Mira.Jellyfin.HlsPlaylists.Subtitles(subtitles, "/jf/videos/item/source/Subtitles/3/");
+    Assert(segments.Contains("\n/jf/videos/item/source/Subtitles/3/stream.vtt?CopyTimestamps=true&AddVttTimeMap=false&StartPositionTicks=0&"), "Segments: " + segments);
+    Assert(!segments.Contains("AddVttTimeMap=true", StringComparison.OrdinalIgnoreCase), "Time map kept: " + segments);
+    return Task.CompletedTask;
+});
 await Test("Démarrage avec Windows : service, relance après une erreur et pare-feu, lus puis réglés", () =>
 {
     // SERVICE_FAILURE_ACTIONS as Windows stores it: reset period, two unused fields, the count, an unused field, then each type and delay.

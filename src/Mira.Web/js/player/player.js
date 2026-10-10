@@ -448,6 +448,9 @@ export function create({ id, query }) {
         if (native && hlsStream && textSubtitles().length) {
           if (!/[?&]SubtitleMethod=/i.test(address)) address += `${address.includes('?') ? '&' : '?'}SubtitleMethod=Hls`;
           inband = /[?&]SubtitleMethod=Hls/i.test(address);
+          // Jellyfin times them for MPEG-TS segments (10 s late on fMP4 in Apple's player): Mira's plugin serves the
+          // same playlists with the subtitles in time (Mira.Jellyfin, HlsPlaylists).
+          if (inband && /[?&]SegmentContainer=mp4/i.test(address)) address = address.replace(/^\/videos\/([0-9a-f-]+)\/master\.m3u8/i, '/Mira/hls/$1/master.m3u8');
         }
         url = signed(address);
         playMethod = source.SupportsDirectStream && !/VideoCodec=|videoBitrate=/i.test(source.TranscodingUrl) ? 'DirectStream' : 'Transcode';
