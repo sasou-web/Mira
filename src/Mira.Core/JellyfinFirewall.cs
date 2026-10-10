@@ -17,9 +17,13 @@ public static class JellyfinFirewall
     public const int Domain = 1, Private = 2, Public = 4, AllProfiles = Domain | Private | Public;
     public const int Tcp = 6, AnyProtocol = 256;
 
-    /// <summary>A firewall rule as Windows describes it (INetFwRule); null or empty program, ports or addresses mean any.</summary>
+    /// <summary>
+    /// A firewall rule as Windows describes it (INetFwRule); null or empty ports or addresses mean any. A rule naming no
+    /// program is for any program only when it names no service and no app package either: Windows' own apps have
+    /// such rules, allowing everything to their package alone.
+    /// </summary>
     public sealed record Rule(string Name, bool Enabled, bool Inbound, bool Allow, int Profiles, string? Program, int Protocol, string? LocalPorts, string? RemoteAddresses,
-        IReadOnlyList<string>? Interfaces = null, string? InterfaceTypes = "All");
+        IReadOnlyList<string>? Interfaces = null, string? InterfaceTypes = "All", string? Service = null, string? Package = null);
     /// <summary>The firewall on one profile: on or off, its default for incoming connections, « block all incoming ».</summary>
     public sealed record Profile(bool Enabled, bool DefaultAllow, bool BlockAll);
     /// <summary>Open: Tailscale's devices get through. Blocked: rules Mira may change keep them out. Closed: the whole profile refuses them.</summary>
@@ -59,7 +63,8 @@ public static class JellyfinFirewall
     /// </summary>
     public static bool Applies(Rule rule, string program, int port, int profile, string? adapter = null) =>
         rule.Enabled && rule.Inbound && (rule.Profiles & profile) != 0
-        && (string.IsNullOrWhiteSpace(rule.Program) || SameProgram(rule.Program, program))
+        && string.IsNullOrWhiteSpace(rule.Package)
+        && (string.IsNullOrWhiteSpace(rule.Program) ? string.IsNullOrWhiteSpace(rule.Service) : SameProgram(rule.Program, program))
         && rule.Protocol is Tcp or AnyProtocol
         && CoversPort(rule.LocalPorts, port)
         && CoversTailnet(rule.RemoteAddresses)
