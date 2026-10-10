@@ -107,6 +107,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Délai de `HttpClient` = `TaskCanceledException` : filtrer `catch (OperationCanceledException) when (ct.IsCancellationRequested)`. `IsExpected` contient `ArgumentException` (bugs avalés, ROB-05).
 - `Mira.Jellyfin` hérite du TFM de `Directory.Build.props` : le garder explicitement en `net8.0` en passant les apps à .NET 10.
 - L'extension Jellyfin se met à jour seule depuis `releases/latest` sans la signature ECDSA de Mira (SEC-02) ; TorLink installe ses dépendances npm sans verrou (DEP-03).
+- Avalonia (Mac) embarque une télémétrie de construction (`Avalonia.BuildServices`) : coupée par `<UsedAvaloniaProducts></UsedAvaloniaProducts>` dans `Mira.Mac.csproj`, son seul déclencheur ; à revérifier à chaque version d'Avalonia (`dotnet build -v:d` : « Target "AvaloniaStats" skipped »).
 - Mac : les bibliothèques de Homebrew demandent le macOS du runner qui les construit (`macos-15`) ; `MINIMUM` de `tools/mac/package.sh` (15.0) est vérifié sur chaque bibliothèque embarquée : changer de runner, c'est changer ce minimum, le README, `docs/INSTALLATION-MAC.md` et le texte de release (`WhatsNew.cs`, « Sur Mac »).
 
 ## État actuel

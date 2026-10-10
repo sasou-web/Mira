@@ -12,6 +12,10 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- No build telemetry: Avalonia.BuildServices, which Avalonia brings in, reports every build of Mira for Mac (machine
+         id, hashed machine and project names, OS, versions) unless AVALONIA_TELEMETRY_OPTOUT=1 is set. Its only trigger
+         is this list of the Avalonia products in use, set by Avalonia.props and read by nothing else. -->
+    <UsedAvaloniaProducts></UsedAvaloniaProducts>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.22" />
