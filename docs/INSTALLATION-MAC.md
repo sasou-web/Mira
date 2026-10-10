@@ -54,6 +54,17 @@ Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ou
 
 Mira vérifie à chaque lancement si une nouvelle version existe pour Mac et propose de la télécharger. Remplace alors l’ancienne Mira dans Applications par la nouvelle ; tes réglages et ta session restent dans `~/Library/Application Support/Mira`. L’autorisation de la première fois est à refaire pour chaque nouvelle version.
 
+Pour que Mira ne contacte plus GitHub à chaque lancement, désactive **Réglages → Mira → Rechercher les nouvelles versions** ; le bouton **Rechercher une mise à jour** reste disponible.
+
+Chaque image disque est publiée avec son empreinte SHA-256 (fichier `.sha256`). Pour vérifier celle que tu as téléchargée, télécharge aussi son fichier `.sha256` dans le même dossier (ici Téléchargements), puis dans le Terminal :
+
+```
+cd ~/Downloads
+shasum -a 256 -c Mira-x.y.z-mac-arm64.dmg.sha256
+```
+
+`OK` : le fichier est identique à celui de la release.
+
 ## Ce qui reste propre à Windows
 
 TorLink, l’installation de Jellyfin depuis Mira, le mini-lecteur et l’intégration à la barre des tâches n’existent que sur Windows.

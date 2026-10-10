@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds Mira.app for Apple Silicon and its disk image, on a Mac with Homebrew's mpv and dylibbundler:
-#   tools/mac/package.sh 0.6.0   →   dist/mac/Mira.app and dist/mac/Mira-0.6.0-mac-arm64.dmg
+#   tools/mac/package.sh 0.6.0   →   dist/mac/Mira.app, dist/mac/Mira-0.6.0-mac-arm64.dmg and its .sha256
 # No Apple Developer account: the app is signed ad hoc, so macOS asks once to allow it (see docs/INSTALLATION.md).
 set -euo pipefail
 # No usage data from the .NET SDK (nor from Avalonia's build, see Mira.Mac.csproj), on a Mac as in the CI.
@@ -105,4 +105,8 @@ for attempt in 1 2 3 4 5; do
   if [ "$attempt" -eq 5 ]; then echo "hdiutil failed 5 times" >&2; exit 1; fi
   sleep $((attempt * 5))
 done
+# 7. Its SHA-256, published beside it: in the download folder, « shasum -a 256 -c Mira-x.y.z-mac-arm64.dmg.sha256 » checks
+# the copy. shasum is on every Mac (md5sum is not).
+(cd "$OUT" && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
 du -sh "$APP" "$DMG"
+cat "$DMG.sha256"

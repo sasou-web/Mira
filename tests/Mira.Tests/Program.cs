@@ -2186,6 +2186,19 @@ await Test("Mises à jour : chaque redirection vérifiée, reprise d’un télé
     var manifestRefused = false; try { UpdateManifest.Parse(Encoding.UTF8.GetBytes("{\"product\":\"Mira\",\"version\":\"0.5.3\",\"files\":[1,2]}")); } catch (UpdateException) { manifestRefused = true; }
     Assert(manifestRefused, "A manifest with unexpected entries was not refused cleanly");
 });
+await Test("Mises à jour : seules les pages de release de Mira s’ouvrent dans le navigateur (Windows et Mac)", () =>
+{
+    foreach (var good in new[] { "https://github.com/sasou-web/Mira/releases/tag/v0.7.3", "https://github.com/sasou-web/Mira/releases/latest" })
+        Assert(ReleaseFeed.ReleasePage(good)?.AbsoluteUri == good, "Mira's release page refused: " + good);
+    foreach (var bad in new[] { "http://github.com/sasou-web/Mira/releases/tag/v0.7.3", "https://github.com.evil.example/sasou-web/Mira/releases/tag/v0.7.3",
+        "https://evil.example/sasou-web/Mira/releases/", "https://github.com/someone/Mira/releases/tag/v0.7.3", "https://github.com/sasou-web/Mira/issues/1",
+        "https://github.com/sasou-web/Mira/releases/../../other/x", "https://github.com:8443/sasou-web/Mira/releases/tag/v1.0.0",
+        "https://user@github.com/sasou-web/Mira/releases/tag/v1.0.0", "file:///sasou-web/Mira/releases/x", "/sasou-web/Mira/releases/x",
+        "javascript:alert(1)", "-a Calculator", "", null })
+        Assert(ReleaseFeed.ReleasePage(bad) is null, "Another page accepted: " + bad);
+    Assert(ReleaseFeed.ReleasePage((Uri?)null) is null && ReleaseFeed.ReleasePage(new Uri("relative/releases/", UriKind.Relative)) is null, "No page or a relative one accepted");
+    return Task.CompletedTask;
+});
 await Test("Mises à jour : copie en deux temps, dossier intact si la préparation échoue, résultat annoncé une fois", () =>
 {
     var root = Path.Combine(testRoot, "update-two-phase"); var app = Path.Combine(root, "app"); var incoming = Path.Combine(root, "incoming");

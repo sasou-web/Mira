@@ -7,7 +7,7 @@ using Mira.Mac.Services;
 
 namespace Mira.Mac.Views;
 
-/// <summary>Réglages: the account, playback, languages and subtitles, and the version of Mira.</summary>
+/// <summary>Réglages: the account, playback, languages and subtitles, and the version of Mira and its updates.</summary>
 public sealed class SettingsPage : Page
 {
     public override string Rail => "settings";
@@ -48,7 +48,10 @@ public sealed class SettingsPage : Page
 
         page.Children.Add(Section("Mira",
             Row($"Version {Updates.Current}", "Mira pour Mac (Apple Silicon).", Ui.Action("Rechercher une mise à jour", "download", "", () => _ = Updates.CheckAsync(Shell, asked: true))),
-            Row("Projet", "Le code, les nouveautés et les versions pour Windows et Mac.", Ui.Action("Ouvrir GitHub", "globe", "", () => Updates.Open("https://github.com/sasou-web/Mira")))));
+            // Switched back on: GitHub is asked now rather than at the next launch, as on Windows.
+            Toggle("Rechercher les nouvelles versions", "À chaque ouverture, Mira demande à GitHub s’il existe une nouvelle version. Sinon, seulement quand tu cliques sur « Rechercher une mise à jour ».",
+                settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }),
+            Row("Projet", "Le code, les nouveautés et les versions pour Windows et Mac.", Ui.Action("Ouvrir GitHub", "globe", "", () => Updates.Open(Updates.Project)))));
         Content = new ScrollViewer { Content = page };
     }
     private void Save() => Shell.Profile.SaveSettings(Shell.Settings);
