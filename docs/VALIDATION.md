@@ -2,6 +2,53 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Mira web 0.7.3 : retours du troisième essai sur iPhone
+
+- **Défauts signalés par l’utilisateur** (iPhone sous iOS 27, app de l’écran d’accueil) :
+  - certains titres affichent « Cet appareil ne peut pas lire ce flux », et une qualité plus basse n’y change rien ;
+  - « Lecture discrète » masque la Dynamic Island mais coupe le son ;
+  - passer d’un onglet à l’autre est brut et l’écran se recharge plusieurs fois ;
+  - la barre du bas remonte un peu dans Recherche ;
+  - la vibration du favori ne se fait pas (inutile de toute façon).
+- **Causes établies** (sources de Jellyfin 12.1, de jellyfin-web et de WebKit, essais sur Jellyfin 12.1) :
+  - Mira ne retentait qu’un fichier lu tel quel : un flux HLS refusé allait droit au message ;
+  - une qualité plus basse ne change rien, car Jellyfin copie la vidéo tant que le fichier tient sous le plafond, et l’audio à toutes les qualités ;
+  - le profil ne nommait aucune plage d’image : Jellyfin copiait HDR10 et Dolby Vision sans contrôle, et la vidéo entrelacée telle quelle ;
+  - Dynamic Island : iOS ne la montre que pour une session audio non mêlable. La seule session mêlable que WebKit donne à une page, `ambient`, est coupée par le mode silencieux, et aucun type ne donne les deux ;
+  - onglets : l’écran quitté était retiré d’un coup, puis venaient les emplacements vides, la grille (19 px de décalage) et les affiches par vagues ;
+  - Recherche : le champ prenait le focus sans geste, ce qui le fait briller sans clavier. Cause probable du décalage, non observée faute d’iPhone : le bogue des apps de l’écran d’accueil qui gardent un écran plus court après le clavier.
+- **Reproduction dans le vrai lecteur d’Apple** (CI Safari sur Mac, commit `cb31b87`, avant correctifs), avec 8 échantillons de formats :
+  - MP4 avec DTS, H.264 entrelacé en TS, HEVC x265 et H.264 à GOP ouverts, MPEG-2 en TS dont l’horloge part de 50 000 s, HEVC hev1 en MP4, Matroska aux images clés irrégulières repris à 150 s : ils jouent et avancent après un saut ;
+  - **le HEVC 10 bits HDR10 copié est refusé** (« erreur 3 Media failed to decode »), avec le message de l’utilisateur.
+- **Après correctifs** :
+  - CI Chromium **54/54** et CI Safari **34/34** sur la PR sasou-web/Mira#25 ;
+  - le HDR10 est lu converti, après une seule demande refusée ;
+  - le TS décalé est lu avec ses sous-titres à 2,3 s ;
+  - Jellyfin désentrelace l’entrelacé (`yadif` dans son journal).
+- **Nouveaux points du contrôle Chromium** :
+  - un flux coupé deux fois joue à la troisième demande (lecture directe, vidéo copiée, audio copié : 111, puis 001, puis 000) ;
+  - coupé à chaque fois, « Lecture impossible » s’affiche avec l’erreur du navigateur ;
+  - Films arrive entier, sans emplacement vide ni décalage : l’onglet s’allume à 12 ms, l’écran arrive à 212 ms avec une première page ralentie à 150 ms ;
+  - fondu des onglets, Accueil gardé ;
+  - Recherche ne prend le clavier qu’au second toucher ;
+  - Réglages n’est pas redessiné ;
+  - l’Accueil se met à jour sur place : 6 cartes gardées sur 9.
+- **Revue adverse** (cinq relecteurs, un sceptique) : 22 points, 17 confirmés et corrigés, 5 réfutés. Parmi les confirmés :
+  - avec hls.js, les erreurs d’un flux déjà remplacé faisaient sauter l’étape « vidéo convertie » ;
+  - la reprise repartait de 0:00 quand hls.js remettait la vidéo à zéro ;
+  - « Réessayer » repartait de 0:00 ;
+  - le dernier recours encodait un 4K au niveau 4.1, que Safari refuse. Corrigé et vérifié sur un 4K : 1920×1080, AAC ;
+  - les menus des cartes gardées agissaient sur un ancien objet ;
+  - la première page gardée ne correspondait jamais à la réponse du serveur ;
+  - l’attente d’un écran restait bloquée sur une image différée ;
+  - un second toucher d’onglet pendant l’attente agissait sur l’écran quitté.
+- **Jellyfin 12.1 ne sait pas reconvertir en VP9 un VP9 de niveau inconnu** (« level -99 », ffmpeg code 222). Ça ne concerne pas un téléphone : le contrôle Chromium de la cascade part d’un film H.264.
+- **Pas encore vérifié sur un vrai iPhone** :
+  - les titres qui échouaient chez l’utilisateur (codecs inconnus) ;
+  - la cascade et le fondu sous iOS 27 ;
+  - la barre du bas dans Recherche ;
+  - « Masquer la Dynamic Island » en mode silencieux coupé.
+
 ## Mira web 0.7.2 : retours du deuxième essai sur iPhone
 
 - **Release v0.7.2** (2026-10-10, `tools/release.ps1` sur le PC qui a la clé, commit `515983e`) : 11 fichiers en ligne, publiée et marquée comme la plus récente.
