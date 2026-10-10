@@ -91,7 +91,7 @@ public partial class MainWindow
         DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = GuideOverlay.IsHitTestVisible = false;
         _catalogLoading = true;
         var key = CatalogKey(SearchBox.Text.Trim(), CurrentQuery());
-        var cached = _store?.Load<ItemsResult>(_view == "home" ? "home" : key);
+        var cached = _store is { } store ? TryCache(() => store.Load<ItemsResult>(_view == "home" ? "home" : key)) : null;
         _items = cached?.Items ?? []; _totalCount = cached?.TotalRecordCount ?? 0;
         if (cached is not null || _demo) _catalogLoading = false;
         RenderLibrary(); SmoothScroll.Jump(LibraryScroll); Motion.Reveal(LibraryScroll, 260, 10);

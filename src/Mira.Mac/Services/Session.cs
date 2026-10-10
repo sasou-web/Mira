@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Mira.Core;
 
 namespace Mira.Mac.Services;
@@ -19,8 +20,9 @@ public sealed class Session : IAsyncDisposable
     /// <param name="handler">Another way to reach Jellyfin: the self-check's stand-in server.</param>
     public Session(Connection connection, Profile profile, HttpMessageHandler? handler = null)
     {
-        Client = new JellyfinClient(connection, handler);
+        // The cache first: when even a new one cannot be written, nothing else has been opened.
         Store = new LibraryStore(profile.DirectoryPath, connection.Server + "|" + connection.UserId);
+        Client = new JellyfinClient(connection, handler);
         Sync = new SyncService(Client, Store);
         Images = new Images(Client, profile.DirectoryPath);
     }
@@ -72,7 +74,7 @@ public sealed class Session : IAsyncDisposable
 public static class Errors
 {
     public static bool Expected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException
-        or OperationCanceledException or System.Text.Json.JsonException or TimeoutException;
+        or OperationCanceledException or System.Text.Json.JsonException or TimeoutException or SqliteException;
     public static string Friendly(Exception ex) => ex switch
     {
         UnauthorizedAccessException => ex.Message,
@@ -81,6 +83,11 @@ public static class Errors
         OperationCanceledException or TimeoutException => "Jellyfin met trop de temps à répondre.",
         HttpRequestException h when h.StatusCode is not null => h.Message,
         HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.",
+        SqliteException => "Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.",
         _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie."
     };
+    /// <summary>The local cache is a bonus: a full disk, a locked or damaged database leaves Jellyfin's answer, or nothing, on screen.</summary>
+    public static T? TryCache<T>(Func<T> read) { try { return read(); } catch (Exception ex) when (CacheFailure(ex)) { return default; } }
+    public static void TryCache(Action write) { try { write(); } catch (Exception ex) when (CacheFailure(ex)) { } }
+    private static bool CacheFailure(Exception ex) => ex is SqliteException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException;
 }

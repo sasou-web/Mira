@@ -135,7 +135,7 @@ public sealed class BrowsePage : Page
             // A refresh keeps every page already loaded, so the grid does not shrink back under the reader.
             var limit = keep ? Math.Clamp(_items.Count, JellyfinClient.PageSize, 600) : JellyfinClient.PageSize;
             var result = await session.Client.BrowseAsync(Types, null, search.Length > 0 ? search : null, 0, _favoritesOnly, ct, Query, limit);
-            await Task.Run(() => session.Store.ApplyLocalProgress(result.Items), CancellationToken.None);
+            await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)), CancellationToken.None);
             if (version != _version) return;
             _items.Clear(); _items.AddRange(result.Items); _total = result.TotalRecordCount;
             var offset = _scroll.Offset;
@@ -158,7 +158,7 @@ public sealed class BrowsePage : Page
         {
             var search = _search.Text?.Trim() ?? "";
             var result = await session.Client.BrowseAsync(Types, null, search.Length > 0 ? search : null, _items.Count, _favoritesOnly, _request?.Token ?? default, Query);
-            await Task.Run(() => session.Store.ApplyLocalProgress(result.Items));
+            await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)));
             if (version != _version) return;
             foreach (var item in result.Items.Where(x => _items.All(old => old.Id != x.Id)))
             { _items.Add(item); _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu)); }

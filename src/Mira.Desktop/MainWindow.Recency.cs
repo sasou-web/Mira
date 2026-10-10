@@ -18,7 +18,8 @@ public partial class MainWindow
         if (!snapshot.UserData.Played && snapshot.UserData.PlaybackPositionTicks > 0) _resume.Insert(0, snapshot);
         // The position of the last watched title is predictable on returning to the home row.
         SmoothResumeToStart();
-        if (!_demo && _store is { } store) await Task.Run(() => store.RememberPlayback(snapshot));
+        // The row on screen is already right: a cache that cannot be written only loses it for the next start.
+        if (!_demo && _store is { } store) await Task.Run(() => TryCache(() => store.RememberPlayback(snapshot)));
     }
     private void SmoothResumeToStart()
     { Views.SmoothScroll.Cancel(ResumeScroll); ResumeScroll.ScrollToHorizontalOffset(0); }
@@ -32,7 +33,8 @@ public partial class MainWindow
         if (missing.Count > 0)
         {
             try { foreach (var (season, tag) in await client.SeasonThumbsAsync(missing, ct)) _seasonThumbs[season] = tag; }
-            catch (Exception ex) when (IsExpected(ex) && ex is not OperationCanceledException) { }
+            // HttpClient's 12 s limit included; only the refresh's own cancellation goes on up.
+            catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested) { }
         }
         ApplySeasonThumbs(list);
     }

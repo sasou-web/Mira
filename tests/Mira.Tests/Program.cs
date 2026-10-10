@@ -440,6 +440,19 @@ await Test("Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu�
     var stuck = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z")]), startLimitMs: 60);
     Assert(stuck.Scanned && stuck.Calls.Count < 200, "A scan that never starts is waited for: " + stuck.Calls.Count + " requests");
 });
+await Test("Serveur muet : le délai de 12 s se distingue d’une annulation de Mira, l’actualisation le dit", async () =>
+{
+    // Never answers: only HttpClient's own limit ends the request.
+    using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(_ => new TaskCompletionSource<HttpResponseMessage>().Task));
+    using var refresh = new CancellationTokenSource(); var clock = Stopwatch.StartNew();
+    try { await client.BrowseAsync(ct: refresh.Token); throw new Exception("A silent server answered"); }
+    // The window skips a cancellation only when its own token asks for it (when (ct.IsCancellationRequested)): this
+    // one must reach the offline notice, not leave the skeleton on screen.
+    catch (OperationCanceledException ex) { Assert(!refresh.IsCancellationRequested && ex.InnerException is TimeoutException && clock.Elapsed > TimeSpan.FromSeconds(11), $"Timeout not told apart from a cancellation ({clock.Elapsed})"); }
+    using var replaced = new CancellationTokenSource(); var pending = client.BrowseAsync(ct: replaced.Token); replaced.Cancel();
+    try { await pending; throw new Exception("A cancelled refresh completed"); }
+    catch (OperationCanceledException) { Assert(replaced.IsCancellationRequested, "Mira's own cancellation was lost"); }
+});
 await Test("Filtres : recherche, genre, année et pagination envoyés ensemble à Jellyfin", async () =>
 {
     Uri? requestUri = null;
@@ -632,6 +645,28 @@ await Test("Cache de bibliothèque illisible : mis de côté et recréé, le com
     store.Save("home", new ItemsResult { TotalRecordCount = 2 }); store.Enqueue("start", Report());
     Assert(store.Load<ItemsResult>("home") is { TotalRecordCount: 2 } && store.PendingCount == 1, "The recreated database does not work");
     Assert(store.DamagedCopy is { } copy && File.Exists(copy) && File.ReadAllText(copy).StartsWith("Pas une base"), "The damaged file was not kept aside");
+    return Task.CompletedTask;
+});
+await Test("Cache de bibliothèque aux pages abîmées, en-tête intact : mis de côté et recréé, le compte s’ouvre", () =>
+{
+    var folder = Path.Combine(testRoot, "damaged-pages");
+    var first = new LibraryStore(folder, "pages"); first.Enqueue("start", Report());
+    first.Save("home", new ItemsResult { Items = Enumerable.Range(0, 200).Select(i => new MediaItem { Id = $"film-{i}", Name = $"Film {i}", Overview = new string('x', 200) }).ToList(), TotalRecordCount = 200 });
+    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    var database = Directory.GetFiles(folder, "library-*.db").Single();
+    foreach (var journal in new[] { database + "-wal", database + "-shm" }) if (File.Exists(journal)) File.Delete(journal);
+    // Page 1 (the 100-byte header and the list of tables) intact: SQLite opens the file, and the damage only shows in
+    // a query that reads another page, as Prune did at every opening.
+    var bytes = File.ReadAllBytes(database); var page = bytes[16] << 8 | bytes[17]; if (page == 1) page = 65536;
+    Assert(bytes.Length >= 4 * page, $"Unexpected database: {bytes.Length} bytes, pages of {page}");
+    Array.Fill(bytes, (byte)0x5A, page, bytes.Length - page); File.WriteAllBytes(database, bytes);
+    var store = new LibraryStore(folder, "pages");
+    Assert(store.DamagedCopy is { } copy && File.Exists(copy) && File.ReadAllBytes(copy).AsSpan(page).IndexOfAnyExcept((byte)0x5A) < 0, "The damaged file was not kept aside");
+    Assert(store.Load<ItemsResult>("home") is null && store.PendingCount == 0, "The recreated database is not empty");
+    store.Save("home", new ItemsResult { TotalRecordCount = 3 }); store.Enqueue("start", Report());
+    Assert(store.Load<ItemsResult>("home") is { TotalRecordCount: 3 } && store.PendingCount == 1, "The recreated database does not work");
+    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    Assert(new LibraryStore(folder, "pages").DamagedCopy is null, "The recreated database was set aside again");
     return Task.CompletedTask;
 });
 await Test("Moteur mpv : téléchargé, vérifié et extrait dans le profil ; altéré ou incomplet, jamais installé", async () =>
@@ -1202,6 +1237,28 @@ await Test("Profil : un identifiant d’appareil vide est remplacé, puis gardé
     var folder = Path.Combine(testRoot, "empty-device"); Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder, "device-id"), "  \n");
     var id = new LocalProfile(folder).DeviceId;
     Assert(id.Length == 32 && new LocalProfile(folder).DeviceId == id && File.ReadAllText(Path.Combine(folder, "device-id")) == id, "Empty device id kept, or not persisted: '" + id + "'");
+    return Task.CompletedTask;
+});
+await Test("Réglages illisibles : réglages par défaut, ancien fichier gardé et signalé ; session illisible sans plantage", () =>
+{
+    var folder = Path.Combine(testRoot, "garbled-settings"); Directory.CreateDirectory(folder);
+    var settings = Path.Combine(folder, "settings.json"); File.WriteAllText(settings, "{\"Volume\":45,\"AutoNext\":fa");
+    var profile = new LocalProfile(folder);
+    Assert(profile.LoadSettings().Volume == new PlayerSettings().Volume && profile.SettingsUnreadable, "Garbled settings not reported, or not replaced by the defaults");
+    Assert(profile.SettingsCopy is { } copy && Path.GetFileName(copy).StartsWith("settings.json.bad-") && File.ReadAllText(copy) == File.ReadAllText(settings), "The garbled settings were not kept aside");
+    // No file yet: a first start, nothing to say.
+    var fresh = new LocalProfile(Path.Combine(testRoot, "fresh-settings")); fresh.LoadSettings();
+    Assert(!fresh.SettingsUnreadable && fresh.SettingsCopy is null, "A missing settings file was reported");
+    // A folder where the file was: refused by the system (UnauthorizedAccessException), and nothing to copy.
+    var refused = Path.Combine(testRoot, "refused-settings"); Directory.CreateDirectory(Path.Combine(refused, "settings.json"));
+    var denied = new LocalProfile(refused);
+    Assert(denied.LoadSettings().Volume == new PlayerSettings().Volume && denied.SettingsUnreadable && denied.SettingsCopy is null, "Refused settings not handled");
+    // Held by another program (IOException): the settings and the session are both read as absent, Mira still starts.
+    var held = new LocalProfile(Path.Combine(testRoot, "held-profile")); held.SaveSettings(new() { Volume = 45 });
+    held.SaveConnection(new("http://localhost/", "user", "Alice", "token", held.DeviceId));
+    using (File.Open(Path.Combine(held.DirectoryPath, "settings.json"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+    using (File.Open(Path.Combine(held.DirectoryPath, "session.protected"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        Assert(held.LoadSettings().Volume == new PlayerSettings().Volume && held.SettingsUnreadable && held.LoadConnection() is null, "Settings or session held by another program not handled");
     return Task.CompletedTask;
 });
 await Test("Progression bornée et libellés d’épisodes", () =>
