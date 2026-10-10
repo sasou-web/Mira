@@ -26,8 +26,10 @@
   --shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ios: cubic-bezier(0.32, 0.72, 0, 1);   /* UIKit's push and sheet curve */
   --fast: 160ms;
   --slow: 240ms;
+  --push: 420ms;
 
   --gutter: 16px;
   --top: env(safe-area-inset-top, 0px);
@@ -50,9 +52,14 @@ html {
   text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  /* An app does not zoom with two fingers, nor on a double tap (scrolling stays). */
+  touch-action: pan-x pan-y;
 }
-body { margin: 0; min-height: 100dvh; background: var(--bg); overflow-x: hidden; }
-img { display: block; max-width: 100%; }
+/* Nor does it select its text or open link previews on a long press: only fields and addresses select. */
+body { margin: 0; min-height: 100dvh; background: var(--bg); overflow-x: hidden; -webkit-user-select: none; user-select: none; }
+a, img { -webkit-touch-callout: none; }
+input, textarea { -webkit-user-select: text; user-select: text; }
+img { display: block; max-width: 100%; -webkit-user-drag: none; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; touch-action: manipulation; }
 a { color: inherit; text-decoration: none; touch-action: manipulation; }
@@ -78,8 +85,32 @@ h1, h2, h3, p { margin: 0; }
 #app.with-tabs { padding-bottom: var(--tabbar); }
 .view { min-height: 100dvh; }
 #app.with-tabs .view { min-height: calc(100dvh - var(--tabbar)); }
-.view.entering { animation: enter var(--slow) var(--ease); }
-@keyframes enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Moves between screens, as on iOS ---------- */
+/* A screen comes in from the right over the one before, which slides a little and darkens; Back is the reverse.
+   Tabs change with a short fade. Drawn by the browser between the two screens (View Transitions); the tab bar stays. */
+.tabbar { view-transition-name: tabbar; }
+::view-transition-group(root) { animation-duration: var(--push); animation-timing-function: var(--ios); }
+html[data-nav='push']::view-transition-old(root) { animation: var(--push) var(--ios) both nav-under; }
+html[data-nav='push']::view-transition-new(root) { animation: var(--push) var(--ios) both nav-from-right; }
+html[data-nav='pop']::view-transition-old(root) { z-index: 1; animation: var(--push) var(--ios) both nav-to-right; }
+html[data-nav='pop']::view-transition-new(root) { animation: var(--push) var(--ios) both nav-from-under; }
+html[data-nav='tab']::view-transition-old(root), html[data-nav='tab']::view-transition-new(root) { animation-duration: 140ms; animation-timing-function: linear; }
+@keyframes nav-from-right { from { transform: translateX(100%); } }
+@keyframes nav-to-right { to { transform: translateX(100%); } }
+@keyframes nav-under { to { transform: translateX(-30%); filter: brightness(0.6); } }
+@keyframes nav-from-under { from { transform: translateX(-30%); filter: brightness(0.6); } }
+/* Without View Transitions (iOS 17 and older): the new screen alone moves in. */
+.view.enter-push { animation: var(--push) var(--ios) both nav-from-right; }
+.view.enter-pop { animation: var(--push) var(--ios) both nav-from-under; }
+.view.enter-tab { animation: 140ms linear both fade; }
+
+/* The swipe from the left edge (Home Screen app on iPhone): the screen follows the finger over the one before. */
+#app.swipe-active #view { position: relative; z-index: 2; }
+.view.swiping { position: relative; background: var(--bg); box-shadow: -12px 0 32px rgba(0, 0, 0, 0.5); will-change: transform; }
+.swipe-under { position: fixed; inset: 0; z-index: 1; overflow: hidden; background: var(--bg); pointer-events: none; padding-left: calc(var(--rail) + var(--left)); }
+.swipe-under > .view { will-change: transform; }
+.swipe-shade { position: absolute; inset: 0; background: #000; opacity: 0.5; }
 
 /* What lies under the status bar of a home screen app stays legible once the page scrolls. */
 .status-scrim {
@@ -93,6 +124,10 @@ body.scrolled .status-scrim { opacity: 1; }
   padding: 0 calc(8px + var(--right)) var(--bottom) calc(8px + var(--left));
   display: flex; justify-content: space-around; align-items: stretch;
   background: rgba(11, 11, 12, 0.97); border-top: 1px solid var(--line);
+}
+/* Frosted where the browser can blur behind it, as iOS's bar. */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .tabbar { background: rgba(11, 11, 12, 0.78); -webkit-backdrop-filter: saturate(160%) blur(20px); backdrop-filter: saturate(160%) blur(20px); }
 }
 .tabbar a {
   flex: 1; max-width: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
@@ -236,9 +271,19 @@ body.scrolled .status-scrim { opacity: 1; }
 .sheet {
   position: relative; width: 100%; max-width: 560px; max-height: min(78dvh, 640px); overflow-y: auto; overscroll-behavior: contain;
   background: var(--surface); border-radius: 16px 16px 0 0; padding: 8px 0 calc(12px + var(--bottom));
-  box-shadow: var(--shadow); animation: rise var(--slow) var(--ease);
+  box-shadow: var(--shadow); animation: sheet-up 380ms var(--ios);
+  transition: transform 320ms var(--ios); touch-action: pan-y;
 }
-@media (min-width: 600px) { .sheet-layer { align-items: center; } .sheet { border-radius: 16px; padding-bottom: 12px; } }
+.sheet.dragging { transition: none; }
+.sheet-layer.leaving { pointer-events: none; }
+.sheet-layer.leaving .sheet { animation: sheet-down 260ms var(--ios) forwards; }
+.sheet-layer.leaving .sheet-backdrop { animation: fade-out 260ms linear forwards; }
+@keyframes sheet-up { from { transform: translate3d(0, 100%, 0); } }
+@keyframes sheet-down { from { transform: translate3d(0, var(--from, 0px), 0); } to { transform: translate3d(0, 100%, 0); } }
+@media (min-width: 600px) {
+  .sheet-layer { align-items: center; } .sheet { border-radius: 16px; padding-bottom: 12px; animation: rise var(--slow) var(--ease); }
+  .sheet-layer.leaving .sheet { animation: fade-out 180ms linear forwards; }
+}
 .sheet:focus { outline: none; }
 .sheet-grip { width: 36px; height: 5px; border-radius: var(--r-full); background: var(--raised-2); margin: 0 auto 8px; }
 .sheet-title { padding: 6px 20px 10px; font-size: 13px; font-weight: 800; color: var(--faint); letter-spacing: 0.04em; text-transform: uppercase; }
@@ -253,13 +298,16 @@ body.scrolled .status-scrim { opacity: 1; }
 .sheet-heading { padding: 14px 20px 4px; font-size: 12px; font-weight: 800; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes sink { to { transform: translateY(16px); opacity: 0; } }
 
 .toast-layer { position: fixed; z-index: 95; left: 0; right: 0; bottom: calc(var(--tabbar) + 12px); display: grid; justify-items: center; pointer-events: none; padding: 0 16px; }
 .toast {
   pointer-events: auto; display: flex; align-items: center; gap: 12px; max-width: 520px; padding: 12px 14px 12px 16px;
   border-radius: var(--r-m); background: var(--raised-2); color: var(--ink); box-shadow: var(--shadow); font-size: 14px; font-weight: 600;
-  animation: rise var(--slow) var(--ease);
+  animation: rise var(--slow) var(--ios);
 }
+.toast.leaving { animation: sink 200ms ease-in forwards; }
 .toast button { color: var(--accent); font-weight: 800; padding: 4px 6px; }
 
 /* Jellyfin away (PC off or starting): said above the tab bar while Mira asks again; notices then rise above it. */

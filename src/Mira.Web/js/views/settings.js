@@ -3,7 +3,7 @@ import { api, base, VERSION } from '../api.js';
 import { h, icon, clear, initials } from '../dom.js';
 import { session, settings, isIOS, isStandalone } from '../session.js';
 import { sheet } from '../components.js';
-import { resetScreens } from '../app.js';
+import { resetScreens, replaceRoute } from '../app.js';
 import { installHint } from './login.js';
 import { appleNative } from '../player/video.js';
 import { AUDIO_LANGUAGES, SUBTITLE_LANGUAGES } from '../player/tracks.js';
@@ -85,7 +85,7 @@ export function create() {
       h('div', { class: 'group' },
         h('button', { class: 'item danger', on: { click: () => sheet({
           title: 'Se déconnecter de Mira sur cet appareil ?',
-          items: [{ label: 'Se déconnecter', symbol: 'sign-out', danger: true, run: async () => { await api.signOut(); resetScreens(); location.replace('#/connexion'); } }],
+          items: [{ label: 'Se déconnecter', symbol: 'sign-out', danger: true, run: async () => { await api.signOut(); resetScreens(); replaceRoute('#/connexion'); } }],
         }) } }, icon('sign-out'), h('span', { class: 'grow' }, 'Se déconnecter'))),
 
       h('p', { class: 'about' }, `Mira ${VERSION}`, info?.Version ? ` · Jellyfin ${info.Version}` : ''),
