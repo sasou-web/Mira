@@ -85,7 +85,7 @@ function episodeRow(episode, current) {
 export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': 'Retour', on: { click: () => goBack('#/') } }, icon('back'));
-  let item = null, episodes = [], next = null, similar = [], page = null, stale = false, loadedAt = 0;
+  let item = null, episodes = [], next = null, similar = [], page = null, stale = false, loadedAt = 0, loadSeq = 0;
   let actionsBox = null, toolsBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
@@ -291,6 +291,8 @@ export function create({ id, query }) {
   }
 
   async function load(quiet = false) {
+    // Only the latest load draws: an older answer, read before a mark or the end of the player, never wins.
+    const seq = ++loadSeq;
     const known = !item && !quiet ? knownItem(id) : null;
     if (known && known.Type !== 'Episode') seed(known);
     else if (!quiet && !item) clear(el).append(back, h('div', { style: { paddingTop: '40vh' } }, spinner()));
@@ -300,9 +302,11 @@ export function create({ id, query }) {
     early?.catch(() => {});
     try {
       const fresh = await api.item(id);
+      if (seq !== loadSeq) return;
       let eps = [], nextUp = null;
       if (fresh.Type === 'Series') {
         [eps, nextUp] = await (early ?? seriesParts());
+        if (seq !== loadSeq) return;
       } else if (fresh.Type === 'Episode' && fresh.SeriesId) {
         replaceRoute(`#/titre/${fresh.SeriesId}?episode=${fresh.Id}`);
         return;
@@ -325,6 +329,7 @@ export function create({ id, query }) {
         }).catch(() => {});
       }
     } catch (error) {
+      if (seq !== loadSeq) return;
       if (!item) clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, () => load())));
       else toast(error.message);
     }
@@ -333,13 +338,18 @@ export function create({ id, query }) {
   const onChange = (e) => {
     const changed = e.detail.item;
     if (!item) return;
-    // This page's own buttons already show a film's watched state and the favourite: nothing to ask again.
-    if (changed === item && ('favorite' in e.detail || ('played' in e.detail && item.Type !== 'Series'))) { refreshActions(); return; }
-    if (changed.Id === item.Id || changed.SeriesId === item.Id || episodes.some((x) => x.Id === changed.Id)) {
+    // This page's own buttons already show a film's watched state and the favourite (and are bouncing): nothing to do.
+    if (changed === item && ('favorite' in e.detail || ('played' in e.detail && item.Type !== 'Series'))) return;
+    const own = episodes.find((x) => x.Id === changed.Id);
+    if (changed.Id === item.Id || changed.SeriesId === item.Id || own) {
       stale = true;
       if (!el.isConnected) return;
-      // An episode marked from its long-press menu shows it at once; the rest (where the series picks up) follows.
-      if (episodes.includes(changed) && metaBox && el.contains(metaBox)) update();
+      // An episode marked from its long-press menu shows it at once (its row may hold an older copy of it); the rest,
+      // where the series picks up, follows.
+      if (own) {
+        if (own !== changed) own.UserData = changed.UserData;
+        if (metaBox && el.contains(metaBox)) update();
+      }
       load(true);
     }
   };
@@ -348,7 +358,8 @@ export function create({ id, query }) {
   load();
   return {
     el, title: 'Titre', keep: true,
-    enter() { if (stale || Date.now() - loadedAt > 5 * 60_000) load(true); },
+    // Not at the first showing: the page is loading already.
+    enter() { if (stale || (loadedAt && Date.now() - loadedAt > 5 * 60_000)) load(true); },
     refresh: () => load(true),
     dispose() { changes.removeEventListener('item', onChange); },
   };

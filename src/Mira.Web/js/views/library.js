@@ -95,8 +95,8 @@ export function create({ type, query }) {
     return refreshing;
   }
   async function redraw() {
-    if (start === 0) { reset(); return; }
     if (busy) return; // a page on its way brings fresh titles already
+    if (start === 0) { reset(); return; }
     const mine = generation;
     busy = true;
     controller = new AbortController();

@@ -130,6 +130,9 @@ try {
   }, null, { timeout: 30000, polling: 250 }).then((handle) => handle.jsonValue(), () => null);
   check('lecture : sous-titres ASS d’un animé, en texte à côté de la vidéo', assCue?.text === 'Cinq secondes' && assCue.t > 4.5 && assCue.t < 8.5 && !/SubtitleMethod=Encode/i.test(assCue.src),
     assCue ? `${assCue.label} « ${assCue.text} » à ${assCue.t.toFixed(1)} s${/SubtitleMethod=Encode/i.test(assCue.src) ? ', incrustés dans l’image' : ''}` : 'aucune ligne affichée');
+  // The forced signs too: outside Safari, a « forced » <track> would be metadata, never drawn.
+  const kinds = await page.evaluate(() => [...document.querySelectorAll('video track')].map((t) => t.kind));
+  check('lecture : sous-titres forcés affichables hors de Safari', kinds.length >= 2 && !kinds.includes('metadata'), kinds.join(', '));
   await shot('13-ass');
   // Mira's own full screen (Android, a computer): its sheets show in it, not under it.
   await page.locator('.player .controls button[aria-label="Plein écran"]').click({ force: true }); await wait(800);

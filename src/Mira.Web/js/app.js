@@ -155,6 +155,7 @@ async function route() {
   } else {
     let module;
     try { module = await r.load(); } catch (error) { if (id === routeToken) showLoadFailure(error); return; }
+    try { sessionStorage.removeItem('mira.reloaded'); } catch { /* private mode */ }
     if (id !== routeToken) return;
     const view = module.create({ ...(r.args?.(m) ?? {}), query, key });
     entry = { view, scroll: 0 };
@@ -226,9 +227,10 @@ function showLoadFailure() {
 
 // One failed request during a change of network says nothing: the bar shows once the server has stayed silent a
 // moment (at once while Mira is opening, where nothing else would say why the screen stays empty).
-let netTimer = 0, netShownAt = 0;
+let netTimer = 0, netShownAt = 0, wasDown = false;
 const openedAt = performance.now();
 function serverDown(reason) {
+  wasDown = true;
   netText.textContent = reason === 'starting'
     ? 'Jellyfin démarre… Mira reprend dès qu’il répond.'
     : 'Serveur injoignable. Mira réessaie toute seule.';
@@ -250,10 +252,22 @@ function serverUp() {
   const unseen = netbar.hidden;
   clearTimeout(netTimer); netTimer = 0;
   netbar.hidden = true;
-  // A screen whose code could not load comes back whole: the address and the history survive a reload.
-  if (loadFailed) { location.reload(); return; }
-  if (unseen) return;
-  if (Date.now() - netShownAt > 3000) toast('Connexion au serveur rétablie.');
+  // A screen whose code could not load comes back whole: the address and the history survive a reload. Once per
+  // address and revision: a screen that still fails then says so, rather than reloading again and again.
+  if (loadFailed) {
+    const key = `${REVISION}|${location.hash}`;
+    let reloaded = '';
+    try { reloaded = sessionStorage.getItem('mira.reloaded') ?? ''; } catch { /* private mode */ }
+    if (reloaded !== key) {
+      try { sessionStorage.setItem('mira.reloaded', key); } catch { /* private mode */ }
+      location.reload();
+      return;
+    }
+  }
+  // Even a short silence, never shown, may have left a screen on its error: every screen is asked again.
+  if (!wasDown) return;
+  wasDown = false;
+  if (!unseen && Date.now() - netShownAt > 3000) toast('Connexion au serveur rétablie.');
   current?.refresh?.();
   checkForUpdate();
 }
@@ -292,7 +306,12 @@ function updateScrolled() {
   // As the large title goes under the bar, it fades out and the small one fades in, over 24 px of scroll: never both
   // at once.
   const big = currentBare ? null : current?.el.querySelector('.page-title, .detail-title, .detail-logo');
-  const fade = big ? Math.max(0, Math.min(1, (topbar.offsetHeight - big.getBoundingClientRect().bottom - 4) / 24)) : 0;
+  let fade = 0;
+  if (big) {
+    // From where the title rests: a large title that sits under the bar's height at the top of the page is whole there.
+    const bottom = big.getBoundingClientRect().bottom, line = Math.min(topbar.offsetHeight - 4, bottom + scrollY);
+    fade = Math.max(0, Math.min(1, (line - bottom) / 24));
+  }
   if (fade > 0) {
     const text = big.tagName === 'IMG' ? big.alt : big.textContent;
     if (topbar.firstChild.textContent !== text) topbar.firstChild.textContent = text;
@@ -364,7 +383,9 @@ function watchEdgeSwipes() {
   document.addEventListener('touchstart', (e) => {
     const x = e.touches[0]?.clientX ?? 0;
     // From the left edge, a swipe goes back; from the right edge, forward again.
-    from = e.touches.length === 1 && (x <= 24 || x >= innerWidth - 24) ? { x, way: x <= 24 ? 1 : -1 } : null;
+    // Not on what scrolls sideways itself (rows, the banner, chips): that finger is scrolling, not going back.
+    const sideways = e.target.closest?.('.row, .hero, .chips');
+    from = e.touches.length === 1 && !sideways && (x <= 24 || x >= innerWidth - 24) ? { x, way: x <= 24 ? 1 : -1 } : null;
   }, { passive: true });
   document.addEventListener('touchmove', (e) => {
     if (from && ((e.touches[0]?.clientX ?? from.x) - from.x) * from.way > 40) { edgeSwipe = performance.now(); from = null; }
@@ -382,7 +403,10 @@ function start() {
   addEventListener('hashchange', route);
   addEventListener('popstate', (e) => {
     // iOS's own swipe has already shown the move: Mira does not draw a second one.
-    uaTransition = !!e.hasUAVisualTransition || performance.now() - edgeSwipe < 3000;
+    // Only for a move in the history (a link followed fires popstate too, on an entry without a depth yet), and once.
+    const traversal = history.state?.depth != null;
+    uaTransition = !!e.hasUAVisualTransition || (traversal && performance.now() - edgeSwipe < 3000);
+    edgeSwipe = 0;
     // A move in the history to an entry with the same address fires no hashchange.
     if ((location.hash || '#/') === currentKey) route();
   });

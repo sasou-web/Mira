@@ -16,6 +16,8 @@ import { QUALITIES } from '../views/settings.js';
 
 const SKIP_LABELS = { Intro: 'Passer l’intro', Recap: 'Passer le récap', Preview: 'Passer l’aperçu', Commercial: 'Passer la pub' };
 const AUTO_SKIP = ['Intro', 'Recap'];
+// Forced subtitles (signs, foreign lines): Safari has the « forced » kind; elsewhere it reads as metadata, never drawn.
+const FORCED_KIND = (() => { try { const t = document.createElement('track'); t.kind = 'forced'; return t.kind === 'forced'; } catch { return false; } })();
 const COUNTDOWN = 10;      // seconds the next episode is offered before it starts by itself: from the end credits when
                            // Jellyfin has them marked, else over the last seconds, so that nothing of the end is cut
 const PROGRESS_EVERY = 10_000;
@@ -51,6 +53,8 @@ function chosenTracks(query) {
 export function create({ id, query }) {
   const video = sharedVideo();
   const native = appleNative();
+  // A speed chosen for another title does not follow into this one (the <video> is shared).
+  video.defaultPlaybackRate = 1; video.playbackRate = 1;
   const el = h('div', { class: ['player', native && 'native'], role: 'region', 'aria-label': 'Lecteur vidéo' });
 
   // ---------- The title playing (the next episode replaces it in the same player) ----------
@@ -64,7 +68,9 @@ export function create({ id, query }) {
   const skipped = new Set();
   // ---------- The player itself ----------
   let disposed = false, closing = false, switching = false, failed = false;
-  let hideTimer = 0, scrubbing = false, mode = 'inline', nativeCheck = 0, tracksSettle = 0, waitingForServer = false, retryTimer = 0;
+  let hideTimer = 0, scrubbing = false, mode = 'inline', nativeCheck = 0, tracksSettle = 0, waitingForServer = false, retryTimer = 0, waitToken = 0;
+  let streamPlaying = false;  // the current stream has played: its position says where the title is
+  let currentStart = 0;       // where the current opening was asked to start (ticks), until it plays
   let resumedByUser = true;   // the next 'playing' follows a pause the person made: the controls show then, not after a stall
   let switchFrom = '';        // how the title that ended was shown (Apple's full screen, Picture in Picture) when the next began
 
@@ -390,6 +396,7 @@ export function create({ id, query }) {
 
   function resetTitle() {
     clearInterval(progressTimer);
+    stopWaiting();
     item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0; inband = false;
     audioIndex = null; subtitleIndex = null; forceTranscode = false; started = false; ended = false;
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
@@ -444,6 +451,7 @@ export function create({ id, query }) {
   // ---------- Opening the stream ----------
   async function open(startTicks, { keepPaused = false } = {}) {
     const attempt = ++opening;
+    currentStart = startTicks ?? 0;
     busy.hidden = false; hideMessage(); failed = false;
     if (started) { await report('progress'); }
     try {
@@ -502,6 +510,7 @@ export function create({ id, query }) {
     hls?.destroy(); hls = null;
     for (const t of [...video.querySelectorAll('track')]) t.remove();
     pendingStart = startSeconds;
+    streamPlaying = false;
     touched = new WeakSet();
     // Subtitles go in before the stream: Safari hands the tracks it finds at loading to Apple's player and its menu.
     addSubtitles();
@@ -513,7 +522,7 @@ export function create({ id, query }) {
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) waitForServer(ticks(position()));
+        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) streamFailed('Le flux vidéo s’est interrompu. Vérifie la connexion au serveur.');
         else fail('Le flux vidéo s’est interrompu. Vérifie la connexion au serveur.');
       });
       hls.loadSource(url);
@@ -539,7 +548,7 @@ export function create({ id, query }) {
       // ASS and SSA (anime) come as files beside the video: a browser only reads WebVTT, which Jellyfin makes of them.
       const src = stream.DeliveryUrl.replace(/\/Stream\.(ass|ssa)(?=\?|$)/i, '/Stream.vtt');
       video.append(h('track', {
-        kind: stream.IsForced ? 'forced' : 'subtitles', label: trackText(stream, subtitles.indexOf(stream) + 1).label, srclang: stream.Language ?? 'und',
+        kind: stream.IsForced && FORCED_KIND ? 'forced' : 'subtitles', label: trackText(stream, subtitles.indexOf(stream) + 1).label, srclang: stream.Language ?? 'und',
         src: signed(src), default: stream.Index === subtitleIndex, dataset: { index: String(stream.Index) },
       }));
     }
@@ -583,7 +592,8 @@ export function create({ id, query }) {
       if (t.mode !== mode) t.mode = mode;
       // Setting the mode a track already has changes nothing in WebKit, not even who set it: one step through
       // « hidden » makes it Mira's.
-      else if (native && !touched.has(t) && mode === 'disabled') { t.mode = 'hidden'; t.mode = 'disabled'; }
+      // Not for a <track>: « hidden » would download its file. WebKit does not choose for those while Mira sets them.
+      else if (native && !touched.has(t) && mode === 'disabled' && !trackNode(t)) { t.mode = 'hidden'; t.mode = 'disabled'; }
       touched.add(t);
     }
   }
@@ -737,13 +747,31 @@ export function create({ id, query }) {
     hideMessage(); failed = false; showNative('loading');
     if (item) open(ticks(position())); else begin();
   }
+  /** Where to pick the title up again: where it plays, or, before it has played, where it was asked to start. */
+  const resumeAt = () => (streamPlaying || progressive ? ticks(position()) : currentStart);
+  function stopWaiting() { waitToken++; clearTimeout(retryTimer); waitingForServer = false; }
   /**
-   * The connection dropped (PC asleep, Wi-Fi to 4G): not this stream's fault. Apple's player stays open, Mira says
-   * so under it or over its own controls, asks the server again every few seconds, and picks up where it was.
+   * The stream stopped on an error that may be the connection's: Mira asks the server. Silent (PC asleep, Wi-Fi to
+   * 4G), Mira waits for it; answering, the stream itself is at fault, and that is said (no endless reopening).
    */
-  function waitForServer(at) {
+  function streamFailed(text, { fallback = null } = {}) {
+    const attempt = opening;
+    ping().then((up) => {
+      if (disposed || closing || attempt !== opening) return;
+      if (!up) waitForServer();
+      else if (fallback) fallback();
+      else fail(text);
+    });
+  }
+  /**
+   * Jellyfin does not answer: not this stream's fault. Apple's player stays open, Mira says so under it or over its
+   * own controls, asks again every few seconds, and picks up where the title was, paused if it was.
+   */
+  function waitForServer(at = null) {
     if (waitingForServer || disposed || closing) return;
     waitingForServer = true;
+    const mine = ++waitToken;
+    const from = at ?? resumeAt(), paused = streamPlaying && video.paused;
     busy.hidden = false;
     showNative('lost');
     if (!native) {
@@ -751,12 +779,13 @@ export function create({ id, query }) {
         h('div', { class: 'actions' }, h('button', { class: 'btn', on: { click: close } }, 'Retour'))));
     }
     const again = async () => {
-      if (disposed || closing) return;
-      if (!(await ping())) { retryTimer = setTimeout(again, 3000); return; }
-      if (disposed || closing) return;
+      if (disposed || closing || mine !== waitToken) return;
+      const up = await ping();
+      if (disposed || closing || mine !== waitToken) return;
+      if (!up) { retryTimer = setTimeout(again, 3000); return; }
       waitingForServer = false;
       hideMessage(); showNative('');
-      open(at, { keepPaused: false });
+      open(from, { keepPaused: paused });
     };
     retryTimer = setTimeout(again, 2000);
   }
@@ -770,6 +799,8 @@ export function create({ id, query }) {
   }
   const on = {
     loadedmetadata: () => {
+      // WebKit sets up the tracks again now: its moves for a moment are not a choice made in the menu.
+      tracksSettle = Math.max(tracksSettle, Date.now() + 1500);
       if (pendingStart > 0 && !progressive) { try { video.currentTime = pendingStart; } catch { /* set again on canplay */ } }
       pendingStart = 0;
       if (playMethod === 'DirectPlay') selectAudioTrack();
@@ -779,8 +810,10 @@ export function create({ id, query }) {
     resize: fitPicture,
     playing: () => {
       busy.hidden = true; hideMessage(); updatePlayIcon();
-      // After a stall, only the spinner went: the controls show at the start and after a pause made by the person.
-      if (!started || resumedByUser) showControls();
+      streamPlaying = true;
+      // After a stall, only the spinner went: the controls show at the start and after a pause made by the person (and
+      // keep hiding by themselves whenever they are shown).
+      if (!started || resumedByUser || !el.classList.contains('idle')) showControls();
       resumedByUser = false;
       switching = false;
       if (!started) {
@@ -825,16 +858,12 @@ export function create({ id, query }) {
     error: () => {
       if (disposed || closing || !item || !video.getAttribute('src')) return;
       const code = video.error?.code;
-      // The connection, not the stream (MEDIA_ERR_NETWORK): Mira waits for the server.
-      if (code === 2) { waitForServer(ticks(position())); return; }
       // A file Safari was thought to play directly but cannot (decode, format): Jellyfin converts it instead.
-      if (playMethod === 'DirectPlay' && !forceTranscode && (code === 3 || code === 4)) { forceTranscode = true; open(ticks(position())); return; }
-      // Nothing answers: the same wait, whatever the error says.
-      ping().then((up) => {
-        if (disposed || closing) return;
-        if (!up) waitForServer(ticks(position()));
-        else fail('Cet appareil ne peut pas lire ce flux. Essaie une qualité plus basse dans les réglages.');
-      });
+      if (playMethod === 'DirectPlay' && !forceTranscode && (code === 3 || code === 4)) { forceTranscode = true; open(resumeAt()); return; }
+      // Anything else: the server is asked. Silent, Mira waits for it; answering, a file read directly is converted
+      // instead (a proxy that breaks byte ranges reads as a network error), and a stream already converted has failed.
+      const convert = playMethod === 'DirectPlay' && !forceTranscode ? () => { forceTranscode = true; open(resumeAt()); } : null;
+      streamFailed('Cet appareil ne peut pas lire ce flux. Essaie une qualité plus basse dans les réglages.', { fallback: convert });
     },
     webkitpresentationmodechanged: presentationChanged,
     webkitplaybacktargetavailabilitychanged: (e) => { airplay.hidden = e.availability !== 'available'; },
@@ -866,7 +895,7 @@ export function create({ id, query }) {
   function close({ landing = false } = {}) {
     if (closing) return;
     closing = true;
-    clearTimeout(nativeCheck); clearTimeout(retryTimer);
+    clearTimeout(nativeCheck); stopWaiting();
     exitPresentation();
     leaveFullscreen();
     video.pause();
@@ -955,13 +984,17 @@ export function create({ id, query }) {
   }
   /** Jellyfin unreachable before the title was even known: asked again until it answers. */
   function waitForBegin() {
+    stopWaiting();
+    const mine = waitToken;
     showNative('lost');
     if (!native) showMessage(h('div', {}, h('div', { class: 'spinner' }), h('p', {}, 'Le serveur ne répond pas. La lecture commence dès qu’il répond.'),
       h('div', { class: 'actions' }, h('button', { class: 'btn', on: { click: close } }, 'Retour'))));
     const again = async () => {
-      if (disposed || closing) return;
-      if (!(await ping())) { retryTimer = setTimeout(again, 3000); return; }
-      if (!disposed && !closing) { hideMessage(); begin(); }
+      if (disposed || closing || mine !== waitToken) return;
+      const up = await ping();
+      if (disposed || closing || mine !== waitToken) return;
+      if (!up) { retryTimer = setTimeout(again, 3000); return; }
+      hideMessage(); begin();
     };
     retryTimer = setTimeout(again, 2000);
   }
@@ -994,7 +1027,7 @@ export function create({ id, query }) {
     leave() { if (started) stop(); },
     dispose() {
       disposed = true;
-      clearInterval(progressTimer); clearInterval(countdownTimer); clearTimeout(hideTimer); clearTimeout(nativeCheck); clearTimeout(retryTimer);
+      clearInterval(progressTimer); clearInterval(countdownTimer); clearTimeout(hideTimer); clearTimeout(nativeCheck); stopWaiting();
       document.removeEventListener('fullscreenchange', fullscreenChanged);
       leaveFullscreen();
       removeEventListener('keydown', keys);
