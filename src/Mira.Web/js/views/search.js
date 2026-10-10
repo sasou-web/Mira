@@ -76,7 +76,7 @@ export function create({ query }) {
     if (text === lastText) return;
     lastText = text;
     clearTimeout(timer);
-    if (text.length < 2) { controller?.abort(); clear(results).append(recent()); return; }
+    if (text.length < 2) { controller?.abort(); shownSignature = ''; results.classList.remove('pending'); clear(results).append(recent()); return; }
     timer = setTimeout(() => search(text), 280);
   }
   input.addEventListener('input', update);
@@ -88,7 +88,7 @@ export function create({ query }) {
     el, title: 'Recherche', keep: true,
     refresh() {
       const text = input.value.trim();
-      if (text.length < 2) { clear(results).append(recent()); return undefined; }
+      if (text.length < 2) { results.classList.remove('pending'); clear(results).append(recent()); return undefined; }
       return search(text, { quiet: true });
     },
     // The keyboard opens when the tab is tapped, as in Apple's apps (only with nothing typed yet).

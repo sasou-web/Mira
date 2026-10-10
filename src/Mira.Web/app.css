@@ -49,6 +49,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html {
+  /* The page keeps its width while a sheet holds it still (no scrollbar jump on a computer). */
+  scrollbar-gutter: stable;
   background: var(--bg);
   color: var(--ink);
   font: 400 15px/1.47 'Nunito Sans', -apple-system, system-ui, sans-serif;

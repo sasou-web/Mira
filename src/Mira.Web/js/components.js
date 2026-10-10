@@ -268,6 +268,8 @@ export function withActions(card, item, { resumeRow = false, inTitle = false } =
   card.addEventListener('touchcancel', stop);
   card.addEventListener('click', (e) => { if (fired) { e.preventDefault(); fired = false; } });
   card.addEventListener('contextmenu', (e) => { e.preventDefault(); open(); });
+  // A mouse or a pen: only the click after a long touch is swallowed, never the next real one.
+  card.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') fired = false; });
 }
 
 export function itemMenu(item, { resumeRow = false, inTitle = false, held = false } = {}) {
@@ -289,13 +291,19 @@ export function itemMenu(item, { resumeRow = false, inTitle = false, held = fals
  */
 export async function setPlayed(item, played, { quiet = false } = {}) {
   const before = item.UserData;
-  item.UserData = { ...before, Played: played, PlaybackPositionTicks: played ? 0 : before?.PlaybackPositionTicks };
+  // Jellyfin forgets the resume point both ways, watched or not.
+  item.UserData = { ...before, Played: played, PlaybackPositionTicks: 0 };
   try {
     await api.setPlayed(item.Id, played);
     changed(item, { played });
     if (!quiet) toast(played ? 'Marqué comme vu.' : 'Marqué comme non vu.');
     return true;
-  } catch (error) { item.UserData = before; toast(error.message); return false; }
+  } catch (error) {
+    // Only what this call changed goes back, and only if nothing changed it since.
+    if (item.UserData?.Played === played) item.UserData = { ...item.UserData, Played: before?.Played, PlaybackPositionTicks: before?.PlaybackPositionTicks };
+    toast(error.message);
+    return false;
+  }
 }
 
 export async function setFavorite(item, favorite, { quiet = false } = {}) {
@@ -306,7 +314,11 @@ export async function setFavorite(item, favorite, { quiet = false } = {}) {
     changed(item, { favorite });
     if (!quiet) toast(favorite ? 'Ajouté à tes favoris.' : 'Retiré de tes favoris.');
     return true;
-  } catch (error) { item.UserData = before; toast(error.message); return false; }
+  } catch (error) {
+    if (item.UserData?.IsFavorite === favorite) item.UserData = { ...item.UserData, IsFavorite: before?.IsFavorite };
+    toast(error.message);
+    return false;
+  }
 }
 
 /**
