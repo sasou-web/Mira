@@ -159,7 +159,7 @@ try {
   // beside it, and the French ones showing, in time with the picture (a shift would leave no cue before 10 s).
   const carried = async () => run(`const v = document.querySelector('video'), list = [...v.textTracks].filter((t) => ['subtitles', 'captions', 'forced'].includes(t.kind));
     const on = list.find((t) => t.mode === 'showing');
-    return { hls: /SubtitleMethod=Hls/i.test(v.currentSrc) && /\/Mira\/hls\//.test(v.currentSrc), beside: v.querySelectorAll('track').length, count: list.length, labels: list.map((t) => t.label + ' (' + t.language + ')').join(', '),
+    return { hls: /SubtitleMethod=Hls/i.test(v.currentSrc) && v.currentSrc.includes('/Mira/hls/'), beside: v.querySelectorAll('track').length, count: list.length, labels: list.map((t) => t.label + ' (' + t.language + ')').join(', '),
       showing: on ? on.label : '', cue: on && on.activeCues && on.activeCues.length ? on.activeCues[0].text : '', t: v.currentTime, src: v.currentSrc };`);
   // The cue runs from 1 s to 30 s: watched until 20 s, its first appearance tells any shift of the subtitles' clock.
   let inStream = await carried();
