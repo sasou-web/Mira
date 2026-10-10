@@ -5,6 +5,7 @@
 // Chromium has no H.264: the titles checked here are in WebM; Safari's HLS path is checked by safari.mjs.
 // Apple's full screen player is simulated here (Chromium has none), to check what Mira does around it: start, next
 // episode in place, Picture in Picture, back to the title page once closed. safari.mjs checks it in Safari itself.
+// So is the Home Screen app on iPhone (navigator.standalone): swipe back from the edge, tabs, sheets pulled down.
 // With MIRA_STOP and MIRA_START (commands that stop and start Jellyfin), Mira is also opened while Jellyfin is away,
 // as when a phone opens it before the PC has started: the page kept by the phone opens and waits for the server.
 import fs from 'node:fs';
@@ -213,6 +214,58 @@ try {
   await ap.screenshot({ path: `${out}/error-apple.png` }).catch(() => {});
 }
 check('lecteur d’Apple (simulé) : aucune erreur JavaScript', appleErrors.length === 0, appleErrors.slice(0, 3).join(' | '));
+
+// The Home Screen app on iPhone, simulated (navigator.standalone): the swipe from the left edge to go back, tabs that
+// do not pile up history, sheets pulled down to close. Touches go through Chromium's DevTools protocol.
+const home = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+await home.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { configurable: true, get: () => true }));
+const hp = await home.newPage();
+const homeErrors = [];
+hp.on('pageerror', (e) => homeErrors.push(e.message));
+const cdp = await home.newCDPSession(hp);
+const drag = async (x0, y0, x1, y1, steps = 14) => {
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] });
+  for (let i = 1; i <= steps; i++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + ((x1 - x0) * i) / steps, y: y0 + ((y1 - y0) * i) / steps }] });
+    await hp.waitForTimeout(16);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+};
+const where = () => hp.evaluate(() => ({ hash: location.hash || '#/', depth: history.state?.depth ?? null }));
+try {
+  await hp.goto(`${base}#/connexion`); await hp.waitForTimeout(1500);
+  if (await hp.locator('.users').count()) await hp.getByRole('button', { name: 'Autre compte' }).click();
+  await hp.fill('#login-name', user); await hp.fill('#login-password', password);
+  await hp.getByRole('button', { name: 'Se connecter' }).click();
+  await hp.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
+  await hp.waitForTimeout(2500);
+  const openTitle = async () => { await hp.locator('a.card[href^="#/titre/"]').first().click(); await hp.waitForTimeout(1500); return where(); };
+  const opened = await openTitle();
+  await drag(4, 420, 330, 430); await hp.waitForTimeout(1200);
+  let at = await where();
+  check('app (simulée) : balayage depuis le bord pour revenir', opened.hash.startsWith('#/titre/') && opened.depth === 1 && at.hash === '#/' && at.depth === 0
+    && await hp.locator('.view.home').isVisible() && !(await hp.locator('.swipe-under').count()), `${opened.hash.split('?')[0]} (${opened.depth}) → ${at.hash} (${at.depth})`);
+  await openTitle();
+  await drag(4, 420, 70, 425); await hp.waitForTimeout(1000);
+  at = await where();
+  const settled = await hp.evaluate(() => { const v = document.querySelector('#view > .view'); return !v.style.transform && !v.classList.contains('swiping') && !document.querySelector('.swipe-under'); });
+  check('app (simulée) : balayage trop court, la fiche reste', at.hash.startsWith('#/titre/') && settled, at.hash.split('?')[0]);
+  await hp.locator('.tabbar a[data-tab="films"]').click(); await hp.waitForTimeout(1500);
+  at = await where();
+  check('app (simulée) : onglet touché depuis une fiche, sans empiler l’historique', at.hash === '#/films' && at.depth === 0, `${at.hash} (${at.depth})`);
+  await hp.locator('.tabbar a[data-tab="films"]').click(); await hp.waitForTimeout(600);
+  const film = await hp.evaluate(() => [...document.querySelectorAll('a.card')].find((a) => /Lueur/.test(a.textContent))?.getAttribute('href'));
+  await hp.evaluate((href) => { location.hash = href; }, film); await hp.waitForTimeout(2000);
+  await hp.locator('.tracks-line').click(); await hp.waitForTimeout(700);
+  const box = await hp.locator('.sheet').boundingBox();
+  await drag(box.x + box.width / 2, box.y + 14, box.x + box.width / 2, box.y + 14 + Math.max(260, box.height * 0.6)); await hp.waitForTimeout(800);
+  check('app (simulée) : feuille fermée en la tirant vers le bas', await hp.locator('.sheet-layer').count() === 0);
+  await hp.screenshot({ path: `${out}/16-app-title.png` });
+} catch (error) {
+  check('app (simulée) : déroulé', false, error.message.split('\n')[0]);
+  await hp.screenshot({ path: `${out}/error-app.png` }).catch(() => {});
+}
+check('app (simulée) : aucune erreur JavaScript', homeErrors.length === 0, homeErrors.slice(0, 3).join(' | '));
 fs.writeFileSync(`${out}/results.txt`, results.join('\n') + '\n');
 await browser.close();
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

@@ -6,7 +6,7 @@ import { artFor, picture, logo } from '../images.js';
 import {
   row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, itemMenu, toast, sheet,
 } from '../components.js';
-import { goBack } from '../app.js';
+import { goBack, replaceRoute } from '../app.js';
 import { settings } from '../session.js';
 import { trackText, chooseTracks } from '../player/tracks.js';
 
@@ -246,7 +246,7 @@ export function create({ id, query }) {
       if (fresh.Type === 'Series') {
         [eps, nextUp] = await Promise.all([api.episodes(id).then((r) => r?.Items ?? []), api.seriesNext(id).catch(() => null)]);
       } else if (fresh.Type === 'Episode' && fresh.SeriesId) {
-        location.replace(`#/titre/${fresh.SeriesId}?episode=${fresh.Id}`);
+        replaceRoute(`#/titre/${fresh.SeriesId}?episode=${fresh.Id}`);
         return;
       }
       item = fresh; episodes = eps; next = nextUp; stale = false; loadedAt = Date.now();

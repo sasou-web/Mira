@@ -2,7 +2,7 @@
 import { api, base } from '../api.js';
 import { h, icon, clear, initials } from '../dom.js';
 import { isIOS, isStandalone } from '../session.js';
-import { markSvg, resetScreens } from '../app.js';
+import { markSvg, resetScreens, replaceRoute } from '../app.js';
 
 export function installHint() {
   if (!isIOS() || isStandalone()) return null;
@@ -41,7 +41,7 @@ export function create() {
       resetScreens();
       const next = sessionStorage.getItem('mira.next');
       sessionStorage.removeItem('mira.next');
-      location.replace(next && !next.startsWith('#/connexion') ? next : '#/');
+      replaceRoute(next && !next.startsWith('#/connexion') ? next : '#/');
     } catch (error) {
       errorBox.textContent = error.status === 401 ? 'Nom d’utilisateur ou mot de passe incorrect.' : error.message;
       button.disabled = false; button.textContent = 'Se connecter';

@@ -113,11 +113,22 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
   let layer = document.querySelector('.toast-layer');
   if (!layer) { layer = h('div', { class: 'toast-layer', role: 'status', 'aria-live': 'polite' }); document.body.append(layer); }
   clear(layer);
-  const close = () => note.remove();
+  let timer = 0;
+  // It sinks away rather than vanishing; a swipe down sends it away sooner.
+  const close = () => {
+    clearTimeout(timer);
+    if (!note.isConnected || note.classList.contains('leaving')) return;
+    note.classList.add('leaving');
+    note.addEventListener('animationend', () => note.remove(), { once: true });
+    setTimeout(() => note.remove(), 400);
+  };
   const note = h('div', { class: 'toast' }, h('span', {}, text),
     action ? h('button', { on: { click: () => { close(); action.run(); } } }, action.label) : null);
+  let startY = null;
+  note.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
+  note.addEventListener('touchmove', (e) => { if (startY != null && e.touches[0].clientY - startY > 24) { startY = null; close(); } }, { passive: true });
   layer.append(note);
-  setTimeout(close, action ? Math.max(duration, 6000) : duration);
+  timer = setTimeout(close, action ? Math.max(duration, 6000) : duration);
   return close;
 }
 
@@ -128,8 +139,17 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
 export function sheet({ title = '', items = [], body = null }) {
   const previous = document.activeElement;
   const layer = h('div', { class: 'sheet-layer' });
+  let closing = false;
+  // It slides back down before it goes, as iOS sheets do; the choice made runs once it has started to.
   const close = () => {
-    layer.remove(); removeEventListener('keydown', keys); removeEventListener('hashchange', close);
+    if (closing) return;
+    closing = true;
+    removeEventListener('keydown', keys); removeEventListener('hashchange', close);
+    layer.classList.add('leaving');
+    panel.style.transform = '';
+    const done = () => { layer.remove(); };
+    panel.addEventListener('animationend', done, { once: true });
+    setTimeout(done, 400);
     previous?.focus?.({ preventScroll: true });
   };
   const keys = (e) => { if (e.key === 'Escape') close(); };
@@ -140,17 +160,51 @@ export function sheet({ title = '', items = [], body = null }) {
     items.map((item) => item.heading ? h('div', { class: 'sheet-heading', role: 'presentation' }, item.heading) : h('button', {
       class: ['sheet-item', item.danger && 'danger'], role: item.selected != null ? 'menuitemradio' : 'menuitem',
       'aria-checked': item.selected != null ? String(!!item.selected) : null,
-      on: { click: () => { close(); item.run?.(); } },
+      on: { click: () => { if (closing) return; close(); item.run?.(); } },
     }, item.symbol ? icon(item.symbol) : null,
     h('span', { class: 'grow' }, item.label, item.sub ? h('span', { class: 'sub' }, item.sub) : null),
     item.selected ? h('span', { class: 'tick' }, icon('check', { size: 20 })) : null)));
   layer.append(h('div', { class: 'sheet-backdrop', on: { click: close } }), panel);
+  dragToClose(panel, close);
   document.body.append(layer);
   addEventListener('keydown', keys);
   addEventListener('hashchange', close);
   // The panel takes the focus, so that screen readers and Tab start there, without a ring on touch screens.
   requestAnimationFrame(() => panel.focus({ preventScroll: true }));
   return close;
+}
+
+/** A sheet follows the finger down from its top (or from anywhere once its list is at the top), and closes past a third. */
+function dragToClose(panel, close) {
+  let start = null, dy = 0, lastY = 0, lastT = 0, speed = 0;
+  panel.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    start = { y: e.touches[0].clientY, scrolled: panel.scrollTop > 0, dragging: false };
+    dy = 0; lastY = start.y; lastT = performance.now(); speed = 0;
+  }, { passive: true });
+  panel.addEventListener('touchmove', (e) => {
+    if (!start || start.scrolled) return;
+    const y = e.touches[0].clientY;
+    dy = y - start.y;
+    if (!start.dragging) {
+      if (dy <= 4) { if (dy < -4) start = null; return; }
+      start.dragging = true;
+      panel.classList.add('dragging');
+    }
+    if (e.cancelable) e.preventDefault();
+    const now = performance.now();
+    speed = (y - lastY) / Math.max(1, now - lastT); lastY = y; lastT = now;
+    panel.style.transform = `translate3d(0, ${Math.max(0, dy)}px, 0)`;
+  }, { passive: false });
+  const end = () => {
+    if (!start?.dragging) { start = null; return; }
+    start = null;
+    panel.classList.remove('dragging');
+    if (dy > panel.offsetHeight / 3 || (speed > 0.5 && dy > 30)) { panel.style.setProperty('--from', `${Math.max(0, dy)}px`); close(); }
+    else panel.style.transform = '';
+  };
+  panel.addEventListener('touchend', end, { passive: true });
+  panel.addEventListener('touchcancel', end, { passive: true });
 }
 
 /** Long press (or right click) on a card: play, open, watched, favourite, and out of Continuer à regarder. */
