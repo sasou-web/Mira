@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
+using Microsoft.CSharp.RuntimeBinder;
 using Microsoft.Win32;
 using Mira.Core;
 
@@ -33,7 +36,10 @@ internal static class JellyfinAutostart
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return new(false, false, false, false, false); }
     }
 
-    /// <summary>The jellyfin.exe the service runs: NSSM's Application value, or the installer's folder.</summary>
+    /// <summary>
+    /// The jellyfin.exe the service runs (NSSM's Application value), the one in the installer's folder (also the one
+    /// its tray app starts), or the one running, for a Jellyfin installed some other way.
+    /// </summary>
     public static string? Program(string service = JellyfinStartup.ServiceName)
     {
         try
@@ -46,19 +52,31 @@ internal static class JellyfinAutostart
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
-        return JellyfinInstaller.InstalledFolder() is { } folder && File.Exists(Path.Combine(folder, "jellyfin.exe")) ? Path.Combine(folder, "jellyfin.exe") : null;
+        if (JellyfinInstaller.InstalledFolder() is { } folder && File.Exists(Path.Combine(folder, "jellyfin.exe"))) return Path.Combine(folder, "jellyfin.exe");
+        foreach (var process in Process.GetProcessesByName("jellyfin"))
+        {
+            using (process)
+            {
+                try { if (process.MainModule?.FileName is { } path && Path.IsPathFullyQualified(path)) return path; }
+                catch (Exception ex) when (ex is Win32Exception or InvalidOperationException) { }
+            }
+        }
+        return null;
     }
 
     /// <summary>Whether the firewall has Mira's rule: <c>netsh … show rule</c> needs no administrator rights.</summary>
     private static bool RuleExists(string rule) => Execute(new("netsh.exe", $"advfirewall firewall show rule name=\"{rule}\"")) == 0;
 
     /// <summary>Asks Windows for the administrator's consent and sets it all up in a copy of Mira that has it.</summary>
-    public static async Task<AutostartResult> ApplyAsync(int port)
+    public static Task<AutostartResult> ApplyAsync(int port) => ElevatedAsync($"--jellyfin-startup {port}");
+    /// <summary>Asks Windows for the administrator's consent and lets Tailscale through its firewall in a copy of Mira that has it.</summary>
+    public static Task<AutostartResult> OpenFirewallAsync(int port) => ElevatedAsync($"--jellyfin-firewall {port}");
+    private static async Task<AutostartResult> ElevatedAsync(string arguments)
     {
         if (Environment.ProcessPath is not { } self) return AutostartResult.Failed;
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(self, $"--jellyfin-startup {port}") { UseShellExecute = true, Verb = "runas" });
+            using var process = Process.Start(new ProcessStartInfo(self, arguments) { UseShellExecute = true, Verb = "runas" });
             if (process is null) return AutostartResult.Failed;
             await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(2));
             return process.ExitCode == 0 ? AutostartResult.Done : AutostartResult.Failed;
@@ -92,6 +110,100 @@ internal static class JellyfinAutostart
         }
         return ok;
     }
+    /// <summary>
+    /// The copy of Mira started with administrator rights by « Ouvrir le pare-feu »: <c>--jellyfin-firewall &lt;port&gt;</c>.
+    /// 0 once Tailscale's devices get through, 1 otherwise, 2 for arguments it does not accept.
+    /// </summary>
+    public static int RunFirewall(string[] args)
+    {
+        if (args.Length < 2 || !int.TryParse(args[1], out var port) || port is < 1 or > 65535) return 2;
+        return OpenFirewall(Program(), port) ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Whether Windows' firewall lets Tailscale's devices reach <paramref name="program"/> on <paramref name="port"/>,
+    /// read through its COM interface, which needs no administrator rights, with the profile it judged on (Tailscale's).
+    /// Null when it cannot be read.
+    /// </summary>
+    public static (JellyfinFirewall.Verdict Verdict, int Profile)? Tailnet(string? program, int port)
+    {
+        if (program is null) return null;
+        try
+        {
+            var (rules, settings, profile) = ReadFirewall(Policy(), program);
+            return (JellyfinFirewall.Judge(rules.Select(x => x.Rule), settings, program, port, profile, TailnetAdapter()), profile);
+        }
+        catch (Exception ex) when (IsFirewallError(ex)) { return null; }
+    }
+
+    /// <summary>
+    /// Lets Tailscale's devices through to <paramref name="program"/>: the block rules that keep them out (Windows'
+    /// prompt makes one for each kind of network left unticked) stop applying to Tailscale's profile, and are turned off
+    /// when it was their only one; then Mira's rule (<see cref="JellyfinStartup.FirewallCommands"/>). Needs
+    /// administrator rights. True once the firewall, read again, lets them in.
+    /// </summary>
+    public static bool OpenFirewall(string? program, int port, string rule = JellyfinStartup.RuleName)
+    {
+        if (program is null) return false;
+        try
+        {
+            var (rules, _, profile) = ReadFirewall(Policy(), program);
+            var adapter = TailnetAdapter();
+            foreach (var (found, com) in rules.Where(x => !x.Rule.Allow && JellyfinFirewall.Applies(x.Rule, program, port, profile, adapter)))
+            {
+                var others = JellyfinFirewall.WithoutProfile(found.Profiles, profile);
+                if (others != 0) com.Profiles = others; else com.Enabled = false;
+            }
+        }
+        catch (Exception ex) when (IsFirewallError(ex)) { return false; }
+        foreach (var command in JellyfinStartup.FirewallCommands(program, port, rule))
+            if (Execute(command) != 0 && !command.Optional) return false;
+        return Tailnet(program, port)?.Verdict == JellyfinFirewall.Verdict.Open;
+    }
+
+    /// <summary>
+    /// The incoming rules that may concern <paramref name="program"/> (its own and those for any program), each with its
+    /// COM object, and the firewall's settings on Tailscale's profile. Rules of other programs are skipped unread.
+    /// </summary>
+    private static (List<(JellyfinFirewall.Rule Rule, dynamic Com)> Rules, JellyfinFirewall.Profile Settings, int Profile) ReadFirewall(object source, string program)
+    {
+        dynamic policy = source;
+        int profile = JellyfinFirewall.TailnetProfile((int)policy.CurrentProfileTypes);
+        // NET_FW_ACTION: 0 block, 1 allow. Indexed properties of the profile, read through IDispatch.
+        var settings = new JellyfinFirewall.Profile((bool)policy.FirewallEnabled[profile], (int)policy.DefaultInboundAction[profile] == 1, (bool)policy.BlockAllInboundTraffic[profile]);
+        var rules = new List<(JellyfinFirewall.Rule, dynamic)>();
+        foreach (dynamic rule in policy.Rules)
+        {
+            // NET_FW_RULE_DIRECTION: 1 incoming.
+            if ((int)rule.Direction != 1 || !(bool)rule.Enabled) continue;
+            string? application = rule.ApplicationName;
+            if (!string.IsNullOrWhiteSpace(application) && !JellyfinFirewall.SameProgram(application, program)) continue;
+            object? interfaces = rule.Interfaces;
+            rules.Add((new JellyfinFirewall.Rule((string?)rule.Name ?? "", true, true, (int)rule.Action == 1, (int)rule.Profiles, application, (int)rule.Protocol,
+                (string?)rule.LocalPorts, (string?)rule.RemoteAddresses, interfaces is object[] names ? names.OfType<string>().ToList() : null, (string?)rule.InterfaceTypes), rule));
+        }
+        return (rules, settings, profile);
+    }
+    /// <summary>The incoming rules that may concern <paramref name="program"/>, as <see cref="Tailnet"/> reads them (the tests' check).</summary>
+    internal static List<JellyfinFirewall.Rule> FirewallRules(string program) => ReadFirewall(Policy(), program).Rules.Select(x => x.Rule).ToList();
+    /// <summary>
+    /// Windows' firewall policy (HNetCfg.FwPolicy2, FirewallAPI.dll), driven by name through IDispatch: no interop
+    /// assembly to keep in step, and a wrong name fails instead of calling another method.
+    /// </summary>
+    private static object Policy() => Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2", throwOnError: true)!)!;
+    /// <summary>The name of Tailscale's adapter, which a rule for given interfaces would list.</summary>
+    private static string? TailnetAdapter()
+    {
+        try
+        {
+            return NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(nic => nic.OperationalStatus == OperationalStatus.Up
+                && LocalNetwork.TailnetIPv4(nic.GetIPProperties().UnicastAddresses.Select(x => (x.Address.ToString(), nic.Name + " " + nic.Description))) is not null)?.Name;
+        }
+        catch (NetworkInformationException) { return null; }
+    }
+    private static bool IsFirewallError(Exception ex) => ex is COMException or InvalidComObjectException or RuntimeBinderException or InvalidCastException or UnauthorizedAccessException
+        or ArgumentException or TypeLoadException or NotSupportedException or System.Reflection.TargetInvocationException;
+
     /// <summary>Removes Mira's firewall rule (the tests' own).</summary>
     public static void RemoveRule(string rule) => Execute(new("netsh.exe", $"advfirewall firewall delete rule name=\"{rule}\""));
     /// <summary>A program of System32 with its arguments: its exit code.</summary>

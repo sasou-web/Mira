@@ -936,6 +936,76 @@ await Test("Démarrage avec Windows : service, relance après une erreur et pare
     }
     return Task.CompletedTask;
 });
+await Test("Hors de chez toi : le pare-feu de Windows laisse passer Tailscale, ouvert par Mira avec ou sans service", () =>
+{
+    const string jellyfin = @"C:\Program Files\Jellyfin\Server\jellyfin.exe";
+    const int all = 0x7FFFFFFF, priv = JellyfinFirewall.Private, pub = JellyfinFirewall.Public;
+    static JellyfinFirewall.Rule Rule(string name, bool allow, int profiles, string? program = jellyfin, int protocol = JellyfinFirewall.Tcp, string? ports = "*", string? remote = "*",
+        bool enabled = true, bool inbound = true, IReadOnlyList<string>? interfaces = null, string types = "All") => new(name, enabled, inbound, allow, profiles, program, protocol, ports, remote, interfaces, types);
+    JellyfinFirewall.Verdict Judge(IEnumerable<JellyfinFirewall.Rule> rules, int profile = priv, JellyfinFirewall.Profile? settings = null) =>
+        JellyfinFirewall.Judge(rules, settings ?? new(true, false, false), jellyfin, 8096, profile, "Tailscale");
+    const JellyfinFirewall.Verdict open = JellyfinFirewall.Verdict.Open, blocked = JellyfinFirewall.Verdict.Blocked;
+
+    // Windows' prompt at Jellyfin's first start, the box counted as public: allowed there, blocked on private networks,
+    // which Tailscale's is. The home address works, the Tailscale one shows nothing.
+    var prompt = new[] { Rule("jellyfin.exe", true, pub), Rule("jellyfin.exe", true, pub, protocol: 17), Rule("jellyfin.exe", false, priv), Rule("jellyfin.exe", false, priv, protocol: 17) };
+    Assert(Judge(prompt) == blocked && Judge(prompt, pub) == open, "The prompt's rules, judged wrong");
+    Assert(JellyfinFirewall.Blocking(prompt, jellyfin, 8096, priv) is [{ Protocol: JellyfinFirewall.Tcp, Profiles: priv }], "Only the TCP block rule on private networks stands in the way");
+    Assert(JellyfinFirewall.WithoutProfile(priv, priv) == 0 && JellyfinFirewall.WithoutProfile(all, priv) == (JellyfinFirewall.Domain | pub), "A rule for every network keeps blocking the others");
+    // What « Ouvrir le pare-feu » leaves: that block rule off (private was its only profile), and Mira's rule.
+    var mira = new[] { Rule("Mira - Jellyfin", true, all, ports: "8096", remote: "LocalSubnet"), Rule("Mira - Jellyfin", true, all, ports: "8096", remote: "100.64.0.0/255.192.0.0") };
+    var opened = prompt.Where(x => x.Allow || x.Protocol != JellyfinFirewall.Tcp).Concat(mira).ToList();
+    Assert(Judge(opened) == open && Judge(opened, pub) == open, "Still blocked once opened");
+    // The box counted as private: the prompt's rules already let Tailscale in. A service has no rule until Mira's.
+    Assert(Judge([Rule("jellyfin.exe", true, priv), Rule("jellyfin.exe", false, pub)]) == open, "The prompt's private rule lets Tailscale in");
+    Assert(Judge([]) == blocked && Judge(mira) == open && Judge([mira[0]]) == blocked, "Without rules, or with the home network's only");
+    Assert(Judge([], settings: new(false, false, false)) == open && Judge([], settings: new(true, true, false)) == open
+        && Judge(mira, settings: new(true, false, true)) == JellyfinFirewall.Verdict.Closed, "Firewall off, allowing by default, or blocking everything");
+    // Rules that do not concern a TCP connection from Tailscale to Jellyfin's port, and rules that do.
+    var unrelated = new[] { Rule("other", false, all, program: @"C:\Other\jellyfin2.exe"), Rule("out", false, all, inbound: false), Rule("off", false, all, enabled: false), Rule("udp", false, all, protocol: 17),
+        Rule("port", false, all, ports: "8920"), Rule("phone", false, all, remote: "100.101.102.103"), Rule("half", false, all, remote: "100.64.0.0/11"), Rule("named", false, all, remote: "LocalSubnet"),
+        Rule("wifi", false, all, interfaces: ["Wi-Fi"]), Rule("lan", false, all, types: "Lan"), Rule("public", false, pub), Rule("rpc", false, all, ports: "RPC") };
+    Assert(Judge(mira.Concat(unrelated)) == open, "An unrelated rule seen as blocking");
+    foreach (var rule in new[] { Rule("any program", false, all, program: null), Rule("list", false, all, ports: "80, 8096"), Rule("range", false, all, ports: "8000-9000"), Rule("any protocol", false, all, protocol: 256),
+        Rule("wider", false, all, remote: "100.0.0.0/8"), Rule("prefix", false, all, remote: "100.64.0.0/10"), Rule("span", false, all, remote: "10.0.0.0, 100.0.0.0-100.200.0.0"), Rule("adapter", false, all, interfaces: ["tailscale"]),
+        Rule("case", false, all, program: @"c:\program files\jellyfin\server\JELLYFIN.EXE"), Rule("empty", false, all, ports: null, remote: "") })
+        Assert(Judge(mira.Append(rule)) == blocked, "Not seen as blocking: " + rule.Name);
+    Assert(JellyfinFirewall.TailnetProfile(priv | pub) == priv && JellyfinFirewall.TailnetProfile(pub) == pub && JellyfinFirewall.TailnetProfile(JellyfinFirewall.Domain) == JellyfinFirewall.Domain
+        && JellyfinFirewall.TailnetProfile(0) == priv, "Tailscale's profile");
+    // The same rule with the service (« Disponible dès l'allumage du PC ») and without it.
+    var firewall = JellyfinStartup.FirewallCommands(jellyfin, 8096);
+    Assert(firewall.Count == 3 && firewall[0].Optional && JellyfinStartup.Commands(jellyfin, 8096).Where(c => c.File == "netsh.exe").SequenceEqual(firewall), "Mira's rule differs without the service");
+
+    // GitHub's Windows runners are administrators without a consent prompt: the real firewall, on a program of the test's own.
+    if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+        && new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator))
+    {
+        const string promptRule = "Mira - firewall check (prompt)", rule = "Mira - firewall check";
+        var folder = Path.Combine(testRoot, "firewall"); Directory.CreateDirectory(folder);
+        var program = Path.Combine(folder, "jellyfin.exe"); File.WriteAllBytes(program, []);
+        string Seen() => string.Join("; ", JellyfinAutostart.FirewallRules(program));
+        Assert(JellyfinAutostart.RunSystem("netsh.exe", $"advfirewall firewall add rule name=\"{promptRule}\" dir=in action=block protocol=TCP program=\"{program}\" profile=any enable=yes") == 0, "Block rule not created");
+        try
+        {
+            Assert(JellyfinAutostart.FirewallRules(program) is [{ Name: promptRule, Allow: false, Protocol: JellyfinFirewall.Tcp, Inbound: true } read] && (read.Profiles & JellyfinFirewall.AllProfiles) == JellyfinFirewall.AllProfiles
+                && JellyfinFirewall.CoversTailnet(read.RemoteAddresses) && JellyfinFirewall.CoversPort(read.LocalPorts, 18097), "Read: " + Seen());
+            var before = JellyfinAutostart.Tailnet(program, 18097);
+            Assert(before is { Verdict: not JellyfinFirewall.Verdict.Closed }, $"Before: {before}");
+            Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule), "Not opened: " + Seen());
+            var profile = before!.Value.Profile;
+            var after = JellyfinAutostart.FirewallRules(program);
+            Assert(after.Count(x => x.Name == promptRule) == 1 && after.Single(x => x.Name == promptRule) is { Enabled: true } kept
+                && (kept.Profiles & JellyfinFirewall.AllProfiles) == JellyfinFirewall.WithoutProfile(JellyfinFirewall.AllProfiles, profile), "The block rule should keep the other networks: " + Seen());
+            Assert(after.Count(x => x.Name == rule && x.Allow && x.LocalPorts == "18097") == 2 && after.Any(x => x.Name == rule && x.RemoteAddresses != "*" && JellyfinFirewall.CoversTailnet(x.RemoteAddresses)), "Mira's rule: " + Seen());
+            Assert(JellyfinAutostart.Tailnet(program, 18097)?.Verdict == open, "Still blocked: " + Seen());
+            Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule) && JellyfinAutostart.FirewallRules(program).Count(x => x.Name == rule) == 2, "Not opened again over itself: " + Seen());
+            Console.WriteLine($"      (pare-feu réel : profil de Tailscale {profile}, avant {before.Value.Verdict}, règle bloquante gardée pour les autres réseaux)");
+        }
+        finally { JellyfinAutostart.RemoveRule(promptRule); JellyfinAutostart.RemoveRule(rule); }
+        Assert(JellyfinAutostart.FirewallRules(program).Count == 0, "Test rules left behind: " + Seen());
+    }
+    return Task.CompletedTask;
+});
 await Test("Dossiers médias : le service Jellyfin peut les lire, fichiers liés ou déplacés compris", async () =>
 {
     // Jellyfin's Windows service runs as Network Service: a hard link or a move keeps the download's own permissions.

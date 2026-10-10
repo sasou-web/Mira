@@ -17,6 +17,8 @@ public partial class App : Application
         if (e.Args.FirstOrDefault() == "--apply-update") { Shutdown(UpdateApplier.Run(e.Args)); return; }
         // Started with administrator rights by the guide: Jellyfin's service and the firewall set up, no window.
         if (e.Args.FirstOrDefault() == "--jellyfin-startup") { Shutdown(JellyfinAutostart.Run(e.Args)); return; }
+        // Started with administrator rights by the guide's « Ouvrir le pare-feu »: Tailscale let through, no window.
+        if (e.Args.FirstOrDefault() == "--jellyfin-firewall") { Shutdown(JellyfinAutostart.RunFirewall(e.Args)); return; }
         if (e.Args.Contains("--register-windows"))
         {
             WindowsIdentity.SetProcessIdentity(WindowsIdentity.AppId);
