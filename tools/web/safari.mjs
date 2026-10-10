@@ -185,8 +185,13 @@ try {
   await run("document.querySelector('video')?.webkitExitFullscreen?.();");
   let back = false;
   for (let i = 0; i < 16 && !back; i++) { await sleep(500); back = (await run('return location.hash;')).startsWith(`#/titre/${movie.Id}`); }
-  await sleep(1500);
-  const kept = await api(`Items/${movie.Id}?userId=${signed.userId}`);
+  // Jellyfin stops the conversion (ffmpeg, its files) before it saves the position: a few seconds on a busy runner.
+  let kept;
+  for (let i = 0; i < 16; i++) {
+    await sleep(500);
+    kept = await api(`Items/${movie.Id}?userId=${signed.userId}`);
+    if (i >= 2 && kept.UserData.PlaybackPositionTicks > 50_000_000) break;
+  }
   check('lecteur d’Apple : fermé, retour à la fiche, position gardée', back && kept.UserData.PlaybackPositionTicks > 50_000_000,
     `${(await run('return location.hash;')).split('?')[0]}, ${(kept.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
 
