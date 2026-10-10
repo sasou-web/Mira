@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Microsoft.Data.Sqlite;
 using Mira.Core;
 using Mira.Mac.Playback;
 using Mira.Mac.Services;
@@ -161,7 +162,15 @@ public sealed class MainWindow : Window
     {
         await CloseSessionAsync();
         JellyfinClient.DeviceName = "Mac";
-        Session = new Session(connection, Profile, handler);
+        try { Session = new Session(connection, Profile, handler); }
+        // Even a new cache cannot be written (full disk, folder without rights): no library without it. A damaged one
+        // is replaced by LibraryStore itself.
+        catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
+        {
+            ShowLogin("Mira ne peut pas écrire le cache de ce compte dans son dossier de données. Libère de la place sur le disque, puis reconnecte-toi.");
+            if (Login is { } login) login.Server = connection.Server;
+            return;
+        }
         if (handler is null) Session.Listen(() => Dispatcher.UIThread.Post(() => { _serverChanged.Stop(); _serverChanged.Start(); }));
         _avatar.Text = connection.UserName.Length > 0 ? connection.UserName[..1].ToUpperInvariant() : "?";
         _overlay.Children.Clear(); _rail.IsVisible = true;
@@ -325,6 +334,8 @@ public sealed class MainWindow : Window
         if (command && e.Key == Key.OemComma) { NavigateRoot("settings"); e.Handled = true; }
     }
     private bool _closing;
+    /// <summary>From the first close request: the window is hidden and the session is being closed.</summary>
+    public bool IsClosing => _closing;
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         if (_closing) return;

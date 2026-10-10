@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using Mira.Core;
 using Mira.Mac.Services;
 using Mira.Mac.Views;
 
@@ -25,7 +27,20 @@ public partial class App : Application
             // --data <folder>: another profile (the self-check uses a fresh one).
             var data = Array.IndexOf(args, "--data") is var index and >= 0 && index + 1 < args.Length ? Path.GetFullPath(args[index + 1]) : null;
             desktop.MainWindow = new MainWindow(args, new Profile(data));
+            Dispatcher.UIThread.UnhandledException += (_, e) => Unhandled(desktop, e);
         }
         base.OnFrameworkInitializationCompleted();
+    }
+    /// <summary>As on Windows: an unexpected error is logged (errors.log) and said, rather than closing Mira without a word.</summary>
+    private static void Unhandled(IClassicDesktopStyleApplicationLifetime desktop, DispatcherUnhandledExceptionEventArgs e)
+    {
+        if (desktop.MainWindow is not MainWindow window) return;
+        ErrorLog.Append(window.Profile.DirectoryPath, e.Exception);
+        // The self-check fails on it, with the stack in its log.
+        if (window.Args.Contains("--self-check")) return;
+        e.Handled = true;
+        // Closing, or not open yet: nothing is left to retry from, and a hidden window would keep Mira running. It ends.
+        if (window.IsClosing || !window.IsVisible) { desktop.Shutdown(1); return; }
+        window.Notice("Une opération n’a pas abouti. Tu peux réessayer ; la progression déjà enregistrée reste conservée.");
     }
 }

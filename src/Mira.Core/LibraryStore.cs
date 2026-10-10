@@ -17,11 +17,11 @@ public sealed class LibraryStore
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(profile)))[..24];
         _path = Path.Combine(directory, $"library-{hash}.db");
         _connectionString = new SqliteConnectionStringBuilder { DataSource = _path }.ToString();
-        try { CreateSchema(); }
-        // A damaged file (power cut, failing disk) would refuse this account at every start. Everything in it but the
+        // A damaged file (power cut, failing disk) would refuse this account at every start: a damaged header fails at
+        // once, a damaged page only in the query that reads it, hence every page checked first. Everything in it but the
         // reports not yet sent comes back from Jellyfin, so a fresh one replaces it and the damaged copy is kept beside.
+        try { CreateSchema(); CheckPages(); Prune(DateTimeOffset.UtcNow - CacheLifetime); }
         catch (SqliteException ex) when (ex.SqliteErrorCode is 11 or 26) { SetAside(); CreateSchema(); }
-        Prune(DateTimeOffset.UtcNow - CacheLifetime);
     }
     /// <summary>Where this opening set aside a database SQLite could not read; null when it was intact.</summary>
     public string? DamagedCopy { get; private set; }
@@ -37,6 +37,12 @@ public sealed class LibraryStore
             CREATE TABLE IF NOT EXISTS outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, session TEXT NOT NULL, item TEXT NOT NULL, json TEXT NOT NULL);
             """;
         cmd.ExecuteNonQuery();
+    }
+    /// <summary>Reads every page once. SQLite describes the damage it finds in the result instead of raising it.</summary>
+    private void CheckPages()
+    {
+        using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "PRAGMA quick_check(1)";
+        if (cmd.ExecuteScalar() is not "ok") throw new SqliteException("The library cache failed its quick check.", 11);
     }
     private void SetAside()
     {

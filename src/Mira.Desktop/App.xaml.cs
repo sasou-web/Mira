@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using Mira.Core;
 using Mira.Desktop.Services;
 
 namespace Mira.Desktop;
@@ -8,6 +9,8 @@ public partial class App : Application
 {
     private Mutex? _instance;
     private InstanceActivation? _activation;
+    private MainWindow? _window;
+    private bool _shown;
     internal static string ShellAppId { get; private set; } = WindowsIdentity.AppId;
     internal static bool ShellValidation { get; private set; }
     protected override void OnStartup(StartupEventArgs e)
@@ -63,27 +66,32 @@ public partial class App : Application
                 File.WriteAllText(Path.Combine(output, "failure.txt"), args.Exception.ToString());
                 args.Handled = true; Shutdown(1); return;
             }
-            // Do not log exception messages: HTTP errors can contain credentials or private media paths.
-            // The type and the method that failed are enough to find the fault; kept in this run's profile, 256 KB at most.
-            try
-            {
-                Directory.CreateDirectory(AppFiles.ProfileDirectory);
-                var log = Path.Combine(AppFiles.ProfileDirectory, "errors.log");
-                if (File.Exists(log) && new FileInfo(log).Length > 256 * 1024) File.Move(log, log + ".old", true);
-                var site = args.Exception.TargetSite is { } method ? $" {method.DeclaringType?.FullName}.{method.Name}" : "";
-                File.AppendAllText(log, $"{DateTimeOffset.Now:O} {args.Exception.GetType().Name}{site}\n");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-            MessageBox.Show("Une opération n’a pas abouti. Tu peux réessayer ; la progression déjà enregistrée reste conservée.", "Mira", MessageBoxButton.OK, MessageBoxImage.Information);
+            ErrorLog.Append(AppFiles.ProfileDirectory, args.Exception);
             args.Handled = true;
+            // Closing, or before the window showed: nothing is left to retry from, only a process without a window that
+            // keeps the single-instance lock (every relaunch would say "déjà ouvert"). Mira ends instead.
+            if (!_shown || _window is not { IsClosing: false }) { Shutdown(1); return; }
+            MessageBox.Show("Une opération n’a pas abouti. Tu peux réessayer ; la progression déjà enregistrée reste conservée.", "Mira", MessageBoxButton.OK, MessageBoxImage.Information);
         };
-        var window = new MainWindow(e.Args);
-        if (e.Args.Contains("--visual-check") || e.Args.Contains("--player-check") || e.Args.Contains("--public-gallery")) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; window.ShowInTaskbar = false; }
-        // --offscreen: validation runs with an isolated profile (update checks) stay off the user's screen, closable as usual.
-        else if (e.Args.Contains("--offscreen") && dataArg >= 0) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; }
-        if (e.Args.Contains("--qa-window")) window.Title = "Mira · Validation du lecteur";
-        _activation = new InstanceActivation(key, () => Dispatcher.BeginInvoke(window.RestoreFromWindows));
-        window.Show();
+        try
+        {
+            var window = _window = new MainWindow(e.Args);
+            if (e.Args.Contains("--visual-check") || e.Args.Contains("--player-check") || e.Args.Contains("--public-gallery")) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; window.ShowInTaskbar = false; }
+            // --offscreen: validation runs with an isolated profile (update checks) stay off the user's screen, closable as usual.
+            else if (e.Args.Contains("--offscreen") && dataArg >= 0) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; }
+            if (e.Args.Contains("--qa-window")) window.Title = "Mira · Validation du lecteur";
+            _activation = new InstanceActivation(key, () => Dispatcher.BeginInvoke(window.RestoreFromWindows));
+            window.Show(); _shown = true;
+        }
+        // No window to retry from (the data folder read-only on a first start, a full disk): say why and end.
+        catch (Exception ex)
+        {
+            ErrorLog.Append(AppFiles.ProfileDirectory, ex);
+            if (!ShellValidation) MessageBox.Show(ex is IOException or UnauthorizedAccessException
+                ? $"Mira ne peut pas écrire dans son dossier de données :\n{AppFiles.ProfileDirectory}\n\nVérifie qu’il reste de la place sur le disque et que ce dossier n’est pas en lecture seule, ou place Mira dans un dossier à toi (Documents, par exemple), puis relance-le."
+                : "Mira n’a pas pu démarrer. Relance-le dans un instant.", "Mira", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1); return;
+        }
         if (!ShellValidation) Dispatcher.BeginInvoke(WindowsIdentity.Register, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
     private static int InstallEngine(string directory)

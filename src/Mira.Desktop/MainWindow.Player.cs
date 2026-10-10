@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using Mira.Core;
 using Mira.Desktop.Playback;
+using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
@@ -22,6 +23,8 @@ public partial class MainWindow
     private MediaSource? _mediaSource;
     private string _playSession = "";
     private bool _playing, _loaded, _paused, _seeking, _fullscreen, _closing, _playBusy, _playWasReported;
+    /// <summary>From the first close request: the window is hidden and its services are being stopped.</summary>
+    internal bool IsClosing => _closing;
     private double _position, _duration, _pendingSeek;
     private DateTimeOffset _pendingSeekUntil;
     private DateTimeOffset _lastReport;
@@ -225,22 +228,25 @@ public partial class MainWindow
         if (_playing && _loaded && _mpv is not null && !completed) _position = ReportedPosition(_mpv.Number("time-pos", _position));
         completed = _loaded && (completed || _duration > 0 && _position >= _duration * LibraryStore.WatchedThreshold);
         _playing = false;
-        _windows?.Clear();
-        if (_playWasReported && _sync is not null) { _playWasReported = false; await _sync.RecordAsync(completed ? "complete" : "stop", Report()); }
-        if (completed && _playingItem is { } finished)
+        try
         {
-            foreach (var copy in _items.Concat(_resume).Concat(_nextUp).Concat(_episodes).Append(finished).Where(x => x.Id == finished.Id))
-            { copy.UserData.Played = true; copy.UserData.PlaybackPositionTicks = 0; }
-            _resume.RemoveAll(x => x.Id == finished.Id); _nextUp.RemoveAll(x => x.Id == finished.Id);
-            _metadata?.Clear(); _heroSeries.Clear();
+            _windows?.Clear();
+            if (_playWasReported && _sync is not null) { _playWasReported = false; await _sync.RecordAsync(completed ? "complete" : "stop", Report()); }
+            if (completed && _playingItem is { } finished)
+            {
+                foreach (var copy in _items.Concat(_resume).Concat(_nextUp).Concat(_episodes).Append(finished).Where(x => x.Id == finished.Id))
+                { copy.UserData.Played = true; copy.UserData.PlaybackPositionTicks = 0; }
+                _resume.RemoveAll(x => x.Id == finished.Id); _nextUp.RemoveAll(x => x.Id == finished.Id);
+                _metadata?.Clear(); _heroSeries.Clear();
+            }
+            if (_loaded && _playingItem is { } stopped)
+            {
+                if (!completed) stopped.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
+                await RememberCurrentPlaybackAsync();
+            }
         }
-        if (_loaded && _playingItem is { } stopped)
-        {
-            if (!completed) stopped.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
-            await RememberCurrentPlaybackAsync();
-        }
-        _loaded = false;
-        if (_mpv is not null) { _settings.Volume = _mpv.Level; _mpv.Dispose(); _mpv = null; }
+        // Whatever failed above, the engine is released: it would otherwise play on behind the library.
+        finally { _loaded = false; if (_mpv is not null) { _settings.Volume = _mpv.Level; _mpv.Dispose(); _mpv = null; } }
         if (hadPlayback && !_closing) RenderAfterUserDataChange();
     }
     private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false) => (await EpisodeContextAsync(current, quiet)).Next;
@@ -381,14 +387,24 @@ public partial class MainWindow
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
         if (_closing) return; e.Cancel = true; _closing = true;
-        RememberWindow();
-        // Feels instant: the last progress report is still delivered while the window is already gone.
-        Hide();
-        _windows?.Dispose(); _windows = null;
-        UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll);
-        _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
-        await StopPlaybackAsync(); await StopTorLinkAsync(); _profile.SaveSettings(_settings); await DisconnectServicesAsync();
-        _videoHost?.Dispose(); ApplyUpdateAtClose(); _ = Dispatcher.BeginInvoke(Close);
+        // Each step on its own and the close guaranteed: a full disk or a failing service must not leave a hidden
+        // process that keeps the single-instance lock (every relaunch would say "déjà ouvert"). Failures are logged.
+        try
+        {
+            Attempt(RememberWindow);
+            // Feels instant: the last progress report is still delivered while the window is already gone.
+            Hide();
+            // The settings page says changes are kept on leaving it: closing Mira leaves it too.
+            Attempt(AutoSaveSettings);
+            Attempt(() => { _windows?.Dispose(); _windows = null; });
+            Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
+            _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
+            await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
+            Attempt(() => _videoHost?.Dispose()); Attempt(ApplyUpdateAtClose);
+        }
+        finally { _ = Dispatcher.BeginInvoke(Close); }
+        static void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(AppFiles.ProfileDirectory, ex); } }
+        static async Task AttemptAsync(Func<Task> step) { try { await step(); } catch (Exception ex) { ErrorLog.Append(AppFiles.ProfileDirectory, ex); } }
     }
     private static string TimeLabel(double seconds) { var time = TimeSpan.FromSeconds(Math.Max(0, double.IsFinite(seconds) ? seconds : 0)); return time.TotalHours >= 1 ? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}" : $"{(int)time.TotalMinutes}:{time.Seconds:00}"; }
 }

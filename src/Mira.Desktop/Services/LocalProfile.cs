@@ -28,15 +28,29 @@ public sealed class LocalProfile
         var path = Path.Combine(DirectoryPath, "session.protected");
         if (!File.Exists(path)) return null;
         try { return JsonSerializer.Deserialize<Connection>(ProtectedData.Unprotect(File.ReadAllBytes(path), null, DataProtectionScope.CurrentUser), Json.Options); }
-        catch (Exception ex) when (ex is CryptographicException or JsonException) { return null; }
+        // Unreadable (damaged, another Windows account's, locked): signing in again replaces it.
+        catch (Exception ex) when (ex is CryptographicException or JsonException or IOException or UnauthorizedAccessException) { return null; }
     }
     public void SaveConnection(Connection connection) => AtomicWrite("session.protected",
         ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(connection, Json.Options), null, DataProtectionScope.CurrentUser));
     public void ClearConnection() { var path = Path.Combine(DirectoryPath, "session.protected"); if (File.Exists(path)) File.Delete(path); }
+    /// <summary>True when settings.json exists but could not be read: the defaults are used instead, and replace it on the next save.</summary>
+    public bool SettingsUnreadable { get; private set; }
+    /// <summary>The copy of that unreadable file kept beside it (settings.json.bad-…); null when it could not be copied either.</summary>
+    public string? SettingsCopy { get; private set; }
     public PlayerSettings LoadSettings()
     {
-        try { return JsonSerializer.Deserialize<PlayerSettings>(File.ReadAllText(Path.Combine(DirectoryPath, "settings.json")), Json.Options) ?? new(); }
-        catch (Exception ex) when (ex is IOException or JsonException) { return new(); }
+        var path = Path.Combine(DirectoryPath, "settings.json");
+        try { return JsonSerializer.Deserialize<PlayerSettings>(File.ReadAllText(path), Json.Options) ?? new(); }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { return new(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            // Said once by the window, and the file kept: the next save would otherwise replace every setting without a word.
+            SettingsUnreadable = true;
+            try { var copy = $"{path}.bad-{DateTime.Now:yyyyMMdd-HHmmss}"; File.Copy(path, copy, overwrite: true); SettingsCopy = copy; }
+            catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { }
+            return new();
+        }
     }
     public void SaveSettings(PlayerSettings settings) => AtomicWrite("settings.json", JsonSerializer.SerializeToUtf8Bytes(settings, Json.Options));
     private void AtomicWrite(string file, byte[] bytes)

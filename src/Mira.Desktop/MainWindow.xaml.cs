@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Data.Sqlite;
 using Mira.Core;
 using Mira.Desktop.Services;
 using Mira.Desktop.Views;
@@ -122,6 +123,8 @@ public partial class MainWindow : Window
         if (_args.Contains("--torlink-check")) { await RunTorLinkCheckAsync(); return; }
         _fallbackRefresh.Start();
         ShowStartupScreen();
+        // Once, after the first refresh, which would otherwise hide it at once.
+        if (_profile.SettingsUnreadable) SetNotice("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut." + (_profile.SettingsCopy is { } copy ? $" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}." : ""));
         if (_testMedia is not null && _args.Contains("--autoplay")) await PlayAsync(DemoLibrary.Items()[0]);
     }
     private Task? _startupRevealTask;
@@ -179,7 +182,18 @@ public partial class MainWindow : Window
     {
         await DisconnectServicesAsync();
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
-        _client = new JellyfinClient(connection); _store = new LibraryStore(_profile.DirectoryPath, connection.Server + "|" + connection.UserId);
+        _client = new JellyfinClient(connection);
+        try { _store = new LibraryStore(_profile.DirectoryPath, connection.Server + "|" + connection.UserId); }
+        // Even a new cache cannot be written (full disk, data folder read-only): no library without it. A damaged one
+        // is replaced by LibraryStore itself.
+        catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
+        {
+            _client.Dispose(); _client = null;
+            ServerBox.Text = connection.Server; UsernameBox.Text = connection.UserName; LoginError.Text = "Mira ne peut pas écrire le cache de ce compte dans son dossier de données. Libère de la place sur le disque, puis reconnecte-toi.";
+            LogoutButton.Visibility = Visibility.Visible; BackToLibrary.Visibility = Visibility.Collapsed; ShowSignInForm();
+            if (LoginOverlay.Visibility != Visibility.Visible) Motion.Reveal(LoginOverlay);
+            FocusLogin(); _ = RefreshTorLinkLibrariesAsync(); return;
+        }
         var damaged = _store.DamagedCopy is not null;
         _items = []; _resume = []; _nextUp = []; _recentPlayback = []; _hiddenResume = []; _episodes = []; _detail = null; _hero = null; _totalCount = 0; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
@@ -196,8 +210,9 @@ public partial class MainWindow : Window
         try
         {
             var store = _store;
-            var (cached, cachedResume, history, hidden) = await Task.Run(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume"), store.RecentPlayback(), store.HiddenFromResume()));
-            if (ReferenceEquals(store, _store)) { _recentPlayback = history; _hiddenResume = hidden; }
+            var (cached, cachedResume, history, hidden) = await Task.Run(() => TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume"), store.RecentPlayback(), store.HiddenFromResume())));
+            // All null when the cache could not be read.
+            if (ReferenceEquals(store, _store)) { _recentPlayback = history ?? []; _hiddenResume = hidden ?? []; }
             if (cached is not null && ReferenceEquals(store, _store)) { _items = cached.Items; _totalCount = cached.TotalRecordCount; _resume = cachedResume ?? []; _catalogLoading = false; RenderLibrary(); }
             await RefreshAsync();
             var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear();
@@ -256,6 +271,7 @@ public partial class MainWindow : Window
     {
         if (_scanning) return;
         _scanning = true; var before = _totalCount; var view = (_view, _favorites, _parentId, SearchBox.Text); var shown = Task.Delay(700);
+        var ct = _connectionLifetime.Token;
         SpinRefresh(true); RefreshLabel.Text = "Analyse…";
         try
         {
@@ -263,7 +279,7 @@ public partial class MainWindow : Window
             if (!_demo && _client is { } client)
             {
                 var progress = new Progress<double?>(p => RefreshLabel.Text = p is { } share ? $"Analyse… {share * 100:0} %" : "Analyse…");
-                scanned = await client.ScanAndWaitAsync(progress, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), _connectionLifetime.Token);
+                scanned = await client.ScanAndWaitAsync(progress, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), ct);
                 RefreshLabel.Text = "Chargement…";
             }
             await RefreshAsync(quiet: true); await shown;
@@ -274,7 +290,8 @@ public partial class MainWindow : Window
                 : added > 0 ? $"Bibliothèque à jour : {added} nouveau{(added > 1 ? "x" : "")} titre{(added > 1 ? "s" : "")}."
                 : "Bibliothèque à jour : Jellyfin a vérifié tous tes dossiers.");
         }
-        catch (OperationCanceledException) { }
+        // Only Mira's own cancellation (another account, closing): HttpClient's 12 s limit is one too, and must be said.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         finally { _scanning = false; SpinRefresh(false); RefreshLabel.Text = "Actualiser"; }
     }
@@ -305,22 +322,23 @@ public partial class MainWindow : Window
             var resumeItems = home ? resume!.Result.Items : null;
             List<MediaItem>? recent = null; var seasonThumbs = new Dictionary<string, string?>(_seasonThumbs);
             // SQLite work stays off the UI thread; the page only redraws when it is done.
-            await Task.Run(() =>
+            await Task.Run(() => TryCache(() =>
             {
                 store.ApplyLocalProgress(result.Items);
                 if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); ApplySeasonThumbs(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); store.Save("home", result); store.Save("resume", resumeItems); }
                 else if (!more && search.Length == 0) store.Save(key, result);
-            }, CancellationToken.None);
+            }), CancellationToken.None);
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
             if (more) _items.AddRange(result.Items.Where(x => _items.All(old => old.Id != x.Id))); else _items = result.Items;
             _totalCount = result.TotalRecordCount;
-            if (home) { _resume = resumeItems!; _nextUp = next!.Result.Items; _recentPlayback = ContinueWatching.History(_recentPlayback.Concat(recent!)); }
+            if (home) { _resume = resumeItems!; _nextUp = next!.Result.Items; _recentPlayback = ContinueWatching.History(_recentPlayback.Concat(recent ?? [])); }
             _catalogLoading = false; RenderLibrary();
             // Back to the top for a new list, unless the reader has already started scrolling it.
             if (!quiet && !more && Math.Abs(LibraryScroll.VerticalOffset - startOffset) < 1) SmoothScroll.Jump(LibraryScroll, 0);
             if (!quiet) HideNotice(); SyncChanged();
         }
-        catch (OperationCanceledException) { }
+        // Only a refresh Mira cancelled: a server silent for 12 s ends the same way, and gets the offline notice below.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex))
         {
             if (version != _viewVersion) return;
@@ -333,8 +351,8 @@ public partial class MainWindow : Window
             }
             else
             {
-                var cached = await Task.Run(() => store.Load<ItemsResult>(home ? "home" : key));
-                if (cached is not null && !more) { _items = cached.Items; _totalCount = cached.TotalRecordCount; store.ApplyLocalProgress(_items); RenderLibrary(); }
+                var cached = await Task.Run(() => TryCache(() => store.Load<ItemsResult>(home ? "home" : key)));
+                if (cached is not null && !more) { _items = cached.Items; _totalCount = cached.TotalRecordCount; TryCache(() => store.ApplyLocalProgress(_items)); RenderLibrary(); }
                 SetNotice(Friendly(ex) + " Les informations déjà chargées restent disponibles."); SyncLabel.Text = "○  Hors connexion · cache local";
                 _catalogLoading = false; RenderLibrary();
             }
@@ -399,8 +417,13 @@ public partial class MainWindow : Window
     private void HideNotice() { _noticeTimer.Stop(); if (Notice.Visibility == Visibility.Visible) _ = Motion.HideAsync(Notice, 180); }
     private void NoticeAction_Click(object sender, RoutedEventArgs e) { var action = _noticeAction; HideNotice(); action?.Invoke(); }
     private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver) return; HideNotice(); }
-    private static bool IsExpected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException or OperationCanceledException or System.Text.Json.JsonException;
-    private static string Friendly(Exception ex) => ex switch { UnauthorizedAccessException => ex.Message, ArgumentException => ex.Message, ServerDiscoveryException => ex.Message, OperationCanceledException => "Jellyfin met trop de temps à répondre.", HttpRequestException h when h.StatusCode is not null => h.Message, HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.", _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie." };
+    private static bool IsExpected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException or OperationCanceledException or System.Text.Json.JsonException or SqliteException;
+    private static string Friendly(Exception ex) => ex switch { UnauthorizedAccessException => ex.Message, ArgumentException => ex.Message, ServerDiscoveryException => ex.Message, OperationCanceledException => "Jellyfin met trop de temps à répondre.", HttpRequestException h when h.StatusCode is not null => h.Message, HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.", SqliteException => StorageUnavailable, _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie." };
+    private const string StorageUnavailable = "Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.";
+    /// <summary>The local cache is a bonus: a full disk, a locked or damaged database leaves Jellyfin's answer, or nothing, on screen.</summary>
+    private static T? TryCache<T>(Func<T> read) { try { return read(); } catch (Exception ex) when (IsCacheFailure(ex)) { return default; } }
+    private static void TryCache(Action write) { try { write(); } catch (Exception ex) when (IsCacheFailure(ex)) { } }
+    private static bool IsCacheFailure(Exception ex) => ex is SqliteException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException;
     private async void Demo_Click(object sender, RoutedEventArgs e) => await ShowDemoAsync();
     private void Account_Click(object sender, RoutedEventArgs e)
     {

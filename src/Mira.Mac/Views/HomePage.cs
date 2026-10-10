@@ -60,7 +60,7 @@ public sealed class HomePage : Page
         if (Shell.Session is not { } session) return;
         var store = session.Store;
         // The last known home first, so the page never opens empty; then Jellyfin's answer.
-        if (_heroItems.Count == 0 && await Task.Run(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume"))) is ({ } cachedHome, var cachedResume))
+        if (_heroItems.Count == 0 && await Task.Run(() => Errors.TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume")))) is ({ } cachedHome, var cachedResume))
             Render(session, cachedResume ?? [], cachedHome.Items, []);
         var client = session.Client;
         var resume = client.ResumeAsync(); var next = client.NextUpAsync();
@@ -71,13 +71,17 @@ public sealed class HomePage : Page
         var thumbs = seasons.Count > 0 ? await TryAsync(() => client.SeasonThumbsAsync(seasons)) ?? [] : [];
         var (merged, history, hidden) = await Task.Run(() =>
         {
-            var history = store.RecentPlayback();
-            var merged = store.MergeResume(resume.Result.Items, history);
+            // Without the cache (full disk, locked database), Jellyfin's answer as it is.
+            var history = Errors.TryCache(store.RecentPlayback) ?? [];
+            var merged = Errors.TryCache(() => store.MergeResume(resume.Result.Items, history)) ?? resume.Result.Items;
             foreach (var item in merged.Concat(next.Result.Items))
                 if (item.Type == "Episode" && item.SeasonId is { } season && thumbs.TryGetValue(season, out var tag)) item.SeasonThumbImageTag = tag;
-            store.ApplyLocalProgress(merged); store.ApplyLocalProgress(next.Result.Items); store.ApplyLocalProgress(latest.Result.Items); store.ApplyLocalProgress(favorites.Result.Items);
-            store.Save("home", latest.Result); store.Save("resume", merged);
-            return (merged, history, store.HiddenFromResume());
+            Errors.TryCache(() =>
+            {
+                store.ApplyLocalProgress(merged); store.ApplyLocalProgress(next.Result.Items); store.ApplyLocalProgress(latest.Result.Items); store.ApplyLocalProgress(favorites.Result.Items);
+                store.Save("home", latest.Result); store.Save("resume", merged);
+            });
+            return (merged, history, Errors.TryCache(store.HiddenFromResume) ?? []);
         });
         var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(merged, next.Result.Items, history), hidden, history);
         Render(session, row, latest.Result.Items, favorites.Result.Items);

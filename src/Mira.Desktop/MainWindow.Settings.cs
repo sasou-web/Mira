@@ -30,6 +30,8 @@ public partial class MainWindow
     private bool _settingsBusy;
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
+        // The gear clicked again while the page is open refills it from the saved settings: what was changed is kept first.
+        AutoSaveSettings();
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
         _settingsBusy = true;
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; RememberCheck.IsChecked = _settings.RememberPosition;

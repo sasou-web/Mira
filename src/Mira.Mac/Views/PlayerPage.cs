@@ -266,7 +266,8 @@ public sealed class PlayerPage : UserControl
             item.UserData.PlaybackPositionTicks = completed ? 0 : TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
             item.UserData.LastPlayedDate = DateTimeOffset.UtcNow;
             var snapshot = item with { UserData = item.UserData with { } };
-            await Task.Run(() => session.Store.RememberPlayback(snapshot));
+            // The engine is released below whatever the cache says: a full disk only loses this row for the next start.
+            await Task.Run(() => Errors.TryCache(() => session.Store.RememberPlayback(snapshot)));
         }
         if (_mpv is not null) _shell.Settings.Volume = _mpv.Level;
         _loaded = false;
