@@ -81,6 +81,12 @@ public partial class MainWindow
             ShowPhone(new PhoneSetup.Facts("http://127.0.0.1:8096", true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, TailnetAllowed: false,
                 Firewall: JellyfinFirewall.Verdict.Blocked, Boot: new(true, true, false, true, false)));
             foreach (var size in new[] { sizes[0], sizes[2] }) { SmoothScroll.Jump(GuideScroll); await At(size, "19-guide", null, GuideContent); }
+            // The phone's card whole, with « Tout préparer » and the address to type.
+            foreach (var size in new[] { sizes[0], sizes[2] })
+            {
+                Width = size.Width; Height = size.Height; UpdateLayout();
+                SmoothScroll.Jump(GuideScroll, GuidePhone.TranslatePoint(new Point(0, 0), GuideContent).Y); await At(size, "19-guide-phone", null, GuidePhone);
+            }
             GuideOverlay.Visibility = Visibility.Collapsed;
             // The downloads page before TorLink is turned on: the list of downloaders.
             TorLinkOverlay.Visibility = Visibility.Visible; TorLinkOverlay.Opacity = 1; ShowDownloaders(true);
