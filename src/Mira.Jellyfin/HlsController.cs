@@ -56,13 +56,22 @@ public sealed class HlsController : ControllerBase
             : Playlist(HlsPlaylists.Master(text, $"{Request.PathBase}/videos/{item}/", $"{Request.PathBase}/Mira/hls/{item}/", HlsPlaylists.Names(Request.Query[Names])));
     }
 
-    /// <summary>Jellyfin's playlist of one subtitle stream (same query), its WebVTT segments without the time map.</summary>
+    /// <summary>
+    /// Jellyfin's playlist of one subtitle stream (same query), its WebVTT segments without the time map. If Jellyfin
+    /// refuses it (a title it has not finished reading has no length yet), an empty playlist: Apple's player would
+    /// otherwise refuse the whole stream, video included, for one subtitle it cannot have.
+    /// </summary>
     [HttpGet("{itemId:guid}/{mediaSourceId:regex(^[[0-9a-fA-F]]{{32}}$)}/Subtitles/{index:int:min(0)}/subtitles.m3u8")]
     public async Task<IActionResult> Subtitles(Guid itemId, string mediaSourceId, int index, CancellationToken cancellationToken)
     {
         var path = $"videos/{itemId:N}/{mediaSourceId}/Subtitles/{index}/";
         var (status, text) = await GetAsync($"{path}subtitles.m3u8{Request.QueryString}", cancellationToken).ConfigureAwait(false);
-        return text is null ? StatusCode(status) : Playlist(HlsPlaylists.Subtitles(text, $"{Request.PathBase}/{path}"));
+        if (text is null)
+        {
+            return status is (int)HttpStatusCode.Unauthorized or (int)HttpStatusCode.Forbidden ? StatusCode(status) : Playlist(HlsPlaylists.EmptySubtitles);
+        }
+
+        return Playlist(HlsPlaylists.Subtitles(text, $"{Request.PathBase}/{path}"));
     }
 
     private ContentResult Playlist(string text)

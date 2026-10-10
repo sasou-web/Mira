@@ -881,6 +881,9 @@ await Test("Mira web : sous-titres d’une conversion à l’heure dans le lecte
     var segments = Mira.Jellyfin.HlsPlaylists.Subtitles(subtitles, "/jf/videos/item/source/Subtitles/3/");
     Assert(segments.Contains("\n/jf/videos/item/source/Subtitles/3/stream.vtt?CopyTimestamps=true&AddVttTimeMap=false&StartPositionTicks=0&"), "Segments: " + segments);
     Assert(!segments.Contains("AddVttTimeMap=true", StringComparison.OrdinalIgnoreCase), "Time map kept: " + segments);
+    // A subtitle stream Jellyfin refuses: an empty but valid playlist, so that the video still plays.
+    Assert(Mira.Jellyfin.HlsPlaylists.EmptySubtitles.StartsWith("#EXTM3U\n", StringComparison.Ordinal) && Mira.Jellyfin.HlsPlaylists.EmptySubtitles.Contains("#EXT-X-ENDLIST", StringComparison.Ordinal)
+        && !Mira.Jellyfin.HlsPlaylists.EmptySubtitles.Contains("#EXTINF", StringComparison.Ordinal), "Empty subtitles playlist");
     return Task.CompletedTask;
 });
 await Test("Démarrage avec Windows : service, relance après une erreur et pare-feu, lus puis réglés", () =>
