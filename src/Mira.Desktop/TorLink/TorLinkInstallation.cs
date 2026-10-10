@@ -10,45 +10,39 @@ namespace Mira.Desktop.TorLink;
 
 /// <summary>
 /// A TorLink installation: its folder, the Node.js runtime that runs it and its entry script. <see cref="Managed"/>: the
-/// one Mira installed in its profile, with its own Node.js.
+/// one Mira installed in its profile, with its own Node.js. <see cref="Detected"/>: found by searching this PC (a shortcut,
+/// npm's global folder), neither installed by Mira nor chosen in the settings; Mira runs it only once the person confirmed
+/// it, which saves its folder as the chosen one.
 /// </summary>
-public sealed record TorLinkInstallation(string Root, string Node, string Entry, bool Managed = false)
+public sealed record TorLinkInstallation(string Root, string Node, string Entry, bool Managed = false, bool Detected = false)
 {
     public bool HasRuntime => Node.Length > 0;
     public string? Version => ReadVersion(Root);
 
     /// <summary>
-    /// The configured folder when valid, then Mira's own TorLink, the targets of TorLink's shortcuts, a global npm
-    /// install, and the copy "npx torlnk" keeps in npm's cache.
+    /// The configured folder when valid, then Mira's own TorLink, then, <see cref="Detected"/>, the targets of TorLink's
+    /// shortcuts and a global npm install. npm's cache (where "npx torlnk" leaves a copy) is not searched: anything may
+    /// have put a package there.
     /// </summary>
     public static TorLinkInstallation? Locate(string? configured, string? profile = null)
     {
-        foreach (var candidate in Candidates(configured, profile))
-            if (Validate(candidate, profile) is { } found) return found;
+        foreach (var (candidate, detected) in Candidates(configured, profile))
+            if (Validate(candidate, profile) is { } found) return detected && !found.Managed ? found with { Detected = true } : found;
         return null;
     }
 
-    private static IEnumerable<string> Candidates(string? configured, string? profile)
+    private static IEnumerable<(string Path, bool Detected)> Candidates(string? configured, string? profile)
     {
-        if (!string.IsNullOrWhiteSpace(configured)) yield return configured.Trim();
-        if (profile is not null) yield return TorLinkPackage.PackageRoot(profile);
+        if (!string.IsNullOrWhiteSpace(configured)) yield return (configured.Trim(), false);
+        if (profile is not null) yield return (TorLinkPackage.PackageRoot(profile), false);
         foreach (var folder in new[] { Environment.SpecialFolder.Programs, Environment.SpecialFolder.CommonPrograms, Environment.SpecialFolder.DesktopDirectory, Environment.SpecialFolder.CommonDesktopDirectory }.Select(Environment.GetFolderPath))
         {
             List<string> links;
             try { links = folder.Length > 0 && Directory.Exists(folder) ? Directory.EnumerateFiles(folder, "torlink*.lnk").ToList() : []; }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { links = []; }
-            foreach (var link in links) if (WindowsIdentity.ShortcutTarget(link) is { } target) yield return target;
+            foreach (var link in links) if (WindowsIdentity.ShortcutTarget(link) is { } target) yield return (target, true);
         }
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm", "node_modules", "torlnk");
-        // "npx torlnk" leaves TorLink in npm's cache, one folder per version fetched: the newest is used.
-        string[] npx;
-        try
-        {
-            var cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "npm-cache", "_npx");
-            npx = Directory.Exists(cache) ? Directory.EnumerateDirectories(cache).Select(x => Path.Combine(x, "node_modules", "torlnk")).Where(Directory.Exists).ToArray() : [];
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { npx = []; }
-        foreach (var root in npx.OrderByDescending(x => System.Version.TryParse(ReadVersion(x) ?? "", out var v) ? v : new System.Version())) yield return root;
+        yield return (Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm", "node_modules", "torlnk"), true);
     }
 
     /// <summary>

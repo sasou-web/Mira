@@ -16,18 +16,24 @@ public sealed record NodePackage(string Version, Uri Url, long Size, string Sha2
     public string Root => Path.GetFileNameWithoutExtension(ArchiveName) + "/";
 }
 
-/// <summary>Installs <see cref="NodePackage"/> into the profile ("data\node"): only node.exe, npm and the licence, for this user, without administrator rights.</summary>
+/// <summary>
+/// Installs <see cref="NodePackage"/> into the profile ("data\node"): only node.exe, npm and the licence, for this user,
+/// without administrator rights. A newer pinned version is prepared beside it ("data\node-next") while TorLink may run,
+/// and takes its place only once nothing runs from it (<see cref="ActivatePrepared"/>).
+/// </summary>
 public static class NodeInstaller
 {
     public const string VersionFile = "version.txt", SourceFile = "SOURCE.txt";
     public const int MinimumMajor = 22;
     public static string Folder(string profile) => Path.Combine(profile, "node");
+    public static string NextFolder(string profile) => Path.Combine(profile, "node-next");
     public static string Executable(string profile) => Path.Combine(Folder(profile), "node.exe");
     public static string NpmCli(string profile) => Path.Combine(Folder(profile), "node_modules", "npm", "bin", "npm-cli.js");
-    public static bool IsInstalled(string profile, NodePackage? package = null)
+    public static bool IsInstalled(string profile, NodePackage? package = null) => IsReady(Folder(profile), package ?? NodePackage.Current);
+    /// <summary>node.exe and npm of <paramref name="package"/>'s version in <paramref name="folder"/>.</summary>
+    public static bool IsReady(string folder, NodePackage package)
     {
-        package ??= NodePackage.Current;
-        try { return File.Exists(Executable(profile)) && File.Exists(NpmCli(profile)) && File.ReadAllText(Path.Combine(Folder(profile), VersionFile)).Trim() == package.Version; }
+        try { return File.Exists(Path.Combine(folder, "node.exe")) && File.Exists(Path.Combine(folder, "node_modules", "npm", "bin", "npm-cli.js")) && File.ReadAllText(Path.Combine(folder, VersionFile)).Trim() == package.Version; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
     /// <summary>
@@ -39,9 +45,24 @@ public static class NodeInstaller
     {
         package ??= NodePackage.Current;
         if (IsInstalled(profile, package)) { progress?.Report(1); return Executable(profile); }
-        var folder = Folder(profile); Directory.CreateDirectory(profile);
+        await PrepareAsync(profile, package, handler, progress, ct).ConfigureAwait(false);
+        if (!ActivatePrepared(profile, package)) throw new InstallException("Node.js est en cours d’utilisation : ferme TorLink, puis réessaie.");
+        progress?.Report(1);
+        return Executable(profile);
+    }
+    /// <summary>
+    /// The folder holding <paramref name="package"/>: the installed one when it is current, else "node-next", downloaded,
+    /// checked and extracted there if it is not yet. The folder in use is never touched.
+    /// </summary>
+    public static async Task<string> PrepareAsync(string profile, NodePackage? package = null, HttpMessageHandler? handler = null, IProgress<double>? progress = null, CancellationToken ct = default)
+    {
+        package ??= NodePackage.Current;
+        var next = NextFolder(profile);
+        if (IsInstalled(profile, package)) { progress?.Report(1); return Folder(profile); }
+        if (IsReady(next, package)) { progress?.Report(1); return next; }
+        Directory.CreateDirectory(profile);
         var archive = Path.Combine(profile, package.ArchiveName + ".partial");
-        var staging = folder + ".partial";
+        var staging = next + ".partial";
         try
         {
             await VerifiedDownload.DownloadAsync(package.Url, archive, package.Sha256, package.Size, package.Size, "Node.js", handler, Scaled.By(progress, .85), ct).ConfigureAwait(false);
@@ -50,18 +71,27 @@ public static class NodeInstaller
                 $"Node.js {package.Version}, installé par Mira pour TorLink depuis {package.Url}\nSHA-256 : {package.Sha256}\n" +
                 "Licence : LICENSE (MIT et licences des composants inclus) ; sources : https://github.com/nodejs/node\n", ct).ConfigureAwait(false);
             await File.WriteAllTextAsync(Path.Combine(staging, VersionFile), package.Version, ct).ConfigureAwait(false);
-            try
-            {
-                if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
-                Directory.Move(staging, folder);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            { throw new InstallException("Node.js est en cours d’utilisation : ferme TorLink, puis réessaie."); }
+            TryDeleteFolder(next);
+            Directory.Move(staging, next);
             progress?.Report(1);
-            return Executable(profile);
+            return next;
         }
         catch (Exception ex) when (ex is not InstallException && ex is IOException or UnauthorizedAccessException) { throw DiskError(); }
         finally { TryDelete(archive); TryDeleteFolder(staging); }
+    }
+    /// <summary>
+    /// The version prepared in "node-next" takes the place of the installed one; to call only while TorLink is closed.
+    /// True when the installed Node.js is <paramref name="package"/>'s afterwards; false when node.exe was still in use or
+    /// nothing is prepared, the installed one staying as it was.
+    /// </summary>
+    public static bool ActivatePrepared(string profile, NodePackage? package = null)
+    {
+        package ??= NodePackage.Current;
+        var next = NextFolder(profile);
+        PreparedFolder.Settle(Folder(profile));
+        if (!IsReady(next, package)) return IsInstalled(profile, package);
+        if (IsInstalled(profile, package)) { TryDeleteFolder(next); return true; }
+        return PreparedFolder.Replace(Folder(profile), next);
     }
     /// <summary>
     /// node.exe, LICENSE and npm only (no corepack, no shell scripts), each entry kept inside <paramref name="target"/>.

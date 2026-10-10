@@ -18,17 +18,37 @@ public sealed record MpvPackage(string Version, Uri Url, long Size, string Archi
     public string ArchiveName => Path.GetFileName(Url.AbsolutePath);
 }
 
-/// <summary>Installs <see cref="MpvPackage"/> into the profile ("data\mpv"), where updates of Mira never touch it.</summary>
+/// <summary>
+/// Installs <see cref="MpvPackage"/> into the profile ("data\mpv"), where updates of Mira never touch it. When the pinned
+/// build is newer than the installed one, it is prepared beside it ("data\mpv-next") and takes its place at the next
+/// start, before anything loads the library (<see cref="ActivatePrepared"/>).
+/// </summary>
 public static class MpvInstaller
 {
     public const string VersionFile = "version.txt", SourceFile = "SOURCE.txt";
     public static string Folder(string profile) => Path.Combine(profile, "mpv");
+    public static string NextFolder(string profile) => Path.Combine(profile, "mpv-next");
     public static string LibraryPath(string profile) => Path.Combine(Folder(profile), MpvPackage.LibraryName);
-    public static bool IsInstalled(string profile, MpvPackage? package = null)
+    public static bool IsInstalled(string profile, MpvPackage? package = null) => IsReady(Folder(profile), package ?? MpvPackage.Current);
+    private static bool IsReady(string folder, MpvPackage package)
+    {
+        try { return File.Exists(Path.Combine(folder, MpvPackage.LibraryName)) && File.ReadAllText(Path.Combine(folder, VersionFile)).Trim() == package.Version; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+    /// <summary>
+    /// Mira's own library is an older build than <paramref name="package"/> (its version.txt is dated earlier, or missing).
+    /// A newer build, left by a newer Mira, is kept.
+    /// </summary>
+    public static bool IsOutdated(string profile, MpvPackage? package = null)
     {
         package ??= MpvPackage.Current;
-        try { return File.Exists(LibraryPath(profile)) && File.ReadAllText(Path.Combine(Folder(profile), VersionFile)).Trim() == package.Version; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        if (!File.Exists(LibraryPath(profile))) return false;
+        string installed;
+        try { installed = File.ReadAllText(Path.Combine(Folder(profile), VersionFile)).Trim(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return true; }
+        // "20260927-git-a1bf4b6559": builds are named after their date.
+        static string? Date(string version) => version.Length >= 8 && version[..8].All(char.IsAsciiDigit) ? version[..8] : null;
+        return installed != package.Version && (Date(installed) is not { } date || Date(package.Version) is not { } pinned || string.CompareOrdinal(date, pinned) < 0);
     }
     /// <summary>
     /// Downloads, checks and extracts the library; returns its path. Already installed: nothing is downloaded.
@@ -37,9 +57,52 @@ public static class MpvInstaller
     public static async Task<string> InstallAsync(string profile, MpvPackage? package = null, HttpMessageHandler? handler = null, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         package ??= MpvPackage.Current;
-        var folder = Folder(profile); var library = LibraryPath(profile);
+        var library = LibraryPath(profile);
         if (IsInstalled(profile, package)) { progress?.Report(1); return library; }
+        await FetchAsync(Folder(profile), package, handler, progress, ct).ConfigureAwait(false);
+        return library;
+    }
+    /// <summary>
+    /// The pinned build into "mpv-next" when Mira's own library is older (<see cref="IsOutdated"/>); the library in use is
+    /// never touched. True once a build waits there for the next start.
+    /// </summary>
+    public static async Task<bool> PrepareUpdateAsync(string profile, MpvPackage? package = null, HttpMessageHandler? handler = null, CancellationToken ct = default)
+    {
+        package ??= MpvPackage.Current;
+        var next = NextFolder(profile);
+        if (!IsOutdated(profile, package)) return false;
+        if (IsReady(next, package)) return true;
+        try { await FetchAsync(next, package, handler, null, ct).ConfigureAwait(false); return true; }
+        catch { TryDeleteFolder(next); throw; }
+    }
+    /// <summary>A newer build waits in "mpv-next" for the next start.</summary>
+    public static bool IsPrepared(string profile, MpvPackage? package = null) => IsReady(NextFolder(profile), package ?? MpvPackage.Current);
+    /// <summary>
+    /// At startup, before any engine is created: the build prepared in "mpv-next" replaces Mira's own library. True when it
+    /// did; false when nothing waits or the library could not be replaced, which stays as it was.
+    /// </summary>
+    public static bool ActivatePrepared(string profile, MpvPackage? package = null)
+    {
+        package ??= MpvPackage.Current;
+        var next = NextFolder(profile); var folder = Folder(profile);
+        if (!IsReady(next, package)) return false;
+        if (!IsOutdated(profile, package)) { TryDeleteFolder(next); return false; }
+        try
+        {
+            File.Move(Path.Combine(next, MpvPackage.LibraryName), LibraryPath(profile), overwrite: true);
+            File.Copy(Path.Combine(next, SourceFile), Path.Combine(folder, SourceFile), overwrite: true);
+            // Last: until it is written, the library counts as the older build and is prepared again if this is cut short.
+            File.Copy(Path.Combine(next, VersionFile), Path.Combine(folder, VersionFile), overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        TryDeleteFolder(next);
+        return true;
+    }
+    /// <summary>Download, check and extraction into <paramref name="folder"/>; version.txt is written last.</summary>
+    private static async Task FetchAsync(string folder, MpvPackage package, HttpMessageHandler? handler, IProgress<double>? progress, CancellationToken ct)
+    {
         Directory.CreateDirectory(folder);
+        var library = Path.Combine(folder, MpvPackage.LibraryName);
         var archive = Path.Combine(folder, package.ArchiveName + ".partial");
         var extracted = library + ".partial";
         try
@@ -57,7 +120,6 @@ public static class MpvInstaller
                 "mpv et les bibliothèques qu’il inclut (dont FFmpeg) restent sous leurs propres licences (GPL) ; sources : https://github.com/mpv-player/mpv\n", ct).ConfigureAwait(false);
             await File.WriteAllTextAsync(Path.Combine(folder, VersionFile), package.Version, ct).ConfigureAwait(false);
             progress?.Report(1);
-            return library;
         }
         catch (Exception ex) when (ex is not InstallException && ex is IOException or UnauthorizedAccessException) { throw DiskError(); }
         finally { TryDelete(archive); TryDelete(extracted); }
@@ -87,4 +149,5 @@ public static class MpvInstaller
     }
     private static InstallException DiskError() => new("Le moteur vidéo n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie.");
     private static void TryDelete(string path) { try { File.Delete(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
+    private static void TryDeleteFolder(string path) => PreparedFolder.Delete(path);
 }
