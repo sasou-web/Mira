@@ -22,13 +22,13 @@ internal static class JellyfinAutostart
 {
     private static string ServiceKey(string service) => @"SYSTEM\CurrentControlSet\Services\" + service;
 
-    /// <summary>The service's start mode, its restart after an error, and Mira's firewall rule.</summary>
+    /// <summary>The service's start mode, its restart after an error, and Mira's firewall rule (with or without the service).</summary>
     public static JellyfinStartup.State Read(string service = JellyfinStartup.ServiceName, string rule = JellyfinStartup.RuleName)
     {
         try
         {
             using var key = Registry.LocalMachine.OpenSubKey(ServiceKey(service));
-            if (key is null) return new(false, false, false, false, false);
+            if (key is null) return new(false, false, false, false, RuleExists(rule));
             var start = key.GetValue("Start") is int value ? value : 3;
             var delayed = key.GetValue("DelayedAutostart") is int flag && flag == 1;
             var restarts = JellyfinStartup.RestartsAfterError(key.GetValue("FailureActions") as byte[], key.GetValue("FailureActionsOnNonCrashFailures") is int nonCrash ? nonCrash : 0);
@@ -116,23 +116,29 @@ internal static class JellyfinAutostart
     }
     /// <summary>
     /// Whether Windows' firewall lets phones reach <paramref name="program"/> on <paramref name="port"/>, from the home
-    /// network and, when Tailscale is connected here, from Tailscale: the worse of the two, with the profile it was
-    /// judged on. Read through its COM interface, which needs no administrator rights. Null when it cannot be read, or
-    /// when this PC is on no network.
+    /// network and, when Tailscale is connected here, from Tailscale (<see cref="JellyfinFirewall.Reach"/>). Read
+    /// through its COM interface, which needs no administrator rights. Null when it cannot be read, or when this PC is
+    /// on no network.
     /// </summary>
-    public static (JellyfinFirewall.Verdict Verdict, int Profile)? Phones(string? program, int port)
+    public static JellyfinFirewall.Reach? Phones(string? program, int port)
     {
         if (program is null) return null;
         try
         {
-            var (rules, settings, active) = ReadFirewall(Policy(), program);
-            (JellyfinFirewall.Verdict Verdict, int Profile)? worst = null;
+            var (found, settings, active) = ReadFirewall(Policy(), program);
+            var rules = found.Select(x => x.Rule).ToList();
+            JellyfinFirewall.Reach? reach = null;
+            JellyfinFirewall.Verdict? tailnet = null;
+            string? kept = null;
             foreach (var origin in Origins(active))
             {
-                var verdict = JellyfinFirewall.Judge(rules.Select(x => x.Rule), settings[origin.Profile], program, port, origin.Profile, origin.Adapter, origin.Home);
-                if (worst is null || verdict > worst.Value.Verdict) worst = (verdict, origin.Profile);
+                var verdict = JellyfinFirewall.Judge(rules, settings[origin.Profile], program, port, origin.Profile, origin.Adapter, origin.Home);
+                if (origin.Home is null && (tailnet is null || verdict > tailnet)) tailnet = verdict;
+                if (verdict == JellyfinFirewall.Verdict.Blocked)
+                    kept ??= JellyfinFirewall.Blocking(rules, program, port, origin.Profile, origin.Adapter, origin.Home).FirstOrDefault(x => string.IsNullOrWhiteSpace(x.Program))?.Name;
+                if (reach is null || verdict > reach.Verdict) reach = new(verdict, origin.Profile);
             }
-            return worst;
+            return reach is null ? null : reach with { Tailnet = tailnet, Kept = kept };
         }
         catch (Exception ex) when (IsFirewallError(ex)) { return null; }
     }
@@ -142,8 +148,8 @@ internal static class JellyfinAutostart
     /// one for each kind of network left unticked) stop applying to the home network's profile and to Tailscale's
     /// (Private, which Tailscale sets, even before it is connected here), and are turned off when no other profile is
     /// left; then Mira's rule (<see cref="JellyfinStartup.FirewallCommands"/>), which lets in only the home network and
-    /// Tailscale. A block rule for any program is someone's own and stays. Needs administrator rights. True once the
-    /// firewall, read again, lets phones in.
+    /// Tailscale, even when the rules cannot be read. A block rule for any program is someone's own and stays. Needs
+    /// administrator rights. True once the firewall, read again, is as open as Mira can make it.
     /// </summary>
     public static bool OpenFirewall(string? program, int port, string rule = JellyfinStartup.RuleName)
     {
@@ -161,11 +167,11 @@ internal static class JellyfinAutostart
                 if (others != 0) com.Profiles = others; else com.Enabled = false;
             }
         }
-        catch (Exception ex) when (IsFirewallError(ex)) { return false; }
+        catch (Exception ex) when (IsFirewallError(ex)) { }
         foreach (var command in JellyfinStartup.FirewallCommands(program, port, rule))
             if (Execute(command) != 0 && !command.Optional) return false;
-        // Blocking everything is a setting of Windows the person undoes: the guide says where.
-        return Phones(program, port) is null or { Verdict: not JellyfinFirewall.Verdict.Blocked };
+        // Blocking everything, or a block rule naming no program, is the person's to undo: the guide says where.
+        return Phones(program, port) is null or { Verdict: not JellyfinFirewall.Verdict.Blocked } or { Kept: not null };
     }
 
     /// <summary>Where phones connect from: the home network (this PC's address there stands for it), or Tailscale's range (no address).</summary>

@@ -30,6 +30,12 @@ public static class JellyfinFirewall
     public sealed record Profile(bool Enabled, bool DefaultAllow, bool BlockAll);
     /// <summary>Open: phones get through. Blocked: rules Mira may change keep them out. Closed: the whole profile refuses them. The worse last.</summary>
     public enum Verdict { Open, Blocked, Closed }
+    /// <summary>
+    /// What phones meet: the worse verdict, from the home network or Tailscale, with the profile it was judged on;
+    /// Tailscale's own (null when it is not connected here); and a block rule naming no program that keeps them out,
+    /// which Mira leaves alone (someone's own, or a security suite's).
+    /// </summary>
+    public sealed record Reach(Verdict Verdict, int Profile, Verdict? Tailnet = null, string? Kept = null);
 
     /// <summary>
     /// The profile of Tailscale's adapter, from the profiles active on this PC (CurrentProfileTypes): Tailscale marks
@@ -137,8 +143,9 @@ public static class JellyfinFirewall
             }
             if (part.Split('/', StringSplitOptions.TrimEntries) is [var address, var size] && IPv4(address) is { } network)
             {
+                // The firewall writes a single address as one with a full mask.
                 uint? mask = int.TryParse(size, out var bits) && bits is >= 0 and <= 32 ? bits == 0 ? 0u : uint.MaxValue << (32 - bits) : IPv4(size);
-                if (mask is { } m && (network & m) == (pc & m)) return true;
+                if (mask is { } m && m != uint.MaxValue && (network & m) == (pc & m)) return true;
                 continue;
             }
         }

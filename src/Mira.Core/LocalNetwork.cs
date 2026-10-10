@@ -26,6 +26,21 @@ public static partial class LocalNetwork
         if (!uri.IsLoopback) return uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/');
         return thisPc is null ? null : new UriBuilder(uri) { Host = thisPc }.Uri.GetLeftPart(UriPartial.Authority);
     }
+    /// <summary>
+    /// Whether a server's host is this PC: loopback, its name, or one of its own addresses (a Jellyfin here that Mira
+    /// reaches at this PC's network address).
+    /// </summary>
+    public static bool IsThisPc(string host)
+    {
+        host = host.Trim('[', ']');
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        try
+        {
+            if (!IPAddress.TryParse(host, out var ip)) return host.Equals(Dns.GetHostName(), StringComparison.OrdinalIgnoreCase);
+            return IPAddress.IsLoopback(ip) || NetworkInterface.GetAllNetworkInterfaces().SelectMany(nic => nic.GetIPProperties().UnicastAddresses).Any(x => x.Address.Equals(ip));
+        }
+        catch (Exception ex) when (ex is NetworkInformationException or SocketException) { return false; }
+    }
     /// <summary>This PC's address on the home network, read from its network adapters.</summary>
     public static string? ThisPc() => ThisPcOnNetwork()?.Address;
     /// <summary>This PC's address on the home network and the adapter that has it.</summary>
