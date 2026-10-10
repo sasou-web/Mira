@@ -54,7 +54,7 @@ Dans Chrome, menu **⋮ → Ajouter à l’écran d’accueil** (ou **Installer 
 
 L’adresse ci-dessus ne marche que sur le réseau de la maison. Ailleurs, utilise **Tailscale** (gratuit), comme pour Mira sur Mac :
 1. installe-le sur le PC et sur le téléphone, avec le même compte ;
-2. dans Mira pour Windows, **Guide → Hors de chez toi → Autoriser Tailscale** ;
+2. dans Mira pour Windows, **Guide → Hors de chez toi → Autoriser Tailscale**, puis **Ouvrir le pare-feu** si le guide le propose (le pare-feu de Windows bloque souvent Tailscale quand Jellyfin a été installé sans son service) ;
 3. ouvre `http://100.x.y.z:8096/Mira`, avec l’adresse Tailscale du PC, et ajoute aussi cette page à l’écran d’accueil.
 
 Hors de chez toi, la qualité **Automatique** mesure la connexion et demande à Jellyfin une vidéo adaptée. Tu peux la fixer dans **Réglages → Qualité** ou dans le lecteur.
@@ -72,6 +72,7 @@ Hors de chez toi, la qualité **Automatique** mesure la connexion et demande à 
 ## Si quelque chose ne va pas
 
 - **« Serveur injoignable »** : le PC est éteint ou en train de démarrer, le téléphone n’est pas sur le même Wi-Fi, ou Tailscale est éteint. Mira réessaie toute seule. Si ça dure, vérifie dans le **Guide** de Mira pour Windows que Mira web est **disponible dès l’allumage du PC** (service et pare-feu).
+- **Rien ne s’affiche à l’adresse Tailscale, même sans `/Mira`** : le téléphone n’atteint pas Jellyfin. Ouvre le **Guide** de Mira pour Windows : **Hors de chez toi** dit si le pare-feu de Windows bloque Tailscale, et **Ouvrir le pare-feu** le règle. Sinon, vérifie que le PC apparaît dans l’app Tailscale du téléphone (même compte) et que **Allow incoming connections** est coché dans le menu de Tailscale sur le PC.
 - **Page d’erreur de Safari à l’ouverture** : la toute première ouverture, ou après que l’iPhone a vidé sa mémoire de Safari, il faut que le serveur réponde. Ferme l’app (balaye-la vers le haut dans le sélecteur d’apps), puis rouvre-la une fois le PC démarré.
 - **La page `/Mira` n’existe pas** : l’extension n’est pas installée, ou Jellyfin n’a pas redémarré depuis. Regarde dans **Tableau de bord → Extensions → Mes extensions** que **Mira** y figure, « Actif ».
 - **La vidéo ne démarre pas, ou saccade hors de chez toi** : baisse la qualité dans **Réglages → Qualité** (ou dans le lecteur, hors iPhone et iPad).

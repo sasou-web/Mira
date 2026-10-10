@@ -2,6 +2,14 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
+## Pare-feu de Windows pour Tailscale (non publié)
+
+- **Défaut signalé** (2026-10-10, PC d’un ami de l’utilisateur) : Tailscale ouvert sur le PC et le téléphone, `http://100.x.y.z:8096/Mira` n’affiche rien, ni même `http://100.x.y.z:8096`. Le guide montrait l’adresse Tailscale, Jellyfin l’acceptait (« Tailscale doit aussi être ouvert sur l’appareil… »), et Jellyfin tournait sans service.
+- **Cause retenue** (non encore confirmée sur ce PC) : sans service, Jellyfin n’a que les règles de l’invite « Autoriser l’accès » de Windows (autorisation sur le profil coché, blocage sur les autres ; l’installateur de Jellyfin et son application de la zone de notification n’en créent aucune, lu dans `jellyfin-server-windows`), et Tailscale marque sa carte réseau privée (`setPrivateNetwork`, `wgengine/router/osrouter/ifconfig_windows.go`). Une box comptée publique laisse entrer la maison et refuse Tailscale. Mira ne réglait le pare-feu qu’avec le service (« Disponible dès l’allumage du PC ») ; la 0.5.8 notait déjà « pare-feu de Windows pour ce réseau » comme non vérifié.
+- **Tests** : règles de l’invite (box publique : Tailscale bloqué, maison ouverte ; box privée : Tailscale ouvert), sans règle (service), règle de Mira seule ou réseau local seul, pare-feu éteint, autorisation par défaut, « bloquer toutes les connexions entrantes », douze règles sans rapport (autre programme, sortante, désactivée, UDP, autre port, une seule adresse ou une moitié de la plage, adresses nommées, autre carte, type de carte, profil public, mot-clé de port) et dix qui bloquent (tout programme, liste et plage de ports, tout protocole, plage plus large, préfixe, intervalle, carte de Tailscale, casse du chemin, champs vides), profil de Tailscale, même règle avec et sans service. Exécutés dans le conteneur (logique de Mira.Core) et par la CI Windows.
+- **Vrai pare-feu (CI Windows, administrateur)** : règle de blocage « tout profil » créée par `netsh` pour un programme du test, relue par COM ; **Ouvrir le pare-feu** lui retire le profil de Tailscale et la garde pour les autres, ajoute les deux règles de Mira, puis le jugement relu est « ouvert » ; un second passage ne duplique rien ; tout est retiré à la fin.
+- **Non vérifié** : sur le PC de l’ami, ses règles réelles et le bouton ; l’interface n’a pas été lancée avec un vrai Tailscale.
+
 ## Mira web 0.7.3 : retours du troisième essai sur iPhone
 
 - **Défauts signalés par l’utilisateur** (iPhone sous iOS 27, app de l’écran d’accueil) :

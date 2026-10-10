@@ -50,18 +50,34 @@ public static class JellyfinStartup
     {
         if (port is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
         if (!Path.IsPathFullyQualified(program) || program.Contains('"')) throw new ArgumentException("A full path to jellyfin.exe is expected.", nameof(program));
-        if (service.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '_' && c != '-') || rule.Contains('"')) throw new ArgumentException("Unexpected service or rule name.");
-        string Allow(string from) => $"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol=TCP localport={port} " +
-            $"remoteip={from} profile=any program=\"{program}\" enable=yes description=\"Mira web : Jellyfin pour tes appareils, chez toi et sur Tailscale.\"";
+        if (service.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '_' && c != '-')) throw new ArgumentException("Unexpected service name.");
         return
         [
             new("sc.exe", $"config {service} start= auto"),
             new("sc.exe", $"failure {service} reset= 86400 actions= {RestartActions}"),
             new("sc.exe", $"failureflag {service} 1"),
+            .. FirewallCommands(program, port, rule),
+            new("sc.exe", $"start {service}", Optional: true),
+        ];
+    }
+
+    /// <summary>
+    /// Mira's firewall rule, replaced whole: the home network and Tailscale may reach <paramref name="program"/> on
+    /// <paramref name="port"/>, on any profile, and nothing else. Also what the guide's « Ouvrir le pare-feu » sets, with
+    /// or without Jellyfin's service.
+    /// </summary>
+    public static IReadOnlyList<StartupCommand> FirewallCommands(string program, int port, string rule = RuleName)
+    {
+        if (port is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
+        if (!Path.IsPathFullyQualified(program) || program.Contains('"')) throw new ArgumentException("A full path to jellyfin.exe is expected.", nameof(program));
+        if (rule.Contains('"')) throw new ArgumentException("Unexpected rule name.");
+        string Allow(string from) => $"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol=TCP localport={port} " +
+            $"remoteip={from} profile=any program=\"{program}\" enable=yes description=\"Mira web : Jellyfin pour tes appareils, chez toi et sur Tailscale.\"";
+        return
+        [
             new("netsh.exe", $"advfirewall firewall delete rule name=\"{rule}\"", Optional: true),
             new("netsh.exe", Allow("localsubnet")),
             new("netsh.exe", Allow(LocalNetwork.TailnetRange)),
-            new("sc.exe", $"start {service}", Optional: true),
         ];
     }
 }

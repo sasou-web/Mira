@@ -20,7 +20,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - `src/Mira.Mac/` → app Mac.
 - `src/Mira.Jellyfin/` → `WebController.cs` sert `/Mira` ; `WebFiles.cs` sert les fichiers intégrés à la DLL, versionnés par une empreinte.
 - `src/Mira.Web/` → `index.html`, `app.css`, `js/app.js` (routes en `#/...`, bandeau « serveur injoignable », mise à jour par révision), `js/api.js`, `js/views/*`, `js/player/` (`player.js` = lecteur d'Apple ou commandes de Mira, `profile.js` = profil d'appareil, `video.js` = `<video>` partagée et `appleNative()`, `tracks.js` = noms et choix des pistes).
-- `src/Mira.Core/JellyfinStartup.cs` + `src/Mira.Desktop/Services/JellyfinAutostart.cs` → Jellyfin joignable dès l'allumage du PC (service, relance, pare-feu) ; `Mira.exe --jellyfin-startup <port>` = copie élevée.
+- `src/Mira.Core/JellyfinStartup.cs` + `src/Mira.Desktop/Services/JellyfinAutostart.cs` → Jellyfin joignable dès l'allumage du PC (service, relance, pare-feu) ; `Mira.exe --jellyfin-startup <port>` = copie élevée. `src/Mira.Core/JellyfinFirewall.cs` juge si le pare-feu laisse passer Tailscale ; `--jellyfin-firewall <port>` l'ouvre (guide, « Hors de chez toi »).
 - `tests/Mira.Tests/` → exécutable d'assertions (pas `dotnet test`).
 - `tools/` → `release.ps1` (publication en une commande), `package.ps1` (paquets Windows signés), `publish.ps1` (copie locale `dist/Mira`), `mac/package.sh`, `web/` (empaquetage et contrôles de Mira web).
 - `.github/workflows/` → `ci.yml` (Windows), `mac.yml` (Mac, `.dmg` joint aux releases), `web.yml` (Chromium et Safari, extension et manifeste joints aux releases).
@@ -63,6 +63,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - 2026-10-10 — Navigation d'app iOS : View Transitions (glissement à droite), onglets qui reviennent au bas de l'historique ; le glissement depuis le bord est celui d'iOS (apps de l'écran d'accueil, depuis 12.2), Mira ne redessine pas ce retour.
 - 2026-10-09 — Épisode suivant dans le même lecteur (`history.replaceState`) — retirer la `<video>` du document quitte le plein écran.
 - 2026-10-09 — `/Mira/` gardée un mois par le téléphone, révision vérifiée à chaque démarrage — l'app s'ouvre PC éteint et attend le serveur ; pas de service worker en HTTP.
+- 2026-10-10 — Pare-feu pour Tailscale lu et ouvert par le guide, avec ou sans service : un Jellyfin sans service n'a que les règles de l'invite de Windows (bloqué sur les profils non cochés), et Tailscale déclare son réseau privé. Les blocages qui s'appliquent perdent le profil de Tailscale (pas supprimés), puis règle « Mira - Jellyfin ».
 - 2026-10-09 — Démarrage avec Windows : `sc config start= auto`, `sc failure` + `failureflag 1` (pas `AppExit Restart` : un arrêt voulu reste un arrêt), règles de pare-feu `localsubnet` et `100.64.0.0/10` pour `jellyfin.exe` — l'installateur n'ajoute aucune règle pour son service.
 
 ## Fragile / ne pas toucher sans raison
@@ -93,6 +94,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Jellyfin 12.1 ne sait pas reconvertir en VP9 un VP9 de niveau inconnu (`level -99`, ffmpeg 222) : le test de la cascade dans Chromium part d'un film H.264.
 - Une image `loading=lazy` dans un écran pas encore affiché ne se charge jamais : `ready` ne décode que les `img[loading="eager"]`.
 - Une carte gardée par `reconcile` reçoit le nouvel objet (`card.item`) : ses menus lisent `card.item`.
+- Pare-feu de Windows : une règle de blocage l'emporte sur toute autorisation ; l'invite « Autoriser l'accès » crée des blocages pour les profils non cochés. Lu et modifié par `HNetCfg.FwPolicy2` en `dynamic` (IDispatch, par nom : une interface `ComImport` mal ordonnée appellerait une autre méthode, dans une copie administrateur) ; propriétés indexées : `policy.FirewallEnabled[profil]`.
 - Les contrôles du Mac (VM) refusent le HEVC 10 bits HDR10 copié (« Media failed to decode ») : il passe par la vidéo convertie.
 
 ## État actuel
@@ -100,4 +102,5 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - 0.7.3 préparée (PR sasou-web/Mira#25, à publier depuis le PC de l'utilisateur après la fusion), retours du 3e essai sur iPhone (iOS 27) : titres refusés redemandés la vidéo convertie puis tout convertis (cascade `fallback`), profil aligné sur jellyfin-web (plages HDR/Dolby Vision, entrelacé, niveau HEVC), onglets qui attendent leur écran entier et se fondent, cartes mises à jour sur place, Recherche sans focus à l'arrivée, « Masquer la Dynamic Island » qui dit son prix, plus de vibration. Vérifié : CI Chromium 54/54, CI Safari 34/34 (8 formats dans le vrai lecteur d'Apple, dont le HEVC 10 bits HDR10 refusé avant et lu converti après), Windows et Mac, revue adverse (17 défauts corrigés). Détails : `docs/VALIDATION.md`.
 - Non vérifié sur un vrai iPhone : quels titres échouaient chez l'utilisateur (codecs inconnus : lui demander l'erreur affichée et les infos du média si ça recommence), la cascade et le fondu sous iOS 27, la barre du bas dans Recherche (cause probable : clavier ouvert puis fermé dans une app de l'écran d'accueil), le menu des sous-titres d'un vrai animé, l'ouverture PC éteint ; sur le PC : « Disponible dès l'allumage du PC ».
 - Prochaine étape : fusion de la PR #25, publication de la 0.7.3 par l'utilisateur (`git checkout main; git pull --ff-only; .\tools\release.ps1`), vérification de la release, mise à jour de l'extension sur son Jellyfin, essai sur iPhone.
+- Accès Tailscale d'un ami (PC sans service Jellyfin, rien à l'adresse 100.x) : cause retenue, pare-feu de Windows ; commandes données pour son PC, correctif « Ouvrir le pare-feu » sur la branche `claude/fix-tailscale-access-uyxxmo` (PR brouillon). À confirmer par la sortie de ses commandes.
 - L'utilisateur veut que je fasse tout ce que je peux moi-même (fusion des PR comprise) et ne lui laisse que ce qui exige son PC, son serveur ou son iPhone.

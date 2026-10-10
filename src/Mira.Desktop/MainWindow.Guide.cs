@@ -102,50 +102,72 @@ public partial class MainWindow
     }
     /// <summary>
     /// « Hors de chez toi », for a Jellyfin on this PC: the home address only works on the home network. With Tailscale
-    /// connected here, its address, once Jellyfin lets Tailscale's devices in; otherwise, how to get one.
+    /// connected here, its address, once Jellyfin and then Windows' firewall let Tailscale's devices in; otherwise, how
+    /// to get one.
     /// </summary>
     private async Task DescribeAwayAsync(int version)
     {
         var server = _demo ? null : _client?.Connection.Server;
-        var local = server is not null && Uri.TryCreate(server, UriKind.Absolute, out var uri) && uri.IsLoopback;
+        Uri? uri = null;
+        var local = server is not null && Uri.TryCreate(server, UriKind.Absolute, out uri) && uri.IsLoopback;
         GuideAway.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
         if (!local || _client is not { } client) return;
         var tailnet = await Task.Run(LocalNetwork.ThisPcOnTailnet);
         if (version != _guideVersion) return;
         _awayAddress = tailnet is null ? null : LocalNetwork.ForOtherDevices(server!, tailnet);
         bool? allowed = null;
+        (JellyfinFirewall.Verdict Verdict, int Profile)? firewall = null;
         if (_awayAddress is not null)
         {
             try { allowed = await client.TailnetAllowedAsync(); }
             catch (Exception ex) when (IsExpected(ex)) { }
+            // Without its service, Jellyfin only has the rules of Windows' prompt, which often keep Tailscale out.
+            if (allowed == true) firewall = await Task.Run(() => JellyfinAutostart.Tailnet(JellyfinAutostart.Program(), uri!.Port));
         }
-        if (version == _guideVersion) ShowAway(allowed);
+        if (version == _guideVersion) ShowAway(allowed, firewall);
     }
-    /// <summary>Without Tailscale: how to get it. With it: its address, and whether Jellyfin still has to let it in.</summary>
-    private void ShowAway(bool? allowed)
+    /// <summary>
+    /// Without Tailscale: how to get it. With it: its address, and whether Jellyfin, then Windows' firewall, still has
+    /// to let it in. A firewall that cannot be read says nothing.
+    /// </summary>
+    private void ShowAway(bool? allowed, (JellyfinFirewall.Verdict Verdict, int Profile)? firewall = null)
     {
         GuideAwayLine.Visibility = _awayAddress is null ? Visibility.Collapsed : Visibility.Visible;
         GuideAwayAddress.Text = _awayAddress ?? "";
-        (GuideAwayHint.Text, _awayAction) = (_awayAddress, allowed) switch
+        var network = firewall?.Profile switch { JellyfinFirewall.Public => "Réseau public", JellyfinFirewall.Domain => "Réseau de domaine", _ => "Réseau privé" };
+        (GuideAwayHint.Text, _awayAction) = (_awayAddress, allowed, firewall?.Verdict) switch
         {
-            (null, _) => ("L’adresse ci-dessus ne marche que chez toi. Pour regarder ailleurs sans ouvrir ta box à Internet, installe Tailscale (gratuit) sur ce PC et sur l’appareil, avec le même compte.", "install"),
-            (_, false) => ("Jellyfin refuse encore les appareils Tailscale. Autorise-les : le reste d’Internet reste bloqué.", "allow"),
-            (_, null) => ("Seul un administrateur de Jellyfin peut autoriser les appareils Tailscale.", null),
+            (null, _, _) => ("L’adresse ci-dessus ne marche que chez toi. Pour regarder ailleurs sans ouvrir ta box à Internet, installe Tailscale (gratuit) sur ce PC et sur l’appareil, avec le même compte.", "install"),
+            (_, false, _) => ("Jellyfin refuse encore les appareils Tailscale. Autorise-les : le reste d’Internet reste bloqué.", "allow"),
+            (_, null, _) => ("Seul un administrateur de Jellyfin peut autoriser les appareils Tailscale.", null),
+            (_, _, JellyfinFirewall.Verdict.Blocked) => ("Le pare-feu de Windows bloque encore tes appareils Tailscale : cette adresse n’affiche rien sur ton téléphone. Mira peut l’ouvrir à Tailscale et à ton réseau, sur le port de Jellyfin seulement, avec l’autorisation de Windows.", "firewall"),
+            (_, _, JellyfinFirewall.Verdict.Closed) => ($"Le pare-feu de Windows bloque toutes les connexions entrantes sur le réseau de Tailscale. Dans Sécurité Windows → Pare-feu et protection du réseau → {network}, décoche « Bloque toutes les connexions entrantes ».", null),
             _ => ("Tailscale doit aussi être ouvert sur l’appareil, avec le même compte.", null)
         };
-        GuideAwayAction.Content = _awayAction == "install" ? "Installer Tailscale" : "Autoriser Tailscale";
+        GuideAwayAction.Content = _awayAction switch { "install" => "Installer Tailscale", "firewall" => "Ouvrir le pare-feu", _ => "Autoriser Tailscale" };
         GuideAwayAction.Visibility = _awayAction is null ? Visibility.Collapsed : Visibility.Visible;
     }
     private async void GuideAwayAction_Click(object sender, RoutedEventArgs e)
     {
         if (_awayAction == "install") { OpenWebPage("https://tailscale.com/download/windows"); return; }
-        if (_awayAction != "allow" || _client is not { } client) return;
+        if (_awayAction is not ("allow" or "firewall") || _client is not { } client || !Uri.TryCreate(client.Connection.Server, UriKind.Absolute, out var uri)) return;
         GuideAwayAction.IsEnabled = false;
         try
         {
-            var allowed = await client.AllowTailnetAsync();
-            ShowAway(allowed ? true : null);
-            if (allowed) SetNotice("Jellyfin accepte maintenant tes appareils Tailscale.");
+            if (_awayAction == "firewall")
+            {
+                SetNotice((await JellyfinAutostart.OpenFirewallAsync(uri.Port)) switch
+                {
+                    AutostartResult.Done => "C’est réglé : tes appareils Tailscale passent le pare-feu de Windows.",
+                    AutostartResult.Refused => "Rien n’a changé : Windows n’a pas reçu l’autorisation.",
+                    _ => "Le pare-feu n’a pas pu être ouvert. Réessaie, ou autorise Jellyfin sur les réseaux privés dans le pare-feu de Windows.",
+                });
+            }
+            else if (await client.AllowTailnetAsync()) SetNotice("Jellyfin accepte maintenant tes appareils Tailscale.");
+            else { ShowAway(null); return; }
+            // The next step, if any: the firewall after Jellyfin, or what is left once it is open.
+            await DescribeAwayAsync(_guideVersion);
+            await DescribeBootAsync(_guideVersion);
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         finally { GuideAwayAction.IsEnabled = true; }
@@ -193,6 +215,8 @@ public partial class MainWindow
                 _ => "Le réglage n’a pas abouti. Réessaie, ou règle le service « Jellyfin Server » et le pare-feu de Windows à la main.",
             });
             await DescribeBootAsync(_guideVersion);
+            // The same firewall rule: « Hors de chez toi » may have been waiting for it.
+            await DescribeAwayAsync(_guideVersion);
         }
         finally { GuideWebBootAction.IsEnabled = true; }
     }
