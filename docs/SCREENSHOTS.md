@@ -46,7 +46,7 @@ Les captures montrent les vues de navigation et de réglages. Elles ne montrent 
 
 Les captures ordinaires utilisent une fenêtre de 1440 × 960 unités WPF. L’export suit le DPI de Windows : la résolution PNG peut être supérieure à ces dimensions logiques.
 
-Pour les reproduire sur Windows avec le SDK .NET 8 :
+Pour les reproduire sur Windows avec le SDK .NET 10 :
 
 ```powershell
 ./tools/capture-gallery.ps1

@@ -4,6 +4,8 @@
     Built against the oldest Jellyfin Mira supports (10.9, .NET 8): the plugin loads on it and on every later version.
   -->
   <PropertyGroup>
+    <!-- Not the apps' .NET (Directory.Build.props): Jellyfin 10.9 and 10.10 run on .NET 8 and load nothing newer. -->
+    <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>Mira.Jellyfin</AssemblyName>
     <RootNamespace>Mira.Jellyfin</RootNamespace>
     <Version>0.7.4</Version>

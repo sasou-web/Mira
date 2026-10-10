@@ -77,6 +77,13 @@ try {
     $built = Join-Path $packages 'source-commit.txt'
     $notes = Join-Path $workspace ".artifacts/release-notes-$version.md"
     if (-not $SkipBuild) {
+        # The SDK global.json asks for, read once main is up to date: without it, dotnet only says that no compatible SDK
+        # was found.
+        $sdk = [string](Get-Content -LiteralPath (Join-Path $workspace 'global.json') -Raw | ConvertFrom-Json).sdk.version
+        $channel = ($sdk.Split('.')[0..1]) -join '.'
+        if (-not (Get-Command dotnet -ErrorAction SilentlyContinue) -or -not (Test-Native { dotnet --version })) {
+            throw "SDK .NET $channel introuvable (global.json demande $sdk ou un SDK $channel plus récent) : installe le SDK .NET $channel pour Windows x64 depuis https://dotnet.microsoft.com/download/dotnet/$channel, puis relance."
+        }
         Remove-Item -LiteralPath $built, $notes -ErrorAction SilentlyContinue
         & (Join-Path $PSScriptRoot 'package.ps1')
         Set-Content -LiteralPath $built -Value $commit -Encoding ascii

@@ -84,7 +84,7 @@ try {
         Remove-Item -LiteralPath $testKey, $publicFile -ErrorAction SilentlyContinue
         dotnet build (Join-Path $workspace 'Mira.sln') -c Release -nologo -v q | Out-Host
         if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
-        $tool = Join-Path $workspace 'tools\Mira.Release\bin\Release\net8.0-windows\Mira.Release.exe'
+        $tool = Join-Path $workspace 'tools\Mira.Release\bin\Release\net10.0-windows\Mira.Release.exe'
         $key = & $tool keygen --key $testKey
         if ($LASTEXITCODE -ne 0) { throw 'Test key creation failed.' }
         Set-Content -LiteralPath $publicFile -Value $key -Encoding ascii
@@ -96,7 +96,7 @@ try {
         if (-not (Test-Path -LiteralPath (Join-Path $newPackages $name))) { Fail "new package $name present" }
     }
     Pass "packages $old (old) and $new (new, manifest signed with a test key)"
-    $serverExe = Join-Path $workspace 'tests\Mira.Tests\bin\Release\net8.0-windows10.0.19041.0\Mira.Tests.exe'
+    $serverExe = Join-Path $workspace 'tests\Mira.Tests\bin\Release\net10.0-windows10.0.19041.0\Mira.Tests.exe'
     $server = Start-Process -FilePath $serverExe -ArgumentList "--update-server `"$newPackages`" $Port $new" -WorkingDirectory $workspace -WindowStyle Hidden -PassThru
     Start-Sleep -Seconds 2
 

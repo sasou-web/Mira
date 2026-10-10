@@ -7,7 +7,7 @@ Client Jellyfin « cinéma » : une app Windows native avec mpv intégré, sa ve
 Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regarde sa bibliothèque chez lui et ailleurs.
 
 ## Stack
-- .NET 8 (`global.json` : SDK 8.0.400, roll forward), C#.
+- .NET 10 (`global.json` : SDK 10.0.100, roll forward dans 10.0), C#. L'extension Jellyfin reste en `net8.0`.
 - Windows : WPF (`src/Mira.Desktop`), lecteur libmpv. Mac : Avalonia (`src/Mira.Mac`), libmpv embarquée, `.dmg`, macOS 15 ou plus (après la 0.7.4).
 - Code commun : `src/Mira.Core` (client Jellyfin, synchro, mises à jour signées, nouveautés, TorLink).
 - Mira web : HTML, CSS et modules JS sans étape de build (`src/Mira.Web`), vendorisés : hls.js, qrcode-generator.
@@ -33,7 +33,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Extension et manifeste : `tools/web/package.sh <x.y.z> [base de téléchargement]` → `dist/web/`.
 - Médias de test : `tools/web/media.sh <dossier>`. Jellyfin neuf préparé par l'API : `node tools/web/setup.mjs <serveur> <médias> <user> <mdp> [url du manifeste]`.
 - Contrôle Chromium (53 points, 55 avec `MIRA_STOP`/`MIRA_START`, commandes qui arrêtent et relancent Jellyfin) : `PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <user> <mdp> "Courte Web" <dossier>`. Le lecteur d'Apple y est simulé.
-- Dans le conteneur cloud : Jellyfin par Docker (`dockerd &`, image `jellyfin/jellyfin:12.1.20260915-010956`, `--network host`) ; le SDK .NET d'Ubuntu n'a pas les cibles WPF : SDK de Microsoft depuis les `.deb` de packages.microsoft.com (jammy), extraits avec `dpkg-deb -x`, puis `dotnet build -p:EnableWindowsTargeting=true` (compile seulement).
+- Dans le conteneur cloud : Jellyfin par Docker (`dockerd &`, image `jellyfin/jellyfin:12.1.20260915-010956`, `--network host`) ; le SDK .NET d'Ubuntu n'a pas les cibles WPF : SDK de Microsoft depuis les `.deb` de packages.microsoft.com (`debian/12` pour .NET 10 : ni jammy ni noble ne l'ont ; builds.dotnet.microsoft.com est bloqué par le proxy), extraits avec `dpkg-deb -x`, puis `dotnet build -p:EnableWindowsTargeting=true` (compile seulement).
 - CI d'une branche : `web.yml` et `ci.yml` se lancent par `workflow_dispatch` (outil GitHub `actions_run_trigger`).
 - Audits : la restauration échoue sur une faille NuGet haute ou critique, même transitive (`NuGetAuditMode=all`, `Directory.Build.props`) ; `dotnet list package --vulnerable --include-transitive` (avec `EnableWindowsTargeting=true` dans l'environnement sous Linux) ; mise en forme : `dotnet format whitespace . --folder --verify-no-changes` (CI Windows, sans restauration) ; eslint 9 et shellcheck depuis le scratchpad. Journaux de CI : outil GitHub `get_job_logs` (le proxy refuse les zips d'artefacts et de journaux).
 - Contrôle Safari (Mac, `safaridriver -p 4444`, 26 points dont le lecteur d'Apple, 34 avec `MIRA_FORMATS=1` et les médias de `media.sh <dossier> formats`) : `node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dossier>`.
@@ -42,7 +42,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 
 ## Conventions
 - Avertissement = erreur partout (`Directory.Build.props`) ; NU1900-NU1902 (faille basse ou moyenne, source d'avis injoignable) restent des avertissements. Dependabot (`.github/dependabot.yml`) : NuGet et actions, mensuel, groupé, 7 jours de recul, pas de majeure NuGet ni de `Jellyfin.Controller`.
-- `.editorconfig` décrit le style réel (plusieurs instructions par ligne, initialiseurs compacts, `case` en bloc non indenté). Le formateur met quand même un bras de `switch` et un membre de `with { }` multiligne par ligne : pas d'option pour ça.
+- `.editorconfig` décrit le style réel (plusieurs instructions par ligne, initialiseurs compacts, `case` en bloc non indenté). Le formateur met quand même un bras de `switch` et un membre de `with { }` multiligne par ligne : pas d'option pour ça. Les formateurs des SDK 8 et 10 ne s'accordent pas sur le corps d'un `else foreach` sans accolades : des accolades.
 - Interface et docs en français, en tutoyant ; messages de commit en anglais.
 - Fins de ligne : CRLF pour `.cs`, `.xaml`, `.axaml` ; LF pour `.sh`, `.md`, `.yml`, `.json`, `.js`, `.mjs`, `.css`, `.html`, `.webmanifest` (`.gitattributes`).
 - Chaque version a son entrée dans `WhatsNew.json` (résumé ≤ 100 caractères, 2 à 5 points, icônes dessinées par Mira) : le test « Nouveautés : bienvenue… » le vérifie.
@@ -105,7 +105,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - `LibraryStore` : seul `CreateSchema()` est protégé ; une page abîmée fait échouer `Prune()` à chaque ouverture (ROB-02). `PRAGMA quick_check` renvoie du texte, ne lève pas ; un repli `:memory:` ne marche pas (une connexion par opération).
 - Gestionnaire global WPF (`App.xaml.cs:58-78`) : `Handled = true` sans `Shutdown` ; une exception au démarrage ou dans `Window_Closing` laisse un processus invisible qui garde le mutex (ROB-01).
 - Délai de `HttpClient` = `TaskCanceledException` : filtrer `catch (OperationCanceledException) when (ct.IsCancellationRequested)`. `IsExpected` contient `ArgumentException` (bugs avalés, ROB-05).
-- `Mira.Jellyfin` hérite du TFM de `Directory.Build.props` : le garder explicitement en `net8.0` en passant les apps à .NET 10.
+- `Mira.Jellyfin` fixe son TFM à `net8.0` (Jellyfin 10.9 et 10.10 tournent en .NET 8) ; les apps prennent celui de `Directory.Build.props`. `licenses/DOTNET-THIRD-PARTY-NOTICES.txt` = `THIRD-PARTY-NOTICES.TXT` du paquet `microsoft.netcore.app.runtime.win-x64` de la version embarquée (fins de ligne LF).
 - L'extension Jellyfin se met à jour seule depuis `releases/latest` sans la signature ECDSA de Mira (SEC-02) ; TorLink installe ses dépendances npm sans verrou (DEP-03).
 - Avalonia (Mac) embarque une télémétrie de construction (`Avalonia.BuildServices`) : coupée par `<UsedAvaloniaProducts></UsedAvaloniaProducts>` dans `Mira.Mac.csproj`, son seul déclencheur ; à revérifier à chaque version d'Avalonia (`dotnet build -v:d` : « Target "AvaloniaStats" skipped »).
 - Mac : les bibliothèques de Homebrew demandent le macOS du runner qui les construit (`macos-15`) ; `MINIMUM` de `tools/mac/package.sh` (15.0) est vérifié sur chaque bibliothèque embarquée : changer de runner, c'est changer ce minimum, le README, `docs/INSTALLATION-MAC.md` et le texte de release (`WhatsNew.cs`, « Sur Mac »).
@@ -117,5 +117,5 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - 0.7.4 publiée le 2026-10-10 (tag `v0.7.4`, commit `066d1ae`) : « Mira sur ton téléphone » en une carte et « Tout préparer » (PR #26 et #28). Vérifié : CI toute verte, fichiers Windows conformes à `mira-update.json` signé, extension et manifeste. Reste : essai de « Tout préparer » sur un vrai PC (chez l'ami) et sur l'iPhone.
 - Accès Tailscale d'un ami (PC sans service Jellyfin, page blanche à l'adresse 100.x) : aucune règle de pare-feu pour `jellyfin.exe`, Jellyfin qui refusait Tailscale et Mira web absent ; réglé à la main. Correctif et parcours simplifié (« Mira sur ton téléphone », « Tout préparer ») : PR sasou-web/Mira#26, fusionnée.
 - Revue complète du 2026-10-10 : `REVIEW.md` (branche `review/fixes-zl287w`). 82 problèmes, 0 P0, 0 P1, 38 P2, 44 P3, plan en 11 lots. Échéances : runner `macos-14` retiré le 2026-11-02 (DEP-06), fin de support de .NET 8 le 2026-11-10 (DEP-01).
-- Corrections de la revue (feu vert le 2026-10-10) : les lots de `REVIEW.md` dans l'ordre, une PR par lot depuis la branche `review/fixes-zl287w`, fusionnée quand elle est verte, la branche repartant ensuite de `main`. Lot 1 (dépendances et CI) : PR #27, première version à exiger macOS 15 (la 0.7.4 est la dernière pour macOS 14). Le lot 4 (pare-feu, Tailscale) part du code de la PR #26 : ses `fichier:ligne` dans `REVIEW.md` sont d'avant cette PR.
+- Corrections de la revue (feu vert le 2026-10-10) : les lots de `REVIEW.md` dans l'ordre, une PR par lot depuis la branche `review/fixes-zl287w`, fusionnée quand elle est verte, la branche repartant ensuite de `main`. Lot 1 (dépendances et CI) : PR #27, fusionnée le 2026-10-10 ; la prochaine version est la première à exiger macOS 15 (la 0.7.4 est la dernière pour macOS 14). Lot 2 (.NET 10) en cours. Le lot 4 (pare-feu, Tailscale) part du code de la PR #26 : ses `fichier:ligne` dans `REVIEW.md` sont d'avant cette PR.
 - L'utilisateur veut que je fasse tout ce que je peux moi-même (fusion des PR comprise) et ne lui laisse que ce qui exige son PC, son serveur ou son iPhone.
