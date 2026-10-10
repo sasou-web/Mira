@@ -37,6 +37,7 @@
   --left: env(safe-area-inset-left, 0px);
   --right: env(safe-area-inset-right, 0px);
   --tabbar: calc(56px + var(--bottom));
+  --bar: calc(56px + var(--top));   /* the top bar, under the status bar */
   --rail: 0px;
 
   --poster-w: clamp(104px, 29vw, 156px);
@@ -118,6 +119,16 @@ html[data-nav='tab']::view-transition-old(root), html[data-nav='tab']::view-tran
   background: var(--bg); opacity: 0; transition: opacity var(--fast) linear;
 }
 body.scrolled .status-scrim { opacity: 1; }
+.topbar {
+  position: fixed; z-index: 44; inset: 0 0 auto calc(var(--rail) + var(--left)); height: var(--bar); padding: var(--top) 64px 0;
+  display: grid; place-items: center; background: rgba(11, 11, 12, 0.97); border-bottom: 1px solid var(--line);
+  opacity: 0; pointer-events: none; transition: opacity var(--fast) linear;
+}
+.topbar span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 800; }
+.topbar.on { opacity: 1; }
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .topbar { background: rgba(11, 11, 12, 0.78); -webkit-backdrop-filter: saturate(160%) blur(20px); backdrop-filter: saturate(160%) blur(20px); }
+}
 
 .tabbar {
   position: fixed; z-index: 50; inset: auto 0 0 0; height: var(--tabbar);
@@ -411,14 +422,16 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 @media (min-width: 600px) { .episode { grid-template-columns: 200px 1fr; } .episode .art { width: 200px; } .episode .ep-overview { grid-column: 2; } }
 
 /* ---------- Library ---------- */
-.library-head { position: sticky; top: 0; z-index: 30; background: var(--bg); padding: calc(var(--top) + 12px) var(--gutter) 12px; }
-.library-head .page-title { margin-bottom: 12px; }
+/* The large title scrolls away under the top bar; the filters stay, just below it. */
+.library-head { padding: calc(var(--top) + 12px) var(--gutter) 4px; }
+.library-filters { position: sticky; top: var(--bar); z-index: 30; background: var(--bg); padding: 8px var(--gutter) 12px; }
 .library-count { color: var(--faint); font-size: 13px; padding: 0 var(--gutter) 12px; }
 .library-grid { padding: 0 var(--gutter) 24px; }
 .sentinel { height: 1px; }
 
 /* ---------- Search ---------- */
-.search-bar { position: sticky; top: 0; z-index: 30; background: var(--bg); padding: calc(var(--top) + 12px) var(--gutter) 12px; }
+.search-head { padding: calc(var(--top) + 12px) var(--gutter) 4px; }
+.search-bar { position: sticky; top: var(--bar); z-index: 30; background: var(--bg); padding: 8px var(--gutter) 12px; }
 .search-box { position: relative; }
 .search-box .icon { position: absolute; left: 14px; top: 13px; color: var(--faint); pointer-events: none; }
 .search-box .input { padding-left: 46px; padding-right: 44px; border-radius: var(--r-m); }
