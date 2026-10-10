@@ -155,8 +155,29 @@ try {
   check('fiche : bouton Lecture (lecteur d’Apple)', await click('a.btn.primary[href*="lecture"]'));
   state = await fullscreen();
   check('lecteur d’Apple : lecture en plein écran', state?.full && state.mode === 'fullscreen' && !state.paused, `${state?.mode}, ${state?.t?.toFixed(1)} s, ${(state?.src ?? '').split('?')[0].split('/').pop()}`);
-  check('lecteur d’Apple : sous-titres français dans son menu', state?.tracks >= 1 && state?.showing === 'Français', `${state?.tracks} piste(s), affichée : ${state?.showing || 'aucune'}`);
+  // A conversion carries its subtitles in the HLS stream, the only ones Apple's player lists in its menu: no <track>
+  // beside it, and the French ones showing, in time with the picture (a shift would leave no cue before 10 s).
+  const carried = async () => run(`const v = document.querySelector('video'), list = [...v.textTracks].filter((t) => ['subtitles', 'captions', 'forced'].includes(t.kind));
+    const on = list.find((t) => t.mode === 'showing');
+    return { hls: /SubtitleMethod=Hls/i.test(v.currentSrc), beside: v.querySelectorAll('track').length, count: list.length, labels: list.map((t) => t.label + ' (' + t.language + ')').join(', '),
+      showing: on ? on.label : '', cue: on && on.activeCues && on.activeCues.length ? on.activeCues[0].text : '', t: v.currentTime, src: v.currentSrc };`);
+  let inStream = await carried();
+  for (let i = 0; i < 16 && !inStream.cue && inStream.t < 9; i++) { await sleep(500); inStream = await carried(); }
+  check('lecteur d’Apple : sous-titres dans le flux HLS', inStream.hls && inStream.beside === 0 && inStream.count >= 1,
+    `${inStream.count} piste(s) dans le flux (${inStream.labels || 'aucune'}), ${inStream.beside} à côté`);
+  check('lecteur d’Apple : sous-titres français affichés à temps', /Bonjour depuis Mira web/.test(inStream.cue) && inStream.t < 10,
+    `« ${inStream.cue || 'aucun'} » (${inStream.showing || 'aucune piste affichée'}) à ${inStream.t.toFixed(1)} s`);
   await shot('08-apple-player').catch(() => {});
+  // Off, then French again, as in Apple's menu (it sets the tracks' modes): Mira follows without a new stream.
+  const sourceBefore = inStream.src;
+  await run("for (const t of document.querySelector('video').textTracks) t.mode = 'disabled';");
+  await sleep(1500);
+  const off = await carried();
+  await run(`const t = [...document.querySelector('video').textTracks].filter((x) => ['subtitles', 'captions', 'forced'].includes(x.kind))[0]; if (t) t.mode = 'showing';`);
+  await sleep(1500);
+  const again = await carried();
+  check('lecteur d’Apple : sous-titres changés dans son menu', !off.showing && !!again.showing && again.src === sourceBefore,
+    `sans : ${off.showing || 'aucune'}, puis : ${again.showing || 'aucune'}, ${again.src === sourceBefore ? 'même flux' : 'flux relancé'}`);
   // Jellyfin keeps a position past 5 % of the title only (2 s of this 40 s film): a few seconds played first.
   for (let i = 0; i < 30 && ((await run("return document.querySelector('video')?.currentTime ?? 99;")) < 8); i++) await sleep(500);
   await run("document.querySelector('video')?.webkitExitFullscreen?.();");

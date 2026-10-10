@@ -57,6 +57,7 @@ export function create({ id, query }) {
   let item = null, source = null, playSessionId = '', playMethod = 'DirectPlay', hls = null;
   let offset = 0;             // progressive conversions start at the requested point: their time 0 is `offset`
   let progressive = false, total = 0, audioIndex = null, subtitleIndex = null, forceTranscode = false;
+  let inband = false;         // the HLS stream carries the text subtitles (Apple's player): no <track> beside it
   let started = false, ended = false, progressTimer = 0, lastReport = 0;
   let segments = [], chapters = [], trick = null, next = null, nextDismissed = false, countdown = 0, countdownTimer = 0;
   let pendingStart = 0, opening = 0, beginning = 0, target = { id, fromStart: query.get('debut') === '1', tracks: chosenTracks(query) };
@@ -358,7 +359,7 @@ export function create({ id, query }) {
 
   function resetTitle() {
     clearInterval(progressTimer);
-    item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0;
+    item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0; inband = false;
     audioIndex = null; subtitleIndex = null; forceTranscode = false; started = false; ended = false;
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
     skipped.clear();
@@ -416,7 +417,7 @@ export function create({ id, query }) {
     try {
       const max = await bitrate();
       const info = await api.playbackInfo(item.Id, {
-        DeviceProfile: deviceProfile(max), MaxStreamingBitrate: max, StartTimeTicks: startTicks,
+        DeviceProfile: deviceProfile(max, { hlsSubtitles: native }), MaxStreamingBitrate: max, StartTimeTicks: startTicks,
         AudioStreamIndex: audioIndex ?? undefined, SubtitleStreamIndex: subtitleIndex ?? undefined, MediaSourceId: source?.Id,
         EnableDirectPlay: !forceTranscode, EnableDirectStream: !forceTranscode, EnableTranscoding: true,
         AllowVideoStreamCopy: !forceTranscode, AllowAudioStreamCopy: true, AutoOpenLiveStream: true,
@@ -433,13 +434,22 @@ export function create({ id, query }) {
       total = seconds(source.RunTimeTicks ?? item.RunTimeTicks);
 
       let url, hlsStream = false;
+      inband = false;
       if (source.SupportsDirectPlay && !source.TranscodingUrl && !forceTranscode) {
         const container = (source.Container ?? 'mp4').split(',').find((c) => c === 'mp4') ?? (source.Container ?? 'mp4').split(',')[0];
         url = signed(`Videos/${item.Id}/stream.${container}?Static=true&mediaSourceId=${encodeURIComponent(source.Id)}&deviceId=${device.id}${source.ETag ? `&Tag=${source.ETag}` : ''}`);
         playMethod = 'DirectPlay'; progressive = false; offset = 0;
       } else if (source.TranscodingUrl) {
-        url = signed(source.TranscodingUrl);
-        hlsStream = source.TranscodingSubProtocol === 'hls' || /\.m3u8/i.test(source.TranscodingUrl);
+        let address = source.TranscodingUrl;
+        hlsStream = source.TranscodingSubProtocol === 'hls' || /\.m3u8/i.test(address);
+        // Apple's player: every text subtitle in the stream, for its menu. Jellyfin writes them there only with
+        // SubtitleMethod=Hls, which it adds when a text subtitle is chosen; with none chosen, Mira asks for it (all
+        // are then off at first). Never with burned-in pictures (SubtitleMethod=Encode).
+        if (native && hlsStream && textSubtitles().length) {
+          if (!/[?&]SubtitleMethod=/i.test(address)) address += `${address.includes('?') ? '&' : '?'}SubtitleMethod=Hls`;
+          inband = /[?&]SubtitleMethod=Hls/i.test(address);
+        }
+        url = signed(address);
         playMethod = source.SupportsDirectStream && !/VideoCodec=|videoBitrate=/i.test(source.TranscodingUrl) ? 'DirectStream' : 'Transcode';
         progressive = !hlsStream;
         offset = progressive ? seconds(startTicks) : 0;
@@ -483,6 +493,9 @@ export function create({ id, query }) {
   }
 
   function addSubtitles() {
+    el.style.setProperty('--cue', `${settings.get('subtitleSize')}%`);
+    // Subtitles in the HLS stream (Apple's player) arrive with it: a <track> beside them would only repeat them.
+    if (inband) return;
     const streams = source?.MediaStreams ?? [];
     const subtitles = streams.filter((s) => s.Type === 'Subtitle');
     for (const stream of subtitles) {
@@ -492,17 +505,30 @@ export function create({ id, query }) {
         src: signed(stream.DeliveryUrl), default: stream.Index === subtitleIndex, dataset: { index: String(stream.Index) },
       }));
     }
-    el.style.setProperty('--cue', `${settings.get('subtitleSize')}%`);
   }
-  const trackIndex = (textTrack) => {
-    const node = [...video.querySelectorAll('track')].find((x) => x.track === textTrack);
-    return node ? Number(node.dataset.index) : null;
-  };
-  /** Shows the chosen subtitles among those beside the video, hides the others. */
+  /** The text subtitles Jellyfin can send as text, in its order: the order of the HLS stream's subtitles. */
+  const textSubtitles = () => (source?.MediaStreams ?? []).filter((s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream);
+  const trackNode = (textTrack) => [...video.querySelectorAll('track')].find((x) => x.track === textTrack) ?? null;
+  /** The subtitle tracks the HLS stream carries, as the browser lists them. */
+  const streamTracks = () => [...video.textTracks].filter((t) => !trackNode(t) && ['subtitles', 'captions', 'forced'].includes(t.kind));
+  /** Jellyfin's index of a subtitle track: beside the video, its <track>; in the HLS stream, its place there (or its name). */
+  function trackIndex(textTrack) {
+    const node = trackNode(textTrack);
+    if (node) return Number(node.dataset.index);
+    if (!inband) return null;
+    const carried = streamTracks(), streams = textSubtitles(), at = carried.indexOf(textTrack);
+    if (at < 0) return null;
+    if (carried.length === streams.length) return streams[at].Index;
+    const named = streams.filter((s) => s.DisplayTitle === textTrack.label);
+    return named.length === 1 ? named[0].Index : null;
+  }
+  /** Shows the chosen subtitles among those the browser has, beside the video or in the stream; hides the others. */
   function showTrack() {
     for (const t of video.textTracks) {
       const index = trackIndex(t);
-      if (index != null) t.mode = index === subtitleIndex ? 'showing' : 'disabled';
+      if (index == null) continue;
+      const mode = index === subtitleIndex ? 'showing' : 'disabled';
+      if (t.mode !== mode) t.mode = mode;
     }
   }
   /**
@@ -563,9 +589,9 @@ export function create({ id, query }) {
       const stream = (source?.MediaStreams ?? []).find((s) => s.Index === subtitle);
       const wasBurned = burned();
       subtitleIndex = subtitle; remember();
-      // Text subtitles already beside the video switch at once; pictures need a new conversion, and so does
-      // leaving them.
-      if (subtitle === -1 || stream?.DeliveryMethod === 'External') {
+      // Text subtitles already beside the video, or in the HLS stream, switch at once; pictures need a new
+      // conversion, and so does leaving them.
+      if (subtitle === -1 || stream?.DeliveryMethod === 'External' || (inband && stream?.IsTextSubtitleStream)) {
         showTrack();
         if (wasBurned) open(ticks(at), { keepPaused: wasPaused });
         else report('progress');
@@ -688,6 +714,8 @@ export function create({ id, query }) {
   };
   for (const [name, fn] of Object.entries(on)) video.addEventListener(name, fn);
   video.textTracks.addEventListener('change', textTracksChanged);
+  // The HLS stream's subtitles appear once it loads: the chosen one shows, the others stay off.
+  video.textTracks.addEventListener('addtrack', showTrack);
   video.audioTracks?.addEventListener?.('change', audioTracksChanged);
 
   function keys(e) {
@@ -809,6 +837,7 @@ export function create({ id, query }) {
       removeEventListener('pagehide', onPageHide);
       for (const [name, fn] of Object.entries(on)) video.removeEventListener(name, fn);
       video.textTracks.removeEventListener('change', textTracksChanged);
+      video.textTracks.removeEventListener('addtrack', showTrack);
       video.audioTracks?.removeEventListener?.('change', audioTracksChanged);
       exitPresentation();
       hls?.destroy(); hls = null;
