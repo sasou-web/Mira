@@ -12,7 +12,8 @@ export function create({ query }) {
   const clearButton = h('button', { class: 'round flat clear', 'aria-label': 'Effacer', hidden: !input.value, on: { click: () => { input.value = ''; input.focus(); update(); } } }, icon('close', { size: 20 }));
   const results = h('div', { 'aria-live': 'polite' });
   const el = h('div', { class: 'view search' },
-    h('div', { class: 'search-bar' }, h('h1', { class: 'page-title', style: { marginBottom: '12px' } }, 'Recherche'),
+    h('header', { class: 'search-head' }, h('h1', { class: 'page-title' }, 'Recherche')),
+    h('div', { class: 'search-bar' },
       h('form', { class: 'search-box', role: 'search', on: { submit: (e) => { e.preventDefault(); remember(input.value); input.blur(); } } }, icon('search'), input, clearButton)),
     results);
   let timer = 0, controller = null, lastText = null;
@@ -67,6 +68,8 @@ export function create({ query }) {
     timer = setTimeout(() => search(text), 280);
   }
   input.addEventListener('input', update);
+  // Scrolling the results puts the keyboard away, as in Apple's apps.
+  results.addEventListener('touchmove', () => { if (document.activeElement === input) input.blur(); }, { passive: true });
   update();
 
   return {

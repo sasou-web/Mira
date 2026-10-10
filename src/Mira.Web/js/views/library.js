@@ -20,7 +20,8 @@ export function create({ type, query }) {
   const sentinel = h('div', { class: 'sentinel' });
   const body = h('div', { class: 'library-grid' }, grid, sentinel);
   const el = h('div', { class: 'view library' },
-    h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? 'Films' : 'Séries'), chips), count, body);
+    h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? 'Films' : 'Séries')),
+    h('div', { class: 'library-filters' }, chips), count, body);
 
   const filtered = () => state.genre || state.year || state.unplayed || state.favorite;
 

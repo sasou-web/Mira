@@ -49,6 +49,8 @@ let skipTransition = false; // the swipe back already moved the screens
 // While Jellyfin does not answer (PC off or starting), a bar says so and Mira asks again until it does.
 const netText = h('span', {});
 const netbar = h('div', { class: 'netbar', role: 'status', 'aria-live': 'polite', hidden: true }, h('div', { class: 'spinner' }), netText);
+// The bar iOS shows once a screen's large title has scrolled away: the same title, small, on frosted glass.
+const topbar = h('div', { class: 'topbar', 'aria-hidden': 'true' }, h('span', {}));
 let probeTimer = 0, probeDelay = 0;
 
 function markSvg(size) {
@@ -253,7 +255,16 @@ function applyUpdate() {
   location.reload();
 }
 
-function updateScrolled() { document.body.classList.toggle('scrolled', scrollY > 8); }
+function updateScrolled() {
+  document.body.classList.toggle('scrolled', scrollY > 8);
+  const big = currentBare ? null : current?.el.querySelector('.page-title, .detail-title, .detail-logo');
+  const show = !!big && big.getBoundingClientRect().bottom < topbar.offsetHeight;
+  if (show) {
+    const text = big.tagName === 'IMG' ? big.alt : big.textContent;
+    if (topbar.firstChild.textContent !== text) topbar.firstChild.textContent = text;
+  }
+  topbar.classList.toggle('on', show);
+}
 
 // ---------- Swipe from the left edge to go back ----------
 // A Home Screen app on iPhone has no Safari around it, so no swipe back: Mira draws its own, as iOS apps do. The
@@ -362,7 +373,7 @@ function setupSwipeBack() {
 
 function start() {
   history.scrollRestoration = 'manual';
-  clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, tabbar, netbar);
+  clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, topbar, tabbar, netbar);
   addEventListener('hashchange', route);
   addEventListener('popstate', (e) => {
     // Safari's own swipe back (in a tab) has already shown the move: Mira does not draw a second one.
