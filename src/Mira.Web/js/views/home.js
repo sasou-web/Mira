@@ -98,9 +98,32 @@ function installBanner(onClose) {
 
 export function create() {
   const el = h('div', { class: 'view home' });
-  let heroBox = null, loadedAt = 0, loading = null, data = readCache();
+  let heroBox = null, loadedAt = 0, loading = null, data = readCache(), drawn = '';
+
+  /** Where the banner and each row were scrolled, to find them there again once the screen is drawn anew. */
+  function positions() {
+    const rows = {};
+    for (const section of el.querySelectorAll('.section')) {
+      const name = section.querySelector('.h2')?.textContent, list = section.querySelector('.row');
+      if (name && list) rows[name] = list.scrollLeft;
+    }
+    return { rows, hero: el.querySelector('.hero-track')?.scrollLeft ?? 0 };
+  }
+  function restore({ rows, hero: left }) {
+    for (const section of el.querySelectorAll('.section')) {
+      const name = section.querySelector('.h2')?.textContent, list = section.querySelector('.row');
+      if (list && rows[name]) list.scrollLeft = rows[name];
+    }
+    const track = el.querySelector('.hero-track');
+    if (track && left) { track.style.scrollBehavior = 'auto'; track.scrollLeft = left; track.style.scrollBehavior = ''; }
+  }
 
   function render() {
+    // Nothing new from the server: the screen stays as it is, rows where the finger left them.
+    const signature = data ? JSON.stringify([data, settings.get('hiddenResume') ?? {}]) : '';
+    if (signature && signature === drawn) return;
+    drawn = signature;
+    const kept = positions();
     heroBox?.stop?.();
     clear(el);
     if (!data) {
@@ -131,6 +154,7 @@ export function create() {
       el.append(emptyState({ symbol: 'films', title: 'Ta bibliothèque est vide', text: 'Les films et séries ajoutés à Jellyfin apparaîtront ici.' }));
     }
     el.append(h('div', { style: { height: '24px' } }));
+    restore(kept);
   }
 
   async function load() {

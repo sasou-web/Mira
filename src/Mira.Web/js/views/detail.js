@@ -91,7 +91,7 @@ export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': 'Retour', on: { click: () => goBack('#/') } }, icon('back'));
   let item = null, episodes = [], next = null, similar = [], page = null, stale = false, loadedAt = 0;
-  let actionsBox = null, toolsBox = null;
+  let actionsBox = null, toolsBox = null, similarBox = null;
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
   const wanted = query.get('episode');
@@ -234,7 +234,7 @@ export function create({ id, query }) {
           credits(item))),
       seasonsSection() ?? '',
       row('Distribution', cast, (p) => personCard(p), { people: true }) ?? '',
-      row('Titres similaires', similar, (x) => posterCard(x)) ?? '',
+      (similarBox = h('div', {}, row('Titres similaires', similar, (x) => posterCard(x)) ?? '')),
       h('div', { style: { height: '32px' } }));
   }
 
@@ -256,7 +256,11 @@ export function create({ id, query }) {
       loadStreams();
       render();
       if (!similar.length) {
-        api.similar(id).then((r) => { similar = r?.Items ?? []; if (similar.length && el.isConnected) render(); }).catch(() => {});
+        // Only its row is drawn when it arrives: the page does not jump or flash under the finger.
+        api.similar(id).then((r) => {
+          similar = r?.Items ?? [];
+          if (similar.length && similarBox) clear(similarBox).append(row('Titres similaires', similar, (x) => posterCard(x)) ?? '');
+        }).catch(() => {});
       }
     } catch (error) {
       if (!item) clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, () => load())));

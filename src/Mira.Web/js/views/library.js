@@ -12,7 +12,7 @@ export function create({ type, query }) {
   const movies = type === 'Movie';
   const noun = movies ? ['film', 'films'] : ['série', 'séries'];
   const state = { sort: 'recent', genre: query.get('genre') ?? '', year: '', unplayed: false, favorite: query.get('favoris') === '1' };
-  let total = null, start = 0, done = false, busy = false, controller = null, loadedAt = 0, options = null;
+  let total = null, start = 0, done = false, busy = false, controller = null, loadedAt = 0, options = null, stale = false;
 
   const chips = h('div', { class: 'chips', role: 'toolbar', 'aria-label': 'Filtres' });
   const count = h('div', { class: 'library-count', 'aria-live': 'polite' });
@@ -74,16 +74,38 @@ export function create({ type, query }) {
     more();
   }
 
+  const fetchPage = (from, limit, signal) => api.browse({
+    types: type, start: from, limit, sort: state.sort, genre: state.genre || undefined, year: state.year || undefined,
+    played: state.unplayed ? false : undefined, favorite: state.favorite, signal,
+  });
+
+  /**
+   * The titles already shown, asked for again and redrawn in place (back from a film, Jellyfin back online): the
+   * grid keeps its length and the page its scroll, with no placeholders in between.
+   */
+  async function refresh() {
+    if (busy || start === 0) { if (!busy) reset(); return; }
+    busy = true;
+    controller = new AbortController();
+    try {
+      const result = await fetchPage(0, Math.max(PAGE, start), controller.signal);
+      const items = result?.Items ?? [];
+      total = result?.TotalRecordCount ?? items.length;
+      grid.replaceChildren(...items.map((item) => { const card = posterCard(item); card.setAttribute('role', 'listitem'); return card; }));
+      start = items.length; done = start >= total; loadedAt = Date.now(); stale = false;
+      count.textContent = total ? plural(total, noun[0], noun[1]) : '';
+    } catch (error) {
+      if (error.name !== 'AbortError') loadedAt = Date.now();
+    } finally { busy = false; }
+  }
+
   async function more() {
     if (busy || done) return;
     busy = true;
     controller = new AbortController();
     const first = start === 0;
     try {
-      const result = await api.browse({
-        types: type, start, limit: PAGE, sort: state.sort, genre: state.genre || undefined, year: state.year || undefined,
-        played: state.unplayed ? false : undefined, favorite: state.favorite, signal: controller.signal,
-      });
+      const result = await fetchPage(start, PAGE, controller.signal);
       if (first) clear(grid);
       const items = result?.Items ?? [];
       total = result?.TotalRecordCount ?? items.length;
@@ -112,15 +134,16 @@ export function create({ type, query }) {
 
   const observer = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) more(); }, { rootMargin: '900px 0px' });
   observer.observe(sentinel);
-  const onChange = () => { loadedAt = 0; };
+  // Watched, favourite: the cards are redrawn when the grid is seen again.
+  const onChange = () => { stale = true; };
   changes.addEventListener('item', onChange);
 
   renderChips();
   reset();
   return {
     el, title: movies ? 'Films' : 'Séries', keep: true,
-    enter() { if (Date.now() - loadedAt > 10 * 60_000) reset(); },
-    refresh: reset,
+    enter() { if (stale || Date.now() - loadedAt > 10 * 60_000) refresh(); },
+    refresh,
     dispose() { observer.disconnect(); controller?.abort(); changes.removeEventListener('item', onChange); },
   };
 }
