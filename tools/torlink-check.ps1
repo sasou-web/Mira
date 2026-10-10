@@ -3,6 +3,8 @@ param([string]$Configuration = 'Release', [string]$Executable = '')
 # Nothing touches the real TorLink state (TORLINK_STATE_DIR) or Jellyfin (demo mode).
 # -Executable checks another build of Mira, for example the published dist\Mira\Mira.exe.
 $ErrorActionPreference = 'Stop'
+# The .NET SDK sends usage data unless told not to; the scripts tell it, on this PC as in the CI.
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $workspace = Split-Path -Parent $PSScriptRoot
 $output = Join-Path $workspace '.artifacts\torlink-check'
 $exe = if ($Executable) { [IO.Path]::GetFullPath($Executable) } else { Join-Path $workspace "src\Mira.Desktop\bin\$Configuration\net8.0-windows10.0.19041.0\Mira.exe" }

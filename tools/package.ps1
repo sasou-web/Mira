@@ -8,6 +8,8 @@ param([string]$Configuration = 'Release', [string]$Iscc = '', [string]$SigningKe
 # and .artifacts/release-notes-<version>.md, the release page's short text (the version's entry in WhatsNew.json).
 # -Version and -Output build test packages under another version number and folder (update checks), never in dist.
 $ErrorActionPreference = 'Stop'
+# The .NET SDK sends usage data unless told not to; the scripts tell it, on this PC as in the CI.
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $project = Join-Path $workspace 'src/Mira.Desktop/Mira.Desktop.csproj'
 [xml]$projectXml = Get-Content -LiteralPath $project

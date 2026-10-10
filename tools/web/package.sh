@@ -5,6 +5,8 @@
 #   → dist/web/mira-jellyfin-0.6.1.zip and dist/web/jellyfin-manifest.json
 # The download base defaults to the release's assets on GitHub (another base serves local tests).
 set -euo pipefail
+# No usage data from the .NET SDK (nor from Avalonia's build, see Mira.Mac.csproj), on a Mac as in the CI.
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
 VERSION="${1:?version x.y.z}"
 BASE="${2:-https://github.com/sasou-web/Mira/releases/download/v$VERSION}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version x.y.z expected, got $VERSION" >&2; exit 1; }

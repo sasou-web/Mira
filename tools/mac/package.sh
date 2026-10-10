@@ -3,6 +3,8 @@
 #   tools/mac/package.sh 0.6.0   →   dist/mac/Mira.app and dist/mac/Mira-0.6.0-mac-arm64.dmg
 # No Apple Developer account: the app is signed ad hoc, so macOS asks once to allow it (see docs/INSTALLATION.md).
 set -euo pipefail
+# No usage data from the .NET SDK (nor from Avalonia's build, see Mira.Mac.csproj), on a Mac as in the CI.
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
 VERSION=${1:?version, for example 0.6.0}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 OUT="$ROOT/dist/mac"

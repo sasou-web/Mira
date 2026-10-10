@@ -10,6 +10,8 @@ param([switch]$SkipBuild, [switch]$SkipInstaller, [int]$Port = 18097)
 # Every Mira runs offscreen with an isolated --data profile. The installer rewrites the Start menu shortcut and the Shell
 # identity: both are given back to the copy of Mira they named before. Results: .artifacts/update-check/result.txt
 $ErrorActionPreference = 'Stop'
+# The .NET SDK sends usage data unless told not to; the scripts tell it, on this PC as in the CI.
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $root = Join-Path $workspace '.artifacts\update-check'
 New-Item -ItemType Directory -Path $root -Force | Out-Null

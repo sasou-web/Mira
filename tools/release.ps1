@@ -10,6 +10,8 @@
 # Works in Windows PowerShell 5.1 and PowerShell 7 (saved with a BOM; messages with an apostrophe in double quotes:
 # PowerShell reads a typographic apostrophe as a single quote).
 $ErrorActionPreference = 'Stop'
+# The .NET SDK sends usage data unless told not to; the scripts tell it, on this PC as in the CI.
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $repository = 'sasou-web/Mira'
 

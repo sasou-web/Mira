@@ -1,5 +1,7 @@
 param([string]$Configuration = 'Release')
 $ErrorActionPreference = 'Stop'
+# The .NET SDK sends usage data unless told not to; the scripts tell it, on this PC as in the CI.
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $workspace = Split-Path -Parent $PSScriptRoot
 Push-Location $workspace
 try {
