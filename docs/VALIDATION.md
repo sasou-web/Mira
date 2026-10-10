@@ -21,6 +21,12 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
   - **Chromium** : **43/43**, Jellyfin arrêté puis relancé pendant le contrôle ;
   - **Safari sur Mac** : **26/26**, dont, dans le vrai lecteur d’Apple (plein écran de WebKit, AVFoundation) : l’animé avec « Aucun », ses quatre sous-titres dans le flux, aucun affiché ; « Français (ASS) » choisi comme le ferait le menu, « Cinq secondes » vue à 5,3 s ; après un saut à 33 s, « Trente-cinq » vue à 35,1 s ; l’épisode suivant toujours sans quitter le plein écran ;
   - **Windows** : compilation et tests réussis (dont `HlsPlaylists` : noms pris tels quels, `und`).
+- **Revue adverse** (quatre relecteurs indépendants, un vérificateur) : 20 défauts confirmés et corrigés, dont :
+  - une erreur du flux alors que Jellyfin répond (500, conversion ratée) relançait la lecture sans fin sous « Connexion au serveur perdue » : reproduit (8 demandes de lecture en 24 s), puis « Lecture impossible » après une seule ;
+  - après une vraie coupure, la reprise repartait de 0 : reproduit, puis reprise à 20 s ;
+  - les sous-titres forcés (`kind="forced"`) n’étaient jamais affichés hors de Safari (metadata) ;
+  - la vitesse d’un titre suivait dans les autres, les commandes restaient affichées après une pause pendant un saut, le grand titre était à moitié effacé au repos, un clic droit avalait le suivant, la fiche se chargeait deux fois à l’ouverture.
+  Contrôle Chromium local après corrections : **42/42** (nouveau point : sous-titres forcés affichables).
 - **Pas encore vérifié** : sur un vrai iPhone, le menu des sous-titres d’un vrai animé, l’épisode suivant en plein écran et la fermeture pendant son chargement, la Dynamic Island avec « Lecture discrète », le retour haptique.
 
 ## Mira web 0.7.1 : retours du premier essai sur iPhone

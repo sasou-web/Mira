@@ -32,7 +32,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - App en démo : `dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .artifacts/dev-profile`.
 - Extension et manifeste : `tools/web/package.sh <x.y.z> [base de téléchargement]` → `dist/web/`.
 - Médias de test : `tools/web/media.sh <dossier>`. Jellyfin neuf préparé par l'API : `node tools/web/setup.mjs <serveur> <médias> <user> <mdp> [url du manifeste]`.
-- Contrôle Chromium (41 points, 43 avec `MIRA_STOP`/`MIRA_START`, commandes qui arrêtent et relancent Jellyfin) : `PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <user> <mdp> "Courte Web" <dossier>`. Le lecteur d'Apple y est simulé.
+- Contrôle Chromium (42 points, 44 avec `MIRA_STOP`/`MIRA_START`, commandes qui arrêtent et relancent Jellyfin) : `PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <user> <mdp> "Courte Web" <dossier>`. Le lecteur d'Apple y est simulé.
 - Dans le conteneur cloud : Jellyfin par Docker (`dockerd &`, image `jellyfin/jellyfin:12.1.20260915-010956`, `--network host`) ; le SDK .NET d'Ubuntu n'a pas les cibles WPF : SDK de Microsoft depuis les `.deb` de packages.microsoft.com (jammy), extraits avec `dpkg-deb -x`, puis `dotnet build -p:EnableWindowsTargeting=true` (compile seulement).
 - CI d'une branche : `web.yml` et `ci.yml` se lancent par `workflow_dispatch` (outil GitHub `actions_run_trigger`).
 - Contrôle Safari (Mac, `safaridriver -p 4444`, 26 points dont le lecteur d'Apple) : `node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dossier>`.
@@ -75,6 +75,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Jellyfin ne convertit jamais ASS/SSA par le profil (`SupportsSubtitleConversionTo`) : sans profil `External` pour eux, il les incruste.
 - WebKit : régler une piste sur le mode qu'elle a déjà ne compte pas ; une piste jamais réglée par la page est choisie par WebKit (langue, défaut, forcée). Un choix dans le menu d'Apple change aussi les réglages de sous-titres de l'iPhone.
 - WebKit garde `:active` pendant un défilement commencé sur l'élément : appuis par `press.js` (`.pressed`), `:active` pour la souris seulement.
+- Erreur de flux : n'attendre le serveur que si `ping()` échoue (sinon boucle de réouvertures sur une erreur 500) ; `<track kind="forced">` n'existe que dans Safari (ailleurs : metadata, jamais affiché).
 - Lecteur d'Apple : sur un changement de source, `webkitpresentationmodechanged` peut arriver après que Mira a redemandé le plein écran ; la fermeture pendant l'épisode suivant se lit sur `presentation()` (`switchFrom`).
 - ffmpeg : `-shortest` compte aussi les sous-titres (le film de test ASS faisait 3 s) : durée par `-t`.
 - Jellyfin : segments HLS TS à 10 s, fMP4 à 0 ; ses WebVTT HLS ont `MPEGTS:900000` en dur. hls.js s'en moque, le lecteur d'Apple non.
@@ -89,6 +90,6 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 
 ## État actuel
 - 0.7.1 publiée le 2026-10-09 (11 fichiers : Windows signés, `.dmg`, extension, manifeste ; signature et empreintes vérifiées).
-- Branche `claude/upbeat-franklin-y2n2dw` (non publiée, « Non publié » du CHANGELOG), retours du 2e essai sur iPhone : sous-titres ASS/SRT d'une conversion dans le menu d'Apple (flux HLS par `/Mira/hls`, noms en français, à l'heure, même avec « Aucun »), « Lecture discrète » (session `ambient`), lecteur qui ne se rouvre plus seul et attend le serveur, navigation et appuis d'app iOS, fiche mise à jour sur place, Favori/Vu instantanés. Vérifié : Chromium local 41/41 (dont film « animé » avec profil d'iPhone), CI Safari 26/26 (ASS à 5,1 s et 35,1 s après un saut dans le vrai lecteur d'Apple), Windows. Détails : `docs/VALIDATION.md`.
+- Branche `claude/upbeat-franklin-y2n2dw` (non publiée, « Non publié » du CHANGELOG), retours du 2e essai sur iPhone : sous-titres ASS/SRT d'une conversion dans le menu d'Apple (flux HLS par `/Mira/hls`, noms en français, à l'heure, même avec « Aucun »), « Lecture discrète » (session `ambient`), lecteur qui ne se rouvre plus seul et attend le serveur, navigation et appuis d'app iOS, fiche mise à jour sur place, Favori/Vu instantanés. Vérifié : Chromium local 42/42 (dont film « animé » avec profil d'iPhone), revue adverse (20 défauts corrigés), CI Safari 26/26 (ASS à 5,1 s et 35,1 s après un saut dans le vrai lecteur d'Apple), Windows. Détails : `docs/VALIDATION.md`.
 - Non vérifié sur un vrai iPhone : lecteur d'Apple (menu des sous-titres sur un vrai animé, épisode suivant en plein écran, fermeture pendant son chargement, Dynamic Island avec « Lecture discrète »), retour haptique, ouverture PC éteint ; sur le PC : « Disponible dès l'allumage du PC ».
 - Prochaine étape : PR et fusion par l'utilisateur, publication (0.7.2), essai sur iPhone.
