@@ -133,6 +133,25 @@ public static class SelfCheck
                 bool told; lock (mock.Calls) told = mock.Calls.Contains("POST Sessions/Logout");
                 Check(told, "session fermée sur Jellyfin aussi");
             }
+
+            // —— Keychain ——
+            // On an item of its own, from a worker thread given 20 s: a locked keychain would ask a question nobody answers
+            // here. Refused or unavailable, Mira keeps the token in its file: only a call that misbehaves fails.
+            if (OperatingSystem.IsMacOS())
+            {
+                var keychain = new Services.Keychain(); var account = Path.Combine(window.Profile.DirectoryPath, "self-check");
+                var token = "contrôle " + Guid.NewGuid().ToString("N");
+                var probe = Task.Run(() =>
+                {
+                    if (!keychain.Store(account, token)) return $"écriture refusée (OSStatus {keychain.Status})";
+                    if (keychain.Read(account) != token) return $"relu autre chose (OSStatus {keychain.Status})";
+                    return keychain.Delete(account) && keychain.Read(account) is null ? null : $"pas effacé (OSStatus {keychain.Status})";
+                });
+                if (await Task.WhenAny(probe, Task.Delay(TimeSpan.FromSeconds(20))) != probe) Check(true, "trousseau", "pas de réponse en 20 s (trousseau verrouillé ?) : non mesurable");
+                else if (probe.Result is not null && keychain.Status is Services.Keychain.InteractionNotAllowed or Services.Keychain.NoSuchKeychain or Services.Keychain.NotAvailable
+                    or Services.Keychain.AuthFailed or Services.Keychain.UserCanceled) Check(true, "trousseau", probe.Result + " : indisponible ici, non mesurable");
+                else Check(probe.Result is null, "trousseau : écrire, relire, effacer", probe.Result ?? "");
+            }
             exit = results.All(x => x.Ok) ? 0 : 1;
         }
         catch (Exception ex)

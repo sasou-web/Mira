@@ -26,7 +26,10 @@ public partial class App : Application
             { Checks.VideoProbe.Start(desktop, args[probe + 1], args.Contains("--software")); base.OnFrameworkInitializationCompleted(); return; }
             // --data <folder>: another profile (the self-check uses a fresh one).
             var data = Array.IndexOf(args, "--data") is var index and >= 0 && index + 1 < args.Length ? Path.GetFullPath(args[index + 1]) : null;
-            desktop.MainWindow = new MainWindow(args, new Profile(data));
+            // The session's token goes to the login keychain. The self-check keeps it in its profile's file, so that no keychain
+            // question can hold its sign-in on a Mac nobody watches (GitHub's); it checks the keychain apart, with a time limit.
+            var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") ? new Keychain() : null;
+            desktop.MainWindow = new MainWindow(args, new Profile(data, tokens));
             Dispatcher.UIThread.UnhandledException += (_, e) => Unhandled(desktop, e);
         }
         base.OnFrameworkInitializationCompleted();

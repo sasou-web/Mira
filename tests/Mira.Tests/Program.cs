@@ -1493,6 +1493,32 @@ await Test("Session protégée par Windows, mot de passe absent du stockage", ()
     profile.SaveConnection(connection); Assert(profile.LoadConnection() == connection, "Session round trip failed");
     var disk = File.ReadAllBytes(Path.Combine(profile.DirectoryPath, "session.protected")); Assert(!Encoding.UTF8.GetString(disk).Contains("secret-session-token"), "Token stored as plain text"); return Task.CompletedTask;
 });
+await Test("Mac : jeton de session dans le trousseau, repris du fichier, gardé dans le fichier si le trousseau refuse", () =>
+{
+    var folder = Path.Combine(testRoot, "mac-profile"); var session = Path.Combine(folder, "session.json"); var keychain = new TokenStandIn();
+    string InFile() => JsonDocument.Parse(File.ReadAllBytes(session)).RootElement.GetProperty("Token").GetString() ?? "";
+    // Written by a Mira without the keychain: the token is in the file.
+    var before = new Mira.Mac.Services.Profile(folder); var connection = new Connection("http://nas:8096/", "user", "Alice", "token-1", before.DeviceId);
+    before.SaveConnection(connection);
+    Assert(InFile() == "token-1" && before.LoadConnection() == connection, "Session without a keychain not kept in its file");
+    // First read with it: moved to the keychain, then out of the file.
+    var profile = new Mira.Mac.Services.Profile(folder, keychain);
+    Assert(profile.LoadConnection() == connection && keychain.Tokens[folder] == "token-1" && InFile() == "", "Token not moved to the keychain");
+    Assert(profile.LoadConnection() == connection && new Mira.Mac.Services.Profile(folder).LoadConnection() is null, "Token not read back from the keychain alone");
+    profile.SaveConnection(connection with { Token = "token-2" });
+    Assert(InFile() == "" && keychain.Tokens[folder] == "token-2" && profile.LoadConnection()?.Token == "token-2", "A new token not kept in the keychain");
+    // Refused (locked, question declined): sign in again, and the file keeps the token until the keychain takes it.
+    keychain.Refuse = true;
+    Assert(profile.LoadConnection() is null, "A session without its token opened");
+    profile.SaveConnection(connection with { Token = "token-3" });
+    Assert(InFile() == "token-3" && profile.LoadConnection()?.Token == "token-3" && InFile() == "token-3", "Token lost when the keychain refused it");
+    keychain.Refuse = false;
+    Assert(profile.LoadConnection()?.Token == "token-3" && InFile() == "" && keychain.Tokens[folder] == "token-3", "Token left in the file once the keychain took it");
+    // Signed out: in neither place.
+    profile.ClearConnection();
+    Assert(!File.Exists(session) && !keychain.Tokens.ContainsKey(folder) && profile.LoadConnection() is null, "Session left after signing out");
+    return Task.CompletedTask;
+});
 await Test("Profil : un identifiant d’appareil vide est remplacé, puis gardé", () =>
 {
     var folder = Path.Combine(testRoot, "empty-device"); Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder, "device-id"), "  \n");
@@ -2339,5 +2365,14 @@ static byte[] TorrentBytes(string name, (string[] Path, long Length)[] files, bo
 static string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\x1b\[[0-9;?<>=]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]", "");
 /// <summary>Progress reported on the caller's thread, in order (Progress<T> would post it to the thread pool).</summary>
 sealed class SyncProgress<T>(Action<T> report) : IProgress<T> { public void Report(T value) => report(value); }
+/// <summary>The macOS keychain for the Mac profile's tests: keeps tokens in memory, or refuses everything.</summary>
+sealed class TokenStandIn : Mira.Mac.Services.ITokenStore
+{
+    public Dictionary<string, string> Tokens { get; } = [];
+    public bool Refuse { get; set; }
+    public bool Store(string account, string token) { if (Refuse) return false; Tokens[account] = token; return true; }
+    public string? Read(string account) => Refuse ? null : Tokens.GetValueOrDefault(account);
+    public bool Delete(string account) { if (Refuse) return false; Tokens.Remove(account); return true; }
+}
 sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
 { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request).WaitAsync(cancellationToken); }
