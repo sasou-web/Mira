@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -7,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mira.Jellyfin;
@@ -23,6 +25,7 @@ namespace Mira.Jellyfin;
 public sealed class HlsController : ControllerBase
 {
     private const string PlaylistType = "application/vnd.apple.mpegurl";
+    private const string Names = "MiraNames";
     private readonly IHttpClientFactory _clients;
     private readonly IServerApplicationHost _host;
 
@@ -32,15 +35,19 @@ public sealed class HlsController : ControllerBase
         _host = host;
     }
 
-    /// <summary>Jellyfin's master playlist for this conversion (same query), its subtitle playlists here.</summary>
+    /// <summary>
+    /// Jellyfin's master playlist for this conversion (same query), its subtitle playlists here, named as Mira names them
+    /// (MiraNames, not passed on to Jellyfin).
+    /// </summary>
     [HttpGet("{itemId:guid}/master.m3u8")]
     public async Task<IActionResult> Master(Guid itemId, CancellationToken cancellationToken)
     {
         var item = itemId.ToString("N");
-        var (status, text) = await GetAsync($"videos/{item}/master.m3u8{Request.QueryString}", cancellationToken).ConfigureAwait(false);
+        var query = QueryString.Create(Request.Query.Where(pair => !string.Equals(pair.Key, Names, StringComparison.OrdinalIgnoreCase)));
+        var (status, text) = await GetAsync($"videos/{item}/master.m3u8{query}", cancellationToken).ConfigureAwait(false);
         return text is null
             ? StatusCode(status)
-            : Playlist(HlsPlaylists.Master(text, $"{Request.PathBase}/videos/{item}/", $"{Request.PathBase}/Mira/hls/{item}/"));
+            : Playlist(HlsPlaylists.Master(text, $"{Request.PathBase}/videos/{item}/", $"{Request.PathBase}/Mira/hls/{item}/", HlsPlaylists.Names(Request.Query[Names])));
     }
 
     /// <summary>Jellyfin's playlist of one subtitle stream (same query), its WebVTT segments without the time map.</summary>

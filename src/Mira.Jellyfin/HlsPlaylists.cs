@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Mira.Jellyfin;
@@ -16,9 +19,10 @@ public static partial class HlsPlaylists
 {
     /// <summary>
     /// A master playlist served by Mira: its subtitle playlists are Mira's (<paramref name="miraPath"/>, ending in a
-    /// slash), every other address is Jellyfin's own, next to <paramref name="videosPath"/> (/videos/{item}/).
+    /// slash), every other address is Jellyfin's own, next to <paramref name="videosPath"/> (/videos/{item}/). The
+    /// subtitles take the names Mira gives them, by Jellyfin index (Apple's menu shows them; Jellyfin's are in English).
     /// </summary>
-    public static string Master(string text, string videosPath, string miraPath)
+    public static string Master(string text, string videosPath, string miraPath, IReadOnlyDictionary<int, string>? names = null)
     {
         var lines = text.Split('\n');
         for (var i = 0; i < lines.Length; i++)
@@ -44,6 +48,13 @@ public static partial class HlsPlaylists
                     ? $"URI=\"{miraPath}{playlist.Groups["source"].Value}/Subtitles/{playlist.Groups["index"].Value}/subtitles.m3u8{playlist.Groups["query"].Value}\""
                     : $"URI=\"{Absolute(uri, videosPath)}\"";
             });
+            var named = subtitles ? SubtitlePlaylist().Match(UriAttribute().Match(line).Groups["uri"].Value) : Match.Empty;
+            if (named.Success && names is not null
+                && int.TryParse(named.Groups["index"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+                && names.TryGetValue(index, out var name))
+            {
+                lines[i] = NameAttribute().Replace(lines[i], $"NAME=\"{name}\"", 1);
+            }
         }
 
         return string.Join('\n', lines);
@@ -70,11 +81,39 @@ public static partial class HlsPlaylists
         return string.Join('\n', lines);
     }
 
+    /// <summary>
+    /// Mira's names for the subtitles, from its query (« 3:Français|5:Anglais »): what a quoted playlist attribute can
+    /// hold, at most 120 characters each.
+    /// </summary>
+    public static Dictionary<int, string> Names(string? value)
+    {
+        var names = new Dictionary<int, string>();
+        foreach (var pair in (value ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries).Take(100))
+        {
+            var colon = pair.IndexOf(':', StringComparison.Ordinal);
+            if (colon <= 0 || !int.TryParse(pair[..colon], NumberStyles.None, CultureInfo.InvariantCulture, out var index))
+            {
+                continue;
+            }
+
+            var name = new string(pair[(colon + 1)..].Where(c => c != '"' && !char.IsControl(c)).Take(120).ToArray()).Trim();
+            if (name.Length > 0)
+            {
+                names[index] = name;
+            }
+        }
+
+        return names;
+    }
+
     private static string Absolute(string uri, string basePath) =>
         uri.StartsWith('/') || uri.Contains("://", StringComparison.Ordinal) ? uri : basePath + uri;
 
     [GeneratedRegex("URI=\"(?<uri>[^\"]*)\"")]
     private static partial Regex UriAttribute();
+
+    [GeneratedRegex("NAME=\"[^\"]*\"")]
+    private static partial Regex NameAttribute();
 
     [GeneratedRegex("(?:^|/)(?<source>[0-9a-fA-F]{32})/Subtitles/(?<index>[0-9]+)/subtitles\\.m3u8(?<query>\\?.*)?$")]
     private static partial Regex SubtitlePlaylist();

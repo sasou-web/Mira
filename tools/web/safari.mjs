@@ -165,7 +165,7 @@ try {
   let inStream = await carried();
   const firstSeen = inStream.t;
   for (let i = 0; i < 60 && !inStream.cue && inStream.t < 20; i++) { await sleep(250); inStream = await carried(); }
-  check('lecteur d’Apple : sous-titres dans le flux HLS', inStream.hls && inStream.beside === 0 && inStream.count >= 1,
+  check('lecteur d’Apple : sous-titres dans le flux HLS, nommés en français', inStream.hls && inStream.beside === 0 && inStream.count >= 1 && /^Français \(/.test(inStream.labels),
     `${inStream.count} piste(s) dans le flux (${inStream.labels || 'aucune'}), ${inStream.beside} à côté, ${inStream.src.split('?')[0].replace(/^https?:\/\/[^/]+/, '')}`);
   check('lecteur d’Apple : sous-titres français affichés à temps', /Bonjour depuis Mira web/.test(inStream.cue) && inStream.t < Math.max(3, firstSeen + 1.5),
     `« ${inStream.cue || 'aucun'} » (${inStream.showing || 'aucune piste affichée'}) à ${inStream.t.toFixed(1)} s, attendu dès 1 s (vu à partir de ${firstSeen.toFixed(1)} s)`);
