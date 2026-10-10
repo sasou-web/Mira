@@ -1,7 +1,7 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
 import { onUnauthorized, onReachable, ping } from './api.js';
 import { h, icon, clear } from './dom.js';
-import { session, isIOS, isStandalone } from './session.js';
+import { session, device, isStandalone } from './session.js';
 import { toast } from './components.js';
 import './player/video.js';
 
@@ -36,15 +36,16 @@ const tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Navigation' },
     on: { click: (e) => { e.preventDefault(); openTab(tab.href); } },
   }, icon(tab.symbol), h('span', {}, tab.label))));
 
-const cache = new Map(); // hash → { view, scroll }
+const cache = new Map(); // hash → { view, scroll }, the least recently shown first
 const MAX_CACHED = 8;
 let current = null, currentKey = '', currentBare = false, hiddenAt = 0, navigation = 0, loadFailed = false;
-// The screens under the current one, by depth: what a swipe from the left edge reveals.
+// The screens of the history, by depth: the first one says which tab the current screen belongs to.
 let trail = (() => { try { return JSON.parse(sessionStorage.getItem('mira.trail') || '[]'); } catch { return []; } })();
 let replacing = null;       // depth kept by an address replaced in place (not a new screen)
 let pendingTab = '';        // a tab touched deep in another: Mira first goes back to the bottom of the history
-let uaTransition = false;   // Safari already animated this move back (its own swipe, outside the Home Screen app)
-let skipTransition = false; // the swipe back already moved the screens
+let traversing = false;     // a move in the history is on its way: a second tap on Back or a tab waits for it
+let uaTransition = false;   // iOS or Safari has already drawn this move (its swipe from the edge)
+let edgeSwipe = 0;          // when a touch from a screen edge last turned into the system's swipe
 
 // While Jellyfin does not answer (PC off or starting), a bar says so and Mira asks again until it does.
 const netText = h('span', {});
@@ -70,7 +71,8 @@ function parse(hash) {
 
 /** Back to the previous screen of Mira, or to `fallback` when Mira was opened right here. */
 export function goBack(fallback = '#/') {
-  if ((history.state?.depth ?? 0) > 0) history.back();
+  if (traversing) return;
+  if ((history.state?.depth ?? 0) > 0) { traversing = true; history.back(); }
   else replaceRoute(fallback);
 }
 
@@ -86,12 +88,15 @@ export function replaceRoute(href) {
  * first screen, or to the top of it.
  */
 function openTab(href) {
+  // A second tap while Mira is still going back: the last tab touched wins, without going back further.
+  if (pendingTab) { pendingTab = href; return; }
+  if (traversing) return;
   const depth = history.state?.depth ?? 0;
   if (depth > 0) {
-    pendingTab = href;
+    pendingTab = href; traversing = true;
     history.go(-depth);
     // Nothing to go back to (a history started elsewhere): the tab simply takes this screen's place, at the bottom.
-    setTimeout(() => { if (pendingTab === href) { pendingTab = ''; replacing = 0; location.replace(href); } }, 500);
+    setTimeout(() => { if (pendingTab) { const to = pendingTab; pendingTab = ''; traversing = false; replacing = 0; location.replace(to); } }, 500);
     return;
   }
   if ((location.hash || '#/') === href) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
@@ -104,7 +109,7 @@ export function resetScreens() {
 }
 
 async function route() {
-  if (pendingUpdate) applyUpdate();
+  traversing = false;
   // Back at the bottom of the history for a tab touched deep in another: the tab's screen takes its place.
   if (pendingTab) {
     if ((history.state?.depth ?? 0) > 0) return;
@@ -118,8 +123,8 @@ async function route() {
   replacing = null;
   const depth = history.state.depth;
   const move = navigation === 0 ? '' : depth > before ? 'push' : depth < before ? 'pop' : 'tab';
-  const animate = !skipTransition && !uaTransition;
-  skipTransition = false; uaTransition = false;
+  const animate = !uaTransition;
+  uaTransition = false;
   lastDepth = depth;
   navigation++;
   trail = trail.slice(0, depth); trail[depth] = key;
@@ -140,9 +145,13 @@ async function route() {
 
   const id = ++routeToken;
   let entry = cache.get(key);
-  if (!entry) {
+  if (entry) {
+    // The most recently shown screens are kept longest; a screen opened again starts at its top.
+    cache.delete(key); cache.set(key, entry);
+    if (move === 'push') entry.scroll = 0;
+  } else {
     let module;
-    try { module = await r.load(); } catch (error) { showLoadFailure(error); return; }
+    try { module = await r.load(); } catch (error) { if (id === routeToken) showLoadFailure(error); return; }
     if (id !== routeToken) return;
     const view = module.create({ ...(r.args?.(m) ?? {}), query, key });
     entry = { view, scroll: 0 };
@@ -160,24 +169,24 @@ async function route() {
       if (!current.keep) { current.dispose?.(); cache.delete(currentKey); }
       current.el.remove();
     }
-    underlay?.remove(); underlay = null; app.classList.remove('swipe-active');
     app.classList.toggle('with-tabs', !r.bare);
     tabbar.hidden = !!r.bare;
+    // A title or a person belongs to the tab its history started from, which stays lit, as in iOS.
+    const tab = r.tab ?? tabOf(trail[0]);
     for (const link of tabbar.querySelectorAll('a')) {
-      if (link.dataset.tab === r.tab) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+      if (link.dataset.tab === tab) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
     }
     current = entry.view; currentKey = key; currentBare = !!r.bare;
     document.title = current.title ? `${current.title} · Mira` : 'Mira';
-    current.el.style.transform = '';
-    current.el.classList.remove('enter-push', 'enter-pop', 'enter-tab');
+    current.el.classList.remove('enter-push', 'enter-pop');
     if (current.el.parentNode !== viewHost) clear(viewHost).append(current.el);
     scrollTo(0, entry.scroll ?? 0);
     updateScrolled();
     current.enter?.({ query });
   };
-  // iOS's moves: a screen comes in from the right and goes back to it; tabs change at once, with a short fade.
-  // The player opens on its own (Apple's full screen, or Mira's), the first screen without a move.
-  const style = animate && move && !r.bare && !wasBare() && !reducedMotion() ? move : '';
+  // iOS's moves: a screen comes in from the right and goes back to it; tabs change at once. The player opens on its
+  // own (Apple's full screen, or Mira's), the first screen without a move, and a move iOS drew is not drawn again.
+  const style = animate && (move === 'push' || move === 'pop') && !r.bare && !wasBare() && !reducedMotion() ? move : '';
   if (style && document.startViewTransition) {
     const mine = ++transitions;
     document.documentElement.dataset.nav = style;
@@ -190,15 +199,17 @@ async function route() {
     if (style) { void current.el.offsetWidth; current.el.classList.add(`enter-${style}`); }
   }
 }
-let lastDepth = 0, routeToken = 0, underlay = null, transitions = 0;
+let lastDepth = 0, routeToken = 0, transitions = 0;
 const wasBare = () => currentBare;
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const tabOf = (key) => ROUTES.find((x) => x.tab && x.pattern.test(parse(key).path))?.tab ?? '';
 
+/** The least recently shown screens go first; never the current one, nor one that Back leads to. */
 function trimCache() {
-  while (cache.size > MAX_CACHED) {
-    const [oldKey, oldEntry] = cache.entries().next().value;
-    if (oldEntry.view === current) { cache.delete(oldKey); cache.set(oldKey, oldEntry); continue; }
-    oldEntry.view.dispose?.(); cache.delete(oldKey);
+  for (const [key, entry] of cache) {
+    if (cache.size <= MAX_CACHED) break;
+    if (entry.view === current || trail.includes(key)) continue;
+    entry.view.dispose?.(); cache.delete(key);
   }
 }
 
@@ -210,11 +221,18 @@ function showLoadFailure() {
   serverDown('offline');
 }
 
+// One failed request during a change of network says nothing: the bar shows once the server has stayed silent a
+// moment (at once while Mira is opening, where nothing else would say why the screen stays empty).
+let netTimer = 0, netShownAt = 0;
+const openedAt = performance.now();
 function serverDown(reason) {
   netText.textContent = reason === 'starting'
     ? 'Jellyfin démarre… Mira reprend dès qu’il répond.'
     : 'Serveur injoignable. Mira réessaie toute seule.';
-  netbar.hidden = false;
+  if (netbar.hidden && !netTimer) {
+    const wait = loadFailed || performance.now() - openedAt < 15_000 ? 0 : 1500;
+    netTimer = setTimeout(() => { netTimer = 0; netbar.hidden = false; netShownAt = Date.now(); }, wait);
+  }
   if (!probeTimer) { probeDelay = 2000; probe(); }
 }
 function probe() {
@@ -226,10 +244,14 @@ function probe() {
 }
 function serverUp() {
   clearTimeout(probeTimer); probeTimer = 0;
-  if (netbar.hidden) return;
+  const unseen = netbar.hidden;
+  clearTimeout(netTimer); netTimer = 0;
   netbar.hidden = true;
-  toast('Connexion au serveur rétablie.');
-  if (loadFailed) { loadFailed = false; route(); } else current?.refresh?.();
+  // A screen whose code could not load comes back whole: the address and the history survive a reload.
+  if (loadFailed) { location.reload(); return; }
+  if (unseen) return;
+  if (Date.now() - netShownAt > 3000) toast('Connexion au serveur rétablie.');
+  current?.refresh?.();
   checkForUpdate();
 }
 
@@ -247,18 +269,25 @@ async function checkForUpdate() {
     if (revision && revision !== REVISION) { pendingUpdate = revision; applyUpdate(); }
   } catch { /* Server away: checked again when it answers. */ }
 }
-function applyUpdate() {
-  // Never in the middle of a film, and once per revision, should the reload bring the same page back.
+/**
+ * The new version replaces this one at once only while Mira is opening and nothing was touched; otherwise when Mira
+ * goes to the background, so that no screen reloads under the finger. Never in the middle of a film, and once per
+ * revision, should the reload bring the same page back.
+ */
+function applyUpdate(hidden = false) {
   if (!pendingUpdate || location.hash.startsWith('#/lecture/')) return;
+  if (!hidden && (touched || performance.now() - openedAt > 4000)) return;
   if (sessionStorage.getItem('mira.update') === pendingUpdate) return;
   sessionStorage.setItem('mira.update', pendingUpdate);
   location.reload();
 }
+let touched = false;
 
 function updateScrolled() {
   document.body.classList.toggle('scrolled', scrollY > 8);
+  // The small title comes as the large one starts to go under the status bar, under the bar with it.
   const big = currentBare ? null : current?.el.querySelector('.page-title, .detail-title, .detail-logo');
-  const show = !!big && big.getBoundingClientRect().bottom < topbar.offsetHeight;
+  const show = !!big && big.getBoundingClientRect().top < topbar.offsetHeight - 52;
   if (show) {
     const text = big.tagName === 'IMG' ? big.alt : big.textContent;
     if (topbar.firstChild.textContent !== text) topbar.firstChild.textContent = text;
@@ -267,10 +296,11 @@ function updateScrolled() {
 }
 
 // ---------- Pull to refresh ----------
-// The Home Screen app has no Safari around it to reload the page: pulled down from its top, a screen asks the server
-// again, as Apple's apps do. Only for screens that can refresh, and not while a sheet or the player is open.
+// The Home Screen app has no Safari around it to reload the page, and Chrome on Android would reload all of Mira:
+// pulled down from its top, a screen asks the server again, as native apps do. Only for screens that can refresh,
+// and not while a sheet or the player is open.
 function setupPullToRefresh() {
-  if (!isStandalone()) return;
+  if (!isStandalone() && device.name !== 'Android') return;
   const PULL = 84;
   const mark = h('div', { class: 'pull', 'aria-hidden': 'true' }, icon('refresh'));
   app.append(mark);
@@ -285,12 +315,18 @@ function setupPullToRefresh() {
   document.addEventListener('touchstart', (e) => {
     start = null;
     if (busy || e.touches.length !== 1 || scrollY > 0 || currentBare || !current?.refresh || document.querySelector('.sheet-layer')) return;
-    if (e.touches[0].clientX <= 28) return; // the swipe back starts there
-    start = e.touches[0].clientY; armed = false;
+    if (e.touches[0].clientX <= 24) return; // iOS's swipe back starts there
+    start = { x: e.touches[0].clientX, y: e.touches[0].clientY, vertical: false }; armed = false;
   }, { passive: true });
   document.addEventListener('touchmove', (e) => {
     if (start == null) return;
-    const distance = e.touches[0].clientY - start;
+    const distance = e.touches[0].clientY - start.y, across = Math.abs(e.touches[0].clientX - start.x);
+    // A sideways swipe (the banner, a row) is not a pull, whatever its slope downwards.
+    if (!start.vertical) {
+      if (across < 10 && distance < 10) return;
+      if (across >= distance) { start = null; hide(); return; }
+      start.vertical = true;
+    }
     if (distance <= 0 || scrollY > 0) { start = null; hide(); return; }
     armed = distance >= PULL;
     show(distance);
@@ -309,132 +345,49 @@ function setupPullToRefresh() {
   document.addEventListener('touchcancel', () => { start = null; hide(); }, { passive: true });
 }
 
-// ---------- Swipe from the left edge to go back ----------
-// A Home Screen app on iPhone has no Safari around it, so no swipe back: Mira draws its own, as iOS apps do. The
-// screen follows the finger over the one under it (the screen kept from before, or the background), and goes back
-// once past a third of the width or thrown.
-function setupSwipeBack() {
-  if (!isIOS() || !isStandalone()) return;
-  const EDGE = 28;
-  let gesture = null;
-  const reset = (el) => { if (el) { el.style.transform = ''; el.style.transition = ''; el.classList.remove('swiping'); } };
-
-  function begin() {
-    const width = innerWidth;
-    const top = current.el;
-    const below = cache.get(trail[(history.state?.depth ?? 1) - 1] ?? '');
-    underlay = h('div', { class: 'swipe-under', 'aria-hidden': 'true' });
-    const shade = h('div', { class: 'swipe-shade' });
-    let under = null;
-    if (below && below.view !== current) {
-      under = below.view.el;
-      under.style.transform = `translate3d(${-width * 0.3}px, ${-(below.scroll ?? 0)}px, 0)`;
-      underlay.append(under);
-    }
-    underlay.append(shade);
-    app.prepend(underlay);
-    app.classList.add('swipe-active');
-    top.classList.add('swiping');
-    // Fixed pieces of the screen (the round Back button) stay where they are on the glass while it moves.
-    for (const fixed of top.querySelectorAll('.floating-back')) fixed.style.transform = `translateY(${scrollY}px)`;
-    gesture.width = width; gesture.top = top; gesture.under = under; gesture.below = below; gesture.shade = shade;
-  }
-  function move(dx) {
-    const { width, top, under, below, shade } = gesture;
-    const p = Math.min(1, Math.max(0, dx / width));
-    top.style.transform = `translate3d(${dx}px, 0, 0)`;
-    if (under) under.style.transform = `translate3d(${-width * 0.3 * (1 - p)}px, ${-(below.scroll ?? 0)}px, 0)`;
-    shade.style.opacity = String(0.5 * (1 - p));
-  }
-  function finish(commit) {
-    const { width, top, under, below, shade } = gesture;
-    gesture = null;
-    const ease = 'cubic-bezier(0.32, 0.72, 0, 1)';
-    const time = commit ? 260 : 300;
-    top.style.transition = `transform ${time}ms ${ease}`;
-    if (under) under.style.transition = `transform ${time}ms ${ease}`;
-    shade.style.transition = `opacity ${time}ms ${ease}`;
-    requestAnimationFrame(() => {
-      top.style.transform = `translate3d(${commit ? width : 0}px, 0, 0)`;
-      if (under) under.style.transform = `translate3d(${commit ? 0 : -width * 0.3}px, ${-(below.scroll ?? 0)}px, 0)`;
-      shade.style.opacity = commit ? '0' : '0.5';
-    });
-    setTimeout(() => {
-      for (const fixed of top.querySelectorAll('.floating-back')) fixed.style.transform = '';
-      if (commit) {
-        // The screens are already in place: the move back shows no second animation.
-        skipTransition = true;
-        reset(under);
-        if (under) under.style.transform = `translate3d(0, ${-(below.scroll ?? 0)}px, 0)`;
-        history.back();
-        // Normally done by the move back itself; kept in case it never came.
-        setTimeout(() => {
-          reset(top);
-          if (under && under.parentNode === underlay) { reset(under); under.remove(); }
-          underlay?.remove(); underlay = null; app.classList.remove('swipe-active');
-        }, 700);
-      } else {
-        reset(top);
-        if (under) { reset(under); under.remove(); }
-        underlay?.remove(); underlay = null; app.classList.remove('swipe-active');
-      }
-    }, time + 20);
-  }
-
+// ---------- iOS's swipe from the edge ----------
+// Safari, and a Home Screen app since iOS 12.2, go back (or forward) with a swipe from the screen's edge and draw the
+// move themselves, from a picture of the screen before. Mira must not draw it a second time: the popstate event says
+// so where Safari supports it (hasUAVisualTransition); elsewhere, a touch from an edge that iOS took for its own
+// gesture (it cancels the touch) or that moved well across tells it.
+function watchEdgeSwipes() {
+  let from = null;
   document.addEventListener('touchstart', (e) => {
-    if (gesture || underlay || e.touches.length !== 1 || currentBare || !current || (history.state?.depth ?? 0) < 1) return;
-    if (document.querySelector('.sheet-layer, .player')) return;
-    const touch = e.touches[0];
-    if (touch.clientX > EDGE) return;
-    gesture = { x: touch.clientX, y: touch.clientY, decided: false, lastX: touch.clientX, lastT: performance.now(), speed: 0 };
+    const x = e.touches[0]?.clientX ?? 0;
+    // From the left edge, a swipe goes back; from the right edge, forward again.
+    from = e.touches.length === 1 && (x <= 24 || x >= innerWidth - 24) ? { x, way: x <= 24 ? 1 : -1 } : null;
   }, { passive: true });
   document.addEventListener('touchmove', (e) => {
-    if (!gesture) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - gesture.x, dy = touch.clientY - gesture.y;
-    if (!gesture.decided) {
-      // Decided at the first move, before Safari starts scrolling a row or the page.
-      if (Math.abs(dy) > Math.abs(dx) || dx <= 0 || !e.cancelable) { gesture = null; return; }
-      gesture.decided = true;
-      begin();
-    }
-    e.preventDefault();
-    const now = performance.now();
-    gesture.speed = (touch.clientX - gesture.lastX) / Math.max(1, now - gesture.lastT);
-    gesture.lastX = touch.clientX; gesture.lastT = now;
-    move(Math.max(0, dx));
-  }, { passive: false });
-  const end = (e) => {
-    if (!gesture) return;
-    if (!gesture.decided) { gesture = null; return; }
-    const dx = (e.changedTouches?.[0]?.clientX ?? gesture.lastX) - gesture.x;
-    finish(e.type === 'touchend' && (dx > gesture.width / 3 || (gesture.speed > 0.4 && dx > 24)));
-  };
-  document.addEventListener('touchend', end, { passive: true });
-  document.addEventListener('touchcancel', end, { passive: true });
+    if (from && ((e.touches[0]?.clientX ?? from.x) - from.x) * from.way > 40) { edgeSwipe = performance.now(); from = null; }
+  }, { passive: true });
+  document.addEventListener('touchcancel', () => { if (from) edgeSwipe = performance.now(); from = null; }, { passive: true });
+  document.addEventListener('touchend', () => { from = null; }, { passive: true });
 }
 
 function start() {
   history.scrollRestoration = 'manual';
+  // Chrome on Android reloads the whole page when it is pulled down at its top: Mira refreshes the screen instead.
+  document.documentElement.classList.toggle('android', device.name === 'Android');
   clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, topbar, tabbar, netbar);
   addEventListener('hashchange', route);
   addEventListener('popstate', (e) => {
-    // Safari's own swipe back (in a tab) has already shown the move: Mira does not draw a second one.
-    uaTransition = !!e.hasUAVisualTransition;
+    // iOS's own swipe has already shown the move: Mira does not draw a second one.
+    uaTransition = !!e.hasUAVisualTransition || performance.now() - edgeSwipe < 3000;
     // A move in the history to an entry with the same address fires no hashchange.
     if ((location.hash || '#/') === currentKey) route();
   });
   // Without a touch listener, Safari on iPhone never shows the :active state of what is touched.
   document.addEventListener('touchstart', () => {}, { passive: true });
-  setupSwipeBack();
+  addEventListener('pointerdown', () => { touched = true; }, { capture: true, once: true, passive: true });
+  watchEdgeSwipes();
   setupPullToRefresh();
   addEventListener('scroll', updateScrolled, { passive: true });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (document.hidden) { hiddenAt = Date.now(); applyUpdate(true); return; }
     if (probeTimer) { clearTimeout(probeTimer); probeDelay = 1000; probe(); }
     else if (hiddenAt && Date.now() - hiddenAt > 60_000) { current?.refresh?.(); checkForUpdate(); }
   });
-  addEventListener('offline', () => toast('Plus de connexion : Mira reprendra dès le retour du réseau.'));
+  addEventListener('offline', () => { if (netbar.hidden) toast('Plus de connexion : Mira reprendra dès le retour du réseau.'); });
   addEventListener('online', () => { if (probeTimer) { clearTimeout(probeTimer); probeDelay = 500; probe(); } else current?.refresh?.(); });
   onReachable((up, reason) => (up ? serverUp() : serverDown(reason)));
   onUnauthorized(() => {
@@ -444,6 +397,8 @@ function start() {
   });
   route();
   checkForUpdate();
+  // The other screens' code, fetched while nothing happens: the first visit to a screen then shows it at once.
+  setTimeout(() => { for (const r of ROUTES) if (!r.open) r.load().catch(() => {}); }, 2500);
 }
 
 start();

@@ -38,21 +38,38 @@ function marks(item, box) {
   else if (item.Type === 'Series' && item.UserData?.Played) box.append(h('div', { class: 'badge-watched', title: 'Toute la série est vue' }, icon('check')));
 }
 
+/**
+ * The items cards were drawn from, by id: a title page opened from a card draws at once with what is already known
+ * (name, pictures), while its details load.
+ */
+const known = new Map();
+export const knownItem = (id) => known.get(id) ?? null;
+function remember(item) {
+  if (!item?.Id) return;
+  known.delete(item.Id); known.set(item.Id, item);
+  if (known.size > 300) known.delete(known.keys().next().value);
+}
+
+// Sizes that the cards are drawn at on a phone, in CSS pixels: the server sends pictures at that size, not larger.
+const posterWidth = () => (innerWidth < 600 ? 120 : 156);
+const wideWidth = () => Math.min(340, Math.round(innerWidth * 0.74));
+
 /** A poster with its title: opens the title page; a long press offers the item's actions. */
-export function posterCard(item, { width = 156 } = {}) {
+export function posterCard(item, { width = posterWidth(), eager = false } = {}) {
   const name = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
-  const art = picture(artFor(item, 'poster'), { kind: 'poster', width, label: name });
+  const art = picture(artFor(item, 'poster'), { kind: 'poster', width, label: name, eager });
   marks(item, art);
   const card = h('a', { class: 'card', href: titleHref(item), 'aria-label': name },
     art, h('div', { class: 'card-title clamp-1' }, name), h('div', { class: 'card-sub clamp-1' }, subtitle(item)));
+  card.addEventListener('click', () => remember(item));
   withActions(card, item);
   return card;
 }
 
 /** A 16:9 card for Continuer à regarder: a tap plays from where it was left. */
-export function wideCard(item, { width = 340, play = true } = {}) {
+export function wideCard(item, { width = wideWidth(), play = true, eager = false } = {}) {
   const series = item.Type === 'Episode';
-  const art = picture(artFor(item, 'wide'), { kind: 'wide', width, label: series ? item.SeriesName : item.Name });
+  const art = picture(artFor(item, 'wide'), { kind: 'wide', width, label: series ? item.SeriesName : item.Name, eager });
   marks(item, art);
   const card = h('a', { class: 'card wide-card', href: play ? playHref(item) : titleHref(item), 'aria-label': `${play ? 'Lire ' : ''}${series ? item.SeriesName : item.Name}` },
     art,
@@ -70,14 +87,18 @@ export function personCard(person) {
   return card;
 }
 
-/** A titled horizontal row; nothing when there is nothing to show. */
+/**
+ * A titled horizontal row; nothing when there is nothing to show. The pictures on screen at first load at once, the
+ * others as the row scrolls (VoiceOver reads its cards as links).
+ */
 export function row(title, items, card, { wide = false, more = '', people = false } = {}) {
   if (!items?.length) return null;
+  const first = wide ? 2 : 3;
   return h('section', { class: 'section' },
     h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, title), more ? h('a', { href: more }, 'Tout voir') : null),
-    h('div', { class: ['row', wide && 'wide', people && 'people'], role: 'list' }, items.map((item) => {
+    h('div', { class: ['row', wide && 'wide', people && 'people'] }, items.map((item, i) => {
       const el = card(item);
-      el.setAttribute('role', 'listitem');
+      if (i < first) { const img = el.querySelector('img'); if (img) img.loading = 'eager'; }
       return el;
     })));
 }
@@ -137,13 +158,22 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
  * { heading } above a group of them. Closes on a choice, on the backdrop, or with Escape.
  */
 export function sheet({ title = '', items = [], body = null }) {
+  // A second tap on what opens a sheet (while the first one is still arriving) does not stack another.
+  if (document.querySelector('.sheet-layer:not(.leaving)')) return () => {};
   const previous = document.activeElement;
   const layer = h('div', { class: 'sheet-layer' });
+  const openedAt = performance.now();
+  // A touch held to open a menu ends with a click where the finger lifts: too soon to be a choice in the sheet.
+  const early = () => performance.now() - openedAt < 350;
+  // Back on Android (Chrome 120 and later) closes the sheet rather than the screen under it.
+  let watcher = null;
+  try { if ('CloseWatcher' in window) { watcher = new CloseWatcher(); watcher.onclose = () => close(); } } catch { /* not here */ }
   let closing = false;
   // It slides back down before it goes, as iOS sheets do; the choice made runs once it has started to.
   const close = () => {
     if (closing) return;
     closing = true;
+    try { watcher?.destroy(); } catch { /* already gone */ }
     removeEventListener('keydown', keys); removeEventListener('hashchange', close);
     layer.classList.add('leaving');
     panel.style.transform = '';
@@ -160,11 +190,11 @@ export function sheet({ title = '', items = [], body = null }) {
     items.map((item) => item.heading ? h('div', { class: 'sheet-heading', role: 'presentation' }, item.heading) : h('button', {
       class: ['sheet-item', item.danger && 'danger'], role: item.selected != null ? 'menuitemradio' : 'menuitem',
       'aria-checked': item.selected != null ? String(!!item.selected) : null,
-      on: { click: () => { if (closing) return; close(); item.run?.(); } },
+      on: { click: () => { if (closing || early()) return; close(); item.run?.(); } },
     }, item.symbol ? icon(item.symbol) : null,
     h('span', { class: 'grow' }, item.label, item.sub ? h('span', { class: 'sub' }, item.sub) : null),
     item.selected ? h('span', { class: 'tick' }, icon('check', { size: 20 })) : null)));
-  layer.append(h('div', { class: 'sheet-backdrop', on: { click: close } }), panel);
+  layer.append(h('div', { class: 'sheet-backdrop', on: { click: () => { if (!early()) close(); } } }), panel);
   dragToClose(panel, close);
   document.body.append(layer);
   addEventListener('keydown', keys);
@@ -186,12 +216,13 @@ function dragToClose(panel, close) {
     if (!start || start.scrolled) return;
     const y = e.touches[0].clientY;
     dy = y - start.y;
+    // From the first move down, before iOS starts the list's own bounce.
+    if (dy > 0 && e.cancelable) e.preventDefault();
     if (!start.dragging) {
       if (dy <= 4) { if (dy < -4) start = null; return; }
       start.dragging = true;
       panel.classList.add('dragging');
     }
-    if (e.cancelable) e.preventDefault();
     const now = performance.now();
     speed = (y - lastY) / Math.max(1, now - lastT); lastY = y; lastT = now;
     panel.style.transform = `translate3d(0, ${Math.max(0, dy)}px, 0)`;
@@ -208,20 +239,24 @@ function dragToClose(panel, close) {
 }
 
 /** Long press (or right click) on a card: play, open, watched, favourite, and out of Continuer à regarder. */
-function withActions(card, item, { resumeRow = false } = {}) {
-  let timer = 0, startX = 0, startY = 0, fired = false;
-  const open = () => { fired = true; itemMenu(item, { resumeRow }); };
+export function withActions(card, item, { resumeRow = false } = {}) {
+  let timer = 0, lift = 0, startX = 0, startY = 0, fired = false;
+  const stop = () => { clearTimeout(timer); clearTimeout(lift); card.classList.remove('holding'); };
+  const open = () => { stop(); if (fired) return; fired = true; itemMenu(item, { resumeRow }); };
   card.addEventListener('touchstart', (e) => {
     fired = false; startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    lift = setTimeout(() => card.classList.add('holding'), 180);
     timer = setTimeout(open, 480);
   }, { passive: true });
   card.addEventListener('touchmove', (e) => {
-    if (Math.abs(e.touches[0].clientX - startX) > 10 || Math.abs(e.touches[0].clientY - startY) > 10) clearTimeout(timer);
+    if (Math.abs(e.touches[0].clientX - startX) > 10 || Math.abs(e.touches[0].clientY - startY) > 10) stop();
   }, { passive: true });
-  card.addEventListener('touchend', () => clearTimeout(timer));
-  card.addEventListener('touchcancel', () => clearTimeout(timer));
+  // After a long press, WebKit clicks where the touch began once the finger lifts, which would now hit the menu:
+  // cancelling the touch's end stops that click.
+  card.addEventListener('touchend', (e) => { stop(); if (fired && e.cancelable) e.preventDefault(); }, { passive: false });
+  card.addEventListener('touchcancel', stop);
   card.addEventListener('click', (e) => { if (fired) { e.preventDefault(); fired = false; } });
-  card.addEventListener('contextmenu', (e) => { e.preventDefault(); clearTimeout(timer); if (!fired) open(); });
+  card.addEventListener('contextmenu', (e) => { e.preventDefault(); open(); });
 }
 
 export function itemMenu(item, { resumeRow = false } = {}) {

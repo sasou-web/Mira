@@ -29,7 +29,7 @@
   --ios: cubic-bezier(0.32, 0.72, 0, 1);   /* UIKit's push and sheet curve */
   --fast: 160ms;
   --slow: 240ms;
-  --push: 420ms;
+  --push: 360ms;
 
   --gutter: 16px;
   --top: env(safe-area-inset-top, 0px);
@@ -56,6 +56,7 @@ html {
   /* An app does not zoom with two fingers, nor on a double tap (scrolling stays). */
   touch-action: pan-x pan-y;
 }
+html.android { overscroll-behavior-y: contain; }
 /* Nor does it select its text or open link previews on a long press: only fields and addresses select. */
 body { margin: 0; min-height: 100dvh; background: var(--bg); overflow-x: hidden; -webkit-user-select: none; user-select: none; }
 a, img { -webkit-touch-callout: none; }
@@ -89,14 +90,17 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---------- Moves between screens, as on iOS ---------- */
 /* A screen comes in from the right over the one before, which slides a little and darkens; Back is the reverse.
-   Tabs change with a short fade. Drawn by the browser between the two screens (View Transitions); the tab bar stays. */
+   Tabs change at once. Drawn by the browser between the two screens (View Transitions); the tab bar stays. */
 .tabbar { view-transition-name: tabbar; }
+.toast-layer { view-transition-name: toast; }
+.netbar { view-transition-name: netbar; }
+/* Captured on their own, the bars lose their blur while a move is drawn: they stay plain dark until it ends. */
+html[data-nav] .tabbar, html[data-nav] .topbar { background: rgba(11, 11, 12, 0.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
 ::view-transition-group(root) { animation-duration: var(--push); animation-timing-function: var(--ios); }
 html[data-nav='push']::view-transition-old(root) { animation: var(--push) var(--ios) both nav-under; }
 html[data-nav='push']::view-transition-new(root) { animation: var(--push) var(--ios) both nav-from-right; }
 html[data-nav='pop']::view-transition-old(root) { z-index: 1; animation: var(--push) var(--ios) both nav-to-right; }
 html[data-nav='pop']::view-transition-new(root) { animation: var(--push) var(--ios) both nav-from-under; }
-html[data-nav='tab']::view-transition-old(root), html[data-nav='tab']::view-transition-new(root) { animation-duration: 140ms; animation-timing-function: linear; }
 @keyframes nav-from-right { from { transform: translateX(100%); } }
 @keyframes nav-to-right { to { transform: translateX(100%); } }
 @keyframes nav-under { to { transform: translateX(-30%); filter: brightness(0.6); } }
@@ -104,14 +108,7 @@ html[data-nav='tab']::view-transition-old(root), html[data-nav='tab']::view-tran
 /* Without View Transitions (iOS 17 and older): the new screen alone moves in. */
 .view.enter-push { animation: var(--push) var(--ios) both nav-from-right; }
 .view.enter-pop { animation: var(--push) var(--ios) both nav-from-under; }
-.view.enter-tab { animation: 140ms linear both fade; }
 
-/* The swipe from the left edge (Home Screen app on iPhone): the screen follows the finger over the one before. */
-#app.swipe-active #view { position: relative; z-index: 2; }
-.view.swiping { position: relative; background: var(--bg); box-shadow: -12px 0 32px rgba(0, 0, 0, 0.5); will-change: transform; }
-.swipe-under { position: fixed; inset: 0; z-index: 1; overflow: hidden; background: var(--bg); pointer-events: none; padding-left: calc(var(--rail) + var(--left)); }
-.swipe-under > .view { will-change: transform; }
-.swipe-shade { position: absolute; inset: 0; background: #000; opacity: 0.5; }
 
 /* What lies under the status bar of a home screen app stays legible once the page scrolls. */
 .status-scrim {
@@ -190,7 +187,7 @@ body.scrolled .status-scrim { opacity: 1; }
   background: var(--raised); color: var(--ink); white-space: nowrap;
   transition: transform var(--fast) var(--ease), background var(--fast) linear, opacity var(--fast) linear;
 }
-.btn:active { transform: scale(0.97); }
+.btn:active { transform: scale(0.97); transition-delay: 70ms; }
 .btn.primary { background: var(--accent); color: var(--on-accent); }
 .btn.quiet { background: transparent; color: var(--muted); padding: 0 12px; }
 .btn.small { height: 36px; padding: 0 14px; font-size: 14px; border-radius: var(--r-full); }
@@ -202,7 +199,7 @@ body.scrolled .status-scrim { opacity: 1; }
   width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: var(--r-full);
   color: var(--ink); background: rgba(20, 20, 22, 0.66); transition: transform var(--fast) var(--ease), background var(--fast) linear;
 }
-.round:active { transform: scale(0.92); }
+.round:active { transform: scale(0.92); transition-delay: 40ms; }
 .round.flat { background: transparent; }
 .round.solid { background: var(--raised); }
 @media (hover: hover) { .round:hover { background: var(--raised-2); } }
@@ -214,6 +211,8 @@ body.scrolled .status-scrim { opacity: 1; }
   background: var(--raised); color: var(--ink); font-size: 14px; font-weight: 700; white-space: nowrap;
 }
 .chip[aria-pressed='true'], .chip.on { background: var(--accent); color: var(--on-accent); }
+.chip { transition: transform var(--fast) var(--ease), background var(--fast) linear; }
+.chip:active { transform: scale(0.96); transition-delay: 50ms; }
 .chip .icon { width: 16px; height: 16px; }
 
 .field { display: grid; gap: 6px; }
@@ -230,6 +229,8 @@ body.scrolled .status-scrim { opacity: 1; }
 .art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--slow) linear; }
 .art > img.ready { opacity: 1; }
 .art > img.instant { transition: none; }
+img.fade { opacity: 0; transition: opacity var(--slow) linear; }
+img.fade.ready { opacity: 1; }
 .art.poster { aspect-ratio: 2 / 3; }
 .art.wide { aspect-ratio: 16 / 9; }
 .art.square { aspect-ratio: 1; }
@@ -248,14 +249,19 @@ body.scrolled .status-scrim { opacity: 1; }
 /* ---------- Cards, rows and grids ---------- */
 .card { display: block; min-width: 0; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
 .card .art { transition: transform var(--fast) var(--ease); }
-.card:active .art { transform: scale(0.97); }
+/* Pressed only once the finger has rested a moment (70 ms), as in iOS's lists: a scroll that starts under it cancels
+   the press before it shows; the release is immediate. */
+.card:active .art { transform: scale(0.97); transition-delay: 70ms; }
+/* Held for a menu: the card lifts before it opens, like iOS's context menus. */
+.card.holding .art { transform: scale(1.03); box-shadow: var(--shadow); transition: transform 300ms var(--ios), box-shadow 300ms var(--ios); }
 .card-title { margin-top: 8px; font-size: 14px; font-weight: 700; line-height: 1.3; }
 .card-sub { font-size: 12px; color: var(--faint); margin-top: 1px; }
 @media (hover: hover) { .card:hover .art { outline: 2px solid rgba(245, 245, 247, 0.85); outline-offset: 2px; } }
 
 .section { margin-top: 28px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 var(--gutter); margin-bottom: 12px; }
-.section-head a { color: var(--muted); font-size: 14px; font-weight: 700; }
+.section-head a { color: var(--muted); font-size: 14px; font-weight: 700; transition: opacity var(--fast) linear; }
+.section-head a:active { opacity: 0.55; }
 .row {
   display: grid; grid-auto-flow: column; grid-auto-columns: var(--poster-w); gap: 12px;
   overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding: 0 var(--gutter);
@@ -289,7 +295,9 @@ body.scrolled .status-scrim { opacity: 1; }
 
 /* ---------- Sheets and toasts ---------- */
 .sheet-layer { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; }
-.sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); animation: fade var(--fast) linear; }
+.sheet-layer { overscroll-behavior: contain; }
+/* The page behind a sheet does not scroll under the finger. */
+.sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); animation: fade var(--fast) linear; touch-action: none; }
 .sheet {
   position: relative; width: 100%; max-width: 560px; max-height: min(78dvh, 640px); overflow-y: auto; overscroll-behavior: contain;
   background: var(--surface); border-radius: 16px 16px 0 0; padding: 8px 0 calc(12px + var(--bottom));
@@ -308,11 +316,14 @@ body.scrolled .status-scrim { opacity: 1; }
 }
 .sheet:focus { outline: none; }
 .sheet-grip { width: 36px; height: 5px; border-radius: var(--r-full); background: var(--raised-2); margin: 0 auto 8px; }
+/* The grip and the title only pull the sheet down, never scroll its list. */
+.sheet-grip, .sheet-title { touch-action: none; }
 .sheet-title { padding: 6px 20px 10px; font-size: 13px; font-weight: 800; color: var(--faint); letter-spacing: 0.04em; text-transform: uppercase; }
 .sheet-item {
   width: 100%; min-height: 52px; display: flex; align-items: center; gap: 14px; padding: 10px 20px; text-align: left; font-size: 16px; font-weight: 600;
 }
-.sheet-item:active, .sheet-item:hover { background: var(--raised); }
+.sheet-item:active { background: var(--raised); transition: background 0s linear 60ms; }
+@media (hover: hover) { .sheet-item:hover { background: var(--raised); } }
 .sheet-item .grow { flex: 1; min-width: 0; }
 .sheet-item .sub { display: block; font-size: 13px; color: var(--faint); font-weight: 400; }
 .sheet-item .tick { color: var(--accent); }
@@ -367,6 +378,12 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .dots { position: absolute; z-index: 2; right: var(--gutter); bottom: 30px; display: flex; gap: 6px; }
 .dots i { width: 6px; height: 6px; border-radius: var(--r-full); background: rgba(255, 255, 255, 0.35); transition: width var(--slow) var(--ease), background var(--fast) linear; }
 .dots i.on { width: 18px; background: var(--accent); }
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 899px) {
+  .hero { height: calc(100dvh - var(--tabbar)); }
+  .slide::after { background: linear-gradient(90deg, rgba(7, 7, 8, 0.9) 0, rgba(7, 7, 8, 0.5) 40%, rgba(7, 7, 8, 0) 70%), linear-gradient(to bottom, rgba(7, 7, 8, 0) 60%, var(--bg) 100%); }
+  .slide-body { right: auto; max-width: 60%; padding-left: calc(var(--gutter) + var(--left)); }
+  .slide-title { font-size: 28px; }
+}
 @media (min-width: 900px) {
   .hero { height: min(78vh, 760px); }
   .slide::after { background: linear-gradient(90deg, rgba(7, 7, 8, 0.92) 0, rgba(7, 7, 8, 0.55) 38%, rgba(7, 7, 8, 0) 66%), linear-gradient(to bottom, rgba(7, 7, 8, 0) 60%, var(--bg) 100%); }
@@ -423,7 +440,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 
 .seasons { margin-top: 28px; }
 .episode { display: grid; grid-template-columns: 136px 1fr; gap: 12px; padding: 10px var(--gutter); align-items: start; }
-.episode:active { background: var(--surface); }
+.episode:active { background: var(--surface); transition: background 0s linear 70ms; }
 .episode .art { width: 136px; }
 .episode .ep-title { font-size: 15px; font-weight: 700; line-height: 1.3; }
 .episode .ep-meta { font-size: 13px; color: var(--faint); margin-top: 2px; }
@@ -433,21 +450,26 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 
 /* ---------- Library ---------- */
 /* The large title scrolls away under the top bar; the filters stay, just below it. */
-.library-head { padding: calc(var(--top) + 12px) var(--gutter) 4px; }
+/* As tall as the top bar: at rest, the filters already sit where they stay once the title has gone under it. */
+.library-head { min-height: var(--bar); padding: calc(var(--top) + 12px) var(--gutter) 0; }
 .library-filters { position: sticky; top: var(--bar); z-index: 30; background: var(--bg); padding: 8px var(--gutter) 12px; }
 .library-count { color: var(--faint); font-size: 13px; padding: 0 var(--gutter) 12px; }
 .library-grid { padding: 0 var(--gutter) 24px; }
 .sentinel { height: 1px; }
 
 /* ---------- Search ---------- */
-.search-head { padding: calc(var(--top) + 12px) var(--gutter) 4px; }
+.search-head { min-height: var(--bar); padding: calc(var(--top) + 12px) var(--gutter) 0; }
+/* One clear button, Mira's: the browser's own is hidden. */
+.search-box .input::-webkit-search-cancel-button, .search-box .input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
 .search-bar { position: sticky; top: var(--bar); z-index: 30; background: var(--bg); padding: 8px var(--gutter) 12px; }
 .search-box { position: relative; }
 .search-box .icon { position: absolute; left: 14px; top: 13px; color: var(--faint); pointer-events: none; }
 .search-box .input { padding-left: 46px; padding-right: 44px; border-radius: var(--r-m); }
 .search-box .clear { position: absolute; right: 3px; top: 3px; }
 .recent { display: grid; padding: 0 var(--gutter); }
-.recent button { display: flex; align-items: center; gap: 12px; height: 48px; text-align: left; color: var(--muted); font-size: 16px; border-bottom: 1px solid var(--line); }
+.search .pending { opacity: 0.55; transition: opacity var(--fast) linear 120ms; }
+.recent button { display: flex; align-items: center; gap: 12px; height: 48px; text-align: left; color: var(--muted); font-size: 16px; border-bottom: 1px solid var(--line); transition: color var(--fast) linear; }
+.recent button:active { color: var(--ink); }
 
 /* ---------- Settings ---------- */
 .settings { padding-bottom: 32px; }
@@ -467,7 +489,7 @@ body:has(.netbar:not([hidden])) .toast-layer { bottom: calc(var(--tabbar) + 64px
 .item.danger { color: var(--danger); }
 .item.static .sub { margin-top: 3px; line-height: 1.4; }
 .group-note { margin: -14px calc(var(--gutter) + 4px) 24px; color: var(--faint); font-size: 13px; line-height: 1.45; }
-button.item:active, a.item:active { background: var(--raised); }
+button.item:active, a.item:active { background: var(--raised); transition: background 0s linear 60ms; }
 .switch { position: relative; width: 51px; height: 31px; flex: none; border-radius: var(--r-full); background: var(--raised-2); transition: background var(--fast) linear; }
 .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--ink); transition: transform var(--fast) var(--ease); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
 [aria-checked='true'] .switch { background: var(--accent); }

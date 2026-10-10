@@ -1,5 +1,5 @@
 // Jellyfin's artwork for a title, sized for the phone's screen, with its blurred placeholder.
-import { base } from './api.js';
+import { base, onReachable } from './api.js';
 import { placeholder } from './blurhash.js';
 import { h, initials } from './dom.js';
 
@@ -54,6 +54,12 @@ export function imageUrl(art, cssWidth, quality = 85) {
 // Images already shown once: drawn again (a screen redrawn, a row refreshed), they appear at once, without fading in
 // from their placeholder a second time.
 const shown = new Set();
+// Pictures that failed while the server was away are asked for again once it answers.
+const failed = new Set();
+onReachable((up) => {
+  if (!up) return;
+  for (const img of failed) { failed.delete(img); if (img.isConnected) { const src = img.src; img.removeAttribute('src'); img.src = src; } }
+});
 
 /**
  * A picture box: the placeholder at once, the image fading in once loaded (at once when already shown), or the
@@ -71,11 +77,13 @@ export function picture(art, { kind = 'poster', width = 160, label = '', eager =
   if (eager) img.fetchPriority = 'high';
   img.addEventListener('load', () => { img.classList.add('ready'); if (shown.size > 2000) shown.clear(); shown.add(img.src); }, { once: true });
   img.addEventListener('error', () => {
+    // The placeholder stays; the picture comes once the server answers again.
+    if (blur) { failed.add(img); return; }
     img.remove();
-    if (!blur) box.append(h('span', { class: 'initials', text: label ? (kind === 'square' ? initials(label) : label) : '' }));
-  }, { once: true });
+    box.append(h('span', { class: 'initials', text: label ? (kind === 'square' ? initials(label) : label) : '' }));
+  });
   img.src = imageUrl(art, width);
-  if (shown.has(img.src) || (img.complete && img.naturalWidth)) img.classList.add('instant');
+  if (shown.has(img.src) || (img.complete && img.naturalWidth)) img.classList.add('instant', 'ready');
   box.append(img);
   return box;
 }
@@ -84,5 +92,10 @@ export function picture(art, { kind = 'poster', width = 160, label = '', eager =
 export function logo(item, width = 380, className = 'slide-logo') {
   const art = artFor(item, 'logo');
   if (!art) return null;
-  return h('img', { class: className, alt: item.SeriesName ?? item.Name ?? '', src: imageUrl(art, width, 90), decoding: 'async' });
+  // It fades in like the picture under it, instead of popping in a moment later.
+  const img = h('img', { class: [className, 'fade'], alt: item.SeriesName ?? item.Name ?? '', decoding: 'async' });
+  img.addEventListener('load', () => img.classList.add('ready'), { once: true });
+  img.src = imageUrl(art, width, 90);
+  if (img.complete && img.naturalWidth) img.classList.add('ready');
+  return img;
 }

@@ -215,8 +215,8 @@ try {
 }
 check('lecteur d’Apple (simulé) : aucune erreur JavaScript', appleErrors.length === 0, appleErrors.slice(0, 3).join(' | '));
 
-// The Home Screen app on iPhone, simulated (navigator.standalone): the swipe from the left edge to go back, tabs that
-// do not pile up history, sheets pulled down to close. Touches go through Chromium's DevTools protocol.
+// The Home Screen app on iPhone, simulated (navigator.standalone): pull to refresh, Back and iOS's own swipe from the
+// edge, tabs that do not pile up history, sheets pulled down to close. Touches go through Chromium's DevTools protocol.
 const home = await browser.newContext({ ...devices['iPhone 15 Pro'] });
 await home.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { configurable: true, get: () => true }));
 const hp = await home.newPage();
@@ -245,16 +245,29 @@ try {
   check('app (simulée) : tirer vers le bas pour actualiser', await asked);
   await hp.waitForTimeout(1500);
   const openTitle = async () => { await hp.locator('a.card[href^="#/titre/"]').first().click(); await hp.waitForTimeout(1500); return where(); };
+  // Mira's Back draws iOS's move; after the system's own swipe from the edge (iOS cancels the touch), it draws none.
+  const watchMoves = () => hp.evaluate(() => {
+    window.miraMoves = [];
+    new MutationObserver(() => { const nav = document.documentElement.dataset.nav; if (nav) window.miraMoves.push(nav); })
+      .observe(document.documentElement, { attributes: true, attributeFilter: ['data-nav'] });
+  });
   const opened = await openTitle();
-  await drag(4, 420, 330, 430); await hp.waitForTimeout(1200);
+  await watchMoves();
+  await hp.locator('.floating-back').click(); await hp.waitForTimeout(1200);
   let at = await where();
-  check('app (simulée) : balayage depuis le bord pour revenir', opened.hash.startsWith('#/titre/') && opened.depth === 1 && at.hash === '#/' && at.depth === 0
-    && await hp.locator('.view.home').isVisible() && !(await hp.locator('.swipe-under').count()), `${opened.hash.split('?')[0]} (${opened.depth}) → ${at.hash} (${at.depth})`);
+  let moves = await hp.evaluate(() => window.miraMoves);
+  check('app (simulée) : Retour, l’écran repart vers la droite', opened.hash.startsWith('#/titre/') && opened.depth === 1 && at.hash === '#/' && at.depth === 0
+    && moves.includes('pop') && await hp.locator('.view.home').isVisible(), `${opened.hash.split('?')[0]} (${opened.depth}) → ${at.hash} (${at.depth}), ${moves.join(',') || 'aucun mouvement'}`);
   await openTitle();
-  await drag(4, 420, 70, 425); await hp.waitForTimeout(1000);
+  await watchMoves();
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 4, y: 420 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+  await hp.evaluate(() => history.back()); await hp.waitForTimeout(1200);
   at = await where();
-  const settled = await hp.evaluate(() => { const v = document.querySelector('#view > .view'); return !v.style.transform && !v.classList.contains('swiping') && !document.querySelector('.swipe-under'); });
-  check('app (simulée) : balayage trop court, la fiche reste', at.hash.startsWith('#/titre/') && settled, at.hash.split('?')[0]);
+  moves = await hp.evaluate(() => window.miraMoves);
+  check('app (simulée) : balayage d’iOS depuis le bord, pas de second mouvement', at.hash === '#/' && at.depth === 0 && !moves.length
+    && await hp.locator('.view.home').isVisible(), `${at.hash} (${at.depth}), ${moves.join(',') || 'aucun mouvement'}`);
+  await openTitle();
   await hp.locator('.tabbar a[data-tab="films"]').click(); await hp.waitForTimeout(1500);
   at = await where();
   check('app (simulée) : onglet touché depuis une fiche, sans empiler l’historique', at.hash === '#/films' && at.depth === 0, `${at.hash} (${at.depth})`);

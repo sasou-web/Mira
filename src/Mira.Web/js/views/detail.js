@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { h, icon, clear, duration, seconds, progress, remaining, episodeCode, plural } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import {
-  row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, itemMenu, toast, sheet,
+  row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, toast, sheet, withActions, knownItem,
 } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
 import { settings } from '../session.js';
@@ -78,12 +78,8 @@ function episodeRow(episode, current) {
     art,
     h('div', {}, h('div', { class: 'ep-title clamp-2' }, `${episode.IndexNumber != null ? `${episode.IndexNumber}. ` : ''}${episode.Name ?? ''}`), h('div', { class: 'ep-meta' }, facts)),
     episode.Overview ? h('p', { class: 'ep-overview clamp-2' }, episode.Overview) : null);
-  // A long press offers the episode's actions (watched, favourite) instead of playing it.
-  let timer = 0, fired = false;
-  link.addEventListener('touchstart', () => { fired = false; timer = setTimeout(() => { fired = true; itemMenu(episode); }, 480); }, { passive: true });
-  for (const name of ['touchend', 'touchmove', 'touchcancel']) link.addEventListener(name, () => clearTimeout(timer), { passive: true });
-  link.addEventListener('click', (e) => { if (fired) { e.preventDefault(); fired = false; } });
-  link.addEventListener('contextmenu', (e) => { e.preventDefault(); itemMenu(episode); });
+  // A long press offers the episode's actions (watched, favourite) instead of playing it, as on the cards.
+  withActions(link, episode);
   return link;
 }
 
@@ -208,7 +204,11 @@ export function create({ id, query }) {
       chips.append(h('button', { class: 'chip', role: 'tab', dataset: { key: `${p.season}:${p.skip}` }, on: { click: () => show(p) } }, p.label));
     }
     show(pages.find((p) => p.season === page.season && p.skip === page.skip) ?? pages[0]);
-    requestAnimationFrame(() => chips.querySelector('.chip.on')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
+    // The chosen season comes into view in its strip; the page itself does not move (scrollIntoView would scroll it).
+    requestAnimationFrame(() => {
+      const on = chips.querySelector('.chip.on');
+      if (on) chips.scrollLeft += on.getBoundingClientRect().left - chips.getBoundingClientRect().left - (chips.clientWidth - on.offsetWidth) / 2;
+    });
     return h('section', { class: 'seasons' },
       h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, 'Épisodes'), h('span', { class: 'meta' }, plural(episodes.length, 'épisode', 'épisodes'))),
       pages.length > 1 ? h('div', { style: { padding: '0 var(--gutter) 8px' } }, chips) : null,
@@ -238,8 +238,28 @@ export function create({ id, query }) {
       h('div', { style: { height: '32px' } }));
   }
 
+  /**
+   * What the card that was touched already knows (name, pictures, year), drawn at once: the screen slides in with its
+   * picture and title rather than a spinner, and the rest arrives in place.
+   */
+  function seed(known) {
+    const backdrop = artFor(known, 'backdrop'), poster = backdrop ? null : artFor(known, 'poster');
+    const headTitle = logo(known, 420, 'detail-logo') ?? h('h1', { class: 'detail-title' }, known.Name);
+    if (headTitle.tagName === 'IMG') headTitle.addEventListener('error', () => headTitle.replaceWith(h('h1', { class: 'detail-title' }, known.Name)), { once: true });
+    clear(el).append(back,
+      h('div', { class: 'detail-top' },
+        h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: innerWidth > 900 ? 1600 : 900, eager: true }) : null),
+        h('div', { class: 'detail-head' },
+          poster ? picture(poster, { kind: 'poster', width: 140, eager: true, className: 'detail-poster' }) : null,
+          headTitle, meta(known, []),
+          h('div', { class: 'detail-actions' }, h('div', { class: 'skeleton', style: { height: '48px', borderRadius: 'var(--r-m)' } })),
+          h('div', { class: 'skeleton line', style: { width: '90%' } }), h('div', { class: 'skeleton line', style: { width: '75%' } }))));
+  }
+
   async function load(quiet = false) {
-    if (!quiet && !item) clear(el).append(back, h('div', { style: { paddingTop: '40vh' } }, spinner()));
+    const known = !item && !quiet ? knownItem(id) : null;
+    if (known && known.Type !== 'Episode') seed(known);
+    else if (!quiet && !item) clear(el).append(back, h('div', { style: { paddingTop: '40vh' } }, spinner()));
     try {
       const fresh = await api.item(id);
       let eps = [], nextUp = null;
