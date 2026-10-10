@@ -34,8 +34,9 @@ export function create() {
   const notice = sessionStorage.getItem('mira.notice');
   sessionStorage.removeItem('mira.notice');
 
-  async function finish(name, password, errorBox, button) {
-    button.disabled = true; button.textContent = 'Connexion…'; errorBox.textContent = '';
+  /** busy(true) while Jellyfin checks, busy(false) if it refuses: the button or the profile touched says so. */
+  async function finish(name, password, errorBox, busy) {
+    busy(true); errorBox.textContent = '';
     try {
       await api.signIn(name, password);
       resetScreens();
@@ -44,7 +45,7 @@ export function create() {
       replaceRoute(next && !next.startsWith('#/connexion') ? next : '#/');
     } catch (error) {
       errorBox.textContent = error.status === 401 ? 'Nom d’utilisateur ou mot de passe incorrect.' : error.message;
-      button.disabled = false; button.textContent = 'Se connecter';
+      busy(false, error);
     }
   }
 
@@ -54,17 +55,31 @@ export function create() {
     const name = h('input', { class: 'input', id: 'login-name', autocomplete: 'username', autocapitalize: 'none', autocorrect: 'off', spellcheck: false, enterkeyhint: 'next', value: user?.Name ?? '' });
     const password = h('input', { class: 'input', id: 'login-password', type: 'password', autocomplete: 'current-password', enterkeyhint: 'go' });
     const button = h('button', { class: 'btn primary block', type: 'submit' }, 'Se connecter');
+    const busy = (on, error) => {
+      button.disabled = on; button.textContent = on ? 'Connexion…' : 'Se connecter';
+      // A wrong password: the field shakes, as on iPhone, and its text is selected, ready to be typed again.
+      if (error?.status === 401) {
+        fields.classList.remove('shake'); void fields.offsetWidth; fields.classList.add('shake');
+        password.select();
+      }
+    };
     const fields = h('form', {
       class: 'login-form',
-      on: { submit: (e) => { e.preventDefault(); if (!name.value.trim()) { name.focus(); return; } finish(name.value.trim(), password.value, errorBox, button); } },
+      on: { submit: (e) => { e.preventDefault(); if (!name.value.trim()) { name.focus(); return; } finish(name.value.trim(), password.value, errorBox, busy); } },
     },
     user ? h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } }, avatar(user, 56), h('div', { class: 'h3' }, user.Name)) : null,
-    h('div', { class: 'field', hidden: !!user }, h('label', { for: 'login-name' }, 'Nom d’utilisateur'), name),
+    // A profile picked: its name stays in the form, out of sight, so that the iPhone's passwords know whose it is.
+    h('div', { class: ['field', user && 'sr'], 'aria-hidden': user ? 'true' : null }, h('label', { for: 'login-name' }, 'Nom d’utilisateur'), name),
     h('div', { class: 'field' }, h('label', { for: 'login-password' }, 'Mot de passe'), password),
     errorBox, button,
     users.length ? h('button', { class: 'btn quiet', type: 'button', on: { click: () => pick(users) } }, 'Choisir un autre profil') : null);
+    fields.addEventListener('animationend', () => fields.classList.remove('shake'));
+    if (user) name.tabIndex = -1;
+    // The keyboard's « suivant » goes to the password, rather than sending the form without it.
+    name.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); password.focus(); } });
     body.append(fields);
-    requestAnimationFrame(() => (user ? password : name).focus());
+    // Within the touch that picked the profile: iOS only brings the keyboard up for a focus a touch asked for.
+    (user ? password : name).focus({ preventScroll: true });
   }
 
   function pick(users) {
@@ -72,7 +87,13 @@ export function create() {
     lead.textContent = 'Qui regarde ?';
     const list = h('div', { class: 'users', role: 'list' }, users.map((user) => h('button', {
       class: 'user-pick', role: 'listitem',
-      on: { click: (e) => user.HasPassword ? form(user, users) : finish(user.Name, '', errorBox, e.currentTarget) },
+      on: {
+        click: (e) => {
+          const tile = e.currentTarget;
+          if (user.HasPassword) form(user, users);
+          else finish(user.Name, '', errorBox, (on) => { tile.disabled = on; tile.classList.toggle('busy', on); });
+        },
+      },
     }, avatar(user), h('span', { class: 'clamp-1' }, user.Name))));
     const errorBox = h('p', { class: 'form-error', role: 'alert' }, notice ?? '');
     body.append(list, errorBox, h('button', { class: 'btn quiet', on: { click: () => { lead.textContent = 'Connecte-toi avec ton compte Jellyfin.'; form(null, users); } } }, 'Autre compte'));
