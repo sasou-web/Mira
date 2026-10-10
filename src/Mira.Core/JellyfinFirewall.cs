@@ -10,7 +10,8 @@ namespace Mira.Core;
 /// Windows' « Autoriser l'accès » prompt, made at its first start: allow on the kind of network ticked, block on the
 /// others, and none at all when the prompt was closed. Tailscale marks its adapter Private
 /// (wgengine/router/osrouter/ifconfig_windows.go), so a box counted as Public lets the home network in and keeps
-/// Tailscale out, and the other way round.
+/// Tailscale out, and the other way round. Mira's own rule never applies to Public: a home network counted so is made
+/// Private.
 /// </summary>
 public static class JellyfinFirewall
 {
@@ -32,10 +33,11 @@ public static class JellyfinFirewall
     public enum Verdict { Open, Blocked, Closed }
     /// <summary>
     /// What phones meet: the worse verdict, from the home network or Tailscale, with the profile it was judged on;
-    /// Tailscale's own (null when it is not connected here); and a block rule naming no program that keeps them out,
-    /// which Mira leaves alone (someone's own, or a security suite's).
+    /// Tailscale's own (null when it is not connected here); a block rule naming no program that keeps them out, which
+    /// Mira leaves alone (someone's own, or a security suite's); and the adapter Windows counts as Public that keeps
+    /// them out (« Wi-Fi »), where Mira's rule never applies, which « Tout préparer » makes Private.
     /// </summary>
-    public sealed record Reach(Verdict Verdict, int Profile, Verdict? Tailnet = null, string? Kept = null);
+    public sealed record Reach(Verdict Verdict, int Profile, Verdict? Tailnet = null, string? Kept = null, string? Public = null);
     /// <summary>
     /// Mira's own rule (<see cref="JellyfinStartup.RuleName"/>): none; ready, as Mira writes it now; or there but not as
     /// Mira writes it (another port or program, turned off, edited, an older version's), which « Tout préparer » replaces.

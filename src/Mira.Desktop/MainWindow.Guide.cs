@@ -24,6 +24,11 @@ public partial class MainWindow
     private PhoneSetup.Facts? _phone;
     private bool _preparing, _phoneWatched;
     private DateTime _phoneReadAt;
+    /// <summary>
+    /// The network Windows would not let « Tout préparer » make private, while it stays public: the person's to change,
+    /// which the firewall step then says, rather than Windows' consent asked again at every click.
+    /// </summary>
+    private string? _keptPublic;
 
     /// <summary>On opening: the welcome on a new profile, the main points after an update, or nothing.</summary>
     private void ShowStartupScreen()
@@ -147,7 +152,8 @@ public partial class MainWindow
             tailnet = AtThisPc(address);
         }
         if (version != _phoneVersion) return;
-        _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, rule, boot, Program: program is not null, Answering: answering);
+        _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, rule, boot, Program: program is not null, Answering: answering,
+            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic);
         ShowPhone(_phone);
         if (!answering) _ = WaitForJellyfinAsync(client, version);
     }
@@ -187,7 +193,8 @@ public partial class MainWindow
             ? windows.Count > 0 ? $"Une seule autorisation de Windows, pour {string.Join(" et ", windows)}." : ""
             : ready ? PhoneSetup.Everywhere(facts) is not null
                 ? "Le QR code marche chez toi et ailleurs, Tailscale activé sur ton téléphone."
-                : "Le QR code marche sur le Wi-Fi de la maison." : "");
+                // A firewall step left to the person (a public network Windows keeps, « block all »…) keeps the phone out at home.
+                : steps.All(x => x.Key != "firewall" || x.Mark == PhoneSetup.Mark.Done) ? "Le QR code marche sur le Wi-Fi de la maison." : "" : "");
         PhoneAddress.Text = PhoneSetup.Address(facts);
         PhoneAddressLine.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -249,6 +256,9 @@ public partial class MainWindow
                 {
                     case AutostartResult.Refused: problems.Add("Windows n’a pas reçu l’autorisation : le pare-feu n’a pas changé."); break;
                     case AutostartResult.Failed: problems.Add("Le pare-feu ou le démarrage de Jellyfin n’a pas pu être réglé. Réessaie."); break;
+                    case AutostartResult.KeptPublic:
+                        _keptPublic = facts.Firewall?.Public ?? LocalNetwork.ThisPcOnNetwork()?.Adapter;
+                        problems.Add("Windows garde ton réseau en public : l’étape du pare-feu dit où le passer en privé."); break;
                 }
             }
             if (PhoneSetup.Is(steps, "tailscale", PhoneSetup.Mark.ToDo))

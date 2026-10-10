@@ -9,8 +9,11 @@ using Mira.Core;
 
 namespace Mira.Desktop.Services;
 
-/// <summary>How setting Jellyfin up to answer from the PC's start went.</summary>
-internal enum AutostartResult { Done, Refused, Failed }
+/// <summary>
+/// How setting Jellyfin up to answer from the PC's start went. KeptPublic: done, but Windows kept a network phones come
+/// from public (one it cannot identify), where Mira's rule never applies: the person's to change in Windows' settings.
+/// </summary>
+internal enum AutostartResult { Done, Refused, Failed, KeptPublic }
 
 /// <summary>
 /// Jellyfin's service and the firewall, so that phones find Mira web, at home and on Tailscale, and as soon as the PC
@@ -97,7 +100,7 @@ internal static class JellyfinAutostart
             using var process = Process.Start(new ProcessStartInfo(self, arguments) { UseShellExecute = true, Verb = "runas" });
             if (process is null) return AutostartResult.Failed;
             await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(2));
-            return process.ExitCode == 0 ? AutostartResult.Done : AutostartResult.Failed;
+            return process.ExitCode switch { 0 => AutostartResult.Done, 3 => AutostartResult.KeptPublic, _ => AutostartResult.Failed };
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { return AutostartResult.Refused; }
         catch (Exception ex) when (ex is Win32Exception or TimeoutException or InvalidOperationException) { return AutostartResult.Failed; }
@@ -107,7 +110,7 @@ internal static class JellyfinAutostart
     /// The copy of Mira started with administrator rights by « Tout préparer »: <c>--jellyfin-startup &lt;port&gt;</c>.
     /// The firewall lets phones through, with or without Jellyfin's service; the service, when there is one, starts with
     /// Windows and again after an error. 0 once every step that matters succeeded, 1 otherwise, 2 for arguments it does
-    /// not accept.
+    /// not accept, 3 when all is done but Windows kept a network public (<see cref="AutostartResult.KeptPublic"/>).
     /// </summary>
     public static int Run(string[] args)
     {
@@ -115,7 +118,7 @@ internal static class JellyfinAutostart
         var program = Program();
         var open = OpenFirewall(program, port);
         var boot = !Read().HasService || Apply(program, port);
-        return open && boot ? 0 : 1;
+        return open == AutostartResult.Failed || !boot ? 1 : open == AutostartResult.KeptPublic ? 3 : 0;
     }
 
     /// <summary>
@@ -137,9 +140,9 @@ internal static class JellyfinAutostart
     /// Whether Windows' firewall lets phones reach <paramref name="program"/> on <paramref name="port"/>, from the home
     /// network and, when Tailscale is connected here, from Tailscale (<see cref="JellyfinFirewall.Reach"/>). Read
     /// through its COM interface, which needs no administrator rights. Null when it cannot be read, or when this PC is
-    /// on no network.
+    /// on no network. <paramref name="rule"/>: Mira's, which never applies to a public network once replaced.
     /// </summary>
-    public static JellyfinFirewall.Reach? Phones(string? program, int port)
+    public static JellyfinFirewall.Reach? Phones(string? program, int port, string rule = JellyfinStartup.RuleName)
     {
         if (program is null) return null;
         try
@@ -148,39 +151,49 @@ internal static class JellyfinAutostart
             var rules = found.Select(x => x.Rule).ToList();
             JellyfinFirewall.Reach? reach = null;
             JellyfinFirewall.Verdict? tailnet = null;
-            string? kept = null;
+            string? kept = null, counted = null;
             foreach (var origin in Origins(active))
             {
                 var verdict = JellyfinFirewall.Judge(rules, settings[origin.Profile], program, port, origin.Profile, origin.Adapter, origin.Home);
                 if (origin.Home is null && (tailnet is null || verdict > tailnet)) tailnet = verdict;
                 if (verdict == JellyfinFirewall.Verdict.Blocked)
                     kept ??= JellyfinFirewall.Blocking(rules, program, port, origin.Profile, origin.Adapter, origin.Home).FirstOrDefault(x => string.IsNullOrWhiteSpace(x.Program))?.Name;
+                if (CountedPublic(origin, rules, settings[origin.Profile], program, port, rule)) counted ??= origin.Adapter;
                 if (reach is null || verdict > reach.Verdict) reach = new(verdict, origin.Profile);
             }
-            return reach is null ? null : reach with { Tailnet = tailnet, Kept = kept };
+            return reach is null ? null : reach with { Tailnet = tailnet, Kept = kept, Public = counted };
         }
         catch (Exception ex) when (IsFirewallError(ex)) { return null; }
     }
 
     /// <summary>
-    /// Lets phones through to <paramref name="program"/>: its own block rules that keep them out (Windows' prompt makes
-    /// one for each kind of network left unticked) stop applying to the home network's profile and to Tailscale's
-    /// (Private, which Tailscale sets, even before it is connected here), and are turned off when no other profile is
-    /// left; then Mira's rule (<see cref="JellyfinStartup.FirewallCommands"/>), which lets in only the home network and
-    /// Tailscale, even when the rules cannot be read. A block rule for any program is someone's own and stays. Needs
-    /// administrator rights. True once the firewall, read again, is as open as Mira can make it.
+    /// Lets phones through to <paramref name="program"/>. A network they come from that Windows counts as public (the
+    /// home network, or Tailscale's), and that keeps them out, is made private: Mira's rule never applies to a public
+    /// network, and a domain one is left as Windows set it. Then <paramref name="program"/>'s own block rules that keep
+    /// them out (Windows' prompt makes one for each kind of network left unticked) stop applying to the home network's
+    /// profile, unless public, and to Tailscale's (Private, which Tailscale sets, even before it is connected here), and
+    /// are turned off when no other profile is left. Then Mira's rule (<see cref="JellyfinStartup.FirewallCommands"/>),
+    /// which lets in only the home network and Tailscale, even when the rules cannot be read. A block rule for any
+    /// program is someone's own and stays. Needs administrator rights. Done once the firewall, read again, is as open as
+    /// Mira can make it; KeptPublic when Windows would not make a network private.
     /// </summary>
-    public static bool OpenFirewall(string? program, int port, string rule = JellyfinStartup.RuleName)
+    public static AutostartResult OpenFirewall(string? program, int port, string rule = JellyfinStartup.RuleName)
     {
-        if (program is null) return false;
+        if (program is null) return AutostartResult.Failed;
         try
         {
-            var (rules, _, active) = ReadFirewall(Policy(), program);
+            var (rules, settings, active) = ReadFirewall(Policy(), program);
             var origins = Origins(active);
+            var switched = false;
+            foreach (var origin in origins.Where(o => CountedPublic(o, rules.Select(x => x.Rule), settings[o.Profile], program, port, rule)))
+                switched |= SetNetworkCategory(origin.Adapter!, JellyfinFirewall.Private);
+            // Windows applies the private profile at once: the profiles active here change with it.
+            if (switched) { (rules, _, active) = ReadFirewall(Policy(), program); origins = Origins(active); }
             if (!origins.Any(x => x.Home is null)) origins.Add(new(JellyfinFirewall.Private, null, null));
             foreach (var (found, com) in rules.Where(x => !x.Rule.Allow && !string.IsNullOrWhiteSpace(x.Rule.Program)))
             {
-                var lifted = origins.Where(x => JellyfinFirewall.Applies(found, program, port, x.Profile, x.Adapter, x.Home)).Aggregate(0, (bits, x) => bits | x.Profile);
+                var lifted = origins.Where(x => x.Profile != JellyfinFirewall.Public && JellyfinFirewall.Applies(found, program, port, x.Profile, x.Adapter, x.Home))
+                    .Aggregate(0, (bits, x) => bits | x.Profile);
                 if (lifted == 0) continue;
                 var others = JellyfinFirewall.WithoutProfile(found.Profiles, lifted);
                 if (others != 0) com.Profiles = others; else com.Enabled = false;
@@ -188,13 +201,27 @@ internal static class JellyfinAutostart
         }
         catch (Exception ex) when (IsFirewallError(ex)) { }
         foreach (var command in JellyfinStartup.FirewallCommands(program, port, rule))
-            if (Execute(command) != 0 && !command.Optional) return false;
-        // Blocking everything, or a block rule naming no program, is the person's to undo: the guide says where.
-        return Phones(program, port) is null or { Verdict: not JellyfinFirewall.Verdict.Blocked } or { Kept: not null };
+            if (Execute(command) != 0 && !command.Optional) return AutostartResult.Failed;
+        // Blocking everything, or a block rule naming no program, is the person's to undo: the guide says where. So is a
+        // network Windows keeps public.
+        var reach = Phones(program, port, rule);
+        if (reach?.Public is not null) return AutostartResult.KeptPublic;
+        return reach is null or { Verdict: not JellyfinFirewall.Verdict.Blocked } or { Kept: not null } ? AutostartResult.Done : AutostartResult.Failed;
     }
+    /// <summary>
+    /// A network phones come from that Windows says it counts as public, and that keeps them out but for Mira's own rule
+    /// (<paramref name="rule"/>: an older version's applied to every network): Mira's never applies there once
+    /// replaced, so « Tout préparer » makes it private (the home network is not a café's).
+    /// </summary>
+    private static bool CountedPublic(Origin origin, IEnumerable<JellyfinFirewall.Rule> rules, JellyfinFirewall.Profile settings, string program, int port, string rule) =>
+        origin.Known && origin.Profile == JellyfinFirewall.Public && origin.Adapter is not null
+        && JellyfinFirewall.Judge(rules.Where(x => x.Name != rule), settings, program, port, origin.Profile, origin.Adapter, origin.Home) != JellyfinFirewall.Verdict.Open;
 
-    /// <summary>Where phones connect from: the home network (this PC's address there stands for it), or Tailscale's range (no address).</summary>
-    private sealed record Origin(int Profile, string? Adapter, string? Home);
+    /// <summary>
+    /// Where phones connect from: the home network (this PC's address there stands for it), or Tailscale's range (no
+    /// address); <paramref name="Known"/>: on the profile Windows says, not one assumed.
+    /// </summary>
+    private sealed record Origin(int Profile, string? Adapter, string? Home, bool Known = false);
     /// <summary>
     /// The home network, on its adapter's profile, and Tailscale, when it is connected here, on its own. A profile
     /// Windows does not say (<see cref="NetworkCategories"/>): for the home network, each one active here; for
@@ -206,7 +233,7 @@ internal static class JellyfinAutostart
         var origins = new List<Origin>();
         if (LocalNetwork.ThisPcOnNetwork() is { } home)
         {
-            if (categories.TryGetValue(home.Adapter, out var profile)) origins.Add(new(profile, home.Adapter, home.Address));
+            if (categories.TryGetValue(home.Adapter, out var profile)) origins.Add(new(profile, home.Adapter, home.Address, Known: true));
             else
             {
                 foreach (var bit in new[] { JellyfinFirewall.Domain, JellyfinFirewall.Private, JellyfinFirewall.Public }.Where(x => (active & x) != 0))
@@ -214,7 +241,7 @@ internal static class JellyfinAutostart
             }
         }
         if (TailnetAdapter() is { } tailnet)
-            origins.Add(new(categories.TryGetValue(tailnet, out var profile) ? profile : JellyfinFirewall.TailnetProfile(active), tailnet, null));
+            origins.Add(categories.TryGetValue(tailnet, out var profile) ? new(profile, tailnet, null, Known: true) : new(JellyfinFirewall.TailnetProfile(active), tailnet, null));
         return origins;
     }
     /// <summary>
@@ -240,6 +267,33 @@ internal static class JellyfinAutostart
         }
         catch (Exception ex) when (IsFirewallError(ex) || ex is FormatException or OverflowException) { }
         return found;
+    }
+    /// <summary>
+    /// Has Windows count a network adapter's network as private (or public: the tests put theirs back), as
+    /// Set-NetConnectionProfile does: MSFT_NetConnectionProfile changed through WMI's scripting objects, which needs
+    /// administrator rights. A domain network is never changed (Windows sets it from the domain), and Windows refuses a
+    /// network it cannot identify. True once Windows counts it so.
+    /// </summary>
+    internal static bool SetNetworkCategory(string adapter, int profile)
+    {
+        if (profile is not (JellyfinFirewall.Private or JellyfinFirewall.Public)) throw new ArgumentOutOfRangeException(nameof(profile));
+        try
+        {
+            dynamic locator = Activator.CreateInstance(Type.GetTypeFromProgID("WbemScripting.SWbemLocator", throwOnError: true)!)!;
+            dynamic service = locator.ConnectServer(".", @"root\StandardCimv2");
+            foreach (dynamic found in service.ExecQuery("SELECT * FROM MSFT_NetConnectionProfile"))
+            {
+                if (!string.Equals((string?)found.Properties_.Item("InterfaceAlias").Value, adapter, StringComparison.OrdinalIgnoreCase)) continue;
+                // NetworkCategory: 0 public, 1 private, 2 domain.
+                dynamic category = found.Properties_.Item("NetworkCategory");
+                if (Convert.ToInt32((object)category.Value) == 2) return false;
+                category.Value = profile == JellyfinFirewall.Private ? 1 : 0;
+                // wbemChangeFlagUpdateOnly: the instance is changed, as Set-NetConnectionProfile does (ModifyInstance).
+                found.Put_(1);
+            }
+        }
+        catch (Exception ex) when (IsFirewallError(ex) || ex is FormatException or OverflowException) { }
+        return NetworkCategories().TryGetValue(adapter, out var now) && now == profile;
     }
 
     /// <summary>

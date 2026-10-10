@@ -13,8 +13,12 @@ public static class JellyfinStartup
     public const string RuleName = "Mira - Jellyfin";
     /// <summary>15 s after a first error, then 30 s, then a minute; the count starts again after a day without one.</summary>
     public const string RestartActions = "restart/15000/restart/30000/restart/60000";
-    /// <summary>The network profiles Mira's rule applies to (<see cref="JellyfinFirewall"/>'s bits).</summary>
-    public const int RuleProfiles = JellyfinFirewall.AllProfiles;
+    /// <summary>
+    /// The network profiles Mira's rule applies to (<see cref="JellyfinFirewall"/>'s bits): private and domain, never
+    /// public, where LocalSubnet is a hotspot's and Jellyfin counts strangers' private addresses as local. A home network
+    /// Windows counts as public is made private instead, by « Tout préparer ».
+    /// </summary>
+    public const int RuleProfiles = JellyfinFirewall.Domain | JellyfinFirewall.Private;
 
     /// <summary>What Mira reads of the service, without administrator rights.</summary>
     public sealed record State(bool HasService, bool StartsWithWindows, bool Delayed, bool RestartsAfterError)
@@ -39,8 +43,8 @@ public static class JellyfinStartup
     /// <summary>
     /// The programs of Windows that set it all up, in order, run with administrator rights. <paramref name="program"/>
     /// is the jellyfin.exe the service runs: the rule lets in only it, only on <paramref name="port"/>, and only from
-    /// this PC's own networks (any profile: at start, Windows may count the home network as public for a while) and
-    /// Tailscale's. Optional steps may fail: no rule to replace yet, a service already running.
+    /// this PC's own networks and Tailscale's, on private and domain networks (<see cref="RuleProfiles"/>). Optional
+    /// steps may fail: no rule to replace yet, a service already running.
     /// </summary>
     public static IReadOnlyList<StartupCommand> Commands(string program, int port, string service = ServiceName, string rule = RuleName)
     {
@@ -59,8 +63,8 @@ public static class JellyfinStartup
 
     /// <summary>
     /// Mira's firewall rule, replaced whole: the home network and Tailscale may reach <paramref name="program"/> on
-    /// <paramref name="port"/>, on any profile, and nothing else. Also what the guide's « Tout préparer » sets, with
-    /// or without Jellyfin's service.
+    /// <paramref name="port"/>, on private and domain networks, and nothing else. Also what the guide's « Tout
+    /// préparer » sets, with or without Jellyfin's service.
     /// </summary>
     public static IReadOnlyList<StartupCommand> FirewallCommands(string program, int port, string rule = RuleName)
     {
