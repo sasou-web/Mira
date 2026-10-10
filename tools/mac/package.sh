@@ -8,6 +8,9 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 OUT="$ROOT/dist/mac"
 APP="$OUT/Mira.app"
 BREW=$(brew --prefix)
+# The oldest macOS Mira runs on, announced in README.md and docs/INSTALLATION-MAC.md. Homebrew builds its libraries for
+# the macOS it runs on (macos-15 on GitHub): step 4 refuses any bundled code that asks for a later one.
+MINIMUM=15.0
 rm -rf "$OUT" && mkdir -p "$OUT"
 
 # 1. Mira, with its own .NET runtime: nothing to install beside it.
@@ -17,7 +20,6 @@ dotnet publish "$ROOT/src/Mira.Mac/Mira.Mac.csproj" -c Release -r osx-arm64 --se
 # 2. The bundle.
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp -R "$OUT/publish/." "$APP/Contents/MacOS/"
-MINIMUM=$(sw_vers -productVersion | cut -d. -f1).0
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -56,6 +58,19 @@ dylibbundler -of -b -ns -x "$APP/Contents/Frameworks/libmpv.2.dylib" -d "$APP/Co
 install_name_tool -id @rpath/libmpv.2.dylib "$APP/Contents/Frameworks/libmpv.2.dylib"
 # Nothing may still point into Homebrew: a Mac without it would fail to load mpv.
 if otool -L "$APP"/Contents/Frameworks/*.dylib | grep -E "^\s+($BREW|/usr/local/(opt|Cellar))"; then echo "libraries still linked to Homebrew" >&2; exit 1; fi
+# Nothing may ask for a macOS newer than the one Mira declares: it would fail to load there, after the Mac let it open.
+newer=0
+for binary in "$APP/Contents/MacOS/Mira" "$APP"/Contents/MacOS/*.dylib "$APP"/Contents/Frameworks/*.dylib; do
+  [ -f "$binary" ] || continue
+  # awk reads to the end: leaving early would stop otool with SIGPIPE, which pipefail turns into a failed build.
+  needs=$(otool -l "$binary" | awk '/LC_BUILD_VERSION/ { build = 1 } /LC_VERSION_MIN_MACOSX/ { old = 1 }
+    !found && ((build && $1 == "minos") || (old && $1 == "version")) { print $2; found = 1 }')
+  if [ -z "$needs" ]; then echo "no minimum macOS in $(basename "$binary")" >&2; newer=1; continue; fi
+  if awk -v a="$needs" -v b="$MINIMUM" 'BEGIN { split(a, x, "."); split(b, y, "."); exit !(x[1] * 1000 + x[2] > y[1] * 1000 + y[2]) }'; then
+    echo "$(basename "$binary") needs macOS $needs, Mira declares $MINIMUM" >&2; newer=1
+  fi
+done
+if [ "$newer" -ne 0 ]; then exit 1; fi
 
 # 5. Signed ad hoc, from the inside out: Apple Silicon runs no unsigned code, and the bundle's signature covers every
 # file beside the executable (.NET's .dll and .json too, signed in their extended attributes), as Avalonia documents.

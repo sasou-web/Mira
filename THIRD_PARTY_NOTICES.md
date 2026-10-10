@@ -5,10 +5,10 @@ Mira's original source code is licensed under MIT. This does not replace the lic
 | Component | Use | Licence / notice |
 | --- | --- | --- |
 | .NET 8, WPF and Windows Forms | Self-contained Windows runtime; Forms is used for NotifyIcon only | MIT, .NET Foundation and contributors; `licenses/DOTNET-LICENSE.txt`, `licenses/WINDOWS-DESKTOP-LICENSE.txt`, `licenses/DOTNET-THIRD-PARTY-NOTICES.txt` |
-| Microsoft.Data.Sqlite 8.0.20 | SQLite data access | MIT, .NET Foundation and contributors; .NET notice above |
+| Microsoft.Data.Sqlite 8.0.31 | SQLite data access | MIT, .NET Foundation and contributors; .NET notice above |
 | System.Security.Cryptography.ProtectedData 8.0.0 and System.Memory 4.5.3 | Windows DPAPI and transitive managed dependency | MIT, .NET Foundation and contributors; .NET notice above |
-| SQLitePCL.raw 2.1.6 | SQLite interop and native package | Copyright 2014–2023 SourceGear, LLC; Apache-2.0, `licenses/SQLITEPCLRAW-APACHE-2.0.txt` |
-| SQLite | Native database engine in the SQLitePCL.raw package | Public domain; [SQLite copyright statement](https://www.sqlite.org/copyright.html) |
+| SQLitePCL.raw 2.1.12 | SQLite interop and native package | Copyright 2014–2024 SourceGear, LLC; Apache-2.0, `licenses/SQLITEPCLRAW-APACHE-2.0.txt` |
+| SQLite 3.53.3 | Native database engine in the SQLitePCL.raw package | Public domain; [SQLite copyright statement](https://www.sqlite.org/copyright.html) |
 | C#/WinRT runtime | Windows media-session interop | MIT, Microsoft Corporation; `licenses/CSWINRT-MIT.txt` |
 | Windows SDK .NET targeting pack 10.0.19041.56 | Windows API projections | Microsoft Corporation; [Windows SDK licence](https://aka.ms/WinSDKLicenseURL) |
 | Nunito Sans | Bundled typefaces (Mira web: Latin subsets in WOFF2) | SIL Open Font License 1.1; `licenses/NUNITO-SANS-OFL.txt`, upstream revision in `src/Mira.Desktop/Assets/Fonts/SOURCE.txt` |

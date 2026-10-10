@@ -1,5 +1,12 @@
 # Historique
 
+## Non publié
+
+- **Mac : macOS 15 Sequoia ou plus récent.** Les Mac de GitHub sous macOS 14, qui construisent l’image disque, sont retirés le 2 novembre 2026, et les bibliothèques de mpv embarquées viennent de Homebrew, construites pour le macOS qui les compile. La 0.7.4 reste la dernière version pour macOS 14 Sonoma ; la construction refuse maintenant toute bibliothèque qui demanderait un macOS plus récent que celui annoncé.
+- **SQLite 3.53.3** (Microsoft.Data.Sqlite 8.0.31) dans les apps Windows et Mac, à la place de SQLite 3.41.2 (2023), signalé vulnérable.
+- **Construction** : une faille connue de gravité haute ou critique dans un paquet, même tiré par un autre, ou un avertissement du compilateur arrêtent la construction ; la mise en forme du code est vérifiée à chaque PR ; Dependabot propose chaque mois les mises à jour des paquets NuGet et des actions GitHub, une semaine après leur sortie au plus tôt ; les workflows ne gardent plus le jeton GitHub après avoir récupéré le code, et n’insèrent plus de valeurs d’un événement dans leurs commandes.
+- **Contrôle de Mira web** (`tools/web/check.mjs`) : identifiants par défaut ceux de la CI.
+
 ## 0.7.4 — 2026-10-10
 
 Mira sur le téléphone en un clic, après la page blanche chez un nouvel utilisateur : le guide de Mira pour Windows prépare tout et dit ce qui reste.
@@ -15,7 +22,6 @@ Mira sur le téléphone en un clic, après la page blanche chez un nouvel utilis
   - Un Jellyfin installé sans son service n’a que les règles de la fenêtre « Autoriser l’accès » de Windows, à son premier lancement : autorisé sur le type de réseau coché, bloqué sur les autres, et aucune règle si elle n’a pas été validée. Or Tailscale déclare son réseau privé, et la box est souvent comptée publique.
   - Le guide lit maintenant le pare-feu de Windows, sans droits d’administrateur, pour le Wi-Fi de la maison et pour Tailscale, chacun sur son type de réseau. **Tout préparer** retire les blocages de Jellyfin sur ces réseaux (ils restent sur les autres) et ajoute la règle de Mira, qui laisse entrer ton réseau et Tailscale, sur le port de Jellyfin seulement. Avec ou sans service.
 - **« Serveur injoignable » dit pourquoi** (Mira web) : avec l’adresse Tailscale, vérifier que Tailscale est activé sur le téléphone ; avec celle de la maison, que le téléphone est sur son Wi-Fi.
-
 ## 0.7.3 — 2026-10-10
 
 Mira web après le troisième essai sur iPhone (iOS 27) : les titres que le lecteur d’Apple refusait, et des onglets qui s’enchaînent sans à-coups.

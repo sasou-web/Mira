@@ -1,0 +1,28 @@
+# Updates proposed as pull requests, once a month, each ecosystem in one: the actions of the workflows (pinned by
+# commit) and the NuGet packages. A version is proposed a week after its release at the earliest, time for a broken or
+# hijacked one to be withdrawn. NuGet majors stay by hand: Jellyfin.Controller stays on the oldest Jellyfin Mira supports,
+# and a major of .NET, Avalonia or SQLite moves the whole app.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: nuget
+    directories: ["/", "/src/Mira.Mac", "/src/Mira.Jellyfin"]
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: Jellyfin.Controller
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      nuget:
+        patterns: ["*"]

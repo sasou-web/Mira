@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
-const [base = 'http://127.0.0.1:8096/Mira/', user = 'sasou', password = 'premier', seriesName = 'Courte Web', out = 'shots/e2e'] = process.argv.slice(2);
+const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-check', seriesName = 'Courte Web', out = 'shots/e2e'] = process.argv.slice(2);
 fs.mkdirSync(out, { recursive: true });
 const results = [];
 const check = (name, ok, detail = '') => { results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`); console.log(results.at(-1)); };

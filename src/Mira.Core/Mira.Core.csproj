@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.20" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.31" />
     <!-- Reads the .7z archive of the libmpv build Mira can install on request (LZMA2 + BCJ2). -->
     <PackageReference Include="SharpCompress" Version="1.0.0" />
   </ItemGroup>

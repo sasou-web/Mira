@@ -5,5 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
+    <!-- A warning stops the build: the code stays at zero, the CI keeps it there. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Known vulnerabilities in every package, the ones pulled in by another included (SQLite came that way). A high or
+         critical one stops the build; a low or moderate one, or an advisory source out of reach, stays a warning. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900;NU1901;NU1902</WarningsNotAsErrors>
   </PropertyGroup>
 </Project>

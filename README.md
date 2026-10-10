@@ -6,7 +6,7 @@
   <p>
     <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.7.4_preview-e8e8ed?style=flat-square" alt="Version 0.7.4 preview" /></a>
     <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
-    <img src="https://img.shields.io/badge/macOS-14+_Apple_Silicon-555555?style=flat-square" alt="macOS 14 et plus, Apple Silicon" />
+    <img src="https://img.shields.io/badge/macOS-15+_Apple_Silicon-555555?style=flat-square" alt="macOS 15 et plus, Apple Silicon" />
     <img src="https://img.shields.io/badge/iPhone_·_Android-Mira_web-555555?style=flat-square" alt="iPhone et Android : Mira web" />
     <img src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square" alt=".NET 8" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
@@ -61,7 +61,7 @@ La page **Téléchargements** est facultative : TorLink s’y active d’un clic
 
 ### Sur Mac
 
-Mira existe aussi pour les Mac à puce Apple (macOS 14 Sonoma ou plus récent) : **Mira-0.7.4-mac-arm64.dmg**, dans la même [release 0.7.4](https://github.com/sasou-web/Mira/releases/tag/v0.7.4). Elle se connecte à un serveur Jellyfin existant et lit avec le même moteur mpv, intégré à l’application. Elle n’est pas signée par Apple : macOS demande de l’autoriser une fois. [Installer Mira sur Mac](docs/INSTALLATION-MAC.md)
+Mira existe aussi pour les Mac à puce Apple (macOS 15 Sequoia ou plus récent ; macOS 14 Sonoma jusqu’à la 0.7.4) : **Mira-0.7.4-mac-arm64.dmg**, dans la même [release 0.7.4](https://github.com/sasou-web/Mira/releases/tag/v0.7.4). Elle se connecte à un serveur Jellyfin existant et lit avec le même moteur mpv, intégré à l’application. Elle n’est pas signée par Apple : macOS demande de l’autoriser une fois. [Installer Mira sur Mac](docs/INSTALLATION-MAC.md)
 
 ### Sur iPhone, iPad et Android
 
