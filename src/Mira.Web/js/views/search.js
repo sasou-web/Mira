@@ -32,16 +32,26 @@ export function create({ query }) {
     h('div', { class: 'recent' }, list.map((text) => h('button', { on: { click: () => { input.value = text; update(); } } }, icon('history', { size: 20 }), text))));
   }
 
-  async function search(text) {
+  /**
+   * Results for the text. What is shown stays, dimmed, until the answer arrives (no placeholders at each pause in the
+   * typing); `quiet` (a refresh) keeps it as it is, and changes it only if the answer differs.
+   */
+  async function search(text, { quiet = false } = {}) {
     controller?.abort();
     controller = new AbortController();
-    clear(results).append(h('div', { style: { padding: '0 var(--gutter)' } }, skeletonGrid(6)));
+    const showing = !!results.querySelector('.card');
+    if (showing) { if (!quiet) results.classList.add('pending'); }
+    else if (!quiet) clear(results).append(h('div', { style: { padding: '0 var(--gutter)' } }, skeletonGrid(6)));
     try {
       const [titles, people] = await Promise.all([
         api.browse({ search: text, limit: 60, sort: 'title', signal: controller.signal }),
         api.persons(text, controller.signal).catch(() => null),
       ]);
       const items = titles?.Items ?? [], persons = (people?.Items ?? []).slice(0, 12);
+      results.classList.remove('pending');
+      const signature = JSON.stringify([items, persons]);
+      if (quiet && signature === shownSignature) return;
+      shownSignature = signature;
       clear(results);
       if (!items.length && !persons.length) {
         results.append(emptyState({ symbol: 'search', title: 'Aucun résultat', text: `Rien ne correspond à « ${text} » dans ta bibliothèque.` }));
@@ -50,13 +60,15 @@ export function create({ query }) {
       if (persons.length) results.append(row('Personnes', persons, (p) => personCard(p), { people: true }));
       if (items.length) {
         results.append(h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, 'Films et séries')),
-          h('div', { class: 'grid', role: 'list', style: { padding: '0 var(--gutter) 24px' } }, items.map((x) => { const c = posterCard(x); c.setAttribute('role', 'listitem'); c.addEventListener('click', () => remember(text)); return c; }))));
+          h('div', { class: 'grid', style: { padding: '0 var(--gutter) 24px' } }, items.map((x) => { const c = posterCard(x); c.addEventListener('click', () => remember(text)); return c; }))));
       }
     } catch (error) {
       if (error.name === 'AbortError') return;
-      clear(results).append(errorState(error, () => search(text)));
+      results.classList.remove('pending');
+      if (!quiet) { shownSignature = ''; clear(results).append(errorState(error, () => search(text))); }
     }
   }
+  let shownSignature = '';
 
   function update() {
     const text = input.value.trim();
@@ -74,7 +86,11 @@ export function create({ query }) {
 
   return {
     el, title: 'Recherche', keep: true,
-    refresh() { lastText = null; update(); },
+    refresh() {
+      const text = input.value.trim();
+      if (text.length < 2) { clear(results).append(recent()); return undefined; }
+      return search(text, { quiet: true });
+    },
     // The keyboard opens when the tab is tapped, as in Apple's apps (only with nothing typed yet).
     enter() { if (!input.value && matchMedia('(pointer: coarse)').matches) input.focus({ preventScroll: true }); },
     dispose() { controller?.abort(); clearTimeout(timer); },

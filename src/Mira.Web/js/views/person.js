@@ -20,7 +20,7 @@ export function create({ id }) {
           h('div', { class: 'avatar', style: { width: '88px', height: '88px' } }, picture(artFor(person, 'square'), { kind: 'square', width: 88, label: person.Name, eager: true })),
           h('div', {}, h('h1', { class: 'page-title' }, person.Name), h('p', { class: 'page-sub' }, items.length ? `${plural(items.length, 'titre', 'titres')} dans ta bibliothèque` : ''))),
         items.length
-          ? h('div', { class: 'grid', role: 'list' }, items.map((x) => { const c = posterCard(x); c.setAttribute('role', 'listitem'); return c; }))
+          ? h('div', { class: 'grid' }, items.map((x) => posterCard(x)))
           : emptyState({ symbol: 'person', title: 'Aucun titre', text: 'Aucun film ni série de ta bibliothèque ne cite cette personne.' })));
     } catch (error) {
       clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, load)));

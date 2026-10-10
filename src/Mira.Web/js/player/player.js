@@ -745,14 +745,17 @@ export function create({ id, query }) {
   const onHide = () => { if (document.hidden) report('progress', true); };
   const onPageHide = () => { if (started) api.report('stop', body(), true).catch(() => {}); };
 
-  /** Back to the title page, from Retour or from Apple's player once closed. */
-  async function close() {
+  /**
+   * Back to the title page, from Retour or from Apple's player once closed: at once, the stop going to Jellyfin on its
+   * way (its report is built before anything changes, and sent even if the page goes).
+   */
+  function close() {
     if (closing) return;
     closing = true;
     clearTimeout(nativeCheck);
     exitPresentation();
     video.pause();
-    await stop();
+    stop();
     goBack(item ? titleHref(item) : '#/');
   }
 
@@ -790,8 +793,9 @@ export function create({ id, query }) {
     const attempt = ++beginning;
     busy.hidden = false; showNative('loading');
     audioSession(native && settings.get('ambientAudio'));
-    // Muted when the player closed (see dispose): the title plays with its sound.
-    video.muted = false; updateMute();
+    // Muted when Apple's player closed (see dispose): the title plays with its sound. Mira's own mute button stays
+    // as it was left elsewhere.
+    if (native) { video.muted = false; updateMute(); }
     try {
       let found = await api.item(target.id);
       if (found.Type === 'Series') {
@@ -875,7 +879,7 @@ export function create({ id, query }) {
       video.remove();
       // A video that once had sound stays iOS's « Now Playing » item, paused, until it is muted: muted once out of
       // Apple's player (muting in full screen changes nothing), it leaves the lock screen and Control Center.
-      video.muted = true;
+      if (native) video.muted = true;
       if ('mediaSession' in navigator) {
         // Nothing left for the lock screen or the Dynamic Island once the player is gone.
         navigator.mediaSession.metadata = null;
