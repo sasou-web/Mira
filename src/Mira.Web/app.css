@@ -126,6 +126,16 @@ body.scrolled .status-scrim { opacity: 1; }
 }
 .topbar span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 800; }
 .topbar.on { opacity: 1; }
+/* Pull to refresh (Home Screen app): an arrow that turns as the page is pulled, then spins while the server answers. */
+.pull {
+  position: fixed; z-index: 46; top: calc(var(--top) + 14px); left: calc(50% + (var(--rail) + var(--left)) / 2);
+  width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--r-full); pointer-events: none;
+  background: var(--raised-2); color: var(--muted); box-shadow: var(--shadow); opacity: 0; transform: translate(-50%, 0);
+  transition: opacity var(--fast) linear, color var(--fast) linear;
+}
+.pull .icon { width: 20px; height: 20px; }
+.pull.armed { color: var(--ink); }
+.pull.busy { opacity: 1 !important; color: var(--ink); animation: spin 0.8s linear infinite; transform: translate(-50%, 24px) !important; }
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .topbar { background: rgba(11, 11, 12, 0.78); -webkit-backdrop-filter: saturate(160%) blur(20px); backdrop-filter: saturate(160%) blur(20px); }
 }

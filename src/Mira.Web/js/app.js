@@ -266,6 +266,49 @@ function updateScrolled() {
   topbar.classList.toggle('on', show);
 }
 
+// ---------- Pull to refresh ----------
+// The Home Screen app has no Safari around it to reload the page: pulled down from its top, a screen asks the server
+// again, as Apple's apps do. Only for screens that can refresh, and not while a sheet or the player is open.
+function setupPullToRefresh() {
+  if (!isStandalone()) return;
+  const PULL = 84;
+  const mark = h('div', { class: 'pull', 'aria-hidden': 'true' }, icon('refresh'));
+  app.append(mark);
+  let start = null, armed = false, busy = false;
+  const show = (distance) => {
+    const p = Math.min(1, distance / PULL);
+    mark.style.opacity = String(p);
+    mark.style.transform = `translate(-50%, ${Math.min(distance, PULL * 1.4) * 0.45}px) rotate(${Math.round(p * 300)}deg)`;
+    mark.classList.toggle('armed', p >= 1);
+  };
+  const hide = () => { mark.style.opacity = '0'; mark.style.transform = 'translate(-50%, 0)'; mark.classList.remove('armed', 'busy'); };
+  document.addEventListener('touchstart', (e) => {
+    start = null;
+    if (busy || e.touches.length !== 1 || scrollY > 0 || currentBare || !current?.refresh || document.querySelector('.sheet-layer')) return;
+    if (e.touches[0].clientX <= 28) return; // the swipe back starts there
+    start = e.touches[0].clientY; armed = false;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (start == null) return;
+    const distance = e.touches[0].clientY - start;
+    if (distance <= 0 || scrollY > 0) { start = null; hide(); return; }
+    armed = distance >= PULL;
+    show(distance);
+  }, { passive: true });
+  const end = async () => {
+    if (start == null) return;
+    start = null;
+    if (!armed) { hide(); return; }
+    busy = true;
+    mark.classList.add('busy');
+    try { await current?.refresh?.(); } catch { /* the screen says what failed */ }
+    busy = false;
+    hide();
+  };
+  document.addEventListener('touchend', end, { passive: true });
+  document.addEventListener('touchcancel', () => { start = null; hide(); }, { passive: true });
+}
+
 // ---------- Swipe from the left edge to go back ----------
 // A Home Screen app on iPhone has no Safari around it, so no swipe back: Mira draws its own, as iOS apps do. The
 // screen follows the finger over the one under it (the screen kept from before, or the background), and goes back
@@ -384,6 +427,7 @@ function start() {
   // Without a touch listener, Safari on iPhone never shows the :active state of what is touched.
   document.addEventListener('touchstart', () => {}, { passive: true });
   setupSwipeBack();
+  setupPullToRefresh();
   addEventListener('scroll', updateScrolled, { passive: true });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { hiddenAt = Date.now(); return; }
