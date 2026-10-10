@@ -37,7 +37,8 @@ export function withoutHidden(items, hidden, history) {
 
 function cacheKey() { return `mira.home.${session.current?.userId}`; }
 function readCache() { try { return JSON.parse(localStorage.getItem(cacheKey()) ?? 'null'); } catch { return null; } }
-function writeCache(data) { try { localStorage.setItem(cacheKey(), JSON.stringify(data)); } catch { /* full storage: no cache */ } }
+// An answer that arrives once signed out is not kept: nothing of the account stays (session.js).
+function writeCache(data) { if (!session.current) return; try { localStorage.setItem(cacheKey(), JSON.stringify(data)); } catch { /* full storage: no cache */ } }
 
 function heroMeta(item) {
   const parts = [];

@@ -1,5 +1,5 @@
 // Sign-in: the server is the one Mira web comes from; pick your profile, type your password, done.
-import { api, base } from '../api.js';
+import { api, base, exposed } from '../api.js';
 import { h, icon, clear, initials } from '../dom.js';
 import { isIOS, isStandalone } from '../session.js';
 import { markSvg, resetScreens, replaceRoute } from '../app.js';
@@ -28,6 +28,11 @@ export function create() {
   const lead = h('p', { class: 'lead' }, 'Connecte-toi avec ton compte Jellyfin.');
   const body = h('div', { style: { display: 'grid', justifyItems: 'center', gap: '22px', width: '100%' } });
   el.append(markSvg(64), h('div', { style: { display: 'grid', gap: '8px', justifyItems: 'center' } }, title, lead), body);
+  // Over plain HTTP from the Internet, the password could be read on its way: said before it is typed.
+  if (exposed()) {
+    body.before(h('div', { class: 'hint warn', role: 'note' }, h('div', { class: 'step' }, icon('warning'),
+      h('span', {}, h('b', {}, 'Connexion non chiffrée. '), 'Cette adresse passe par Internet sans protection : ton mot de passe et ce que Mira échange avec le serveur peuvent y être lus. Connecte-toi plutôt sur le Wi-Fi de la maison, ou avec Tailscale.'))));
+  }
   const hint = installHint();
   if (hint) el.append(hint);
 

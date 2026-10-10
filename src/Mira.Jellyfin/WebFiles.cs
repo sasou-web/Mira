@@ -46,6 +46,8 @@ public sealed class WebFiles
                 : content;
             _files[path] = new(bytes, type, "\"" + Convert.ToHexString(SHA256.HashData(bytes))[..16] + "\"");
         }
+
+        Policy = ContentPolicy.For(_files.TryGetValue("index.html", out var page) ? Encoding.UTF8.GetString(page.Content) : "");
     }
 
     /// <summary>Mira's version, as the app shows it in its settings.</summary>
@@ -53,6 +55,9 @@ public sealed class WebFiles
 
     /// <summary>12 hexadecimal characters that change whenever any file of the app changes.</summary>
     public string Revision { get; }
+
+    /// <summary>The page's security policy, which allows its own inline style by its hash (see <see cref="ContentPolicy"/>).</summary>
+    public string Policy { get; }
 
     /// <summary>Whether assets may be kept by the phone until the revision changes (not while developing).</summary>
     public bool Immutable { get; private init; } = true;

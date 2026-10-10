@@ -9,6 +9,20 @@ export const base = location.pathname.replace(/\/Mira\/?.*$/i, '');
 /** A Tailscale address (100.64.0.0/10): Mira opened through Tailscale. */
 export const isTailnet = (host) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(host);
 const isHomeNetwork = (host) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+
+/**
+ * An address that never goes through the Internet: this device, a home network (private and link-local ranges, in
+ * IPv4 and IPv6), Tailscale (its addresses and its names), or a name only a home network knows (« nas », « pc.local »).
+ */
+export function isLocalHost(hostname) {
+  const host = String(hostname).replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  // IPv6: loopback, unique local (fc00::/7, Tailscale's among them), link-local (fe80::/10).
+  if (host.includes(':')) return /^(::1$|f[cd][0-9a-f]{0,2}:|fe[89ab][0-9a-f]?:)/.test(host);
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return /^(127|10)\./.test(host) || /^(169\.254|192\.168)\./.test(host) || isHomeNetwork(host) || isTailnet(host);
+  return !host.includes('.') || /(^|\.)(localhost|local|ts\.net|home\.arpa)$/.test(host);
+}
+/** Mira opened over plain HTTP from the Internet: what it sends, the password first, can be read on the way. */
+export const exposed = () => location.protocol === 'http:' && !isLocalHost(location.hostname);
 /**
  * Why nothing answers, by the address Mira was opened at: through Tailscale, it is off on the phone or on the PC; at
  * the home network's, the phone may have left it; otherwise the PC is off or starting. In full for a screen, short for
@@ -21,9 +35,14 @@ export const UNREACHABLE = {
 }[where] ?? 'Serveur injoignable : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.';
 export const UNREACHABLE_SHORT = { tailnet: 'Serveur injoignable. Tailscale est-il activé ?', home: 'Serveur injoignable. Hors du Wi-Fi de la maison ?' }[where]
   ?? 'Serveur injoignable. Mira réessaie toute seule.';
+/** What to check when another server answers at this address (see checkServer). */
+export const FOREIGN = {
+  tailnet: 'Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie que Tailscale est activé sur ce téléphone, avec ton compte.',
+  home: 'Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie que ce téléphone est bien sur le Wi-Fi de ta maison.',
+}[where] ?? 'Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie l’adresse de Mira.';
 
 export class ApiError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, { foreign = false } = {}) { super(message); this.status = status; this.foreign = foreign; }
   get offline() { return this.status === 0; }
   /** Nothing answers (PC off, no network) or Jellyfin is still starting: Mira waits for it. */
   get unreachable() { return this.status === 0 || this.status === 503; }
@@ -32,6 +51,12 @@ export class ApiError extends Error {
 const listeners = new Set();
 /** Called when Jellyfin refuses the session (signed out elsewhere, password changed). */
 export const onUnauthorized = (fn) => listeners.add(fn);
+const strangers = new Set();
+/**
+ * Called with (true) when the server answering here is not the one the session was opened on (see checkServer), and
+ * with (false) once it is again.
+ */
+export const onForeignServer = (fn) => strangers.add(fn);
 
 const STARTING = 'Jellyfin ne répond pas encore : il est sans doute en train de démarrer. Mira réessaie toute seule.';
 const watchers = new Set();
@@ -42,11 +67,70 @@ let reachable = true;
  */
 export const onReachable = (fn) => watchers.add(fn);
 function setReachable(value, reason = '') {
+  // Once the server went silent, the one that answers next may be another (another network): checked again.
+  if (!value) recheckServer();
   if (value === reachable) return;
   reachable = value;
   watchers.forEach((fn) => fn(value, reason));
 }
 export const isReachable = () => reachable;
+
+// ---------- Is this your server? ----------
+// Over plain HTTP, any server can answer at your server's address (another Wi-Fi with the same addresses, a network
+// that is not yours): the session's token, often an administrator's, goes only to the server that gave it. Before the
+// first request that carries it, Mira reads the Id of the server that answers, public and asked without the token,
+// and compares it with the one the session was opened on; again after a silence or a stay in the background, when the
+// phone may have changed networks.
+let identity = null;   // { expected, promise }: the check of the server answering here
+let foreign = false;   // the last check concluded: another server
+// 421, « Misdirected Request »: the request would go to a server that is not the one it is meant for.
+const notYours = () => new ApiError(421, `Ce n’est pas ton serveur. ${FOREIGN}`, { foreign: true });
+const sameId = (a, b) => String(a ?? '').replace(/-/g, '').toLowerCase() === String(b ?? '').replace(/-/g, '').toLowerCase();
+
+/** The next request that carries the token checks the server first. */
+export function recheckServer() { identity = null; }
+// Back from the background or from a loss of network, the phone may be on another network. Not when it goes to the
+// background: the reports sent then (keepalive) could not wait for a check.
+document.addEventListener('visibilitychange', () => { if (!document.hidden) recheckServer(); });
+addEventListener('online', () => recheckServer());
+
+/**
+ * Resolves with the Id of the server answering here once it is `expected` (any Jellyfin when nothing is expected);
+ * rejects otherwise: unreachable or starting (nothing is concluded, Mira waits for it as for any request), or foreign.
+ */
+export function checkServer(expected = '') {
+  if (identity && identity.expected === expected) return identity.promise;
+  const check = { expected };
+  check.promise = api.publicInfo().then((info) => {
+    if (expected && !sameId(info.Id, expected)) throw notYours();
+    return info.Id;
+  }, (error) => {
+    if (error?.unreachable || error?.status >= 500) throw error;
+    // Anything else answers here (a page, a refusal): not a Jellyfin server, so not yours either.
+    throw notYours();
+  });
+  identity = check;
+  check.promise.then(() => {
+    if (foreign && identity === check) { foreign = false; strangers.forEach((fn) => fn(false)); }
+  }, (error) => {
+    if (identity !== check) return;
+    if (error.foreign) { foreign = true; strangers.forEach((fn) => fn(true)); }
+    else identity = null;   // asked again by the next request
+  });
+  return check.promise;
+}
+
+/** Waits until the server answering here is the session's; throws, without sending anything, when it is not. */
+export async function trustServer() {
+  const current = session.current;
+  if (!current) return;
+  const id = await checkServer(current.serverId ?? '');
+  // A session opened before Mira kept the server's Id: the first Jellyfin it meets is taken as its own, from now on.
+  if (!current.serverId && id && session.current === current) {
+    session.set({ ...current, serverId: id });
+    if (identity?.expected === '') identity.expected = id;
+  }
+}
 
 export function authorization(token = session.current?.token) {
   const quote = (value) => String(value).replace(/["\\]/g, '');
@@ -67,8 +151,15 @@ export function query(params) {
 
 export const url = (path, params) => `${base}/${path}${query(params)}`;
 
-/** A request to Jellyfin; errors come back in French, ready to show. */
-export async function request(method, path, { params, body, signal, timeout = 20000, keepalive = false, token } = {}) {
+/**
+ * A request to Jellyfin; errors come back in French, ready to show. With the session's token unless `token` says
+ * otherwise (null: none), and only once the server is known to be the session's (trustServer).
+ */
+export async function request(method, path, { params, body, signal, timeout = 20000, keepalive = false, token = session.current?.token } = {}) {
+  if (token && token === session.current?.token) {
+    await trustServer();
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new DOMException('timeout', 'TimeoutError')), timeout);
   signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
@@ -97,7 +188,7 @@ export async function request(method, path, { params, body, signal, timeout = 20
   // Back up is for ping() to say: while Jellyfin starts, its startup page answers some routes too.
   if (response.status === 401) {
     // Only the session in use ends: a sign-out still on its way with an older token leaves a new sign-in alone.
-    if (session.current && (token == null || token === session.current.token)) { session.clear(); listeners.forEach((fn) => fn()); }
+    if (token && session.current && token === session.current.token) { session.clear(); listeners.forEach((fn) => fn()); }
     throw new ApiError(401, 'Ta session a pris fin. Reconnecte-toi.');
   }
   if (!response.ok) {
@@ -127,28 +218,34 @@ export async function ping() {
 }
 
 export const api = {
+  /** What any server says of itself, asked without the token: it may not be yours yet (checkServer). */
   async publicInfo() {
-    const info = await get('System/Info/Public', null, { timeout: 8000 });
+    const info = await get('System/Info/Public', null, { timeout: 8000, token: null });
     // While Jellyfin starts, its startup page answers here too (in camelCase): that is not the server yet.
     if (!info?.Id) { setReachable(false, 'starting'); throw new ApiError(503, STARTING); }
     return info;
   },
-  publicUsers: () => get('Users/Public'),
+  publicUsers: () => get('Users/Public', null, { token: null }),
 
   async signIn(username, password) {
-    const result = await post('Users/AuthenticateByName', { Username: username, Pw: password });
+    const result = await post('Users/AuthenticateByName', { Username: username, Pw: password }, null, { token: null });
     const info = await this.publicInfo().catch(() => ({}));
+    // A new session: the server that gave it is checked anew, whatever was concluded of the one before.
+    recheckServer();
     session.set({ userId: result.User.Id, userName: result.User.Name, token: result.AccessToken, serverId: result.ServerId, serverName: info.ServerName ?? '' });
     // Lets Jellyfin's dashboard show what this phone can play.
     post('Sessions/Capabilities', undefined, { playableMediaTypes: 'Video', supportsMediaControl: false }).catch(() => {});
     return result;
   },
-  /** Signed out here at once; Jellyfin is told with the token that was used, so a new sign-in is never undone. */
+  /**
+   * Signed out here at once; Jellyfin is told with the token that was used, so a new sign-in is never undone, and
+   * only if it is the server that gave it.
+   */
   signOut() {
-    const token = session.current?.token;
+    const { token, serverId = '' } = session.current ?? {};
     session.clear();
     if (!token) return Promise.resolve();
-    return post('Sessions/Logout', undefined, null, { timeout: 5000, token, keepalive: true }).catch(() => {});
+    return checkServer(serverId).then(() => post('Sessions/Logout', undefined, null, { timeout: 5000, token, keepalive: true })).catch(() => {});
   },
   me: () => get('Users/Me'),
 
@@ -198,6 +295,7 @@ export const api = {
   stopEncoding: (playSessionId) => request('DELETE', 'Videos/ActiveEncodings', { params: { deviceId: device.id, playSessionId }, keepalive: true }).catch(() => {}),
   /** Downloads about 1 MB to estimate the connection when away from home. */
   async bitrateTest(size = 1_000_000) {
+    await trustServer();
     const started = performance.now();
     const response = await fetch(url('Playback/BitrateTest', { size }), { headers: { Authorization: authorization() }, cache: 'no-store' });
     const bytes = (await response.arrayBuffer()).byteLength;

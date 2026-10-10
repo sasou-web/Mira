@@ -935,6 +935,20 @@ await Test("Mira web : sous-titres d’une conversion à l’heure dans le lecte
         && !Mira.Jellyfin.HlsPlaylists.EmptySubtitles.Contains("#EXTINF", StringComparison.Ordinal), "Empty subtitles playlist");
     return Task.CompletedTask;
 });
+await Test("Mira web : seul le style de la page est permis, par son empreinte (politique de sécurité)", () =>
+{
+    // The page's inline style, hashed as browsers hash it: its text in UTF-8 (the value openssl gives for it).
+    var policy = Mira.Jellyfin.ContentPolicy.For("<head>\n  <style>html, body { background: #070708; color: #f4f4f5; margin: 0; }</style>\n</head>");
+    Assert(policy.Contains("style-src 'self' 'sha256-jX62fjJWRNA/aBALPNu3Ignhb7AYylcMCFHqua1lFRk=';", StringComparison.Ordinal), "Policy: " + policy);
+    Assert(!policy.Contains("unsafe-inline", StringComparison.Ordinal) && policy.StartsWith("default-src 'self'; script-src 'self';", StringComparison.Ordinal)
+        && policy.EndsWith("frame-ancestors 'self'", StringComparison.Ordinal), "Policy: " + policy);
+    // A file with CR LF: the HTML parser leaves LF, which the browser hashes.
+    Assert(Mira.Jellyfin.ContentPolicy.StyleHashes("<style>\r\na{}\r\n</style>").SequenceEqual(Mira.Jellyfin.ContentPolicy.StyleHashes("<style>\na{}\n</style>")), "Line endings change the hash");
+    // Each style element, with attributes or in capitals, once; none at all: only the app's own stylesheets.
+    Assert(Mira.Jellyfin.ContentPolicy.StyleHashes("<STYLE media=\"all\">a{}</STYLE><style>b{}</style><style>a{}</style >").Count == 2, "Style elements");
+    Assert(Mira.Jellyfin.ContentPolicy.For("<p>Mira</p>").Contains("; style-src 'self'; img-src", StringComparison.Ordinal), "Policy without inline style");
+    return Task.CompletedTask;
+});
 await Test("Démarrage avec Windows : service, relance après une erreur et pare-feu, lus puis réglés", () =>
 {
     // SERVICE_FAILURE_ACTIONS as Windows stores it: reset period, two unused fields, the count, an unused field, then each type and delay.

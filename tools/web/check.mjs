@@ -9,6 +9,9 @@
 // So is the Home Screen app on iPhone (navigator.standalone): pull to refresh, swipe back from the edge, tabs, sheets pulled down.
 // With MIRA_STOP and MIRA_START (commands that stop and start Jellyfin), Mira is also opened while Jellyfin is away,
 // as when a phone opens it before the PC has started: the page kept by the phone opens and waits for the server.
+// Security: sign-out and a session refused leave nothing of the account; another server answering at the address
+// (simulated) never gets the token; the sign-in screen warns over plain HTTP from the Internet; the page's security
+// policy refuses inline styles but its own, and no page of the whole run breaks it.
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
@@ -16,8 +19,26 @@ const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-che
 fs.mkdirSync(out, { recursive: true });
 const results = [];
 const check = (name, ok, detail = '') => { results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`); console.log(results.at(-1)); };
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
-const context = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+// mira-check.example: Mira at an Internet name, served by the same Jellyfin (the warning on the sign-in screen).
+const internetName = 'mira-check.example';
+const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', `--host-resolver-rules=MAP ${internetName} ${new URL(base).hostname}`] });
+// What the page's security policy refuses, in every page of every context below: nothing is expected.
+const violations = [];
+const watchPolicy = async (context, name, seen = violations) => {
+  await context.exposeBinding('miraPolicyViolation', (_, text) => seen.push(`${name} : ${text}`));
+  await context.addInitScript(() => document.addEventListener('securitypolicyviolation', (e) => {
+    window.miraPolicyViolation?.(`${e.effectiveDirective} ${e.blockedURI || 'inline'}${e.sourceFile ? ` (${e.sourceFile.split('/').pop()}:${e.lineNumber})` : ''}`);
+  }, true));
+};
+const newContext = async (name) => { const c = await browser.newContext({ ...devices['iPhone 15 Pro'] }); await watchPolicy(c, name); return c; };
+const signIn = async (p, url = `${base}#/connexion`) => {
+  await p.goto(url); await p.waitForTimeout(1500);
+  if (await p.locator('.users').count()) await p.getByRole('button', { name: 'Autre compte' }).click();
+  await p.fill('#login-name', user); await p.fill('#login-password', password);
+  await p.getByRole('button', { name: 'Se connecter' }).click();
+  await p.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
+};
+const context = await newContext('parcours');
 const page = await context.newPage();
 const errors = [], reports = [];
 page.on('pageerror', (e) => errors.push(e.message));
@@ -183,9 +204,27 @@ try {
   await shot('10-wide-home');
   await page.setViewportSize({ width: 393, height: 852 }); await wait(300);
   await page.locator('.tabbar a[data-tab="settings"]').click(); await wait(1200);
+  // What the account left on the phone (its screens, and in the settings what it did with its titles), and a setting
+  // of this phone, through Mira's own settings.
+  const kept = await page.evaluate(async () => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { settings } = await import(`${root}session.js`);
+    settings.set('recentSearches', ['Lueur']); settings.set('hiddenResume', { x: new Date().toISOString() }); settings.set('seriesTracks', { y: { audio: 'fra' } });
+    settings.set('subtitleSize', 125);
+    return { keys: Object.keys(localStorage), device: localStorage.getItem('mira.device') };
+  });
   await page.getByRole('button', { name: 'Se déconnecter' }).click(); await wait(400);
   await page.locator('.sheet-item.danger').click(); await wait(1500);
   check('déconnexion', (await page.evaluate(() => location.hash)) === '#/connexion' && !(await page.evaluate(() => localStorage.getItem('mira.session'))));
+  const left = await page.evaluate(() => ({ keys: Object.keys(localStorage), device: localStorage.getItem('mira.device'), settings: JSON.parse(localStorage.getItem('mira.settings') ?? '{}') }));
+  const account = (keys) => keys.filter((k) => /^mira\.(home|library)\./.test(k));
+  check('déconnexion : rien du compte ne reste, l’appareil garde son identifiant et ses réglages',
+    account(kept.keys).some((k) => k.startsWith('mira.home.')) && account(kept.keys).some((k) => k.startsWith('mira.library.')) && !account(left.keys).length
+    && !left.settings.recentSearches?.length && !Object.keys(left.settings.hiddenResume ?? {}).length && !Object.keys(left.settings.seriesTracks ?? {}).length
+    && left.settings.subtitleSize === 125 && !!kept.device && left.device === kept.device,
+    `avant : ${account(kept.keys).length} écran(s) du compte gardé(s), après : ${account(left.keys).join(', ') || 'aucun'} ; recherches ${left.settings.recentSearches?.length ?? '?'}, `
+    + `reprises masquées ${Object.keys(left.settings.hiddenResume ?? {}).length}, pistes par série ${Object.keys(left.settings.seriesTracks ?? {}).length}, `
+    + `taille des sous-titres ${left.settings.subtitleSize}, appareil ${left.device === kept.device ? 'gardé' : 'changé'}`);
 } catch (error) {
   check('déroulé', false, error.message.split('\n')[0]);
   await shot('error').catch(() => {});
@@ -193,7 +232,7 @@ try {
 check('aucune erreur JavaScript', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 // Apple's player, simulated: full screen as WebKit reports it (webkitPresentationMode and its event).
-const apple = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+const apple = await newContext('lecteur d’Apple');
 await apple.addInitScript(() => {
   const proto = HTMLVideoElement.prototype, modes = new WeakMap();
   const set = (video, mode) => {
@@ -264,7 +303,7 @@ check('lecteur d’Apple (simulé) : aucune erreur JavaScript', appleErrors.leng
 // An anime for Apple's player, asked for as an iPhone does (its codecs are claimed here: Chromium has neither H.264
 // nor HLS). Jellyfin's answers and Mira's plugin are real: the HLS stream lists every text subtitle, ASS included,
 // with Mira's names, and its WebVTT comes without the MPEG-TS time map (10 s late on fMP4), at the file's own times.
-const iphone = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+const iphone = await newContext('profil d’iPhone');
 await iphone.addInitScript(() => {
   HTMLMediaElement.prototype.canPlayType = (type) => (/mpegurl|avc1|mp4a|hvc1|hev1|audio\/mpeg/i.test(type) ? 'probably' : '');
 });
@@ -326,7 +365,7 @@ await iphone.close();
 
 // The Home Screen app on iPhone, simulated (navigator.standalone): pull to refresh, Back and iOS's own swipe from the
 // edge, tabs that do not pile up history, sheets pulled down to close. Touches go through Chromium's DevTools protocol.
-const home = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+const home = await newContext('app');
 await home.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { configurable: true, get: () => true }));
 const hp = await home.newPage();
 const homeErrors = [];
@@ -407,7 +446,7 @@ check('app (simulée) : aucune erreur JavaScript', homeErrors.length === 0, home
 
 // Tabs as an app's: a tab's screen shows whole (no placeholders, nothing moving) and the one left dissolves into it;
 // Recherche takes the keyboard only when touched again; Réglages and Home change in place.
-const tabs = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+const tabs = await newContext('onglets');
 await tabs.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { configurable: true, get: () => true }));
 const tp = await tabs.newPage();
 const tabErrors = [];
@@ -516,7 +555,7 @@ await tabs.close();
 // converted, then said once nothing is left (here the conversions are cut off by the test on purpose). An H.264 film:
 // Chromium converts it, as an iPhone converts what it cannot play (Jellyfin 12.1 fails to convert a VP9 file of an
 // unknown level into VP9, « level -99 »: not a case for a phone).
-const fall = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+const fall = await newContext('lecture refusée');
 const fp = await fall.newPage();
 const fallErrors = [], asks = [];
 fp.on('pageerror', (e) => fallErrors.push(e.message));
@@ -559,6 +598,152 @@ try {
 }
 check('lecture refusée : aucune erreur JavaScript', fallErrors.length === 0, fallErrors.slice(0, 3).join(' | '));
 await fall.close();
+
+// The session ended by Jellyfin (signed out elsewhere, password changed): back to the sign-in screen, and nothing of
+// the account stays, as after « Se déconnecter ».
+const ended = await newContext('session refusée');
+const ep = await ended.newPage();
+const endedErrors = [];
+ep.on('pageerror', (e) => endedErrors.push(e.message));
+try {
+  await signIn(ep);
+  await ep.waitForTimeout(2500);
+  await ep.locator('.tabbar a[data-tab="films"]').click(); await ep.waitForTimeout(1500);
+  const before = await ep.evaluate(() => Object.keys(localStorage).filter((k) => /^mira\.(home|library)\./.test(k)));
+  await ep.evaluate(async () => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Sessions/Logout`,
+      { method: 'POST', headers: { Authorization: `MediaBrowser Client="Mira", Device="check", DeviceId="${localStorage.getItem('mira.device').replace(/"/g, '')}", Version="1", Token="${s.token}"` } });
+  });
+  // The next request Mira makes (here, back online) gets Jellyfin's 401.
+  await ep.evaluate(() => window.dispatchEvent(new Event('online')));
+  const out = await ep.waitForFunction(() => location.hash === '#/connexion', null, { timeout: 10000 }).then(() => true, () => false);
+  await ep.waitForTimeout(800);
+  const after = await ep.evaluate(() => ({ keys: Object.keys(localStorage).filter((k) => /^mira\.(home|library|session)/.test(k)), notice: document.querySelector('.form-error')?.textContent ?? '' }));
+  check('session refusée par Jellyfin : retour à la connexion, rien du compte ne reste', out && before.length >= 2 && !after.keys.length && /Reconnecte-toi/.test(after.notice),
+    `${before.length} écran(s) du compte avant, ${after.keys.join(', ') || 'aucun'} après, « ${after.notice} »`);
+} catch (error) {
+  check('session refusée : déroulé', false, error.message.split('\n')[0]);
+}
+check('session refusée : aucune erreur JavaScript', endedErrors.length === 0, endedErrors.slice(0, 3).join(' | '));
+await ended.close();
+
+// Another server at your server's address (another Wi-Fi with the same addresses): simulated by giving the answer of
+// System/Info/Public another Id. Mira says so, and no request carries the session's token, nor asks for the page
+// (which the phone would keep a month); back to your server, Mira picks up; a session from before Mira kept the
+// server's Id takes the first one it meets; « me reconnecter » forgets the session without sending it.
+const strange = await newContext('serveur étranger');
+const sp = await strange.newPage();
+const strangeErrors = [];
+sp.on('pageerror', (e) => strangeErrors.push(e.message));
+let token = '', carried = [], pageAsked = 0;
+sp.on('request', (r) => {
+  const url = new URL(r.url());
+  if (token && ((r.headers().authorization ?? '').includes(token) || r.url().includes(token))) carried.push(`${r.method()} ${url.pathname.replace(/^.*?\/(?=[A-Z])/, '')}`);
+  if (r.resourceType() === 'fetch' && /\/Mira\/$/.test(url.pathname)) pageAsked++;
+});
+const isPublicInfo = (url) => /\/System\/Info\/Public$/i.test(url.pathname);
+const another = async (route) => {
+  const response = await route.fetch();
+  await route.fulfill({ response, json: { ...(await response.json()), Id: '0123456789abcdef0123456789abcdef' } });
+};
+const shownForeign = () => sp.locator('.foreign:not([hidden])').isVisible().catch(() => false);
+try {
+  await signIn(sp);
+  await sp.waitForTimeout(2000);
+  const session = await sp.evaluate(() => JSON.parse(localStorage.getItem('mira.session')));
+  token = session.token;
+  await sp.route(isPublicInfo, another);
+  carried = []; pageAsked = 0;
+  await sp.reload(); await sp.waitForTimeout(4000);
+  const text = await sp.locator('.foreign').innerText().catch(() => '');
+  check('serveur étranger : « Ce n’est pas ton serveur », aucune requête avec le jeton, page pas redemandée',
+    await shownForeign() && /Ce n’est pas ton serveur/.test(text) && !carried.length && !pageAsked,
+    `${await shownForeign() ? 'message affiché' : 'pas de message'}, ${carried.length ? `jeton envoyé : ${carried.slice(0, 3).join(', ')}` : 'jeton jamais envoyé'}, page redemandée ${pageAsked} fois`);
+  await sp.screenshot({ path: `${out}/18-foreign.png` });
+  await sp.locator('.foreign').getByRole('button', { name: 'Réessayer' }).click(); await sp.waitForTimeout(1500);
+  const still = await shownForeign() && !carried.length;
+  await sp.unroute(isPublicInfo, another);
+  await sp.locator('.foreign').getByRole('button', { name: 'Réessayer' }).click(); await sp.waitForTimeout(3000);
+  check('serveur étranger : redevenu le tien, Mira reprend', still && !await shownForeign() && carried.length > 0 && await sp.locator('#view .section').count() > 0,
+    `${still ? 'toujours refusé tant qu’il est autre' : 'accepté trop tôt'}, puis ${await shownForeign() ? 'message resté' : 'message retiré'}, ${carried.length} requête(s) avec le jeton`);
+
+  // Signed in before Mira kept the server's Id: no Id in the session, which takes this server's at the next start.
+  await sp.evaluate(() => { const s = JSON.parse(localStorage.getItem('mira.session')); delete s.serverId; localStorage.setItem('mira.session', JSON.stringify(s)); });
+  await sp.reload(); await sp.waitForTimeout(3500);
+  const filled = await sp.evaluate(() => JSON.parse(localStorage.getItem('mira.session'))?.serverId ?? '');
+  check('session d’avant (sans Id de serveur) : complétée, pas bloquée', filled === session.serverId && !await shownForeign() && await sp.locator('#view .section').count() > 0,
+    `Id ${filled ? (filled === session.serverId ? 'retrouvé' : `autre (${filled})`) : 'absent'}`);
+
+  // Jellyfin reinstalled: « me reconnecter » forgets the session here, and never sends it to that server.
+  await sp.route(isPublicInfo, another);
+  await sp.reload(); await sp.waitForTimeout(3000);
+  carried = [];
+  await sp.locator('.foreign').getByRole('button', { name: /réinstallé Jellyfin/ }).click(); await sp.waitForTimeout(2000);
+  const gone = await sp.evaluate(() => ({ hash: location.hash, session: localStorage.getItem('mira.session') }));
+  check('serveur étranger : « me reconnecter » oublie la session sans la lui envoyer', gone.hash === '#/connexion' && !gone.session && !carried.length && !await shownForeign(),
+    `${gone.hash}, session ${gone.session ? 'gardée' : 'oubliée'}, ${carried.length ? `jeton envoyé : ${carried.join(', ')}` : 'jeton jamais envoyé'}`);
+  await sp.unroute(isPublicInfo, another);
+} catch (error) {
+  check('serveur étranger : déroulé', false, error.message.split('\n')[0]);
+  await sp.screenshot({ path: `${out}/error-foreign.png` }).catch(() => {});
+}
+check('serveur étranger : aucune erreur JavaScript', strangeErrors.length === 0, strangeErrors.slice(0, 3).join(' | '));
+await strange.close();
+
+// Plain HTTP: the sign-in screen warns only away from home networks and Tailscale. The addresses as Mira sorts them,
+// then the screen itself, at an Internet name and at the server's own address.
+const plain = await newContext('connexion en clair');
+const op = await plain.newPage();
+try {
+  await op.goto(`${base}#/connexion`); await op.waitForTimeout(1500);
+  const sorted = await op.evaluate(async () => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { isLocalHost } = await import(`${root}api.js`);
+    const local = ['localhost', '127.0.0.1', '10.0.0.5', '172.16.0.1', '172.31.255.254', '192.168.1.20', '169.254.10.1', '100.64.0.1', '100.127.255.254',
+      '[::1]', '[fd7a:115c:a1e0::1]', '[fc00::1]', '[fe80::1]', 'nas', 'pc.local', 'pc.tail1234.ts.net', 'box.home.arpa', 'app.localhost'];
+    const internet = ['8.8.8.8', '11.0.0.1', '172.32.0.1', '100.128.0.1', '192.169.1.1', 'example.com', 'jellyfin.example.fr', 'local.example.com', 'ts.net.example.com',
+      '[2001:db8::1]', '[2a01:e0a::1]', '[fec0::1]'];
+    return { wrong: [...local.filter((x) => !isLocalHost(x)), ...internet.filter((x) => isLocalHost(x))], count: local.length + internet.length };
+  });
+  const atHome = await op.locator('.hint.warn').count();
+  const address = new URL(base); address.hostname = internetName;
+  await op.goto(`${address.href}#/connexion`); await op.waitForTimeout(2000);
+  const warning = await op.locator('.hint.warn').innerText().catch(() => '');
+  await op.screenshot({ path: `${out}/19-login-internet.png` });
+  check('connexion en HTTP depuis Internet : avertissement, jamais chez toi ni par Tailscale', !sorted.wrong.length && !atHome && /non chiffrée/.test(warning),
+    `${sorted.count - sorted.wrong.length}/${sorted.count} adresses bien classées${sorted.wrong.length ? ` (mal : ${sorted.wrong.join(', ')})` : ''}, `
+    + `${atHome ? 'averti' : 'pas d’avertissement'} à ${new URL(base).hostname}, ${warning ? 'averti' : 'pas d’avertissement'} à ${internetName}`);
+} catch (error) {
+  check('connexion en clair : déroulé', false, error.message.split('\n')[0]);
+}
+await plain.close();
+
+// The security policy: inline styles refused but the page's own (allowed by its hash), and the watch above sees a
+// refusal (a style attribute and a style element slipped into the page, here on purpose).
+const probe = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+const probed = [];
+await watchPolicy(probe, 'contrôle', probed);
+const pp = await probe.newPage();
+try {
+  const response = await pp.goto(`${base}#/connexion`); await pp.waitForTimeout(1000);
+  const policy = response.headers()['content-security-policy'] ?? '';
+  const clean = probed.length;
+  const dark = await pp.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+  await pp.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<i id="probe" style="color: rgb(1, 2, 3)">x</i>');
+    const style = document.createElement('style'); style.textContent = '#probe { outline: 1px solid red; }'; document.head.append(style);
+  });
+  await pp.waitForTimeout(500);
+  const applied = await pp.evaluate(() => getComputedStyle(document.getElementById('probe')).color === 'rgb(1, 2, 3)');
+  check('politique de sécurité : styles en ligne refusés, sauf celui de la page (empreinte)',
+    !/unsafe-inline/.test(policy) && /style-src 'self' 'sha256-[A-Za-z0-9+/]+=*'/.test(policy) && !clean && dark === 'rgb(7, 7, 8)' && probed.length >= 2 && !applied,
+    `${policy.match(/style-src[^;]*/)?.[0] ?? 'pas de style-src'} ; page ${clean ? `refusée (${probed.join(', ')})` : 'acceptée'}, fond ${dark} ; style glissé ${applied ? 'appliqué' : `refusé (${probed.length} refus vus)`}`);
+} catch (error) {
+  check('politique de sécurité : déroulé', false, error.message.split('\n')[0]);
+}
+await probe.close();
+check('politique de sécurité : aucun refus sur tout le parcours', violations.length === 0, violations.slice(0, 4).join(' | '));
 fs.writeFileSync(`${out}/results.txt`, results.join('\n') + '\n');
 await browser.close();
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);
