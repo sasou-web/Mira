@@ -231,6 +231,8 @@ try {
   await shot('09-apple-anime').catch(() => {});
   await run("document.querySelector('video')?.webkitExitFullscreen?.();");
   for (let i = 0; i < 16 && (await run('return location.hash;')).startsWith('#/lecture/'); i++) await sleep(500);
+  // Still in the player (it failed): Retour, so that what follows starts from a title page, as a person would.
+  if ((await run('return location.hash;')).startsWith('#/lecture/')) { await click('.player button[aria-label="Retour"]'); await sleep(1500); }
   await sleep(1000);
 
   await go(`#/lecture/${episodes[0].Id}?debut=1`);

@@ -49,8 +49,6 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html {
-  /* The page keeps its width while a sheet holds it still (no scrollbar jump on a computer). */
-  scrollbar-gutter: stable;
   background: var(--bg);
   color: var(--ink);
   font: 400 15px/1.47 'Nunito Sans', -apple-system, system-ui, sans-serif;
@@ -313,8 +311,9 @@ html:not(.touch) .section-head a:active, .section-head a.pressed { opacity: 0.55
 /* ---------- Sheets and toasts ---------- */
 .sheet-layer { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-layer { overscroll-behavior: contain; }
-/* While a sheet is open the page under it stays where it is, whatever the finger does on a short sheet. */
-html:has(.sheet-layer) { overflow: hidden; }
+/* While a sheet is open the page under it stays where it is, whatever the finger does on a short sheet (touch screens:
+   on a computer, hiding the scrollbar would reflow the page). */
+html.touch:has(.sheet-layer) { overflow: hidden; }
 /* The page behind a sheet does not scroll under the finger. */
 .sheet-backdrop { position: absolute; inset: 0; background: var(--scrim); animation: fade var(--fast) linear; touch-action: none; }
 .sheet {

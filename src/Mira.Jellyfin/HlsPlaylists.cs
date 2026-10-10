@@ -88,6 +88,9 @@ public static partial class HlsPlaylists
         return string.Join('\n', lines);
     }
 
+    /// <summary>A subtitle playlist without any line: valid HLS, for a subtitle stream Jellyfin cannot give.</summary>
+    public const string EmptySubtitles = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:30\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-ENDLIST\n";
+
     /// <summary>
     /// Mira's names for the subtitles, from its query (« 3:Français|5:Anglais »): what a quoted playlist attribute can
     /// hold, at most 120 characters each.

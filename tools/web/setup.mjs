@@ -52,11 +52,13 @@ for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 't
   const path = `${media.replace(/\/$/, '')}/${folder}`;
   await call('POST', `Library/VirtualFolders?name=${encodeURIComponent(name)}&collectionType=${type}&paths=${encodeURIComponent(path)}&refreshLibrary=true`, { token, body: { LibraryOptions: {} } });
 }
-// A library added while Jellyfin is still starting may be scanned empty: scans again until every file is in.
+// A library added while Jellyfin is still starting may be scanned empty: scans again until every file is in, and
+// read (a title without its length yet has no HLS subtitles: Jellyfin refuses their playlists).
 let scans = 0;
 const items = await until('the library scan', async () => {
-  const result = await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Episode`, { token });
-  if (result.TotalRecordCount >= 8) return result.Items;
+  const result = await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Episode&fields=MediaSources`, { token });
+  const read = (result.Items ?? []).every((x) => x.RunTimeTicks > 0 && x.MediaSources?.[0]?.RunTimeTicks > 0);
+  if (result.TotalRecordCount >= 8 && read) return result.Items;
   if (scans++ % 15 === 0) await call('POST', 'Library/Refresh', { token });
   return null;
 }, 240);
