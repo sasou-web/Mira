@@ -28,7 +28,15 @@ const runAsync = (body, ...args) => wd('POST', s('/execute/async'), {
 });
 const go = (hash) => run('location.hash = arguments[0];', hash);
 const find = async (css) => { try { return (await wd('POST', s('/element'), { using: 'css selector', value: css }))[ELEMENT]; } catch { return null; } };
-const click = async (css) => { const el = await find(css); if (el) await wd('POST', s(`/element/${el}/click`), {}); return !!el; };
+// The screen may be redrawn between finding an element and clicking it (a title page drawn from what is known, then
+// again with Jellyfin's fresh answer): a stale element is found again, up to three times.
+const click = async (css) => {
+  for (let i = 0; ; i++) {
+    const el = await find(css);
+    if (!el) return false;
+    try { await wd('POST', s(`/element/${el}/click`), {}); return true; } catch (e) { if (i >= 2 || !/stale element/.test(e.message)) throw e; await sleep(300); }
+  }
+};
 // The player's controls fade out after 3 s of playback: the mouse passing over the picture, as on a Mac, brings them
 // back before each button is clicked (Safari refuses a click on a hidden control).
 const tapControl = async (css) => {
