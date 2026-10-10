@@ -2294,6 +2294,7 @@ await Test("Mises à jour : type d’installation, dossier remplacé sans touche
     Assert(File.ReadAllText(exe) == "nouvel exe" && !File.Exists(exe + ".previous") && !File.Exists(exe + ".update"), "Portable executable not replaced cleanly");
     return Task.CompletedTask;
 });
+await SupplyChainTests.RunAsync(Test, testRoot);
 if (args.Contains("--torlink-integration"))
 {
     await Test("TorLink réel : écran d’accueil dans la pseudo-console, redimensionnement, arrêt propre et état isolé", async () =>
