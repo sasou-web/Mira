@@ -51,9 +51,13 @@ export function imageUrl(art, cssWidth, quality = 85) {
   return `${base}/Items/${encodeURIComponent(art.itemId)}/Images/${art.type}${index}?maxWidth=${pixels(cssWidth)}&quality=${quality}&tag=${encodeURIComponent(art.tag)}`;
 }
 
+// Images already shown once: drawn again (a screen redrawn, a row refreshed), they appear at once, without fading in
+// from their placeholder a second time.
+const shown = new Set();
+
 /**
- * A picture box: the placeholder at once, the image fading in once loaded, or the title's initials when the
- * server has none. `eager` for what is on screen at first (banner, title page).
+ * A picture box: the placeholder at once, the image fading in once loaded (at once when already shown), or the
+ * title's initials when the server has none. `eager` for what is on screen at first (banner, title page).
  */
 export function picture(art, { kind = 'poster', width = 160, label = '', eager = false, className = '' } = {}) {
   const box = h('div', { class: ['art', kind === 'backdrop' ? 'wide' : kind, className] });
@@ -65,12 +69,13 @@ export function picture(art, { kind = 'poster', width = 160, label = '', eager =
   if (blur) box.style.backgroundImage = `url("${blur}")`;
   const img = h('img', { alt: '', decoding: 'async', loading: eager ? 'eager' : 'lazy', draggable: false });
   if (eager) img.fetchPriority = 'high';
-  img.addEventListener('load', () => img.classList.add('ready'), { once: true });
+  img.addEventListener('load', () => { img.classList.add('ready'); if (shown.size > 2000) shown.clear(); shown.add(img.src); }, { once: true });
   img.addEventListener('error', () => {
     img.remove();
     if (!blur) box.append(h('span', { class: 'initials', text: label ? (kind === 'square' ? initials(label) : label) : '' }));
   }, { once: true });
   img.src = imageUrl(art, width);
+  if (shown.has(img.src) || (img.complete && img.naturalWidth)) img.classList.add('instant');
   box.append(img);
   return box;
 }

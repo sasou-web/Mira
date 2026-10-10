@@ -151,6 +151,8 @@ async function route() {
 
   // The screens change places: in one step, so that the move from one to the other can be drawn between them.
   const swap = () => {
+    // A later move (a second tap during this one) has the last word.
+    if (id !== routeToken) return;
     if (current && current !== entry.view) {
       current.leave?.();
       if (!current.keep) { current.dispose?.(); cache.delete(currentKey); }
@@ -169,23 +171,24 @@ async function route() {
     if (current.el.parentNode !== viewHost) clear(viewHost).append(current.el);
     scrollTo(0, entry.scroll ?? 0);
     updateScrolled();
+    current.enter?.({ query });
   };
   // iOS's moves: a screen comes in from the right and goes back to it; tabs change at once, with a short fade.
   // The player opens on its own (Apple's full screen, or Mira's), the first screen without a move.
   const style = animate && move && !r.bare && !wasBare() && !reducedMotion() ? move : '';
   if (style && document.startViewTransition) {
+    const mine = ++transitions;
     document.documentElement.dataset.nav = style;
     try {
       const transition = document.startViewTransition(swap);
-      transition.finished.finally(() => { if (document.documentElement.dataset.nav === style) delete document.documentElement.dataset.nav; });
+      transition.finished.finally(() => { if (mine === transitions) delete document.documentElement.dataset.nav; });
     } catch { delete document.documentElement.dataset.nav; swap(); }
   } else {
     swap();
     if (style) { void current.el.offsetWidth; current.el.classList.add(`enter-${style}`); }
   }
-  current.enter?.({ query });
 }
-let lastDepth = 0, routeToken = 0, underlay = null;
+let lastDepth = 0, routeToken = 0, underlay = null, transitions = 0;
 const wasBare = () => currentBare;
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 

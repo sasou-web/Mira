@@ -208,6 +208,7 @@ body.scrolled .status-scrim { opacity: 1; }
 .art { position: relative; overflow: hidden; border-radius: var(--r-s); background: var(--raised) center / cover no-repeat; }
 .art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--slow) linear; }
 .art > img.ready { opacity: 1; }
+.art > img.instant { transition: none; }
 .art.poster { aspect-ratio: 2 / 3; }
 .art.wide { aspect-ratio: 16 / 9; }
 .art.square { aspect-ratio: 1; }
