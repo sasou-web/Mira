@@ -548,6 +548,13 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .hint b { color: var(--ink); }
 .hint .step { display: flex; gap: 12px; align-items: center; }
 .hint .step .icon { color: var(--ink); width: 22px; height: 22px; }
+.hint.warn .step { align-items: flex-start; }
+.hint.warn .step .icon { color: var(--danger); }
+/* Another server at this address (app.js): over every screen and the player, under sheets and notices. */
+.foreign { position: fixed; inset: 0; z-index: 85; overflow-y: auto; background: var(--bg); }
+.foreign .gate > .icon { width: 48px; height: 48px; color: var(--danger); }
+.foreign .gate .btn.primary { min-width: 220px; }
+.gate-text { display: grid; gap: 8px; justify-items: center; }
 .qr { width: 232px; height: 232px; padding: 14px; border-radius: var(--r-m); background: #fff; }
 .qr svg { width: 100%; height: 100%; display: block; }
 .address { font-size: 18px; font-weight: 800; word-break: break-all; user-select: all; -webkit-user-select: all; }

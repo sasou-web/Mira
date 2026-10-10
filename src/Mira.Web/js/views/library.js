@@ -33,9 +33,9 @@ export function create({ type, query }) {
   const ready = new Promise((resolve) => { markReady = resolve; });
   const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite].join('|')}`;
   function readStore() { try { return JSON.parse(localStorage.getItem(storeKey()) ?? 'null'); } catch { return null; } }
-  // Kept for each sort, unfiltered only: a few keys per account, never one per genre or year.
+  // Kept for each sort, unfiltered only: a few keys per account, never one per genre or year; never once signed out.
   function writeStore(items, all) {
-    if (filtered()) return;
+    if (filtered() || !session.current) return;
     try { localStorage.setItem(storeKey(), JSON.stringify({ items: items.slice(0, PAGE).map(slim), total: all })); } catch { /* full */ }
   }
   /** Cards for a first page: those of the first screenful load their pictures at once. */

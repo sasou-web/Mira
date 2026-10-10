@@ -1,5 +1,5 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
-import { onUnauthorized, onReachable, ping, UNREACHABLE, UNREACHABLE_SHORT } from './api.js';
+import { onUnauthorized, onReachable, onForeignServer, ping, recheckServer, trustServer, FOREIGN, UNREACHABLE, UNREACHABLE_SHORT } from './api.js';
 import { h, icon, clear } from './dom.js';
 import { session, device, isStandalone } from './session.js';
 import { toast } from './components.js';
@@ -334,6 +334,39 @@ function serverUp() {
   checkForUpdate();
 }
 
+// ---------- Another server at this address ----------
+// The server answering is not the one you signed in on (another network, or Jellyfin reinstalled): Mira says so over
+// every screen and sends it nothing of your session (api.js). Asked again from here, and when Mira comes back.
+const foreign = h('div', { class: 'foreign', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'foreign-title', hidden: true });
+const again = h('button', { class: 'btn primary', on: { click: () => retryServer() } }, icon('refresh', { size: 20 }), 'Réessayer');
+foreign.append(h('div', { class: 'gate' }, icon('warning'),
+  h('div', { class: 'gate-text' }, h('h1', { id: 'foreign-title' }, 'Ce n’est pas ton serveur'), h('p', { class: 'lead' }, FOREIGN)),
+  again,
+  // Jellyfin reinstalled: a new server, where this session never existed. Forgotten here only, never sent to it.
+  h('button', { class: 'btn quiet', on: { click: () => { session.clear(); hideForeign(false); resetScreens(); replaceRoute('#/connexion'); } } },
+    'J’ai réinstallé Jellyfin : me reconnecter')));
+function showForeign() {
+  endBoot();
+  if (!foreign.hidden) return;
+  foreign.hidden = false;
+  again.focus({ preventScroll: true });
+}
+/** Your server again: the screen shown asks it at once what it could not. */
+function hideForeign(refresh = true) {
+  if (foreign.hidden) return;
+  foreign.hidden = true;
+  if (refresh) { current?.refresh?.(); checkForUpdate(); }
+}
+async function retryServer() {
+  if (again.disabled) return;
+  again.disabled = true;
+  recheckServer();
+  // Yours again: hidden by the check itself (onForeignServer). Silent now: the bar says so, and Mira asks again once
+  // it answers (still another server: this screen again).
+  try { await trustServer(); } catch (error) { if (!error?.foreign) hideForeign(false); }
+  again.disabled = false;
+}
+
 // ---------- Updates of Mira web ----------
 // The phone keeps the page for a month (Mira opens even while the server is off). At each start, and when it comes
 // back, Mira asks the server for the page: a new revision means Mira web was updated there, and it reloads.
@@ -342,11 +375,13 @@ let pendingUpdate = '';
 async function checkForUpdate() {
   if (!REVISION) return;
   try {
+    // Signed in, only from your server: another one could otherwise replace the copy of the page the phone keeps.
+    await trustServer();
     // cache: 'reload' also refreshes the copy of the page that the phone keeps.
     const page = await (await fetch(location.pathname, { cache: 'reload', headers: { Accept: 'text/html' } })).text();
     const revision = page.match(/v\/([0-9a-z]+)\/js\/app\.js/i)?.[1];
     if (revision && revision !== REVISION) { pendingUpdate = revision; applyUpdate(); }
-  } catch { /* Server away: checked again when it answers. */ }
+  } catch { /* Server away, or not yours: checked again when it answers. */ }
 }
 /**
  * The new version replaces this one at once only while Mira is opening and nothing was touched; otherwise when Mira
@@ -462,7 +497,7 @@ function start() {
   document.documentElement.classList.toggle('android', device.name === 'Android');
   bootScreen = app.querySelector('.boot');
   bootScreen?.classList.add('over');
-  clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, topbar, tabbar, netbar);
+  clear(app).append(h('div', { class: 'status-scrim', 'aria-hidden': 'true' }), viewHost, topbar, tabbar, netbar, foreign);
   if (bootScreen) app.append(bootScreen);
   addEventListener('hashchange', route);
   addEventListener('popstate', (e) => {
@@ -482,12 +517,15 @@ function start() {
   addEventListener('scroll', updateScrolled, { passive: true });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { hiddenAt = Date.now(); applyUpdate(true); return; }
+    // Back on your network perhaps (home Wi-Fi, Tailscale turned on): asked again at once.
+    if (!foreign.hidden) { retryServer(); return; }
     if (probeTimer) { clearTimeout(probeTimer); probeDelay = 1000; probe(); }
     else if (hiddenAt && Date.now() - hiddenAt > 60_000) { current?.refresh?.(); checkForUpdate(); }
   });
   addEventListener('offline', () => { if (netbar.hidden) toast('Plus de connexion : Mira reprendra dès le retour du réseau.'); });
   addEventListener('online', () => { if (probeTimer) { clearTimeout(probeTimer); probeDelay = 500; probe(); } else current?.refresh?.(); });
   onReachable((up, reason) => (up ? serverUp() : serverDown(reason)));
+  onForeignServer((yes) => (yes ? showForeign() : hideForeign()));
   onUnauthorized(() => {
     resetScreens();
     sessionStorage.setItem('mira.notice', 'Ta session a pris fin. Reconnecte-toi.');

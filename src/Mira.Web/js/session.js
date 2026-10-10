@@ -16,7 +16,8 @@ function write(key, value) {
 export const session = {
   current: read(SESSION, null),
   set(value) { this.current = value; write(SESSION, value); },
-  clear() { this.current = null; write(SESSION, null); },
+  /** Signed out (here, or by Jellyfin): nothing of the account stays on this phone, see forgetAccount. */
+  clear() { this.current = null; write(SESSION, null); forgetAccount(); },
 };
 
 /** iPhone, iPad, Android or the browser's name: how Jellyfin's dashboard lists this device. */
@@ -66,6 +67,20 @@ export const settings = {
   get(key) { return this.values[key]; },
   set(key, value) { this.values[key] = value; write(SETTINGS, this.values); },
 };
+
+// What Mira keeps of the account signed in, beside its session: its screens as last shown (home, Films and Séries,
+// by user) and, in the settings, what it did with its titles. This device's id and its settings stay.
+const ACCOUNT_KEYS = /^mira\.(home|library)\./;
+const ACCOUNT_SETTINGS = ['recentSearches', 'hiddenResume', 'seriesTracks'];
+function forgetAccount() {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (ACCOUNT_KEYS.test(key)) keys.push(key); }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch { /* Private browsing without storage: nothing was kept. */ }
+  for (const key of ACCOUNT_SETTINGS) settings.values[key] = Array.isArray(defaults[key]) ? [] : {};
+  write(SETTINGS, settings.values);
+}
 
 export const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 export const isIOS = () => device.name === 'iPhone' || device.name === 'iPad';

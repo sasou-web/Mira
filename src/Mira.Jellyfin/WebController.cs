@@ -13,11 +13,6 @@ namespace Mira.Jellyfin;
 [Route("Mira")]
 public sealed class WebController : ControllerBase
 {
-    // The app loads only its own files and talks only to this server; hls.js (on browsers without HLS) runs in a worker.
-    private const string Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
-        "media-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; font-src 'self'; manifest-src 'self'; " +
-        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
-
     /// <summary>The app itself. /Mira becomes /Mira/, so that its files are found next to it.</summary>
     [HttpGet("")]
     public IActionResult Index()
@@ -27,16 +22,18 @@ public sealed class WebController : ControllerBase
             return Redirect(Request.PathBase + Request.Path + "/" + Request.QueryString);
         }
 
-        Response.Headers.ContentSecurityPolicy = Policy;
+        // The policy and the page from the same files: served from a folder (MIRA_WEB_DIR), each request reads them anew.
+        var files = WebFiles.Current;
+        Response.Headers.ContentSecurityPolicy = files.Policy;
         Response.Headers["Referrer-Policy"] = "no-referrer";
         // The phone keeps the page a month: Mira opens even while the PC is off or Jellyfin is starting, then waits for
         // it. At each start the app asks for the page again and reloads when its revision changed (an update).
-        return Serve("index.html", WebFiles.Current.Immutable ? PageCache : NoCache);
+        return Serve(files, "index.html", files.Immutable ? PageCache : NoCache);
     }
 
     /// <summary>What the phone needs to add Mira to its home screen: name, colours, icons.</summary>
     [HttpGet("manifest.webmanifest")]
-    public IActionResult Manifest() => Serve("manifest.webmanifest", NoCache);
+    public IActionResult Manifest() => Serve(WebFiles.Current, "manifest.webmanifest", NoCache);
 
     /// <summary>Scripts, styles, fonts and images, kept by the phone until the next version of Mira.</summary>
     [HttpGet("v/{revision}/{**path}")]
@@ -44,16 +41,16 @@ public sealed class WebController : ControllerBase
     {
         var files = WebFiles.Current;
         // The page itself is only served at /Mira/, with its security policy.
-        return path == "index.html" ? NotFound() : Serve(path, files.Immutable && revision == files.Revision ? AssetCache : NoCache);
+        return path == "index.html" ? NotFound() : Serve(files, path, files.Immutable && revision == files.Revision ? AssetCache : NoCache);
     }
 
     private const string AssetCache = "public, max-age=31536000, immutable";
     private const string PageCache = "max-age=2592000";
     private const string NoCache = "no-cache";
 
-    private IActionResult Serve(string path, string cache)
+    private IActionResult Serve(WebFiles files, string path, string cache)
     {
-        if (!WebFiles.Current.TryGet(path, out var file))
+        if (!files.TryGet(path, out var file))
         {
             return NotFound();
         }
