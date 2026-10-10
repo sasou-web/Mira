@@ -168,6 +168,15 @@ try {
   await page.evaluate(() => { location.hash = '#/partager'; }); await wait(1500);
   check('page « Sur ton téléphone » : QR code', await page.locator('.qr svg').count() === 1, await page.locator('.address').innerText());
   await shot('09-share');
+  // Opened by Mira for Windows once Tailscale is ready: this PC's Tailscale address first, the home one to switch to.
+  // Any other address passed the same way is ignored.
+  await page.evaluate(() => { location.hash = '#/partager?partout=http%3A%2F%2F100.101.102.103%3A8096'; }); await wait(1500);
+  const everywhere = { address: await page.locator('#view .address').innerText(), chips: await page.locator('#view .chip[aria-pressed]').count() };
+  await shot('09-share-tailscale');
+  await page.evaluate(() => { location.hash = '#/partager?partout=http%3A%2F%2Fexample.com'; }); await wait(1500);
+  const other = await page.locator('#view .address').innerText();
+  check('QR code : adresse Tailscale d’abord, jamais un autre site', everywhere.address.startsWith('http://100.101.102.103:8096/') && everywhere.address.endsWith('/Mira/')
+    && everywhere.chips === 2 && !other.includes('example.com'), `${everywhere.address} · ${other}`);
   await page.setViewportSize({ width: 1280, height: 800 }); await wait(300);
   await page.evaluate(() => { location.hash = '#/'; }); await wait(2500);
   check('grand écran : barre de navigation à gauche', await page.locator('.tabbar').evaluate((n) => getComputedStyle(n).flexDirection === 'column'));

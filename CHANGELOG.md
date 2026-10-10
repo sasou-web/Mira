@@ -2,9 +2,15 @@
 
 ## Non publié
 
-- **Hors de chez toi avec Tailscale** : l’adresse Tailscale du PC pouvait ne rien afficher sur le téléphone, même la page de Jellyfin, avec Tailscale ouvert des deux côtés et Jellyfin qui l’acceptait.
-  - Un Jellyfin installé sans son service n’a que les règles de la fenêtre « Autoriser l’accès » de Windows, à son premier lancement : autorisé sur le type de réseau coché (souvent « Public » pour la box), bloqué sur les autres, et aucune règle si elle n’a pas été validée. Or Tailscale déclare son réseau privé : le pare-feu le refusait, et le guide disait que tout était prêt.
-  - Le guide lit maintenant le pare-feu de Windows, sans droits d’administrateur, et le dit dans **Hors de chez toi**. **Ouvrir le pare-feu** règle tout avec l’autorisation de Windows : les blocages de Jellyfin ne visent plus le réseau de Tailscale (ils restent sur les autres), et la règle de Mira laisse entrer ton réseau et Tailscale, sur le port de Jellyfin seulement. Avec ou sans service.
+- **Mira sur ton téléphone, en un clic** (Mira pour Windows) : le guide réunit tout ce qu’il faut pour le téléphone dans une seule carte, au lieu de trois parties et cinq boutons à trouver dans le bon ordre.
+  - Chaque étape est cochée quand elle est prête, numérotée sinon : Mira web sur Jellyfin, le pare-feu de Windows, Tailscale pour regarder hors de chez toi (facultatif), le démarrage avec Windows.
+  - **Tout préparer** fait toutes les étapes possibles avec une seule autorisation de Windows, puis ouvre le QR code. Seul Tailscale reste à installer soi-même ; de retour dans Mira, le guide se met à jour tout seul.
+  - Le QR code donne l’adresse Tailscale du PC quand elle est prête : elle marche chez toi comme ailleurs, sans recopier d’adresse. **Chez toi seulement** reste au choix sur la page du QR code.
+  - L’adresse pour une TV ou une console (application Jellyfin) passe dans **Gérer Jellyfin**.
+- **Page blanche sur le téléphone** : l’adresse du PC pouvait ne rien afficher, même la page de Jellyfin, chez toi comme avec Tailscale, alors que le guide disait que tout était prêt.
+  - Un Jellyfin installé sans son service n’a que les règles de la fenêtre « Autoriser l’accès » de Windows, à son premier lancement : autorisé sur le type de réseau coché, bloqué sur les autres, et aucune règle si elle n’a pas été validée. Or Tailscale déclare son réseau privé, et la box est souvent comptée publique.
+  - Le guide lit maintenant le pare-feu de Windows, sans droits d’administrateur, pour le Wi-Fi de la maison et pour Tailscale, chacun sur son type de réseau. **Tout préparer** retire les blocages de Jellyfin sur ces réseaux (ils restent sur les autres) et ajoute la règle de Mira, qui laisse entrer ton réseau et Tailscale, sur le port de Jellyfin seulement. Avec ou sans service.
+- **« Serveur injoignable » dit pourquoi** (Mira web) : avec l’adresse Tailscale, vérifier que Tailscale est activé sur le téléphone ; avec celle de la maison, que le téléphone est sur son Wi-Fi.
 
 ## 0.7.3 — 2026-10-10
 

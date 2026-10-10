@@ -1,5 +1,5 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
-import { onUnauthorized, onReachable, ping } from './api.js';
+import { onUnauthorized, onReachable, ping, UNREACHABLE, UNREACHABLE_SHORT } from './api.js';
 import { h, icon, clear } from './dom.js';
 import { session, device, isStandalone } from './session.js';
 import { toast } from './components.js';
@@ -282,7 +282,7 @@ function showLoadFailure() {
   loadFailed = true;
   endBoot();
   clear(viewHost).append(h('div', { class: 'state' }, icon('offline'), h('h2', {}, 'Mira n’a pas pu se charger'),
-    h('p', {}, 'Le serveur ne répond pas : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.'),
+    h('p', {}, UNREACHABLE),
     h('button', { class: 'btn small', on: { click: () => location.reload() } }, 'Réessayer')));
   serverDown('offline');
 }
@@ -295,7 +295,7 @@ function serverDown(reason) {
   wasDown = true;
   netText.textContent = reason === 'starting'
     ? 'Jellyfin démarre… Mira reprend dès qu’il répond.'
-    : 'Serveur injoignable. Mira réessaie toute seule.';
+    : UNREACHABLE_SHORT;
   if (netbar.hidden && !netTimer) {
     const wait = loadFailed || performance.now() - openedAt < 15_000 ? 0 : 1500;
     netTimer = setTimeout(() => { netTimer = 0; netbar.hidden = false; netShownAt = Date.now(); }, wait);

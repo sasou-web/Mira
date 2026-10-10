@@ -8,12 +8,14 @@ namespace Mira.Core;
 /// <summary>The address phones, TVs and other PCs on the home network use to reach a Jellyfin running on this PC.</summary>
 public static partial class LocalNetwork
 {
-    public sealed record Candidate(string Address, bool HasGateway, bool Virtual);
+    /// <summary>An IPv4 address of this PC, with its adapter's name (« Wi-Fi », « Ethernet »…).</summary>
+    public sealed record Candidate(string Address, bool HasGateway, bool Virtual, string Adapter = "");
     /// <summary>A real adapter with a gateway (the box) first; never loopback or a self-assigned 169.254 address.</summary>
-    public static string? PreferredIPv4(IEnumerable<Candidate> candidates) => candidates
+    public static string? PreferredIPv4(IEnumerable<Candidate> candidates) => Preferred(candidates)?.Address;
+    public static Candidate? Preferred(IEnumerable<Candidate> candidates) => candidates
         .Where(x => IPAddress.TryParse(x.Address, out var ip) && ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip) && !x.Address.StartsWith("169.254.", StringComparison.Ordinal))
         .OrderBy(x => x.Virtual).ThenByDescending(x => x.HasGateway).ThenByDescending(x => IsPrivate(x.Address))
-        .Select(x => x.Address).FirstOrDefault();
+        .FirstOrDefault();
     /// <summary>
     /// The server address to give other devices: a server on this PC (127.0.0.1, localhost) answers them at this PC's
     /// network address, on the same port; any other server keeps its own address. Null when this PC has none.
@@ -25,18 +27,20 @@ public static partial class LocalNetwork
         return thisPc is null ? null : new UriBuilder(uri) { Host = thisPc }.Uri.GetLeftPart(UriPartial.Authority);
     }
     /// <summary>This PC's address on the home network, read from its network adapters.</summary>
-    public static string? ThisPc()
+    public static string? ThisPc() => ThisPcOnNetwork()?.Address;
+    /// <summary>This PC's address on the home network and the adapter that has it.</summary>
+    public static Candidate? ThisPcOnNetwork()
     {
         try
         {
-            return PreferredIPv4(
+            return Preferred(
                 from nic in NetworkInterface.GetAllNetworkInterfaces()
                 where nic.OperationalStatus == OperationalStatus.Up && nic.NetworkInterfaceType is not (NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
                 let properties = nic.GetIPProperties()
                 let gateway = properties.GatewayAddresses.Any(x => x.Address.AddressFamily == AddressFamily.InterNetwork && !x.Address.Equals(IPAddress.Any))
                 from address in properties.UnicastAddresses
                 where address.Address.AddressFamily == AddressFamily.InterNetwork
-                select new Candidate(address.Address.ToString(), gateway, VirtualAdapter().IsMatch(nic.Name + " " + nic.Description)));
+                select new Candidate(address.Address.ToString(), gateway, VirtualAdapter().IsMatch(nic.Name + " " + nic.Description), nic.Name));
         }
         catch (NetworkInformationException) { return null; }
     }
