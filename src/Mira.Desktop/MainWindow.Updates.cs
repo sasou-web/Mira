@@ -134,6 +134,5 @@ public partial class MainWindow
         try { using var _ = Process.Start(new ProcessStartInfo(page.AbsoluteUri) { UseShellExecute = true }); } catch (System.ComponentModel.Win32Exception) { SetNotice("Le navigateur n’a pas pu s’ouvrir."); }
     }
     /// <summary>Only Mira's own release pages are opened in the browser.</summary>
-    private static Uri? ReleasePage(UpdateOffer? offer) =>
-        offer?.Page is { Scheme: "https", Host: "github.com" } page && page.AbsolutePath.StartsWith("/sasou-web/Mira/releases/", StringComparison.Ordinal) ? page : null;
+    private static Uri? ReleasePage(UpdateOffer? offer) => ReleaseFeed.ReleasePage(offer?.Page);
 }

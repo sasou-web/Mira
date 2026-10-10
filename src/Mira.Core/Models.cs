@@ -161,7 +161,8 @@ public sealed class PlayerSettings
     public string PosterDensity { get; set; } = "Comfortable";
     public bool RememberPosition { get; set; } = true;
     public bool HeroAutoPlay { get; set; } = true;
-    /// <summary>Checks GitHub for new versions, downloads them and installs them when Mira closes.</summary>
+    /// <summary>Checks GitHub for new versions, downloads them and installs them when Mira closes. On the Mac: asks GitHub at
+    /// each launch and says when one is out (« Rechercher les nouvelles versions »).</summary>
     public bool AutoUpdate { get; set; } = true;
     /// <summary>TorLink folder; empty: found through its shortcuts.</summary>
     public string TorLinkPath { get; set; } = "";

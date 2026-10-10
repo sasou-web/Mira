@@ -1,5 +1,6 @@
 name: Mac build
-# Mira for Mac (Apple Silicon): built, packaged with libmpv, checked on a real Mac, then attached to each release.
+# Mira for Mac (Apple Silicon): built, packaged with libmpv, checked on a real Mac, then attached to each release with
+# its SHA-256.
 on:
   push:
     branches: [main]
@@ -87,7 +88,9 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-mac-arm64
-          path: dist/mac/*.dmg
+          path: |
+            dist/mac/*.dmg
+            dist/mac/*.dmg.sha256
           retention-days: 14
   release:
     # The release Windows publishes from the PC gets its Mac disk image here, built from the same tag.
@@ -101,8 +104,11 @@ jobs:
         with:
           name: Mira-mac-arm64
           path: mac
+      # The disk image and its SHA-256, checked against each other once more before they go out together.
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" mac/*.dmg --clobber --repo "$GITHUB_REPOSITORY"
+        run: |
+          (cd mac && sha256sum --strict -c -- *.dmg.sha256)
+          gh release upload "$TAG" mac/*.dmg mac/*.dmg.sha256 --clobber --repo "$GITHUB_REPOSITORY"

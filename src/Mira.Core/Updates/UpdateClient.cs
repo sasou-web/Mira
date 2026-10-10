@@ -23,6 +23,13 @@ public static class ReleaseFeed
     public static Version? ParseVersion(string? text) =>
         text is not null && Tag.Match(text.Trim()) is { Success: true } match
             ? new Version(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value), int.Parse(match.Groups[3].Value)) : null;
+    /// <summary>The page of a release as GitHub gives it, kept only when it is one of Mira's own release pages: the only
+    /// pages the apps open in the browser from what GitHub answers.</summary>
+    public static Uri? ReleasePage(Uri? page) =>
+        // Checked first and apart: a relative address throws on Scheme, and the order inside one pattern is not guaranteed.
+        page is { IsAbsoluteUri: true } && page is { Scheme: "https", Host: "github.com", IsDefaultPort: true, UserInfo: "" }
+        && page.AbsolutePath.StartsWith("/sasou-web/Mira/releases/", StringComparison.Ordinal) ? page : null;
+    public static Uri? ReleasePage(string? page) => Uri.TryCreate(page, UriKind.Absolute, out var uri) ? ReleasePage(uri) : null;
 
     public static List<UpdateRelease> Parse(string json)
     {
