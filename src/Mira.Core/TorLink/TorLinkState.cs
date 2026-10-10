@@ -167,17 +167,22 @@ public sealed partial class TorLinkState
     }
 
     /// <summary>The file list TorLink saved for a torrent (its .torrent metadata), laid out as WebTorrent writes it.</summary>
-    public TorrentInfo? ReadTorrent(string id)
+    public TorrentInfo? ReadTorrent(string id) => ReadTorrent(id, out _);
+    /// <summary><paramref name="refused"/>: the .torrent is over <see cref="Bencode"/>'s limits and was not read.</summary>
+    public TorrentInfo? ReadTorrent(string id, out bool refused)
     {
+        refused = false;
         if (!IsInfoHash(id)) return null;
         try
         {
             var file = new FileInfo(Path.Combine(TorrentsDirectory, id.ToLowerInvariant() + ".torrent"));
-            if (!file.Exists || file.Length > 64L * 1024 * 1024) return null;
+            if (!file.Exists) return null;
+            if (file.Length > Bencode.MaxFileSize) { refused = true; return null; }
             using var stream = OpenShared(file.FullName);
-            using var buffer = new MemoryStream();
-            stream.CopyTo(buffer);
-            return Bencode.ReadTorrent(buffer.ToArray());
+            // One byte more than announced: a file that grew meanwhile past the limit is refused too.
+            var bytes = new byte[Math.Min(file.Length, Bencode.MaxFileSize) + 1];
+            var read = stream.ReadAtLeast(bytes, bytes.Length, throwOnEndOfStream: false);
+            return Bencode.ReadTorrent(bytes.AsSpan(0, read), out refused);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
