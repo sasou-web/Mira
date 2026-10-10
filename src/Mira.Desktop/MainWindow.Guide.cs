@@ -104,7 +104,7 @@ public partial class MainWindow
         var version = ++_guideVersion;
         // Back from installing Tailscale or from Windows' settings, the steps read again.
         if (!_phoneWatched) { _phoneWatched = true; Activated += (_, _) => { if (GuideOverlay.Visibility == Visibility.Visible && !_preparing && DateTime.UtcNow - _phoneReadAt > TimeSpan.FromSeconds(5)) _ = DescribePhoneAsync(); }; }
-        _ = DescribePhoneAsync();
+        if (!_preparing) _ = DescribePhoneAsync();
         await ShowGuideFoldersAsync(version);
     }
     /// <summary>
@@ -118,23 +118,48 @@ public partial class MainWindow
         var server = _demo ? null : _client?.Connection.Server;
         if (server is null || _client is not { } client || !Uri.TryCreate(server, UriKind.Absolute, out var uri)) { _phone = null; ShowPhone(null); return; }
         if (_phone?.Server != server) ShowPhone(null, checking: true);
-        var local = uri.IsLoopback;
-        var home = LocalNetwork.ForOtherDevices(server, local ? await Task.Run(LocalNetwork.ThisPc) : null);
+        // Jellyfin on this PC, even reached at this PC's network address: phones get its address here and on Tailscale.
+        var local = uri.IsLoopback || await Task.Run(() => LocalNetwork.IsThisPc(uri.Host));
+        string? AtThisPc(string? address) => address is null ? null : new UriBuilder(uri) { Host = address }.Uri.GetLeftPart(UriPartial.Authority);
+        var home = local ? AtThisPc(await Task.Run(LocalNetwork.ThisPc)) : LocalNetwork.ForOtherDevices(server, null);
+        // A Jellyfin restarting or stopped is not one without Mira web: what it says waits until it answers.
+        var answering = false;
+        try { answering = await client.PingAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
         bool? web = null, allowed = null, admin = null;
-        try { web = await client.WebAppAvailableAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
-        try { admin = await client.IsAdministratorAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
-        try { allowed = await client.TailnetAllowedAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
-        string? tailnet = null;
-        (JellyfinFirewall.Verdict Verdict, int Profile)? firewall = null;
+        if (answering)
+        {
+            try { web = await client.WebAppAvailableAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
+            try { admin = await client.IsAdministratorAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
+            try { allowed = await client.TailnetAllowedAsync(); } catch (Exception ex) when (IsExpected(ex)) { }
+        }
+        string? tailnet = null, program = null;
+        JellyfinFirewall.Reach? firewall = null;
         JellyfinStartup.State? boot = null;
         if (local)
         {
-            (var address, firewall, boot) = await Task.Run(() => (LocalNetwork.ThisPcOnTailnet(), JellyfinAutostart.Phones(JellyfinAutostart.Program(), uri.Port), JellyfinAutostart.Read()));
-            tailnet = address is null ? null : LocalNetwork.ForOtherDevices(server, address);
+            (var address, program, firewall, boot) = await Task.Run(() =>
+            {
+                var found = JellyfinAutostart.Program();
+                return (LocalNetwork.ThisPcOnTailnet(), found, JellyfinAutostart.Phones(found, uri.Port), JellyfinAutostart.Read());
+            });
+            tailnet = AtThisPc(address);
         }
         if (version != _phoneVersion) return;
-        _phone = new(server, local, web, home, admin, tailnet, allowed, firewall?.Verdict, firewall?.Profile ?? JellyfinFirewall.Private, boot?.FirewallOpen ?? false, boot);
+        _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, boot?.FirewallOpen ?? false, boot, Program: program is not null, Answering: answering);
         ShowPhone(_phone);
+        if (!answering) _ = WaitForJellyfinAsync(client, version);
+    }
+    /// <summary>A Jellyfin restarting (after Mira web's installation) or stopped: the card reads again once it answers.</summary>
+    private async Task WaitForJellyfinAsync(JellyfinClient client, int version)
+    {
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            if (version != _phoneVersion || _client != client || GuideOverlay.Visibility != Visibility.Visible) return;
+            if (_preparing) continue;
+            try { if (await client.PingAsync() && version == _phoneVersion && !_preparing) { await DescribePhoneAsync(); return; } }
+            catch (Exception ex) when (IsExpected(ex)) { }
+        }
     }
     /// <summary>The steps, then « Tout préparer » while one is left, or the QR code once Mira web is there.</summary>
     private void ShowPhone(PhoneSetup.Facts? facts, bool checking = false)
@@ -211,6 +236,7 @@ public partial class MainWindow
         var steps = PhoneSetup.Steps(facts);
         if (!PhoneSetup.CanPrepare(steps)) { OpenPhoneShare(); return; }
         var problems = new List<string>();
+        string? waiting = null;
         _preparing = true; PhoneMain.IsEnabled = PhoneShare.IsEnabled = false; PhoneMain.Content = "Préparation…";
         try
         {
@@ -238,15 +264,19 @@ public partial class MainWindow
                     {
                         case WebAppInstall.NotAllowed: problems.Add("Il faut le compte administrateur de Jellyfin pour installer Mira web."); break;
                         case WebAppInstall.Unavailable: problems.Add("Jellyfin n’a pas pu télécharger Mira web : vérifie que ce PC a accès à Internet, puis réessaie."); break;
-                        case WebAppInstall.Restarting: problems.Add("Mira web est installé ; Jellyfin redémarre encore. Le QR code sera là dans un instant."); break;
+                        case WebAppInstall.Restarting: waiting = "Mira web est installé ; Jellyfin finit de redémarrer, et cette carte se met à jour dès qu’il répond."; break;
                     }
                 }
                 catch (Exception ex) when (IsExpected(ex)) { problems.Add(Friendly(ex)); }
             }
+            // Read again before anything else may: a reading started meanwhile (Mira's window back to the front) would
+            // leave this one unfinished.
+            await DescribePhoneAsync();
         }
         finally { _preparing = false; PhoneMain.IsEnabled = PhoneShare.IsEnabled = true; }
-        await DescribePhoneAsync();
+        if (_phone is { } read) ShowPhone(read);
         if (problems.Count > 0) { ShowPhoneStatus(string.Join(" ", problems), problem: true); SetNotice(problems[0]); return; }
+        if (waiting is not null) { ShowPhoneStatus(waiting); return; }
         if (_phone?.Web != true) return;
         SetNotice("C’est prêt : scanne le QR code avec ton téléphone.");
         OpenPhoneShare();

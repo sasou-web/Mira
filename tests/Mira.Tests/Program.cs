@@ -992,7 +992,7 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
     Assert(JellyfinFirewall.Blocking(privateOnly, jellyfin, 8096, pub, "Wi-Fi", pc) is [{ Allow: false, Profiles: pub }], "The public block rule stands in the way at home");
     foreach (var remote in new[] { "*", "", "LocalSubnet", "localsubnet", "10.0.0.0/8, LocalSubnet", "192.168.1.0/255.255.255.0", "192.168.1.0/24", "192.168.0.0-192.168.255.255" })
         Assert(JellyfinFirewall.CoversHome(remote, pc), "Not the home network: " + remote);
-    foreach (var remote in new[] { "192.168.2.0/24", "192.168.1.30", "192.168.1.20", "100.64.0.0/255.192.0.0", "Internet", "DNS" })
+    foreach (var remote in new[] { "192.168.2.0/24", "192.168.1.30", "192.168.1.20", "192.168.1.20/255.255.255.255", "100.64.0.0/255.192.0.0", "Internet", "DNS" })
         Assert(!JellyfinFirewall.CoversHome(remote, pc), "Seen as the home network: " + remote);
     Assert(JellyfinFirewall.WithoutProfile(all, priv | pub) == JellyfinFirewall.Domain, "Both the home network's profile and Tailscale's lifted");
     Assert(JellyfinFirewall.TailnetProfile(priv | pub) == priv && JellyfinFirewall.TailnetProfile(pub) == pub && JellyfinFirewall.TailnetProfile(JellyfinFirewall.Domain) == JellyfinFirewall.Domain
@@ -1005,7 +1005,7 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
     if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
         && new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator))
     {
-        const string promptRule = "Mira - firewall check (prompt)", rule = "Mira - firewall check";
+        const string promptRule = "Mira - firewall check (prompt)", rule = "Mira - firewall check", portRule = "Mira - firewall check (port)";
         var folder = Path.Combine(testRoot, "firewall"); Directory.CreateDirectory(folder);
         var program = Path.Combine(folder, "jellyfin.exe"); File.WriteAllBytes(program, []);
         // Its own rules: those naming no program (Windows' apps, services) are read too, as they may concern any program.
@@ -1021,14 +1021,14 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
             var home = LocalNetwork.ThisPcOnNetwork();
             Assert(home is not null && categories.ContainsKey(home.Adapter), $"Network profiles: {string.Join(", ", categories)}; adapter {home}");
             var before = JellyfinAutostart.Phones(program, 18097);
-            Assert(before is { Verdict: JellyfinFirewall.Verdict.Blocked } && before.Value.Profile == categories[home!.Adapter], $"Before: {before}");
+            Assert(before is { Verdict: JellyfinFirewall.Verdict.Blocked, Kept: null } && before.Profile == categories[home!.Adapter], $"Before: {before}");
             // The runner's own rules naming no program: those of Windows' apps must not count for Jellyfin.
             var anyProgram = JellyfinAutostart.FirewallRules(program).Where(x => string.IsNullOrEmpty(x.Program)).ToList();
             var packaged = anyProgram.Where(x => x.Name.StartsWith("@{", StringComparison.Ordinal)).ToList();
-            bool Counts(JellyfinFirewall.Rule x) => JellyfinFirewall.Applies(x, program, 18097, before!.Value.Profile, home!.Adapter, home.Address) || JellyfinFirewall.Applies(x, program, 18097, JellyfinFirewall.Private);
+            bool Counts(JellyfinFirewall.Rule x) => JellyfinFirewall.Applies(x, program, 18097, before!.Profile, home!.Adapter, home.Address) || JellyfinFirewall.Applies(x, program, 18097, JellyfinFirewall.Private);
             Assert(!packaged.Any(Counts), "A packaged app's rule counts for Jellyfin: " + string.Join("; ", packaged.Where(Counts)));
             Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule), "Not opened: " + Seen());
-            var profile = before!.Value.Profile;
+            var profile = before!.Profile;
             var after = Own();
             // Lifted for the home network's profile and for Tailscale's (Private, ahead of its installation); kept for the others.
             Assert(after.Count(x => x.Name == promptRule) == 1 && after.Single(x => x.Name == promptRule) is { Enabled: true } kept
@@ -1036,11 +1036,16 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
             Assert(after.Count(x => x.Name == rule && x.Allow && x.LocalPorts == "18097") == 2 && after.Any(x => x.Name == rule && x.RemoteAddresses != "*" && JellyfinFirewall.CoversTailnet(x.RemoteAddresses)), "Mira's rule: " + Seen());
             Assert(JellyfinAutostart.Phones(program, 18097)?.Verdict == open, "Still blocked: " + Seen());
             Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule) && Own().Count(x => x.Name == rule) == 2, "Not opened again over itself: " + Seen());
+            // A block rule naming no program (someone's own) stays, and is named for the person: « Tout préparer » does not ask again.
+            Assert(JellyfinAutostart.RunSystem("netsh.exe", $"advfirewall firewall add rule name=\"{portRule}\" dir=in action=block protocol=TCP localport=18097 profile=any enable=yes") == 0, "Port rule not created");
+            var byPort = JellyfinAutostart.Phones(program, 18097);
+            Assert(byPort is { Verdict: JellyfinFirewall.Verdict.Blocked, Kept: portRule } && JellyfinAutostart.OpenFirewall(program, 18097, rule)
+                && JellyfinAutostart.FirewallRules(program).Any(x => x.Name == portRule && x.Enabled), $"Port rule: {byPort}");
             var applying = anyProgram.Where(Counts).Select(x => x.Name).ToList();
-            Console.WriteLine($"      (pare-feu réel : carte {home!.Adapter} en profil {profile}, avant {before.Value.Verdict}, règle bloquante gardée pour les autres réseaux ; "
+            Console.WriteLine($"      (pare-feu réel : carte {home!.Adapter} en profil {profile}, avant {before.Verdict}, règle bloquante gardée pour les autres réseaux ; "
                 + $"{anyProgram.Count} règles sans programme dont {packaged.Count} d'apps, {applying.Count} comptées pour Jellyfin : {string.Join(", ", applying)})");
         }
-        finally { JellyfinAutostart.RemoveRule(promptRule); JellyfinAutostart.RemoveRule(rule); }
+        finally { JellyfinAutostart.RemoveRule(promptRule); JellyfinAutostart.RemoveRule(rule); JellyfinAutostart.RemoveRule(portRule); }
         Assert(Own().Count == 0, "Test rules left behind: " + Seen());
     }
     return Task.CompletedTask;
@@ -1049,17 +1054,18 @@ await Test("Mira sur ton téléphone : étapes cochées, « Tout préparer » en
 {
     const string server = "http://127.0.0.1:8096", home = "http://192.168.1.20:8096", tailnet = "http://100.101.102.103:8096";
     JellyfinStartup.State service = new(true, true, false, true, true), noService = new(false, false, false, false, false);
+    JellyfinFirewall.Reach reachOpen = new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Private), reachBlocked = new(JellyfinFirewall.Verdict.Blocked, JellyfinFirewall.Public);
     static string Marks(IReadOnlyList<PhoneSetup.Step> steps) => string.Join(" ", steps.Select(x => $"{x.Key}:{x.Mark}"));
     // A new PC, as the friend's: Jellyfin without its service, no firewall rule, Mira web missing, Tailscale connected
     // but refused by Jellyfin. One click does all three, with one consent of Windows.
-    var fresh = new PhoneSetup.Facts(server, true, Web: false, Home: home, Admin: true, Tailnet: tailnet, TailnetAllowed: false, Firewall: JellyfinFirewall.Verdict.Blocked, Boot: noService);
+    var fresh = new PhoneSetup.Facts(server, true, Web: false, Home: home, Admin: true, Tailnet: tailnet, TailnetAllowed: false, Firewall: reachBlocked, Boot: noService);
     var steps = PhoneSetup.Steps(fresh);
     Assert(Marks(steps) == "web:ToDo firewall:ToDo tailscale:ToDo boot:Note", "A new PC: " + Marks(steps));
     Assert(PhoneSetup.CanPrepare(steps) && PhoneSetup.NeedsWindows(steps), "« Tout préparer » and Windows' consent");
     Assert(PhoneSetup.Everywhere(fresh) is null && PhoneSetup.Address(fresh) == home + "/Mira" && PhoneSetup.SharePage(fresh) == home + "/Mira/#/partager",
         "Before it is ready, the QR code is the home network's: " + PhoneSetup.SharePage(fresh));
     // Once prepared: the QR code is this PC on Tailscale, which works at home too, with the home address to switch to.
-    var ready = fresh with { Web = true, TailnetAllowed = true, Firewall = JellyfinFirewall.Verdict.Open };
+    var ready = fresh with { Web = true, TailnetAllowed = true, Firewall = reachOpen };
     steps = PhoneSetup.Steps(ready);
     Assert(Marks(steps) == "web:Done firewall:Done tailscale:Done boot:Note" && !PhoneSetup.CanPrepare(steps), "Ready: " + Marks(steps));
     Assert(PhoneSetup.Everywhere(ready) == tailnet && PhoneSetup.Address(ready) == tailnet + "/Mira"
@@ -1070,9 +1076,25 @@ await Test("Mira sur ton téléphone : étapes cochées, « Tout préparer » en
     Assert(Marks(steps) == "web:Done firewall:Done tailscale:Yours boot:Note" && steps[2].Action == "Installer Tailscale" && !PhoneSetup.CanPrepare(steps)
         && PhoneSetup.Address(noTailscale) == home + "/Mira", "Without Tailscale: " + Marks(steps));
     // The firewall blocking everything is the person's to undo, in Windows' settings, on the network it blocks.
-    steps = PhoneSetup.Steps(ready with { Firewall = JellyfinFirewall.Verdict.Closed, FirewallProfile = JellyfinFirewall.Public });
-    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.Yours } closed && closed.Text.Contains("Réseau public") && PhoneSetup.Everywhere(ready with { Firewall = JellyfinFirewall.Verdict.Closed }) is null,
+    steps = PhoneSetup.Steps(ready with { Firewall = new(JellyfinFirewall.Verdict.Closed, JellyfinFirewall.Public) });
+    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.Yours } closed && closed.Text.Contains("Réseau public") && !PhoneSetup.CanPrepare(steps)
+        && PhoneSetup.Everywhere(ready with { Firewall = new(JellyfinFirewall.Verdict.Closed, JellyfinFirewall.Private, Tailnet: JellyfinFirewall.Verdict.Closed) }) is null,
         "Everything blocked: " + Marks(steps));
+    // The Wi-Fi blocking everything, Tailscale open: the QR code gives the address that works, Tailscale's.
+    var wifiClosed = ready with { Firewall = new(JellyfinFirewall.Verdict.Closed, JellyfinFirewall.Public, Tailnet: JellyfinFirewall.Verdict.Open) };
+    Assert(PhoneSetup.Everywhere(wifiClosed) == tailnet && PhoneSetup.Address(wifiClosed) == tailnet + "/Mira", "Tailscale open, the Wi-Fi closed: " + PhoneSetup.Address(wifiClosed));
+    // What « Tout préparer » cannot change is the person's, never asked again: a block rule naming no program, or a
+    // Jellyfin whose program Mira does not find (started by another account, in Docker) without Mira's rule.
+    steps = PhoneSetup.Steps(fresh with { Firewall = reachBlocked with { Kept = "Bloquer 8096" } });
+    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.Yours } kept && kept.Text.Contains("« Bloquer 8096 »") && !PhoneSetup.NeedsWindows(steps), "A rule of someone's own: " + Marks(steps));
+    steps = PhoneSetup.Steps(fresh with { Firewall = null, Program = false });
+    Assert(PhoneSetup.Is(steps, "firewall", PhoneSetup.Mark.Yours) && !PhoneSetup.NeedsWindows(steps)
+        && PhoneSetup.Is(PhoneSetup.Steps(fresh with { Firewall = null, Program = false, MiraRule = true }), "firewall", PhoneSetup.Mark.Done), "Jellyfin's program not found: " + Marks(steps));
+    // Jellyfin restarting (after Mira web's installation) or stopped: nothing to install, no administrator asked for.
+    var silent = fresh with { Web = null, Admin = null, TailnetAllowed = null, Answering = false };
+    steps = PhoneSetup.Steps(silent);
+    Assert(Marks(steps) == "web:Note firewall:ToDo tailscale:Note boot:Note" && steps[0].Title.Contains("ne répond pas"), "Jellyfin silent: " + Marks(steps));
+    Assert(PhoneSetup.Is(PhoneSetup.Steps(ready with { TailnetAllowed = null }), "tailscale", PhoneSetup.Mark.Note), "The administrator, Tailscale not read yet");
     // Unreadable firewall: Mira's rule decides. The service: set up with the same consent when it lacks something.
     Assert(PhoneSetup.Is(PhoneSetup.Steps(ready with { Firewall = null, MiraRule = true }), "firewall", PhoneSetup.Mark.Done)
         && PhoneSetup.Is(PhoneSetup.Steps(ready with { Firewall = null }), "firewall", PhoneSetup.Mark.ToDo), "Firewall not readable");
@@ -1084,7 +1106,7 @@ await Test("Mira sur ton téléphone : étapes cochées, « Tout préparer » en
     // Another account than Jellyfin's administrator: Mira web and Tailscale are left to it.
     foreach (var allowed in new bool?[] { false, null })
     {
-        steps = PhoneSetup.Steps(fresh with { Admin = false, TailnetAllowed = allowed, Firewall = JellyfinFirewall.Verdict.Open });
+        steps = PhoneSetup.Steps(fresh with { Admin = false, TailnetAllowed = allowed, Firewall = reachOpen });
         Assert(Marks(steps) == "web:Yours firewall:Done tailscale:Yours boot:Note" && !PhoneSetup.CanPrepare(steps), "Not an administrator: " + Marks(steps));
     }
     // Jellyfin on another computer: Mira web only, the rest is set up over there.
@@ -1093,6 +1115,9 @@ await Test("Mira sur ton téléphone : étapes cochées, « Tout préparer » en
     Assert(Marks(steps) == "web:Done elsewhere:Note" && PhoneSetup.Address(remote) == "http://192.168.1.30:8096/Mira" && PhoneSetup.Everywhere(remote) is null, "Another computer: " + Marks(steps));
     // This PC on no network: said first among the steps.
     Assert(PhoneSetup.Steps(fresh with { Home = null })[1] is { Key: "network", Mark: PhoneSetup.Mark.Yours }, "No network");
+    // A Jellyfin here reached at this PC's own address is this PC's.
+    Assert(LocalNetwork.IsThisPc("127.0.0.1") && LocalNetwork.IsThisPc("localhost") && LocalNetwork.IsThisPc("[::1]") && !LocalNetwork.IsThisPc("192.0.2.1")
+        && (LocalNetwork.ThisPc() is not { } own || LocalNetwork.IsThisPc(own)), "This PC's own addresses");
     return Task.CompletedTask;
 });
 await Test("Dossiers médias : le service Jellyfin peut les lire, fichiers liés ou déplacés compris", async () =>

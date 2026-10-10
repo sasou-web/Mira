@@ -237,6 +237,19 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return true;
     }
+    /// <summary>
+    /// Whether Jellyfin is up and ready: while it starts, it answers System/Info/Public and 503 to the rest; System/Ping
+    /// only once ready. False when it does not answer (restarting, stopped).
+    /// </summary>
+    public async Task<bool> PingAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await _http.GetAsync("System/Ping", ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException) { return false; }
+    }
     /// <summary>Whether this server serves Mira web at /Mira (its plugin installed and loaded).</summary>
     public async Task<bool> WebAppAvailableAsync(CancellationToken ct = default)
     {

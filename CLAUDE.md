@@ -96,6 +96,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Une image `loading=lazy` dans un écran pas encore affiché ne se charge jamais : `ready` ne décode que les `img[loading="eager"]`.
 - Une carte gardée par `reconcile` reçoit le nouvel objet (`card.item`) : ses menus lisent `card.item`.
 - Pare-feu de Windows : une règle de blocage l'emporte sur toute autorisation ; l'invite « Autoriser l'accès » crée des blocages pour les profils non cochés. Lu et modifié par `HNetCfg.FwPolicy2` en `dynamic` (IDispatch, par nom : une interface `ComImport` mal ordonnée appellerait une autre méthode, dans une copie administrateur) ; propriétés indexées : `policy.FirewallEnabled[profil]`.
+- « Tout préparer » : une étape `ToDo` doit être faisable par Mira, sinon l'autorisation de Windows revient à chaque clic ; ce que Mira ne change pas (tout bloquer, règle sans programme, programme introuvable) est `Yours`. Jellyfin qui ne répond pas (`System/Ping`) : rien n'est conclu, la carte relit quand il répond.
 - Profil de chaque carte réseau : `MSFT_NetConnectionProfile` (WMI, `WbemScripting.SWbemLocator` en `dynamic`, sans droits). Le nom de carte (`InterfaceAlias`) est le `NetworkInterface.Name` de .NET.
 - Les contrôles du Mac (VM) refusent le HEVC 10 bits HDR10 copié (« Media failed to decode ») : il passe par la vidéo convertie.
 
