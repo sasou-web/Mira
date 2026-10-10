@@ -1,6 +1,6 @@
 # Historique
 
-## Non publié
+## 0.7.2 — 2026-10-10
 
 Mira web après le deuxième essai sur iPhone : les sous-titres des animés dans le menu du lecteur d’Apple, et une app qui se comporte comme une app.
 

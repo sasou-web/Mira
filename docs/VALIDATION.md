@@ -2,7 +2,7 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
 
-## Mira web : retours du deuxième essai sur iPhone (non publié)
+## Mira web 0.7.2 : retours du deuxième essai sur iPhone
 
 - **Défauts signalés par l’utilisateur** (iPhone sous iOS 26, app de l’écran d’accueil) : la Dynamic Island apparaît encore, le menu du lecteur d’Apple ne propose aucun sous-titre, et l’interface ne se comporte pas comme une app (mouvements, transitions, réactions capricieuses).
 - **Causes établies** (sources de Jellyfin 10.9 à 12.1 et de WebKit, puis essais sur Jellyfin 12.1) :
