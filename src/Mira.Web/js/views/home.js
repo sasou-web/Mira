@@ -4,7 +4,7 @@ import { h, icon, clear, episodeCode, duration, seconds, progress, reducedMotion
 import { artFor, picture, logo } from '../images.js';
 import { session, settings, isIOS, isStandalone } from '../session.js';
 import {
-  row, wideCard, posterCard, skeletonRow, emptyState, errorState, changes, titleHref, playHref,
+  row, wideCard, posterCard, skeletonRow, emptyState, errorState, changes, titleHref, playHref, reconcile, cardSig,
 } from '../components.js';
 
 const group = (x) => x.SeriesId ?? x.Id;
@@ -106,6 +106,19 @@ function installBanner(onClose) {
 export function create() {
   const el = h('div', { class: 'view home' });
   let heroBox = null, loadedAt = 0, loading = null, data = readCache(), drawn = '';
+  // The parts drawn last time, changed in place when the server's answer differs: a row keeps its cards (pictures
+  // and all) and its scroll, and only what changed is drawn again.
+  let heroSig = '', titleBox = null, banner, emptyBox = null;
+  const sections = new Map();
+  const spacer = h('div', { style: { height: '24px' } });
+  function section(title, items, card, options) {
+    const old = sections.get(title);
+    if (!items?.length) { sections.delete(title); return null; }
+    if (old) { reconcile(old.querySelector('.row'), items, card); return old; }
+    const fresh = row(title, items, card, options);
+    sections.set(title, fresh);
+    return fresh;
+  }
 
   /** Where the banner and each row were scrolled, to find them there again once the screen is drawn anew. */
   function positions() {
@@ -131,10 +144,9 @@ export function create() {
     if (signature && signature === drawn) return;
     drawn = signature;
     const kept = positions();
-    heroBox?.stop?.();
-    clear(el);
     if (!data) {
-      el.append(h('div', { class: 'hero skeleton', style: { borderRadius: 0 } }), skeletonRow({ wide: true }), skeletonRow());
+      heroBox?.stop?.(); heroBox = null; heroSig = ''; sections.clear();
+      clear(el).append(h('div', { class: 'hero skeleton', style: { borderRadius: 0 } }), skeletonRow({ wide: true }), skeletonRow());
       return;
     }
     const hidden = settings.get('hiddenResume') ?? {};
@@ -150,19 +162,25 @@ export function create() {
       if (entries.length >= 6) break;
       if (artFor(item, 'backdrop') && !seen.has(item.Id)) { seen.add(item.Id); entries.push({ item, play: item.Type === 'Series' ? null : item }); }
     }
-    heroBox = hero(entries);
-    const banner = installBanner();
-    if (!heroBox) el.append(h('div', { class: 'page' }, h('h1', { class: 'page-title' }, 'Accueil')));
-    el.append(heroBox ?? '', banner ?? '',
-      row('Continuer à regarder', cont, (x) => wideCard(x), { wide: true }) ?? '',
-      row('Ajouts récents', data.latest, (x) => posterCard(x), { more: '#/films' }) ?? '',
-      row('Tes favoris', data.favorites, (x) => posterCard(x)) ?? '');
+    // The banner is made again only when its titles change (its timer and its position start over then).
+    const sig = JSON.stringify(entries.map(({ item, play }) => [cardSig(item), play ? cardSig(play) : '']));
+    if (sig !== heroSig) { heroBox?.stop?.(); heroBox = hero(entries); heroSig = sig; }
+    if (banner === undefined) banner = installBanner(() => { banner = null; });
+    const top = heroBox ?? (titleBox ??= h('div', { class: 'page' }, h('h1', { class: 'page-title' }, 'Accueil')));
+    const parts = [top, banner,
+      section('Continuer à regarder', cont, (x) => wideCard(x), { wide: true }),
+      section('Ajouts récents', data.latest, (x) => posterCard(x), { more: '#/films' }),
+      section('Tes favoris', data.favorites, (x) => posterCard(x))].filter(Boolean);
     if (!cont.length && !data.latest.length && !data.favorites.length) {
-      el.append(emptyState({ symbol: 'films', title: 'Ta bibliothèque est vide', text: 'Les films et séries ajoutés à Jellyfin apparaîtront ici.' }));
+      parts.push(emptyBox ??= emptyState({ symbol: 'films', title: 'Ta bibliothèque est vide', text: 'Les films et séries ajoutés à Jellyfin apparaîtront ici.' }));
     }
-    el.append(h('div', { style: { height: '24px' } }));
-    restore(kept);
+    parts.push(spacer);
+    // Moved, a row loses its scroll: the screen is put together again only when its parts are not the same.
+    if (parts.length !== el.children.length || parts.some((part, i) => el.children[i] !== part)) { el.replaceChildren(...parts); restore(kept); }
   }
+  /** The banner's first picture and each row's first cards, decoded: the screen can show whole. */
+  const firstPictures = () => Promise.all([...el.querySelectorAll('.hero .slide:first-child img, .row > :nth-child(-n+3) img')]
+    .map((img) => img.decode?.().catch(() => {})));
 
   async function load() {
     if (loading) return loading;
@@ -184,7 +202,7 @@ export function create() {
         loadedAt = Date.now();
         render();
       } catch (error) {
-        if (!data) { clear(el).append(h('div', { class: 'page' }, errorState(error, () => { loading = null; load(); }))); }
+        if (!data) { drawn = ''; sections.clear(); heroBox = null; heroSig = ''; clear(el).append(h('div', { class: 'page' }, errorState(error, () => { loading = null; load(); }))); }
       } finally { loading = null; }
     })();
     return loading;
@@ -194,11 +212,13 @@ export function create() {
   changes.addEventListener('item', onChange);
 
   render();
-  load();
+  const first = load();
   // A screen taken out of the page loses the scroll of its rows: Home puts them back where they were.
   let kept = null;
   return {
     el, title: 'Accueil', keep: true,
+    // Shown from what the phone kept, or once the server answered, with its first pictures (app.js waits for it).
+    ready: (data ? Promise.resolve() : first).then(firstPictures),
     leave() { kept = positions(); },
     enter() {
       if (kept) { restore(kept); heroBox?.light?.(); kept = null; }

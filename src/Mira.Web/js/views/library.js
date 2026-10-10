@@ -1,7 +1,19 @@
 // Films or Séries: the whole library in a grid, loaded as you scroll, with Mira's filters and sorts.
 import { api } from '../api.js';
 import { h, icon, clear, plural } from '../dom.js';
-import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast } from '../components.js';
+import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast, reconcile } from '../components.js';
+import { session } from '../session.js';
+
+/** What a card needs of an item, kept on the phone so that the tab opens with its first page at once next time. */
+const slim = (x) => ({
+  Id: x.Id, Name: x.Name, Type: x.Type, SeriesId: x.SeriesId, SeriesName: x.SeriesName, SeriesPrimaryImageTag: x.SeriesPrimaryImageTag,
+  ProductionYear: x.ProductionYear, RunTimeTicks: x.RunTimeTicks, ChildCount: x.ChildCount,
+  ImageTags: x.ImageTags?.Primary ? { Primary: x.ImageTags.Primary } : {},
+  ImageBlurHashes: x.ImageBlurHashes?.Primary ? { Primary: x.ImageBlurHashes.Primary } : undefined,
+  UserData: x.UserData ? { Played: x.UserData.Played, PlaybackPositionTicks: x.UserData.PlaybackPositionTicks, IsFavorite: x.UserData.IsFavorite } : undefined,
+});
+/** The cards of a first screenful: their pictures load at once (and the tab waits for them), the others as it scrolls. */
+const firstScreen = () => (innerWidth < 600 ? 3 : Math.max(3, Math.floor((innerWidth - 120) / 156))) * Math.ceil(innerHeight / 210);
 
 const SORTS = [
   ['recent', 'Ajouts récents'], ['title', 'Titre'], ['year', 'Année'], ['rating', 'Note'], ['played', 'Vus récemment'],
@@ -14,6 +26,15 @@ export function create({ type, query }) {
   const state = { sort: 'recent', genre: query.get('genre') ?? '', year: '', unplayed: false, favorite: query.get('favoris') === '1' };
   let total = null, start = 0, done = false, busy = false, controller = null, loadedAt = 0, options = null, stale = false;
   let generation = 0, refreshing = null;   // a reset starts a new generation: the answers of an older one are dropped
+  // Resolved once the first page shows, its first screenful of pictures decoded: the tab waits for it (app.js).
+  let markReady = () => {};
+  const ready = new Promise((resolve) => { markReady = resolve; });
+  const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite].join('|')}`;
+  function readStore() { try { return JSON.parse(localStorage.getItem(storeKey()) ?? 'null'); } catch { return null; } }
+  function writeStore(items, all) { try { localStorage.setItem(storeKey(), JSON.stringify({ items: items.slice(0, PAGE).map(slim), total: all })); } catch { /* full */ } }
+  /** Cards for a first page: those of the first screenful load their pictures at once. */
+  const firstCards = (items) => { const eager = new Set(items.slice(0, firstScreen()).map((x) => x.Id)); return (item) => posterCard(item, { eager: eager.has(item.Id) }); };
+  const decoded = () => Promise.all([...grid.querySelectorAll('img')].slice(0, firstScreen()).map((img) => img.decode?.().catch(() => {})));
 
   const chips = h('div', { class: 'chips', role: 'toolbar', 'aria-label': 'Filtres' });
   const count = h('div', { class: 'library-count', 'aria-live': 'polite' });
@@ -75,8 +96,16 @@ export function create({ type, query }) {
     generation++; refreshing = null;
     controller?.abort();
     start = 0; done = false; total = null; busy = false;
-    clear(grid).append(...skeletonGrid(18).children);
-    count.textContent = '';
+    // The first page of the last time shows at once, then changes in place; placeholders only for a first time.
+    const stored = readStore();
+    if (stored?.items?.length) {
+      reconcile(grid, stored.items, firstCards(stored.items));
+      count.textContent = stored.total ? plural(stored.total, noun[0], noun[1]) : '';
+      decoded().then(markReady);
+    } else {
+      clear(grid).append(...skeletonGrid(Math.min(18, firstScreen())).children);
+      count.textContent = '';
+    }
     more();
   }
 
@@ -105,7 +134,8 @@ export function create({ type, query }) {
       if (mine !== generation) return;
       const items = result?.Items ?? [];
       total = result?.TotalRecordCount ?? items.length;
-      grid.replaceChildren(...items.map((item) => posterCard(item)));
+      reconcile(grid, items, (item) => posterCard(item));
+      if (items.length) writeStore(items, total);
       start = items.length; done = start >= total; loadedAt = Date.now(); stale = false;
       count.textContent = total ? plural(total, noun[0], noun[1]) : '';
       if (total === 0) showEmpty();
@@ -126,7 +156,7 @@ export function create({ type, query }) {
 
   /** A tall screen may show the end already, which the observer does not report again: the next page comes. */
   function keepLoading() {
-    if (!done && !busy && el.isConnected && sentinel.getBoundingClientRect().top < innerHeight + 800) more();
+    if (!done && !busy && el.closest('#view') && sentinel.getBoundingClientRect().top < innerHeight + 800) more();
   }
 
   async function more() {
@@ -138,10 +168,14 @@ export function create({ type, query }) {
     try {
       const result = await fetchPage(start, PAGE, controller.signal);
       if (mine !== generation) return;
-      if (first) clear(grid);
       const items = result?.Items ?? [];
       total = result?.TotalRecordCount ?? items.length;
-      for (const item of items) grid.append(posterCard(item));
+      if (first) {
+        // In place: the cards already shown (from the last time) stay as they are, pictures and all.
+        reconcile(grid, items, firstCards(items));
+        writeStore(items, total);
+        decoded().then(markReady);
+      } else for (const item of items) grid.append(posterCard(item));
       start += items.length;
       done = items.length < PAGE || start >= total;
       loadedAt = Date.now();
@@ -149,7 +183,12 @@ export function create({ type, query }) {
       if (total === 0) showEmpty();
     } catch (error) {
       if (error.name === 'AbortError' || mine !== generation) return;
-      if (first) clear(grid);
+      if (first) {
+        markReady();
+        // The cards of the last time stay (the server away, they are still worth seeing): asked again on the next visit.
+        if (grid.querySelector('[data-sig]')) { loadedAt = 0; return; }
+        clear(grid);
+      }
       const box = errorState(error, () => { box.remove(); done = false; more(); });
       box.style.gridColumn = '1 / -1';
       grid.append(box);
@@ -158,7 +197,8 @@ export function create({ type, query }) {
     keepLoading();
   }
 
-  const observer = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) more(); }, { rootMargin: '900px 0px' });
+  // Only for the screen shown: the one dissolving away (app.js) loads nothing more.
+  const observer = new IntersectionObserver((entries) => { if (el.closest('#view') && entries.some((e) => e.isIntersecting)) more(); }, { rootMargin: '900px 0px' });
   observer.observe(sentinel);
   // Watched, favourite: the cards are redrawn when the grid is seen again.
   const onChange = () => { stale = true; };
@@ -167,7 +207,7 @@ export function create({ type, query }) {
   renderChips();
   reset();
   return {
-    el, title: movies ? 'Films' : 'Séries', keep: true,
+    el, title: movies ? 'Films' : 'Séries', keep: true, ready,
     enter() {
       if (stale || Date.now() - loadedAt > 10 * 60_000) refresh();
       else requestAnimationFrame(keepLoading);

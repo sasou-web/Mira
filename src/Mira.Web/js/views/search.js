@@ -91,8 +91,11 @@ export function create({ query }) {
       if (text.length < 2) { results.classList.remove('pending'); clear(results).append(recent()); return undefined; }
       return search(text, { quiet: true });
     },
-    // The keyboard opens when the tab is tapped, as in Apple's apps (only with nothing typed yet).
-    enter() { if (!input.value && matchMedia('(pointer: coarse)').matches) input.focus({ preventScroll: true }); },
+    // The tab touched again, at the top of the screen: the field takes the keyboard, as in Apple's apps. Never on
+    // arrival: iOS opens the keyboard only for a focus given while it handles a touch, a focus from later leaves the
+    // field lit without it, and a Home Screen app may keep its screen shorter once the keyboard has been up (the tab
+    // bar then floats above the bottom).
+    retap() { if (scrollY > 8) return false; input.focus({ preventScroll: true }); return true; },
     dispose() { controller?.abort(); clearTimeout(timer); },
   };
 }

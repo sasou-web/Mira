@@ -1,7 +1,7 @@
 // A title's page: backdrop and logo, play or resume, watched and favourite, overview, cast and, for a series, its
 // seasons (long ones in slices of 100, as on Windows) and episodes.
 import { api } from '../api.js';
-import { h, icon, clear, duration, seconds, progress, remaining, episodeCode, plural, haptic } from '../dom.js';
+import { h, icon, clear, duration, seconds, progress, remaining, episodeCode, plural } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import {
   row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, toast, sheet, withActions, knownItem,
@@ -181,7 +181,6 @@ export function create({ id, query }) {
     // The button changes at once, with a little bounce, as in iOS; Jellyfin is told behind it, and the button goes back
     // if it refuses.
     const flip = (key, set) => {
-      haptic();
       const done = set();
       refreshActions();
       toolsBox.querySelector(`[data-tool="${key}"]`)?.classList.add('pop');

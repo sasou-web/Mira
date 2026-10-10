@@ -74,8 +74,15 @@ export function picture(art, { kind = 'poster', width = 160, label = '', eager =
   const blur = placeholder(art.hash, ASPECT[kind] ?? 1);
   if (blur) box.style.backgroundImage = `url("${blur}")`;
   const img = h('img', { alt: '', decoding: 'async', loading: eager ? 'eager' : 'lazy', draggable: false });
-  if (eager) img.fetchPriority = 'high';
-  img.addEventListener('load', () => { img.classList.add('ready'); if (shown.size > 2000) shown.clear(); shown.add(img.src); }, { once: true });
+  // What shows at first goes before the rest: a home server over HTTP/1.1 serves a few pictures at a time.
+  img.fetchPriority = eager ? 'high' : 'low';
+  const born = performance.now();
+  img.addEventListener('load', () => {
+    // Loaded before its screen showed (a tab waits for its first pictures), or at once from the phone's cache: part of
+    // the screen's first picture, without a fade of its own.
+    if (!box.isConnected || performance.now() - born < 100) img.classList.add('instant');
+    img.classList.add('ready'); if (shown.size > 2000) shown.clear(); shown.add(img.src);
+  }, { once: true });
   img.addEventListener('error', () => {
     // The placeholder stays; the picture comes once the server answers again.
     if (blur) { failed.add(img); return; }
