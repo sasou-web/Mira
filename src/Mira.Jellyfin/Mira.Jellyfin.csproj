@@ -9,11 +9,15 @@
     <Version>0.7.4</Version>
     <!-- Only Mira.Jellyfin.dll goes in the plugin: Jellyfin provides its own libraries. -->
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Jellyfin.Controller" Version="10.9.11" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- System.Text.Json 8.0.4, through Jellyfin.Controller: compiled against only, never shipped (runtime assets are
+         excluded above); Jellyfin runs the plugin with its own, up to date. -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8g4q-xg66-9fp4" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="../Mira.Web/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />

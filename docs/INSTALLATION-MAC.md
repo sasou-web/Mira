@@ -4,7 +4,7 @@ Mira pour Mac lit ta bibliothèque Jellyfin avec le même lecteur mpv que la ver
 
 ## Prérequis
 
-- Un Mac à puce Apple (M1, M2, M3, M4…) sous **macOS 14 Sonoma** ou plus récent.
+- Un Mac à puce Apple (M1, M2, M3, M4…) sous **macOS 15 Sequoia** ou plus récent (macOS 14 Sonoma : jusqu’à la 0.7.4).
 - Un serveur **Jellyfin 10.9** ou plus récent, sur ton réseau ou joignable avec Tailscale. Mira pour Mac ne l’installe pas : il se connecte à celui que tu as déjà, par exemple celui du PC Windows où tourne Mira.
 
 ## Installation
