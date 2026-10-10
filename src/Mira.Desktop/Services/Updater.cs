@@ -159,7 +159,7 @@ internal sealed class Updater : IDisposable
     /// <summary>The zip holds a "Mira" folder: it is unpacked once beside the download, then reused while it still matches.</summary>
     private static string Unpack(string zip, UpdateOffer offer, string directory)
     {
-        var root = Path.Combine(directory, "app"); var exe = Path.Combine(root, "Mira", "Mira.exe"); var marker = Path.Combine(root, "ready.txt");
+        var root = Path.Combine(directory, "app"); var exe = Path.Combine(root, "Mira", "Mira.exe"); var marker = Path.Combine(root, ReadyMarker);
         if (File.Exists(exe) && File.Exists(marker) && File.ReadAllText(marker).Trim() == offer.File.Sha256 && TreeMatches(zip, root)) return exe;
         if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         // ExtractToDirectory refuses entries that would land outside the destination.
@@ -168,22 +168,37 @@ internal sealed class Updater : IDisposable
         File.WriteAllText(marker, offer.File.Sha256);
         return exe;
     }
-    /// <summary>Every file of the verified zip is present in the unpacked tree with its size (a file removed by an
-    /// antivirus or a disk cleaner, or cut short, is noticed before the tree is copied over Mira).</summary>
-    private static bool TreeMatches(string zip, string root)
+    private const string ReadyMarker = "ready.txt";
+    /// <summary>
+    /// The unpacked tree is exactly the verified zip: every file present with the same bytes, and no other file beside
+    /// the ready marker. Checked again just before the installation starts, so that what the update helper copies over
+    /// Mira is what the SHA-256 of the signed manifest covered (a file changed or added since the download, or cut short,
+    /// sends the update back to be unpacked again).
+    /// </summary>
+    internal static bool TreeMatches(string zip, string root)
     {
         try
         {
+            var top = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
+            var expected = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { top + ReadyMarker };
             using var archive = ZipFile.OpenRead(zip);
+            byte[] packed = new byte[1 << 16], unpacked = new byte[1 << 16];
             foreach (var entry in archive.Entries)
             {
                 if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\')) continue;
                 var path = Path.GetFullPath(Path.Combine(root, entry.FullName));
-                if (!path.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) return false;
+                if (!path.StartsWith(top, StringComparison.OrdinalIgnoreCase) || !expected.Add(path)) return false;
                 var file = new FileInfo(path);
                 if (!file.Exists || file.Length != entry.Length) return false;
+                using var source = entry.Open(); using var copy = file.OpenRead();
+                while (true)
+                {
+                    var read = source.ReadAtLeast(packed, packed.Length, throwOnEndOfStream: false);
+                    if (copy.ReadAtLeast(unpacked, unpacked.Length, throwOnEndOfStream: false) != read || !packed.AsSpan(0, read).SequenceEqual(unpacked.AsSpan(0, read))) return false;
+                    if (read == 0) break;
+                }
             }
-            return true;
+            return Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).All(x => expected.Contains(Path.GetFullPath(x)));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { return false; }
     }
@@ -249,21 +264,23 @@ internal sealed class Updater : IDisposable
     }
 
     /// <summary>Removes downloads of versions already installed and unfinished downloads of other versions. A rollback copy
-    /// is removed only when the folder update it belongs to came back in full (no INCOMPLETE.txt). New files left beside
-    /// the application by an interrupted folder update (never loaded: they end in .mira-new) are removed too.</summary>
+    /// is removed only when the folder update it belongs to came back in full or finished (no INCOMPLETE.txt, no journal of
+    /// a swap still to undo). Files left beside the application by an interrupted folder update are removed too: new ones
+    /// never loaded (.mira-new), and previous ones set aside while this process' predecessor still loaded them (.mira-old).</summary>
     public void CleanStaging()
     {
         if (Kind == InstallKind.Folder && Directory.Exists(AppPath))
-            foreach (var stray in Directory.EnumerateFiles(AppPath, "*" + UpdateApplier.NewSuffix, SearchOption.AllDirectories))
-                if (stray.EndsWith(UpdateApplier.NewSuffix, StringComparison.OrdinalIgnoreCase) && !stray.StartsWith(Path.Combine(AppPath, "data") + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                    TryDelete(() => File.Delete(stray));
+            foreach (var suffix in new[] { UpdateApplier.NewSuffix, UpdateApplier.OldSuffix })
+                foreach (var stray in Directory.EnumerateFiles(AppPath, "*" + suffix, SearchOption.AllDirectories))
+                    if (stray.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && !stray.StartsWith(Path.Combine(AppPath, "data") + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                        TryDelete(() => File.Delete(stray));
         if (!Directory.Exists(_staging)) return;
         foreach (var directory in Directory.EnumerateDirectories(_staging))
         {
             var name = Path.GetFileName(directory);
             if (name.StartsWith("rollback-", StringComparison.Ordinal))
             {
-                if (File.Exists(Path.Combine(directory, UpdateApplier.IncompleteMarker))) Log($"copie de retour arrière gardée : {directory}");
+                if (File.Exists(Path.Combine(directory, UpdateApplier.IncompleteMarker)) || File.Exists(Path.Combine(directory, UpdateApplier.InProgressMarker))) Log($"copie de retour arrière gardée : {directory}");
                 else TryDelete(() => Directory.Delete(directory, recursive: true));
             }
             else if (ReleaseFeed.ParseVersion(name) is { } version && version <= Current) TryDelete(() => Directory.Delete(directory, recursive: true));
