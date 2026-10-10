@@ -112,7 +112,8 @@ public sealed class TorLinkImporter
         Update(entry);
         // Files an earlier attempt already placed stay tracked; a move took them out of TorLink's folder.
         var tracked = await Task.Run(() => entry.Files.Where(f => File.Exists(f.Destination)).ToList(), ct);
-        var files = await Task.Run(() => DownloadedFiles(state, completion, tracked), ct);
+        var (files, refused) = await Task.Run(() => (DownloadedFiles(state, completion, tracked, out var torrentRefused), torrentRefused), ct);
+        string? Noted(string? message) => refused ? string.Join(" · ", new[] { message, TorrentRefusedHint }.OfType<string>()) : message;
         if (files is null)
         {
             var attempts = entry.Attempts + 1;
@@ -121,7 +122,7 @@ public sealed class TorLinkImporter
                 State = attempts >= MaxAttempts ? TorLinkImportState.Failed : TorLinkImportState.Waiting,
                 Attempts = attempts,
                 UpdatedAt = DateTimeOffset.UtcNow,
-                Message = attempts >= MaxAttempts ? "Les fichiers terminés sont introuvables dans le dossier de TorLink." : "Fichiers pas encore disponibles, nouvel essai bientôt."
+                Message = Noted(attempts >= MaxAttempts ? "Les fichiers terminés sont introuvables dans le dossier de TorLink." : "Fichiers pas encore disponibles, nouvel essai bientôt.")
             });
             return;
         }
@@ -139,6 +140,7 @@ public sealed class TorLinkImporter
         var outcome = Outcome(entry, plan, result, tracked);
         // Only for a download leaving TorLink: a reclassified file crossing drives says nothing about TorLink's folder.
         if (result.OtherDrive) outcome = outcome with { Message = string.Join(" · ", new[] { outcome.Message, OtherDriveHint }.OfType<string>()) };
+        outcome = outcome with { Message = Noted(outcome.Message) };
         // Interrupted by closing Mira: what was placed is kept, the rest follows at the next start.
         Update(result.Canceled ? outcome with { State = TorLinkImportState.Waiting, Message = "Rangement interrompu : il reprendra à la prochaine ouverture de Mira." } : outcome);
         ct.ThrowIfCancellationRequested();
@@ -205,8 +207,12 @@ public sealed class TorLinkImporter
     /// Finished files of a download, only once every video and subtitle is complete on disk; never outside TorLink's folder.
     /// A file an earlier attempt moved into the library (<paramref name="placed"/>) counts where it now is.
     /// </summary>
-    public static List<SourceFile>? DownloadedFiles(TorLinkState state, TorLinkCompletion completion, IReadOnlyList<TorLinkImportedFile>? placed = null)
+    public static List<SourceFile>? DownloadedFiles(TorLinkState state, TorLinkCompletion completion, IReadOnlyList<TorLinkImportedFile>? placed = null) =>
+        DownloadedFiles(state, completion, placed, out _);
+    /// <summary><paramref name="torrentRefused"/>: the download's .torrent was too large to read; its files are looked for by name.</summary>
+    public static List<SourceFile>? DownloadedFiles(TorLinkState state, TorLinkCompletion completion, IReadOnlyList<TorLinkImportedFile>? placed, out bool torrentRefused)
     {
+        torrentRefused = false;
         string root;
         try { root = Path.GetFullPath(completion.Directory); }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
@@ -222,7 +228,8 @@ public sealed class TorLinkImporter
         }
         try
         {
-            if (state.ReadTorrent(completion.Id) is { Files.Count: > 0 } torrent)
+            var metadata = state.ReadTorrent(completion.Id, out torrentRefused);
+            if (metadata is { Files.Count: > 0 } torrent)
             {
                 var files = new List<SourceFile>();
                 foreach (var file in torrent.Files)
@@ -263,6 +270,8 @@ public sealed class TorLinkImporter
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
     }
 
+    /// <summary>Said when the download's .torrent was over <see cref="Bencode"/>'s limits: Mira did not read it.</summary>
+    public const string TorrentRefusedHint = "Son fichier .torrent est trop gros pour que Mira le lise : ses fichiers sont cherchés d’après le nom du téléchargement.";
     /// <summary>Said when files crossed from another drive: the way to make the next moves instant.</summary>
     public const string OtherDriveHint = "TorLink télécharge sur un autre disque que la bibliothèque : chaque fichier a été copié puis supprimé. Pour un déplacement instantané, choisis dans TorLink (touche o) un dossier sur le disque de la bibliothèque.";
 
