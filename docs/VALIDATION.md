@@ -4,6 +4,12 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 
 ## Mira web 0.7.2 : retours du deuxième essai sur iPhone
 
+- **Release v0.7.2** (2026-10-10, `tools/release.ps1` sur le PC qui a la clé, commit `515983e`) : 11 fichiers en ligne, publiée et marquée comme la plus récente.
+  - Les trois paquets Windows correspondent à leur `.sha256` et à `mira-update.json` (taille, SHA-256).
+  - La signature du manifeste est acceptée par la clé de `UpdateKeys.Trusted` et refusée sur une copie modifiée (OpenSSL, ECDSA P-256).
+  - `Mira.exe`, `Mira.dll`, `Mira.Core.dll` et l’exécutable portable portent `0.7.2+515983e…`. L’archive ne contient ni profil, ni clé, ni libmpv.
+  - `mira-jellyfin-0.7.2.zip` : MD5 identique à `jellyfin-manifest.json` (0.7.2.0, ABI 10.9.0.0), DLL en `0.7.2+515983e…`, les 39 fichiers de `src/Mira.Web` identiques à ceux de `main`. `releases/latest/download/jellyfin-manifest.json` sert ce manifeste.
+  - `Mira-0.7.2-mac-arm64.dmg` (UDIF, 79 Mo) : construit, contrôlé (Self-check, Video probe) et joint par `mac.yml` depuis le même tag.
 - **Défauts signalés par l’utilisateur** (iPhone sous iOS 26, app de l’écran d’accueil) : la Dynamic Island apparaît encore, le menu du lecteur d’Apple ne propose aucun sous-titre, et l’interface ne se comporte pas comme une app (mouvements, transitions, réactions capricieuses).
 - **Causes établies** (sources de Jellyfin 10.9 à 12.1 et de WebKit, puis essais sur Jellyfin 12.1) :
   - Jellyfin ne convertit jamais l’ASS ni le SSA par le profil (`MediaStream.SupportsSubtitleConversionTo`) : les sous-titres d’un animé étaient incrustés, la vidéo entière réencodée, et le menu vide ;
