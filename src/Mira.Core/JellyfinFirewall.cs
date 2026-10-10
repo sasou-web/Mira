@@ -19,11 +19,12 @@ public static class JellyfinFirewall
 
     /// <summary>
     /// A firewall rule as Windows describes it (INetFwRule); null or empty ports or addresses mean any. A rule naming no
-    /// program is for any program only when it names no service and no app package either: Windows' own apps have
-    /// such rules, allowing everything to their package alone.
+    /// program counts for Jellyfin only as a port rule: one naming its ports and no service. Windows' own apps have
+    /// rules naming no program and no port, which allow everything to their app package alone, and the COM interface
+    /// does not always say which package (seen on Windows 11 26100: LocalAppPackageId empty).
     /// </summary>
     public sealed record Rule(string Name, bool Enabled, bool Inbound, bool Allow, int Profiles, string? Program, int Protocol, string? LocalPorts, string? RemoteAddresses,
-        IReadOnlyList<string>? Interfaces = null, string? InterfaceTypes = "All", string? Service = null, string? Package = null);
+        IReadOnlyList<string>? Interfaces = null, string? InterfaceTypes = "All", string? Service = null);
     /// <summary>The firewall on one profile: on or off, its default for incoming connections, « block all incoming ».</summary>
     public sealed record Profile(bool Enabled, bool DefaultAllow, bool BlockAll);
     /// <summary>Open: Tailscale's devices get through. Blocked: rules Mira may change keep them out. Closed: the whole profile refuses them.</summary>
@@ -63,8 +64,9 @@ public static class JellyfinFirewall
     /// </summary>
     public static bool Applies(Rule rule, string program, int port, int profile, string? adapter = null) =>
         rule.Enabled && rule.Inbound && (rule.Profiles & profile) != 0
-        && string.IsNullOrWhiteSpace(rule.Package)
-        && (string.IsNullOrWhiteSpace(rule.Program) ? string.IsNullOrWhiteSpace(rule.Service) : SameProgram(rule.Program, program))
+        && (string.IsNullOrWhiteSpace(rule.Program)
+            ? string.IsNullOrWhiteSpace(rule.Service) && !string.IsNullOrWhiteSpace(rule.LocalPorts) && rule.LocalPorts.Trim() != "*"
+            : SameProgram(rule.Program, program))
         && rule.Protocol is Tcp or AnyProtocol
         && CoversPort(rule.LocalPorts, port)
         && CoversTailnet(rule.RemoteAddresses)
