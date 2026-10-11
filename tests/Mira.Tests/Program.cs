@@ -2245,6 +2245,80 @@ await Test("Mises à jour : seules les pages de release de Mira s’ouvrent dans
     Assert(ReleaseFeed.ReleasePage((Uri?)null) is null && ReleaseFeed.ReleasePage(new Uri("relative/releases/", UriKind.Relative)) is null, "No page or a relative one accepted");
     return Task.CompletedTask;
 });
+await Test("Mises à jour : le manifeste signe aussi le Mac et Mira web, et les copies jusqu’à 0.7.4 le lisent comme avant", () =>
+{
+    var sha = new string('b', 64); var version = new Version(0, 7, 5);
+    var manifest = new UpdateManifest("Mira", version, [new("installer", "Mira-0.7.5-win-x64-setup.exe", 30, sha), new("zip", "Mira-0.7.5-win-x64.zip", 10, sha)])
+    { Others = [new("mac", "Mira-0.7.5-mac-arm64.dmg", 20, sha), new("jellyfin", "mira-jellyfin-0.7.5.zip", 5, sha)] };
+    var json = manifest.ToJson(); var parsed = UpdateManifest.Parse(json);
+    Assert(parsed.Version == version && parsed.Files.Select(f => f.Kind).SequenceEqual(["installer", "zip"])
+        && parsed.Others.Select(f => (f.Kind, f.Name, f.Size, f.Sha256)).SequenceEqual([("mac", "Mira-0.7.5-mac-arm64.dmg", 20L, sha), ("jellyfin", "mira-jellyfin-0.7.5.zip", 5L, sha)]), "Round trip with the other platforms");
+    Assert(parsed.ToJson().SequenceEqual(json), "Written differently after a round trip");
+    // Installed copies up to 0.7.4 read "files" alone, and refuse there any kind they do not know: they still update.
+    var old = Parse074(json);
+    Assert(old.Version == version && old.Files.Select(f => f.Kind).SequenceEqual(["installer", "zip"]), "Mira 0.7.4 does not read the new manifest");
+    var windows = new UpdateManifest("Mira", version, manifest.Files).ToJson();
+    Assert(!Encoding.UTF8.GetString(windows).Contains("others") && UpdateManifest.Parse(windows).Others.Count == 0 && Parse074(windows).Files.Count == 2, "A Windows-only manifest changed");
+    var refusedBy074 = false; try { Parse074(new UpdateManifest("Mira", version, [.. manifest.Files, manifest.Others[0]]).ToJson()); } catch (UpdateException) { refusedBy074 = true; }
+    Assert(refusedBy074 && UpdateManifest.OtherKinds.All(k => !UpdateManifest.Kinds.Contains(k)), "A Mac file among the Windows ones would stop older copies from updating");
+    // A kind added later is skipped in "others"; a known one is checked as in "files".
+    string Json(string files, string others) => $$"""{"product":"Mira","version":"0.7.5","files":[{{files}}],"others":{{others}}}""";
+    var zip = $$"""{"kind":"zip","name":"Mira-0.7.5-win-x64.zip","size":10,"sha256":"{{sha}}"}""";
+    var mac = $$"""{"kind":"mac","name":"Mira-0.7.5-mac-arm64.dmg","size":20,"sha256":"{{sha}}"}""";
+    Assert(UpdateManifest.Parse(Encoding.UTF8.GetBytes(Json(zip, $$"""[{"kind":"linux","name":"../x","size":"?"},{{mac}}]"""))).Others.Single().Kind == "mac", "A kind added later was not skipped");
+    foreach (var bad in new[] { Json(zip, "{}"), Json(zip, "[1]"), Json(zip, $"[{mac},{mac}]"), Json(zip, $"[{mac.Replace("\"size\":20", "\"size\":0")}]"), Json(zip, $"[{mac.Replace(sha, "abc")}]"),
+        Json(zip, $"[{mac.Replace("Mira-0.7.5-mac-arm64.dmg", "../evil.dmg")}]"), Json($"{zip},{mac}", "[]") })
+    {
+        var rejected = false; try { UpdateManifest.Parse(Encoding.UTF8.GetBytes(bad)); } catch (UpdateException) { rejected = true; }
+        Assert(rejected, "Invalid manifest accepted: " + bad);
+    }
+    // The release tooling's manifest: the Windows files of one folder, both other platforms from another, or nothing.
+    var packages = Path.Combine(testRoot, "manifest-packages"); var others = Path.Combine(testRoot, "manifest-others");
+    Directory.CreateDirectory(packages); Directory.CreateDirectory(others);
+    File.WriteAllText(Path.Combine(packages, "Mira-0.7.5-win-x64.zip"), "zip"); File.WriteAllText(Path.Combine(others, "Mira-0.7.5-mac-arm64.dmg"), "dmg");
+    var created = false; try { UpdateManifest.Create(version, packages, others); created = true; } catch (UpdateException) { }
+    Assert(!created && UpdateManifest.Create(version, packages).Others.Count == 0, "A manifest was made without Mira web's plugin");
+    File.WriteAllText(Path.Combine(others, "mira-jellyfin-0.7.5.zip"), "plugin");
+    var full = UpdateManifest.Create(version, packages, others);
+    Assert(full.Files.Single() is { Kind: "zip", Size: 3 } && full.Others.Select(f => f.Name).SequenceEqual(["Mira-0.7.5-mac-arm64.dmg", "mira-jellyfin-0.7.5.zip"])
+        && full.Others[1].Sha256 == Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("plugin"))).ToLowerInvariant(), "Manifest of the release folders");
+    return Task.CompletedTask;
+});
+await Test("Mises à jour : le .dmg et Mira web vérifiés avant de signer (SHA-256 publiée, manifeste de Jellyfin et MD5)", () =>
+{
+    var version = new Version(0, 7, 5); var folder = Path.Combine(testRoot, "release-others"); Directory.CreateDirectory(folder);
+    var dmg = Path.Combine(folder, "Mira-0.7.5-mac-arm64.dmg"); var plugin = Encoding.UTF8.GetBytes("extension Mira 0.7.5");
+    File.WriteAllText(dmg, "image disque");
+    string Sha(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+    File.WriteAllText(dmg + ".sha256", $"{Sha(dmg)}  Mira-0.7.5-mac-arm64.dmg\n");
+    File.WriteAllBytes(Path.Combine(folder, "mira-jellyfin-0.7.5.zip"), plugin);
+    var source = "https://github.com/sasou-web/Mira/releases/download/v0.7.5/mira-jellyfin-0.7.5.zip"; var md5 = Convert.ToHexString(MD5.HashData(plugin)).ToLowerInvariant();
+    void Manifest(string text) => File.WriteAllText(Path.Combine(folder, "jellyfin-manifest.json"), text);
+    bool Refused(Action check) { try { check(); return false; } catch (UpdateException) { return true; } }
+    Manifest(JellyfinRepository("0.7.5.0", source, md5));
+    ReleaseChecks.CheckOthers(version, folder);
+    // shasum's binary mode, and a Windows line ending, are the same file.
+    File.WriteAllText(dmg + ".sha256", $"{Sha(dmg).ToUpperInvariant()} *Mira-0.7.5-mac-arm64.dmg\r\n"); ReleaseChecks.CheckOthers(version, folder);
+    File.WriteAllText(dmg + ".sha256", $"{Sha(dmg)}  Mira-0.7.4-mac-arm64.dmg\n"); Assert(Refused(() => ReleaseChecks.CheckOthers(version, folder)), "A SHA-256 for another file accepted");
+    File.WriteAllText(dmg + ".sha256", $"{new string('0', 64)}  Mira-0.7.5-mac-arm64.dmg\n"); Assert(Refused(() => ReleaseChecks.CheckOthers(version, folder)), "A wrong SHA-256 accepted");
+    File.WriteAllText(dmg + ".sha256", $"{Sha(dmg)}  Mira-0.7.5-mac-arm64.dmg\n");
+    var guid = MiraWeb.PluginId.ToString();
+    foreach (var (name, json) in new[]
+    {
+        ("other plugin", JellyfinRepository("0.7.5.0", source, md5, guid: Guid.NewGuid().ToString())), ("other name", JellyfinRepository("0.7.5.0", source, md5, name: "Autre")),
+        ("other version", JellyfinRepository("0.7.4.0", source, md5)), ("latest release", JellyfinRepository("0.7.5.0", "https://github.com/sasou-web/Mira/releases/latest/download/mira-jellyfin-0.7.5.zip", md5)),
+        ("other host", JellyfinRepository("0.7.5.0", source.Replace("github.com", "evil.example"), md5)), ("wrong MD5", JellyfinRepository("0.7.5.0", source, new string('a', 32))),
+        ("two versions", JellyfinRepository("0.7.5.0", source, md5, versions: 2)), ("two plugins", $"[{JellyfinRepository("0.7.5.0", source, md5)[1..^1]},{JellyfinRepository("0.7.5.0", source, md5)[1..^1]}]"),
+        ("not JSON", "<html>"), ("an object", "{}"), ("no versions", $$"""[{"guid":"{{guid}}","name":"Mira"}]"""),
+    })
+    {
+        Manifest(json);
+        Assert(Refused(() => ReleaseChecks.CheckOthers(version, folder)), "Jellyfin manifest accepted: " + name);
+    }
+    Manifest(JellyfinRepository("0.7.5.0", source, md5.ToUpperInvariant())); ReleaseChecks.CheckOthers(version, folder);
+    File.Delete(Path.Combine(folder, "mira-jellyfin-0.7.5.zip")); Assert(Refused(() => ReleaseChecks.CheckOthers(version, folder)), "A missing plugin accepted");
+    return Task.CompletedTask;
+});
 await Test("Mises à jour : copie en deux temps, dossier intact si la préparation échoue, résultat annoncé une fois", () =>
 {
     var root = Path.Combine(testRoot, "update-two-phase"); var app = Path.Combine(root, "app"); var incoming = Path.Combine(root, "incoming");
@@ -2386,6 +2460,47 @@ static byte[] TorrentBytes(string name, (string[] Path, long Length)[] files, bo
 }
 // Terminal text without VT control sequences (cursor moves, colours, titles).
 static string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\x1b\[[0-9;?<>=]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]", "");
+// A Jellyfin repository manifest as tools/web/package.sh writes it, with what the checks look at made to vary.
+static string JellyfinRepository(string version, string sourceUrl, string checksum, string? guid = null, string name = "Mira", int versions = 1) =>
+    JsonSerializer.Serialize(new[]
+    {
+        new
+        {
+            guid = guid ?? MiraWeb.PluginId.ToString(), name, description = "Mira sur iPhone", overview = "Mira", owner = "sasou-web", category = "General",
+            versions = Enumerable.Range(0, versions).Select(i => new { version, changelog = "", targetAbi = "10.9.0.0", sourceUrl, checksum, timestamp = "2026-10-10T00:00:00Z" }).ToArray()
+        }
+    });
+// UpdateManifest.Parse as Mira 0.7.4 shipped it (commit 066d1ae), frozen: what installed copies up to 0.7.4 still read.
+static (Version Version, List<UpdateFile> Files) Parse074(byte[] json)
+{
+    static string Text(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()! : "";
+    static long Number(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number) ? number : -1;
+    string[] kinds = ["installer", "portable", "zip"];
+    var fileName = new System.Text.RegularExpressions.Regex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    var hex = new System.Text.RegularExpressions.Regex("^[0-9a-f]{64}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    try
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var product = Text(root, "product");
+        var version = ReleaseFeed.ParseVersion(Text(root, "version")) ?? throw new UpdateException("Le manifeste de mise à jour n’indique pas de version valide.");
+        if (product != "Mira") throw new UpdateException("Le manifeste de mise à jour ne concerne pas Mira.");
+        if (!root.TryGetProperty("files", out var list) || list.ValueKind != JsonValueKind.Array) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
+        var files = new List<UpdateFile>();
+        foreach (var entry in list.EnumerateArray())
+        {
+            var file = new UpdateFile(Text(entry, "kind"), Text(entry, "name"), Number(entry, "size"), Text(entry, "sha256").ToLowerInvariant());
+            if (!kinds.Contains(file.Kind) || !fileName.IsMatch(file.Name) || file.Size is <= 0 or > 1L << 30 || !hex.IsMatch(file.Sha256) || files.Any(f => f.Kind == file.Kind))
+                throw new UpdateException("Le manifeste de mise à jour contient un fichier invalide.");
+            files.Add(file);
+        }
+        if (files.Count == 0) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
+        return (version, files);
+    }
+    catch (Exception ex) when (ex is JsonException or InvalidOperationException) { throw new UpdateException("Le manifeste de mise à jour est illisible."); }
+}
 /// <summary>Progress reported on the caller's thread, in order (Progress<T> would post it to the thread pool).</summary>
 sealed class SyncProgress<T>(Action<T> report) : IProgress<T> { public void Report(T value) => report(value); }
 /// <summary>The macOS keychain for the Mac profile's tests: keeps tokens in memory, or refuses everything.</summary>
