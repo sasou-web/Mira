@@ -52,6 +52,19 @@
   </Border>
   <Grid x:Name="PlayerShell" Grid.RowSpan="2" Visibility="Collapsed" Background="Black" Panel.ZIndex="30" SizeChanged="Player_SizeChanged" MouseMove="MiniDrag_MouseMove" MouseLeftButtonUp="MiniDrag_MouseUp" LostMouseCapture="MiniDrag_LostCapture">
    <Grid x:Name="VideoContainer" Background="Black"/>
+   <!-- A title that cannot play: said in the player, with the way back and another try, as in Mira web (MainWindow.Player). -->
+   <Grid x:Name="PlayerError" Visibility="Collapsed" Background="{StaticResource Bg}" KeyboardNavigation.TabNavigation="Cycle">
+    <StackPanel MaxWidth="540" Margin="40" HorizontalAlignment="Center" VerticalAlignment="Center">
+     <v:Icon Kind="warning" Width="40" Height="40" Foreground="{StaticResource Text}" HorizontalAlignment="Center"/>
+     <TextBlock Text="Lecture impossible" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,16,0,0"/>
+     <TextBlock x:Name="PlayerErrorTitle" FontSize="14" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+     <TextBlock x:Name="PlayerErrorText" FontSize="14" LineHeight="21" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,14,0,0"/>
+     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,26,0,0">
+      <Button x:Name="PlayerErrorBack" Content="Retour" v:Motion.Radius="9" Margin="0,0,10,0" Click="PlayerErrorBack_Click" ToolTip="Revenir à la bibliothèque · Échap"/>
+      <Button x:Name="PlayerErrorAction" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="PlayerErrorAction_Click"/>
+     </StackPanel>
+    </StackPanel>
+   </Grid>
    <playback:PlayerOverlay x:Name="PlayerOverlayLayer" PlacementTarget="{Binding ElementName=PlayerShell}">
     <!-- The decorator gives the separate overlay window an adorner layer for keyboard focus rings. -->
     <AdornerDecorator>

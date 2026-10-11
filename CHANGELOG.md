@@ -3,6 +3,7 @@
 ## Non publié
 
 - **Icône lisible en mode sombre** (Mira web) : sur l’écran d’accueil de l’iPhone en apparence sombre, iOS assombrissait le fond clair de l’icône et le « m » noir disparaissait. L’icône est maintenant un « m » clair sur fond sombre, lisible en clair, en sombre et en teinté. iOS garde l’icône d’un raccourci tel qu’il a été ajouté : pour la nouvelle, supprime Mira de l’écran d’accueil et ajoute-le à nouveau depuis Safari.
+- **Lecture impossible dans le lecteur** (Windows) : un titre qui ne peut pas démarrer, ou qui s’arrête sur une erreur, ne te renvoie plus à la bibliothèque avec un simple message. Le lecteur affiche « Lecture impossible », le titre et la raison, avec **Retour** (ou Échap) et **Réessayer**, comme Mira web. Depuis le mini-lecteur, la bibliothèque reste affichée avec le message.
 
 ## 0.7.5 — 2026-10-11
 

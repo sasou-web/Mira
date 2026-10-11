@@ -90,7 +90,7 @@ public partial class MainWindow
             PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
             AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
-            LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
+            HidePlayerError(); LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
             NavigationRail.Visibility = Visibility.Collapsed;
             // The player's keys must reach Mira, not the TorLink terminal left open underneath.
             if (TorLinkOverlay.IsKeyboardFocusWithin) Focus();
@@ -127,16 +127,15 @@ public partial class MainWindow
         }
         catch (Exception ex) when (IsExpected(ex) || ex is TimeoutException)
         {
-            await StopPlaybackAsync(); ReturnToLibrary();
-            // Stays until closed, with the one click that tries again: a toast that left on its own was the only trace.
+            await StopPlaybackAsync();
             var reason = ex is IOException && FromMira(ex) ? ex.Message : ex is TimeoutException ? "Le lecteur vidéo n’a pas pu s’ouvrir à temps." : Friendly(ex);
-            SetNotice("La lecture n’a pas pu démarrer. " + reason, "Réessayer", () => _ = PlayAsync(asked, keepMini));
+            PlaybackFailed("La lecture n’a pas pu démarrer. " + reason, asked, keepMini, "Réessayer", () => PlayAsync(asked, keepMini));
         }
         catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException or BadImageFormatException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             // An incompatible engine DLL must not leave a black screen with no way back.
-            await StopPlaybackAsync(); ReturnToLibrary();
-            SetNotice("La lecture n’a pas pu démarrer : le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.", null, null, sticky: true);
+            await StopPlaybackAsync();
+            PlaybackFailed("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.", asked, keepMini, "Ouvrir les réglages", () => { Settings_Click(this, new()); return Task.CompletedTask; });
         }
         finally { _playBusy = false; Mouse.OverrideCursor = null; }
     }
@@ -235,11 +234,58 @@ public partial class MainWindow
                 if (stoppedGeneration != _playGeneration || _playing) return;
                 if (next is not null) { await PlayAsync(next, keepMini); return; }
             }
+            if (error is not null) { PlaybackFailed(error, previous, keepMini, "Réessayer", previous is null ? null : () => PlayAsync(previous, keepMini)); return; }
             ReturnToLibrary();
-            if (error is not null) SetNotice(error, previous is null ? null : "Réessayer", previous is null ? null : () => _ = PlayAsync(previous), sticky: true);
-            else if (!_demo) await RefreshAsync(quiet: true);
+            if (!_demo) await RefreshAsync(quiet: true);
             else RenderAfterUserDataChange();
         });
+    }
+    /// <summary>
+    /// A title that could not play. In the player, its own screen says so, with « Retour » and another try (as Mira
+    /// web); in the mini-player, the person is browsing: the library stays, with a message that waits to be closed.
+    /// </summary>
+    private void PlaybackFailed(string message, MediaItem? item, bool mini, string action, Func<Task>? onAction)
+    {
+        if (mini) { ReturnToLibrary(); SetNotice(message, onAction is null ? null : action, onAction is null ? null : () => _ = onAction(), sticky: true); return; }
+        if (_fullscreen) ToggleFullscreen();
+        ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); ClosePreview();
+        DetailOverlay.Visibility = SettingsOverlay.Visibility = Visibility.Collapsed;
+        LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Collapsed;
+        // The window's own buttons stay reachable: the player's are in its overlay, closed with the playback.
+        PlayerShell.Visibility = TitleBar.Visibility = Visibility.Visible;
+        // The native video surface would cover the message (airspace): hidden until the next playback.
+        VideoContainer.Visibility = Visibility.Collapsed;
+        PlayerErrorTitle.Text = item?.DisplayTitle ?? "";
+        PlayerErrorTitle.Visibility = PlayerErrorTitle.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PlayerErrorText.Text = _playerErrorMessage = message;
+        _playerErrorAction = onAction; PlayerErrorAction.Content = action; PlayerErrorAction.IsEnabled = true;
+        PlayerErrorAction.Visibility = onAction is null ? Visibility.Collapsed : Visibility.Visible;
+        if (PlayerError.Visibility != Visibility.Visible) Motion.Reveal(PlayerError, 220, 8);
+        Dispatcher.BeginInvoke(() => (onAction is null ? PlayerErrorBack : PlayerErrorAction).Focus(), DispatcherPriority.Input);
+        Accessible.Say(PlayerErrorText);
+    }
+    private Func<Task>? _playerErrorAction;
+    private string _playerErrorMessage = "";
+    private bool PlayerErrorShown => PlayerError.Visibility == Visibility.Visible;
+    private void HidePlayerError()
+    {
+        if (!PlayerErrorShown) return;
+        PlayerError.Visibility = Visibility.Collapsed; VideoContainer.Visibility = Visibility.Visible; _playerErrorAction = null;
+    }
+    private async void PlayerErrorBack_Click(object sender, RoutedEventArgs e)
+    {
+        HidePlayerError(); ReturnToLibrary();
+        if (!_demo) await RefreshAsync(quiet: true); else RenderAfterUserDataChange();
+    }
+    private async void PlayerErrorAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (_playerErrorAction is not { } action) return;
+        // Another try keeps the screen until the player opens or fails again (which says why once more); settings leave it.
+        if (PlayerErrorAction.Content is not "Réessayer") { HidePlayerError(); ReturnToLibrary(); await action(); return; }
+        PlayerErrorAction.IsEnabled = false; PlayerErrorText.Text = "Nouvel essai…"; Accessible.Say(PlayerErrorText);
+        await action();
+        // Neither (no account any more, a file choice cancelled in the demo): the screen comes back as it was.
+        if (PlayerErrorShown && !PlayerErrorAction.IsEnabled) { PlayerErrorAction.IsEnabled = true; PlayerErrorText.Text = _playerErrorMessage; }
     }
     private void SetPlayerLoading(bool loading)
     {
@@ -386,6 +432,8 @@ public partial class MainWindow
         }
         // Alt+← and the browser "back" key behave like Escape and the mouse's back button.
         if (IsBackKey(e)) { if (GoBack()) e.Handled = true; return; }
+        // The library's shortcuts wait for « Retour »: the error screen covers the library.
+        if (PlayerErrorShown) return;
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && (!_playing || _miniPlayer) && RailShortcut(e.Key)) { e.Handled = true; return; }
         if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { OpenGuide(); e.Handled = true; return; }
@@ -399,6 +447,7 @@ public partial class MainWindow
     private bool GoBack()
     {
         if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.IsOpen = false; return true; }
+        if (PlayerErrorShown) { PlayerErrorBack_Click(this, new()); return true; }
         if (WhatsNewOverlay.Visibility == Visibility.Visible && WhatsNewOverlay.IsHitTestVisible) { _ = CloseWhatsNewAsync(); return true; }
         // From the welcome, one step back is the sign-in form it leads to.
         if (WelcomeOverlay.Visibility == Visibility.Visible && WelcomeOverlay.IsHitTestVisible) { WelcomeConnect_Click(this, new()); return true; }
