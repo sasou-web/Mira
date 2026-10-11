@@ -183,12 +183,22 @@ public partial class MainWindow : Window
             ConnectText.Text = "Connexion…";
             client = new JellyfinClient(new(server.Address, "", UsernameBox.Text.Trim(), "", _profile.DeviceId));
             var connection = await client.LoginAsync(UsernameBox.Text.Trim(), PasswordBox.Password);
+            // Another account or server replaces the saved session: the old one ends on its Jellyfin too, since nothing
+            // here could revoke it afterwards. The same account on the same server is replaced by Jellyfin itself.
+            var previous = _profile.LoadConnection();
             _profile.SaveConnection(connection); PasswordBox.Clear(); _warnedPlainHttp = null;
             await ActivateConnectionAsync(connection);
             OfferGuide("Connecté. Voici l’essentiel.");
+            if (previous is not null && (previous.Server != connection.Server || previous.UserId != connection.UserId)) _ = EndReplacedSessionAsync(previous);
         }
         catch (Exception ex) when (IsExpected(ex)) { LoginError.Text = Friendly(ex); }
         finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = _warnedPlainHttp == ServerBox.Text ? "Se connecter quand même" : "Se connecter"; }
+    }
+    private async Task EndReplacedSessionAsync(Connection previous)
+    {
+        bool closed;
+        using (var old = new JellyfinClient(previous)) closed = await old.LogoutAsync();
+        if (!closed) AddNotice($"Ton ancienne session ({previous.UserName}) n’a pas pu être fermée sur son serveur Jellyfin : retire ce PC de ses appareils (Tableau de bord, Appareils).");
     }
     private async Task ActivateConnectionAsync(Connection connection)
     {
@@ -459,7 +469,7 @@ public partial class MainWindow : Window
         if (LoginOverlay.Visibility != Visibility.Visible) return;
         if (string.IsNullOrWhiteSpace(UsernameBox.Text)) UsernameBox.Focus(); else PasswordBox.Focus();
     }, DispatcherPriority.Input);
-    private async void CloseAccount_Click(object sender, RoutedEventArgs e) { PasswordBox.Clear(); await Motion.HideAsync(LoginOverlay); UpdateHeroClock(); }
+    private async void CloseAccount_Click(object sender, RoutedEventArgs e) { if (_signingOut) return; PasswordBox.Clear(); await Motion.HideAsync(LoginOverlay); UpdateHeroClock(); }
     /// <summary>
     /// « Déconnecter ce compte »: the session ends on this PC and on Jellyfin, and with the switch beside it, this
     /// account's data leaves this PC (other accounts' and the settings stay).
@@ -468,22 +478,26 @@ public partial class MainWindow : Window
     {
         // The saved session: also when the library could not open (no client then), or in the demo.
         var connection = _profile.LoadConnection(); var erase = EraseAccountData.IsChecked == true;
-        LogoutButton.IsEnabled = false; LogoutButton.Content = "Déconnexion…";
+        // Nothing else on this screen until it is done: a sign-in meanwhile would be undone by what follows.
+        _signingOut = true; LoginOverlay.IsEnabled = false; LogoutButton.Content = "Déconnexion…";
         try
         {
+            // Off this PC first, so that closing Mira while Jellyfin is asked leaves no session saved.
+            _profile.ClearConnection();
             await DisconnectServicesAsync();
             // After the last progress reports, which still need the session; a few seconds at most, answered or not.
             var closed = false;
             if (connection is not null) using (var client = new JellyfinClient(connection)) closed = await client.LogoutAsync();
-            _profile.ClearConnection(); PasswordBox.Clear(); _items = []; _resume = []; _nextUp = []; _hero = null; _totalCount = 0;
+            PasswordBox.Clear(); _items = []; _resume = []; _nextUp = []; _hero = null; _totalCount = 0;
             var erased = erase && connection is not null ? await AccountData.EraseAsync(_profile.DirectoryPath, connection) : (bool?)null;
             RenderLibrary(); _ = RefreshTorLinkLibrariesAsync();
             LoginArt.Source = null;
             LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed;
             LoginError.Text = connection is null ? "Session déconnectée sur ce PC." : AccountData.SignedOut("ce PC", closed, erased); FocusLogin();
         }
-        finally { LogoutButton.IsEnabled = true; LogoutButton.Content = "Déconnecter ce compte"; EraseAccountData.IsChecked = false; }
+        finally { _signingOut = false; LoginOverlay.IsEnabled = true; LogoutButton.Content = "Déconnecter ce compte"; EraseAccountData.IsChecked = false; FocusLogin(); }
     }
+    private bool _signingOut;
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void Maximize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     /// <summary>The maximize button shows "restore" once the window fills the screen.</summary>

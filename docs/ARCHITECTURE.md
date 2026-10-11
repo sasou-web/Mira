@@ -61,7 +61,7 @@ Mira.Mac (Avalonia)
   │   ├─ VideoView : l’image dessinée par mpv avec OpenGL dans la fenêtre (API de rendu de libmpv)
   │   ├─ SoftwareVideoView : repli en rendu logiciel, sur son propre fil
   │   └─ Timeline : barre de progression découpée par chapitres
-  ├─ Services : Profile (Application Support), Session, Images, Updates (version Mac sur GitHub)
+  ├─ Services : Profile (Application Support), Keychain (jeton de session dans le trousseau), Session, Images, Updates (version Mac sur GitHub)
   └─ Checks : --self-check (chaque écran et la lecture, avec un Jellyfin réel ou simulé), --video-probe, --export-icon
 ```
 
@@ -236,7 +236,7 @@ Le TorLink de Mira tourne avec `TORLINK_NO_UPDATE_CHECK` (Mira le met à jour en
 
 ## Session et fichiers
 
-Avant l’authentification, `ServerAddress` transforme l’adresse saisie en candidates : une adresse avec son schéma est seule candidate ; sans schéma, HTTPS puis HTTP en premier selon le port (443 et 8920 : HTTPS), ou, sans port, HTTPS, `http://…:8096` puis HTTP. La partie `/web…`, la requête et le fragment d’une adresse copiée depuis la page web sont retirés. Toutes sont interrogées en même temps sur `System/Info/Public` (6 s au plus) ; la première dans l’ordre qui répond comme Jellyfin (identifiant présent, produit Jellyfin) est retenue, et une candidate préférée encore en attente n’a plus que 1,5 s une fois qu’une autre a répondu. L’adresse finale d’une redirection (HTTP vers HTTPS) est conservée. Une version antérieure à 10.9 est refusée : Mira utilise `UserItems`, `UserViews`, `UserPlayedItems` et `UserFavoriteItems`. Aucun identifiant n’est envoyé pendant cette recherche.
+Avant l’authentification, `ServerAddress` transforme l’adresse saisie en candidates : une adresse avec son schéma est seule candidate ; sans schéma, HTTPS puis HTTP en premier selon le port (443 et 8920 : HTTPS), ou, sans port, HTTPS, `http://…:8096` puis HTTP. La partie `/web…`, la requête et le fragment d’une adresse copiée depuis la page web sont retirés. Toutes sont interrogées en même temps sur `System/Info/Public` (6 s au plus) ; la première dans l’ordre qui répond comme Jellyfin (identifiant présent, produit Jellyfin) est retenue, et une candidate préférée encore en attente n’a plus que 1,5 s une fois qu’une autre a répondu. L’adresse finale d’une redirection (HTTP vers HTTPS) est conservée. Pour un nom d’Internet (avec un point, hors `.local`, `.lan`, `.home`, `.home.arpa`, `.internal`, `.localdomain` et `.ts.net`), une réponse en HTTP n’est pas retenue si HTTPS a échoué sur son certificat pendant la recherche : l’écran de connexion donne l’adresse `http://` à taper pour la choisir. Une adresse de la maison n’est pas concernée (un NAS garde souvent son propre certificat sur le port 443). Ensuite, un `http://` qui ne mène ni à ce PC, ni à la maison, ni à Tailscale (`ExposesPasswordAsync` ; un nom d’Internet compte toujours, quoi que réponde le DNS du réseau) est signalé avant l’envoi du mot de passe, qui ne part qu’après **Se connecter quand même**. Une version antérieure à 10.9 est refusée : Mira utilise `UserItems`, `UserViews`, `UserPlayedItems` et `UserFavoriteItems`. Aucun identifiant n’est envoyé pendant cette recherche.
 
 Le mot de passe ne sert qu’à l’authentification. Le jeton est chiffré par DPAPI pour l’utilisateur Windows courant. Les requêtes multimédias utilisent un en-tête d’authentification. Les caches et files sont isolés par serveur et identifiant de compte.
 

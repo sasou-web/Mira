@@ -79,7 +79,8 @@ public sealed class LoginPage : UserControl
             JellyfinClient.DeviceName = "Mac";
             client = new JellyfinClient(new(server.Address, "", _user.Text.Trim(), "", _shell.Profile.DeviceId));
             var connection = await client.LoginAsync(_user.Text.Trim(), _password.Text ?? "");
-            _shell.Profile.SaveConnection(connection); _password.Text = ""; _warned = null;
+            // The keychain may ask the person: never on the UI thread.
+            await Task.Run(() => _shell.Profile.SaveConnection(connection)); _password.Text = ""; _warned = null;
             await _shell.ActivateAsync(connection);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { ShowError(Errors.Friendly(ex)); }

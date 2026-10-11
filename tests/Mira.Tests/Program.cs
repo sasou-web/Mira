@@ -187,7 +187,7 @@ await Test("Recherche du serveur : première adresse Jellyfin dans l’ordre, au
     await Refused("https://nas", Serve(_ => throw new HttpRequestException("TLS", new System.Security.Authentication.AuthenticationException())), "certificat");
     await Refused("nas", Serve(_ => throw new HttpRequestException("refusé")), "Aucun serveur Jellyfin");
 });
-await Test("Certificat HTTPS refusé : jamais de repli en http:// sur le même serveur, et la raison est dite", async () =>
+await Test("Certificat HTTPS refusé : pas de repli en http:// pour un nom d’Internet, et la raison est dite", async () =>
 {
     HttpResponseMessage Info() => JsonResponse(new { ServerName = "Salon", Version = "10.10.3", ProductName = "Jellyfin Server", Id = "server-1" });
     HttpRequestException Untrusted() => new("TLS", new System.Security.Authentication.AuthenticationException("certificat refusé"));
@@ -197,7 +197,17 @@ await Test("Certificat HTTPS refusé : jamais de repli en http:// sur le même s
         catch (ServerDiscoveryException ex) { Assert(expected.All(ex.Message.Contains), $"Unexpected message for {input}: {ex.Message}"); }
     }
     // HTTPS shows a certificate the computer refuses while HTTP answers: someone on the way could stage exactly this.
-    await Refused("nas", new Handler(request => request.RequestUri!.Scheme == "https" ? throw Untrusted() : Task.FromResult(Info())), "certificat", "en clair", "http://nas:8096");
+    await Refused("jellyfin.example.test", new Handler(request => request.RequestUri!.Scheme == "https" ? throw Untrusted() : Task.FromResult(Info())), "certificat", "en clair", "http://jellyfin.example.test:8096");
+    // At home, a NAS keeps its own self-signed certificate on 443 while Jellyfin answers on 8096: found, as before.
+    foreach (var home in new[] { "nas", "192.168.1.20", "nas.lan" })
+        Assert((await ServerAddress.DiscoverAsync(home, new Handler(request => request.RequestUri!.Scheme == "https" ? throw Untrusted() : Task.FromResult(Info())))).Address == $"http://{home}:8096/", "Home refused: " + home);
+    // HTTP redirected to a valid https:// address: what answered is encrypted, so nothing is refused.
+    var moved = await ServerAddress.DiscoverAsync("example.test", new Handler(request =>
+    {
+        if (request.RequestUri!.Scheme == "https") throw Untrusted();
+        var response = Info(); response.RequestMessage = new HttpRequestMessage(HttpMethod.Get, "https://www.example.test/System/Info/Public"); return Task.FromResult(response);
+    }));
+    Assert(moved.Address == "https://www.example.test/", "Redirect to HTTPS refused: " + moved.Address);
     // The certificate is refused after HTTP has already answered, within the moment HTTPS is given: refused all the same.
     await Refused("jellyfin.example.test", new Handler(async request =>
     {
@@ -217,7 +227,7 @@ await Test("Mot de passe en http:// : demandé seulement hors de chez toi (adres
     var names = new Dictionary<string, string[]>
     {
         ["nas"] = ["192.168.1.20", "fe80::1"], ["localhost"] = ["::1", "127.0.0.1"], ["jellyfin.example.com"] = ["203.0.113.7"],
-        ["mixte.example.com"] = ["192.168.1.20", "203.0.113.7"], ["vide.example.com"] = []
+        ["mixte.example.com"] = ["192.168.1.20", "203.0.113.7"], ["vide.example.com"] = [], ["nas.example.com"] = ["192.168.1.20"], ["nas.lan"] = ["192.168.1.20"]
     };
     Task<IPAddress[]> Resolve(string host, CancellationToken ct)
     {
@@ -226,12 +236,14 @@ await Test("Mot de passe en http:// : demandé seulement hors de chez toi (adres
     }
     foreach (var home in new[] { "https://jellyfin.example.com/", "http://nas:8096/", "http://localhost:8096/", "http://127.0.0.1:8096/", "http://10.0.0.5:8096/", "http://172.16.0.1/",
         "http://172.31.255.254/", "http://192.168.1.20:8096/jellyfin/", "http://169.254.10.1:8096/", "http://100.101.102.103:8096/", "http://[fd7a:115c:a1e0::1]:8096/",
-        "http://[fe80::1]:8096/", "http://[::1]:8096/", "http://[::ffff:192.168.1.20]:8096/", "http://pc.tail1234.ts.net:8096/", "http://NAS.local.:8096/" })
+        "http://[fe80::1]:8096/", "http://[::1]:8096/", "http://[::ffff:192.168.1.20]:8096/", "http://pc.tail1234.ts.net:8096/", "http://NAS.local.:8096/", "http://nas.lan:8096/" })
         Assert(!await ServerAddress.ExposesPasswordAsync(home, Resolve), "Asked for a home address: " + home);
-    Assert(looked.SequenceEqual(["nas", "localhost"]), "Looked up: " + string.Join(", ", looked));
+    Assert(looked.SequenceEqual(["nas", "localhost", "nas.lan"]), "Looked up: " + string.Join(", ", looked));
     foreach (var internet in new[] { "http://jellyfin.example.com:8096/", "http://mixte.example.com/", "http://vide.example.com/", "http://inconnu.example.com/",
-        "http://8.8.8.8:8096/", "http://172.32.0.1/", "http://100.128.0.1/", "http://[2001:db8::1]:8096/" })
+        "http://8.8.8.8:8096/", "http://172.32.0.1/", "http://100.128.0.1/", "http://[2001:db8::1]:8096/", "http://nas.example.com:8096/" })
         Assert(await ServerAddress.ExposesPasswordAsync(internet, Resolve), "Not asked for an Internet address: " + internet);
+    // A name of the Internet is never looked up: the DNS of a hotspot could place it at home.
+    Assert(!looked.Any(x => x.EndsWith(".example.com", StringComparison.Ordinal)), "Looked up: " + string.Join(", ", looked));
     // Home networks also give each device a global IPv6 address: one on this computer's own /64 stays at home.
     (IPAddress, int)[] own = [(IPAddress.Parse("2a01:e0a:1f2:3c40::12"), 64)];
     Assert(LocalNetwork.SharesNetwork(IPAddress.Parse("2a01:e0a:1f2:3c40:aaaa::5"), own) && !LocalNetwork.SharesNetwork(IPAddress.Parse("2a01:e0a:1f2:3c41::5"), own), "Same /64");
@@ -1512,11 +1524,19 @@ await Test("Mac : jeton de session dans le trousseau, repris du fichier, gardé 
     Assert(profile.LoadConnection() is null, "A session without its token opened");
     profile.SaveConnection(connection with { Token = "token-3" });
     Assert(InFile() == "token-3" && profile.LoadConnection()?.Token == "token-3" && InFile() == "token-3", "Token lost when the keychain refused it");
+    // Refused by this version: not asked again at each launch, only at the next sign-in.
     keychain.Refuse = false;
+    Assert(profile.LoadConnection()?.Token == "token-3" && InFile() == "token-3" && keychain.Tokens[folder] == "token-2", "The keychain asked again at launch");
+    profile.SaveConnection(connection with { Token = "token-3" });
     Assert(profile.LoadConnection()?.Token == "token-3" && InFile() == "" && keychain.Tokens[folder] == "token-3", "Token left in the file once the keychain took it");
     // Signed out: in neither place.
     profile.ClearConnection();
     Assert(!File.Exists(session) && !keychain.Tokens.ContainsKey(folder) && profile.LoadConnection() is null, "Session left after signing out");
+    // Signed out while the keychain kept the token: removed at a later launch.
+    profile.SaveConnection(connection with { Token = "token-4" }); keychain.Refuse = true; profile.ClearConnection();
+    Assert(!File.Exists(session) && keychain.Tokens[folder] == "token-4", "Stand-in: the delete was not refused");
+    keychain.Refuse = false;
+    Assert(profile.LoadConnection() is null && !keychain.Tokens.ContainsKey(folder), "Token left in the keychain after signing out");
     return Task.CompletedTask;
 });
 await Test("Profil : un identifiant d’appareil vide est remplacé, puis gardé", () =>

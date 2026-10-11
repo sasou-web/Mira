@@ -130,7 +130,7 @@ Pour passer d’une copie portable à l’installateur en gardant sa session : i
 | « Ce Jellyfin a déjà un compte administrateur » | Sa configuration a été commencée avec un autre compte : la terminer sur `http://127.0.0.1:8096`, puis se connecter. |
 | Vidéo rangée mais absente de Jellyfin | Vérifier qu’elle est dans `Films`, `Séries` ou `Animes`. Un fichier déplacé par un autre programme peut garder les droits de son ancien dossier : le copier avec l’Explorateur à la place. |
 | « Certificat HTTPS non reconnu » | Le certificat du serveur n’est pas approuvé par Windows, et Mira n’essaie pas `http://` à sa place : pour un serveur chez toi, taper son adresse complète en `http://` (celle que Mira propose, par exemple `http://nas:8096`) ; sinon, installer un certificat valide. |
-| « Ce serveur est sur Internet, en http:// » | Le mot de passe passerait en clair sur Internet : utiliser l’adresse `https://` du serveur, ou son adresse Tailscale. **Se connecter quand même** l’envoie malgré tout. |
+| « Cette adresse passe par Internet, en http:// » | Le mot de passe passerait en clair sur Internet : utiliser l’adresse `https://` du serveur, ou son adresse Tailscale. **Se connecter quand même** l’envoie malgré tout. |
 | Bibliothèque visible mais lecture impossible | **Réglages → Lecture** : installer le moteur mpv, ou choisir une DLL libmpv **64 bits** avec ses dépendances. |
 | « Le moteur vidéo n’a pas pu être téléchargé » | Vérifier la connexion Internet puis réessayer depuis **Réglages → Lecture**. Le téléchargement passe par `downloads.sourceforge.net` et ses miroirs. |
 | Progression qui tarde à remonter | Consulter **Réglages → Jellyfin & synchronisation** ; les envois restent en attente quand le serveur est indisponible. |

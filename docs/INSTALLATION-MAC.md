@@ -33,7 +33,7 @@ Cette commande retire seulement la marque « téléchargé depuis Internet » de
 
 Saisis l’adresse de ton serveur Jellyfin (par exemple `192.168.1.20` ou `nas:8096`), ton nom d’utilisateur et ton mot de passe. Mira trouve seule le bon port et le bon protocole. Hors de chez toi, utilise l’adresse Tailscale du serveur (`100.x.y.z`) ; le guide de Mira sur Windows explique comment l’obtenir.
 
-Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin. Son code d’accès va dans le trousseau de ton Mac (élément « Mira »), le reste dans `~/Library/Application Support/Mira`, lisible par ton compte macOS uniquement. **Se déconnecter** (Réglages → Compte) efface les deux.
+Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin. Son code d’accès va dans le trousseau de ton Mac (élément « Mira »), le reste dans `~/Library/Application Support/Mira`, lisible par ton compte macOS uniquement. **Se déconnecter** (Réglages → Compte) efface les deux et ferme aussi la session sur Jellyfin ; avec **Effacer aussi les données de ce compte sur ce Mac**, le cache et les affiches de ce compte quittent le Mac.
 
 ## Raccourcis
 
@@ -73,4 +73,4 @@ TorLink, l’installation de Jellyfin depuis Mira, le mini-lecteur et l’intég
 
 - **Pas d’image, mais le son** : dans le Terminal, `MIRA_SOFTWARE_VIDEO=1 /Applications/Mira.app/Contents/MacOS/Mira` lance Mira avec l’affichage vidéo logiciel. S’il fonctionne, signale-le dans une [issue](https://github.com/sasou-web/Mira/issues).
 - **Pour un rapport détaillé** : `MIRA_MPV_LOG=$HOME/Desktop/mpv.log /Applications/Mira.app/Contents/MacOS/Mira` écrit le journal du lecteur sur le bureau ; joins-le à l’issue.
-- **Repartir de zéro** : quitte Mira et supprime le dossier `~/Library/Application Support/Mira`.
+- **Repartir de zéro** : déconnecte-toi d’abord (Réglages → Compte), puis quitte Mira et supprime le dossier `~/Library/Application Support/Mira`. Sans déconnexion, supprime aussi l’élément « Mira » dans Trousseaux d’accès.

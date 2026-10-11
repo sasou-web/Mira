@@ -190,14 +190,18 @@ public sealed class MainWindow : Window
     {
         await StopPlaybackAsync();
         var session = Session; Session = null;
-        // Jellyfin is told first, a few seconds at most: an unreachable server never holds the sign-out.
+        // Off this Mac first, so that quitting while Jellyfin is asked leaves no session saved; the keychain may ask the
+        // person, never on the UI thread.
+        await Task.Run(Profile.ClearConnection);
+        // Then Jellyfin, a few seconds at most: an unreachable server never holds the sign-out.
         var closed = session is not null && await session.SignOutAsync();
-        Profile.ClearConnection();
         var erased = erase && session is not null ? await AccountData.EraseAsync(Profile.DirectoryPath, session.Connection) : (bool?)null;
-        ShowLogin();
+        var message = session is null ? null : AccountData.SignedOut("ce Mac", closed, erased);
+        // What is left to do on Jellyfin stays on the sign-in page; a toast would leave after a few seconds.
+        ShowLogin(closed ? null : message);
         if (session is null) return;
         if (_overlay.Children.FirstOrDefault() is LoginPage login) login.Server = session.Connection.Server;
-        Notice(AccountData.SignedOut("ce Mac", closed, erased));
+        if (closed) Notice(message!);
     }
     private async Task CloseSessionAsync()
     {

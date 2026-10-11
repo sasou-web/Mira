@@ -56,9 +56,12 @@ public static partial class ServerAddress
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var probes = candidates.Select(candidate => ProbeAsync(http, candidate, stop.Token)).ToList();
         int First(Func<int, bool> match) { for (var i = 0; i < probes.Count; i++) if (match(i)) return i; return -1; }
-        // Never http:// after https:// failed on its certificate (every candidate is the typed host): someone on the way
-        // can make HTTPS fail just so, then answer in plain HTTP and read the password. Typing http:// still reaches it.
-        bool Refused(int index) => candidates[index].StartsWith("http:", StringComparison.Ordinal)
+        // A name of the Internet never ends in http:// after https:// promptly failed on its certificate (every candidate is
+        // the typed host): someone on the way can make HTTPS fail just so, then answer in plain HTTP. A later failure is
+        // caught by the confirmation before the password leaves (ExposesPasswordAsync); a home address is not refused, as
+        // a NAS often keeps its own self-signed certificate on 443. Judged on where the answer came from, after redirects.
+        var internet = InternetName(new Uri(candidates[0]).IdnHost);
+        bool Refused(int index) => internet && probes[index].Result.Info?.Address.StartsWith("http:", StringComparison.Ordinal) == true
             && First(i => i < index && probes[i].IsCompleted && probes[i].Result.Failure == ProbeFailure.Certificate) >= 0;
         bool Answered(int index) => probes[index].IsCompleted && probes[index].Result.Info is not null && !Refused(index);
         try
@@ -96,11 +99,12 @@ public static partial class ServerAddress
     }
     public static readonly TimeSpan PreferenceGrace = TimeSpan.FromSeconds(1.5);
     /// <summary>Said on the login screen before the password goes in clear across the Internet; a second click sends it.</summary>
-    public const string PlainHttpWarning = "Ce serveur est sur Internet, en http:// : rien n’y est chiffré, et ton mot de passe y passerait lisible par n’importe qui sur le trajet. Utilise plutôt son adresse https:// ou Tailscale, ou clique sur « Se connecter quand même ».";
+    public const string PlainHttpWarning = "Cette adresse passe par Internet, en http:// : rien n’y est chiffré, et ton mot de passe y passerait lisible par n’importe qui sur le trajet. Utilise plutôt son adresse https:// ou Tailscale, ou clique sur « Se connecter quand même ».";
     /// <summary>
     /// Whether signing in at this address sends the password in clear across the Internet: plain http:// to a server
-    /// that is neither this computer, nor on the home network, nor on Tailscale. Judged by the addresses the name leads
-    /// to, so a name of the home network (« nas ») is home; a name that no longer resolves counts as the Internet.
+    /// that is neither this computer, nor on the home network, nor on Tailscale. A name of the Internet
+    /// (« jellyfin.example.com ») always counts, whatever it resolves to: the DNS of the network it is typed on may lie.
+    /// Any other name is judged by the addresses it leads to, so « nas » is home; one that does not resolve counts as the Internet.
     /// </summary>
     public static async Task<bool> ExposesPasswordAsync(string address, Func<string, CancellationToken, Task<IPAddress[]>>? resolve = null, CancellationToken ct = default)
     {
@@ -109,6 +113,7 @@ public static partial class ServerAddress
         var host = uri.IdnHost.Trim('[', ']').TrimEnd('.');
         // Tailscale's names and the home network's own (mDNS) are answered by those networks, never by the Internet.
         if (host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)) return false;
+        if (InternetName(host)) return true;
         IPAddress[] addresses;
         if (IPAddress.TryParse(host, out var literal)) addresses = [literal];
         else
@@ -121,6 +126,17 @@ public static partial class ServerAddress
         // Every address, as the connection may use any of them.
         return addresses.Length == 0 || !addresses.All(x => LocalNetwork.IsHome(x) || LocalNetwork.OnThisNetwork(x));
     }
+    /// <summary>
+    /// A name the Internet's DNS answers for: dotted, not an address, and not under a suffix kept for home networks or
+    /// Tailscale (« nas », « nas.lan », « pc.tail1234.ts.net » are not).
+    /// </summary>
+    private static bool InternetName(string host)
+    {
+        host = host.Trim('[', ']').TrimEnd('.');
+        return !IPAddress.TryParse(host, out _) && host.Contains('.')
+            && !HomeSuffixes.Any(x => host.EndsWith(x, StringComparison.OrdinalIgnoreCase));
+    }
+    private static readonly string[] HomeSuffixes = [".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain", ".ts.net"];
     private static ServerInfo Supported(ServerInfo info) =>
         ParseVersion(info.Version) is { } version && version < MinimumVersion
             ? throw new ServerDiscoveryException($"Mira a besoin de Jellyfin {MinimumVersion.Major}.{MinimumVersion.Minor} ou plus récent ; ce serveur est en {info.Version}. Mets Jellyfin à jour pour continuer.")
