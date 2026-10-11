@@ -12,14 +12,17 @@ const isHomeNetwork = (host) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.t
 
 /**
  * An address that never goes through the Internet: this device, a home network (private and link-local ranges, in
- * IPv4 and IPv6), Tailscale (its addresses and its names), or a name only a home network knows (« nas », « pc.local »).
+ * IPv4 and IPv6), Tailscale (its addresses and its names), or a name only a home network knows (« nas », « pc.local »,
+ * « livebox.home », « pc.lan », « nas.fritz.box »).
  */
 export function isLocalHost(hostname) {
   const host = String(hostname).replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
   // IPv6: loopback, unique local (fc00::/7, Tailscale's among them), link-local (fe80::/10).
-  if (host.includes(':')) return /^(::1$|f[cd][0-9a-f]{0,2}:|fe[89ab][0-9a-f]?:)/.test(host);
+  if (host.includes(':')) return /^(::1$|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/.test(host);
   if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return /^(127|10)\./.test(host) || /^(169\.254|192\.168)\./.test(host) || isHomeNetwork(host) || isTailnet(host);
-  return !host.includes('.') || /(^|\.)(localhost|local|ts\.net|home\.arpa)$/.test(host);
+  // Names only a home network or Tailscale knows: reserved (localhost, local, home.arpa, internal), given by home
+  // routers (localdomain, home, lan, fritz.box), or Tailscale's (ts.net).
+  return !host.includes('.') || /(^|\.)(localhost|local|localdomain|lan|home|internal|home\.arpa|fritz\.box|ts\.net)$/.test(host);
 }
 /** Mira opened over plain HTTP from the Internet: what it sends, the password first, can be read on the way. */
 export const exposed = () => location.protocol === 'http:' && !isLocalHost(location.hostname);
@@ -54,9 +57,9 @@ export const onUnauthorized = (fn) => listeners.add(fn);
 const strangers = new Set();
 /**
  * Called with (true) when the server answering here is not the one the session was opened on (see checkServer), and
- * with (false) once it is again.
+ * with (false) once it is again. Returns what stops the calls.
  */
-export const onForeignServer = (fn) => strangers.add(fn);
+export const onForeignServer = (fn) => { strangers.add(fn); return () => strangers.delete(fn); };
 
 const STARTING = 'Jellyfin ne répond pas encore : il est sans doute en train de démarrer. Mira réessaie toute seule.';
 const watchers = new Set();
@@ -80,27 +83,32 @@ export const isReachable = () => reachable;
 // that is not yours): the session's token, often an administrator's, goes only to the server that gave it. Before the
 // first request that carries it, Mira reads the Id of the server that answers, public and asked without the token,
 // and compares it with the one the session was opened on; again after a silence or a stay in the background, when the
-// phone may have changed networks.
-let identity = null;   // { expected, promise }: the check of the server answering here
+// phone may have changed networks, and a minute after the last check (it may change networks with Mira on screen,
+// and nothing tells the page).
+let identity = null;   // { expected, promise, at }: the check of the server answering here; at: when it said yours
 let foreign = false;   // the last check concluded: another server
+const FRESH = 60_000;
 // 421, « Misdirected Request »: the request would go to a server that is not the one it is meant for.
 const notYours = () => new ApiError(421, `Ce n’est pas ton serveur. ${FOREIGN}`, { foreign: true });
 const sameId = (a, b) => String(a ?? '').replace(/-/g, '').toLowerCase() === String(b ?? '').replace(/-/g, '').toLowerCase();
 
 /** The next request that carries the token checks the server first. */
 export function recheckServer() { identity = null; }
-// Back from the background or from a loss of network, the phone may be on another network. Not when it goes to the
-// background: the reports sent then (keepalive) could not wait for a check.
-document.addEventListener('visibilitychange', () => { if (!document.hidden) recheckServer(); });
-addEventListener('online', () => recheckServer());
+// Back from the background or from a loss of network, the phone may be on another network: checked at once, so that
+// the answer is there before the next request, a report sent as Mira goes away again (it would wait for it) or a tap
+// on Lecture (another server: the player closes, see player.js).
+const recheckNow = () => { recheckServer(); trustServer().catch(() => {}); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden) recheckNow(); });
+addEventListener('online', recheckNow);
 
 /**
  * Resolves with the Id of the server answering here once it is `expected` (any Jellyfin when nothing is expected);
  * rejects otherwise: unreachable or starting (nothing is concluded, Mira waits for it as for any request), or foreign.
+ * `aged`: a server found yours more than a minute ago still counts (see request).
  */
-export function checkServer(expected = '') {
-  if (identity && identity.expected === expected) return identity.promise;
-  const check = { expected };
+export function checkServer(expected = '', { aged = false } = {}) {
+  if (identity && identity.expected === expected && (aged || !identity.at || Date.now() - identity.at < FRESH)) return identity.promise;
+  const check = { expected, at: 0 };
   check.promise = api.publicInfo().then((info) => {
     if (expected && !sameId(info.Id, expected)) throw notYours();
     return info.Id;
@@ -111,6 +119,7 @@ export function checkServer(expected = '') {
   });
   identity = check;
   check.promise.then(() => {
+    check.at = Date.now();
     if (foreign && identity === check) { foreign = false; strangers.forEach((fn) => fn(false)); }
   }, (error) => {
     if (identity !== check) return;
@@ -120,11 +129,14 @@ export function checkServer(expected = '') {
   return check.promise;
 }
 
-/** Waits until the server answering here is the session's; throws, without sending anything, when it is not. */
-export async function trustServer() {
+/**
+ * Waits until the server answering here is the session's; throws, without sending anything, when it is not. `aged`:
+ * see checkServer.
+ */
+export async function trustServer({ aged = false } = {}) {
   const current = session.current;
   if (!current) return;
-  const id = await checkServer(current.serverId ?? '');
+  const id = await checkServer(current.serverId ?? '', { aged });
   // A session opened before Mira kept the server's Id: the first Jellyfin it meets is taken as its own, from now on.
   if (!current.serverId && id && session.current === current) {
     session.set({ ...current, serverId: id });
@@ -157,8 +169,12 @@ export const url = (path, params) => `${base}/${path}${query(params)}`;
  */
 export async function request(method, path, { params, body, signal, timeout = 20000, keepalive = false, token = session.current?.token } = {}) {
   if (token && token === session.current?.token) {
-    await trustServer();
+    // A report sent as Mira may go away (keepalive) does not wait for a new check: a server found yours a while ago
+    // still is, unless the network may have changed since (a silence, a return: recheckServer).
+    const refused = await trustServer({ aged: keepalive }).then(() => null, (error) => error);
+    // Cancelled meanwhile (a search typed further): cancelled, whatever the check found.
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+    if (refused) throw refused;
   }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new DOMException('timeout', 'TimeoutError')), timeout);
@@ -239,13 +255,16 @@ export const api = {
   },
   /**
    * Signed out here at once; Jellyfin is told with the token that was used, so a new sign-in is never undone, and
-   * only if it is the server that gave it.
+   * only if it is the server that gave it: compared here, not by checkServer, whose « not your server » would cover
+   * the sign-in screen, with no session left to protect.
    */
   signOut() {
     const { token, serverId = '' } = session.current ?? {};
     session.clear();
     if (!token) return Promise.resolve();
-    return checkServer(serverId).then(() => post('Sessions/Logout', undefined, null, { timeout: 5000, token, keepalive: true })).catch(() => {});
+    return this.publicInfo().then((info) => {
+      if (!serverId || sameId(info.Id, serverId)) return post('Sessions/Logout', undefined, null, { timeout: 5000, token, keepalive: true });
+    }).catch(() => {});
   },
   me: () => get('Users/Me'),
 

@@ -3,7 +3,7 @@
 // of its menu. Elsewhere, Mira's controls on top: resume, ±10 s, a timeline with previews, opening and recap to skip,
 // the next episode, audio and subtitle tracks, speed, quality, AirPlay and Picture in Picture. Progress goes to
 // Jellyfin as on Windows, and the next episode follows in the same player.
-import { api, signed, ping } from '../api.js';
+import { api, signed, ping, onForeignServer, recheckServer } from '../api.js';
 import { h, icon, clear, clock, seconds, ticks, episodeCode } from '../dom.js';
 import { settings, device } from '../session.js';
 import { artFor, imageUrl, picture } from '../images.js';
@@ -784,6 +784,8 @@ export function create({ id, query }) {
    */
   function streamFailed(text, { then = null, detail = '', at = resumeAt(), paused = streamPlaying && video.paused } = {}) {
     const attempt = opening;
+    // A stream that breaks may be a network that changed: the server is checked again before it is asked anything.
+    recheckServer();
     ping().then((up) => {
       if (disposed || closing || attempt !== opening) return;
       if (!up) waitForServer(at, paused);
@@ -923,6 +925,9 @@ export function create({ id, query }) {
 
   const onHide = () => { if (document.hidden) report('progress', true); };
   const onPageHide = () => { if (started) api.report('stop', body(), true).catch(() => {}); };
+  // Another server answers here (another network): the stream's addresses carry the session (signed), so the player
+  // closes rather than ask it for one more piece; the screen over Mira says why (app.js).
+  const unwatch = onForeignServer((yes) => { if (yes) close(); });
 
   /**
    * Back to the title page, from Retour or from Apple's player once closed: at once, the stop going to Jellyfin on its
@@ -1069,6 +1074,7 @@ export function create({ id, query }) {
       removeEventListener('keydown', keys);
       document.removeEventListener('visibilitychange', onHide);
       removeEventListener('pagehide', onPageHide);
+      unwatch();
       for (const [name, fn] of Object.entries(on)) video.removeEventListener(name, fn);
       video.textTracks.removeEventListener('change', textTracksChanged);
       video.textTracks.removeEventListener('addtrack', trackAdded);

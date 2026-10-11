@@ -283,7 +283,7 @@ function showLoadFailure() {
   endBoot();
   clear(viewHost).append(h('div', { class: 'state' }, icon('offline'), h('h2', {}, 'Mira n’a pas pu se charger'),
     h('p', {}, UNREACHABLE),
-    h('button', { class: 'btn small', on: { click: () => location.reload() } }, 'Réessayer')));
+    h('button', { class: 'btn small', on: { click: async () => { if (await yours()) location.reload(); } } }, 'Réessayer')));
   serverDown('offline');
 }
 
@@ -315,14 +315,18 @@ function serverUp() {
   clearTimeout(netTimer); netTimer = 0;
   netbar.hidden = true;
   // A screen whose code could not load comes back whole: the address and the history survive a reload. Once per
-  // address and revision: a screen that still fails then says so, rather than reloading again and again.
+  // address and revision: a screen that still fails then says so, rather than reloading again and again. Not from
+  // another server (see yours).
   if (loadFailed) {
     const key = `${REVISION}|${location.hash}`;
     let reloaded = '';
     try { reloaded = sessionStorage.getItem('mira.reloaded') ?? ''; } catch { /* private mode */ }
     if (reloaded !== key) {
-      try { sessionStorage.setItem('mira.reloaded', key); } catch { /* private mode */ }
-      location.reload();
+      yours().then((mine) => {
+        if (!mine) return;
+        try { sessionStorage.setItem('mira.reloaded', key); } catch { /* private mode */ }
+        location.reload();
+      });
       return;
     }
   }
@@ -338,7 +342,7 @@ function serverUp() {
 // The server answering is not the one you signed in on (another network, or Jellyfin reinstalled): Mira says so over
 // every screen and sends it nothing of your session (api.js). Asked again from here, and when Mira comes back.
 const foreign = h('div', { class: 'foreign', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'foreign-title', hidden: true });
-const again = h('button', { class: 'btn primary', on: { click: () => retryServer() } }, icon('refresh', { size: 20 }), 'Réessayer');
+const again = h('button', { class: 'btn primary', on: { click: () => { recheckServer(); retryServer(); } } }, icon('refresh', { size: 20 }), 'Réessayer');
 foreign.append(h('div', { class: 'gate' }, icon('warning'),
   h('div', { class: 'gate-text' }, h('h1', { id: 'foreign-title' }, 'Ce n’est pas ton serveur'), h('p', { class: 'lead' }, FOREIGN)),
   again,
@@ -357,15 +361,20 @@ function hideForeign(refresh = true) {
   foreign.hidden = true;
   if (refresh) { current?.refresh?.(); checkForUpdate(); }
 }
+/** Waits for the check of the server answering (asked for again by Réessayer, or by api.js when Mira comes back). */
 async function retryServer() {
   if (again.disabled) return;
   again.disabled = true;
-  recheckServer();
-  // Yours again: hidden by the check itself (onForeignServer). Silent now: the bar says so, and Mira asks again once
-  // it answers (still another server: this screen again).
-  try { await trustServer(); } catch (error) { if (!error?.foreign) hideForeign(false); }
+  // Yours again, or no session left to protect: this screen goes. Silent now: the bar says so, and Mira asks again
+  // once it answers (still another server: this screen again).
+  try { await trustServer(); hideForeign(); } catch (error) { if (!error?.foreign) hideForeign(false); }
   again.disabled = false;
 }
+/**
+ * False only when another server answers here: Mira asks it for nothing, not even its page and its code, which a
+ * reload would take from it and the phone keep (see checkForUpdate).
+ */
+const yours = () => trustServer().then(() => true, (error) => !error?.foreign);
 
 // ---------- Updates of Mira web ----------
 // The phone keeps the page for a month (Mira opens even while the server is off). At each start, and when it comes
@@ -373,9 +382,10 @@ async function retryServer() {
 const REVISION = new URL(import.meta.url).pathname.match(/\/v\/([^/]+)\//)?.[1] ?? '';
 let pendingUpdate = '';
 async function checkForUpdate() {
-  if (!REVISION) return;
+  // Only from your server, so only signed in (api.js knows yours by the session): another one could otherwise put its
+  // own page in place of the copy the phone keeps. Signed out, the next start once signed in asks.
+  if (!REVISION || !session.current) return;
   try {
-    // Signed in, only from your server: another one could otherwise replace the copy of the page the phone keeps.
     await trustServer();
     // cache: 'reload' also refreshes the copy of the page that the phone keeps.
     const page = await (await fetch(location.pathname, { cache: 'reload', headers: { Accept: 'text/html' } })).text();
@@ -388,10 +398,12 @@ async function checkForUpdate() {
  * goes to the background, so that no screen reloads under the finger. Never in the middle of a film, and once per
  * revision, should the reload bring the same page back.
  */
-function applyUpdate(hidden = false) {
+async function applyUpdate(hidden = false) {
   if (!pendingUpdate || location.hash.startsWith('#/lecture/')) return;
   if (!hidden && (touched || performance.now() - openedAt > 4000)) return;
   if (sessionStorage.getItem('mira.update') === pendingUpdate) return;
+  // The reload asks for the page again: only from your server, and not if Mira came back meanwhile.
+  if (!(await yours()) || (hidden && !document.hidden)) return;
   sessionStorage.setItem('mira.update', pendingUpdate);
   location.reload();
 }
@@ -517,7 +529,7 @@ function start() {
   addEventListener('scroll', updateScrolled, { passive: true });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { hiddenAt = Date.now(); applyUpdate(true); return; }
-    // Back on your network perhaps (home Wi-Fi, Tailscale turned on): asked again at once.
+    // Back on your network perhaps (home Wi-Fi, Tailscale turned on): api.js has just asked again.
     if (!foreign.hidden) { retryServer(); return; }
     if (probeTimer) { clearTimeout(probeTimer); probeDelay = 1000; probe(); }
     else if (hiddenAt && Date.now() - hiddenAt > 60_000) { current?.refresh?.(); checkForUpdate(); }
@@ -533,8 +545,9 @@ function start() {
   });
   route();
   checkForUpdate();
-  // The other screens' code, fetched while nothing happens: the first visit to a screen then shows it at once.
-  setTimeout(() => { for (const r of ROUTES) if (!r.open) r.load().catch(() => {}); }, 2500);
+  // The other screens' code, fetched while nothing happens (not from another server): the first visit to a screen then
+  // shows it at once.
+  setTimeout(() => yours().then((mine) => { if (mine) for (const r of ROUTES) if (!r.open) r.load().catch(() => {}); }), 2500);
 }
 
 start();
