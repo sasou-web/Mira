@@ -66,12 +66,12 @@ public partial class MainWindow
         var space = Press(PlayerTracksButton, Key.Space); await Task.Delay(150); mpv.Poll();
         require(space && mpv.Flag("pause") != wasPaused && Math.Abs(mpv.Number("time-pos") - before) < 2 && !PlayerOptionsPopup.IsOpen, "Space toggles pause even when the event targets the subtitles button");
         mpv.Set("pause", "yes"); await Task.Delay(120); mpv.Poll();
-        var start = mpv.Number("time-pos"); _position = start;
+        var start = mpv.Number("time-pos"); _session.Position = start;
         var right = Press(PauseButton, Key.Right); await Task.Delay(400); mpv.Poll();
-        var expected = Math.Min(start + 10, _duration - .5);
+        var expected = Math.Min(start + 10, _session.Duration - .5);
         require(right && Math.Abs(mpv.Number("time-pos") - expected) < .6, $"Right arrow seeks 10 s from any control ({start:0.0} -> {mpv.Number("time-pos"):0.0} s)");
 
-        ShowPlayerControls(); _paused = true; _lastPlayerInteraction = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5); UpdatePlayerControls();
+        ShowPlayerControls(); _session.Paused = true; _lastPlayerInteraction = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5); UpdatePlayerControls();
         require(!_controlsVisible && PlayerSurface.Cursor == Cursors.None, "paused controls and cursor leave after idling, for clean screenshots");
         if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041)) require(PlayerOverlayLayer.CaptureExcluded, "player controls are excluded from screen captures");
         else checks.Add("INFO capture exclusion needs Windows 10 2004 or later");

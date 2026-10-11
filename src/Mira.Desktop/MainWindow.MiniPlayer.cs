@@ -178,7 +178,7 @@ public partial class MainWindow
     {
         var corner = MiniCorner(true, _miniBottom);
         MiniTab.Margin = new Thickness(0, corner.Y + MiniHeight / 2 - MiniTab.Height / 2, 0, 0);
-        MiniTabPulse.Opacity = _paused ? .35 : 1;
+        MiniTabPulse.Opacity = _session.Paused ? .35 : 1;
         if (MiniTab.Visibility == Visibility.Visible && !animate) return;
         MiniTab.Visibility = Visibility.Visible; MiniTab.IsHitTestVisible = true;
         Motion.Animate(MiniTabShift, TranslateTransform.XProperty, 0, 260, animate ? MiniTab.Width + 4 : 0, Motion.EaseOut);

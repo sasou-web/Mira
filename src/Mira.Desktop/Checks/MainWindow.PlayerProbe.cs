@@ -21,7 +21,7 @@ public partial class MainWindow
             var cursorKnown = GetCursorInfo(ref cursor);
             var state = JsonSerializer.Serialize(new
             {
-                playing = _playing, loaded = _loaded, paused = _paused, fullscreen = _fullscreen, mini = _miniPlayer,
+                playing = _playing, loaded = _loaded, paused = _session.Paused, fullscreen = _fullscreen, mini = _miniPlayer,
                 active = IsActive, controlsVisible = _controlsVisible, overlayOpen = PlayerOverlayLayer.IsOpen,
                 windowVisible = IsVisible, windowState = WindowState.ToString(), left = Left, top = Top,
                 foreground = GetForegroundWindow().ToInt64(), overlayHandle = PlayerOverlayLayer.Handle.ToInt64(),

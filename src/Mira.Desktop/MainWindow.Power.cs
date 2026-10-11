@@ -47,11 +47,11 @@ public partial class MainWindow
         {
             if (_mpv is null) return;
             _settings.Volume = _mpv.Level;
-            if (!_playing || !_loaded || _playingItem is not { } item) return;
-            _position = ReportedPosition(_mpv.Number("time-pos", _position));
+            if (!_playing || !_loaded || _session.Item is not { } item) return;
+            _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position));
             // As StopPlaybackAsync decides it: past the threshold, the title is watched.
-            if (_duration > 0 && _position >= _duration * LibraryStore.WatchedThreshold) { item.UserData.Played = true; item.UserData.PlaybackPositionTicks = 0; }
-            else item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
+            if (_session.Duration > 0 && _session.Position >= _session.Duration * LibraryStore.WatchedThreshold) { item.UserData.Played = true; item.UserData.PlaybackPositionTicks = 0; }
+            else item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
         });
         Attempt(() => _profile.SaveSettings(_settings));
         Attempt(() => RememberCurrentPlaybackNow(TimeSpan.FromSeconds(1.5)));
@@ -67,10 +67,10 @@ public partial class MainWindow
         KeepForNextStart();
         Attempt(() =>
         {
-            if (!_playWasReported || _sync is null || _playingItem is null) return;
+            if (!_session.Reported || _sync is null || _session.Item is null) return;
             // Queued on this PC, sent to Jellyfin now or by the next Mira; not a second time by the closing that follows.
-            _playWasReported = false;
-            var completed = _loaded && _duration > 0 && _position >= _duration * LibraryStore.WatchedThreshold;
+            _session.Reported = false;
+            var completed = _loaded && _session.Duration > 0 && _session.Position >= _session.Duration * LibraryStore.WatchedThreshold;
             _sync.RecordAsync(completed ? "complete" : "stop", Report()).Wait(TimeSpan.FromSeconds(1.5));
         });
     }
@@ -93,9 +93,9 @@ public partial class MainWindow
         // Logged, never thrown back at Windows' notice.
         Attempt(() =>
         {
-            _position = ReportedPosition(mpv.Number("time-pos", _position));
-            mpv.Set("pause", "yes"); _paused = true; ShowPauseState(true); UpdateWindowsPlayback();
-            if (!_demo && _sync is not null && _playWasReported) _ = _sync.RecordAsync("progress", Report());
+            _session.Position = ReportedPosition(mpv.Number("time-pos", _session.Position));
+            mpv.Set("pause", "yes"); _session.Paused = true; ShowPauseState(true); UpdateWindowsPlayback();
+            if (!_demo && _sync is not null && _session.Reported) _ = _sync.RecordAsync("progress", Report());
         });
     }
     /// <summary>
@@ -136,7 +136,7 @@ public partial class MainWindow
             _reloadTracks = (_mpv.Get("aid"), _mpv.Get("sid"));
             if (_fileOpen) _skipEnds++;
             _fileOpen = true; _loaded = false; SeekBar.IsEnabled = false; _wake = WakeState.Reloading;
-            _mpv.Load(_playLocation!, _position, _playAuthorization);
+            _mpv.Load(_playLocation!, _session.Position, _playAuthorization);
             _mpv.Set("pause", "yes");
         }
         catch (Exception ex) when (IsExpected(ex))

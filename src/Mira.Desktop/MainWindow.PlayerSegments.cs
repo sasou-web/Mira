@@ -68,39 +68,39 @@ public partial class MainWindow
     {
         var chapters = _fileChapters.Count > 0 ? _fileChapters : _serverChapters;
         SeekBar.SetChapters(chapters);
-        _segments = PlaybackMarkers.Merge(_serverSegments, PlaybackMarkers.FromChapters(chapters, _duration));
-        _activeSkip = null; UpdateSkip(); UpdateChapterText(_position);
+        _segments = PlaybackMarkers.Merge(_serverSegments, PlaybackMarkers.FromChapters(chapters, _session.Duration));
+        _activeSkip = null; UpdateSkip(); UpdateChapterText(_session.Position);
     }
     private void UpdateSkip()
     {
         if (SkipHost is null) return;
         SkipSegment? active = null;
         // Without a credits marker, the next episode during the last seconds.
-        if (_playing && _loaded && !_miniPlayer) active = PlaybackMarkers.Offer(_segments, _position, _duration, _nextItem is not null);
+        if (_playing && _loaded && !_miniPlayer) active = PlaybackMarkers.Offer(_segments, _session.Position, _session.Duration, _nextItem is not null);
         if (active != _activeSkip)
         {
             _activeSkip = active; _skipSince = DateTimeOffset.UtcNow; _countdownEnd = null;
             if (active is { } segment)
             {
-                _skipToNext = _nextItem is not null && PlaybackMarkers.EndsPlayback(_segments, segment, _duration);
-                SkipText.Text = PlaybackMarkers.Label(segment.Kind, _playingItem?.Type == "Episode", _skipToNext);
+                _skipToNext = _nextItem is not null && PlaybackMarkers.EndsPlayback(_segments, segment, _session.Duration);
+                SkipText.Text = PlaybackMarkers.Label(segment.Kind, _session.Item?.Type == "Episode", _skipToNext);
                 AutomationProperties.SetName(SkipButton, SkipText.Text);
                 SkipButton.ToolTip = SkipText.Text + " · S";
-                if (_skipToNext && _settings.AutoNext && !_autoNextCancelled) _countdownEnd = PlaybackMarkers.CountdownEnd(_position, segment);
+                if (_skipToNext && _settings.AutoNext && !_autoNextCancelled) _countdownEnd = PlaybackMarkers.CountdownEnd(_session.Position, segment);
             }
         }
         // Playback time drives the countdown, so pausing pauses it too.
         var counting = _countdownEnd is not null && _activeSkip is not null;
         if (counting)
         {
-            var left = (int)Math.Ceiling(_countdownEnd!.Value - _position);
+            var left = (int)Math.Ceiling(_countdownEnd!.Value - _session.Position);
             if (left <= 0 && _nextItem is { } next) { _countdownEnd = null; _ = PlayAsync(next, _miniPlayer, completePrevious: true); return; }
             var label = $"Épisode suivant dans {Math.Max(1, left)} s";
             if (SkipText.Text != label) SkipText.Text = label;
         }
         if (counting && SkipCancel.Visibility != Visibility.Visible) Motion.Reveal(SkipCancel, 200, 8);
         else if (!counting && SkipCancel.Visibility == Visibility.Visible && SkipCancel.IsHitTestVisible) _ = Motion.HideAsync(SkipCancel, 140);
-        SetSkipVisible(_activeSkip is not null && (_controlsVisible || counting || (!_paused && DateTimeOffset.UtcNow - _skipSince < SkipLinger)));
+        SetSkipVisible(_activeSkip is not null && (_controlsVisible || counting || (!_session.Paused && DateTimeOffset.UtcNow - _skipSince < SkipLinger)));
         // Sits just above the bar's title and time while they are shown, near the bottom edge otherwise.
         var lift = _controlsVisible ? -Math.Max(0, PlayerControlsBody.ActualHeight + PlayerControlsBody.Margin.Bottom + 16 - SkipHost.Margin.Bottom) : 0;
         if (lift != _skipLift) { _skipLift = lift; Motion.Animate(SkipShift, TranslateTransform.YProperty, lift, 260, ease: Motion.EaseOut); }

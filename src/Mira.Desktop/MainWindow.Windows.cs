@@ -43,7 +43,7 @@ public partial class MainWindow
                 case DesktopCommand.Forward: if (_loaded) SeekRelative(10); break;
                 case DesktopCommand.Next: if (_loaded && _nextItem is not null) Next_Click(this, new()); break;
                 case DesktopCommand.Stop: if (_playing) { await StopPlaybackAsync(); ReturnToLibrary(); } break;
-                case DesktopCommand.Seek: if (_loaded && double.IsFinite(position)) SeekRelative(position - _position); break;
+                case DesktopCommand.Seek: if (_loaded && double.IsFinite(position)) SeekRelative(position - _session.Position); break;
             }
             UpdateWindowsPlayback();
         }
@@ -63,13 +63,13 @@ public partial class MainWindow
     {
         ImageSource? image = _demo ? DemoLibrary.Artwork(Math.Max(0, _items.FindIndex(x => x.Id == item.Id))) :
             _images is { } cache ? await cache.GetAsync(item, targetWidth: 512) : null;
-        if (generation != _windowsArtworkGeneration || _closing || _windows is null || _playingItem?.Id != item.Id) return;
+        if (generation != _windowsArtworkGeneration || _closing || _windows is null || _session.Item?.Id != item.Id) return;
         image ??= new BitmapImage(new Uri("pack://application:,,,/Assets/mira.png"));
         await _windows.SetArtworkAsync(image);
     }
     private void UpdateWindowsPlayback()
     {
         if (!_playing || _mpv is null) return;
-        _windows?.Update(_loaded, _mpv.Flag("pause"), _nextItem is not null, _position, _duration, _mpv.Number("speed", 1));
+        _windows?.Update(_loaded, _mpv.Flag("pause"), _nextItem is not null, _session.Position, _session.Duration, _mpv.Number("speed", 1));
     }
 }
