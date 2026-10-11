@@ -135,8 +135,6 @@ public partial class MainWindow : Window
             if (_settings.WindowMaximized) WindowState = WindowState.Maximized;
         };
     }
-    /// <summary>Validation runs set their own sizes, off screen: nothing is remembered from them.</summary>
-    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--offscreen");
     /// <summary>Where the window was last seen neither maximized, minimized nor fullscreen (device pixels).</summary>
     private (double X, double Y)? _normalCorner;
     private void TrackNormalCorner()
@@ -162,11 +160,7 @@ public partial class MainWindow : Window
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
         else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); }
         await RevealStartupAsync();
-        if (_args.Contains("--public-gallery")) { await RunPublicGalleryAsync(); return; }
-        if (_args.Contains("--visual-check")) { await RunVisualCheckAsync(); return; }
-        if (_args.Contains("--player-check")) { await RunPlayerCheckAsync(); return; }
-        if (_args.Contains("--windows-check")) { await RunWindowsCheckAsync(); return; }
-        if (_args.Contains("--torlink-check")) { await RunTorLinkCheckAsync(); return; }
+        if (await RunRequestedCheckAsync()) return;
         _fallbackRefresh.Start();
         _ = RefreshEngineAsync();
         ShowStartupScreen();
