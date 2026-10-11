@@ -75,7 +75,7 @@ public partial class MainWindow
         // The artwork the cards on screen asked for (the grid's posters further down wait until scrolled to).
         await Dispatcher.InvokeAsync(LoadVisibleArtwork, DispatcherPriority.Loaded);
         await Task.WhenAll(PosterCards.Children.OfType<MediaCard>().Concat(ResumeCards.Children.OfType<MediaCard>()).Select(x => x.ImageReady));
-        if (_images is not null && _hero is { } hero) await LoadHeroImageAsync(hero);
+        if (_images is not null && _hero is not null) await _heroReady;
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
     }
     private async Task CaptureAsync(string directory, string name)
