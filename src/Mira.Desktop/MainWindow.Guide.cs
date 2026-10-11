@@ -66,7 +66,7 @@ public partial class MainWindow
         foreach (var item in latest.Items) WhatsNewItems.Children.Add(HighlightRow(item));
         // Versions skipped by this update: one line each, never a long list.
         foreach (var release in releases.Skip(1).Take(2))
-            WhatsNewItems.Children.Add(new TextBlock { Text = $"Aussi en {release.Version} : {release.Summary}", FontSize = 12, Foreground = Brush("#8E8E96"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 6) });
+            WhatsNewItems.Children.Add(new TextBlock { Text = $"Aussi en {release.Version} : {release.Summary}", FontSize = 12, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 6) });
         Motion.Reveal(WhatsNewOverlay, 260, 0); Motion.Reveal(WhatsNewCard, 360, 16);
         _ = Dispatcher.BeginInvoke(() => WhatsNewDone.Focus(), DispatcherPriority.Input);
     }
@@ -75,13 +75,13 @@ public partial class MainWindow
         var row = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
         var badge = new Border
         {
-            Width = 40, Height = 40, CornerRadius = new CornerRadius(11), Background = Brush("#1B1B1F"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 16, 0),
-            Child = new Icon { Kind = Views.Icon.Draws(item.Icon) ? item.Icon : "sparkle", Width = 20, Height = 20, Foreground = Brush("#F5F5F7") }
+            Width = 40, Height = 40, CornerRadius = new CornerRadius(11), Background = Palette.Get("Raised"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 16, 0),
+            Child = new Icon { Kind = Views.Icon.Draws(item.Icon) ? item.Icon : "sparkle", Width = 20, Height = 20, Foreground = Palette.Get("Text") }
         };
         DockPanel.SetDock(badge, Dock.Left); row.Children.Add(badge);
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = item.Title, FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
-        text.Children.Add(new TextBlock { Text = item.Text, FontSize = 12.5, Foreground = Brush("#A2A2A6"), TextWrapping = TextWrapping.Wrap, LineHeight = 19, Margin = new Thickness(0, 4, 0, 0) });
+        text.Children.Add(new TextBlock { Text = item.Text, FontSize = 12.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, LineHeight = 19, Margin = new Thickness(0, 4, 0, 0) });
         row.Children.Add(text);
         return row;
     }
@@ -227,7 +227,7 @@ public partial class MainWindow
     private void ShowPhoneStatus(string text, bool problem = false)
     {
         PhoneStatus.Text = text;
-        PhoneStatus.Foreground = problem ? Brush("#F3AD99") : (Brush)FindResource("Muted");
+        PhoneStatus.Foreground = problem ? Palette.Get("Danger") : (Brush)FindResource("Muted");
         PhoneStatus.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
     /// <summary>A step: a check once done, its number while to do, a dot for a note; its own button for what Mira cannot do.</summary>
@@ -238,12 +238,12 @@ public partial class MainWindow
         var badge = new Border
         {
             Width = 24, Height = 24, CornerRadius = new CornerRadius(12), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 14, 0),
-            Background = done ? Brush("#86C6A2") : Brushes.Transparent, BorderThickness = new Thickness(done ? 0 : 1.5),
-            BorderBrush = Brush(step.Mark == PhoneSetup.Mark.ToDo ? "#E4E4E8" : "#4A4A50"),
+            Background = done ? Palette.Get("Success") : Brushes.Transparent, BorderThickness = new Thickness(done ? 0 : 1.5),
+            BorderBrush = Palette.Get(step.Mark == PhoneSetup.Mark.ToDo ? "TextBody" : "LineStrong"),
             Child = step.Mark switch
             {
-                PhoneSetup.Mark.Done => new Icon { Kind = "check", Width = 13, Height = 13, Foreground = Brush("#0E1A13") },
-                PhoneSetup.Mark.Note => new Ellipse { Width = 6, Height = 6, Fill = Brush("#77777F") },
+                PhoneSetup.Mark.Done => new Icon { Kind = "check", Width = 13, Height = 13, Foreground = Palette.Get("OnAccent") },
+                PhoneSetup.Mark.Note => new Ellipse { Width = 6, Height = 6, Fill = Palette.Get("Dim") },
                 _ => new TextBlock { Text = number.ToString(), FontSize = 11.5, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
             },
         };
@@ -260,8 +260,8 @@ public partial class MainWindow
             DockPanel.SetDock(button, Dock.Right); row.Children.Add(button);
         }
         var text = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
-        text.Children.Add(new TextBlock { Text = step.Title, FontSize = 13.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Foreground = Brush(done ? "#C5C5CA" : "#F5F5F7") });
-        if (step.Text.Length > 0) text.Children.Add(new TextBlock { Text = step.Text, FontSize = 12, Foreground = Brush("#8E8E96"), TextWrapping = TextWrapping.Wrap, LineHeight = 18, Margin = new Thickness(0, 3, 0, 0) });
+        text.Children.Add(new TextBlock { Text = step.Title, FontSize = 13.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Foreground = Palette.Get(done ? "TextSecondary" : "Text") });
+        if (step.Text.Length > 0) text.Children.Add(new TextBlock { Text = step.Text, FontSize = 12, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, LineHeight = 18, Margin = new Thickness(0, 3, 0, 0) });
         row.Children.Add(text);
         return row;
     }
@@ -430,7 +430,7 @@ public partial class MainWindow
         }
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(new TextBlock { Text = library, FontWeight = FontWeights.SemiBold, FontSize = 13 });
-        text.Children.Add(new TextBlock { Text = location.Length > 0 ? location : "Aucun dossier pour l’instant", FontSize = 12, Foreground = Brush("#8E8E96"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = location.Length > 0 ? location : null });
+        text.Children.Add(new TextBlock { Text = location.Length > 0 ? location : "Aucun dossier pour l’instant", FontSize = 12, Foreground = Palette.Get("Faint"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = location.Length > 0 ? location : null });
         row.Children.Add(text);
         return row;
     }

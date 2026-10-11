@@ -19,7 +19,7 @@ public sealed class Timeline : RangeBase
     private static readonly Brush Rest = Frozen(Color.FromArgb(72, 255, 255, 255));
     private static readonly Brush Buffered = Frozen(Color.FromArgb(108, 255, 255, 255));
     private static readonly Brush Ahead = Frozen(Color.FromArgb(150, 255, 255, 255));
-    private static readonly Brush Played = Frozen(Color.FromRgb(245, 245, 247));
+    private static readonly Brush Played = Palette.Get("Accent");
     private static readonly Brush ThumbShadow = Frozen(Color.FromArgb(80, 0, 0, 0));
     /// <summary>Space between two chapter segments, and the line thickness at rest.</summary>
     public const double Gap = 3, Thickness = 3;
@@ -46,12 +46,12 @@ public sealed class Timeline : RangeBase
     public Timeline()
     {
         MinHeight = 24; Cursor = Cursors.Hand;
-        _bubbleTitle = new TextBlock { FontSize = 11, Foreground = Frozen(Color.FromRgb(206, 206, 212)), TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 240, Margin = new Thickness(0, 0, 0, 1), Visibility = Visibility.Collapsed };
+        _bubbleTitle = new TextBlock { FontSize = 11, Foreground = Palette.Get("TextBody"), TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 240, Margin = new Thickness(0, 0, 0, 1), Visibility = Visibility.Collapsed };
         _bubbleTime = new TextBlock { FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center };
         var text = new StackPanel(); text.Children.Add(_bubbleTitle); text.Children.Add(_bubbleTime);
         _bubble = new Border
         {
-            Child = text, Background = Frozen(Color.FromArgb(238, 20, 20, 23)), BorderBrush = Frozen(Color.FromArgb(48, 255, 255, 255)),
+            Child = text, Background = Palette.Get("Menu"), BorderBrush = Palette.Get("Hairline"),
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7), Padding = new Thickness(10, 4, 10, 5), IsHitTestVisible = false, Opacity = 0
         };
         AddVisualChild(_bubble);

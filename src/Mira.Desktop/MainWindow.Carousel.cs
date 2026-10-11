@@ -79,7 +79,7 @@ public partial class MainWindow
         if (item.ProductionYear is { } year) AddPill(HeroMetaPills, year.ToString());
         AddPill(HeroMetaPills, item.Type switch { "Series" => "Série", "Episode" => $"S{item.ParentIndexNumber ?? 1:00} · E{item.IndexNumber ?? 1:00}", _ => "Film" });
         if (item.DurationLabel.Length > 0) AddPill(HeroMetaPills, item.DurationLabel);
-        if (item.Type != "Episode" && item.CommunityRating is > 0) AddPill(HeroMetaPills, $"★  {item.CommunityRating:0.0}", "#A8D5B1");
+        if (item.Type != "Episode" && item.CommunityRating is > 0) AddPill(HeroMetaPills, $"★  {item.CommunityRating:0.0}", "Success");
         HeroGenrePills.Children.Clear(); foreach (var genre in (series ?? item).Genres.Take(3)) AddPill(HeroGenrePills, genre);
         foreach (var pill in HeroMetaPills.Children.OfType<Border>().Concat(HeroGenrePills.Children.OfType<Border>())) if (pill.Child is TextBlock label) label.Foreground = _heroAccent;
         var favorite = (series ?? item).UserData.IsFavorite;

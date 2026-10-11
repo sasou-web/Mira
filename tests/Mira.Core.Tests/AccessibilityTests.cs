@@ -32,7 +32,7 @@ internal static class AccessibilityTests
                 .Concat(Directory.EnumerateFiles(Path.Combine(repository, "src", "Mira.Desktop"), "*.cs", SearchOption.AllDirectories))
                 .Concat(Directory.EnumerateFiles(Path.Combine(repository, "src", "Mira.Mac"), "*.cs", SearchOption.AllDirectories))
                 .Where(x => !x.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) && !x.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar));
-            var colour = new Regex("""(?:<(?:TextBlock|Run|TextBox)\b[^>]*?\bForeground="|Property="Foreground" Value="|x:Key="(?:Muted|Faint|Text|TextSecondary)" Color="|Foreground = (?:Brush|Frozen|Ui\.Brush)\("|(?:Muted|Faint) = Brush\(")(#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?)\b""");
+            var colour = new Regex("""(?:<(?:TextBlock|Run|TextBox)\b[^>]*?\bForeground="|Property="Foreground" Value="|x:Key="(?:Muted|Faint|Text|TextBody|TextSecondary|TextTertiary)" Color="|Foreground = (?:Brush|Frozen|Ui\.Brush)\("|(?:Muted|Faint) = Brush\(")(#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?)\b""");
             var checkedCount = 0; var faults = new List<string>();
             foreach (var file in sources)
             {
@@ -47,7 +47,11 @@ internal static class AccessibilityTests
                         faults.Add($"{Path.GetRelativePath(repository, file)}:{source[..match.Index].Count(x => x == '\n') + 1} {hex} ({Legibility.Contrast(hex, "#111113"):0.00})");
                 }
             }
-            Assert(checkedCount > 50, "Too few text colours found: " + checkedCount);
+            Assert(checkedCount > 15, "Too few text colours found: " + checkedCount);
+            // The window's text is drawn from the palette (Themes/Cinema.xaml): its glyph and surface tokens are never text.
+            var window = File.ReadAllText(Path.Combine(repository, "src/Mira.Desktop/MainWindow.xaml"));
+            foreach (Match match in Regex.Matches(window, """<(?:TextBlock|Run|TextBox)\b[^>]*?\bForeground="\{(?:Static|Dynamic)Resource (Dim|Bg|Surface|Field|Raised|Raised2|Line|LineStrong)\}"""))
+                faults.Add($"src/Mira.Desktop/MainWindow.xaml:{window[..match.Index].Count(x => x == '\n') + 1} text in {match.Groups[1].Value}");
             Assert(faults.Count == 0, "Text under 4.5:1 on Mira's backgrounds: " + string.Join(", ", faults));
             return Task.CompletedTask;
         });

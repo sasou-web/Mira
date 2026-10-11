@@ -38,10 +38,10 @@ public sealed class MediaCard : Button
         VerticalContentAlignment = VerticalAlignment.Top; Margin = new Thickness(0, 0, 22, wide ? 5 : 30);
         System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Progress > 0 && !item.UserData.Played ? "Reprendre " : "Regarder " : "Ouvrir ") + item.DisplayTitle + (item.UserData.Played ? ", vu" : ""));
         var root = new StackPanel();
-        _visual = new Grid { Background = new SolidColorBrush(Color.FromRgb(24, 24, 28)), ClipToBounds = true };
+        _visual = new Grid { Background = Palette.Get("Raised"), ClipToBounds = true };
         var placeholder = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20) };
         placeholder.Children.Add(new Icon { Kind = wide ? "play" : "film", Width = 30, Height = 30, Foreground = new SolidColorBrush(Color.FromRgb(78, 78, 87)), Margin = new Thickness(0, 0, 0, 15) });
-        placeholder.Children.Add(new TextBlock { Text = item.DisplayTitle, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 140)), FontSize = 13 });
+        placeholder.Children.Add(new TextBlock { Text = item.DisplayTitle, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = Palette.Get("Faint"), FontSize = 13 });
         _visual.Children.Add(placeholder);
         _image = new Image
         {
@@ -60,7 +60,7 @@ public sealed class MediaCard : Button
         if (wide)
         {
             _hover.Children.Add(new Border { Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(90, 0, 0, 0), 90) });
-            _hover.Children.Add(new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), Background = Brushes.WhiteSmoke, Child = new Icon { Kind = "play", Width = 19, Height = 19, Foreground = Brushes.Black } });
+            _hover.Children.Add(new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), Background = Palette.Get("Accent"), Child = new Icon { Kind = "play", Width = 19, Height = 19, Foreground = Brushes.Black } });
         }
         _hover.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(5) });
         _visual.Children.Add(_hover);
@@ -74,7 +74,7 @@ public sealed class MediaCard : Button
         if (item.Progress > 0 && !item.UserData.Played && (wide || settings.ShowProgress))
         {
             _visual.Children.Add(new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)) });
-            _progress = new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Background = Brushes.WhiteSmoke }; _visual.Children.Add(_progress);
+            _progress = new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Accent") }; _visual.Children.Add(_progress);
         }
         root.Children.Add(_visual);
         root.Children.Add(new TextBlock { Text = item.DisplayTitle, FontSize = 15, FontWeight = FontWeights.ExtraBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 21, Height = wide ? 23 : 42, Margin = new Thickness(0, 12, 3, 0), Foreground = Brushes.White });
@@ -84,7 +84,7 @@ public sealed class MediaCard : Button
         var meta = wide && item.Type == "Episode"
             ? string.Join("  ·  ", new[] { $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00}", remaining, item.Name }.Where(x => !string.IsNullOrEmpty(x)))
             : remaining ?? string.Join("   ·   ", new[] { item.ProductionYear?.ToString(), item.Type == "Series" ? "Série" : item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)));
-        root.Children.Add(new TextBlock { Text = meta, Foreground = new SolidColorBrush(Color.FromRgb(145, 145, 150)), FontSize = 12, FontWeight = FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 7, 0, 0) });
+        root.Children.Add(new TextBlock { Text = meta, Foreground = Palette.Get("Muted"), FontSize = 12, FontWeight = FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 7, 0, 0) });
         Content = root; Resize(wide ? 290 : 185);
     }
     public const double HoverZoom = 1.025;
