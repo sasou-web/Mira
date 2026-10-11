@@ -280,33 +280,14 @@ public sealed class JellyfinClient : IDisposable
         catch (HttpRequestException) { return false; }
     }
     /// <summary>
-    /// Installs Mira web on Jellyfin as its dashboard would: Mira's repository added to the plugin catalogue (the
-    /// others kept), the plugin installed from it, then Jellyfin restarted to load it, and waited for until /Mira answers
-    /// (checked on 12.1, which restarts within its own process). Needs an administrator account.
+    /// Installs Mira web on Jellyfin as its dashboard would, from <paramref name="repository"/>: the repository of one
+    /// release, which Mira checked against its signed manifest (<see cref="MiraWebRelease"/>). It replaces any other
+    /// repository of Mira's (the others are kept), the plugin is installed from it, then Jellyfin restarted to load it,
+    /// and waited for until /Mira answers (checked on 12.1, which restarts within its own process). Needs an administrator account.
     /// </summary>
-    public async Task<WebAppInstall> InstallWebAppAsync(string repository = MiraWeb.Repository, TimeSpan? restartLimit = null, CancellationToken ct = default)
+    public async Task<WebAppInstall> InstallWebAppAsync(string repository, TimeSpan? restartLimit = null, CancellationToken ct = default)
     {
-        using (var listed = await _http.GetAsync("Repositories", ct))
-        {
-            if (listed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
-            await CheckAsync(listed);
-            var repositories = JsonNode.Parse(await listed.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
-            if (!repositories.Any(x => string.Equals((string?)x?["Url"], repository, StringComparison.OrdinalIgnoreCase)))
-            {
-                repositories.Add(new JsonObject { ["Name"] = MiraWeb.RepositoryName, ["Url"] = repository, ["Enabled"] = true });
-                using var content = new StringContent(repositories.ToJsonString(), Encoding.UTF8, "application/json");
-                using var saved = await _http.PostAsync("Repositories", content, ct);
-                if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
-                await CheckAsync(saved);
-            }
-        }
-        var install = $"Packages/Installed/{Uri.EscapeDataString(MiraWeb.PluginName)}?assemblyGuid={MiraWeb.PluginId}&repositoryUrl={Uri.EscapeDataString(repository)}";
-        using (var installed = await _http.PostAsync(install, null, ct))
-        {
-            if (installed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
-            if (installed.StatusCode == HttpStatusCode.NotFound) return WebAppInstall.Unavailable;
-            await CheckAsync(installed);
-        }
+        if (await InstallFromAsync(repository, ct) is { } refused) return refused;
         using (var restart = await _http.PostAsync("System/Restart", null, ct)) await CheckAsync(restart);
         // Jellyfin stops answering while it restarts, then serves the plugin's pages.
         var limit = DateTime.UtcNow + (restartLimit ?? TimeSpan.FromSeconds(90));
@@ -318,6 +299,58 @@ public sealed class JellyfinClient : IDisposable
         }
         return WebAppInstall.Restarting;
     }
+    /// <summary>
+    /// Brings Mira web to the version of <paramref name="repository"/>, checked as for <see cref="InstallWebAppAsync"/>,
+    /// without restarting Jellyfin: <see cref="WebAppInstall.Pending"/> once Jellyfin has it, for its next restart.
+    /// </summary>
+    public async Task<WebAppInstall> UpdateWebAppAsync(string repository, CancellationToken ct = default) =>
+        await InstallFromAsync(repository, ct) ?? WebAppInstall.Pending;
+    /// <summary>
+    /// The enabled repositories of Mira's releases registered in Jellyfin (by Mira, or by hand); null when this account
+    /// may not read them: only an administrator manages Jellyfin's plugins.
+    /// </summary>
+    public async Task<List<string>?> MiraRepositoriesAsync(CancellationToken ct = default)
+    {
+        if (await RepositoriesAsync(ct) is not { } repositories) return null;
+        return repositories.Where(RepositoryEnabled).Select(RepositoryUrl).Where(MiraWeb.IsRepository).OfType<string>().ToList();
+    }
+    /// <summary>
+    /// <paramref name="repository"/> made Mira's only repository in Jellyfin, then the plugin installed from it. Null once
+    /// Jellyfin has it; otherwise why not.
+    /// </summary>
+    private async Task<WebAppInstall?> InstallFromAsync(string repository, CancellationToken ct)
+    {
+        if (await RepositoriesAsync(ct) is not { } repositories) return WebAppInstall.NotAllowed;
+        // Jellyfin merges the versions every repository offers for a plugin and installs the newest: another repository
+        // of Mira's, the latest release's above all, would bring back a version nobody checked.
+        var mira = repositories.Where(x => MiraWeb.IsRepository(RepositoryUrl(x))).ToList();
+        if (mira is not [var only] || RepositoryUrl(only) != repository || !RepositoryEnabled(only))
+        {
+            foreach (var entry in mira) repositories.Remove(entry);
+            repositories.Add(new JsonObject { ["Name"] = MiraWeb.RepositoryName, ["Url"] = repository, ["Enabled"] = true });
+            using var content = new StringContent(repositories.ToJsonString(), Encoding.UTF8, "application/json");
+            using var saved = await _http.PostAsync("Repositories", content, ct);
+            if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
+            await CheckAsync(saved);
+        }
+        var install = $"Packages/Installed/{Uri.EscapeDataString(MiraWeb.PluginName)}?assemblyGuid={MiraWeb.PluginId}&repositoryUrl={Uri.EscapeDataString(repository)}";
+        using var installed = await _http.PostAsync(install, null, ct);
+        if (installed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
+        if (installed.StatusCode == HttpStatusCode.NotFound) return WebAppInstall.Unavailable;
+        await CheckAsync(installed);
+        return null;
+    }
+    /// <summary>Jellyfin's plugin repositories, as it lists them; null when this account may not read them.</summary>
+    private async Task<JsonArray?> RepositoriesAsync(CancellationToken ct)
+    {
+        using var listed = await _http.GetAsync("Repositories", ct);
+        if (listed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(listed);
+        return JsonNode.Parse(await listed.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+    }
+    private static string? RepositoryUrl(JsonNode? entry) => entry is JsonObject repository && repository["Url"] is JsonValue url && url.TryGetValue<string>(out var text) ? text : null;
+    // Jellyfin counts a repository without "Enabled" as enabled.
+    private static bool RepositoryEnabled(JsonNode? entry) => entry is JsonObject repository && (repository["Enabled"] is not JsonValue enabled || !enabled.TryGetValue<bool>(out var on) || on);
     private async Task<JsonObject?> NetworkSettingsAsync(CancellationToken ct)
     {
         using var response = await _http.GetAsync("System/Configuration/network", ct);
