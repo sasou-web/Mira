@@ -24,6 +24,14 @@ export function isLocalHost(hostname) {
   // routers (localdomain, home, lan, fritz.box), or Tailscale's (ts.net).
   return !host.includes('.') || /(^|\.)(localhost|local|localdomain|lan|home|internal|home\.arpa|fritz\.box|ts\.net)$/.test(host);
 }
+/**
+ * Tailscale's own addresses and names: reached from anywhere (the QR code gives this one), so not a sign of home, where
+ * Mira would ask for full quality without measuring the connection (see player.js).
+ */
+export function viaTailscale(hostname) {
+  const host = String(hostname).replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  return isTailnet(host) || /^fd7a:115c:a1e0:/.test(host) || /\.ts\.net$/.test(host);
+}
 /** Mira opened over plain HTTP from the Internet: what it sends, the password first, can be read on the way. */
 export const exposed = () => location.protocol === 'http:' && !isLocalHost(location.hostname);
 /**
@@ -62,6 +70,8 @@ const strangers = new Set();
 export const onForeignServer = (fn) => { strangers.add(fn); return () => strangers.delete(fn); };
 
 const STARTING = 'Jellyfin ne répond pas encore : il est sans doute en train de démarrer. Mira réessaie toute seule.';
+// A page where Jellyfin's answer should be: a Wi-Fi's sign-in page (hotel, train), or a proxy's error page.
+const NOT_JELLYFIN = 'Une page web a répondu à la place de Jellyfin : ce Wi-Fi demande peut-être d’accepter ses conditions. Accepte-les dans le navigateur, ou change de réseau, puis réessaie.';
 const watchers = new Set();
 let reachable = true;
 /**
@@ -212,24 +222,39 @@ export async function request(method, path, { params, body, signal, timeout = 20
       ? 'Ton compte Jellyfin n’a pas accès à ceci.'
       : response.status === 404 ? 'Ce titre n’existe plus sur le serveur.' : `Jellyfin a répondu avec une erreur (${response.status}).`);
   }
-  const text = await response.text();
-  return text ? JSON.parse(text) : null;
+  let text;
+  try { text = await response.text(); } catch (error) {
+    // Cut off while it answered: as for no answer at all.
+    if (signal?.aborted) throw error;
+    setReachable(false, 'offline');
+    throw new ApiError(0, UNREACHABLE);
+  }
+  if (!text) return null;
+  // Not Jellyfin's JSON: said in French, never the parser's English. Its status stays the page's (a 200 from
+  // System/Info/Public is then « not your server », see checkServer).
+  try { return JSON.parse(text); } catch { throw new ApiError(response.status, NOT_JELLYFIN); }
 }
 
 const get = (path, params, options) => request('GET', path, { params, ...options });
 const post = (path, body, params, options) => request('POST', path, { body, params, ...options });
 const user = () => session.current?.userId;
 
-// Fields every card needs: overview and genres for the banner, child counts for series.
-const CARD_FIELDS = 'Overview,Genres,ChildCount,PrimaryImageAspectRatio';
+// Fields the cards need: child counts for series, and genres for the banner (Home). A grid asks for less still:
+// GRID_FIELDS, without the genres. No summary: a title page asks for its own.
+const CARD_FIELDS = 'Genres,ChildCount';
+export const GRID_FIELDS = 'ChildCount';
 const CARD_IMAGES = { enableImageTypes: 'Primary,Backdrop,Thumb,Logo', imageTypeLimit: 1 };
 
-/** True once Jellyfin itself answers: while it starts, a page about it answers in its place, but not to Ping. */
+/**
+ * True once Jellyfin itself answers: while it starts, a page about it answers in its place, but not to Ping; nor does
+ * a Wi-Fi's sign-in page, which answers anything with itself (Jellyfin's answer is its name: "Jellyfin Server").
+ */
 export async function ping() {
   try {
     const response = await fetch(url('System/Ping'), { cache: 'no-store', signal: AbortSignal.timeout?.(6000) });
-    if (response.ok) setReachable(true);
-    return response.ok;
+    const up = response.ok && /^\s*"?Jellyfin\b/i.test(await response.text());
+    if (up) setReachable(true);
+    return up;
   } catch { return false; }
 }
 
@@ -274,7 +299,7 @@ export const api = {
   history: () => get('Items', { userId: user(), recursive: true, includeItemTypes: 'Movie,Episode', sortBy: 'DatePlayed', sortOrder: 'Descending', limit: 40, fields: 'SeriesInfo', enableImages: false, enableUserData: true }),
 
   /** Films and series, newest first unless sorted otherwise; filters as Mira on Windows. */
-  browse({ types = 'Movie,Series', start = 0, limit = 60, sort = 'recent', genre, year, played, favorite, person, search, signal } = {}) {
+  browse({ types = 'Movie,Series', start = 0, limit = 60, sort = 'recent', genre, year, played, favorite, person, search, fields = CARD_FIELDS, signal } = {}) {
     const sorts = {
       title: ['SortName', 'Ascending'], year: ['ProductionYear,SortName', 'Descending'], rating: ['CommunityRating,SortName', 'Descending'],
       played: ['DatePlayed,SortName', 'Descending'], recent: ['DateCreated,SortName', 'Descending'],
@@ -282,7 +307,7 @@ export const api = {
     const [sortBy, sortOrder] = sorts[sort] ?? sorts.recent;
     return get('Items', {
       userId: user(), recursive: true, includeItemTypes: types, startIndex: start, limit, sortBy, sortOrder,
-      fields: CARD_FIELDS, ...CARD_IMAGES, enableTotalRecordCount: true,
+      fields, ...CARD_IMAGES, enableTotalRecordCount: true,
       genres: genre, years: year, isPlayed: played, isFavorite: favorite ? true : undefined, personIds: person, searchTerm: search,
     }, { signal });
   },
@@ -312,12 +337,25 @@ export const api = {
   segments: (id) => get(`MediaSegments/${encodeURIComponent(id)}`, { includeSegmentTypes: ['Intro', 'Outro', 'Recap', 'Preview', 'Commercial'] }).then((r) => r?.Items ?? []).catch(() => []),
   report: (kind, body, keepalive = false) => post({ start: 'Sessions/Playing', progress: 'Sessions/Playing/Progress', stop: 'Sessions/Playing/Stopped' }[kind], body, null, { keepalive, timeout: 10000 }),
   stopEncoding: (playSessionId) => request('DELETE', 'Videos/ActiveEncodings', { params: { deviceId: device.id, playSessionId }, keepalive: true }).catch(() => {}),
-  /** Downloads about 1 MB to estimate the connection when away from home. */
-  async bitrateTest(size = 1_000_000) {
+  /**
+   * Downloads about 1 MB to estimate the connection when away from home, for `limit` ms at most: cut there, what came
+   * by then gives the speed. Throws when Jellyfin refuses (a 503 while it starts is not a slow line) or sends nothing.
+   */
+  async bitrateTest(size = 1_000_000, limit = 5000) {
     await trustServer();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), limit);
     const started = performance.now();
-    const response = await fetch(url('Playback/BitrateTest', { size }), { headers: { Authorization: authorization() }, cache: 'no-store' });
-    const bytes = (await response.arrayBuffer()).byteLength;
+    let bytes = 0;
+    try {
+      const response = await fetch(url('Playback/BitrateTest', { size }), { headers: { Authorization: authorization() }, cache: 'no-store', signal: controller.signal });
+      if (!response.ok) throw new ApiError(response.status, `Jellyfin a répondu avec une erreur (${response.status}).`);
+      const reader = response.body?.getReader?.();
+      if (!reader) bytes = (await response.arrayBuffer()).byteLength;
+      else for (let part = await reader.read(); !part.done; part = await reader.read()) bytes += part.value.byteLength;
+    } catch (error) {
+      if (!controller.signal.aborted || !bytes) throw error;
+    } finally { clearTimeout(timer); }
     return (bytes * 8) / Math.max(0.05, (performance.now() - started) / 1000);
   },
 };

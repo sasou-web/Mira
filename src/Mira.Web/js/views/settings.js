@@ -1,7 +1,7 @@
 // Settings: playback quality and behaviour, this phone, the account; what Mira and the server are.
 import { api, base, VERSION } from '../api.js';
 import { h, icon, clear, initials } from '../dom.js';
-import { session, settings, isIOS, isStandalone, device } from '../session.js';
+import { session, settings, isIOS, isStandalone, device, applyTextSize } from '../session.js';
 import { sheet, toast } from '../components.js';
 import { resetScreens, replaceRoute } from '../app.js';
 import { installHint } from './login.js';
@@ -18,6 +18,9 @@ export const QUALITIES = [
   [1_500_000, '1,5 Mb/s', '480p, connexion faible'],
 ];
 const SIZES = [[80, 'Petite'], [100, 'Normale'], [125, 'Grande'], [150, 'Très grande']];
+// Mira's text, on this phone: iOS's text size does not reach a web page, and an app of the Home Screen has no Safari
+// around it to zoom the page. The layout holds up to the largest.
+const TEXT_SIZES = [[100, 'Normale'], [115, 'Grande'], [130, 'Très grande']];
 
 export function create() {
   const el = h('div', { class: 'view settings' });
@@ -40,7 +43,7 @@ export function create() {
   // The account and the server, once Jellyfin has said: kept for the next times the screen is drawn.
   let user = null, info = null, drawn = '';
   // What the screen shows: drawn again only when one of these changed (coming back to the tab, Jellyfin's answer).
-  const SHOWN = ['quality', 'autoNext', 'resume', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer'];
+  const SHOWN = ['quality', 'autoNext', 'resume', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer', 'textSize'];
   function render() {
     const current = session.current ?? {};
     const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, info?.Version]);
@@ -48,6 +51,7 @@ export function create() {
     drawn = signature;
     const quality = QUALITIES.find(([k]) => k === settings.get('quality')) ?? QUALITIES[0];
     const size = SIZES.find(([k]) => k === settings.get('subtitleSize')) ?? SIZES[1];
+    const textSize = TEXT_SIZES.find(([k]) => k === settings.get('textSize')) ?? TEXT_SIZES[0];
     const audio = AUDIO_LANGUAGES.find(([k]) => k === settings.get('audioLanguages')) ?? AUDIO_LANGUAGES[0];
     const subtitles = SUBTITLE_LANGUAGES.find(([k]) => k === settings.get('subtitleLanguages')) ?? SUBTITLE_LANGUAGES[0];
     const languages = (title, list, current, key) => () => sheet({
@@ -96,6 +100,10 @@ export function create() {
 
       h('h2', { class: 'label group-title' }, 'Cet appareil'),
       h('div', { class: 'group' },
+        choice('Taille du texte', textSize[1], () => sheet({
+          title: 'Taille du texte',
+          items: TEXT_SIZES.map(([key, label]) => ({ label, selected: key === textSize[0], run: () => { settings.set('textSize', key); applyTextSize(); render(); } })),
+        })),
         isIOS() && !isStandalone()
           ? h('button', { class: 'item', on: { click: () => sheet({ title: 'Mira comme une app', body: h('div', { style: { padding: '0 16px 12px' } }, installHint()) }) } },
             icon('add-home'), h('span', { class: 'grow' }, 'Ajouter à l’écran d’accueil', h('span', { class: 'sub' }, 'Mira s’ouvre alors en plein écran, comme une app.')), icon('right', { size: 20 }))

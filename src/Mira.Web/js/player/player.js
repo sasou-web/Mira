@@ -3,7 +3,7 @@
 // of its menu. Elsewhere, Mira's controls on top: resume, ±10 s, a timeline with previews, opening and recap to skip,
 // the next episode, audio and subtitle tracks, speed, quality, AirPlay and Picture in Picture. Progress goes to
 // Jellyfin as on Windows, and the next episode follows in the same player.
-import { api, signed, ping, onForeignServer, recheckServer } from '../api.js';
+import { api, signed, ping, onForeignServer, recheckServer, isLocalHost, viaTailscale } from '../api.js';
 import { h, icon, clear, clock, seconds, ticks, episodeCode } from '../dom.js';
 import { settings, device } from '../session.js';
 import { artFor, imageUrl, picture } from '../images.js';
@@ -22,18 +22,35 @@ const COUNTDOWN = 10;      // seconds the next episode is offered before it star
                            // Jellyfin has them marked, else over the last seconds, so that nothing of the end is cut
 const PROGRESS_EVERY = 10_000;
 
-function isLocalHost(host) {
-  return /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$|[^.]+\.local$)/i.test(host);
-}
+// At home (a home network's address or name), full quality without measuring. Not through Tailscale: its address
+// is the one the phone uses away from home too (on mobile data), where only a measure tells what the line takes.
+const atHome = isLocalHost(location.hostname) && !viaTailscale(location.hostname);
+
+// The last measure of the connection, kept an hour: each title does not download its megabyte again. Forgotten when
+// the phone may have changed networks (lost and found again, another kind of connection, a while in the background).
+const MEASURE_KEPT = 60 * 60_000;
+let measure = null;   // { at, value }
+const forgetMeasure = () => { measure = null; };
+addEventListener('online', forgetMeasure);
+addEventListener('offline', forgetMeasure);
+navigator.connection?.addEventListener?.('change', forgetMeasure);
+let leftAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) leftAt = Date.now();
+  else if (leftAt && Date.now() - leftAt > 5 * 60_000) forgetMeasure();
+});
 
 /** The bitrate to ask for: the chosen one, or, on « Automatique », full quality at home and a measure elsewhere. */
 async function bitrate() {
   const choice = settings.get('quality');
   if (typeof choice === 'number') return choice;
-  if (choice === 'max' || isLocalHost(location.hostname)) return 120_000_000;
+  if (choice === 'max' || atHome) return 120_000_000;
+  if (measure && Date.now() - measure.at < MEASURE_KEPT) return measure.value;
   try {
     const measured = await api.bitrateTest(1_000_000);
-    return Math.max(1_500_000, Math.min(40_000_000, Math.round(measured * 0.7)));
+    const value = Math.max(1_500_000, Math.min(40_000_000, Math.round(measured * 0.7)));
+    measure = { at: Date.now(), value };
+    return value;
   } catch { return 8_000_000; }
 }
 

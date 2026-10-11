@@ -1,6 +1,6 @@
 // Search films, series and people as you type; recent searches stay on this phone.
-import { api } from '../api.js';
-import { h, icon, clear } from '../dom.js';
+import { api, GRID_FIELDS } from '../api.js';
+import { h, icon, clear, plural } from '../dom.js';
 import { settings } from '../session.js';
 import { posterCard, personCard, row, skeletonGrid, errorState, emptyState } from '../components.js';
 
@@ -10,12 +10,14 @@ export function create({ query }) {
     spellcheck: false, enterkeyhint: 'search', 'aria-label': 'Rechercher', value: query.get('q') ?? '',
   });
   const clearButton = h('button', { class: 'round flat clear', 'aria-label': 'Effacer', hidden: !input.value, on: { click: () => { input.value = ''; input.focus(); update(); } } }, icon('close', { size: 20 }));
-  const results = h('div', { 'aria-live': 'polite' });
+  const results = h('div', {});
+  // What a screen reader hears of a search: how many results, not the whole grid at each pause in the typing.
+  const status = h('p', { class: 'sr', role: 'status' });
   const el = h('div', { class: 'view search' },
     h('header', { class: 'search-head' }, h('h1', { class: 'page-title' }, 'Recherche')),
     h('div', { class: 'search-bar' },
       h('form', { class: 'search-box', role: 'search', on: { submit: (e) => { e.preventDefault(); remember(input.value); input.blur(); } } }, icon('search'), input, clearButton)),
-    results);
+    status, results);
   let timer = 0, controller = null, lastText = null;
 
   function remember(text) {
@@ -44,7 +46,7 @@ export function create({ query }) {
     else if (!quiet) clear(results).append(h('div', { style: { padding: '0 var(--gutter)' } }, skeletonGrid(6)));
     try {
       const [titles, people] = await Promise.all([
-        api.browse({ search: text, limit: 60, sort: 'title', signal: controller.signal }),
+        api.browse({ search: text, limit: 60, sort: 'title', fields: GRID_FIELDS, signal: controller.signal }),
         api.persons(text, controller.signal).catch(() => null),
       ]);
       const items = titles?.Items ?? [], persons = (people?.Items ?? []).slice(0, 12);
@@ -53,6 +55,7 @@ export function create({ query }) {
       if (quiet && signature === shownSignature) return;
       shownSignature = signature;
       clear(results);
+      status.textContent = items.length + persons.length ? plural(items.length + persons.length, 'résultat', 'résultats') : 'Aucun résultat';
       if (!items.length && !persons.length) {
         results.append(emptyState({ symbol: 'search', title: 'Aucun résultat', text: `Rien ne correspond à « ${text} » dans ta bibliothèque.` }));
         return;
@@ -65,7 +68,7 @@ export function create({ query }) {
     } catch (error) {
       if (error.name === 'AbortError') return;
       results.classList.remove('pending');
-      if (!quiet) { shownSignature = ''; clear(results).append(errorState(error, () => search(text))); }
+      if (!quiet) { shownSignature = ''; status.textContent = ''; clear(results).append(errorState(error, () => search(text))); }
     }
   }
   let shownSignature = '';
@@ -76,7 +79,7 @@ export function create({ query }) {
     if (text === lastText) return;
     lastText = text;
     clearTimeout(timer);
-    if (text.length < 2) { controller?.abort(); shownSignature = ''; results.classList.remove('pending'); clear(results).append(recent()); return; }
+    if (text.length < 2) { controller?.abort(); shownSignature = ''; status.textContent = ''; results.classList.remove('pending'); clear(results).append(recent()); return; }
     timer = setTimeout(() => search(text), 280);
   }
   input.addEventListener('input', update);

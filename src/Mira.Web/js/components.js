@@ -218,17 +218,28 @@ export function sheet({ title = '', items = [], body = null, held = false }) {
     previous?.focus?.({ preventScroll: true });
   };
   const keys = (e) => { if (e.key === 'Escape') close(); };
+  const choice = (item) => h('button', {
+    class: ['sheet-item', item.danger && 'danger'], role: item.selected != null ? 'menuitemradio' : 'menuitem',
+    'aria-checked': item.selected != null ? String(!!item.selected) : null,
+    on: { click: () => { if (closing || early()) return; close(); item.run?.(); } },
+  }, item.symbol ? icon(item.symbol) : null,
+  h('span', { class: 'grow' }, item.label, item.sub ? h('span', { class: 'sub' }, item.sub) : null),
+  item.selected ? h('span', { class: 'tick' }, icon('check', { size: 20 })) : null);
+  // The choices form a menu, as screen readers know it; a heading starts a group of its own (Audio, Sous-titres),
+  // named by it, which is the set its radio choices belong to.
+  const groups = [];
+  for (const item of items) {
+    if (item.heading) groups.push({ heading: item.heading, items: [] });
+    else { if (!groups.length) groups.push({ heading: '', items: [] }); groups.at(-1).items.push(item); }
+  }
+  const menu = items.length ? h('div', { role: 'menu', 'aria-label': title || 'Choix' }, groups.map((group) => (group.heading
+    ? h('div', { role: 'group', 'aria-label': group.heading }, h('div', { class: 'sheet-heading', 'aria-hidden': 'true' }, group.heading), group.items.map(choice))
+    : group.items.map(choice)))) : null;
   const panel = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Choix', tabIndex: -1 },
     h('div', { class: 'sheet-grip' }),
-    title ? h('div', { class: 'sheet-title' }, title) : null,
+    title ? h('div', { class: 'sheet-title', 'aria-hidden': 'true' }, title) : null,
     body,
-    items.map((item) => item.heading ? h('div', { class: 'sheet-heading', role: 'presentation' }, item.heading) : h('button', {
-      class: ['sheet-item', item.danger && 'danger'], role: item.selected != null ? 'menuitemradio' : 'menuitem',
-      'aria-checked': item.selected != null ? String(!!item.selected) : null,
-      on: { click: () => { if (closing || early()) return; close(); item.run?.(); } },
-    }, item.symbol ? icon(item.symbol) : null,
-    h('span', { class: 'grow' }, item.label, item.sub ? h('span', { class: 'sub' }, item.sub) : null),
-    item.selected ? h('span', { class: 'tick' }, icon('check', { size: 20 })) : null)));
+    menu);
   layer.append(h('div', { class: 'sheet-backdrop', on: { click: () => { if (!early()) close(); } } }), panel);
   dragToClose(panel, close);
   overlayHost().append(layer);

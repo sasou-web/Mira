@@ -12,6 +12,7 @@
 // Security: sign-out and a session refused leave nothing of the account; another server answering at the address
 // (simulated) never gets the token; the sign-in screen warns over plain HTTP from the Internet; the page's security
 // policy refuses inline styles but its own, and no page of the whole run breaks it.
+// Robustness: the site's storage blocked, a Wi-Fi's page answering for Jellyfin, a library of 3,000 films.
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
@@ -762,6 +763,115 @@ try {
   check('connexion en clair : déroulé', false, error.message.split('\n')[0]);
 }
 await plain.close();
+
+// The site's storage blocked (Safari's « Bloquer tous les cookies »): reading it throws. Mira opens on the sign-in
+// screen, says what it needs, and still signs in, for as long as it stays open.
+const blocked = await newContext('stockage bloqué');
+await blocked.addInitScript(() => {
+  for (const name of ['localStorage', 'sessionStorage']) {
+    Object.defineProperty(window, name, { configurable: true, get() { throw new DOMException('The operation is insecure.', 'SecurityError'); } });
+  }
+});
+const bp = await blocked.newPage();
+const blockedErrors = [];
+bp.on('pageerror', (e) => blockedErrors.push(e.message));
+try {
+  await bp.goto(base); await bp.waitForTimeout(2500);
+  const gate = { hash: await bp.evaluate(() => location.hash), form: await bp.locator('form.login-form, .users').count(), note: await bp.locator('.hint.warn').innerText().catch(() => '') };
+  check('stockage du site bloqué : Mira s’ouvre sur la connexion et dit ce qu’il lui faut', gate.hash === '#/connexion' && gate.form > 0 && /stockage du site/.test(gate.note),
+    `${gate.hash || 'aucune adresse'}, ${gate.form ? 'formulaire' : 'pas de formulaire'}, ${gate.note ? 'message affiché' : 'pas de message'}`);
+  await bp.screenshot({ path: `${out}/20-storage-blocked.png` });
+  await signIn(bp);
+  await bp.waitForTimeout(2500);
+  const sections = await bp.locator('#view .section').count();
+  check('stockage du site bloqué : connexion possible, Accueil affiché, aucune erreur JavaScript', sections > 0 && !blockedErrors.length,
+    `${sections} rangée(s)${blockedErrors.length ? `, ${blockedErrors.slice(0, 2).join(' | ')}` : ''}`);
+} catch (error) {
+  check('stockage du site bloqué : déroulé', false, error.message.split('\n')[0]);
+  await bp.screenshot({ path: `${out}/error-storage.png` }).catch(() => {});
+}
+await blocked.close();
+
+// A page where Jellyfin's answer should be (a Wi-Fi's sign-in page, simulated): said in French, never in the parser's
+// English; and ping() does not take that page for Jellyfin back.
+const portal = await newContext('portail Wi-Fi');
+const wp = await portal.newPage();
+const portalErrors = [];
+wp.on('pageerror', (e) => portalErrors.push(e.message));
+try {
+  await signIn(wp);
+  await wp.waitForTimeout(1500);
+  const wifiPage = '<!doctype html><html><body><h1>Bienvenue sur le Wi-Fi de la gare</h1></body></html>';
+  const fake = (route) => route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: wifiPage });
+  const searched = (url) => /\/Items$/i.test(url.pathname) && /[?&]searchTerm=/i.test(url.search);
+  await wp.route(searched, fake);
+  await wp.locator('.tabbar a[data-tab="search"]').click(); await wp.waitForTimeout(800);
+  await wp.fill('input[type=search]', 'Lueur'); await wp.waitForTimeout(2000);
+  const said = await wp.locator('#view .search [role="alert"]').innerText().catch(() => '');
+  await wp.unroute(searched, fake);
+  const pinged = () => wp.evaluate(async () => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { ping } = await import(`${root}api.js`);
+    return ping();
+  });
+  const isPing = (url) => /\/System\/Ping$/i.test(url.pathname);
+  await wp.route(isPing, fake);
+  const duringPortal = await pinged();
+  await wp.unroute(isPing, fake);
+  const afterPortal = await pinged();
+  await wp.screenshot({ path: `${out}/21-wifi-page.png` });
+  check('réponse HTML (portail Wi-Fi) : dite en français, pas prise pour Jellyfin revenu',
+    /Wi-Fi/.test(said) && !/JSON|Unexpected|token/i.test(said) && duringPortal === false && afterPortal === true && !portalErrors.length,
+    `« ${said.replace(/\s+/g, ' ').trim() || 'aucun message'} », ping ${duringPortal ? 'trompé' : 'pas trompé'} par la page, puis ${afterPortal ? 'Jellyfin reconnu' : 'Jellyfin pas reconnu'}`);
+} catch (error) {
+  check('réponse HTML (portail Wi-Fi) : déroulé', false, error.message.split('\n')[0]);
+}
+await portal.close();
+
+// A large library (3,000 films, simulated: Jellyfin's answers for Films are made up here). The grid asks for its
+// cards without their summaries, page by page as it scrolls; a refresh asks for the first page only, and the grid
+// keeps its cards and its scroll.
+const big = await newContext('bibliothèque nombreuse');
+const gp = await big.newPage();
+const bigErrors = [], asked = [];
+gp.on('pageerror', (e) => bigErrors.push(e.message));
+const films = (url) => /\/Items$/i.test(url.pathname) && /[?&]includeItemTypes=Movie(&|$)/i.test(url.search);
+const library = (route) => {
+  const query = new URL(route.request().url()).searchParams;
+  const from = Number(query.get('startIndex') ?? 0), limit = Number(query.get('limit') ?? 100);
+  asked.push({ from, limit, fields: query.get('fields') ?? '' });
+  const Items = [];
+  for (let i = from; i < Math.min(3000, from + limit); i++) {
+    Items.push({ Id: (i + 1).toString(16).padStart(32, 'a'), Name: `Film ${i + 1}`, Type: 'Movie', ProductionYear: 1990 + (i % 30), RunTimeTicks: 60_000_000_000,
+      ImageTags: {}, UserData: { Played: false, PlaybackPositionTicks: 0, IsFavorite: false } });
+  }
+  return route.fulfill({ json: { Items, TotalRecordCount: 3000, StartIndex: from } });
+};
+try {
+  await signIn(gp);
+  await gp.waitForTimeout(1500);
+  await gp.route(films, library);
+  await gp.locator('.tabbar a[data-tab="films"]').click(); await gp.waitForTimeout(2000);
+  for (let i = 0; i < 5; i++) { await gp.evaluate(() => scrollTo(0, document.documentElement.scrollHeight)); await gp.waitForTimeout(800); }
+  await gp.waitForTimeout(1000);
+  const cards = () => gp.locator('#view .library .grid > a.card').count();
+  const before = { cards: await cards(), y: await gp.evaluate(() => scrollY), count: await gp.locator('#view .library-count').innerText(), asked: asked.length };
+  check('bibliothèque nombreuse (3 000 films) : cartes sans résumé, par pages de 60',
+    before.cards >= 240 && asked.length >= 4 && asked.every((x) => x.limit <= 60 && !/Overview|PrimaryImageAspectRatio/i.test(x.fields)) && /3000 films/.test(before.count),
+    `${before.cards} cartes, ${asked.length} pages demandées (${[...new Set(asked.map((x) => x.limit))].join(', ')} titres, champs « ${asked[0]?.fields ?? '?'} »), « ${before.count} »`);
+  await gp.evaluate(() => window.dispatchEvent(new Event('online')));
+  await gp.waitForTimeout(2000);
+  const fresh = asked.slice(before.asked), after = { cards: await cards(), y: await gp.evaluate(() => scrollY) };
+  const firsts = fresh.filter((x) => x.from === 0);
+  check('bibliothèque nombreuse : actualisée par sa première page seulement, cartes et défilement gardés',
+    firsts.length === 1 && firsts[0].limit === 60 && fresh.every((x) => x.limit <= 60) && after.cards >= before.cards && Math.abs(after.y - before.y) <= 2 && !bigErrors.length,
+    `${fresh.map((x) => `${x.from}+${x.limit}`).join(', ') || 'rien demandé'} ; ${before.cards} → ${after.cards} cartes, défilement ${Math.round(before.y)} → ${Math.round(after.y)} px`
+    + `${bigErrors.length ? `, ${bigErrors.slice(0, 2).join(' | ')}` : ''}`);
+  await gp.screenshot({ path: `${out}/22-large-library.png` });
+} catch (error) {
+  check('bibliothèque nombreuse : déroulé', false, error.message.split('\n')[0]);
+}
+await big.close();
 
 // The security policy: inline styles refused but the page's own (allowed by its hash), and the watch above sees a
 // refusal (a style attribute and a style element slipped into the page, here on purpose).
