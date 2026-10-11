@@ -123,6 +123,7 @@ public partial class MainWindow : Window
         if (_args.Contains("--torlink-check")) { await RunTorLinkCheckAsync(); return; }
         _fallbackRefresh.Start();
         ShowStartupScreen();
+        _ = NoticeStaleRuleAsync();
         // Once, after the first refresh, which would otherwise hide it at once, and beside what the start already said
         // (a cache recreated, an update that failed, Jellyfin offline) rather than in its place.
         if (_profile.SettingsUnreadable) AddNotice("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut." + (_profile.SettingsCopy is { } copy ? $" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}." : ""));

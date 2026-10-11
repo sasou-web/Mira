@@ -16,7 +16,7 @@ public static class JellyfinStartup
     /// <summary>
     /// The network profiles Mira's rule applies to (<see cref="JellyfinFirewall"/>'s bits): private and domain, never
     /// public, where LocalSubnet is a hotspot's and Jellyfin counts strangers' private addresses as local. A home network
-    /// Windows counts as public is made private instead, by « Tout préparer ».
+    /// Windows counts as public is made private instead, when the person says it is theirs (« Passer en privé »).
     /// </summary>
     public const int RuleProfiles = JellyfinFirewall.Domain | JellyfinFirewall.Private;
 
@@ -63,8 +63,9 @@ public static class JellyfinStartup
 
     /// <summary>
     /// Mira's firewall rule, replaced whole: the home network and Tailscale may reach <paramref name="program"/> on
-    /// <paramref name="port"/>, on private and domain networks, and nothing else. Also what the guide's « Tout
-    /// préparer » sets, with or without Jellyfin's service.
+    /// <paramref name="port"/>, on private and domain networks, and nothing else. Also what « Tout préparer » writes
+    /// (OpenFirewall), with or without Jellyfin's service. Tailscale's range is not bound to Tailscale's adapter: netsh
+    /// cannot name one, and the rule is written before Tailscale may be installed.
     /// </summary>
     public static IReadOnlyList<StartupCommand> FirewallCommands(string program, int port, string rule = RuleName)
     {

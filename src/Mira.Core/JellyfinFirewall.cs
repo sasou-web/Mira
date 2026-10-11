@@ -10,8 +10,8 @@ namespace Mira.Core;
 /// Windows' « Autoriser l'accès » prompt, made at its first start: allow on the kind of network ticked, block on the
 /// others, and none at all when the prompt was closed. Tailscale marks its adapter Private
 /// (wgengine/router/osrouter/ifconfig_windows.go), so a box counted as Public lets the home network in and keeps
-/// Tailscale out, and the other way round. Mira's own rule never applies to Public: a home network counted so is made
-/// Private.
+/// Tailscale out, and the other way round. Mira's own rule never applies to Public: the person may have Mira make a
+/// home network counted so Private (« Passer en privé »), never a café's.
 /// </summary>
 public static class JellyfinFirewall
 {
@@ -34,10 +34,24 @@ public static class JellyfinFirewall
     /// <summary>
     /// What phones meet: the worse verdict, from the home network or Tailscale, with the profile it was judged on;
     /// Tailscale's own (null when it is not connected here); a block rule naming no program that keeps them out, which
-    /// Mira leaves alone (someone's own, or a security suite's); and the adapter Windows counts as Public that keeps
-    /// them out (« Wi-Fi »), where Mira's rule never applies, which « Tout préparer » makes Private.
+    /// Mira leaves alone (someone's own, or a security suite's); and the network Windows counts as Public that keeps
+    /// them out, where Mira's rule never applies (<see cref="PublicNetwork"/>).
     /// </summary>
-    public sealed record Reach(Verdict Verdict, int Profile, Verdict? Tailnet = null, string? Kept = null, string? Public = null);
+    public sealed record Reach(Verdict Verdict, int Profile, Verdict? Tailnet = null, string? Kept = null, PublicNetwork? Public = null);
+    /// <summary>
+    /// A network phones come from that Windows counts as public: its adapter (« Wi-Fi ») and its name, as Windows shows
+    /// it (« Livebox-1234 », a Wi-Fi's own). The person may have Mira make it private, if it is the home network's: the
+    /// same adapter joins a café's. Not <paramref name="Known"/>: Windows does not say the home network's profile, and a
+    /// public one, active here, may be it; Mira cannot change it then.
+    /// </summary>
+    public sealed record PublicNetwork(string Adapter, string? Name = null, bool Known = true);
+    /// <summary>
+    /// Where phones connect from, through an adapter (<paramref name="Adapter"/>, its name) on <paramref name="Profile"/>:
+    /// the home network, which this PC's address there (<paramref name="Home"/>) stands for, or Tailscale's range (no
+    /// address). <paramref name="Known"/>: the profile Windows says, not one assumed; <paramref name="Network"/>: the
+    /// network's name, as Windows shows it.
+    /// </summary>
+    public sealed record Origin(int Profile, string? Adapter, string? Home, bool Known = false, string? Network = null);
     /// <summary>
     /// Mira's own rule (<see cref="JellyfinStartup.RuleName"/>): none; ready, as Mira writes it now; or there but not as
     /// Mira writes it (another port or program, turned off, edited, an older version's), which « Tout préparer » replaces.
@@ -68,6 +82,40 @@ public static class JellyfinFirewall
     public static bool IsTailnetRange(string? addresses) =>
         addresses?.Split('/', StringSplitOptions.TrimEntries) is [var address, var size] && IPv4(address) == (100u << 24 | 64u << 16)
         && (size == "10" || IPv4(size) == 0xFFC0_0000);
+
+    /// <summary>
+    /// What phones meet from <paramref name="origins"/> (<see cref="Reach"/>), null from none. The public network named is
+    /// one Windows says it counts so and that keeps phones out but for Mira's own rule (<paramref name="miraRule"/>: an
+    /// older version's applies to every network); or, when Windows does not say the home network's profile, an assumed
+    /// public one that alone keeps them out, the rest open: Mira's rule, there, cannot be what is missing.
+    /// </summary>
+    public static Reach? Phones(IReadOnlyList<Rule> rules, IReadOnlyDictionary<int, Profile> settings, IEnumerable<Origin> origins, string program, int port, string miraRule)
+    {
+        var judged = origins.Select(x => (Origin: x, Verdict: Judge(rules, settings[x.Profile], program, port, x.Profile, x.Adapter, x.Home))).ToList();
+        Reach? reach = null;
+        Verdict? tailnet = null;
+        string? kept = null;
+        foreach (var (origin, verdict) in judged)
+        {
+            if (origin.Home is null && (tailnet is null || verdict > tailnet)) tailnet = verdict;
+            if (verdict == Verdict.Blocked)
+                kept ??= Blocking(rules, program, port, origin.Profile, origin.Adapter, origin.Home).FirstOrDefault(x => string.IsNullOrWhiteSpace(x.Program))?.Name;
+            if (reach is null || verdict > reach.Verdict) reach = new(verdict, origin.Profile);
+        }
+        if (reach is null) return null;
+        var shut = judged.Where(x => x.Verdict != Verdict.Open).Select(x => x.Origin).ToList();
+        var counted = judged.Select(x => x.Origin).FirstOrDefault(x => CountedPublic(x, rules, settings[x.Profile], program, port, miraRule))
+            ?? (shut.Count > 0 && shut.All(x => !x.Known && x.Profile == Public && x.Adapter is not null) ? shut[0] : null);
+        return reach with { Tailnet = tailnet, Kept = kept, Public = counted is null ? null : new(counted.Adapter!, counted.Network, counted.Known) };
+    }
+    /// <summary>
+    /// An origin Windows says it counts as public, that keeps phones out but for Mira's own rule (<paramref name="miraRule"/>:
+    /// an older version's applies to every network): Mira's never applies there once replaced, so the person may have
+    /// Mira make it private, if it is the home network's.
+    /// </summary>
+    public static bool CountedPublic(Origin origin, IEnumerable<Rule> rules, Profile settings, string program, int port, string miraRule) =>
+        origin.Known && origin.Profile == Public && origin.Adapter is not null
+        && Judge(rules.Where(x => x.Name != miraRule), settings, program, port, origin.Profile, origin.Adapter, origin.Home) != Verdict.Open;
 
     /// <summary>
     /// The profile of Tailscale's adapter, from the profiles active on this PC (CurrentProfileTypes): Tailscale marks

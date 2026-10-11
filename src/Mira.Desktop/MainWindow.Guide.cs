@@ -25,10 +25,11 @@ public partial class MainWindow
     private bool _preparing, _phoneWatched;
     private DateTime _phoneReadAt;
     /// <summary>
-    /// The network Windows would not let « Tout préparer » make private, while it stays public: the person's to change,
-    /// which the firewall step then says, rather than Windows' consent asked again at every click.
+    /// The network Windows would not let « Passer en privé » make private, for this session of Mira, while it is the one
+    /// read: the person's to change, which the firewall step then says, rather than Windows' consent asked again at
+    /// every click.
     /// </summary>
-    private string? _keptPublic;
+    private JellyfinFirewall.PublicNetwork? _keptPublic;
 
     /// <summary>On opening: the welcome on a new profile, the main points after an update, or nothing.</summary>
     private void ShowStartupScreen()
@@ -157,6 +158,19 @@ public partial class MainWindow
         ShowPhone(_phone);
         if (!answering) _ = WaitForJellyfinAsync(client, version);
     }
+    /// <summary>
+    /// At start, for a Jellyfin on this PC: Mira's firewall rule not as Mira writes it now (an older version's, which lets
+    /// public networks in too, or one left on another port) is said, with the way to the guide, where « Tout préparer »
+    /// replaces it. Nothing else brings someone set up before back to the card. Said only when no other notice is.
+    /// </summary>
+    private async Task NoticeStaleRuleAsync()
+    {
+        if (_demo || _client?.Connection.Server is not { } server || !Uri.TryCreate(server, UriKind.Absolute, out var uri)) return;
+        var stale = await Task.Run(() => (uri.IsLoopback || LocalNetwork.IsThisPc(uri.Host)) && JellyfinAutostart.Program() is { } program
+            && JellyfinAutostart.MiraRule(program, uri.Port) == JellyfinFirewall.RuleState.Stale);
+        if (stale && Notice.Visibility != Visibility.Visible && GuideOverlay.Visibility != Visibility.Visible)
+            SetNotice("Pour ton téléphone, la règle de Mira dans le pare-feu de Windows est à mettre à jour : le guide s’en charge.", "Ouvrir le guide", () => OpenGuide());
+    }
     /// <summary>A Jellyfin restarting (after Mira web's installation) or stopped: the card reads again once it answers.</summary>
     private async Task WaitForJellyfinAsync(JellyfinClient client, int version)
     {
@@ -193,11 +207,12 @@ public partial class MainWindow
             ? windows.Count > 0 ? $"Une seule autorisation de Windows, pour {string.Join(" et ", windows)}." : ""
             : ready ? PhoneSetup.Everywhere(facts) is not null
                 ? "Le QR code marche chez toi et ailleurs, Tailscale activé sur ton téléphone."
-                // A firewall step left to the person (a public network Windows keeps, « block all »…) keeps the phone out at home.
-                : steps.All(x => x.Key != "firewall" || x.Mark == PhoneSetup.Mark.Done) ? "Le QR code marche sur le Wi-Fi de la maison." : "" : "");
+                // A firewall step left to the person (a public network, « block all »…) keeps the phone out at home.
+                : FirewallDone(steps) ? "Le QR code marche sur le Wi-Fi de la maison." : "Chez toi, ton téléphone trouvera Jellyfin une fois l’étape du pare-feu faite." : "");
         PhoneAddress.Text = PhoneSetup.Address(facts);
         PhoneAddressLine.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
     }
+    private static bool FirewallDone(IReadOnlyList<PhoneSetup.Step> steps) => steps.All(x => x.Key != "firewall" || x.Mark == PhoneSetup.Mark.Done);
     private void ShowPhoneStatus(string text, bool problem = false)
     {
         PhoneStatus.Text = text;
@@ -225,7 +240,12 @@ public partial class MainWindow
         if (step.Action is { } action)
         {
             var button = new Button { Content = action, Style = (Style)FindResource("Quiet"), Padding = new Thickness(12, 5, 12, 5), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12, 0, 0, 0) };
-            button.Click += (_, _) => { if (step.Key == "tailscale") OpenWebPage("https://tailscale.com/download/windows"); };
+            button.Click += async (_, _) =>
+            {
+                if (step.Key == "tailscale") OpenWebPage("https://tailscale.com/download/windows");
+                // « Passer en privé »: the person says the public network is home's.
+                else if (step.Key == "firewall") await PreparePhoneAsync(privateNetwork: true);
+            };
             DockPanel.SetDock(button, Dock.Right); row.Children.Add(button);
         }
         var text = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
@@ -241,24 +261,32 @@ public partial class MainWindow
     /// </summary>
     private async void PhoneMain_Click(object sender, RoutedEventArgs e)
     {
-        if (_phone is not { } facts || _client is not { } client || !Uri.TryCreate(facts.Server, UriKind.Absolute, out var uri)) return;
+        if (_phone is not { } facts) return;
+        if (!PhoneSetup.CanPrepare(PhoneSetup.Steps(facts))) { OpenPhoneShare(); return; }
+        await PreparePhoneAsync(privateNetwork: false);
+    }
+    /// <summary>
+    /// « Tout préparer », and with <paramref name="privateNetwork"/> (« Passer en privé », the person saying the network
+    /// Windows counts as public is home's) that network made private too, with the same consent.
+    /// </summary>
+    private async Task PreparePhoneAsync(bool privateNetwork)
+    {
+        if (_preparing || _phone is not { } facts || _client is not { } client || !Uri.TryCreate(facts.Server, UriKind.Absolute, out var uri)) return;
         var steps = PhoneSetup.Steps(facts);
-        if (!PhoneSetup.CanPrepare(steps)) { OpenPhoneShare(); return; }
         var problems = new List<string>();
         string? waiting = null;
+        var kept = false;
         _preparing = true; PhoneMain.IsEnabled = PhoneShare.IsEnabled = false; PhoneMain.Content = "Préparation…";
         try
         {
-            if (PhoneSetup.NeedsWindows(steps))
+            if (privateNetwork || PhoneSetup.NeedsWindows(steps))
             {
                 ShowPhoneStatus("Accepte l’autorisation de Windows…");
-                switch (await JellyfinAutostart.ApplyAsync(uri.Port))
+                switch (await JellyfinAutostart.ApplyAsync(uri.Port, privateNetwork))
                 {
                     case AutostartResult.Refused: problems.Add("Windows n’a pas reçu l’autorisation : le pare-feu n’a pas changé."); break;
                     case AutostartResult.Failed: problems.Add("Le pare-feu ou le démarrage de Jellyfin n’a pas pu être réglé. Réessaie."); break;
-                    case AutostartResult.KeptPublic:
-                        _keptPublic = facts.Firewall?.Public ?? LocalNetwork.ThisPcOnNetwork()?.Adapter;
-                        problems.Add("Windows garde ton réseau en public : l’étape du pare-feu dit où le passer en privé."); break;
+                    case AutostartResult.KeptPublic: kept = true; problems.Add("Windows garde ton réseau en public : l’étape du pare-feu dit où le passer en privé."); break;
                 }
             }
             if (PhoneSetup.Is(steps, "tailscale", PhoneSetup.Mark.ToDo))
@@ -284,12 +312,17 @@ public partial class MainWindow
             // Read again before anything else may: a reading started meanwhile (Mira's window back to the front) would
             // leave this one unfinished.
             await DescribePhoneAsync();
+            // The network Windows kept public, as read now: of two counted public (the home network's and Tailscale's),
+            // one may have been made private.
+            if (kept && _phone?.Firewall?.Public is { Known: true } left) { _keptPublic = left; _phone = _phone with { NetworkKept = true }; }
         }
         finally { _preparing = false; PhoneMain.IsEnabled = PhoneShare.IsEnabled = true; }
         if (_phone is { } read) ShowPhone(read);
         if (problems.Count > 0) { ShowPhoneStatus(string.Join(" ", problems), problem: true); SetNotice(problems[0]); return; }
         if (waiting is not null) { ShowPhoneStatus(waiting); return; }
-        if (_phone?.Web != true) return;
+        // A firewall step left to the person keeps the phone out at home, unless Tailscale lets it in: the card says so,
+        // rather than a QR code that leads nowhere.
+        if (_phone is not { Web: true } now || PhoneSetup.Everywhere(now) is null && !FirewallDone(PhoneSetup.Steps(now))) return;
         SetNotice("C’est prêt : scanne le QR code avec ton téléphone.");
         OpenPhoneShare();
     }
