@@ -1,0 +1,457 @@
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Mira.Core;
+using Mira.Core.Updates;
+using Mira.Desktop.Services;
+using static TestSupport;
+
+/// <summary>The library: resume, details, series, filters, facets, caches and banner colour. Free of WPF: also run outside Windows.</summary>
+internal static class LibraryTests
+{
+    public static async Task RunAsync(TestRun run)
+    {
+        var Test = run.Test;
+        var testRoot = run.Root;
+        LibraryStore Store(string name) => new(testRoot, name);
+        await Test("Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture", () =>
+        {
+            var recent = DateTimeOffset.UtcNow;
+            MediaItem Episode(string id, string series, DateTimeOffset at, long position = 30) => new() { Id = id, Type = "Episode", SeriesId = series, RunTimeTicks = 1000, UserData = new() { PlaybackPositionTicks = position, LastPlayedDate = at } };
+            var old = Episode("old", "old-series", recent.AddDays(-2));
+            var latest = Episode("latest", "new-series", recent);
+            var parsed = JsonSerializer.Deserialize<MediaItem>(JsonSerializer.Serialize(latest, Json.Options), Json.Options)!;
+            Assert(parsed.UserData.LastPlayedDate == recent, "LastPlayedDate was discarded");
+            var list = ContinueWatching.Order([old, latest], [], []);
+            Assert(list[0].Id == "latest", "The most recent resume is not first");
+            var next = Episode("next", "new-series", default, 0);
+            var earlierSameSeries = Episode("earlier", "new-series", recent.AddDays(-1));
+            list = ContinueWatching.Order([earlierSameSeries, latest, old], [next], []);
+            Assert(list.Count == 2 && list[0].Id == "latest", "NextUp or an older episode displaced the actual resume");
+            latest.UserData.Played = true; latest.UserData.PlaybackPositionTicks = 0;
+            list = ContinueWatching.Order([old], [next], [latest]);
+            Assert(list[0].Id == "next", "A just-finished series must keep its next episode at the front");
+            return Task.CompletedTask;
+        });
+        await Test("Reprise : ordre persistant et réponse serveur retardée après une lecture locale", () =>
+        {
+            var store = Store("recent-playback"); var now = DateTimeOffset.UtcNow;
+            var current = new MediaItem { Id = "local", RunTimeTicks = 1000, UserData = new() { LastPlayedDate = now, PlaybackPositionTicks = 220 } };
+            var earlier = current with { UserData = current.UserData with { LastPlayedDate = now.AddMinutes(-1), PlaybackPositionTicks = 100 } };
+            store.RememberPlayback(current); store.RememberPlayback(earlier);
+            var reopened = Store("recent-playback"); var history = reopened.RecentPlayback();
+            Assert(history.Single().UserData.PlaybackPositionTicks == 220, "An old write overwrote recent activity");
+            Assert(reopened.Load<List<MediaItem>>("resume")!.Single().Id == "local", "Local resume was not cached across restarts");
+            Assert(reopened.MergeResume([], history).Single().Id == "local", "Late server response dropped the most recent playback");
+            var newerRemote = current with { UserData = current.UserData with { LastPlayedDate = now.AddSeconds(10), PlaybackPositionTicks = 500 } };
+            Assert(reopened.MergeResume([newerRemote], history).Single().UserData.PlaybackPositionTicks == 500, "Local history replaced a newer remote playback");
+            reopened.ForgetProgress("local"); Assert(reopened.RecentPlayback().Count == 0 && reopened.Load<List<MediaItem>>("resume")!.Count == 0, "Manual watched/unwatched reset left a stale local resume");
+            return Task.CompletedTask;
+        });
+        await Test("Reprise : une ancienne lecture absente du serveur ne revient que si sa synchronisation attend", () =>
+        {
+            var store = Store("recent-pending");
+            var old = new MediaItem { Id = "item-1", RunTimeTicks = 1000, UserData = new() { LastPlayedDate = DateTimeOffset.UtcNow.AddDays(-1), PlaybackPositionTicks = 200 } };
+            store.RememberPlayback(old); Assert(store.MergeResume([], store.RecentPlayback()).Count == 0, "An expired local entry was resurrected");
+            store.Enqueue("stop", Report(200)); Assert(store.MergeResume([], store.RecentPlayback()).Count == 1, "An offline pending resume disappeared");
+            store.Acknowledge(store.Peek()!.Id); Assert(store.MergeResume([], store.RecentPlayback()).Count == 0, "Acknowledged old history overrode the server");
+            return Task.CompletedTask;
+        });
+        await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro", async () =>
+        {
+            var removed = DateTimeOffset.UtcNow.AddHours(-1);
+            MediaItem Film(string id, DateTimeOffset? played) => new() { Id = id, Name = id, Type = "Movie", UserData = new() { PlaybackPositionTicks = 600_000_000, LastPlayedDate = played } };
+            MediaItem Next(string id, string series) => new() { Id = id, Name = id, Type = "Episode", SeriesId = series, SeriesName = "Show", UserData = new() };
+            var row = new List<MediaItem> { Film("dropped", removed.AddDays(-2)), Next("e4", "show"), Film("kept", removed.AddDays(-1)) };
+            var hidden = new Dictionary<string, DateTimeOffset> { ["dropped"] = removed, ["show"] = removed };
+            Assert(ContinueWatching.WithoutHidden(row, hidden, []).Select(x => x.Id).SequenceEqual(["kept"]), "A removed film, or the next episode of a removed series, stayed in the row");
+            Assert(ContinueWatching.WithoutHidden(row, new Dictionary<string, DateTimeOffset>(), []).Count == 3, "Nothing removed, everything shown");
+            var playedAgain = new List<MediaItem> { new() { Id = "e3", Type = "Episode", SeriesId = "show", UserData = new() { LastPlayedDate = removed.AddMinutes(5) } } };
+            Assert(ContinueWatching.WithoutHidden(row, hidden, playedAgain).Select(x => x.Id).SequenceEqual(["e4", "kept"]), "A series played again since did not come back");
+            Assert(ContinueWatching.WithoutHidden([Film("dropped", removed.AddMinutes(1))], hidden, []).Count == 1, "A film resumed elsewhere since did not come back");
+
+            // Kept per account, beyond the 30 days after which cached pages are forgotten; « Annuler » puts it back.
+            var store = Store("resume-hidden");
+            store.HideFromResume("dropped", removed); store.HideFromResume("show", removed);
+            store.Prune(DateTimeOffset.UtcNow.AddDays(31));
+            Assert(store.HiddenFromResume() is { Count: 2 } kept && kept["show"] == removed, "The removed titles were forgotten with the cache");
+            store.HideFromResume("show", null);
+            Assert(store.HiddenFromResume().Keys.SequenceEqual(["dropped"]), "« Annuler » did not put the series back");
+
+            // On Jellyfin: only the resume point changes (its other user data are kept, checked on 12.1).
+            string? sent = null;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                sent = request.Method + " " + request.RequestUri!.PathAndQuery + " " + await request.Content!.ReadAsStringAsync();
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }));
+            await client.SetPlaybackPositionAsync("film 1", -5);
+            Assert(sent == "POST /UserItems/film%201/UserData?userId=user-1 {\"PlaybackPositionTicks\":0}", "Request: " + sent);
+        });
+        await Test("Fiche : un acteur ou un réalisateur mène à ses titres de la bibliothèque, avec les autres filtres", async () =>
+        {
+            var item = new MediaItem
+            {
+                Id = "film", Name = "Aube Claire", Type = "Movie",
+                People =
+                [
+                    new() { Id = "p1", Name = " Jeanne Essai ", Type = "Actor" }, new() { Id = "p1b", Name = "jeanne essai", Type = "Actor" },
+                    new() { Name = "Sans Fiche", Type = "Actor" }, new() { Id = "d1", Name = "Réa Lisatrice", Type = "Director" }, new() { Id = "w1", Name = "Scé Nariste", Type = "Writer" }
+                ]
+            };
+            Assert(item.CastPeople.Select(x => (x.Id, x.Name)).SequenceEqual([("p1", "Jeanne Essai"), ((string?)null, "Sans Fiche")]) && item.Cast.SequenceEqual(["Jeanne Essai", "Sans Fiche"]), "Cast: names trimmed, one per name, ids kept");
+            Assert(item.DirectorPeople.Single() is { Id: "d1", Name: "Réa Lisatrice" }, "Director");
+            var query = new CatalogQuery(Year: 2002, Sort: "title", PersonId: "p 1");
+            Assert(query.Parameters.Contains("&personIds=p%201") && query.Parameters.Contains("&years=2002") && query.CacheKey != (query with { PersonId = null }).CacheKey, "Person filter: " + query.Parameters);
+            Assert(!new CatalogQuery().Parameters.Contains("personIds"), "No person, no filter");
+            Uri? requested = null;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => { requested = request.RequestUri; return Task.FromResult(JsonResponse(new { Items = Array.Empty<object>(), TotalRecordCount = 0 })); }));
+            await client.BrowseAsync(filters: new CatalogQuery(PersonId: "d1"));
+            Assert(requested!.Query.Contains("personIds=d1") && requested.Query.Contains("includeItemTypes=Movie,Series"), "Request: " + requested);
+            // Checked on Jellyfin 12.1 with actors and a director read from .nfo files: the people come with their id, and
+            // personIds returns exactly their films, also with a year and a sort.
+        });
+        await Test("Série : tous ses épisodes, même au-delà de 500, sans ceux que Jellyfin liste comme manquants", async () =>
+        {
+            // Jellyfin 12.1 with a 523-episode series cut the list at S01E500 when asked for 500: no season 2 on the title page,
+            // and no next episode after the 500th.
+            Uri? requested = null;
+            var episodes = Enumerable.Range(1, 523).Select(i => new { Id = $"e{i}", Name = $"Épisode {i}", Type = "Episode", SeriesId = "long", ParentIndexNumber = i <= 520 ? 1 : 2, IndexNumber = i <= 520 ? i : i - 520 }).ToArray();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => { requested = request.RequestUri; return Task.FromResult(JsonResponse(new { Items = episodes, TotalRecordCount = episodes.Length })); }));
+            var result = await client.EpisodesAsync("long");
+            Assert(!requested!.Query.Contains("limit=") && requested.Query.Contains("isMissing=false"), "Every episode, none missing: " + requested);
+            Assert(result.Items.Count == 523 && result.Items[^1] is { ParentIndexNumber: 2, IndexNumber: 3 }, "The last season arrives");
+        });
+        await Test("Série : une saison de plus de 100 épisodes se choisit par tranches de 100", () =>
+        {
+            MediaItem Episode(int season, int number) => new() { Id = $"s{season}e{number}", Name = $"Épisode {number}", Type = "Episode", ParentIndexNumber = season, IndexNumber = number };
+            var episodes = new[] { Episode(0, 1) }.Concat(Enumerable.Range(1, 520).Select(i => Episode(1, i))).Concat(Enumerable.Range(1, 3).Select(i => Episode(2, i))).ToList();
+            var pages = EpisodePages.From(episodes);
+            Assert(pages.Select(x => x.Label).SequenceEqual(["Épisodes spéciaux", "Saison 1 · 1–100", "Saison 1 · 101–200", "Saison 1 · 201–300", "Saison 1 · 301–400", "Saison 1 · 401–500", "Saison 1 · 501–520", "Saison 2"]),
+                "Pages: " + string.Join(" | ", pages.Select(x => x.Label)));
+            Assert(EpisodePages.Episodes(episodes, pages[6]).Select(x => x.IndexNumber).SequenceEqual(Enumerable.Range(501, 20).Select(x => (int?)x)), "The last slice holds 501 to 520");
+            Assert(EpisodePages.Holding(pages, episodes, episodes.Single(x => x.Id == "s1e250")) == pages[3] && EpisodePages.Holding(pages, episodes, episodes[^1]) == pages[^1], "The page of an episode");
+            Assert(EpisodePages.Holding(pages, episodes, Episode(1, 999)) is null && EpisodePages.Holding(pages, episodes, null) is null, "An episode not in the list has no page");
+            // Numbered from where the season starts, as anime often are, and without numbers.
+            var numbered = Enumerable.Range(1, 150).Select(i => Episode(3, 400 + i)).ToList();
+            Assert(EpisodePages.From(numbered).Select(x => x.Label).SequenceEqual(["Saison 3 · 401–500", "Saison 3 · 501–550"]), "Labels use the episode numbers");
+            var unnumbered = Enumerable.Range(1, 101).Select(i => new MediaItem { Id = $"u{i}", Name = "?", Type = "Episode" }).ToList();
+            Assert(EpisodePages.From(unnumbered).Select(x => x.Label).SequenceEqual(["Saison 1 · 1–100", "Saison 1 · 101"]), "Without numbers, their position");
+            Assert(EpisodePages.From(Enumerable.Range(1, 100).Select(i => Episode(1, i)).ToList()).Single().Label == "Saison 1", "100 episodes stay one page");
+            return Task.CompletedTask;
+        });
+        await Test("Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu’à la fin, refus d’un compte non administrateur", async () =>
+        {
+            // The scan task as Jellyfin lists it: Idle with the end of the last scan, then Running with its progress.
+            object ScanTask(string state, double? progress, string ended) => new[] { new { Key = "RefreshLibrary", State = state, CurrentProgressPercentage = progress, LastExecutionResult = new { EndTimeUtc = ended } } };
+            async Task<(bool Scanned, List<double?> Seen, List<string> Calls)> Run(Queue<object> states, bool admin = true, int startLimitMs = 2000)
+            {
+                var seen = new List<double?>(); var calls = new List<string>(); object last = states.Peek();
+                using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+                {
+                    calls.Add(request.Method + " " + request.RequestUri!.PathAndQuery);
+                    if (!admin) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+                    if (request.Method == HttpMethod.Post) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+                    if (states.Count > 0) last = states.Dequeue();
+                    return Task.FromResult(JsonResponse(last));
+                }));
+                var scanned = await client.ScanAndWaitAsync(new SyncProgress<double?>(seen.Add), TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(startLimitMs));
+                return (scanned, seen, calls);
+            }
+            var followed = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z"), ScanTask("Running", 40, "2026-10-01T10:00:00Z"), ScanTask("Running", 80, "2026-10-01T10:00:00Z"), ScanTask("Idle", null, "2026-10-02T09:00:00Z")]));
+            Assert(followed.Scanned && followed.Seen.SequenceEqual([null, .4, .8]) && followed.Calls.Count(x => x == "POST /Library/Refresh") == 1, "Followed scan: " + string.Join(", ", followed.Seen) + " · " + string.Join(", ", followed.Calls));
+            var quick = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z"), ScanTask("Idle", null, "2026-10-02T09:00:00Z")]));
+            Assert(quick.Scanned && quick.Seen.SequenceEqual([(double?)null]), "A scan over before the first look was not seen ending");
+            var refused = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z")]), admin: false);
+            Assert(!refused.Scanned && refused.Seen.Count == 0, "A non-administrator was told the folders were scanned");
+            var stuck = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z")]), startLimitMs: 60);
+            Assert(stuck.Scanned && stuck.Calls.Count < 200, "A scan that never starts is waited for: " + stuck.Calls.Count + " requests");
+        });
+        await Test("Filtres : recherche, genre, année et pagination envoyés ensemble à Jellyfin", async () =>
+        {
+            Uri? requestUri = null;
+            using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            { requestUri = request.RequestUri; return Task.FromResult(JsonResponse(new { Items = Array.Empty<object>(), TotalRecordCount = 0 })); }));
+            await client.BrowseAsync("Series", "library-1", "été", 60, true, filters: new CatalogQuery("Action & aventure", 2024, false, "title"));
+            var query = requestUri!.Query;
+            Assert(query.Contains("genres=Action%20%26%20aventure"), "Genre not encoded");
+            foreach (var part in new[] { "years=2024", "isPlayed=false", "sortBy=SortName", "sortOrder=Ascending", "startIndex=60", "parentId=library-1", "isFavorite=true", "includeItemTypes=Series" }) Assert(query.Contains(part), "Missing query component: " + part);
+            Assert(new CatalogQuery(Played: false).CacheKey != new CatalogQuery(Played: true).CacheKey, "Watched filters share a cache key");
+            Assert(new CatalogQuery().Parameters.Contains("DateCreated"), "Default sort changed");
+        });
+        await Test("Fiche : distribution, réalisation, titres similaires et tri par dernière lecture", async () =>
+        {
+            var film = JsonSerializer.Deserialize<MediaItem>("""
+                {"Id":"f","Name":"Film","People":[{"Name":"Ana","Role":"Mia","Type":"Actor"},{"Name":"Ben","Type":"Director"},{"Name":" ana ","Type":"Actor"},
+                {"Name":"Chloé","Type":"Writer"},{"Name":"Dan","Type":"actor"},{"Name":"","Type":"Actor"}]}
+                """, Json.Options)!;
+            Assert(film.Cast.SequenceEqual(["Ana", "Dan"]) && film.Directors.SequenceEqual(["Ben"]), $"Credits: {string.Join(", ", film.Cast)} / {string.Join(", ", film.Directors)}");
+            // Pages cached before people were read still load.
+            Assert(JsonSerializer.Deserialize<ItemsResult>("""{"Items":[{"Id":"old","Name":"Ancien"}]}""", Json.Options)!.Items[0].Cast.Length == 0, "Old cached page");
+            Assert(new CatalogQuery(Sort: "played").Parameters.Contains("sortBy=DatePlayed,SortName&sortOrder=Descending"), "Last played sort");
+            Uri? asked = null;
+            using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            { asked = request.RequestUri; return Task.FromResult(JsonResponse(new { Items = new[] { new { Id = "g", Name = "Autre" } }, TotalRecordCount = 1 })); }));
+            var similar = await client.SimilarAsync("film 1");
+            Assert(similar.Items.Single().Id == "g" && asked!.AbsolutePath == "/jellyfin/Items/film%201/Similar" && asked.Query.Contains("userId=user-1") && asked.Query.Contains("limit=12"), "Similar request: " + asked);
+        });
+        await Test("Facettes : genres récursifs et années de toute la bibliothèque", async () =>
+        {
+            var paths = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                paths.Add(request.RequestUri!.PathAndQuery);
+                return Task.FromResult(request.RequestUri.AbsolutePath.EndsWith("Filters2")
+                    ? JsonResponse(new { Genres = new[] { new { Name = "Animation", Id = "genre-1" } } })
+                    : JsonResponse(new { Items = new[] { new { Name = "2004" }, new { Name = "2026" }, new { Name = "inconnue" } } }));
+            }));
+            var facets = await client.FiltersAsync();
+            Assert(facets.Genres.SequenceEqual(new[] { "Animation" }), "Genre names were lost");
+            Assert(facets.Years.SequenceEqual(new[] { 2004, 2026 }), "Years were not parsed correctly");
+            Assert(paths.Count == 2 && paths.All(x => x.Contains("recursive=true") && x.Contains("userId=user-1")), "Facets are not recursive and user scoped");
+        });
+        await Test("Cache de bibliothèque illisible : mis de côté et recréé, le compte s’ouvre", () =>
+        {
+            var folder = Path.Combine(testRoot, "damaged-store");
+            var first = new LibraryStore(folder, "abîmé"); first.Save("home", new ItemsResult { TotalRecordCount = 1 });
+            Assert(first.DamagedCopy is null, "An intact database was set aside");
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            var database = Directory.GetFiles(folder, "library-*.db").Single();
+            foreach (var journal in new[] { database + "-wal", database + "-shm" }) if (File.Exists(journal)) File.Delete(journal);
+            File.WriteAllText(database, "Pas une base SQLite : un fichier coupé par une panne de courant, qui ne commence pas par l’en-tête attendu.");
+            var store = new LibraryStore(folder, "abîmé");
+            store.Save("home", new ItemsResult { TotalRecordCount = 2 }); store.Enqueue("start", Report());
+            Assert(store.Load<ItemsResult>("home") is { TotalRecordCount: 2 } && store.PendingCount == 1, "The recreated database does not work");
+            Assert(store.DamagedCopy is { } copy && File.Exists(copy) && File.ReadAllText(copy).StartsWith("Pas une base"), "The damaged file was not kept aside");
+            return Task.CompletedTask;
+        });
+        await Test("Cache de bibliothèque aux pages abîmées, en-tête intact : mis de côté et recréé, le compte s’ouvre", () =>
+        {
+            var folder = Path.Combine(testRoot, "damaged-pages");
+            var first = new LibraryStore(folder, "pages"); first.Enqueue("start", Report());
+            first.Save("home", new ItemsResult { Items = Enumerable.Range(0, 200).Select(i => new MediaItem { Id = $"film-{i}", Name = $"Film {i}", Overview = new string('x', 200) }).ToList(), TotalRecordCount = 200 });
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            var database = Directory.GetFiles(folder, "library-*.db").Single();
+            foreach (var journal in new[] { database + "-wal", database + "-shm" }) if (File.Exists(journal)) File.Delete(journal);
+            // Page 1 (the 100-byte header and the list of tables) intact: SQLite opens the file, and the damage only shows in
+            // a query that reads another page, as Prune did at every opening.
+            var bytes = File.ReadAllBytes(database); var page = bytes[16] << 8 | bytes[17]; if (page == 1) page = 65536;
+            Assert(bytes.Length >= 4 * page, $"Unexpected database: {bytes.Length} bytes, pages of {page}");
+            Array.Fill(bytes, (byte)0x5A, page, bytes.Length - page); File.WriteAllBytes(database, bytes);
+            var store = new LibraryStore(folder, "pages");
+            Assert(store.DamagedCopy is { } copy && File.Exists(copy) && File.ReadAllBytes(copy).AsSpan(page).IndexOfAnyExcept((byte)0x5A) < 0, "The damaged file was not kept aside");
+            Assert(store.Load<ItemsResult>("home") is null && store.PendingCount == 0, "The recreated database is not empty");
+            store.Save("home", new ItemsResult { TotalRecordCount = 3 }); store.Enqueue("start", Report());
+            Assert(store.Load<ItemsResult>("home") is { TotalRecordCount: 3 } && store.PendingCount == 1, "The recreated database does not work");
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            Assert(new LibraryStore(folder, "pages").DamagedCopy is null, "The recreated database was set aside again");
+            return Task.CompletedTask;
+        });
+        await Test("Préchargement : une seule requête partagée, données invalidées à l’actualisation", async () =>
+        {
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); var count = 0;
+            using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(async _ =>
+            { Interlocked.Increment(ref count); await gate.Task; return JsonResponse(new MediaItem { Id = "series-1", Name = "Une série" }); }));
+            var cache = new MetadataCache(client); var hover = cache.ItemAsync("series-1"); var detail = cache.ItemAsync("series-1");
+            Assert(ReferenceEquals(hover, detail) && count == 1, "Hover and detail issue duplicate requests");
+            gate.SetResult(); await Task.WhenAll(hover, detail); await cache.ItemAsync("series-1"); Assert(count == 1, "Warm detail refetches metadata");
+            cache.Clear(); await cache.ItemAsync("series-1"); Assert(count == 2, "Invalidation retained stale metadata");
+        });
+        await Test("Préchargement : une erreur temporaire ne bloque pas la prochaine ouverture", async () =>
+        {
+            var count = 0;
+            using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(_ =>
+            { count++; return Task.FromResult(count == 1 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) : JsonResponse(new MediaItem { Id = "x", Name = "Rétabli" })); }));
+            var cache = new MetadataCache(client);
+            try { await cache.ItemAsync("x"); throw new Exception("Expected temporary HTTP failure"); } catch (HttpRequestException) { }
+            Assert((await cache.ItemAsync("x")).Name == "Rétabli" && count == 2, "Faulted prefetch remains cached");
+        });
+        await Test("Cache disque : au-delà du budget, les images les moins récemment vues partent", () =>
+        {
+            var folder = Path.Combine(testRoot, "disk-cache"); Directory.CreateDirectory(Path.Combine(folder, "compte-2"));
+            string Make(string name, int size, double daysAgo)
+            { var path = Path.Combine(folder, name); File.WriteAllBytes(path, new byte[size]); File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-daysAgo)); return path; }
+            var oldest = Make("a.img", 400, 30); var old = Make(Path.Combine("compte-2", "b.img"), 400, 20); var recent = Make("c.img", 400, 2); var fresh = Make("d.img", 400, 0);
+            var interrupted = Make("e.img.tmp", 100, 1); var writing = Make("f.img.tmp", 100, 0); var other = Make("notes.txt", 5000, 40);
+            Assert(DiskCache.Trim(folder, 2000, 1000) == (1, 100) && !File.Exists(interrupted) && File.Exists(writing), "Trimmed under budget, or temporary files mishandled");
+            var touched = File.GetLastWriteTimeUtc(fresh); DiskCache.Touch(fresh);
+            Assert(File.GetLastWriteTimeUtc(fresh) == touched, "A file used today was written again");
+            DiskCache.Touch(oldest);
+            Assert(DiskCache.Trim(folder, 1500, 800) == (2, 800), "Wrong amount trimmed");
+            Assert(File.Exists(oldest) && File.Exists(fresh) && !File.Exists(old) && !File.Exists(recent) && File.Exists(other), "Least recently used files not chosen, or another file touched");
+            Assert(DiskCache.Trim(Path.Combine(testRoot, "absent"), 1, 0) == (0, 0), "Missing folder");
+            return Task.CompletedTask;
+        });
+        await Test("Cache de bibliothèque : pages anciennes oubliées ; accueil, reprise, historique et envois en attente gardés", () =>
+        {
+            var store = Store("prune");
+            store.Save("home", new ItemsResult()); store.Save("Movie::|2024||recent", new ItemsResult { TotalRecordCount = 3 });
+            store.RememberPlayback(new MediaItem { Id = "vu", RunTimeTicks = 1000, UserData = new() { LastPlayedDate = DateTimeOffset.UtcNow, PlaybackPositionTicks = 500 } });
+            store.Enqueue("stop", Report(400) with { ItemId = "livré" }); store.Acknowledge(store.Peek()!.Id);
+            store.Enqueue("progress", Report(300));
+            Assert(Store("prune").Load<ItemsResult>("Movie::|2024||recent") is { TotalRecordCount: 3 }, "A recent page expired on opening");
+            store.Prune(DateTimeOffset.UtcNow.AddMinutes(1));
+            Assert(store.Load<ItemsResult>("Movie::|2024||recent") is null, "Old filtered page kept");
+            Assert(store.Load<ItemsResult>("home") is not null && store.Load<List<MediaItem>>("resume") is { Count: 1 } && store.RecentPlayback().Count == 1, "Home, resume row or history pruned");
+            var items = new[] { new MediaItem { Id = "item-1" }, new MediaItem { Id = "livré" } }; store.ApplyLocalProgress(items);
+            Assert(items[0].UserData.PlaybackPositionTicks == 300 && items[1].UserData.PlaybackPositionTicks == 0 && store.PendingCount == 1, "Pending position lost, or delivered one kept");
+            return Task.CompletedTask;
+        });
+        await Test("Continuer à regarder : un épisode montre sa saison ou lui-même, pas l’image d’une autre saison", async () =>
+        {
+            // A series whose seasons look nothing alike: its backdrop shows one season, the episode belongs to another.
+            MediaItem Episode(string? seasonThumb = null, string? backdropParent = "series", Dictionary<string, string>? own = null) => new()
+            {
+                Id = "episode", Type = "Episode", SeriesId = "series", SeasonId = "season-7", ImageTags = own ?? [],
+                ParentBackdropItemId = backdropParent, ParentBackdropImageTags = backdropParent is null ? [] : ["backdrop-tag"], SeasonThumbImageTag = seasonThumb,
+            };
+            var choices = new[]
+            {
+                Artwork.Landscape(Episode(own: new() { ["Thumb"] = "own-thumb", ["Primary"] = "still" })),
+                Artwork.Landscape(Episode(seasonThumb: "season-thumb", own: new() { ["Primary"] = "still" })),
+                Artwork.Landscape(Episode(backdropParent: "season-7", own: new() { ["Primary"] = "still" })),
+                Artwork.Landscape(Episode(own: new() { ["Primary"] = "still" })),
+                Artwork.Landscape(Episode()),
+                Artwork.Landscape(new MediaItem { Id = "movie", Type = "Movie", BackdropImageTags = ["movie-backdrop"], ImageTags = new() { ["Primary"] = "poster" } }),
+            };
+            Assert(choices.SequenceEqual([
+                new ImageRef("episode", "Thumb", "own-thumb"), new ImageRef("season-7", "Thumb", "season-thumb"), new ImageRef("season-7", "Backdrop", "backdrop-tag"),
+                new ImageRef("episode", "Primary", "still"), new ImageRef("series", "Backdrop", "backdrop-tag"), new ImageRef("movie", "Backdrop", "movie-backdrop")]),
+                "Choices: " + string.Join(" | ", choices.Select(x => $"{x.ItemId}/{x.Type}/{x.Tag}")));
+            // The home banner keeps the series' backdrop: it presents the series, with its logo.
+            Assert(Artwork.Backdrop(Episode(own: new() { ["Primary"] = "still" })) == new ImageRef("series", "Backdrop", "backdrop-tag"), "Banner of an episode");
+            Assert(Artwork.Seasons([Episode(), Episode(), new MediaItem { Type = "Movie", SeasonId = "x" }, new MediaItem { Type = "Episode" }]).SequenceEqual(["season-7"]), "Seasons asked for");
+            // One request for every season; a season without a thumbnail answers null.
+            string? url = null;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "token", "device"), new Handler(request =>
+            {
+                url = request.RequestUri!.PathAndQuery;
+                return Task.FromResult(JsonResponse(new { Items = new object[] { new { Id = "season-7", ImageTags = new { Thumb = "t7" } }, new { Id = "season-2", ImageTags = new { } } }, TotalRecordCount = 2 }));
+            }));
+            var thumbs = await client.SeasonThumbsAsync(["season-7", "season-2", "season-9"]);
+            Assert(url is not null && url.StartsWith("/Items?userId=user-1&ids=season-7,season-2,season-9&") && url.Contains("enableImageTypes=Thumb"), "Request: " + url);
+            Assert(thumbs.Count == 3 && thumbs["season-7"] == "t7" && thumbs["season-2"] is null && thumbs["season-9"] is null, "Thumbnails by season");
+            url = null; Assert((await client.SeasonThumbsAsync([])).Count == 0 && url is null, "A request without any season");
+        });
+        await Test("Images : largeur décodée = taille affichée × échelle de l’écran, au palier supérieur", () =>
+        {
+            Assert(Artwork.Pixels(185, 1, 1280) == 200 && Artwork.Pixels(230, 1, 1280) == 240, "Posters at 100 %");
+            Assert(Artwork.Pixels(185, 1.5, 1280) == 280 && Artwork.Pixels(230, 1.5, 1280) == 360, "Posters at 150 %");
+            Assert(Artwork.Pixels(290, 2, 1280) == 640 && Artwork.Pixels(160, 1.25, 1280) == 200, "Wide cards and episodes");
+            Assert(Artwork.Pixels(1920, 1, 2560) == 1920 && Artwork.Pixels(1366, 1, 2560) == 1600 && Artwork.Pixels(3840, 1, 2560) == 2560, "Backdrops by screen width, 2560 at most");
+            Assert(Artwork.Pixels(double.NaN, 1, 900) == 900 && Artwork.Pixels(0, 1, 900) == 900 && Artwork.Pixels(200, double.NaN, 1280) == 200 && Artwork.Pixels(200, 0, 1280) == 200, "Unknown size or scale");
+            // Cards a few units apart share one file on disk and one request to Jellyfin.
+            Assert(Artwork.Pixels(181, 1, 1280) == Artwork.Pixels(199, 1, 1280), "Steps");
+            return Task.CompletedTask;
+        });
+        await Test("Images en mémoire : une requête par image, les moins récentes libérées au-delà du budget, tout libéré à la réduction", async () =>
+        {
+            var memory = new ImageMemory<byte[]>(300, 200, x => x.Length);
+            var fetches = 0;
+            Task<byte[]?> Fetch(int size) { Interlocked.Increment(ref fetches); return Task.FromResult<byte[]?>(new byte[size]); }
+            var first = memory.Get("a", () => Fetch(100));
+            Assert(ReferenceEquals(memory.Get("a", () => Fetch(100)), first) && fetches == 1, "Two requests for one image");
+            await memory.Get("b", () => Fetch(100)); await memory.Get("c", () => Fetch(100));
+            await WaitUntil(() => memory.Settled == 3);
+            Assert(memory.Bytes == 300 && memory.Count == 3, "Within the budget: " + memory.Bytes);
+            // « a » used again: « b » then « c » are the oldest, and leave down to the target.
+            _ = memory.Get("a", () => Fetch(100)); await memory.Get("d", () => Fetch(100));
+            await WaitUntil(() => memory.Settled == 4);
+            Assert(memory.Bytes == 200 && memory.Count == 2 && ReferenceEquals(memory.Get("a", () => Fetch(100)), first), "Least recently used not let go first: " + memory.Bytes);
+            // A failed image is asked again next time.
+            Assert(await memory.Get("e", () => Task.FromResult<byte[]?>(null)) is null && await memory.Get("f", () => Task.FromException<byte[]?>(new IOException())).ContinueWith(x => x.IsFaulted), "Failures");
+            await WaitUntil(() => memory.Settled == 6);
+            Assert(memory.Count == 2, "A failed image stayed: " + memory.Count);
+            // Minimized: everything goes; a request on its way still answers, without being counted.
+            var gate = new TaskCompletionSource<byte[]?>(); var pending = memory.Get("g", () => gate.Task);
+            memory.Clear(); Assert(memory.Bytes == 0 && memory.Count == 0, "Not emptied");
+            gate.SetResult(new byte[50]); Assert(await pending is { Length: 50 }, "The request on its way was lost");
+            await WaitUntil(() => memory.Settled == 7);
+            Assert(memory.Bytes == 0, "A request made before emptying was counted: " + memory.Bytes);
+            var again = memory.Get("a", () => Fetch(100)); Assert(!ReferenceEquals(again, first) && fetches == 5, "An image let go was not asked again");
+        });
+        await Test("Cache de bibliothèque : une page identique n’est pas réécrite, une page changée l’est", () =>
+        {
+            var folder = Path.Combine(testRoot, "unchanged-pages");
+            var store = new LibraryStore(folder, "pages");
+            string Updated()
+            {
+                var path = Directory.GetFiles(folder, "library-*.db").Single();
+                using var db = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = path }.ToString()); db.Open();
+                using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT updated FROM cache WHERE key='home'"; return (string)cmd.ExecuteScalar()!;
+            }
+            var page = new ItemsResult { Items = [new MediaItem { Id = "a", Name = "Film", ImageTags = new() { ["Primary"] = "t" } }], TotalRecordCount = 1 };
+            store.Save("home", page); var first = Updated();
+            Thread.Sleep(20); store.Save("home", page);
+            Assert(Updated() == first, "An identical page was written again");
+            page.Items[0] = page.Items[0] with { Name = "Film renommé" }; store.Save("home", page);
+            Assert(Updated() != first && store.Load<ItemsResult>("home")!.Items[0].Name == "Film renommé", "A changed page was not written");
+            // Another opening of the same cache knows a page once it has read it.
+            var second = Updated(); var reopened = new LibraryStore(folder, "pages");
+            var loaded = reopened.Load<ItemsResult>("home")!; Thread.Sleep(20); reopened.Save("home", loaded);
+            Assert(Updated() == second, "A page read then saved unchanged was written again");
+            return Task.CompletedTask;
+        });
+        await Test("Couleur du bandeau : teintes différentes pour des images rouges et bleues", () =>
+        {
+            byte[] Pixels(byte b, byte g, byte r) => Enumerable.Range(0, 64).SelectMany(_ => new[] { b, g, r, (byte)255 }).ToArray();
+            var red = ArtworkPalette.Extract(Pixels(30, 40, 180)); var blue = ArtworkPalette.Extract(Pixels(180, 60, 30));
+            Assert(red.R > red.B && blue.B > blue.R && red != blue, "Artwork colors share a fixed accent");
+            Assert(Math.Min(red.R, Math.Min(red.G, red.B)) >= 175 && Math.Min(blue.R, Math.Min(blue.G, blue.B)) >= 175, "Tint loses legibility on the dark header");
+            return Task.CompletedTask;
+        });
+        await Test("Couleur du bandeau : transparence et images neutres gardent un accent blanc", () =>
+        {
+            foreach (var pixels in new[] { Array.Empty<byte>(), new byte[] { 0, 0, 0, 255, 255, 0, 0, 0 }, new byte[] { 110, 110, 110, 255, 250, 250, 250, 255 } })
+                Assert(ArtworkPalette.Extract(pixels) == new RgbColor(245, 245, 247), "Neutral artwork introduces an arbitrary accent");
+            return Task.CompletedTask;
+        });
+        await Test("Jellyfin : dossiers des bibliothèques et signalement des médias, sans déconnexion en cas de refus", async () =>
+        {
+            var requests = new List<(string Method, string Path, string Body)>(); var refuse = false;
+            using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync();
+                lock (requests) requests.Add((request.Method.Method, request.RequestUri!.PathAndQuery, body));
+                if (refuse) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+                if (request.RequestUri.AbsolutePath.EndsWith("/Library/VirtualFolders")) return JsonResponse(new object[]
+                {
+                    new { Name = "Movies", CollectionType = "movies", Locations = new[] { @"C:\Media\FILMS" } }, new { Name = "Anime", CollectionType = "tvshows", Locations = new[] { @"C:\Media\ANIME" } },
+                    new { Name = "Shows", CollectionType = "tvshows", Locations = new[] { @"C:\Media\SERIES" } }, new { Name = "Music", CollectionType = "music", Locations = new[] { @"C:\Media\MUSIC" } }
+                });
+                if (request.RequestUri.AbsolutePath.EndsWith("/Items")) return JsonResponse(new
+                {
+                    Items = new object[]
+                    {
+                        new { Id = "movie-1", Type = "Movie", Path = @"C:\Media\FILMS\Big Buck Bunny (2008)\Big Buck Bunny (2008).mkv" },
+                        new { Id = "episode-1", Type = "Episode", SeriesId = "series-9", Path = @"C:\Media\SERIES\Show\Season 01\Show - S01E02.mkv" }
+                    },
+                    TotalRecordCount = 2
+                });
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }));
+            var folders = await client.VirtualFoldersAsync();
+            Assert(MediaLibraries.FromJellyfin(folders) == new MediaLibraries(@"C:\Media\FILMS", @"C:\Media\SERIES", @"C:\Media\ANIME"), "Libraries not matched to films, series and anime");
+            Assert(MediaLibraries.FromJellyfin(folders, anime: @"D:\Anime").Anime == @"D:\Anime" && MediaLibraries.FromJellyfin(null).IsEmpty, "Manual folder or missing server data");
+            Assert(await client.ReportMediaChangedAsync([@"C:\Media\FILMS\Big Buck Bunny (2008)"]), "Media report failed");
+            var report = requests.Last();
+            Assert(report.Method == "POST" && report.Path == "/jellyfin/Library/Media/Updated" && report.Body.Contains("\"Updates\"") && report.Body.Contains("\"UpdateType\":\"Created\"") && report.Body.Contains("Big Buck Bunny (2008)"), "Media report request changed: " + report.Body);
+            var before = requests.Count;
+            var indexed = await client.FindIndexedAsync([@"c:\media\films\big buck bunny (2008)\big buck bunny (2008).mkv", @"C:\Media\SERIES\Show\Season 01\Show - S01E02.mkv", @"C:\Elsewhere.mkv"]);
+            Assert(indexed.Count == 2 && indexed[@"C:\MEDIA\FILMS\Big Buck Bunny (2008)\Big Buck Bunny (2008).mkv"] == "movie-1" && indexed[@"C:\Media\SERIES\Show\Season 01\Show - S01E02.mkv"] == "series-9"
+                && !indexed.ContainsKey(@"C:\Elsewhere.mkv") && requests.Count == before + 1, "Indexed file lookup, in a single request");
+            Assert((await client.FindIndexedAsync([])).Count == 0 && requests.Count == before + 1, "An empty lookup reached the server");
+            Assert(requests.Any(x => x.Path.Contains("fields=Path") && x.Path.Contains("includeItemTypes=Movie,Episode")), "Indexed lookup query changed");
+            VirtualFolder Tv(string name, string folder) => new(name, "tvshows", [folder]);
+            Assert(MediaLibraries.FromJellyfin([Tv("Dessins animés", @"D:\Cartoons"), Tv("Séries", @"D:\TV")]).Anime is null
+                && MediaLibraries.FromJellyfin([Tv("Animation", @"D:\Animation"), Tv("Animaux", @"D:\Nature")]).Anime is null
+                && MediaLibraries.FromJellyfin([Tv("Séries", @"D:\TV"), Tv("Japon", @"D:\Médias\Animés")]) is { Anime: @"D:\Médias\Animés", Series: @"D:\TV" }, "Anime library matched on a partial word");
+            refuse = true;
+            Assert(await client.VirtualFoldersAsync() is null && !await client.ReportMediaChangedAsync([@"C:\Media\FILMS\x"]), "A refused optional call must not end the session");
+        });
+    }
+}

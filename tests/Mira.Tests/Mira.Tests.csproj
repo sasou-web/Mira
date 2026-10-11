@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWPF>true</UseWPF></PropertyGroup>
   <ItemGroup><ProjectReference Include="../../src/Mira.Desktop/Mira.Desktop.csproj" /></ItemGroup>
+  <!-- The checks free of WPF (tests/Mira.Core.Tests, run on Linux by the CI) run here too, before those of the app. -->
+  <ItemGroup><Compile Include="../Mira.Core.Tests/*.cs" Exclude="../Mira.Core.Tests/Program.cs" Link="Portable/%(Filename)%(Extension)" /></ItemGroup>
   <!-- The plugin's playlist rewriting, security policy and web files have no Jellyfin dependency: compiled here to be tested. -->
   <ItemGroup>
     <Compile Include="../../src/Mira.Jellyfin/HlsPlaylists.cs" Link="Plugin/HlsPlaylists.cs" />
