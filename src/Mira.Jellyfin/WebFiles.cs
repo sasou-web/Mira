@@ -1,3 +1,5 @@
+// System.IO named here: the tests compile this file in a WPF project, whose implicit usings leave it out.
+using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -31,6 +33,7 @@ public sealed class WebFiles
         [".txt"] = "text/plain; charset=utf-8",
     };
     private readonly Dictionary<string, WebFile> _files;
+    private readonly List<string> _unserved = [];
 
     private WebFiles(Dictionary<string, byte[]> contents)
     {
@@ -38,7 +41,14 @@ public sealed class WebFiles
         _files = new(StringComparer.Ordinal);
         foreach (var (path, content) in contents)
         {
-            if (!Types.TryGetValue(Path.GetExtension(path), out var type)) continue;
+            // A file of a kind not listed above would answer 404 to the phone (a missing .mjs broke the QR code page):
+            // kept aside, said by WebController in Jellyfin's log, and refused by the tests.
+            if (!Types.TryGetValue(Path.GetExtension(path), out var type))
+            {
+                _unserved.Add(path);
+                continue;
+            }
+
             // Pages that name the assets carry the revision; text files are otherwise served as they are.
             var bytes = path is "index.html" or "manifest.webmanifest"
                 ? Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(content)
@@ -67,6 +77,18 @@ public sealed class WebFiles
         : Embedded.Value;
 
     public bool TryGet(string path, out WebFile file) => _files.TryGetValue(path, out file!);
+
+    /// <summary>The app's files that are not served, their extension unknown to <see cref="Types"/>: none expected.</summary>
+    public IReadOnlyList<string> Unserved => _unserved;
+
+    /// <summary>The app's files as a folder holds them (MIRA_WEB_DIR, and the tests' copy of src/Mira.Web).</summary>
+    public static WebFiles FromFolder(string folder)
+    {
+        var root = Path.GetFullPath(folder);
+        var contents = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+            .ToDictionary(file => Path.GetRelativePath(root, file).Replace('\\', '/'), File.ReadAllBytes, StringComparer.Ordinal);
+        return new WebFiles(contents) { Immutable = false };
+    }
 
     private static string RevisionOf(Dictionary<string, byte[]> contents)
     {
@@ -99,13 +121,5 @@ public sealed class WebFiles
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
         return copy.ToArray();
-    }
-
-    private static WebFiles FromFolder(string folder)
-    {
-        var root = Path.GetFullPath(folder);
-        var contents = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-            .ToDictionary(file => Path.GetRelativePath(root, file).Replace('\\', '/'), File.ReadAllBytes, StringComparer.Ordinal);
-        return new WebFiles(contents) { Immutable = false };
     }
 }
