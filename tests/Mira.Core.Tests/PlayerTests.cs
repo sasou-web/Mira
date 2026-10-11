@@ -126,5 +126,20 @@ internal static class PlayerTests
             Assert(PlayerText.Speed(.75) == "0,75×" && PlayerText.Speed(1) == "1×" && PlayerText.Delay(.5) == "+0,5 s" && PlayerText.Delay(-1.5) == "−1,5 s" && PlayerText.Delay(0) == "0,0 s", "Speed or offset formatting");
             return Task.CompletedTask;
         });
+        await Test("Lecteur : pistes et chapitres lus de mpv de la même façon sur Windows et sur Mac", () =>
+        {
+            var tracks = MpvLists.Tracks("""
+                [{"id":1,"type":"video","codec":"h264"},{"id":2,"type":"audio","lang":"fre","codec":"eac3","demux-channel-count":6,"title":null},
+                 {"id":3,"type":"sub","lang":"eng","codec":"subrip","forced":true,"external":true},{"id":4,"type":"audio","title":"Commentaire"}]
+                """);
+            Assert(tracks.Select(x => x.Id).SequenceEqual(["2", "3", "4"]) && tracks.Select(x => x.Type).SequenceEqual(["audio", "sub", "audio"]), "Tracks: " + string.Join(", ", tracks));
+            Assert(tracks[0] == new MpvTrack("2", "audio", PlayerText.Track("2", "", "fre", "eac3", 6, false, false).Label, PlayerText.Track("2", "", "fre", "eac3", 6, false, false).Details), "Audio track named otherwise: " + tracks[0]);
+            Assert(tracks[1].Label == PlayerText.Track("3", "", "eng", "subrip", 0, true, true).Label, "Forced external subtitle: " + tracks[1]);
+            Assert(MpvLists.Tracks(null).Count == 0 && MpvLists.Tracks("pas du JSON").Count == 0, "Unreadable track list");
+            var chapters = MpvLists.Chapters("""[{"time":1300.5,"title":"Ending"},{"title":"sans heure"},{"time":0,"title":null},{"time":90,"title":7}]""");
+            Assert(chapters.SequenceEqual([new ChapterMark(0, null), new ChapterMark(90, null), new ChapterMark(1300.5, "Ending")]), "Chapters: " + string.Join(", ", chapters));
+            Assert(MpvLists.Chapters(null).Count == 0 && MpvLists.Chapters("{").Count == 0, "Unreadable chapter list");
+            return Task.CompletedTask;
+        });
     }
 }
