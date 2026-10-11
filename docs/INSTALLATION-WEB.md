@@ -23,7 +23,9 @@ Quand Tailscale est prêt, le QR code donne l’adresse Tailscale du PC (`http:/
 
 Il faut être connecté avec le compte administrateur de Jellyfin, ce qui est le cas si Mira a installé Jellyfin.
 
-Avant d’installer Mira web, Mira vérifie sur GitHub qu’il est bien celui de sa version, signé comme ses propres mises à jour ; sinon, il n’installe rien et le guide dit pourquoi. Le dépôt qu’il ajoute à Jellyfin ne propose que cette version vérifiée (et remplace un dépôt de Mira ajouté à la main). Quand Mira se met à jour, il vérifie de même la nouvelle version de Mira web au démarrage suivant et la fait télécharger par Jellyfin, qui la prend au redémarrage suivant.
+Avant d’installer Mira web, Mira vérifie sur GitHub qu’il est bien celui de sa version, signé comme ses propres mises à jour, dans une release que plus personne ne peut modifier ; sinon, il n’installe rien et le guide dit pourquoi. Le dépôt qu’il ajoute à Jellyfin ne propose que cette version vérifiée (et remplace un dépôt de Mira ajouté à la main).
+
+Ensuite, Mira web suit la version de Mira pour Windows. Quand Mira se met à jour, ouvre-le une fois avec le compte administrateur de Jellyfin : il vérifie la nouvelle version de Mira web et fait passer le dépôt de Jellyfin à celle-ci, sans rien installer lui-même. Jellyfin la télécharge à sa prochaine recherche de mises à jour (à son démarrage, puis toutes les 24 h) et la prend à son redémarrage suivant. Si tu as désinstallé ou désactivé l’extension dans Jellyfin, ou coupé ses mises à jour automatiques, Jellyfin la laisse telle quelle. Un Mira pour Windows plus ancien, sur un autre PC, ne la fait jamais revenir en arrière.
 
 ### Sur iPhone et iPad : l’avoir comme une app
 
@@ -49,7 +51,7 @@ Avec l’adresse de la maison, réserve aussi son adresse IP au PC dans l’inte
 2. **Catalogue** : choisis **Mira**, puis **Installer**.
 3. Redémarre Jellyfin (**Tableau de bord → Redémarrer**).
 
-Jellyfin met ensuite l’extension à jour tout seul à chaque nouvelle version de Mira. Il ne vérifie que l’empreinte donnée par la même release de GitHub : il fait confiance à GitHub et à son compte de publication. Si tu as un PC Windows, Mira pour Windows (ci-dessus) fait plus sûr : il vérifie la signature de Mira avant chaque installation.
+Jellyfin met ensuite l’extension à jour tout seul à chaque nouvelle version de Mira. Il ne vérifie que l’empreinte donnée par la même release de GitHub : il fait confiance à GitHub et au compte qui publie Mira. Si tu as un PC Windows, Mira pour Windows (ci-dessus) fait plus sûr : ouvert avec le compte administrateur de Jellyfin, il vérifie la signature de Mira, puis remplace ce dépôt par celui de sa propre version. Mira web suit alors la version de Mira pour Windows, comme décrit plus haut.
 
 **L’ouvrir** : sur le téléphone, connecté au même Wi-Fi que le serveur, ouvre l’adresse du serveur suivie de `/Mira`, par exemple `http://192.168.1.20:8096/Mira`. Depuis Mira web déjà ouvert ailleurs, **Réglages → Ouvrir sur un autre appareil** affiche son QR code.
 
@@ -75,4 +77,4 @@ Hors de chez toi, la qualité **Automatique** mesure la connexion et demande à 
 - **La page `/Mira` n’existe pas** : l’extension n’est pas installée, ou Jellyfin n’a pas redémarré depuis. Regarde dans **Tableau de bord → Extensions → Mes extensions** que **Mira** y figure, « Actif ».
 - **La vidéo ne démarre pas, ou saccade hors de chez toi** : baisse la qualité dans **Réglages → Qualité** (ou dans le lecteur, hors iPhone et iPad).
 - **« Touche pour lancer la lecture en plein écran »** : Safari veut un toucher avant d’ouvrir le lecteur d’Apple. Touche le bouton Lecture.
-- **Mira web garde l’ancienne version après une mise à jour** : Jellyfin cherche les mises à jour de ses extensions au démarrage puis toutes les 24 h, et ne charge la nouvelle qu’au redémarrage suivant. Pour l’avoir tout de suite : **Tableau de bord → Tâches planifiées → Mettre à jour les extensions** (▶), puis **Tableau de bord → Redémarrer**.
+- **Mira web garde l’ancienne version après une mise à jour** : ouvre d’abord Mira pour Windows à jour, avec le compte administrateur de Jellyfin. C’est lui qui fait passer Jellyfin à la nouvelle version de Mira web ; tant qu’il n’a pas été ouvert, Jellyfin reste à l’ancienne. Jellyfin cherche ensuite les mises à jour de ses extensions au démarrage puis toutes les 24 h, et ne charge la nouvelle qu’au redémarrage suivant. Pour l’avoir tout de suite : **Tableau de bord → Tâches planifiées → Mettre à jour les extensions** (▶), puis **Tableau de bord → Redémarrer**.

@@ -5,10 +5,13 @@ using System.Text.RegularExpressions;
 
 namespace Mira.Core.Updates;
 
-public sealed class UpdateException(string message, HttpStatusCode? status = null) : Exception(message)
+public sealed class UpdateException(string message, HttpStatusCode? status = null, bool network = false) : Exception(message)
 {
-    /// <summary>GitHub's answer when it refused a request: 404 when the release or the file does not exist.</summary>
+    /// <summary>GitHub's answer when it refused a request: 404 when the release or the file does not exist, 403 or 429
+    /// when it limits requests.</summary>
     public HttpStatusCode? Status { get; } = status;
+    /// <summary>GitHub could not be reached, or did not answer in time: nothing it sent was refused.</summary>
+    public bool Network { get; } = network;
 }
 
 /// <summary>One release file: "installer", "portable" or "zip" (Windows), "mac" or "jellyfin" (the other platforms),
@@ -21,7 +24,8 @@ public sealed record UpdateFile(string Kind, string Name, long Size, string Sha2
 /// and only files whose size and SHA-256 match it: a release altered on GitHub, or in transit, is refused.
 /// <see cref="Files"/> holds only the Windows files: copies of Mira up to 0.7.4 refuse a manifest with any other kind
 /// there, and would never update again. The other platforms' files go in <see cref="Others"/>, a property those copies
-/// ignore: the Mac disk image and Mira web's Jellyfin plugin, which Mira for Windows checks before Jellyfin installs it.
+/// ignore, and that copies from 0.7.5 read leniently (<see cref="Parse"/>): the Mac disk image and Mira web's Jellyfin
+/// plugin, which Mira for Windows checks before Jellyfin installs it.
 /// </summary>
 public sealed record UpdateManifest(string Product, Version Version, IReadOnlyList<UpdateFile> Files)
 {
@@ -41,7 +45,14 @@ public sealed record UpdateManifest(string Product, Version Version, IReadOnlyLi
     private static readonly Regex FileName = new(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", RegexOptions.CultureInvariant);
     private static readonly Regex Hex = new("^[0-9a-f]{64}$", RegexOptions.CultureInvariant);
 
-    public static UpdateManifest Parse(byte[] json)
+    /// <summary>
+    /// Reads a manifest. "files" is always checked whole. "others" is read leniently by default: Windows updates parse
+    /// this manifest too, and a later release's Mac or plugin entry this version would find wrong (a second one, a larger
+    /// file) must not stop every installed copy from updating; an entry that cannot be used is skipped. With
+    /// <paramref name="strict"/> (Mira web's check, the release tooling), such an entry refuses the manifest instead;
+    /// a kind added later is skipped either way.
+    /// </summary>
+    public static UpdateManifest Parse(byte[] json, bool strict = false)
     {
         try
         {
@@ -52,29 +63,35 @@ public sealed record UpdateManifest(string Product, Version Version, IReadOnlyLi
             var version = ReleaseFeed.ParseVersion(Text(root, "version")) ?? throw new UpdateException("Le manifeste de mise à jour n’indique pas de version valide.");
             if (product != ProductName) throw new UpdateException("Le manifeste de mise à jour ne concerne pas Mira.");
             if (!root.TryGetProperty("files", out var list) || list.ValueKind != JsonValueKind.Array) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
-            var files = Entries(list, Kinds, unknown: false);
+            var files = new List<UpdateFile>();
+            foreach (var entry in list.EnumerateArray())
+                files.Add(Entry(entry, Kinds, files) ?? throw Invalid());
             if (files.Count == 0) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
-            // A kind added later is skipped here, as this version skips "others" as a whole in older copies.
-            var others = root.TryGetProperty("others", out var more) ? more.ValueKind == JsonValueKind.Array ? Entries(more, OtherKinds, unknown: true)
-                : throw new UpdateException("Le manifeste de mise à jour contient un fichier invalide.") : [];
+            var others = new List<UpdateFile>();
+            if (root.TryGetProperty("others", out var more))
+            {
+                if (more.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var entry in more.EnumerateArray())
+                    {
+                        // A kind added later: this version has no use for it.
+                        if (entry.ValueKind == JsonValueKind.Object && !OtherKinds.Contains(ReleaseFeed.Text(entry, "kind"))) continue;
+                        if (Entry(entry, OtherKinds, others) is { } file) others.Add(file);
+                        else if (strict) throw Invalid();
+                    }
+                }
+                else if (strict) throw Invalid();
+            }
             return new UpdateManifest(product, version, files) { Others = others };
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException) { throw new UpdateException("Le manifeste de mise à jour est illisible."); }
     }
-    /// <summary>The entries of one list, each checked; one file per kind. With <paramref name="unknown"/>, a kind this
-    /// version does not know is skipped instead of refused.</summary>
-    private static List<UpdateFile> Entries(JsonElement list, string[] kinds, bool unknown)
+    private static UpdateException Invalid() => new("Le manifeste de mise à jour contient un fichier invalide.");
+    /// <summary>One entry, if it is a valid file of one of <paramref name="kinds"/> not already in <paramref name="files"/>.</summary>
+    private static UpdateFile? Entry(JsonElement entry, string[] kinds, List<UpdateFile> files)
     {
-        var files = new List<UpdateFile>();
-        foreach (var entry in list.EnumerateArray())
-        {
-            var file = new UpdateFile(ReleaseFeed.Text(entry, "kind"), ReleaseFeed.Text(entry, "name"), ReleaseFeed.Number(entry, "size"), ReleaseFeed.Text(entry, "sha256").ToLowerInvariant());
-            if (unknown && entry.ValueKind == JsonValueKind.Object && !kinds.Contains(file.Kind)) continue;
-            if (!kinds.Contains(file.Kind) || !FileName.IsMatch(file.Name) || file.Size is <= 0 or > MaximumFileSize || !Hex.IsMatch(file.Sha256) || files.Any(f => f.Kind == file.Kind))
-                throw new UpdateException("Le manifeste de mise à jour contient un fichier invalide.");
-            files.Add(file);
-        }
-        return files;
+        var file = new UpdateFile(ReleaseFeed.Text(entry, "kind"), ReleaseFeed.Text(entry, "name"), ReleaseFeed.Number(entry, "size"), ReleaseFeed.Text(entry, "sha256").ToLowerInvariant());
+        return kinds.Contains(file.Kind) && FileName.IsMatch(file.Name) && file.Size is > 0 and <= MaximumFileSize && Hex.IsMatch(file.Sha256) && !files.Any(f => f.Kind == file.Kind) ? file : null;
     }
 
     /// <summary>

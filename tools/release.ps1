@@ -1,17 +1,20 @@
 ﻿param([switch]$SkipBuild, [switch]$DryRun)
 # Publishes the version in src/Mira.Desktop/Mira.Desktop.csproj in one command, on the PC that holds the signing key:
-#   1. checks gh, the signing key, Inno Setup, a clean checkout with no untracked file (it would be built or embedded),
-#      then brings main up to date (fast-forward only) and checks that GitHub's Windows build (ci.yml) passed on it;
+#   1. checks gh, immutable releases on the repository, the signing key (it opens, installed copies trust it), Inno
+#      Setup, a clean checkout with no untracked file (it would be built or embedded), then brings main up to date
+#      (fast-forward only) and checks that GitHub's Windows build (ci.yml) passed on it;
 #   2. builds the Windows packages (tools/package.ps1), unless -SkipBuild uses those this script built from the same
 #      commit (a -DryRun, an attempt that stopped later);
 #   3. creates the release vX.Y.Z as a draft on that commit, with the Windows files and their .sha256: a draft is seen
 #      by no one and has no tag yet;
-#   4. runs mac.yml and web.yml for that draft, which build from the same commit and attach the .dmg and its .sha256,
-#      mira-jellyfin-X.Y.Z.zip and jellyfin-manifest.json, and waits for both;
-#   5. downloads those files, checks them (Mira.Release, the checks Mira for Windows makes too), signs mira-update.json
-#      for every platform, checks that signature against the keys installed copies trust, and attaches it;
-#   6. checks that the draft holds exactly the 12 expected files, at their sizes here, then publishes it: the release
-#      appears whole, at once, with the notes from WhatsNew.json.
+#   4. runs mac.yml and web.yml on main for that draft, which build from the same commit and attach the .dmg and its
+#      .sha256, mira-jellyfin-X.Y.Z.zip and jellyfin-manifest.json, and waits for both;
+#   5. takes those files from the runs it watched (their artifacts), checks them (Mira.Release, the checks Mira for
+#      Windows makes too), signs mira-update.json for every platform, checks that signature against the keys installed
+#      copies trust, and attaches it;
+#   6. checks that the draft holds exactly the 12 expected files, each with the SHA-256 of the file checked here (the
+#      four built by GitHub uploaded by GitHub Actions), then publishes it: the release appears whole, at once, with the
+#      notes from WhatsNew.json, and checks that GitHub made it immutable.
 # -DryRun does all of it but the publication: the draft stays, unseen, and the next run replaces it.
 # Works in Windows PowerShell 5.1 and PowerShell 7 (saved with a BOM; messages with an apostrophe in double quotes:
 # PowerShell reads a typographic apostrophe as a single quote). jq expressions passed to gh hold no double quote: Windows
@@ -41,7 +44,7 @@ function Get-Native([scriptblock]$command) {
 }
 # The runs of a workflow started by hand (workflow_dispatch), newest first: id, status and page.
 function Get-Runs([string]$workflow) {
-    $lines = @(gh run list --repo $repository --workflow $workflow --event workflow_dispatch --limit 30 --json databaseId,status,url --jq '.[] | [.databaseId, .status, .url] | @tsv')
+    $lines = @(gh run list --repo $repository --workflow $workflow --branch main --event workflow_dispatch --limit 30 --json databaseId,status,url --jq '.[] | [.databaseId, .status, .url] | @tsv')
     if ($LASTEXITCODE -ne 0) { throw "gh ne peut pas lister les exécutions de $workflow (code $LASTEXITCODE)." }
     foreach ($line in $lines) {
         if (-not $line) { continue }
@@ -76,6 +79,12 @@ try {
     }
     # The account gh will use, only (gh auth status also fails for another, stale account or host).
     if (-not (Test-Native { gh api user --silent })) { throw "gh ne peut pas se servir de ton compte GitHub (ou GitHub ne répond pas) : lance « gh auth login »." }
+    # Immutable releases: once published, neither the files nor the tag of a release can change, even from this account.
+    # Mira for Windows has Jellyfin install Mira web from one release, checked once: without them, it could be swapped
+    # afterwards. GitHub answers 200 with "enabled" (its documentation also announces a 404 when they are off).
+    if ((Get-Native { gh api "repos/$repository/immutable-releases" --jq .enabled }) -ne 'true') {
+        throw "Les releases immuables ne sont pas activées sur $repository (ou gh ne peut pas le lire) : sans elles, les fichiers d’une release publiée pourraient encore être remplacés. Active-les une fois : https://github.com/$repository/settings, section « Releases », case « Enable release immutability » (ou « gh api -X PUT repos/$repository/immutable-releases »), puis relance."
+    }
     # mira-update.json is signed at the end, once the workflows have built the other platforms: the key is needed even
     # with -SkipBuild. A new key would be refused by every installed copy: a lost one comes back from its backup.
     $key = if ($env:APPDATA) { Join-Path $env:APPDATA 'Mira Release\update-signing.key' } else { '%APPDATA%\Mira Release\update-signing.key' }
@@ -128,20 +137,24 @@ try {
     if (-not @($checks | Where-Object { $_[1] -eq 'success' }).Count) {
         if (-not $checks.Count) { throw "GitHub n’a pas encore construit $short (ci.yml, après le push sur main) : attends que https://github.com/$repository/actions/workflows/ci.yml le montre, puis relance." }
         if ($checks[0][0] -ne 'completed') { throw "ci.yml tourne encore pour $short ($($checks[0][2])) : attends sa réussite, puis relance." }
-        throw "ci.yml n’a pas réussi pour $short ($($checks[0][2])) : corrige main avant de publier."
+        throw "ci.yml n’a pas réussi pour $short ($($checks[0][2])). Si c’était un accident (réseau, machine de GitHub), relance-le sur cette page (« Re-run failed jobs ») ; sinon corrige main. Puis relance ce script."
     }
+
+    # The SDK global.json asks for, read once main is up to date: without it, dotnet only says that no compatible SDK
+    # was found. Needed for the signature even with -SkipBuild.
+    $sdk = [string](Get-Content -LiteralPath (Join-Path $workspace 'global.json') -Raw | ConvertFrom-Json).sdk.version
+    $channel = ($sdk.Split('.')[0..1]) -join '.'
+    if (-not (Get-Command dotnet -ErrorAction SilentlyContinue) -or -not (Test-Native { dotnet --version })) {
+        throw "SDK .NET $channel introuvable (global.json demande $sdk ou un SDK $channel plus récent) : installe le SDK .NET $channel pour Windows x64 depuis https://dotnet.microsoft.com/download/dotnet/$channel, puis relance."
+    }
+    # The key opens on this Windows account and installed copies trust it: checked in seconds, not after the workflows.
+    $tool = Join-Path $workspace 'tools/Mira.Release/Mira.Release.csproj'
+    Invoke-Native 'Mira.Release check-key' { dotnet run --project $tool -c Release -- check-key }
 
     $packages = Join-Path $workspace 'dist/packages'
     $built = Join-Path $packages 'source-commit.txt'
     $notes = Join-Path $workspace ".artifacts/release-notes-$version.md"
     if (-not $SkipBuild) {
-        # The SDK global.json asks for, read once main is up to date: without it, dotnet only says that no compatible SDK
-        # was found.
-        $sdk = [string](Get-Content -LiteralPath (Join-Path $workspace 'global.json') -Raw | ConvertFrom-Json).sdk.version
-        $channel = ($sdk.Split('.')[0..1]) -join '.'
-        if (-not (Get-Command dotnet -ErrorAction SilentlyContinue) -or -not (Test-Native { dotnet --version })) {
-            throw "SDK .NET $channel introuvable (global.json demande $sdk ou un SDK $channel plus récent) : installe le SDK .NET $channel pour Windows x64 depuis https://dotnet.microsoft.com/download/dotnet/$channel, puis relance."
-        }
         Remove-Item -LiteralPath $built, $notes -ErrorAction SilentlyContinue
         & (Join-Path $PSScriptRoot 'package.ps1')
         Set-Content -LiteralPath $built -Value $commit -Encoding ascii
@@ -160,13 +173,6 @@ try {
         if (([string](Get-Content -LiteralPath "$path.sha256")).Trim().Split(' ')[0] -ne $hash) { throw "$name.sha256 ne correspond pas à $name : relance sans -SkipBuild." }
     }
     if (-not (Test-Path -LiteralPath $notes)) { throw "Notes de version introuvables ($notes) : l’entrée $version manque dans src/Mira.Core/WhatsNew.json." }
-
-    # Immutable releases: once published, neither the files nor the tag can change, even from a stolen account. Read
-    # only; GitHub answers 200 with "enabled" (its documentation also announces a 404 when they are off).
-    $immutable = (Get-Native { gh api "repos/$repository/immutable-releases" --jq .enabled }) -eq 'true'
-    if (-not $immutable) {
-        Write-Output "Les releases immuables ne sont pas activées sur $repository (ou gh ne peut pas le lire) : une release publiée reste modifiable. Pour les activer, une fois : Settings → General → Releases → « Enable release immutability », ou « gh api -X PUT repos/$repository/immutable-releases »."
-    }
 
     # A run still going from an earlier attempt would attach its own files to the new draft.
     foreach ($workflow in $workflows) {
@@ -187,38 +193,50 @@ try {
         Write-Output "$($run.Workflow) : $($run.Url)"
         gh run watch $run.Id --repo $repository --exit-status --interval 30
         if ($LASTEXITCODE -ne 0) { throw "$($run.Workflow) a échoué : $($run.Url). Corrige, puis relance (avec -SkipBuild, les paquets Windows sont repris)." }
+        # Run on main, at the commit of the draft: main moved meanwhile, and the run is not the one to sign.
+        $head = ([string](Get-Native { gh run view $run.Id --repo $repository --json headSha,headBranch --jq '[.headSha, .headBranch] | @tsv' })).Trim()
+        if ($head -ne "$commit`tmain") { throw "$($run.Workflow) a tourné sur « $head », pas sur main en $short ($($run.Url)) : main a changé pendant la publication. Relance." }
     }
 
+    # What is signed comes from the runs watched above (their artifacts), not from whatever the draft holds now; the
+    # draft's copies are then compared with them, digest by digest.
     $release = Join-Path $workspace 'dist/release'
     if (Test-Path -LiteralPath $release) { Remove-Item -LiteralPath $release -Recurse -Force }
     New-Item -ItemType Directory -Path $release | Out-Null
     $others = @("Mira-$version-mac-arm64.dmg", "Mira-$version-mac-arm64.dmg.sha256", "mira-jellyfin-$version.zip", 'jellyfin-manifest.json')
-    $patterns = @($others | ForEach-Object { '--pattern'; $_ })
-    Invoke-Native 'gh release download' { gh release download $tag --repo $repository --dir $release @patterns }
+    $artifacts = @{ 'mac.yml' = 'Mira-mac-arm64'; 'web.yml' = 'Mira-web-release' }
+    foreach ($run in $runs) {
+        $artifact = $artifacts[$run.Workflow]
+        Invoke-Native "gh run download ($artifact)" { gh run download $run.Id --repo $repository --name $artifact --dir $release }
+    }
     $missing = @($others | Where-Object { -not (Test-Path -LiteralPath (Join-Path $release $_)) })
-    if ($missing.Count) { throw "Le brouillon de $tag n’a pas reçu : $($missing -join ', '). Regarde les exécutions ci-dessus, puis relance." }
+    if ($missing.Count) { throw "Les exécutions de $tag n’ont pas produit : $($missing -join ', '). Regarde les exécutions ci-dessus, puis relance." }
 
     # Signed for every platform, then checked as installed copies will: the keys they trust, every file's size and
     # SHA-256, the .dmg against its .sha256, Jellyfin's manifest against the plugin.
-    $tool = Join-Path $workspace 'tools/Mira.Release/Mira.Release.csproj'
     Invoke-Native 'Mira.Release manifest' { dotnet run --project $tool -c Release -- manifest --version $version --packages $packages --others $release }
     Invoke-Native 'Mira.Release verify' { dotnet run --project $tool -c Release -- verify --version $version --packages $packages --others $release }
     Invoke-Native 'gh release upload' { gh release upload $tag (Join-Path $packages 'mira-update.json') (Join-Path $packages 'mira-update.json.sig') --repo $repository --clobber }
 
-    # Exactly the 12 files, each at the size checked here, on the draft made for this commit.
-    $expected = New-Object 'System.Collections.Generic.Dictionary[string,long]' ([StringComparer]::Ordinal)
-    foreach ($name in $windows + @('mira-update.json', 'mira-update.json.sig')) { $expected[$name] = (Get-Item -LiteralPath (Join-Path $packages $name)).Length }
-    foreach ($name in $others) { $expected[$name] = (Get-Item -LiteralPath (Join-Path $release $name)).Length }
-    $listed = @(gh release view $tag --repo $repository --json assets --jq '.assets[] | [.name, .size, .state] | @tsv')
-    if ($LASTEXITCODE -ne 0) { throw "gh release view a échoué (code $LASTEXITCODE)." }
+    # Exactly the 12 files on the draft made for this commit, each with the SHA-256 of the file checked here; those built
+    # by GitHub uploaded by GitHub Actions itself.
+    $expected = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([StringComparer]::Ordinal)
+    foreach ($name in $windows + @('mira-update.json', 'mira-update.json.sig')) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $packages $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
+    foreach ($name in $others) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $release $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
+    # A draft has no tag: its assets are read through its API address.
+    $api = ([string](Get-Native { gh release view $tag --repo $repository --json apiUrl --jq .apiUrl })).Trim() -replace '^https://api\.github\.com/', ''
+    if (-not $api) { throw "gh release view a échoué pour $tag." }
+    $listed = @(gh api "$api/assets?per_page=100" --jq '.[] | [.name, .state, .digest, .uploader.login] | @tsv')
+    if ($LASTEXITCODE -ne 0) { throw "gh api $api/assets a échoué (code $LASTEXITCODE)." }
     $problems = New-Object System.Collections.Generic.List[string]
     $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($line in $listed) {
         if (-not $line) { continue }
-        $name, $size, $state = $line -split "`t"
+        $name, $state, $digest, $uploader = $line -split "`t"
         [void]$seen.Add($name)
         if (-not $expected.ContainsKey($name)) { $problems.Add("$name en trop") }
-        elseif ([long]$size -ne $expected[$name] -or $state -ne 'uploaded') { $problems.Add("$name ($size octets, $state) différent de celui vérifié ici ($($expected[$name]) octets)") }
+        elseif ($digest -ne "sha256:$($expected[$name])" -or $state -ne 'uploaded') { $problems.Add("$name ($digest, $state) différent de celui vérifié ici (sha256:$($expected[$name]))") }
+        elseif ($others -contains $name -and $uploader -ne 'github-actions[bot]') { $problems.Add("$name envoyé par $uploader, pas par GitHub Actions") }
     }
     foreach ($name in $expected.Keys) { if (-not $seen.Contains($name)) { $problems.Add("$name manquant") } }
     if ($problems.Count) { throw "Le brouillon de $tag ne contient pas exactement les fichiers vérifiés : $($problems -join ' ; ')." }
@@ -231,11 +249,19 @@ try {
     }
     Invoke-Native 'gh release edit' { gh release edit $tag --repo $repository --draft=false --latest }
     Write-Output "Mira $version est publiée, avec ses $($expected.Count) fichiers : https://github.com/$repository/releases/tag/$tag"
-    if ($immutable) {
-        # GitHub signs an attestation of an immutable release's files; gh 2.81 and later can check it.
-        if (Test-Native { gh release verify --help }) { Invoke-Native 'gh release verify' { gh release verify $tag --repo $repository } }
-        else { Write-Output "Cette version de gh ne connaît pas « gh release verify » (gh 2.81 ou plus récent) : attestation de la release non vérifiée." }
+    # From here on the release is out: what follows warns, never stops.
+    if (([string](Get-Native { gh api "repos/$repository/releases/tags/$tag" --jq .immutable })).Trim() -ne 'true') {
+        Write-Warning "GitHub ne dit pas la release $tag immuable : ses fichiers pourraient encore être remplacés. Vérifie le réglage « Enable release immutability » (https://github.com/$repository/settings)."
     }
+    # GitHub signs an attestation of an immutable release's files; gh 2.81 and later can check it. (« gh release <unknown>
+    # --help » succeeds too: only the list of subcommands tells.)
+    if (((Get-Native { gh release --help }) -join "`n") -match '(?m)^\s+verify\b') {
+        $ErrorActionPreference = 'Continue'
+        gh release verify $tag --repo $repository
+        if ($LASTEXITCODE -ne 0) { Write-Warning "La release $tag est publiée, mais « gh release verify $tag » a échoué : regarde son attestation sur https://github.com/$repository/releases/tag/$tag." }
+        $ErrorActionPreference = 'Stop'
+    }
+    else { Write-Output "Cette version de gh ne connaît pas « gh release verify » (gh 2.81 ou plus récent) : attestation de la release non vérifiée." }
 } finally {
     Pop-Location
 }

@@ -6,6 +6,9 @@ using Mira.Core.Updates;
 // Signing of Mira's automatic updates (see SECURITY.md and CONTRIBUTING.md).
 //   keygen [--key <file>]                                 creates the signing key; never overwrites one
 //   public-key [--key <file>]                             prints the public key to list in UpdateKeys.Trusted
+//   check-key [--key <file>]                              checks that the signing key opens and is in UpdateKeys.Trusted
+//                                                         (tools/release.ps1, before anything else); warns while
+//                                                         UpdateKeys.Trusted has no backup key
 //   manifest --version x.y.z --packages <dir> [--others <dir>] [--key <file>] [--test]
 //                                                         writes and signs mira-update.json: the Windows files of <dir>,
 //                                                         and with --others the Mac disk image and Mira web's plugin found
@@ -88,6 +91,21 @@ try
             Console.WriteLine(UpdateSignature.PublicKey(key));
             return 0;
         }
+        case "check-key":
+        {
+            // The same refusal as « manifest », in seconds, before tools/release.ps1 builds anything or waits for GitHub.
+            ECDsa opened;
+            // DPAPI opens the file only for the Windows account (and PC) that wrote it.
+            try { opened = Load(); }
+            catch (CryptographicException) { throw new InvalidOperationException($"La clé {keyPath} ne s’ouvre pas avec ce compte Windows (elle a été écrite par un autre compte ou un autre PC). Mets ce fichier de côté. {RestoreKey}"); }
+            using var key = opened;
+            if (!UpdateKeys.Trusted.Contains(UpdateSignature.PublicKey(key)))
+                throw new InvalidOperationException($"La clé {keyPath} n’est pas dans UpdateKeys.Trusted : les copies installées refuseraient ce qu’elle signe. {RestoreKey}");
+            Console.Error.WriteLine($"Clé de signature : {keyPath}, reconnue par les copies installées.");
+            if (UpdateKeys.Trusted.Count < 2)
+                Console.Error.WriteLine("Attention : UpdateKeys.Trusted n’a qu’une clé, sans clé de secours. Si elle était perdue, aucune copie installée ne se mettrait plus à jour seule. Crée la clé de secours une fois (« keygen-backup --out <fichier> », hors de ce PC), ajoute sa clé publique à UpdateKeys.Trusted et publie-la dans une release.");
+            return 0;
+        }
         case "manifest":
         {
             var version = ReleaseFeed.ParseVersion(Arg("--version")) ?? throw new InvalidOperationException("Indique --version x.y.z.");
@@ -120,7 +138,8 @@ try
             var signature = UpdateSignature.Decode(File.ReadAllText(Path.Combine(packages, UpdateManifest.SignatureName), Encoding.ASCII));
             if (signature is null || !UpdateSignature.Verify(json, signature, UpdateKeys.Trusted))
                 throw new InvalidOperationException($"mira-update.json n’est pas signé par une clé de UpdateKeys.Trusted : les copies installées le refuseraient. Vérifie la clé de signature (« public-key »). {RestoreKey}");
-            var manifest = UpdateManifest.Parse(json);
+            // Strict: what this tooling just wrote, so nothing in it is to be skipped.
+            var manifest = UpdateManifest.Parse(json, strict: true);
             if (Arg("--version") is { } expected && manifest.Version != ReleaseFeed.ParseVersion(expected))
                 throw new InvalidOperationException($"mira-update.json décrit la version {manifest.Version.ToString(3)}, pas {expected}.");
             foreach (var file in manifest.Files) { CheckListed(packages, file); ReleaseChecks.CheckSha256File(Path.Combine(packages, file.Name)); }
@@ -180,7 +199,7 @@ try
             return 0;
         }
         default:
-            Console.Error.WriteLine("Commandes : keygen, public-key, manifest --version x.y.z --packages <dossier> [--others <dossier>], verify --packages <dossier> [--others <dossier>] [--version x.y.z], notes --version x.y.z --out <fichier>, export-backup --out <fichier>, import-backup --in <fichier>, keygen-backup --out <fichier> ; option --key <fichier>.");
+            Console.Error.WriteLine("Commandes : keygen, public-key, check-key, manifest --version x.y.z --packages <dossier> [--others <dossier>], verify --packages <dossier> [--others <dossier>] [--version x.y.z], notes --version x.y.z --out <fichier>, export-backup --out <fichier>, import-backup --in <fichier>, keygen-backup --out <fichier> ; option --key <fichier>.");
             return 2;
     }
 }

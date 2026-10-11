@@ -25,6 +25,15 @@ public static class MiraWeb
     public static bool IsRepository(string? url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http" && uri.Host == "github.com"
         && uri.AbsolutePath.StartsWith("/sasou-web/Mira/releases/", StringComparison.OrdinalIgnoreCase);
+    /// <summary>The version a repository of Mira's offers alone (<see cref="RepositoryFor"/>); null for any other, the
+    /// latest release's included.</summary>
+    public static Version? PinnedVersion(string? url)
+    {
+        if (!IsRepository(url)) return null;
+        var path = new Uri(url!).AbsolutePath.Split('/');
+        // /sasou-web/Mira/releases/download/vX.Y.Z/jellyfin-manifest.json
+        return path is [_, _, _, _, "download", var tag, ReleaseChecks.JellyfinManifestName] ? ReleaseFeed.ParseVersion(tag) : null;
+    }
 
     /// <summary>
     /// The page with the QR code for phones, at an address of the server they can reach; with
@@ -45,6 +54,4 @@ public enum WebAppInstall
     NotAllowed,
     /// <summary>Jellyfin found no version for itself in Mira's repository (no Internet, or a Jellyfin too old).</summary>
     Unavailable,
-    /// <summary>Installed without restarting Jellyfin: it loads this version at its next restart, as it does its own updates.</summary>
-    Pending,
 }
