@@ -297,16 +297,20 @@ public partial class MainWindow
             }
             if (PhoneSetup.Is(steps, "web", PhoneSetup.Mark.ToDo))
             {
-                ShowPhoneStatus("Installation de Mira web, puis Jellyfin redémarre quelques secondes…");
+                ShowPhoneStatus("Vérification de Mira web…");
                 try
                 {
-                    switch (await client.InstallWebAppAsync())
+                    // Checked against this version's signed release before Jellyfin is pointed at it: nothing otherwise.
+                    var repository = await VerifiedMiraWebAsync();
+                    ShowPhoneStatus("Installation de Mira web, puis Jellyfin redémarre quelques secondes…");
+                    switch (await client.InstallWebAppAsync(repository))
                     {
                         case WebAppInstall.NotAllowed: problems.Add("Il faut le compte administrateur de Jellyfin pour installer Mira web."); break;
                         case WebAppInstall.Unavailable: problems.Add("Jellyfin n’a pas pu télécharger Mira web : vérifie que ce PC a accès à Internet, puis réessaie."); break;
                         case WebAppInstall.Restarting: waiting = "Mira web est installé ; Jellyfin finit de redémarrer, et cette carte se met à jour dès qu’il répond."; break;
                     }
                 }
+                catch (UpdateException ex) { problems.Add(ex.Message); }
                 catch (Exception ex) when (IsExpected(ex)) { problems.Add(Friendly(ex)); }
             }
             // Read again before anything else may: a reading started meanwhile (Mira's window back to the front) would

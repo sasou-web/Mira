@@ -326,8 +326,8 @@ await Test("Hors de chez toi : adresse Tailscale de ce PC, et Jellyfin qui accep
 });
 await Test("Mira web : installé sur Jellyfin depuis le dépôt de Mira, les autres dépôts gardés, puis Jellyfin redémarré", async () =>
 {
-    var repositories = """[{"Name":"Jellyfin Stable","Url":"https://repo.jellyfin.org/files/plugin/manifest.json","Enabled":true}]""";
-    var calls = new List<string>();
+    var repositories = $$"""[{"Name":"Jellyfin Stable","Url":"https://repo.jellyfin.org/files/plugin/manifest.json","Enabled":true},{"Name":"Mira","Url":"{{MiraWeb.LatestRepository}}","Enabled":true}]""";
+    var calls = new List<string>(); var repository = MiraWeb.RepositoryFor(new Version(0, 7, 5));
     bool installed = false, restarted = false, admin = true, available = true;
     using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
     {
@@ -355,16 +355,17 @@ await Test("Mira web : installé sur Jellyfin depuis le dépôt de Mira, les aut
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }));
     Assert(!await client.WebAppAvailableAsync(), "Mira web available before its installation");
-    Assert(await client.InstallWebAppAsync(restartLimit: TimeSpan.FromSeconds(10)) == WebAppInstall.Ready, "Installation not ready");
+    Assert(await client.InstallWebAppAsync(repository, TimeSpan.FromSeconds(10)) == WebAppInstall.Ready, "Installation not ready");
+    // The latest release's repository (Mira up to 0.7.4) gives way to the checked one.
     var list = JsonDocument.Parse(repositories).RootElement;
-    Assert(list.GetArrayLength() == 2 && list[0].GetProperty("Url").GetString()!.Contains("repo.jellyfin.org") && list[1].GetProperty("Url").GetString() == MiraWeb.Repository, "Repositories: " + repositories);
+    Assert(list.GetArrayLength() == 2 && list[0].GetProperty("Url").GetString()!.Contains("repo.jellyfin.org") && list[1].GetProperty("Url").GetString() == repository, "Repositories: " + repositories);
     Assert(await client.WebAppAvailableAsync(), "Mira web not available after its installation");
     calls.Clear();
-    Assert(await client.InstallWebAppAsync(restartLimit: TimeSpan.FromSeconds(10)) == WebAppInstall.Ready && !calls.Contains("POST Repositories"), "Mira's repository added twice");
+    Assert(await client.InstallWebAppAsync(repository, TimeSpan.FromSeconds(10)) == WebAppInstall.Ready && !calls.Contains("POST Repositories"), "Mira's repository added twice");
     available = false;
-    Assert(await client.InstallWebAppAsync(restartLimit: TimeSpan.FromSeconds(1)) == WebAppInstall.Unavailable, "No version for this Jellyfin: not reported");
+    Assert(await client.InstallWebAppAsync(repository, TimeSpan.FromSeconds(1)) == WebAppInstall.Unavailable, "No version for this Jellyfin: not reported");
     admin = false;
-    Assert(await client.InstallWebAppAsync() == WebAppInstall.NotAllowed, "A guest installed a plugin");
+    Assert(await client.InstallWebAppAsync(repository) == WebAppInstall.NotAllowed, "A guest installed a plugin");
     Assert(MiraWeb.SharePage("http://192.168.1.20:8096/") == "http://192.168.1.20:8096/Mira/#/partager", "Share page address");
 });
 await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro", async () =>
@@ -2318,6 +2319,87 @@ await Test("Mises à jour : le .dmg et Mira web vérifiés avant de signer (SHA-
     Manifest(JellyfinRepository("0.7.5.0", source, md5.ToUpperInvariant())); ReleaseChecks.CheckOthers(version, folder);
     File.Delete(Path.Combine(folder, "mira-jellyfin-0.7.5.zip")); Assert(Refused(() => ReleaseChecks.CheckOthers(version, folder)), "A missing plugin accepted");
     return Task.CompletedTask;
+});
+await Test("Mira web : vérifié sur la release signée de cette version de Mira avant que Jellyfin ne s’en serve", async () =>
+{
+    using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256); using var other = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+    var version = new Version(0, 7, 5); var plugin = Encoding.UTF8.GetBytes("extension Mira 0.7.5");
+    var files = new Dictionary<string, byte[]>(); var requested = new List<Uri>();
+    void Publish(ECDsa signer, bool withPlugin = true, string? source = null)
+    {
+        files.Clear();
+        UpdateFile Describe(string kind, string name, byte[] bytes) => new(kind, name, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant());
+        var manifest = new UpdateManifest("Mira", version, [Describe("zip", "Mira-0.7.5-win-x64.zip", "zip"u8.ToArray())])
+        { Others = withPlugin ? [Describe("mac", "Mira-0.7.5-mac-arm64.dmg", "dmg"u8.ToArray()), Describe("jellyfin", "mira-jellyfin-0.7.5.zip", plugin)] : [] };
+        files["mira-update.json"] = manifest.ToJson();
+        files["mira-update.json.sig"] = Encoding.ASCII.GetBytes(UpdateSignature.Encode(UpdateSignature.Sign(files["mira-update.json"], signer)));
+        files["mira-jellyfin-0.7.5.zip"] = plugin;
+        files["jellyfin-manifest.json"] = Encoding.UTF8.GetBytes(JellyfinRepository("0.7.5.0", source ?? "https://github.com/sasou-web/Mira/releases/download/v0.7.5/mira-jellyfin-0.7.5.zip", Convert.ToHexString(MD5.HashData(plugin)).ToLowerInvariant()));
+    }
+    using var handler = new Handler(request =>
+    {
+        var url = request.RequestUri!; requested.Add(url);
+        const string prefix = "/sasou-web/Mira/releases/download/v0.7.5/";
+        return Task.FromResult(url.AbsolutePath.StartsWith(prefix, StringComparison.Ordinal) && files.TryGetValue(url.AbsolutePath[prefix.Length..], out var bytes)
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) } : new HttpResponseMessage(HttpStatusCode.NotFound));
+    });
+    using var github = new UpdateClient(version, [UpdateSignature.PublicKey(key)], handler: handler);
+    async Task<string> Refusal() { try { await MiraWebRelease.VerifyAsync(github, version); return ""; } catch (UpdateException ex) { return ex.Message; } }
+    Publish(key);
+    Assert(await MiraWebRelease.VerifyAsync(github, version) == "https://github.com/sasou-web/Mira/releases/download/v0.7.5/jellyfin-manifest.json" && MiraWeb.RepositoryFor(version) == "https://github.com/sasou-web/Mira/releases/download/v0.7.5/jellyfin-manifest.json", "Signed release refused");
+    Assert(requested.All(u => u.Scheme == "https" && u.Host == "github.com" && u.AbsolutePath.StartsWith("/sasou-web/Mira/releases/download/v0.7.5/", StringComparison.Ordinal)), "Another address was asked");
+    // The plugin replaced on GitHub after signing, at the same size and with Jellyfin's MD5 updated to match: only the
+    // signed SHA-256 tells, and it is refused.
+    var forged = Encoding.UTF8.GetBytes("extension Miro 0.7.5");
+    files["mira-jellyfin-0.7.5.zip"] = forged;
+    files["jellyfin-manifest.json"] = Encoding.UTF8.GetBytes(JellyfinRepository("0.7.5.0", "https://github.com/sasou-web/Mira/releases/download/v0.7.5/mira-jellyfin-0.7.5.zip", Convert.ToHexString(MD5.HashData(forged)).ToLowerInvariant()));
+    Assert((await Refusal()).Contains("ne correspond pas"), "A plugin altered after signing accepted");
+    // Jellyfin's manifest sending it elsewhere (the latest release, which nobody checked): refused.
+    Publish(key, source: "https://github.com/sasou-web/Mira/releases/latest/download/mira-jellyfin-0.7.5.zip");
+    Assert((await Refusal()).Contains("ne correspond pas"), "A Jellyfin manifest pointing elsewhere accepted");
+    Publish(key); files["jellyfin-manifest.json"] = Encoding.UTF8.GetBytes(JellyfinRepository("0.7.5.0", "https://github.com/sasou-web/Mira/releases/download/v0.7.5/mira-jellyfin-0.7.5.zip", new string('0', 32)));
+    Assert((await Refusal()).Contains("ne correspond pas"), "A Jellyfin manifest with another MD5 accepted");
+    // Signed by a key Mira does not know, or not signed at all.
+    Publish(other);
+    Assert((await Refusal()).Contains("pas signé"), "A release signed by another key accepted");
+    Publish(key); files.Remove("mira-update.json.sig");
+    Assert((await Refusal()).Contains("pas de Mira web signé"), "A release without its signature accepted");
+    // A release without the plugin in its signed manifest (up to 0.7.4), or no release at all (a development copy).
+    Publish(key, withPlugin: false);
+    Assert((await Refusal()).Contains("pas de Mira web signé"), "A release signing Windows alone accepted for Mira web");
+    files.Clear();
+    Assert((await Refusal()).Contains("copie de développement"), "A missing release not said plainly");
+    // Which repositories in Jellyfin are Mira's.
+    foreach (var url in new[] { MiraWeb.LatestRepository, MiraWeb.RepositoryFor(new Version(0, 7, 4)), "https://github.com/Sasou-Web/mira/releases/latest/download/jellyfin-manifest.json" })
+        Assert(MiraWeb.IsRepository(url), "Mira's repository not recognised: " + url);
+    foreach (var url in new[] { "https://repo.jellyfin.org/files/plugin/manifest.json", "https://github.com/someone/Mira/releases/latest/download/jellyfin-manifest.json", "https://github.com.evil.example/sasou-web/Mira/releases/x", "file:///sasou-web/Mira/releases/", "", null })
+        Assert(!MiraWeb.IsRepository(url), "Another repository taken for Mira's: " + url);
+});
+await Test("Mira web : seul le dépôt vérifié de Mira reste dans Jellyfin, et une nouvelle version s’installe sans redémarrage", async () =>
+{
+    var pinned = MiraWeb.RepositoryFor(new Version(0, 7, 5));
+    var repositories = $$"""[{"Name":"Jellyfin Stable","Url":"https://repo.jellyfin.org/files/plugin/manifest.json","Enabled":true},{"Name":"Mira","Url":"{{MiraWeb.LatestRepository}}","Enabled":true},{"Name":"Ancienne","Url":"{{MiraWeb.RepositoryFor(new Version(0, 7, 4))}}","Enabled":false},{"Name":"Autre","Url":"https://example.org/manifest.json"}]""";
+    var calls = new List<string>(); var admin = true; string? installQuery = null;
+    using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+    {
+        var path = request.RequestUri!.AbsolutePath.TrimStart('/');
+        calls.Add($"{request.Method} {path}");
+        if (!admin) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+        if (path == "Repositories" && request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(repositories, Encoding.UTF8, "application/json") };
+        if (path == "Repositories") { repositories = await request.Content!.ReadAsStringAsync(); return new HttpResponseMessage(HttpStatusCode.NoContent); }
+        if (path == "Packages/Installed/Mira") { installQuery = request.RequestUri.Query; return new HttpResponseMessage(HttpStatusCode.NoContent); }
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
+    }));
+    Assert((await client.MiraRepositoriesAsync())!.SequenceEqual([MiraWeb.LatestRepository]), "Mira's enabled repositories not read");
+    Assert(await client.UpdateWebAppAsync(pinned) == WebAppInstall.Pending && !calls.Contains("POST System/Restart"), "Jellyfin restarted, or the update not installed");
+    var list = JsonDocument.Parse(repositories).RootElement.EnumerateArray().Select(x => x.GetProperty("Url").GetString()).ToList();
+    Assert(list.SequenceEqual(["https://repo.jellyfin.org/files/plugin/manifest.json", "https://example.org/manifest.json", pinned]), "Repositories: " + repositories);
+    Assert(installQuery!.Contains("repositoryUrl=" + Uri.EscapeDataString(pinned)) && installQuery.Contains("assemblyGuid=" + MiraWeb.PluginId), "Install request: " + installQuery);
+    Assert((await client.MiraRepositoriesAsync())!.SequenceEqual([pinned]), "The pinned repository not read back");
+    calls.Clear();
+    Assert(await client.UpdateWebAppAsync(pinned) == WebAppInstall.Pending && !calls.Contains("POST Repositories"), "Repositories saved again when already pinned");
+    admin = false; var before = repositories;
+    Assert(await client.MiraRepositoriesAsync() is null && await client.UpdateWebAppAsync(MiraWeb.RepositoryFor(new Version(0, 7, 6))) == WebAppInstall.NotAllowed && repositories == before, "A guest changed Jellyfin's repositories");
 });
 await Test("Mises à jour : copie en deux temps, dossier intact si la préparation échoue, résultat annoncé une fois", () =>
 {

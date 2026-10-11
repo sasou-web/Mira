@@ -180,6 +180,9 @@ public sealed class PlayerSettings
     public string TorLinkAnimeFolder { get; set; } = "";
     /// <summary>The last version whose welcome or "what's new" screen this profile went past; empty before 0.5.5.</summary>
     public string SeenVersion { get; set; } = "";
+    /// <summary>The version of Mira and the Jellyfin server for which Mira web was last brought up to date at startup
+    /// (« 0.7.5 http://192.168.1.20:8096/ »); empty before 0.7.5.</summary>
+    public string MiraWebUpdated { get; set; } = "";
     /// <summary>The window's size (outside fullscreen and the mini-player) and state when Mira last closed; 0: never saved.</summary>
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }
