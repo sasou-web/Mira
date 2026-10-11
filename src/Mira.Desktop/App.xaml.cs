@@ -58,14 +58,17 @@ public partial class App : Application
             if (!InstanceActivation.ShowExisting(key)) MessageBox.Show("Mira est déjà ouvert. Retrouve sa fenêtre dans la barre des tâches.", "Mira");
             Shutdown(); return;
         }
+        // --windows-check: the whole failure, stack included, for the harness that reads its output folder.
+        bool CheckFailed(Exception exception)
+        {
+            if (!e.Args.Contains("--windows-check") || !e.Args.Contains("--demo") || dataArg < 0) return false;
+            var output = e.Args[Array.IndexOf(e.Args, "--windows-check") + 1]; Directory.CreateDirectory(output);
+            File.WriteAllText(Path.Combine(output, "failure.txt"), exception.ToString());
+            return true;
+        }
         DispatcherUnhandledException += (_, args) =>
         {
-            if (e.Args.Contains("--windows-check") && e.Args.Contains("--demo") && dataArg >= 0)
-            {
-                var output = e.Args[Array.IndexOf(e.Args, "--windows-check") + 1]; Directory.CreateDirectory(output);
-                File.WriteAllText(Path.Combine(output, "failure.txt"), args.Exception.ToString());
-                args.Handled = true; Shutdown(1); return;
-            }
+            if (CheckFailed(args.Exception)) { args.Handled = true; Shutdown(1); return; }
             ErrorLog.Append(AppFiles.ProfileDirectory, args.Exception);
             args.Handled = true;
             // Closing, or before the window showed: nothing is left to retry from, only a process without a window that
@@ -86,6 +89,7 @@ public partial class App : Application
         // No window to retry from (the data folder read-only on a first start, a full disk): say why and end.
         catch (Exception ex)
         {
+            if (CheckFailed(ex)) { Shutdown(1); return; }
             ErrorLog.Append(AppFiles.ProfileDirectory, ex);
             if (!ShellValidation) MessageBox.Show(ex is IOException or UnauthorizedAccessException
                 ? $"Mira ne peut pas écrire dans son dossier de données :\n{AppFiles.ProfileDirectory}\n\nVérifie qu’il reste de la place sur le disque et que ce dossier n’est pas en lecture seule, ou place Mira dans un dossier à toi (Documents, par exemple), puis relance-le."

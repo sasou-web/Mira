@@ -146,6 +146,12 @@ public sealed class MainWindow : Window
         if (Args.Contains("--self-check")) { await Checks.SelfCheck.RunAsync(this); return; }
         if (Profile.LoadConnection() is { } connection) await ActivateAsync(connection);
         else ShowLogin();
+        // Once, beside what the opening already said (a cache recreated) rather than in its place.
+        if (Profile.SettingsUnreadable)
+        {
+            var said = "Tes réglages étaient illisibles : Mira est reparti des réglages par défaut." + (Profile.SettingsCopy is { } copy ? $" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}." : "");
+            Notice(NoticeText is { } shown ? shown + "\n" + said : said);
+        }
         _ = Updates.CheckAsync(this);
     }
 
@@ -167,7 +173,7 @@ public sealed class MainWindow : Window
         // is replaced by LibraryStore itself.
         catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
         {
-            ShowLogin("Mira ne peut pas écrire le cache de ce compte dans son dossier de données. Libère de la place sur le disque, puis reconnecte-toi.");
+            ShowLogin("Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier sans droits d’écriture ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.");
             if (Login is { } login) login.Server = connection.Server;
             return;
         }
@@ -340,13 +346,20 @@ public sealed class MainWindow : Window
     {
         if (_closing) return;
         e.Cancel = true; _closing = true;
-        if (WindowState is WindowState.Normal) (Settings.WindowWidth, Settings.WindowHeight) = (Math.Round(Width), Math.Round(Height));
-        Settings.WindowMaximized = WindowState == WindowState.Maximized;
-        Hide();
-        // The last progress report still leaves while the window is already gone.
-        await StopPlaybackAsync();
-        Profile.SaveSettings(Settings);
-        await CloseSessionAsync();
-        Close();
+        // Each step on its own and the close guaranteed: a full disk or a failing service must not skip the steps after
+        // it, nor leave Mira running without a window. Failures are logged (errors.log).
+        try
+        {
+            if (WindowState is WindowState.Normal) (Settings.WindowWidth, Settings.WindowHeight) = (Math.Round(Width), Math.Round(Height));
+            Settings.WindowMaximized = WindowState == WindowState.Maximized;
+            Hide();
+            // The last progress report still leaves while the window is already gone.
+            await AttemptAsync(StopPlaybackAsync);
+            Attempt(() => Profile.SaveSettings(Settings));
+            await AttemptAsync(CloseSessionAsync);
+        }
+        finally { Close(); }
+        void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }
+        async Task AttemptAsync(Func<Task> step) { try { await step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }
     }
 }

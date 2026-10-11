@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Win32;
+using Mira.Core;
 using Mira.Desktop.Playback;
 using Mira.Desktop.Views;
 
@@ -16,8 +17,18 @@ public partial class MainWindow
     private void AutoSaveSettings()
     {
         if (SettingsOverlay.Visibility != Visibility.Visible || _settingsBusy || !SettingsChanged()) return;
-        SaveSettings_Click(this, new()); SetNotice("Réglages enregistrés.");
+        SetNotice(ApplySettings() ? "Réglages enregistrés." : SettingsNotSaved);
     }
+    /// <summary>
+    /// Writes the settings. A file that cannot be written (full disk, held by another program) is no reason to stop what
+    /// Mira was doing: the settings stay applied for this session, and closing Mira writes them again.
+    /// </summary>
+    private bool TrySaveSettings()
+    {
+        try { _profile.SaveSettings(_settings); return true; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { ErrorLog.Append(_profile.DirectoryPath, ex); return false; }
+    }
+    private const string SettingsNotSaved = "Réglages appliqués, mais pas enregistrés : le disque est plein ou le fichier des réglages est utilisé par un autre programme. Mira réessaiera en se fermant.";
     private bool SettingsChanged() =>
         _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true)
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
@@ -88,7 +99,9 @@ public partial class MainWindow
         MpvPathBox.Text = dialog.FileName;
         EngineStatus.Text = "Moteur sélectionné · il sera utilisé à la prochaine lecture après enregistrement.";
     }
-    private void SaveSettings_Click(object sender, RoutedEventArgs e)
+    private void SaveSettings_Click(object sender, RoutedEventArgs e) => ApplySettings();
+    /// <summary>What the page shows becomes Mira's settings; false when they could not be written.</summary>
+    private bool ApplySettings()
     {
         _settings.HardwareDecoding = HardwareCheck.IsChecked == true; _settings.AutoNext = AutoNextCheck.IsChecked == true; _settings.RememberPosition = RememberCheck.IsChecked == true;
         _settings.ShowProgress = ShowProgressCheck.IsChecked == true; _settings.ReduceMotion = ReduceMotionCheck.IsChecked == true; _settings.PosterDensity = Choice(DensityChoice);
@@ -103,12 +116,13 @@ public partial class MainWindow
         // Switched back on: look for a new version now rather than at the next scheduled check.
         var updatesAgain = !_settings.AutoUpdate && AutoUpdateCheck.IsChecked == true;
         _settings.AutoUpdate = AutoUpdateCheck.IsChecked == true;
-        _profile.SaveSettings(_settings);
+        var saved = TrySaveSettings();
         if (updatesAgain) _ = _updater?.CheckAsync();
         if (automaticAgain) _torlinkImporter?.RestartBaseline();
         if (_torlinkEnabled) ApplyTorLinkLibraries();
         _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.Set("sub-font-size", _settings.SubtitleSize.ToString(CultureInfo.InvariantCulture));
-        RenderLibrary(); UpdateHeroClock(); SettingsSaveStatus.Text = "Préférences enregistrées.";
+        RenderLibrary(); UpdateHeroClock(); SettingsSaveStatus.Text = saved ? "Préférences enregistrées." : SettingsNotSaved;
+        return saved;
     }
     /// <summary>What Mira found: the TorLink installation and the library folders read from Jellyfin.</summary>
     private void DescribeTorLinkSettings()

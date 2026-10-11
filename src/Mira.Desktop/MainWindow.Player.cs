@@ -88,7 +88,8 @@ public partial class MainWindow
             _duration = TimeSpan.FromTicks(item.RunTimeTicks ?? 0).TotalSeconds;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
             PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
-            DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
+            // The next episode can start while the settings page is open over the mini-player: it leaves it.
+            AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
             LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
             NavigationRail.Visibility = Visibility.Collapsed;
             // The player's keys must reach Mira, not the TorLink terminal left open underneath.

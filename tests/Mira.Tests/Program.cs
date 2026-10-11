@@ -440,15 +440,19 @@ await Test("Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu�
     var stuck = await Run(new([ScanTask("Idle", null, "2026-10-01T10:00:00Z")]), startLimitMs: 60);
     Assert(stuck.Scanned && stuck.Calls.Count < 200, "A scan that never starts is waited for: " + stuck.Calls.Count + " requests");
 });
-await Test("Serveur muet : le délai de 12 s se distingue d’une annulation de Mira, l’actualisation le dit", async () =>
+await Test("Serveur muet : le délai de Jellyfin (12 s) lève une annulation qui laisse intact le jeton de Mira", async () =>
 {
-    // Never answers: only HttpClient's own limit ends the request.
+    // The premise of the window's filters, which only skip a cancellation when (ct.IsCancellationRequested): those
+    // filters themselves need the WPF window and are not run here.
+    // Never answers: only HttpClient's own limit ends the request, shortened from its real 12 s for the test.
     using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(_ => new TaskCompletionSource<HttpResponseMessage>().Task));
+    var http = (HttpClient)typeof(JellyfinClient).GetField("_http", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(client)!;
+    Assert(http.Timeout == TimeSpan.FromSeconds(12), "Jellyfin's time limit changed: " + http.Timeout);
+    http.Timeout = TimeSpan.FromSeconds(1);
     using var refresh = new CancellationTokenSource(); var clock = Stopwatch.StartNew();
     try { await client.BrowseAsync(ct: refresh.Token); throw new Exception("A silent server answered"); }
-    // The window skips a cancellation only when its own token asks for it (when (ct.IsCancellationRequested)): this
-    // one must reach the offline notice, not leave the skeleton on screen.
-    catch (OperationCanceledException ex) { Assert(!refresh.IsCancellationRequested && ex.InnerException is TimeoutException && clock.Elapsed > TimeSpan.FromSeconds(11), $"Timeout not told apart from a cancellation ({clock.Elapsed})"); }
+    // This one must reach the offline notice, not leave the skeleton on screen.
+    catch (OperationCanceledException ex) { Assert(!refresh.IsCancellationRequested && ex.InnerException is TimeoutException && clock.Elapsed > TimeSpan.FromSeconds(.9), $"Timeout not told apart from a cancellation ({clock.Elapsed})"); }
     using var replaced = new CancellationTokenSource(); var pending = client.BrowseAsync(ct: replaced.Token); replaced.Cancel();
     try { await pending; throw new Exception("A cancelled refresh completed"); }
     catch (OperationCanceledException) { Assert(replaced.IsCancellationRequested, "Mira's own cancellation was lost"); }
@@ -1258,7 +1262,12 @@ await Test("Réglages illisibles : réglages par défaut, ancien fichier gardé 
     held.SaveConnection(new("http://localhost/", "user", "Alice", "token", held.DeviceId));
     using (File.Open(Path.Combine(held.DirectoryPath, "settings.json"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
     using (File.Open(Path.Combine(held.DirectoryPath, "session.protected"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
-        Assert(held.LoadSettings().Volume == new PlayerSettings().Volume && held.SettingsUnreadable && held.LoadConnection() is null, "Settings or session held by another program not handled");
+        Assert(held.LoadSettings().Volume == new PlayerSettings().Volume && held.SettingsUnreadable && held.SettingsCopy is null && held.LoadConnection() is null, "Settings or session held by another program not handled");
+    // Let go before the first save: the intact file is copied before the defaults replace it, once.
+    held.SaveSettings(new() { Volume = 70 });
+    Assert(held.SettingsCopy is { } kept && File.Exists(kept) && JsonSerializer.Deserialize<PlayerSettings>(File.ReadAllText(kept), Json.Options)?.Volume == 45, "Settings held at loading were replaced without a copy");
+    held.SaveSettings(new() { Volume = 75 });
+    Assert(JsonSerializer.Deserialize<PlayerSettings>(File.ReadAllText(held.SettingsCopy!), Json.Options)?.Volume == 45 && Directory.GetFiles(held.DirectoryPath, "settings.json.bad-*").Length == 1, "The copy was replaced by a later save");
     return Task.CompletedTask;
 });
 await Test("Progression bornée et libellés d’épisodes", () =>

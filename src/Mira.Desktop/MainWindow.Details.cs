@@ -34,7 +34,7 @@ public partial class MainWindow
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
         ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _favoriteOverride = null; _similar = [];
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed;
-        _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
+        AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
         if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _items.FindIndex(x => x.Id == item.Id)), true), animate: false);

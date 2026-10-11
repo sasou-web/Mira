@@ -32,7 +32,8 @@ public partial class MainWindow
         if (current is null || _args.Contains("--demo") || _args.Contains("--autoplay")) { AnnounceUpdateResult(whatsNewShown: false); return; }
         var seen = ReleaseFeed.ParseVersion(_settings.SeenVersion);
         var screen = WhatsNew.Decide(_settings.SeenVersion, current, knownProfile: !_profile.IsNew);
-        if (_settings.SeenVersion != current.ToString(3)) { _settings.SeenVersion = current.ToString(3); _profile.SaveSettings(_settings); }
+        // Not written now (file held by another program, full disk): the opening goes on, and closing Mira writes it again.
+        if (_settings.SeenVersion != current.ToString(3)) { _settings.SeenVersion = current.ToString(3); TrySaveSettings(); }
         if (screen == StartupScreen.Welcome && LoginOverlay.Visibility == Visibility.Visible) ShowWelcome();
         else if (screen == StartupScreen.WhatsNew) ShowWhatsNew(WhatsNew.Since(seen, current));
         AnnounceUpdateResult(whatsNewShown: screen == StartupScreen.WhatsNew);
