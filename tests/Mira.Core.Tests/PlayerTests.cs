@@ -141,5 +141,16 @@ internal static class PlayerTests
             Assert(MpvLists.Chapters(null).Count == 0 && MpvLists.Chapters("{").Count == 0, "Unreadable chapter list");
             return Task.CompletedTask;
         });
+        await Test("Passages : l’épisode suivant proposé dans les 20 dernières secondes sans générique, compte à rebours en temps de lecture", () =>
+        {
+            SkipSegment intro = new(SkipKind.Intro, 0, 90), credits = new(SkipKind.Outro, 1380, 1500);
+            Assert(PlaybackMarkers.Offer([intro], 30, 1500, hasNext: true) == intro, "The active passage first");
+            Assert(PlaybackMarkers.Offer([], 1485, 1500, hasNext: true) == new SkipSegment(SkipKind.Outro, 1480, 1500), "Next episode not offered at the end");
+            Assert(PlaybackMarkers.Offer([], 1485, 1500, hasNext: false) is null && PlaybackMarkers.Offer([], 1479, 1500, hasNext: true) is null
+                && PlaybackMarkers.Offer([], 95, 100, hasNext: true) is null && PlaybackMarkers.Offer([], 0, 10, hasNext: true) is null, "Offered without a next episode, too early, or on a short clip");
+            Assert(PlaybackMarkers.Offer([credits], 1400, 1500, hasNext: true) == credits, "The credits marker was not offered");
+            Assert(PlaybackMarkers.CountdownEnd(1400, credits) == 1410 && PlaybackMarkers.CountdownEnd(1370, credits) == 1390, "Countdown counted from the wrong time");
+            return Task.CompletedTask;
+        });
     }
 }

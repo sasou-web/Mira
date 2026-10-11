@@ -85,6 +85,23 @@ public static class PlaybackMarkers
         foreach (var segment in segments) if (position >= segment.Start - .25 && position < segment.End - 1) return segment;
         return null;
     }
+    /// <summary>Without a credits marker, the next episode is offered over this many last seconds.</summary>
+    public const double NextEpisodeLead = 20;
+    /// <summary>With "Enchaîner les épisodes", the next-episode button counts down over this much playback, as on streaming services.</summary>
+    public const double CountdownLength = 10;
+    /// <summary>
+    /// The passage offered over the video at <paramref name="position"/>: the active one, or, with a next episode and
+    /// no credits marker, the last <see cref="NextEpisodeLead"/> seconds of a title over two minutes long.
+    /// </summary>
+    public static SkipSegment? Offer(IReadOnlyList<SkipSegment> segments, double position, double duration, bool hasNext)
+    {
+        var active = Active(segments, position);
+        if (active is null && hasNext && duration > 120 && position > 0 && duration - position <= NextEpisodeLead)
+            active = new SkipSegment(SkipKind.Outro, duration - NextEpisodeLead, duration);
+        return active;
+    }
+    /// <summary>Where the next-episode countdown ends, in playback time: pausing pauses it.</summary>
+    public static double CountdownEnd(double position, SkipSegment segment) => Math.Max(position, segment.Start) + CountdownLength;
     /// <summary>True when skipping would only leave further credits/previews or a few seconds of video.</summary>
     public static bool EndsPlayback(IReadOnlyList<SkipSegment> segments, SkipSegment segment, double duration)
     {
