@@ -115,7 +115,7 @@ public partial class MainWindow
             await ActivateConnectionAsync(connection);
             OpenGuide($"Jellyfin est prêt. Range tes vidéos dans {folders.Root}.");
         }
-        catch (Exception ex) when (ex is InstallException or ArgumentException) { SetupFailed(ex.Message); }
+        catch (Exception ex) when (ex is InstallException or UserInputException) { SetupFailed(ex.Message); }
         catch (Exception ex) when (IsExpected(ex)) { SetupFailed(Friendly(ex)); }
         finally { SetServerSetupBusy(false); }
     }

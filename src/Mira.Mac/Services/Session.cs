@@ -79,12 +79,11 @@ public sealed class Session : IAsyncDisposable
 /// <summary>The errors Mira expects from the network and the disk, and how it words them.</summary>
 public static class Errors
 {
-    public static bool Expected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException
-        or OperationCanceledException or System.Text.Json.JsonException or TimeoutException or SqliteException;
+    public static bool Expected(Exception e) => ExpectedErrors.Are(e) || e is TimeoutException;
     public static string Friendly(Exception ex) => ex switch
     {
         UnauthorizedAccessException => ex.Message,
-        ArgumentException => ex.Message,
+        UserInputException => ex.Message,
         ServerDiscoveryException => ex.Message,
         OperationCanceledException or TimeoutException => "Jellyfin met trop de temps à répondre.",
         HttpRequestException h when h.StatusCode is not null => h.Message,

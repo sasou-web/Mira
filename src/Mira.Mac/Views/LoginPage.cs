@@ -69,7 +69,7 @@ public sealed class LoginPage : UserControl
         JellyfinClient? client = null;
         try
         {
-            if (string.IsNullOrWhiteSpace(_user.Text)) throw new ArgumentException("Indique ton nom d’utilisateur Jellyfin.");
+            if (string.IsNullOrWhiteSpace(_user.Text)) throw new UserInputException("Indique ton nom d’utilisateur Jellyfin.");
             // Find the server before sending the password.
             label.Text = "Recherche du serveur…";
             var server = await ServerAddress.DiscoverAsync(_server.Text ?? "");

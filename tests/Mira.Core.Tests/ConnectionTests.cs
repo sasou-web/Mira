@@ -42,6 +42,23 @@ internal static class ConnectionTests
             Assert(ServerAddress.ParseVersion("10.11.0-rc2") == new Version(10, 11, 0) && ServerAddress.ParseVersion("inconnue") is null, "Server version parsing");
             return Task.CompletedTask;
         });
+        await Test("Erreurs attendues : une saisie refusée est dite, une ArgumentException de Mira ou de .NET est un défaut signalé", async () =>
+        {
+            // What the person typed: refused with a message written for them, and counted as expected on Windows and Mac.
+            foreach (var input in Inputs())
+            {
+                try { input(); throw new Exception("Accepted"); }
+                catch (UserInputException ex) { Assert(ExpectedErrors.Are(ex) && ex.Message.Length > 0 && !ex.Message.Contains("Parameter"), "Input refusal: " + ex.Message); }
+            }
+            try { await JellyfinSetup.ConfigureAsync(new Uri("http://127.0.0.1:1/"), "", "secret", MediaFolders.Under(Path.Combine(testRoot, "setup-input"))); throw new Exception("Accepted"); }
+            catch (UserInputException) { }
+            // Anything else from the Argument family is a bug: it reaches the app's handler (errors.log) instead of a quiet catch.
+            foreach (var bug in new Exception[] { new ArgumentException("x"), new ArgumentNullException("x"), new ArgumentOutOfRangeException("x"), new InvalidOperationException(), new NullReferenceException() })
+                Assert(!ExpectedErrors.Are(bug), bug.GetType().Name + " counted as expected");
+            foreach (var expected in new Exception[] { new HttpRequestException(), new IOException(), new ServerDiscoveryException("x"), new UnauthorizedAccessException(), new TaskCanceledException(), new JsonException(), new Microsoft.Data.Sqlite.SqliteException("x", 11) })
+                Assert(ExpectedErrors.Are(expected), expected.GetType().Name + " not counted as expected");
+            static Action[] Inputs() => [() => ServerAddress.Candidates("  "), () => JellyfinClient.NormalizeServer("http://user:secret@localhost")];
+        });
         await Test("Recherche du serveur : première adresse Jellyfin dans l’ordre, autres serveurs et versions anciennes refusés", async () =>
         {
             HttpResponseMessage Info(string version = "10.10.3", string product = "Jellyfin Server") => JsonResponse(new { ServerName = "Salon", Version = version, ProductName = product, Id = "server-1" });
