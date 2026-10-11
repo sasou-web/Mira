@@ -19,11 +19,7 @@ public partial class MainWindow
     private MediaItem? _nextItem;
     // The pill stays while the controls are shown; otherwise it lingers a few seconds, as in Jellyfin.
     private static readonly TimeSpan SkipLinger = TimeSpan.FromSeconds(8);
-    private const double NextEpisodeLead = 20;
     private bool SkipAvailable => _skipShown && _activeSkip is not null;
-
-    // With "Enchaîner les épisodes", the next-episode button counts down over this much playback, as on streaming services.
-    private const double CountdownLength = 10;
     private double? _countdownEnd;
     private bool _autoNextCancelled;
     private void ResetMarkers()
@@ -79,13 +75,8 @@ public partial class MainWindow
     {
         if (SkipHost is null) return;
         SkipSegment? active = null;
-        if (_playing && _loaded && !_miniPlayer)
-        {
-            active = PlaybackMarkers.Active(_segments, _position);
-            // Without a credits marker, offer the next episode during the last seconds.
-            if (active is null && _nextItem is not null && _duration > 120 && _position > 0 && _duration - _position <= NextEpisodeLead)
-                active = new SkipSegment(SkipKind.Outro, _duration - NextEpisodeLead, _duration);
-        }
+        // Without a credits marker, the next episode during the last seconds.
+        if (_playing && _loaded && !_miniPlayer) active = PlaybackMarkers.Offer(_segments, _position, _duration, _nextItem is not null);
         if (active != _activeSkip)
         {
             _activeSkip = active; _skipSince = DateTimeOffset.UtcNow; _countdownEnd = null;
@@ -95,7 +86,7 @@ public partial class MainWindow
                 SkipText.Text = PlaybackMarkers.Label(segment.Kind, _playingItem?.Type == "Episode", _skipToNext);
                 AutomationProperties.SetName(SkipButton, SkipText.Text);
                 SkipButton.ToolTip = SkipText.Text + " · S";
-                if (_skipToNext && _settings.AutoNext && !_autoNextCancelled) _countdownEnd = Math.Max(_position, segment.Start) + CountdownLength;
+                if (_skipToNext && _settings.AutoNext && !_autoNextCancelled) _countdownEnd = PlaybackMarkers.CountdownEnd(_position, segment);
             }
         }
         // Playback time drives the countdown, so pausing pauses it too.

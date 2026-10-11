@@ -57,7 +57,6 @@ public sealed class PlayerPage : UserControl
     private SkipSegment? _activeSkip;
     private bool _skipToNext, _autoNextCancelled;
     private double? _countdownEnd;
-    private const double NextEpisodeLead = 20, CountdownLength = 10;
     /// <summary>For the self-check.</summary>
     public MpvPlayer? Engine => _mpv;
     public IVideoSurface? Surface => _surface;
@@ -564,13 +563,8 @@ public sealed class PlayerPage : UserControl
     private void UpdateSkip()
     {
         SkipSegment? active = null;
-        if (_loaded && !_stopped)
-        {
-            active = PlaybackMarkers.Active(_segments, _position);
-            // Without a credits marker, offer the next episode during the last seconds.
-            if (active is null && _nextItem is not null && _duration > 120 && _position > 0 && _duration - _position <= NextEpisodeLead)
-                active = new SkipSegment(SkipKind.Outro, _duration - NextEpisodeLead, _duration);
-        }
+        // Without a credits marker, the next episode during the last seconds.
+        if (_loaded && !_stopped) active = PlaybackMarkers.Offer(_segments, _position, _duration, _nextItem is not null);
         if (active != _activeSkip)
         {
             _activeSkip = active; _countdownEnd = null;
@@ -579,7 +573,7 @@ public sealed class PlayerPage : UserControl
                 _skipToNext = _nextItem is not null && PlaybackMarkers.EndsPlayback(_segments, segment, _duration);
                 _skipText.Text = PlaybackMarkers.Label(segment.Kind, _item?.Type == "Episode", _skipToNext);
                 ToolTip.SetTip(_skip, _skipText.Text + " · S");
-                if (_skipToNext && _shell.Settings.AutoNext && !_autoNextCancelled) _countdownEnd = Math.Max(_position, segment.Start) + CountdownLength;
+                if (_skipToNext && _shell.Settings.AutoNext && !_autoNextCancelled) _countdownEnd = PlaybackMarkers.CountdownEnd(_position, segment);
             }
         }
         // Playback time drives the countdown, so pausing pauses it too.
