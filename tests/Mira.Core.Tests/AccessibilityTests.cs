@@ -32,7 +32,7 @@ internal static class AccessibilityTests
                 .Concat(Directory.EnumerateFiles(Path.Combine(repository, "src", "Mira.Desktop"), "*.cs", SearchOption.AllDirectories))
                 .Concat(Directory.EnumerateFiles(Path.Combine(repository, "src", "Mira.Mac"), "*.cs", SearchOption.AllDirectories))
                 .Where(x => !x.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) && !x.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar));
-            var colour = new Regex("""(?:<(?:TextBlock|Run|TextBox)\b[^>]*?\bForeground="|Property="Foreground" Value="|x:Key="(?:Muted|Faint)" Color="|Foreground = (?:Brush|Frozen|Ui\.Brush)\("|(?:Muted|Faint) = Brush\(")(#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?)\b""");
+            var colour = new Regex("""(?:<(?:TextBlock|Run|TextBox)\b[^>]*?\bForeground="|Property="Foreground" Value="|x:Key="(?:Muted|Faint|Text|TextSecondary)" Color="|Foreground = (?:Brush|Frozen|Ui\.Brush)\("|(?:Muted|Faint) = Brush\(")(#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?)\b""");
             var checkedCount = 0; var faults = new List<string>();
             foreach (var file in sources)
             {
