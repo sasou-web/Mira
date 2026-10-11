@@ -85,7 +85,10 @@ public partial class MainWindow
         var visual = (FrameworkElement)Content;
         var dpi = VisualTreeHelper.GetDpi(visual);
         var bitmap = new RenderTargetBitmap((int)Math.Ceiling(visual.ActualWidth * dpi.DpiScaleX), (int)Math.Ceiling(visual.ActualHeight * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
-        bitmap.Render(visual); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        // The window's own background first: the content alone is see-through where the window shows (unreadable on a light page).
+        var backdrop = new DrawingVisual();
+        using (var context = backdrop.RenderOpen()) context.DrawRectangle(Background, null, new Rect(0, 0, visual.ActualWidth, visual.ActualHeight));
+        bitmap.Render(backdrop); bitmap.Render(visual); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using (var file = File.Create(Path.Combine(directory, name + ".png"))) encoder.Save(file);
         // After the capture, which shows the screen at fault.
         AssertNamed(name);

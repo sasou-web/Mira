@@ -1,13 +1,49 @@
-Mira 0.5.2 - local validation, 2026-09-29
-Core behaviour and persistence (without --torlink-integration: the real TorLink test was not re-run):
+Résultats des tests exécutés le 2026-10-11 sur le code du commit 34c40e0 (lots 1 à 10 de la revue), sous Linux (conteneur, .NET SDK 10.0.401, Node.js 22.22.0).
+Ne figurent ici que les tests lancés ce jour-là, sans données personnelles. Le reste tourne dans la CI de GitHub Actions, dont chaque exécution garde ses propres résultats :
+- ci.yml : tests/Mira.Core.Tests sous Linux ; sous Windows, tests/Mira.Tests (les mêmes, puis ceux de l'app Windows), captures --public-gallery, paquets.
+- web.yml : syntaxe et tests Node de Mira web, contrôle Chromium (tools/web/check.mjs) et Safari (tools/web/safari.mjs) contre un vrai Jellyfin 12.1.
+- mac.yml : Mira.app, --self-check et --video-probe sur un Mac.
+Comment les lancer : docs/TESTS.md.
+
+== dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-build
+PASS  URL de serveur : sous-chemin conservé, URL invalide refusée
+PASS  Adresse saisie : sans http://, avec port, ou copiée depuis la page web de Jellyfin
+PASS  Erreurs attendues : une saisie refusée est dite, une ArgumentException de Mira ou de .NET est un défaut signalé
+PASS  Recherche du serveur : première adresse Jellyfin dans l’ordre, autres serveurs et versions anciennes refusés
+PASS  Certificat HTTPS refusé : pas de repli en http:// pour un nom d’Internet, et la raison est dite
+PASS  Mot de passe en http:// : demandé seulement hors de chez toi (adresses résolues), jamais pour le réseau local ni Tailscale
+PASS  Écoute de Jellyfin : la session part dans l’en-tête, jamais dans l’adresse (Jellyfin 10.11 et suivants)
+PASS  Authentification : corps JSON, jeton dans l’en-tête, recherche encodée
+PASS  Hors de chez toi : adresse Tailscale de ce PC, et Jellyfin qui accepte ses appareils sans s’ouvrir à Internet
+PASS  Serveur muet : le délai de Jellyfin (12 s) lève une annulation qui laisse intact le jeton de Mira
+PASS  Déconnexion : Jellyfin oublie la session (Sessions/Logout), sans jamais bloquer ni lever
+PASS  Effacer les données d’un compte : son cache et ses affiches seulement, ni les autres comptes ni les réglages
+PASS  Mac : jeton de session dans le trousseau, repris du fichier, gardé dans le fichier si le trousseau refuse
 PASS  Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture
 PASS  Reprise : ordre persistant et réponse serveur retardée après une lecture locale
 PASS  Reprise : une ancienne lecture absente du serveur ne revient que si sa synchronisation attend
-PASS  URL de serveur : sous-chemin conservé, URL invalide refusée
-PASS  Authentification : corps JSON, jeton dans l’en-tête, recherche encodée
+PASS  Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro
+PASS  Fiche : un acteur ou un réalisateur mène à ses titres de la bibliothèque, avec les autres filtres
+PASS  Série : tous ses épisodes, même au-delà de 500, sans ceux que Jellyfin liste comme manquants
+PASS  Série : une saison de plus de 100 épisodes se choisit par tranches de 100
+PASS  Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu’à la fin, refus d’un compte non administrateur
 PASS  Filtres : recherche, genre, année et pagination envoyés ensemble à Jellyfin
+PASS  Fiche : distribution, réalisation, titres similaires et tri par dernière lecture
 PASS  Facettes : genres récursifs et années de toute la bibliothèque
-PASS  Préférences : migration des anciens réglages et persistance de l’apparence
+PASS  Cache de bibliothèque illisible : mis de côté et recréé, le compte s’ouvre
+PASS  Cache de bibliothèque aux pages abîmées, en-tête intact : mis de côté et recréé, le compte s’ouvre
+PASS  Préchargement : une seule requête partagée, données invalidées à l’actualisation
+PASS  Préchargement : une erreur temporaire ne bloque pas la prochaine ouverture
+PASS  Cache disque : au-delà du budget, les images les moins récemment vues partent
+PASS  Cache de bibliothèque : pages anciennes oubliées ; accueil, reprise, historique et envois en attente gardés
+PASS  Continuer à regarder : un épisode montre sa saison ou lui-même, pas l’image d’une autre saison
+PASS  Continuer à regarder : la vignette d’une saison demandée une fois, une panne n’empêche rien, seule l’annulation de Mira remonte
+PASS  Images : largeur décodée = taille affichée × échelle de l’écran, au palier supérieur
+PASS  Images en mémoire : une requête par image, les moins récentes libérées au-delà du budget, tout libéré à la réduction
+PASS  Cache de bibliothèque : une page identique n’est pas réécrite, une page changée l’est
+PASS  Couleur du bandeau : teintes différentes pour des images rouges et bleues
+PASS  Couleur du bandeau : transparence et images neutres gardent un accent blanc
+PASS  Jellyfin : dossiers des bibliothèques et signalement des médias, sans déconnexion en cas de refus
 PASS  File durable : démarrage et arrêt préservés, progression coalescée
 PASS  Une réponse ancienne ne supprime pas une progression plus récente
 PASS  Reprise locale et séparation des comptes
@@ -18,193 +54,99 @@ PASS  Générique terminé avant 90 % : vu et reprise effacée, même après red
 PASS  Marquage vu : échec puis reprise sans renvoyer l’arrêt déjà livré
 PASS  Synchronisation : un rapport refusé définitivement ne bloque pas la file
 PASS  Synchronisation : l’arrêt final part avant la fermeture
-PASS  Session protégée par Windows, mot de passe absent du stockage
+PASS  Stockage local en panne : rien ne remonte au lecteur, l’erreur est affichée et la fermeture ne bloque pas
+PASS  Rythmes : secours 45 s sans WebSocket et 5 min avec, progression toutes les 10 s en lecture, rien en pause
+PASS  Ligne d’état : « Hors connexion » gardé jusqu’à ce que Jellyfin réponde de nouveau
+PASS  Synchronisation : un envoi échoué est réessayé seul, et aussitôt quand Jellyfin répond de nouveau
+PASS  Volume : au-delà de 100 %, mpv reste à 100 et le filtre amplifie sans saturer
 PASS  Progression bornée et libellés d’épisodes
 PASS  Défilement : même distance à 30, 60 et 144 images/s
 PASS  Défilement : inversion immédiate et bornes après changement du contenu
 PASS  Carrousel : progression, pause, reprise et changement manuel
-PASS  Préchargement : une seule requête partagée, données invalidées à l’actualisation
-PASS  Préchargement : une erreur temporaire ne bloque pas la prochaine ouverture
-PASS  Couleur du bandeau : teintes différentes pour des images rouges et bleues
-PASS  Couleur du bandeau : transparence et images neutres gardent un accent blanc
 PASS  Segments Jellyfin : types demandés, passages inconnus ou trop courts ignorés
 PASS  Chapitres nommés : opening, ending, récap, aperçu et générique selon sa position
 PASS  Passages : segments serveur prioritaires, passage actif et fin vers l’épisode suivant
-PASS  TorLink : titres, années et épisodes lus dans des noms de sortie réels
-PASS  TorLink : sous-titres, bonus, clés de dossiers et noms Windows
-PASS  TorLink : films, épisodes, packs et bonus rangés dans les dossiers existants
-PASS  TorLink : lien physique, copie entre disques, fichier existant jamais remplacé, rien hors de la bibliothèque
-PASS  TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé
-PASS  TorLink : fichier déjà présent jamais déplacé, classement conservé, déplacement repris et journal illisible gardé
-PASS  TorLink : fichiers exacts du .torrent, chemins normalisés et fichiers incomplets attendus
-PASS  Jellyfin : dossiers des bibliothèques et signalement des médias, sans déconnexion en cas de refus
-PASS  Pseudo-console : sortie UTF-8, taille et code de sortie d’un programme console
 PASS  Lecteur : « Épisode 3 / 12 », pistes nommées en français, vitesse et décalage
+PASS  Lecteur : pistes et chapitres lus de mpv de la même façon sur Windows et sur Mac
+PASS  Passages : l’épisode suivant proposé dans les 20 dernières secondes sans générique, compte à rebours en temps de lecture
+PASS  Mira web : installé sur Jellyfin depuis le dépôt de Mira, les autres dépôts gardés, puis Jellyfin redémarré
+PASS  Journal de Jellyfin : la cause d’un démarrage raté est lue, pas les erreurs ordinaires ni les anciennes
+PASS  Mira web : sous-titres d’une conversion à l’heure dans le lecteur d’Apple (listes HLS de Jellyfin réécrites)
+PASS  Mira web : seul le style de la page est permis, par son empreinte (politique de sécurité)
+PASS  Mira web : chaque fichier de l’app est servi par l’extension, un type inconnu est signalé
+PASS  Mira sur ton téléphone : étapes cochées, « Tout préparer » en une autorisation, QR code qui marche partout avec Tailscale
+PASS  Autres appareils : l’adresse du PC sur le réseau de la maison, pas celle d’un adaptateur virtuel
+PASS  Mira web : vérifié sur la release signée de cette version de Mira avant que Jellyfin ne s’en serve
+PASS  Mira web : au démarrage, le dépôt de Mira avance jusqu’à cette version vérifiée, jamais en arrière, sans rien installer
+PASS  TorLink : Node.js installé par Mira depuis le zip officiel vérifié, TorLink figé et installé par npm sans scripts
+PASS  TorLink : titres, années et épisodes lus dans des noms de sortie réels
+PASS  TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé
+PASS  TorLink : dossier de téléchargement sur le disque de la bibliothèque, choisi seulement si TorLink n’en a pas
+PASS  TorLink : fichiers exacts du .torrent, chemins normalisés et fichiers incomplets attendus
+PASS  Fenêtre : taille normale sur un grand écran, réduite et jamais agrandie sur un petit
+PASS  Fenêtre : rouverte à sa place si son écran est là, sinon centrée sur l’écran de la souris, à l’échelle de cet écran
+PASS  Menu Démarrer : la copie installée le garde, une autre copie ne le remplit que s’il manque ou ne mène nulle part
+PASS  Moteur mpv : téléchargé, vérifié et extrait dans le profil ; altéré ou incomplet, jamais installé
+PASS  Nouveautés : bienvenue sur un profil neuf, points forts après une mise à jour, notes de version courtes
 PASS  Mises à jour : manifeste signé accepté ; modifié, mal formé ou d’une autre clé, refusé
 PASS  Mises à jour : la version signée la plus récente est proposée, jamais une antérieure ; téléchargement vérifié
 PASS  Mises à jour : chaque redirection vérifiée, reprise d’un téléchargement interrompu, réponse inattendue refusée
+PASS  Mises à jour : seules les pages de release de Mira s’ouvrent dans le navigateur (Windows et Mac)
+PASS  Mises à jour : le manifeste signe aussi le Mac et Mira web, et les copies jusqu’à 0.7.4 le lisent comme avant
+PASS  Mises à jour : les copies 0.7.5 se mettent à jour même si une version suivante change les fichiers Mac ou Mira web
+PASS  Mises à jour : le .dmg et Mira web vérifiés avant de signer (SHA-256 publiée, manifeste de Jellyfin et MD5)
 PASS  Mises à jour : copie en deux temps, dossier intact si la préparation échoue, résultat annoncé une fois
-PASS  Mises à jour : type d’installation, dossier remplacé sans toucher aux données, retour arrière sur erreur
-45 tests réussis.
-Automatic updates fixture (tools/update-check.ps1: packages 0.5.2 and 0.5.3, loopback release feed, throwaway signing key, isolated profiles):
-PASS packages 0.5.2 (old) and 0.5.3 (new, manifest signed with a test key)
-PASS folder: 0.5.3 zip found on the feed, downloaded and verified (signature, size, SHA-256), then unpacked
-PASS folder: installed when Mira closed, Mira.exe now 0.5.3.0
-PASS folder: data folder untouched
-PASS folder: the new version finds itself up to date and clears its download
-PASS portable: 0.5.3 executable downloaded and verified
-PASS portable: replaced in place and reopened in 0.5.3.0 after the restart button
-PASS portable: data folder untouched, the reopened version records the installation
-PASS installer: 0.5.2 installed in a test folder
-PASS installer: 0.5.3 setup downloaded and verified
-PASS installer: updated silently by its setup to 0.5.3.0 when Mira closed, data folder untouched
-PASS installer: uninstalled silently (data kept, as on any silent uninstall)
-PASS installer: updated by its setup through the restart button, reopened in 0.5.3.0, data folder untouched
-INFO Start menu shortcut and Windows identity given back to the local dist\Mira
-Native player fixture (installed dist\Mira 0.5.2, synthetic chaptered media with an external .srt track; the Release build passed the same 67 checks):
-PASS native video host loads the synthetic clip
-PASS loading indicator and busy cursor clear once the first frame is ready
-PASS hidden controls keep a mouse-sensitive video surface and hide the cursor
-PASS mouse activity can interrupt the fade without a stale hide closing the controls
-PASS window keeps the caption style for Windows animations, with no native title bar visible
-PASS player icons are laid out uncropped and centred in their buttons
-PASS timeline advances between mpv polls (0.713 -> 0.759 s)
-PASS Space toggles pause even when the event targets the subtitles button
-PASS Right arrow seeks 10 s from any control (0.8 -> 10.8 s)
-PASS paused controls and cursor leave after idling, for clean screenshots
-PASS player controls are excluded from screen captures
-INFO chapters 0 s Opening, 6 s Partie A, 14 s Ending; passages Intro 0-6 s, Outro 14-18 s
-PASS named file chapters become opening and ending passages
-PASS skip button offers « Passer l’intro » during the opening
-PASS skip jumps to the end of the opening (6.0 s)
-PASS credits offer « Épisode suivant dans 10 s » with a cancel button
-PASS cancelling keeps the episode and stops the countdown
-PASS the title, its second line and the time sit above the timeline, the buttons below it
-PASS the first and last buttons line up with the title and the time (0.0 / -1.0 px)
-PASS the time reads « 0:02 / 0:18 »
-PASS chapters split the timeline into 3 segments separated by 3 px
-PASS the chapter being played is named above the time: « Opening » at 1 s
-PASS the chapter being played is named above the time: « Partie A » at 7 s
-PASS the chapter being played is named above the time: « Ending » at 15 s
-PASS pointing at the speaker slides the volume slider out
-PASS the volume slider tucks back once the pointer has left
-PASS a keyboard volume change shows the level for a moment
-PASS the subtitles button opens audio and subtitles, the loaded track checked (« Essai · Français · SRT · fichier externe »)
-PASS the menu opens right above its button, aligned on its right edge, at the current DPI
-PASS choosing « Désactivés » reaches mpv, unchecks the track and keeps the menu open
-PASS choosing the track again turns the subtitles back on
-PASS the same button closes its menu
-PASS ⋮ opens the speeds, the subtitle timing and the playback information
-PASS a speed chip reaches mpv and becomes the chosen one
-PASS seek moves to four seconds
-PASS mini-player preserves the video engine and exposes the library
-PASS mini-player rests rounded and shadowed in the bottom-right corner
-PASS a released mini-player glides to the nearest corner
-PASS pushed past the right edge, the mini-player tucks away behind a handle and keeps playing
-PASS a tucked mini-player keeps its controls closed
-PASS the handle brings the mini-player back to the right edge
-INFO mini-player drag, snapping and tuck-away checked with the native video kept alive
-PASS navigation keeps the mini-player alive
-PASS expanded player restores its full layout
-PASS play, volume, slider, menus and fullscreen share one vertical center
-PASS bottom controls stay inside the video with breathing room
-INFO fullscreen rectangle -30000,-30000,1600,900; logical size 800 × 450
-PASS fullscreen uses the requested screen rectangle including its full height
-PASS fullscreen retains the same full-height video host and hides window chrome
-PASS fullscreen drops the native caption style: no title bar or border can appear
-PASS leaving fullscreen restores the prior window dimensions
-PASS leaving fullscreen restores the caption style used by Windows animations
-PASS mute control changes the native audio state
-PASS unmute restores the native audio state
-PASS unmuting zero volume restores the last audible level
-PASS speed menu selection reaches mpv
-PASS subtitle timing buttons reach mpv and show the new offset
-PASS the ⋮ menu aligns on its button inside the player at current DPI
-PASS native keyboard F reaches the application fullscreen action
-PASS native Escape exits fullscreen without stopping playback
-PASS starting the next video preserves fullscreen
-PASS next video preserves mini-player browsing mode
-PASS stop releases mpv and closes player overlays
-PASS manual next in the middle keeps the episode unwatched and resumable
-PASS outro shortcut identifies the next-episode action below 90 percent
-PASS next-episode pill marks the previous episode watched below 90 percent
-PASS automatic countdown marks the previous episode watched and clears its progress
-PASS end-of-file completes playback even when mpv retains an earlier time position
-PASS returning after playback puts the last watched film first in the rendered resume row
-PASS mini-player updates recency and returns the resume row to its left edge without stopping playback
-TorLink end-to-end fixture (0.5.1 results, not re-run since; portable single-file exe, real keyboard, isolated TorLink state and library, demo mode):
-PASS the rail opens the TorLink page and marks it active
-PASS TorLink runs from its own folder in Mira's pseudo console
-PASS TorLink's interface is drawn inside the page
-PASS only one TorLink runs
-PASS Escape coming from the terminal is left to TorLink
-PASS keys typed in the terminal (real keyboard) reach TorLink, and its exit is shown in the page
-PASS « Relancer » starts TorLink again
-PASS a film arrives as Title (Year)/Title (Year).mkv with its subtitle
-PASS release notes and other annex files stay in TorLink
-PASS the film is a hard link: no second copy, TorLink keeps its file
-PASS an episode arrives as Show/Season 01/Show - S01E02.mkv
-PASS an anime from an anime source goes to the anime library
-PASS a game is not placed in Jellyfin
-PASS the page lists each download and what became of it
-PASS « Classer comme anime » moves the episode and removes the emptied folders
-PASS the reclassified episode is still a hard link of TorLink's file
-PASS a second pass imports nothing twice
-PASS Réglages → TorLink shows the installation found
-PASS closing the settings returns to the TorLink page
-PASS Alt+← typed in the terminal (real keyboard) leaves the page
-INFO WPF key events from the terminal: LeftAlt/None/Alt, Left/None/Alt
-PASS Escape outside the terminal (real keyboard) leaves the page, TorLink keeps running
-PASS closing Mira ends TorLink cleanly
-PASS no WebView2 process outlives Mira
+PASS  Mises à jour : l’outil d’installation refuse ce qui n’est pas une copie de Mira, sans rien toucher, et rend son verrou
+PASS  Mises à jour : au démarrage, rien n’est remis en place sous un Mira du même profil ouvert, ni sans échange interrompu
+PASS  Lisibilité : contraste d’au moins 4,5:1 pour chaque couleur de texte, sur Windows et sur Mac
+PASS  Lisibilité : un message reste le temps d’être lu, la taille du texte de Windows agrandit les pages
+PASS  Clavier : les flèches passent d’une affiche à sa voisine, de rangée en rangée
+PASS  Messages : une erreur de Jellyfin est dite en mots, avec ce que tu peux faire
+PASS  TorLink : .torrent borné (taille, nombre de valeurs), empreintes des pièces sautées sans copie
+PASS  Mises à jour : archive décompressée identique octet par octet à l’archive vérifiée, sans fichier en trop
+PASS  Mises à jour : échange de dossier coupé net (courant), rétabli au démarrage suivant
+PASS  TorLink : dépendances figées par le package-lock.json relu, installées par npm ci sans scripts
+PASS  Node.js : version plus récente préparée à côté, mise en place seulement quand rien ne l’utilise
+PASS  Moteur mpv : build plus récente préparée à côté, mise en place au démarrage suivant, jamais une plus ancienne
 
-Installer fixture (0.5.1 results, not re-run since; silent per-user install, update and uninstall in a test folder):
-PASS the installer runs silently for the current user, without administrator rights
-PASS Mira 0.5.1 is installed in the chosen folder
-PASS licences and notices are installed, no data folder is created
-PASS Windows lists Mira 0.5.1 in the installed apps of the current user
-PASS the Start menu shortcut opens the installed Mira
-PASS the Windows identity uses the installed icon
-PASS the installed Mira starts and renders its 14 demo views
-PASS installing again over it (an update) keeps the data folder
-PASS the uninstaller removes Mira and its entry in the installed apps
-PASS a silent uninstall keeps the data folder
-PASS the Start menu shortcut and the Windows identity of that installation are removed
-PASS the Start menu shortcut opens the local dist\Mira again
+102 test(s) réussi(s), 0 en échec.
 
-Windows media fixture (synthetic media, 0.4.9 results, not re-run since):
-PASS Windows media broker and notification-area icon initialize
-PASS taskbar buttons remain absent outside playback
-PASS Windows logo is present both as a multi-size ICO and a window resource
-PASS taskbar enables seek and pause but disables next when no following episode exists
-PASS Windows accepts pause
-PASS repeated Windows pause is idempotent
-PASS Windows receives the title and episode metadata
-PASS Windows receives artwork through a private in-memory stream
-PASS Windows can read the published artwork
-PASS taskbar pause label follows the system state
-PASS Windows accepts a timeline seek
-PASS Windows seek reaches mpv and returns the corrected timeline
-PASS repeated Windows play is idempotent
-PASS notification-area reduction keeps playback running
-PASS media keys can pause the hidden window without stealing focus
-PASS a second launch restores the same window without resetting playback
-PASS shared taskbar/tray commands seek by ten seconds and clamp at zero
-PASS next becomes available only when the episode has been resolved
-PASS Windows accepts next episode
-PASS next uses Mira playback and updates the window identity
-PASS stopping removes all taskbar playback buttons
-PASS stopping withdraws the active Windows media session
-PASS Windows operations complete without COM errors
-PASS closing cleans up the tray and taskbar integration
-
-Motion fixture (personal library, read-only, 0.5.0 results, not re-run since):
-PASS unchanged cards retain their instances across refresh
-PASS wheel over resume card interpolates 67.1 -> 108.0 px
-PASS carousel advances and progress segment reaches 50 percent
-PASS hover reacts immediately, interpolates highlight and zoom together, and reverses without a jump
-PASS moving content transfers hover under a stationary pointer during scroll inertia without changing layout
-PASS scrolling leaves the title bar transparent
-PASS detail title is presented synchronously in 1 ms before awaiting metadata
-PASS reduced motion scrolls without interpolation
-PASS rapid navigation keeps the latest page visible
+== node --test tools/web/unit/*.test.mjs
+ok 1 - Apple’s player opening, or Picture in Picture
+ok 2 - closed by the person: Mira closes, its picture landing first from full screen
+ok 3 - Picture in Picture closed while playing: back to full screen
+ok 4 - left by Mira itself, or by iOS at the end of a title: nothing
+ok 5 - bitrate: chosen, full quality, or a fresh measure; null when a measure is needed
+ok 6 - bitrate: 70 % of the measure, between 1.5 and 40 Mb/s
+ok 7 - cascade: three stages, each converting more
+ok 8 - cascade: what an error of the <video> leads to
+ok 9 - cascade: what a fatal error of hls.js leads to
+ok 10 - cascade: the server asked, silent or answering
+ok 11 - cascade: a title refused at every stage ends in « Lecture impossible », everything converted
+ok 12 - cascade: a file played as it is that Safari refuses plays once its video is converted
+ok 13 - cascade: hls.js refusing twice gets everything converted
+ok 14 - error details name the stage
+ok 15 - PlaybackInfo errors in French
+ok 16 - resume point: where the stream plays, or where it was asked to start
+ok 17 - copiesVideo reads why Jellyfin converts
+ok 18 - stream: the file as it is at stage 0, MP4 first among its containers
+ok 19 - stream: Jellyfin’s conversion, HLS or progressive
+ok 20 - stream: Apple’s player gets the text subtitles in the HLS stream
+ok 21 - subtitles burned into the video
+ok 22 - other subtitles: at once, or a new conversion
+ok 23 - ASS and SSA beside the video are asked as WebVTT
+ok 24 - where a title starts
+ok 25 - passages to skip, until their last second
+ok 26 - intro and recap skipped by themselves, once, when the settings say so
+ok 27 - the next episode is offered from the end credits, else over the last seconds
+ok 28 - trickplay picture at a point
+ok 29 - chapter marks
+ok 30 - « from the start » leaves the address once the title plays
+ok 31 - track names in French
+ok 32 - names in Apple’s menu tell apart the same language
+ok 33 - tracks a title starts with
+ok 34 - tracks chosen on the title page, from the player’s address
+ok 35 - startTracks: the chosen ones when the file has them, else the automatic choice
+ok 36 - the file’s own text subtitles, only when Safari plays the file as it is
+ok 37 - Jellyfin’s index of a subtitle track found in the video
+37 test(s), 37 réussi(s), 0 en échec.
