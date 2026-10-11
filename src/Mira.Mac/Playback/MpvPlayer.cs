@@ -1,12 +1,9 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using Mira.Core;
 
 namespace Mira.Mac.Playback;
 
-/// <summary>An audio or subtitle track: mpv id, "audio" or "sub", its menu name and details (codec, channels…).</summary>
-public sealed record MpvTrack(string Id, string Type, string Label, string Details);
 
 /// <summary>
 /// libmpv for the Mac app: the same playback core as the Windows app (options, tracks, chapters, volume above 100 %),
@@ -190,36 +187,9 @@ public sealed unsafe class MpvPlayer : IDisposable
         }
     }
     /// <summary>Audio and subtitle tracks, named for the menu: title or language first, then codec and channels.</summary>
-    public List<MpvTrack> Tracks()
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(Get("track-list") ?? "[]");
-            return doc.RootElement.EnumerateArray().Where(t => t.GetProperty("type").GetString() is "audio" or "sub").Select(t =>
-            {
-                string Read(string name) => t.TryGetProperty(name, out var v) && v.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? v.ToString() : "";
-                bool Flag(string name) => t.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
-                var channels = t.TryGetProperty("demux-channel-count", out var count) && count.TryGetInt32(out var value) ? value : 0;
-                var id = Read("id"); var type = Read("type");
-                var (label, details) = PlayerText.Track(id, Read("title"), Read("lang"), Read("codec"), type == "audio" ? channels : 0, Flag("forced"), Flag("external"));
-                return new MpvTrack(id, type, label, details);
-            }).ToList();
-        }
-        catch (JsonException) { return []; }
-    }
+    public List<MpvTrack> Tracks() => MpvLists.Tracks(Get("track-list"));
     /// <summary>Chapters stored in the media file itself (Matroska/MP4 chapter titles and times).</summary>
-    public List<ChapterMark> Chapters()
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(Get("chapter-list") ?? "[]");
-            return doc.RootElement.EnumerateArray()
-                .Where(c => c.TryGetProperty("time", out var time) && time.ValueKind == JsonValueKind.Number)
-                .Select(c => new ChapterMark(c.GetProperty("time").GetDouble(), c.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String ? title.GetString() : null))
-                .OrderBy(c => c.Start).ToList();
-        }
-        catch (JsonException) { return []; }
-    }
+    public List<ChapterMark> Chapters() => MpvLists.Chapters(Get("chapter-list"));
     /// <summary>Destroys mpv. The view's render context must be released first (see <see cref="VideoView.Release"/>).</summary>
     public void Dispose()
     {
