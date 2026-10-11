@@ -69,7 +69,7 @@ public partial class MainWindow
     /// <summary>Lit like the rail's current page while only the favourites show; a second click shows everything again.</summary>
     private void ShowFavoritesFilter()
     {
-        if (_favorites) { FavoritesFilter.Background = Brush("#F4F4F5"); FavoritesFilter.Foreground = FavoritesIcon.Foreground = Brush("#151516"); }
+        if (_favorites) { FavoritesFilter.Background = Palette.Get("Text"); FavoritesFilter.Foreground = FavoritesIcon.Foreground = Palette.Get("OnAccent"); }
         else { FavoritesFilter.ClearValue(BackgroundProperty); FavoritesFilter.ClearValue(ForegroundProperty); FavoritesIcon.ClearValue(Views.Icon.ForegroundProperty); }
         System.Windows.Automation.AutomationProperties.SetName(FavoritesFilter, _favorites ? "Favoris seulement, activé" : "Favoris seulement");
         FavoritesFilter.ToolTip = _favorites ? "Afficher tous les titres" : "Afficher seulement tes favoris";
@@ -110,8 +110,8 @@ public partial class MainWindow
         foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, TorLinkNav, GuideNav, SettingsNav })
         {
             var active = guide ? button == GuideNav : settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _view;
-            button.Background = active ? Brush("#F4F4F5") : Brushes.Transparent;
-            button.Foreground = active ? Brush("#151516") : Brush("#B8B8BE");
+            button.Background = active ? Palette.Get("Text") : Brushes.Transparent;
+            button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextTertiary");
         }
     }
     private void RenderLibrary()
@@ -159,9 +159,9 @@ public partial class MainWindow
         for (var i = 0; i < columns * 2; i++)
         {
             var card = new StackPanel { Width = width, Margin = new Thickness(0, 0, 22, 30) };
-            card.Children.Add(new Border { Height = width * 1.48, Background = Brush("#151517"), CornerRadius = new CornerRadius(5) });
-            card.Children.Add(new Border { Height = 12, Width = width * .72, HorizontalAlignment = HorizontalAlignment.Left, Background = Brush("#18181B"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 16, 0, 0) });
-            card.Children.Add(new Border { Height = 9, Width = width * .42, HorizontalAlignment = HorizontalAlignment.Left, Background = Brush("#141417"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 12, 0, 20) });
+            card.Children.Add(new Border { Height = width * 1.48, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(5) });
+            card.Children.Add(new Border { Height = 12, Width = width * .72, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Raised"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 16, 0, 0) });
+            card.Children.Add(new Border { Height = 9, Width = width * .42, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 12, 0, 20) });
             CatalogSkeleton.Children.Add(card);
         }
         if (CatalogSkeleton.Visibility != Visibility.Visible) { CatalogSkeleton.Visibility = Visibility.Visible; Motion.Pulse(CatalogSkeleton, true); }
@@ -304,8 +304,8 @@ public partial class MainWindow
         entry.Click += async (_, _) => await action();
         return entry;
     }
-    private static void AddPill(Panel panel, string text, string color = "#D5D5DB") => panel.Children.Add(new Border
-    { CornerRadius = new CornerRadius(4), Background = Brush("#3D555559"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 7, 4), Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Brush(color) } });
+    private static void AddPill(Panel panel, string text, string color = "TextBody") => panel.Children.Add(new Border
+    { CornerRadius = new CornerRadius(4), Background = Brush("#3D555559"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 7, 4), Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get(color) } });
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e) { UpdateZoom(); FitPages(); }
     /// <summary>The banner and the posters, sized for the page as it lays out (smaller than the window once zoomed).</summary>
     private void FitPages()

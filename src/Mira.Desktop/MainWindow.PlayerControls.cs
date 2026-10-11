@@ -320,7 +320,7 @@ public partial class MainWindow
         VolumeText.Foreground = boosted ? Brushes.White : VolumeQuiet;
         VolumeText.FontWeight = boosted ? FontWeights.SemiBold : FontWeights.Normal;
     }
-    private static readonly Brush VolumeQuiet = (Brush)new SolidColorBrush(Color.FromRgb(0xA9, 0xA9, 0xB1)).GetAsFrozen();
+    private static readonly Brush VolumeQuiet = Palette.Get("TextTertiary");
     private void HideVolumeSoon() { _volumeHide.Stop(); _volumeHide.Start(); }
     private void SetVolumeReveal(bool shown)
     {
@@ -358,7 +358,7 @@ public partial class MainWindow
         var tracks = _mpv.Tracks(); var audio = _mpv.Get("aid") ?? ""; var subtitle = _mpv.Get("sid") ?? "no";
         foreach (var track in tracks.Where(t => t.Type == "audio"))
             AudioTrackList.Children.Add(MenuChoice("audio", track.Label, track.Details, track.Id == audio, () => ChooseTrack("aid", track.Id)));
-        if (AudioTrackList.Children.Count == 0) AudioTrackList.Children.Add(new TextBlock { Text = "Aucune piste audio", Foreground = Brush("#8E8E97"), FontSize = 13, Margin = new Thickness(10, 8, 10, 8) });
+        if (AudioTrackList.Children.Count == 0) AudioTrackList.Children.Add(new TextBlock { Text = "Aucune piste audio", Foreground = Palette.Get("Faint"), FontSize = 13, Margin = new Thickness(10, 8, 10, 8) });
         SubtitleTrackList.Children.Add(MenuChoice("subtitles", "Désactivés", "", subtitle is "no" or "" or "false", () => ChooseTrack("sid", "no")));
         foreach (var track in tracks.Where(t => t.Type == "sub"))
             SubtitleTrackList.Children.Add(MenuChoice("subtitles", track.Label, track.Details, track.Id == subtitle, () => ChooseTrack("sid", track.Id)));
@@ -398,7 +398,7 @@ public partial class MainWindow
     {
         var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         label.Children.Add(new TextBlock { Text = text, TextTrimming = TextTrimming.CharacterEllipsis });
-        if (details.Length > 0) label.Children.Add(new TextBlock { Text = details, FontSize = 11.5, FontWeight = FontWeights.Normal, Foreground = Brush("#8E8E97"), Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        if (details.Length > 0) label.Children.Add(new TextBlock { Text = details, FontSize = 11.5, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Faint"), Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         var full = details.Length > 0 ? text + " · " + details : text;
         var choice = new RadioButton { Style = (Style)FindResource("PlayerMenuChoice"), GroupName = group, Content = label, IsChecked = chosen, ToolTip = full.Length > 34 ? full : null };
         System.Windows.Automation.AutomationProperties.SetName(choice, full);

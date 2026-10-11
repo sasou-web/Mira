@@ -41,7 +41,7 @@ public partial class MainWindow
         RenderDetailText(item); EpisodesPanel.Children.Clear();
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
         EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
-        if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = "Chargement des épisodes…", Foreground = Brush("#91919B"), Margin = new Thickness(0, 20, 0, 20) });
+        if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = "Chargement des épisodes…", Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
         Motion.Reveal(DetailOverlay, 300, 14); UpdateHeroClock();
         // Focus moves into the page: Enter plays, Tab stays inside, Escape goes back.
         _ = Dispatcher.BeginInvoke(() => { if (version == _detailVersion) DetailPlay.Focus(); }, System.Windows.Threading.DispatcherPriority.Input);
@@ -55,7 +55,7 @@ public partial class MainWindow
         }
         else if (_demo)
         {
-            if (item.Type == "Series") { EpisodesPanel.Children.Clear(); EpisodesPanel.Children.Add(new TextBlock { Text = "Les épisodes de ta bibliothèque apparaîtront ici après connexion à Jellyfin.", Foreground = Brush("#91919B"), TextWrapping = TextWrapping.Wrap }); SeasonSelector.Visibility = Visibility.Collapsed; }
+            if (item.Type == "Series") { EpisodesPanel.Children.Clear(); EpisodesPanel.Children.Add(new TextBlock { Text = "Les épisodes de ta bibliothèque apparaîtront ici après connexion à Jellyfin.", Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap }); SeasonSelector.Visibility = Visibility.Collapsed; }
             _similar = (_demoItems ?? DemoLibrary.Items()).Where(x => x.Id != item.Id && x.Genres.Intersect(item.Genres).Any()).ToList(); RenderSimilar();
         }
         await Task.WhenAll(tasks);
@@ -122,7 +122,7 @@ public partial class MainWindow
         {
             if (version != _detailVersion) return;
             EpisodesPanel.Children.Clear();
-            EpisodesPanel.Children.Add(new TextBlock { Text = Friendly(ex), Foreground = Brush("#F0B4A7"), TextWrapping = TextWrapping.Wrap });
+            EpisodesPanel.Children.Add(new TextBlock { Text = Friendly(ex), Foreground = Palette.Get("Danger"), TextWrapping = TextWrapping.Wrap });
             var retry = new Button { Content = "Réessayer", Style = (Style)FindResource("Quiet"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
             retry.Click += async (_, _) => { _metadata?.Clear(); EpisodesPanel.Children.Clear(); await LoadDetailEpisodesAsync(item, ++_detailVersion); };
             EpisodesPanel.Children.Add(retry);
@@ -213,27 +213,27 @@ public partial class MainWindow
         var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
         // The whole season's count, also on a slice of a long one.
         EpisodeHeading.Text = $"Épisodes  ·  {(page is null ? 0 : _episodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
-        if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = "Aucun épisode disponible dans cette bibliothèque.", Foreground = Brush("#93939D") }); return; }
+        if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = "Aucun épisode disponible dans cette bibliothèque.", Foreground = Palette.Get("Muted") }); return; }
         foreach (var episode in episodes)
         {
             var isNext = _detailNext?.Id == episode.Id;
-            var button = new Button { Background = Brush(isNext ? "#17171A" : "#101011"), BorderBrush = isNext ? Brush("#2E2E34") : Brushes.Transparent, Padding = new Thickness(15), Margin = new Thickness(0, 0, 0, 9), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            var button = new Button { Background = Palette.Get(isNext ? "Raised" : "Surface"), BorderBrush = isNext ? Palette.Get("Line") : Brushes.Transparent, Padding = new Thickness(15), Margin = new Thickness(0, 0, 0, 9), HorizontalContentAlignment = HorizontalAlignment.Stretch };
             var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
-            var thumb = new Grid { Width = 160, Height = 90, Clip = new RectangleGeometry(new Rect(0, 0, 160, 90), 4, 4), Background = Brush("#222225") };
+            var thumb = new Grid { Width = 160, Height = 90, Clip = new RectangleGeometry(new Rect(0, 0, 160, 90), 4, 4), Background = Palette.Get("Raised2") };
             var image = new Image { Stretch = Stretch.UniformToFill }; thumb.Children.Add(image);
             thumb.Children.Add(new Border { Background = Brush("#44000000") });
             thumb.Children.Add(new Icon { Kind = "play", Width = 23, Height = 23, Foreground = Brushes.White });
-            if (episode.Progress > 0 && !episode.UserData.Played) thumb.Children.Add(new Border { Height = 3, Width = 160 * episode.Progress, Background = Brush("#F5F5F7"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
+            if (episode.Progress > 0 && !episode.UserData.Played) thumb.Children.Add(new Border { Height = 3, Width = 160 * episode.Progress, Background = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom });
             grid.Children.Add(thumb);
             var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(21, 0, 20, 0) }; Grid.SetColumn(copy, 1);
             var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
             copy.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            copy.Children.Add(new TextBlock { Text = PlainText(episode.Overview ?? ""), FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Brush("#94949C"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 7, 0, 0) });
+            copy.Children.Add(new TextBlock { Text = PlainText(episode.Overview ?? ""), FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 7, 0, 0) });
             grid.Children.Add(copy);
             var status = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right }; Grid.SetColumn(status, 2);
-            status.Children.Add(new TextBlock { Text = episode.DurationLabel, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Brush("#A0A0AA"), HorizontalAlignment = HorizontalAlignment.Right });
+            status.Children.Add(new TextBlock { Text = episode.DurationLabel, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Right });
             var state = episode.UserData.Played ? "✓ Vu" : isNext ? episode.Progress > 0 ? "En cours" : "À suivre" : null;
-            if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 11, Foreground = Brush(episode.UserData.Played ? "#A0C7A8" : "#DADAE0"), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Right });
+            if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 11, Foreground = Palette.Get(episode.UserData.Played ? "Success" : "TextBody"), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Right });
             grid.Children.Add(status); button.Content = grid;
             AutomationProperties.SetName(button, $"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}");
             button.Click += async (_, _) => await PlayAsync(episode);

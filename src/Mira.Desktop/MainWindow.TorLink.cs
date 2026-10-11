@@ -414,14 +414,14 @@ public partial class MainWindow
     {
         var state = _torlinkTerminal?.State ?? TerminalState.Idle;
         if (_torlinkBlocker is not null || state is TerminalState.Running or TerminalState.Exited or TerminalState.Unavailable) _torlinkStartWatch.Stop();
-        var (status, dot) = _torlinkInstalling ? ("Installation…", "#D5B787") : !TorLinkActive() ? ("Désactivé", "#6B6B74")
-            : _torlinkBlocker == "confirm" ? ("À confirmer", "#D5B787") : _torlinkBlocker is not null ? ("Indisponible", "#D5B787") : state switch
+        var (status, dot) = _torlinkInstalling ? ("Installation…", "Warning") : !TorLinkActive() ? ("Désactivé", "Dim")
+            : _torlinkBlocker == "confirm" ? ("À confirmer", "Warning") : _torlinkBlocker is not null ? ("Indisponible", "Warning") : state switch
             {
-                TerminalState.Running => ("En cours", "#86C6A2"),
-                TerminalState.Starting => ("Démarrage…", "#D5B787"),
-                _ => ("Fermé", "#6B6B74")
+                TerminalState.Running => ("En cours", "Success"),
+                TerminalState.Starting => ("Démarrage…", "Warning"),
+                _ => ("Fermé", "Dim")
             };
-        TorLinkStatusText.Text = "TorLink · " + status; TorLinkStatusDot.Fill = Brush(dot);
+        TorLinkStatusText.Text = "TorLink · " + status; TorLinkStatusDot.Fill = Palette.Get(dot);
         switch (_torlinkBlocker)
         {
             case "missing" when _torlinkNpx.Value:
@@ -559,12 +559,12 @@ public partial class MainWindow
     {
         var (icon, color) = entry.State switch
         {
-            TorLinkImportState.Imported when entry.JellyfinId is not null => ("check", "#86C6A2"),
-            TorLinkImportState.Imported or TorLinkImportState.Partial => (entry.Kind == MediaKind.Movie ? "film" : "series", "#D6D6D8"),
-            TorLinkImportState.Waiting or TorLinkImportState.Importing => ("clock", "#D5B787"),
-            TorLinkImportState.Blocked => ("sliders", "#D5B787"),
-            TorLinkImportState.Ignored => ("info", "#7C7C85"),
-            _ => ("info", "#F3AD99")
+            TorLinkImportState.Imported when entry.JellyfinId is not null => ("check", "Success"),
+            TorLinkImportState.Imported or TorLinkImportState.Partial => (entry.Kind == MediaKind.Movie ? "film" : "series", "TextBody"),
+            TorLinkImportState.Waiting or TorLinkImportState.Importing => ("clock", "Warning"),
+            TorLinkImportState.Blocked => ("sliders", "Warning"),
+            TorLinkImportState.Ignored => ("info", "Faint"),
+            _ => ("info", "Danger")
         };
         var actions = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
         if (entry.JellyfinId is { } id && !_demo) actions.Children.Add(RowButton("Voir", "play", async () => await OpenTorLinkItemAsync(id)));
@@ -591,7 +591,7 @@ public partial class MainWindow
         }
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = TitleOf(entry), FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Name });
-        text.Children.Add(new TextBlock { Text = DetailOf(entry), FontSize = 11.5, LineHeight = 17, Foreground = Brush("#96969D"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        text.Children.Add(new TextBlock { Text = DetailOf(entry), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         if (actions.Children.Count > 0) text.Children.Add(actions);
         return Row(icon, color, text, menu, TitleOf(entry) + ", " + StatusOf(entry));
     }
@@ -601,11 +601,11 @@ public partial class MainWindow
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = completion.Name, FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = completion.Name });
         var when = completion.CompletedAt == DateTimeOffset.MinValue ? "" : $" le {completion.CompletedAt.ToLocalTime():d} à {completion.CompletedAt.ToLocalTime():HH:mm}";
-        text.Children.Add(new TextBlock { Text = $"Terminé{when} · pas encore rangé", FontSize = 11.5, Foreground = Brush("#96969D"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        text.Children.Add(new TextBlock { Text = $"Terminé{when} · pas encore rangé", FontSize = 11.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         var actions = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
         actions.Children.Add(RowButton("Importer", "download", () => { RequestTorLinkImport(completion.Id); return Task.CompletedTask; }));
         text.Children.Add(actions);
-        return Row("clock", "#7C7C85", text, null, completion.Name + ", pas encore rangé");
+        return Row("clock", "Faint", text, null, completion.Name + ", pas encore rangé");
     }
 
     private static Border Row(string icon, string color, FrameworkElement content, ContextMenu? menu, string name)
@@ -613,9 +613,9 @@ public partial class MainWindow
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
-        grid.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18, Foreground = Brush(color), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 1, 0, 0) });
+        grid.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18, Foreground = Palette.Get(color), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 1, 0, 0) });
         Grid.SetColumn(content, 1); grid.Children.Add(content);
-        var row = new Border { Background = Brush("#101012"), CornerRadius = new CornerRadius(9), Padding = new Thickness(14, 12, 12, 10), Margin = new Thickness(0, 0, 0, 8), Child = grid, ContextMenu = menu };
+        var row = new Border { Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(9), Padding = new Thickness(14, 12, 12, 10), Margin = new Thickness(0, 0, 0, 8), Child = grid, ContextMenu = menu };
         AutomationProperties.SetName(row, name);
         return row;
     }
@@ -625,7 +625,7 @@ public partial class MainWindow
         var content = new StackPanel { Orientation = Orientation.Horizontal };
         content.Children.Add(new Icon { Kind = icon, Width = 14, Height = 14, Margin = new Thickness(0, 0, 6, 0) });
         content.Children.Add(new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold });
-        var button = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(8, 6, 9, 6), Margin = new Thickness(0, 0, 2, 0), Content = content, Foreground = Brush("#D6D6DA") };
+        var button = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(8, 6, 9, 6), Margin = new Thickness(0, 0, 2, 0), Content = content, Foreground = Palette.Get("TextBody") };
         AutomationProperties.SetName(button, text);
         button.Click += async (_, _) => await action();
         return button;

@@ -487,7 +487,7 @@ public partial class MainWindow : Window
         _totalCount = _items.Count; RenderLibrary();
     }
     private List<MediaItem>? _demoItems;
-    private static readonly Brush SyncWarning = Frozen("#D5B787"), SyncFine = Frozen("#91BAA7");
+    private static readonly Brush SyncWarning = Palette.Get("Warning"), SyncFine = Palette.Get("Success");
     private static Brush Frozen(string hex) { var brush = Brush(hex); brush.Freeze(); return brush; }
     /// <summary>Offline first: neither a delivered report nor the retry loop replaces it before Jellyfin answers again.</summary>
     private void SyncChanged() => Dispatcher.BeginInvoke(() =>
