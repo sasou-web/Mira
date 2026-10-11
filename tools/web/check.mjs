@@ -675,6 +675,33 @@ try {
   check('session d’avant (sans Id de serveur) : complétée, pas bloquée', filled === session.serverId && !await shownForeign() && await sp.locator('#view .section').count() > 0,
     `Id ${filled ? (filled === session.serverId ? 'retrouvé' : `autre (${filled})`) : 'absent'}`);
 
+  // Back from the background on another network while a title plays: the check asked at once on the return finds
+  // another server, the player closes, and the stream's addresses (they carry the session) go to it no more.
+  const series = await sp.evaluate(async (name) => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Items?recursive=true&includeItemTypes=Series&searchTerm=${encodeURIComponent(name)}`,
+      { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+    return (await r.json()).Items[0].Id;
+  }, seriesName);
+  await sp.evaluate((id) => { location.hash = `#/titre/${id}`; }, series); await sp.waitForTimeout(2500);
+  await sp.locator('.detail-actions .btn.primary').click(); await sp.waitForTimeout(3500);
+  const played = await sp.evaluate(() => { const v = document.querySelector('video'); return !!v && !v.paused && v.currentTime > 0.5; });
+  await sp.route(isPublicInfo, another);
+  carried = [];
+  await sp.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await sp.waitForTimeout(2000);
+  const during = carried.length;
+  const closed = await sp.evaluate(() => ({ hash: location.hash, video: !!document.querySelector('video')?.getAttribute('src') }));
+  carried = [];
+  await sp.waitForTimeout(2500);
+  check('serveur étranger pendant la lecture : vérifié au retour, lecteur fermé, plus rien ne lui est demandé',
+    played && await shownForeign() && !closed.hash.startsWith('#/lecture/') && !closed.video && !carried.length,
+    `${played ? 'lecture en cours' : 'pas de lecture'}, puis ${closed.hash.startsWith('#/lecture/') ? 'lecteur resté ouvert' : 'lecteur fermé'}, `
+    + `${await shownForeign() ? 'message affiché' : 'pas de message'}, ${during} requête(s) avec le jeton le temps de la vérification, `
+    + `${carried.length ? `puis : ${carried.slice(0, 3).join(', ')}` : 'aucune ensuite'}`);
+  await sp.unroute(isPublicInfo, another);
+  await sp.locator('.foreign').getByRole('button', { name: 'Réessayer' }).click(); await sp.waitForTimeout(2000);
+
   // Jellyfin reinstalled: « me reconnecter » forgets the session here, and never sends it to that server.
   await sp.route(isPublicInfo, another);
   await sp.reload(); await sp.waitForTimeout(3000);
@@ -683,6 +710,22 @@ try {
   const gone = await sp.evaluate(() => ({ hash: location.hash, session: localStorage.getItem('mira.session') }));
   check('serveur étranger : « me reconnecter » oublie la session sans la lui envoyer', gone.hash === '#/connexion' && !gone.session && !carried.length && !await shownForeign(),
     `${gone.hash}, session ${gone.session ? 'gardée' : 'oubliée'}, ${carried.length ? `jeton envoyé : ${carried.join(', ')}` : 'jeton jamais envoyé'}`);
+  await sp.unroute(isPublicInfo, another);
+
+  // Signed out while another server answers, Mira having asked nothing since: Jellyfin is not told (it is not yours),
+  // and nothing covers the sign-in screen (no session left to protect).
+  await signIn(sp);
+  await sp.waitForTimeout(1500);
+  token = await sp.evaluate(() => JSON.parse(localStorage.getItem('mira.session')).token);
+  await sp.locator('.tabbar a[data-tab="settings"]').click(); await sp.waitForTimeout(1200);
+  await sp.route(isPublicInfo, another);
+  carried = [];
+  await sp.getByRole('button', { name: 'Se déconnecter' }).click(); await sp.waitForTimeout(400);
+  await sp.locator('.sheet-item.danger').click(); await sp.waitForTimeout(2000);
+  const signedOut = await sp.evaluate(() => ({ hash: location.hash, session: localStorage.getItem('mira.session') }));
+  check('serveur étranger : déconnexion sans rien lui envoyer, écran de connexion libre', signedOut.hash === '#/connexion' && !signedOut.session && !carried.length && !await shownForeign()
+    && await sp.locator('#login-name, .users').first().isVisible().catch(() => false),
+    `${signedOut.hash}, ${carried.length ? `jeton envoyé : ${carried.join(', ')}` : 'jeton jamais envoyé'}, ${await shownForeign() ? '« Ce n’est pas ton serveur » par-dessus' : 'rien par-dessus'}`);
   await sp.unroute(isPublicInfo, another);
 } catch (error) {
   check('serveur étranger : déroulé', false, error.message.split('\n')[0]);
@@ -701,9 +744,10 @@ try {
     const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
     const { isLocalHost } = await import(`${root}api.js`);
     const local = ['localhost', '127.0.0.1', '10.0.0.5', '172.16.0.1', '172.31.255.254', '192.168.1.20', '169.254.10.1', '100.64.0.1', '100.127.255.254',
-      '[::1]', '[fd7a:115c:a1e0::1]', '[fc00::1]', '[fe80::1]', 'nas', 'pc.local', 'pc.tail1234.ts.net', 'box.home.arpa', 'app.localhost'];
+      '[::1]', '[fd7a:115c:a1e0::1]', '[fc00::1]', '[fe80::1]', 'nas', 'pc.local', 'pc.tail1234.ts.net', 'box.home.arpa', 'app.localhost',
+      'livebox.home', 'pc.lan', 'nas.fritz.box', 'jellyfin.internal'];
     const internet = ['8.8.8.8', '11.0.0.1', '172.32.0.1', '100.128.0.1', '192.169.1.1', 'example.com', 'jellyfin.example.fr', 'local.example.com', 'ts.net.example.com',
-      '[2001:db8::1]', '[2a01:e0a::1]', '[fec0::1]'];
+      'lan.example.com', '[2001:db8::1]', '[2a01:e0a::1]', '[fec0::1]', '[fd::1]', '[fe8::1]'];
     return { wrong: [...local.filter((x) => !isLocalHost(x)), ...internet.filter((x) => isLocalHost(x))], count: local.length + internet.length };
   });
   const atHome = await op.locator('.hint.warn').count();
