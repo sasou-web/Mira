@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.7.5",
+    "summary": "Plus sûr et plus léger : pare-feu limité à la maison, mises à jour vérifiées, Narrateur et clavier.",
+    "items": [
+      { "icon": "server", "title": "Pare-feu fermé aux réseaux publics", "text": "Box vue comme publique : Guide → Mira sur ton téléphone → Passer en privé." },
+      { "icon": "check", "title": "Tout est vérifié avant d’être installé", "text": "Mira web, l’app Mac, TorLink et le moteur vidéo, par signature ou empreinte." },
+      { "icon": "refresh", "title": "Mira ne reste plus bloqué", "text": "Cache abîmé, disque plein, serveur muet, veille : Mira le dit et repart." },
+      { "icon": "user", "title": "Narrateur, clavier, plus léger", "text": "Boutons nommés, réglages de Windows suivis, images à la taille de l’écran." }
+    ]
+  },
+  {
     "version": "0.7.4",
     "summary": "Mira sur ton téléphone en un clic : le guide prépare tout, et le QR code marche aussi ailleurs.",
     "items": [

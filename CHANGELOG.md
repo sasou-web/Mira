@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.7.5 — 2026-10-11
+
+La revue complète de Mira, corrigée : pare-feu fermé aux réseaux publics, mises à jour et Mira web vérifiés avant installation, Mira qui ne reste jamais bloqué, plus léger sous Windows, Narrateur et clavier, .NET 10 et macOS 15 sur Mac.
 
 - **Narrateur** (Windows) : Regarder, Plus d’infos, Favori, Vu, Se connecter et les autres boutons faits d’une icône et d’un texte n’avaient pas de nom pour les lecteurs d’écran, ni six choix de Réglages. Ils en ont un, et les messages (connexion, erreurs, préparation du téléphone, enregistrement des réglages) sont lus à voix haute.
 - **Réglages d’accessibilité de Windows suivis** : « Effets d’animation » désactivés coupent aussi les animations de Mira ; « Taille du texte » agrandit les pages tant que la fenêtre le permet ; en contraste élevé, les textes secondaires sont plus clairs et le focus prend la couleur de Windows.
