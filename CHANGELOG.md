@@ -70,6 +70,8 @@
 - **« Hors connexion » reste affiché** (Windows) : la ligne d’état repassait à « Connecté » 3 s après une erreur réseau. Elle dit maintenant « Hors connexion » jusqu’à ce que Jellyfin réponde de nouveau, avec le nombre d’envois en attente.
 - **Disque plein : les affiches s’affichent quand même** (Windows et Mac) : une affiche téléchargée était jetée quand sa copie sur le disque ne pouvait pas être écrite. Elle s’affiche maintenant, simplement sans copie.
 - **Interface qui ne se fige plus** (Windows) : l’ouverture du cache d’un compte, sa relecture à chaque changement de page et la vérification d’une vidéo sur un partage réseau se font hors de l’interface ; une vidéo sur un partage qui ne répond pas en 2 s est lue par Jellyfin. Relancé pendant une mise à jour, Mira montre une petite fenêtre qui le dit, au lieu de ne rien montrer pendant jusqu’à 30 s.
+- **Un défaut de Mira n’est plus pris pour une coupure** (Windows et Mac) : une valeur inattendue dans le code de Mira était avalée comme une erreur du réseau (« L’opération n’a pas abouti »), sans trace. Elle est maintenant notée dans `errors.log` et signalée comme une erreur imprévue ; une saisie refusée (adresse, nom d’utilisateur, mot de passe) est dite comme avant.
+- **Tests de Mira** : un échec n’arrête plus les suivants, un bilan compte les réussis et les échecs, `--filter` en choisit par leur nom ; les tests qui ne dépendent pas de Windows tournent aussi sous Linux dans la CI.
 
 ## 0.7.4 — 2026-10-10
 

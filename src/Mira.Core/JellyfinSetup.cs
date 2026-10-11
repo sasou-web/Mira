@@ -188,8 +188,8 @@ public static partial class JellyfinSetup
     /// </summary>
     public static async Task ConfigureAsync(Uri server, string user, string password, MediaFolders folders, HttpMessageHandler? handler = null, CancellationToken ct = default)
     {
-        if (!IsValidUserName(user)) throw new ArgumentException("Le nom d’utilisateur peut contenir des lettres, des chiffres, des espaces et - _ ' . @ +, sans espace au début ni à la fin.");
-        if (string.IsNullOrEmpty(password)) throw new ArgumentException("Choisis un mot de passe pour ton compte Jellyfin.");
+        if (!IsValidUserName(user)) throw new UserInputException("Le nom d’utilisateur peut contenir des lettres, des chiffres, des espaces et - _ ' . @ +, sans espace au début ni à la fin.");
+        if (string.IsNullOrEmpty(password)) throw new UserInputException("Choisis un mot de passe pour ton compte Jellyfin.");
         using var http = Client(server, handler, TimeSpan.FromSeconds(30));
         await Send(http, HttpMethod.Post, "Startup/Configuration", new { ServerName = Environment.MachineName, UICulture = "fr", MetadataCountryCode = "FR", PreferredMetadataLanguage = "fr" }, "la langue", ct).ConfigureAwait(false);
         // Reading the first user creates it.

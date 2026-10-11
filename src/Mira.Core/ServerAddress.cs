@@ -26,7 +26,7 @@ public static partial class ServerAddress
     public static IReadOnlyList<string> Candidates(string input)
     {
         var text = input.Trim();
-        if (text.Length == 0) throw new ArgumentException("Indique l’adresse de ton serveur Jellyfin, par exemple http://127.0.0.1:8096.");
+        if (text.Length == 0) throw new UserInputException("Indique l’adresse de ton serveur Jellyfin, par exemple http://127.0.0.1:8096.");
         if (text.Contains("://", StringComparison.Ordinal)) return [JellyfinClient.NormalizeServer(WithoutWebPage(text))];
         var authority = text.Split('/', 2)[0];
         var explicitPort = PortSuffix().IsMatch(authority);

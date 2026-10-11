@@ -29,7 +29,7 @@ public sealed class JellyfinClient : IDisposable
         if (!Uri.TryCreate(server.Trim(), UriKind.Absolute, out var uri) ||
             (uri.Scheme != "http" && uri.Scheme != "https") || !string.IsNullOrEmpty(uri.UserInfo) ||
             !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
-            throw new ArgumentException("Saisis une adresse http:// ou https://, sans identifiants dans l’adresse.");
+            throw new UserInputException("Saisis une adresse http:// ou https://, sans identifiants dans l’adresse.");
         return uri.AbsoluteUri.TrimEnd('/') + "/";
     }
     private void SetAuthorization()

@@ -223,7 +223,7 @@ public partial class MainWindow : Window
         JellyfinClient? client = null;
         try
         {
-            if (string.IsNullOrWhiteSpace(UsernameBox.Text)) throw new ArgumentException("Indique ton nom d’utilisateur Jellyfin.");
+            if (string.IsNullOrWhiteSpace(UsernameBox.Text)) throw new UserInputException("Indique ton nom d’utilisateur Jellyfin.");
             // "192.168.1.20", "nas:8096" or the address of Jellyfin's web page: find the server before sending the password.
             ConnectText.Text = "Recherche du serveur…";
             var server = await ServerAddress.DiscoverAsync(ServerBox.Text);
@@ -543,12 +543,12 @@ public partial class MainWindow : Window
     }
     private void NoticeAction_Click(object sender, RoutedEventArgs e) { var action = _noticeAction; HideNotice(); action?.Invoke(); }
     private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver || Notice.IsKeyboardFocusWithin) return; HideNotice(); }
-    private static bool IsExpected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException or OperationCanceledException or System.Text.Json.JsonException or SqliteException;
+    private static bool IsExpected(Exception e) => ExpectedErrors.Are(e);
     private static string Friendly(Exception ex) => ex switch
     {
         // Mira's own messages are written for you; .NET's (a file refused, a wrong argument) are not, nor in French.
         UnauthorizedAccessException => FromMira(ex) ? ex.Message : "Windows refuse à Mira l’accès à l’un de ses fichiers : vérifie que son dossier de données n’est pas en lecture seule.",
-        ArgumentException when FromMira(ex) => ex.Message,
+        UserInputException => ex.Message,
         ServerDiscoveryException => ex.Message,
         OperationCanceledException => "Jellyfin met trop de temps à répondre.",
         HttpRequestException { StatusCode: { } status } => JellyfinClient.StatusMessage(status),
