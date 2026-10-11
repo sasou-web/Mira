@@ -2262,17 +2262,24 @@ await Test("Mises à jour : le manifeste signe aussi le Mac et Mira web, et les 
     Assert(!Encoding.UTF8.GetString(windows).Contains("others") && UpdateManifest.Parse(windows).Others.Count == 0 && Parse074(windows).Files.Count == 2, "A Windows-only manifest changed");
     var refusedBy074 = false; try { Parse074(new UpdateManifest("Mira", version, [.. manifest.Files, manifest.Others[0]]).ToJson()); } catch (UpdateException) { refusedBy074 = true; }
     Assert(refusedBy074 && UpdateManifest.OtherKinds.All(k => !UpdateManifest.Kinds.Contains(k)), "A Mac file among the Windows ones would stop older copies from updating");
-    // A kind added later is skipped in "others"; a known one is checked as in "files".
+    // A kind added later is skipped in "others". A known one that cannot be used is skipped too for Windows updates,
+    // and refuses the manifest when Mira web or the release tooling read it (strict).
     string Json(string files, string others) => $$"""{"product":"Mira","version":"0.7.5","files":[{{files}}],"others":{{others}}}""";
     var zip = $$"""{"kind":"zip","name":"Mira-0.7.5-win-x64.zip","size":10,"sha256":"{{sha}}"}""";
     var mac = $$"""{"kind":"mac","name":"Mira-0.7.5-mac-arm64.dmg","size":20,"sha256":"{{sha}}"}""";
-    Assert(UpdateManifest.Parse(Encoding.UTF8.GetBytes(Json(zip, $$"""[{"kind":"linux","name":"../x","size":"?"},{{mac}}]"""))).Others.Single().Kind == "mac", "A kind added later was not skipped");
+    foreach (var strict in new[] { false, true })
+        Assert(UpdateManifest.Parse(Encoding.UTF8.GetBytes(Json(zip, $$"""[{"kind":"linux","name":"../x","size":"?"},{{mac}}]""")), strict).Others.Single().Kind == "mac", "A kind added later was not skipped");
+    bool Refused(string json, bool strict) { try { UpdateManifest.Parse(Encoding.UTF8.GetBytes(json), strict); return false; } catch (UpdateException) { return true; } }
     foreach (var bad in new[] { Json(zip, "{}"), Json(zip, "[1]"), Json(zip, $"[{mac},{mac}]"), Json(zip, $"[{mac.Replace("\"size\":20", "\"size\":0")}]"), Json(zip, $"[{mac.Replace(sha, "abc")}]"),
-        Json(zip, $"[{mac.Replace("Mira-0.7.5-mac-arm64.dmg", "../evil.dmg")}]"), Json($"{zip},{mac}", "[]") })
+        Json(zip, $"[{mac.Replace("Mira-0.7.5-mac-arm64.dmg", "../evil.dmg")}]"), Json(zip, $"[{mac.Replace("\"size\":20", "\"size\":2147483648")}]") })
     {
-        var rejected = false; try { UpdateManifest.Parse(Encoding.UTF8.GetBytes(bad)); } catch (UpdateException) { rejected = true; }
-        Assert(rejected, "Invalid manifest accepted: " + bad);
+        Assert(Refused(bad, strict: true), "Invalid manifest accepted by the strict reading: " + bad);
+        var lenient = UpdateManifest.Parse(Encoding.UTF8.GetBytes(bad));
+        Assert(lenient.Files.Single().Kind == "zip" && lenient.Others.Count <= 1 && lenient.Others.All(f => f.Name == "Mira-0.7.5-mac-arm64.dmg" && f.Size == 20), "Windows updates stopped by another platform's entry: " + bad);
     }
+    // "files" stays strict for both: it is what Windows installs.
+    foreach (var bad in new[] { Json($"{zip},{mac}", "[]"), Json($"{zip},{zip}", "[]"), Json(zip.Replace(sha, "abc"), "[]") })
+        Assert(Refused(bad, strict: false) && Refused(bad, strict: true), "Invalid Windows file accepted: " + bad);
     // The release tooling's manifest: the Windows files of one folder, both other platforms from another, or nothing.
     var packages = Path.Combine(testRoot, "manifest-packages"); var others = Path.Combine(testRoot, "manifest-others");
     Directory.CreateDirectory(packages); Directory.CreateDirectory(others);
@@ -2283,6 +2290,33 @@ await Test("Mises à jour : le manifeste signe aussi le Mac et Mira web, et les 
     var full = UpdateManifest.Create(version, packages, others);
     Assert(full.Files.Single() is { Kind: "zip", Size: 3 } && full.Others.Select(f => f.Name).SequenceEqual(["Mira-0.7.5-mac-arm64.dmg", "mira-jellyfin-0.7.5.zip"])
         && full.Others[1].Sha256 == Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("plugin"))).ToLowerInvariant(), "Manifest of the release folders");
+    return Task.CompletedTask;
+});
+await Test("Mises à jour : les copies 0.7.5 se mettent à jour même si une version suivante change les fichiers Mac ou Mira web", () =>
+{
+    // What 0.7.5 copies will read (Parse075, frozen), given manifests a later release could publish.
+    var sha = new string('c', 64);
+    string Entry(string kind, string name, long size) => $$"""{"kind":"{{kind}}","name":"{{name}}","size":{{size}},"sha256":"{{sha}}"}""";
+    string Json(string others) => $$"""{"product":"Mira","version":"0.7.9","files":[{{Entry("installer", "Mira-0.7.9-win-x64-setup.exe", 30)}},{{Entry("zip", "Mira-0.7.9-win-x64.zip", 10)}}],"others":{{others}}}""";
+    var mac = Entry("mac", "Mira-0.7.9-mac-arm64.dmg", 20);
+    foreach (var (name, json) in new[]
+    {
+        ("two Mac disk images", Json($"[{mac},{Entry("mac", "Mira-0.7.9-mac-x64.dmg", 21)}]")),
+        ("a Mac disk image over 1 GiB", Json($"[{Entry("mac", "Mira-0.7.9-mac-arm64.dmg", 3L << 30)},{Entry("jellyfin", "mira-jellyfin-0.7.9.zip", 5)}]")),
+        ("a name this version refuses", Json($"[{Entry("jellyfin", "mira jellyfin.zip", 5)}]")),
+        ("another kind", Json($"[{Entry("linux", "Mira-0.7.9.AppImage", 40)},{mac}]")),
+        ("others no longer a list", Json("{\"mac\":1}")),
+    })
+    {
+        foreach (var parse in new Func<byte[], UpdateManifest>[] { Parse075, bytes => UpdateManifest.Parse(bytes) })
+        {
+            var manifest = parse(Encoding.UTF8.GetBytes(json));
+            Assert(manifest.Version == new Version(0, 7, 9) && manifest.Files.Select(f => f.Kind).SequenceEqual(["installer", "zip"]), "Windows copies would stop updating: " + name);
+        }
+    }
+    // Same reading as the current one on this version's own manifest.
+    var own = new UpdateManifest("Mira", new Version(0, 7, 5), [new("zip", "Mira-0.7.5-win-x64.zip", 10, sha)]) { Others = [new("mac", "Mira-0.7.5-mac-arm64.dmg", 20, sha), new("jellyfin", "mira-jellyfin-0.7.5.zip", 5, sha)] }.ToJson();
+    Assert(Parse075(own).Others.SequenceEqual(UpdateManifest.Parse(own).Others) && Parse075(own).Files.SequenceEqual(UpdateManifest.Parse(own).Files), "The frozen reading differs from the current one");
     return Task.CompletedTask;
 });
 await Test("Mises à jour : le .dmg et Mira web vérifiés avant de signer (SHA-256 publiée, manifeste de Jellyfin et MD5)", () =>
@@ -2336,18 +2370,49 @@ await Test("Mira web : vérifié sur la release signée de cette version de Mira
         files["mira-jellyfin-0.7.5.zip"] = plugin;
         files["jellyfin-manifest.json"] = Encoding.UTF8.GetBytes(JellyfinRepository("0.7.5.0", source ?? "https://github.com/sasou-web/Mira/releases/download/v0.7.5/mira-jellyfin-0.7.5.zip", Convert.ToHexString(MD5.HashData(plugin)).ToLowerInvariant()));
     }
+    // GitHub's API says whether the published release is immutable ("immutable": true, null: field absent).
+    bool? immutable = true; Func<Uri, HttpResponseMessage?>? fault = null;
     using var handler = new Handler(request =>
     {
         var url = request.RequestUri!; requested.Add(url);
+        if (fault?.Invoke(url) is { } faulted) return Task.FromResult(faulted);
+        if (url.Host == "api.github.com" && url.AbsolutePath == "/repos/sasou-web/Mira/releases/tags/v0.7.5")
+            return Task.FromResult(files.Count == 0 ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(immutable is { } on ? $$"""{"tag_name":"v0.7.5","draft":false,"immutable":{{(on ? "true" : "false")}}}""" : """{"tag_name":"v0.7.5"}""") });
         const string prefix = "/sasou-web/Mira/releases/download/v0.7.5/";
-        return Task.FromResult(url.AbsolutePath.StartsWith(prefix, StringComparison.Ordinal) && files.TryGetValue(url.AbsolutePath[prefix.Length..], out var bytes)
+        return Task.FromResult(url.Host == "github.com" && url.AbsolutePath.StartsWith(prefix, StringComparison.Ordinal) && files.TryGetValue(url.AbsolutePath[prefix.Length..], out var bytes)
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) } : new HttpResponseMessage(HttpStatusCode.NotFound));
     });
     using var github = new UpdateClient(version, [UpdateSignature.PublicKey(key)], handler: handler);
     async Task<string> Refusal() { try { await MiraWebRelease.VerifyAsync(github, version); return ""; } catch (UpdateException ex) { return ex.Message; } }
     Publish(key);
     Assert(await MiraWebRelease.VerifyAsync(github, version) == "https://github.com/sasou-web/Mira/releases/download/v0.7.5/jellyfin-manifest.json" && MiraWeb.RepositoryFor(version) == "https://github.com/sasou-web/Mira/releases/download/v0.7.5/jellyfin-manifest.json", "Signed release refused");
-    Assert(requested.All(u => u.Scheme == "https" && u.Host == "github.com" && u.AbsolutePath.StartsWith("/sasou-web/Mira/releases/download/v0.7.5/", StringComparison.Ordinal)), "Another address was asked");
+    Assert(requested[0] == new Uri("https://api.github.com/repos/sasou-web/Mira/releases/tags/v0.7.5")
+        && requested.Skip(1).All(u => u.Scheme == "https" && u.Host == "github.com" && u.AbsolutePath.StartsWith("/sasou-web/Mira/releases/download/v0.7.5/", StringComparison.Ordinal)), "Another address was asked");
+    // A release GitHub does not keep immutable: its files could be replaced after this check, and Jellyfin would take
+    // the new ones. Refused, before anything else is downloaded.
+    foreach (var state in new bool?[] { false, null })
+    {
+        immutable = state; requested.Clear();
+        Assert((await Refusal()).Contains("peut encore être modifiée") && requested.Count == 1, "A mutable release accepted: " + state);
+    }
+    immutable = true;
+    // GitHub's answers, told apart: unreachable (this PC's Internet), limiting requests (its own message), and files
+    // larger than signed or sent elsewhere than GitHub (an altered release).
+    foreach (var (what, failure, expected) in new (string, Func<Uri, HttpResponseMessage?>, string)[]
+    {
+        ("unreachable", _ => throw new HttpRequestException("no route"), "accès à Internet"),
+        ("rate limit on the API", u => u.Host == "api.github.com" ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null, "limite les vérifications"),
+        ("rate limit on a file", u => u.AbsolutePath.EndsWith(".sig", StringComparison.Ordinal) ? new HttpResponseMessage(HttpStatusCode.TooManyRequests) : null, "limite les vérifications"),
+        ("larger plugin", u => u.AbsolutePath.EndsWith(".zip", StringComparison.Ordinal) ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([.. plugin, .. plugin]) } : null, "ne correspond pas"),
+        ("plugin sent elsewhere", u => u.AbsolutePath.EndsWith(".zip", StringComparison.Ordinal) ? new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri("https://evil.example/mira.zip") } } : null, "ne correspond pas"),
+        ("huge manifest", u => u.AbsolutePath.EndsWith("mira-update.json", StringComparison.Ordinal) ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[70_000]) } : null, "ne correspond pas"),
+    })
+    {
+        fault = failure; var message = await Refusal(); fault = null;
+        Assert(message.Contains(expected), $"{what}: « {message} »");
+    }
+    Assert(await MiraWebRelease.VerifyAsync(github, version) == MiraWeb.RepositoryFor(version), "Signed release refused after the failures");
     // The plugin replaced on GitHub after signing, at the same size and with Jellyfin's MD5 updated to match: only the
     // signed SHA-256 tells, and it is refused.
     var forged = Encoding.UTF8.GetBytes("extension Miro 0.7.5");
@@ -2375,31 +2440,62 @@ await Test("Mira web : vérifié sur la release signée de cette version de Mira
     foreach (var url in new[] { "https://repo.jellyfin.org/files/plugin/manifest.json", "https://github.com/someone/Mira/releases/latest/download/jellyfin-manifest.json", "https://github.com.evil.example/sasou-web/Mira/releases/x", "file:///sasou-web/Mira/releases/", "", null })
         Assert(!MiraWeb.IsRepository(url), "Another repository taken for Mira's: " + url);
 });
-await Test("Mira web : seul le dépôt vérifié de Mira reste dans Jellyfin, et une nouvelle version s’installe sans redémarrage", async () =>
+await Test("Mira web : au démarrage, le dépôt de Mira avance jusqu’à cette version vérifiée, jamais en arrière, sans rien installer", async () =>
 {
-    var pinned = MiraWeb.RepositoryFor(new Version(0, 7, 5));
-    var repositories = $$"""[{"Name":"Jellyfin Stable","Url":"https://repo.jellyfin.org/files/plugin/manifest.json","Enabled":true},{"Name":"Mira","Url":"{{MiraWeb.LatestRepository}}","Enabled":true},{"Name":"Ancienne","Url":"{{MiraWeb.RepositoryFor(new Version(0, 7, 4))}}","Enabled":false},{"Name":"Autre","Url":"https://example.org/manifest.json"}]""";
-    var calls = new List<string>(); var admin = true; string? installQuery = null;
+    var version = new Version(0, 7, 5); var pinned = MiraWeb.RepositoryFor(version);
+    const string stable = """{"Name":"Jellyfin Stable","Url":"https://repo.jellyfin.org/files/plugin/manifest.json","Enabled":true}""";
+    string Repositories(params string[] mira) => "[" + string.Join(",", [stable, .. mira, """{"Name":"Autre","Url":"https://example.org/manifest.json"}"""]) + "]";
+    string Mira(string url, bool enabled = true) => $$"""{"Name":"Mira","Url":"{{url}}","Enabled":{{(enabled ? "true" : "false")}}}""";
+    // Jellyfin's plugin list: Mira's id as Jellyfin writes it (no dashes), and its four-number version.
+    string Plugins(params (string Version, string Status)[] mira) => "[" + string.Join(",", mira.Select(p => $$"""{"Name":"Mira","Version":"{{p.Version}}","Id":"{{MiraWeb.PluginId:N}}","Status":"{{p.Status}}"}""")
+        .Append("""{"Name":"Autre","Version":"9.9.9.9","Id":"0f0c4f4b8e3a4d6f9f7a1b2c3d4e5f60","Status":"Active"}""")) + "]";
+    string repositories = "", plugins = ""; var admin = true; var calls = new List<string>(); var verified = 0;
     using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
     {
         var path = request.RequestUri!.AbsolutePath.TrimStart('/');
         calls.Add($"{request.Method} {path}");
         if (!admin) return new HttpResponseMessage(HttpStatusCode.Forbidden);
         if (path == "Repositories" && request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(repositories, Encoding.UTF8, "application/json") };
-        if (path == "Repositories") { repositories = await request.Content!.ReadAsStringAsync(); return new HttpResponseMessage(HttpStatusCode.NoContent); }
-        if (path == "Packages/Installed/Mira") { installQuery = request.RequestUri.Query; return new HttpResponseMessage(HttpStatusCode.NoContent); }
-        return new HttpResponseMessage(HttpStatusCode.NotFound);
+        if (path == "Repositories" && request.Method == HttpMethod.Post) { repositories = await request.Content!.ReadAsStringAsync(); return new HttpResponseMessage(HttpStatusCode.NoContent); }
+        if (path == "Plugins" && request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(plugins, Encoding.UTF8, "application/json") };
+        return new HttpResponseMessage(HttpStatusCode.NoContent);
     }));
-    Assert((await client.MiraRepositoriesAsync())!.SequenceEqual([MiraWeb.LatestRepository]), "Mira's enabled repositories not read");
-    Assert(await client.UpdateWebAppAsync(pinned) == WebAppInstall.Pending && !calls.Contains("POST System/Restart"), "Jellyfin restarted, or the update not installed");
-    var list = JsonDocument.Parse(repositories).RootElement.EnumerateArray().Select(x => x.GetProperty("Url").GetString()).ToList();
-    Assert(list.SequenceEqual(["https://repo.jellyfin.org/files/plugin/manifest.json", "https://example.org/manifest.json", pinned]), "Repositories: " + repositories);
-    Assert(installQuery!.Contains("repositoryUrl=" + Uri.EscapeDataString(pinned)) && installQuery.Contains("assemblyGuid=" + MiraWeb.PluginId), "Install request: " + installQuery);
-    Assert((await client.MiraRepositoriesAsync())!.SequenceEqual([pinned]), "The pinned repository not read back");
-    calls.Clear();
-    Assert(await client.UpdateWebAppAsync(pinned) == WebAppInstall.Pending && !calls.Contains("POST Repositories"), "Repositories saved again when already pinned");
-    admin = false; var before = repositories;
-    Assert(await client.MiraRepositoriesAsync() is null && await client.UpdateWebAppAsync(MiraWeb.RepositoryFor(new Version(0, 7, 6))) == WebAppInstall.NotAllowed && repositories == before, "A guest changed Jellyfin's repositories");
+    Task<string> Verified() { verified++; return Task.FromResult(pinned); }
+    List<string?> Urls() => JsonDocument.Parse(repositories).RootElement.EnumerateArray().Select(x => x.GetProperty("Url").GetString()).ToList();
+    async Task<bool> Start(string registered, string installed)
+    {
+        repositories = registered; plugins = installed; calls.Clear(); verified = 0;
+        var settled = await client.KeepWebAppCurrentAsync(version, Verified);
+        // Whatever happens at startup: nothing installed, nothing restarted, Jellyfin's update task does the rest.
+        Assert(calls.All(c => c is "GET Repositories" or "GET Plugins" or "POST Repositories"), "Startup did more than move the repository: " + string.Join(", ", calls));
+        return settled;
+    }
+    // Mira 0.7.4 registered the latest release's repository; Mira web is still 0.7.4: the repository moves to 0.7.5's,
+    // checked first, every other repository of Mira's removed, the others kept.
+    Assert(await Start(Repositories(Mira(MiraWeb.LatestRepository), Mira(MiraWeb.RepositoryFor(new Version(0, 7, 4)), enabled: false)), Plugins(("0.7.4.0", "Active"))) && verified == 1, "Not moved forward");
+    Assert(Urls().SequenceEqual(["https://repo.jellyfin.org/files/plugin/manifest.json", "https://example.org/manifest.json", pinned]), "Repositories: " + repositories);
+    // Already there: nothing checked or saved again.
+    Assert(await Start(Repositories(Mira(pinned)), Plugins(("0.7.4.0", "Active"))) && verified == 0 && !calls.Contains("POST Repositories"), "Saved again when already pinned");
+    // Another PC's Mira, more recent, pinned 0.7.6: never back to 0.7.5.
+    Assert(await Start(Repositories(Mira(MiraWeb.RepositoryFor(new Version(0, 7, 6)))), Plugins(("0.7.4.0", "Active"))) && verified == 0 && !calls.Contains("POST Repositories"), "Moved back from a newer pinned version");
+    // Jellyfin already has this version or a newer one (from the latest release, or waiting for its restart).
+    foreach (var installed in new[] { Plugins(("0.7.5.0", "Active")), Plugins(("0.7.6.0", "Active")), Plugins(("0.7.4.0", "Superceded"), ("0.7.6.0", "Restart")) })
+        Assert(await Start(Repositories(Mira(MiraWeb.LatestRepository)), installed) && verified == 0 && !calls.Contains("POST Repositories"), "Repository changed though Jellyfin is up to date: " + installed);
+    // The administrator's choices stand: a disabled or uninstalled plugin only sees its repository move (Jellyfin's task
+    // then installs nothing); a disabled repository of Mira's, or none, is left alone.
+    Assert(await Start(Repositories(Mira(MiraWeb.LatestRepository)), Plugins(("0.7.4.0", "Disabled"))) && Urls().Last() == pinned, "Disabled plugin: repository not moved");
+    Assert(await Start(Repositories(Mira(MiraWeb.LatestRepository)), Plugins()) && Urls().Last() == pinned, "Uninstalled plugin: repository not moved");
+    foreach (var registered in new[] { Repositories(Mira(MiraWeb.LatestRepository, enabled: false)), Repositories() })
+        Assert(!await Start(registered, Plugins(("0.7.4.0", "Active"))) && verified == 0 && !calls.Contains("POST Repositories") && !calls.Contains("GET Plugins"), "Changed a server without Mira's repository: " + registered);
+    // A failed check changes nothing; a guest account can change nothing.
+    repositories = Repositories(Mira(MiraWeb.LatestRepository)); plugins = Plugins(("0.7.4.0", "Active")); var before = repositories;
+    var thrown = false; try { await client.KeepWebAppCurrentAsync(version, () => throw new UpdateException("non signé")); } catch (UpdateException) { thrown = true; }
+    Assert(thrown && repositories == before, "Repository moved without a checked release");
+    admin = false;
+    Assert(!await client.KeepWebAppCurrentAsync(version, Verified) && repositories == before, "A guest changed Jellyfin's repositories");
+    // The version a repository offers alone.
+    Assert(MiraWeb.PinnedVersion(pinned) == version && MiraWeb.PinnedVersion(MiraWeb.LatestRepository) is null && MiraWeb.PinnedVersion("https://example.org/releases/download/v9.9.9/jellyfin-manifest.json") is null
+        && MiraWeb.PinnedVersion("https://github.com/sasou-web/Mira/releases/download/v0.7.6/mira-jellyfin-0.7.6.zip") is null, "Pinned versions read wrong");
 });
 await Test("Mises à jour : copie en deux temps, dossier intact si la préparation échoue, résultat annoncé une fois", () =>
 {
@@ -2580,6 +2676,42 @@ static (Version Version, List<UpdateFile> Files) Parse074(byte[] json)
         }
         if (files.Count == 0) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
         return (version, files);
+    }
+    catch (Exception ex) when (ex is JsonException or InvalidOperationException) { throw new UpdateException("Le manifeste de mise à jour est illisible."); }
+}
+// UpdateManifest.Parse as Mira 0.7.5 ships it (lot 5b of the review), frozen: what installed 0.7.5 copies will read in
+// every later release's manifest to update themselves. Its "others" reading must stay lenient.
+static UpdateManifest Parse075(byte[] json)
+{
+    static string Text(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()! : "";
+    static long Number(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number) ? number : -1;
+    string[] kinds = ["installer", "portable", "zip"], otherKinds = ["mac", "jellyfin"];
+    var fileName = new System.Text.RegularExpressions.Regex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    var hex = new System.Text.RegularExpressions.Regex("^[0-9a-f]{64}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    UpdateFile? Entry(JsonElement entry, string[] allowed, List<UpdateFile> files)
+    {
+        var file = new UpdateFile(Text(entry, "kind"), Text(entry, "name"), Number(entry, "size"), Text(entry, "sha256").ToLowerInvariant());
+        return allowed.Contains(file.Kind) && fileName.IsMatch(file.Name) && file.Size is > 0 and <= 1L << 30 && hex.IsMatch(file.Sha256) && !files.Any(f => f.Kind == file.Kind) ? file : null;
+    }
+    try
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var product = Text(root, "product");
+        var version = ReleaseFeed.ParseVersion(Text(root, "version")) ?? throw new UpdateException("Le manifeste de mise à jour n’indique pas de version valide.");
+        if (product != "Mira") throw new UpdateException("Le manifeste de mise à jour ne concerne pas Mira.");
+        if (!root.TryGetProperty("files", out var list) || list.ValueKind != JsonValueKind.Array) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
+        var files = new List<UpdateFile>();
+        foreach (var entry in list.EnumerateArray())
+            files.Add(Entry(entry, kinds, files) ?? throw new UpdateException("Le manifeste de mise à jour contient un fichier invalide."));
+        if (files.Count == 0) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
+        var others = new List<UpdateFile>();
+        if (root.TryGetProperty("others", out var more) && more.ValueKind == JsonValueKind.Array)
+            foreach (var entry in more.EnumerateArray())
+                if (!(entry.ValueKind == JsonValueKind.Object && !otherKinds.Contains(Text(entry, "kind"))) && Entry(entry, otherKinds, others) is { } file) others.Add(file);
+        return new UpdateManifest(product, version, files) { Others = others };
     }
     catch (Exception ex) when (ex is JsonException or InvalidOperationException) { throw new UpdateException("Le manifeste de mise à jour est illisible."); }
 }

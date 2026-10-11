@@ -300,19 +300,39 @@ public sealed class JellyfinClient : IDisposable
         return WebAppInstall.Restarting;
     }
     /// <summary>
-    /// Brings Mira web to the version of <paramref name="repository"/>, checked as for <see cref="InstallWebAppAsync"/>,
-    /// without restarting Jellyfin: <see cref="WebAppInstall.Pending"/> once Jellyfin has it, for its next restart.
+    /// At startup, after Mira updated itself: Jellyfin's repository of Mira web moves forward to <paramref name="version"/>,
+    /// the repository <paramref name="verified"/> gives once it has checked that release. Nothing is installed or
+    /// restarted here: Jellyfin's own update task then installs the new version as it does any update, so a plugin
+    /// the administrator uninstalled, disabled or keeps from updating stays so. Never backwards: nothing changes while
+    /// Mira's repository already offers this version or a newer one, or while Jellyfin has this version or a newer one
+    /// (another PC's Mira, more recent, is in charge). Only where Mira's repository is registered and enabled (by the
+    /// guide, or by hand), and for an administrator. True once Jellyfin is where it should be; false when Mira has
+    /// nothing to do on this server for now (no such repository, or not allowed), to look again at the next start.
     /// </summary>
-    public async Task<WebAppInstall> UpdateWebAppAsync(string repository, CancellationToken ct = default) =>
-        await InstallFromAsync(repository, ct) ?? WebAppInstall.Pending;
-    /// <summary>
-    /// The enabled repositories of Mira's releases registered in Jellyfin (by Mira, or by hand); null when this account
-    /// may not read them: only an administrator manages Jellyfin's plugins.
-    /// </summary>
-    public async Task<List<string>?> MiraRepositoriesAsync(CancellationToken ct = default)
+    public async Task<bool> KeepWebAppCurrentAsync(Version version, Func<Task<string>> verified, CancellationToken ct = default)
     {
-        if (await RepositoriesAsync(ct) is not { } repositories) return null;
-        return repositories.Where(RepositoryEnabled).Select(RepositoryUrl).Where(MiraWeb.IsRepository).OfType<string>().ToList();
+        if (await RepositoriesAsync(ct) is not { } repositories) return false;
+        var mira = repositories.Where(RepositoryEnabled).Select(RepositoryUrl).Where(MiraWeb.IsRepository).ToList();
+        if (mira.Count == 0) return false;
+        if (mira.Any(url => MiraWeb.PinnedVersion(url) is { } pinned && pinned >= version)) return true;
+        if (await WebAppVersionAsync(ct) is { } installed && installed >= version) return true;
+        return await PinAsync(repositories, await verified(), ct) is null;
+    }
+    /// <summary>The newest version of Mira's plugin Jellyfin lists (one waiting for a restart included); null without one.</summary>
+    private async Task<Version?> WebAppVersionAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("Plugins", ct);
+        await CheckAsync(response);
+        var plugins = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+        Version? newest = null;
+        foreach (var plugin in plugins.OfType<JsonObject>())
+        {
+            if (plugin["Id"] is not JsonValue id || !id.TryGetValue<string>(out var text) || !Guid.TryParse(text, out var guid) || guid != MiraWeb.PluginId) continue;
+            // Jellyfin writes four numbers (0.7.5.0), Mira three.
+            if (plugin["Version"] is JsonValue listed && listed.TryGetValue<string>(out var number) && Version.TryParse(number, out var found)
+                && new Version(found.Major, found.Minor, Math.Max(found.Build, 0)) is var three && (newest is null || three > newest)) newest = three;
+        }
+        return newest;
     }
     /// <summary>
     /// <paramref name="repository"/> made Mira's only repository in Jellyfin, then the plugin installed from it. Null once
@@ -321,23 +341,30 @@ public sealed class JellyfinClient : IDisposable
     private async Task<WebAppInstall?> InstallFromAsync(string repository, CancellationToken ct)
     {
         if (await RepositoriesAsync(ct) is not { } repositories) return WebAppInstall.NotAllowed;
-        // Jellyfin merges the versions every repository offers for a plugin and installs the newest: another repository
-        // of Mira's, the latest release's above all, would bring back a version nobody checked.
-        var mira = repositories.Where(x => MiraWeb.IsRepository(RepositoryUrl(x))).ToList();
-        if (mira is not [var only] || RepositoryUrl(only) != repository || !RepositoryEnabled(only))
-        {
-            foreach (var entry in mira) repositories.Remove(entry);
-            repositories.Add(new JsonObject { ["Name"] = MiraWeb.RepositoryName, ["Url"] = repository, ["Enabled"] = true });
-            using var content = new StringContent(repositories.ToJsonString(), Encoding.UTF8, "application/json");
-            using var saved = await _http.PostAsync("Repositories", content, ct);
-            if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
-            await CheckAsync(saved);
-        }
+        if (await PinAsync(repositories, repository, ct) is { } refused) return refused;
         var install = $"Packages/Installed/{Uri.EscapeDataString(MiraWeb.PluginName)}?assemblyGuid={MiraWeb.PluginId}&repositoryUrl={Uri.EscapeDataString(repository)}";
         using var installed = await _http.PostAsync(install, null, ct);
         if (installed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
         if (installed.StatusCode == HttpStatusCode.NotFound) return WebAppInstall.Unavailable;
         await CheckAsync(installed);
+        return null;
+    }
+    /// <summary>
+    /// <paramref name="repository"/> made Mira's only repository in <paramref name="repositories"/> (Jellyfin's list), the
+    /// others kept, and saved if that changed anything. Null once saved; otherwise why not.
+    /// </summary>
+    private async Task<WebAppInstall?> PinAsync(JsonArray repositories, string repository, CancellationToken ct)
+    {
+        // Jellyfin merges the versions every repository offers for a plugin and installs the newest: another repository
+        // of Mira's, the latest release's above all, would bring back a version nobody checked.
+        var mira = repositories.Where(x => MiraWeb.IsRepository(RepositoryUrl(x))).ToList();
+        if (mira is [var only] && RepositoryUrl(only) == repository && RepositoryEnabled(only)) return null;
+        foreach (var entry in mira) repositories.Remove(entry);
+        repositories.Add(new JsonObject { ["Name"] = MiraWeb.RepositoryName, ["Url"] = repository, ["Enabled"] = true });
+        using var content = new StringContent(repositories.ToJsonString(), Encoding.UTF8, "application/json");
+        using var saved = await _http.PostAsync("Repositories", content, ct);
+        if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return WebAppInstall.NotAllowed;
+        await CheckAsync(saved);
         return null;
     }
     /// <summary>Jellyfin's plugin repositories, as it lists them; null when this account may not read them.</summary>

@@ -202,4 +202,5 @@ jobs:
           # Only the draft made for this very commit: never a published release, nor a draft made since for another.
           state=$(gh release view "$RELEASE" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish --jq '[(.isDraft | tostring), .targetCommitish] | join(" ")')
           [ "$state" = "true $COMMIT" ] || { echo "$RELEASE is not a draft for $COMMIT (found: $state)" >&2; exit 1; }
-          gh release upload "$RELEASE" "web/mira-jellyfin-${RELEASE#v}.zip" web/jellyfin-manifest.json --clobber --repo "$GITHUB_REPOSITORY"
+          # Never --clobber: a fresh draft holds none of these files, and one already there must stop the upload.
+          gh release upload "$RELEASE" "web/mira-jellyfin-${RELEASE#v}.zip" web/jellyfin-manifest.json --repo "$GITHUB_REPOSITORY"

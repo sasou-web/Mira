@@ -32,7 +32,7 @@ public static class PhoneSetup
         {
             facts.Web switch
             {
-                true => new("web", Mark.Done, "Mira web est installé sur Jellyfin", "Jellyfin le met à jour à chaque version de Mira."),
+                true => new("web", Mark.Done, "Mira web est installé sur Jellyfin", "Il suit la version de Mira : quand Mira se met à jour et que tu l’ouvres avec le compte administrateur de Jellyfin, Jellyfin prend la nouvelle version à sa recherche de mises à jour suivante, puis à son redémarrage."),
                 false when facts.Admin == false => new("web", Mark.Yours, "Installer Mira web sur Jellyfin", "Il faut le compte administrateur de Jellyfin : connecte Mira avec celui-ci."),
                 false => new("web", Mark.ToDo, "Installer Mira web sur Jellyfin", "C’est Jellyfin qui sert Mira à ton téléphone : rien à prendre sur l’App Store ou le Play Store."),
                 null when !facts.Answering => new("web", Mark.Note, "Jellyfin ne répond pas pour l’instant", "Il redémarre, ou il est arrêté : cette carte se met à jour dès qu’il répond."),

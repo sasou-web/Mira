@@ -71,6 +71,8 @@ public sealed class UpdateClient : IDisposable
     public static readonly Uri GitHubReleases = new("https://api.github.com/repos/sasou-web/Mira/releases?per_page=20");
     // Release files: github.com/<owner>/<repo>/releases/download/…, then GitHub's file servers.
     private static readonly Regex DownloadPath = new("^/[^/]+/[^/]+/releases/download/", RegexOptions.CultureInvariant);
+    // One release of Mira in the API, by its tag (ReleaseInfo).
+    private static readonly Regex ReleaseInfoPath = new(@"^/repos/sasou-web/Mira/releases/tags/v\d{1,4}\.\d{1,4}\.\d{1,4}$", RegexOptions.CultureInvariant);
     private static readonly string[] GitHubHosts = ["api.github.com", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"];
     private const int MaximumRedirects = 5;
     private readonly HttpClient _http;
@@ -135,7 +137,7 @@ public sealed class UpdateClient : IDisposable
         {
             headers.CancelAfter(RequestTimeout);
             try { started = await SendAsync(offer.Url, "application/octet-stream", headers.Token, kept > 0 ? kept : null).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException("GitHub met trop de temps à répondre."); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException("GitHub met trop de temps à répondre.", network: true); }
         }
         using var response = started;
         // A server that ignores the range sends the whole file again: start over.
@@ -183,6 +185,22 @@ public sealed class UpdateClient : IDisposable
     /// fetched like an update (GitHub only, every redirect checked). Missing: an <see cref="UpdateException"/> with 404.</summary>
     public Task<byte[]> ReleaseFileAsync(Version version, string name, int limit, CancellationToken ct = default) =>
         GetBytesAsync(ReleaseFile(version, name), limit, "application/octet-stream", ct);
+    /// <summary>GitHub's API entry for release v<paramref name="version"/>: published releases only, a draft has no tag.</summary>
+    public static Uri ReleaseInfo(Version version) => new($"https://api.github.com/repos/sasou-web/Mira/releases/tags/v{version.ToString(3)}");
+    /// <summary>
+    /// Whether GitHub keeps release v<paramref name="version"/> immutable: once published, neither its files nor its tag
+    /// can change, even from the maintainer's account. Missing (or a draft): an <see cref="UpdateException"/> with 404.
+    /// </summary>
+    public async Task<bool> ImmutableAsync(Version version, CancellationToken ct = default)
+    {
+        var json = await GetBytesAsync(ReleaseInfo(version), 1 << 20, "application/vnd.github+json", ct).ConfigureAwait(false);
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("immutable", out var immutable) && immutable.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException) { throw new UpdateException("La réponse de GitHub est illisible."); }
+    }
     /// <summary>Whether <paramref name="manifest"/> carries a valid signature from one of the keys this client trusts.</summary>
     public bool Signed(byte[] manifest, byte[]? signature) => signature is not null && UpdateSignature.Verify(manifest, signature, _keys);
 
@@ -225,12 +243,12 @@ public sealed class UpdateClient : IDisposable
             }
             return buffer.ToArray();
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException("GitHub met trop de temps à répondre."); }
-        catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new UpdateException("GitHub est injoignable pour le moment."); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException("GitHub met trop de temps à répondre.", network: true); }
+        catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new UpdateException("GitHub est injoignable pour le moment.", network: true); }
     }
     private async Task<HttpResponseMessage> SendAsync(Uri url, string accept, CancellationToken ct, long? from = null)
     {
-        if (!Allowed(url) || url != _feed && !IsReleaseFile(url)) throw new UpdateException("Adresse de mise à jour refusée : " + url.GetLeftPart(UriPartial.Authority));
+        if (!Allowed(url) || url != _feed && !IsReleaseFile(url) && !IsReleaseInfo(url)) throw new UpdateException("Adresse de mise à jour refusée : " + url.GetLeftPart(UriPartial.Authority));
         for (var hop = 0; ; hop++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -239,7 +257,7 @@ public sealed class UpdateClient : IDisposable
             if (from is > 0) request.Headers.Range = new RangeHeaderValue(from, null);
             HttpResponseMessage response;
             try { response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false); }
-            catch (HttpRequestException) { throw new UpdateException("GitHub est injoignable pour le moment."); }
+            catch (HttpRequestException) { throw new UpdateException("GitHub est injoignable pour le moment.", network: true); }
             if ((int)response.StatusCode is 301 or 302 or 303 or 307 or 308)
             {
                 var location = response.Headers.Location; response.Dispose();
@@ -250,7 +268,7 @@ public sealed class UpdateClient : IDisposable
                 url = next;
                 continue;
             }
-            if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests) { response.Dispose(); throw new UpdateException("GitHub limite les vérifications pour le moment : nouvel essai plus tard."); }
+            if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests) { var limited = response.StatusCode; response.Dispose(); throw new UpdateException("GitHub limite les vérifications pour le moment : nouvel essai plus tard.", limited); }
             if (!response.IsSuccessStatusCode) { var status = response.StatusCode; response.Dispose(); throw new UpdateException($"GitHub a répondu {(int)status} à la vérification des mises à jour.", status); }
             return response;
         }
@@ -260,5 +278,6 @@ public sealed class UpdateClient : IDisposable
         ? url.IsLoopback && url.Scheme is "http" or "https" && url.Host == _feed.Host && url.Port == _feed.Port
         : url.Scheme == Uri.UriSchemeHttps && url.IsDefaultPort && GitHubHosts.Contains(url.Host, StringComparer.OrdinalIgnoreCase);
     private bool IsReleaseFile(Uri url) => _feed.IsLoopback || url.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) && DownloadPath.IsMatch(url.AbsolutePath);
+    private static bool IsReleaseInfo(Uri url) => url.Host.Equals("api.github.com", StringComparison.OrdinalIgnoreCase) && ReleaseInfoPath.IsMatch(url.AbsolutePath);
     public void Dispose() => _http.Dispose();
 }
