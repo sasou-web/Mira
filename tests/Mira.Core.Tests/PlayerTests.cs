@@ -1,0 +1,130 @@
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Mira.Core;
+using Mira.Core.Updates;
+using Mira.Desktop.Services;
+using static TestSupport;
+
+/// <summary>The player: volume, skipped segments, chapters, tracks, scrolling and carousel. Free of WPF: also run outside Windows.</summary>
+internal static class PlayerTests
+{
+    public static async Task RunAsync(TestRun run)
+    {
+        var Test = run.Test;
+        await Test("Volume : au-delà de 100 %, mpv reste à 100 et le filtre amplifie sans saturer", () =>
+        {
+            Assert(VolumeBoost.Split(80) == (80, 1) && VolumeBoost.Split(100) == (100, 1), "Up to 100, mpv's own volume and no gain");
+            Assert(VolumeBoost.Split(150) is (100, var gain) && Math.Abs(gain - 3.375) < 1e-9, "150 is mpv's 150: 100 then 1.5³ of gain");
+            Assert(VolumeBoost.Split(200) is (100, 8) && VolumeBoost.Split(260) is (100, 8), "The level stops at 200, 8 times louder (+18 dB)");
+            Assert(VolumeBoost.Split(-5) == (0, 1) && VolumeBoost.Clamp(double.NaN) == 80, "Below zero is silence; a broken saved level is the default");
+            Assert(VolumeBoost.Filter(3.375) == "@mira-boost:lavfi=[volume@gain=volume=3.375:precision=float,alimiter=limit=0.95:level=disabled]",
+                "Gain in floating point, then a limiter at −0.4 dB without gain of its own, under a label for live changes");
+            Assert(VolumeBoost.Filter(1.157625) == "@mira-boost:lavfi=[volume@gain=volume=1.1576:precision=float,alimiter=limit=0.95:level=disabled]", "Gain written with a dot, four decimals");
+            Assert(VolumeBoost.Reported(150) == 100 && VolumeBoost.Reported(42.4) == 42, "Jellyfin's scale stops at 100");
+            Assert(VolumeBoost.Text(135.2) == "135 %" && VolumeBoost.Text(0) == "0 %", "The level beside the slider");
+            return Task.CompletedTask;
+        });
+        await Test("Progression bornée et libellés d’épisodes", () =>
+        {
+            var item = new MediaItem { Id = "x", Name = "Le départ", SeriesName = "Les étoiles", Type = "Episode", ParentIndexNumber = 2, IndexNumber = 3, RunTimeTicks = 100, UserData = new() { PlaybackPositionTicks = 200 } };
+            Assert(item.Progress == 1, "Progress overflow"); Assert(item.Subtitle.Contains("S02 · E03"), "Episode label missing"); return Task.CompletedTask;
+        });
+        await Test("Défilement : même distance à 30, 60 et 144 images/s", () =>
+        {
+            var positions = new List<double>();
+            foreach (var fps in new[] { 30, 60, 144 })
+            {
+                var motion = new ScrollMotion(); motion.Add(432, 1000);
+                for (var frame = 0; frame < fps; frame++) motion.Step(.2 / fps, 1000);
+                positions.Add(motion.Position);
+                Assert(motion.Position > 300 && motion.Position < 432, "Scroll must interpolate rather than jump");
+            }
+            Assert(positions.Max() - positions.Min() < .001, "Frame rate changes the easing speed"); return Task.CompletedTask;
+        });
+        await Test("Défilement : inversion immédiate et bornes après changement du contenu", () =>
+        {
+            var motion = new ScrollMotion(); motion.Reset(300); motion.Add(600, 1000); motion.Step(.04, 1000);
+            var before = motion.Position; motion.Add(-108, 1000);
+            Assert(motion.Step(.016, 1000) < before, "Reversing the wheel continues in the old direction");
+            motion.Step(.1, 120); Assert(motion.Position <= 120 && motion.Target <= 120, "Shrinking content overscrolls");
+            motion.Add(-1000, 120); motion.Step(10, 120); Assert(motion.Position == 0 && !motion.Moving, "Top boundary never settles");
+            motion.Add(1000, 120); motion.Step(10, 120); Assert(motion.Position == 120 && !motion.Moving, "Bottom boundary never settles");
+            return Task.CompletedTask;
+        });
+        await Test("Carrousel : progression, pause, reprise et changement manuel", () =>
+        {
+            var timeline = new CarouselTimeline(8);
+            Assert(!timeline.Advance(4, false) && timeline.Progress == .5, "Halfway marker is incorrect");
+            Assert(!timeline.Advance(40, true) && timeline.Progress == .5, "Paused carousel advances");
+            Assert(timeline.Advance(4, false) && timeline.Progress == 1, "Slide does not end after resumed duration");
+            timeline.Reset(); Assert(timeline.Progress == 0 && !timeline.Advance(7.9, false), "Manual selection inherits previous duration");
+            return Task.CompletedTask;
+        });
+        await Test("Segments Jellyfin : types demandés, passages inconnus ou trop courts ignorés", async () =>
+        {
+            Uri? requestUri = null;
+            using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                requestUri = request.RequestUri;
+                return Task.FromResult(JsonResponse(new
+                {
+                    Items = new object[]
+                    {
+                        new { Type = "Outro", StartTicks = 1_300 * TimeSpan.TicksPerSecond, EndTicks = 1_390 * TimeSpan.TicksPerSecond },
+                        new { Type = "Intro", StartTicks = 60 * TimeSpan.TicksPerSecond, EndTicks = 150 * TimeSpan.TicksPerSecond },
+                        new { Type = "Unknown", StartTicks = 0L, EndTicks = 30 * TimeSpan.TicksPerSecond },
+                        new { Type = "Recap", StartTicks = 0L, EndTicks = TimeSpan.TicksPerSecond }
+                    },
+                    TotalRecordCount = 4
+                }));
+            }));
+            var segments = PlaybackMarkers.FromJellyfin(await client.SegmentsAsync("episode 1"));
+            Assert(requestUri!.AbsolutePath == "/jellyfin/MediaSegments/episode%201", "Segment path or escaping changed");
+            foreach (var type in new[] { "Intro", "Outro", "Recap", "Preview", "Commercial" }) Assert(requestUri.Query.Contains("includeSegmentTypes=" + type), "Missing segment type " + type);
+            Assert(segments.SequenceEqual(new[] { new SkipSegment(SkipKind.Intro, 60, 150), new SkipSegment(SkipKind.Outro, 1300, 1390) }), "Segments not filtered and ordered");
+        });
+        await Test("Chapitres nommés : opening, ending, récap, aperçu et générique selon sa position", () =>
+        {
+            var chapters = new List<ChapterMark> { new(0, "Récapitulatif"), new(45, "OP"), new(135, "Partie A"), new(700, "Chapitre 4"), new(1290, "Ending"), new(1380, "Next Episode Preview"), new(1410, null) };
+            var passages = PlaybackMarkers.FromChapters(chapters, 1420);
+            Assert(passages.SequenceEqual(new[] { new SkipSegment(SkipKind.Recap, 0, 45), new SkipSegment(SkipKind.Intro, 45, 135), new SkipSegment(SkipKind.Outro, 1290, 1380), new SkipSegment(SkipKind.Preview, 1380, 1410) }), "Named chapters misclassified: " + string.Join(", ", passages));
+            Assert(PlaybackMarkers.Classify("Générique", 30, 1400) == SkipKind.Intro && PlaybackMarkers.Classify("Générique", 1300, 1400) == SkipKind.Outro, "Bare credits title ignores its position");
+            Assert(PlaybackMarkers.Classify("Avant-générique") is null && PlaybackMarkers.Classify("Top Gun") is null && PlaybackMarkers.Classify("Opening Credits") == SkipKind.Intro, "Cold open or ordinary titles are skippable");
+            Assert(PlaybackMarkers.FromChapters(new List<ChapterMark> { new(0, "Opening"), new(600, "Épisode") }, 1400).Count == 0, "A ten-minute chapter is not an opening");
+            return Task.CompletedTask;
+        });
+        await Test("Passages : segments serveur prioritaires, passage actif et fin vers l’épisode suivant", () =>
+        {
+            var server = new List<SkipSegment> { new(SkipKind.Intro, 60, 150) };
+            var guessed = new List<SkipSegment> { new(SkipKind.Intro, 50, 140), new(SkipKind.Outro, 1290, 1380), new(SkipKind.Preview, 1380, 1418) };
+            var merged = PlaybackMarkers.Merge(server, guessed);
+            Assert(merged.SequenceEqual(new[] { server[0], guessed[1], guessed[2] }), "Chapter guesses override the server");
+            Assert(PlaybackMarkers.Active(merged, 59.8) == server[0] && PlaybackMarkers.Active(merged, 149.5) is null && PlaybackMarkers.Active(merged, 700) is null, "Active passage boundaries changed");
+            Assert(PlaybackMarkers.EndsPlayback(merged, guessed[1], 1420) && !PlaybackMarkers.EndsPlayback(merged, server[0], 1420), "Credits followed by a preview should lead to the next episode");
+            Assert(PlaybackMarkers.Label(SkipKind.Intro, true, false) == "Passer l’opening" && PlaybackMarkers.Label(SkipKind.Outro, false, false) == "Passer le générique" && PlaybackMarkers.Label(SkipKind.Outro, true, true) == "Épisode suivant", "Skip labels changed");
+            return Task.CompletedTask;
+        });
+        await Test("Lecteur : « Épisode 3 / 12 », pistes nommées en français, vitesse et décalage", () =>
+        {
+            MediaItem Episode(string id, int season, int number, string name = "") => new() { Id = id, Type = "Episode", SeriesName = "Sword Art Online", Name = name, ParentIndexNumber = season, IndexNumber = number };
+            var single = Enumerable.Range(1, 25).Select(n => Episode($"e{n}", 1, n, n == 1 ? "Le monde des épées" : $"Episode {n}")).ToList();
+            Assert(PlayerText.Subtitle(single[0], single) == "Épisode 1 / 25 · Le monde des épées", "Episode line: " + PlayerText.Subtitle(single[0], single));
+            Assert(PlayerText.Subtitle(single[2], single) == "Épisode 3 / 25", "A generic name is repeated: " + PlayerText.Subtitle(single[2], single));
+            Assert(PlayerText.Subtitle(single[0]) == "Épisode 1 · Le monde des épées", "Before the episode list: " + PlayerText.Subtitle(single[0]));
+            var seasons = single.Take(12).Concat(Enumerable.Range(1, 10).Select(n => Episode($"s2e{n}", 2, n))).Append(Episode("sp1", 0, 1, "OVA")).ToList();
+            Assert(PlayerText.Subtitle(seasons[0], seasons) == "Saison 1 · Épisode 1 / 12 · Le monde des épées" && PlayerText.Subtitle(seasons[13], seasons) == "Saison 2 · Épisode 2 / 10"
+                && PlayerText.Subtitle(seasons[^1], seasons) == "Hors-série · Épisode 1 / 1 · OVA", "Seasons: " + PlayerText.Subtitle(seasons[13], seasons));
+            Assert(PlayerText.Subtitle(Episode("e30", 1, 30), single.Take(10).ToList()) == "Épisode 30", "A partial list claims a total");
+            Assert(PlayerText.Subtitle(new MediaItem { Name = "Your Name", Type = "Movie", ProductionYear = 2016, RunTimeTicks = TimeSpan.FromMinutes(106).Ticks }) == "2016  ·  1 h 46", "Film line changed");
+            Assert(PlayerText.Track("2", null, "jpn", "aac", 2) == ("Japonais", "AAC · stéréo") && PlayerText.Track("3", "Signs & Songs", "fre", "ass", forced: true) == ("Signs & Songs", "Français · ASS · forcés")
+                && PlayerText.Track("4", "", "und", "") == ("Piste 4", "") && PlayerText.Track("5", "japanese", "pt-BR", "eac3", 6) == ("Japanese", "Portugais · Dolby Digital Plus · 5.1"), "Track names");
+            Assert(PlayerText.Speed(.75) == "0,75×" && PlayerText.Speed(1) == "1×" && PlayerText.Delay(.5) == "+0,5 s" && PlayerText.Delay(-1.5) == "−1,5 s" && PlayerText.Delay(0) == "0,0 s", "Speed or offset formatting");
+            return Task.CompletedTask;
+        });
+    }
+}

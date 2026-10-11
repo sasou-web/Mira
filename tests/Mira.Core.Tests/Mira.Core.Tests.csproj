@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The checks free of WPF, for every system (the CI runs them on Linux too); Mira.Tests compiles the same files and
+       runs them on Windows with the checks of the Windows app. -->
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/Mira.Core/Mira.Core.csproj" /></ItemGroup>
+  <!-- The Windows app's update code, request sharing and Start menu choice have no WPF dependency: compiled here to be tested outside Windows. -->
+  <ItemGroup>
+    <Compile Include="../../src/Mira.Desktop/Services/UpdateApplier.cs" Link="Desktop/UpdateApplier.cs" />
+    <Compile Include="../../src/Mira.Desktop/Services/UpdateLock.cs" Link="Desktop/UpdateLock.cs" />
+    <Compile Include="../../src/Mira.Desktop/Services/Updater.cs" Link="Desktop/Updater.cs" />
+    <Compile Include="../../src/Mira.Desktop/Services/MetadataCache.cs" Link="Desktop/MetadataCache.cs" />
+    <Compile Include="../../src/Mira.Desktop/Services/ShellRegistration.cs" Link="Desktop/ShellRegistration.cs" />
+  </ItemGroup>
+  <!-- The plugin's playlist rewriting, security policy and web files have no Jellyfin dependency. -->
+  <ItemGroup>
+    <Compile Include="../../src/Mira.Jellyfin/HlsPlaylists.cs" Link="Plugin/HlsPlaylists.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/ContentPolicy.cs" Link="Plugin/ContentPolicy.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/WebFiles.cs" Link="Plugin/WebFiles.cs" />
+  </ItemGroup>
+  <!-- Nor the Mac app's profile, where its session goes: the keychain is replaced there by a stand-in. -->
+  <ItemGroup><Compile Include="../../src/Mira.Mac/Services/Profile.cs" Link="Mac/Profile.cs" /></ItemGroup>
+</Project>

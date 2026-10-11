@@ -3,9 +3,12 @@ using Mira.Core;
 using Mira.Core.TorLink;
 using Mira.Desktop.TorLink;
 
-internal static partial class SupplyChainTests
+/// <summary>What Mira installs beside itself, the part that needs the Windows app (TorLink found and trusted).</summary>
+internal static class DesktopSupplyChainTests
 {
-    private static partial async Task DesktopAsync(Func<string, Func<Task>, Task> test, string root)
+    private static void Assert(bool value, string message) { if (!value) throw new Exception(message); }
+
+    public static async Task RunAsync(Func<string, Func<Task>, Task> test, string root)
     {
         await test("TorLink : celui choisi dans les réglages ou installé par Mira se lance sans confirmation", () =>
         {

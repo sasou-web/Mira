@@ -13,9 +13,9 @@ using Mira.Desktop.Services;
 /// What Mira downloads and installs beside itself: bounded .torrent reading, the unpacked update checked byte for byte, a
 /// folder update cut short and undone, TorLink's lock, and newer Node.js and libmpv prepared beside the ones in use. This
 /// file stays free of WPF and of the window's code, so that the same checks also run outside Windows; the rest is in
-/// SupplyChainTests.Desktop.cs.
+/// tests/Mira.Tests/DesktopSupplyChainTests.cs.
 /// </summary>
-internal static partial class SupplyChainTests
+internal static class SupplyChainTests
 {
     private static void Assert(bool value, string message) { if (!value) throw new Exception(message); }
 
@@ -205,11 +205,7 @@ internal static partial class SupplyChainTests
             File.Delete(Path.Combine(MpvInstaller.Folder(profile), MpvInstaller.VersionFile));
             Assert(MpvInstaller.IsOutdated(profile, Package("20260927-git-recent")) && !MpvInstaller.IsOutdated(Path.Combine(root, "engine-none"), Package("20260927-git-recent")), "Engine without version");
         });
-
-        await DesktopAsync(test, root);
     }
-
-    private static partial Task DesktopAsync(Func<string, Func<Task>, Task> test, string root);
 
     // The 7z archive of the engine test in Program.cs: libmpv-2.dll ("faux moteur mpv pour les tests de Mira") and a header.
     private const string MpvArchive = "N3q8ryccAAQSc70DwgAAAAAAAAAiAAAAAAAAABwWbsgBADQvKiBlbi10ZXRlICovCmZhdXggbW90ZXVyIG1wdiBwb3VyIGxlcyB0ZXN0cyBkZSBNaXJhCgAAAIEzB64P0YkKnKCQoHdexUAYjoQJNqTpTtdkwHH/AlkW0BAA/Bkz01eGX3Anuuait2gpZTXZf9jAC7J3/dXvw+tz35fkNTgXZ9k+YJs57syaM+RclR0pc/nBp46uaTmsVW1bYGi/WuClG7sn7CLBB8/0KodMIp0c0SrMXAIplkuFPaS65AAAABcGOQEJgIkABwsBAAEjAwEBBV0AEAAADIDWCgF5nvznAAA=";
