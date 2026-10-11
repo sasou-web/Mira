@@ -3,10 +3,11 @@ param([string]$Configuration = 'Release', [string]$Iscc = '', [string]$SigningKe
 #   Mira-<version>-win-x64.zip            the application folder (portable), with licences and notices
 #   Mira-<version>-win-x64-portable.exe   the same application as one self-contained file (it creates data beside it)
 #   Mira-<version>-win-x64-setup.exe      per-user installer (Inno Setup 6), when ISCC.exe is available
-#   mira-update.json + .sig               signed manifest of those files, read by the automatic updates, when the
-#                                         signing key is on this PC (tools/Mira.Release; default %APPDATA%\Mira Release)
 # and .artifacts/release-notes-<version>.md, the release page's short text (the version's entry in WhatsNew.json).
-# -Version and -Output build test packages under another version number and folder (update checks), never in dist.
+# A release's signed manifest, mira-update.json + .sig, also covers the Mac disk image and Mira web's plugin, which
+# the workflows build on the release's draft: tools/release.ps1 signs it last, with the key of this PC.
+# -Version and -Output build test packages under another version number and folder (update checks), never in dist;
+# -SigningKey signs their manifest, Windows files only, with the throwaway key tools/update-check.ps1 passes.
 $ErrorActionPreference = 'Stop'
 # The .NET SDK sends usage data unless told not to; the scripts tell it, on this PC as in the CI.
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
@@ -81,14 +82,14 @@ try {
         if ($LASTEXITCODE -ne 0) { Write-Warning "No release notes for ${version}: add its entry to src/Mira.Core/WhatsNew.json." }
     }
 
-    # Installed copies update themselves only from a release whose mira-update.json is signed by a key they trust.
-    if (-not $SigningKey) { $SigningKey = Join-Path $env:APPDATA 'Mira Release\update-signing.key' }
+    # A manifest left from an earlier build would describe other files.
     foreach ($stale in @('mira-update.json', 'mira-update.json.sig')) { Remove-Item -LiteralPath (Join-Path $output $stale) -ErrorAction SilentlyContinue }
-    if ($env:APPDATA -and (Test-Path -LiteralPath $SigningKey)) {
-        dotnet run --project (Join-Path $workspace 'tools/Mira.Release/Mira.Release.csproj') -c $Configuration -- manifest --version $version --packages $output --key $SigningKey
-        if ($LASTEXITCODE -ne 0) { throw 'Signing the update manifest failed.' }
-    } else {
-        Write-Warning "Signing key not found ($SigningKey): mira-update.json was not produced. Copies already installed will not update to this build automatically."
+    if ($SigningKey -and (Test-Path -LiteralPath $SigningKey)) {
+        # --test: Mira.Release refuses any key that installed copies do not trust, except this throwaway one.
+        dotnet run --project (Join-Path $workspace 'tools/Mira.Release/Mira.Release.csproj') -c $Configuration -- manifest --version $version --packages $output --key $SigningKey --test
+        if ($LASTEXITCODE -ne 0) { throw 'Signing the test update manifest failed.' }
+    } elseif ($SigningKey) {
+        Write-Warning "Test signing key not found ($SigningKey): mira-update.json was not produced."
     }
 } finally {
     Pop-Location

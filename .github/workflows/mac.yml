@@ -1,15 +1,23 @@
 name: Mac build
-# Mira for Mac (Apple Silicon): built, packaged with libmpv, checked on a real Mac, then attached to each release with
-# its SHA-256.
+# Mira for Mac (Apple Silicon): built, packaged with libmpv, checked on a real Mac, then attached with its SHA-256 to
+# the draft of each release, which tools/release.ps1 publishes once every platform is there.
 on:
   push:
     branches: [main]
     paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "tools/mac/**", ".github/workflows/mac.yml"]
   pull_request:
     paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "tools/mac/**", ".github/workflows/mac.yml"]
-  release:
-    types: [published]
+  # No "release: published": GitHub runs nothing for a draft, and an immutable release takes no file once published.
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Draft release to attach the disk image to (vX.Y.Z); set by tools/release.ps1"
+        required: false
+        type: string
+      commit:
+        description: "Commit that draft targets (40 hexadecimal characters); set by tools/release.ps1"
+        required: false
+        type: string
 permissions:
   contents: read
 env:
@@ -24,8 +32,19 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     steps:
+      # A release's draft and commit, checked before anything uses them; they reach scripts through env only.
+      - name: Release inputs
+        if: inputs.release != '' || inputs.commit != ''
+        env:
+          RELEASE: ${{ inputs.release }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$RELEASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "release: vX.Y.Z expected, got '$RELEASE'" >&2; exit 1; }
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "commit: 40 hexadecimal characters expected, got '$COMMIT'" >&2; exit 1; }
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # The draft's commit for a release; otherwise the event's own.
+          ref: ${{ inputs.commit }}
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
@@ -34,8 +53,10 @@ jobs:
         run: brew install mpv dylibbundler
       - name: Version
         id: version
+        env:
+          RELEASE: ${{ inputs.release }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "release" ]; then version="${GITHUB_REF_NAME#v}"
+          if [ -n "$RELEASE" ]; then version="${RELEASE#v}"
           else version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Mac/Mira.Mac.csproj); fi
           echo "version=$version" >> "$GITHUB_OUTPUT"; echo "Mira $version"
       - name: Package Mira.app and the disk image
@@ -93,10 +114,11 @@ jobs:
             dist/mac/*.dmg.sha256
           retention-days: 14
   release:
-    # The release Windows publishes from the PC gets its Mac disk image here, built from the same tag.
-    if: github.event_name == 'release'
+    # The draft tools/release.ps1 made gets its Mac disk image here, built from the draft's commit and checked above.
+    if: inputs.release != ''
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -104,11 +126,17 @@ jobs:
         with:
           name: Mira-mac-arm64
           path: mac
-      # The disk image and its SHA-256, checked against each other once more before they go out together.
-      - name: Attach to the release
+      - name: Attach to the draft
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          RELEASE: ${{ inputs.release }}
+          COMMIT: ${{ inputs.commit }}
         run: |
-          (cd mac && sha256sum --strict -c -- *.dmg.sha256)
-          gh release upload "$TAG" mac/*.dmg mac/*.dmg.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          [[ "$RELEASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "release or commit invalid" >&2; exit 1; }
+          dmg="Mira-${RELEASE#v}-mac-arm64.dmg"
+          # The disk image and its SHA-256, checked against each other once more before they go out together.
+          (cd mac && sha256sum --strict -c -- "$dmg.sha256")
+          # Only the draft made for this very commit: never a published release, nor a draft made since for another.
+          state=$(gh release view "$RELEASE" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish --jq '[(.isDraft | tostring), .targetCommitish] | join(" ")')
+          [ "$state" = "true $COMMIT" ] || { echo "$RELEASE is not a draft for $COMMIT (found: $state)" >&2; exit 1; }
+          gh release upload "$RELEASE" "mac/$dmg" "mac/$dmg.sha256" --clobber --repo "$GITHUB_REPOSITORY"
