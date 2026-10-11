@@ -23,6 +23,8 @@ Quand Tailscale est prêt, le QR code donne l’adresse Tailscale du PC (`http:/
 
 Il faut être connecté avec le compte administrateur de Jellyfin, ce qui est le cas si Mira a installé Jellyfin.
 
+Avant d’installer Mira web, Mira vérifie sur GitHub qu’il est bien celui de sa version, signé comme ses propres mises à jour ; sinon, il n’installe rien et le guide dit pourquoi. Le dépôt qu’il ajoute à Jellyfin ne propose que cette version vérifiée (et remplace un dépôt de Mira ajouté à la main). Quand Mira se met à jour, il vérifie de même la nouvelle version de Mira web au démarrage suivant et la fait télécharger par Jellyfin, qui la prend au redémarrage suivant.
+
 ### Sur iPhone et iPad : l’avoir comme une app
 
 Dans Safari, touche **Partager**, puis **Sur l’écran d’accueil**, et laisse **Ouvrir comme app web** activé. Mira apparaît sur l’écran d’accueil et s’ouvre en plein écran. La connexion est à faire une fois de plus dans cette app, qui garde ses propres données.
@@ -47,7 +49,7 @@ Avec l’adresse de la maison, réserve aussi son adresse IP au PC dans l’inte
 2. **Catalogue** : choisis **Mira**, puis **Installer**.
 3. Redémarre Jellyfin (**Tableau de bord → Redémarrer**).
 
-Jellyfin met ensuite l’extension à jour tout seul à chaque nouvelle version de Mira.
+Jellyfin met ensuite l’extension à jour tout seul à chaque nouvelle version de Mira. Il ne vérifie que l’empreinte donnée par la même release de GitHub : il fait confiance à GitHub et à son compte de publication. Si tu as un PC Windows, Mira pour Windows (ci-dessus) fait plus sûr : il vérifie la signature de Mira avant chaque installation.
 
 **L’ouvrir** : sur le téléphone, connecté au même Wi-Fi que le serveur, ouvre l’adresse du serveur suivie de `/Mira`, par exemple `http://192.168.1.20:8096/Mira`. Depuis Mira web déjà ouvert ailleurs, **Réglages → Ouvrir sur un autre appareil** affiche son QR code.
 
