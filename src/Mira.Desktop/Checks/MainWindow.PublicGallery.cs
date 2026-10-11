@@ -100,6 +100,11 @@ public partial class MainWindow
             ResetFilters(); _view = "home"; RenderDemo(); SmoothScroll.Jump(LibraryScroll); WindowState = WindowState.Maximized; await CaptureAsync(output, "22-maximized");
             drawn.Add($"22-maximized (Windows {Environment.OSVersion.Version.Build}): {AssertMaximizedOnScreen()}");
             WindowState = WindowState.Normal;
+            // A title that cannot play: the player's own screen, then « Retour » back to the library.
+            PlaybackFailed("mpv n’a pas pu lire ce média. Vérifie l’accès au fichier et la connexion Jellyfin.", _demoItems!.First(x => x.Type == "Movie"), mini: false, "Réessayer", () => Task.CompletedTask);
+            foreach (var size in new[] { sizes[0], sizes[3] }) await At(size, "23-player-error", null, PlayerError);
+            GoBack();
+            if (PlayerErrorShown || PlayerShell.IsVisible || !LibraryShell.IsVisible) throw new InvalidOperationException("« Retour » does not leave the player's error screen.");
             await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
             await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {14 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }
