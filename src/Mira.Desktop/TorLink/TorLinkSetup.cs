@@ -23,30 +23,34 @@ internal static class TorLinkSetup
     public static bool IsPrepared(string profile) =>
         NodeInstaller.IsReady(NodeInstaller.NextFolder(profile), NodePackage.Current) || TorLinkPackage.Current.IsInstalledIn(TorLinkPackage.NextFolder(profile));
 
-    /// <summary>Installs what is missing or older and returns the installation; a current one is kept as it is.</summary>
-    public static async Task<TorLinkInstallation> InstallAsync(string profile, IProgress<Step> progress, CancellationToken ct = default)
+    /// <summary>
+    /// Installs what is missing or older and returns the installation; a current one is kept as it is. Off the interface
+    /// thread, as <see cref="PrepareAsync"/>: TorLink's folder holds thousands of files to write, delete or move.
+    /// </summary>
+    public static Task<TorLinkInstallation> InstallAsync(string profile, IProgress<Step> progress, CancellationToken ct = default) => Task.Run(async () =>
     {
         var package = TorLinkPackage.Current;
         if (IsCurrent(profile) && TorLinkInstallation.Validate(TorLinkPackage.PackageRoot(profile), profile) is { HasRuntime: true } ready)
         { progress.Report(new("TorLink est prêt.", 1)); return ready; }
-        await PrepareAsync(profile, progress, ct);
+        await PrepareCoreAsync(profile, progress, ct).ConfigureAwait(false);
         if (!Activate(profile)) throw new InstallException("TorLink ou Node.js est en cours d’utilisation : ferme TorLink, puis réessaie.");
         var installed = TorLinkInstallation.Validate(TorLinkPackage.PackageRoot(profile), profile);
         if (installed is not { HasRuntime: true } || installed.Version != package.Version)
             throw new InstallException("TorLink s’est installé de façon incomplète. Réessaie ; si cela persiste, vérifie la connexion à registry.npmjs.org.");
         progress.Report(new("TorLink est prêt.", 1));
         return installed;
-    }
+    }, ct);
 
     /// <summary>
     /// The pinned Node.js and TorLink, built beside Mira's current ones ("node-next", "torlink-next") and never in them:
     /// TorLink may be running meanwhile. What is already current or prepared is not downloaded again.
     /// </summary>
-    public static async Task PrepareAsync(string profile, IProgress<Step>? progress, CancellationToken ct = default)
+    public static Task PrepareAsync(string profile, IProgress<Step>? progress, CancellationToken ct = default) => Task.Run(() => PrepareCoreAsync(profile, progress, ct), ct);
+    private static async Task PrepareCoreAsync(string profile, IProgress<Step>? progress, CancellationToken ct)
     {
         var node = NodePackage.Current; var package = TorLinkPackage.Current;
         progress?.Report(new($"Téléchargement de Node.js {node.Version}…", 0));
-        var runtime = await NodeInstaller.PrepareAsync(profile, node, progress: progress is null ? null : new Percent((percent, p) => progress.Report(new($"Téléchargement de Node.js {node.Version}… {percent} %", p * .6))), ct: ct);
+        var runtime = await NodeInstaller.PrepareAsync(profile, node, progress: progress is null ? null : new Percent((percent, p) => progress.Report(new($"Téléchargement de Node.js {node.Version}… {percent} %", p * .6))), ct: ct).ConfigureAwait(false);
         var next = TorLinkPackage.NextFolder(profile);
         if (package.IsInstalledIn(TorLinkPackage.Folder(profile)) || package.IsInstalledIn(next)) return;
         progress?.Report(new($"Installation de TorLink {package.Version}…", .65));
@@ -54,17 +58,18 @@ internal static class TorLinkSetup
         try
         {
             PreparedFolder.Delete(staging); Directory.CreateDirectory(staging);
-            await File.WriteAllBytesAsync(Path.Combine(staging, "package.json"), TorLinkPackage.Manifest, ct);
-            await File.WriteAllBytesAsync(Path.Combine(staging, "package-lock.json"), TorLinkPackage.Lock, ct);
-            await RunNpmAsync(runtime, staging, ct);
+            await File.WriteAllBytesAsync(Path.Combine(staging, "package.json"), TorLinkPackage.Manifest, ct).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(Path.Combine(staging, "package-lock.json"), TorLinkPackage.Lock, ct).ConfigureAwait(false);
+            await RunNpmAsync(runtime, staging, ct).ConfigureAwait(false);
             if (TorLinkInstallation.Validate(TorLinkPackage.PackageIn(staging)) is not { } built || built.Version != package.Version)
                 throw new InstallException("TorLink s’est installé de façon incomplète. Réessaie ; si cela persiste, vérifie la connexion à registry.npmjs.org.");
             await File.WriteAllTextAsync(Path.Combine(staging, "SOURCE.txt"),
                 $"TorLink ({TorLinkPackage.Name} {package.Version}), installé par Mira depuis registry.npmjs.org avec Node.js {node.Version}.\n" +
                 "Ses dépendances sont celles du fichier package-lock.json fourni par Mira, chacune vérifiée par son empreinte sha512.\n" +
-                "Projet indépendant de Mira, sous licence MIT : https://github.com/baairon/torlink\n", ct);
-            // Last: only a complete installation carries the stamp.
-            await File.WriteAllTextAsync(Path.Combine(staging, TorLinkPackage.VersionFile), package.Stamp, ct);
+                "Projet indépendant de Mira, sous licence MIT : https://github.com/baairon/torlink\n", ct).ConfigureAwait(false);
+            // Last, once every file npm wrote is on the disk: after a power cut, a stamped TorLink is a whole one.
+            PreparedFolder.Flush(staging);
+            await File.WriteAllTextAsync(Path.Combine(staging, TorLinkPackage.VersionFile), package.Stamp, ct).ConfigureAwait(false);
             PreparedFolder.Delete(next);
             Directory.Move(staging, next);
         }
@@ -119,9 +124,9 @@ internal static class TorLinkSetup
         {
             var output = new StringBuilder();
             var reading = Task.WhenAll(Read(process.StandardOutput), Read(process.StandardError));
-            async Task Read(StreamReader reader) { string? line; while ((line = await reader.ReadLineAsync(ct)) is not null) lock (output) output.AppendLine(line); }
+            async Task Read(StreamReader reader) { string? line; while ((line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) is not null) lock (output) output.AppendLine(line); }
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromMinutes(10));
-            try { await process.WaitForExitAsync(limit.Token); await reading; }
+            try { await process.WaitForExitAsync(limit.Token).ConfigureAwait(false); await reading.ConfigureAwait(false); }
             catch (OperationCanceledException)
             {
                 try { process.Kill(entireProcessTree: true); } catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { }

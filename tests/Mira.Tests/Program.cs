@@ -862,7 +862,7 @@ await Test("TorLink : Node.js installé par Mira depuis le zip officiel vérifi�
         served = bytes; var target = Path.Combine(testRoot, folder);
         try { await NodeInstaller.InstallAsync(target, package, handler); throw new Exception("Installed: " + folder); }
         catch (InstallException ex) { Assert(ex.Message.Contains(expected), $"{folder}: {ex.Message}"); }
-        Assert(!File.Exists(NodeInstaller.Executable(target)) && !Directory.Exists(NodeInstaller.Folder(target) + ".partial"), folder + " left Node.js behind");
+        Assert(!File.Exists(NodeInstaller.Executable(target)) && !Directory.Exists(NodeInstaller.NextFolder(target) + ".partial") && !Directory.Exists(NodeInstaller.NextFolder(target)), folder + " left Node.js behind");
     }
     var altered = good.ToArray(); altered[^30] ^= 0xFF;
     await Refused("node-altered", Package(good), altered, "ne correspond pas à la version vérifiée");
@@ -2299,7 +2299,9 @@ if (args.Contains("--torlink-integration"))
 {
     await Test("TorLink réel : écran d’accueil dans la pseudo-console, redimensionnement, arrêt propre et état isolé", async () =>
     {
-        var installation = Mira.Desktop.TorLink.TorLinkInstallation.Locate(null) ?? throw new Exception("TorLink not found on this PC");
+        // No TorLink on this PC (npx's copy is no longer used): Mira's own, installed into a test profile from its lock.
+        var installation = Mira.Desktop.TorLink.TorLinkInstallation.Locate(null)
+            ?? await Mira.Desktop.TorLink.TorLinkSetup.InstallAsync(Path.Combine(testRoot, "torlink-profile"), new Progress<Mira.Desktop.TorLink.TorLinkSetup.Step>(_ => { }));
         Assert(installation.HasRuntime, "Node.js runtime not found for TorLink");
         var state = Path.Combine(testRoot, "torlink-state");
         var real = TorLinkState.ForCurrentUser(stateOverride: null);

@@ -111,10 +111,10 @@ public partial class MainWindow
         _restartForUpdate = true; Close();
     }
     /// <summary>Called last when Mira closes, once playback, TorLink and the synchronisation are stopped.</summary>
-    private void ApplyUpdateAtClose()
+    private async Task ApplyUpdateAtCloseAsync()
     {
         if (_updater is not { } updater) return;
-        var started = !_sessionEnding && updater.State == UpdateState.Ready && (_settings.AutoUpdate || _restartForUpdate) && updater.Apply(_restartForUpdate);
+        var started = !_sessionEnding && updater.State == UpdateState.Ready && (_settings.AutoUpdate || _restartForUpdate) && await updater.ApplyAsync(_restartForUpdate);
         // A restart was asked for and nothing will reopen Mira: start it again once this process has ended.
         if (_restartForUpdate && !started)
         {

@@ -35,6 +35,9 @@ public partial class MainWindow
     private (DateTime Stamp, long Length) _torlinkHistoryStamp;
     private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling, _torlinkLooked, _torlinkRefreshTried;
     private string? _torlinkBlocker, _torlinkAction, _torlinkSecondary;
+    // The copy "npx torlnk" left, used by Mira 0.7.4 and earlier: looked for once, only to explain why it is not used.
+    private readonly Lazy<bool> _torlinkNpx = new(TorLinkInstallation.NpxCopyFound);
+    private const string TorLinkNpxHint = "Mira n’utilise plus la copie laissée par npx torlnk : installe celui de Mira ou choisis son dossier.";
     private TorLinkSetup.Step? _torlinkStep;
 
     private void InitializeTorLink()
@@ -271,7 +274,7 @@ public partial class MainWindow
         if (share is { } value) TorLinkSetupScale.ScaleX = Math.Clamp(value, 0, 1);
         var active = TorLinkActive(); var installation = _torlinkInstallation;
         TorLinkOpenButton.Visibility = active && !_torlinkInstalling ? Visibility.Visible : Visibility.Collapsed;
-        TorLinkSetupStatus.Text = progress ?? (installation is null ? "Désactivé."
+        TorLinkSetupStatus.Text = progress ?? (installation is null ? "Désactivé." + (_torlinkNpx.Value ? " " + TorLinkNpxHint : "")
             : (active ? "Activé" : "Désactivé") + $" · TorLink {installation.Version}" + (installation.Managed ? ", installé par Mira." : $" ({installation.Root}).")
               + (installation.Managed && TorLinkSetup.IsPrepared(_profile.DirectoryPath) ? " Sa mise à jour est prête : elle sera utilisée à sa prochaine ouverture." : ""));
     }
@@ -411,15 +414,18 @@ public partial class MainWindow
     {
         var state = _torlinkTerminal?.State ?? TerminalState.Idle;
         if (_torlinkBlocker is not null || state is TerminalState.Running or TerminalState.Exited or TerminalState.Unavailable) _torlinkStartWatch.Stop();
-        var (status, dot) = _torlinkInstalling ? ("Installation…", "#D5B787") : !TorLinkActive() ? ("Désactivé", "#6B6B74") : _torlinkBlocker is not null ? ("Indisponible", "#D5B787") : state switch
-        {
-            TerminalState.Running => ("En cours", "#86C6A2"),
-            TerminalState.Starting => ("Démarrage…", "#D5B787"),
-            _ => ("Fermé", "#6B6B74")
-        };
+        var (status, dot) = _torlinkInstalling ? ("Installation…", "#D5B787") : !TorLinkActive() ? ("Désactivé", "#6B6B74")
+            : _torlinkBlocker == "confirm" ? ("À confirmer", "#D5B787") : _torlinkBlocker is not null ? ("Indisponible", "#D5B787") : state switch
+            {
+                TerminalState.Running => ("En cours", "#86C6A2"),
+                TerminalState.Starting => ("Démarrage…", "#D5B787"),
+                _ => ("Fermé", "#6B6B74")
+            };
         TorLinkStatusText.Text = "TorLink · " + status; TorLinkStatusDot.Fill = Brush(dot);
         switch (_torlinkBlocker)
         {
+            case "missing" when _torlinkNpx.Value:
+                ShowTorLinkPanel("folder", "TorLink est introuvable", TorLinkNpxHint, "Installer celui de Mira", "install", "Choisir son dossier…", "browse"); return;
             case "missing":
                 ShowTorLinkPanel("folder", "TorLink est introuvable", "Mira peut le réinstaller.", "Réinstaller", "install", "Choisir son dossier…", "browse"); return;
             case "runtime":

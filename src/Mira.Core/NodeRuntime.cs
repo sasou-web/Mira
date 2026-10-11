@@ -66,7 +66,8 @@ public static class NodeInstaller
         try
         {
             await VerifiedDownload.DownloadAsync(package.Url, archive, package.Sha256, package.Size, package.Size, "Node.js", handler, Scaled.By(progress, .85), ct).ConfigureAwait(false);
-            await Task.Run(() => Extract(package, archive, staging, ct), ct).ConfigureAwait(false);
+            // On the disk before version.txt: after a power cut, a Node.js that says it is ready is a whole one.
+            await Task.Run(() => { Extract(package, archive, staging, ct); PreparedFolder.Flush(staging); }, ct).ConfigureAwait(false);
             await File.WriteAllTextAsync(Path.Combine(staging, SourceFile),
                 $"Node.js {package.Version}, installé par Mira pour TorLink depuis {package.Url}\nSHA-256 : {package.Sha256}\n" +
                 "Licence : LICENSE (MIT et licences des composants inclus) ; sources : https://github.com/nodejs/node\n", ct).ConfigureAwait(false);

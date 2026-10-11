@@ -108,9 +108,16 @@ internal static partial class SupplyChainTests
                 var held = Path.Combine(app, "h.dll"); Write(held, "ancienne h"); Write(Path.Combine(incoming, "h.dll"), "nouvelle h");
                 using (new FileStream(held, FileMode.Open, FileAccess.Read, FileShare.None))
                 {
-                    var failed = false; try { UpdateApplier.CopyFolder(incoming, app, Path.Combine(updates, "rollback-fail"), attempts: 2); } catch (IOException) { failed = true; }
+                    var failed = false; try { UpdateApplier.CopyFolder(incoming, app, Path.Combine(updates, "rollback-fail"), attempts: 2); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failed = true; }
                     Assert(failed && UpdateApplier.Interrupted(updates, app).Count == 0, "A swap that failed and came back in full kept its journal");
                 }
+                // Complete, but its journal held (an antivirus): the whole rollback copy stays beside it, so that the next start
+                // puts the previous version back in full instead of removing only the files the new one added.
+                var finished = Path.Combine(updates, "rollback-finished"); Write(Path.Combine(finished, "k.dll"), "ancienne k");
+                Write(Path.Combine(finished, UpdateApplier.InProgressMarker), JsonSerializer.Serialize(new UpdateApplier.SwapJournal(app, ["k.dll"], ["l.dll"])));
+                using (new FileStream(Path.Combine(finished, UpdateApplier.InProgressMarker), FileMode.Open, FileAccess.Read, FileShare.None))
+                    Assert(!UpdateApplier.Finish(finished, attempts: 2) && File.Exists(Path.Combine(finished, "k.dll")), "A journal that stayed lost its rollback copy");
+                Assert(UpdateApplier.Finish(finished) && !Directory.Exists(finished), "A finished swap kept its rollback copy");
             }
             // The next start keeps a rollback copy whose swap is still to undo, and removes the others.
             var profile = Path.Combine(folder, "profile"); var staging = Path.Combine(profile, "updates");

@@ -22,10 +22,12 @@ public sealed record TorLinkInstallation(string Root, string Node, string Entry,
     /// <summary>
     /// The configured folder when valid, then Mira's own TorLink, then, <see cref="Detected"/>, the targets of TorLink's
     /// shortcuts and a global npm install. npm's cache (where "npx torlnk" leaves a copy) is not searched: anything may
-    /// have put a package there.
+    /// have put a package there. A swap of Mira's Node.js or TorLink cut between its two renames is undone first: its
+    /// previous folder, the only complete one, comes back under its name.
     /// </summary>
     public static TorLinkInstallation? Locate(string? configured, string? profile = null)
     {
+        if (profile is not null) { PreparedFolder.Restore(NodeInstaller.Folder(profile)); PreparedFolder.Restore(TorLinkPackage.Folder(profile)); }
         foreach (var (candidate, detected) in Candidates(configured, profile))
             if (Validate(candidate, profile) is { } found) return detected && !found.Managed ? found with { Detected = true } : found;
         return null;
@@ -43,6 +45,20 @@ public sealed record TorLinkInstallation(string Root, string Node, string Entry,
             foreach (var link in links) if (WindowsIdentity.ShortcutTarget(link) is { } target) yield return (target, true);
         }
         yield return (Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm", "node_modules", "torlnk"), true);
+    }
+
+    /// <summary>
+    /// A copy left in npm's cache by "npx torlnk", which Mira 0.7.4 and earlier used when they found it. Looked for only to
+    /// say why it is no longer used, never to run it.
+    /// </summary>
+    public static bool NpxCopyFound()
+    {
+        try
+        {
+            var cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "npm-cache", "_npx");
+            return Directory.Exists(cache) && Directory.EnumerateDirectories(cache).Any(x => File.Exists(Path.Combine(x, "node_modules", "torlnk", "dist", "cli.cjs")));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
 
     /// <summary>

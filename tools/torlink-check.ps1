@@ -23,7 +23,8 @@ try {
     # One quoted string: Windows PowerShell does not quote array arguments containing spaces.
     $arguments = '--data "' + (Join-Path $output 'profile') + '" --demo --torlink-check "' + $output + '"'
     $process = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru
-    if (-not $process.WaitForExit(240000)) { $process.Kill(); throw 'The TorLink check did not finish in time.' }
+    # Up to ten minutes: without TorLink on this PC, the check first installs Mira's own (Node.js, then npm ci).
+    if (-not $process.WaitForExit(600000)) { $process.Kill(); throw 'The TorLink check did not finish in time.' }
 } finally { $env:TORLINK_STATE_DIR = $previous }
 $result = Join-Path $output 'result.txt'
 if (-not (Test-Path -LiteralPath $result)) { throw 'result.txt was not written.' }

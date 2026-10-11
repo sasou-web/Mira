@@ -14,7 +14,7 @@ namespace Mira.Desktop.Services;
 /// </summary>
 internal static class UpdateApplier
 {
-    public const string NewSuffix = ".mira-new", OldSuffix = ".mira-old", IncompleteMarker = "INCOMPLETE.txt", InProgressMarker = "IN-PROGRESS.json";
+    public const string NewSuffix = ".mira-new", OldSuffix = ".mira-old", CopySuffix = ".mira-copy", IncompleteMarker = "INCOMPLETE.txt", InProgressMarker = "IN-PROGRESS.json";
 
     public static int Run(string[] args)
     {
@@ -46,7 +46,8 @@ internal static class UpdateApplier
                     // A swap of this folder cut short earlier is undone first: its rollback copy is the only one of those files.
                     if (Recover(updates, target)) Log(log, "mise à jour interrompue annulée avant la nouvelle");
                     if (Interrupted(updates, target).Count > 0) throw new InvalidOperationException("Une mise à jour interrompue n’a pas pu être annulée entièrement : sa copie de retour arrière reste dans data\\updates.");
-                    CopyFolder(AppContext.BaseDirectory, target, Path.Combine(updates, "rollback-" + DateTime.Now.ToString("yyyyMMddHHmmss")));
+                    if (!CopyFolder(AppContext.BaseDirectory, target, Path.Combine(updates, "rollback-" + DateTime.Now.ToString("yyyyMMddHHmmss"))))
+                        throw new IOException("son journal n’a pas pu être supprimé ; la version précédente, gardée en entier, reviendra au prochain démarrage.");
                 }
                 Log(log, $"mise à jour {Arg("--version") ?? ""} installée depuis {from}");
             }
@@ -106,12 +107,13 @@ internal static class UpdateApplier
     /// <summary>
     /// Updates <paramref name="target"/> with every file of <paramref name="source"/> except its "data" folder. The new files
     /// are first copied beside their destinations (.mira-new) and written to the disk, which leaves the installed copy
-    /// untouched; then each old file gets a second name in <paramref name="rollback"/> (a hard link, else it moves there)
-    /// and the new one takes its name. On any failure the old files come back; one that cannot is listed in the rollback
-    /// folder, which is then kept. The journal written before the first rename (<see cref="InProgressMarker"/>) lets the
-    /// next start undo a swap that power loss cut short (<see cref="RecoverAtStartup"/>).
+    /// untouched; then each old file gets a second name in <paramref name="rollback"/> (a hard link, a copy written whole
+    /// when the profile is on another drive, else it moves there) and the new one takes its name. On any failure the old
+    /// files come back; one that cannot is listed in the rollback folder, which is then kept. The journal written before the
+    /// first rename (<see cref="InProgressMarker"/>) lets the next start undo a swap that power loss cut short
+    /// (<see cref="RecoverAtStartup"/>). False when the swap completed but its journal stayed (<see cref="Finish"/>).
     /// </summary>
-    public static void CopyFolder(string source, string target, string rollback, int attempts = 40)
+    public static bool CopyFolder(string source, string target, string rollback, int attempts = 40)
     {
         void Retry(Action action) => UpdateApplier.Retry(action, attempts);
         source = Path.GetFullPath(source); target = Path.GetFullPath(target);
@@ -133,33 +135,42 @@ internal static class UpdateApplier
         }
         catch { foreach (var path in staged) TryDelete(path); throw; }
         var journal = Path.Combine(rollback, InProgressMarker);
-        var replaced = new List<string>(); var added = new List<string>(); string? linked = null;
+        var replaced = new List<string>(); var added = new List<string>(); string? inPlace = null;
         try
         {
             WriteJournal(journal, new(target, files.Where(relative => File.Exists(Path.Combine(target, relative))).ToList(), files.Where(relative => !File.Exists(Path.Combine(target, relative))).ToList()));
             foreach (var relative in files)
             {
-                var destination = Path.Combine(target, relative);
+                var destination = Path.Combine(target, relative); var incoming = destination + NewSuffix;
                 if (File.Exists(destination))
                 {
                     var kept = Path.Combine(rollback, relative);
                     Directory.CreateDirectory(Path.GetDirectoryName(kept)!);
-                    // A second name keeps the previous file while the new one replaces it in a single rename: the destination
-                    // is never missing, even cut short. On another drive than the profile, the previous file moves instead.
-                    if (MediaImporter.TryHardLink(destination, kept)) linked = relative;
-                    else Retry(() => File.Move(destination, kept, overwrite: true));
-                    replaced.Add(relative);
+                    // The previous file gets a second name, a hard link, while the new one replaces it in a single rename: the
+                    // destination is never missing, even cut short. With the profile on another drive, a move would copy then
+                    // delete without writing to the disk, and recovery could put a truncated copy back: it is copied whole first.
+                    var secured = MediaImporter.TryHardLink(destination, kept);
+                    if (!secured && !MediaImporter.OnSameVolume(destination, journal)) { Retry(() => CopyWhole(destination, kept)); secured = true; }
+                    if (secured)
+                    {
+                        inPlace = relative; replaced.Add(relative);
+                        try { File.Move(incoming, destination, overwrite: true); inPlace = null; continue; }
+                        // Not replaceable in place (read-only, loaded by a program, open) but still renamable: it steps aside in
+                        // its folder (removed later, see Updater.CleanStaging), its copy in the rollback still keeping it.
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Retry(() => SetAside(destination)); inPlace = null; }
+                    }
+                    // Same drive without hard links (FAT32, exFAT): the previous file moves to the rollback copy by a rename.
+                    else { Retry(() => File.Move(destination, kept, overwrite: true)); replaced.Add(relative); }
                 }
                 else added.Add(relative);
-                Retry(() => File.Move(destination + NewSuffix, destination, overwrite: true));
-                linked = null;
+                Retry(() => File.Move(incoming, destination, overwrite: true));
             }
         }
         catch
         {
             var lost = new List<string>();
-            // Given its second name but never replaced (a file held open can still get one): the previous file is in place.
-            if (linked is not null) { replaced.Remove(linked); TryDelete(Path.Combine(rollback, linked)); }
+            // Kept in the rollback but never replaced (a file held open can still get a second name): it is still in place.
+            if (inPlace is not null) { replaced.Remove(inPlace); TryDelete(Path.Combine(rollback, inPlace)); }
             foreach (var relative in added) if (File.Exists(Path.Combine(target, relative))) try { Retry(() => File.Delete(Path.Combine(target, relative))); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             foreach (var relative in replaced)
                 try { Retry(() => PutBack(Path.Combine(rollback, relative), Path.Combine(target, relative))); }
@@ -170,9 +181,38 @@ internal static class UpdateApplier
             else TryDelete(journal);
             throw;
         }
-        // Complete: the journal goes first (nothing to undo any more), then the previous files.
-        TryDelete(journal);
+        return Finish(rollback, attempts);
+    }
+
+    /// <summary>
+    /// After a complete swap: its journal goes first (nothing to undo any more), then the previous files. A journal that
+    /// stays (an antivirus or a sync agent holding it) keeps the whole rollback copy beside it, so that the next start puts
+    /// the previous version back in full rather than removing the files the new one added while keeping those it replaced;
+    /// the update is then offered again. False in that case.
+    /// </summary>
+    internal static bool Finish(string rollback, int attempts = 40)
+    {
+        var journal = Path.Combine(rollback, InProgressMarker);
+        try { Retry(() => { if (File.Exists(journal)) File.Delete(journal); }, attempts); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        if (File.Exists(journal)) return false;
         try { if (Directory.Exists(rollback)) Directory.Delete(rollback, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        return true;
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="file"/> named <paramref name="copy"/>, complete or absent: written under a temporary name,
+    /// flushed to the disk, renamed, then flushed again under its final name before anything on the other drive changes.
+    /// </summary>
+    internal static void CopyWhole(string file, string copy)
+    {
+        var partial = copy + CopySuffix;
+        using (var input = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (var output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None))
+        { input.CopyTo(output); output.Flush(flushToDisk: true); }
+        File.Move(partial, copy, overwrite: true);
+        using var renamed = new FileStream(copy, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        renamed.Flush(flushToDisk: true);
     }
 
     /// <summary>What a swap is about to change: the files it replaces and the ones it adds, relative to <see cref="Target"/>.</summary>
@@ -251,20 +291,27 @@ internal static class UpdateApplier
     /// <summary>
     /// At startup, before the window: a swap of this folder cut short (power loss) left Mira's files half replaced. They are
     /// restored under the update lock (two Mira starting at once restore nothing twice), then Mira starts again on them;
-    /// true when this process must end. Nothing to restore, or no new process: false, and the start goes on.
+    /// true when this process must end. A process that waited while another one restored them starts again too: it may
+    /// have loaded files of the half-replaced version. Nothing to restore, files that cannot be restored yet, or no new
+    /// process: false, and the start goes on. While a Mira of this profile runs (<paramref name="instance"/>, its
+    /// single-instance lock), nothing is restored under it: this start only shows its window.
     /// </summary>
-    public static bool RecoverAtStartup(string profile, string[] args)
+    public static bool RecoverAtStartup(string profile, string[] args, string instance)
     {
         var updates = Path.Combine(profile, "updates");
         if (Interrupted(updates, AppContext.BaseDirectory).Count == 0) return false;
+        if (Mutex.TryOpenExisting(instance, out var running)) { running.Dispose(); return false; }
         using (var busy = new Mutex(false, UpdateLock.Name(profile)))
         {
             var owned = false;
             try
             {
                 try { owned = busy.WaitOne(TimeSpan.FromSeconds(30)); } catch (AbandonedMutexException) { owned = true; }
-                if (!owned || !Recover(updates, AppContext.BaseDirectory)) return false;
-                Log(Path.Combine(updates, "update.log"), "mise à jour interrompue : la version précédente est remise en place");
+                if (!owned) return false;
+                var changed = Recover(updates, AppContext.BaseDirectory);
+                if (changed) Log(Path.Combine(updates, "update.log"), "mise à jour interrompue : la version précédente est remise en place");
+                // Still to undo and nothing changed: starting again would find the same journal (no endless restarts).
+                else if (Interrupted(updates, AppContext.BaseDirectory).Count > 0) return false;
             }
             finally { if (owned) busy.ReleaseMutex(); }
         }
@@ -279,13 +326,18 @@ internal static class UpdateApplier
     }
     /// <summary>
     /// Puts a previous file back; false when it already was (only its second name remained). A file this very process
-    /// loaded (Mira restoring its own files at startup) cannot be replaced, only renamed: it is set aside first.
+    /// loaded (Mira restoring its own files at startup) cannot be replaced, only renamed: it is set aside first. Kept on
+    /// another drive, the previous file is first copied whole beside its destination, so that a power cut never leaves a
+    /// truncated file in Mira's folder.
     /// </summary>
     private static bool PutBack(string kept, string destination)
     {
         if (File.Exists(destination) && MediaImporter.IsSameFile(kept, destination)) { File.Delete(kept); return false; }
-        try { File.Move(kept, destination, overwrite: true); }
-        catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && File.Exists(destination)) { SetAside(destination); File.Move(kept, destination); }
+        var source = kept;
+        if (File.Exists(destination) && !MediaImporter.OnSameVolume(kept, destination)) { source = destination + NewSuffix; CopyWhole(kept, source); }
+        try { File.Move(source, destination, overwrite: true); }
+        catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && File.Exists(destination)) { SetAside(destination); File.Move(source, destination); }
+        if (source != kept) File.Delete(kept);
         return true;
     }
     /// <summary>Renamed, then removed when nothing loads it any more (else by the next start, see Updater.CleanStaging).</summary>

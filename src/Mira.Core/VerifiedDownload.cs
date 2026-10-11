@@ -91,11 +91,33 @@ public static class PreparedFolder
         var previous = current + ".old";
         try
         {
-            if (!Directory.Exists(current) && Directory.Exists(previous)) Directory.Move(previous, current);
+            if (!Restore(current)) return false;
             if (Directory.Exists(previous)) Directory.Delete(previous, recursive: true);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+    /// <summary>
+    /// The quick half of <see cref="Settle"/>, one rename, for whoever looks for what is installed: a swap cut between its
+    /// two renames left the current folder missing, and its previous one comes back under its name. False when it could not.
+    /// </summary>
+    public static bool Restore(string current)
+    {
+        var previous = current + ".old";
+        try { if (!Directory.Exists(current) && Directory.Exists(previous)) Directory.Move(previous, current); return true; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+    /// <summary>
+    /// Every file of <paramref name="folder"/> written to the disk, so that a version stamp written afterwards vouches for
+    /// whole files even after a power cut. A read-only file cannot be opened to be flushed: it is left as it is.
+    /// </summary>
+    public static void Flush(string folder)
+    {
+        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        {
+            try { using var stream = new FileStream(file, FileMode.Open, FileAccess.Write, FileShare.ReadWrite); stream.Flush(flushToDisk: true); }
+            catch (UnauthorizedAccessException) { }
+        }
     }
     public static void Delete(string folder)
     {

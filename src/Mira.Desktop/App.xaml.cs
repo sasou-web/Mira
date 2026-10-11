@@ -46,14 +46,14 @@ public partial class App : Application
         var installed = Updater.Detect(AppContext.BaseDirectory, !File.Exists(Path.Combine(AppContext.BaseDirectory, "Mira.dll"))) == InstallKind.Installer;
         if (!UpdateLock.WaitIdle(directory, installed, TimeSpan.FromSeconds(30)))
         { MessageBox.Show("Mira est en cours de mise à jour. Relance-le dans un instant.", "Mira"); Shutdown(); return; }
-        // An update of this folder cut short (power loss): its previous files come back and Mira starts again on them.
-        if (UpdateApplier.RecoverAtStartup(directory, e.Args)) { Shutdown(); return; }
         // Same key as the update lock of this profile.
-        var key = UpdateLock.Key(directory);
+        var key = UpdateLock.Key(directory); var instance = "Local\\Mira-" + key;
+        // An update of this folder cut short (power loss): its previous files come back and Mira starts again on them.
+        if (UpdateApplier.RecoverAtStartup(directory, e.Args, instance)) { Shutdown(); return; }
         ShellValidation = dataArg >= 0 || e.Args.Any(x => x is "--demo" or "--visual-check" or "--player-check" or "--windows-check" or "--qa-window");
         ShellAppId = ShellValidation ? WindowsIdentity.AppId + ".Validation." + key : WindowsIdentity.AppId;
         WindowsIdentity.SetProcessIdentity(ShellAppId);
-        _instance = new Mutex(true, "Local\\Mira-" + key, out var created);
+        _instance = new Mutex(true, instance, out var created);
         if (!created)
         {
             _instance.Dispose(); _instance = null;

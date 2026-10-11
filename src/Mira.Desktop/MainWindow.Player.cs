@@ -401,7 +401,7 @@ public partial class MainWindow
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
             _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
             await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
-            Attempt(() => _videoHost?.Dispose()); Attempt(ApplyUpdateAtClose);
+            Attempt(() => _videoHost?.Dispose()); await AttemptAsync(ApplyUpdateAtCloseAsync);
         }
         finally { _ = Dispatcher.BeginInvoke(Close); }
         static void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(AppFiles.ProfileDirectory, ex); } }
