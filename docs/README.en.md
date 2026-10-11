@@ -39,7 +39,7 @@ dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .arti
 ./tools/release.ps1   # packages, then the GitHub release vX.Y.Z: Mac and Mira web from GitHub Actions, signed manifest, notes (gh)
 ```
 
-Tests use an executable harness, not `dotnet test`. Baseline tests require neither a live server nor libmpv. Native playback and Windows integration checks are separate local fixtures. [Contribution guide](../CONTRIBUTING.md).
+Tests use an executable harness, not `dotnet test`; a failure does not stop the following tests, `--filter <text>` picks tests by name, and `tests/Mira.Core.Tests` (the tests free of WPF) also runs on Linux and macOS. Baseline tests require neither a live server nor libmpv. Native playback and Windows integration checks are separate local fixtures. [Contribution guide](../CONTRIBUTING.md).
 
 The repository gallery shows real app views using the built-in fictional demo, not bundled movies. Mira is an independent development preview: transcoding, multiple versions of a title, editable collections, signing, and wider HDR/audio/multi-monitor validation remain future work.
 

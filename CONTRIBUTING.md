@@ -15,7 +15,7 @@ dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build
 dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .artifacts/dev-profile
 ```
 
-Le projet de tests est un exécutable d’assertions : utiliser `dotnet run`, et non `dotnet test`. Il s’arrête avec un code d’échec si une assertion ne passe pas.
+Les projets de tests sont des exécutables d’assertions : utiliser `dotnet run`, et non `dotnet test`. Un échec n’arrête pas les tests suivants ; le bilan final compte les réussis et les échecs, et le code de sortie vaut 1 si un test a échoué. `-- --filter <texte>` ne lance que les tests dont le nom contient ce texte, `-- --list` les nomme. `tests/Mira.Core.Tests` contient les tests sans WPF et tourne aussi sous Linux et macOS ; `tests/Mira.Tests` les lance sous Windows avec ceux de l’app.
 
 ## Proposer une modification
 
