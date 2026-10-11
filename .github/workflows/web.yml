@@ -41,7 +41,10 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Scripts parse
-        run: for f in src/Mira.Web/js/*.js src/Mira.Web/js/*/*.js tools/web/*.mjs; do node --experimental-default-type=module --check "$f"; done
+        run: for f in src/Mira.Web/js/*.js src/Mira.Web/js/*/*.js tools/web/*.mjs tools/web/unit/*.mjs; do node --experimental-default-type=module --check "$f"; done
+      # The player's decisions (the cascade, the addresses, the tracks, the timeline) in Node, before any browser.
+      - name: Unit tests
+        run: node --test tools/web/unit/*.test.mjs
       - name: Package the plugin and a local repository
         run: |
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)

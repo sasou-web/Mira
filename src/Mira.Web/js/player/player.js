@@ -11,24 +11,27 @@ import { sheet, toast, changed, titleHref } from '../components.js';
 import { goBack } from '../app.js';
 import { deviceProfile, lastResortProfile, useHlsJs, audioTracks as switchesAudio } from './profile.js';
 import { sharedVideo, appleNative } from './video.js';
-import { trackText, chooseTracks, trackMemory, textSubtitles as textOf, menuNames as namesOf, appleStream } from './tracks.js';
+import { trackText, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex } from './tracks.js';
+import {
+  knownBitrate, measuredBitrate, UNMEASURED_BITRATE, nextStage, stageRequest, videoErrorText, hlsErrorText, videoErrorStep,
+  hlsErrorStep, afterCheck, resumeTicks, playbackError, chooseStream, burnedIn, subtitleSwitch, webVttAddress,
+  progressFraction, startPosition,
+} from './stream.js';
+import { presentationStep } from './presentation.js';
+import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, withoutFromStart } from './timeline.js';
 import { QUALITIES } from '../views/settings.js';
 
-const SKIP_LABELS = { Intro: 'Passer l’intro', Recap: 'Passer le récap', Preview: 'Passer l’aperçu', Commercial: 'Passer la pub' };
-const AUTO_SKIP = ['Intro', 'Recap'];
 // Forced subtitles (signs, foreign lines): Safari has the « forced » kind; elsewhere it reads as metadata, never drawn.
 const FORCED_KIND = (() => { try { const t = document.createElement('track'); t.kind = 'forced'; return t.kind === 'forced'; } catch { return false; } })();
-const COUNTDOWN = 10;      // seconds the next episode is offered before it starts by itself: from the end credits when
-                           // Jellyfin has them marked, else over the last seconds, so that nothing of the end is cut
 const PROGRESS_EVERY = 10_000;
 
 // At home (a home network's address or name), full quality without measuring. Not through Tailscale: its address
 // is the one the phone uses away from home too (on mobile data), where only a measure tells what the line takes.
 const atHome = isLocalHost(location.hostname) && !viaTailscale(location.hostname);
 
-// The last measure of the connection, kept an hour: each title does not download its megabyte again. Forgotten when
-// the phone may have changed networks (lost and found again, another kind of connection, a while in the background).
-const MEASURE_KEPT = 60 * 60_000;
+// The last measure of the connection, kept an hour (MEASURE_KEPT): each title does not download its megabyte again.
+// Forgotten when the phone may have changed networks (lost and found again, another kind of connection, a while in
+// the background).
 let measure = null;   // { at, value }
 const forgetMeasure = () => { measure = null; };
 addEventListener('online', forgetMeasure);
@@ -42,40 +45,13 @@ document.addEventListener('visibilitychange', () => {
 
 /** The bitrate to ask for: the chosen one, or, on « Automatique », full quality at home and a measure elsewhere. */
 async function bitrate() {
-  const choice = settings.get('quality');
-  if (typeof choice === 'number') return choice;
-  if (choice === 'max' || atHome) return 120_000_000;
-  if (measure && Date.now() - measure.at < MEASURE_KEPT) return measure.value;
+  const known = knownBitrate(settings.get('quality'), { atHome, measure, now: Date.now() });
+  if (known != null) return known;
   try {
-    const measured = await api.bitrateTest(1_000_000);
-    const value = Math.max(1_500_000, Math.min(40_000_000, Math.round(measured * 0.7)));
+    const value = measuredBitrate(await api.bitrateTest(1_000_000));
     measure = { at: Date.now(), value };
     return value;
-  } catch { return 8_000_000; }
-}
-
-/**
- * Why Jellyfin converts, as its address says (TranscodeReasons): none of these, and the video is copied as it is
- * (Jellyfin 10.9 and later write VideoCodec= even then).
- */
-const VIDEO_REASONS = /Video|RefFrames|ContainerBitrate|SubtitleCodec/;
-function copiesVideo(address) {
-  if (/[?&]allowVideoStreamCopy=false/i.test(address)) return false;
-  const reasons = new URLSearchParams(address.split('?')[1] ?? '').get('TranscodeReasons') ?? '';
-  return !VIDEO_REASONS.test(reasons);
-}
-
-const ERRORS = {
-  NotAllowed: 'Ton compte Jellyfin n’a pas le droit de lire ce titre.',
-  NoCompatibleStream: 'Jellyfin ne sait pas convertir ce fichier pour cet appareil.',
-  RateLimitExceeded: 'Le serveur a atteint sa limite de lectures simultanées.',
-};
-
-/** Tracks chosen on the title page, from the player's address (« ?audio=2&sous-titres=-1 »). */
-function chosenTracks(query) {
-  const number = (key) => (query.has(key) && /^-?\d+$/.test(query.get(key)) ? Number(query.get(key)) : null);
-  const tracks = { audio: number('audio'), subtitle: number('sous-titres') };
-  return tracks.audio == null && tracks.subtitle == null ? null : tracks;
+  } catch { return UNMEASURED_BITRATE; }
 }
 
 export function create({ id, query }) {
@@ -89,9 +65,8 @@ export function create({ id, query }) {
   let item = null, source = null, playSessionId = '', playMethod = 'DirectPlay', hls = null;
   let offset = 0;             // progressive conversions start at the requested point: their time 0 is `offset`
   let progressive = false, total = 0, audioIndex = null, subtitleIndex = null;
-  // What a title refused by the player is asked as next: 0 as Jellyfin decides (the file as it is when it can, its
-  // video or audio copied into HLS), 1 its video converted, 2 everything converted (lastResortProfile). Kept for the
-  // title (seeks, other tracks), back to 0 for the next one.
+  // The stage of the cascade a title refused by the player is asked at (stream.js): 0 as Jellyfin decides, 1 its video
+  // converted, 2 everything converted. Kept for the title (seeks, other tracks), back to 0 for the next one.
   let fallback = 0, lastError = '';
   let streamAttempt = 0;      // the opening whose stream is in the <video>: errors of an older one say nothing
   let inband = false;         // the HLS stream carries the text subtitles (Apple's player): no <track> beside it
@@ -270,18 +245,14 @@ export function create({ id, query }) {
   function presentationChanged() {
     const was = mode;
     mode = presentation();
-    if (!native || disposed || mode === was) return;
-    if (mode === 'fullscreen') { showNative(''); return; }
-    if (mode === 'picture-in-picture') { showNative('pip'); return; }
-    // Back in the page: Apple's player was closed (Terminé, a swipe down), or Picture in Picture was. Mira itself only
-    // leaves it when it closes or fails, both said first.
-    if (closing || failed) return;
-    if (was === 'picture-in-picture' && !video.paused) { if (!enterNative()) { video.pause(); showNative('tap'); } return; }
-    // At the very end of a title, iOS may leave full screen by itself: the next episode, or the title page, follows.
-    // (While the next one loads, the video still says the last one ended: that says nothing.)
-    if (ended || (video.ended && !switching)) return;
-    // Closed by the person, even while the next episode loads: Mira closes, and does not open it again.
-    close({ landing: was === 'fullscreen' });
+    if (!native || disposed) return;
+    // Back in the page: Apple's player was closed (Terminé, a swipe down), or Picture in Picture was (see
+    // presentationStep). Closed by the person, even while the next episode loads: Mira closes, and does not open it again.
+    const step = presentationStep({ was, mode, closing, failed, paused: video.paused, ended, videoEnded: video.ended, switching });
+    if (step === 'fullscreen') showNative('');
+    else if (step === 'pip') showNative('pip');
+    else if (step === 'reenter') { if (!enterNative()) { video.pause(); showNative('tap'); } }
+    else if (step === 'close' || step === 'close-landing') close({ landing: step === 'close-landing' });
   }
 
   function updatePlayIcon() {
@@ -322,15 +293,13 @@ export function create({ id, query }) {
     tipTime.textContent = clock(at); now.textContent = clock(at);
     tipThumb.hidden = !trick;
     if (trick) {
-      const index = Math.min(trick.ThumbnailCount - 1, Math.floor((at * 1000) / trick.Interval));
-      const perTile = trick.TileWidth * trick.TileHeight, tile = Math.floor(index / perTile), cell = index % perTile;
-      const width = 160, height = Math.round((160 * trick.Height) / trick.Width);
+      const { tile, width, height, x, y } = trickCell(trick, at);
       tipThumb.hidden = false;
       Object.assign(tipThumb.style, {
         width: `${width}px`, height: `${height}px`,
         backgroundImage: `url("${trick.url(tile)}")`,
         backgroundSize: `${trick.TileWidth * width}px auto`,
-        backgroundPosition: `-${(cell % trick.TileWidth) * width}px -${Math.floor(cell / trick.TileWidth) * height}px`,
+        backgroundPosition: `-${x}px -${y}px`,
       });
     }
     return at;
@@ -356,9 +325,9 @@ export function create({ id, query }) {
   // ---------- Skippable passages and the next episode ----------
   let currentSkip = null;
   function markers(at, end) {
-    const segment = segments.find((s) => SKIP_LABELS[s.Type] && at >= seconds(s.StartTicks) && at < seconds(s.EndTicks) - 1);
+    const segment = skippable(segments, at);
     // Skipped once by itself when the settings say so: going back into it plays it.
-    if (segment && settings.get('autoSkip') && AUTO_SKIP.includes(segment.Type) && !skipped.has(segment)) {
+    if (segment && skipsItself(segment, { autoSkip: settings.get('autoSkip'), skipped })) {
       skipped.add(segment);
       seek(seconds(segment.EndTicks));
       return;
@@ -373,8 +342,7 @@ export function create({ id, query }) {
       }
     }
     if (!next || nextDismissed || !settings.get('autoNext') || !end) return;
-    const outro = segments.find((s) => s.Type === 'Outro');
-    const from = outro ? seconds(outro.StartTicks) : end - COUNTDOWN;
+    const from = nextFrom(segments, end);
     // Gone back before it, to watch again: the offer goes, and comes back when that point is reached again.
     if (countdownTimer && at < from - 2) { clearInterval(countdownTimer); countdownTimer = 0; pillLayer.querySelector('.up-next')?.remove(); return; }
     if (at >= from && !countdownTimer && !video.paused) offerNext();
@@ -426,7 +394,6 @@ export function create({ id, query }) {
     target = { id: upcoming.Id, fromStart: !resume, tracks: null };
     await begin();
   }
-  const progressFraction = (x) => (x.RunTimeTicks ? (x.UserData?.PlaybackPositionTicks ?? 0) / x.RunTimeTicks : 0);
 
   function resetTitle() {
     clearInterval(progressTimer);
@@ -467,13 +434,10 @@ export function create({ id, query }) {
 
   // ---------- Tracks a title starts with ----------
   function pickTracks(chosen) {
-    if (!source?.MediaStreams?.length) { audioIndex = chosen?.audio ?? null; subtitleIndex = chosen?.subtitle ?? null; return; }
     const memory = item.SeriesId ? settings.get('seriesTracks')?.[item.SeriesId] ?? null : null;
-    const auto = chooseTracks(source, { memory, audioOrder: settings.get('audioLanguages'), subtitleOrder: settings.get('subtitleLanguages') });
-    const has = (type, index) => source.MediaStreams.some((s) => s.Type === type && s.Index === index);
-    audioIndex = chosen?.audio != null && has('Audio', chosen.audio) ? chosen.audio : auto.audio;
-    subtitleIndex = chosen?.subtitle === -1 || (chosen?.subtitle != null && has('Subtitle', chosen.subtitle)) ? chosen.subtitle : auto.subtitle;
-    if (chosen) remember();
+    ({ audio: audioIndex, subtitle: subtitleIndex } = startTracks(source, chosen,
+      { memory, audioOrder: settings.get('audioLanguages'), subtitleOrder: settings.get('subtitleLanguages') }));
+    if (chosen && source?.MediaStreams?.length) remember();
   }
   /** The languages chosen for a series, for its next episodes on this phone. */
   function remember() {
@@ -492,15 +456,16 @@ export function create({ id, query }) {
     if (started) { await report('progress'); }
     try {
       const max = await bitrate();
+      const { lastResort, ...stage } = stageRequest(fallback);
       const info = await api.playbackInfo(item.Id, {
-        DeviceProfile: fallback >= 2 ? lastResortProfile(max, { hlsSubtitles: native }) : deviceProfile(max, { hlsSubtitles: native }),
+        DeviceProfile: lastResort ? lastResortProfile(max, { hlsSubtitles: native }) : deviceProfile(max, { hlsSubtitles: native }),
         MaxStreamingBitrate: max, StartTimeTicks: startTicks,
         AudioStreamIndex: audioIndex ?? undefined, SubtitleStreamIndex: subtitleIndex ?? undefined, MediaSourceId: source?.Id,
-        EnableDirectPlay: fallback === 0, EnableDirectStream: fallback === 0, EnableTranscoding: true,
-        AllowVideoStreamCopy: fallback === 0, AllowAudioStreamCopy: fallback < 2, AutoOpenLiveStream: true,
+        EnableDirectPlay: stage.EnableDirectPlay, EnableDirectStream: stage.EnableDirectStream, EnableTranscoding: true,
+        AllowVideoStreamCopy: stage.AllowVideoStreamCopy, AllowAudioStreamCopy: stage.AllowAudioStreamCopy, AutoOpenLiveStream: true,
       });
       if (attempt !== opening || disposed || closing) return;
-      if (info?.ErrorCode) throw new Error(ERRORS[info.ErrorCode] ?? 'Jellyfin n’a pas pu préparer ce titre pour cet appareil.');
+      if (info?.ErrorCode) throw new Error(playbackError(info.ErrorCode));
       const previousSession = playSessionId;
       source = info.MediaSources?.[0];
       if (!source) throw new Error('Ce titre n’a aucun fichier lisible.');
@@ -510,24 +475,13 @@ export function create({ id, query }) {
       subtitleIndex ??= source.DefaultSubtitleStreamIndex ?? -1;
       total = seconds(source.RunTimeTicks ?? item.RunTimeTicks);
 
-      let url, hlsStream = false;
+      // The file as it is, or Jellyfin's conversion (rewritten for Apple's player).
       inband = false;
-      if (source.SupportsDirectPlay && !source.TranscodingUrl && fallback === 0) {
-        const container = (source.Container ?? 'mp4').split(',').find((c) => c === 'mp4') ?? (source.Container ?? 'mp4').split(',')[0];
-        url = signed(`Videos/${item.Id}/stream.${container}?Static=true&mediaSourceId=${encodeURIComponent(source.Id)}&deviceId=${device.id}${source.ETag ? `&Tag=${source.ETag}` : ''}`);
-        playMethod = 'DirectPlay'; progressive = false; offset = 0;
-      } else if (source.TranscodingUrl) {
-        let address = source.TranscodingUrl;
-        hlsStream = source.TranscodingSubProtocol === 'hls' || /\.m3u8/i.test(address);
-        // Apple's player: every text subtitle in the HLS stream, for its menu (see appleStream).
-        if (native && hlsStream) ({ address, inband } = appleStream(address, source, subtitleIndex));
-        url = signed(address);
-        playMethod = copiesVideo(source.TranscodingUrl) ? 'DirectStream' : 'Transcode';
-        progressive = !hlsStream;
-        offset = progressive ? seconds(startTicks) : 0;
-      } else {
-        throw new Error('Jellyfin ne propose aucun flux lisible pour cet appareil.');
-      }
+      const stream = chooseStream(source, { itemId: item.Id, deviceId: device.id, stage: fallback, native, subtitleIndex });
+      if (!stream) throw new Error('Jellyfin ne propose aucun flux lisible pour cet appareil.');
+      const url = signed(stream.address), hlsStream = stream.hlsStream;
+      ({ playMethod, progressive, inband } = stream);
+      offset = progressive ? seconds(startTicks) : 0;
       if (!(await attach(url, hlsStream, progressive ? 0 : seconds(startTicks), attempt)) || attempt !== opening || disposed || closing) return;
       // Apple's player was left while the next episode loaded: the person closed it, before WebKit even said so.
       if (native && switching && switchFrom === 'fullscreen' && presentation() === 'inline') { close({ landing: true }); return; }
@@ -562,8 +516,8 @@ export function create({ id, query }) {
         if (!data.fatal || attempt !== opening) return;
         // A decoding hiccup: hls.js starts the decoder again, once. Twice, or anything else with Jellyfin answering
         // (a segment it could not make), the stream is asked again with more of it converted.
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) { recovered = true; hls.recoverMediaError(); return; }
-        lastError = `Erreur ${data.details ?? data.type} (${fallback === 0 ? 'conversion de Jellyfin' : fallback === 1 ? 'vidéo convertie' : 'tout converti'}).`;
+        if (hlsErrorStep({ fatal: data.fatal, mediaError: data.type === Hls.ErrorTypes.MEDIA_ERROR, recovered }) === 'recover') { recovered = true; hls.recoverMediaError(); return; }
+        lastError = hlsErrorText({ details: data.details, type: data.type, stage: fallback });
         // Read before hls.js resets the video (its time back to 0); the failed stream stops there.
         const at = resumeAt(), paused = streamPlaying && video.paused;
         hls.stopLoad();
@@ -590,7 +544,7 @@ export function create({ id, query }) {
     for (const stream of subtitles) {
       if (stream.DeliveryMethod !== 'External' || !stream.DeliveryUrl) continue;
       // ASS and SSA (anime) come as files beside the video: a browser only reads WebVTT, which Jellyfin makes of them.
-      const src = stream.DeliveryUrl.replace(/\/Stream\.(ass|ssa)(?=\?|$)/i, '/Stream.vtt');
+      const src = webVttAddress(stream.DeliveryUrl);
       video.append(h('track', {
         kind: stream.IsForced && FORCED_KIND ? 'forced' : 'subtitles', label: trackText(stream, subtitles.indexOf(stream) + 1).label, srclang: stream.Language ?? 'und',
         src: signed(src), default: stream.Index === subtitleIndex, dataset: { index: String(stream.Index) },
@@ -598,14 +552,8 @@ export function create({ id, query }) {
     }
   }
   const subtitleStream = (index) => (source?.MediaStreams ?? []).find((s) => s.Type === 'Subtitle' && s.Index === index) ?? null;
-  const menuNames = () => namesOf(source);
-  /**
-   * Text that Safari reads from the file itself when it plays it as it is (an MP4's own subtitles): beside them, a
-   * <track> of the same subtitles would show each one twice in Apple's menu.
-   */
-  const fileText = () => (playMethod === 'DirectPlay' ? textSubtitles().filter((s) => !s.IsExternal && /^(mov_text|tx3g|wvtt)$/i.test(s.Codec ?? '')) : []);
-  /** The text subtitles Jellyfin can send as text, in its order: the order of the HLS stream's subtitles. */
-  const textSubtitles = () => textOf(source);
+  /** The file's own text subtitles, read by Safari when it plays the file as it is (see fileTextSubtitles). */
+  const fileText = () => fileTextSubtitles(source, playMethod);
   const trackNode = (textTrack) => [...video.querySelectorAll('track')].find((x) => x.track === textTrack) ?? null;
   /** The subtitle tracks the HLS stream carries, as the browser lists them. */
   const streamTracks = () => [...video.textTracks].filter((t) => !trackNode(t) && ['subtitles', 'captions', 'forced'].includes(t.kind));
@@ -613,16 +561,10 @@ export function create({ id, query }) {
   function trackIndex(textTrack) {
     const node = trackNode(textTrack);
     if (node) return Number(node.dataset.index);
+    // The file's own subtitles, read by Safari, or the HLS stream's (see carriedIndex).
     const carried = streamTracks(), at = carried.indexOf(textTrack);
     if (at < 0) return null;
-    // The file's own subtitles, read by Safari: in the file's order.
-    if (!inband) { const own = fileText(); return carried.length === own.length ? own[at].Index : null; }
-    // In the stream: by the name Mira gave it, else by Jellyfin's, else by its place.
-    const streams = textSubtitles();
-    for (const [index, name] of menuNames()) if (name === textTrack.label) return index;
-    const named = streams.filter((s) => s.DisplayTitle === textTrack.label);
-    if (named.length === 1) return named[0].Index;
-    return carried.length === streams.length ? streams[at].Index : null;
+    return carriedIndex({ at, count: carried.length, label: textTrack.label, inband, own: inband ? null : fileText(), source });
   }
   // The tracks Mira has set itself. WebKit chooses for any other (the phone's language, a default or forced track),
   // and such a choice must not be taken for one made in Apple's menu.
@@ -711,18 +653,14 @@ export function create({ id, query }) {
       subtitleIndex = subtitle; remember();
       // Text subtitles already beside the video, or in the HLS stream, switch at once; pictures need a new
       // conversion, and so does leaving them.
-      if (subtitle === -1 || stream?.DeliveryMethod === 'External' || (inband && stream?.IsTextSubtitleStream)) {
-        showTrack();
-        if (wasBurned) open(ticks(at), { keepPaused: wasPaused });
-        else report('progress');
-      } else open(ticks(at), { keepPaused: wasPaused });
+      const { show, reopen } = subtitleSwitch({ subtitle, stream, inband, wasBurned });
+      if (show) showTrack();
+      if (reopen) open(ticks(at), { keepPaused: wasPaused });
+      else report('progress');
     }
   }
   /** The chosen subtitles are pictures, drawn into the video by Jellyfin (Apple's menu cannot turn those off). */
-  const burned = () => {
-    const stream = subtitleStream(subtitleIndex);
-    return !!stream && !stream.IsTextSubtitleStream && /SubtitleMethod=Encode/i.test(source?.TranscodingUrl ?? '');
-  };
+  const burned = () => burnedIn(subtitleStream(subtitleIndex), source?.TranscodingUrl);
 
   function moreSheet() {
     const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -793,7 +731,7 @@ export function create({ id, query }) {
     if (item) open(resumeAt()); else begin();
   }
   /** Where to pick the title up again: where it plays, or, before it has played, where it was asked to start. */
-  const resumeAt = () => (streamPlaying || progressive ? ticks(position()) : currentStart);
+  const resumeAt = () => resumeTicks({ streamPlaying, progressive, positionTicks: ticks(position()), currentStart });
   function stopWaiting() { waitToken++; clearTimeout(retryTimer); waitingForServer = false; }
   /**
    * The stream stopped on an error that may be the connection's: Mira asks the server. Silent (PC asleep, Wi-Fi to
@@ -805,8 +743,9 @@ export function create({ id, query }) {
     recheckServer();
     ping().then((up) => {
       if (disposed || closing || attempt !== opening) return;
-      if (!up) waitForServer(at, paused);
-      else if (then) then(at, paused);
+      const step = afterCheck({ up, canGoOn: !!then });
+      if (step === 'wait') waitForServer(at, paused);
+      else if (step === 'next') then(at, paused);
       else fail(text, detail);
     });
   }
@@ -814,7 +753,7 @@ export function create({ id, query }) {
    * A stream the player refused while Jellyfin answers: asked again, its video converted, then everything converted,
    * from where the title was. Null once nothing is left to try.
    */
-  const nextFallback = () => (fallback >= 2 ? null : (at = resumeAt(), paused = false) => { fallback++; open(at, { keepPaused: paused }); });
+  const nextFallback = () => (nextStage(fallback) == null ? null : (at = resumeAt(), paused = false) => { fallback++; open(at, { keepPaused: paused }); });
   const REFUSED = 'Ce titre n’a pas pu être lu sur cet appareil, même entièrement converti par Jellyfin.';
   /**
    * Jellyfin does not answer: not this stream's fault. Apple's player stays open, Mira says so under it or over its
@@ -876,12 +815,8 @@ export function create({ id, query }) {
         clearInterval(progressTimer);
         progressTimer = setInterval(() => { if (Date.now() - lastReport >= PROGRESS_EVERY - 200) report('progress'); }, PROGRESS_EVERY);
         // « From the start » was for this opening: a reload of the page later resumes where the title is.
-        const [path, search = ''] = location.hash.split('?');
-        const params = new URLSearchParams(search);
-        if (params.has('debut') && path === `#/lecture/${item.Id}`) {
-          params.delete('debut');
-          history.replaceState(history.state, '', `${path}${params.toString() ? `?${params}` : ''}`);
-        }
+        const address = withoutFromStart(location.hash, item.Id);
+        if (address != null) history.replaceState(history.state, '', address);
       }
       // Safari may refuse full screen without a word: still in the page a moment later, Mira asks for a tap.
       if (native && presentation() === 'inline') {
@@ -912,9 +847,9 @@ export function create({ id, query }) {
       // An opening on its way replaces this stream: what it still reports says nothing of the next one.
       if (disposed || closing || !item || !video.getAttribute('src') || streamAttempt !== opening) return;
       const code = video.error?.code;
-      lastError = `Erreur ${code ?? '?'}${video.error?.message ? ` : ${video.error.message}` : ''} (${playMethod === 'DirectPlay' ? 'fichier lu tel quel' : fallback === 0 ? 'conversion de Jellyfin' : fallback === 1 ? 'vidéo convertie' : 'tout converti'}).`;
+      lastError = videoErrorText({ code, message: video.error?.message, playMethod, stage: fallback });
       // A file Safari was thought to play directly but cannot (decode, format): Jellyfin converts it instead, at once.
-      if (playMethod === 'DirectPlay' && fallback === 0 && (code === 3 || code === 4)) { nextFallback()(resumeAt(), streamPlaying && video.paused); return; }
+      if (videoErrorStep({ playMethod, stage: fallback, code }) === 'convert') { nextFallback()(resumeAt(), streamPlaying && video.paused); return; }
       // Anything else: the server is asked. Silent, Mira waits for it; answering, the stream is at fault: asked again,
       // more of it converted (a lower quality alone would change nothing: Jellyfin copies what fits under it), until
       // nothing is left to convert.
@@ -1016,8 +951,7 @@ export function create({ id, query }) {
       title.firstChild.textContent = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
       title.lastChild.textContent = item.Type === 'Episode' ? `${episodeCode(item)} · ${item.Name ?? ''}` : [item.ProductionYear, item.OfficialRating].filter(Boolean).join(' · ');
       chapters = item.Chapters ?? [];
-      const fraction = progressFraction(item);
-      const resume = !target.fromStart && settings.get('resume') && fraction > 0 && fraction < 0.95 ? item.UserData.PlaybackPositionTicks : 0;
+      const resume = startPosition(item, { fromStart: target.fromStart, resume: settings.get('resume') });
       total = seconds(item.RunTimeTicks);
       // The title's own streams choose its tracks before Jellyfin is asked for a stream.
       source = item.MediaSources?.[0] ?? null;
@@ -1059,11 +993,7 @@ export function create({ id, query }) {
 
   function drawChapters() {
     for (const tick of track.querySelectorAll('.tick')) tick.remove();
-    if (!total || chapters.length < 2) return;
-    for (const chapter of chapters.slice(1)) {
-      const at = seconds(chapter.StartPositionTicks);
-      if (at > 0 && at < total) track.append(h('i', { class: 'tick', style: { left: `${(at / total) * 100}%` } }));
-    }
+    for (const ratio of chapterMarks(chapters, total)) track.append(h('i', { class: 'tick', style: { left: `${ratio * 100}%` } }));
   }
 
   function setupTrickplay() {
