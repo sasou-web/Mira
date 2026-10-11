@@ -138,6 +138,8 @@ public static class MpvInstaller
             {
                 var buffer = new byte[1 << 16]; int read;
                 while ((read = input.Read(buffer, 0, buffer.Length)) > 0) { sha.AppendData(buffer, 0, read); output.Write(buffer, 0, read); }
+                // On the disk before version.txt: after a power cut, a stamped engine is a whole one.
+                output.Flush(flushToDisk: true);
             }
             if (!VerifiedDownload.Matches(sha.GetHashAndReset(), package.LibrarySha256)) throw new InstallException("Le moteur extrait ne correspond pas à la version vérifiée par Mira : il n’est pas installé.");
         }

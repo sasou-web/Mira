@@ -583,7 +583,7 @@ src/Mira.Desktop/bin/Release/net8.0-windows10.0.19041.0/Mira.exe --data .artifac
 
 Le résultat est écrit dans `result.txt`. Les changements de modes utilisent le lecteur natif et un rectangle physique hors du bureau ; les vérifications à la souris complètent ce contrôle pour les fenêtres superposées.
 
-TorLink, installé sur le PC, est vérifié sans toucher à son état réel ni à Jellyfin. Le contrôle de bout en bout ouvre une fenêtre visible ; il n’envoie de vraies touches que si elle a le premier plan :
+TorLink, installé sur le PC, est vérifié sans toucher à son état réel ni à Jellyfin. Le contrôle de bout en bout ouvre une fenêtre visible ; il n’envoie de vraies touches que si elle a le premier plan. Sans TorLink sur le PC (raccourci, `npm install -g torlnk` ; la copie laissée par `npx torlnk` ne compte plus), les deux installent d’abord celui de Mira dans leur profil isolé : connexion à nodejs.org et registry.npmjs.org nécessaire, quelques minutes de plus.
 
 ```powershell
 dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build -- --torlink-integration

@@ -4,7 +4,7 @@
 
 - Windows 10 version 2004 ou plus récent, ou Windows 11, **x64**. Les coins natifs arrondis dépendent de Windows 11.
 - Un serveur Jellyfin accessible, sur le même PC ou le réseau, et un compte sur ce serveur. Sans serveur, Mira peut [installer Jellyfin sur ce PC](#installer-jellyfin-depuis-mira).
-- Le moteur vidéo **libmpv x64**. Mira l’installe à la demande (31 Mo) ; un moteur déjà présent est réutilisé. `mpv.exe` seul ne suffit pas.
+- Le moteur vidéo **libmpv x64**. Mira l’installe à la demande (31 Mo) et le tient à jour ; un moteur déjà présent est réutilisé tel quel. `mpv.exe` seul ne suffit pas.
 
 L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. Mira est une préversion de développement non signée.
 
@@ -49,7 +49,7 @@ Si Jellyfin est déjà installé et configuré sur ce PC, Mira le signale et pro
 
 ## Obtenir le moteur vidéo
 
-**Automatiquement.** La case **Télécharger le moteur vidéo mpv** de l’installateur (cochée par défaut), le bouton **Installer le moteur mpv** de **Réglages → Lecture** ou le bouton **Installer** proposé à la première lecture font la même chose : Mira télécharge une build précise des [builds Windows de mpv](https://mpv.io/installation/) (shinchiro, publiée sur SourceForge, 31 Mo), vérifie son empreinte SHA-256, extrait `libmpv-2.dll` et vérifie aussi la sienne, puis la range dans `data\mpv`. Les mises à jour de Mira n’y touchent pas. Un fichier différent de celui attendu n’est jamais installé. Avec l’installateur, un échec du téléchargement (pas de connexion) n’empêche pas l’installation : Mira le propose de nouveau à la première lecture.
+**Automatiquement.** La case **Télécharger le moteur vidéo mpv** de l’installateur (cochée par défaut), le bouton **Installer le moteur mpv** de **Réglages → Lecture** ou le bouton **Installer** proposé à la première lecture font la même chose : Mira télécharge une build précise des [builds Windows de mpv](https://mpv.io/installation/) (shinchiro, publiée sur SourceForge, 31 Mo), vérifie son empreinte SHA-256, extrait `libmpv-2.dll` et vérifie aussi la sienne, puis la range dans `data\mpv`. Ce moteur suit la build que fige Mira : une build plus récente, figée par une nouvelle version de Mira, est téléchargée en arrière-plan, vérifiée de la même façon et utilisée au démarrage suivant ; un moteur choisi dans les réglages ou trouvé sur le PC n’est jamais touché. Un fichier différent de celui attendu n’est jamais installé. Avec l’installateur, un échec du téléchargement (pas de connexion) n’empêche pas l’installation : Mira le propose de nouveau à la première lecture.
 
 **Avec un moteur déjà présent.** Si mpv.net ou Jellyfin MPV Shim est installé à un emplacement connu de Mira, sa bibliothèque est réutilisée et rien n’est téléchargé. Une autre `libmpv-2.dll` ou `mpv-2.dll` x64 peut être choisie dans **Réglages → Lecture → Emplacement du moteur** ; elle passe avant celle de Mira.
 

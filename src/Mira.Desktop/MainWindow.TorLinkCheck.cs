@@ -54,6 +54,15 @@ public partial class MainWindow
                 await File.WriteAllLinesAsync(Path.Combine(output, "result.txt"), checks);
                 return;
             }
+            // No TorLink on this PC (Mira's own is per profile, npx's copy is no longer used): Mira installs its own into the
+            // check's profile, as the switch of the Downloads page does, which checks that installation too.
+            if (TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath) is null)
+            {
+                var installed = await TorLinkSetup.InstallAsync(_profile.DirectoryPath, new Progress<TorLinkSetup.Step>(_ => { }));
+                _settings.TorLinkActive = true; _profile.SaveSettings(_settings);
+                Require(installed is { Managed: true, HasRuntime: true } && TorLinkSetup.IsCurrent(_profile.DirectoryPath),
+                    "without TorLink on this PC, Mira installs its own into the profile: pinned Node.js, npm ci from the lock, no scripts");
+            }
             var downloads = Path.Combine(output, "downloads"); var library = Path.Combine(output, "library");
             foreach (var folder in new[] { downloads, Path.Combine(library, "FILMS"), Path.Combine(library, "SERIES"), Path.Combine(library, "ANIME") }) Directory.CreateDirectory(folder);
             PrepareSyntheticDownloads(state, downloads);

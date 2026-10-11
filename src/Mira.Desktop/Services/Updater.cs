@@ -231,13 +231,13 @@ internal sealed class Updater : IDisposable
     /// end before replacing the old files. With <paramref name="relaunch"/>, Mira reopens once it is done, whatever the outcome.
     /// Without it (automatic, at close), a version that already failed twice is left for an explicit restart.
     /// </summary>
-    public bool Apply(bool relaunch)
+    public async Task<bool> ApplyAsync(bool relaunch)
     {
         if (State != UpdateState.Ready || Offer is not { } offer || ReadyPath is not { } path) return false;
         var pending = ReadPending(_pendingFile) is { } previous && previous.Version == offer.Version.ToString(3) ? previous : new PendingUpdate(offer.Version.ToString(3), Current.ToString(3), 0, false);
         if (!relaunch && pending.Attempts >= AutomaticAttempts) { Log($"installation automatique de {pending.Version} suspendue après {pending.Attempts} échecs"); return false; }
-        // Checked again unless "Redémarrer" has just done it: the window is already hidden, the moment costs nothing visible.
-        if (DateTime.UtcNow - _verifiedAt > TimeSpan.FromMinutes(1) && !IsIntact()) { Discarded(); return false; }
+        // Checked again unless "Redémarrer" has just done it, off the interface thread: a folder update reads the whole zip.
+        if (DateTime.UtcNow - _verifiedAt > TimeSpan.FromMinutes(1) && !await Task.Run(IsIntact)) { Discarded(); return false; }
         var start = new ProcessStartInfo(path) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(path)! };
         if (Kind == InstallKind.Installer)
         {

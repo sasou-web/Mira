@@ -153,6 +153,22 @@ public static class MediaImporter
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
     }
 
+    /// <summary>
+    /// Both existing files are on one volume, mount points and junctions followed (Windows: the volume serial number of
+    /// each file, elsewhere their path root): a rename between their folders moves no data. False when it cannot be told.
+    /// </summary>
+    public static bool OnSameVolume(string a, string b)
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows()) return SameVolume(Path.GetFullPath(a), Path.GetFullPath(b));
+            using var first = File.OpenHandle(a, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var second = File.OpenHandle(b, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return GetFileInformationByHandle(first, out var x) && GetFileInformationByHandle(second, out var y) && x.VolumeSerial == y.VolumeSerial;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
+    }
+
     /// <summary>A second name for <paramref name="source"/> (Windows, same drive); false when none could be made.</summary>
     public static bool TryHardLink(string source, string destination) =>
         OperatingSystem.IsWindows() && SameVolume(source, destination) && CreateHardLink(Extended(destination), Extended(source), IntPtr.Zero);

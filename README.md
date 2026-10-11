@@ -53,7 +53,7 @@ Dans la [release 0.7.4](https://github.com/sasou-web/Mira/releases/tag/v0.7.4), 
 2. Connecter ton serveur Jellyfin (10.9 ou plus récent) — généralement `http://127.0.0.1:8096` sur le même PC ; sur le réseau, son adresse IP ou son nom suffit. Pas encore de serveur ? **Installer Jellyfin sur ce PC**, sous le formulaire de connexion, l’installe, crée les dossiers Films, Séries et Animes, le configure en français et te connecte.
 3. Le moteur vidéo **mpv** : laisser cochée la case « Télécharger le moteur vidéo mpv » de l’installateur, ou choisir **Installer le moteur mpv** dans **Réglages → Lecture** (Mira le propose aussi à la première lecture). Un moteur déjà installé avec mpv.net ou Jellyfin MPV Shim est réutilisé.
 
-**Le runtime .NET est inclus ; libmpv est téléchargé à la demande** (31 Mo, depuis les builds Windows de mpv, empreinte vérifiée). Windows 10 2004+ / Windows 11 x64, interface française, préversion non signée. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
+**Le runtime .NET est inclus ; libmpv est téléchargé à la demande** (31 Mo, depuis les builds Windows de mpv, empreinte vérifiée), puis mis à jour en arrière-plan quand Mira en fige une build plus récente. Windows 10 2004+ / Windows 11 x64, interface française, préversion non signée. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
 
 La page **Téléchargements** est facultative : TorLink s’y active d’un clic, et Mira l’installe (Node.js et TorLink, vérifiés, dans son dossier `data`) s’il n’est pas déjà sur le PC. Son terminal utilise le runtime Microsoft Edge WebView2 de Windows.
 
