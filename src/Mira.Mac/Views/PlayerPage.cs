@@ -346,7 +346,8 @@ public sealed class PlayerPage : UserControl
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
             if (_item is not null) _item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
-            if (_reported && _shell.Session is { } session && DateTimeOffset.Now - _lastReport >= TimeSpan.FromSeconds(3))
+            // Every 10 s while it plays, once when it pauses or resumes (MinValue above), never while it stays paused.
+            if (_reported && _shell.Session is { } session && Cadence.ProgressDue(false, paused, _lastReport, DateTimeOffset.Now))
             { _lastReport = DateTimeOffset.Now; await session.Sync.RecordAsync("progress", Report()); }
         }
         catch (Exception ex) when (Errors.Expected(ex)) { }

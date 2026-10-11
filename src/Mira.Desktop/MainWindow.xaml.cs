@@ -25,7 +25,14 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _browseCancellation;
     private readonly DispatcherTimer _searchTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer _externalRefresh = new() { Interval = TimeSpan.FromMilliseconds(600) };
-    private readonly DispatcherTimer _fallbackRefresh = new() { Interval = TimeSpan.FromSeconds(45) };
+    /// <summary>Checks every 45 s whether the page needs a refresh Jellyfin's WebSocket did not ask for (see Cadence.RefreshDue).</summary>
+    private readonly DispatcherTimer _fallbackRefresh = new() { Interval = Cadence.RefreshUnheard };
+    /// <summary>Jellyfin's WebSocket is open: library changes are heard as they happen.</summary>
+    private bool _listening;
+    /// <summary>When the last refresh that reached Jellyfin started.</summary>
+    private DateTimeOffset _lastRefresh = DateTimeOffset.MinValue;
+    /// <summary>When a refresh last failed to reach Jellyfin; null once one reaches it again (see SyncStatus).</summary>
+    private DateTimeOffset? _offlineSince;
     private List<MediaItem> _items = [], _resume = [], _nextUp = [], _episodes = [];
     private MediaItem? _hero, _detail;
     private string _view = "home";
@@ -58,16 +65,26 @@ public partial class MainWindow : Window
         InitializeTorLink();
         InitializeUpdates();
         InitializePower();
+        InitializeHeroClock();
         Activated += (_, _) => UpdateHeroClock(); Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Tab) _keyboardNavigation = true; };
         PreviewMouseDown += (_, e) =>
         {
             _keyboardNavigation = false;
+            // The banner paused for keyboard focus resumes once the mouse is used again.
+            if (Hero.IsKeyboardFocusWithin) UpdateHeroClock();
             // The mouse's "back" side button steps back like Escape.
             if (e.ChangedButton == MouseButton.XButton1 && GoBack()) e.Handled = true;
         };
         _noticeTimer.Tick += NoticeTick;
-        StateChanged += (_, _) => UpdateMaximizeButtons();
+        StateChanged += (_, _) =>
+        {
+            UpdateMaximizeButtons();
+            // Minimized: the artwork kept for reuse goes (what is on the page stays), and comes back from the disk.
+            if (WindowState == WindowState.Minimized) _images?.ReleaseMemory();
+        };
+        PosterCards.IsVisibleChanged += (_, _) => ScheduleVisibleArtwork();
+        DpiChanged += (_, _) => { if (_images is { } cache) FitArtwork(cache); };
         LocationChanged += (_, _) => TrackNormalCorner(); SizeChanged += (_, _) => TrackNormalCorner();
         SettingsVersion.Text = $"Mira {JellyfinClient.AppVersion} · Jellyfin + mpv";
         _searchTimer.Tick += async (_, _) => { _searchTimer.Stop(); await RefreshAsync(); };
@@ -78,7 +95,10 @@ public partial class MainWindow : Window
             _ = CheckTorLinkAvailabilityAsync();
             if (!_playing && !_demo) { _metadata?.Clear(); _heroSeries.Clear(); await RefreshAsync(quiet: true); }
         };
-        _fallbackRefresh.Tick += async (_, _) => { if (!_demo && !_playing && _client is not null && IsActive) await RefreshAsync(quiet: true); };
+        _fallbackRefresh.Tick += async (_, _) =>
+        {
+            if (!_demo && !_playing && _client is not null && IsActive && Cadence.RefreshDue(_listening, _lastRefresh, DateTimeOffset.UtcNow)) await RefreshAsync(quiet: true);
+        };
         _playerTimer.Tick += PlayerTick;
         VolumeSlider.Value = VolumeBoost.Clamp(_settings.Volume); ShowVolumeLevel();
         var testArg = Array.IndexOf(args, "--test-media");
@@ -156,6 +176,7 @@ public partial class MainWindow : Window
     private async Task RevealStartupCoreAsync()
     {
         // Warm only the first screen. A slow/offline image must never lock navigation.
+        await Dispatcher.InvokeAsync(LoadVisibleArtwork, DispatcherPriority.Loaded);
         var artwork = PosterCards.Children.OfType<MediaCard>().Take(8)
             .Concat(ResumeCards.Children.OfType<MediaCard>().Take(5)).Select(x => x.ImageReady).Append(_heroReady);
         try { await Task.WhenAll(artwork).WaitAsync(TimeSpan.FromMilliseconds(900)); }
@@ -226,34 +247,39 @@ public partial class MainWindow : Window
     {
         await DisconnectServicesAsync();
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
-        _client = new JellyfinClient(connection);
-        try { _store = new LibraryStore(_profile.DirectoryPath, AccountData.LibraryProfile(connection)); }
+        var client = _client = new JellyfinClient(connection);
+        LibraryStore store; SyncService sync;
+        // Opened (and checked page by page) off the UI thread: a large cache on a slow disk takes a moment.
+        try { (store, sync) = await Task.Run(() => { var opened = new LibraryStore(_profile.DirectoryPath, AccountData.LibraryProfile(connection)); return (opened, new SyncService(client, opened)); }); }
         // Even a new cache cannot be written (full disk, data folder read-only): no library without it. A damaged one
         // is replaced by LibraryStore itself.
         catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
         {
+            if (!ReferenceEquals(_client, client)) { client.Dispose(); return; }
             _client.Dispose(); _client = null;
             ServerBox.Text = connection.Server; UsernameBox.Text = connection.UserName; LoginError.Text = CacheUnavailable;
             LogoutButton.Visibility = Visibility.Visible; BackToLibrary.Visibility = Visibility.Collapsed; ShowSignInForm();
             if (LoginOverlay.Visibility != Visibility.Visible) Motion.Reveal(LoginOverlay);
             FocusLogin(); _ = RefreshTorLinkLibrariesAsync(); return;
         }
+        // Another account or the demo took over meanwhile: this one stops here.
+        if (!ReferenceEquals(_client, client)) { await sync.DisposeAsync(); client.Dispose(); return; }
+        _store = store;
         var damaged = _store.DamagedCopy is not null;
         _items = []; _resume = []; _nextUp = []; _recentPlayback = []; _hiddenResume = []; _episodes = []; _detail = null; _hero = null; _totalCount = 0; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
         // Never leave the previous account's posters on screen while this one loads.
         _catalogLoading = true; RenderLibrary();
-        _images = new ImageCache(_client, _profile.DirectoryPath); _sync = new SyncService(_client, _store);
+        _images = new ImageCache(_client, _profile.DirectoryPath); FitArtwork(_images); _sync = sync;
         _metadata = new MetadataCache(_client); _heroRequestedId = null; ++_heroVersion;
         _sync.Changed += SyncChanged;
-        _connectionLifetime = new();
+        _connectionLifetime = new(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         if (!_args.Contains("--visual-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant();
         SettingsServerAddress.Text = connection.Server;
         LoginOverlay.Visibility = Visibility.Collapsed; _view = "home"; _parentId = null; SearchBox.Text = "";
         try
         {
-            var store = _store;
             var (cached, cachedResume, history, hidden) = await Task.Run(() => TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume"), store.RecentPlayback(), store.HiddenFromResume())));
             // All null when the cache could not be read.
             if (ReferenceEquals(store, _store)) { _recentPlayback = history ?? []; _hiddenResume = hidden ?? []; }
@@ -273,18 +299,33 @@ public partial class MainWindow : Window
     }
     private async Task ListenSafelyAsync(JellyfinClient client, CancellationToken ct)
     {
-        try { await client.ListenAsync(() => Dispatcher.BeginInvoke(() => { _externalRefresh.Stop(); _externalRefresh.Start(); }), ct); }
+        void Changed() { _externalRefresh.Stop(); _externalRefresh.Start(); }
+        // Open again after a break: what changed meanwhile went unheard.
+        void Listening(bool open) => Dispatcher.BeginInvoke(() =>
+        {
+            if (ct.IsCancellationRequested) return;
+            var reopened = open && !_listening && _lastRefresh != DateTimeOffset.MinValue; _listening = open;
+            if (reopened) Changed();
+        });
+        try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening); }
         catch (OperationCanceledException) { }
+    }
+    /// <summary>Artwork decoded for the sharpest and widest of the screens connected now.</summary>
+    private static void FitArtwork(ImageCache cache)
+    {
+        var screens = Screens.All();
+        cache.Scale = screens.Select(x => x.Scale).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1).Max();
+        cache.ScreenPixels = (int)Math.Round(screens.Select(x => x.WorkArea.Width).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1920).Max());
     }
     private async Task DisconnectServicesAsync()
     {
         if (_playing) { await StopPlaybackAsync(); ReturnToLibrary(); }
-        CompositionTarget.Rendering -= HeroFrame; _heroClockAttached = false; _heroCandidates = [];
+        _heroClock.Stop(); _heroClockAttached = false; _heroCandidates = [];
         _heroSeries.Clear();
         _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _heroRequestedId = null; _hero = null;
         _connectionLifetime.Cancel(); _browseCancellation?.Cancel();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
-        _client?.Dispose(); _client = null; _images = null; _store = null;
+        _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
         _recentPlayback = []; _hiddenResume = [];
     }
     private void AddLibraryButton(string name, string? id)
@@ -351,7 +392,7 @@ public partial class MainWindow : Window
         var filters = home ? new CatalogQuery() : CurrentQuery();
         var key = CatalogKey(search, filters);
         var client = _client; var store = _store;
-        LoadMore.IsEnabled = false; var startOffset = LibraryScroll.VerticalOffset;
+        LoadMore.IsEnabled = false; var startOffset = LibraryScroll.VerticalOffset; var started = DateTimeOffset.UtcNow;
         if (!quiet && !more) { SyncLabel.Text = "↻  Actualisation…"; SpinRefresh(true); }
         try
         {
@@ -376,7 +417,9 @@ public partial class MainWindow : Window
             if (more) _items.AddRange(result.Items.Where(x => _items.All(old => old.Id != x.Id))); else _items = result.Items;
             _totalCount = result.TotalRecordCount;
             if (home) { _resume = resumeItems!; _nextUp = next!.Result.Items; _recentPlayback = ContinueWatching.History(_recentPlayback.Concat(recent ?? [])); }
-            _catalogLoading = false; RenderLibrary();
+            _catalogLoading = false; _lastRefresh = started; _offlineSince = null; RenderLibrary();
+            // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.
+            if (_sync is { PendingCount: > 0 } sync) sync.Wake();
             // Back to the top for a new list, unless the reader has already started scrolling it.
             if (!quiet && !more && Math.Abs(LibraryScroll.VerticalOffset - startOffset) < 1) SmoothScroll.Jump(LibraryScroll, 0);
             if (!quiet) HideNotice(); SyncChanged();
@@ -396,9 +439,13 @@ public partial class MainWindow : Window
             }
             else
             {
-                var cached = await Task.Run(() => TryCache(() => store.Load<ItemsResult>(home ? "home" : key)));
-                if (cached is not null && !more) { _items = cached.Items; _totalCount = cached.TotalRecordCount; TryCache(() => store.ApplyLocalProgress(_items)); RenderLibrary(); }
-                SetNotice(Friendly(ex) + " Les informations déjà chargées restent disponibles."); SyncLabel.Text = "○  Hors connexion · cache local";
+                var cached = more ? null : await Task.Run(() => TryCache(() => { var page = store.Load<ItemsResult>(home ? "home" : key); if (page is not null) TryCache(() => store.ApplyLocalProgress(page.Items)); return page; }));
+                if (version != _viewVersion) return;
+                if (cached is not null) { _items = cached.Items; _totalCount = cached.TotalRecordCount; }
+                // Kept until a refresh, or a report delivered after this failure, reaches Jellyfin again: the sync
+                // status no longer replaces it.
+                _offlineSince = DateTimeOffset.Now;
+                SetNotice(Friendly(ex) + " Les informations déjà chargées restent disponibles."); SyncChanged();
                 _catalogLoading = false; RenderLibrary();
             }
         }
@@ -434,17 +481,16 @@ public partial class MainWindow : Window
         _totalCount = _items.Count; RenderLibrary();
     }
     private List<MediaItem>? _demoItems;
+    private static readonly Brush SyncWarning = Frozen("#D5B787"), SyncFine = Frozen("#91BAA7");
+    private static Brush Frozen(string hex) { var brush = Brush(hex); brush.Freeze(); return brush; }
+    /// <summary>Offline first: neither a delivered report nor the retry loop replaces it before Jellyfin answers again.</summary>
     private void SyncChanged() => Dispatcher.BeginInvoke(() =>
     {
         if (_sync is null || _demo) return;
-        var pending = _sync.PendingCount;
-        var error = _sync.Error;
-        SyncLabel.Text = pending > 0
-            ? $"◌  {pending} envoi{(pending > 1 ? "s" : "")} en attente{(error is not null ? " · " + error : "")}"
-            // A local storage failure matters even with nothing waiting: the next reports will not be kept.
-            : error is not null ? "◌  " + error
-            : _sync.LastSynced is { } t ? $"●  Synchronisé à {t:HH:mm:ss}" : "●  Connecté à Jellyfin";
-        SyncLabel.Foreground = pending > 0 || error is not null ? Brush("#D5B787") : Brush("#91BAA7");
+        var (text, warning) = SyncStatus.Describe(_sync.PendingCount, _sync.Error, _sync.LastSynced, _offlineSince);
+        if (SyncLabel.Text != text) SyncLabel.Text = text;
+        var brush = warning ? SyncWarning : SyncFine;
+        if (!ReferenceEquals(SyncLabel.Foreground, brush)) SyncLabel.Foreground = brush;
     });
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(8) };
     private Action? _noticeAction;

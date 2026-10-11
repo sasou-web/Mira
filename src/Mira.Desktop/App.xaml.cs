@@ -51,7 +51,7 @@ public partial class App : Application
         for (var attempt = 0; ; attempt++)
         {
             // The files of this copy are being replaced by an update, or its installer runs: wait rather than start half-replaced.
-            if (!UpdateLock.WaitIdle(directory, installed, TimeSpan.FromSeconds(30)))
+            if (!WaitForUpdate(directory, installed, TimeSpan.FromSeconds(30)))
             { MessageBox.Show("Mira est en cours de mise à jour. Relance-le dans un instant.", "Mira"); Shutdown(); return; }
             // An update of this folder cut short (power loss): its previous files come back and Mira starts again on them.
             if (UpdateApplier.RecoverAtStartup(directory, e.Args, instance)) { Shutdown(); return; }
@@ -124,6 +124,34 @@ public partial class App : Application
         if (_window is not { IsClosing: false } window) return ActivationAnswer.Closing;
         Dispatcher.BeginInvoke(window.RestoreFromWindows);
         return ActivationAnswer.Shown;
+    }
+    /// <summary>
+    /// Waits while this copy is being updated, or its installer runs, with a small window that says so (instead of a
+    /// launch that seems to do nothing for up to 30 s) and without blocking the UI thread. False when it still runs
+    /// after <paramref name="timeout"/>, or when the window is closed.
+    /// </summary>
+    private bool WaitForUpdate(string directory, bool installed, TimeSpan timeout)
+    {
+        if (!UpdateLock.Busy(directory, installed)) return true;
+        // Closing the waiting window must not end Mira as its last window.
+        var mode = ShutdownMode; ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        var frame = new System.Windows.Threading.DispatcherFrame(); var idle = false; var waiting = true;
+        var window = new Window
+        {
+            Title = "Mira", Width = 380, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 16, 18)),
+            Content = new System.Windows.Controls.TextBlock { Text = "Mira termine une mise à jour : il s’ouvre dès qu’elle est finie.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(24), FontSize = 14, Foreground = System.Windows.Media.Brushes.WhiteSmoke }
+        };
+        window.Closed += (_, _) => { waiting = false; frame.Continue = false; };
+        _ = UpdateLock.WaitIdleAsync(directory, installed, timeout).ContinueWith(done => Dispatcher.BeginInvoke(() =>
+        { idle = done.IsCompletedSuccessfully && done.Result; waiting = false; frame.Continue = false; }), TaskScheduler.Default);
+        try
+        {
+            window.Show();
+            if (waiting) System.Windows.Threading.Dispatcher.PushFrame(frame);
+        }
+        finally { if (window.IsVisible) window.Close(); ShutdownMode = mode; }
+        return idle;
     }
     /// <summary>Whether the Mira holding the lock released it (or ended without releasing it) within <paramref name="timeout"/>.</summary>
     private static bool WaitReleased(Mutex mutex, TimeSpan timeout)

@@ -83,15 +83,19 @@ public partial class MainWindow
     {
         _view = "search"; var work = NavigateLibraryAsync(); SearchBox.Focus(); SearchBox.SelectAll(); await work;
     }
+    private int _navigationVersion;
     private async Task NavigateLibraryAsync()
     {
         if (SettingsOverlay.Visibility == Visibility.Visible) AutoSaveSettings();
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
         var closing = Task.WhenAll(Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay), Motion.HideAsync(TorLinkOverlay), Motion.HideAsync(GuideOverlay));
         DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = GuideOverlay.IsHitTestVisible = false;
-        _catalogLoading = true;
-        var key = CatalogKey(SearchBox.Text.Trim(), CurrentQuery());
-        var cached = _store is { } store ? TryCache(() => store.Load<ItemsResult>(_view == "home" ? "home" : key)) : null;
+        _catalogLoading = true; var navigation = ++_navigationVersion;
+        var key = CatalogKey(SearchBox.Text.Trim(), CurrentQuery()); var page = _view == "home" ? "home" : key;
+        // Read off the UI thread: a page of hundreds of titles takes tens of milliseconds to decode.
+        var cached = _store is { } store ? await Task.Run(() => TryCache(() => store.Load<ItemsResult>(page))) : null;
+        // Another page was chosen meanwhile: it shows instead.
+        if (navigation != _navigationVersion) { await closing; return; }
         _items = cached?.Items ?? []; _totalCount = cached?.TotalRecordCount ?? 0;
         if (cached is not null || _demo) _catalogLoading = false;
         RenderLibrary(); SmoothScroll.Jump(LibraryScroll); Motion.Reveal(LibraryScroll, 260, 10);
@@ -200,13 +204,41 @@ public partial class MainWindow
                 card.Click += async (_, _) => { ClosePreview(); if (wide) await PlayAsync(item); else await ShowDetailsAsync(item); };
                 card.HoverEntered += CardHoverEntered; card.FocusEntered += CardFocusEntered; card.HoverLeft += CardHoverLeft;
                 card.ContextMenu = CardMenu(card, wide);
-                panel.Children.Insert(Math.Min(i, panel.Children.Count), card); _ = card.LoadImageAsync(_images, wide);
+                panel.Children.Insert(Math.Min(i, panel.Children.Count), card);
+                // The grid's posters wait until they come near the visible part of the page (LoadVisibleArtwork).
+                if (panel != PosterCards) _ = card.LoadImageAsync(_images, wide);
                 // Page navigation already animates the page. Refreshing progress must not animate it again per card.
             }
             else if (panel.Children.IndexOf(card) != i) { panel.Children.Remove(card); panel.Children.Insert(i, card); }
         }
         while (panel.Children.Count > items.Count) panel.Children.RemoveAt(panel.Children.Count - 1);
         NoteScroll();
+        if (panel == PosterCards) ScheduleVisibleArtwork();
+    }
+    private bool _artworkScheduled;
+    /// <summary>Once the layout is done (positions known), at most once per frame however often the page scrolls.</summary>
+    private void ScheduleVisibleArtwork()
+    {
+        if (_artworkScheduled) return; _artworkScheduled = true;
+        Dispatcher.BeginInvoke(() => { _artworkScheduled = false; LoadVisibleArtwork(); }, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+    /// <summary>
+    /// Asks for the artwork of the posters on screen or within a screen of it, in either direction. The others wait:
+    /// a grid of hundreds of titles (« Afficher plus ») would otherwise download and decode them all at once.
+    /// </summary>
+    private void LoadVisibleArtwork()
+    {
+        if (_images is null || !PosterCards.IsVisible || LibraryScroll.ActualHeight <= 0) return;
+        var margin = LibraryScroll.ActualHeight;
+        foreach (var card in PosterCards.Children.OfType<MediaCard>())
+        {
+            if (card.ImageRequested) continue;
+            if (!card.IsDescendantOf(LibraryScroll)) return;
+            var top = card.TransformToAncestor(LibraryScroll).Transform(new Point()).Y;
+            // In reading order: once a card is past the margin below, so are all the next ones.
+            if (top > LibraryScroll.ActualHeight + margin) return;
+            if (top + card.ActualHeight >= -margin) _ = card.LoadImageAsync(_images, false);
+        }
     }
     /// <summary>Right click (or Shift+F10 / menu key) on a card.</summary>
     private ContextMenu CardMenu(MediaCard card, bool wide)
@@ -306,6 +338,8 @@ public partial class MainWindow
     {
         if (Math.Abs(e.VerticalChange) + Math.Abs(e.HorizontalChange) > 0) NoteScroll();
         UpdateResumeArrows();
+        // The page itself (not the resume row inside it) moved or changed size: other posters may now be near the screen.
+        if (e.OriginalSource == LibraryScroll) { ScheduleVisibleArtwork(); if (e.VerticalChange != 0 || e.ViewportHeightChange != 0) UpdateHeroClock(); }
     }
     /// <summary>The page to open for an item: an episode opens its series.</summary>
     private async Task<MediaItem> PageItemAsync(MediaItem item)

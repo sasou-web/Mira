@@ -77,7 +77,7 @@ public partial class MainWindow
                 source = info.MediaSources.FirstOrDefault() ?? throw new IOException("Aucune source lisible disponible.");
                 session = string.IsNullOrEmpty(info.PlaySessionId) ? Guid.NewGuid().ToString("N") : info.PlaySessionId;
                 var isLocalServer = new Uri(_client.Connection.Server).IsLoopback;
-                if (isLocalServer && string.Equals(source.Protocol, "File", StringComparison.OrdinalIgnoreCase) && source.Path is { } path && File.Exists(path)) location = path;
+                if (isLocalServer && string.Equals(source.Protocol, "File", StringComparison.OrdinalIgnoreCase) && source.Path is { } path && await ReachableFileAsync(path)) location = path;
                 else { location = _client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = _client.AuthorizationHeader; }
             }
             await StopPlaybackAsync(completePrevious);
@@ -138,6 +138,15 @@ public partial class MainWindow
         }
         finally { _playBusy = false; Mouse.OverrideCursor = null; }
     }
+    /// <summary>
+    /// The file Jellyfin plays, read directly when this PC sees it: checked off the UI thread, since it may be on a
+    /// network share that takes seconds to answer, or never does. Then Jellyfin streams it instead.
+    /// </summary>
+    private static async Task<bool> ReachableFileAsync(string path)
+    {
+        try { return await Task.Run(() => File.Exists(path)).WaitAsync(TimeSpan.FromSeconds(2)); }
+        catch (TimeoutException) { return false; }
+    }
     private async void FileLoaded()
     {
         if (_mpv is null || _playingItem is null) return;
@@ -186,7 +195,8 @@ public partial class MainWindow
             UpdateWindowsPlayback();
             var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
             if (_playingItem is not null) _playingItem.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
-            if (!_demo && _sync is not null && _playWasReported && (changed || DateTimeOffset.Now - _lastReport >= TimeSpan.FromSeconds(3)))
+            // Every 10 s while it plays, once when it pauses or resumes, never while it stays paused.
+            if (!_demo && _sync is not null && _playWasReported && Cadence.ProgressDue(changed, paused, _lastReport, DateTimeOffset.Now))
             { _lastReport = DateTimeOffset.Now; await _sync.RecordAsync("progress", Report()); }
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }

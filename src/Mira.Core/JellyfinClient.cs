@@ -437,7 +437,9 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
-    public async Task ListenAsync(Action changed, CancellationToken ct)
+    /// <param name="listening">Told true once the WebSocket is open, false when it closes: while it is closed, library
+    /// changes go unheard and the page needs refreshing more often.</param>
+    public async Task ListenAsync(Action changed, CancellationToken ct, Action<bool>? listening = null)
     {
         var delay = 2;
         while (!ct.IsCancellationRequested)
@@ -455,6 +457,7 @@ public sealed class JellyfinClient : IDisposable
                 var buffer = new byte[8192];
                 try
                 {
+                    listening?.Invoke(true);
                     while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
                     {
                         using var message = new MemoryStream();
@@ -477,6 +480,7 @@ public sealed class JellyfinClient : IDisposable
                 }
                 finally
                 {
+                    listening?.Invoke(false);
                     heartbeatStop.Cancel();
                     try { await heartbeat; } catch (OperationCanceledException) { } catch (WebSocketException) { }
                 }

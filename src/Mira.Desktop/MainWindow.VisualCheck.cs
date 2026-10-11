@@ -72,7 +72,10 @@ public partial class MainWindow
     }
     private async Task SettleVisualAsync()
     {
-        if (_images is { } cache) { await Task.WhenAll(_items.Select(x => cache.GetAsync(x)).Concat(_resume.Concat(_nextUp).Select(x => cache.LandscapeAsync(x, 720)))); if (_hero is { } hero) await LoadHeroImageAsync(hero); }
+        // The artwork the cards on screen asked for (the grid's posters further down wait until scrolled to).
+        await Dispatcher.InvokeAsync(LoadVisibleArtwork, DispatcherPriority.Loaded);
+        await Task.WhenAll(PosterCards.Children.OfType<MediaCard>().Concat(ResumeCards.Children.OfType<MediaCard>()).Select(x => x.ImageReady));
+        if (_images is not null && _hero is { } hero) await LoadHeroImageAsync(hero);
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
     }
     private async Task CaptureAsync(string directory, string name)
