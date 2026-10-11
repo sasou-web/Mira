@@ -178,13 +178,15 @@ public partial class MainWindow
         switch (e.Key)
         {
             case Key.Space or Key.K: if (!e.IsRepeat) Pause_Click(this, new()); break;
-            case Key.Left: SeekRelative(-10); break;
-            case Key.Right: SeekRelative(10); break;
+            // J, K and L as on the Mac (and on video sites).
+            case Key.Left or Key.J: SeekRelative(-10); break;
+            case Key.Right or Key.L: SeekRelative(10); break;
             case Key.Up: ChangeVolume(5); break;
             case Key.Down: ChangeVolume(-5); break;
             case Key.M: if (!e.IsRepeat) Mute_Click(this, new()); break;
             case Key.F: if (!e.IsRepeat) ToggleFullscreen(); break;
             case Key.S: if (!SkipAvailable) return; if (!e.IsRepeat) Skip_Click(this, new()); e.Handled = true; return;
+            case Key.N: if (!NextButton.IsEnabled) return; if (!e.IsRepeat) Next_Click(this, new()); e.Handled = true; return;
             default: return;
         }
         ShowPlayerControls(); e.Handled = true;
@@ -217,6 +219,7 @@ public partial class MainWindow
             case "mira-volume-down": ShowPlayerControls(); ChangeVolume(-5); break;
             case "mira-mute": Mute_Click(this, new()); break;
             case "mira-skip": if (SkipAvailable) Skip_Click(this, new()); break;
+            case "mira-next": if (NextButton.IsEnabled) Next_Click(this, new()); break;
         }
     }
     private void Scrub(double seconds)

@@ -270,7 +270,7 @@ public partial class MainWindow
         var at = DateTimeOffset.UtcNow; _hiddenResume[group] = at;
         if (resumable) _recentPlayback.RemoveAll(x => x.Id == item.Id);
         RenderLibrary();
-        SetNotice($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", "Annuler", () => _ = ShowInResumeAsync(item, group, resumable ? ticks : 0));
+        SetNotice($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", "Annuler", () => _ = ShowInResumeAsync(item, group, resumable ? ticks : 0), sticky: false);
         _resumeChange = Save();
         await _resumeChange;
         async Task Save()
@@ -306,16 +306,19 @@ public partial class MainWindow
     }
     private static void AddPill(Panel panel, string text, string color = "#D5D5DB") => panel.Children.Add(new Border
     { CornerRadius = new CornerRadius(4), Background = Brush("#3D555559"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 7, 4), Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Brush(color) } });
-    private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void Window_SizeChanged(object sender, SizeChangedEventArgs e) { UpdateZoom(); FitPages(); }
+    /// <summary>The banner and the posters, sized for the page as it lays out (smaller than the window once zoomed).</summary>
+    private void FitPages()
     {
         if (Hero is null) return;
         ClosePreview();
-        Hero.Height = Math.Clamp(ActualHeight * .70, 490, 800);
-        var roomy = ActualWidth >= 1380;
+        var (width, height) = (LayoutWidth, LayoutHeight);
+        Hero.Height = Math.Clamp(height * .70, 490, 800);
+        var roomy = width >= 1380;
         HeroSynopsis.Visibility = roomy ? Visibility.Visible : Visibility.Collapsed;
         HeroSmallOverview.Visibility = roomy ? Visibility.Collapsed : Visibility.Visible;
-        HeroCopy.Width = Math.Clamp(ActualWidth * .47, 490, 710);
-        HeroTitle.FontSize = ActualWidth > 1700 ? 62 : ActualWidth > 1200 ? 53 : 43;
+        HeroCopy.Width = Math.Clamp(width * .47, 490, 710);
+        HeroTitle.FontSize = width > 1700 ? 62 : width > 1200 ? 53 : 43;
         ResizePosters();
         if (_miniPlayer) Dispatcher.BeginInvoke(KeepMiniInPlace, System.Windows.Threading.DispatcherPriority.Loaded);
     }

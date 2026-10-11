@@ -63,7 +63,7 @@ public partial class MainWindow
                 }
                 UpdateHeroCopy(item, info, logo); Motion.Reveal(HeroCopy, 360, 9); Motion.Reveal(HeroSynopsis, 400, 6);
                 if (logo is not null) Motion.Fade(HeroLogo, 1, 420, 0, Motion.Soft);
-                HeroSynopsis.Visibility = ActualWidth >= 1380 ? Visibility.Visible : Visibility.Collapsed;
+                HeroSynopsis.Visibility = LayoutWidth >= 1380 ? Visibility.Visible : Visibility.Collapsed;
             }
             else UpdateHeroCopy(item, info, logo);
             foreach (var candidate in _heroCandidates) _ = WarmHeroAsync(candidate);
@@ -84,7 +84,8 @@ public partial class MainWindow
         HeroGenrePills.Children.Clear(); foreach (var genre in (series ?? item).Genres.Take(3)) AddPill(HeroGenrePills, genre);
         foreach (var pill in HeroMetaPills.Children.OfType<Border>().Concat(HeroGenrePills.Children.OfType<Border>())) if (pill.Child is TextBlock label) label.Foreground = _heroAccent;
         var favorite = (series ?? item).UserData.IsFavorite;
-        HeroFavorite.Foreground = favorite ? _heroAccent : Brushes.White;
+        // A full heart, not only a tint close to white, says the title is a favourite.
+        HeroFavorite.Foreground = favorite ? _heroAccent : Brushes.White; HeroFavoriteIcon.Kind = favorite ? "heart-fill" : "heart";
         HeroFavorite.ToolTip = favorite ? "Retirer des favoris" : "Ajouter aux favoris";
         System.Windows.Automation.AutomationProperties.SetName(HeroFavorite, (string)HeroFavorite.ToolTip);
     }

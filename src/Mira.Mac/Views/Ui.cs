@@ -14,7 +14,7 @@ namespace Mira.Mac.Views;
 /// <summary>Small builders for the interface, written in code like the Windows app's dynamic parts.</summary>
 public static class Ui
 {
-    public static readonly IBrush Muted = Brush("#A2A2A6"), Faint = Brush("#6E6E75"), Ink = Brush("#F4F4F5"), Raised = Brush("#1B1B1D");
+    public static readonly IBrush Muted = Brush("#A2A2A6"), Faint = Brush("#8A8A90"), Ink = Brush("#F4F4F5"), Raised = Brush("#1B1B1D");
     public static SolidColorBrush Brush(string color) => new(Color.Parse(color));
 
     public static TextBlock Text(string text, double size = 14, FontWeight weight = FontWeight.Normal, IBrush? color = null, string? classes = null)

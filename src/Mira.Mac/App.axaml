@@ -7,7 +7,7 @@
     <SolidColorBrush x:Key="Raised" Color="#1B1B1D"/>
     <SolidColorBrush x:Key="Line" Color="#26262A"/>
     <SolidColorBrush x:Key="Muted" Color="#A2A2A6"/>
-    <SolidColorBrush x:Key="Faint" Color="#6E6E75"/>
+    <SolidColorBrush x:Key="Faint" Color="#8A8A90"/>
     <SolidColorBrush x:Key="Ink" Color="#F4F4F5"/>
     <SolidColorBrush x:Key="Accent" Color="#F5F5F7"/>
     <FontFamily x:Key="AppFont">avares://Mira/Assets/Fonts#Nunito Sans</FontFamily>

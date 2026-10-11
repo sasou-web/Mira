@@ -504,8 +504,17 @@ public sealed class JellyfinClient : IDisposable
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             throw new UnauthorizedAccessException("Connexion refusée ou session expirée. Reconnecte ton compte Jellyfin.");
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"Jellyfin a répondu avec le code {(int)response.StatusCode}.", null, response.StatusCode);
+            throw new HttpRequestException(StatusMessage(response.StatusCode), null, response.StatusCode);
         return Task.CompletedTask;
     }
+    /// <summary>What an error answer of Jellyfin means, in words: it is starting, it failed, or it refused.</summary>
+    public static string StatusMessage(HttpStatusCode status) => (int)status switch
+    {
+        // Jellyfin answers 503 to everything but its public information until it has started.
+        503 => "Jellyfin démarre : réessaie dans un instant.",
+        404 => "Jellyfin ne trouve pas ce qui est demandé : le titre a peut-être été retiré de la bibliothèque.",
+        >= 500 => $"Jellyfin a rencontré une erreur (code {(int)status}). Réessaie dans un instant ; si ça continue, son journal en dit plus (Tableau de bord → Journaux).",
+        _ => $"Jellyfin a refusé la demande (code {(int)status})."
+    };
     public void Dispose() => _http.Dispose();
 }

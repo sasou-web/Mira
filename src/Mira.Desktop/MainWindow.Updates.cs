@@ -92,7 +92,7 @@ public partial class MainWindow
     {
         if (_updateResult is { } result)
         {
-            if (!result.Installed) SetNotice($"La mise à jour vers Mira {result.Version.ToString(3)} n’a pas pu s’installer : Mira reste en version {JellyfinClient.AppVersion}. Le détail est dans data\\updates.");
+            if (!result.Installed) SetNotice($"La mise à jour vers Mira {result.Version.ToString(3)} n’a pas pu s’installer : Mira reste en version {JellyfinClient.AppVersion}. Le détail est dans data\\updates.", null, null, sticky: true);
             else if (!whatsNewShown) SetNotice($"Mira est passée en version {JellyfinClient.AppVersion}.");
             return;
         }
@@ -100,7 +100,7 @@ public partial class MainWindow
         if (index < 0 || index + 1 >= _args.Length) return;
         var current = ReleaseFeed.ParseVersion(JellyfinClient.AppVersion); var previous = ReleaseFeed.ParseVersion(_args[index + 1]);
         if (current is not null && previous is not null && current > previous) { if (!whatsNewShown) SetNotice($"Mira est passée en version {current.ToString(3)}."); }
-        else SetNotice($"La mise à jour n’a pas pu s’installer : Mira reste en version {JellyfinClient.AppVersion}. Le détail est dans data\\updates.");
+        else SetNotice($"La mise à jour n’a pas pu s’installer : Mira reste en version {JellyfinClient.AppVersion}. Le détail est dans data\\updates.", null, null, sticky: true);
     }
     private async void RestartForUpdate()
     {

@@ -2832,6 +2832,44 @@ await Test("Mises à jour : type d’installation, dossier remplacé sans touche
     Assert(File.ReadAllText(exe) == "nouvel exe" && !File.Exists(exe + ".previous") && !File.Exists(exe + ".update"), "Portable executable not replaced cleanly");
     return Task.CompletedTask;
 });
+await AccessibilityTests.RunAsync(Test);
+await Test("Lecteurs d’écran : un bouton fait d’une icône et d’un texte porte ce texte, une icône seule est signalée", () =>
+{
+    // WPF names a button after its content only when it is a string: Mira's default style names the others after the
+    // text they show (Accessible.ContentName), and the visual checks fail on any control left without a name.
+    Exception? failure = null;
+    var thread = new Thread(() =>
+    {
+        try
+        {
+            static System.Windows.Controls.StackPanel Label(string kind, string text)
+            {
+                var panel = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+                panel.Children.Add(new Mira.Desktop.Views.Icon { Kind = kind }); panel.Children.Add(new System.Windows.Controls.TextBlock { Text = text });
+                return panel;
+            }
+            Assert(Mira.Desktop.Views.Accessible.ContentText(Label("heart-fill", "Dans tes favoris")) == "Dans tes favoris", "Icon and text");
+            Assert(Mira.Desktop.Views.Accessible.ContentText(new Mira.Desktop.Views.Icon { Kind = "close" }) == "" && Mira.Desktop.Views.Accessible.ContentText(null) == "", "An icon alone has no words");
+            Assert(Mira.Desktop.Views.Accessible.ContentText(new System.Windows.Controls.Border { Child = new System.Windows.Controls.TextBlock { Text = "Lecture" } }) == "Lecture", "Text in a border");
+            var root = new System.Windows.Controls.StackPanel();
+            var iconOnly = new System.Windows.Controls.Button { Content = new Mira.Desktop.Views.Icon { Kind = "close" } };
+            var text = new System.Windows.Controls.Button { Content = "Réessayer" };
+            var named = new System.Windows.Controls.Button { Content = new Mira.Desktop.Views.Icon { Kind = "close" } }; System.Windows.Automation.AutomationProperties.SetName(named, "Fermer");
+            var labelled = new System.Windows.Controls.Button { Content = Label("info", "Plus d’infos") };
+            System.Windows.Automation.AutomationProperties.SetName(labelled, (string)Mira.Desktop.Views.Accessible.ContentName.Convert(labelled.Content, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture));
+            var hidden = new System.Windows.Controls.Button { Content = new Mira.Desktop.Views.Icon(), Visibility = System.Windows.Visibility.Collapsed };
+            var decorative = new System.Windows.Controls.Button { Content = new Mira.Desktop.Views.Icon(), Focusable = false };
+            var field = new System.Windows.Controls.TextBox();
+            foreach (var control in new System.Windows.UIElement[] { iconOnly, text, named, labelled, hidden, decorative, field }) root.Children.Add(control);
+            var unnamed = Mira.Desktop.Views.Accessible.Unnamed(root);
+            Assert(unnamed.Count == 2 && unnamed.Contains(iconOnly) && unnamed.Contains(field), "Unnamed: " + string.Join(", ", unnamed.Select(Mira.Desktop.Views.Accessible.Describe)));
+        }
+        catch (Exception ex) { failure = ex; }
+    });
+    thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+    if (failure is not null) throw failure;
+    return Task.CompletedTask;
+});
 await SupplyChainTests.RunAsync(Test, testRoot);
 if (args.Contains("--torlink-integration"))
 {

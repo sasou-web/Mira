@@ -34,7 +34,7 @@ public partial class MainWindow
 
     private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false)
     {
-        ClosePreview();
+        ClosePreview(); var asked = item;
         if (_playBusy) return; _playBusy = true;
         // Opening a stream can take a moment: say so right away instead of looking frozen.
         if (!_playing) Mouse.OverrideCursor = Cursors.AppStarting;
@@ -128,13 +128,15 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex) || ex is TimeoutException)
         {
             await StopPlaybackAsync(); ReturnToLibrary();
-            SetNotice(ex is IOException ? ex.Message : Friendly(ex));
+            // Stays until closed, with the one click that tries again: a toast that left on its own was the only trace.
+            var reason = ex is IOException && FromMira(ex) ? ex.Message : ex is TimeoutException ? "Le lecteur vidéo n’a pas pu s’ouvrir à temps." : Friendly(ex);
+            SetNotice("La lecture n’a pas pu démarrer. " + reason, "Réessayer", () => _ = PlayAsync(asked, keepMini));
         }
         catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException or BadImageFormatException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             // An incompatible engine DLL must not leave a black screen with no way back.
             await StopPlaybackAsync(); ReturnToLibrary();
-            SetNotice("La lecture n’a pas pu démarrer : le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.");
+            SetNotice("La lecture n’a pas pu démarrer : le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.", null, null, sticky: true);
         }
         finally { _playBusy = false; Mouse.OverrideCursor = null; }
     }
@@ -234,7 +236,7 @@ public partial class MainWindow
                 if (next is not null) { await PlayAsync(next, keepMini); return; }
             }
             ReturnToLibrary();
-            if (error is not null) SetNotice(error);
+            if (error is not null) SetNotice(error, previous is null ? null : "Réessayer", previous is null ? null : () => _ = PlayAsync(previous), sticky: true);
             else if (!_demo) await RefreshAsync(quiet: true);
             else RenderAfterUserDataChange();
         });
@@ -385,6 +387,7 @@ public partial class MainWindow
         // Alt+← and the browser "back" key behave like Escape and the mouse's back button.
         if (IsBackKey(e)) { if (GoBack()) e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && (!_playing || _miniPlayer) && RailShortcut(e.Key)) { e.Handled = true; return; }
         if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { OpenGuide(); e.Handled = true; return; }
         if (e.OriginalSource is TextBox or System.Windows.Controls.PasswordBox || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.

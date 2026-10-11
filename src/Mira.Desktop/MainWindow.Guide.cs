@@ -395,10 +395,12 @@ public partial class MainWindow
             ShowGuideFoldersHint("En démonstration, aucun serveur n’est relié : connecte-toi pour voir tes dossiers ici.");
             return;
         }
-        List<VirtualFolder>? libraries;
+        List<VirtualFolder>? libraries; Exception? failure = null;
         try { libraries = await client.VirtualFoldersAsync(); }
-        catch (Exception ex) when (IsExpected(ex)) { libraries = null; }
+        catch (Exception ex) when (IsExpected(ex)) { libraries = null; failure = ex; }
         if (version != _guideVersion) return;
+        // Jellyfin out of reach is not a question of rights: only a refusal (null) means an account that is not an administrator.
+        if (failure is not null) { ShowGuideFoldersHint(Friendly(failure) + " Tes dossiers s’afficheront ici dès qu’il répondra."); return; }
         if (libraries is null) { ShowGuideFoldersHint("Seul un administrateur de Jellyfin voit ces dossiers : demande-les à la personne qui gère le serveur."); return; }
         if (libraries.Count == 0) { ShowGuideFoldersHint("Aucune bibliothèque : ajoutes-en une dans Jellyfin (Tableau de bord → Bibliothèques)."); return; }
         var reachable = await Task.Run(() => libraries.SelectMany(x => x.Locations).Distinct().ToDictionary(x => x, Exists));
