@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Icône lisible en mode sombre** (Mira web) : sur l’écran d’accueil de l’iPhone en apparence sombre, iOS assombrissait le fond clair de l’icône et le « m » noir disparaissait. L’icône est maintenant un « m » clair sur fond sombre, lisible en clair, en sombre et en teinté. iOS garde l’icône d’un raccourci tel qu’il a été ajouté : pour la nouvelle, supprime Mira de l’écran d’accueil et ajoute-le à nouveau depuis Safari.
+
 ## 0.7.5 — 2026-10-11
 
 La revue complète de Mira, corrigée : pare-feu fermé aux réseaux publics, mises à jour et Mira web vérifiés avant installation, Mira qui ne reste jamais bloqué, plus léger sous Windows, Narrateur et clavier, .NET 10 et macOS 15 sur Mac.

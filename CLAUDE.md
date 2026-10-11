@@ -62,6 +62,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 
 ## Fragile / ne pas toucher sans raison
 ### Mira web, iOS, WebKit
+- Icône de l’écran d’accueil (`img/*.png`) : iOS 18+ assombrit le fond clair d’un raccourci web en apparence sombre et n’accepte aucune variante sombre : icône sombre (glyphe de `mark.svg` en `#f5f5f7`, fond `#252528` → `#0d0d0f`, pleine page). iOS garde l’icône vue à l’ajout.
 - iOS en HTTP local : pas de service worker, `crypto.randomUUID`, presse-papiers ni Wake Lock.
 - Lecteur d'Apple : `<track>` ajoutées **avant** `src` ; changements de pistes suivis seulement en plein écran et 1,5 s après le chargement ; plein écran sans toucher sur iPhone après le premier geste, avec toucher sur Mac ; sur un changement de source, `webkitpresentationmodechanged` peut arriver après la nouvelle demande de plein écran (fermeture pendant l'épisode suivant : `presentation()`, `switchFrom`).
 - WebKit : régler une piste sur son mode actuel ne compte pas ; une piste jamais réglée est choisie par WebKit ; un choix dans le menu d'Apple change les réglages de l'iPhone. `:active` gardé pendant un défilement : appuis par `press.js` (`.pressed`). `<track kind="forced">` : Safari seulement.
