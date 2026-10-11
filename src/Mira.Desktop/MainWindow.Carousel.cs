@@ -23,11 +23,10 @@ public partial class MainWindow
     private readonly System.Windows.Threading.DispatcherTimer _heroClock = new(System.Windows.Threading.DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(1 / 30d) };
     private int _heroVersion;
     private long _heroLastFrame;
-    private string? _heroRequestedId;
     private void RenderHero(MediaItem item) => _heroReady = SelectHeroAsync(item);
     private async Task SelectHeroAsync(MediaItem item)
     {
-        var version = ++_heroVersion; _heroRequestedId = item.Id; _heroBusy = true;
+        var version = ++_heroVersion; _heroBusy = true;
         try
         {
             var changed = _hero?.Id != item.Id; var first = _hero is null;
@@ -156,5 +155,4 @@ public partial class MainWindow
         async Task<MediaItem?> Fetch() { try { return _metadata is { } cache ? await cache.ItemAsync(id) : await client.ItemAsync(id); } catch (Exception ex) when (IsExpected(ex)) { return null; } }
         return _heroSeries[id] = Fetch();
     }
-    private Task LoadHeroImageAsync(MediaItem item) => _heroReady;
 }
