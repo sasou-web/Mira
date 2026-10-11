@@ -1,4 +1,4 @@
-# Galerie de Mira 0.4.9
+# Galerie de Mira 0.7.5
 
 Ces **14 captures** sont rendues par l’application WPF réelle à partir de son catalogue fictif intégré. Elles ne contiennent ni compte personnel, ni historique réel, ni médias fournis par Jellyfin. Les illustrations vectorielles appartiennent à la démonstration ; avec un serveur connecté, les affiches et les fonds viennent de ta bibliothèque.
 
