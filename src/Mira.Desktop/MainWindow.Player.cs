@@ -103,15 +103,25 @@ public partial class MainWindow
             }
             ResetMarkers();
             _mpv = new MpvEngine(_videoHandle, _settings);
+            // Kept to reopen the stream at its position after the PC slept (MainWindow.Power.cs).
+            // Someone starting a playback has the PC awake: no earlier sleep is left to handle.
+            _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
             PublishWindowsTrack(item);
             _mpv.FileLoaded += FileLoaded;
             _mpv.PlaybackRestarted += () => _lastReport = DateTimeOffset.MinValue;
             var generation = ++_playGeneration;
             _ = LoadServerMarkersAsync(item, generation);
-            _mpv.Ended += eof => PlaybackEnded(eof, generation);
+            _mpv.Ended += eof =>
+            {
+                // The stream replaced by its reopening after sleep: not an end.
+                if (_skipEnds > 0) { _skipEnds--; return; }
+                _fileOpen = false;
+                // The stream reopened after sleep could not load: an end, never that of the title.
+                PlaybackEnded(eof && _wake != WakeState.Reloading, generation, interrupted: _asleep || _wake == WakeState.Waiting);
+            };
             _mpv.Error += message => { _playFailure = message; };
             _mpv.Message += message => Dispatcher.BeginInvoke(() => { if (generation == _playGeneration) HandlePlayerMessage(message); });
-            _playing = true; UpdateHeroClock(); _lastReport = DateTimeOffset.Now; SetPlayerLoading(true); _mpv.Load(location, _position, authorization);
+            _playing = true; UpdateHeroClock(); _lastReport = DateTimeOffset.Now; SetPlayerLoading(true); _fileOpen = true; _mpv.Load(location, _position, authorization);
             if (_demo && _testMedia is not null && _args.Contains("--loop-test-media")) _mpv.Set("loop-file", "inf");
             SetMiniPlayer(keepMini, preserveFullscreen: true); _playerTimer.Start();
         }
@@ -132,11 +142,13 @@ public partial class MainWindow
     {
         if (_mpv is null || _playingItem is null) return;
         var generation = _playGeneration;
+        var reopened = _wake == WakeState.Reloading; _wake = WakeState.None;
         _loaded = true; SeekBar.IsEnabled = true; SetPlayerLoading(false); ShowPlayerControls(); _paused = _mpv.Flag("pause"); _duration = _mpv.Number("duration", _duration); _position = _mpv.Number("time-pos", _position);
         SeekBar.SetPlayback(_position, _duration, !_paused, _mpv.Number("speed", 1)); LoadFileChapters();
         UpdateWindowsPlayback();
         _lastReport = DateTimeOffset.Now;
-        if (!_demo && _sync is not null) { _playWasReported = true; await _sync.RecordAsync("start", Report()); }
+        // Reopened after sleep: the same playback goes on for Jellyfin.
+        if (!_demo && _sync is not null && !reopened) { _playWasReported = true; await _sync.RecordAsync("start", Report()); }
         if (generation != _playGeneration || _mpv is null) return;
         await RememberCurrentPlaybackAsync();
         if (generation != _playGeneration || _mpv is null) return;
@@ -152,10 +164,14 @@ public partial class MainWindow
                 try { _mpv.Command("sub-add", uri.AbsoluteUri, "auto", stream.DisplayTitle ?? "", stream.Language ?? ""); } catch (IOException) { }
             }
         }
+        if (reopened) RestoreTracks();
     }
     private async void PlayerTick(object? sender, EventArgs e)
     {
-        if (_tickBusy || _mpv is null || !_playing) return; _tickBusy = true;
+        if (_mpv is null || !_playing) return;
+        // Before polling mpv, and even while the previous tick still awaits its report: only a PC asleep stops the ticks.
+        NoticeSleep();
+        if (_tickBusy) return; _tickBusy = true;
         try
         {
             UpdatePlayerControls(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
@@ -186,12 +202,15 @@ public partial class MainWindow
         VolumeLevel = VolumeBoost.Reported(_mpv?.Level ?? _settings.Volume),
         IsMuted = _mpv?.Flag("mute") ?? false
     };
-    private void PlaybackEnded(bool eof, int generation)
+    /// <param name="interrupted">Ended while the PC slept or before Jellyfin answered again: a broken connection, which
+    /// the stream's reopening after sleep replaces, never the end of the title.</param>
+    private void PlaybackEnded(bool eof, int generation, bool interrupted = false)
     {
         // mpv invalidates the native event buffer on the next poll. Defer disposal until Poll has returned.
         Dispatcher.BeginInvoke(async () =>
         {
             if (!_playing || generation != _playGeneration) return;
+            if (interrupted) { _loaded = false; _playFailure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
             var previous = _playingItem; var error = _playFailure; var keepMini = _miniPlayer; var stay = _autoNextCancelled; var following = _nextItem;
             if (eof && _duration > 0) _position = _duration;
             await StopPlaybackAsync(eof);
@@ -228,7 +247,7 @@ public partial class MainWindow
         ++_playGeneration; ClosePlayerPopups(); _playerTimer.Stop(); SeekBar.IsEnabled = false; SetPlayerLoading(false);
         if (_playing && _loaded && _mpv is not null && !completed) _position = ReportedPosition(_mpv.Number("time-pos", _position));
         completed = _loaded && (completed || _duration > 0 && _position >= _duration * LibraryStore.WatchedThreshold);
-        _playing = false;
+        _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null;
         try
         {
             _windows?.Clear();
@@ -395,8 +414,10 @@ public partial class MainWindow
             Attempt(RememberWindow);
             // Feels instant: the last progress report is still delivered while the window is already gone.
             Hide();
-            // The settings page says changes are kept on leaving it: closing Mira leaves it too.
-            Attempt(AutoSaveSettings);
+            // Before the first await: when Windows shuts down or Setup closes Mira, WPF closes the window without
+            // waiting for the rest (see SessionEnding).
+            KeepForNextStart();
+            Attempt(() => SystemEvents.PowerModeChanged -= PowerModeChanged);
             Attempt(() => { _windows?.Dispose(); _windows = null; });
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
             _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
@@ -404,8 +425,9 @@ public partial class MainWindow
             Attempt(() => _videoHost?.Dispose()); await AttemptAsync(ApplyUpdateAtCloseAsync);
         }
         finally { _ = Dispatcher.BeginInvoke(Close); }
-        static void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(AppFiles.ProfileDirectory, ex); } }
-        static async Task AttemptAsync(Func<Task> step) { try { await step(); } catch (Exception ex) { ErrorLog.Append(AppFiles.ProfileDirectory, ex); } }
     }
+    /// <summary>One step of closing: its failure is logged and the next step runs.</summary>
+    private static void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(AppFiles.ProfileDirectory, ex); } }
+    private static async Task AttemptAsync(Func<Task> step) { try { await step(); } catch (Exception ex) { ErrorLog.Append(AppFiles.ProfileDirectory, ex); } }
     private static string TimeLabel(double seconds) { var time = TimeSpan.FromSeconds(Math.Max(0, double.IsFinite(seconds) ? seconds : 0)); return time.TotalHours >= 1 ? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}" : $"{(int)time.TotalMinutes}:{time.Seconds:00}"; }
 }

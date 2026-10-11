@@ -10,7 +10,8 @@ public partial class App : Application
     private Mutex? _instance;
     private InstanceActivation? _activation;
     private MainWindow? _window;
-    private bool _shown;
+    // Also read by the activation pipe's thread.
+    private volatile bool _shown, _activationPending;
     internal static string ShellAppId { get; private set; } = WindowsIdentity.AppId;
     internal static bool ShellValidation { get; private set; }
     protected override void OnStartup(StartupEventArgs e)
@@ -40,24 +41,35 @@ public partial class App : Application
         AppFiles.ProfileDirectory = Path.GetFullPath(directory);
         // Setup's "Télécharger le moteur vidéo mpv" task: no window, and an engine already on this PC is kept.
         if (e.Args.Contains("--install-engine")) { Shutdown(InstallEngine(directory)); return; }
-        // The files of this copy are being replaced by an update, or its installer runs: wait rather than start half-replaced.
         var installed = Updater.Detect(AppContext.BaseDirectory, !File.Exists(Path.Combine(AppContext.BaseDirectory, "Mira.dll"))) == InstallKind.Installer;
-        if (!UpdateLock.WaitIdle(directory, installed, TimeSpan.FromSeconds(30)))
-        { MessageBox.Show("Mira est en cours de mise à jour. Relance-le dans un instant.", "Mira"); Shutdown(); return; }
         // Same key as the update lock of this profile.
         var key = UpdateLock.Key(directory); var instance = "Local\\Mira-" + key;
-        // An update of this folder cut short (power loss): its previous files come back and Mira starts again on them.
-        if (UpdateApplier.RecoverAtStartup(directory, e.Args, instance)) { Shutdown(); return; }
         ShellValidation = dataArg >= 0 || e.Args.Any(x => x is "--demo" or "--visual-check" or "--player-check" or "--windows-check" or "--qa-window");
         ShellAppId = ShellValidation ? WindowsIdentity.AppId + ".Validation." + key : WindowsIdentity.AppId;
         WindowsIdentity.SetProcessIdentity(ShellAppId);
-        _instance = new Mutex(true, instance, out var created);
-        if (!created)
+        // A second round only after a Mira of this profile that was closing has ended: this launch then opens as usual.
+        for (var attempt = 0; ; attempt++)
         {
+            // The files of this copy are being replaced by an update, or its installer runs: wait rather than start half-replaced.
+            if (!UpdateLock.WaitIdle(directory, installed, TimeSpan.FromSeconds(30)))
+            { MessageBox.Show("Mira est en cours de mise à jour. Relance-le dans un instant.", "Mira"); Shutdown(); return; }
+            // An update of this folder cut short (power loss): its previous files come back and Mira starts again on them.
+            if (UpdateApplier.RecoverAtStartup(directory, e.Args, instance)) { Shutdown(); return; }
+            _instance = new Mutex(true, instance, out var created);
+            if (created) break;
+            var answer = InstanceActivation.ShowExisting(key);
+            // Its window comes forward, or shows by itself once it has started.
+            if (answer is ActivationAnswer.Shown or ActivationAnswer.Starting) { _instance.Dispose(); _instance = null; Shutdown(); return; }
+            // Closing (its last progress being sent, an update starting), or past its window and about to end: it releases
+            // the lock as it ends. A Mira that does not answer at all is open but busy.
+            var released = attempt == 0 && WaitReleased(_instance, TimeSpan.FromSeconds(answer == ActivationAnswer.Closing ? 30 : 3));
             _instance.Dispose(); _instance = null;
-            if (!InstanceActivation.ShowExisting(key)) MessageBox.Show("Mira est déjà ouvert. Retrouve sa fenêtre dans la barre des tâches.", "Mira");
+            if (released) continue;
+            MessageBox.Show(answer == ActivationAnswer.Closing ? "Mira est encore en train de se fermer. Relance-le dans un instant." : "Mira est déjà ouvert. Retrouve sa fenêtre dans la barre des tâches.", "Mira");
             Shutdown(); return;
         }
+        // Listening from now on: a launch while this one starts is answered « starting » instead of « déjà ouvert ».
+        _activation = new InstanceActivation(key, Activate);
         // --windows-check: the whole failure, stack included, for the harness that reads its output folder.
         bool CheckFailed(Exception exception)
         {
@@ -85,8 +97,9 @@ public partial class App : Application
             // --offscreen: validation runs with an isolated profile (update checks) stay off the user's screen, closable as usual.
             else if (e.Args.Contains("--offscreen") && dataArg >= 0) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; }
             if (e.Args.Contains("--qa-window")) window.Title = "Mira · Validation du lecteur";
-            _activation = new InstanceActivation(key, () => Dispatcher.BeginInvoke(window.RestoreFromWindows));
             window.Show(); _shown = true;
+            // Launched again while this one was starting: brought forward now that it is there.
+            if (_activationPending) window.RestoreFromWindows();
         }
         // No window to retry from (the data folder read-only on a first start, a full disk): say why and end.
         catch (Exception ex)
@@ -98,7 +111,26 @@ public partial class App : Application
                 : "Mira n’a pas pu démarrer. Relance-le dans un instant.", "Mira", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1); return;
         }
-        if (!ShellValidation) Dispatcher.BeginInvoke(WindowsIdentity.Register, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // The installed copy keeps the Start menu's shortcut; another copy only fills in a missing or broken one.
+        if (!ShellValidation) Dispatcher.BeginInvoke(() => { if (WindowsIdentity.ShouldRegister(installed)) WindowsIdentity.Register(); }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+    }
+    /// <summary>
+    /// What a second launch of this profile is told, from the pipe's thread: « starting » before the window shows (it
+    /// is brought forward once shown), « closing » once closing has begun, else the window comes forward.
+    /// </summary>
+    private ActivationAnswer Activate()
+    {
+        if (!_shown) { _activationPending = true; return ActivationAnswer.Starting; }
+        if (_window is not { IsClosing: false } window) return ActivationAnswer.Closing;
+        Dispatcher.BeginInvoke(window.RestoreFromWindows);
+        return ActivationAnswer.Shown;
+    }
+    /// <summary>Whether the Mira holding the lock released it (or ended without releasing it) within <paramref name="timeout"/>.</summary>
+    private static bool WaitReleased(Mutex mutex, TimeSpan timeout)
+    {
+        try { if (!mutex.WaitOne(timeout)) return false; }
+        catch (AbandonedMutexException) { }
+        mutex.ReleaseMutex(); return true;
     }
     private static int InstallEngine(string directory)
     {

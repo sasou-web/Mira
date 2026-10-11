@@ -57,6 +57,7 @@ public partial class MainWindow : Window
         InitializeWindowsIntegration();
         InitializeTorLink();
         InitializeUpdates();
+        InitializePower();
         Activated += (_, _) => UpdateHeroClock(); Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Tab) _keyboardNavigation = true; };
         PreviewMouseDown += (_, e) =>
@@ -67,6 +68,7 @@ public partial class MainWindow : Window
         };
         _noticeTimer.Tick += NoticeTick;
         StateChanged += (_, _) => UpdateMaximizeButtons();
+        LocationChanged += (_, _) => TrackNormalCorner(); SizeChanged += (_, _) => TrackNormalCorner();
         SettingsVersion.Text = $"Mira {JellyfinClient.AppVersion} · Jellyfin + mpv";
         _searchTimer.Tick += async (_, _) => { _searchTimer.Stop(); await RefreshAsync(); };
         _externalRefresh.Tick += async (_, _) =>
@@ -85,21 +87,37 @@ public partial class MainWindow : Window
         _initializing = false;
     }
     /// <summary>
-    /// The size the window had when Mira last closed, or the default one (1480 × 930), kept within the screen: a 1080p
-    /// screen at 125 % has about 1536 × 826 usable, at 150 % about 1280 × 688 (see <see cref="ScreenFit"/>). Centred,
-    /// and maximized only when it was maximized on closing.
+    /// The size the window had when Mira last closed, or the default one (1480 × 930), kept within the screen it opens
+    /// on, with that screen's scale: a 1080p screen at 125 % has about 1536 × 826 usable, at 150 % about 1280 × 688 (see
+    /// <see cref="ScreenFit"/>). Where it was when that screen is still there, otherwise centred on the screen of the
+    /// pointer; maximized only when it was maximized on closing.
     /// </summary>
     private void FitToScreen()
     {
         if (ValidationRun) return;
-        var area = SystemParameters.WorkArea;
         var size = _settings.WindowWidth > 0 && _settings.WindowHeight > 0 ? new ScreenFit.Extent(_settings.WindowWidth, _settings.WindowHeight) : new(Width, Height);
-        if (ScreenFit.Window(size, new(MinWidth, MinHeight), new(area.Width, area.Height)) is not { } fit) return;
+        var remembered = _settings.WindowX is { } x && _settings.WindowY is { } y ? (x, y) : ((double X, double Y)?)null;
+        if (ScreenFit.Place(size, new(MinWidth, MinHeight), Screens.All(), remembered, Screens.Pointer()) is not { } placement) return;
+        var fit = placement.Fit;
         (MinWidth, MinHeight, Width, Height) = (fit.Minimum.Width, fit.Minimum.Height, fit.Size.Width, fit.Size.Height);
-        if (_settings.WindowMaximized) WindowState = WindowState.Maximized;
+        // Placed in device pixels once the window exists, before it shows. Maximized afterwards: WPF applies it on showing,
+        // on the screen the window is then on (set before, the window would be created maximized wherever Windows puts it).
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        SourceInitialized += (_, _) =>
+        {
+            Screens.Move(new System.Windows.Interop.WindowInteropHelper(this).Handle, placement.Window);
+            if (_settings.WindowMaximized) WindowState = WindowState.Maximized;
+        };
     }
     /// <summary>Validation runs set their own sizes, off screen: nothing is remembered from them.</summary>
     private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--offscreen");
+    /// <summary>Where the window was last seen neither maximized, minimized nor fullscreen (device pixels).</summary>
+    private (double X, double Y)? _normalCorner;
+    private void TrackNormalCorner()
+    {
+        if (ValidationRun || _fullscreenWindow is { Active: true } || !IsVisible) return;
+        if (Screens.NormalCorner(new System.Windows.Interop.WindowInteropHelper(this).Handle) is { } corner) _normalCorner = corner;
+    }
     /// <summary>The window as the person left it; fullscreen and the mini-player are passing states, not a size to reopen at.</summary>
     private void RememberWindow()
     {
@@ -109,6 +127,8 @@ public partial class MainWindow : Window
         // Maximized or minimized, RestoreBounds is the size it returns to.
         if (bounds.IsEmpty || !(bounds.Width > 0 && bounds.Height > 0) || !double.IsFinite(bounds.Width) || !double.IsFinite(bounds.Height)) return;
         (_settings.WindowWidth, _settings.WindowHeight, _settings.WindowMaximized) = (Math.Round(bounds.Width), Math.Round(bounds.Height), maximized);
+        TrackNormalCorner();
+        if (_normalCorner is { } corner) (_settings.WindowX, _settings.WindowY) = corner;
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {

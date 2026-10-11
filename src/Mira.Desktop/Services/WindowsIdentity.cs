@@ -15,6 +15,14 @@ internal static class WindowsIdentity
     public static string? RegistrationError { get; private set; }
 
     public static void SetProcessIdentity(string id) => SetCurrentProcessExplicitAppUserModelID(id);
+    private static string StartMenuShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Mira.lnk");
+
+    /// <summary>Whether this copy registers itself at startup (see <see cref="ShellRegistration.ShouldRegister"/>).</summary>
+    public static bool ShouldRegister(bool installed)
+    {
+        var shortcut = StartMenuShortcut; var exists = File.Exists(shortcut);
+        return ShellRegistration.ShouldRegister(Environment.ProcessPath!, installed, Path.GetTempPath(), exists, exists ? ShortcutTarget(shortcut) : null, File.Exists);
+    }
 
     public static void Register()
     {
@@ -27,8 +35,7 @@ internal static class WindowsIdentity
                 key.SetValue("IconUri", IconPath);
                 key.SetValue("IconBackgroundColor", "0");
             }
-            var shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Mira.lnk");
-            WriteShortcut(shortcut, executable);
+            WriteShortcut(StartMenuShortcut, executable);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or COMException or System.Security.SecurityException)
         { RegistrationError = ex.GetType().Name; }

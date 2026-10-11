@@ -75,6 +75,8 @@ public sealed class MpvEngine : IDisposable
             Option("config", "no"); Option("terminal", "no"); Option("osc", "no"); Option("idle", "yes");
             if (!headless) Option("wid", window.ToInt64().ToString(CultureInfo.InvariantCulture));
             Option("keep-open", "no");
+            // Keeps the screen on and the PC awake while a video plays (mpv's default, made explicit); paused, it may sleep.
+            if (!headless) Option("stop-screensaver", "yes");
             Option("input-default-bindings", "no"); Option("input-vo-keyboard", "yes");
             Option("input-conf", Services.AppFiles.InputConf);
             Option("vo", headless ? "null" : "gpu-next,gpu");

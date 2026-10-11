@@ -38,7 +38,8 @@ WizardStyle=modern
 ShowLanguageDialog=auto
 Compression=lzma2/max
 SolidCompression=yes
-; A running Mira is closed (it saves its progress and stops TorLink) before its files are replaced.
+; A running Mira is closed before its files are replaced (Restart Manager: Mira's SessionEnding saves the window,
+; settings, volume and playback position at once, then queues the last progress report for Jellyfin).
 CloseApplications=yes
 ; Held while Setup runs: an installed Mira started meanwhile waits for it instead of loading half-replaced files.
 SetupMutex=MiraSetup
