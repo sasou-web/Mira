@@ -92,11 +92,12 @@ dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .arti
 | --- | --- |
 | `src/Mira.Desktop` | Interface WPF, lecteur mpv, intégration Windows, terminal TorLink |
 | `src/Mira.Core` | API Jellyfin, cache SQLite, synchronisation, règles de lecture et rangement des téléchargements |
-| `tests/Mira.Tests` | Tests exécutables de comportement et de persistance |
+| `tests/Mira.Core.Tests` | Tests sans WPF (comportement, persistance, mises à jour), lancés aussi sous Linux |
+| `tests/Mira.Tests` | Les mêmes, puis ceux de l’app Windows |
 | `tools` | Publication, captures, contrôles, serveur fictif et import des ressources |
 | `docs` | Guides, architecture, galerie et validation |
 
-La compilation et les tests de base sont lancés sur Windows dans GitHub Actions. Les essais natifs du lecteur et du système ont aussi été réalisés localement ; ils ne sont pas tous couverts par le runner CI.
+La compilation et les tests de base sont lancés sur Windows dans GitHub Actions, et les tests sans WPF aussi sous Linux (`dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release`, sur tout système). Les essais natifs du lecteur et du système ont aussi été réalisés localement ; ils ne sont pas tous couverts par le runner CI.
 
 ## État du projet
 
