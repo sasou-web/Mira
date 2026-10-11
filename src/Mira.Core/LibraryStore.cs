@@ -21,8 +21,14 @@ public sealed class LibraryStore
         // once, a damaged page only in the query that reads it, hence every page checked first. Everything in it but the
         // reports not yet sent comes back from Jellyfin, so a fresh one replaces it and the damaged copy is kept beside.
         try { CreateSchema(); CheckPages(); Prune(DateTimeOffset.UtcNow - CacheLifetime); }
-        catch (SqliteException ex) when (ex.SqliteErrorCode is 11 or 26) { SetAside(); CreateSchema(); }
+        catch (SqliteException ex) when (ex.SqliteErrorCode is 11 or 26 || Unreadable(ex)) { SetAside(); CreateSchema(); }
     }
+    /// <summary>
+    /// A part of the file the disk can no longer read (SQLITE_IOERR_READ; SQLITE_IOERR_CORRUPTFS on macOS). quick_check
+    /// reports such a page in its text, but not the first one, which every query reads. Not a full disk or a lock: those
+    /// leave the file as it is.
+    /// </summary>
+    private static bool Unreadable(SqliteException ex) => ex.SqliteExtendedErrorCode is 266 or 8458;
     /// <summary>Where this opening set aside a database SQLite could not read; null when it was intact.</summary>
     public string? DamagedCopy { get; private set; }
     private void CreateSchema()

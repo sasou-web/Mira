@@ -123,8 +123,9 @@ public partial class MainWindow : Window
         if (_args.Contains("--torlink-check")) { await RunTorLinkCheckAsync(); return; }
         _fallbackRefresh.Start();
         ShowStartupScreen();
-        // Once, after the first refresh, which would otherwise hide it at once.
-        if (_profile.SettingsUnreadable) SetNotice("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut." + (_profile.SettingsCopy is { } copy ? $" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}." : ""));
+        // Once, after the first refresh, which would otherwise hide it at once, and beside what the start already said
+        // (a cache recreated, an update that failed, Jellyfin offline) rather than in its place.
+        if (_profile.SettingsUnreadable) AddNotice("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut." + (_profile.SettingsCopy is { } copy ? $" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}." : ""));
         if (_testMedia is not null && _args.Contains("--autoplay")) await PlayAsync(DemoLibrary.Items()[0]);
     }
     private Task? _startupRevealTask;
@@ -189,7 +190,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
         {
             _client.Dispose(); _client = null;
-            ServerBox.Text = connection.Server; UsernameBox.Text = connection.UserName; LoginError.Text = "Mira ne peut pas écrire le cache de ce compte dans son dossier de données. Libère de la place sur le disque, puis reconnecte-toi.";
+            ServerBox.Text = connection.Server; UsernameBox.Text = connection.UserName; LoginError.Text = CacheUnavailable;
             LogoutButton.Visibility = Visibility.Visible; BackToLibrary.Visibility = Visibility.Collapsed; ShowSignInForm();
             if (LoginOverlay.Visibility != Visibility.Visible) Motion.Reveal(LoginOverlay);
             FocusLogin(); _ = RefreshTorLinkLibrariesAsync(); return;
@@ -338,7 +339,8 @@ public partial class MainWindow : Window
             if (!quiet) HideNotice(); SyncChanged();
         }
         // Only a refresh Mira cancelled: a server silent for 12 s ends the same way, and gets the offline notice below.
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        // A background refresh keeps the page on screen instead: Jellyfin is often just slow then (a library scan).
+        catch (OperationCanceledException) when (ct.IsCancellationRequested || quiet && !_catalogLoading) { }
         catch (Exception ex) when (IsExpected(ex))
         {
             if (version != _viewVersion) return;
@@ -404,6 +406,12 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(8) };
     private Action? _noticeAction;
     private void SetNotice(string message) => SetNotice(message, null, null);
+    /// <summary>Said under a message still on screen, which keeps its button, instead of replacing it.</summary>
+    private void AddNotice(string message)
+    {
+        if (Notice.Visibility == Visibility.Visible && Notice.IsHitTestVisible && NoticeText.Text.Length > 0) SetNotice(NoticeText.Text + "\n" + message, NoticeAction.Content as string, _noticeAction);
+        else SetNotice(message);
+    }
     /// <summary>Messages slide in, then leave on their own after a few seconds (unless the pointer is on them).
     /// <paramref name="action"/> adds a button, such as "Redémarrer" for a downloaded update.</summary>
     private void SetNotice(string message, string? action, Action? onAction)
@@ -419,6 +427,7 @@ public partial class MainWindow : Window
     private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver) return; HideNotice(); }
     private static bool IsExpected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException or OperationCanceledException or System.Text.Json.JsonException or SqliteException;
     private static string Friendly(Exception ex) => ex switch { UnauthorizedAccessException => ex.Message, ArgumentException => ex.Message, ServerDiscoveryException => ex.Message, OperationCanceledException => "Jellyfin met trop de temps à répondre.", HttpRequestException h when h.StatusCode is not null => h.Message, HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.", SqliteException => StorageUnavailable, _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie." };
+    private const string CacheUnavailable = "Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier en lecture seule ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.";
     private const string StorageUnavailable = "Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.";
     /// <summary>The local cache is a bonus: a full disk, a locked or damaged database leaves Jellyfin's answer, or nothing, on screen.</summary>
     private static T? TryCache<T>(Func<T> read) { try { return read(); } catch (Exception ex) when (IsCacheFailure(ex)) { return default; } }

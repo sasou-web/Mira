@@ -38,6 +38,8 @@ public sealed class LocalProfile
     public bool SettingsUnreadable { get; private set; }
     /// <summary>The copy of that unreadable file kept beside it (settings.json.bad-…); null when it could not be copied either.</summary>
     public string? SettingsCopy { get; private set; }
+    /// <summary>The unreadable file is still there and not copied yet: the next save copies it first.</summary>
+    private bool _keepBeforeSave;
     public PlayerSettings LoadSettings()
     {
         var path = Path.Combine(DirectoryPath, "settings.json");
@@ -46,13 +48,23 @@ public sealed class LocalProfile
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             // Said once by the window, and the file kept: the next save would otherwise replace every setting without a word.
-            SettingsUnreadable = true;
-            try { var copy = $"{path}.bad-{DateTime.Now:yyyyMMdd-HHmmss}"; File.Copy(path, copy, overwrite: true); SettingsCopy = copy; }
-            catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { }
+            SettingsUnreadable = _keepBeforeSave = true; KeepUnreadableSettings();
             return new();
         }
     }
-    public void SaveSettings(PlayerSettings settings) => AtomicWrite("settings.json", JsonSerializer.SerializeToUtf8Bytes(settings, Json.Options));
+    public void SaveSettings(PlayerSettings settings)
+    {
+        // Held by another program at loading (a sync or antivirus tool), the file could not be copied then: it is now,
+        // before being replaced. Still held, it cannot be replaced either.
+        if (_keepBeforeSave) KeepUnreadableSettings();
+        AtomicWrite("settings.json", JsonSerializer.SerializeToUtf8Bytes(settings, Json.Options)); _keepBeforeSave = false;
+    }
+    private void KeepUnreadableSettings()
+    {
+        var path = Path.Combine(DirectoryPath, "settings.json");
+        try { var copy = $"{path}.bad-{DateTime.Now:yyyyMMdd-HHmmss}"; File.Copy(path, copy, overwrite: true); SettingsCopy = copy; _keepBeforeSave = false; }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { }
+    }
     private void AtomicWrite(string file, byte[] bytes)
     {
         var target = Path.Combine(DirectoryPath, file);

@@ -258,7 +258,7 @@ public partial class MainWindow
         _changingPlayerLayout = true;
         if (mini) EnterMiniLayout(keepPlacement: wasMini); else ResetMiniPlacement();
         LibraryShell.Visibility = NavigationRail.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
-        if (!mini) DetailOverlay.Visibility = SettingsOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
+        if (!mini) { AutoSaveSettings(); DetailOverlay.Visibility = SettingsOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed; }
         TitleBar.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
         PlayerWindowChrome.Visibility = mini || _fullscreen ? Visibility.Collapsed : Visibility.Visible;
         // 42 above and 22 below the 44-unit back button: the header must stay at least 108 high.
