@@ -86,7 +86,9 @@ public partial class MainWindow
         var dpi = VisualTreeHelper.GetDpi(visual);
         var bitmap = new RenderTargetBitmap((int)Math.Ceiling(visual.ActualWidth * dpi.DpiScaleX), (int)Math.Ceiling(visual.ActualHeight * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
         bitmap.Render(visual); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var file = File.Create(Path.Combine(directory, name + ".png")); encoder.Save(file);
+        using (var file = File.Create(Path.Combine(directory, name + ".png"))) encoder.Save(file);
+        // After the capture, which shows the screen at fault.
+        AssertNamed(name);
     }
     /// <summary>The element, as drawn (a Viewbox may scale it), lies wholly inside the window: nothing to scroll to.</summary>
     private void AssertFits(FrameworkElement element, string label)

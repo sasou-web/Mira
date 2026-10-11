@@ -200,9 +200,8 @@ public partial class MainWindow
         ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (item.Type != "Series") DetailPlay.Content = ActionLabel("play", item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition ? "Reprendre" : item.UserData.Played ? "Revoir" : "Regarder");
         else UpdateDetailPlayLabel();
-        FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
+        FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
         WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu");
-        AutomationProperties.SetName(DetailPlay, (DetailPlay.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault()?.Text ?? "Regarder");
     }
     private static StackPanel ActionLabel(string icon, string label)
     { var panel = new StackPanel { Orientation = Orientation.Horizontal }; panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18, Margin = new Thickness(0, 0, 9, 0) }); panel.Children.Add(new TextBlock { Text = label }); return panel; }
@@ -276,8 +275,12 @@ public partial class MainWindow
                 Foreground = target.Foreground, TextDecorations = null, Cursor = Cursors.Hand,
                 ToolTip = (directed ? "Les titres réalisés par " : "Les titres avec ") + person.Name + " dans ta bibliothèque"
             };
-            link.MouseEnter += (_, _) => link.TextDecorations = TextDecorations.Underline;
-            link.MouseLeave += (_, _) => link.TextDecorations = null;
+            // Underlined under the pointer and with the keyboard focus, ringed like the other controls (WPF's own ring is
+            // a black dotted line, unseen on this page).
+            link.FocusVisualStyle = (Style)FindResource("KeyboardFocus");
+            void Underline() => link.TextDecorations = link.IsMouseOver || link.IsKeyboardFocused ? TextDecorations.Underline : null;
+            link.MouseEnter += (_, _) => Underline(); link.MouseLeave += (_, _) => Underline();
+            link.GotKeyboardFocus += (_, _) => Underline(); link.LostKeyboardFocus += (_, _) => Underline();
             link.Click += async (_, _) => await ShowPersonAsync(person, directed);
             target.Inlines.Add(link);
         }

@@ -53,7 +53,9 @@ public partial class MainWindow : Window
         var dataArg = Array.IndexOf(args, "--data");
         _profile = new LocalProfile(dataArg >= 0 && dataArg + 1 < args.Length ? args[dataArg + 1] : null);
         _settings = _profile.LoadSettings();
-        Motion.Reduced = _settings.ReduceMotion;
+        Motion.Reduced = _settings.ReduceMotion; Motion.FollowsWindows = !ValidationRun;
+        // Before the pages load: they read these colours once.
+        FollowHighContrast(); _textScale = TextScale();
         InitializeComponent();
         // After InitializeComponent: the XAML's 1480 × 930 would otherwise replace the size chosen here.
         FitToScreen();
@@ -66,7 +68,11 @@ public partial class MainWindow : Window
         InitializeUpdates();
         InitializePower();
         InitializeHeroClock();
-        Activated += (_, _) => UpdateHeroClock(); Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); };
+        InitializeSnapLayouts();
+        // Windows' text size is read again each time Mira comes back to the front: changed in Settings meanwhile.
+        Activated += (_, _) => { UpdateHeroClock(); _textScale = TextScale(); if (UpdateZoom()) FitPages(); }; Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); };
+        // Windows' animation effects turned on or off: the banner's rotation follows at once.
+        SystemParameters.StaticPropertyChanged += (_, e) => { if (e.PropertyName == nameof(SystemParameters.ClientAreaAnimation)) UpdateHeroClock(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Tab) _keyboardNavigation = true; };
         PreviewMouseDown += (_, e) =>
         {
@@ -294,7 +300,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         SyncChanged();
         // Said once the first refresh is done, which would otherwise hide it at once.
-        if (damaged) SetNotice("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.");
+        if (damaged) SetNotice("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.", null, null, sticky: true);
         _ = RefreshTorLinkLibrariesAsync();
     }
     private async Task ListenSafelyAsync(JellyfinClient client, CancellationToken ct)
@@ -310,11 +316,11 @@ public partial class MainWindow : Window
         try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening); }
         catch (OperationCanceledException) { }
     }
-    /// <summary>Artwork decoded for the sharpest and widest of the screens connected now.</summary>
-    private static void FitArtwork(ImageCache cache)
+    /// <summary>Artwork decoded for the sharpest and widest of the screens connected now, and for the pages' zoom.</summary>
+    private void FitArtwork(ImageCache cache)
     {
         var screens = Screens.All();
-        cache.Scale = screens.Select(x => x.Scale).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1).Max();
+        cache.Scale = screens.Select(x => x.Scale).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1).Max() * _zoom;
         cache.ScreenPixels = (int)Math.Round(screens.Select(x => x.WorkArea.Width).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1920).Max());
     }
     private async Task DisconnectServicesAsync()
@@ -327,6 +333,8 @@ public partial class MainWindow : Window
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
         _recentPlayback = []; _hiddenResume = [];
+        // Another account, the demo or none: this one's offline state is not theirs.
+        _offlineShown = false; OfflineBadge.Visibility = Visibility.Collapsed;
     }
     private void AddLibraryButton(string name, string? id)
     {
@@ -422,7 +430,7 @@ public partial class MainWindow : Window
             if (_sync is { PendingCount: > 0 } sync) sync.Wake();
             // Back to the top for a new list, unless the reader has already started scrolling it.
             if (!quiet && !more && Math.Abs(LibraryScroll.VerticalOffset - startOffset) < 1) SmoothScroll.Jump(LibraryScroll, 0);
-            if (!quiet) HideNotice(); SyncChanged();
+            if (!quiet) HideNotice(transientOnly: true); SyncChanged();
         }
         // Only a refresh Mira cancelled: a server silent for 12 s ends the same way, and gets the offline notice below.
         // A background refresh keeps the page on screen instead: Jellyfin is often just slow then (a library scan).
@@ -444,8 +452,12 @@ public partial class MainWindow : Window
                 if (cached is not null) { _items = cached.Items; _totalCount = cached.TotalRecordCount; }
                 // Kept until a refresh, or a report delivered after this failure, reaches Jellyfin again: the sync
                 // status no longer replaces it.
+                var wasOffline = _sync is { } current && SyncStatus.Offline(current.LastSynced, _offlineSince);
                 _offlineSince = DateTimeOffset.Now;
-                SetNotice(Friendly(ex) + " Les informations déjà chargées restent disponibles."); SyncChanged();
+                // Said once as Jellyfin stops answering, not at each try (every 45 s): « Hors connexion » then stays in
+                // the title bar until it answers again.
+                if (!wasOffline) SetNotice(Friendly(ex) + " Les informations déjà chargées restent disponibles.");
+                SyncChanged();
                 _catalogLoading = false; RenderLibrary();
             }
         }
@@ -491,31 +503,61 @@ public partial class MainWindow : Window
         if (SyncLabel.Text != text) SyncLabel.Text = text;
         var brush = warning ? SyncWarning : SyncFine;
         if (!ReferenceEquals(SyncLabel.Foreground, brush)) SyncLabel.Foreground = brush;
+        ShowOffline(SyncStatus.Offline(_sync.LastSynced, _offlineSince), text);
     });
-    private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(8) };
+    private readonly DispatcherTimer _noticeTimer = new();
     private Action? _noticeAction;
+    /// <summary>The message on screen stays until closed (see <see cref="SetNotice(string, string?, Action?, bool?)"/>).</summary>
+    private bool _noticeSticky;
     private void SetNotice(string message) => SetNotice(message, null, null);
     /// <summary>Said under a message still on screen, which keeps its button, instead of replacing it.</summary>
     private void AddNotice(string message)
     {
-        if (Notice.Visibility == Visibility.Visible && Notice.IsHitTestVisible && NoticeText.Text.Length > 0) SetNotice(NoticeText.Text + "\n" + message, NoticeAction.Content as string, _noticeAction);
+        if (Notice.Visibility == Visibility.Visible && Notice.IsHitTestVisible && NoticeText.Text.Length > 0) SetNotice(NoticeText.Text + "\n" + message, NoticeAction.Content as string, _noticeAction, _noticeSticky);
         else SetNotice(message);
     }
-    /// <summary>Messages slide in, then leave on their own after a few seconds (unless the pointer is on them).
-    /// <paramref name="action"/> adds a button, such as "Redémarrer" for a downloaded update.</summary>
-    private void SetNotice(string message, string? action, Action? onAction)
+    /// <summary>
+    /// Messages slide in, are said by screen readers, then leave on their own once there was time to read them (see
+    /// <see cref="Legibility.NoticeDuration"/>), never while the pointer or the keyboard focus is on them.
+    /// <paramref name="action"/> adds a button, such as "Redémarrer" for a downloaded update: such a message stays until
+    /// it is used or closed, as does one marked <paramref name="sticky"/> (an error that matters); sticky false lets a
+    /// message with a button leave all the same (« Annuler »).
+    /// </summary>
+    private void SetNotice(string message, string? action, Action? onAction, bool? sticky = null)
     {
         _noticeAction = onAction; NoticeAction.Content = action;
         NoticeAction.Visibility = onAction is null ? Visibility.Collapsed : Visibility.Visible;
-        NoticeText.Text = message;
+        // Shown before its text changes, so that a screen reader finds it there.
         if (Notice.Visibility != Visibility.Visible || !Notice.IsHitTestVisible) Motion.Reveal(Notice, 220, 10);
-        _noticeTimer.Stop(); _noticeTimer.Start();
+        NoticeText.Text = message;
+        _noticeSticky = sticky ?? onAction is not null;
+        _noticeTimer.Stop();
+        if (!_noticeSticky) { _noticeTimer.Interval = Legibility.NoticeDuration(message); _noticeTimer.Start(); }
+        Accessible.Say(NoticeText);
     }
-    private void HideNotice() { _noticeTimer.Stop(); if (Notice.Visibility == Visibility.Visible) _ = Motion.HideAsync(Notice, 180); }
+    /// <param name="transientOnly">Leaves a message that stays until closed (an update ready, an error with « Réessayer »).</param>
+    private void HideNotice(bool transientOnly = false)
+    {
+        if (transientOnly && _noticeSticky) return;
+        _noticeTimer.Stop(); _noticeSticky = false; if (Notice.Visibility == Visibility.Visible) _ = Motion.HideAsync(Notice, 180);
+    }
     private void NoticeAction_Click(object sender, RoutedEventArgs e) { var action = _noticeAction; HideNotice(); action?.Invoke(); }
-    private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver) return; HideNotice(); }
+    private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver || Notice.IsKeyboardFocusWithin) return; HideNotice(); }
     private static bool IsExpected(Exception e) => e is HttpRequestException or IOException or UnauthorizedAccessException or ArgumentException or OperationCanceledException or System.Text.Json.JsonException or SqliteException;
-    private static string Friendly(Exception ex) => ex switch { UnauthorizedAccessException => ex.Message, ArgumentException => ex.Message, ServerDiscoveryException => ex.Message, OperationCanceledException => "Jellyfin met trop de temps à répondre.", HttpRequestException h when h.StatusCode is not null => h.Message, HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.", SqliteException => StorageUnavailable, _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie." };
+    private static string Friendly(Exception ex) => ex switch
+    {
+        // Mira's own messages are written for you; .NET's (a file refused, a wrong argument) are not, nor in French.
+        UnauthorizedAccessException => FromMira(ex) ? ex.Message : "Windows refuse à Mira l’accès à l’un de ses fichiers : vérifie que son dossier de données n’est pas en lecture seule.",
+        ArgumentException when FromMira(ex) => ex.Message,
+        ServerDiscoveryException => ex.Message,
+        OperationCanceledException => "Jellyfin met trop de temps à répondre.",
+        HttpRequestException { StatusCode: { } status } => JellyfinClient.StatusMessage(status),
+        HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.",
+        SqliteException => StorageUnavailable,
+        _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie."
+    };
+    /// <summary>Thrown by Mira's own code, with a message written for the person using it.</summary>
+    private static bool FromMira(Exception ex) => ex.TargetSite?.DeclaringType?.Assembly is { } assembly && (assembly == typeof(JellyfinClient).Assembly || assembly == typeof(MainWindow).Assembly);
     private const string CacheUnavailable = "Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier en lecture seule ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.";
     private const string StorageUnavailable = "Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.";
     /// <summary>The local cache is a bonus: a full disk, a locked or damaged database leaves Jellyfin's answer, or nothing, on screen.</summary>

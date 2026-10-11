@@ -87,8 +87,9 @@ public partial class App : Application
             args.Handled = true;
             // Closing, or before the window showed: nothing is left to retry from, only a process without a window that
             // keeps the single-instance lock (every relaunch would say "déjà ouvert"). Mira ends instead.
-            if (!_shown || _window is not { IsClosing: false }) { Shutdown(1); return; }
-            MessageBox.Show("Une opération n’a pas abouti. Tu peux réessayer ; la progression déjà enregistrée reste conservée.", "Mira", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (!_shown || _window is not { IsClosing: false } window) { Shutdown(1); return; }
+            // In Mira's own message, at most once a minute, with the log at hand (a system box, the same each time, was).
+            try { window.ReportUnexpected(); } catch (Exception ex) { ErrorLog.Append(AppFiles.ProfileDirectory, ex); }
         };
         try
         {

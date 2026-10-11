@@ -62,13 +62,16 @@ Le serveur Jellyfin reste lancé : il gère la bibliothèque, les affiches, les 
 | Action | Raccourci |
 | --- | --- |
 | Recherche | Ctrl + K / Ctrl + F |
+| Accueil, Films, Séries, Toute la bibliothèque, Téléchargements | Ctrl + 1 à Ctrl + 5 |
+| Passer d’une affiche à sa voisine | Flèches, sur une rangée ou une grille d’affiches |
 | Lecture / pause | Espace / K |
-| Reculer / avancer de 10 secondes | ← / → |
+| Reculer / avancer de 10 secondes | ← / →, J / L |
 | Volume (jusqu’à 200 %) | ↑ / ↓, molette sur le haut-parleur |
 | Couper le son | M |
 | Plein écran | F / double-clic sur la vidéo |
 | Mini-lecteur / agrandir | I |
 | Passage disponible : opening, ending, suivant | S |
+| Épisode suivant | N |
 | Retour / fermer un panneau / sortir du plein écran | Échap |
 
 La zone de notification permet de masquer puis de retrouver Mira sans arrêter la lecture. Le bouton × de la fenêtre quitte l’application. Les commandes de la barre des tâches et la fiche multimédia Windows apparaissent pendant la lecture ; leur présentation dépend de Windows.

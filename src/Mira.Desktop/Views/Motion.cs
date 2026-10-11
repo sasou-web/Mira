@@ -8,7 +8,15 @@ namespace Mira.Desktop.Views;
 public static class Motion
 {
     private static readonly DependencyProperty VisibilityVersionProperty = DependencyProperty.RegisterAttached("VisibilityVersion", typeof(int), typeof(Motion), new PropertyMetadata(0));
-    public static bool Reduced { get; set; }
+    /// <summary>
+    /// Mira's « Réduire les animations », or Windows' « Effets d'animation » turned off (Accessibility, Visual effects),
+    /// read as it is now. Setting it sets Mira's own choice.
+    /// </summary>
+    public static bool Reduced { get => Chosen || FollowsWindows && !SystemParameters.ClientAreaAnimation; set => Chosen = value; }
+    /// <summary>Mira's « Réduire les animations ».</summary>
+    public static bool Chosen { get; set; }
+    /// <summary>False for validation runs, whose captures and motion checks must not depend on the PC they run on.</summary>
+    public static bool FollowsWindows { get; set; } = true;
     public static readonly QuadraticEase Ease = new() { EasingMode = EasingMode.EaseInOut };
     /// <summary>Fast start, soft landing: used for pointer feedback so it reacts immediately without snapping.</summary>
     public static readonly CubicEase EaseOut = new() { EasingMode = EasingMode.EaseOut };

@@ -67,6 +67,8 @@ public sealed class Icon : FrameworkElement
     private static readonly IReadOnlyDictionary<string, Geometry> Solids = new Dictionary<string, Geometry>
     {
         ["volume"] = Speaker, ["volume-low"] = Speaker, ["mute"] = Speaker,
+        // A favourite: the heart, filled.
+        ["heart-fill"] = Shape("M12 20C10 19 3 14 3 8.7C3 2.8 10 1.8 12 6C14 1.8 21 2.8 21 8.7C21 14 14 19 12 20Z"),
         ["next-episode"] = Shape("M6.3 5.3Q4.2 4.1 4.2 6.5V17.5Q4.2 19.9 6.3 18.7L15.2 13.3Q17.3 12 15.2 10.7Z"),
         ["more"] = Shape("M13.55 5A1.55 1.55 0 1 1 10.45 5A1.55 1.55 0 1 1 13.55 5Z M13.55 12A1.55 1.55 0 1 1 10.45 12A1.55 1.55 0 1 1 13.55 12Z M13.55 19A1.55 1.55 0 1 1 10.45 19A1.55 1.55 0 1 1 13.55 19Z")
     };
