@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 
 namespace Mira.Jellyfin;
@@ -13,6 +14,14 @@ namespace Mira.Jellyfin;
 [Route("Mira")]
 public sealed class WebController : ControllerBase
 {
+    private static string _reported = "";
+    private readonly ILogger<WebController> _logger;
+
+    public WebController(ILogger<WebController> logger)
+    {
+        _logger = logger;
+    }
+
     /// <summary>The app itself. /Mira becomes /Mira/, so that its files are found next to it.</summary>
     [HttpGet("")]
     public IActionResult Index()
@@ -24,6 +33,7 @@ public sealed class WebController : ControllerBase
 
         // The policy and the page from the same files: served from a folder (MIRA_WEB_DIR), each request reads them anew.
         var files = WebFiles.Current;
+        ReportUnserved(files);
         Response.Headers.ContentSecurityPolicy = files.Policy;
         Response.Headers["Referrer-Policy"] = "no-referrer";
         // The phone keeps the page a month: Mira opens even while the PC is off or Jellyfin is starting, then waits for
@@ -47,6 +57,17 @@ public sealed class WebController : ControllerBase
     private const string AssetCache = "public, max-age=31536000, immutable";
     private const string PageCache = "max-age=2592000";
     private const string NoCache = "no-cache";
+
+    /// <summary>Files of the app that phones cannot get (see <see cref="WebFiles.Unserved"/>), said once per revision.</summary>
+    private void ReportUnserved(WebFiles files)
+    {
+        if (files.Unserved.Count == 0 || Interlocked.Exchange(ref _reported, files.Revision) == files.Revision)
+        {
+            return;
+        }
+
+        _logger.LogWarning("Mira web: {Count} file(s) not served, their type unknown to the plugin: {Files}", files.Unserved.Count, string.Join(", ", files.Unserved));
+    }
 
     private IActionResult Serve(WebFiles files, string path, string cache)
     {

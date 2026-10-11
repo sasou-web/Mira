@@ -1169,6 +1169,33 @@ await Test("Mira web : seul le style de la page est permis, par son empreinte (p
     Assert(Mira.Jellyfin.ContentPolicy.For("<p>Mira</p>").Contains("; style-src 'self'; img-src", StringComparison.Ordinal), "Policy without inline style");
     return Task.CompletedTask;
 });
+await Test("Mira web : chaque fichier de l’app est servi par l’extension, un type inconnu est signalé", () =>
+{
+    // The repository's src/Mira.Web, which the plugin builds in whole (Mira.Jellyfin.csproj): every file must be
+    // served, or the phone gets a 404 for it (a .mjs once broke the QR code page).
+    static DirectoryInfo? Repository(string start)
+    {
+        var folder = new DirectoryInfo(start);
+        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "Mira.sln"))) folder = folder.Parent;
+        return folder;
+    }
+    var repository = Repository(AppContext.BaseDirectory) ?? Repository(Environment.CurrentDirectory);
+    Assert(repository is not null, "Repository not found from " + AppContext.BaseDirectory);
+    var folder = Path.Combine(repository!.FullName, "src", "Mira.Web");
+    var web = Mira.Jellyfin.WebFiles.FromFolder(folder);
+    Assert(web.Unserved.Count == 0, "Not served: " + string.Join(", ", web.Unserved));
+    var paths = Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Select(file => Path.GetRelativePath(folder, file).Replace('\\', '/')).ToList();
+    Assert(paths.Count > 20 && paths.Contains("js/app.js") && paths.Contains("index.html"), "Files: " + string.Join(", ", paths));
+    foreach (var path in paths) Assert(web.TryGet(path, out var file) && file.ContentType.Length > 0, "Not served: " + path);
+    // A file of a kind the plugin does not know is kept aside and named, never served by mistake.
+    var odd = Path.Combine(testRoot, "web-odd");
+    Directory.CreateDirectory(Path.Combine(odd, "js"));
+    File.WriteAllText(Path.Combine(odd, "index.html"), "<p>Mira</p>");
+    File.WriteAllText(Path.Combine(odd, "js", "app.js.map"), "{}");
+    var oddWeb = Mira.Jellyfin.WebFiles.FromFolder(odd);
+    Assert(oddWeb.Unserved.SequenceEqual(["js/app.js.map"]) && !oddWeb.TryGet("js/app.js.map", out _) && oddWeb.TryGet("index.html", out _), "Unserved: " + string.Join(", ", oddWeb.Unserved));
+    return Task.CompletedTask;
+});
 await Test("Démarrage avec Windows : service, relance après une erreur et pare-feu, lus puis réglés", () =>
 {
     // SERVICE_FAILURE_ACTIONS as Windows stores it: reset period, two unused fields, the count, an unused field, then each type and delay.

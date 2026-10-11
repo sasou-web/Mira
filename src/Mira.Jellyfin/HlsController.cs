@@ -26,6 +26,9 @@ public sealed class HlsController : ControllerBase
 {
     private const string PlaylistType = "application/vnd.apple.mpegurl";
     private const string Names = "MiraNames";
+    // Each of this server's addresses gets this long to answer (it answers its own playlists at once): one that does
+    // not answer is like one that refuses, and the next is tried, rather than the player waiting 100 s for nothing.
+    private static readonly TimeSpan PerAddress = TimeSpan.FromSeconds(8);
     private readonly IHttpClientFactory _clients;
     private readonly IServerApplicationHost _host;
 
@@ -89,19 +92,25 @@ public sealed class HlsController : ControllerBase
         using var client = _clients.CreateClient();
         foreach (var root in Roots())
         {
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            limit.CancelAfter(PerAddress);
             try
             {
-                using var response = await client.GetAsync(new Uri(root + pathAndQuery), cancellationToken).ConfigureAwait(false);
+                using var response = await client.GetAsync(new Uri(root + pathAndQuery), limit.Token).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
                     return ((int)response.StatusCode, null);
                 }
 
-                return ((int)HttpStatusCode.OK, await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
+                return ((int)HttpStatusCode.OK, await response.Content.ReadAsStringAsync(limit.Token).ConfigureAwait(false));
             }
             catch (HttpRequestException)
             {
                 // Not listening there: the next address.
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Too slow there (or HttpClient's own time limit): the next address. The player gone, the request ends.
             }
         }
 
