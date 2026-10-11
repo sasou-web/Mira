@@ -404,15 +404,15 @@ public partial class MainWindow : Window
             Task<ItemsResult>? resume = home ? client.ResumeAsync(ct) : null;
             Task<ItemsResult>? next = home ? client.NextUpAsync(ct) : null;
             var result = await browse;
-            if (home) { await Task.WhenAll(resume!, next!); await LoadSeasonThumbsAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
+            if (home) { await Task.WhenAll(resume!, next!); await _seasonThumbs.LoadAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
             var resumeItems = home ? resume!.Result.Items : null;
-            List<MediaItem>? recent = null; var seasonThumbs = new Dictionary<string, string?>(_seasonThumbs);
+            List<MediaItem>? recent = null; var seasonThumbs = _seasonThumbs.Snapshot();
             // SQLite work stays off the UI thread; the page only redraws when it is done.
             await Task.Run(() => TryCache(() =>
             {
                 store.ApplyLocalProgress(result.Items);
-                if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); ApplySeasonThumbs(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); store.Save("home", result); store.Save("resume", resumeItems); }
+                if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); _seasonThumbs.Apply(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); store.Save("home", result); store.Save("resume", resumeItems); }
                 else if (!more && search.Length == 0) store.Save(key, result);
             }), CancellationToken.None);
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
