@@ -337,6 +337,33 @@ internal static class LibraryTests
             Assert(thumbs.Count == 3 && thumbs["season-7"] == "t7" && thumbs["season-2"] is null && thumbs["season-9"] is null, "Thumbnails by season");
             url = null; Assert((await client.SeasonThumbsAsync([])).Count == 0 && url is null, "A request without any season");
         });
+        await Test("Continuer à regarder : la vignette d’une saison demandée une fois, une panne n’empêche rien, seule l’annulation de Mira remonte", async () =>
+        {
+            MediaItem Episode(string season) => new() { Id = "e-" + season, Type = "Episode", SeriesId = "series", SeasonId = season };
+            var asked = new List<string>(); var failing = false;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "token", "device"), new Handler(request =>
+            {
+                asked.Add(System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query)["ids"] ?? "");
+                if (failing) throw new HttpRequestException("coupure");
+                return Task.FromResult(JsonResponse(new { Items = new object[] { new { Id = "s1", ImageTags = new { Thumb = "t1" } } }, TotalRecordCount = 1 }));
+            }));
+            var thumbs = new SeasonThumbs();
+            var first = new[] { Episode("s1"), Episode("s2") };
+            await thumbs.LoadAsync(client, first, CancellationToken.None);
+            Assert(asked.SequenceEqual(["s1,s2"]) && first[0].SeasonThumbImageTag == "t1" && first[1].SeasonThumbImageTag is null, "First load: " + string.Join(" | ", asked));
+            // Known seasons are not asked again; a new one is, alone. Jellyfin out of reach: the cards stay as they were.
+            failing = true; var later = new[] { Episode("s1"), Episode("s3") };
+            await thumbs.LoadAsync(client, later, CancellationToken.None);
+            Assert(asked.SequenceEqual(["s1,s2", "s3"]) && later[0].SeasonThumbImageTag == "t1", "Second load: " + string.Join(" | ", asked));
+            // A copy for a worker thread, applied there.
+            var copy = new[] { Episode("s1") }; thumbs.Apply(copy, thumbs.Snapshot());
+            Assert(copy[0].SeasonThumbImageTag == "t1" && thumbs.Snapshot().Count == 2, "Snapshot");
+            // Mira's own cancellation (another account, a newer refresh) goes on up.
+            using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+            try { await thumbs.LoadAsync(client, [Episode("s4")], cancelled.Token); throw new Exception("Cancellation swallowed"); }
+            catch (OperationCanceledException) { }
+            thumbs.Clear(); Assert(thumbs.Snapshot().Count == 0, "Not cleared");
+        });
         await Test("Images : largeur décodée = taille affichée × échelle de l’écran, au palier supérieur", () =>
         {
             Assert(Artwork.Pixels(185, 1, 1280) == 200 && Artwork.Pixels(230, 1, 1280) == 240, "Posters at 100 %");
