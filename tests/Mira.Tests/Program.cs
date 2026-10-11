@@ -1023,8 +1023,8 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
     Assert(Judge(prompt) == blocked && Judge(prompt, pub) == open, "The prompt's rules, judged wrong");
     Assert(JellyfinFirewall.Blocking(prompt, jellyfin, 8096, priv) is [{ Protocol: JellyfinFirewall.Tcp, Profiles: priv }], "Only the TCP block rule on private networks stands in the way");
     Assert(JellyfinFirewall.WithoutProfile(priv, priv) == 0 && JellyfinFirewall.WithoutProfile(all, priv) == (JellyfinFirewall.Domain | pub), "A rule for every network keeps blocking the others");
-    // What « Tout préparer » leaves: that block rule off (private was its only profile), and Mira's rule, on
-    // private and domain networks only.
+    // What « Tout préparer » leaves: that block rule off (private was its only profile), and Mira's rule, on private
+    // and domain networks only.
     var mira = new[] { Rule("Mira - Jellyfin", true, JellyfinStartup.RuleProfiles, ports: "8096", remote: "LocalSubnet"),
         Rule("Mira - Jellyfin", true, JellyfinStartup.RuleProfiles, ports: "8096", remote: "100.64.0.0/255.192.0.0") };
     var opened = prompt.Where(x => x.Allow || x.Protocol != JellyfinFirewall.Tcp).Concat(mira).ToList();
@@ -1065,6 +1065,23 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
     foreach (var remote in new[] { "192.168.2.0/24", "192.168.1.30", "192.168.1.20", "192.168.1.20/255.255.255.255", "100.64.0.0/255.192.0.0", "Internet", "DNS" })
         Assert(!JellyfinFirewall.CoversHome(remote, pc), "Seen as the home network: " + remote);
     Assert(JellyfinFirewall.WithoutProfile(all, priv | pub) == JellyfinFirewall.Domain, "Both the home network's profile and Tailscale's lifted");
+    // What phones meet from the home network and Tailscale, each on its own profile. A public network is named, with its
+    // name, when it keeps them out but for Mira's rule: only the person may have it made private (a café's is public too).
+    // A profile Windows does not say, assumed public, only when it alone keeps them out: Mira's rule is not what is missing.
+    var profiles = new Dictionary<int, JellyfinFirewall.Profile> { [JellyfinFirewall.Domain] = new(true, false, false), [priv] = new(true, false, false), [pub] = new(true, false, false) };
+    JellyfinFirewall.Reach? Phones(IEnumerable<JellyfinFirewall.Rule> rules, params JellyfinFirewall.Origin[] origins) =>
+        JellyfinFirewall.Phones(rules.ToList(), profiles, origins, jellyfin, 8096, "Mira - Jellyfin");
+    var box = new JellyfinFirewall.Origin(pub, "Wi-Fi", pc, Known: true, "Livebox-1234");
+    var tailscale = new JellyfinFirewall.Origin(priv, "Tailscale", null, Known: true, "example.ts.net");
+    Assert(Phones(mira, box, tailscale) is { Verdict: blocked, Profile: pub, Tailnet: open, Kept: null, Public: { Adapter: "Wi-Fi", Name: "Livebox-1234", Known: true } }
+        && Phones(mira, box with { Profile = priv }, tailscale) is { Verdict: open, Public: null } && Phones(mira) is null, "The box counted as public, then private");
+    Assert(Phones(mira.Select(x => x with { Profiles = all }), box, tailscale) is { Verdict: open, Public.Adapter: "Wi-Fi" }, "An older version's rule hides the public box");
+    Assert(Phones(prompt.Where(x => x.Allow).Concat(mira), box, tailscale) is { Verdict: open, Public: null }, "Allowed on public networks by Windows' prompt: nothing to switch");
+    Assert(Phones(mira.Append(Rule("Bloquer 8096", false, all, program: null, ports: "8096")), box with { Profile = priv }, tailscale) is { Verdict: blocked, Kept: "Bloquer 8096", Public: null },
+        "A block rule of someone's own");
+    var assumed = new[] { new JellyfinFirewall.Origin(priv, "Wi-Fi", pc), new JellyfinFirewall.Origin(pub, "Wi-Fi", pc), tailscale };
+    Assert(Phones(mira, assumed) is { Verdict: blocked, Public: { Adapter: "Wi-Fi", Name: null, Known: false } } && Phones([], assumed) is { Verdict: blocked, Public: null }
+        && Phones(mira, [assumed[0], tailscale]) is { Verdict: open, Public: null }, "A profile Windows does not say");
     Assert(JellyfinFirewall.TailnetProfile(priv | pub) == priv && JellyfinFirewall.TailnetProfile(pub) == pub && JellyfinFirewall.TailnetProfile(JellyfinFirewall.Domain) == JellyfinFirewall.Domain
         && JellyfinFirewall.TailnetProfile(0) == priv, "Tailscale's profile");
     // The same rule with the service (« Disponible dès l'allumage du PC ») and without it.
@@ -1107,7 +1124,7 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
         List<JellyfinFirewall.Rule> Own() => JellyfinAutostart.FirewallRules(program).Where(x => !string.IsNullOrEmpty(x.Program)).ToList();
         string Seen() => string.Join("; ", Own());
         // The runner's adapter, on the profile Windows counts it under (Get-NetConnectionProfile), stands for the home
-        // network; « Tout préparer » makes it private when it is public (GitHub's is), and the test puts it back.
+        // network; « Passer en privé » makes it private when it is public (GitHub's is), and the test puts it back.
         var home = LocalNetwork.ThisPcOnNetwork();
         int? original = home is not null && JellyfinAutostart.NetworkCategories().TryGetValue(home.Adapter, out var counted) ? counted : null;
         int Now() => home is null ? 0 : JellyfinAutostart.NetworkCategories().GetValueOrDefault(home.Adapter);
@@ -1119,14 +1136,21 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
             Assert(home is not null && original is not null, $"Network profiles: {string.Join(", ", JellyfinAutostart.NetworkCategories())}; adapter {home}");
             var before = JellyfinAutostart.Phones(program, 18097, rule);
             Assert(before is { Verdict: JellyfinFirewall.Verdict.Blocked, Kept: null } && before.Profile == original
-                && before.Public == (original == JellyfinFirewall.Public ? home!.Adapter : null), $"Before: {before}");
+                && before.Public?.Adapter == (original == JellyfinFirewall.Public ? home!.Adapter : null), $"Before: {before}");
             // The runner's own rules naming no program: those of Windows' apps must not count for Jellyfin.
             var anyProgram = JellyfinAutostart.FirewallRules(program).Where(x => string.IsNullOrEmpty(x.Program)).ToList();
             var packaged = anyProgram.Where(x => x.Name.StartsWith("@{", StringComparison.Ordinal)).ToList();
             bool Counts(JellyfinFirewall.Rule x) => JellyfinFirewall.Applies(x, program, 18097, before!.Profile, home!.Adapter, home.Address) || JellyfinFirewall.Applies(x, program, 18097, JellyfinFirewall.Private);
             Assert(!packaged.Any(Counts), "A packaged app's rule counts for Jellyfin: " + string.Join("; ", packaged.Where(Counts)));
-            Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule) == AutostartResult.Done, "Not opened: " + Seen());
-            // A public network made private; a private or domain one left as it was.
+            // « Tout préparer » alone: Mira's rule written, the network left as it is, still named when public (the step is the
+            // person's: a café's stays public).
+            var result = JellyfinAutostart.OpenFirewall(program, 18097, rule);
+            var left = JellyfinAutostart.Phones(program, 18097, rule);
+            Assert(result == AutostartResult.Done && Now() == original && JellyfinAutostart.MiraRule(program, 18097, rule) == JellyfinFirewall.RuleState.Ready
+                && left?.Public?.Adapter == before!.Public?.Adapter, $"Changed without the person ({result}, {Now()}): {left}; " + Seen());
+            // « Passer en privé »: a public network made private; a private or domain one left as it was.
+            result = JellyfinAutostart.OpenFirewall(program, 18097, rule, privateNetwork: true);
+            Assert(result == AutostartResult.Done, $"Not opened ({result}): " + Seen());
             var profile = Now();
             Assert(profile == (original == JellyfinFirewall.Public ? JellyfinFirewall.Private : original), $"The runner's network: {original} → {profile}");
             var after = Own();
@@ -1140,20 +1164,25 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
             Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule) == AutostartResult.Done && Own().Count(x => x.Name == rule) == 2, "Not opened again over itself: " + Seen());
             // An older version's rule, on every network, Windows' prompt rule gone and the runner's network public again:
             // phones get through by that rule alone, yet it is not ready, and the network is still named to make private
-            // when the public profile keeps them out without it (Windows' default). One « Tout préparer » narrows the rule
-            // and makes the network private.
+            // when the public profile keeps them out without it (Windows' default). « Tout préparer » narrows the rule and
+            // leaves the network; « Passer en privé » then makes it private.
             JellyfinAutostart.RemoveRule(rule); JellyfinAutostart.RemoveRule(promptRule);
             if (original == JellyfinFirewall.Public) Assert(JellyfinAutostart.SetNetworkCategory(home!.Adapter, JellyfinFirewall.Public) && Now() == JellyfinFirewall.Public, "Not put back as public");
             var bare = JellyfinAutostart.Phones(program, 18097, rule);
-            Assert(bare is not null && bare.Public == (original == JellyfinFirewall.Public && bare.Verdict == JellyfinFirewall.Verdict.Blocked ? home!.Adapter : null), $"Without rules: {bare}");
+            Assert(bare is not null && bare.Public?.Adapter == (original == JellyfinFirewall.Public && bare.Verdict == JellyfinFirewall.Verdict.Blocked ? home!.Adapter : null), $"Without rules: {bare}");
             foreach (var from in new[] { "localsubnet", LocalNetwork.TailnetRange })
                 Assert(JellyfinAutostart.RunSystem("netsh.exe", $"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol=TCP localport=18097 remoteip={from} profile=any program=\"{program}\" enable=yes") == 0, "Old rule not created");
             var older = JellyfinAutostart.Phones(program, 18097, rule);
             Assert(JellyfinAutostart.MiraRule(program, 18097, rule) == JellyfinFirewall.RuleState.Stale && older?.Verdict == open && older.Public == bare!.Public,
                 $"An older version's rule: {older}; " + Seen());
-            var expected = older!.Public is null ? Now() : JellyfinFirewall.Private;
-            Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule) == AutostartResult.Done && JellyfinAutostart.MiraRule(program, 18097, rule) == JellyfinFirewall.RuleState.Ready
-                && Own().Where(x => x.Name == rule).All(x => (x.Profiles & JellyfinFirewall.Public) == 0) && Now() == expected, $"Not narrowed ({Now()}): " + Seen());
+            var stay = Now();
+            result = JellyfinAutostart.OpenFirewall(program, 18097, rule);
+            Assert(result == AutostartResult.Done && JellyfinAutostart.MiraRule(program, 18097, rule) == JellyfinFirewall.RuleState.Ready
+                && Own().Where(x => x.Name == rule).All(x => (x.Profiles & JellyfinFirewall.Public) == 0) && Now() == stay, $"Not narrowed ({result}, {Now()}): " + Seen());
+            var expected = older!.Public is null ? stay : JellyfinFirewall.Private;
+            result = JellyfinAutostart.OpenFirewall(program, 18097, rule, privateNetwork: true);
+            Assert(result == AutostartResult.Done && Now() == expected && JellyfinAutostart.Phones(program, 18097, rule) is { Verdict: open, Public: null },
+                $"Not made private ({result}, {Now()}): " + Seen());
             // A block rule naming no program (someone's own) stays, and is named for the person: « Tout préparer » does not ask again.
             Assert(JellyfinAutostart.RunSystem("netsh.exe", $"advfirewall firewall add rule name=\"{portRule}\" dir=in action=block protocol=TCP localport=18097 profile=any enable=yes") == 0, "Port rule not created");
             var byPort = JellyfinAutostart.Phones(program, 18097);
@@ -1198,18 +1227,33 @@ await Test("Mira sur ton téléphone : étapes cochées, « Tout préparer » en
     steps = PhoneSetup.Steps(noTailscale);
     Assert(Marks(steps) == "web:Done firewall:Done tailscale:Yours boot:Note" && steps[2].Action == "Installer Tailscale" && !PhoneSetup.CanPrepare(steps)
         && PhoneSetup.Address(noTailscale) == home + "/Mira", "Without Tailscale: " + Marks(steps));
-    // The box counted as public: Mira's rule never applies there, so « Tout préparer » makes it private, with the same
-    // consent; when Windows will not (a network it cannot identify), the person is told where.
-    var counted = fresh with { Firewall = reachBlocked with { Public = "Wi-Fi" } };
+    // The box counted as public: Mira's rule never applies there. The same Wi-Fi joins a café's, so the network is made
+    // private only when the person says it is home's (« Passer en privé », its own consent, named by its name);
+    // « Tout préparer » still writes Mira's rule, for Tailscale. When Windows will not, the person is told where.
+    var box = new JellyfinFirewall.PublicNetwork("Wi-Fi", "Livebox-1234");
+    var counted = fresh with { Firewall = reachBlocked with { Public = box } };
+    PhoneSetup.Step Wall(PhoneSetup.Facts facts) => PhoneSetup.Steps(facts).Single(x => x.Key == "firewall");
     steps = PhoneSetup.Steps(counted);
-    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.ToDo } toPrivate && toPrivate.Text.Contains("« Wi-Fi »") && toPrivate.Text.Contains("réseau privé")
+    Assert(Wall(counted) is { Mark: PhoneSetup.Mark.ToDo, Action: "Passer en privé" } toPrivate && toPrivate.Text.Contains("« Livebox-1234 » (Wi-Fi)") && toPrivate.Text.Contains("ta maison")
         && PhoneSetup.NeedsWindows(steps), "The box counted as public: " + Marks(steps));
-    steps = PhoneSetup.Steps(counted with { NetworkKept = true });
-    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.Yours } keptPublic && keptPublic.Text.Contains("Paramètres → Réseau et Internet → Wi-Fi")
-        && !PhoneSetup.NeedsWindows(steps) && PhoneSetup.Is(PhoneSetup.Steps(counted with { NetworkKept = true, Firewall = reachOpen }), "firewall", PhoneSetup.Mark.Done),
-        "Windows keeps it public: " + Marks(steps));
-    // Blocking everything on public networks: the box's made private, rather than « block all » unticked for every café.
-    Assert(PhoneSetup.Is(PhoneSetup.Steps(counted with { Firewall = new(JellyfinFirewall.Verdict.Closed, JellyfinFirewall.Public, Public: "Wi-Fi") }), "firewall", PhoneSetup.Mark.ToDo),
+    Assert(Wall(counted with { Firewall = reachBlocked with { Public = new("Ethernet") } }).Text.Contains("« Ethernet » comme"), "A network without a name");
+    // Away from home (a café's Wi-Fi, counted as public), Mira's rule ready: nothing for « Tout préparer », the QR code
+    // is Tailscale's, and the network stays public unless the person says otherwise. An older version's rule is narrowed.
+    var away = ready with { Firewall = new(JellyfinFirewall.Verdict.Blocked, JellyfinFirewall.Public, Tailnet: JellyfinFirewall.Verdict.Open, Public: box), MiraRule = JellyfinFirewall.RuleState.Ready };
+    steps = PhoneSetup.Steps(away);
+    Assert(Wall(away) is { Mark: PhoneSetup.Mark.Yours, Action: "Passer en privé" } && !PhoneSetup.CanPrepare(steps) && PhoneSetup.Everywhere(away) == tailnet, "Away from home: " + Marks(steps));
+    Assert(Wall(away with { Firewall = new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Public, Tailnet: JellyfinFirewall.Verdict.Open, Public: box), MiraRule = JellyfinFirewall.RuleState.Stale })
+        is { Mark: PhoneSetup.Mark.ToDo, Action: "Passer en privé" }, "Away from home, an older version's rule");
+    var kept = away with { NetworkKept = true };
+    steps = PhoneSetup.Steps(kept);
+    Assert(Wall(kept) is { Mark: PhoneSetup.Mark.Yours, Action: null } keptPublic && keptPublic.Text.Contains("Paramètres → Réseau et Internet → Wi-Fi") && !PhoneSetup.NeedsWindows(steps)
+        && PhoneSetup.Is(PhoneSetup.Steps(kept with { Firewall = reachOpen }), "firewall", PhoneSetup.Mark.Done), "Windows keeps it public: " + Marks(steps));
+    // A profile Windows does not say, assumed public, alone in the way: the person's to check, never asked again.
+    var unsure = ready with { Firewall = reachBlocked with { Public = new("Wi-Fi", Known: false) }, MiraRule = JellyfinFirewall.RuleState.Ready };
+    steps = PhoneSetup.Steps(unsure);
+    Assert(Wall(unsure) is { Mark: PhoneSetup.Mark.Yours, Action: null } check && check.Text.Contains("ne dit pas") && !PhoneSetup.CanPrepare(steps), "A profile Windows does not say: " + Marks(steps));
+    // Blocking everything on public networks: the box's made private (by the person), rather than « block all » unticked for every café.
+    Assert(Wall(counted with { Firewall = new(JellyfinFirewall.Verdict.Closed, JellyfinFirewall.Public, Public: box) }) is { Mark: PhoneSetup.Mark.ToDo, Action: "Passer en privé" },
         "Blocking everything on the box counted as public");
     // The firewall blocking everything is the person's to undo, in Windows' settings, on the network it blocks.
     steps = PhoneSetup.Steps(ready with { Firewall = new(JellyfinFirewall.Verdict.Closed, JellyfinFirewall.Public) });
@@ -1222,7 +1266,7 @@ await Test("Mira sur ton téléphone : étapes cochées, « Tout préparer » en
     // What « Tout préparer » cannot change is the person's, never asked again: a block rule naming no program, or a
     // Jellyfin whose program Mira does not find (started by another account, in Docker) without Mira's rule.
     steps = PhoneSetup.Steps(fresh with { Firewall = reachBlocked with { Kept = "Bloquer 8096" } });
-    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.Yours } kept && kept.Text.Contains("« Bloquer 8096 »") && !PhoneSetup.NeedsWindows(steps), "A rule of someone's own: " + Marks(steps));
+    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.Yours } blocking && blocking.Text.Contains("« Bloquer 8096 »") && !PhoneSetup.NeedsWindows(steps), "A rule of someone's own: " + Marks(steps));
     steps = PhoneSetup.Steps(fresh with { Firewall = null, Program = false });
     Assert(PhoneSetup.Is(steps, "firewall", PhoneSetup.Mark.Yours) && !PhoneSetup.NeedsWindows(steps)
         && PhoneSetup.Is(PhoneSetup.Steps(fresh with { Firewall = null, Program = false, MiraRule = JellyfinFirewall.RuleState.Ready }), "firewall", PhoneSetup.Mark.Done)
@@ -1239,7 +1283,8 @@ await Test("Mira sur ton téléphone : étapes cochées, « Tout préparer » en
     // Phones getting through by other rules (Windows' prompt), Mira's own left on another port: replaced, with the same consent.
     var staleRule = ready with { MiraRule = JellyfinFirewall.RuleState.Stale };
     steps = PhoneSetup.Steps(staleRule);
-    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.ToDo, Title: "Mettre à jour la règle du pare-feu" } && PhoneSetup.NeedsWindows(steps)
+    Assert(steps.Single(x => x.Key == "firewall") is { Mark: PhoneSetup.Mark.ToDo, Title: "Mettre à jour la règle du pare-feu" } update && update.Text.Contains("version précédente")
+        && PhoneSetup.NeedsWindows(steps)
         && PhoneSetup.Everywhere(staleRule) == tailnet, "Mira's rule, stale: " + Marks(steps));
     steps = PhoneSetup.Steps(ready with { Boot = service with { StartsWithWindows = false } });
     Assert(PhoneSetup.Is(steps, "boot", PhoneSetup.Mark.ToDo) && PhoneSetup.NeedsWindows(steps), "The service, to set up");
