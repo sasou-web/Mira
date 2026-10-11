@@ -75,7 +75,7 @@ jobs:
         run: dotnet restore Mira.sln --configfile NuGet.Config
       - name: Build
         run: dotnet build Mira.sln -c Release --no-restore
-      # Every check: those free of WPF (tests/Mira.Core.Tests, also run on Linux below), then those of the Windows app.
+      # Every check: those free of WPF (tests/Mira.Core.Tests, also run on Linux by the portable job), then those of the Windows app.
       - name: Behaviour and persistence tests
         run: dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build
       # The real window, offline demo only: every main screen is rendered once and kept as an image for review.
