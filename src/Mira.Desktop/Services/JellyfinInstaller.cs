@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 using Microsoft.Win32;
 using Mira.Core;
 
@@ -42,8 +43,9 @@ internal static class JellyfinInstaller
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return false; }
     }
     /// <summary>
-    /// Downloads the installer into the profile, checks its SHA-256, runs it silently (Windows asks for the administrator's
-    /// consent) and deletes it. The silent installer sets Jellyfin up as a service that starts with Windows.
+    /// Downloads the installer into the profile, checks its SHA-256, again once held open, runs it silently (Windows asks
+    /// for the administrator's consent) and deletes it. The silent installer sets Jellyfin up as a service that starts
+    /// with Windows.
     /// <paramref name="progress"/> covers the download; it reaches 1 when Windows asks for that consent. Returns the
     /// installer's exit code: it can report a failure while Jellyfin did install (see the caller).
     /// </summary>
@@ -55,7 +57,13 @@ internal static class JellyfinInstaller
         try
         {
             await VerifiedDownload.DownloadAsync(package.Url, partial, package.Sha256, null, JellyfinServerPackage.MaximumSize, "Jellyfin", progress: progress, ct: ct);
-            File.Move(partial, setup, overwrite: true); progress?.Report(1);
+            File.Move(partial, setup, overwrite: true);
+            // Held open, sharing reads only, from its check to its start: no program of this account can change or
+            // replace the file Windows then runs with administrator rights.
+            await using var held = new FileStream(setup, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, useAsync: true);
+            if (!VerifiedDownload.Matches(await SHA256.HashDataAsync(held, ct), package.Sha256))
+                throw new InstallException("Le fichier téléchargé ne correspond pas à la version vérifiée par Mira : il n’est pas installé.");
+            progress?.Report(1);
             Process? process;
             try { process = Process.Start(new ProcessStartInfo(setup, "/S") { UseShellExecute = true, Verb = "runas" }); }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { throw new InstallException("Installation annulée : Windows n’a pas reçu l’autorisation d’installer Jellyfin."); }

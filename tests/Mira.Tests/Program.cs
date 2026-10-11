@@ -891,15 +891,35 @@ await Test("TorLink : Node.js installé par Mira depuis le zip officiel vérifi�
     Assert(problems[0] == "ENOTFOUND · syscall getaddrinfo" && problems[1] == "E404 · 404 Not Found - GET https://registry.npmjs.org/torlnk" && problems[2] == "une dernière ligne" && problems[3] is null,
         "npm problems: " + string.Join(" | ", problems));
 });
-await Test("Moteur mpv : celui installé par Mira est trouvé, un chemin choisi passe avant", () =>
+await Test("Moteur mpv : celui installé par Mira est trouvé, un chemin choisi passe avant, un mpv qui n’est pas x64 est ignoré", () =>
 {
+    // The headers of a PE file: DOS stub, signature, COFF header (machine), optional header (PE32 or PE32+).
+    static byte[] Pe(ushort machine, bool plus = true)
+    {
+        var bytes = new byte[0x40 + 4 + 20 + (plus ? 240 : 224)];
+        bytes[0] = (byte)'M'; bytes[1] = (byte)'Z'; BitConverter.GetBytes(0x40).CopyTo(bytes, 0x3C);
+        "PE\0\0"u8.ToArray().CopyTo(bytes, 0x40); BitConverter.GetBytes(machine).CopyTo(bytes, 0x44);
+        BitConverter.GetBytes((ushort)(plus ? 240 : 224)).CopyTo(bytes, 0x54); BitConverter.GetBytes((ushort)0x2022).CopyTo(bytes, 0x56);
+        BitConverter.GetBytes((ushort)(plus ? 0x20B : 0x10B)).CopyTo(bytes, 0x58); BitConverter.GetBytes(16).CopyTo(bytes, 0x58 + (plus ? 108 : 92));
+        return bytes;
+    }
+    string Library(string name, byte[] bytes) { var path = Path.Combine(testRoot, name); File.WriteAllBytes(path, bytes); return path; }
+    Assert(PortableExecutable.IsX64(Library("pe-x64.dll", Pe(0x8664))) && !PortableExecutable.IsX64(Library("pe-x86.dll", Pe(0x14C, plus: false)))
+        && !PortableExecutable.IsX64(Library("pe-arm64.dll", Pe(0xAA64))) && !PortableExecutable.IsX64(Library("pe-text.dll", "x"u8.ToArray()))
+        && !PortableExecutable.IsX64(Library("pe-cut.dll", Pe(0x8664)[..0x46])) && !PortableExecutable.IsX64(Path.Combine(testRoot, "pe-missing.dll")), "PE machine read wrong");
+    // Real files of Windows: this x64 test, and a library of its 32-bit part.
+    var wow = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.SystemX86), "kernel32.dll");
+    Assert(PortableExecutable.IsX64(Environment.ProcessPath!) && (!File.Exists(wow) || !Environment.Is64BitOperatingSystem || !PortableExecutable.IsX64(wow)), "Real PE files read wrong");
     var saved = AppFiles.ProfileDirectory;
     try
     {
         AppFiles.ProfileDirectory = Path.Combine(testRoot, "engine-profile");
-        var installed = MpvInstaller.LibraryPath(AppFiles.ProfileDirectory); Directory.CreateDirectory(Path.GetDirectoryName(installed)!); File.WriteAllText(installed, "x");
+        var installed = MpvInstaller.LibraryPath(AppFiles.ProfileDirectory); Directory.CreateDirectory(Path.GetDirectoryName(installed)!); File.WriteAllBytes(installed, Pe(0x8664));
         var chosen = Path.Combine(testRoot, "engine-chosen.dll"); File.WriteAllText(chosen, "x");
         Assert(MpvEngine.FindLibrary() == installed && MpvEngine.FindLibrary(chosen) == chosen, "Engine lookup order");
+        // A 32-bit mpv where Mira looks (Jellyfin MPV Shim's older builds): passed over, never loaded.
+        File.WriteAllBytes(installed, Pe(0x14C, plus: false));
+        Assert(MpvEngine.FindLibrary() != installed, "A 32-bit engine was chosen");
     }
     finally { AppFiles.ProfileDirectory = saved; }
     return Task.CompletedTask;
@@ -953,6 +973,12 @@ await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en fra
     Assert(MediaFolders.Refusal(folders.Root) is null && MediaFolders.Refusal(drive) is { } whole && whole.Contains("tout le disque")
         && MediaFolders.Refusal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + Path.DirectorySeparatorChar) is not null
         && MediaFolders.Refusal("Vidéos") is not null && MediaFolders.Refusal(" ") is not null, "Media root refusals");
+    // Documents, the Desktop and a profile's own folder (another account's too) are never a media root; a folder in them is.
+    var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+    var profiles = Path.GetDirectoryName(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))!;
+    Assert(MediaFolders.Refusal(documents) is not null && MediaFolders.Refusal(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)) is not null
+        && MediaFolders.Refusal(profiles) is not null && MediaFolders.Refusal(Path.Combine(profiles, "Public")) is not null && MediaFolders.Refusal(Path.Combine(profiles, "Someone")) is not null
+        && MediaFolders.Refusal(Path.Combine(documents, "Jellyfin")) is null && MediaFolders.Refusal(MediaFolders.DefaultRoot) is null, "Personal folders as media roots");
     folders.Create(); folders.AllowJellyfinService();
     Assert(new[] { folders.Movies, folders.Series, folders.Anime }.All(Directory.Exists) && Path.GetFileName(folders.Series) == "Séries" && !folders.Root.EndsWith(' '), "Media folders");
     await JellyfinSetup.ConfigureAsync(server, "Alice", "secret", folders, handler);
@@ -1088,7 +1114,8 @@ await Test("Démarrage avec Windows : service, relance après une erreur et pare
     Assert(!JellyfinStartup.RestartsAfterError(Actions((1, 15000)), 0), "Without the non-crash flag, NSSM's stop on an error restarts nothing");
     Assert(!JellyfinStartup.RestartsAfterError(Actions((0, 0)), 1) && !JellyfinStartup.RestartsAfterError(null, 1) && !JellyfinStartup.RestartsAfterError(new byte[8], 1), "No action, no value, a short value");
     var delayed = new JellyfinStartup.State(true, true, true, false);
-    Assert(!delayed.StartsAtBoot && !(delayed with { Delayed = false }).StartsAtBoot && (delayed with { Delayed = false, RestartsAfterError = true }).StartsAtBoot, "Delayed start, no restart");
+    Assert(!delayed.StartsAtBoot && !(delayed with { Delayed = false }).StartsAtBoot && (delayed with { Delayed = false, RestartsAfterError = true }).StartsAtBoot
+        && (delayed with { RestartsAfterError = true }).StartsAtBoot && !(delayed with { StartsWithWindows = false, RestartsAfterError = true }).StartsAtBoot, "Delayed start kept, no restart");
     Assert(!new JellyfinStartup.State(false, true, false, true).StartsAtBoot, "Without a service, nothing starts with Windows");
     var commands = JellyfinStartup.Commands(@"C:\Program Files\Jellyfin\Server\jellyfin.exe", 8096);
     var rules = commands.Where(c => c.Arguments.Contains("add rule")).Select(c => c.Arguments).ToList();
@@ -1098,6 +1125,23 @@ await Test("Démarrage avec Windows : service, relance après une erreur et pare
         && JellyfinStartup.Profiles(JellyfinFirewall.Public) == "public", "Private and domain networks only, as netsh writes them");
     Assert(commands[0].Arguments == "config JellyfinServer start= auto" && commands.Any(c => c.Arguments == $"failure JellyfinServer reset= 86400 actions= {JellyfinStartup.RestartActions}")
         && commands.Any(c => c.Arguments == "failureflag JellyfinServer 1") && commands.All(c => c.File is "sc.exe" or "netsh.exe"), "Service set to start with Windows and to restart after an error");
+    // Three restarts, then none (Windows repeats the last action); a delayed start stays delayed.
+    Assert(JellyfinStartup.RestartActions.Split('/') is ["restart", _, "restart", _, "restart", _, "", "0"]
+        && JellyfinStartup.Commands(@"C:\Program Files\Jellyfin\Server\jellyfin.exe", 8096, delayed: true)[0].Arguments == "config JellyfinServer start= delayed-auto", "Restarts end, delayed start kept");
+    // What has administrator rights: Windows PowerShell from System32, its script fixed, the plan's text in base64 only.
+    var plan = new JellyfinStartup.Plan(["Wi-Fi 'maison' $(calc)"], [new("jellyfin.exe", @"C:\Program Files\Jellyfin\Server\jellyfin.exe", 6, "*", "*", 2, 0)], commands);
+    var arguments = JellyfinStartup.PowerShellArguments(plan);
+    Assert(arguments.StartsWith("-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ", StringComparison.Ordinal) && JellyfinStartup.PowerShell == @"WindowsPowerShell\v1.0\powershell.exe"
+        && Encoding.Unicode.GetString(Convert.FromBase64String(arguments.Split(' ')[^1])) == JellyfinStartup.Script(plan), "PowerShell's arguments");
+    var script = JellyfinStartup.Script(plan);
+    Assert(!script.Contains("maison") && !script.Contains("calc") && !script.Contains("Program Files") && !script.Contains("advfirewall") && script.Contains("$PSModuleAutoLoadingPreference = 'None'")
+        && script.Contains(Convert.ToBase64String(Encoding.UTF8.GetBytes(commands[0].Arguments))), "The plan's text in the script itself");
+    foreach (var bad in new JellyfinStartup.Plan[] { new([], [], [new("cmd.exe", "/c calc")]), new([""], [], []), new([], [plan.Lifts[0] with { Keep = 8 }], []) })
+    {
+        var refused = false;
+        try { JellyfinStartup.Script(bad); } catch (ArgumentException) { refused = true; }
+        Assert(refused, "A plan Mira never builds accepted");
+    }
     foreach (var (program, port) in new[] { ("jellyfin.exe", 8096), (@"C:\a\jellyfin.exe", 0), (@"C:\a\b"" & calc.exe", 8096) })
     {
         var refused = false;
@@ -1117,7 +1161,14 @@ await Test("Démarrage avec Windows : service, relance après une erreur et pare
             Assert(before.HasService && before.StartsWithWindows && before.Delayed && !before.RestartsAfterError && JellyfinAutostart.MiraRule(program, 18096, rule) == JellyfinFirewall.RuleState.Missing, $"Before: {before}");
             Assert(JellyfinAutostart.Apply(program, 18096, service, rule, start: false), "sc or netsh failed");
             var after = JellyfinAutostart.Read(service);
-            Assert(after.StartsAtBoot && JellyfinAutostart.MiraRule(program, 18096, rule) == JellyfinFirewall.RuleState.Ready, $"After: {after}");
+            Assert(after.StartsAtBoot && after.Delayed && JellyfinAutostart.MiraRule(program, 18096, rule) == JellyfinFirewall.RuleState.Ready, $"After: {after}");
+            // As sc wrote them: three restarts, then a fourth action that does nothing.
+            using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{service}"))
+            {
+                var actions = key?.GetValue("FailureActions") as byte[];
+                Assert(actions is { Length: >= 52 } && BitConverter.ToInt32(actions, 12) == 4 && BitConverter.ToInt32(actions, 20 + 8 * 2) == 1 && BitConverter.ToInt32(actions, 20 + 8 * 3) == 0,
+                    "Failure actions: " + (actions is null ? "none" : Convert.ToHexString(actions)));
+            }
             // Read back by its content: on another port, or for another program, it is not ready, and is replaced whole.
             Assert(JellyfinAutostart.MiraRule(program, 18098, rule) == JellyfinFirewall.RuleState.Stale
                 && JellyfinAutostart.MiraRule(Path.Combine(Environment.SystemDirectory, "notepad.exe"), 18096, rule) == JellyfinFirewall.RuleState.Stale, "Judged by its name only");
@@ -1128,7 +1179,7 @@ await Test("Démarrage avec Windows : service, relance après une erreur et pare
         finally { JellyfinAutostart.RunSystem("sc.exe", $"delete {service}"); JellyfinAutostart.RemoveRule(rule); }
         Assert(!JellyfinAutostart.Read(service).HasService && JellyfinAutostart.RunSystem("netsh.exe", $"advfirewall firewall show rule name=\"{rule}\"") != 0
             && JellyfinAutostart.MiraRule(program, 18098, rule) == JellyfinFirewall.RuleState.Missing, "Test service or rule left behind");
-        Console.WriteLine("      (sc et netsh réels, service de test créé puis supprimé)");
+        Console.WriteLine("      (sc et netsh réels par Windows PowerShell, service de test créé puis supprimé)");
     }
     return Task.CompletedTask;
 });
@@ -1439,7 +1490,9 @@ await Test("Dossiers médias : le service Jellyfin peut les lire, fichiers liés
     var folders = MediaFolders.Under(Path.Combine(testRoot, "service-access")); folders.Create(); folders.AllowJellyfinService();
     var downloads = Path.Combine(testRoot, "service-downloads"); Directory.CreateDirectory(downloads);
     var other = Path.Combine(testRoot, "service-other"); Directory.CreateDirectory(other);
-    Assert(JellyfinServiceAccess.HasOwnRule(folders.Root) && !JellyfinServiceAccess.HasOwnRule(downloads), "Root not shared with the service");
+    // Films, Séries and Animes only: not the rest of the root.
+    Assert(new[] { folders.Movies, folders.Series, folders.Anime }.All(JellyfinServiceAccess.HasOwnRule) && !JellyfinServiceAccess.HasOwnRule(folders.Root)
+        && !JellyfinServiceAccess.HasOwnRule(downloads), "Media folders not shared with the service, or the root shared");
     async Task<string> Import(string file, string library, ImportMode mode)
     {
         var source = Path.Combine(downloads, file); File.WriteAllBytes(source, new byte[64]);

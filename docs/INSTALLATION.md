@@ -32,7 +32,7 @@ Sous le formulaire de connexion, choisir **Pas encore de serveur ? Installer Jel
 
 1. **Dossier de tes vidéos** : `Vidéos\Jellyfin` par défaut, ou un autre avec **Parcourir** (un disque de stockage, par exemple). Mira y crée `Films`, `Séries` et `Animes`.
 2. **Nom d’utilisateur** et **mot de passe** : ils deviennent le compte administrateur de Jellyfin.
-3. **Installer et configurer**. Mira télécharge l’installateur officiel de Jellyfin 12.1 depuis `repo.jellyfin.org` et vérifie son empreinte SHA-256, celle du manifeste winget de Jellyfin. Un fichier différent n’est jamais lancé. Windows demande ensuite une autorisation : Jellyfin s’installe pour tout le PC, comme un service qui démarre avec Windows.
+3. **Installer et configurer**. Mira télécharge l’installateur officiel de Jellyfin 12.1 depuis `repo.jellyfin.org` et vérifie son empreinte SHA-256, celle du manifeste winget de Jellyfin, puis la vérifie de nouveau en gardant le fichier ouvert jusqu’à son lancement : un fichier différent n’est jamais lancé. Windows demande ensuite une autorisation : Jellyfin s’installe pour tout le PC, comme un service qui démarre avec Windows.
 
 Mira remplit alors l’assistant de premier démarrage de Jellyfin :
 
@@ -43,7 +43,7 @@ Mira remplit alors l’assistant de premier démarrage de Jellyfin :
 
 Puis il se connecte. Il reste à ranger les vidéos dans ces dossiers, sous les noms attendus par Jellyfin (`Titre (Année)\Titre (Année).mkv`, `Série\Season 01\Série - S01E02.mkv`), ou à laisser TorLink le faire : il retrouve les trois bibliothèques sans réglage.
 
-Le service de Jellyfin tourne sous le compte Windows **Network Service**, qui ne lit pas les dossiers personnels. Mira lui donne le droit de lire, sans modifier, le dossier choisi et tout ce qui y est ajouté. Une vidéo copiée ou déplacée avec l’Explorateur prend ce droit. Un fichier rangé par TorLink, par lien physique ou par déplacement, le reçoit aussi.
+Le service de Jellyfin tourne sous le compte Windows **Network Service**, qui ne lit pas les dossiers personnels. Mira lui donne le droit de lire, sans modifier, `Films`, `Séries` et `Animes` et tout ce qui y est ajouté, pas le reste du dossier choisi. Une vidéo copiée ou déplacée avec l’Explorateur prend ce droit. Un fichier rangé par TorLink, par lien physique ou par déplacement, le reçoit aussi. Le dossier choisi ne peut pas être un disque entier, ton dossier personnel (ni celui d’un autre compte), Documents, le Bureau ou OneDrive lui-même. Pour retirer ce droit (Jellyfin ne voit alors plus ces vidéos), dans un terminal : `icacls "<dossier>\Films" /remove:g *S-1-5-20 /t`, de même pour `Séries` et `Animes`. Jusqu’à la 0.7.4, Mira le donnait au dossier choisi entier : `icacls "<dossier>" /remove:g *S-1-5-20 /t` le retire, puis `icacls "<dossier>\Films" /grant *S-1-5-20:(OI)(CI)RX` (de même pour `Séries` et `Animes`) le redonne aux trois dossiers seulement.
 
 Si Jellyfin est déjà installé et configuré sur ce PC, Mira le signale et propose de se connecter avec son compte. Une installation interrompue se relance avec le même compte : les étapes déjà faites sont gardées. Jellyfin se désinstalle depuis **Paramètres → Applications → Jellyfin Server** ; ses données sont dans `%ProgramData%\Jellyfin\Server`. Ses autres réglages, dont l’accès depuis Internet, se font sur sa page web, `http://127.0.0.1:8096`.
 
@@ -104,7 +104,7 @@ Le dossier `data`, à côté de `Mira.exe`, contient la session protégée, les 
 
 Une copie en 0.5.1 ou plus ancienne ne se met pas à jour seule : installer une fois à la main la 0.5.2 ou une version plus récente suffit. Pour mettre à jour à la main :
 
-- **Installateur** : lancer celui de la nouvelle version ; il ferme Mira s’il est ouvert, remplace l’application et garde `data`. La désinstallation demande avant de supprimer ces données (non par défaut).
+- **Installateur** : lancer celui de la nouvelle version ; il ferme Mira s’il est ouvert, remplace l’application et garde `data`. La désinstallation demande avant de supprimer ces données (non par défaut), en donnant leur taille, puis dit ce qui reste sur le PC et comment le retirer : la règle « Mira - Jellyfin » du pare-feu (aussi retirée par **Guide → Mira sur ton téléphone → Ne plus ouvrir Jellyfin au réseau**), Jellyfin et le réglage de son service, le droit de lecture de Jellyfin sur tes dossiers, les fichiers de TorLink, et les bibliothèques extraites par la version portable dans `%TEMP%\.net`. Mira portable efface lui-même celles de ses versions précédentes au démarrage suivant, quand aucun autre Mira n’est ouvert.
 - **Exécutable portable** : fermer Mira et remplacer le fichier `.exe`, dans le même dossier que son `data`.
 - **Archive** : fermer Mira, sauvegarder `data`, puis remplacer les fichiers de l’application par ceux de la nouvelle archive, **en conservant `data`**.
 

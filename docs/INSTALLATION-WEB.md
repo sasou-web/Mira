@@ -13,9 +13,11 @@ Sur le PC où tourne Jellyfin :
    - **Mira web sur Jellyfin** : l’extension qui sert Mira à ton téléphone ;
    - **le pare-feu de Windows** : il laisse passer ton téléphone, sur le port de Jellyfin seulement, depuis ton Wi-Fi et Tailscale, jamais sur un réseau public : si Windows compte le Wi-Fi de ta box comme public, **Passer en privé** le change, avec une autorisation de Windows (seulement chez toi : le réseau d’un café doit rester public) ;
    - **hors de chez toi (facultatif)** : Tailscale, gratuit, sur ce PC et sur ton téléphone, avec le même compte ;
-   - **dès l’allumage du PC** : Jellyfin démarre avec Windows, avant ta session, et repart après une erreur (avec son service Windows).
-3. Clique sur **Tout préparer**. Windows demande une seule autorisation, puis Jellyfin redémarre quelques secondes.
+   - **dès l’allumage du PC** : Jellyfin démarre avec Windows, avant ta session (un démarrage différé choisi dans Windows est gardé), et repart après une erreur, trois fois au plus avant une journée sans erreur (avec son service Windows).
+3. Clique sur **Tout préparer**. Windows demande une seule autorisation, au nom de **Windows PowerShell** (Microsoft), qui règle le pare-feu et le service ; puis Jellyfin redémarre quelques secondes.
 4. La page du QR code s’ouvre : scanne-le avec l’appareil photo du téléphone, puis connecte-toi avec ton compte Jellyfin.
+
+**Ne plus ouvrir Jellyfin au réseau**, sous les étapes, retire la règle « Mira - Jellyfin » du pare-feu (une autorisation de Windows) ; **Tout préparer** la remet.
 
 Seul Tailscale est à installer toi-même : **Installer Tailscale** ouvre sa page de téléchargement. Une fois Tailscale connecté sur ce PC, le guide se met à jour tout seul et **Tout préparer** fait le reste.
 

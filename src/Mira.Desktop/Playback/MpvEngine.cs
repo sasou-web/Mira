@@ -39,9 +39,15 @@ public sealed class MpvEngine : IDisposable
     public event Action<string>? Error;
     public string LibraryPath { get; }
 
+    /// <summary>
+    /// The library chosen in Réglages (<paramref name="custom"/>), as it is: loading it says what is wrong; otherwise the
+    /// first one found in the known places that is built for x64 (<see cref="PortableExecutable.IsX64"/>): another
+    /// program's may be 32-bit, and loading it would fail.
+    /// </summary>
     public static string? FindLibrary(string? custom = null)
     {
-        var candidates = new[] { custom,
+        if (!string.IsNullOrWhiteSpace(custom) && File.Exists(custom)) return custom;
+        var candidates = new[] {
             // Installed by Mira on request (Setup's task or Réglages → Lecture), in the profile that updates never touch.
             MpvInstaller.LibraryPath(Services.AppFiles.ProfileDirectory),
             Path.Combine(AppContext.BaseDirectory, "mpv-2.dll"),
@@ -51,7 +57,7 @@ public sealed class MpvEngine : IDisposable
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Jellyfin MPV Shim", "_internal", "mpv-2.dll"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "mpv.net", "libmpv-2.dll"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "mpv.net", "libmpv-2.dll") };
-        return candidates.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p) && File.Exists(p));
+        return candidates.FirstOrDefault(p => File.Exists(p) && PortableExecutable.IsX64(p));
     }
     public MpvEngine(IntPtr window, PlayerSettings settings, bool headless = false)
     {

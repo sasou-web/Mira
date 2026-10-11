@@ -84,6 +84,83 @@ for binary in "$APP/Contents/MacOS/Mira" "$APP"/Contents/MacOS/*.dylib "$APP"/Co
 done
 if [ "$newer" -ne 0 ]; then exit 1; fi
 
+# 4b. What the bundle carries from others, and under which licences: Mira's own notices and licence files, then every
+# Homebrew formula whose library is in Contents/Frameworks (libmpv and FFmpeg are GPL), with its exact version, its
+# licence files and where its source is. Written into Contents/Resources before the bundle is signed.
+RESOURCES="$APP/Contents/Resources"
+cp "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$RESOURCES/"
+cp -R "$ROOT/licenses" "$RESOURCES/licenses"
+mkdir -p "$RESOURCES/licenses/homebrew"
+# A library's formula and version, from where Homebrew keeps it: <prefix>/Cellar/<formula>/<version>/lib/<file>.
+cellar() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
+KEGS="$OUT/kegs.txt"; : > "$KEGS"
+for library in "$APP"/Contents/Frameworks/*.dylib; do
+  name=$(basename "$library"); keg=""
+  # Linked into the prefix, or keg-only (its opt folder only).
+  for candidate in "$BREW/lib/$name" "$BREW"/opt/*/lib/"$name"; do
+    [ -e "$candidate" ] || continue
+    real=$(cellar "$candidate")
+    case "$real" in "$BREW/Cellar/"*/lib/*) keg=${real#"$BREW/Cellar/"}; keg=${keg%%/lib/*}; break ;; esac
+  done
+  if [ -z "$keg" ]; then echo "no Homebrew formula found for $name" >&2; exit 1; fi
+  echo "$keg $name" >> "$KEGS"
+done
+cut -d ' ' -f 1 "$KEGS" | sort -u | while read -r keg; do
+  formula=${keg%%/*}
+  mkdir -p "$RESOURCES/licenses/homebrew/$formula"
+  # Homebrew keeps each formula's licence files at the top of its keg.
+  find "$BREW/Cellar/$keg" -maxdepth 1 -type f \( -iname 'COPYING*' -o -iname 'LICENSE*' -o -iname 'LICENCE*' -o -iname 'NOTICE*' -o -iname 'COPYRIGHT*' \) \
+    -exec cp {} "$RESOURCES/licenses/homebrew/$formula/" \;
+done
+# shellcheck disable=SC2046 # one argument per formula
+brew info --json=v2 $(cut -d ' ' -f 1 "$KEGS" | cut -d / -f 1 | sort -u) > "$OUT/formulae.json"
+python3 - "$KEGS" "$OUT/formulae.json" "$RESOURCES/licenses/homebrew" "$VERSION" > "$RESOURCES/licenses/HOMEBREW-LIBRARIES.txt" <<'PY'
+import json, os, sys
+kegs, info, folder, version = sys.argv[1:5]
+libraries = {}
+for line in open(kegs):
+    keg, name = line.split()
+    libraries.setdefault(keg, []).append(name)
+formulae = {f["name"]: f for f in json.load(open(info))["formulae"]}
+print(f"Libraries bundled in Mira {version} for Mac (Mira.app/Contents/Frameworks)\n")
+print("Mira loads libmpv to play video. libmpv and the libraries it needs were built by Homebrew (https://brew.sh) and")
+print("copied unmodified into the app, except for their load paths (rewritten by dylibbundler and install_name_tool so that")
+print("they load from the app) and their code signatures (replaced by an ad hoc signature). Each keeps its own licence;")
+print("Mira's MIT licence does not cover them. Several are under the GPL or the LGPL, such as mpv and FFmpeg as Homebrew")
+print("builds them: the full texts are licenses/GPL-2.0.txt, GPL-3.0.txt, LGPL-2.1.txt and LGPL-3.0.txt; each formula's own")
+print("licence files, when it ships them, are in licenses/homebrew/<formula>/.\n")
+print("Source code: each library's source is the release archive named below, built with the Homebrew formula of the same")
+print("name and version (https://github.com/Homebrew/homebrew-core). For three years from this release, sasou-web will also")
+print("provide anyone with a copy of the complete corresponding source code of these libraries, for no more than the cost")
+print("of providing it: ask on https://github.com/sasou-web/Mira/issues.\n")
+missing = []
+for keg in sorted(libraries):
+    name, kept = keg.split("/", 1)
+    f = formulae.get(name, {})
+    texts = sorted(os.listdir(os.path.join(folder, name))) if os.path.isdir(os.path.join(folder, name)) else []
+    if not texts:
+        missing.append(name)
+    print(f"{name} {kept}")
+    # An SPDX name, or an expression Homebrew writes as JSON ({"any_of": [...]}).
+    licence = f.get("license")
+    print(f"  Licence: {licence if isinstance(licence, str) else json.dumps(licence) if licence else 'see the project'}")
+    print(f"  Project: {f.get('homepage') or '-'}")
+    print(f"  Source: {((f.get('urls') or {}).get('stable') or {}).get('url') or '-'}")
+    print(f"  Files: {', '.join(sorted(libraries[keg]))}")
+    print(f"  Licence files: {', '.join('licenses/homebrew/' + name + '/' + t for t in texts) if texts else 'none in the formula: see the project'}\n")
+if missing:
+    print("Formulas without a licence file of their own: " + ", ".join(missing) + ".", file=sys.stderr)
+PY
+rm -f "$KEGS" "$OUT/formulae.json"
+find "$RESOURCES/licenses/homebrew" -mindepth 1 -type d -empty -delete
+# libmpv and FFmpeg must be listed, and the GPL's text be beside them, as the GPL asks.
+for formula in mpv ffmpeg; do
+  grep -q -E "^$formula(@[0-9.]+)? " "$RESOURCES/licenses/HOMEBREW-LIBRARIES.txt" || { echo "$formula missing from the bundled libraries' notice" >&2; exit 1; }
+done
+for text in GPL-2.0 GPL-3.0 LGPL-2.1 LGPL-3.0; do
+  [ -s "$RESOURCES/licenses/$text.txt" ] || { echo "licenses/$text.txt missing" >&2; exit 1; }
+done
+
 # 5. Signed ad hoc, from the inside out: Apple Silicon runs no unsigned code, and the bundle's signature covers every
 # file beside the executable (.NET's .dll and .json too, signed in their extended attributes), as Avalonia documents.
 find "$APP/Contents/Frameworks" -type f -name "*.dylib" -print0 | xargs -0 -n 1 codesign --force --sign - --timestamp=none
