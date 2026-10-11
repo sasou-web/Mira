@@ -45,6 +45,7 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques, version minimale, avertissement HTTP
   ├─ LibraryStore, AccountData : cache SQLite, progression locale et file persistante ; fichiers d’un compte
   ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels
+  ├─ PlaybackSession : état d’une lecture sans WPF ni mpv (position, saut en attente, rapport, fin, titre vu)
   ├─ DiskCache, ImageMemory : budget des images sur disque et en mémoire
   ├─ VerifiedDownload : téléchargement vérifié (taille, SHA-256, jamais vers HTTP, transfert muet abandonné)
   ├─ MpvPackage / MpvInstaller, NodeRuntime, PortableExecutable : builds figées de libmpv et Node.js, en-tête PE

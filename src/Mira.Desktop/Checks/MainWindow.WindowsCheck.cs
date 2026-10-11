@@ -32,14 +32,14 @@ public partial class MainWindow
             await session.TryPauseAsync(); await Task.Delay(200);
             Require(_mpv.Flag("pause"), "repeated Windows pause is idempotent");
             var metadata = await session.TryGetMediaPropertiesAsync();
-            Require(metadata.Title == _playingItem!.DisplayTitle && metadata.Subtitle == _playingItem.Subtitle, "Windows receives the title and episode metadata");
+            Require(metadata.Title == _session.Item!.DisplayTitle && metadata.Subtitle == _session.Item.Subtitle, "Windows receives the title and episode metadata");
             for (var i = 0; i < 30 && metadata.Thumbnail is null; i++) { await Task.Delay(100); metadata = await session.TryGetMediaPropertiesAsync(); }
             Require(metadata.Thumbnail is not null, "Windows receives artwork through a private in-memory stream");
             using (var thumbnail = await metadata.Thumbnail!.OpenReadAsync()) Require(thumbnail.Size > 0, "Windows can read the published artwork");
             await Until(() => session.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused);
             Require(TaskbarItemInfo.ThumbButtonInfos[1].Description.Contains("Reprendre"), "taskbar pause label follows the system state");
             Require(await session.TryChangePlaybackPositionAsync(TimeSpan.FromSeconds(6).Ticks), "Windows accepts a timeline seek");
-            await Until(() => Math.Abs(_position - 6) < .6);
+            await Until(() => Math.Abs(_session.Position - 6) < .6);
             await Until(() => Math.Abs(session.GetTimelineProperties().Position.TotalSeconds - 6) < .7);
             Require(Math.Abs(_mpv.Number("time-pos") - 6) < .6, "Windows seek reaches mpv and returns the corrected timeline");
             await session.TryPlayAsync(); await Until(() => !_mpv.Flag("pause")); await session.TryPlayAsync(); await Task.Delay(180);
@@ -60,9 +60,9 @@ public partial class MainWindow
             await Until(() => session.GetPlaybackInfo().Controls.IsNextEnabled);
             Require(TaskbarItemInfo.ThumbButtonInfos[3].IsEnabled, "next becomes available only when the episode has been resolved");
             Require(await session.TrySkipNextAsync(), "Windows accepts next episode");
-            await Until(() => _playingItem?.Id == next.Id && _loaded);
+            await Until(() => _session.Item?.Id == next.Id && _loaded);
             await session.TryPauseAsync(); await Until(() => _mpv!.Flag("pause"));
-            Require(_playingItem.Id == next.Id && Title.Contains(next.DisplayTitle), "next uses Mira playback and updates the window identity");
+            Require(_session.Item.Id == next.Id && Title.Contains(next.DisplayTitle), "next uses Mira playback and updates the window identity");
             await session.TryStopAsync(); await Until(() => !_playing && _mpv is null);
             Require(TaskbarItemInfo.ThumbButtonInfos.All(x => x.Visibility == Visibility.Collapsed), "stopping removes all taskbar playback buttons");
             await Until(() => !manager.GetSessions().Any(x => x.SourceAppUserModelId == App.ShellAppId) || session.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed);

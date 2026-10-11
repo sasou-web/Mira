@@ -19,18 +19,13 @@ public partial class MainWindow
     private MpvEngine? _mpv;
     private VideoHost? _videoHost;
     private IntPtr _videoHandle;
-    private MediaItem? _playingItem;
-    private MediaSource? _mediaSource;
-    private string _playSession = "";
-    private bool _playing, _loaded, _paused, _seeking, _fullscreen, _closing, _playBusy, _playWasReported;
+    /// <summary>What plays, where it is and what Jellyfin was told (Mira.Core, tested without the window).</summary>
+    private readonly PlaybackSession _session = new();
+    private bool _playing, _loaded, _seeking, _fullscreen, _closing, _playBusy;
     /// <summary>From the first close request: the window is hidden and its services are being stopped.</summary>
     internal bool IsClosing => _closing;
-    private double _position, _duration, _pendingSeek;
-    private DateTimeOffset _pendingSeekUntil;
-    private DateTimeOffset _lastReport;
     private int _playGeneration;
     private bool _tickBusy;
-    private string? _playFailure;
 
     private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false)
     {
@@ -81,11 +76,8 @@ public partial class MainWindow
                 else { location = _client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = _client.AuthorizationHeader; }
             }
             await StopPlaybackAsync(completePrevious);
-            _playingItem = item; _mediaSource = source; _playSession = session; _loaded = false; _playWasReported = false; _playFailure = null;
             // A finished title starts over instead of resuming on its last seconds.
-            var finished = item.UserData.Played || item.Progress >= LibraryStore.WatchedThreshold;
-            _position = _demo || !_settings.RememberPosition || finished ? 0 : TimeSpan.FromTicks(item.UserData.PlaybackPositionTicks).TotalSeconds;
-            _duration = TimeSpan.FromTicks(item.RunTimeTicks ?? 0).TotalSeconds;
+            _session.Begin(item, source, session, PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition)); _loaded = false;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
             PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
@@ -108,7 +100,7 @@ public partial class MainWindow
             _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
             PublishWindowsTrack(item);
             _mpv.FileLoaded += FileLoaded;
-            _mpv.PlaybackRestarted += () => _lastReport = DateTimeOffset.MinValue;
+            _mpv.PlaybackRestarted += () => _session.LastReport = DateTimeOffset.MinValue;
             var generation = ++_playGeneration;
             _ = LoadServerMarkersAsync(item, generation);
             _mpv.Ended += eof =>
@@ -119,9 +111,9 @@ public partial class MainWindow
                 // The stream reopened after sleep could not load: an end, never that of the title.
                 PlaybackEnded(eof && _wake != WakeState.Reloading, generation, interrupted: _asleep || _wake == WakeState.Waiting);
             };
-            _mpv.Error += message => { _playFailure = message; };
+            _mpv.Error += message => { _session.Failure = message; };
             _mpv.Message += message => Dispatcher.BeginInvoke(() => { if (generation == _playGeneration) HandlePlayerMessage(message); });
-            _playing = true; UpdateHeroClock(); _lastReport = DateTimeOffset.Now; SetPlayerLoading(true); _fileOpen = true; _mpv.Load(location, _position, authorization);
+            _playing = true; UpdateHeroClock(); _session.LastReport = DateTimeOffset.Now; SetPlayerLoading(true); _fileOpen = true; _mpv.Load(location, _session.Position, authorization);
             if (_demo && _testMedia is not null && _args.Contains("--loop-test-media")) _mpv.Set("loop-file", "inf");
             SetMiniPlayer(keepMini, preserveFullscreen: true); _playerTimer.Start();
         }
@@ -150,22 +142,22 @@ public partial class MainWindow
     }
     private async void FileLoaded()
     {
-        if (_mpv is null || _playingItem is null) return;
+        if (_mpv is null || _session.Item is null) return;
         var generation = _playGeneration;
         var reopened = _wake == WakeState.Reloading; _wake = WakeState.None;
-        _loaded = true; SeekBar.IsEnabled = true; SetPlayerLoading(false); ShowPlayerControls(); _paused = _mpv.Flag("pause"); _duration = _mpv.Number("duration", _duration); _position = _mpv.Number("time-pos", _position);
-        SeekBar.SetPlayback(_position, _duration, !_paused, _mpv.Number("speed", 1)); LoadFileChapters();
+        _loaded = true; SeekBar.IsEnabled = true; SetPlayerLoading(false); ShowPlayerControls(); _session.Paused = _mpv.Flag("pause"); _session.Duration = _mpv.Number("duration", _session.Duration); _session.Position = _mpv.Number("time-pos", _session.Position);
+        SeekBar.SetPlayback(_session.Position, _session.Duration, !_session.Paused, _mpv.Number("speed", 1)); LoadFileChapters();
         UpdateWindowsPlayback();
-        _lastReport = DateTimeOffset.Now;
+        _session.LastReport = DateTimeOffset.Now;
         // Reopened after sleep: the same playback goes on for Jellyfin.
-        if (!_demo && _sync is not null && !reopened) { _playWasReported = true; await _sync.RecordAsync("start", Report()); }
+        if (!_demo && _sync is not null && !reopened) { _session.Reported = true; await _sync.RecordAsync("start", Report()); }
         if (generation != _playGeneration || _mpv is null) return;
         await RememberCurrentPlaybackAsync();
         if (generation != _playGeneration || _mpv is null) return;
         // External subtitles supplied by Jellyfin may not share the video's filename.
-        if (!_demo && _client is not null && _mediaSource is not null)
+        if (!_demo && _client is not null && _session.Source is not null)
         {
-            foreach (var stream in _mediaSource.MediaStreams.Where(s => s.Type == "Subtitle" && s.IsExternal && s.DeliveryUrl is not null))
+            foreach (var stream in _session.Source.MediaStreams.Where(s => s.Type == "Subtitle" && s.IsExternal && s.DeliveryUrl is not null))
             {
                 var uri = new Uri(new Uri(_client.Connection.Server), stream.DeliveryUrl!);
                 if (uri.GetLeftPart(UriPartial.Authority) != new Uri(_client.Connection.Server).GetLeftPart(UriPartial.Authority)) continue;
@@ -185,34 +177,25 @@ public partial class MainWindow
         try
         {
             UpdatePlayerControls(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
-            _position = ReportedPosition(_mpv.Number("time-pos", _position)); _duration = _mpv.Number("duration", _duration);
+            _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position)); _session.Duration = _mpv.Number("duration", _session.Duration);
             var paused = _mpv.Flag("pause"); ShowPauseState(paused);
             // The timeline interpolates between these polls on every frame.
-            if (!_seeking) { SeekBar.SetPlayback(_position, _duration, !paused, _mpv.Number("speed", 1)); PositionText.Text = TimeLabel(_position); UpdateChapterText(_position); }
-            SeekBar.SetBuffered(_mpv.Number("demuxer-cache-time", 0)); DurationText.Text = TimeLabel(_duration);
-            var changed = paused != _paused; _paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
+            if (!_seeking) { SeekBar.SetPlayback(_session.Position, _session.Duration, !paused, _mpv.Number("speed", 1)); PositionText.Text = TimeLabel(_session.Position); UpdateChapterText(_session.Position); }
+            SeekBar.SetBuffered(_mpv.Number("demuxer-cache-time", 0)); DurationText.Text = TimeLabel(_session.Duration);
+            var changed = paused != _session.Paused; _session.Paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
             UpdateSkip();
             UpdateWindowsPlayback();
             var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
-            if (_playingItem is not null) _playingItem.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
+            if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
             // Every 10 s while it plays, once when it pauses or resumes, never while it stays paused.
-            if (!_demo && _sync is not null && _playWasReported && Cadence.ProgressDue(changed, paused, _lastReport, DateTimeOffset.Now))
-            { _lastReport = DateTimeOffset.Now; await _sync.RecordAsync("progress", Report()); }
+            if (!_demo && _sync is not null && _session.Reported && Cadence.ProgressDue(changed, paused, _session.LastReport, DateTimeOffset.Now))
+            { _session.LastReport = DateTimeOffset.Now; await _sync.RecordAsync("progress", Report()); }
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         finally { _tickBusy = false; }
     }
-    private PlaybackReport Report() => new()
-    {
-        ItemId = _playingItem?.Id ?? "",
-        MediaSourceId = _mediaSource?.Id ?? "",
-        PlaySessionId = _playSession,
-        PositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks,
-        IsPaused = _paused,
-        VolumeLevel = VolumeBoost.Reported(_mpv?.Level ?? _settings.Volume),
-        IsMuted = _mpv?.Flag("mute") ?? false
-    };
+    private PlaybackReport Report() => _session.Report(_mpv?.Level ?? _settings.Volume, _mpv?.Flag("mute") ?? false);
     /// <param name="interrupted">Ended while the PC slept or before Jellyfin answered again: a broken connection, which
     /// the stream's reopening after sleep replaces, never the end of the title.</param>
     private void PlaybackEnded(bool eof, int generation, bool interrupted = false)
@@ -221,9 +204,9 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(async () =>
         {
             if (!_playing || generation != _playGeneration) return;
-            if (interrupted) { _loaded = false; _playFailure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
-            var previous = _playingItem; var error = _playFailure; var keepMini = _miniPlayer; var stay = _autoNextCancelled; var following = _nextItem;
-            if (eof && _duration > 0) _position = _duration;
+            if (interrupted) { _loaded = false; _session.Failure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
+            var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _autoNextCancelled; var following = _nextItem;
+            if (eof && _session.Duration > 0) _session.Position = _session.Duration;
             await StopPlaybackAsync(eof);
             // Watched to the end: shown as seen right away, and the next play starts from the beginning.
             if (eof && previous is not null) { previous.UserData.Played = true; previous.UserData.PlaybackPositionTicks = 0; }
@@ -303,23 +286,21 @@ public partial class MainWindow
     {
         var hadPlayback = _loaded;
         ++_playGeneration; ClosePlayerPopups(); _playerTimer.Stop(); SeekBar.IsEnabled = false; SetPlayerLoading(false);
-        if (_playing && _loaded && _mpv is not null && !completed) _position = ReportedPosition(_mpv.Number("time-pos", _position));
-        completed = _loaded && (completed || _duration > 0 && _position >= _duration * LibraryStore.WatchedThreshold);
+        if (_playing && _loaded && _mpv is not null && !completed) _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position));
+        completed = _session.Completes(_loaded, completed);
         _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null;
         try
         {
             _windows?.Clear();
-            if (_playWasReported && _sync is not null) { _playWasReported = false; await _sync.RecordAsync(completed ? "complete" : "stop", Report()); }
-            if (completed && _playingItem is { } finished)
+            if (_session.Reported && _sync is not null) { _session.Reported = false; await _sync.RecordAsync(completed ? "complete" : "stop", Report()); }
+            if (completed && _session.Item is { } finished)
             {
-                foreach (var copy in _items.Concat(_resume).Concat(_nextUp).Concat(_episodes).Append(finished).Where(x => x.Id == finished.Id))
-                { copy.UserData.Played = true; copy.UserData.PlaybackPositionTicks = 0; }
-                _resume.RemoveAll(x => x.Id == finished.Id); _nextUp.RemoveAll(x => x.Id == finished.Id);
+                PlaybackSession.MarkWatched(finished, _items.Concat(_resume).Concat(_nextUp).Concat(_episodes), _resume, _nextUp);
                 _metadata?.Clear(); _heroSeries.Clear();
             }
-            if (_loaded && _playingItem is { } stopped)
+            if (_loaded && _session.Item is { } stopped)
             {
-                if (!completed) stopped.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _position)).Ticks;
+                if (!completed) stopped.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
                 await RememberCurrentPlaybackAsync();
             }
         }
@@ -341,7 +322,7 @@ public partial class MainWindow
     }
     private async void Next_Click(object sender, RoutedEventArgs e)
     {
-        if (_playingItem is null) return; var next = _nextItem ?? await GetNextAsync(_playingItem);
+        if (_session.Item is null) return; var next = _nextItem ?? await GetNextAsync(_session.Item);
         if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skipToNext && _activeSkip is not null); else PlayingSubtitle.Text = "Aucun épisode suivant disponible.";
     }
     private void BackFromPlayer_Click(object sender, RoutedEventArgs e)
@@ -368,7 +349,7 @@ public partial class MainWindow
         _mpv.Set("pause", pause ? "yes" : "no");
         // Swap the glyph now rather than at the next poll, so the press and the new icon are one movement.
         ShowPauseState(pause);
-        SeekBar.SetPlayback(_position, _duration, !pause, _mpv.Number("speed", 1));
+        SeekBar.SetPlayback(_session.Position, _session.Duration, !pause, _mpv.Number("speed", 1));
         UpdateWindowsPlayback();
         ShowPlayerControls();
     }
@@ -383,18 +364,16 @@ public partial class MainWindow
     {
         if (_mpv is null || !_loaded) return;
         // Absolute target from the last requested position: repeated presses add up, and the bar moves at once.
-        var target = Math.Clamp(_position + seconds, 0, _duration > 0 ? Math.Max(0, _duration - .5) : double.MaxValue);
+        var target = Math.Clamp(_session.Position + seconds, 0, _session.Duration > 0 ? Math.Max(0, _session.Duration - .5) : double.MaxValue);
         if (!TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
         HoldPosition(target);
     }
     /// <summary>mpv may report the pre-seek time for a poll or two; keep the requested time meanwhile.</summary>
     private void HoldPosition(double target)
     {
-        _position = target; _pendingSeek = target; _pendingSeekUntil = DateTimeOffset.UtcNow.AddMilliseconds(800);
-        SeekBar.Hold(target); PositionText.Text = TimeLabel(target); _lastReport = DateTimeOffset.MinValue;
+        _session.Hold(target, DateTimeOffset.UtcNow); SeekBar.Hold(target); PositionText.Text = TimeLabel(target);
     }
-    private double ReportedPosition(double reported) =>
-        DateTimeOffset.UtcNow < _pendingSeekUntil && Math.Abs(reported - _pendingSeek) > 1.5 ? _pendingSeek : reported;
+    private double ReportedPosition(double reported) => _session.Settled(reported, DateTimeOffset.UtcNow);
     private void Volume_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { ShowVolumeLevel(); if (_initializing) return; _settings.Volume = e.NewValue; _mpv?.SetLevel(e.NewValue); if (e.NewValue > 0) { _lastAudibleVolume = e.NewValue; _mpv?.Set("mute", "no"); } }
     private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
     private void ToggleFullscreen()

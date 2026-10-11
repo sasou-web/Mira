@@ -28,17 +28,17 @@ public partial class MainWindow
         var playGlyph = FindVisual<Icon>(PauseButton)!; var lastGlyph = FindVisual<Icon>(FullscreenButton)!;
         require(Math.Abs(At(playGlyph).X - textLeft) < 2 && Math.Abs(At(lastGlyph, lastGlyph.ActualWidth).X - timeRight) < 2,
             $"the first and last buttons line up with the title and the time ({At(playGlyph).X - textLeft:0.0} / {At(lastGlyph, lastGlyph.ActualWidth).X - timeRight:0.0} px)");
-        require(Regex.IsMatch(PositionText.Text, @"^\d+:\d{2}$") && DurationText.Text == TimeLabel(_duration), $"the time reads « {PositionText.Text} / {DurationText.Text} »");
+        require(Regex.IsMatch(PositionText.Text, @"^\d+:\d{2}$") && DurationText.Text == TimeLabel(_session.Duration), $"the time reads « {PositionText.Text} / {DurationText.Text} »");
 
         if (SeekBar.Chapters.Count > 0)
         {
-            var inner = SeekBar.Chapters.Count(c => c.Start > .5 && c.Start < _duration - .5);
+            var inner = SeekBar.Chapters.Count(c => c.Start > .5 && c.Start < _session.Duration - .5);
             var segments = SeekBar.Segments();
             require(segments.Count == inner + 1 && segments.Zip(segments.Skip(1)).All(p => Math.Abs(p.Second.From - p.First.To - Timeline.Gap) < .01),
                 $"chapters split the timeline into {segments.Count} segments separated by {Timeline.Gap} px");
             foreach (var chapter in SeekBar.Chapters.Where(c => !string.IsNullOrWhiteSpace(c.Title)).Take(3))
             {
-                var target = Math.Min(chapter.Start + 1, _duration - 1);
+                var target = Math.Min(chapter.Start + 1, _session.Duration - 1);
                 TryCommand("seek", target.ToString(System.Globalization.CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(target);
                 await Task.Delay(380); Hold();
                 require(ChapterText.IsVisible && ChapterText.Text == chapter.Title!.Trim(), $"the chapter being played is named above the time: « {ChapterText.Text} » at {target:0} s");

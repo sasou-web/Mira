@@ -152,5 +152,35 @@ internal static class PlayerTests
             Assert(PlaybackMarkers.CountdownEnd(1400, credits) == 1410 && PlaybackMarkers.CountdownEnd(1370, credits) == 1390, "Countdown counted from the wrong time");
             return Task.CompletedTask;
         });
+        await Test("Lecture : départ, saut en attente, rapport à Jellyfin, fin et titre vu partout", () =>
+        {
+            var hour = TimeSpan.FromHours(1).Ticks;
+            MediaItem Film(long position, bool played = false) => new() { Id = "a", RunTimeTicks = hour, UserData = new() { PlaybackPositionTicks = position, Played = played } };
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(20).Ticks), remember: true) == 1200, "Resumes where it was left");
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(20).Ticks), remember: false) == 0, "Positions not remembered");
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(56).Ticks), remember: true) == 0 && PlaybackSession.StartAt(Film(hour / 2, played: true), remember: true) == 0,
+                "Nearly finished or watched: starts over");
+            var session = new PlaybackSession { Reported = true, Failure = "old" };
+            session.Begin(Film(0), new MediaSource { Id = "s" }, "p", 30);
+            Assert(session.Position == 30 && session.Duration == 3600 && !session.Reported && session.Failure is null, "A new playback starts clean, its length from Jellyfin");
+            var now = DateTimeOffset.UtcNow; session.LastReport = now;
+            session.Hold(600, now);
+            Assert(session.Position == 600 && session.LastReport == DateTimeOffset.MinValue, "A seek moves at once and asks for a report");
+            Assert(session.Settled(31, now + TimeSpan.FromMilliseconds(300)) == 600, "mpv's older position is not believed just after a seek");
+            Assert(session.Settled(600.8, now + TimeSpan.FromMilliseconds(300)) == 600.8, "Caught up");
+            Assert(session.Settled(31, now + PlaybackSession.SeekHold) == 31, "After the hold, mpv is right again");
+            session.Paused = true;
+            var report = session.Report(150, muted: true);
+            Assert(report is { ItemId: "a", MediaSourceId: "s", PlaySessionId: "p", IsPaused: true, IsMuted: true, VolumeLevel: 100 } && report.PositionTicks == TimeSpan.FromSeconds(600).Ticks,
+                "Report: item, source, session, position, pause, Jellyfin's volume scale");
+            Assert(!session.Completes(loaded: true, ended: false) && session.Completes(loaded: true, ended: true) && !session.Completes(loaded: false, ended: true), "Stopped midway, ended, never loaded");
+            session.Position = 3300;
+            Assert(session.Completes(loaded: true, ended: false), "Stopped past 90 %: watched");
+            var resume = new List<MediaItem> { Film(500), new() { Id = "b" } }; var next = new List<MediaItem> { Film(500) };
+            var finished = Film(3300);
+            PlaybackSession.MarkWatched(finished, resume.Concat(next).ToList(), resume, next);
+            Assert(finished.UserData is { Played: true, PlaybackPositionTicks: 0 } && resume.Count == 1 && resume[0].Id == "b" && next.Count == 0, "Watched in every list, out of « Continuer à regarder » and « À suivre »");
+            return Task.CompletedTask;
+        });
     }
 }

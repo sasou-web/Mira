@@ -20,7 +20,7 @@ public partial class MainWindow
     /// <summary>The title playing, put first in the recent list and in « Continuer à regarder »; null when nothing plays.</summary>
     private MediaItem? RecentSnapshot()
     {
-        if (_playingItem is not { } item || !_loaded) return null;
+        if (_session.Item is not { } item || !_loaded) return null;
         var at = DateTimeOffset.UtcNow; item.UserData.LastPlayedDate = at;
         var snapshot = item with { UserData = item.UserData with { } };
         _seasonThumbs.Apply([snapshot]);

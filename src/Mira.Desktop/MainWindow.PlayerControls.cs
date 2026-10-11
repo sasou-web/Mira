@@ -130,8 +130,8 @@ public partial class MainWindow
         var idle = DateTimeOffset.UtcNow - _lastPlayerInteraction;
         if (_miniPlayer) { if (!PlayerSurface.IsMouseOver && idle > MiniIdle) HidePlayerControls(); return; }
         // While playing, a pointer resting on the controls keeps them. Once paused they leave anyway.
-        if (!_paused && _controlsVisible && (PointerOnBars() || SkipButton.IsMouseOver)) return;
-        if (idle > (_paused ? PausedIdle : PlayingIdle)) HidePlayerControls();
+        if (!_session.Paused && _controlsVisible && (PointerOnBars() || SkipButton.IsMouseOver)) return;
+        if (idle > (_session.Paused ? PausedIdle : PlayingIdle)) HidePlayerControls();
     }
     private void PlayerSurface_MouseMove(object sender, MouseEventArgs e)
     {
@@ -274,7 +274,7 @@ public partial class MainWindow
         PlayerTransport.Height = mini ? 36 : 44; PlayerTransport.Margin = new Thickness(-8, mini ? 0 : 2, -8, 0);
         Grid.SetColumnSpan(PlayerLeftGroup, mini ? 3 : 1); PlayerLeftGroup.HorizontalAlignment = mini ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         foreach (var control in new FrameworkElement[] { PlayerBackButton, PlayerVolumeGroup, PlayerRightGroup }) control.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
-        NextButton.Visibility = !mini && !_demo && _playingItem?.Type == "Episode" ? Visibility.Visible : Visibility.Collapsed;
+        NextButton.Visibility = !mini && !_demo && _session.Item?.Type == "Episode" ? Visibility.Visible : Visibility.Collapsed;
         PauseButton.Width = PauseButton.Height = mini ? 34 : 40; Motion.SetRadius(PauseButton, new CornerRadius(mini ? 17 : 20));
         PauseIcon.Width = PauseIcon.Height = mini ? 19 : 24;
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls(); UpdateSkip();
