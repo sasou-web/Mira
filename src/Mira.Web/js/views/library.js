@@ -1,7 +1,7 @@
 // Films or Séries: the whole library in a grid, loaded as you scroll, with Mira's filters and sorts.
-import { api } from '../api.js';
+import { api, GRID_FIELDS } from '../api.js';
 import { h, icon, clear, plural } from '../dom.js';
-import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast, reconcile } from '../components.js';
+import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast, reconcile, cardSig } from '../components.js';
 import { session } from '../session.js';
 
 /** What a card needs of an item, kept on the phone so that the tab opens with its first page at once next time. */
@@ -118,12 +118,15 @@ export function create({ type, query }) {
 
   const fetchPage = (from, limit, signal) => api.browse({
     types: type, start: from, limit, sort: state.sort, genre: state.genre || undefined, year: state.year || undefined,
-    played: state.unplayed ? false : undefined, favorite: state.favorite, signal,
+    played: state.unplayed ? false : undefined, favorite: state.favorite, fields: GRID_FIELDS, signal,
   });
 
   /**
-   * The titles already shown, asked for again and redrawn in place (back from a film, Jellyfin back online): the
-   * grid keeps its length and the page its scroll, with no placeholders in between.
+   * The titles shown, brought up to date in place (back from a film, Jellyfin back online): the grid keeps its length
+   * and the page its scroll, with no placeholders in between. Only the first page is asked for again: what changes in
+   * a library (a title added, watched, a favourite) shows there in this order, and a card further down hears of its
+   * own changes (onChange). Only when the first page is no longer the same titles in the same order are all the
+   * titles shown asked for again, so that the grid stays in one order.
    */
   function refresh() {
     // One at a time: a pull while a refresh runs waits for that one.
@@ -137,13 +140,30 @@ export function create({ type, query }) {
     busy = true;
     controller = new AbortController();
     try {
-      const result = await fetchPage(0, Math.max(PAGE, start), controller.signal);
+      let result = await fetchPage(0, PAGE, controller.signal);
       if (mine !== generation) return;
-      const items = result?.Items ?? [];
+      let items = result?.Items ?? [];
+      const cards = [...grid.children].filter((card) => card.item);
+      const whole = items.length < PAGE || (result?.TotalRecordCount ?? 0) <= items.length;
+      const same = !whole && cards.length >= items.length && items.every((item, i) => cards[i].item.Id === item.Id);
+      if (same) {
+        // The same titles first: only the cards whose title changed are made again; the others, and the rest, stay.
+        items.forEach((item, i) => { if (cards[i].dataset.sig === cardSig(item)) cards[i].item = item; else cards[i].replaceWith(posterCard(item)); });
+        // A page that failed to load said so at the end: the next one is asked for again (keepLoading).
+        for (const other of [...grid.children]) if (!other.item) other.remove();
+        writeStore(items, result?.TotalRecordCount ?? items.length);
+      } else {
+        if (!whole && start > PAGE) {
+          result = await fetchPage(0, start, controller.signal);
+          if (mine !== generation) return;
+          items = result?.Items ?? [];
+        }
+        reconcile(grid, items, (item) => posterCard(item));
+        writeStore(items, result?.TotalRecordCount ?? items.length);
+        start = items.length;
+      }
       total = result?.TotalRecordCount ?? items.length;
-      reconcile(grid, items, (item) => posterCard(item));
-      writeStore(items, total);
-      start = items.length; done = start >= total; loadedAt = Date.now(); stale = false;
+      done = start >= total; loadedAt = Date.now(); stale = false;
       count.textContent = total ? plural(total, noun[0], noun[1]) : '';
       if (total === 0) showEmpty();
     } catch (error) {
@@ -207,8 +227,19 @@ export function create({ type, query }) {
   // Only for the screen shown: the one dissolving away (app.js) loads nothing more.
   const observer = new IntersectionObserver((entries) => { if (el.closest('#view') && entries.some((e) => e.isIntersecting)) more(); }, { rootMargin: '900px 0px' });
   observer.observe(sentinel);
-  // Watched, favourite: the cards are redrawn when the grid is seen again.
-  const onChange = () => { stale = true; };
+  // Watched, favourite: the card says so at once, wherever it is in the grid; the first page is asked for again when
+  // the grid is seen again (the title may move in a sort or leave a filter).
+  const onChange = (event) => {
+    stale = true;
+    const changedItem = event.detail?.item;
+    if (!changedItem?.UserData) return;
+    for (const card of grid.children) {
+      if (card.item?.Id !== changedItem.Id) continue;
+      const next = { ...card.item, UserData: { ...card.item.UserData, ...changedItem.UserData } };
+      if (cardSig(next) !== card.dataset.sig) card.replaceWith(posterCard(next));
+      break;
+    }
+  };
   changes.addEventListener('item', onChange);
 
   renderChips();

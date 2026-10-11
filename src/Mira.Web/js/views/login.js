@@ -1,7 +1,7 @@
 // Sign-in: the server is the one Mira web comes from; pick your profile, type your password, done.
 import { api, base, exposed } from '../api.js';
 import { h, icon, clear, initials } from '../dom.js';
-import { isIOS, isStandalone } from '../session.js';
+import { isIOS, isStandalone, storageBlocked, temp } from '../session.js';
 import { markSvg, resetScreens, replaceRoute } from '../app.js';
 
 export function installHint() {
@@ -33,11 +33,16 @@ export function create() {
     body.before(h('div', { class: 'hint warn', role: 'note' }, h('div', { class: 'step' }, icon('warning'),
       h('span', {}, h('b', {}, 'Connexion non chiffrée. '), 'Cette adresse passe par Internet sans protection : ton mot de passe et ce que Mira échange avec le serveur peuvent y être lus. Connecte-toi plutôt sur le Wi-Fi de la maison, ou avec Tailscale.'))));
   }
+  // Without the site's storage, the session lasts until Mira is closed: said before signing in, with the setting.
+  if (storageBlocked()) {
+    body.before(h('div', { class: 'hint warn', role: 'note' }, h('div', { class: 'step' }, icon('warning'),
+      h('span', {}, h('b', {}, 'Mira a besoin du stockage du site. '), 'Ce navigateur le bloque : Mira ne pourra pas garder ta connexion, ni ce qu’il affiche, une fois fermé. Sur iPhone, désactive « Bloquer tous les cookies » dans les réglages de Safari, puis rouvre Mira.'))));
+  }
   const hint = installHint();
   if (hint) el.append(hint);
 
-  const notice = sessionStorage.getItem('mira.notice');
-  sessionStorage.removeItem('mira.notice');
+  const notice = temp.get('mira.notice');
+  temp.remove('mira.notice');
 
   /** busy(true) while Jellyfin checks, busy(false) if it refuses: the button or the profile touched says so. */
   async function finish(name, password, errorBox, busy) {
@@ -45,8 +50,8 @@ export function create() {
     try {
       await api.signIn(name, password);
       resetScreens();
-      const next = sessionStorage.getItem('mira.next');
-      sessionStorage.removeItem('mira.next');
+      const next = temp.get('mira.next');
+      temp.remove('mira.next');
       replaceRoute(next && !next.startsWith('#/connexion') ? next : '#/');
     } catch (error) {
       errorBox.textContent = error.status === 401 ? 'Nom d’utilisateur ou mot de passe incorrect.' : error.message;

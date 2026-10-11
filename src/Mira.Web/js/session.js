@@ -12,6 +12,29 @@ function write(key, value) {
   catch { /* Private browsing without storage: Mira works until the page is closed. */ }
 }
 
+/**
+ * Whether this browser lets Mira keep anything (Safari's « Bloquer tous les cookies » refuses even the reading):
+ * without it, the session lasts until Mira is closed, and the sign-in screen says so.
+ */
+export function storageBlocked() {
+  try { localStorage.setItem('mira.probe', '1'); localStorage.removeItem('mira.probe'); return false; } catch (error) {
+    // Full of Mira's own screens: it does keep things. Refused, or of no size at all (older private browsing): blocked.
+    try { return !(error?.name === 'QuotaExceededError' && localStorage.length > 0); } catch { return true; }
+  }
+}
+
+/**
+ * Notes for this visit only (sessionStorage): where to go after signing in, a notice for the sign-in screen, an update
+ * already tried. When the site's storage is blocked, they stay in memory until the page reloads, and set() says so
+ * (false): what must survive a reload is not kept.
+ */
+const notes = new Map();
+export const temp = {
+  get(key) { try { return sessionStorage.getItem(key) ?? notes.get(key) ?? null; } catch { return notes.get(key) ?? null; } },
+  set(key, value) { try { sessionStorage.setItem(key, value); return true; } catch { notes.set(key, String(value)); return false; } },
+  remove(key) { notes.delete(key); try { sessionStorage.removeItem(key); } catch { /* blocked: only in memory */ } },
+};
+
 /** { userId, userName, token, serverId, serverName } once signed in. */
 export const session = {
   current: read(SESSION, null),
@@ -60,6 +83,7 @@ const defaults = {
   recentSearches: [],
   hiddenResume: {},     // id → time removed from Continuer à regarder
   installHintDismissed: false,
+  textSize: 100,        // percent: Mira's text, for whoever finds it small (the bars' labels and the icons keep theirs)
 };
 
 export const settings = {
@@ -80,6 +104,12 @@ function forgetAccount() {
   } catch { /* Private browsing without storage: nothing was kept. */ }
   for (const key of ACCOUNT_SETTINGS) settings.values[key] = Array.isArray(defaults[key]) ? [] : {};
   write(SETTINGS, settings.values);
+}
+
+/** The text size of Réglages, on the whole page (app.css multiplies each size by --text). */
+export function applyTextSize() {
+  const percent = Number(settings.get('textSize'));
+  document.documentElement.style.setProperty('--text', String((percent >= 80 && percent <= 200 ? percent : 100) / 100));
 }
 
 export const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;

@@ -74,15 +74,18 @@ function hero(entries) {
   const track = h('div', { class: 'hero-track' }, entries.map(slide));
   const dots = h('div', { class: 'dots', 'aria-hidden': 'true' }, entries.map((_, i) => h('i', { class: i === 0 ? 'on' : '' })));
   const box = h('section', { class: 'hero', 'aria-label': 'À la une' }, track, entries.length > 1 ? dots : null);
-  let touched = false, timer = 0;
+  let touched = false, focused = false, timer = 0;
   const at = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
   const light = () => { const i = at(); dots.querySelectorAll('i').forEach((d, j) => d.classList.toggle('on', j === i)); };
   track.addEventListener('scroll', light, { passive: true });
   for (const name of ['touchstart', 'pointerdown', 'wheel']) track.addEventListener(name, () => { touched = true; }, { passive: true });
+  // Nor while the keyboard or a screen reader is on it: a slide does not move away under what is being read.
+  box.addEventListener('focusin', () => { focused = true; });
+  box.addEventListener('focusout', (e) => { if (!box.contains(e.relatedTarget)) focused = false; });
   // The next slide comes by itself while nobody touches the banner and it is on screen; after the last one, the
   // first comes back with a fade rather than a long sweep back through all of them.
   const advance = () => {
-    if (touched || document.hidden || !box.isConnected || entries.length < 2 || scrollY > box.offsetHeight / 2) return;
+    if (touched || focused || document.hidden || !box.isConnected || entries.length < 2 || scrollY > box.offsetHeight / 2) return;
     const next = (at() + 1) % entries.length;
     if (next) { track.scrollTo({ left: next * track.clientWidth, behavior: 'smooth' }); return; }
     track.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-in' }).finished.then(() => {

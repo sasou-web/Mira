@@ -1,7 +1,7 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
 import { onUnauthorized, onReachable, onForeignServer, ping, recheckServer, trustServer, FOREIGN, UNREACHABLE, UNREACHABLE_SHORT } from './api.js';
 import { h, icon, clear } from './dom.js';
-import { session, device, isStandalone } from './session.js';
+import { session, device, isStandalone, temp, applyTextSize } from './session.js';
 import { toast } from './components.js';
 import { setupPress } from './press.js';
 import './player/video.js';
@@ -42,7 +42,7 @@ const cache = new Map(); // hash → { view, scroll }, the least recently shown 
 const MAX_CACHED = 8;
 let current = null, currentKey = '', currentBare = false, hiddenAt = 0, navigation = 0, loadFailed = false;
 // The screens of the history, by depth: the first one says which tab the current screen belongs to.
-let trail = (() => { try { return JSON.parse(sessionStorage.getItem('mira.trail') || '[]'); } catch { return []; } })();
+let trail = (() => { try { return JSON.parse(temp.get('mira.trail') || '[]'); } catch { return []; } })();
 let replacing = null;       // depth kept by an address replaced in place (not a new screen)
 let pendingTab = '';        // a tab touched deep in another: Mira first goes back to the bottom of the history
 let traversing = false;     // a move in the history is on its way: a second tap on Back or a tab waits for it
@@ -132,7 +132,7 @@ async function route() {
   lastDepth = depth;
   navigation++;
   trail = trail.slice(0, depth); trail[depth] = key;
-  try { sessionStorage.setItem('mira.trail', JSON.stringify(trail)); } catch { /* private mode */ }
+  temp.set('mira.trail', JSON.stringify(trail));
 
   const { path, query } = parse(key);
   const match = ROUTES.map((r) => ({ r, m: path.match(r.pattern) })).find((x) => x.m);
@@ -140,7 +140,7 @@ async function route() {
   const { r, m } = match;
   const bare = typeof r.bare === 'function' ? r.bare() : !!r.bare;
   if (!r.open && !session.current) {
-    sessionStorage.setItem('mira.next', key);
+    temp.set('mira.next', key);
     replaceRoute('#/connexion');
     return;
   }
@@ -154,7 +154,7 @@ async function route() {
   } else {
     let module;
     try { module = await r.load(); } catch (error) { if (id === routeToken) showLoadFailure(error); return; }
-    try { sessionStorage.removeItem('mira.reloaded'); } catch { /* private mode */ }
+    temp.remove('mira.reloaded');
     if (id !== routeToken) return;
     const view = module.create({ ...(r.args?.(m) ?? {}), query, key });
     entry = { view, scroll: 0 };
@@ -198,6 +198,8 @@ async function route() {
     scrollTo(0, entry.scroll ?? 0);
     updateScrolled();
     current.enter?.({ query });
+    // A screen reader, or the keyboard, starts on the new screen's title rather than on what was touched to get here.
+    if (move && !bare) focusTitle(current.el);
   };
   // iOS's moves: a screen comes in from the right and goes back to it; a tab's screen dissolves into the next (see
   // dissolve). The player opens on its own (Apple's full screen, or Mira's), the first screen without a move, and a
@@ -219,6 +221,16 @@ async function route() {
   }
 }
 let lastDepth = 0, routeToken = 0, transitions = 0;
+
+/** The screen's title takes the focus, without a ring for a touch, unless something in the screen already has it. */
+function focusTitle(el) {
+  const active = document.activeElement;
+  if (!foreign.hidden || document.querySelector('.sheet-layer:not(.leaving)') || (active && active !== el && el.contains(active))) return;
+  const title = el.querySelector('h1, [role="heading"][aria-level="1"]');
+  if (!title) return;
+  if (!title.hasAttribute('tabindex')) title.tabIndex = -1;
+  title.focus({ preventScroll: true });
+}
 
 function lightTab(tab) {
   for (const link of tabbar.querySelectorAll('a')) {
@@ -319,14 +331,9 @@ function serverUp() {
   // another server (see yours).
   if (loadFailed) {
     const key = `${REVISION}|${location.hash}`;
-    let reloaded = '';
-    try { reloaded = sessionStorage.getItem('mira.reloaded') ?? ''; } catch { /* private mode */ }
-    if (reloaded !== key) {
-      yours().then((mine) => {
-        if (!mine) return;
-        try { sessionStorage.setItem('mira.reloaded', key); } catch { /* private mode */ }
-        location.reload();
-      });
+    // Without the site's storage the reload could not be told from the next one: the screen says it failed instead.
+    if ((temp.get('mira.reloaded') ?? '') !== key) {
+      yours().then((mine) => { if (mine && temp.set('mira.reloaded', key)) location.reload(); });
       return;
     }
   }
@@ -401,11 +408,11 @@ async function checkForUpdate() {
 async function applyUpdate(hidden = false) {
   if (!pendingUpdate || location.hash.startsWith('#/lecture/')) return;
   if (!hidden && (touched || performance.now() - openedAt > 4000)) return;
-  if (sessionStorage.getItem('mira.update') === pendingUpdate) return;
-  // The reload asks for the page again: only from your server, and not if Mira came back meanwhile.
+  if (temp.get('mira.update') === pendingUpdate) return;
+  // The reload asks for the page again: only from your server, and not if Mira came back meanwhile. Never without
+  // the site's storage: nothing would stop the same page from reloading again and again.
   if (!(await yours()) || (hidden && !document.hidden)) return;
-  sessionStorage.setItem('mira.update', pendingUpdate);
-  location.reload();
+  if (temp.set('mira.update', pendingUpdate)) location.reload();
 }
 let touched = false;
 
@@ -504,6 +511,7 @@ function watchEdgeSwipes() {
 
 function start() {
   history.scrollRestoration = 'manual';
+  applyTextSize();
   setupPress();
   // Chrome on Android reloads the whole page when it is pulled down at its top: Mira refreshes the screen instead.
   document.documentElement.classList.toggle('android', device.name === 'Android');
@@ -540,7 +548,7 @@ function start() {
   onForeignServer((yes) => (yes ? showForeign() : hideForeign()));
   onUnauthorized(() => {
     resetScreens();
-    sessionStorage.setItem('mira.notice', 'Ta session a pris fin. Reconnecte-toi.');
+    temp.set('mira.notice', 'Ta session a pris fin. Reconnecte-toi.');
     replaceRoute('#/connexion');
   });
   route();

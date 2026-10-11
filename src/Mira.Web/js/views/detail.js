@@ -202,15 +202,20 @@ export function create({ id, query }) {
     page ??= pageHolding(pages, episodes, focus) ?? pages[0];
     const list = h('div', { class: 'episodes' });
     listBox = list; shownIds = episodes.map((x) => x.Id).join();
-    const chips = h('div', { class: 'chips', role: 'tablist', 'aria-label': 'Saisons' });
+    // Buttons that say which season is shown (pressed), as the library's filters: not tabs, which would need a panel
+    // and arrow keys of their own.
+    const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Saisons' });
     const show = (p) => {
       page = p;
-      chips.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-selected', String(c.dataset.key === `${p.season}:${p.skip}`)));
-      chips.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', c.dataset.key === `${p.season}:${p.skip}`));
+      for (const c of chips.querySelectorAll('.chip')) {
+        const on = c.dataset.key === `${p.season}:${p.skip}`;
+        c.setAttribute('aria-pressed', String(on));
+        c.classList.toggle('on', on);
+      }
       clear(list).append(...pageEpisodes(episodes, p).map((e) => episodeRow(e, e.Id === (wanted ?? next?.Id))));
     };
     for (const p of pages) {
-      chips.append(h('button', { class: 'chip', role: 'tab', dataset: { key: `${p.season}:${p.skip}` }, on: { click: () => show(p) } }, p.label));
+      chips.append(h('button', { class: 'chip', dataset: { key: `${p.season}:${p.skip}` }, on: { click: () => show(p) } }, p.label));
     }
     show(pages.find((p) => p.season === page.season && p.skip === page.skip) ?? pages[0]);
     // The chosen season comes into view in its strip; the page itself does not move (scrollIntoView would scroll it).
@@ -235,6 +240,8 @@ export function create({ id, query }) {
     const cast = (item.People ?? []).filter((p) => p.Type === 'Actor' && p.Id).slice(0, 20);
     // Without a backdrop, the poster stands above the title instead of an empty banner.
     const backdrop = artFor(item, 'backdrop'), poster = backdrop ? null : artFor(item, 'poster');
+    // The title given the focus as the screen opened (app.js) keeps it in the page drawn whole.
+    const focused = el.contains(document.activeElement) && document.activeElement.matches('.detail-title, .detail-logo');
     clear(el).append(back,
       h('div', { class: 'detail-top' },
         h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: wide ? 1600 : 900, eager: true }) : null),
@@ -247,6 +254,7 @@ export function create({ id, query }) {
       row('Distribution', cast, (p) => personCard(p), { people: true }) ?? '',
       (similarBox = h('div', {}, row('Titres similaires', similar, (x) => posterCard(x)) ?? '')),
       h('div', { style: { height: '32px' } }));
+    if (focused) { headTitle.tabIndex = -1; headTitle.focus({ preventScroll: true }); }
   }
 
   /**
@@ -256,7 +264,10 @@ export function create({ id, query }) {
   function seed(known) {
     const backdrop = artFor(known, 'backdrop'), poster = backdrop ? null : artFor(known, 'poster');
     const headTitle = logo(known, 420, 'detail-logo') ?? h('h1', { class: 'detail-title' }, known.Name);
-    if (headTitle.tagName === 'IMG') headTitle.addEventListener('error', () => headTitle.replaceWith(h('h1', { class: 'detail-title' }, known.Name)), { once: true });
+    if (headTitle.tagName === 'IMG') {
+      headTitle.addEventListener('error', () => headTitle.replaceWith(h('h1', { class: 'detail-title' }, known.Name)), { once: true });
+      headTitle.setAttribute('role', 'heading'); headTitle.setAttribute('aria-level', '1');
+    }
     const wide = innerWidth > 900;
     clear(el).append(back,
       h('div', { class: 'detail-top' },

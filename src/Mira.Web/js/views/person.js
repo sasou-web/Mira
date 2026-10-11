@@ -1,5 +1,5 @@
 // An actor's or director's titles in the library, from a title page's cast.
-import { api } from '../api.js';
+import { api, GRID_FIELDS } from '../api.js';
 import { h, icon, clear, plural } from '../dom.js';
 import { artFor, picture } from '../images.js';
 import { posterCard, skeletonGrid, errorState, emptyState, changes, overview, toast } from '../components.js';
@@ -14,7 +14,7 @@ export function create({ id }) {
   async function load(quiet = false) {
     if (!quiet || !grid) clear(el).append(back, h('div', { class: 'page', style: { paddingTop: 'calc(var(--top) + 72px)' } }, skeletonGrid(9)));
     try {
-      const [person, titles] = await Promise.all([api.item(id), api.browse({ person: id, sort: 'year', limit: 200 })]);
+      const [person, titles] = await Promise.all([api.item(id), api.browse({ person: id, sort: 'year', limit: 200, fields: GRID_FIELDS })]);
       const items = titles?.Items ?? [];
       shown = new Set(items.map((x) => x.Id));
       document.title = `${person.Name} · Mira`;
