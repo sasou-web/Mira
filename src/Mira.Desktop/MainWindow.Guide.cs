@@ -195,6 +195,17 @@ public partial class MainWindow
         }
         var steps = PhoneSetup.Steps(facts);
         for (var i = 0; i < steps.Count; i++) PhoneSteps.Children.Add(PhoneStepRow(steps[i], i + 1));
+        // Mira's rule in the firewall can be taken back: phones then get in only by rules of someone else's.
+        if (facts.Local && facts.MiraRule != JellyfinFirewall.RuleState.Missing)
+        {
+            var close = new Button
+            {
+                Content = "Ne plus ouvrir Jellyfin au réseau", Style = (Style)FindResource("Quiet"), Padding = new Thickness(12, 5, 12, 5), HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(38, 0, 0, 14), IsEnabled = !_preparing, ToolTip = "Retire la règle « Mira - Jellyfin » du pare-feu de Windows, avec son autorisation"
+            };
+            close.Click += async (_, _) => await ClosePhoneAsync();
+            PhoneSteps.Children.Add(close);
+        }
         var prepare = PhoneSetup.CanPrepare(steps);
         var ready = facts.Web == true;
         // A reading that ends while « Tout préparer » runs leaves its button and progress alone.
@@ -281,7 +292,8 @@ public partial class MainWindow
         {
             if (privateNetwork || PhoneSetup.NeedsWindows(steps))
             {
-                ShowPhoneStatus("Accepte l’autorisation de Windows…");
+                // Windows asks for Windows PowerShell, which does it: never a file of Mira's own folder.
+                ShowPhoneStatus("Accepte l’autorisation de Windows, pour Windows PowerShell…");
                 switch (await JellyfinAutostart.ApplyAsync(uri.Port, privateNetwork))
                 {
                     case AutostartResult.Refused: problems.Add("Windows n’a pas reçu l’autorisation : le pare-feu n’a pas changé."); break;
@@ -329,6 +341,31 @@ public partial class MainWindow
         if (_phone is not { Web: true } now || PhoneSetup.Everywhere(now) is null && !FirewallDone(PhoneSetup.Steps(now))) return;
         SetNotice("C’est prêt : scanne le QR code avec ton téléphone.");
         OpenPhoneShare();
+    }
+    /// <summary>
+    /// « Ne plus ouvrir Jellyfin au réseau »: Mira's firewall rule removed, with Windows' consent; the block rules Mira
+    /// lifted and the service's settings stay. « Tout préparer » puts the rule back.
+    /// </summary>
+    private async Task ClosePhoneAsync()
+    {
+        if (_preparing || _phone is not { } facts || !Uri.TryCreate(facts.Server, UriKind.Absolute, out var uri)) return;
+        string? problem = null;
+        _preparing = true; PhoneMain.IsEnabled = PhoneShare.IsEnabled = false;
+        try
+        {
+            ShowPhoneStatus("Accepte l’autorisation de Windows, pour Windows PowerShell…");
+            problem = await JellyfinAutostart.CloseAsync(uri.Port) switch
+            {
+                AutostartResult.Done => null,
+                AutostartResult.Refused => "Windows n’a pas reçu l’autorisation : le pare-feu n’a pas changé.",
+                _ => "La règle de Mira n’a pas pu être retirée du pare-feu. Réessaie.",
+            };
+            await DescribePhoneAsync();
+        }
+        finally { _preparing = false; PhoneMain.IsEnabled = PhoneShare.IsEnabled = true; }
+        if (_phone is { } read) ShowPhone(read);
+        if (problem is not null) { ShowPhoneStatus(problem, problem: true); SetNotice(problem); return; }
+        SetNotice("Mira n’ouvre plus Jellyfin au réseau : sa règle est retirée du pare-feu de Windows.");
     }
     private void PhoneShare_Click(object sender, RoutedEventArgs e) => OpenPhoneShare();
     /// <summary>The page with the QR code, in this PC's browser: for the address that works everywhere when there is one.</summary>

@@ -28,6 +28,8 @@ public partial class MainWindow
             _ = updater.RunAsync(() => _settings.AutoUpdate);
         }
         ShowUpdateState();
+        // The portable's libraries of earlier builds, extracted by .NET and never removed.
+        if (!App.ShellValidation) _ = Task.Run(PortableExtraction.CleanOld);
     }
 
     private void ShowUpdateState()

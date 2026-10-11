@@ -54,8 +54,18 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 french.MiraRegister=Ajout de Mira au menu Démarrer…
 english.MiraRegister=Adding Mira to the Start menu…
-french.MiraDeleteData=Supprimer aussi les données de Mira (session Jellyfin, préférences, cache, moteur vidéo et journal TorLink) ?%n%nSinon, elles restent dans %1 et servent à la prochaine installation.
-english.MiraDeleteData=Also delete Mira's data (Jellyfin session, preferences, cache, video engine and TorLink log)?%n%nOtherwise they stay in %1 for a later installation.
+french.MiraDeleteData=Supprimer aussi les données de Mira (%2) ?%n%nSession Jellyfin, préférences, cache, moteur vidéo mpv et, s’ils ont été installés par Mira, Node.js et TorLink, avec le journal de TorLink.%n%nSinon, elles restent dans %1 et servent à la prochaine installation.
+english.MiraDeleteData=Also delete Mira's data (%2)?%n%nJellyfin session, preferences, cache, mpv video engine and, when Mira installed them, Node.js and TorLink, with TorLink's log.%n%nOtherwise they stay in %1 for a later installation.
+french.MiraLeftBehind=Mira est désinstallé. Ceci reste sur ce PC, à retirer si tu veux :%n%n%1
+english.MiraLeftBehind=Mira is uninstalled. This stays on this PC, to remove if you want:%n%n%1
+french.MiraLeftRule=• La règle « Mira - Jellyfin » du pare-feu de Windows, qui laisse tes appareils joindre Jellyfin : Pare-feu Windows Defender avec fonctions avancées → Règles de trafic entrant → « Mira - Jellyfin » → Supprimer.
+english.MiraLeftRule=• The "Mira - Jellyfin" rule of Windows' firewall, which lets your devices reach Jellyfin: Windows Defender Firewall with Advanced Security → Inbound Rules → "Mira - Jellyfin" → Delete.
+french.MiraLeftJellyfin=• Jellyfin Server, avec tes bibliothèques : Paramètres → Applications → Jellyfin Server. Si Mira a réglé son démarrage avec Windows et ses relances, ils se changent dans services.msc → Jellyfin Server. Le droit de lecture donné à Jellyfin sur Films, Séries et Animes se retire avec : icacls "<dossier>" /remove:g *S-1-5-20 /t
+english.MiraLeftJellyfin=• Jellyfin Server, with your libraries: Settings → Apps → Jellyfin Server. If Mira set it to start with Windows and to restart, change that in services.msc → Jellyfin Server. The read access given to Jellyfin on Films, Séries and Animes is removed with: icacls "<folder>" /remove:g *S-1-5-20 /t
+french.MiraLeftTorLink=• Les réglages, la file et les téléchargements de TorLink : %APPDATA%\torlink, %LOCALAPPDATA%\torlink et Téléchargements\torlink.
+english.MiraLeftTorLink=• TorLink's settings, queue and downloads: %APPDATA%\torlink, %LOCALAPPDATA%\torlink and Downloads\torlink.
+french.MiraLeftPortable=• Les bibliothèques de Mira portable, extraites par .NET : %1 (à supprimer quand Mira portable est fermé).
+english.MiraLeftPortable=• The portable Mira's libraries, extracted by .NET: %1 (delete it while the portable Mira is closed).
 french.MiraEngineGroup=Lecture :
 english.MiraEngineGroup=Playback:
 french.MiraEngineTask=Télécharger le moteur vidéo mpv (31 Mo), nécessaire à la lecture
@@ -109,9 +119,70 @@ begin
   end;
 end;
 
+{ Size of a folder and everything in it, in KB (up to 2 TB); links to other folders are not followed. }
+function FolderKB(const Path: String): Integer;
+var
+  FindRec: TFindRec;
+begin
+  Result := 0;
+  if FindFirst(Path + '\*', FindRec) then
+  try
+    repeat
+      if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+      begin
+        if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+        begin
+          if FindRec.Attributes and $400 = 0 then
+            Result := Result + FolderKB(Path + '\' + FindRec.Name);
+        end
+        else
+          Result := Result + Integer(FindRec.SizeLow div 1024) + Integer(FindRec.SizeHigh) * 4194304;
+      end;
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
+function SizeText(const KB: Integer): String;
+begin
+  if KB >= 1048576 then
+    Result := IntToStr(KB div 1048576) + ',' + IntToStr((KB mod 1048576) * 10 div 1048576) + ' Go'
+  else if KB >= 1024 then
+    Result := IntToStr(KB div 1024) + ' Mo'
+  else
+    Result := '1 Mo';
+end;
+
+{ What Mira set up outside its folder, or what it used, and that this uninstaller cannot remove: said, with the way. }
+function LeftBehind(): String;
+var
+  Code: Integer;
+  Temp: String;
+  FindRec: TFindRec;
+begin
+  Result := '';
+  if Exec(ExpandConstant('{sys}\netsh.exe'), 'advfirewall firewall show rule name="Mira - Jellyfin"', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0) then
+    Result := Result + CustomMessage('MiraLeftRule') + #13#10#13#10;
+  if RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\JellyfinServer') or RegKeyExists(HKLM32, 'Software\Jellyfin\Server') then
+    Result := Result + CustomMessage('MiraLeftJellyfin') + #13#10#13#10;
+  if DirExists(ExpandConstant('{userappdata}\torlink')) or DirExists(ExpandConstant('{localappdata}\torlink')) then
+    Result := Result + CustomMessage('MiraLeftTorLink') + #13#10#13#10;
+  Temp := GetEnv('TEMP') + '\.net';
+  if FindFirst(Temp + '\Mira*', FindRec) then
+  try
+    repeat
+      if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+        Result := Result + FmtMessage(CustomMessage('MiraLeftPortable'), [Temp + '\' + FindRec.Name]) + #13#10#13#10;
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  Icon, Data: String;
+  Icon, Data, Left: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
@@ -127,7 +198,13 @@ begin
     { Kept unless the user asks otherwise; a silent uninstall never deletes it. }
     Data := ExpandConstant('{app}\data');
     if DirExists(Data) and (not UninstallSilent) then
-      if MsgBox(FmtMessage(CustomMessage('MiraDeleteData'), [Data]), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+      if MsgBox(FmtMessage(CustomMessage('MiraDeleteData'), [Data, SizeText(FolderKB(Data))]), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
         DelTree(Data, True, True, True);
+    if not UninstallSilent then
+    begin
+      Left := LeftBehind();
+      if Left <> '' then
+        MsgBox(FmtMessage(CustomMessage('MiraLeftBehind'), [Trim(Left)]), mbInformation, MB_OK);
+    end;
   end;
 end;

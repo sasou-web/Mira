@@ -33,7 +33,9 @@ public sealed record MediaFolders(string Root, string Movies, string Series, str
     }
     /// <summary>
     /// Why <paramref name="root"/> cannot hold the media folders, or null. Jellyfin's service is given read access to
-    /// the whole root: never a drive, the user's own folder or a system folder.
+    /// Films, Séries and Animes only (<see cref="AllowJellyfinService"/>); still, never a drive, a profile's own folder
+    /// (or the folder of all profiles), Documents, the Desktop, OneDrive's own folder or a system folder: a library made
+    /// there would sit among everything else.
     /// </summary>
     public static string? Refusal(string root)
     {
@@ -42,16 +44,27 @@ public sealed record MediaFolders(string Root, string Movies, string Series, str
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         if (Path.TrimEndingDirectorySeparator(Path.GetPathRoot(full) ?? "").Equals(full, StringComparison.OrdinalIgnoreCase))
             return $"Choisis un dossier plutôt que tout le disque, par exemple {Path.Combine(Path.GetPathRoot(full)!, "Vidéos")}.";
-        var reserved = new[] { Environment.SpecialFolder.UserProfile, Environment.SpecialFolder.Windows, Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.CommonApplicationData }
-            .Select(Environment.GetFolderPath).Where(x => x.Length > 0).Select(Path.TrimEndingDirectorySeparator);
-        return reserved.Any(x => x.Equals(full, StringComparison.OrdinalIgnoreCase)) ? $"Choisis un dossier rien que pour tes vidéos, par exemple {DefaultRoot}." : null;
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var profiles = profile.Length > 0 ? Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(profile)) : null;
+        var reserved = new[] { Environment.SpecialFolder.UserProfile, Environment.SpecialFolder.Windows, Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86,
+            Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolder.MyDocuments, Environment.SpecialFolder.DesktopDirectory, Environment.SpecialFolder.CommonDocuments,
+            Environment.SpecialFolder.CommonDesktopDirectory }
+            .Select(Environment.GetFolderPath)
+            .Concat(new[] { "OneDrive", "OneDriveConsumer", "OneDriveCommercial" }.Select(Environment.GetEnvironmentVariable).OfType<string>())
+            .Append(profiles ?? "").Where(x => x.Length > 0).Select(Path.TrimEndingDirectorySeparator);
+        var refused = reserved.Any(x => x.Equals(full, StringComparison.OrdinalIgnoreCase))
+            // Another account's folder, or Public: a profile of this PC.
+            || profiles is not null && string.Equals(Path.GetDirectoryName(full), profiles, StringComparison.OrdinalIgnoreCase);
+        return refused ? $"Choisis un dossier rien que pour tes vidéos, par exemple {DefaultRoot}." : null;
     }
     public void Create() { foreach (var folder in new[] { Movies, Series, Anime }) Directory.CreateDirectory(folder); }
     /// <summary>
     /// Jellyfin's service runs as Network Service, which may not read a user's own folders: without this, its libraries
-    /// would stay empty. The person who created the root owns it and may grant this without administrator rights.
+    /// would stay empty. Only Films, Séries and Animes, and what is put in them, are shared, not the rest of the root
+    /// (Windows lets every account go through a folder to one it may read). The person who created them owns them and
+    /// may grant this without administrator rights, and take it back (docs/INSTALLATION.md gives the command).
     /// </summary>
-    public void AllowJellyfinService() => JellyfinServiceAccess.Grant(Root);
+    public void AllowJellyfinService() { foreach (var folder in new[] { Movies, Series, Anime }) JellyfinServiceAccess.Grant(folder); }
 }
 
 /// <summary>Read access for the account Jellyfin's Windows service runs as (Network Service).</summary>

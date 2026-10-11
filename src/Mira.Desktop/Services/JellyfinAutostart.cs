@@ -18,9 +18,8 @@ internal enum AutostartResult { Done, Refused, Failed, KeptPublic }
 
 /// <summary>
 /// Jellyfin's service and the firewall, so that phones find Mira web, at home and on Tailscale, and as soon as the PC
-/// is on (see <see cref="JellyfinStartup"/>). Read without administrator rights; set up by a copy of Mira started with
-/// them (<c>--jellyfin-startup &lt;port&gt;</c>), which reads the service and the firewall itself rather than trusting
-/// its arguments.
+/// is on (see <see cref="JellyfinStartup"/>). Read without administrator rights; set up by Windows PowerShell started
+/// with them (<see cref="ApplyAsync"/>), which only carries out what Mira decided.
 /// </summary>
 internal static class JellyfinAutostart
 {
@@ -92,57 +91,125 @@ internal static class JellyfinAutostart
     }
 
     /// <summary>
-    /// Asks Windows for the administrator's consent, once, and sets it all up in a copy of Mira that has it;
-    /// <paramref name="privateNetwork"/>: the person said the network Windows counts as public is home's, to make private.
+    /// Asks Windows for the administrator's consent, once, and sets it all up (see <see cref="Plan"/>): the firewall
+    /// lets phones through, with or without Jellyfin's service; the service, when there is one, starts with Windows and
+    /// again after an error. <paramref name="privateNetwork"/>: the person said the network Windows counts as public is
+    /// home's, to make private (« Passer en privé »). What has administrator rights is Windows PowerShell, from System32,
+    /// with a script built here from fixed code and values checked here (<see cref="JellyfinStartup.Script"/>): never a
+    /// file of Mira's own folder, which Windows lets the person's programs change. What it did is read again here,
+    /// without those rights.
     /// </summary>
-    public static Task<AutostartResult> ApplyAsync(int port, bool privateNetwork = false) =>
-        ElevatedAsync($"--jellyfin-startup {port}" + (privateNetwork ? " " + PrivateNetwork : ""));
-    /// <summary>After the port: make the network phones come from that Windows counts as public private (« Passer en privé »).</summary>
-    public const string PrivateNetwork = "--private-network";
-    private static async Task<AutostartResult> ElevatedAsync(string arguments)
+    public static async Task<AutostartResult> ApplyAsync(int port, bool privateNetwork = false)
     {
-        if (Environment.ProcessPath is not { } self) return AutostartResult.Failed;
+        if (port is < 1 or > 65535) return AutostartResult.Failed;
+        var (program, plan) = await Task.Run(() =>
+        {
+            var found = Program();
+            try { return (found, found is null ? null : Plan(found, port, JellyfinStartup.RuleName, privateNetwork, Read())); }
+            catch (ArgumentException) { return (found, (JellyfinStartup.Plan?)null); }
+        });
+        if (program is null || plan is null) return AutostartResult.Failed;
+        var code = await ElevatedAsync(plan);
+        if (code is not { } exit) return AutostartResult.Refused;
+        return exit != 0 ? AutostartResult.Failed : await Task.Run(() => Outcome(program, port, JellyfinStartup.RuleName, privateNetwork));
+    }
+
+    /// <summary>
+    /// « Ne plus ouvrir Jellyfin au réseau »: Mira's firewall rule removed, with Windows' consent. Block rules Mira lifted
+    /// and the service's settings stay as they are. Done once the rule, read again, is gone.
+    /// </summary>
+    public static async Task<AutostartResult> CloseAsync(int port)
+    {
+        var code = await ElevatedAsync(new([], [], [JellyfinStartup.RemoveRule()]));
+        if (code is null) return AutostartResult.Refused;
+        return await Task.Run(() => MiraRule(Program(), port) == JellyfinFirewall.RuleState.Missing) ? AutostartResult.Done : AutostartResult.Failed;
+    }
+
+    /// <summary>
+    /// What setting it all up does, decided here without administrator rights: when <paramref name="privateNetwork"/>,
+    /// the networks phones come from that Windows counts as public and that keep them out are made private (a domain
+    /// one is left as Windows set it); then <paramref name="program"/>'s own block rules that keep them out (Windows'
+    /// prompt makes one for each kind of network left unticked) stop applying to the home network's profile, unless
+    /// public, and to Tailscale's (Private, which Tailscale sets, even before it is connected here), and are turned off
+    /// when no other profile is left; then Mira's rule (<see cref="JellyfinStartup.FirewallCommands"/>), which lets in
+    /// only the home network and Tailscale, even when the rules cannot be read; then, with a service
+    /// (<paramref name="service"/>), its start with Windows and its restarts, its delayed start kept. A block rule for
+    /// any program is someone's own and stays. A network about to be made private counts as private for the rules.
+    /// </summary>
+    internal static JellyfinStartup.Plan Plan(string program, int port, string rule, bool privateNetwork, JellyfinStartup.State? service = null,
+        string serviceName = JellyfinStartup.ServiceName, bool start = true)
+    {
+        var adapters = new List<string>();
+        var lifts = new List<JellyfinStartup.Lift>();
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(self, arguments) { UseShellExecute = true, Verb = "runas" });
-            if (process is null) return AutostartResult.Failed;
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(2));
-            return process.ExitCode switch { 0 => AutostartResult.Done, 3 => AutostartResult.KeptPublic, _ => AutostartResult.Failed };
+            var (rules, settings, active) = ReadFirewall(Policy(), program);
+            var origins = Origins(active);
+            if (privateNetwork)
+            {
+                foreach (var origin in origins.Where(o => o.Adapter is not null && JellyfinFirewall.CountedPublic(o, rules.Select(x => x.Rule), settings[o.Profile], program, port, rule)))
+                    if (!adapters.Contains(origin.Adapter!, StringComparer.OrdinalIgnoreCase)) adapters.Add(origin.Adapter!);
+                // Windows applies the private profile at once: those networks' block rules are lifted for it.
+                origins = origins.Select(o => o.Adapter is not null && adapters.Contains(o.Adapter, StringComparer.OrdinalIgnoreCase) ? o with { Profile = JellyfinFirewall.Private } : o).ToList();
+            }
+            if (!origins.Any(x => x.Home is null)) origins.Add(new(JellyfinFirewall.Private, null, null));
+            foreach (var (found, _) in rules.Where(x => !x.Rule.Allow && !string.IsNullOrWhiteSpace(x.Rule.Program)))
+            {
+                var lifted = origins.Where(x => x.Profile != JellyfinFirewall.Public && JellyfinFirewall.Applies(found, program, port, x.Profile, x.Adapter, x.Home))
+                    .Aggregate(0, (bits, x) => bits | x.Profile);
+                if (lifted == 0) continue;
+                lifts.Add(new(found.Name, found.Program!, found.Protocol, found.LocalPorts, found.RemoteAddresses, found.Profiles, JellyfinFirewall.WithoutProfile(found.Profiles, lifted)));
+            }
         }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { return AutostartResult.Refused; }
-        catch (Exception ex) when (ex is Win32Exception or TimeoutException or InvalidOperationException) { return AutostartResult.Failed; }
+        catch (Exception ex) when (IsFirewallError(ex)) { }
+        var commands = service is { HasService: true }
+            ? JellyfinStartup.Commands(program, port, serviceName, rule, service.Delayed).Where(c => start || !c.Arguments.StartsWith("start ", StringComparison.Ordinal)).ToList()
+            : JellyfinStartup.FirewallCommands(program, port, rule);
+        return new(adapters, lifts, commands);
     }
 
     /// <summary>
-    /// The copy of Mira started with administrator rights by « Tout préparer »: <c>--jellyfin-startup &lt;port&gt;</c>,
-    /// then <see cref="PrivateNetwork"/> for « Passer en privé ». The firewall lets phones through, with or without
-    /// Jellyfin's service; the service, when there is one, starts with Windows and again after an error. 0 once every
-    /// step that matters succeeded, 1 otherwise, 2 for arguments it does not accept, 3 when all is done but Windows kept
-    /// the network public (<see cref="AutostartResult.KeptPublic"/>).
+    /// After the plan ran without a failed command: the firewall, read again, as open as Mira can make it. Blocking
+    /// everything, or a block rule naming no program, is the person's to undo: the guide says where. So is a network left
+    /// public: not said to be home's, Windows keeping it so, or one whose profile Windows does not say; KeptPublic when
+    /// Windows would not make it private.
     /// </summary>
-    public static int Run(string[] args)
+    private static AutostartResult Outcome(string program, int port, string rule, bool privateNetwork)
     {
-        if (args.Length is < 2 or > 3 || !int.TryParse(args[1], out var port) || port is < 1 or > 65535 || args.Length == 3 && args[2] != PrivateNetwork) return 2;
-        var program = Program();
-        var open = OpenFirewall(program, port, privateNetwork: args.Length == 3);
-        var boot = !Read().HasService || Apply(program, port);
-        return open == AutostartResult.Failed || !boot ? 1 : open == AutostartResult.KeptPublic ? 3 : 0;
+        var reach = Phones(program, port, rule);
+        if (reach?.Public is { } left) return privateNetwork && left.Known ? AutostartResult.KeptPublic : AutostartResult.Done;
+        return reach is null or { Verdict: not JellyfinFirewall.Verdict.Blocked } or { Kept: not null } ? AutostartResult.Done : AutostartResult.Failed;
     }
 
     /// <summary>
-    /// Runs <see cref="JellyfinStartup.Commands"/>, the service started last unless <paramref name="start"/> is false;
-    /// a service and a rule of another name serve the tests.
+    /// Runs <paramref name="plan"/> in Windows PowerShell with administrator rights, Windows asking for consent: its exit
+    /// code, or null when the person refused. -1 when it could not start or did not end within two minutes.
+    /// </summary>
+    private static async Task<int?> ElevatedAsync(JellyfinStartup.Plan plan)
+    {
+        try
+        {
+            // runas rules out CREATE_NO_WINDOW: the console is started hidden instead.
+            using var process = Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, JellyfinStartup.PowerShell), JellyfinStartup.PowerShellArguments(plan))
+            { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden });
+            if (process is null) return -1;
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(2));
+            return process.ExitCode;
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { return null; }
+        catch (Exception ex) when (ex is Win32Exception or TimeoutException or InvalidOperationException or ArgumentException) { return -1; }
+    }
+
+    /// <summary>
+    /// Runs <see cref="JellyfinStartup.Commands"/> through the same script, the service started last unless
+    /// <paramref name="start"/> is false, in this process's own rights (the tests', an administrator's); a service and a
+    /// rule of another name serve the tests.
     /// </summary>
     public static bool Apply(string? program, int port, string service = JellyfinStartup.ServiceName, string rule = JellyfinStartup.RuleName, bool start = true)
     {
         if (program is null) return false;
-        var ok = true;
-        foreach (var command in JellyfinStartup.Commands(program, port, service, rule))
-        {
-            if (!start && command.Arguments.StartsWith("start ", StringComparison.Ordinal)) continue;
-            if (Execute(command) != 0 && !command.Optional) ok = false;
-        }
-        return ok;
+        var commands = JellyfinStartup.Commands(program, port, service, rule, Read(service).Delayed).Where(c => start || !c.Arguments.StartsWith("start ", StringComparison.Ordinal)).ToList();
+        return RunScript(new([], [], commands)) == 0;
     }
     /// <summary>
     /// Whether Windows' firewall lets phones reach <paramref name="program"/> on <paramref name="port"/>, from the home
@@ -162,51 +229,17 @@ internal static class JellyfinAutostart
     }
 
     /// <summary>
-    /// Lets phones through to <paramref name="program"/>. With <paramref name="privateNetwork"/> (the person said it is
-    /// home's), a network they come from that Windows counts as public (the home network, or Tailscale's), and that
-    /// keeps them out, is made private: Mira's rule never applies to a public network, and a domain one is left as
-    /// Windows set it. Then <paramref name="program"/>'s own block rules that keep them out (Windows' prompt makes one
-    /// for each kind of network left unticked) stop applying to the home network's profile, unless public, and to
-    /// Tailscale's (Private, which Tailscale sets, even before it is connected here), and are turned off when no other
-    /// profile is left. Then Mira's rule (<see cref="JellyfinStartup.FirewallCommands"/>), which lets in only the home
-    /// network and Tailscale, even when the rules cannot be read. A block rule for any program is someone's own and
-    /// stays. Needs administrator rights. Done once the firewall, read again, is as open as Mira can make it, a network
-    /// left public being the person's; KeptPublic when Windows would not make it private.
+    /// Lets phones through to <paramref name="program"/>, as « Tout préparer » does (<see cref="Plan"/>, the same
+    /// script), in this process's own rights (the tests', an administrator's); with <paramref name="privateNetwork"/>, as
+    /// « Passer en privé » does. Done once the firewall, read again, is as open as Mira can make it.
     /// </summary>
     public static AutostartResult OpenFirewall(string? program, int port, string rule = JellyfinStartup.RuleName, bool privateNetwork = false)
     {
         if (program is null) return AutostartResult.Failed;
-        try
-        {
-            var (rules, settings, active) = ReadFirewall(Policy(), program);
-            var origins = Origins(active);
-            var switched = false;
-            if (privateNetwork)
-            {
-                foreach (var origin in origins.Where(o => JellyfinFirewall.CountedPublic(o, rules.Select(x => x.Rule), settings[o.Profile], program, port, rule)))
-                    switched |= SetNetworkCategory(origin.Adapter!, JellyfinFirewall.Private);
-            }
-            // Windows applies the private profile at once: the profiles active here change with it.
-            if (switched) { (rules, _, active) = ReadFirewall(Policy(), program); origins = Origins(active); }
-            if (!origins.Any(x => x.Home is null)) origins.Add(new(JellyfinFirewall.Private, null, null));
-            foreach (var (found, com) in rules.Where(x => !x.Rule.Allow && !string.IsNullOrWhiteSpace(x.Rule.Program)))
-            {
-                var lifted = origins.Where(x => x.Profile != JellyfinFirewall.Public && JellyfinFirewall.Applies(found, program, port, x.Profile, x.Adapter, x.Home))
-                    .Aggregate(0, (bits, x) => bits | x.Profile);
-                if (lifted == 0) continue;
-                var others = JellyfinFirewall.WithoutProfile(found.Profiles, lifted);
-                if (others != 0) com.Profiles = others; else com.Enabled = false;
-            }
-        }
-        catch (Exception ex) when (IsFirewallError(ex)) { }
-        foreach (var command in JellyfinStartup.FirewallCommands(program, port, rule))
-            if (Execute(command) != 0 && !command.Optional) return AutostartResult.Failed;
-        // Blocking everything, or a block rule naming no program, is the person's to undo: the guide says where. So is a
-        // network left public: not said to be home's, Windows keeping it so, or one whose profile Windows does not say.
-        var reach = Phones(program, port, rule);
-        if (reach?.Public is { } left) return privateNetwork && left.Known ? AutostartResult.KeptPublic : AutostartResult.Done;
-        return reach is null or { Verdict: not JellyfinFirewall.Verdict.Blocked } or { Kept: not null } ? AutostartResult.Done : AutostartResult.Failed;
+        return RunScript(Plan(program, port, rule, privateNetwork)) != 0 ? AutostartResult.Failed : Outcome(program, port, rule, privateNetwork);
     }
+    /// <summary>The script of <paramref name="plan"/> in Windows PowerShell, with this process's rights: its exit code.</summary>
+    private static int RunScript(JellyfinStartup.Plan plan) => Execute(new(JellyfinStartup.PowerShell, JellyfinStartup.PowerShellArguments(plan)), TimeSpan.FromMinutes(2));
 
     /// <summary>
     /// The home network, on its adapter's profile, and Tailscale, when it is connected here, on its own, each with its
@@ -348,7 +381,7 @@ internal static class JellyfinAutostart
     public static int RunSystem(string file, string arguments) => Execute(new(file, arguments));
 
     /// <summary>A program of System32 (never one found on the PATH: this may run with administrator rights), hidden.</summary>
-    private static int Execute(StartupCommand command)
+    private static int Execute(StartupCommand command, TimeSpan? timeout = null)
     {
         try
         {
@@ -357,7 +390,7 @@ internal static class JellyfinAutostart
             if (process is null) return -1;
             // Read to the end so that a full pipe never blocks the program.
             var output = process.StandardOutput.ReadToEndAsync(); var errors = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(30_000)) { try { process.Kill(); } catch (InvalidOperationException) { } return -1; }
+            if (!process.WaitForExit(timeout ?? TimeSpan.FromSeconds(30))) { try { process.Kill(); } catch (InvalidOperationException) { } return -1; }
             Task.WaitAll([output, errors], 5_000);
             return process.ExitCode;
         }

@@ -18,8 +18,6 @@ public partial class App : Application
         base.OnStartup(e);
         // The downloaded version replacing the old files: no window, no profile, no single-instance lock.
         if (e.Args.FirstOrDefault() == "--apply-update") { Shutdown(UpdateApplier.Run(e.Args)); return; }
-        // Started with administrator rights by the guide: the firewall and Jellyfin's service set up, no window.
-        if (e.Args.FirstOrDefault() == "--jellyfin-startup") { Shutdown(JellyfinAutostart.Run(e.Args)); return; }
         if (e.Args.Contains("--register-windows"))
         {
             WindowsIdentity.SetProcessIdentity(WindowsIdentity.AppId);
