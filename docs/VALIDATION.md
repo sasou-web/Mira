@@ -1,6 +1,6 @@
 # Validation — 2 octobre 2026
 
-Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Un récapitulatif sans données personnelles est conservé dans [testing/latest-results.txt](testing/latest-results.txt). Les tests de base et la construction de l’archive sont aussi exécutés par GitHub Actions.
+Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
 ## Mira 0.7.4 : Mira sur ton téléphone, en un clic
 
@@ -505,7 +505,7 @@ Cadre arrondi et contour natifs vérifiés sur Windows 11 (DPI 200 %), dans la b
 
 Bandeau épuré : suppression des raccourcis redondants, de la mention au-dessus du titre et du bouton pause du carrousel. Les réglages couvrent toute la fenêtre, y compris sous le rail, avec animation du contenu indépendante du fond.
 
-## Résultats
+## Résultats de la 0.4
 
 - Compilation Release : aucune erreur ni avertissement au dernier contrôle.
 - Tests automatisés : **20 réussis**, dont un avec la bibliothèque mpv.net réellement installée (`libmpv-2.dll`).
@@ -527,7 +527,7 @@ Bandeau épuré : suppression des raccourcis redondants, de la mention au-dessus
 - Police Nunito Sans embarquée résolue par WPF ; rendus exportés au DPI réel, pas rééchantillonnés à 96 DPI.
 - Aperçus : zoom réduit à 2,5 %, panneau compact, respect des limites inférieures. Palette blanche et accent calculé par illustration.
 
-## Tests couverts
+## Tests couverts en 0.4
 
 1. Validation et normalisation d’adresse avec préservation d’un sous-chemin de proxy.
 2. Authentification JSON, en-tête de session et encodage de recherche.
@@ -558,45 +558,7 @@ Bandeau épuré : suppression des raccourcis redondants, de la mention au-dessus
 
 ## Reproduire
 
-```powershell
-dotnet restore tests/Mira.Tests/Mira.Tests.csproj --configfile NuGet.Config
-dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-restore
-```
-
-Le test d’intégration demande un fichier `.artifacts/lecture-test.mp4` de plus de 10 secondes, libmpv, et le serveur fictif :
-
-```powershell
-node tools/mock-jellyfin.mjs
-# Dans un autre terminal :
-dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release -- --mpv-integration
-```
-
-Les données et journaux de test restent sous `.artifacts/`, ignoré par Git. `--prepare-ui` crée exclusivement une session fictive dans `.artifacts/mock-profile` pour les essais de l’interface.
-
-Un contrôle de rendu intégré peut exporter les vues de l’application sans interagir avec le bureau : passer `--data <profil de test séparé> --visual-check <dossier de sortie>`. Le profil doit déjà contenir une connexion protégée valide, ou ajouter `--demo`. Les fichiers `result.txt`, `layout.txt` et `motion-checks.txt` consignent le résultat. Les contrôles du lecteur natif ne sont pas capturés par ce rendu WPF.
-
-Le contrôle du lecteur se lance sur un profil isolé :
-
-```powershell
-src/Mira.Desktop/bin/Release/net8.0-windows10.0.19041.0/Mira.exe --data .artifacts/player-check/profile --demo --test-media .artifacts/lecture-test.mp4 --player-check .artifacts/player-check
-```
-
-Le résultat est écrit dans `result.txt`. Les changements de modes utilisent le lecteur natif et un rectangle physique hors du bureau ; les vérifications à la souris complètent ce contrôle pour les fenêtres superposées.
-
-TorLink, installé sur le PC, est vérifié sans toucher à son état réel ni à Jellyfin. Le contrôle de bout en bout ouvre une fenêtre visible ; il n’envoie de vraies touches que si elle a le premier plan. Sans TorLink sur le PC (raccourci, `npm install -g torlnk` ; la copie laissée par `npx torlnk` ne compte plus), les deux installent d’abord celui de Mira dans leur profil isolé : connexion à nodejs.org et registry.npmjs.org nécessaire, quelques minutes de plus.
-
-```powershell
-dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build -- --torlink-integration
-./tools/torlink-check.ps1                                   # build Release
-./tools/torlink-check.ps1 -Executable dist/Mira/Mira.exe    # version publiée
-dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build -- --jellyfin-live <profil de validation>
-```
-
-La dernière commande lit seulement les bibliothèques et les derniers ajouts du serveur, avec la session protégée d’un profil de validation. Avec une vidéo chapitrée, le contrôle vérifie aussi les passages à sauter :
-
-```powershell
-ffmpeg -i .artifacts/lecture-test.mp4 -i .artifacts/chapitres.txt -map_metadata 1 -map_chapters 1 -c copy .artifacts/lecture-chapitres.mkv
-```
+Les commandes des tests, des contrôles de Mira web et des harnais de l’application sont dans [TESTS.md](TESTS.md).
 
 ## À vérifier avec l’utilisateur
 

@@ -77,6 +77,7 @@ cd Mira
 dotnet restore Mira.sln --configfile NuGet.Config
 dotnet build Mira.sln -c Release --no-restore
 dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build
+node --test tools/web/unit/*.test.mjs    # décisions du lecteur de Mira web, Node.js 22
 dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .artifacts/dev-profile
 ```
 
@@ -94,17 +95,17 @@ dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .arti
 | `src/Mira.Core` | API Jellyfin, cache SQLite, synchronisation, règles de lecture et rangement des téléchargements |
 | `tests/Mira.Core.Tests` | Tests sans WPF (comportement, persistance, mises à jour), lancés aussi sous Linux |
 | `tests/Mira.Tests` | Les mêmes, puis ceux de l’app Windows |
-| `tools` | Publication, captures, contrôles, serveur fictif et import des ressources |
+| `tools` | Publication, captures, contrôles, serveur fictif et import des ressources ; `tools/web/unit` : tests Node de Mira web |
 | `docs` | Guides, architecture, galerie et validation |
 
-La compilation et les tests de base sont lancés sur Windows dans GitHub Actions, et les tests sans WPF aussi sous Linux (`dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release`, sur tout système). Les essais natifs du lecteur et du système ont aussi été réalisés localement ; ils ne sont pas tous couverts par le runner CI.
+La compilation et les tests de base sont lancés sur Windows dans GitHub Actions, et les tests sans WPF aussi sous Linux (`dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release`, sur tout système) ; Mira web est contrôlée dans Chromium et Safari contre un vrai Jellyfin. Les essais natifs du lecteur et du système ont aussi été réalisés localement ; ils ne sont pas tous couverts par le runner CI. Tout est décrit dans [docs/TESTS.md](docs/TESTS.md).
 
 ## État du projet
 
 Mira **0.7.4** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, distribution signée et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
 
 - [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
-- [Architecture](docs/ARCHITECTURE.md) et [validation](docs/VALIDATION.md)
+- [Architecture](docs/ARCHITECTURE.md), [tests](docs/TESTS.md) et [validation](docs/VALIDATION.md)
 - [Historique](CHANGELOG.md) et [contribuer](CONTRIBUTING.md)
 - [Signaler un bug](https://github.com/sasou-web/Mira/issues/new/choose) ou [une vulnérabilité](SECURITY.md)
 

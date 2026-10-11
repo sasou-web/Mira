@@ -4,46 +4,60 @@
 
 ```text
 Mira.Desktop (WPF)
-  ├─ MainWindow : navigation, bibliothèque et écrans
-  │   ├─ Catalog : requêtes filtrées, accueil, cartes et adaptation à la fenêtre
-  │   ├─ Details : fiches, saisons et épisodes
-  │   ├─ Carousel : progression et fondu du bandeau d’accueil
+  ├─ App : options sans fenêtre (--apply-update, --register-windows, --install-engine), verrous de mise à jour et d’instance, gestionnaire d’erreurs global
+  ├─ MainWindow : navigation, connexion, actualisation (WebSocket, secours 45 s), fermeture
+  │   ├─ Catalog : requêtes filtrées, accueil, cartes, pages d’une personne et adaptation à la fenêtre
+  │   ├─ Details : fiches, saisons et épisodes, titres similaires
+  │   ├─ Carousel : horloge à 30 Hz, progression et fondu du bandeau d’accueil
   │   ├─ Preview : survol intégré suivi pendant le défilement et préchargement
-  │   ├─ Recency : activité récente et mise en tête de la reprise après lecture
+  │   ├─ Recency : activité récente, reprise retirée, mise en tête de la reprise après lecture
+  │   ├─ Player : ouverture d’un titre, fichier local ou flux de Jellyfin, fin de lecture
   │   ├─ PlayerControls : barre de lecture, masquage, raccourcis, volume et menus ancrés à leur bouton
   │   ├─ MiniPlayer : glisser, aimantation aux coins, rangement derrière la languette
   │   ├─ PlayerSegments : chapitres, passages à sauter et épisode suivant
-  │   ├─ Settings : préférences et sections de réglages
-  │   ├─ TorLink : page Téléchargements (liste des téléchargeurs, TorLink activé ou non), surveillance des téléchargements terminés, liste « Vers Jellyfin »
-  ├─ Themes/Cinema.xaml : composants, couleurs, focus et contrôles sombres
-  ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions et défilement progressif
+  │   ├─ Engine : moteur mpv trouvé ou installé par Mira (Réglages → Lecture)
+  │   ├─ Power : arrêt de Windows et Restart Manager (SessionEnding), veille pendant la lecture
+  │   ├─ Accessibility : réglages d’accessibilité de Windows (contraste élevé, animations, taille du texte), clavier, Narrateur
+  │   ├─ Windows : boutons de la barre des tâches, icône de notification, session multimédia
+  │   ├─ Settings : préférences et sections de réglages, enregistrement qui ne lève jamais
+  │   ├─ Updates : Réglages → Mises à jour, avis « prête », installation à la fermeture
+  │   ├─ ServerSetup : « Installer Jellyfin sur ce PC », de l’écran de connexion jusqu’à la bibliothèque
+  │   ├─ Guide : bienvenue, guide de démarrage, carte « Mira sur ton téléphone » (Tout préparer, QR code), nouveautés
+  │   ├─ MiraWeb : installation vérifiée de Mira web, dépôt avancé au démarrage
+  │   └─ TorLink : page Téléchargements (liste des téléchargeurs, TorLink activé ou non), téléchargements terminés, liste « Vers Jellyfin »
+  ├─ Checks : harnais de contrôle lancés par RunRequestedCheckAsync (--visual-check, --public-gallery, --player-check, --qa-window, --perf-probe, --windows-check, --torlink-check)
+  ├─ Themes/Cinema.xaml : composants, couleurs nommées, focus et contrôles sombres
+  ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions, défilement progressif, Timeline, Accessible (noms et annonces pour le Narrateur)
   ├─ Playback/MpvEngine : API C libmpv, rendu dans un HWND enfant, recherche du moteur (choisi, installé par Mira, connu)
   ├─ Playback/WindowFrame : coins, contour DWM et marges de fenêtre agrandie
   ├─ Playback/FullscreenWindow : limites du moniteur et restauration de fenêtre
   ├─ Playback/PlayerOverlay : couche native de commandes et réception de la souris
   ├─ Playback/VideoHost : surface native de la vidéo
-  ├─ ServerSetup : « Installer Jellyfin sur ce PC », de l’écran de connexion jusqu’à la bibliothèque
-  ├─ Guide : bienvenue d’un nouveau profil, guide de démarrage (dossiers, page de Jellyfin, autres appareils), nouveautés après une mise à jour
-  ├─ TorLink : pseudo-console Windows, recherche et installation de TorLink (TorLinkSetup), terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
-  └─ Services : images, partage des requêtes de métadonnées, session DPAPI, préférences, mises à jour (Updater, UpdateApplier), installateur de Jellyfin
+  ├─ TorLink : pseudo-console Windows, recherche et installation de TorLink (TorLinkInstallation, TorLinkSetup), terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
+  └─ Services
+      ├─ LocalProfile (session DPAPI, réglages), ImageCache, MetadataCache, ArtworkAccent, AppFiles, DemoLibrary
+      ├─ Updater, UpdateApplier, UpdateLock, PortableExtraction : mises à jour signées et leur application
+      ├─ InstanceActivation, Screens, WindowsIdentity, ShellRegistration, WindowsIntegration : place dans Windows
+      └─ JellyfinInstaller, JellyfinAutostart : installateur de Jellyfin, service et pare-feu (élévation par Windows PowerShell)
           │
-Mira.Core
-  ├─ JellyfinClient : requêtes HTTP, métadonnées, lecture et WebSocket
-  ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques et version minimale
-  ├─ LibraryStore : cache SQLite, progression locale et file persistante
-  ├─ DiskCache : budget des fichiers d’images, les moins récemment utilisés d’abord
+Mira.Core (commun à Windows et Mac, sans WPF)
+  ├─ JellyfinClient : requêtes HTTP, métadonnées, lecture, WebSocket, Mira web dans Jellyfin, déconnexion
+  ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques, version minimale, avertissement HTTP
+  ├─ LibraryStore, AccountData : cache SQLite, progression locale et file persistante ; fichiers d’un compte
+  ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels
+  ├─ DiskCache, ImageMemory : budget des images sur disque et en mémoire
   ├─ VerifiedDownload : téléchargement vérifié (taille, SHA-256, jamais vers HTTP, transfert muet abandonné)
-  ├─ MpvPackage / MpvInstaller : build libmpv figée, téléchargement et extraction vérifiés dans data\mpv
+  ├─ MpvPackage / MpvInstaller, NodeRuntime, PortableExecutable : builds figées de libmpv et Node.js, en-tête PE
   ├─ JellyfinSetup : installateur de Jellyfin figé, dossiers médias, droit de lecture du service, assistant de premier démarrage
-  ├─ Artwork : image d’une carte large (épisode : sa saison ou lui-même avant la série) et d’un bandeau
+  ├─ JellyfinStartup, JellyfinFirewall, PhoneSetup, LocalNetwork : service, règle de pare-feu et script élevé ; jugement du pare-feu ; étapes de « Mira sur ton téléphone » ; adresses de ce PC (maison, Tailscale)
+  ├─ MiraWeb, MiraWebRelease : dépôt de l’extension, adresse du QR code, vérification de la release
+  ├─ Updates : flux des releases, manifeste signé, contrôles de publication (ReleaseChecks)
+  ├─ Artwork, ArtworkPalette, SeasonThumbs : images d’une carte et d’un bandeau, couleur dominante, vignettes de saison
   ├─ WhatsNew : points forts de chaque version (WhatsNew.json intégré), écran à l’ouverture, texte court des releases
-  ├─ LocalNetwork : adresse de ce PC sur le réseau de la maison, pour les autres appareils
-  ├─ MotionState : interpolation du défilement et durée du carrousel, testables sans UI
-  ├─ ContinueWatching : classement de la reprise par activité, une carte par série
-  ├─ PlaybackMarkers : segments Jellyfin, titres de chapitres et passage actif
-  ├─ ArtworkPalette : couleur dominante lisible du bandeau
-  ├─ SyncService : livraison ordonnée, coalescence et reprise après erreur
-  ├─ TorLink : état TorLink, lecture des .torrent, noms de sortie, plan de rangement, importeur et journal
+  ├─ ContinueWatching, EpisodePages, PlaybackMarkers, MpvLists, PlayerText, VolumeBoost : reprise, saisons par tranches, passages, pistes, textes du lecteur, volume au-delà de 100 %
+  ├─ MotionState, ScreenFit, Legibility, IconPaths : défilement et carrousel, taille de fenêtre, contraste et taille du texte, tracés des icônes
+  ├─ ErrorLog, ExpectedErrors : errors.log (type et méthode), erreurs attendues
+  └─ TorLink : état TorLink, lecture des .torrent, noms de sortie, plan de rangement, importeur, journal, lock npm (Lock/)
 ```
 
 Une application native C# / WPF permet de compiler et de livrer immédiatement sur le PC Windows équipé de .NET. libmpv est appelé directement par son API C ; aucun terminal, processus mpv externe ou lecteur HTML n’est utilisé pour la vidéo. Le rendu dispose de sa propre surface native. Une surface HwndSource transparente, possédée par la fenêtre et non activable, superpose les commandes au HWND vidéo. Elle reste ouverte lorsque les panneaux s'effacent : le fond d'alpha 1/255 conserve la réception de la souris, et WPF gère son curseur. Elle se ferme à la désactivation et à l'arrêt. Elle n'utilise pas Popup pour cette grande surface : WPF limite les Popup à 75 % de l'aire du moniteur. Seuls les menus de réglages restent des Popup. La source est créée masquée, puis montrée sans activation pour éviter un transfert de focus et une boucle de fermeture/réouverture.
@@ -61,7 +75,7 @@ Mira.Mac (Avalonia)
   │   ├─ VideoView : l’image dessinée par mpv avec OpenGL dans la fenêtre (API de rendu de libmpv)
   │   ├─ SoftwareVideoView : repli en rendu logiciel, sur son propre fil
   │   └─ Timeline : barre de progression découpée par chapitres
-  ├─ Services : Profile (Application Support), Keychain (jeton de session dans le trousseau), Session, Images, Updates (version Mac sur GitHub)
+  ├─ Services : Profile (Application Support), Keychain (jeton de session dans le trousseau), Session, Images, SleepGuard (écran allumé pendant la lecture), Updates (version Mac sur GitHub)
   └─ Checks : --self-check (chaque écran et la lecture, avec un Jellyfin réel ou simulé), --video-probe, --export-icon
 ```
 
@@ -78,12 +92,21 @@ Mira.Jellyfin (extension Jellyfin)
   ├─ Plugin : se déclare à Jellyfin (aucun réglage, ne modifie rien sur le serveur)
   ├─ WebController : /Mira (page et politique de sécurité), /Mira/manifest.webmanifest, /Mira/v/<révision>/…
   ├─ HlsController, HlsPlaylists : /Mira/hls/…, listes HLS de Jellyfin réécrites pour que le lecteur d’Apple ait ses sous-titres à l’heure
+  ├─ ContentPolicy : politique de sécurité de la page, styles intégrés permis par leur empreinte
   └─ WebFiles : fichiers intégrés ; leur révision (empreinte de tous) rend les ressources mémorisables jusqu’à la version suivante
 Mira.Web
   ├─ app.js : barre d’onglets (barre latérale sur grand écran), routes par ancre, écrans gardés pour un retour instantané, mouvements d’iOS et glissement retour
-  ├─ api.js, session.js : API Jellyfin, session sur l’appareil (jamais le mot de passe), réglages
-  ├─ views : connexion (profils), accueil, films et séries, recherche, fiche, personne, réglages, QR code
-  └─ player : profil de lecture selon le navigateur, HLS natif (Safari) ou hls.js, lecteur d’Apple ou commandes de Mira, pistes, rapports
+  ├─ api.js, session.js : API Jellyfin, serveur de la session vérifié avant d’envoyer le jeton (trustServer), session sur l’appareil (jamais le mot de passe), réglages
+  ├─ dom.js, components.js, images.js, blurhash.js, icons.js, press.js : éléments, cartes et rangées, images et leur flou d’attente, icônes Phosphor, appuis tactiles
+  ├─ views : connexion (profils), accueil, films et séries, recherche, fiche, personne, réglages, QR code (share.js)
+  └─ player
+      ├─ player.js : lecteur d’Apple ou commandes de Mira, débit, rapports à Jellyfin
+      ├─ profile.js, video.js : profil de lecture selon le navigateur, <video> partagée et appleNative()
+      ├─ stream.js : adresses des flux, cascade de secours, débit « Automatique »
+      ├─ tracks.js : noms et choix des pistes, adresse HLS du lecteur d’Apple
+      ├─ timeline.js : passages, épisode suivant, trickplay
+      └─ presentation.js : ouverture et fermeture du plein écran d’Apple
+  stream.js, timeline.js, presentation.js, tracks.js et dom.js ne touchent pas au navigateur à leur chargement : tools/web/unit les importe dans Node.
 ```
 
 Le lecteur décrit à Jellyfin ce que le navigateur lit (`canPlayType`) : MP4 et MOV en H.264 ou HEVC sont lus tels quels, le reste est converti en HLS fMP4, H.264 en premier. Une vidéo déjà en H.264 n’est alors que remise en forme, sans réencodage. Les sous-titres texte arrivent en WebVTT à côté de la vidéo, les sous-titres en image sont incrustés. Jellyfin ne convertit jamais l’ASS ni le SSA par le profil (`MediaStream.SupportsSubtitleConversionTo`) : sans entrée `{ass|ssa, External}`, il les incrusterait en réencodant toute la vidéo ; Mira les demande donc à côté, en `.vtt` à la place de `.ass` (Jellyfin convertit à la demande, mise en forme perdue). Le profil suit celui de jellyfin-web pour Safari là où il compte : plages d’image nommées (`VideoRangeType` : SDR, HDR10, HDR10+ et HLG sur les appareils d’Apple, Dolby Vision seulement si `canPlayType('…dvh1…')` le dit ; sans plage nommée, Jellyfin copie tout, Dolby Vision 5 compris), vidéo entrelacée convertie (`IsInterlaced`, Jellyfin désentrelace), niveau HEVC pris de `canPlayType` et 60 images/s au plus. Un flux que le lecteur refuse alors que Jellyfin répond (`ping`) est redemandé, de là où il en était et en gardant la pause : d’abord la vidéo convertie (`AllowVideoStreamCopy` faux), puis tout converti (`lastResortProfile` : H.264 SDR jusqu’à 1080p et niveau 5.1, AAC stéréo, `AllowAudioStreamCopy` faux) ; « Lecture impossible » vient ensuite seulement, avec l’erreur de WebKit en petit. Une qualité plus basse n’y suffisait pas : Jellyfin copie la vidéo tant que le fichier tient sous le plafond, l’audio toujours. Seules les erreurs du flux en place comptent (`streamAttempt`) : celles d’un flux qu’une ouverture va remplacer ne font rien. Une erreur sans réponse du serveur fait attendre le serveur puis reprendre à la même position, sans quitter le plein écran. Un seul élément `<video>`, touché au premier geste, sert toute l’application : iOS laisse alors démarrer l’épisode suivant sans nouveau toucher. La progression part vers Jellyfin comme sur Windows (début, toutes les 10 s, pause, fin, et en quittant la page).
@@ -108,7 +131,7 @@ Le lecteur décrit à Jellyfin ce que le navigateur lit (`canPlayType`) : MP4 et
 
 ## Intégration Windows
 
-`WindowsIdentity` attribue l’AppUserModelID stable `Mira.Desktop` au processus, à la fenêtre et aux raccourcis. Le logo ICO comporte sept tailles (16 à 256 px) ; une copie avec un chemin propre sert à Explorer et à l’icône de notification. Le raccourci Démarrer et les métadonnées Shell sont enregistrés pour l’utilisateur courant. Aucun service, démarrage automatique ou changement de préférence Windows n’est ajouté. `--register-windows --shortcut <chemin>` permet au script de publication de créer aussi le raccourci du dossier.
+`WindowsIdentity` attribue l’AppUserModelID stable `Mira.Desktop` au processus, à la fenêtre et aux raccourcis. Le logo ICO comporte sept tailles (16 à 256 px) ; une copie avec un chemin propre sert à Explorer et à l’icône de notification. Le raccourci Démarrer et les métadonnées Shell sont enregistrés pour l’utilisateur courant. Mira ne démarre pas avec Windows et n’ajoute aucun service ni tâche planifiée. Ce que Mira change ailleurs dans Windows, toujours à la demande et décrit plus haut : le service de Jellyfin et la règle « Mira - Jellyfin » du pare-feu (**Tout préparer**), la catégorie d’un réseau (**Passer en privé**) et le droit de lecture de Network Service sur `Films`, `Séries` et `Animes` (installation de Jellyfin). `--register-windows --shortcut <chemin>` permet au script de publication de créer aussi le raccourci du dossier.
 
 `WindowsIntegration` gère les quatre `ThumbButtonInfo` WPF, un `NotifyIcon` et la session `SystemMediaTransportControls` attachée au HWND principal par `SystemMediaTransportControlsInterop.GetForWindow`. Les commandes sont dispatchées vers les mêmes méthodes que l’interface mpv, avec pause/reprise idempotentes, vérification de disponibilité et rejet des commandes d’une ancienne lecture. L’état de pause et le titre sont publiés immédiatement ; la timeline est actualisée au plus une fois par seconde hors saut, changement de durée ou vitesse. L’affiche provient du cache authentifié et est fournie à Windows par un flux mémoire, sans URL privée ni jeton.
 
