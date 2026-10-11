@@ -19,7 +19,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - `src/Mira.Desktop/` → app Windows ; harnais de contrôle (`--visual-check`, `--player-check`…) dans `Checks/`, lancés par `RunRequestedCheckAsync` ; `MainWindow.Guide.cs` contient la carte « Mira sur ton téléphone » (étapes de `src/Mira.Core/PhoneSetup.cs`, « Tout préparer », QR code).
 - `src/Mira.Mac/` → app Mac.
 - `src/Mira.Jellyfin/` → `WebController.cs` sert `/Mira` ; `WebFiles.cs` sert les fichiers intégrés à la DLL, versionnés par une empreinte.
-- `src/Mira.Web/` → `index.html`, `app.css`, `js/app.js` (routes en `#/...`, bandeau « serveur injoignable », mise à jour par révision), `js/api.js`, `js/views/*`, `js/player/` (`player.js` = lecteur d'Apple ou commandes de Mira, `profile.js` = profil d'appareil, `video.js` = `<video>` partagée et `appleNative()`, `tracks.js` = noms et choix des pistes).
+- `src/Mira.Web/` → `index.html`, `app.css`, `js/app.js` (routes en `#/...`, bandeau « serveur injoignable », mise à jour par révision), `js/api.js`, `js/views/*`, `js/player/` (`player.js` = lecteur d'Apple ou commandes de Mira, `stream.js` = cascade de secours, adresses des flux et débit, `timeline.js` = passages, épisode suivant, trickplay, `presentation.js` = ouverture et fermeture du lecteur d'Apple, `profile.js` = profil d'appareil, `video.js` = `<video>` partagée et `appleNative()`, `tracks.js` = noms et choix des pistes).
 - `src/Mira.Core/JellyfinStartup.cs` + `src/Mira.Desktop/Services/JellyfinAutostart.cs` → Jellyfin joignable par le téléphone (pare-feu pour la maison et Tailscale, service, relance) ; Mira décide sans droits (`JellyfinAutostart.Plan`), Windows PowerShell de System32 exécute avec l'élévation un script fixe (`JellyfinStartup.Script`), une seule autorisation. `src/Mira.Core/JellyfinFirewall.cs` juge les règles du pare-feu.
 - `tests/Mira.Core.Tests/` → tests sans WPF (net10.0, un fichier par thème, aussi sous Linux en CI) ; `tests/Mira.Tests/` compile les mêmes fichiers puis ceux de l'app Windows. Exécutables d'assertions (pas `dotnet test`) : un échec n'arrête pas les suivants, bilan à la fin, `--filter <texte>`, `--list`.
 - `tools/` → `release.ps1` (publication en une commande), `package.ps1` (paquets Windows signés), `publish.ps1` (copie locale `dist/Mira`), `mac/package.sh`, `web/` (empaquetage et contrôles de Mira web).
@@ -31,6 +31,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Tests : `dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release --no-build` (Windows, tout) ; partout : `dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release`.
 - App en démo : `dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .artifacts/dev-profile`.
 - Extension et manifeste : `tools/web/package.sh <x.y.z> [base de téléchargement]` → `dist/web/`.
+- Tests Node de Mira web (décisions du lecteur, sans navigateur) : `node --test tools/web/unit/*.test.mjs`.
 - Médias de test : `tools/web/media.sh <dossier>`. Jellyfin neuf préparé par l'API : `node tools/web/setup.mjs <serveur> <médias> <user> <mdp> [url du manifeste]`.
 - Contrôle Chromium (71 points, 73 avec `MIRA_STOP`/`MIRA_START`, commandes qui arrêtent et relancent Jellyfin) : `PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <user> <mdp> "Courte Web" <dossier>`. Le lecteur d'Apple y est simulé.
 - Dans le conteneur cloud : Jellyfin par Docker (`dockerd &`, image `jellyfin/jellyfin:12.1.20260915-010956`, `--network host`) ; le SDK .NET d'Ubuntu n'a pas les cibles WPF : SDK de Microsoft depuis les `.deb` de packages.microsoft.com (`debian/12` pour .NET 10 : ni jammy ni noble ne l'ont ; builds.dotnet.microsoft.com est bloqué par le proxy), extraits avec `dpkg-deb -x`, puis `dotnet build -p:EnableWindowsTargeting=true` (compile seulement).
@@ -89,6 +90,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Jellyfin : segments HLS TS à 10 s, fMP4 à 0 ; ses WebVTT HLS ont `MPEGTS:900000` en dur. hls.js s'en moque, le lecteur d'Apple non.
 - View Transitions : le changement d'écran se fait dans un rappel différé ; `enter()` et tout ce qui touche l'écran affiché vont dans `swap`.
 - Vérifier la syntaxe des modules avec `node --experimental-default-type=module --check` (sans l'option, une redéclaration passe).
+- `stream.js`, `timeline.js`, `presentation.js`, `tracks.js` et `dom.js` sont importés par Node (`tools/web/unit`) : rien du navigateur au chargement du module. Tests hors de `src/Mira.Web` (tout y est intégré à la DLL et servi).
 - Avec `MIRA_WEB_DIR`, la page n'est pas gardée (no-cache) : tester « serveur éteint » avec l'extension compilée.
 - Fichiers `.srt` de test : pas d'accents (Jellyfin devine mal l'encodage d'un fichier d'une ligne).
 - Safari peut attendre un geste avant de lire : les tests partent du bouton « Lecture » de la fiche, pas d'un changement d'adresse.

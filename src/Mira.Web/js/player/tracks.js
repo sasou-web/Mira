@@ -173,3 +173,46 @@ export function trackMemory(source, audioIndex, subtitleIndex) {
   const subtitle = streams.find((s) => s.Type === 'Subtitle' && s.Index === subtitleIndex);
   return { audio: audio?.Language ?? null, subtitle: subtitle ? subtitle.Language ?? 'und' : null, forced: !!subtitle?.IsForced };
 }
+
+/** Tracks chosen on the title page, from the player's address (« ?audio=2&sous-titres=-1 »); null when none. */
+export function chosenTracks(query) {
+  const number = (key) => (query.has(key) && /^-?\d+$/.test(query.get(key)) ? Number(query.get(key)) : null);
+  const tracks = { audio: number('audio'), subtitle: number('sous-titres') };
+  return tracks.audio == null && tracks.subtitle == null ? null : tracks;
+}
+
+/**
+ * The tracks a title starts with: those chosen on the title page when the file has them (-1: no subtitles), else
+ * chooseTracks. Without the file's streams, the chosen ones as they are (null: Jellyfin decides).
+ */
+export function startTracks(source, chosen, preferences) {
+  if (!source?.MediaStreams?.length) return { audio: chosen?.audio ?? null, subtitle: chosen?.subtitle ?? null };
+  const auto = chooseTracks(source, preferences);
+  const has = (type, index) => source.MediaStreams.some((s) => s.Type === type && s.Index === index);
+  return {
+    audio: chosen?.audio != null && has('Audio', chosen.audio) ? chosen.audio : auto.audio,
+    subtitle: chosen?.subtitle === -1 || (chosen?.subtitle != null && has('Subtitle', chosen.subtitle)) ? chosen.subtitle : auto.subtitle,
+  };
+}
+
+/**
+ * Text that Safari reads from the file itself when it plays it as it is (an MP4's own subtitles): beside them, a
+ * <track> of the same subtitles would show each one twice in Apple's menu.
+ */
+export const fileTextSubtitles = (source, playMethod) =>
+  (playMethod === 'DirectPlay' ? textSubtitles(source).filter((s) => !s.IsExternal && /^(mov_text|tx3g|wvtt)$/i.test(s.Codec ?? '')) : []);
+
+/**
+ * Jellyfin's index of a subtitle track the browser found in the video itself (not a <track>), at place `at` among
+ * `count` such tracks; null when it cannot be told. The file's own subtitles (own, not inband): in the file's order. In
+ * the HLS stream (inband): by the name Mira gave it, else by Jellyfin's, else by its place.
+ */
+export function carriedIndex({ at, count, label, inband, own, source }) {
+  if (at < 0) return null;
+  if (!inband) return count === own.length ? own[at].Index : null;
+  const streams = textSubtitles(source);
+  for (const [index, name] of menuNames(source)) if (name === label) return index;
+  const named = streams.filter((s) => s.DisplayTitle === label);
+  if (named.length === 1) return named[0].Index;
+  return count === streams.length ? streams[at].Index : null;
+}
