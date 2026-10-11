@@ -401,5 +401,39 @@ internal static class UpdateTests
             Assert(Updater.TakeResult(Path.Combine(app, "data")) is { Installed: false } && Updater.TakeResult(Path.Combine(app, "data")) is null && File.Exists(pending), "A failed installation was not reported exactly once");
             return Task.CompletedTask;
         });
+        await Test("Mises à jour : l’outil d’installation refuse ce qui n’est pas une copie de Mira, sans rien toucher, et rend son verrou", () =>
+        {
+            var root = Path.Combine(testRoot, "apply-refused"); var profile = Path.Combine(root, "data"); Directory.CreateDirectory(root);
+            // Arguments that name no Mira copy to replace: refused before anything is read or locked.
+            Assert(UpdateApplier.Run(["--apply-update", "zip", "--target", root]) == 2, "An unknown kind was accepted");
+            Assert(UpdateApplier.Run(["--apply-update", "folder", "--target", "Mira"]) == 2, "A relative target was accepted");
+            Assert(UpdateApplier.Run(["--apply-update", "portable"]) == 2, "No target, yet accepted");
+            Assert(!Directory.Exists(profile), "A refused command line wrote in the profile");
+            // A file, then a folder whose Mira.exe is not Mira: nothing replaced, no rollback, no relaunch, the reason logged.
+            var notes = Path.Combine(root, "notes.txt"); File.WriteAllText(notes, "pas Mira");
+            Assert(UpdateApplier.Run(["--apply-update", "portable", "--target", notes, "--data", profile, "--relaunch"]) == 1 && File.ReadAllText(notes) == "pas Mira", "Another file was replaced");
+            var exe = Path.Combine(root, "Mira.exe"); File.WriteAllText(exe, "pas un exécutable");
+            Assert(UpdateApplier.Run(["--apply-update", "folder", "--target", root, "--data", profile, "--relaunch"]) == 1 && File.ReadAllText(exe) == "pas un exécutable", "A folder without Mira was updated");
+            Assert(!UpdateApplier.IsMira(exe) && !Directory.EnumerateDirectories(Path.Combine(profile, "updates"), "rollback-*").Any() && !File.Exists(exe + UpdateApplier.NewSuffix), "Files of the refused folder were touched");
+            var log = File.ReadAllLines(Path.Combine(profile, "updates", "update.log"));
+            Assert(log.Length == 2 && log.All(x => x.EndsWith("installation impossible : La cible n’est pas une copie de Mira.")), "Log: " + string.Join(" | ", log));
+            // The update lock is released: Mira, waiting for it before its start, is not held back.
+            Assert(!UpdateLock.Busy(profile, installer: false), "The update lock is still held");
+            return Task.CompletedTask;
+        });
+        await Test("Mises à jour : au démarrage, rien n’est remis en place sous un Mira du même profil ouvert, ni sans échange interrompu", () =>
+        {
+            var profile = Path.Combine(testRoot, "recover-startup"); var instance = @"Local\Mira-Test-" + Guid.NewGuid().ToString("N");
+            Assert(!UpdateApplier.RecoverAtStartup(profile, [], instance), "Nothing interrupted, yet a restart");
+            // A swap of this very folder cut short, while a Mira of this profile is open: left for later, untouched.
+            var journal = Path.Combine(profile, "updates", "rollback-20260101000000", UpdateApplier.InProgressMarker);
+            Directory.CreateDirectory(Path.GetDirectoryName(journal)!);
+            // No file named in it: even if this check regressed, nothing of the test's own folder would be put back.
+            File.WriteAllText(journal, JsonSerializer.Serialize(new UpdateApplier.SwapJournal(AppContext.BaseDirectory, [], [])));
+            Assert(UpdateApplier.Interrupted(Path.Combine(profile, "updates"), AppContext.BaseDirectory).Count == 1, "The journal was not read");
+            using (var running = new Mutex(true, instance))
+                Assert(!UpdateApplier.RecoverAtStartup(profile, [], instance) && File.Exists(journal), "Files restored under a running Mira");
+            return Task.CompletedTask;
+        });
     }
 }
