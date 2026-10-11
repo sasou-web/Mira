@@ -18,10 +18,10 @@ internal static class UpdateLock
     public static bool Busy(string profile, bool installer) => Exists(Name(profile)) || installer && Exists(SetupMutex);
     /// <summary>Waits while an update of this copy, or for an installed copy a Mira installer, is running;
     /// false if it still runs after <paramref name="timeout"/>.</summary>
-    public static bool WaitIdle(string profile, bool installer, TimeSpan timeout)
+    public static async Task<bool> WaitIdleAsync(string profile, bool installer, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
-        while (Busy(profile, installer)) { if (DateTime.UtcNow > deadline) return false; Thread.Sleep(300); }
+        while (Busy(profile, installer)) { if (DateTime.UtcNow > deadline) return false; await Task.Delay(300).ConfigureAwait(false); }
         return true;
     }
     private static bool Exists(string name)

@@ -95,18 +95,30 @@ public sealed class LibraryStore
                 DELETE FROM completed WHERE updated < $before AND item NOT IN (SELECT item FROM outbox);
                 """;
             cmd.Parameters.AddWithValue("$before", before.ToUniversalTime().ToString("O"));
+            _known.Clear();
             return cmd.ExecuteNonQuery();
         }
     }
     private SqliteConnection Open() { var db = new SqliteConnection(_connectionString); db.Open(); return db; }
+    /// <summary>
+    /// What each page holds on disk, as this store last read or wrote it. A background refresh finding the same titles
+    /// does not write them again (the home page of a large library is megabytes), except once a day, so that a page
+    /// still in use never reaches <see cref="CacheLifetime"/>.
+    /// </summary>
+    private readonly Dictionary<string, (byte[] Hash, DateTimeOffset Written)> _known = [];
+    private static readonly TimeSpan Rewrite = TimeSpan.FromDays(1);
     public void Save<T>(string key, T value)
     {
+        var json = JsonSerializer.Serialize(value, Json.Options);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(json)); var now = DateTimeOffset.UtcNow;
         lock (_gate)
         {
+            if (_known.TryGetValue(key, out var known) && known.Hash.AsSpan().SequenceEqual(hash) && now - known.Written < Rewrite) return;
             using var db = Open(); using var cmd = db.CreateCommand();
             cmd.CommandText = "INSERT OR REPLACE INTO cache VALUES ($key,$json,$at)";
-            cmd.Parameters.AddWithValue("$key", key); cmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(value, Json.Options));
-            cmd.Parameters.AddWithValue("$at", DateTimeOffset.UtcNow.ToString("O")); cmd.ExecuteNonQuery();
+            cmd.Parameters.AddWithValue("$key", key); cmd.Parameters.AddWithValue("$json", json);
+            cmd.Parameters.AddWithValue("$at", now.ToString("O")); cmd.ExecuteNonQuery();
+            _known[key] = (hash, now);
         }
     }
     public T? Load<T>(string key)
@@ -114,9 +126,13 @@ public sealed class LibraryStore
         lock (_gate)
         {
             using var db = Open(); using var cmd = db.CreateCommand();
-            cmd.CommandText = "SELECT json FROM cache WHERE key=$key"; cmd.Parameters.AddWithValue("$key", key);
-            var text = cmd.ExecuteScalar() as string;
-            return text is null ? default : JsonSerializer.Deserialize<T>(text, Json.Options);
+            cmd.CommandText = "SELECT json, updated FROM cache WHERE key=$key"; cmd.Parameters.AddWithValue("$key", key);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read()) return default;
+            var text = reader.GetString(0);
+            if (DateTimeOffset.TryParse(reader.GetString(1), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var written))
+                _known[key] = (SHA256.HashData(Encoding.UTF8.GetBytes(text)), written);
+            return JsonSerializer.Deserialize<T>(text, Json.Options);
         }
     }
     public void Enqueue(string kind, PlaybackReport report)

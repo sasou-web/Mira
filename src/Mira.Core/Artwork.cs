@@ -39,4 +39,19 @@ public static class Artwork
     public static IReadOnlyList<string> Seasons(IEnumerable<MediaItem> items) =>
         items.Where(x => x.Type == "Episode" && x.SeasonId is { Length: > 0 }).Select(x => x.SeasonId!).Distinct().ToList();
     private static string? Tag(Dictionary<string, string> tags, string type) => tags.TryGetValue(type, out var tag) && tag.Length > 0 ? tag : null;
+    /// <summary>The widths asked of Jellyfin: a few steps, so that cards of slightly different sizes share one file.</summary>
+    private static readonly int[] Steps = [160, 200, 240, 280, 320, 360, 400, 480, 560, 640, 720, 800, 960, 1120, 1280, 1600, 1920, 2560, 3840];
+    /// <summary>
+    /// The width, in pixels, to ask and decode an image shown <paramref name="width"/> units wide at <paramref name="scale"/>
+    /// (1.5 at 150 %): the next step up, never more than <paramref name="max"/>. A poster decoded wider than it is
+    /// shown only costs memory (a 500 px poster is 1.5 MB; shown 185 units wide at 100 %, 240 px are enough).
+    /// </summary>
+    public static int Pixels(double width, double scale, int max)
+    {
+        if (!double.IsFinite(scale) || scale <= 0) scale = 1;
+        if (!double.IsFinite(width) || width <= 0) return Math.Max(1, max);
+        var needed = width * Math.Min(scale, 4);
+        foreach (var step in Steps) if (step >= needed - .5) return Math.Min(step, max);
+        return max;
+    }
 }

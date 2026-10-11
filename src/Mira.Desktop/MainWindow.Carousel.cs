@@ -16,6 +16,11 @@ public partial class MainWindow
     private readonly Dictionary<string, Task<MediaItem?>> _heroSeries = [];
     private Task _heroReady = Task.CompletedTask;
     private bool _heroBusy, _heroClockAttached;
+    /// <summary>
+    /// The carousel's clock: 30 times a second, enough for a 42-unit bar filled over 6.5 s. Not CompositionTarget.Rendering,
+    /// which calls back on every frame (60 to 144 Hz) and keeps WPF drawing them; stopped while the carousel is paused.
+    /// </summary>
+    private readonly System.Windows.Threading.DispatcherTimer _heroClock = new(System.Windows.Threading.DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(1 / 30d) };
     private int _heroVersion;
     private long _heroLastFrame;
     private string? _heroRequestedId;
@@ -103,21 +108,36 @@ public partial class MainWindow
         var animated = _settings.HeroAutoPlay && !Motion.Reduced && _heroCandidates.Count > 1;
         for (var i = 0; i < _heroSegments.Count; i++) _heroSegments[i].Progress = animated ? i < active ? 1 : i == active ? _carouselTime.Progress : 0 : i == active ? 1 : 0;
     }
+    /// <summary>
+    /// Runs the carousel's clock only while it advances: on the home page, window active, and not paused. Called again
+    /// by everything that pauses or resumes it (pointer over the banner, keyboard focus in it, page scrolled past it).
+    /// </summary>
     private void UpdateHeroClock()
     {
         UpdateHeroSegments();
         var enabled = !_closing && IsActive && _view == "home" && LibraryShell.IsVisible && DetailOverlay.Visibility != Visibility.Visible && SettingsOverlay.Visibility != Visibility.Visible && TorLinkOverlay.Visibility != Visibility.Visible && LoginOverlay.Visibility != Visibility.Visible
-            && GuideOverlay.Visibility != Visibility.Visible && WelcomeOverlay.Visibility != Visibility.Visible && WhatsNewOverlay.Visibility != Visibility.Visible && !_playing && _settings.HeroAutoPlay && !Motion.Reduced && _heroCandidates.Count > 1;
+            && GuideOverlay.Visibility != Visibility.Visible && WelcomeOverlay.Visibility != Visibility.Visible && WhatsNewOverlay.Visibility != Visibility.Visible && !_playing && _settings.HeroAutoPlay && !Motion.Reduced && _heroCandidates.Count > 1
+            && !HeroPaused;
         if (enabled == _heroClockAttached) return;
         _heroClockAttached = enabled;
-        if (enabled) { _heroLastFrame = Stopwatch.GetTimestamp(); CompositionTarget.Rendering += HeroFrame; }
-        else CompositionTarget.Rendering -= HeroFrame;
+        if (enabled) { _heroLastFrame = Stopwatch.GetTimestamp(); _heroClock.Start(); }
+        else _heroClock.Stop();
+    }
+    /// <summary>The banner holds still while it is read or used, and while the page is scrolled past it.</summary>
+    private bool HeroPaused => _heroBusy || HeroCopy.IsMouseOver || HeroSynopsis.IsMouseOver || HeroDots.IsMouseOver || (_keyboardNavigation && Hero.IsKeyboardFocusWithin) || LibraryScroll.VerticalOffset > Hero.ActualHeight * .65;
+    private void InitializeHeroClock()
+    {
+        _heroClock.Tick += HeroFrame;
+        foreach (var part in new UIElement[] { HeroCopy, HeroSynopsis, HeroDots }) { part.MouseEnter += (_, _) => UpdateHeroClock(); part.MouseLeave += (_, _) => UpdateHeroClock(); }
+        Hero.IsKeyboardFocusWithinChanged += (_, _) => UpdateHeroClock();
     }
     private async void HeroFrame(object? sender, EventArgs e)
     {
         var now = Stopwatch.GetTimestamp(); var elapsed = Math.Min(.1, (now - _heroLastFrame) / (double)Stopwatch.Frequency); _heroLastFrame = now;
-        var paused = _heroBusy || HeroCopy.IsMouseOver || HeroSynopsis.IsMouseOver || HeroDots.IsMouseOver || (_keyboardNavigation && Hero.IsKeyboardFocusWithin) || LibraryScroll.VerticalOffset > Hero.ActualHeight * .65;
+        var paused = HeroPaused;
         var next = _carouselTime.Advance(elapsed, paused); UpdateHeroSegments();
+        // Paused by something no event reported: the clock stops until one resumes it.
+        if (paused) UpdateHeroClock();
         if (next && !_heroBusy && _heroCandidates.Count > 1)
         {
             var index = _heroCandidates.FindIndex(x => x.Id == _hero?.Id);

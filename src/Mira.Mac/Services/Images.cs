@@ -12,13 +12,11 @@ namespace Mira.Mac.Services;
 public sealed class Images
 {
     public const long DiskBudget = 1L << 30, DiskKeep = 768L << 20;
-    private const long MemoryBudget = 384L << 20;
     private readonly JellyfinClient _client;
     private readonly string _directory;
     private readonly SemaphoreSlim _downloads = new(6);
-    private readonly Dictionary<string, (Task<Bitmap?> Image, long LastUse, long Bytes)> _memory = [];
-    private readonly object _gate = new();
-    private long _clock, _bytes;
+    /// <summary>128 MB of decoded bitmaps kept for reuse, as on Windows; bitmaps on screen keep their own reference.</summary>
+    private readonly ImageMemory<Bitmap> _memory = new(ImageMemory<Bitmap>.DefaultLimit, ImageMemory<Bitmap>.DefaultTarget, bitmap => (long)bitmap.PixelSize.Width * bitmap.PixelSize.Height * 4);
 
     public Images(JellyfinClient client, string profileDirectory)
     {
@@ -50,32 +48,7 @@ public sealed class Images
     private Task<Bitmap?> Get(ImageRef image, int width)
     {
         var key = $"{image.ItemId}-{image.Type}-{image.Tag}-{width}";
-        lock (_gate)
-        {
-            if (_memory.TryGetValue(key, out var hit)) { _memory[key] = hit with { LastUse = ++_clock }; return hit.Image; }
-            var task = FetchAsync(key, image, width);
-            _memory[key] = (task, ++_clock, 0);
-            _ = task.ContinueWith(done => Settle(key, task, done.IsCompletedSuccessfully ? done.Result : null), TaskScheduler.Default);
-            return task;
-        }
-    }
-    private void Settle(string key, Task<Bitmap?> task, Bitmap? bitmap)
-    {
-        lock (_gate)
-        {
-            if (!_memory.TryGetValue(key, out var entry) || entry.Image != task) return;
-            // A failed image is asked again next time instead of staying missing.
-            if (bitmap is null) { _memory.Remove(key); return; }
-            var bytes = (long)bitmap.PixelSize.Width * bitmap.PixelSize.Height * 4;
-            _memory[key] = entry with { Bytes = bytes }; _bytes += bytes;
-            if (_bytes <= MemoryBudget) return;
-            // Bitmaps on screen keep their own reference: forgetting them here only stops reuse.
-            foreach (var old in _memory.OrderBy(x => x.Value.LastUse).ToList())
-            {
-                if (_bytes <= MemoryBudget * 3 / 4) break;
-                _memory.Remove(old.Key); _bytes -= old.Value.Bytes;
-            }
-        }
+        return _memory.Get(key, () => FetchAsync(key, image, width));
     }
     private async Task<Bitmap?> FetchAsync(string key, ImageRef image, int width)
     {
@@ -90,8 +63,10 @@ public sealed class Images
                 await _downloads.WaitAsync();
                 try { bytes = await _client.ImageAsync(image.ItemId, image.Type, width); }
                 finally { _downloads.Release(); }
+                // At best: a full disk or a read-only folder loses the copy on disk, never the image, decoded from memory.
                 var temporary = file + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
-                await File.WriteAllBytesAsync(temporary, bytes); File.Move(temporary, file, true);
+                try { await File.WriteAllBytesAsync(temporary, bytes); File.Move(temporary, file, true); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { try { File.Delete(temporary); } catch (Exception again) when (again is IOException or UnauthorizedAccessException) { } }
             }
             return await Task.Run(() => Decode(bytes, width));
         }

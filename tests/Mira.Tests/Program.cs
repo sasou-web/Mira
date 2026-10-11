@@ -1859,13 +1859,150 @@ await Test("Images : mémoire bornée, les moins récentes libérées puis relue
     var cache = new ImageCache(client, Path.Combine(testRoot, "image-cache")) { MemoryLimit = each * 3, MemoryTarget = each * 2 };
     MediaItem Poster(int i) => new() { Id = "poster-" + i, ImageTags = new() { ["Primary"] = "tag" } };
     var requests = new List<Task<System.Windows.Media.Imaging.BitmapSource?>>();
-    for (var i = 0; i < 5; i++) { requests.Add(cache.GetAsync(Poster(i))); Assert(await requests[i] is { PixelWidth: 500 }, "Image not decoded"); }
+    for (var i = 0; i < 5; i++) { requests.Add(cache.GetAsync(Poster(i), targetWidth: 500)); Assert(await requests[i] is { PixelWidth: 500 }, "Image not decoded"); }
     await WaitUntil(() => cache.Settled == 5);
     Assert(cache.MemoryBytes == each * 3, "Memory not trimmed to its target: " + cache.MemoryBytes);
-    Assert(ReferenceEquals(cache.GetAsync(Poster(4)), requests[4]), "The most recent image left memory");
-    var again = cache.GetAsync(Poster(0));
+    Assert(ReferenceEquals(cache.GetAsync(Poster(4), targetWidth: 500), requests[4]), "The most recent image left memory");
+    var again = cache.GetAsync(Poster(0), targetWidth: 500);
     Assert(!ReferenceEquals(again, requests[0]), "The oldest image stayed in memory past the budget");
     Assert(await again is { PixelWidth: 500 } && downloads == 5, "An image evicted from memory was downloaded again instead of read from disk");
+});
+await Test("Images : décodées à la taille affichée sur l’écran le plus net, jamais plus grandes que le fichier", async () =>
+{
+    var pixels = new byte[500 * 500 * 4]; Array.Fill(pixels, (byte)90);
+    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(System.Windows.Media.Imaging.BitmapSource.Create(500, 500, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, 2000)));
+    using var png = new MemoryStream(); encoder.Save(png); var bytes = png.ToArray();
+    var asked = new List<string>();
+    using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(request =>
+    { lock (asked) asked.Add(request.RequestUri!.Query); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }); }));
+    var cache = new ImageCache(client, Path.Combine(testRoot, "image-sizes")) { Scale = 1.5, ScreenPixels = 1920 };
+    MediaItem Poster(string id) => new() { Id = id, ImageTags = new() { ["Primary"] = "tag" } };
+    // The widest poster card (230 units) at 150 %: 360 px, asked of Jellyfin at that width.
+    Assert(await cache.GetAsync(Poster("p")) is { PixelWidth: 360 } && asked.Last().Contains("maxWidth=360"), "Poster: " + asked.Last());
+    // A file narrower than asked is not enlarged in memory.
+    Assert(await cache.GetAsync(Poster("q"), targetWidth: 640) is { PixelWidth: 500 }, "A 500 px file was decoded wider");
+    Assert(await cache.GetAsync(Poster("r"), backdrop: true) is not null && asked.Last().Contains("maxWidth=1920"), "Backdrop: " + asked.Last());
+    Assert(cache.Pixels(ImageCache.EpisodeWidth) == 240 && cache.Pixels(ImageCache.LogoWidth) == 960, "Episodes and logos");
+});
+await Test("Images : disque plein, l’image téléchargée s’affiche quand même", async () =>
+{
+    var pixels = new byte[64 * 64 * 4]; Array.Fill(pixels, (byte)120);
+    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(System.Windows.Media.Imaging.BitmapSource.Create(64, 64, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, 256)));
+    using var png = new MemoryStream(); encoder.Save(png); var bytes = png.ToArray();
+    var connection = new Connection("http://localhost/", "u", "Alice", "token", "device");
+    using var client = new JellyfinClient(connection, new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) })));
+    var profile = Path.Combine(testRoot, "image-disk-full");
+    var cache = new ImageCache(client, profile);
+    // The copy on disk cannot be written: a folder stands where its temporary file goes.
+    var key = "full-Primary-tag-500";
+    var path = Path.Combine(AccountData.ImageFolder(profile, connection), Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) + ".img");
+    Directory.CreateDirectory(path + ".tmp");
+    Assert(await cache.GetAsync(new MediaItem { Id = "full", ImageTags = new() { ["Primary"] = "tag" } }, targetWidth: 500) is { PixelWidth: 64 }, "The image was dropped with its copy on disk");
+    Assert(!File.Exists(path), "A copy was kept");
+});
+await Test("Images : largeur décodée = taille affichée × échelle de l’écran, au palier supérieur", () =>
+{
+    Assert(Artwork.Pixels(185, 1, 1280) == 200 && Artwork.Pixels(230, 1, 1280) == 240, "Posters at 100 %");
+    Assert(Artwork.Pixels(185, 1.5, 1280) == 280 && Artwork.Pixels(230, 1.5, 1280) == 360, "Posters at 150 %");
+    Assert(Artwork.Pixels(290, 2, 1280) == 640 && Artwork.Pixels(160, 1.25, 1280) == 200, "Wide cards and episodes");
+    Assert(Artwork.Pixels(1920, 1, 2560) == 1920 && Artwork.Pixels(1366, 1, 2560) == 1600 && Artwork.Pixels(3840, 1, 2560) == 2560, "Backdrops by screen width, 2560 at most");
+    Assert(Artwork.Pixels(double.NaN, 1, 900) == 900 && Artwork.Pixels(0, 1, 900) == 900 && Artwork.Pixels(200, double.NaN, 1280) == 200 && Artwork.Pixels(200, 0, 1280) == 200, "Unknown size or scale");
+    // Cards a few units apart share one file on disk and one request to Jellyfin.
+    Assert(Artwork.Pixels(181, 1, 1280) == Artwork.Pixels(199, 1, 1280), "Steps");
+    return Task.CompletedTask;
+});
+await Test("Images en mémoire : une requête par image, les moins récentes libérées au-delà du budget, tout libéré à la réduction", async () =>
+{
+    var memory = new ImageMemory<byte[]>(300, 200, x => x.Length);
+    var fetches = 0;
+    Task<byte[]?> Fetch(int size) { Interlocked.Increment(ref fetches); return Task.FromResult<byte[]?>(new byte[size]); }
+    var first = memory.Get("a", () => Fetch(100));
+    Assert(ReferenceEquals(memory.Get("a", () => Fetch(100)), first) && fetches == 1, "Two requests for one image");
+    await memory.Get("b", () => Fetch(100)); await memory.Get("c", () => Fetch(100));
+    await WaitUntil(() => memory.Settled == 3);
+    Assert(memory.Bytes == 300 && memory.Count == 3, "Within the budget: " + memory.Bytes);
+    // « a » used again: « b » then « c » are the oldest, and leave down to the target.
+    _ = memory.Get("a", () => Fetch(100)); await memory.Get("d", () => Fetch(100));
+    await WaitUntil(() => memory.Settled == 4);
+    Assert(memory.Bytes == 200 && memory.Count == 2 && ReferenceEquals(memory.Get("a", () => Fetch(100)), first), "Least recently used not let go first: " + memory.Bytes);
+    // A failed image is asked again next time.
+    Assert(await memory.Get("e", () => Task.FromResult<byte[]?>(null)) is null && await memory.Get("f", () => Task.FromException<byte[]?>(new IOException())).ContinueWith(x => x.IsFaulted), "Failures");
+    await WaitUntil(() => memory.Settled == 6);
+    Assert(memory.Count == 2, "A failed image stayed: " + memory.Count);
+    // Minimized: everything goes; a request on its way still answers, without being counted.
+    var gate = new TaskCompletionSource<byte[]?>(); var pending = memory.Get("g", () => gate.Task);
+    memory.Clear(); Assert(memory.Bytes == 0 && memory.Count == 0, "Not emptied");
+    gate.SetResult(new byte[50]); Assert(await pending is { Length: 50 }, "The request on its way was lost");
+    await WaitUntil(() => memory.Settled == 7);
+    Assert(memory.Bytes == 0, "A request made before emptying was counted: " + memory.Bytes);
+    var again = memory.Get("a", () => Fetch(100)); Assert(!ReferenceEquals(again, first) && fetches == 5, "An image let go was not asked again");
+});
+await Test("Rythmes : secours 45 s sans WebSocket et 5 min avec, progression toutes les 10 s en lecture, rien en pause", () =>
+{
+    var now = DateTimeOffset.UtcNow;
+    Assert(Cadence.RefreshDue(false, now.AddSeconds(-45), now) && Cadence.RefreshDue(false, now.AddSeconds(-42), now) && !Cadence.RefreshDue(false, now.AddSeconds(-30), now), "Without the WebSocket");
+    Assert(!Cadence.RefreshDue(true, now.AddSeconds(-45), now) && !Cadence.RefreshDue(true, now.AddMinutes(-4), now) && Cadence.RefreshDue(true, now.AddMinutes(-5), now), "With the WebSocket");
+    Assert(Cadence.RefreshDue(true, DateTimeOffset.MinValue, now), "Never refreshed");
+    Assert(Cadence.ProgressDue(false, false, now.AddSeconds(-10), now) && !Cadence.ProgressDue(false, false, now.AddSeconds(-9), now), "Every 10 s while it plays");
+    Assert(!Cadence.ProgressDue(false, true, now.AddMinutes(-10), now), "Reported while it stays paused");
+    Assert(Cadence.ProgressDue(true, true, now, now) && Cadence.ProgressDue(true, false, now, now), "Pause and resume not reported at once");
+    Assert(Cadence.ProgressDue(false, true, DateTimeOffset.MinValue, now), "A seek while paused not reported");
+    Assert(new[] { 0, 1, 2, 3, 4, 5, 50 }.Select(x => Cadence.RetryDelay(x).TotalSeconds).SequenceEqual(new double[] { 3, 3, 6, 12, 24, 30, 30 }), "Retry delays");
+    return Task.CompletedTask;
+});
+await Test("Ligne d’état : « Hors connexion » gardé jusqu’à ce que Jellyfin réponde de nouveau", () =>
+{
+    var failed = DateTimeOffset.Now;
+    var (text, warning) = SyncStatus.Describe(0, null, null, failed);
+    Assert(text == "○  Hors connexion · cache local" && warning, text);
+    // The retry loop's own updates (an older delivery, its error) leave it in place.
+    (text, _) = SyncStatus.Describe(0, null, failed.AddMinutes(-1), failed); Assert(text == "○  Hors connexion · cache local", text);
+    (text, _) = SyncStatus.Describe(2, "En attente de Jellyfin", null, failed); Assert(text == "○  Hors connexion · 2 envois en attente", text);
+    // A report delivered after the failure: Jellyfin answers again.
+    (text, warning) = SyncStatus.Describe(0, null, failed.AddSeconds(5), failed); Assert(text.StartsWith("●  Synchronisé à ") && !warning, text);
+    (text, warning) = SyncStatus.Describe(0, null, null, null); Assert(text == "●  Connecté à Jellyfin" && !warning, text);
+    (text, warning) = SyncStatus.Describe(1, SyncService.StorageError, null, null); Assert(text == "◌  1 envoi en attente · " + SyncService.StorageError && warning, text);
+    (text, warning) = SyncStatus.Describe(0, SyncService.StorageError, null, null); Assert(text == "◌  " + SyncService.StorageError && warning, text);
+    return Task.CompletedTask;
+});
+await Test("Cache de bibliothèque : une page identique n’est pas réécrite, une page changée l’est", () =>
+{
+    var folder = Path.Combine(testRoot, "unchanged-pages");
+    var store = new LibraryStore(folder, "pages");
+    string Updated()
+    {
+        var path = Directory.GetFiles(folder, "library-*.db").Single();
+        using var db = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = path }.ToString()); db.Open();
+        using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT updated FROM cache WHERE key='home'"; return (string)cmd.ExecuteScalar()!;
+    }
+    var page = new ItemsResult { Items = [new MediaItem { Id = "a", Name = "Film", ImageTags = new() { ["Primary"] = "t" } }], TotalRecordCount = 1 };
+    store.Save("home", page); var first = Updated();
+    Thread.Sleep(20); store.Save("home", page);
+    Assert(Updated() == first, "An identical page was written again");
+    page.Items[0] = page.Items[0] with { Name = "Film renommé" }; store.Save("home", page);
+    Assert(Updated() != first && store.Load<ItemsResult>("home")!.Items[0].Name == "Film renommé", "A changed page was not written");
+    // Another opening of the same cache knows a page once it has read it.
+    var second = Updated(); var reopened = new LibraryStore(folder, "pages");
+    var loaded = reopened.Load<ItemsResult>("home")!; Thread.Sleep(20); reopened.Save("home", loaded);
+    Assert(Updated() == second, "A page read then saved unchanged was written again");
+    return Task.CompletedTask;
+});
+await Test("Synchronisation : un envoi échoué est réessayé seul, et aussitôt quand Jellyfin répond de nouveau", async () =>
+{
+    var online = false;
+    using var client = new JellyfinClient(new("http://localhost/", "u", "Alice", "token", "device"), new Handler(_ =>
+        Task.FromResult(new HttpResponseMessage(Volatile.Read(ref online) ? HttpStatusCode.NoContent : HttpStatusCode.ServiceUnavailable))));
+    var store = Store("retry-signal"); await using var sync = new SyncService(client, store);
+    await sync.RecordAsync("start", Report()); await WaitUntil(() => sync.Error is not null);
+    // Nothing new recorded: the loop tries again by itself, 3 s later.
+    Volatile.Write(ref online, true); await WaitUntil(() => store.PendingCount == 0, 6);
+    // Offline again, a failure, then Jellyfin answers: Wake sends at once, without waiting for the next try.
+    Volatile.Write(ref online, false); await sync.RecordAsync("progress", Report(5)); await WaitUntil(() => sync.Error is not null && sync.PendingCount == 1);
+    Volatile.Write(ref online, true); var watch = Stopwatch.StartNew(); sync.Wake();
+    await WaitUntil(() => store.PendingCount == 0, 6);
+    Assert(watch.Elapsed < TimeSpan.FromSeconds(1.5), "Wake did not send at once: " + watch.Elapsed);
 });
 await Test("Couleur du bandeau : teintes différentes pour des images rouges et bleues", () =>
 {

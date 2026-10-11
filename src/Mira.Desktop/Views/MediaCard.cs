@@ -110,11 +110,18 @@ public sealed class MediaCard : Button
         _visual.Clip = new RectangleGeometry(new Rect(0, 0, width, _visual.Height), 5, 5);
         if (_progress is not null) _progress.Width = Math.Max(2, width * Item.Progress);
     }
-    public Task LoadImageAsync(ImageCache? images, bool wide) => ImageReady = LoadArtworkAsync(images, wide);
-    private async Task LoadArtworkAsync(ImageCache? images, bool wide)
+    /// <summary>Its artwork was asked for (posters of the grid wait until they come near the visible part of the page).</summary>
+    public bool ImageRequested { get; private set; }
+    public Task LoadImageAsync(ImageCache? images, bool wide)
     {
-        if (images is null) return;
-        var request = wide ? images.LandscapeAsync(Item, 720) : images.GetAsync(Item, false, 500); var cached = request.IsCompletedSuccessfully;
+        if (images is null) return Task.CompletedTask;
+        ImageRequested = true; return ImageReady = LoadArtworkAsync(images, wide);
+    }
+    private async Task LoadArtworkAsync(ImageCache images, bool wide)
+    {
+        // Decoded at the size shown (on the sharpest screen), never larger.
+        var width = images.Pixels(Width);
+        var request = wide ? images.LandscapeAsync(Item, width) : images.GetAsync(Item, false, width); var cached = request.IsCompletedSuccessfully;
         var bitmap = await request;
         if (bitmap is not null) { var initial = _image.Source is null; _image.Source = bitmap; if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft); }
     }
