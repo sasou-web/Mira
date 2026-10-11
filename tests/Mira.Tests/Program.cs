@@ -478,6 +478,75 @@ await Test("Fenêtre : taille normale sur un grand écran, réduite et jamais ag
     Assert(ScreenFit.Window(new(500, 300), new(960, 600), new(1920, 1032)) is { Size: { Width: 960, Height: 600 } }, "A remembered size below the minimum");
     return Task.CompletedTask;
 });
+await Test("Fenêtre : rouverte à sa place si son écran est là, sinon centrée sur l’écran de la souris, à l’échelle de cet écran", () =>
+{
+    ScreenFit.Screen Screen(double left, double top, double width, double height, double scale = 1) => new(new(left, top, width, height), scale);
+    // A 1080p primary screen at 100 % (taskbar below), and a smaller one on its right.
+    var primary = Screen(0, 0, 1920, 1032); var small = Screen(1920, 0, 1366, 728);
+    ScreenFit.Placement? Place((double, double)? remembered, (double, double)? pointer, params ScreenFit.Screen[] screens) =>
+        ScreenFit.Place(new(1480, 930), new(960, 600), screens, remembered, pointer);
+    // No corner remembered: the screen under the pointer, sized for it (90 % of 1366 × 728), centred there.
+    Assert(Place(null, (2500, 300), primary, small) is { Remembered: false, Fit.Size: { Width: 1229, Height: 655 }, Window: { Left: 1988, Top: 36, Width: 1229, Height: 655 } } p1 && p1.Screen == small,
+        "Opened on the smaller screen of the pointer: sized for that screen, not for the primary one");
+    Assert(Place(null, null, primary, small) is { Window: { Left: 220, Top: 52, Width: 1480, Height: 928 } } p2 && p2.Screen == primary, "No pointer: centred on the primary screen");
+    Assert(Place(null, (-5000, -5000), primary, small)?.Screen == primary, "A pointer outside every screen: the primary screen");
+    // A remembered corner on a screen still there: kept, the size fitted to that screen.
+    Assert(Place((2000, 40), (100, 100), primary, small) is { Remembered: true, Window: { Left: 2000, Top: 40 } } p3 && p3.Screen == small, "Back where it was on the second screen");
+    // That screen unplugged since: centred on the screen of the pointer instead of off every screen.
+    Assert(Place((2000, 40), (100, 100), primary) is { Remembered: false, Window: { Left: 220, Top: 52 } }, "Its screen unplugged: back on a screen present");
+    // Partly beyond the edge: moved inside the work area, never over the taskbar.
+    Assert(Place((1700, 900), null, primary) is { Remembered: true, Window: { Left: 440, Top: 104, Width: 1480, Height: 928 } }, "A corner too close to the edge is moved in");
+    // Only a sliver of the title bar would show (above the top of the screen): not reachable, so centred.
+    Assert(Place((100, -900), null, primary) is { Remembered: false }, "A title bar out of reach is not reopened there");
+    Assert(Place((1900, 100), null, primary) is { Remembered: false }, "Twenty pixels of title bar are not enough to grab it");
+    // Screens left of or above the primary one have negative coordinates.
+    var left = Screen(-2560, -200, 2560, 1400);
+    Assert(Place((-2400, -100), null, primary, left) is { Remembered: true, Window: { Left: -2400, Top: -100 } } p4 && p4.Screen == left, "A screen left of the primary one");
+    // 150 %: the size in device-independent pixels fits 1707 × 928, and the window measures 1.5 times that in pixels.
+    var scaled = Screen(1920, 0, 2560, 1392, 1.5);
+    Assert(Place(null, (3000, 500), primary, scaled) is { Fit.Size: { Width: 1480, Height: 835 }, Window: { Width: 2220, Height: 1252 } } p5 && p5.Screen == scaled,
+        "At 150 %: fitted in device-independent pixels, placed in device pixels");
+    // The corner is checked against each screen at its own scale.
+    Assert(Place((1950, 50), null, primary, scaled) is { Remembered: true } p6 && p6.Screen == scaled, "Remembered on the 150 % screen");
+    // Nothing usable: Windows' own placement.
+    Assert(Place(null, null) is null && Place(null, null, Screen(0, 0, 0, 0)) is null && Place(null, null, Screen(0, 0, 1920, 1032, double.NaN)) is null, "No usable screen");
+    Assert(Place((double.NaN, 10), null, primary) is { Remembered: false }, "A broken saved corner is ignored");
+    // A screen smaller than the minimum size: the window keeps its top-left corner on it.
+    Assert(Place(null, null, Screen(0, 0, 800, 560)) is { Window: { Left: 0, Top: 0, Width: 800, Height: 560 } }, "Tiny screen");
+    return Task.CompletedTask;
+});
+await Test("Menu Démarrer : la copie installée le garde, une autre copie ne le remplit que s’il manque ou ne mène nulle part", () =>
+{
+    var home = Path.Combine(Path.GetTempPath(), "mira-shell-" + Guid.NewGuid().ToString("N"));
+    var temporary = Path.Combine(home, "Temp"); var installed = Path.Combine(home, "Programs", "Mira", "Mira.exe");
+    var portable = Path.Combine(home, "Documents", "Mira", "Mira.exe"); var lookalike = Path.Combine(home, "Temporary", "Mira", "Mira.exe");
+    var present = new HashSet<string> { installed, portable };
+    bool Should(string executable, bool isInstalled, bool exists, string? target) => ShellRegistration.ShouldRegister(executable, isInstalled, temporary, exists, target, present.Contains);
+    Assert(Should(installed, true, true, portable), "The installed copy takes the shortcut back from a portable one");
+    Assert(Should(installed, true, false, null), "The installed copy writes a missing shortcut");
+    Assert(!Should(portable, false, true, installed), "A portable copy leaves the shortcut of the installed one");
+    Assert(!Should(lookalike, false, true, portable), "Nor does another copy take one that still leads somewhere");
+    Assert(Should(portable, false, false, null), "No shortcut yet: a portable copy adds one");
+    Assert(Should(portable, false, true, Path.Combine(home, "Deleted", "Mira.exe")), "A shortcut to a deleted copy is replaced");
+    Assert(Should(portable, false, true, null), "An unreadable shortcut is replaced");
+    Assert(!Should(Path.Combine(temporary, "Temp1_Mira.zip", "Mira", "Mira.exe"), false, false, null), "A zip opened in place, under the temporary folder: never");
+    Assert(!Should(Path.Combine(temporary, "Mira.exe"), true, false, null), "Never from the temporary folder, whatever it says");
+    Assert(Should(lookalike, false, false, null), "Temporary is not Temp: a folder whose name only starts the same is not the temporary folder");
+    return Task.CompletedTask;
+});
+await Test("Relance : une copie qui démarre ou se ferme le dit, plus de faux « Mira est déjà ouvert »", async () =>
+{
+    var key = "test-" + Guid.NewGuid().ToString("N");
+    Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.None, "Nothing listening: no answer");
+    var answer = ActivationAnswer.Starting; var asked = 0;
+    using var activation = new InstanceActivation(key, () => { Interlocked.Increment(ref asked); return answer; });
+    Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.Starting, "While it starts: « starting », the launch ends quietly");
+    answer = ActivationAnswer.Closing;
+    Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.Closing, "While it closes: « closing », the launch waits for it to end");
+    answer = ActivationAnswer.Shown;
+    Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.Shown, "Open: its window comes forward");
+    Assert(Volatile.Read(ref asked) == 3, "Asked once per launch");
+});
 await Test("Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu’à la fin, refus d’un compte non administrateur", async () =>
 {
     // The scan task as Jellyfin lists it: Idle with the end of the last scan, then Running with its progress.

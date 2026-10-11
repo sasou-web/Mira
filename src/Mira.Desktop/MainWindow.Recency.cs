@@ -9,7 +9,18 @@ public partial class MainWindow
     private Dictionary<string, DateTimeOffset> _hiddenResume = [];
     private async Task RememberCurrentPlaybackAsync()
     {
-        if (_playingItem is not { } item || !_loaded) return;
+        // The row on screen is already right: a cache that cannot be written only loses it for the next start.
+        if (RecentSnapshot() is { } snapshot && !_demo && _store is { } store) await Task.Run(() => TryCache(() => store.RememberPlayback(snapshot)));
+    }
+    /// <summary>The same, waited for <paramref name="limit"/> at most: Mira is closing with Windows (see SessionEnding).</summary>
+    private void RememberCurrentPlaybackNow(TimeSpan limit)
+    {
+        if (RecentSnapshot() is { } snapshot && !_demo && _store is { } store) Task.Run(() => TryCache(() => store.RememberPlayback(snapshot))).Wait(limit);
+    }
+    /// <summary>The title playing, put first in the recent list and in « Continuer à regarder »; null when nothing plays.</summary>
+    private MediaItem? RecentSnapshot()
+    {
+        if (_playingItem is not { } item || !_loaded) return null;
         var at = DateTimeOffset.UtcNow; item.UserData.LastPlayedDate = at;
         var snapshot = item with { UserData = item.UserData with { } };
         ApplySeasonThumbs([snapshot]);
@@ -18,8 +29,7 @@ public partial class MainWindow
         if (!snapshot.UserData.Played && snapshot.UserData.PlaybackPositionTicks > 0) _resume.Insert(0, snapshot);
         // The position of the last watched title is predictable on returning to the home row.
         SmoothResumeToStart();
-        // The row on screen is already right: a cache that cannot be written only loses it for the next start.
-        if (!_demo && _store is { } store) await Task.Run(() => TryCache(() => store.RememberPlayback(snapshot)));
+        return snapshot;
     }
     private void SmoothResumeToStart()
     { Views.SmoothScroll.Cancel(ResumeScroll); ResumeScroll.ScrollToHorizontalOffset(0); }

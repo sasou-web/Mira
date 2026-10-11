@@ -57,6 +57,16 @@ public partial class MainWindow
         MiniFrame.Visibility = MiniTab.Visibility = MiniOutline.Visibility = Visibility.Collapsed;
         _videoHost?.SetCornerRadius(0);
     }
+    /// <summary>
+    /// Moved to a screen of another scale: the native video's rounded corners are in device pixels and are recomputed,
+    /// and the mini-player and the controls' overlay window are placed again.
+    /// </summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        if (_miniPlayer) { _videoHost?.SetCornerRadius(MiniRadius * newDpi.DpiScaleX); KeepMiniInPlace(); }
+        else PositionPlayerControls();
+    }
     /// <summary>Keeps the mini-player in its corner when the window is resized.</summary>
     private void KeepMiniInPlace()
     {
