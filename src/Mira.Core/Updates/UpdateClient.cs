@@ -176,6 +176,16 @@ public sealed class UpdateClient : IDisposable
         return target;
     }
 
+    /// <summary>Where GitHub serves the file <paramref name="name"/> of release v<paramref name="version"/>: a fixed
+    /// address, which only ever names that release's file.</summary>
+    public static Uri ReleaseFile(Version version, string name) => new($"https://github.com/sasou-web/Mira/releases/download/v{version.ToString(3)}/{Uri.EscapeDataString(name)}");
+    /// <summary>A small file of release v<paramref name="version"/>, in memory, <paramref name="limit"/> bytes at most;
+    /// fetched like an update (GitHub only, every redirect checked). Missing: an <see cref="UpdateException"/> with 404.</summary>
+    public Task<byte[]> ReleaseFileAsync(Version version, string name, int limit, CancellationToken ct = default) =>
+        GetBytesAsync(ReleaseFile(version, name), limit, "application/octet-stream", ct);
+    /// <summary>Whether <paramref name="manifest"/> carries a valid signature from one of the keys this client trusts.</summary>
+    public bool Signed(byte[] manifest, byte[]? signature) => signature is not null && UpdateSignature.Verify(manifest, signature, _keys);
+
     /// <summary>Synchronous <see cref="MatchesAsync"/>, for the last check just before an update starts.</summary>
     public static bool Matches(string path, UpdateFile file)
     {
@@ -241,7 +251,7 @@ public sealed class UpdateClient : IDisposable
                 continue;
             }
             if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests) { response.Dispose(); throw new UpdateException("GitHub limite les vérifications pour le moment : nouvel essai plus tard."); }
-            if (!response.IsSuccessStatusCode) { var code = (int)response.StatusCode; response.Dispose(); throw new UpdateException($"GitHub a répondu {code} à la vérification des mises à jour."); }
+            if (!response.IsSuccessStatusCode) { var status = response.StatusCode; response.Dispose(); throw new UpdateException($"GitHub a répondu {(int)status} à la vérification des mises à jour.", status); }
             return response;
         }
     }
