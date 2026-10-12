@@ -98,6 +98,26 @@ internal static class TorLinkTests
             Assert(ReleaseName.Episode("[Group] Show - 07 [1080p].mkv", true) is { Season: 1, Episode: 7, Absolute: true }, "Absolute anime number misread");
             Assert(ReleaseName.Episode("Some.Film.2010.1080p.BluRay", false) is null && ReleaseName.Episode("[YTS] Film - 2014 [1080p]", true) is null, "A film or a year read as an episode");
             Assert(ReleaseName.Season("Show.S01-S03.Complete.1080p") is null, "A multi-season pack was given one season");
+            // Sonarr and Plex name episodes "Show (Year) - S01E02 - Title": the year belongs to the series.
+            Assert(ReleaseName.Show("Doctor Who (2005) - S13E01 - War of the Sontarans.mkv") == ("Doctor Who", 2005), "Series year lost before a dash");
+            Assert(ReleaseName.Show("Severance (2022) – S02E01 – Hello, Ms. Cobel.mkv") == ("Severance", 2022), "Series year lost before an en dash");
+            Assert(ReleaseName.Show("Severance - S02E01 - Hello, Ms. Cobel.mkv") == ("Severance", null), "Series title kept its dash");
+            Assert(ReleaseName.Show("Spider-Man 2099 - S01E01.mkv") == ("Spider-Man 2099", null) && ReleaseName.Show("Spider-Man.2099.S01E01.1080p") == ("Spider-Man 2099", null),
+                "A year still to come taken out of a series title");
+            Assert(ReleaseName.Episode("Show.S01E05-720p.mkv", false)?.Label == "S01E05" && ReleaseName.Episode("Show.S01E05-1080i.mkv", false)?.Label == "S01E05",
+                "A resolution read as the last episode");
+            Assert(ReleaseName.Episode("Show.S01E05-06.720p.mkv", false)?.Label == "S01E05-E06", "Double episode lost before a resolution");
+            return Task.CompletedTask;
+        });
+        await Test("TorLink : épisode nommé comme Sonarr ou Plex, rangé dans le dossier de sa série déjà présent", () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-sonarr-name"); var series = Path.Combine(dir, "Séries");
+            Directory.CreateDirectory(Path.Combine(series, "Doctor Who (2005)", "Season 13"));
+            const string name = "Doctor Who (2005) - S13E02 - War of the Sontarans.mkv";
+            var plan = MediaPlanner.Plan(name, null, [new SourceFile(Path.Combine(dir, name), name, 1_200_000_000)], new MediaLibraries(null, series, null));
+            Assert(plan.Problem is null && plan.Kind == MediaKind.Series && plan.Operations.Count == 1, $"Episode not planned: {plan.Problem}");
+            Assert(plan.Operations[0].Destination == Path.Combine(series, "Doctor Who (2005)", "Season 13", "Doctor Who (2005) - S13E02.mkv"),
+                $"Episode placed beside the series' folder: {plan.Operations[0].Destination}");
             return Task.CompletedTask;
         });
         await Test("TorLink : historique sans lien magnet, activation, attente des fichiers, dossier manquant et journal rechargé", async () =>
