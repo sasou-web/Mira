@@ -39,6 +39,7 @@ public sealed class Session : IAsyncDisposable
     public Task<MediaItem> ItemAsync(string id) => Shared("item:" + id, () => Client.ItemAsync(id));
     public Task<ItemsResult> EpisodesAsync(string id) => Shared("episodes:" + id, () => Client.EpisodesAsync(id));
     public Task<ItemsResult> SimilarAsync(string id) => Shared("similar:" + id, () => Client.SimilarAsync(id));
+    public Task<Saga?> SagaAsync(string id) => Shared("saga:" + id, () => Client.SagaAsync(id));
     public void Forget() => _requests.Clear();
     private Task<T> Shared<T>(string key, Func<Task<T>> load)
     {

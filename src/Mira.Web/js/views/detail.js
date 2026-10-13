@@ -85,8 +85,8 @@ function episodeRow(episode, current) {
 export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': 'Retour', on: { click: () => goBack('#/') } }, icon('back'));
-  let item = null, episodes = [], next = null, similar = [], page = null, stale = false, loadedAt = 0, loadSeq = 0;
-  let actionsBox = null, toolsBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
+  let item = null, episodes = [], next = null, similar = [], sagas = null, page = null, stale = false, loadedAt = 0, loadSeq = 0;
+  let actionsBox = null, toolsBox = null, sagaBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
   // The episode the page was opened for (« Voir la série » from it): marked, its season shown, until Lecture moves on.
@@ -252,6 +252,7 @@ export function create({ id, query }) {
           credits(item))),
       (seasonsBox = h('div', {}, seasonsSection())),
       row('Distribution', cast, (p) => personCard(p), { people: true }) ?? '',
+      (sagaBox = h('div', {}, sagaRows())),
       (similarBox = h('div', {}, row('Titres similaires', similar, (x) => posterCard(x)) ?? '')),
       h('div', { style: { height: '32px' } }));
     if (focused) { headTitle.tabIndex = -1; headTitle.focus({ preventScroll: true }); }
@@ -300,6 +301,9 @@ export function create({ id, query }) {
     }
   }
 
+  /** The row of the film's saga, named as Jellyfin names it (« Harry Potter - Saga »). */
+  const sagaRows = () => (sagas ?? []).map((saga) => row(saga.name, saga.items, (x) => posterCard(x)) ?? '');
+
   async function load(quiet = false) {
     // Only the latest load draws: an older answer, read before a mark or the end of the player, never wins.
     const seq = ++loadSeq;
@@ -331,12 +335,17 @@ export function create({ id, query }) {
       else if (next?.MediaSources?.[0]) streams = { for: next.Id, source: next.MediaSources[0] };
       loadStreams();
       if (inPlace) update(); else render();
-      if (!similar.length) {
-        // Only its row is drawn when it arrives: the page does not jump or flash under the finger.
-        api.similar(id).then((r) => {
-          similar = r?.Items ?? [];
+      if (!similar.length && !sagas) {
+        // Only their rows are drawn when they arrive: the page does not jump or flash under the finger. A film of a
+        // saga has its other films in a row of their own, not again among the similar titles.
+        const ofSaga = item.Type === 'Movie' ? api.sagas(id).catch(() => []) : Promise.resolve([]);
+        Promise.all([api.similar(id).then((r) => r?.Items ?? [], () => []), ofSaga]).then(([alike, found]) => {
+          sagas = found.filter((saga) => saga.items.length);
+          const inSaga = new Set(sagas.flatMap((saga) => saga.items.map((x) => x.Id)));
+          similar = alike.filter((x) => !inSaga.has(x.Id));
+          if (sagas.length && sagaBox) clear(sagaBox).append(...sagaRows());
           if (similar.length && similarBox) clear(similarBox).append(row('Titres similaires', similar, (x) => posterCard(x)) ?? '');
-        }).catch(() => {});
+        });
       }
     } catch (error) {
       if (seq !== loadSeq) return;

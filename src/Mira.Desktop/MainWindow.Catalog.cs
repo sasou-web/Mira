@@ -374,7 +374,7 @@ public partial class MainWindow
     {
         if (_demo) { _resume = (_demoItems ?? []).Where(x => x.Progress > 0).ToList(); }
         RenderLibrary();
-        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0) RenderSimilar(); }
+        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0 || _saga is not null) RenderSimilar(); }
     }
     private void ResumePrevious_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, -624, true);
     private void ResumeNext_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, 624, true);
