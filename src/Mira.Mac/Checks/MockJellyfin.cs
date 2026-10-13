@@ -84,6 +84,7 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path == "UserItems/Resume") return Items(_movies.Where(x => Id(x) == "movie-1"));
         if (path == "Shows/NextUp") return Items(query["seriesId"] is { } series ? _episodes.GetValueOrDefault(series)?.Take(1) ?? [] : _episodes["series-1"].Take(1));
         if (path == "Items/Filters2") return Json(new { Genres = new[] { new { Name = "Aventure" }, new { Name = "Animation" }, new { Name = "Comédie" } } });
+        if (path == "UserViews") return Items(new object[] { new { Id = "view-movies", Name = "Films", CollectionType = "movies" }, new { Id = "view-series", Name = "Séries", CollectionType = "tvshows" } });
         if (path == "Years") return Items(new object[] { new { Id = "y1", Name = "2025" }, new { Id = "y2", Name = "2024" } });
         if (path.StartsWith("Shows/") && path.EndsWith("/Episodes")) return Items(_episodes.GetValueOrDefault(path.Split('/')[1]) ?? []);
         if (path.EndsWith("/Similar")) return Items(_movies.Where(x => !path.Contains(Id(x))));

@@ -23,7 +23,9 @@ public sealed class BrowsePage : Page
     private readonly ScrollViewer _scroll;
     private readonly TextBlock _count = new() { FontSize = 14, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 6) };
     private readonly TextBox _search = new() { Watermark = "Un film, une série…", FontSize = 18, Padding = new Thickness(18, 14) };
-    private readonly ComboBox _genre = new(), _year = new(), _state = new(), _sort = new();
+    private readonly ComboBox _genre = new(), _year = new(), _state = new(), _sort = new(), _library = new() { IsVisible = false };
+    /// <summary>The libraries of this kind (Séries and Animes), when there are several: one at a time, or all of them.</summary>
+    private List<LibrarySection> _libraries = [];
     private readonly Button _favorites, _reset;
     private readonly TextBlock _empty = new() { FontSize = 15, Foreground = Ui.Muted, IsVisible = false, Margin = new Thickness(0, 20) };
     private readonly DispatcherTimer _typing = new() { Interval = TimeSpan.FromMilliseconds(320) };
@@ -50,13 +52,13 @@ public sealed class BrowsePage : Page
         Fill(_state, "Tous", "Non vus", "Vus");
         Fill(_sort, "Ajouts récents", "Titre", "Année", "Note", "Derniers vus");
         _genre.PlaceholderText = "Genre"; _year.PlaceholderText = "Année";
-        foreach (var (box, name) in new[] { (_genre, "Genre"), (_year, "Année"), (_state, "État"), (_sort, "Tri") })
+        foreach (var (box, name) in new[] { (_library, "Bibliothèque"), (_genre, "Genre"), (_year, "Année"), (_state, "État"), (_sort, "Tri") })
         {
             Avalonia.Automation.AutomationProperties.SetName(box, name);
             box.SelectionChanged += (_, _) => { if (!_filling) _ = ReloadAsync(); };
         }
         var filters = new WrapPanel { ItemSpacing = 10, LineSpacing = 10, Margin = new Thickness(0, 0, 0, 26) };
-        filters.Children.AddRange([_genre, _year, _state, _sort, _favorites, _reset]);
+        filters.Children.AddRange([_library, _genre, _year, _state, _sort, _favorites, _reset]);
 
         var page = new StackPanel { Margin = new Thickness(56, 44 + shell.TitleBarInset, 56, 60) };
         page.Children.Add(header);
@@ -92,10 +94,12 @@ public sealed class BrowsePage : Page
         Played: _state.SelectedIndex switch { 1 => false, 2 => true, _ => null },
         Sort: _sort.SelectedIndex switch { 1 => "title", 2 => "year", 3 => "rating", 4 => "played", _ => "recent" },
         PersonId: _person?.Id);
-    private bool Filtered => _genre.SelectedIndex > 0 || _year.SelectedIndex > 0 || _state.SelectedIndex > 0 || _sort.SelectedIndex > 0 || _favoritesOnly;
+    private string? Library => _library.SelectedIndex > 0 && _library.SelectedIndex <= _libraries.Count ? _libraries[_library.SelectedIndex - 1].Id : null;
+    private bool Filtered => _library.SelectedIndex > 0 || _genre.SelectedIndex > 0 || _year.SelectedIndex > 0 || _state.SelectedIndex > 0 || _sort.SelectedIndex > 0 || _favoritesOnly;
     private void Reset()
     {
         _filling = true;
+        if (_library.ItemCount > 0) _library.SelectedIndex = 0;
         _genre.SelectedIndex = 0; _year.SelectedIndex = 0; _state.SelectedIndex = 0; _sort.SelectedIndex = 0;
         _filling = false; _favoritesOnly = false; _favorites.Classes.Set("on", false);
         _ = ReloadAsync();
@@ -106,9 +110,22 @@ public sealed class BrowsePage : Page
         if (Shell.Session is not { } session) return;
         if (_kind != BrowseKind.Search)
         {
+            // Asked together: the grid waits for both.
+            var libraries = session.Client.LibrariesAsync();
+            var options = session.Client.FiltersAsync();
             try
             {
-                var filters = await session.Client.FiltersAsync();
+                var kinds = _kind switch { BrowseKind.Movies => ["movies"], BrowseKind.Series => ["tvshows"], _ => new[] { "movies", "tvshows" } };
+                _libraries = (await libraries).Where(x => kinds.Contains(x.CollectionType)).ToList();
+                _filling = true;
+                _library.Items.Add("Toutes les bibliothèques"); foreach (var library in _libraries) _library.Items.Add(library.Name);
+                _library.SelectedIndex = 0; _library.IsVisible = _person is null && _libraries.Count > 1;
+                _filling = false;
+            }
+            catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; }
+            try
+            {
+                var filters = await options;
                 _filling = true;
                 _genre.Items.Add("Tous les genres"); foreach (var genre in filters.Genres) _genre.Items.Add(genre);
                 _year.Items.Add("Toutes les années"); foreach (var year in filters.Years.OrderDescending()) _year.Items.Add(year.ToString());
@@ -134,7 +151,7 @@ public sealed class BrowsePage : Page
         {
             // A refresh keeps every page already loaded, so the grid does not shrink back under the reader.
             var limit = keep ? Math.Clamp(_items.Count, JellyfinClient.PageSize, 600) : JellyfinClient.PageSize;
-            var result = await session.Client.BrowseAsync(Types, null, search.Length > 0 ? search : null, 0, _favoritesOnly, ct, Query, limit);
+            var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, 0, _favoritesOnly, ct, Query, limit);
             await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)), CancellationToken.None);
             if (version != _version) return;
             _items.Clear(); _items.AddRange(result.Items); _total = result.TotalRecordCount;
@@ -157,7 +174,7 @@ public sealed class BrowsePage : Page
         try
         {
             var search = _search.Text?.Trim() ?? "";
-            var result = await session.Client.BrowseAsync(Types, null, search.Length > 0 ? search : null, _items.Count, _favoritesOnly, _request?.Token ?? default, Query);
+            var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, _items.Count, _favoritesOnly, _request?.Token ?? default, Query);
             await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)));
             if (version != _version) return;
             foreach (var item in result.Items.Where(x => _items.All(old => old.Id != x.Id)))

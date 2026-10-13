@@ -116,6 +116,18 @@ try {
   const badge = await page.locator('.card', { hasText: seriesName }).first().locator('.badge-count').innerText().catch(() => '');
   check('séries : épisodes à voir sur l’affiche', toWatch > 0 && badge === String(toWatch), `${badge || 'aucune pastille'} (Jellyfin : ${toWatch})`);
   await shot('07-series-left');
+  // Several libraries of series (Séries, Animes in tools/web/setup.mjs): one at a time, or all of them.
+  const shelves = page.locator('#view .segmented [role=radio]');
+  const names = await shelves.allInnerTexts();
+  await shelves.filter({ hasText: 'Animes' }).click();
+  await page.waitForFunction(() => document.querySelector('#view .library-count')?.textContent === '1 série', null, { timeout: 10000 }).catch(() => {});
+  const animes = await page.locator('#view .grid .card-title').allInnerTexts();
+  await shot('07-series-animes');
+  await shelves.filter({ hasText: 'Tout' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('#view .grid .card').length >= 3, null, { timeout: 10000 }).catch(() => {});
+  const everything = await page.locator('#view .grid .card').count();
+  check('séries : une bibliothèque à la fois (Séries, Animes) ou toutes', [...names].sort().join('|') === 'Animes|Séries|Tout' && animes.join('|') === 'Courte Anime' && everything >= 3,
+    `${names.join(' | ')} ; Animes : ${animes.join(', ') || 'rien'} ; Tout : ${everything} séries`);
 
   // Tracks chosen on a title page: Lueur Web has French and English audio, and subtitles in both beside it.
   const film = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];

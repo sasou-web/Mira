@@ -24,17 +24,24 @@ const SORTS = [
   ['recent', 'Ajouts récents'], ['title', 'Titre'], ['year', 'Année'], ['rating', 'Note'], ['played', 'Vus récemment'],
 ];
 const PAGE = 60;
+/** The kind of Jellyfin library that holds each tab's titles. */
+const KINDS = { Movie: 'movies', Series: 'tvshows' };
 
 export function create({ type, query }) {
   const movies = type === 'Movie';
   const noun = movies ? ['film', 'films'] : ['série', 'séries'];
-  const state = { sort: 'recent', genre: query.get('genre') ?? '', year: '', unplayed: false, favorite: query.get('favoris') === '1' };
+  // library: one of several libraries of this kind (Séries or Animes), '' for all of them.
+  const state = { sort: 'recent', genre: query.get('genre') ?? '', year: '', unplayed: false, favorite: query.get('favoris') === '1', library: '' };
   let total = null, start = 0, done = false, busy = false, controller = null, loadedAt = 0, options = null, stale = false;
   let generation = 0, refreshing = null;   // a reset starts a new generation: the answers of an older one are dropped
   // Resolved once the first page shows, its first screenful of pictures decoded: the tab waits for it (app.js).
   let markReady = () => {};
   const ready = new Promise((resolve) => { markReady = resolve; });
-  const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite].join('|')}`;
+  const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite, state.library].join('|')}`;
+  // The account's libraries, kept on the phone so that the choice between them shows at once, without moving the grid.
+  const viewsKey = () => `mira.library.${session.current?.userId}.views`;
+  const ofKind = (views) => views.filter((v) => v.type === KINDS[type]);
+  let libraries = (() => { try { return ofKind(JSON.parse(localStorage.getItem(viewsKey()) ?? '[]')); } catch { return []; } })();
   function readStore() { try { return JSON.parse(localStorage.getItem(storeKey()) ?? 'null'); } catch { return null; } }
   // Kept for each sort, unfiltered only: a few keys per account, never one per genre or year; never once signed out.
   function writeStore(items, all) {
@@ -46,13 +53,14 @@ export function create({ type, query }) {
   // Only the pictures loading at once: a lazy one in a screen not shown yet never loads, its decode() never ends.
   const decoded = () => Promise.all([...grid.querySelectorAll('img[loading="eager"]')].map((img) => img.decode?.().catch(() => {})));
 
+  const shelves = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Bibliothèque' });
   const chips = h('div', { class: 'chips', role: 'toolbar', 'aria-label': 'Filtres' });
   const count = h('div', { class: 'library-count', 'aria-live': 'polite' });
   const grid = h('div', { class: 'grid' });
   const sentinel = h('div', { class: 'sentinel' });
   const body = h('div', { class: 'library-grid' }, grid, sentinel);
   const el = h('div', { class: 'view library' },
-    h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? 'Films' : 'Séries')),
+    h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? 'Films' : 'Séries'), shelves),
     h('div', { class: 'library-filters' }, chips), count, body);
 
   const filtered = () => state.genre || state.year || state.unplayed || state.favorite;
@@ -73,6 +81,23 @@ export function create({ type, query }) {
       chip('Favoris', { on: state.favorite, run: () => apply({ favorite: !state.favorite }) }),
       filtered() ? h('button', { class: 'chip', on: { click: () => apply({ genre: '', year: '', unplayed: false, favorite: false }) } }, icon('close', { size: 16 }), 'Réinitialiser') : null,
     );
+  }
+
+  /** « Tout | Séries | Animes »: only with several libraries of this kind. A view rather than a filter: kept by Réinitialiser. */
+  function renderShelves() {
+    shelves.hidden = libraries.length < 2;
+    clear(shelves).append(...(shelves.hidden ? [] : [{ id: '', name: 'Tout' }, ...libraries].map(({ id, name }) =>
+      h('button', { role: 'radio', 'aria-checked': String(state.library === id), on: { click: () => { if (state.library !== id) apply({ library: id }); } } }, name))));
+  }
+  function loadShelves() {
+    api.libraries().then((views) => {
+      const all = views.filter((v) => Object.values(KINDS).includes(v.CollectionType)).map((v) => ({ id: v.Id, name: v.Name, type: v.CollectionType }));
+      try { localStorage.setItem(viewsKey(), JSON.stringify(all)); } catch { /* full or blocked: asked again next time */ }
+      if (JSON.stringify(ofKind(all)) === JSON.stringify(libraries)) return;
+      libraries = ofKind(all);
+      // A library gone (removed from Jellyfin, or no longer shared with this account): all of them again.
+      if (state.library && !libraries.some((v) => v.id === state.library)) apply({ library: '' }); else renderShelves();
+    }, () => {});
   }
 
   // Asked for once, and again after a failure (the server away would otherwise leave the lists empty for good).
@@ -97,7 +122,7 @@ export function create({ type, query }) {
 
   function apply(change) {
     Object.assign(state, change);
-    renderChips();
+    renderShelves(); renderChips();
     reset();
     scrollTo({ top: 0 });
   }
@@ -121,7 +146,7 @@ export function create({ type, query }) {
 
   const fetchPage = (from, limit, signal) => api.browse({
     types: type, start: from, limit, sort: state.sort, genre: state.genre || undefined, year: state.year || undefined,
-    played: state.unplayed ? false : undefined, favorite: state.favorite, fields: GRID_FIELDS, signal,
+    played: state.unplayed ? false : undefined, favorite: state.favorite, library: state.library || undefined, fields: GRID_FIELDS, signal,
   });
 
   /**
@@ -245,7 +270,8 @@ export function create({ type, query }) {
   };
   changes.addEventListener('item', onChange);
 
-  renderChips();
+  renderShelves(); renderChips();
+  loadShelves();
   reset();
   return {
     el, title: movies ? 'Films' : 'Séries', keep: true, ready,

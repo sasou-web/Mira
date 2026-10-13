@@ -47,7 +47,7 @@ const configuration = await call('GET', 'System/Configuration', { token });
 await call('POST', 'System/Configuration', { token, body: { ...configuration, MinResumeDurationSeconds: 1 } });
 
 const folders = await call('GET', 'Library/VirtualFolders', { token });
-for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 'tvshows', 'Séries']]) {
+for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 'tvshows', 'Séries'], ['Animes', 'tvshows', 'Animes']]) {
   if (folders.some((f) => f.Name === name)) continue;
   const path = `${media.replace(/\/$/, '')}/${folder}`;
   await call('POST', `Library/VirtualFolders?name=${encodeURIComponent(name)}&collectionType=${type}&paths=${encodeURIComponent(path)}&refreshLibrary=true`, { token, body: { LibraryOptions: {} } });
@@ -58,7 +58,7 @@ let scans = 0;
 const items = await until('the library scan', async () => {
   const result = await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Episode&fields=MediaSources`, { token });
   const read = (result.Items ?? []).every((x) => x.RunTimeTicks > 0 && x.MediaSources?.[0]?.RunTimeTicks > 0);
-  if (result.TotalRecordCount >= 8 && read) return result.Items;
+  if (result.TotalRecordCount >= 10 && read) return result.Items;
   if (scans++ % 15 === 0) await call('POST', 'Library/Refresh', { token });
   return null;
 }, 240);

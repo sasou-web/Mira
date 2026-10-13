@@ -495,6 +495,18 @@ html:not(.touch) .episode:active, .episode.pressed { background: var(--surface);
 /* The large title scrolls away under the top bar; the filters stay, just below it. */
 /* As tall as the top bar: at rest, the filters already sit where they stay once the title has gone under it. */
 .library-head { min-height: var(--bar); padding: calc(var(--top) + 12px) var(--gutter) 0; }
+/* « Tout | Séries | Animes »: which library of this kind, as iOS's segmented controls. */
+.segmented {
+  display: flex; gap: 2px; width: fit-content; max-width: 100%; margin-top: 12px; padding: 2px; overflow-x: auto; scrollbar-width: none;
+  border-radius: var(--r-full); background: var(--raised);
+}
+.segmented::-webkit-scrollbar { display: none; }
+.segmented[hidden] { display: none; }
+.segmented button {
+  flex: none; height: 32px; padding: 0 16px; border-radius: var(--r-full); color: var(--muted); white-space: nowrap;
+  font-size: calc(14px * var(--text)); font-weight: 700; transition: background var(--fast) linear, color var(--fast) linear;
+}
+.segmented button[aria-checked='true'] { background: var(--accent); color: var(--on-accent); }
 .library-filters { position: sticky; top: var(--bar); z-index: 30; background: var(--bg); padding: 8px var(--gutter) 12px; }
 .library-count { color: var(--faint); font-size: calc(13px * var(--text)); padding: 0 var(--gutter) 12px; min-height: calc(13px * 1.47 + 12px); }
 .library-grid { padding: 0 var(--gutter) 24px; }
