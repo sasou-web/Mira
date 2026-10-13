@@ -39,7 +39,7 @@ dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release -- 
 
 ## Mira web
 
-**Tests Node** (`tools/web/unit/*.test.mjs`, `node:test`, sans dépendance) : cascade de secours et adresses des flux (`stream.js`), passages, épisode suivant et trickplay (`timeline.js`), plein écran d’Apple (`presentation.js`), noms et choix des pistes (`tracks.js`).
+**Tests Node** (`tools/web/unit/*.test.mjs`, `node:test`, sans dépendance) : cascade de secours et adresses des flux (`stream.js`), passages (chapitres compris, mêmes cas que Mira.Core dans `tests/fixtures/chapters.json`), épisode suivant et trickplay (`timeline.js`), plein écran d’Apple (`presentation.js`), noms et choix des pistes (`tracks.js`).
 
 ```bash
 node --test tools/web/unit/*.test.mjs
@@ -57,7 +57,7 @@ PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <use
 safaridriver -p 4444 &  node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dossier>   # Mac ; MIRA_FORMATS=1 pour les formats
 ```
 
-`check.mjs` parcourt Mira web dans Chromium à la taille d’un iPhone (connexion, chaque écran, lecture en WebM, reprise, pistes, déconnexion, sécurité, robustesse) et simule le lecteur d’Apple ; avec `MIRA_STOP` et `MIRA_START` (commandes qui arrêtent et relancent Jellyfin), il ouvre aussi Mira serveur éteint. `safari.mjs` vérifie la lecture HLS et le vrai lecteur d’Apple dans Safari. Pour servir Mira web depuis le disque sans recompiler l’extension, lance Jellyfin avec `MIRA_WEB_DIR=<chemin de src/Mira.Web>` (la page n’est alors pas gardée : « serveur éteint » se teste avec l’extension compilée).
+`check.mjs` parcourt Mira web dans Chromium à la taille d’un iPhone (connexion, chaque écran, lecture en WebM, reprise, pistes, intro d’après les chapitres, déconnexion, sécurité, robustesse) et simule le lecteur d’Apple ; avec `MIRA_STOP` et `MIRA_START` (commandes qui arrêtent et relancent Jellyfin), il ouvre aussi Mira serveur éteint. `safari.mjs` vérifie la lecture HLS et le vrai lecteur d’Apple dans Safari. Pour servir Mira web depuis le disque sans recompiler l’extension, lance Jellyfin avec `MIRA_WEB_DIR=<chemin de src/Mira.Web>` (la page n’est alors pas gardée : « serveur éteint » se teste avec l’extension compilée).
 
 ## Harnais des applications
 

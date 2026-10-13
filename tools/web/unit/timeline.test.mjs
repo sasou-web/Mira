@@ -1,7 +1,8 @@
 // The web player's timeline (src/Mira.Web/js/player/timeline.js), without a browser.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, withoutFromStart } from '../../../src/Mira.Web/js/player/timeline.js';
+import { readFileSync } from 'node:fs';
+import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, chapterKind, chapterPassages, withChapters, withoutFromStart } from '../../../src/Mira.Web/js/player/timeline.js';
 
 const s = (seconds) => seconds * 10_000_000;
 const intro = { Type: 'Intro', StartTicks: s(10), EndTicks: s(40) };
@@ -33,6 +34,39 @@ test('the next episode is offered from the end credits, else over the last secon
   assert.equal(nextFrom(segments, 1400), 1300);
   assert.equal(nextFrom([intro], 1400), 1400 - COUNTDOWN);
   assert.equal(COUNTDOWN, 10);
+  // Credits, then a preview: from the credits. Credits, then a scene of the story: that scene is not cut.
+  const credits = { Type: 'Outro', StartTicks: s(1200), EndTicks: s(1290) };
+  assert.equal(nextFrom([credits, { Type: 'Preview', StartTicks: s(1290), EndTicks: s(1398) }], 1400), 1200);
+  assert.equal(nextFrom([credits], 1400), 1400 - COUNTDOWN);
+});
+
+// The same cases as Mira for Windows and Mac (tests/Mira.Core.Tests, PlaybackMarkers): both read them.
+const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/chapters.json', import.meta.url), 'utf8'));
+const chapter = ([start, name]) => ({ StartPositionTicks: s(start), Name: name });
+const plain = (passages) => passages.map((p) => [p.Type, p.StartTicks / 10_000_000, p.EndTicks / 10_000_000]);
+
+test('chapter titles name the same passages as on Windows and Mac', () => {
+  for (const [title, kind] of fixture.titles) assert.equal(chapterKind(title), kind, `« ${title} »`);
+  for (const [title, start, duration, kind] of fixture.positions) assert.equal(chapterKind(title, start, duration), kind, `« ${title} » at ${start} s of ${duration} s`);
+  for (const episode of fixture.episodes) {
+    assert.deepEqual(plain(chapterPassages(episode.chapters.map(chapter), s(episode.duration))), episode.passages);
+  }
+  assert.deepEqual(chapterPassages(undefined, s(100)), []);
+  // Without the title's length, the last chapter has no end.
+  assert.deepEqual(chapterPassages([chapter([0, 'Partie A']), chapter([1300, 'Ending'])], undefined), []);
+});
+
+test('Jellyfin’s segments win over the chapters, which fill what they leave empty', () => {
+  const server = [{ Type: 'Intro', StartTicks: s(60), EndTicks: s(150), Id: 'segment' }];
+  const guessed = chapterPassages([[0, 'Partie A'], [50, 'Opening'], [140, 'Partie B'], [1290, 'Ending'], [1380, 'Preview'], [1418, 'Fin']].map(chapter), s(1420));
+  const merged = withChapters(server, guessed);
+  assert.deepEqual(plain(merged), [['Intro', 60, 150], ['Outro', 1290, 1380], ['Preview', 1380, 1418]]);
+  assert.equal(merged[0], server[0]);
+  // The chapters' own passages stay the same objects: one skipped by itself is not skipped again once the segments come.
+  assert.equal(merged[1], guessed[1]);
+  assert.deepEqual(withChapters([], guessed), guessed);
+  assert.equal(skippable(merged, 1390), merged[2]);
+  assert.equal(nextFrom(merged, 1420), 1290);
 });
 
 test('trickplay picture at a point', () => {

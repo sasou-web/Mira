@@ -55,6 +55,8 @@ public sealed class PlayerPage : UserControl
     private List<MediaItem> _episodes = [];
     private MediaItem? _nextItem;
     private SkipSegment? _activeSkip;
+    // Openings and recaps already jumped over by themselves in this title: going back into one plays it.
+    private readonly HashSet<SkipSegment> _autoSkipped = [];
     private bool _skipToNext, _autoNextCancelled;
     private double? _countdownEnd;
     /// <summary>For the self-check.</summary>
@@ -526,7 +528,7 @@ public sealed class PlayerPage : UserControl
     private void ResetMarkers()
     {
         _serverSegments = []; _segments = []; _fileChapters = []; _serverChapters = []; _episodes = [];
-        _activeSkip = null; _nextItem = null; _skipToNext = false; _countdownEnd = null; _autoNextCancelled = false;
+        _activeSkip = null; _nextItem = null; _skipToNext = false; _countdownEnd = null; _autoNextCancelled = false; _autoSkipped.Clear();
         _skip.IsVisible = false; _skipCancel.IsVisible = false; _timeline.SetChapters([]); _chapter.Text = "";
     }
     private async Task LoadMarkersAsync(Session session, MediaItem item, int generation)
@@ -562,6 +564,11 @@ public sealed class PlayerPage : UserControl
     }
     private void UpdateSkip()
     {
+        // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there.
+        if (_loaded && !_stopped && PlaybackMarkers.AutoSkip(_segments, _position, _shell.Settings.AutoSkip, _autoSkipped) is { } passage)
+        {
+            _autoSkipped.Add(passage); SeekTo(passage.End);
+        }
         SkipSegment? active = null;
         // Without a credits marker, the next episode during the last seconds.
         if (_loaded && !_stopped) active = PlaybackMarkers.Offer(_segments, _position, _duration, _nextItem is not null);

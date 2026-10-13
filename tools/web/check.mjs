@@ -169,6 +169,39 @@ try {
   await page.evaluate(() => document.exitFullscreen?.().catch(() => {})); await wait(500);
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
+  // Passages the file's chapters name, with no segment provider on Jellyfin (Chapitres Web: « Avant-générique » 0-4 s,
+  // « Opening » 4-14 s): the opening is offered as it starts; with « Passer les intros et les récaps », jumped over by
+  // itself, the cold open played.
+  const chaptered = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Chapitres')).Items[0];
+  await page.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, chaptered.Id);
+  const offered = await page.waitForFunction(() => {
+    const v = document.querySelector('video'), pill = document.querySelector('button.pill');
+    return v && (pill || v.currentTime > 14) ? { label: pill?.textContent.trim() ?? '', t: v.currentTime } : null;
+  }, null, { timeout: 40000, polling: 100 }).then((handle) => handle.jsonValue(), () => null);
+  check('chapitres : « Passer l’intro » quand l’opening commence', offered?.label === 'Passer l’intro' && offered.t >= 3.5 && offered.t < 6,
+    offered ? `« ${offered.label} » à ${offered.t.toFixed(1)} s` : 'aucun bouton');
+  await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
+  const autoSkip = () => page.getByRole('switch', { name: /Passer les intros et les récaps/ });
+  await page.locator('.tabbar a[data-tab="settings"]').click(); await wait(1500);
+  await autoSkip().click();
+  await page.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, chaptered.Id);
+  // The playhead sampled every 100 ms: the jump over the opening, and where it started from.
+  const jump = await page.evaluate(() => new Promise((resolve) => {
+    let last = null; const since = performance.now();
+    const timer = setInterval(() => {
+      const v = document.querySelector('video'), t = v?.currentTime ?? 0;
+      if (last !== null && t - last > 5) { clearInterval(timer); resolve({ from: last, to: t }); }
+      last = t;
+      if (performance.now() - since > 40000) { clearInterval(timer); resolve(null); }
+    }, 100);
+  }));
+  check('chapitres : l’opening passé tout seul, l’avant-générique joué', !!jump && jump.from >= 3.5 && jump.from < 5 && jump.to >= 13.5,
+    jump ? `${jump.from.toFixed(1)} → ${jump.to.toFixed(1)} s` : 'pas de saut');
+  await shot('14-chapters');
+  await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
+  await page.locator('.tabbar a[data-tab="settings"]').click(); await wait(1500);
+  await autoSkip().click();
+
   if (process.env.MIRA_STOP && process.env.MIRA_START) {
     // The PC is off or still starting: the page the phone keeps opens, says so, and comes back by itself.
     execSync(process.env.MIRA_STOP, { stdio: 'ignore' });
