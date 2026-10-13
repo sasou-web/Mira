@@ -363,8 +363,25 @@ public partial class MainWindow
         foreach (var track in tracks.Where(t => t.Type == "sub"))
             SubtitleTrackList.Children.Add(MenuChoice("subtitles", track.Label, track.Details, track.Id == subtitle, () => ChooseTrack("sid", track.Id)));
     }
-    /// <summary>The menu stays open, so that the other kind of track can be picked too.</summary>
-    private void ChooseTrack(string property, string id) { _mpv?.Set(property, id); ShowPlayerControls(); }
+    /// <summary>The menu stays open, so that the other kind of track can be picked too. The next episodes start with the same.</summary>
+    private void ChooseTrack(string property, string id) { _mpv?.Set(property, id); ShowPlayerControls(); RememberTracks(); }
+    /// <summary>Keeps the audio and subtitles playing for the next episodes of this series (<see cref="SeriesTracks"/>).</summary>
+    private void RememberTracks()
+    {
+        if (_mpv is null || _store is not { } store || _session.Item?.SeriesId is not { Length: > 0 } series) return;
+        if (SeriesTracks.Remember(_mpv.Get("track-list"), _mpv.Get("aid"), _mpv.Get("sid")) is not { } tracks) return;
+        _ = Task.Run(() => TryCache(() => store.RememberTracks(series, tracks)));
+    }
+    /// <summary>An episode starts with the audio and subtitles last chosen in its series, where it has them.</summary>
+    private async Task ChooseSeriesTracksAsync(int generation)
+    {
+        if (_store is not { } store || _session.Item?.SeriesId is not { Length: > 0 } series) return;
+        var tracks = await Task.Run(() => TryCache(() => store.TracksOf(series)));
+        if (tracks is null || generation != _playGeneration || _mpv is null) return;
+        var (audio, subtitle) = SeriesTracks.Choose(_mpv.Get("track-list"), tracks);
+        if (audio is not null) _mpv.Set("aid", audio);
+        if (subtitle is not null) _mpv.Set("sid", subtitle);
+    }
     private void BuildMoreMenu()
     {
         if (_mpv is null) return;
