@@ -67,6 +67,9 @@ test('Jellyfin’s segments win over the chapters, which fill what they leave em
   assert.deepEqual(withChapters([], guessed), guessed);
   assert.equal(skippable(merged, 1390), merged[2]);
   assert.equal(nextFrom(merged, 1420), 1290);
+  // A segment under 3 s, or before the start, is noise, as on Windows and Mac: it hides no chapter of its kind.
+  const noise = [{ Type: 'Intro', StartTicks: 0, EndTicks: s(2) }, { Type: 'Outro', StartTicks: s(-5), EndTicks: s(1300) }];
+  assert.deepEqual(plain(withChapters(noise, guessed)), plain(guessed));
 });
 
 test('trickplay picture at a point', () => {

@@ -43,6 +43,8 @@
     ["Edition", null],
     ["Opera", null],
     ["OPテーマ", null],
+    ["OP\u200D", null],
+    ["Résumé de l\répisode précédent", "Recap"],
     ["  ", null],
     [null, null]
   ],
