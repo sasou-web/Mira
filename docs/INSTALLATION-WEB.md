@@ -35,7 +35,7 @@ Dans Safari, touche **Partager**, puis **Sur l’écran d’accueil**, et laisse
 
 ### Sur Android
 
-Dans Chrome, menu **⋮ → Ajouter à l’écran d’accueil** (ou **Installer l’application**).
+Dans Chrome, menu **⋮ → Ajouter à l’écran d’accueil**. Chrome n’installe une app que depuis une adresse en `https://` : avec l’adresse en `http://` de Mira, il pose un raccourci qui ouvre Mira dans un onglet de Chrome, avec sa barre d’adresse.
 
 ### Garder la même adresse
 
