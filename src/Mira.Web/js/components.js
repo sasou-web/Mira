@@ -191,7 +191,8 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
  * A sheet of choices from the bottom of the screen. items: { label, sub, symbol, selected, danger, run }, or
  * { heading } above a group of them. Closes on a choice, on the backdrop, or with Escape.
  */
-export function sheet({ title = '', items = [], body = null, held = false }) {
+/** focus: a field of `body` that takes the focus at once, within the touch that opened the sheet (iOS's keyboard). */
+export function sheet({ title = '', items = [], body = null, held = false, focus = null }) {
   // A second tap on what opens a sheet (while the first one is still arriving) does not stack another.
   if (document.querySelector('.sheet-layer:not(.leaving)')) return () => {};
   const previous = document.activeElement;
@@ -246,7 +247,8 @@ export function sheet({ title = '', items = [], body = null, held = false }) {
   addEventListener('keydown', keys);
   addEventListener('hashchange', close);
   // The panel takes the focus, so that screen readers and Tab start there, without a ring on touch screens.
-  requestAnimationFrame(() => panel.focus({ preventScroll: true }));
+  if (focus) focus.focus({ preventScroll: true });
+  else requestAnimationFrame(() => panel.focus({ preventScroll: true }));
   return close;
 }
 

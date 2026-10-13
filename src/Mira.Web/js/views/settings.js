@@ -40,13 +40,14 @@ export function create() {
     return h('button', { class: 'item', on: { click: run } }, h('span', { class: 'grow' }, label), h('span', { class: 'value' }, value), icon('right', { size: 20 }));
   }
 
-  // The account and the server, once Jellyfin has said: kept for the next times the screen is drawn.
-  let user = null, info = null, drawn = '';
+  // The account and the server, once Jellyfin has said: kept for the next times the screen is drawn. quick: Quick
+  // Connect on this server, for « Autoriser un appareil ».
+  let user = null, info = null, quick = false, drawn = '';
   // What the screen shows: drawn again only when one of these changed (coming back to the tab, Jellyfin's answer).
   const SHOWN = ['quality', 'autoNext', 'resume', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer', 'textSize'];
   function render() {
     const current = session.current ?? {};
-    const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, info?.Version]);
+    const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, info?.Version, quick]);
     if (signature === drawn) return;
     drawn = signature;
     const quality = QUALITIES.find(([k]) => k === settings.get('quality')) ?? QUALITIES[0];
@@ -113,6 +114,10 @@ export function create() {
 
       h('h2', { class: 'label group-title' }, 'Compte'),
       h('div', { class: 'group' },
+        quick
+          ? h('button', { class: 'item', on: { click: approve } }, icon('phone'),
+            h('span', { class: 'grow' }, 'Autoriser un appareil', h('span', { class: 'sub' }, 'Connecte à ton compte un appareil qui affiche un code, sans y taper ton mot de passe.')), icon('right', { size: 20 }))
+          : null,
         h('button', { class: 'item danger', on: { click: () => sheet({
           title: 'Se déconnecter de Mira sur cet appareil ?',
           // At once: Jellyfin is told behind it (up to 5 s when the PC is off).
@@ -123,9 +128,40 @@ export function create() {
       h('p', { class: 'about' }, 'Ta progression est enregistrée sur ton serveur Jellyfin : elle te suit sur Mira pour Windows et pour Mac.'));
   }
 
+  // Quick Connect: the code another device shows (Mira web on a phone, a TV), approved here for this account.
+  function approve() {
+    const field = h('input', { class: 'input code-input', id: 'approve-code', inputmode: 'numeric', autocomplete: 'off', maxlength: 7, enterkeyhint: 'go', 'aria-describedby': 'approve-note' });
+    const errorBox = h('p', { class: 'form-error', role: 'alert' });
+    const button = h('button', { class: 'btn primary block', type: 'submit' }, 'Autoriser');
+    let close = () => {};
+    const form = h('form', {
+      class: 'sheet-form',
+      on: { submit: async (e) => {
+        e.preventDefault();
+        const code = field.value.replace(/\D/g, '');
+        if (code.length !== 6) { errorBox.textContent = 'Le code a 6 chiffres.'; field.focus(); return; }
+        button.disabled = true; button.textContent = 'Autorisation…'; errorBox.textContent = '';
+        try {
+          await api.approveCode(code);
+          close();
+          toast('Appareil autorisé : il se connecte à ton compte.');
+        } catch (error) {
+          errorBox.textContent = error.status === 404 ? 'Code inconnu ou expiré. Vérifie-le, ou demandes-en un nouveau sur l’appareil.'
+            : error.message;
+          button.disabled = false; button.textContent = 'Autoriser';
+          field.select();
+        }
+      } },
+    },
+    h('p', { class: 'group-note', id: 'approve-note' }, 'Saisis le code à 6 chiffres affiché par l’appareil à connecter. Il ouvrira ton compte : n’autorise qu’un appareil que tu as sous les yeux.'),
+    h('div', { class: 'field' }, h('label', { for: 'approve-code' }, 'Code'), field), errorBox, button);
+    close = sheet({ title: 'Autoriser un appareil', body: form, focus: field });
+  }
+
   let photo = null;
   render();
-  Promise.all([api.me().catch(() => null), api.publicInfo().catch(() => null)]).then(([me, server]) => { user = me; info = server; render(); });
+  Promise.all([api.me().catch(() => null), api.publicInfo().catch(() => null), api.quickConnectEnabled()])
+    .then(([me, server, on]) => { user = me; info = server; quick = on; render(); });
   // A setting changed elsewhere (the quality, in Mira's player) shows when the screen comes back.
   return { el, title: 'Réglages', keep: true, enter: () => render() };
 }

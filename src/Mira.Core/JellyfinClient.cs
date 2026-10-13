@@ -52,6 +52,32 @@ public sealed class JellyfinClient : IDisposable
         SetAuthorization();
         return Connection;
     }
+    // Quick Connect, Jellyfin's sign-in by a code: a device that is not signed in (Mira web on a phone) shows six
+    // digits, and a device signed in approves them for its account, so no password is typed on the first one.
+    /// <summary>Whether Jellyfin lets devices in by a code: false when its dashboard turned it off, or on any other answer.</summary>
+    public async Task<bool> QuickConnectEnabledAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("QuickConnect/Enabled", ct);
+        return response.IsSuccessStatusCode && (await response.Content.ReadAsStringAsync(ct)).Trim() == "true";
+    }
+    /// <summary>
+    /// Approves another device's code for this account. Asks first whether Quick Connect is on: turned off, Jellyfin
+    /// answers 401, which Mira would take for an ended session.
+    /// </summary>
+    public async Task<CodeApproval> ApproveCodeAsync(string code, CancellationToken ct = default)
+    {
+        if (!await QuickConnectEnabledAsync(ct)) return CodeApproval.Disabled;
+        using var response = await _http.PostAsync($"QuickConnect/Authorize?code={Uri.EscapeDataString(code)}&userId={Uri.EscapeDataString(Connection.UserId)}", null, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return CodeApproval.Unknown;
+        await CheckAsync(response);
+        return CodeApproval.Approved;
+    }
+    /// <summary>The six digits of a code as typed (« 458 128 », « 458-128 »); null when it is not six digits.</summary>
+    public static string? QuickConnectCode(string? text)
+    {
+        var digits = new string((text ?? "").Where(char.IsAsciiDigit).ToArray());
+        return digits.Length == 6 && (text ?? "").All(c => char.IsAsciiDigit(c) || c is ' ' or '-' or '\u00a0' or '\u202f') ? digits : null;
+    }
     /// <summary>The longest « Déconnecter » waits for Jellyfin: a server that is off must not hold the sign-out.</summary>
     public static readonly TimeSpan LogoutTimeout = TimeSpan.FromSeconds(3);
     /// <summary>
@@ -518,3 +544,5 @@ public sealed class JellyfinClient : IDisposable
     };
     public void Dispose() => _http.Dispose();
 }
+/// <summary>What Jellyfin said of a code approved for another device (Quick Connect).</summary>
+public enum CodeApproval { Approved, Unknown, Disabled }

@@ -277,6 +277,27 @@ internal static class ConnectionTests
             Assert(AccountData.SignedOut("ce PC", true, null) == "Session fermée sur ce PC et sur Jellyfin.", "Sign-out message");
             Assert(AccountData.SignedOut("ce Mac", false, true) is var message && message.Contains("Appareils") && message.EndsWith("effacées de ce Mac."), "Sign-out message: " + message);
         });
+        await Test("Autoriser un appareil (Quick Connect) : code à 6 chiffres, inconnu, désactivé sans fin de session", async () =>
+        {
+            foreach (var (typed, code) in new[] { ("458128", "458128"), (" 458 128 ", "458128"), ("458-128", "458128"), ("458\u202f128", "458128"), ("45812", null), ("4581289", null), ("458a28", null), ("", null), (null, null) })
+                Assert(JellyfinClient.QuickConnectCode(typed) == code, $"Code « {typed} » → {JellyfinClient.QuickConnectCode(typed)}");
+            var asked = new List<string>();
+            JellyfinClient Server(bool enabled, HttpStatusCode authorize) => new(new("http://localhost/jellyfin/", "u1", "Alice", "jeton", "device"), new Handler(request =>
+            {
+                asked.Add($"{request.Method} {request.RequestUri!.PathAndQuery}");
+                return Task.FromResult(request.RequestUri.AbsolutePath.EndsWith("/QuickConnect/Enabled")
+                    ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(enabled ? "true" : "false") }
+                    : new HttpResponseMessage(authorize) { Content = new StringContent(authorize == HttpStatusCode.OK ? "true" : "") });
+            }));
+            using (var client = Server(true, HttpStatusCode.OK)) Assert(await client.ApproveCodeAsync("458128") == CodeApproval.Approved, "Code not approved");
+            Assert(asked.SequenceEqual(["GET /jellyfin/QuickConnect/Enabled", "POST /jellyfin/QuickConnect/Authorize?code=458128&userId=u1"]), string.Join(" | ", asked));
+            using (var client = Server(true, HttpStatusCode.NotFound)) Assert(await client.ApproveCodeAsync("000000") == CodeApproval.Unknown, "Unknown code");
+            // Turned off, Jellyfin answers 401 to Authorize: never asked, so that the session is not taken for ended.
+            asked.Clear();
+            using (var client = Server(false, HttpStatusCode.Unauthorized)) Assert(await client.ApproveCodeAsync("458128") == CodeApproval.Disabled && asked.Count == 1, "Disabled: " + string.Join(" | ", asked));
+            using (var client = Server(true, HttpStatusCode.Unauthorized))
+            { try { await client.ApproveCodeAsync("458128"); throw new Exception("A refused session went unnoticed"); } catch (UnauthorizedAccessException) { } }
+        });
         await Test("Effacer les données d’un compte : son cache et ses affiches seulement, ni les autres comptes ni les réglages", async () =>
         {
             var folder = Path.Combine(testRoot, "erase-account");

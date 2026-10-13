@@ -57,7 +57,7 @@ public partial class MainWindow
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
-        DescribeTorLinkSettings();
+        DescribeTorLinkSettings(); _ = ShowApproveDeviceAsync();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
         SettingsSaveStatus.Text = "Les changements s’appliquent après enregistrement.";
@@ -156,4 +156,34 @@ public partial class MainWindow
     }
     private async void SyncNow_Click(object sender, RoutedEventArgs e)
     { await RefreshAsync(quiet: true); if (_demo) SettingsSaveStatus.Text = "La démonstration utilise des données fictives."; else SettingsSaveStatus.Text = "Actualisation demandée."; }
+    /// <summary>« Autoriser un appareil »: shown once Jellyfin says it lets devices in by a code (Quick Connect).</summary>
+    private async Task ShowApproveDeviceAsync()
+    {
+        ApproveDeviceRow.Visibility = Visibility.Collapsed; ApproveCodeBox.Clear(); ApproveDeviceStatus.Text = "";
+        if (_demo || _client is not { } client) return;
+        try { if (await client.QuickConnectEnabledAsync() && client == _client) ApproveDeviceRow.Visibility = Visibility.Visible; }
+        catch (Exception ex) when (IsExpected(ex)) { }
+    }
+    private void ApproveCode_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    { if (e.Key == System.Windows.Input.Key.Enter) { e.Handled = true; ApproveDevice_Click(sender, e); } }
+    /// <summary>The code another device shows (Mira web on a phone), approved for this account.</summary>
+    private async void ApproveDevice_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client is not { } client || !ApproveDeviceButton.IsEnabled) return;
+        if (JellyfinClient.QuickConnectCode(ApproveCodeBox.Text) is not { } code) { ApproveDeviceStatus.Text = "Le code a 6 chiffres."; ApproveCodeBox.Focus(); ApproveCodeBox.SelectAll(); return; }
+        ApproveDeviceButton.IsEnabled = false; ApproveDeviceStatus.Text = "Autorisation…";
+        try
+        {
+            var approval = await client.ApproveCodeAsync(code);
+            ApproveDeviceStatus.Text = approval switch
+            {
+                CodeApproval.Approved => "Appareil autorisé : il se connecte à ton compte.",
+                CodeApproval.Unknown => "Code inconnu ou expiré. Vérifie-le, ou demandes-en un nouveau sur l’appareil.",
+                _ => "Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).",
+            };
+            if (approval == CodeApproval.Approved) ApproveCodeBox.Clear(); else { ApproveCodeBox.Focus(); ApproveCodeBox.SelectAll(); }
+        }
+        catch (Exception ex) when (IsExpected(ex)) { ApproveDeviceStatus.Text = Friendly(ex); }
+        finally { ApproveDeviceButton.IsEnabled = true; }
+    }
 }
