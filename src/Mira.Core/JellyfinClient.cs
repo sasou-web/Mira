@@ -141,6 +141,21 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>Titles Jellyfin finds close to this one (shared genres, people, studios).</summary>
     public Task<ItemsResult> SimilarAsync(string id, int limit = 12, CancellationToken ct = default) =>
         GetAsync<ItemsResult>($"Items/{Uri.EscapeDataString(id)}/Similar?userId={Connection.UserId}&limit={limit}&fields=Overview,Genres,ChildCount", ct);
+    /// <summary>
+    /// The saga a film belongs to (its first Jellyfin collection), with its other titles in the order they came out.
+    /// Null when it belongs to none, or when Jellyfin cannot say which collections hold a title (404: older than 12.1, where it was checked).
+    /// </summary>
+    public async Task<Saga?> SagaAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Items/{Uri.EscapeDataString(id)}/Collections?userId={Connection.UserId}&limit=1", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        var found = await response.Content.ReadFromJsonAsync<ItemsResult>(Json.Options, ct);
+        if (found?.Items.FirstOrDefault(x => x.Type == "BoxSet") is not { } box) return null;
+        var titles = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&parentId={Uri.EscapeDataString(box.Id)}&sortBy=ProductionYear,PremiereDate,SortName&fields=Overview,Genres,ChildCount", ct);
+        var others = titles.Items.Where(x => x.Id != id).ToList();
+        return others.Count == 0 ? null : new Saga(box.Name, others);
+    }
     public Task<PlaybackInfo> PlaybackAsync(string id, CancellationToken ct = default) =>
         GetAsync<PlaybackInfo>($"Items/{Uri.EscapeDataString(id)}/PlaybackInfo?userId={Connection.UserId}", ct);
     /// <summary>Typed intro/credits markers (Jellyfin 10.10+, filled by the server or a plugin such as Intro Skipper).</summary>

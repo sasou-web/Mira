@@ -32,8 +32,8 @@ public partial class MainWindow
         var version = ++_detailVersion;
         var previewArt = _hoverCard?.Item.Id == item.Id ? _hoverCard.ImageSource : null;
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
-        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _favoriteOverride = null; _similar = [];
-        SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed;
+        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _favoriteOverride = null; _similar = []; _saga = null;
+        SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
@@ -129,44 +129,59 @@ public partial class MainWindow
         }
     }
     /// <summary>"Titres similaires" under the page. Optional: without an answer the page is complete as it is.</summary>
+    /// <summary>A film's saga, then the similar titles: a film of the saga is not shown again among them.</summary>
     private async Task LoadSimilarAsync(MediaItem item, int version)
     {
+        Saga? saga = null;
+        if (item.Type == "Movie")
+        {
+            try { saga = await _metadata!.SagaAsync(item.Id); }
+            catch (Exception ex) when (IsExpected(ex)) { }
+            if (version != _detailVersion) return;
+        }
         try
         {
             var result = await _metadata!.SimilarAsync(item.Id); if (version != _detailVersion) return;
-            var similar = result.Items.Where(x => x.Id != item.Id).ToList();
-            if (_store is { } store) { await Task.Run(() => store.ApplyLocalProgress(similar)); if (version != _detailVersion) return; }
-            _similar = similar; RenderSimilar();
+            var similar = result.Items.Where(x => x.Id != item.Id && saga?.Items.Any(s => s.Id == x.Id) != true).ToList();
+            if (_store is { } store) { await Task.Run(() => { if (saga is not null) store.ApplyLocalProgress(saga.Items); store.ApplyLocalProgress(similar); }); if (version != _detailVersion) return; }
+            _similar = similar; _saga = saga; RenderSimilar();
         }
-        catch (Exception ex) when (IsExpected(ex)) { }
+        catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion && saga is not null) { _saga = saga; RenderSimilar(); } }
     }
-    /// <summary>One row of posters, as many as the page is wide, sized like the library grid.</summary>
+    private Saga? _saga;
+    /// <summary>The saga's row and the similar titles' row: as many posters as the page is wide, sized like the library grid.</summary>
     private void RenderSimilar()
     {
-        SimilarCards.Children.Clear();
         var available = EpisodesPanel.ActualWidth > 200 ? EpisodesPanel.ActualWidth : Math.Max(600, DetailScroll.ActualWidth - 100);
         var (columns, width) = PosterLayout(available);
-        foreach (var (similar, index) in _similar.Take(columns).Select((x, i) => (x, i)))
-        {
-            var card = new MediaCard(similar, false, _demo ? Math.Max(0, (_demoItems ?? []).FindIndex(x => x.Id == similar.Id)) : index, _settings, _demo);
-            card.Resize(width);
-            card.Click += async (_, _) => await ShowDetailsAsync(similar);
-            // The library's hover tracking stops under an open page: these cards light up on their own.
-            card.HoverEntered += x => x.SetHover(true); card.FocusEntered += x => x.SetHover(true); card.HoverLeft += x => x.SetHover(false);
-            card.ContextMenu = CardMenu(card, false);
-            SimilarCards.Children.Add(card); _ = card.LoadImageAsync(_images, false);
-        }
+        Fill(SagaCards, _saga?.Items ?? []); SagaTitle.Text = _saga?.Name ?? "";
+        SagaSection.Visibility = SagaCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Fill(SimilarCards, _similar);
         SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" ? 36 : 0, 0, 0);
         SimilarSection.Visibility = SimilarCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         _similarColumns = columns;
+        void Fill(WrapPanel cards, List<MediaItem> items)
+        {
+            cards.Children.Clear();
+            foreach (var (shown, index) in items.Take(columns).Select((x, i) => (x, i)))
+            {
+                var card = new MediaCard(shown, false, _demo ? Math.Max(0, (_demoItems ?? []).FindIndex(x => x.Id == shown.Id)) : index, _settings, _demo);
+                card.Resize(width);
+                card.Click += async (_, _) => await ShowDetailsAsync(shown);
+                // The library's hover tracking stops under an open page: these cards light up on their own.
+                card.HoverEntered += x => x.SetHover(true); card.FocusEntered += x => x.SetHover(true); card.HoverLeft += x => x.SetHover(false);
+                card.ContextMenu = CardMenu(card, false);
+                cards.Children.Add(card); _ = card.LoadImageAsync(_images, false);
+            }
+        }
     }
     private int _similarColumns;
     private void SimilarSection_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!e.WidthChanged || _similar.Count == 0) return;
+        if (!e.WidthChanged || _similar.Count == 0 && _saga is null) return;
         var (columns, width) = PosterLayout(EpisodesPanel.ActualWidth);
         if (columns != _similarColumns) { RenderSimilar(); return; }
-        foreach (var card in SimilarCards.Children.OfType<MediaCard>()) card.Resize(width);
+        foreach (var card in SimilarCards.Children.OfType<MediaCard>().Concat(SagaCards.Children.OfType<MediaCard>())) card.Resize(width);
     }
     private async Task<MediaItem?> NextEpisodeAsync(JellyfinClient client, string seriesId)
     {

@@ -298,6 +298,25 @@ internal static class ConnectionTests
             using (var client = Server(true, HttpStatusCode.Unauthorized))
             { try { await client.ApproveCodeAsync("458128"); throw new Exception("A refused session went unnoticed"); } catch (UnauthorizedAccessException) { } }
         });
+        await Test("Saga d’un film : ses autres films dans l’ordre, rien sans collection ni d’un Jellyfin qui ne sait pas le dire", async () =>
+        {
+            var asked = new List<string>();
+            JellyfinClient Server(HttpStatusCode collections, string boxes) => new(new("http://localhost/", "u1", "Alice", "jeton", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery; asked.Add(path);
+                if (path.StartsWith("/Items/f2/Collections")) return Task.FromResult(new HttpResponseMessage(collections) { Content = new StringContent(boxes) });
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"Items":[{"Id":"f1","Name":"Un","Type":"Movie"},{"Id":"f2","Name":"Deux","Type":"Movie"},{"Id":"f3","Name":"Trois","Type":"Movie"}]}""") });
+            }));
+            using (var client = Server(HttpStatusCode.OK, """{"Items":[{"Id":"b1","Name":"Trilogie - Saga","Type":"BoxSet"}]}"""))
+            {
+                var saga = await client.SagaAsync("f2");
+                Assert(saga is { Name: "Trilogie - Saga" } && saga.Items.Select(x => x.Id).SequenceEqual(["f1", "f3"]), $"Saga: {saga?.Name} {string.Join(",", saga?.Items.Select(x => x.Id) ?? [])}");
+                Assert(asked.SequenceEqual(["/Items/f2/Collections?userId=u1&limit=1", "/Items?userId=u1&parentId=b1&sortBy=ProductionYear,PremiereDate,SortName&fields=Overview,Genres,ChildCount"]), string.Join(" | ", asked));
+            }
+            using (var client = Server(HttpStatusCode.OK, """{"Items":[]}""")) Assert(await client.SagaAsync("f2") is null, "A saga without a collection");
+            using (var client = Server(HttpStatusCode.OK, """{"Items":[{"Id":"p1","Name":"Liste","Type":"Playlist"}]}""")) Assert(await client.SagaAsync("f2") is null, "A playlist taken for a saga");
+            using (var client = Server(HttpStatusCode.NotFound, "")) Assert(await client.SagaAsync("f2") is null, "An older Jellyfin (404): no saga");
+        });
         await Test("Effacer les données d’un compte : son cache et ses affiches seulement, ni les autres comptes ni les réglages", async () =>
         {
             var folder = Path.Combine(testRoot, "erase-account");

@@ -350,6 +350,17 @@ export const api = {
   /** Where a series picks up: the episode in progress, or the next one to watch, with its tracks for « Audio et sous-titres ». */
   seriesNext: (seriesId) => get('Shows/NextUp', { userId: user(), seriesId, limit: 1, enableResumable: true, fields: 'Overview,MediaSources' }).then((r) => r?.Items?.[0] ?? null),
   similar: (id) => get(`Items/${encodeURIComponent(id)}/Similar`, { userId: user(), limit: 16, fields: CARD_FIELDS, ...CARD_IMAGES }),
+  /**
+   * The saga a film belongs to (its first Jellyfin collection, as on Windows and Mac), with its other titles in the
+   * order they came out. None from a Jellyfin that cannot say which collections hold a title (404: older than 12.1, where it was checked).
+   */
+  async sagas(id) {
+    const found = await get(`Items/${encodeURIComponent(id)}/Collections`, { userId: user(), limit: 1 }).catch(() => null);
+    return Promise.all((found?.Items ?? []).filter((box) => box.Type === 'BoxSet').map(async (box) => {
+      const titles = await get('Items', { userId: user(), parentId: box.Id, sortBy: 'ProductionYear,PremiereDate,SortName', fields: CARD_FIELDS, ...CARD_IMAGES, enableUserData: true });
+      return { id: box.Id, name: box.Name, items: (titles?.Items ?? []).filter((x) => x.Id !== id) };
+    }));
+  },
 
   setPlayed: (id, played) => request(played ? 'POST' : 'DELETE', `UserPlayedItems/${encodeURIComponent(id)}`, { params: { userId: user() } }),
   setFavorite: (id, favorite) => request(favorite ? 'POST' : 'DELETE', `UserFavoriteItems/${encodeURIComponent(id)}`, { params: { userId: user() } }),

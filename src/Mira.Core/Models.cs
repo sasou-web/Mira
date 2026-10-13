@@ -78,6 +78,8 @@ public sealed record ItemsResult
     public List<MediaItem> Items { get; init; } = [];
     public int TotalRecordCount { get; init; }
 }
+/// <summary>A saga (a Jellyfin collection) seen from one of its films: its name and its other titles, in order.</summary>
+public sealed record Saga(string Name, List<MediaItem> Items);
 public sealed record CatalogFilters
 {
     public string[] Genres { get; init; } = [];

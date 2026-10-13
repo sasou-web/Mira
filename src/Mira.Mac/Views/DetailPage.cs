@@ -225,17 +225,24 @@ public sealed class DetailPage : Page
         return button;
     }
 
+    /// <summary>The film's saga, then the similar titles: a film of the saga is not shown again among them.</summary>
     private async Task LoadSimilarAsync(Session session)
     {
-        try
+        Saga? saga = null;
+        if (_item.Type == "Movie")
         {
-            var similar = (await session.SimilarAsync(_item.Id)).Items.Where(x => x.Id != _item.Id).ToList();
-            if (similar.Count == 0) return;
-            await Task.Run(() => session.Store.ApplyLocalProgress(similar));
-            if (_body.Children.OfType<CardRow>().FirstOrDefault() is { } old) _body.Children.Remove(old);
-            var row = new CardRow("Titres similaires", similar.Select(x => { var card = Cards.Poster(x, session.Images, Shell.Open, Shell.Menu); card.Width = 168; return (Control)card; }), sidePadding: 0);
-            _body.Children.Add(row);
+            try { saga = await session.SagaAsync(_item.Id); }
+            catch (Exception ex) when (Errors.Expected(ex)) { }
         }
+        var similar = new List<MediaItem>();
+        try { similar = (await session.SimilarAsync(_item.Id)).Items.Where(x => x.Id != _item.Id && saga?.Items.Any(s => s.Id == x.Id) != true).ToList(); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
+        if (saga is null && similar.Count == 0) return;
+        try { await Task.Run(() => { if (saga is not null) session.Store.ApplyLocalProgress(saga.Items); session.Store.ApplyLocalProgress(similar); }); }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+        foreach (var old in _body.Children.OfType<CardRow>().ToList()) _body.Children.Remove(old);
+        CardRow Row(string title, List<MediaItem> items) => new(title, items.Select(x => { var card = Cards.Poster(x, session.Images, Shell.Open, Shell.Menu); card.Width = 168; return (Control)card; }), sidePadding: 0);
+        if (saga is not null) _body.Children.Add(Row(saga.Name, saga.Items));
+        if (similar.Count > 0) _body.Children.Add(Row("Titres similaires", similar));
     }
 }
