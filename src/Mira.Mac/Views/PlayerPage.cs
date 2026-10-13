@@ -118,7 +118,7 @@ public sealed class PlayerPage : UserControl
         var info = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 4) };
         var timeColumn = Ui.Column(0, _chapter, _time); timeColumn.VerticalAlignment = VerticalAlignment.Bottom;
         Grid.SetColumn(timeColumn, 1); info.Children.Add(timeColumn);
-        _timeline.Seek += SeekTo;
+        _timeline.Seek += seconds => SeekTo(seconds);
         var body = Ui.Column(2, info, _timeline, transport);
         _bottom = new Border { VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(28, 90, 28, 16), Child = body, Background = Fade(false) };
         _chrome.Children.Add(_top); _chrome.Children.Add(_bottom);
