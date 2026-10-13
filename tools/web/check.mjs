@@ -143,7 +143,7 @@ try {
   // Lueur Web: 854 × 480, 40 s long, ends 40 s from now (a minute either way: the clock may turn in between).
   const end = /Fin à (\d{1,2}) h (\d{2})/.exec(filmFacts), expected = new Date(Date.now() + 40_000);
   const late = end ? ((Number(end[1]) * 60 + Number(end[2]) - expected.getHours() * 60 - expected.getMinutes()) % 1440 + 1440) % 1440 : null;
-  check('fiche : image du fichier et heure de fin (film, épisode d’une série)', /SD/.test(filmFacts) && late !== null && (late <= 1 || late >= 1439) && /SD.*Fin à/.test(seriesFacts),
+  check('fiche : image du fichier et heure de fin (film, épisode d’une série)', /SD/.test(filmFacts) && late !== null && (late <= 1 || late >= 1439) && /SD\s*Fin à/.test(seriesFacts),
     `${filmFacts.replace(/\s+/g, ' ')} ; série : ${seriesFacts.replace(/\s+/g, ' ')}`);
   const line = await page.locator('.tracks-line').innerText().catch(() => '');
   check('fiche : pistes choisies par les langues des réglages', /Audio : Français/.test(line) && /Sous-titres : aucun/.test(line), line.replace(/\s+/g, ' '));
