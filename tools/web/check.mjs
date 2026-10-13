@@ -170,6 +170,12 @@ try {
   await shot('12-tracks-playing');
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
+  // Its saga (tools/web/media.sh, setup.mjs): the collection Jellyfin made of the two films, the other one in a row.
+  const saga = await page.waitForFunction(() => {
+    const head = [...document.querySelectorAll('#view .section h2')].find((x) => x.textContent === 'Saga Test');
+    return head ? [...head.closest('.section').querySelectorAll('.card-title')].map((x) => x.textContent) : null;
+  }, null, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => null);
+  check('fiche : saga d’un film (collection faite par Jellyfin), ses autres films', saga?.length === 1 && /^Aube Test/.test(saga[0]), saga ? saga.join(', ') : 'aucune rangée « Saga Test »');
   // Bonus videos (tools/web/media.sh): the film's extras folder and its « behind the scenes » one, the series' extras
   // folder. They have no page: a tap on the card plays it.
   const bonus = page.locator('#view .section', { has: page.locator('h2', { hasText: 'Bonus' }) });

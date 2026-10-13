@@ -265,6 +265,48 @@ public sealed class JellyfinClient : IDisposable
         return true;
     }
     /// <summary>
+    /// Whether Jellyfin gathers the films of a saga into a collection by itself at each library scan (« Ajouter
+    /// automatiquement à une collection » of every film library, Jellyfin 10.9 and later, off by default): what the
+    /// saga row of a film page needs. Null when Mira can neither tell nor change it: not an administrator, no film
+    /// library, or a Jellyfin without the option.
+    /// </summary>
+    public async Task<bool?> SagasAsync(CancellationToken ct = default) =>
+        await FilmLibrariesAsync(ct) is { Count: > 0 } films && films.All(x => AutoCollections(x.Options) is not null)
+            ? films.All(x => AutoCollections(x.Options) == true) : null;
+    /// <summary>
+    /// Turns that option on in every film library, sending back their other options as Jellyfin gave them. Jellyfin
+    /// makes the sagas at its next scan. False when refused (only an administrator may).
+    /// </summary>
+    public async Task<bool> EnableSagasAsync(CancellationToken ct = default)
+    {
+        if (await FilmLibrariesAsync(ct) is not { } films) return false;
+        foreach (var (id, options) in films)
+        {
+            if (AutoCollections(options) != false) continue;
+            var changed = (JsonObject)options!.DeepClone();
+            changed["AutomaticallyAddToCollection"] = true;
+            using var response = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = id, ["LibraryOptions"] = changed }, ct);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(response);
+        }
+        return true;
+    }
+    /// <summary>How many sagas (Jellyfin collections) this account sees.</summary>
+    public async Task<int> SagaCountAsync(CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&includeItemTypes=BoxSet&recursive=true&limit=0", ct)).TotalRecordCount;
+    private static bool? AutoCollections(JsonObject? options) =>
+        options?["AutomaticallyAddToCollection"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
+    /// <summary>The film libraries with their options, as Jellyfin's dashboard reads them; null when refused (not an administrator).</summary>
+    private async Task<List<(string Id, JsonObject? Options)>?> FilmLibrariesAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("Library/VirtualFolders", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        var folders = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+        return folders.OfType<JsonObject>().Where(x => x["CollectionType"] is JsonValue type && type.TryGetValue<string>(out var kind) && kind == "movies" && x["ItemId"] is JsonValue)
+            .Select(x => ((string)x["ItemId"]!, x["LibraryOptions"] as JsonObject)).ToList();
+    }
+    /// <summary>
     /// Whether this account administers Jellyfin (its policy): only an administrator installs Mira web or lets
     /// Tailscale in. Null when Jellyfin does not say.
     /// </summary>

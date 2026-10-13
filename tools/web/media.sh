@@ -5,7 +5,8 @@
 #   Matroska (H.264, AAC) with French subtitles beside it: converted by Jellyfin into HLS, the way an iPhone plays;
 #   an anime-like Matroska with its ASS and SRT subtitles inside it; a WebM film whose chapters name its opening;
 #   a one-episode series in Animes, a second library of series (the choice between them);
-#   bonus videos (Extras folders) beside the WebM film and series, for the « Bonus » row;
+#   bonus videos (Extras folders) beside the WebM film and series, for the « Bonus » row; two films of one saga
+#   (their movie.nfo), gathered into a collection by Jellyfin when the library adds films to collections;
 #   with « formats », the kinds of files a home library holds whose stream Apple's player may refuse (see below).
 #   tools/web/media.sh <folder> [formats]
 set -euo pipefail
@@ -43,6 +44,10 @@ extra() {
 extra "$ROOT/Films/Lueur Web (2020)/extras/Bêtisier.webm"
 extra "$ROOT/Films/Lueur Web (2020)/behind the scenes/Tournage.webm"
 extra "$ROOT/Séries/Courte Web/extras/Générique sans texte.webm"
+# The saga of a film, as TMDb gives it to Jellyfin: here from the NFO beside each film (Jellyfin reads it at the scan).
+for film in "Lueur Web (2020)" "Aube Test (2021)"; do
+  printf '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<movie>\n  <set>\n    <name>Saga Test</name>\n  </set>\n</movie>\n' > "$ROOT/Films/$film/movie.nfo"
+done
 mkdir -p "$ROOT/Animes/Courte Anime/Season 01"
 q -f lavfi -i testsrc=duration=6:size=640x360:rate=24 -f lavfi -i sine=frequency=880:duration=6 \
   -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -c:a libopus -shortest "$ROOT/Animes/Courte Anime/Season 01/Courte Anime S01E01.webm"

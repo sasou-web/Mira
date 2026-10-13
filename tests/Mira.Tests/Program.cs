@@ -140,7 +140,7 @@ await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en fra
 {
     // Answers like Jellyfin 12.1 on its first run: "loading" at first, then the wizard's routes, open until the wizard is completed.
     var loading = 2; var completed = false; string? name = null, password = null, culture = null; bool? remote = null; var failLibrary = false; var signed = true; var requests = 0;
-    var libraries = new List<(string Name, string Type, string Path)>();
+    var libraries = new List<(string Name, string Type, string Path)>(); var sagas = new List<string>();
     // Jellyfin reads JSON names in any case, as ASP.NET does: Mira's bodies go out in camelCase.
     static JsonElement Field(JsonElement? json, params string[] path) => path.Aggregate(json!.Value, (x, name) => x.EnumerateObject().First(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).Value);
     var handler = new Handler(async request =>
@@ -168,7 +168,9 @@ await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en fra
             case "GET /Library/VirtualFolders": return JsonResponse(libraries.Select(x => new { x.Name, CollectionType = x.Type, Locations = new[] { x.Path } }));
             case "POST /Library/VirtualFolders":
                 if (failLibrary) return new(HttpStatusCode.InternalServerError);
-                libraries.Add((query["name"], query["collectionType"], Field(Field(body, "LibraryOptions", "PathInfos")[0], "Path").GetString()!)); return new(HttpStatusCode.NoContent);
+                libraries.Add((query["name"], query["collectionType"], Field(Field(body, "LibraryOptions", "PathInfos")[0], "Path").GetString()!));
+                if (Field(body, "LibraryOptions", "AutomaticallyAddToCollection").GetBoolean()) sagas.Add(query["name"]);
+                return new(HttpStatusCode.NoContent);
             case "POST /Startup/RemoteAccess": remote = Field(body, "EnableRemoteAccess").GetBoolean(); return new(HttpStatusCode.NoContent);
             case "POST /Startup/Complete": completed = true; return new(HttpStatusCode.NoContent);
             default: return new(HttpStatusCode.NotFound);
@@ -197,6 +199,7 @@ await Test("Serveur Jellyfin : son assistant de premier démarrage rempli en fra
     (string, string, string)[] expected = [("Films", "movies", folders.Movies), ("Séries", "tvshows", folders.Series), ("Animes", "tvshows", folders.Anime)];
     Assert(completed && name == "Alice" && password == "secret" && culture == "fr/FR" && remote == false && signed, $"Wizard: {completed} {name} {culture} {remote} {signed}");
     Assert(libraries.SequenceEqual(expected), "Libraries: " + string.Join(", ", libraries));
+    Assert(sagas.SequenceEqual(["Films"]), "Films gathered into sagas: " + string.Join(", ", sagas));
     // Cut off before its end: run again with the same account, the missing library is added once.
     completed = false; libraries.RemoveAt(2);
     await JellyfinSetup.ConfigureAsync(server, "Alice", "secret", folders, handler);

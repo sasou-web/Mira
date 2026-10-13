@@ -287,7 +287,7 @@ public partial class MainWindow : Window
             await RefreshAsync();
             var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear();
             _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = "Toutes les bibliothèques", Tag = "" }); LibraryFilter.SelectedIndex = 0;
-            foreach (var library in libraries) AddLibraryButton(library.Name, library.Id);
+            foreach (var library in libraries.Where(x => !LibrarySection.Groups(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
             _filterBusy = false;
             PopulateFilters(await _client.FiltersAsync());
         }

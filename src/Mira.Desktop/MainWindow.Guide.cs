@@ -396,7 +396,7 @@ public partial class MainWindow
             return;
         }
         List<VirtualFolder>? libraries; Exception? failure = null;
-        try { libraries = await client.VirtualFoldersAsync(); }
+        try { libraries = (await client.VirtualFoldersAsync())?.Where(x => !LibrarySection.Groups(x.CollectionType)).ToList(); }
         catch (Exception ex) when (IsExpected(ex)) { libraries = null; failure = ex; }
         if (version != _guideVersion) return;
         // Jellyfin out of reach is not a question of rights: only a refusal (null) means an account that is not an administrator.

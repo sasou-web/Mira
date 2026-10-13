@@ -205,9 +205,10 @@ public static partial class JellyfinSetup
         foreach (var (name, type, path) in new[] { ("Films", "movies", folders.Movies), ("Séries", "tvshows", folders.Series), ("Animes", "tvshows", folders.Anime) })
         {
             if (existing.Contains(name)) continue;
-            // The path goes in the body: the query form splits paths on commas.
+            // The path goes in the body: the query form splits paths on commas. Films are gathered into sagas (the saga
+            // row of a film page), which Jellyfin leaves off by default.
             await Send(http, HttpMethod.Post, $"Library/VirtualFolders?name={Uri.EscapeDataString(name)}&collectionType={type}&refreshLibrary=false",
-                new { LibraryOptions = new { PathInfos = new[] { new { Path = path } }, PreferredMetadataLanguage = "fr", MetadataCountryCode = "FR", EnableRealtimeMonitor = true } },
+                new { LibraryOptions = new { PathInfos = new[] { new { Path = path } }, PreferredMetadataLanguage = "fr", MetadataCountryCode = "FR", EnableRealtimeMonitor = true, AutomaticallyAddToCollection = type == "movies" } },
                 "la bibliothèque " + name, ct).ConfigureAwait(false);
         }
         // Devices on the local network still connect; access from the Internet stays off until chosen in Jellyfin.
