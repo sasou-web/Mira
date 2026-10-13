@@ -57,7 +57,7 @@ public partial class MainWindow
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
-        DescribeTorLinkSettings(); _ = ShowApproveDeviceAsync();
+        DescribeTorLinkSettings(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
         SettingsSaveStatus.Text = "Les changements s’appliquent après enregistrement.";
@@ -163,6 +163,46 @@ public partial class MainWindow
         if (_demo || _client is not { } client) return;
         try { if (await client.QuickConnectEnabledAsync() && client == _client) ApproveDeviceRow.Visibility = Visibility.Visible; }
         catch (Exception ex) when (IsExpected(ex)) { }
+    }
+    private bool _sagasBusy;
+    /// <summary>
+    /// « Sagas de films »: for an administrator, whether Jellyfin gathers films into sagas (the saga row of a film page),
+    /// with a button while it does not. Hidden when Mira can neither tell nor change it.
+    /// </summary>
+    private async Task ShowSagasAsync()
+    {
+        if (_sagasBusy) return;
+        SagasRow.Visibility = Visibility.Collapsed; SagasStatus.Text = "";
+        if (_demo || _client is not { } client) return;
+        bool? sagas;
+        try { sagas = await client.SagasAsync(); }
+        catch (Exception ex) when (IsExpected(ex)) { return; }
+        if (client != _client || sagas is null || _sagasBusy) return;
+        SagasButton.Visibility = sagas == true ? Visibility.Collapsed : Visibility.Visible;
+        SagasStatus.Text = sagas == true ? SagasOn : "";
+        SagasRow.Visibility = Visibility.Visible;
+    }
+    private const string SagasOn = "Activé : Jellyfin range tes films en sagas à chaque analyse de la bibliothèque. Pour l’arrêter : Tableau de bord de Jellyfin → Médiathèques → Films → « Ajouter automatiquement à la collection ».";
+    /// <summary>Turns the option on in every film library, then has Jellyfin scan: the sagas exist at the end of the scan.</summary>
+    private async void Sagas_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client is not { } client || _sagasBusy) return;
+        _sagasBusy = true; SagasButton.IsEnabled = false; SagasStatus.Text = "Réglage de Jellyfin…";
+        var ct = _connectionLifetime.Token;
+        try
+        {
+            if (!await client.EnableSagasAsync(ct)) { SagasStatus.Text = "Seul un administrateur de Jellyfin peut changer ce réglage."; return; }
+            var progress = new Progress<double?>(p => SagasStatus.Text = p is { } share ? $"Jellyfin range tes films… {share * 100:0} %" : "Jellyfin range tes films…");
+            await client.ScanAndWaitAsync(progress, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), ct);
+            var count = await client.SagaCountAsync(ct);
+            SagasButton.Visibility = Visibility.Collapsed;
+            SagasStatus.Text = count > 0 ? $"{count} saga{(count > 1 ? "s" : "")} dans ta bibliothèque : la fiche de leurs films les montre. Jellyfin range les suivantes à chaque analyse."
+                : "Activé. Aucune saga pour l’instant : Jellyfin en crée une dès que deux films d’une même saga sont dans ta bibliothèque.";
+        }
+        // Only Mira's own cancellation (another account, closing): HttpClient's 12 s limit is one too, and must be said.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (IsExpected(ex)) { SagasStatus.Text = Friendly(ex); }
+        finally { _sagasBusy = false; SagasButton.IsEnabled = true; }
     }
     private void ApproveCode_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     { if (e.Key == System.Windows.Input.Key.Enter) { e.Handled = true; ApproveDevice_Click(sender, e); } }

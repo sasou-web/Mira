@@ -47,10 +47,13 @@ const configuration = await call('GET', 'System/Configuration', { token });
 await call('POST', 'System/Configuration', { token, body: { ...configuration, MinResumeDurationSeconds: 1 } });
 
 const folders = await call('GET', 'Library/VirtualFolders', { token });
+const sagas = !folders.some((f) => f.Name === 'Films');
 for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 'tvshows', 'Séries'], ['Animes', 'tvshows', 'Animes']]) {
   if (folders.some((f) => f.Name === name)) continue;
   const path = `${media.replace(/\/$/, '')}/${folder}`;
-  await call('POST', `Library/VirtualFolders?name=${encodeURIComponent(name)}&collectionType=${type}&paths=${encodeURIComponent(path)}&refreshLibrary=true`, { token, body: { LibraryOptions: {} } });
+  // Films gathered into sagas, as Mira for Windows sets up Jellyfin (JellyfinSetup.ConfigureAsync).
+  await call('POST', `Library/VirtualFolders?name=${encodeURIComponent(name)}&collectionType=${type}&paths=${encodeURIComponent(path)}&refreshLibrary=true`,
+    { token, body: { LibraryOptions: { AutomaticallyAddToCollection: type === 'movies' } } });
 }
 // A library added while Jellyfin is still starting may be scanned empty: scans again until every file is in, and
 // read (a title without its length yet has no HLS subtitles: Jellyfin refuses their playlists).
@@ -58,9 +61,10 @@ let scans = 0;
 const items = await until('the library scan', async () => {
   const result = await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Episode&fields=MediaSources`, { token });
   const read = (result.Items ?? []).every((x) => x.RunTimeTicks > 0 && x.MediaSources?.[0]?.RunTimeTicks > 0);
-  // The bonus videos of tools/web/media.sh (the « Bonus » row): two for the WebM film, one for its series.
-  const titles = read && result.TotalRecordCount >= 10 ? await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Series&fields=SpecialFeatureCount`, { token }) : null;
-  if (titles && (titles.Items ?? []).reduce((sum, x) => sum + (x.SpecialFeatureCount ?? 0), 0) >= 3) return result.Items;
+  // The bonus videos of tools/web/media.sh (the « Bonus » row): two for the WebM film, one for its series; and its
+  // saga, made by Jellyfin once the films are in.
+  const titles = read && result.TotalRecordCount >= 10 ? await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Series,BoxSet&fields=SpecialFeatureCount`, { token }) : null;
+  if (titles && (titles.Items ?? []).reduce((sum, x) => sum + (x.SpecialFeatureCount ?? 0), 0) >= 3 && (!sagas || titles.Items.some((x) => x.Type === 'BoxSet'))) return result.Items;
   if (scans++ % 15 === 0) await call('POST', 'Library/Refresh', { token });
   return null;
 }, 240);

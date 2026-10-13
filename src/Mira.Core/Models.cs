@@ -122,7 +122,14 @@ public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? 
             _ => "&sortBy=DateCreated,SortName&sortOrder=Descending"
         });
 }
-public sealed record LibrarySection(string Id, string Name, string? CollectionType);
+public sealed record LibrarySection(string Id, string Name, string? CollectionType)
+{
+    /// <summary>
+    /// Jellyfin's own groupings of titles from the other libraries (its Collections, made with the sagas, and Playlists):
+    /// not listed among the libraries, as on Mac and in Mira web.
+    /// </summary>
+    public static bool Groups(string? collectionType) => collectionType is "boxsets" or "playlists";
+}
 /// <summary>A server library with its folders, as returned by Library/VirtualFolders.</summary>
 public sealed record VirtualFolder(string Name, string? CollectionType, string[] Locations);
 public sealed record AuthUser(string Id, string Name);

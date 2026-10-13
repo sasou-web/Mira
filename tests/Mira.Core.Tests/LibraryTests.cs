@@ -548,5 +548,45 @@ internal static class LibraryTests
             refuse = true;
             Assert(await client.VirtualFoldersAsync() is null && !await client.ReportMediaChangedAsync([@"C:\Media\FILMS\x"]), "A refused optional call must not end the session");
         });
+        await Test("Sagas : l’option de Jellyfin cochée dans chaque bibliothèque de films, ses autres réglages renvoyés tels quels", async () =>
+        {
+            // As Jellyfin 12.1 lists its libraries (Library/VirtualFolders), options cut down; the second film library already has it.
+            var folders = System.Text.Json.Nodes.JsonNode.Parse("""
+                [{"Name":"Films","CollectionType":"movies","ItemId":"f1","Locations":["C:\\Films"],"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,
+                  "AutomaticallyAddToCollection":false,"PathInfos":[{"Path":"C:\\Films"}],"TypeOptions":[{"Type":"Movie","MetadataFetchers":["TheMovieDb"]}],"PreferredMetadataLanguage":"fr"}},
+                 {"Name":"Séries","CollectionType":"tvshows","ItemId":"s1","LibraryOptions":{"AutomaticallyAddToCollection":false}},
+                 {"Name":"Films 4K","CollectionType":"movies","ItemId":"f2","LibraryOptions":{"AutomaticallyAddToCollection":true}},
+                 {"Name":"Collections","CollectionType":"boxsets","ItemId":"b1","LibraryOptions":{}}]
+                """)!.AsArray();
+            var posted = new List<System.Text.Json.Nodes.JsonNode>(); var refuse = false;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                if (refuse) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Library/VirtualFolders") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(folders.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/Library/VirtualFolders/LibraryOptions" && request.Method == HttpMethod.Post)
+                {
+                    var body = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync())!;
+                    posted.Add(body);
+                    folders.First(x => (string?)x!["ItemId"] == (string?)body["Id"])!["LibraryOptions"] = body["LibraryOptions"]!.DeepClone();
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                if (path == "/Items?userId=user-1&includeItemTypes=BoxSet&recursive=true&limit=0") return JsonResponse(new { Items = Array.Empty<object>(), TotalRecordCount = 3 });
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }));
+            var original = folders[0]!["LibraryOptions"]!.DeepClone();
+            Assert(await client.SagasAsync() == false, "Off in Films");
+            Assert(await client.EnableSagasAsync() && posted.Count == 1 && (string?)posted[0]["Id"] == "f1", "Posted: " + string.Join(" ", posted.Select(x => x.ToJsonString())));
+            var expected = original.DeepClone(); expected["AutomaticallyAddToCollection"] = true;
+            Assert(System.Text.Json.Nodes.JsonNode.DeepEquals(posted[0]["LibraryOptions"], expected), "Other options changed: " + posted[0]["LibraryOptions"]!.ToJsonString());
+            Assert(await client.SagasAsync() == true && await client.EnableSagasAsync() && posted.Count == 1 && await client.SagaCountAsync() == 3, "On everywhere: nothing more to send");
+            // A Jellyfin older than the option, no film library, an account that is not an administrator: Mira cannot tell.
+            folders[0]!["LibraryOptions"]!.AsObject().Remove("AutomaticallyAddToCollection");
+            Assert(await client.SagasAsync() is null && await client.EnableSagasAsync() && posted.Count == 1, "Without the option");
+            folders.RemoveAt(2); folders.RemoveAt(0);
+            Assert(await client.SagasAsync() is null, "Without a film library");
+            refuse = true;
+            Assert(await client.SagasAsync() is null && !await client.EnableSagasAsync(), "Refused");
+        });
     }
 }
