@@ -15,6 +15,8 @@ public partial class MainWindow
     private IInputElement? _detailOrigin;
     private (string Id, bool Favorite)? _favoriteOverride;
     private MediaItem? _detailNext;
+    /// <summary>The file of the episode Lecture plays on a series, once asked for: its picture shows in the page (« 1080p »).</summary>
+    private (string Id, MediaSource? Source)? _detailFile;
     private List<MediaItem> _similar = [];
     private async void DetailPlay_Click(object sender, RoutedEventArgs e)
     { if (_detail is not null) await PlayAsync(_detailNext is { } next && _detail.Type == "Series" ? next : _detail); }
@@ -32,7 +34,7 @@ public partial class MainWindow
         var version = ++_detailVersion;
         var previewArt = _hoverCard?.Item.Id == item.Id ? _hoverCard.ImageSource : null;
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
-        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _favoriteOverride = null; _similar = []; _saga = null;
+        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null;
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null;
@@ -116,7 +118,8 @@ public partial class MainWindow
             var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip))
                 ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played));
             SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
-            _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel();
+            _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta();
+            if (_detailNext is { } target && _detailFile?.Id != target.Id) await LoadDetailFileAsync(target, version);
         }
         catch (Exception ex) when (IsExpected(ex))
         {
@@ -127,6 +130,16 @@ public partial class MainWindow
             retry.Click += async (_, _) => { _metadata?.Clear(); EpisodesPanel.Children.Clear(); await LoadDetailEpisodesAsync(item, ++_detailVersion); };
             EpisodesPanel.Children.Add(retry);
         }
+    }
+    private async Task LoadDetailFileAsync(MediaItem episode, int version)
+    {
+        try
+        {
+            var full = await _metadata!.ItemAsync(episode.Id); if (version != _detailVersion) return;
+            _detailFile = (episode.Id, full.MediaSources?.FirstOrDefault()); RenderDetailMeta();
+        }
+        // Only a detail of the page: without it, the rest is complete.
+        catch (Exception ex) when (IsExpected(ex)) { }
     }
     /// <summary>"Titres similaires" under the page. Optional: without an answer the page is complete as it is.</summary>
     /// <summary>A film's saga, then the similar titles: a film of the saga is not shown again among them.</summary>
@@ -209,7 +222,7 @@ public partial class MainWindow
         DetailTitle.Text = item.DisplayTitle;
         var kind = item.Type switch { "Series" => "SÉRIE", "Episode" => "ÉPISODE", _ => "FILM" };
         DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
-        DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is > 0 ? $"★ {item.CommunityRating:0.0}" : "", item.OfficialRating ?? "" }.Where(x => x.Length > 0));
+        RenderDetailMeta();
         DetailOverview.Text = PlainText(item.Overview ?? "Aucun résumé disponible pour ce titre."); DetailGenres.Text = item.Genres.Length > 0 ? string.Join("  ·  ", item.Genres) : "Non renseignés";
         ShowPeople(DetailCast, item.CastPeople, false); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -217,6 +230,16 @@ public partial class MainWindow
         else UpdateDetailPlayLabel();
         FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
         WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu");
+    }
+    /// <summary>Length and ratings, then the picture of the file Lecture plays and when it ends (the episode it picks up at, on a series).</summary>
+    private void RenderDetailMeta()
+    {
+        if (_detail is not { } item) return;
+        var target = item.Type == "Series" ? _detailNext : item;
+        var file = item.Type != "Series" ? MediaQuality.Label(item) : _detailFile is { } known && known.Id == target?.Id ? MediaQuality.Label(known.Source) : null;
+        var resume = target is not null && target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
+        DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is > 0 ? $"★ {item.CommunityRating:0.0}" : "", item.OfficialRating ?? "",
+            file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
     }
     private static StackPanel ActionLabel(string icon, string label)
     { var panel = new StackPanel { Orientation = Orientation.Horizontal }; panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18, Margin = new Thickness(0, 0, 9, 0) }); panel.Children.Add(new TextBlock { Text = label }); return panel; }

@@ -1,0 +1,18 @@
+{
+  "about": "Video streams of a file and the picture Mira names on a title's page. Read by tests/Mira.Core.Tests (MediaQuality) and tools/web/unit (tracks.js): both must agree. [Width, Height, VideoRangeType, VideoRange, label]",
+  "videos": [
+    [3840, 2160, "HDR10", "HDR", "4K · HDR10"],
+    [3840, 1600, "DOVIWithHDR10", "HDR", "4K · Dolby Vision"],
+    [4096, 1716, "DOVI", "HDR", "4K · Dolby Vision"],
+    [2560, 1440, "DOVIInvalid", "HDR", "1440p · HDR"],
+    [1920, 1080, "HDR10Plus", "HDR", "1080p · HDR10+"],
+    [1920, 800, "SDR", "SDR", "1080p"],
+    [1440, 1080, "SDR", "SDR", "1080p"],
+    [1280, 720, "HLG", "HDR", "720p · HLG"],
+    [1280, 534, "SDR", "SDR", "720p"],
+    [854, 480, null, null, "SD"],
+    [720, 576, "SDR", "SDR", "SD"],
+    [null, null, "HDR10", "HDR", "HDR10"],
+    [null, null, null, null, ""]
+  ]
+}

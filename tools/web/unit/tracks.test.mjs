@@ -1,9 +1,11 @@
 // Audio and subtitle tracks of the web player (src/Mira.Web/js/player/tracks.js), without a browser.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
-  trackText, menuNames, chooseTracks, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex,
+  trackText, menuNames, chooseTracks, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex, qualityText,
 } from '../../../src/Mira.Web/js/player/tracks.js';
+import { endsAt } from '../../../src/Mira.Web/js/dom.js';
 
 const source = {
   DefaultAudioStreamIndex: 1,
@@ -83,4 +85,27 @@ test('Jellyfin’s index of a subtitle track found in the video', () => {
   assert.equal(carriedIndex({ at: 0, count: 3, label: 'French - ASS - Forced', inband: true, own: null, source }), 4);
   assert.equal(carriedIndex({ at: 1, count: 3, label: 'Sous-titres', inband: true, own: null, source }), 4);
   assert.equal(carriedIndex({ at: 1, count: 2, label: 'Sous-titres', inband: true, own: null, source }), null);
+});
+
+// The same cases as Mira for Windows and Mac (tests/Mira.Core.Tests, MediaQuality): both read them.
+const quality = JSON.parse(readFileSync(new URL('../../../tests/fixtures/quality.json', import.meta.url), 'utf8'));
+
+test('a file\'s picture is named as on Windows and Mac', () => {
+  for (const [Width, Height, VideoRangeType, VideoRange, label] of quality.videos) {
+    const video = { Type: 'Video', Index: 0, Width, Height, VideoRangeType, VideoRange };
+    assert.equal(qualityText({ MediaStreams: [{ Type: 'Audio', Index: 1 }, video] }), label, `${Width} × ${Height} ${VideoRangeType}`);
+  }
+  assert.equal(qualityText({ MediaStreams: [{ Type: 'Audio', Index: 0 }] }), '');
+  assert.equal(qualityText(null), '');
+});
+
+test('the end of a title started now, from where it resumes', () => {
+  const now = new Date(2026, 9, 13, 22, 50, 30);
+  const minutes = (n) => n * 60 * 10_000_000;
+  assert.equal(endsAt({ RunTimeTicks: minutes(82) }, now), 'Fin à 0 h 12');
+  assert.equal(endsAt({ RunTimeTicks: minutes(82), UserData: { PlaybackPositionTicks: minutes(60) } }, now), 'Fin à 23 h 12');
+  // Watched to the end: it starts again from the beginning.
+  assert.equal(endsAt({ RunTimeTicks: minutes(82), UserData: { PlaybackPositionTicks: minutes(60), Played: true } }, now), 'Fin à 0 h 12');
+  assert.equal(endsAt({ RunTimeTicks: 0 }, now), '');
+  assert.equal(endsAt(null, now), '');
 });
