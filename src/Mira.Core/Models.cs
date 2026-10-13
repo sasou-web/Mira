@@ -48,6 +48,9 @@ public sealed record MediaItem
     public string? OfficialRating { get; init; }
     /// <summary>Cast and crew, returned by the single-item request only.</summary>
     public List<PersonInfo> People { get; init; } = [];
+    /// <summary>The files of a film or an episode, returned by the single-item request only (<see cref="MediaQuality"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<MediaSource>? MediaSources { get; init; }
     public UserData UserData { get; set; } = new();
     [JsonIgnore] public string DisplayTitle => Type == "Episode" ? SeriesName ?? Name : Name;
     [JsonIgnore]
@@ -130,6 +133,11 @@ public sealed record MediaStream
     public string? DisplayTitle { get; init; }
     public bool IsExternal { get; init; }
     public string? DeliveryUrl { get; init; }
+    public int? Width { get; init; }
+    public int? Height { get; init; }
+    /// <summary>« SDR », « HDR »; VideoRangeType is finer: « HDR10 », « HDR10Plus », « HLG », « DOVI », « DOVIWithHDR10 »…</summary>
+    public string? VideoRange { get; init; }
+    public string? VideoRangeType { get; init; }
 }
 public sealed record MediaSource
 {

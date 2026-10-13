@@ -82,6 +82,10 @@ try {
   const primary = await page.locator('.detail-actions .btn.primary').innerText();
   check('fiche de la série', /S1 · É1/.test(primary), primary.replace(/\s+/g, ' '));
   check('fiche : épisodes', await page.locator('.episode').count() === episodes.length, `${episodes.length} épisodes`);
+  // The picture and the end of the episode Lecture plays, asked for after the page shows.
+  const facts = () => page.evaluate(() => document.querySelector('#view .detail-meta')?.innerText ?? '');
+  await page.waitForFunction(() => /SD.*Fin à/.test(document.querySelector('#view .detail-meta')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
+  const seriesFacts = await facts();
   await shot('05-series');
 
   reports.length = 0;
@@ -135,6 +139,12 @@ try {
   const english = streams.find((x) => x.Type === 'Audio' && x.Language === 'eng'), frenchSubs = streams.find((x) => x.Type === 'Subtitle' && x.Language === 'fra');
   await api(`UserPlayedItems/${film.Id}`, 'DELETE');
   await page.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await wait(2000);
+  const filmFacts = await facts();
+  // Lueur Web: 854 × 480, 40 s long, ends 40 s from now (a minute either way: the clock may turn in between).
+  const end = /Fin à (\d{1,2}) h (\d{2})/.exec(filmFacts), expected = new Date(Date.now() + 40_000);
+  const late = end ? ((Number(end[1]) * 60 + Number(end[2]) - expected.getHours() * 60 - expected.getMinutes()) % 1440 + 1440) % 1440 : null;
+  check('fiche : image du fichier et heure de fin (film, épisode d’une série)', /SD/.test(filmFacts) && late !== null && (late <= 1 || late >= 1439) && /SD.*Fin à/.test(seriesFacts),
+    `${filmFacts.replace(/\s+/g, ' ')} ; série : ${seriesFacts.replace(/\s+/g, ' ')}`);
   const line = await page.locator('.tracks-line').innerText().catch(() => '');
   check('fiche : pistes choisies par les langues des réglages', /Audio : Français/.test(line) && /Sous-titres : aucun/.test(line), line.replace(/\s+/g, ' '));
   await page.locator('.tracks-line').click(); await wait(500);

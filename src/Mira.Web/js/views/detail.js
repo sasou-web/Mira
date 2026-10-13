@@ -1,7 +1,7 @@
 // A title's page: backdrop and logo, play or resume, watched and favourite, overview, cast and, for a series, its
 // seasons (long ones in slices of 100, as on Windows) and episodes.
 import { api } from '../api.js';
-import { h, icon, clear, duration, seconds, progress, remaining, episodeCode, plural } from '../dom.js';
+import { h, icon, clear, duration, seconds, progress, remaining, endsAt, episodeCode, plural } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import {
   row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, toast, sheet, withActions, knownItem,
@@ -9,7 +9,7 @@ import {
 } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
 import { settings } from '../session.js';
-import { trackText, chooseTracks } from '../player/tracks.js';
+import { trackText, chooseTracks, qualityText } from '../player/tracks.js';
 
 const SLICE = 100;
 const seasonOf = (x) => x.ParentIndexNumber ?? 1;
@@ -37,7 +37,8 @@ function pageHolding(pages, episodes, episode) {
   return position < 0 ? null : pages.find((p) => p.season === seasonOf(episode) && position >= p.skip && position < p.skip + p.take) ?? null;
 }
 
-function meta(item, episodes) {
+/** Year, length, ratings, then what the page adds: the picture of the file Lecture plays and when it ends. */
+function meta(item, episodes, extra = []) {
   const parts = [];
   if (item.ProductionYear) parts.push(h('span', {}, String(item.ProductionYear)));
   if (item.Type === 'Series') {
@@ -46,6 +47,7 @@ function meta(item, episodes) {
   } else if (item.RunTimeTicks) parts.push(h('span', {}, duration(seconds(item.RunTimeTicks))));
   if (item.CommunityRating) parts.push(h('span', { class: 'rating' }, icon('star'), item.CommunityRating.toFixed(1).replace('.', ',')));
   if (item.OfficialRating) parts.push(h('span', { class: 'cert' }, item.OfficialRating));
+  for (const fact of extra.filter(Boolean)) parts.push(h('span', {}, fact));
   return h('div', { class: 'detail-meta' }, parts.map((p, i) => (i ? [h('span', { class: 'dot', 'aria-hidden': 'true' }), p] : p)));
 }
 
@@ -156,6 +158,18 @@ export function create({ id, query }) {
   }
 
   /** Lecture, its tracks and Du début again, without rebuilding the page. */
+  /** The picture of the file Lecture plays (« 4K · HDR10 ») and when it ends: the film's, or the episode's it picks up at. */
+  function playFacts() {
+    const target = playTarget();
+    if (!target) return [];
+    return [qualityText(streams?.for === target.Id ? streams.source : null), endsAt(target)];
+  }
+  function refreshMeta() {
+    if (!item || !metaBox || !el.contains(metaBox)) return;
+    const facts = meta(item, episodes, playFacts());
+    metaBox.replaceWith(facts); metaBox = facts;
+  }
+
   function refreshActions() {
     if (!item || !actionsBox || !el.contains(actionsBox)) return;
     const actions = primaryAction(), secondary = tools();
@@ -171,7 +185,7 @@ export function create({ id, query }) {
     const full = await api.item(target.Id).catch(() => null);
     if (!full?.MediaSources?.[0] || playTarget()?.Id !== target.Id) return;
     streams = { for: target.Id, source: full.MediaSources[0] };
-    refreshActions();
+    refreshMeta(); refreshActions();
   }
 
   function tools() {
@@ -247,7 +261,7 @@ export function create({ id, query }) {
         h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: wide ? 1600 : 900, eager: true }) : null),
         h('div', { class: 'detail-head' },
           poster ? picture(poster, { kind: 'poster', width: 140, eager: true, className: 'detail-poster' }) : null,
-          headTitle, (metaBox = meta(item, episodes)), (actionsBox = primaryAction()), (toolsBox = tools()), overview(item.Overview),
+          headTitle, (metaBox = meta(item, episodes, playFacts())), (actionsBox = primaryAction()), (toolsBox = tools()), overview(item.Overview),
           item.Genres?.length ? h('div', { class: 'genres' }, item.Genres.join(' · ')) : null,
           credits(item))),
       (seasonsBox = h('div', {}, seasonsSection())),
@@ -285,8 +299,7 @@ export function create({ id, query }) {
    * is. The page does not move, an opened summary stays open, the rows stay where they were scrolled.
    */
   function update() {
-    const facts = meta(item, episodes);
-    metaBox.replaceWith(facts); metaBox = facts;
+    refreshMeta();
     refreshActions();
     if (item.Type !== 'Series') return;
     if (!page || episodes.map((x) => x.Id).join() !== shownIds || !listBox || !el.contains(listBox)) {

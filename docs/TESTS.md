@@ -57,7 +57,7 @@ PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <use
 safaridriver -p 4444 &  node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dossier>   # Mac ; MIRA_FORMATS=1 pour les formats
 ```
 
-`check.mjs` parcourt Mira web dans Chromium à la taille d’un iPhone (connexion, chaque écran, lecture en WebM, reprise, épisodes à voir sur l’affiche, bibliothèque d’animés à part, pistes, intro d’après les chapitres, déconnexion, sécurité, robustesse) et simule le lecteur d’Apple ; avec `MIRA_STOP` et `MIRA_START` (commandes qui arrêtent et relancent Jellyfin), il ouvre aussi Mira serveur éteint. `safari.mjs` vérifie la lecture HLS et le vrai lecteur d’Apple dans Safari. Pour servir Mira web depuis le disque sans recompiler l’extension, lance Jellyfin avec `MIRA_WEB_DIR=<chemin de src/Mira.Web>` (la page n’est alors pas gardée : « serveur éteint » se teste avec l’extension compilée).
+`check.mjs` parcourt Mira web dans Chromium à la taille d’un iPhone (connexion, chaque écran, lecture en WebM, reprise, épisodes à voir sur l’affiche, bibliothèque d’animés à part, qualité et heure de fin sur la fiche, pistes, intro d’après les chapitres, déconnexion, sécurité, robustesse) et simule le lecteur d’Apple ; avec `MIRA_STOP` et `MIRA_START` (commandes qui arrêtent et relancent Jellyfin), il ouvre aussi Mira serveur éteint. `safari.mjs` vérifie la lecture HLS et le vrai lecteur d’Apple dans Safari. Pour servir Mira web depuis le disque sans recompiler l’extension, lance Jellyfin avec `MIRA_WEB_DIR=<chemin de src/Mira.Web>` (la page n’est alors pas gardée : « serveur éteint » se teste avec l’extension compilée).
 
 ## Harnais des applications
 

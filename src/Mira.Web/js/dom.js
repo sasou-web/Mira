@@ -72,6 +72,15 @@ export function remaining(item) {
   return total > 0 && done > 0 ? `reste ${duration(total - done)}` : '';
 }
 
+/** « Fin à 23 h 12 »: when a title started now ends, from where it resumes; '' without a length. As Mira.Core MediaQuality.EndsAt. */
+export function endsAt(item, now = new Date()) {
+  if (!item) return '';
+  const left = seconds(item.RunTimeTicks) - (progress(item) > 0 ? seconds(item.UserData.PlaybackPositionTicks) : 0);
+  if (!(left > 0)) return '';
+  const end = new Date(now.getTime() + left * 1000);
+  return `Fin à ${end.getHours()} h ${String(end.getMinutes()).padStart(2, '0')}`;
+}
+
 export function progress(item) {
   const total = item.RunTimeTicks ?? 0, done = item.UserData?.PlaybackPositionTicks ?? 0;
   return total > 0 && done > 0 && !item.UserData?.Played ? Math.min(1, done / total) : 0;

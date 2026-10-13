@@ -56,6 +56,7 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ Artwork, ArtworkPalette, SeasonThumbs : images d’une carte et d’un bandeau, couleur dominante, vignettes de saison
   ├─ WhatsNew : points forts de chaque version (WhatsNew.json intégré), écran à l’ouverture, texte court des releases
   ├─ ContinueWatching, EpisodePages, PlaybackMarkers, MpvLists, SeriesTracks, PlayerText, VolumeBoost : reprise, saisons par tranches, passages, pistes, pistes retenues par série, textes du lecteur, volume au-delà de 100 %
+  ├─ MediaQuality : image du fichier (« 4K · HDR10 », mêmes cas que `qualityText` de Mira web dans `tests/fixtures/quality.json`) et heure de fin sur la fiche
   ├─ MotionState, ScreenFit, Legibility, IconPaths : défilement et carrousel, taille de fenêtre, contraste et taille du texte, tracés des icônes
   ├─ ErrorLog, ExpectedErrors : errors.log (type et méthode), erreurs attendues
   └─ TorLink : état TorLink, lecture des .torrent, noms de sortie, plan de rangement, importeur, journal, lock npm (Lock/)

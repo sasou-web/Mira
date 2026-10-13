@@ -98,6 +98,25 @@ export function appleStream(address, source, subtitleIndex) {
 
 // ---------- Which tracks a title starts with ----------
 
+/**
+ * « 4K · HDR10 », « 1080p », « SD », « 720p · Dolby Vision »: the picture of a file, from its first video stream, by width
+ * or height (a film cropped to 3840 × 1600 is still 4K); '' when unknown. As Mira.Core MediaQuality.Label (tests/fixtures/quality.json).
+ */
+export function qualityText(source) {
+  const video = (source?.MediaStreams ?? []).find((s) => s.Type === 'Video');
+  if (!video) return '';
+  const width = video.Width ?? 0, height = video.Height ?? 0;
+  const size = width >= 3800 || height >= 2000 ? '4K'
+    : width >= 2500 || height >= 1400 ? '1440p'
+      : width >= 1800 || height >= 1000 ? '1080p'
+        : width >= 1200 || height >= 700 ? '720p'
+          : width > 0 || height > 0 ? 'SD' : '';
+  const type = video.VideoRangeType ?? '';
+  const range = { HDR10: 'HDR10', HDR10Plus: 'HDR10+', HLG: 'HLG' }[type]
+    ?? (type.startsWith('DOVI') && type !== 'DOVIInvalid' ? 'Dolby Vision' : video.VideoRange === 'HDR' ? 'HDR' : '');
+  return [size, range].filter(Boolean).join(' · ');
+}
+
 /** The language orders of Mira on Windows and Mac (Mira.Core PlayerSettings), with the same defaults. */
 export const AUDIO_LANGUAGES = [
   ['jpn,ja,fre,fra,fr,eng,en', 'Japonais, puis français'],

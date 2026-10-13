@@ -92,6 +92,34 @@ internal static class LibraryTests
             await client.SetPlaybackPositionAsync("film 1", -5);
             Assert(sent == "POST /UserItems/film%201/UserData?userId=user-1 {\"PlaybackPositionTicks\":0}", "Request: " + sent);
         });
+        await Test("Fiche : l’image du fichier (« 4K · HDR10 ») comme Mira web, et l’heure de fin (tests/fixtures/quality.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "quality.json")));
+            static int? Number(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetInt32();
+            static string? Text(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+            foreach (var row in fixture.RootElement.GetProperty("videos").EnumerateArray())
+            {
+                var video = new MediaStream { Type = "Video", Width = Number(row[0]), Height = Number(row[1]), VideoRangeType = Text(row[2]), VideoRange = Text(row[3]) };
+                var label = MediaQuality.Label(new MediaSource { MediaStreams = [new() { Type = "Audio", Index = 1 }, video] })?.Replace("  ·  ", " · ") ?? "";
+                Assert(label == Text(row[4]), $"{row[0]} × {row[1]} {row[2]} : « {label} » au lieu de « {Text(row[4])} »");
+            }
+            // As Jellyfin sends a film alone (Items/{id}); a card without its files keeps them out of the caches.
+            var film = JsonSerializer.Deserialize<MediaItem>("""
+                {"Id":"f","Type":"Movie","RunTimeTicks":49200000000,"MediaSources":[{"Id":"s","MediaStreams":[{"Type":"Audio","Index":1},
+                 {"Type":"Video","Index":0,"Width":3840,"Height":1600,"VideoRange":"HDR","VideoRangeType":"DOVIWithHDR10"}]}]}
+                """, Json.Options)!;
+            Assert(MediaQuality.Label(film) == "4K  ·  Dolby Vision" && MediaQuality.Label(new MediaItem()) is null, "Film: " + MediaQuality.Label(film));
+            Assert(!JsonSerializer.Serialize(new MediaItem(), Json.Options).Contains("MediaSources"), "A card without files wrote MediaSources");
+
+            var now = new DateTime(2026, 10, 13, 22, 50, 30);
+            var resumed = film with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromMinutes(60).Ticks } };
+            Assert(MediaQuality.EndsAt(film, now, resume: false) == "Fin à 0 h 12" && MediaQuality.EndsAt(resumed, now, resume: true) == "Fin à 23 h 12"
+                && MediaQuality.EndsAt(resumed, now, resume: false) == "Fin à 0 h 12", "End: " + MediaQuality.EndsAt(resumed, now, resume: true));
+            Assert(MediaQuality.EndsAt(new MediaItem(), now, false) is null && MediaQuality.EndsAt(null, now, false) is null
+                && MediaQuality.EndsAt(film with { UserData = new() { PlaybackPositionTicks = film.RunTimeTicks!.Value } }, now, true) is null, "An end without a length, or past it");
+            return Task.CompletedTask;
+        });
         await Test("Fiche : un acteur ou un réalisateur mène à ses titres de la bibliothèque, avec les autres filtres", async () =>
         {
             var item = new MediaItem

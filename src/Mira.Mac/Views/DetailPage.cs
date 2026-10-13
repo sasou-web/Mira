@@ -24,6 +24,8 @@ public sealed class DetailPage : Page
     private readonly TextBlock _episodeHeading = new() { FontSize = 21, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
     private List<MediaItem> _allEpisodes = [];
     private MediaItem? _next;
+    /// <summary>The file of the episode Lecture plays on a series: its picture shows in the page (« 1080p »).</summary>
+    private (string Id, MediaSource? Source)? _targetFile;
     private bool _filling;
     public override string Rail => "";
     public MediaItem Item => _item;
@@ -79,6 +81,18 @@ public sealed class DetailPage : Page
         }
         RenderTop(); RenderBody(session);
         _ = LoadSimilarAsync(session);
+        if (_item.Type == "Series" && SeriesTarget is { } target && _targetFile?.Id != target.Id) await LoadTargetFileAsync(session, target);
+    }
+    private async Task LoadTargetFileAsync(Session session, MediaItem episode)
+    {
+        try
+        {
+            var full = await session.ItemAsync(episode.Id);
+            if (SeriesTarget?.Id != episode.Id) return;
+            _targetFile = (episode.Id, full.MediaSources?.FirstOrDefault()); RenderTop();
+        }
+        // Only a detail of the page: without it, the rest is complete.
+        catch (Exception ex) when (Errors.Expected(ex)) { }
     }
     private async Task LoadArtAsync(Session session)
     {
@@ -106,6 +120,10 @@ public sealed class DetailPage : Page
         else if (_item.DurationLabel.Length > 0) meta.Add(_item.DurationLabel);
         if (_item.CommunityRating is { } rating) meta.Add($"★ {rating:0.0}");
         if (!string.IsNullOrWhiteSpace(_item.OfficialRating)) meta.Add(_item.OfficialRating!);
+        // The picture of the file Lecture plays and when it ends: the film's, or the episode's it picks up at.
+        var played = _item.Type == "Series" ? SeriesTarget : _item;
+        if ((_item.Type != "Series" ? MediaQuality.Label(_item) : _targetFile is { } known && known.Id == played?.Id ? MediaQuality.Label(known.Source) : null) is { } file) meta.Add(file);
+        if (MediaQuality.EndsAt(played, DateTime.Now, played is { Progress: > 0, UserData.Played: false }) is { } end) meta.Add(end);
         _top.Children.Add(new TextBlock { Text = string.Join("  ·  ", meta), FontSize = 16, Foreground = Ui.Brush("#DADADF") });
 
         var actions = new WrapPanel { ItemSpacing = 12, LineSpacing = 12 };
