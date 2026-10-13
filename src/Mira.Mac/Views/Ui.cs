@@ -181,7 +181,7 @@ public static class Cards
     {
         "Series" => string.Join(" · ", new[] { item.ProductionYear?.ToString(), "Série" }.Where(x => x is not null)),
         "Episode" => $"S{item.ParentIndexNumber ?? 1} · É{item.IndexNumber ?? 1}",
-        _ => string.Join(" · ", new[] { item.ProductionYear?.ToString(), item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)))
+        _ => string.Join(" · ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)))
     };
     /// <summary>Behind the artwork while it loads, or when there is none: the initials on a quiet tone.</summary>
     private static Control Placeholder(MediaItem item)

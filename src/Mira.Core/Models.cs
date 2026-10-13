@@ -46,6 +46,10 @@ public sealed record MediaItem
     public string? SeasonThumbImageTag { get; set; }
     public int? ChildCount { get; init; }
     public string? OfficialRating { get; init; }
+    /// <summary>A bonus video's kind (« BehindTheScenes », « DeletedScene »…, « Unknown » in an Extras folder); null for a title.</summary>
+    public string? ExtraType { get; init; }
+    /// <summary>How many bonus videos a film or series has (<see cref="JellyfinClient.ExtrasAsync"/>), returned by the single-item request.</summary>
+    public int? SpecialFeatureCount { get; init; }
     /// <summary>Cast and crew, returned by the single-item request only.</summary>
     public List<PersonInfo> People { get; init; } = [];
     /// <summary>The files of a film or an episode, returned by the single-item request only (<see cref="MediaQuality"/>).</summary>

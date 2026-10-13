@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { h, icon, clear, duration, seconds, progress, remaining, endsAt, episodeCode, plural } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import {
-  row, posterCard, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, toast, sheet, withActions, knownItem,
+  row, posterCard, extraCard, cardSig, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, toast, sheet, withActions, knownItem,
   overview,
 } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
@@ -87,8 +87,8 @@ function episodeRow(episode, current) {
 export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': 'Retour', on: { click: () => goBack('#/') } }, icon('back'));
-  let item = null, episodes = [], next = null, similar = [], sagas = null, page = null, stale = false, loadedAt = 0, loadSeq = 0;
-  let actionsBox = null, toolsBox = null, sagaBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
+  let item = null, episodes = [], next = null, similar = [], sagas = null, extras = [], page = null, stale = false, loadedAt = 0, loadSeq = 0;
+  let actionsBox = null, toolsBox = null, sagaBox = null, extrasBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
   // The episode the page was opened for (« Voir la série » from it): marked, its season shown, until Lecture moves on.
@@ -267,6 +267,7 @@ export function create({ id, query }) {
       (seasonsBox = h('div', {}, seasonsSection())),
       row('Distribution', cast, (p) => personCard(p), { people: true }) ?? '',
       (sagaBox = h('div', {}, sagaRows())),
+      (extrasBox = h('div', {}, row('Bonus', extras, (x) => extraCard(x), { wide: true }) ?? '')),
       (similarBox = h('div', {}, row('Titres similaires', similar, (x) => posterCard(x)) ?? '')),
       h('div', { style: { height: '32px' } }));
     if (focused) { headTitle.tabIndex = -1; headTitle.focus({ preventScroll: true }); }
@@ -359,6 +360,15 @@ export function create({ id, query }) {
           if (sagas.length && sagaBox) clear(sagaBox).append(...sagaRows());
           if (similar.length && similarBox) clear(similarBox).append(row('Titres similaires', similar, (x) => posterCard(x)) ?? '');
         });
+      }
+      // Bonus videos come again with each load: one just watched shows it.
+      if (item.SpecialFeatureCount > 0) {
+        api.extras(id).then((found) => {
+          if (seq !== loadSeq || !extrasBox) return;
+          const before = extras.map(cardSig).join(), now = found.map(cardSig).join();
+          extras = found;
+          if (now !== before) clear(extrasBox).append(row('Bonus', extras, (x) => extraCard(x), { wide: true }) ?? '');
+        }, () => {});
       }
     } catch (error) {
       if (seq !== loadSeq) return;

@@ -141,6 +141,9 @@ public sealed class JellyfinClient : IDisposable
     /// <summary>Titles Jellyfin finds close to this one (shared genres, people, studios).</summary>
     public Task<ItemsResult> SimilarAsync(string id, int limit = 12, CancellationToken ct = default) =>
         GetAsync<ItemsResult>($"Items/{Uri.EscapeDataString(id)}/Similar?userId={Connection.UserId}&limit={limit}&fields=Overview,Genres,ChildCount,RecursiveItemCount", ct);
+    /// <summary>A film's or a series' bonus videos: making-of, deleted scenes, textless credits of its Extras folders (Jellyfin 10.9+).</summary>
+    public Task<List<MediaItem>> ExtrasAsync(string id, CancellationToken ct = default) =>
+        GetAsync<List<MediaItem>>($"Items/{Uri.EscapeDataString(id)}/SpecialFeatures?userId={Connection.UserId}", ct);
     /// <summary>
     /// The saga a film belongs to (its first Jellyfin collection), with its other titles in the order they came out.
     /// Null when it belongs to none, or when Jellyfin cannot say which collections hold a title (404: older than 12.1, where it was checked).

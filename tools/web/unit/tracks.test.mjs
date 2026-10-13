@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   trackText, menuNames, chooseTracks, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex, qualityText,
 } from '../../../src/Mira.Web/js/player/tracks.js';
-import { endsAt } from '../../../src/Mira.Web/js/dom.js';
+import { endsAt, extraKind } from '../../../src/Mira.Web/js/dom.js';
 
 const source = {
   DefaultAudioStreamIndex: 1,
@@ -108,4 +108,11 @@ test('the end of a title started now, from where it resumes', () => {
   assert.equal(endsAt({ RunTimeTicks: minutes(82), UserData: { PlaybackPositionTicks: minutes(60), Played: true } }, now), 'Fin à 0 h 12');
   assert.equal(endsAt({ RunTimeTicks: 0 }, now), '');
   assert.equal(endsAt(null, now), '');
+});
+
+// A bonus video's kind, named as on Windows and Mac (tests/Mira.Core.Tests, PlayerText.ExtraKind): both read these cases.
+const extras = JSON.parse(readFileSync(new URL('../../../tests/fixtures/extras.json', import.meta.url), 'utf8'));
+
+test('a bonus video\'s kind is named as on Windows and Mac', () => {
+  for (const [type, kind] of extras.kinds) assert.equal(extraKind(type), kind, String(type));
 });

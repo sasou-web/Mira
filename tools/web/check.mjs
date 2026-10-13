@@ -170,6 +170,27 @@ try {
   await shot('12-tracks-playing');
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
+  // Bonus videos (tools/web/media.sh): the film's extras folder and its « behind the scenes » one, the series' extras
+  // folder. They have no page: a tap on the card plays it.
+  const bonus = page.locator('#view .section', { has: page.locator('h2', { hasText: 'Bonus' }) });
+  await bonus.locator('.card').first().waitFor({ timeout: 10000 }).catch(() => {});
+  const filmExtras = await bonus.locator('.card-sub').allInnerTexts();
+  await shot('12-bonus');
+  await bonus.locator('.card', { hasText: 'Tournage' }).click({ timeout: 5000 }).catch(() => {});
+  const extraPlayed = await page.waitForFunction(() => {
+    const v = document.querySelector('video');
+    return v && !v.paused && v.currentTime > 0.5 && /^#\/lecture\//.test(location.hash) ? v.currentTime : null;
+  }, null, { timeout: 20000, polling: 250 }).then((handle) => handle.jsonValue(), () => null);
+  if (extraPlayed) { await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500); }
+  await page.evaluate((id) => { location.hash = `#/titre/${id}`; }, series.Id);
+  // The film's page may still be there while the series' slides in: its row comes once Jellyfin answered.
+  await page.waitForFunction((name) => document.title.startsWith(name) && document.querySelectorAll('#view .section .wide-card').length > 0
+    && [...document.querySelectorAll('#view .section h2')].some((x) => x.textContent === 'Bonus'), seriesName, { timeout: 10000 }).catch(() => {});
+  const seriesExtras = await bonus.locator('.card-title').allInnerTexts();
+  check('fiche : rangée Bonus (film, série), une vidéo se lit depuis sa carte',
+    filmExtras.length === 2 && filmExtras.some((x) => /^Coulisses · (reste )?1 min$/.test(x)) && !!extraPlayed && seriesExtras.join('|') === 'Générique sans texte',
+    `film : ${filmExtras.join(' ; ') || 'aucune rangée'}, ${extraPlayed ? 'lue' : 'pas lue'} ; série : ${seriesExtras.join(' ; ') || 'aucune rangée'}`);
+
   // An anime's ASS subtitles, inside its file: Jellyfin would draw them into the picture (it never converts ASS by
   // profile); Mira asks for them as WebVTT, beside the video. Their line runs from 5 s to 8 s.
   const anime = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Signes')).Items[0];

@@ -59,6 +59,12 @@ export function duration(totalSeconds) {
   return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
 }
 
+/** French name of a bonus video's kind (Jellyfin's ExtraType), as Mira.Core PlayerText.ExtraKind; '' for a video of an Extras folder. */
+export const extraKind = (type) => ({
+  BehindTheScenes: 'Coulisses', DeletedScene: 'Scène coupée', Featurette: 'Making-of', Interview: 'Interview', Scene: 'Scène',
+  Short: 'Court métrage', Clip: 'Extrait', Sample: 'Extrait', Trailer: 'Bande-annonce',
+})[type] ?? '';
+
 /** « 1:02:03 » or « 4:05 ». */
 export function clock(totalSeconds) {
   const s = Math.max(0, Math.floor(totalSeconds || 0));

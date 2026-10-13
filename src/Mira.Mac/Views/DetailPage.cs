@@ -252,15 +252,23 @@ public sealed class DetailPage : Page
             try { saga = await session.SagaAsync(_item.Id); }
             catch (Exception ex) when (Errors.Expected(ex)) { }
         }
+        // Bonus videos (making-of, deleted scenes, textless credits): played from their card, they have no page.
+        var extras = new List<MediaItem>();
+        if (_item.SpecialFeatureCount is > 0)
+        {
+            try { extras = await session.Client.ExtrasAsync(_item.Id); }
+            catch (Exception ex) when (Errors.Expected(ex)) { }
+        }
         var similar = new List<MediaItem>();
         try { similar = (await session.SimilarAsync(_item.Id)).Items.Where(x => x.Id != _item.Id && saga?.Items.Any(s => s.Id == x.Id) != true).ToList(); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
-        if (saga is null && similar.Count == 0) return;
+        if (saga is null && extras.Count == 0 && similar.Count == 0) return;
         try { await Task.Run(() => { if (saga is not null) session.Store.ApplyLocalProgress(saga.Items); session.Store.ApplyLocalProgress(similar); }); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
         foreach (var old in _body.Children.OfType<CardRow>().ToList()) _body.Children.Remove(old);
         CardRow Row(string title, List<MediaItem> items) => new(title, items.Select(x => { var card = Cards.Poster(x, session.Images, Shell.Open, Shell.Menu); card.Width = 168; return (Control)card; }), sidePadding: 0);
         if (saga is not null) _body.Children.Add(Row(saga.Name, saga.Items));
+        if (extras.Count > 0) _body.Children.Add(new CardRow("Bonus", extras.Select(x => (Control)Cards.Wide(x, session.Images, extra => _ = Shell.PlayAsync(extra))), sidePadding: 0));
         if (similar.Count > 0) _body.Children.Add(Row("Titres similaires", similar));
     }
 }

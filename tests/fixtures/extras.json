@@ -1,0 +1,17 @@
+{
+  "comment": "Jellyfin's ExtraType of a bonus video and the kind Mira shows on its card: Mira.Core PlayerText.ExtraKind and Mira web extraKind (dom.js). An Extras folder gives Unknown on Jellyfin 12.1: no kind, only the length.",
+  "kinds": [
+    ["BehindTheScenes", "Coulisses"],
+    ["DeletedScene", "Scène coupée"],
+    ["Featurette", "Making-of"],
+    ["Interview", "Interview"],
+    ["Scene", "Scène"],
+    ["Short", "Court métrage"],
+    ["Clip", "Extrait"],
+    ["Sample", "Extrait"],
+    ["Trailer", "Bande-annonce"],
+    ["ThemeSong", ""],
+    ["Unknown", ""],
+    [null, ""]
+  ]
+}

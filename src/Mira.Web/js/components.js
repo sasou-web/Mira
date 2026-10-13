@@ -1,6 +1,6 @@
 // The pieces every screen shares: cards, rows, sheets, notices and the loading, empty and error states.
 import { api } from './api.js';
-import { h, icon, progress, remaining, episodeCode, plural, clear } from './dom.js';
+import { h, icon, progress, remaining, episodeCode, plural, clear, duration, seconds, extraKind } from './dom.js';
 import { artFor, picture } from './images.js';
 import { settings } from './session.js';
 
@@ -88,6 +88,19 @@ export function wideCard(item, { width = wideWidth(), play = true, eager = false
   card.dataset.sig = cardSig(item);
   card.item = item;
   withActions(card, item, { resumeRow: play });
+  return card;
+}
+
+/** A bonus video of a title (« Coulisses · 4 min »): it has no page of its own, a tap plays it. */
+export function extraCard(item, { width = wideWidth() } = {}) {
+  const art = picture(artFor(item, 'wide'), { kind: 'wide', width, label: item.Name });
+  marks(item, art);
+  const card = h('a', { class: 'card wide-card', href: playHref(item), 'aria-label': `Lire ${item.Name}` },
+    art,
+    h('div', { class: 'card-title clamp-1' }, item.Name),
+    h('div', { class: 'card-sub clamp-1' }, [extraKind(item.ExtraType), remaining(item) || (item.RunTimeTicks ? duration(seconds(item.RunTimeTicks)) : '')].filter(Boolean).join(' · ')));
+  card.dataset.sig = cardSig(item);
+  card.item = item;
   return card;
 }
 
