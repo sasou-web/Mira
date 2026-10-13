@@ -179,9 +179,24 @@ internal static class LibraryTests
             await client.BrowseAsync("Series", "library-1", "été", 60, true, filters: new CatalogQuery("Action & aventure", 2024, false, "title"));
             var query = requestUri!.Query;
             Assert(query.Contains("genres=Action%20%26%20aventure"), "Genre not encoded");
-            foreach (var part in new[] { "years=2024", "isPlayed=false", "sortBy=SortName", "sortOrder=Ascending", "startIndex=60", "parentId=library-1", "isFavorite=true", "includeItemTypes=Series" }) Assert(query.Contains(part), "Missing query component: " + part);
+            foreach (var part in new[] { "years=2024", "isPlayed=false", "sortBy=SortName", "sortOrder=Ascending", "startIndex=60", "parentId=library-1", "isFavorite=true", "includeItemTypes=Series", "RecursiveItemCount" }) Assert(query.Contains(part), "Missing query component: " + part);
             Assert(new CatalogQuery(Played: false).CacheKey != new CatalogQuery(Played: true).CacheKey, "Watched filters share a cache key");
             Assert(new CatalogQuery().Parameters.Contains("DateCreated"), "Default sort changed");
+        });
+        await Test("Séries : épisodes à voir sur l’affiche d’une série commencée, rien avant ni une fois toute vue", () =>
+        {
+            MediaItem Item(string json) => JsonSerializer.Deserialize<MediaItem>(json, Json.Options)!;
+            var started = Item("""{"Id":"s1","Type":"Series","UserData":{"PlayedPercentage":33.3,"UnplayedItemCount":2,"Played":false}}""");
+            Assert(started.EpisodesToWatch == 2 && started.EpisodesToWatchBadge == "2" && started.EpisodesToWatchText == "2 épisodes à voir", "Episodes left: " + started.EpisodesToWatchText);
+            var one = Item("""{"Id":"s2","Type":"Series","UserData":{"PlayedPercentage":95,"UnplayedItemCount":1}}""");
+            var long_ = Item("""{"Id":"s3","Type":"Series","UserData":{"PlayedPercentage":1,"UnplayedItemCount":1040}}""");
+            Assert(one.EpisodesToWatchText == "1 épisode à voir" && long_.EpisodesToWatchBadge == "99+", "Singular or long series: " + one.EpisodesToWatchText + " " + long_.EpisodesToWatchBadge);
+            var unseen = Item("""{"Id":"s4","Type":"Series","UserData":{"PlayedPercentage":0,"UnplayedItemCount":12}}""");
+            var older = Item("""{"Id":"s5","Type":"Series","UserData":{"UnplayedItemCount":12}}""");
+            var done = Item("""{"Id":"s6","Type":"Series","UserData":{"PlayedPercentage":100,"UnplayedItemCount":0,"Played":true}}""");
+            var film = Item("""{"Id":"m1","Type":"Movie","UserData":{"PlayedPercentage":40,"UnplayedItemCount":1}}""");
+            Assert(new[] { unseen, older, done, film }.All(x => x.EpisodesToWatch is null && x.EpisodesToWatchBadge is null), "A badge on a series never started, one fully watched, or a film");
+            return Task.CompletedTask;
         });
         await Test("Fiche : distribution, réalisation, titres similaires et tri par dernière lecture", async () =>
         {

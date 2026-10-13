@@ -36,7 +36,14 @@ function marks(item, box) {
   if (done > 0) box.append(h('div', { class: 'progress' }, h('i', { style: { width: `${(done * 100).toFixed(1)}%` } })));
   else if (item.UserData?.Played && item.Type !== 'Series') box.append(h('div', { class: 'badge-watched', title: 'Vu' }, icon('check')));
   else if (item.Type === 'Series' && item.UserData?.Played) box.append(h('div', { class: 'badge-watched', title: 'Toute la série est vue' }, icon('check')));
+  else if (toWatch(item)) box.append(h('div', { class: 'badge-count', 'aria-hidden': 'true' }, toWatch(item) > 99 ? '99+' : String(toWatch(item))));
 }
+/**
+ * Episodes left in a series already started: the count that shows new ones came out (MediaItem.EpisodesToWatch on
+ * Windows and Mac). None before its first episode is watched, where it would only repeat its length.
+ */
+export const toWatch = (item) => (item.Type === 'Series' && !item.UserData?.Played && item.UserData?.PlayedPercentage > 0
+  && item.UserData?.UnplayedItemCount > 0 ? item.UserData.UnplayedItemCount : 0);
 
 /**
  * The items cards were drawn from, by id: a title page opened from a card draws at once with what is already known
@@ -59,7 +66,7 @@ export function posterCard(item, { width = posterWidth(), eager = false } = {}) 
   const name = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
   const art = picture(artFor(item, 'poster'), { kind: 'poster', width, label: name, eager });
   marks(item, art);
-  const card = h('a', { class: 'card', href: titleHref(item), 'aria-label': name },
+  const card = h('a', { class: 'card', href: titleHref(item), 'aria-label': toWatch(item) ? `${name}, ${plural(toWatch(item), 'épisode à voir', 'épisodes à voir')}` : name },
     art, h('div', { class: 'card-title clamp-1' }, name), h('div', { class: 'card-sub clamp-1' }, subtitle(item)));
   card.dataset.sig = cardSig(item);
   // The item the card shows now (reconcile keeps a card and gives it the item as the server just sent it).
@@ -87,7 +94,7 @@ export function wideCard(item, { width = wideWidth(), play = true, eager = false
 /** All that a card shows of an item: a card whose item still reads the same is kept as it is, its picture too. */
 export const cardSig = (x) => JSON.stringify([x.Id, x.Type, x.Name, x.SeriesName, x.IndexNumber, x.ParentIndexNumber, x.ProductionYear,
   x.ChildCount, x.RunTimeTicks, x.ImageTags, x.SeriesPrimaryImageTag, x.ParentThumbImageTag, x.ParentBackdropImageTags,
-  x.BackdropImageTags, x.UserData?.Played, x.UserData?.PlaybackPositionTicks, x.UserData?.IsFavorite]);
+  x.BackdropImageTags, x.UserData?.Played, x.UserData?.PlaybackPositionTicks, x.UserData?.IsFavorite, toWatch(x)]);
 /**
  * The container's cards made to match `items`, in their order: a card still showing its item as it is stays (no
  * second flash of its picture), the others are made by `make`. Nothing moves when nothing changed.

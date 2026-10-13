@@ -138,6 +138,7 @@ public static class Cards
         frame.Children.Add(image);
         if (item.Progress > 0 && !item.UserData.Played) frame.Children.Add(Progress(item.Progress));
         if (item.UserData.Played) frame.Children.Add(Watched());
+        else if (item.EpisodesToWatchBadge is { } count) frame.Children.Add(ToWatch(count));
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
         var aspect = new AspectBox(2.0 / 3) { Child = art };
         var caption = Ui.Column(2,
@@ -149,7 +150,7 @@ public static class Cards
         Hover(button, art);
         button.Click += (_, _) => open(item);
         if (menu?.Invoke(item) is { } context) button.ContextMenu = context;
-        Avalonia.Automation.AutomationProperties.SetName(button, $"{item.DisplayTitle}, {Caption(item)}");
+        Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { item.DisplayTitle, Caption(item), item.EpisodesToWatchText }.Where(x => !string.IsNullOrEmpty(x))));
         if (images is not null) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(item));
         return button;
     }
@@ -199,6 +200,13 @@ public static class Cards
         Background = Ui.Brush("#E0F5F5F7"), CornerRadius = new CornerRadius(12), Width = 24, Height = 24, Margin = new Thickness(8),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
         Child = new Icon("check", 14) { Foreground = Ui.Brush("#0B0B0C") }
+    };
+    /// <summary>Episodes left in a series under way: new ones show from the library.</summary>
+    private static Control ToWatch(string count) => new Border
+    {
+        Background = Ui.Brush("#E0F5F5F7"), CornerRadius = new CornerRadius(12), MinWidth = 24, Height = 24, Padding = new Thickness(7, 0), Margin = new Thickness(8),
+        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+        Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0C"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
     };
     /// <summary>A slight lift under the pointer.</summary>
     private static void Hover(Button button, Control art)

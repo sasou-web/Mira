@@ -12,7 +12,10 @@ const slim = (x) => ({
   ChildCount: x.ChildCount, ImageTags: x.ImageTags, BackdropImageTags: x.BackdropImageTags,
   ParentBackdropImageTags: x.ParentBackdropImageTags, ParentThumbImageTag: x.ParentThumbImageTag,
   ImageBlurHashes: x.ImageBlurHashes?.Primary ? { Primary: x.ImageBlurHashes.Primary } : undefined,
-  UserData: x.UserData ? { Played: x.UserData.Played, PlaybackPositionTicks: x.UserData.PlaybackPositionTicks, IsFavorite: x.UserData.IsFavorite } : undefined,
+  UserData: x.UserData ? {
+    Played: x.UserData.Played, PlaybackPositionTicks: x.UserData.PlaybackPositionTicks, IsFavorite: x.UserData.IsFavorite,
+    PlayedPercentage: x.UserData.PlayedPercentage, UnplayedItemCount: x.UserData.UnplayedItemCount,
+  } : undefined,
 });
 /** The cards of a first screenful: their pictures load at once (and the tab waits for them), the others as it scrolls. */
 const firstScreen = () => (innerWidth < 600 ? 3 : Math.max(3, Math.floor((innerWidth - 120) / 156))) * Math.ceil(innerHeight / 210);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -14,6 +15,8 @@ public sealed record UserData
     public bool Played { get; set; }
     public bool IsFavorite { get; set; }
     public double? PlayedPercentage { get; set; }
+    /// <summary>A series' episodes not yet watched.</summary>
+    public int? UnplayedItemCount { get; set; }
     public DateTimeOffset? LastPlayedDate { get; set; }
 }
 
@@ -51,6 +54,15 @@ public sealed record MediaItem
     public string Subtitle => Type == "Episode"
         ? $"S{ParentIndexNumber ?? 1:00} · E{IndexNumber ?? 1:00}  —  {Name}"
         : string.Join("  ·  ", new[] { ProductionYear?.ToString(), Type == "Series" ? "Série" : DurationLabel }.Where(s => !string.IsNullOrEmpty(s)));
+    /// <summary>
+    /// Episodes left in a series already started: the count that shows new ones came out. None before its first episode
+    /// is watched, where it would only repeat its length. Jellyfin 10.9 gives the share watched with RecursiveItemCount.
+    /// </summary>
+    [JsonIgnore]
+    public int? EpisodesToWatch => Type == "Series" && !UserData.Played && UserData.PlayedPercentage > 0 && UserData.UnplayedItemCount is int count and > 0 ? count : null;
+    /// <summary>The badge on the poster (« 3 », « 99+ ») and what a screen reader says of it.</summary>
+    [JsonIgnore] public string? EpisodesToWatchBadge => EpisodesToWatch is { } count ? count > 99 ? "99+" : count.ToString(CultureInfo.InvariantCulture) : null;
+    [JsonIgnore] public string? EpisodesToWatchText => EpisodesToWatch is { } count ? count == 1 ? "1 épisode à voir" : $"{count} épisodes à voir" : null;
     [JsonIgnore] public string DurationLabel => RunTimeTicks is > 0 ? FormatDuration(TimeSpan.FromTicks(RunTimeTicks.Value)) : "";
     [JsonIgnore] public double Progress => RunTimeTicks is > 0 ? Math.Clamp((double)UserData.PlaybackPositionTicks / RunTimeTicks.Value, 0, 1) : 0;
     /// <summary>The leading actors, in the order Jellyfin credits them.</summary>

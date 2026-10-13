@@ -36,7 +36,7 @@ public sealed class MediaCard : Button
         Background = Brushes.Transparent; Padding = new Thickness(0);
         BorderThickness = new Thickness(0); HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Top; Margin = new Thickness(0, 0, 22, wide ? 5 : 30);
-        System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Progress > 0 && !item.UserData.Played ? "Reprendre " : "Regarder " : "Ouvrir ") + item.DisplayTitle + (item.UserData.Played ? ", vu" : ""));
+        System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Progress > 0 && !item.UserData.Played ? "Reprendre " : "Regarder " : "Ouvrir ") + item.DisplayTitle + (item.UserData.Played ? ", vu" : item.EpisodesToWatchText is { } toWatch ? ", " + toWatch : ""));
         var root = new StackPanel();
         _visual = new Grid { Background = Palette.Get("Raised"), ClipToBounds = true };
         var placeholder = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20) };
@@ -53,6 +53,16 @@ public sealed class MediaCard : Button
         if (item.UserData.Played)
         {
             _visual.Children.Add(new Border { Background = new SolidColorBrush(Color.FromArgb(225, 13, 16, 16)), CornerRadius = new CornerRadius(12), Width = 25, Height = 25, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(9), Child = new Icon { Kind = "check", Width = 14, Height = 14, Foreground = new SolidColorBrush(Color.FromRgb(176, 217, 178)) } });
+        }
+        // A series under way: how many episodes are left, so that new ones show from the library.
+        else if (item.EpisodesToWatchBadge is { } count)
+        {
+            _visual.Children.Add(new Border
+            {
+                Background = Palette.Get("Accent"), CornerRadius = new CornerRadius(12.5), MinWidth = 25, Height = 25, Padding = new Thickness(7, 0, 7, 0),
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(9),
+                Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeights.ExtraBold, Foreground = Palette.Get("OnAccent"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+            });
         }
         // Hover: a light ring and a gentle zoom. Posters open their page on click, so no caption is needed;
         // resume cards also show the play button they trigger.
@@ -125,5 +135,5 @@ public sealed class MediaCard : Button
         var bitmap = await request;
         if (bitmap is not null) { var initial = _image.Source is null; _image.Source = bitmap; if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft); }
     }
-    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview, item.ProductionYear, item.Subtitle, item.UserData.Played, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress);
+    public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview, item.ProductionYear, item.Subtitle, item.UserData.Played, item.EpisodesToWatch, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress);
 }
