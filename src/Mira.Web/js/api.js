@@ -269,7 +269,10 @@ export const api = {
   publicUsers: () => get('Users/Public', null, { token: null }),
 
   async signIn(username, password) {
-    const result = await post('Users/AuthenticateByName', { Username: username, Pw: password }, null, { token: null });
+    return this.opened(await post('Users/AuthenticateByName', { Username: username, Pw: password }, null, { token: null }));
+  },
+  /** The session Jellyfin just gave, by a password or by a code: kept, with the server that gave it. */
+  async opened(result) {
     const info = await this.publicInfo().catch(() => ({}));
     // A new session: the server that gave it is checked anew, whatever was concluded of the one before.
     recheckServer();
@@ -277,6 +280,26 @@ export const api = {
     // Lets Jellyfin's dashboard show what this phone can play.
     post('Sessions/Capabilities', undefined, { playableMediaTypes: 'Video', supportsMediaControl: false }).catch(() => {});
     return result;
+  },
+
+  // Quick Connect, Jellyfin's sign-in by a code: this device shows six digits, a device already signed in approves
+  // them (Mira on a PC, a Mac, another phone, or Jellyfin's own pages), and no password is typed here.
+  /** Off when Jellyfin's dashboard turned it off (Général → Quick Connect), or when the answer is not a plain yes. */
+  quickConnectEnabled: () => get('QuickConnect/Enabled', null, { timeout: 8000, token: null }).then((on) => on === true, () => false),
+  /** A code for this device: { Code, Secret }. The secret stays here; it is what asks whether the code was approved. */
+  quickConnectStart: () => post('QuickConnect/Initiate', undefined, null, { token: null }),
+  /** { Authenticated } once approved; 404 once Jellyfin forgot the code (it keeps one a few minutes). */
+  quickConnectState: (secret, signal) => get('QuickConnect/Connect', { secret }, { token: null, signal, timeout: 8000 }),
+  async signInWithCode(secret) {
+    return this.opened(await post('Users/AuthenticateWithQuickConnect', { Secret: secret }, null, { token: null }));
+  },
+  /**
+   * Approves another device's code for this account: true when it was; 404 for a code Jellyfin does not know. Asked
+   * first whether Quick Connect is on: turned off, Jellyfin answers 401, which would end this session (request).
+   */
+  async approveCode(code) {
+    if (!await this.quickConnectEnabled()) throw new ApiError(403, 'Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).');
+    return post('QuickConnect/Authorize', undefined, { code, userId: user() });
   },
   /**
    * Signed out here at once; Jellyfin is told with the token that was used, so a new sign-in is never undone, and

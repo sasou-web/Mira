@@ -1,5 +1,10 @@
 # Historique
 
+## Non publié
+
+- **Connexion par code** (Mira web) : sur l’écran de connexion, **Se connecter avec un code** affiche 6 chiffres ; saisis-les sur un appareil déjà connecté et le téléphone s’ouvre sur ton compte, sans y taper ton mot de passe. Le code se saisit dans Mira pour Windows (Réglages → Jellyfin & synchronisation → **Autoriser un appareil**), Mira pour Mac (Réglages → **Autoriser un appareil**), Mira web sur un autre téléphone (Réglages → **Autoriser un appareil**) ou les pages de Jellyfin (ton profil → Quick Connect). C’est le Quick Connect de Jellyfin, actif par défaut ; s’il est désactivé dans son tableau de bord, Mira n’en montre rien.
+- **Contrôle de Mira web** : 2 points de plus (connexion par code, appareil autorisé depuis Réglages).
+
 ## 0.7.6 — 2026-10-13
 
 Nouvelle icône de Mira web lisible en mode sombre, écran « Lecture impossible » dans le lecteur Windows et palette de couleurs unique.

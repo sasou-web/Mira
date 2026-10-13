@@ -30,6 +30,11 @@ public sealed class SettingsPage : Page
             Row("Serveur Jellyfin", connection?.Server ?? "—", null),
             Row("Utilisateur", connection?.UserName ?? "—", SignOut(erase)),
             Row("Effacer aussi les données de ce compte sur ce Mac", "En te déconnectant : le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.", erase)));
+        // Quick Connect: shown once Jellyfin says it lets devices in by a code.
+        var devices = Section("Autoriser un appareil", ApproveDevice());
+        devices.IsVisible = false;
+        page.Children.Add(devices);
+        if (shell.Session is { } session) _ = ShowWhenEnabledAsync(session.Client, devices);
 
         page.Children.Add(Section("Lecture",
             Toggle("Reprendre là où tu t’es arrêté", "Sinon, chaque titre repart du début.", settings.RememberPosition, v => settings.RememberPosition = v),
@@ -55,6 +60,43 @@ public sealed class SettingsPage : Page
         Content = new ScrollViewer { Content = page };
     }
     private void Save() => Shell.Profile.SaveSettings(Shell.Settings);
+    private static async Task ShowWhenEnabledAsync(JellyfinClient client, Control section)
+    {
+        try { section.IsVisible = await client.QuickConnectEnabledAsync(); }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+    }
+    /// <summary>The code another device shows (Mira web on a phone), approved for this account.</summary>
+    private Control ApproveDevice()
+    {
+        var box = new TextBox { Width = 150, MaxLength = 7, FontSize = 16, Watermark = "000 000" };
+        Avalonia.Automation.AutomationProperties.SetName(box, "Code de l’appareil à autoriser");
+        var status = new TextBlock { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+        Button? button = null;
+        async Task ApproveAsync()
+        {
+            if (Shell.Session?.Client is not { } client || !button!.IsEnabled) return;
+            if (JellyfinClient.QuickConnectCode(box.Text) is not { } code) { status.Text = "Le code a 6 chiffres."; box.Focus(); box.SelectAll(); return; }
+            button.IsEnabled = false; status.Text = "Autorisation…";
+            try
+            {
+                var approval = await client.ApproveCodeAsync(code);
+                status.Text = approval switch
+                {
+                    CodeApproval.Approved => "Appareil autorisé : il se connecte à ton compte.",
+                    CodeApproval.Unknown => "Code inconnu ou expiré. Vérifie-le, ou demandes-en un nouveau sur l’appareil.",
+                    _ => "Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).",
+                };
+                if (approval == CodeApproval.Approved) box.Text = ""; else { box.Focus(); box.SelectAll(); }
+            }
+            catch (Exception ex) when (Errors.Expected(ex)) { status.Text = Errors.Friendly(ex); }
+            finally { button.IsEnabled = true; }
+        }
+        button = Ui.Action("Autoriser", null, "", () => _ = ApproveAsync());
+        box.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; _ = ApproveAsync(); } };
+        return Ui.Column(12,
+            new TextBlock { Text = "Sur ton téléphone, « Se connecter avec un code » affiche 6 chiffres : saisis-les ici pour le connecter à ton compte, sans y taper ton mot de passe. N’autorise qu’un appareil que tu as sous les yeux.", FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
+            Ui.Row(10, box, button), status);
+    }
     /// <summary>« Se déconnecter »: one click, as telling Jellyfin can take a few seconds.</summary>
     private Button SignOut(ToggleSwitch erase)
     {

@@ -36,7 +36,7 @@ const signIn = async (p, url = `${base}#/connexion`) => {
   await p.goto(url); await p.waitForTimeout(1500);
   if (await p.locator('.users').count()) await p.getByRole('button', { name: 'Autre compte' }).click();
   await p.fill('#login-name', user); await p.fill('#login-password', password);
-  await p.getByRole('button', { name: 'Se connecter' }).click();
+  await p.getByRole('button', { name: 'Se connecter', exact: true }).click();
   await p.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
 };
 const context = await newContext('parcours');
@@ -58,7 +58,7 @@ try {
   await shot('01-login');
   if (await page.locator('.users').count()) await page.getByRole('button', { name: 'Autre compte' }).click();
   await page.fill('#login-name', user); await page.fill('#login-password', password);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
   await page.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   await wait(3000);
   check('accueil : rangées affichées', await page.locator('.section').count() > 0, `${await page.locator('.section h2').allInnerTexts()}`);
@@ -226,6 +226,26 @@ try {
     `avant : ${account(kept.keys).length} écran(s) du compte gardé(s), après : ${account(left.keys).join(', ') || 'aucun'} ; recherches ${left.settings.recentSearches?.length ?? '?'}, `
     + `reprises masquées ${Object.keys(left.settings.hiddenResume ?? {}).length}, pistes par série ${Object.keys(left.settings.seriesTracks ?? {}).length}, `
     + `taille des sous-titres ${left.settings.subtitleSize}, appareil ${left.device === kept.device ? 'gardé' : 'changé'}`);
+
+  // Quick Connect: the phone shows a code, another device signed in approves it; then this phone approves another's.
+  const server = base.replace(/\/Mira\/?.*$/i, '');
+  const quickAuth = (id, token) => `MediaBrowser Client="check", Device="check", DeviceId="${id}", Version="1"${token ? `, Token="${token}"` : ''}`;
+  const elsewhere = await (await fetch(`${server}/Users/AuthenticateByName`, { method: 'POST', headers: { Authorization: quickAuth('check-pc'), 'Content-Type': 'application/json' }, body: JSON.stringify({ Username: user, Pw: password }) })).json();
+  await page.getByRole('button', { name: 'Se connecter avec un code' }).click();
+  await page.locator('.code').waitFor({ timeout: 8000 });
+  const code = (await page.locator('.code').innerText()).replace(/\D/g, '');
+  await shot('11-login-code');
+  const approved = await fetch(`${server}/QuickConnect/Authorize?code=${code}`, { method: 'POST', headers: { Authorization: quickAuth('check-pc', elsewhere.AccessToken) } });
+  const signedIn = await page.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 }).then(() => true, () => false);
+  check('connexion par code : le code validé ailleurs connecte le téléphone', code.length === 6 && approved.ok && signedIn && !!(await page.evaluate(() => localStorage.getItem('mira.session'))),
+    `code ${code}, validation ${approved.status}, ${signedIn ? 'connecté' : 'pas connecté'}`);
+  const tv = await (await fetch(`${server}/QuickConnect/Initiate`, { method: 'POST', headers: { Authorization: quickAuth('check-tv') } })).json();
+  await page.locator('.tabbar a[data-tab="settings"]').click(); await wait(1200);
+  await page.getByRole('button', { name: /Autoriser un appareil/ }).click(); await wait(400);
+  await page.fill('#approve-code', `${tv.Code.slice(0, 3)} ${tv.Code.slice(3)}`); await page.keyboard.press('Enter'); await wait(1200);
+  const approval = await (await fetch(`${server}/QuickConnect/Connect?secret=${tv.Secret}`, { headers: { Authorization: quickAuth('check-tv') } })).json();
+  check('autoriser un appareil : le code d’un autre appareil validé depuis Réglages', approval.Authenticated === true && !!(await page.evaluate(() => localStorage.getItem('mira.session'))),
+    `${approval.Authenticated ? 'validé' : 'pas validé'}, ${await page.locator('.toast').first().innerText().catch(() => 'aucun message')}`);
 } catch (error) {
   check('déroulé', false, error.message.split('\n')[0]);
   await shot('error').catch(() => {});
@@ -256,7 +276,7 @@ try {
   await ap.goto(`${base}#/connexion`); await ap.waitForTimeout(1500);
   if (await ap.locator('.users').count()) await ap.getByRole('button', { name: 'Autre compte' }).click();
   await ap.fill('#login-name', user); await ap.fill('#login-password', password);
-  await ap.getByRole('button', { name: 'Se connecter' }).click();
+  await ap.getByRole('button', { name: 'Se connecter', exact: true }).click();
   await ap.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   const token = await ap.evaluate(() => JSON.parse(localStorage.getItem('mira.session')));
   const call = (path, method = 'GET') => ap.evaluate(async ([p, m, t]) => {
@@ -385,7 +405,7 @@ try {
   await hp.goto(`${base}#/connexion`); await hp.waitForTimeout(1500);
   if (await hp.locator('.users').count()) await hp.getByRole('button', { name: 'Autre compte' }).click();
   await hp.fill('#login-name', user); await hp.fill('#login-password', password);
-  await hp.getByRole('button', { name: 'Se connecter' }).click();
+  await hp.getByRole('button', { name: 'Se connecter', exact: true }).click();
   await hp.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   await hp.waitForTimeout(2500);
   // Pulled down from the top, Home asks Jellyfin again.
@@ -457,7 +477,7 @@ try {
   await tp.goto(`${base}#/connexion`); await tp.waitForTimeout(1500);
   if (await tp.locator('.users').count()) await tp.getByRole('button', { name: 'Autre compte' }).click();
   await tp.fill('#login-name', user); await tp.fill('#login-password', password);
-  await tp.getByRole('button', { name: 'Se connecter' }).click();
+  await tp.getByRole('button', { name: 'Se connecter', exact: true }).click();
   await tp.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   await tp.waitForTimeout(2500);
   // Every frame for a second after the tap: the dissolving layer, a placeholder seen in the screen, the grid's top,

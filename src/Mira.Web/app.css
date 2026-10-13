@@ -548,6 +548,12 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .login-form.shake { animation: shake 360ms var(--ease); }
 @keyframes shake { 20% { transform: translateX(-10px); } 40% { transform: translateX(9px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(3px); } }
 .form-error { color: var(--danger); font-size: calc(14px * var(--text)); font-weight: 600; }
+/* Sign-in by code: six digits read across the room, from the phone to the PC where they are typed. */
+.code { font-size: calc(44px * var(--text)); font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; color: var(--ink); padding: 14px 26px; border-radius: var(--r-m); background: var(--surface); user-select: all; -webkit-user-select: all; }
+.sheet-form { display: grid; gap: 14px; padding: 4px 20px 20px; }
+.sheet-form .group-note { padding: 0; margin: 0; }
+.code-input { font-size: calc(24px * var(--text)); font-weight: 800; letter-spacing: 0.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.code-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .hint { width: 100%; max-width: 420px; display: grid; gap: 10px; padding: 16px; border-radius: var(--r-m); background: var(--surface); text-align: left; font-size: calc(14px * var(--text)); color: var(--muted); }
 .hint b { color: var(--ink); }
 .hint .step { display: flex; gap: 12px; align-items: center; }
