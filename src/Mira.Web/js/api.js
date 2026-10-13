@@ -239,10 +239,11 @@ const get = (path, params, options) => request('GET', path, { params, ...options
 const post = (path, body, params, options) => request('POST', path, { body, params, ...options });
 const user = () => session.current?.userId;
 
-// Fields the cards need: child counts for series, and genres for the banner (Home). A grid asks for less still:
-// GRID_FIELDS, without the genres. No summary: a title page asks for its own.
-const CARD_FIELDS = 'Genres,ChildCount';
-export const GRID_FIELDS = 'ChildCount';
+// Fields the cards need: child counts for series (RecursiveItemCount: Jellyfin 10.9 then says how much of a series
+// was watched, for the episodes left), and genres for the banner (Home). A grid asks for less still: GRID_FIELDS,
+// without the genres. No summary: a title page asks for its own.
+const CARD_FIELDS = 'Genres,ChildCount,RecursiveItemCount';
+export const GRID_FIELDS = 'ChildCount,RecursiveItemCount';
 const CARD_IMAGES = { enableImageTypes: 'Primary,Backdrop,Thumb,Logo', imageTypeLimit: 1 };
 
 /**

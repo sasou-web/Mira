@@ -110,6 +110,13 @@ try {
   check('reprise au bon endroit', resumed >= second.UserData.PlaybackPositionTicks / 1e7 - 1, `${resumed.toFixed(1)} s`);
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
+  // A series under way: the episodes left on its poster (the first one seen, the others to watch).
+  await page.locator('.tabbar a[data-tab="series"]').click(); await wait(2000);
+  const toWatch = (await api(`Items/${series.Id}`)).UserData.UnplayedItemCount;
+  const badge = await page.locator('.card', { hasText: seriesName }).first().locator('.badge-count').innerText().catch(() => '');
+  check('séries : épisodes à voir sur l’affiche', toWatch > 0 && badge === String(toWatch), `${badge || 'aucune pastille'} (Jellyfin : ${toWatch})`);
+  await shot('07-series-left');
+
   // Tracks chosen on a title page: Lueur Web has French and English audio, and subtitles in both beside it.
   const film = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];
   const streams = (await api(`Items/${film.Id}`)).MediaSources[0].MediaStreams;

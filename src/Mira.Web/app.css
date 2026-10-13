@@ -270,6 +270,12 @@ img.fade.ready { opacity: 1; }
   display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
 }
 .badge-watched .icon { width: 14px; height: 14px; }
+/* Episodes left in a series under way: the same place and colours as the check, a number in it. */
+.badge-count {
+  position: absolute; top: 6px; right: 6px; min-width: 1.85em; height: 1.85em; padding: 0 0.55em; border-radius: var(--r-full);
+  display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
+  font-size: calc(12px * var(--text)); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+}
 
 /* ---------- Cards, rows and grids ---------- */
 .card { display: block; min-width: 0; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }

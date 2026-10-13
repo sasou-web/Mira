@@ -110,7 +110,7 @@ public sealed class JellyfinClient : IDisposable
     public const int PageSize = 60;
     public Task<ItemsResult> BrowseAsync(string types = "Movie,Series", string? parentId = null, string? search = null, int start = 0, bool favorites = false, CancellationToken ct = default, CatalogQuery? filters = null, int limit = PageSize) =>
         GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={types}&limit={Math.Clamp(limit, 1, 600)}&startIndex={start}" +
-            "&fields=Overview,Genres,ChildCount&enableImages=true" + (filters ?? new CatalogQuery()).Parameters +
+            "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (filters ?? new CatalogQuery()).Parameters +
             (parentId is null ? "" : $"&parentId={Uri.EscapeDataString(parentId)}") +
             (string.IsNullOrWhiteSpace(search) ? "" : $"&searchTerm={Uri.EscapeDataString(search)}") +
             (favorites ? "&isFavorite=true" : ""), ct);
@@ -140,7 +140,7 @@ public sealed class JellyfinClient : IDisposable
         GetAsync<MediaItem>($"Items/{Uri.EscapeDataString(id)}?userId={Connection.UserId}", ct);
     /// <summary>Titles Jellyfin finds close to this one (shared genres, people, studios).</summary>
     public Task<ItemsResult> SimilarAsync(string id, int limit = 12, CancellationToken ct = default) =>
-        GetAsync<ItemsResult>($"Items/{Uri.EscapeDataString(id)}/Similar?userId={Connection.UserId}&limit={limit}&fields=Overview,Genres,ChildCount", ct);
+        GetAsync<ItemsResult>($"Items/{Uri.EscapeDataString(id)}/Similar?userId={Connection.UserId}&limit={limit}&fields=Overview,Genres,ChildCount,RecursiveItemCount", ct);
     /// <summary>
     /// The saga a film belongs to (its first Jellyfin collection), with its other titles in the order they came out.
     /// Null when it belongs to none, or when Jellyfin cannot say which collections hold a title (404: older than 12.1, where it was checked).
