@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.7.6",
+    "summary": "Icône lisible en mode sombre sur iPhone, et un vrai écran quand un titre ne peut pas être lu.",
+    "items": [
+      { "icon": "phone", "title": "Icône lisible en mode sombre", "text": "Pour la voir : supprime Mira de l’écran d’accueil et rajoute-le depuis Safari." },
+      { "icon": "play", "title": "Lecture impossible, expliquée", "text": "Le lecteur dit pourquoi, avec Retour et Réessayer, comme Mira web." },
+      { "icon": "sparkle", "title": "Couleurs harmonisées", "text": "Toute la fenêtre suit la palette de Mira web, sans perte de contraste." }
+    ]
+  },
+  {
     "version": "0.7.5",
     "summary": "Plus sûr et plus léger : pare-feu limité à la maison, mises à jour vérifiées, Narrateur et clavier.",
     "items": [
