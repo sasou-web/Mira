@@ -39,6 +39,19 @@ public static class PlayerText
         if (external) details.Add("fichier externe");
         return (Capitalize(label), string.Join(" · ", details));
     }
+    /// <summary>French name of a bonus video's kind (Jellyfin's ExtraType, as Mira web); null for a video of an Extras folder.</summary>
+    public static string? ExtraKind(string? type) => type switch
+    {
+        "BehindTheScenes" => "Coulisses",
+        "DeletedScene" => "Scène coupée",
+        "Featurette" => "Making-of",
+        "Interview" => "Interview",
+        "Scene" => "Scène",
+        "Short" => "Court métrage",
+        "Clip" or "Sample" => "Extrait",
+        "Trailer" => "Bande-annonce",
+        _ => null
+    };
     /// <summary>French name of an ISO 639 code ("jpn", "fre", "pt-BR"); null when unknown or undetermined.</summary>
     public static string? Language(string? code)
     {

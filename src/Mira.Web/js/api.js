@@ -353,6 +353,8 @@ export const api = {
   },
   /** Where a series picks up: the episode in progress, or the next one to watch, with its tracks for « Audio et sous-titres ». */
   seriesNext: (seriesId) => get('Shows/NextUp', { userId: user(), seriesId, limit: 1, enableResumable: true, fields: 'Overview,MediaSources' }).then((r) => r?.Items?.[0] ?? null),
+  /** A title's bonus videos (making-of, deleted scenes, textless credits from its Extras folders), played from their card. */
+  extras: (id) => get(`Items/${encodeURIComponent(id)}/SpecialFeatures`, { userId: user() }).then((r) => (Array.isArray(r) ? r : [])),
   similar: (id) => get(`Items/${encodeURIComponent(id)}/Similar`, { userId: user(), limit: 16, fields: CARD_FIELDS, ...CARD_IMAGES }),
   /**
    * The saga a film belongs to (its first Jellyfin collection, as on Windows and Mac), with its other titles in the

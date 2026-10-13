@@ -120,6 +120,31 @@ internal static class LibraryTests
                 && MediaQuality.EndsAt(film with { UserData = new() { PlaybackPositionTicks = film.RunTimeTicks!.Value } }, now, true) is null, "An end without a length, or past it");
             return Task.CompletedTask;
         });
+        await Test("Fiche : la rangée « Bonus » lit les vidéos des dossiers Extras, nommées comme sur Mira web (tests/fixtures/extras.json)", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "extras.json")));
+            foreach (var row in fixture.RootElement.GetProperty("kinds").EnumerateArray())
+            {
+                var type = row[0].ValueKind == JsonValueKind.Null ? null : row[0].GetString();
+                Assert((PlayerText.ExtraKind(type) ?? "") == row[1].GetString(), $"{type} : « {PlayerText.ExtraKind(type)} »");
+            }
+            // As Jellyfin 12.1 answers: a plain list, not { Items }, each video with its kind and its own picture.
+            string? asked = null;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                asked = request.RequestUri!.PathAndQuery;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""
+                    [{"Id":"e1","Name":"Tournage","Type":"Video","ExtraType":"BehindTheScenes","RunTimeTicks":50080000,"ImageTags":{"Primary":"t"}},
+                     {"Id":"e2","Name":"Bêtisier","Type":"Video","ExtraType":"Unknown","RunTimeTicks":50080000}]
+                    """, System.Text.Encoding.UTF8, "application/json") });
+            }));
+            var extras = await client.ExtrasAsync("film 1");
+            Assert(asked == "/Items/film%201/SpecialFeatures?userId=user-1", "Request: " + asked);
+            Assert(extras.Select(x => (x.Id, x.ExtraType)).SequenceEqual([("e1", "BehindTheScenes"), ("e2", "Unknown")]) && Artwork.Landscape(extras[0]) == new ImageRef("e1", "Primary", "t"), "Extras: " + string.Join(", ", extras.Select(x => x.Id)));
+            var film = JsonSerializer.Deserialize<MediaItem>("""{"Id":"f","Type":"Movie","SpecialFeatureCount":2}""", Json.Options)!;
+            Assert(film.SpecialFeatureCount == 2 && new MediaItem().SpecialFeatureCount is null, "SpecialFeatureCount");
+        });
         await Test("Fiche : un acteur ou un réalisateur mène à ses titres de la bibliothèque, avec les autres filtres", async () =>
         {
             var item = new MediaItem

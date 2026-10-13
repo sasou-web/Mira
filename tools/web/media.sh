@@ -5,6 +5,7 @@
 #   Matroska (H.264, AAC) with French subtitles beside it: converted by Jellyfin into HLS, the way an iPhone plays;
 #   an anime-like Matroska with its ASS and SRT subtitles inside it; a WebM film whose chapters name its opening;
 #   a one-episode series in Animes, a second library of series (the choice between them);
+#   bonus videos (Extras folders) beside the WebM film and series, for the « Bonus » row;
 #   with « formats », the kinds of files a home library holds whose stream Apple's player may refuse (see below).
 #   tools/web/media.sh <folder> [formats]
 set -euo pipefail
@@ -33,6 +34,15 @@ for e in 1 2; do
   q -f lavfi -i testsrc=duration=8:size=640x360:rate=24 -f lavfi -i "sine=frequency=$((500 + e * 100)):duration=8" \
     -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -shortest "$ROOT/Séries/Courte HLS/Season 01/Courte HLS S01E0$e.mkv"
 done
+# Bonus videos as Jellyfin finds them: an extras folder (no kind) and a named one (« Coulisses »), for a film and a series.
+extra() {
+  mkdir -p "$(dirname "$1")"
+  q -f lavfi -i testsrc=duration=5:size=640x360:rate=24 -f lavfi -i sine=frequency=660:duration=5 \
+    -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -c:a libopus -shortest "$1"
+}
+extra "$ROOT/Films/Lueur Web (2020)/extras/Bêtisier.webm"
+extra "$ROOT/Films/Lueur Web (2020)/behind the scenes/Tournage.webm"
+extra "$ROOT/Séries/Courte Web/extras/Générique sans texte.webm"
 mkdir -p "$ROOT/Animes/Courte Anime/Season 01"
 q -f lavfi -i testsrc=duration=6:size=640x360:rate=24 -f lavfi -i sine=frequency=880:duration=6 \
   -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -c:a libopus -shortest "$ROOT/Animes/Courte Anime/Season 01/Courte Anime S01E01.webm"

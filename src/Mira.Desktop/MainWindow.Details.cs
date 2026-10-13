@@ -36,6 +36,7 @@ public partial class MainWindow
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
         ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null;
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
+        _extras = []; ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
@@ -95,9 +96,35 @@ public partial class MainWindow
             // A favourite toggled while this request was in flight wins over the older server answer.
             if (_favoriteOverride is { } pending && pending.Id == full.Id) full.UserData.IsFavorite = pending.Favorite;
             _detail = full; RenderDetailText(full); UpdateDetailPlayLabel();
+            await LoadExtrasAsync(full, version);
         }
         catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion) SetNotice(Friendly(ex)); }
     }
+    /// <summary>The « Bonus » row: making-of, deleted scenes, textless credits, played from their card. Optional, as the similar titles.</summary>
+    private async Task LoadExtrasAsync(MediaItem item, int version)
+    {
+        var extras = new List<MediaItem>();
+        if (item.SpecialFeatureCount is > 0 && _client is { } client)
+        {
+            try { extras = await client.ExtrasAsync(item.Id); }
+            catch (Exception ex) when (IsExpected(ex)) { }
+            if (version != _detailVersion) return;
+        }
+        _extras = extras;
+        ExtrasCards.Children.Clear();
+        foreach (var extra in extras)
+        {
+            var card = new MediaCard(extra, true, 0, _settings, _demo);
+            card.Click += async (_, _) => await PlayAsync(extra);
+            card.HoverEntered += x => x.SetHover(true); card.FocusEntered += x => x.SetHover(true); card.HoverLeft += x => x.SetHover(false);
+            ExtrasCards.Children.Add(card); _ = card.LoadImageAsync(_images, true);
+        }
+        // Under a series' episodes, as the similar titles are when there is no bonus.
+        ExtrasSection.Margin = new Thickness(0, _detail?.Type == "Series" ? 36 : 0, 0, 36);
+        ExtrasSection.Visibility = extras.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" && extras.Count == 0 ? 36 : 0, 0, 0);
+    }
+    private List<MediaItem> _extras = [];
     private async Task LoadDetailEpisodesAsync(MediaItem item, int version)
     {
         try
@@ -170,7 +197,7 @@ public partial class MainWindow
         Fill(SagaCards, _saga?.Items ?? []); SagaTitle.Text = _saga?.Name ?? "";
         SagaSection.Visibility = SagaCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         Fill(SimilarCards, _similar);
-        SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" ? 36 : 0, 0, 0);
+        SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" && _extras.Count == 0 ? 36 : 0, 0, 0);
         SimilarSection.Visibility = SimilarCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         _similarColumns = columns;
         void Fill(WrapPanel cards, List<MediaItem> items)
