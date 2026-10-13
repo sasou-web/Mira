@@ -73,8 +73,8 @@ public partial class MainWindow
         catch (Exception ex) when (ex is IOException or HttpRequestException or UnauthorizedAccessException) { }
     }
     /// <summary>"Installer" on the notice shown when playback had no engine: the title starts once it is ready.</summary>
-    private async Task InstallEngineThenPlayAsync(MediaItem item, bool keepMini)
+    private async Task InstallEngineThenPlayAsync(MediaItem item, bool keepMini, bool fromStart)
     {
-        if (await InstallEngineAsync(inNotice: true) && !_playing) await PlayAsync(item, keepMini);
+        if (await InstallEngineAsync(inNotice: true) && !_playing) await PlayAsync(item, keepMini, fromStart: fromStart);
     }
 }

@@ -27,7 +27,7 @@ public partial class MainWindow
     private int _playGeneration;
     private bool _tickBusy;
 
-    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false)
+    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false)
     {
         ClosePreview(); var asked = item;
         if (_playBusy) return; _playBusy = true;
@@ -39,7 +39,7 @@ public partial class MainWindow
             // Without an engine nothing can play: say so before any request, with the one click that fixes it.
             if (MpvEngine.FindLibrary(_settings.MpvPath) is null)
             {
-                SetNotice("Pour lire tes vidéos, Mira a besoin du moteur mpv (31 Mo).", "Installer", () => _ = InstallEngineThenPlayAsync(item, keepMini));
+                SetNotice("Pour lire tes vidéos, Mira a besoin du moteur mpv (31 Mo).", "Installer", () => _ = InstallEngineThenPlayAsync(item, keepMini, fromStart));
                 return;
             }
             if (item.Type == "Series" && !_demo && _client is not null)
@@ -76,8 +76,8 @@ public partial class MainWindow
                 else { location = _client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = _client.AuthorizationHeader; }
             }
             await StopPlaybackAsync(completePrevious);
-            // A finished title starts over instead of resuming on its last seconds.
-            _session.Begin(item, source, session, PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition)); _loaded = false;
+            // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
+            _session.Begin(item, source, session, PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart)); _loaded = false;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
             PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.

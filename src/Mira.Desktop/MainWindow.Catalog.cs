@@ -249,6 +249,7 @@ public partial class MainWindow
             var item = card.Item; menu.Items.Clear(); ClosePreview();
             var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
             menu.Items.Add(MenuAction(resume ? "Reprendre" : "Regarder", "play", async () => await PlayAsync(item)));
+            if (resume) menu.Items.Add(MenuAction("Lire depuis le début", "refresh", async () => await PlayAsync(item, fromStart: true)));
             menu.Items.Add(MenuAction(item.Type == "Episode" ? "Voir la série" : "Voir la fiche", "info", async () => await ShowDetailsAsync(await PageItemAsync(item))));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuAction(item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu", item.UserData.Played ? "refresh" : "check", async () => await SetPlayedAsync(item, !item.UserData.Played)));
