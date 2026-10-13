@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.7.7",
+    "summary": "Connexion par code, sagas, intros passées toutes seules et une fiche plus complète.",
+    "items": [
+      { "icon": "phone", "title": "Connexion par code", "text": "Le téléphone affiche 6 chiffres : saisis-les dans Réglages → Autoriser un appareil, sans taper ton mot de passe." },
+      { "icon": "film", "title": "Sagas sur la fiche d’un film", "text": "Pour les remplir : Réglages → Jellyfin & synchronisation → Ranger mes films en sagas." },
+      { "icon": "skip", "title": "Intros et récaps passés tout seuls", "text": "D’après les chapitres, aussi sur iPhone : active « Passer les intros et les récaps »." },
+      { "icon": "series", "title": "Séries mieux suivies", "text": "Épisodes à voir sur l’affiche, animés à part, pistes retenues pour chaque série." },
+      { "icon": "sparkle", "title": "Une fiche plus complète", "text": "Qualité du fichier, heure de fin, rangée Bonus et, sur PC, Depuis le début." }
+    ]
+  },
+  {
     "version": "0.7.6",
     "summary": "Icône lisible en mode sombre sur iPhone, et un vrai écran quand un titre ne peut pas être lu.",
     "items": [

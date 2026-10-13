@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.7.7 — 2026-10-13
+
+Connexion par code sur le téléphone, sagas sur la fiche, intros passées d’après les chapitres, séries mieux suivies et une fiche plus complète.
 
 - **Connexion par code** (Mira web) : sur l’écran de connexion, **Se connecter avec un code** affiche 6 chiffres ; saisis-les sur un appareil déjà connecté et le téléphone s’ouvre sur ton compte, sans y taper ton mot de passe. Le code se saisit dans Mira pour Windows (Réglages → Jellyfin & synchronisation → **Autoriser un appareil**), Mira pour Mac (Réglages → **Autoriser un appareil**), Mira web sur un autre téléphone (Réglages → **Autoriser un appareil**) ou les pages de Jellyfin (ton profil → Quick Connect). C’est le Quick Connect de Jellyfin, actif par défaut ; s’il est désactivé dans son tableau de bord, Mira n’en montre rien.
 - **Sagas sur la fiche d’un film** (Mira web, Windows et Mac) : quand un film fait partie d’une collection de Jellyfin (« Harry Potter - Saga »), sa fiche montre les autres films de la saga, dans l’ordre de sortie, au-dessus des titres similaires, qui ne les répètent plus. Jellyfin crée ces collections quand l’option « Ajouter automatiquement à la collection » de ta bibliothèque Films est cochée (vérifié avec Jellyfin 12.1 ; un Jellyfin plus ancien qui ne sait pas le dire laisse la fiche comme avant).
