@@ -18,7 +18,7 @@ import {
   progressFraction, startPosition,
 } from './stream.js';
 import { presentationStep } from './presentation.js';
-import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, withoutFromStart } from './timeline.js';
+import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, chapterPassages, withChapters, withoutFromStart } from './timeline.js';
 import { QUALITIES } from '../views/settings.js';
 
 // Forced subtitles (signs, foreign lines): Safari has the « forced » kind; elsewhere it reads as metadata, never drawn.
@@ -964,7 +964,12 @@ export function create({ id, query }) {
       setupTrickplay();
       mediaSession();
       await open(resume);
-      api.segments(item.Id).then((list) => { if (attempt === beginning) segments = list; });
+      if (disposed || attempt !== beginning) return;
+      // Once the title's own stream plays (before, a skip would move the one it replaces): the passages its chapters
+      // name, then Jellyfin's segments, which win where it has some.
+      const fromChapters = chapterPassages(chapters, item.RunTimeTicks);
+      segments = fromChapters;
+      api.segments(item.Id).then((list) => { if (attempt === beginning) segments = withChapters(list, fromChapters); });
       if (item.Type === 'Episode') {
         api.nextEpisode(item).then((n) => { if (attempt !== beginning) return; next = n; nextButton.hidden = !n; mediaSession(); }).catch(() => {});
       }

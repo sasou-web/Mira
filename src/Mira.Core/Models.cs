@@ -157,6 +157,8 @@ public sealed class PlayerSettings
     public string SubtitleLanguage { get; set; } = "fre,fra,fr,eng,en";
     public bool HardwareDecoding { get; set; } = true;
     public bool AutoNext { get; set; } = true;
+    /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
+    public bool AutoSkip { get; set; }
     public int SubtitleSize { get; set; } = 40;
     public bool ShowProgress { get; set; } = true;
     public bool ReduceMotion { get; set; }

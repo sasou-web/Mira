@@ -88,6 +88,15 @@ public partial class MainWindow
             CaptureElement(output, "player-controls", PlayerSurface);
             Skip_Click(this, new()); await Task.Delay(450); mpv.Poll();
             require(Math.Abs(mpv.Number("time-pos") - intro.End) < .6 && !_skipShown, $"skip jumps to the end of the opening ({mpv.Number("time-pos"):0.0} s)");
+            // « Passer les intros et les récaps »: jumped over by itself once, then played, with its button, when gone back into.
+            var autoSkip = _settings.AutoSkip; _settings.AutoSkip = true; _activeSkip = null;
+            TryCommand("seek", (intro.Start + 1).ToString(CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(intro.Start + 1);
+            await Task.Delay(350); UpdateSkip(); await Task.Delay(450); mpv.Poll();
+            require(Math.Abs(mpv.Number("time-pos") - intro.End) < .6 && _autoSkipped.Contains(intro), $"the opening is jumped over by itself ({mpv.Number("time-pos"):0.0} s)");
+            TryCommand("seek", (intro.Start + 1).ToString(CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(intro.Start + 1);
+            await Task.Delay(350); ShowPlayerControls(); UpdateSkip(); await Task.Delay(300); mpv.Poll();
+            require(mpv.Number("time-pos") < intro.End - 1 && _skipShown, $"going back into a skipped opening plays it ({mpv.Number("time-pos"):0.0} s)");
+            _settings.AutoSkip = autoSkip; _autoSkipped.Clear(); _activeSkip = null;
             // Credits with a following episode: a countdown that the viewer can cancel.
             var outro = _segments.First(s => s.Kind == SkipKind.Outro);
             var autoNext = _settings.AutoNext; _settings.AutoNext = true; _nextItem = DemoLibrary.Items()[1]; _activeSkip = null;

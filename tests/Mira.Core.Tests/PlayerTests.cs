@@ -109,6 +109,42 @@ internal static class PlayerTests
             Assert(PlaybackMarkers.Label(SkipKind.Intro, true, false) == "Passer l’opening" && PlaybackMarkers.Label(SkipKind.Outro, false, false) == "Passer le générique" && PlaybackMarkers.Label(SkipKind.Outro, true, true) == "Épisode suivant", "Skip labels changed");
             return Task.CompletedTask;
         });
+        await Test("Chapitres : le même classement que Mira web (tests/fixtures/chapters.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "chapters.json")));
+            static string? Text(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+            foreach (var row in fixture.RootElement.GetProperty("titles").EnumerateArray())
+            {
+                var kind = PlaybackMarkers.Classify(Text(row[0]))?.ToString();
+                Assert(kind == Text(row[1]), $"« {Text(row[0])} » : {kind ?? "rien"} au lieu de {Text(row[1]) ?? "rien"}");
+            }
+            foreach (var row in fixture.RootElement.GetProperty("positions").EnumerateArray())
+            {
+                var kind = PlaybackMarkers.Classify(Text(row[0]), row[1].GetDouble(), row[2].GetDouble())?.ToString();
+                Assert(kind == Text(row[3]), $"« {Text(row[0])} » à {row[1]} s sur {row[2]} s : {kind ?? "rien"}");
+            }
+            foreach (var episode in fixture.RootElement.GetProperty("episodes").EnumerateArray())
+            {
+                var chapters = episode.GetProperty("chapters").EnumerateArray().Select(c => new ChapterMark(c[0].GetDouble(), Text(c[1]))).ToList();
+                var found = PlaybackMarkers.FromChapters(chapters, episode.GetProperty("duration").GetDouble());
+                var expected = episode.GetProperty("passages").EnumerateArray().Select(p => new SkipSegment(Enum.Parse<SkipKind>(Text(p[0])!), p[1].GetDouble(), p[2].GetDouble()));
+                Assert(found.SequenceEqual(expected), "Passages : " + string.Join(", ", found));
+            }
+            return Task.CompletedTask;
+        });
+        await Test("Passer les intros et les récaps : une fois chacun, jamais les endings ni les aperçus", () =>
+        {
+            var segments = new List<SkipSegment> { new(SkipKind.Recap, 0, 45), new(SkipKind.Intro, 45, 135), new(SkipKind.Outro, 1290, 1380), new(SkipKind.Preview, 1380, 1410) };
+            var skipped = new HashSet<SkipSegment>();
+            Assert(PlaybackMarkers.AutoSkip(segments, 50, enabled: false, skipped) is null && !new PlayerSettings().AutoSkip, "Skipped without the setting, or on by default");
+            Assert(PlaybackMarkers.AutoSkip(segments, 10, enabled: true, skipped) == segments[0] && PlaybackMarkers.AutoSkip(segments, 50, enabled: true, skipped) == segments[1], "Recap or opening not skipped");
+            Assert(PlaybackMarkers.AutoSkip(segments, 1300, enabled: true, skipped) is null && PlaybackMarkers.AutoSkip(segments, 1390, enabled: true, skipped) is null, "Credits or preview skipped by themselves");
+            Assert(PlaybackMarkers.AutoSkip(segments, 300, enabled: true, skipped) is null && PlaybackMarkers.AutoSkip(segments, 134.5, enabled: true, skipped) is null, "Skipped outside a passage, or in its last second");
+            skipped.Add(segments[1]);
+            Assert(PlaybackMarkers.AutoSkip(segments, 50, enabled: true, skipped) is null, "Going back into a skipped opening skips it again");
+            return Task.CompletedTask;
+        });
         await Test("Lecteur : « Épisode 3 / 12 », pistes nommées en français, vitesse et décalage", () =>
         {
             MediaItem Episode(string id, int season, int number, string name = "") => new() { Id = id, Type = "Episode", SeriesName = "Sword Art Online", Name = name, ParentIndexNumber = season, IndexNumber = number };

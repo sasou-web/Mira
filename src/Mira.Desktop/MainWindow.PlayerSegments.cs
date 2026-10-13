@@ -13,6 +13,8 @@ public partial class MainWindow
     private List<SkipSegment> _serverSegments = [], _segments = [];
     private List<ChapterMark> _fileChapters = [], _serverChapters = [];
     private SkipSegment? _activeSkip;
+    // Openings and recaps already jumped over by themselves in this title: going back into one plays it.
+    private readonly HashSet<SkipSegment> _autoSkipped = [];
     private DateTimeOffset _skipSince;
     private bool _skipShown, _skipToNext;
     private double _skipLift = double.NaN;
@@ -25,7 +27,7 @@ public partial class MainWindow
     private void ResetMarkers()
     {
         _serverSegments = []; _segments = []; _fileChapters = []; _serverChapters = [];
-        _activeSkip = null; _nextItem = null; _skipToNext = false; _countdownEnd = null; _autoNextCancelled = false;
+        _activeSkip = null; _nextItem = null; _skipToNext = false; _countdownEnd = null; _autoNextCancelled = false; _autoSkipped.Clear();
         SeekBar.Reset(); SetSkipVisible(false, immediate: true); UpdateChapterText(0);
     }
     private void SkipCancel_Click(object sender, RoutedEventArgs e)
@@ -74,6 +76,12 @@ public partial class MainWindow
     private void UpdateSkip()
     {
         if (SkipHost is null) return;
+        // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there.
+        if (_playing && _loaded && PlaybackMarkers.AutoSkip(_segments, _session.Position, _settings.AutoSkip, _autoSkipped) is { } passage)
+        {
+            _autoSkipped.Add(passage);
+            if (TryCommand("seek", passage.End.ToString(CultureInfo.InvariantCulture), "absolute+exact")) HoldPosition(passage.End);
+        }
         SkipSegment? active = null;
         // Without a credits marker, the next episode during the last seconds.
         if (_playing && _loaded && !_miniPlayer) active = PlaybackMarkers.Offer(_segments, _session.Position, _session.Duration, _nextItem is not null);

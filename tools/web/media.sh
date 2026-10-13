@@ -3,7 +3,7 @@
 #   WebM (VP9, Opus): played as they are by browsers without H.264 (Chromium as tests use it); the film has French
 #   and English audio tracks and subtitles in both languages beside it, for the choice of tracks;
 #   Matroska (H.264, AAC) with French subtitles beside it: converted by Jellyfin into HLS, the way an iPhone plays;
-#   an anime-like Matroska with its ASS and SRT subtitles inside it;
+#   an anime-like Matroska with its ASS and SRT subtitles inside it; a WebM film whose chapters name its opening;
 #   with « formats », the kinds of files a home library holds whose stream Apple's player may refuse (see below).
 #   tools/web/media.sh <folder> [formats]
 set -euo pipefail
@@ -32,6 +32,18 @@ for e in 1 2; do
   q -f lavfi -i testsrc=duration=8:size=640x360:rate=24 -f lavfi -i "sine=frequency=$((500 + e * 100)):duration=8" \
     -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -shortest "$ROOT/Séries/Courte HLS/Season 01/Courte HLS S01E0$e.mkv"
 done
+# A film whose chapters name its passages, as anime and film releases often do: the cold open plays, the opening
+# (4-14 s) is offered, or skipped by itself with « Passer les intros et les récaps » (no segment provider needed).
+mkdir -p "$ROOT/Films/Chapitres Web (2024)"
+meta="$(mktemp)"
+printf ';FFMETADATA1\n' > "$meta"
+for chapter in '0 4000 Avant-générique' '4000 14000 Opening' '14000 30000 Partie A'; do
+  read -r start end title <<< "$chapter"
+  printf '[CHAPTER]\nTIMEBASE=1/1000\nSTART=%s\nEND=%s\ntitle=%s\n' "$start" "$end" "$title" >> "$meta"
+done
+q -f lavfi -i testsrc2=duration=30:size=640x360:rate=24 -f lavfi -i sine=frequency=480:duration=30 -i "$meta" -map 0:v -map 1:a -map_chapters 2 \
+  -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 500k -c:a libopus -t 30 "$ROOT/Films/Chapitres Web (2024)/Chapitres Web (2024).webm"
+rm -f "$meta"
 # An anime the way they come: H.264 and Japanese sound in Matroska, its subtitles inside it. ASS in French (the
 # dialogue, by default), ASS signs in French (forced), SRT in English, SRT with no language. Jellyfin never converts
 # ASS by profile: Mira asks for it as WebVTT, beside the video or in the HLS stream of Apple's player. Lines at 5-8 s

@@ -10,6 +10,14 @@ using Mira.Core.Updates;
 internal static class TestSupport
 {
     public static void Assert(bool value, string message) { if (!value) throw new Exception(message); }
+    /// <summary>The repository's folder (the one with Mira.sln), for the checks that read its files; null outside it.</summary>
+    public static string? Repository()
+    {
+        foreach (var start in new[] { AppContext.BaseDirectory, Environment.CurrentDirectory })
+            for (var folder = new DirectoryInfo(start); folder is not null; folder = folder.Parent)
+                if (File.Exists(Path.Combine(folder.FullName, "Mira.sln"))) return folder.FullName;
+        return null;
+    }
     public static PlaybackReport Report(long position = 0) => new() { ItemId = "item-1", MediaSourceId = "source-1", PlaySessionId = "session-1", PositionTicks = position };
     public static HttpResponseMessage JsonResponse(object value) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
     public static async Task WaitUntil(Func<bool> ready, int seconds = 4) { var timeout = DateTime.UtcNow.AddSeconds(seconds); while (!ready()) { if (DateTime.UtcNow > timeout) throw new TimeoutException(); await Task.Delay(20); } }

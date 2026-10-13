@@ -39,6 +39,7 @@ public sealed class SettingsPage : Page
         page.Children.Add(Section("Lecture",
             Toggle("Reprendre là où tu t’es arrêté", "Sinon, chaque titre repart du début.", settings.RememberPosition, v => settings.RememberPosition = v),
             Toggle("Épisode suivant automatique", "À la fin d’un épisode, le suivant démarre.", settings.AutoNext, v => settings.AutoNext = v),
+            Toggle("Passer les intros et les récaps", "Sans appuyer sur S, quand Jellyfin ou les chapitres du fichier les ont repérés. Revenir en arrière les rejoue.", settings.AutoSkip, v => settings.AutoSkip = v),
             Toggle("Décodage matériel", "Utilise la puce du Mac pour décoder la vidéo : moins de chauffe, plus d’autonomie.", settings.HardwareDecoding, v => settings.HardwareDecoding = v)));
 
         page.Children.Add(Section("Langues",
