@@ -36,12 +36,14 @@ function endsPlayback(segments, segment, end) {
 // (PlaybackMarkers in Mira.Core): the same expressions and limits, kept in step by tests/fixtures/chapters.json.
 /** Shorter passages are noise; a chapter longer than the second is no opening, recap or preview, whatever its title. */
 const MIN_PASSAGE = 3, MAX_SHORT_PASSAGE = 360;
-// .NET's \b and \d know every alphabet and digit: so do these.
-const WORD = '[\\p{L}\\p{Nd}\\p{Pc}]';
+// .NET's \b and \d know every alphabet and digit: so do these, with the joiners .NET's \b counts as letters, and its
+// '.' (anything but a line feed). Only characters outside the BMP (an emoji, a math digit) are read differently: .NET
+// sees their two halves.
+const WORD = '[\\p{L}\\p{Nd}\\p{Pc}\\u200C\\u200D]';
 const words = (alternatives) => new RegExp(`(?<!${WORD})(?:${alternatives})(?!${WORD})`, 'u');
-const RECAP = words('recap|recapitulatif|previously|precedemment|resume de l.episode precedent');
+const RECAP = words('recap|recapitulatif|previously|precedemment|resume de l[^\\n]episode precedent');
 const PREVIEW = words('preview|next episode|prochain episode|apercu|bande annonce|yokoku');
-const INTRO = words('opening|intro|introduction|ouverture|theme song|op\\s?\\p{Nd}{0,2}|generique (?:de )?(?:debut|d.ouverture)');
+const INTRO = words('opening|intro|introduction|ouverture|theme song|op\\s?\\p{Nd}{0,2}|generique (?:de )?(?:debut|d[^\\n]ouverture)');
 const OUTRO = words('ending|outro|credits|end credits|ed\\s?\\p{Nd}{0,2}|generique (?:de )?fin');
 const GENERIC = words('generique');
 const plain = (text) => text.normalize('NFD').replace(/\p{Mn}/gu, '').replace(/[_\-’]/g, ' ').toLowerCase();
@@ -76,10 +78,15 @@ export function chapterPassages(chapters, totalTicks) {
   return passages;
 }
 
-/** Jellyfin's segments are authoritative: a chapter's passage only fills a kind and a time they leave empty. */
-export const withChapters = (server, fromChapters) => [...server,
-  ...fromChapters.filter((c) => server.every((s) => s.Type !== c.Type && (c.EndTicks <= s.StartTicks || c.StartTicks >= s.EndTicks)))]
-  .sort((a, b) => a.StartTicks - b.StartTicks);
+/**
+ * Jellyfin's segments are authoritative, those of 3 s or more as Mira for Windows and Mac keeps them
+ * (PlaybackMarkers.FromJellyfin): a chapter's passage only fills a kind and a time they leave empty.
+ */
+export function withChapters(server, fromChapters) {
+  const kept = server.filter((s) => s.StartTicks >= 0 && seconds(s.EndTicks) - seconds(s.StartTicks) >= MIN_PASSAGE);
+  return [...kept, ...fromChapters.filter((c) => kept.every((s) => s.Type !== c.Type && (c.EndTicks <= s.StartTicks || c.StartTicks >= s.EndTicks)))]
+    .sort((a, b) => a.StartTicks - b.StartTicks);
+}
 
 /**
  * The trickplay picture at a point, in Jellyfin's tiles: which tile, and where in it, at a width of `width` pixels.
