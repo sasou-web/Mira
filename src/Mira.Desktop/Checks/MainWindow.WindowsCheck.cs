@@ -22,7 +22,7 @@ public partial class MainWindow
             Require(_windows is { MediaAvailable: true, TrayVisible: true }, "Windows media broker and notification-area icon initialize");
             Require(TaskbarItemInfo.ThumbButtonInfos.Count == 4 && TaskbarItemInfo.ThumbButtonInfos.All(x => x.Visibility == Visibility.Collapsed), "taskbar buttons remain absent outside playback");
             Require(File.Exists(WindowsIdentity.IconPath) && Icon is not null, "Windows logo is present both as a multi-size ICO and a window resource");
-            _settings.Volume = 0; _settings.AutoNext = false; VolumeSlider.Value = 0;
+            _settings.Volume = 0; _settings.AutoNext = false; _settings.AutoSkip = false; VolumeSlider.Value = 0;
             await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded); _mpv!.Set("loop-file", "inf");
             var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
             await Until(() => manager.GetSessions().Any(x => x.SourceAppUserModelId == App.ShellAppId));

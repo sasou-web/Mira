@@ -358,11 +358,12 @@ public sealed class PlayerPage : UserControl
     private double Reported(double reported) => DateTimeOffset.UtcNow < _pendingUntil && Math.Abs(reported - _pendingSeek) > 1.5 ? _pendingSeek : reported;
 
     // —— Controls ——
-    private void SeekTo(double seconds)
+    /// <summary>To a keyframe, quick enough to follow the pointer; exact past a passage, else its last seconds play.</summary>
+    private void SeekTo(double seconds, bool exact = false)
     {
         if (_mpv is null || !_loaded) return;
         var target = Math.Clamp(seconds, 0, _duration > 0 ? Math.Max(0, _duration - .5) : double.MaxValue);
-        if (!_mpv.TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), "absolute+keyframes")) return;
+        if (!_mpv.TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), exact ? "absolute+exact" : "absolute+keyframes")) return;
         Hold(target);
     }
     private void SeekBy(double seconds)
@@ -565,9 +566,9 @@ public sealed class PlayerPage : UserControl
     private void UpdateSkip()
     {
         // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there.
-        if (_loaded && !_stopped && PlaybackMarkers.AutoSkip(_segments, _position, _shell.Settings.AutoSkip, _autoSkipped) is { } passage)
+        if (_loaded && !_stopped && !_timeline.Dragging && PlaybackMarkers.AutoSkip(_segments, _position, _shell.Settings.AutoSkip, _autoSkipped) is { } passage)
         {
-            _autoSkipped.Add(passage); SeekTo(passage.End);
+            _autoSkipped.Add(passage); SeekTo(passage.End, exact: true);
         }
         SkipSegment? active = null;
         // Without a credits marker, the next episode during the last seconds.
@@ -598,6 +599,6 @@ public sealed class PlayerPage : UserControl
     {
         if (_activeSkip is not { } segment || _mpv is null || !_loaded) return;
         if (_skipToNext && _nextItem is { } next) { _ = PlayNextAsync(next, completed: true); return; }
-        SeekTo(segment.End); _skip.IsVisible = false;
+        SeekTo(segment.End, exact: true); _skip.IsVisible = false;
     }
 }

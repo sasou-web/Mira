@@ -87,10 +87,12 @@ public static class PlaybackMarkers
     }
     /// <summary>
     /// The opening or recap to jump over without a press at <paramref name="position"/>, with « Passer les intros et les
-    /// récaps »: once each, so that going back into one plays it (as Mira web, timeline.js).
+    /// récaps »: once each, so that going back into one plays it (as Mira web, timeline.js). A passage of the same kind
+    /// over one already jumped (the opening of the chapters, then Jellyfin's) is the same passage.
     /// </summary>
-    public static SkipSegment? AutoSkip(IReadOnlyList<SkipSegment> segments, double position, bool enabled, IReadOnlySet<SkipSegment> skipped) =>
-        enabled && Active(segments, position) is { Kind: SkipKind.Intro or SkipKind.Recap } segment && !skipped.Contains(segment) ? segment : null;
+    public static SkipSegment? AutoSkip(IReadOnlyList<SkipSegment> segments, double position, bool enabled, IEnumerable<SkipSegment> skipped) =>
+        enabled && Active(segments, position) is { Kind: SkipKind.Intro or SkipKind.Recap } segment
+        && !skipped.Any(s => s.Kind == segment.Kind && s.Start < segment.End && segment.Start < s.End) ? segment : null;
     /// <summary>Without a credits marker, the next episode is offered over this many last seconds.</summary>
     public const double NextEpisodeLead = 20;
     /// <summary>With "Enchaîner les épisodes", the next-episode button counts down over this much playback, as on streaming services.</summary>
