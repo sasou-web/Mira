@@ -180,6 +180,43 @@ internal static class PlayerTests
             Assert(MpvLists.Chapters(null).Count == 0 && MpvLists.Chapters("{").Count == 0, "Unreadable chapter list");
             return Task.CompletedTask;
         });
+        await Test("Lecteur : l’audio et les sous-titres choisis dans une série reviennent aux épisodes suivants (Windows et Mac)", () =>
+        {
+            // Episode 1: Japanese and the French dub; French subtitles « Panneaux » (forced) and « Complet ».
+            const string first = """
+                [{"id":1,"type":"video"},{"id":1,"type":"audio","lang":"jpn"},{"id":2,"type":"audio","lang":"fre","title":"VF"},
+                 {"id":1,"type":"sub","lang":"fre","title":"Panneaux","forced":true},{"id":2,"type":"sub","lang":"fre","title":"Complet"},{"id":3,"type":"sub","lang":"eng"}]
+                """;
+            // Episode 2: another order, other codes for the same languages.
+            const string second = """
+                [{"id":1,"type":"audio","lang":"fra","title":"VF"},{"id":2,"type":"audio","lang":"ja"},
+                 {"id":1,"type":"sub","lang":"fr","title":"Complet"},{"id":2,"type":"sub","lang":"fr","title":"Panneaux","forced":true}]
+                """;
+            var full = SeriesTracks.Remember(first, "1", "2");
+            Assert(full == new TrackMemory("jpn", null, true, "fre", "Complet", false), "Memory: " + full);
+            Assert(SeriesTracks.Choose(second, full!) == ("2", "1"), "« Complet » in Japanese not found again: " + SeriesTracks.Choose(second, full!));
+            var signs = SeriesTracks.Remember(first, "1", "1")!;
+            Assert(SeriesTracks.Choose(second, signs) == ("2", "2"), "« Panneaux » not found again: " + SeriesTracks.Choose(second, signs));
+            var dub = SeriesTracks.Remember(first, "2", "no")!;
+            Assert(!dub.Subtitles && SeriesTracks.Choose(second, dub) == ("1", "no"), "The French dub without subtitles: " + SeriesTracks.Choose(second, dub));
+            // Names that change between releases: the same language, forced or not alike.
+            const string renamed = """[{"id":1,"type":"audio","lang":"jpn"},{"id":1,"type":"sub","lang":"fre","title":"Signs","forced":true},{"id":2,"type":"sub","lang":"fre","title":"Full"}]""";
+            Assert(SeriesTracks.Choose(renamed, full!) == ("1", "2") && SeriesTracks.Choose(renamed, signs) == ("1", "1"), "Renamed tracks: " + SeriesTracks.Choose(renamed, full!));
+            // Nothing alike: mpv keeps its own choice (the languages of the settings).
+            const string english = """[{"id":1,"type":"audio","lang":"eng"},{"id":1,"type":"sub","lang":"eng"}]""";
+            Assert(SeriesTracks.Choose(english, full!) == (null, null) && SeriesTracks.Choose(null, full!) == (null, null), "A track chosen without its language");
+            Assert(SeriesTracks.Remember(first, "no", "2") is null && SeriesTracks.Remember("{", "1", "2") is null, "Remembered without an audio track");
+
+            // Kept per account, the 100 series chosen in last, beyond the 30 days of the cache.
+            var store = new LibraryStore(run.Root, "series-tracks");
+            store.RememberTracks("show", full!); store.RememberTracks("other", dub); store.RememberTracks("show", signs);
+            Assert(store.TracksOf("show") == signs && store.TracksOf("other") == dub && store.TracksOf("unknown") is null, "Tracks of each series: " + store.TracksOf("show"));
+            for (var i = 0; i < 99; i++) store.RememberTracks($"series-{i}", full!);
+            Assert(store.TracksOf("other") is null && store.TracksOf("show") == signs && store.TracksOf("series-98") == full, "The oldest choice was not the one forgotten");
+            store.Prune(DateTimeOffset.UtcNow.AddDays(31));
+            Assert(store.TracksOf("show") == signs, "Forgotten with the cache");
+            return Task.CompletedTask;
+        });
         await Test("Passages : l’épisode suivant proposé dans les 20 dernières secondes sans générique, compte à rebours en temps de lecture", () =>
         {
             SkipSegment intro = new(SkipKind.Intro, 0, 90), credits = new(SkipKind.Outro, 1380, 1500);

@@ -318,6 +318,13 @@ public sealed class PlayerPage : UserControl
             _mpv.Set("http-header-fields", "Authorization: " + session.Client.AuthorizationHeader.Replace(",", "\\,"));
             _mpv.TryCommand("sub-add", uri.AbsoluteUri, "auto", stream.DisplayTitle ?? "", stream.Language ?? "");
         }
+        // The audio and subtitles last chosen in this series, where this episode has them.
+        if (_item?.SeriesId is not { Length: > 0 } series) return;
+        var tracks = await Task.Run(() => Errors.TryCache(() => session.Store.TracksOf(series)));
+        if (tracks is null || generation != _generation || _mpv is null) return;
+        var (audio, subtitle) = SeriesTracks.Choose(_mpv.Get("track-list"), tracks);
+        if (audio is not null) _mpv.Set("aid", audio);
+        if (subtitle is not null) _mpv.Set("sid", subtitle);
     }
     private PlaybackReport Report() => new()
     {
@@ -470,13 +477,22 @@ public sealed class PlayerPage : UserControl
         {
             var list = new StackPanel { Spacing = 2, MinWidth = 240 };
             list.Children.Add(new TextBlock { Text = title, Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
-            if (off) list.Children.Add(Entry("Désactivés", null, selected is "no" or null, () => _mpv?.Set("sid", "no")));
+            if (off) list.Children.Add(Entry("Désactivés", null, selected is "no" or null, () => ChooseTrack("sid", "no")));
             foreach (var track in tracks.Where(x => x.Type == type))
-                list.Children.Add(Entry(track.Label, track.Details, selected == track.Id, () => _mpv?.Set(type == "audio" ? "aid" : "sid", track.Id)));
+                list.Children.Add(Entry(track.Label, track.Details, selected == track.Id, () => ChooseTrack(type == "audio" ? "aid" : "sid", track.Id)));
             if (type == "sub") list.Children.Add(Entry("Charger un fichier…", null, false, () => _ = LoadSubtitleAsync()));
             return list;
         }
         return Ui.Row(18, Column("AUDIO", "audio", current.Audio, false), Column("SOUS-TITRES", "sub", current.Sub, true));
+    }
+    /// <summary>A track chosen in the menu, kept for the next episodes of this series (<see cref="SeriesTracks"/>).</summary>
+    private void ChooseTrack(string property, string id)
+    {
+        if (_mpv is null) return;
+        _mpv.Set(property, id);
+        if (_item?.SeriesId is not { Length: > 0 } series || _shell.Session is not { } session) return;
+        if (SeriesTracks.Remember(_mpv.Get("track-list"), _mpv.Get("aid"), _mpv.Get("sid")) is { } tracks)
+            _ = Task.Run(() => Errors.TryCache(() => session.Store.RememberTracks(series, tracks)));
     }
     private Control MoreMenu()
     {

@@ -166,7 +166,7 @@ public partial class MainWindow
                 try { _mpv.Command("sub-add", uri.AbsoluteUri, "auto", stream.DisplayTitle ?? "", stream.Language ?? ""); } catch (IOException) { }
             }
         }
-        if (reopened) RestoreTracks();
+        if (reopened) RestoreTracks(); else await ChooseSeriesTracksAsync(generation);
     }
     private async void PlayerTick(object? sender, EventArgs e)
     {
