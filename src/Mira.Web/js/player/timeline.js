@@ -11,8 +11,12 @@ export const COUNTDOWN = 10;
 /** The passage that can be skipped at this point (until its last second), if any. */
 export const skippable = (segments, at) =>
   segments.find((s) => SKIP_LABELS[s.Type] && at >= seconds(s.StartTicks) && at < seconds(s.EndTicks) - 1);
-/** A passage skipped by itself (intro, recap) when the settings say so, once: going back into it plays it. */
-export const skipsItself = (segment, { autoSkip, skipped }) => !!segment && !!autoSkip && AUTO_SKIP.includes(segment.Type) && !skipped.has(segment);
+/**
+ * A passage skipped by itself (intro, recap) when the settings say so, once: going back into it plays it. One of the
+ * same kind over a passage already skipped is that passage (PlaybackMarkers.AutoSkip).
+ */
+export const skipsItself = (segment, { autoSkip, skipped }) => !!segment && !!autoSkip && AUTO_SKIP.includes(segment.Type)
+  && ![...skipped].some((s) => s.Type === segment.Type && s.StartTicks < segment.EndTicks && segment.StartTicks < s.EndTicks);
 
 /**
  * Where the next episode is offered: from the end credits when they are marked and only credits or a preview follow

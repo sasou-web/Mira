@@ -143,6 +143,9 @@ internal static class PlayerTests
             Assert(PlaybackMarkers.AutoSkip(segments, 300, enabled: true, skipped) is null && PlaybackMarkers.AutoSkip(segments, 134.5, enabled: true, skipped) is null, "Skipped outside a passage, or in its last second");
             skipped.Add(segments[1]);
             Assert(PlaybackMarkers.AutoSkip(segments, 50, enabled: true, skipped) is null, "Going back into a skipped opening skips it again");
+            // The opening of the chapters skipped, then Jellyfin's segments replace it: going back still plays it.
+            List<SkipSegment> rebuilt = [new(SkipKind.Recap, 0, 45), new(SkipKind.Intro, 46.2, 134.1)];
+            Assert(PlaybackMarkers.AutoSkip(rebuilt, 50, enabled: true, skipped) is null && PlaybackMarkers.AutoSkip(rebuilt, 10, enabled: true, skipped) == rebuilt[0], "A rebuilt opening is skipped again");
             return Task.CompletedTask;
         });
         await Test("Lecteur : « Épisode 3 / 12 », pistes nommées en français, vitesse et décalage", () =>

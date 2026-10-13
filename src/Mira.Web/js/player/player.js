@@ -326,8 +326,9 @@ export function create({ id, query }) {
   let currentSkip = null;
   function markers(at, end) {
     const segment = skippable(segments, at);
-    // Skipped once by itself when the settings say so: going back into it plays it.
-    if (segment && skipsItself(segment, { autoSkip: settings.get('autoSkip'), skipped })) {
+    // Skipped once by itself when the settings say so: going back into it plays it. Only once the stream plays: a stream
+    // being opened says 0, and a jump then would move where it starts.
+    if (segment && streamPlaying && skipsItself(segment, { autoSkip: settings.get('autoSkip'), skipped })) {
       skipped.add(segment);
       seek(seconds(segment.EndTicks));
       return;
@@ -965,10 +966,9 @@ export function create({ id, query }) {
       mediaSession();
       await open(resume);
       if (disposed || attempt !== beginning) return;
-      // Once the title's own stream plays (before, a skip would move the one it replaces): the passages its chapters
-      // name, then Jellyfin's segments, which win where it has some.
+      // Once the title's own stream plays (before, a skip would move the one it replaces), and Jellyfin has answered: its
+      // segments win, the passages the chapters name fill the rest (all of them without segments, or on Jellyfin 10.9).
       const fromChapters = chapterPassages(chapters, item.RunTimeTicks);
-      segments = fromChapters;
       api.segments(item.Id).then((list) => { if (attempt === beginning) segments = withChapters(list, fromChapters); });
       if (item.Type === 'Episode') {
         api.nextEpisode(item).then((n) => { if (attempt !== beginning) return; next = n; nextButton.hidden = !n; mediaSession(); }).catch(() => {});

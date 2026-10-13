@@ -21,7 +21,7 @@ public partial class MainWindow
         try
         {
             if (!_demo || _testMedia is null) throw new InvalidOperationException("Player checks require --demo and --test-media, with an isolated --data profile.");
-            _settings.Volume = 0; _settings.AutoNext = false; VolumeSlider.Value = 0;
+            _settings.Volume = 0; _settings.AutoNext = false; _settings.AutoSkip = false; VolumeSlider.Value = 0;
             await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded);
             Require(_mpv is not null && _videoHandle != IntPtr.Zero, "native video host loads the synthetic clip");
             Require(PlayerLoading.Visibility == Visibility.Collapsed && System.Windows.Input.Mouse.OverrideCursor is null, "loading indicator and busy cursor clear once the first frame is ready");

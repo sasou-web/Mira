@@ -76,8 +76,9 @@ public partial class MainWindow
     private void UpdateSkip()
     {
         if (SkipHost is null) return;
-        // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there.
-        if (_playing && _loaded && PlaybackMarkers.AutoSkip(_segments, _session.Position, _settings.AutoSkip, _autoSkipped) is { } passage)
+        // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there. Not while the
+        // bar is dragged: the pointer only passes through.
+        if (_playing && _loaded && !_seeking && PlaybackMarkers.AutoSkip(_segments, _session.Position, _settings.AutoSkip, _autoSkipped) is { } passage)
         {
             _autoSkipped.Add(passage);
             if (TryCommand("seek", passage.End.ToString(CultureInfo.InvariantCulture), "absolute+exact")) HoldPosition(passage.End);

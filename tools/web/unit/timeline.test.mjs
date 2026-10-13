@@ -28,6 +28,9 @@ test('intro and recap skipped by themselves, once, when the settings say so', ()
   assert.equal(skipsItself(undefined, { autoSkip: true, skipped }), false);
   skipped.add(intro);
   assert.equal(skipsItself(intro, { autoSkip: true, skipped }), false);
+  // The same opening, as Jellyfin marks it: already skipped. A recap before it is not.
+  assert.equal(skipsItself({ Type: 'Intro', StartTicks: s(11), EndTicks: s(39) }, { autoSkip: true, skipped }), false);
+  assert.equal(skipsItself({ Type: 'Recap', StartTicks: 0, EndTicks: s(10) }, { autoSkip: true, skipped }), true);
 });
 
 test('the next episode is offered from the end credits, else over the last seconds', () => {
