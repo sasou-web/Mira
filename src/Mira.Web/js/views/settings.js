@@ -8,6 +8,7 @@ import { installHint } from './login.js';
 import { appleNative } from '../player/video.js';
 import { AUDIO_LANGUAGES, SUBTITLE_LANGUAGES } from '../player/tracks.js';
 import { homeRows, moveRow, showRow } from '../home-rows.js';
+import { watchReport, reportStart, reportTime, reportCount } from '../report.js';
 
 export const QUALITIES = [
   ['auto', 'Automatique', 'Pleine qualité à la maison, adaptée à la connexion ailleurs'],
@@ -72,6 +73,9 @@ export function create() {
       h('div', { class: 'profile' }, avatar, h('div', {},
         h('div', { class: 'h3' }, current.userName ?? ''),
         h('div', { class: 'meta' }, current.serverName ? `Serveur « ${current.serverName} »` : 'Serveur Jellyfin'))),
+      h('div', { class: 'group' },
+        h('button', { class: 'item', on: { click: showReport } }, icon('history'),
+          h('span', { class: 'grow' }, 'Ton bilan', h('span', { class: 'sub' }, 'Ce que tu as regardé ce mois-ci et cette année.')), icon('right', { size: 20 }))),
 
       h('h2', { class: 'label group-title' }, 'Lecture'),
       h('div', { class: 'group' },
@@ -132,6 +136,43 @@ export function create() {
 
       h('p', { class: 'about' }, `Mira ${VERSION}`, info?.Version ? ` · Jellyfin ${info.Version}` : ''),
       h('p', { class: 'about' }, 'Ta progression est enregistrée sur ton serveur Jellyfin : elle te suit sur Mira pour Windows et pour Mac.'));
+  }
+
+  // « Ton bilan »: the month or the year, from what Jellyfin knows of each title's last play.
+  function showReport() {
+    let year = false, version = 0;
+    const content = h('div', { class: 'report', 'aria-live': 'polite' });
+    const option = (value, label) => h('button', { class: 'chip', 'aria-pressed': String(year === value), on: { click: () => { if (year !== value) { year = value; load(); } } } }, label);
+    const chips = h('div', { class: 'report-periods' });
+    const list = (title, lines) => (lines.length ? h('section', { class: 'report-part' }, h('h3', { class: 'label' }, title), h('ul', {}, lines)) : null);
+    async function load() {
+      const mine = ++version, period = year ? 'cette année' : 'ce mois-ci';
+      chips.replaceChildren(option(false, 'Ce mois-ci'), option(true, 'Cette année'));
+      content.replaceChildren(h('p', { class: 'meta' }, 'Calcul de ton bilan…'));
+      try {
+        const from = reportStart(Date.now(), year);
+        const { played, series } = await api.playedSince(from);
+        if (mine !== version) return;
+        const r = watchReport(played, series, from);
+        if (!r.films && !r.episodes) { content.replaceChildren(h('p', { class: 'meta' }, `Aucun film ni épisode terminé ${period} pour l’instant.`)); return; }
+        const counts = [r.films ? reportCount(r.films, 'film', 'films') : null, r.episodes ? reportCount(r.episodes, 'épisode', 'épisodes') : null].filter(Boolean).join(' · ');
+        content.replaceChildren(...[
+          h('div', { class: 'report-time' }, h('strong', {}, reportTime(r.minutes)), h('span', {}, `devant l’écran ${period}`)),
+          h('p', { class: 'report-counts' }, counts),
+          list('Séries les plus regardées', r.series.map((x) => h('li', {}, h('span', { class: 'grow' }, x.name), h('span', { class: 'meta' }, `${reportCount(x.episodes, 'épisode', 'épisodes')} · ${reportTime(x.minutes)}`)))),
+          list(r.finished.length > 1 ? 'Séries terminées' : 'Série terminée', r.finished.map((x) => h('li', {}, icon('check', { size: 18 }), h('span', { class: 'grow' }, x)))),
+          r.genres.length ? h('section', { class: 'report-part' }, h('h3', { class: 'label' }, 'Genres préférés'), h('p', { class: 'report-genres' }, r.genres.join(' · '))) : null,
+        ].filter(Boolean));
+      } catch (error) {
+        if (mine === version) content.replaceChildren(h('p', { class: 'form-error' }, error.message));
+      }
+    }
+    load();
+    sheet({
+      title: 'Ton bilan',
+      body: h('div', { class: 'sheet-form' }, chips, content,
+        h('p', { class: 'group-note' }, 'D’après Jellyfin : chaque film ou épisode vu jusqu’au bout compte une fois, à sa dernière lecture, sur tous tes appareils.')),
+    });
   }
 
   // « Accueil à ta main »: how many rows show, then each row with its switch and its arrows.

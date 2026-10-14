@@ -100,6 +100,31 @@ internal static class LibraryTests
             store.Acknowledge(store.Peek()!.Id); Assert(store.MergeResume([], store.RecentPlayback()).Count == 0, "Acknowledged old history overrode the server");
             return Task.CompletedTask;
         });
+        await Test("Ton bilan : temps, films, épisodes, séries finies, genres et séries préférés, comme Mira web (tests/fixtures/report.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "report.json")));
+            var root = fixture.RootElement;
+            var played = root.GetProperty("played").Deserialize<List<MediaItem>>(Json.Options)!;
+            var series = root.GetProperty("series").Deserialize<List<MediaItem>>(Json.Options)!;
+            var report = WatchReport.Build(played, series, DateTimeOffset.Parse(root.GetProperty("from").GetString()!, System.Globalization.CultureInfo.InvariantCulture));
+            var expected = root.GetProperty("expected");
+            Assert(report.Minutes == expected.GetProperty("minutes").GetInt32() && report.Films == expected.GetProperty("films").GetInt32() && report.Episodes == expected.GetProperty("episodes").GetInt32(),
+                $"{report.Minutes} min, {report.Films} films, {report.Episodes} épisodes");
+            static string Names(JsonElement list) => string.Join(" | ", list.EnumerateArray().Select(x => x.GetString()));
+            Assert(string.Join(" | ", report.Finished) == Names(expected.GetProperty("finished")), "Finished: " + string.Join(" | ", report.Finished));
+            Assert(string.Join(" | ", report.Genres) == Names(expected.GetProperty("genres")), "Genres: " + string.Join(" | ", report.Genres));
+            var most = string.Join(" | ", report.Series.Select(x => $"{x.Name} {x.Episodes} {x.Minutes}"));
+            Assert(most == string.Join(" | ", expected.GetProperty("series").EnumerateArray().Select(x => $"{x.GetProperty("name").GetString()} {x.GetProperty("episodes").GetInt32()} {x.GetProperty("minutes").GetInt32()}")), "Series: " + most);
+            foreach (var row in root.GetProperty("times").EnumerateArray())
+                Assert(WatchReport.Time(row[0].GetInt32()) == row[1].GetString(), $"{row[0]}: {WatchReport.Time(row[0].GetInt32())}");
+            Assert(WatchReport.Count(1, "film", "films") == "1 film" && WatchReport.Count(0, "film", "films") == "0 films", "Count");
+            var now = new DateTimeOffset(2026, 10, 14, 18, 30, 0, TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 10, 14, 18, 30, 0)));
+            var month = WatchReport.Start(now, year: false).ToLocalTime(); var year = WatchReport.Start(now, year: true).ToLocalTime();
+            Assert(month.DateTime == new DateTime(2026, 10, 1) && year.DateTime == new DateTime(2026, 1, 1), $"{month} {year}");
+            Assert(WatchReport.Build([], [], now).Empty, "Nothing watched");
+            return Task.CompletedTask;
+        });
         await Test("Accueil à ta main : rangées dans l’ordre choisi, masquées, nouvelles bibliothèques à la suite, comme Mira web (tests/fixtures/home.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

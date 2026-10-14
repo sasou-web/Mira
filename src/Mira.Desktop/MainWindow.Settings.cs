@@ -77,13 +77,15 @@ public partial class MainWindow
         ServerSettings.Visibility = tab == "server" ? Visibility.Visible : Visibility.Collapsed;
         TorLinkSettings.Visibility = tab == "torlink" ? Visibility.Visible : Visibility.Collapsed;
         UpdateSettings.Visibility = tab == "updates" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsSectionTitle.Text = tab switch { "subtitles" => "Audio & sous-titres", "appearance" => "Apparence", "server" => "Jellyfin & synchronisation", "torlink" => "TorLink", "updates" => "Mises à jour", _ => "Lecture" };
-        SettingsSectionDescription.Text = tab switch { "subtitles" => "Les bonnes langues, dès le premier épisode.", "appearance" => "Ajuste le confort de navigation à tes habitudes.", "server" => "Ta bibliothèque et ta progression, toujours à portée de main.", "torlink" => "Tes téléchargements rangés dans Jellyfin, sans rien déplacer à la main.", "updates" => "Les nouvelles versions de Mira, installées sans y penser.", _ => "Le confort de lecture, sans avoir à y penser." };
+        ReportSettings.Visibility = tab == "report" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsSectionTitle.Text = tab switch { "subtitles" => "Audio & sous-titres", "appearance" => "Apparence", "server" => "Jellyfin & synchronisation", "torlink" => "TorLink", "updates" => "Mises à jour", "report" => "Ton bilan", _ => "Lecture" };
+        SettingsSectionDescription.Text = tab switch { "subtitles" => "Les bonnes langues, dès le premier épisode.", "appearance" => "Ajuste le confort de navigation à tes habitudes.", "server" => "Ta bibliothèque et ta progression, toujours à portée de main.", "torlink" => "Tes téléchargements rangés dans Jellyfin, sans rien déplacer à la main.", "updates" => "Les nouvelles versions de Mira, installées sans y penser.", "report" => "Ce que tu as regardé, sur tous tes appareils.", _ => "Le confort de lecture, sans avoir à y penser." };
         foreach (var button in SettingsNavigation.Children.OfType<Button>()) { var active = button.Tag?.ToString() == tab; button.Background = active ? Palette.Get("Text") : Brushes.Transparent; button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextBody"); }
         SettingsScroll.ScrollToTop();
-        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, _ => PlaybackSettings };
+        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "report" => ReportSettings, _ => PlaybackSettings };
         SmoothScroll.Jump(SettingsScroll); Motion.Reveal(body, 230, 7);
         WatchViewers(tab == "server");
+        if (tab == "report") _ = ShowReportAsync();
     }
     private void LanguageChoice_Changed(object sender, SelectionChangedEventArgs e)
     {

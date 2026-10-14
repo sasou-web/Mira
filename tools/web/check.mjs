@@ -369,6 +369,19 @@ try {
   const restored = await page.locator('.view.home .section .h2').allInnerTexts();
   check('accueil à ta main : la rangée d’une bibliothèque en tête, puis l’ordre de Mira', shelfKey?.startsWith('library:') && arranged[0] === shelfTitle && !restored.includes(shelfTitle),
     `${shelfTitle} → ${arranged.join(', ')} → ${restored.join(', ')}`);
+  // « Ton bilan »: the month from Jellyfin's record of what was played to the end, then the year.
+  await page.locator('.tabbar a[data-tab="settings"]').click(); await wait(800);
+  await page.getByRole('button', { name: /^Ton bilan/ }).click();
+  await page.locator('.report-time, .report > .meta:not(:first-child), .report .form-error').first().waitFor({ timeout: 10000 }).catch(() => {});
+  await page.waitForFunction(() => !document.querySelector('.report')?.textContent.includes('Calcul'), null, { timeout: 15000 }).catch(() => {});
+  const month = await page.locator('.report').innerText();
+  await shot('13-report');
+  await page.getByRole('button', { name: 'Cette année', exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector('.report')?.textContent.includes('Calcul'), null, { timeout: 15000 }).catch(() => {});
+  const yearly = await page.locator('.report').innerText();
+  await page.keyboard.press('Escape'); await wait(400);
+  const said = (text) => /devant l’écran|Aucun film ni épisode terminé/.test(text) && !text.includes('null');
+  check('ton bilan : le mois puis l’année, d’après Jellyfin', said(month) && said(yearly) && yearly.includes('cette année'), `${month.split('\n').slice(0, 2).join(' ')} / ${yearly.split('\n').slice(0, 2).join(' ')}`);
 } catch (error) {
   check('déroulé', false, error.message.split('\n')[0]);
   await shot('error').catch(() => {});
