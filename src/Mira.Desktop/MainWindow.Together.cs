@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using Mira.Core;
+using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
@@ -296,6 +297,7 @@ public partial class MainWindow
         if (_group is { } group)
         {
             menu.Items.Add(new MenuItem { Header = Together.GroupText(group) + (group.Participants.Count > 0 ? " : " + string.Join(", ", group.Participants) : ""), Tag = "users", IsEnabled = false });
+            menu.Items.Add(MenuAction("Inviter quelqu’un…", "link", () => { ShowInvite(); return Task.CompletedTask; }));
             menu.Items.Add(MenuAction("Quitter le groupe", "close", LeaveGroupAsync));
         }
         else
@@ -306,13 +308,14 @@ public partial class MainWindow
             catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
             if (!ReferenceEquals(client, _client) || DetailOverlay.Visibility != Visibility.Visible) return;
             foreach (var g in groups)
-                menu.Items.Add(MenuAction($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", "users", () => EnterGroupAsync(c => c.SyncJoinAsync(g.GroupId))));
+                menu.Items.Add(MenuAction($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", "users", () => EnterGroupAsync(c => c.SyncJoinAsync(g.GroupId), invite: false)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
-            menu.Items.Add(MenuAction("Créer un groupe", "plus", () => EnterGroupAsync(c => c.SyncNewAsync(Together.GroupName(c.Connection.UserName)))));
+            menu.Items.Add(MenuAction("Créer un groupe et inviter…", "plus", () => EnterGroupAsync(c => c.SyncNewAsync(Together.GroupName(c.Connection.UserName)), invite: true)));
         }
         menu.IsOpen = true;
     }
-    private async Task EnterGroupAsync(Func<JellyfinClient, Task> start)
+    /// <summary>« Créer un groupe » (then its invitation: a new group is empty) or « Rejoindre … »: done once Jellyfin says GroupJoined.</summary>
+    private async Task EnterGroupAsync(Func<JellyfinClient, Task> start, bool invite)
     {
         if (_client is not { } client) return;
         var joined = _groupJoined = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -321,7 +324,8 @@ public partial class MainWindow
             await start(client);
             await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6)));
             if (_group is null && ReferenceEquals(client, _client)) SetNotice("Jellyfin n’a pas répondu. Réessaie dans un instant.");
-            else if (_group is { } group) SetNotice($"Tu es dans « {group.GroupName} » : Regarder lance le titre pour tout le groupe, au même moment chez chacun.");
+            else if (_group is { } group && invite) ShowInvite();
+            else if (_group is { } joinedGroup) SetNotice($"Tu es dans « {joinedGroup.GroupName} » : Regarder lance le titre pour tout le groupe, au même moment chez chacun.");
         }
         catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
@@ -336,6 +340,33 @@ public partial class MainWindow
         }
         GroupGone();
     }
+    /// <summary>
+    /// « Inviter quelqu'un »: the link that opens Mira web on the group (#/ensemble/…), with what the friend needs. A
+    /// Jellyfin on this PC is given at its Tailscale address when there is one: a friend reaches it at home and away.
+    /// </summary>
+    private void ShowInvite()
+    {
+        if (_group is not { } group || _client is not { } client) return;
+        var server = client.Connection.Server;
+        var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
+        var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId);
+        InviteLead.Text = $"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».";
+        InviteLink.Text = link;
+        InviteSteps.Children.Clear();
+        var steps = Together.InviteSteps(link);
+        for (var i = 0; i < steps.Count; i++)
+            InviteSteps.Children.Add(new TextBlock { Text = $"{i + 1}. {steps[i]}", FontSize = 13, LineHeight = 19, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+        InviteCopy.Content = ActionLabel("link", "Copier le lien");
+        Motion.Reveal(InviteOverlay, 260, 0); Motion.Reveal(InviteCard, 360, 16);
+        _ = Dispatcher.BeginInvoke(() => InviteCopy.Focus(), DispatcherPriority.Input);
+    }
+    private void InviteCopy_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(InviteLink.Text); SetNotice("Lien copié : envoie-le à ton ami."); }
+        catch (System.Runtime.InteropServices.ExternalException) { SetNotice("Le presse-papiers est occupé : réessaie."); }
+    }
+    private async void InviteClose_Click(object sender, RoutedEventArgs e) => await CloseInviteAsync();
+    private async Task CloseInviteAsync() { await Motion.HideAsync(InviteOverlay); if (DetailOverlay.Visibility == Visibility.Visible) TogetherButton.Focus(); }
     /// <summary>The player's ⋮: the group and « Quitter », while in one.</summary>
     private void ShowGroupSection()
     {

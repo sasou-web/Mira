@@ -26,7 +26,9 @@ function avatar(user, size = 120) {
 export function create() {
   const el = h('div', { class: 'view gate' });
   const title = h('h1', {}, 'Bienvenue sur Mira');
-  const lead = h('p', { class: 'lead' }, 'Connecte-toi avec ton compte Jellyfin.');
+  // Brought here by an invitation to « Regarder ensemble » (views/join.js): the group comes once signed in.
+  const invited = (temp.get('mira.next') ?? '').startsWith('#/ensemble/');
+  const lead = h('p', { class: 'lead' }, invited ? 'On t’invite à regarder ensemble : connecte-toi avec ton compte Jellyfin pour rejoindre le groupe.' : 'Connecte-toi avec ton compte Jellyfin.');
   const body = h('div', { style: { display: 'grid', justifyItems: 'center', gap: '22px', width: '100%' } });
   el.append(markSvg(64), h('div', { style: { display: 'grid', gap: '8px', justifyItems: 'center' } }, title, lead), body);
   // Over plain HTTP from the Internet, the password could be read on its way: said before it is typed.

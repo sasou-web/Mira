@@ -164,6 +164,7 @@ public sealed class DetailPage : Page
         if (watch.Active && watch.Group is { } group)
         {
             Add(Together.GroupText(group) + (group.Participants.Count > 0 ? " : " + string.Join(", ", group.Participants) : ""), null);
+            Add("Inviter quelqu’un…", () => _ = watch.InviteAsync());
             Add("Quitter le groupe", () => _ = watch.LeaveAsync());
         }
         else
@@ -176,7 +177,7 @@ public sealed class DetailPage : Page
             foreach (var g in groups)
                 Add($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
-            Add("Créer un groupe", () => _ = watch.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct)));
+            Add("Créer un groupe et inviter…", () => _ = watch.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct), invite: true));
         }
         menu.Open(button);
     }

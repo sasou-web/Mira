@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText } from '../../../src/Mira.Web/js/player/sync.js';
+import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps } from '../../../src/Mira.Web/js/player/sync.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/syncplay.json', import.meta.url), 'utf8'));
 
@@ -34,4 +34,11 @@ test('the title a queue puts on, and the group\'s words', () => {
   for (const [group, words] of fixture.groups) assert.equal(groupText(group), words);
   assert.equal(groupName('mira'), 'Groupe de mira');
   assert.ok(needsSeek(10, 10.6) && !needsSeek(10, 10.4));
+});
+
+test('the invitation: its link and what it says under it, from Tailscale, home or the Internet', () => {
+  for (const [server, group, link, steps] of fixture.invites) {
+    assert.equal(inviteLink(server, group), link);
+    assert.deepEqual(inviteSteps(link), steps);
+  }
 });

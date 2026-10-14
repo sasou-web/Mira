@@ -14,6 +14,7 @@ import { appleNative } from '../player/video.js';
 import { sleep, sleepChoices } from '../player/sleep.js';
 import { together } from '../together.js';
 import { groupText, people } from '../player/sync.js';
+import { inviteSheet } from '../invite.js';
 
 const SLICE = 100;
 const seasonOf = (x) => x.ParentIndexNumber ?? 1;
@@ -163,6 +164,7 @@ export function create({ id, query }) {
         body: about('Lecture lance un titre pour tout le groupe, au même moment sur chaque appareil. Pause, lecture et déplacements sont partagés.'),
         items: [
           { label: groupText(group), sub: group.Participants.join(', '), selected: true },
+          { symbol: 'link', label: 'Inviter quelqu’un', sub: 'Un lien à envoyer : ton ami l’ouvre et rejoint le groupe.', run: () => inviteSheet(together.group) },
           { label: 'Quitter le groupe', danger: true, run: () => together.leave() },
         ],
       });
@@ -176,10 +178,11 @@ export function create({ id, query }) {
     const enter = async (run) => { try { await run(); } catch (error) { toast(error?.message || 'Le groupe n’a pas pu être rejoint.'); } };
     sheet({
       title: 'Regarder ensemble',
-      body: about('Regardez le même titre au même moment, chacun chez soi : les comptes de ce Jellyfin rejoignent ton groupe depuis la fiche d’un titre. Pause, lecture et déplacements sont partagés.'),
+      body: about('Regardez le même titre au même moment, chacun chez soi. Crée un groupe et envoie le lien d’invitation, ou rejoins celui d’un ami. Pause, lecture et déplacements sont partagés.'),
       items: [
         ...(groups ?? []).map((g) => ({ symbol: 'users', label: `Rejoindre « ${g.GroupName} »`, sub: `${people(g.Participants?.length ?? 1)} : ${(g.Participants ?? []).join(', ')}`, run: () => enter(() => together.join(g.GroupId)) })),
-        { symbol: 'play', label: 'Créer un groupe', sub: 'Les autres le rejoignent ici, puis Lecture lance le titre pour tous.', run: () => enter(() => together.create()) },
+        // A new group is empty: the invitation comes at once, the way to bring someone in.
+        { symbol: 'play', label: 'Créer un groupe', sub: 'Puis invite tes amis avec un lien : Lecture lance le titre pour tous.', run: () => enter(async () => { await together.create(); inviteSheet(together.group); }) },
       ],
     });
   }

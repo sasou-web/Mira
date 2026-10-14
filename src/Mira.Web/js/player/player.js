@@ -24,6 +24,7 @@ import { sleep, sleepChoices } from './sleep.js';
 import { listen } from '../remote.js';
 import { together } from '../together.js';
 import { needsSeek, groupText } from './sync.js';
+import { inviteSheet } from '../invite.js';
 
 // Forced subtitles (signs, foreign lines): Safari has the « forced » kind; elsewhere it reads as metadata, never drawn.
 const FORCED_KIND = (() => { try { const t = document.createElement('track'); t.kind = 'forced'; return t.kind === 'forced'; } catch { return false; } })();
@@ -710,6 +711,7 @@ export function create({ id, query }) {
         ...(together.group ? [
           { heading: 'Regarder ensemble' },
           { label: groupText(together.group), sub: 'Pause, lecture et déplacements pour tout le groupe.', selected: true },
+          { symbol: 'link', label: 'Inviter quelqu’un', run: () => inviteSheet(together.group) },
           { label: 'Quitter le groupe', danger: true, run: () => together.leave() },
         ] : []),
       ],

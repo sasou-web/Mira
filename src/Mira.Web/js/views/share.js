@@ -43,7 +43,7 @@ function qr(text) {
  * Copies text from a tap. Over plain HTTP (Mira at home), Safari has no navigator.clipboard: a selected field and
  * execCommand still copy.
  */
-async function copy(text) {
+export async function copy(text) {
   if (window.isSecureContext && navigator.clipboard) return navigator.clipboard.writeText(text).then(() => true, () => false);
   const field = h('textarea', { readOnly: true, 'aria-hidden': 'true', style: { position: 'fixed', top: '0', left: '0', opacity: '0', fontSize: '16px' } });
   field.value = text;
