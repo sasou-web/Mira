@@ -60,6 +60,20 @@ public partial class MainWindow
         };
         WatchTorLinkHistory();
     }
+    /// <summary>The TorLink check only works inside its output folder: demo mode, and both --data and TORLINK_STATE_DIR in it.</summary>
+    private bool TorLinkCheckIsolated()
+    {
+        var index = Array.IndexOf(_args, "--torlink-check");
+        if (index < 0 || index + 1 >= _args.Length || !_args.Contains("--demo") || !_args.Contains("--data")) return false;
+        try
+        {
+            var output = Path.GetFullPath(_args[index + 1]).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+            var state = Environment.GetEnvironmentVariable("TORLINK_STATE_DIR");
+            return !string.IsNullOrWhiteSpace(state) && Path.GetFullPath(state).StartsWith(output, StringComparison.OrdinalIgnoreCase)
+                && Path.GetFullPath(_profile.DirectoryPath).StartsWith(output, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
+    }
 
     // ---- Automatic placement ------------------------------------------------------------------
 

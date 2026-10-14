@@ -61,7 +61,7 @@ safaridriver -p 4444 &  node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dos
 
 ## Harnais des applications
 
-Ils sont compilés dans l’application et ne tournent qu’avec un profil isolé (`--data`), le plus souvent avec la démo (`--demo`). Chacun écrit son résultat dans son dossier de sortie.
+Ils sont dans `src/Mira.Desktop/Checks` et ne tournent qu’avec un profil isolé (`--data`), le plus souvent avec la démo (`--demo`). Chacun écrit son résultat dans son dossier de sortie. `dotnet build` les compile (propriété `MiraValidation`, vraie par défaut) ; les paquets (`tools/package.ps1`) et `dist/Mira` (`tools/publish.ps1`) sont construits avec `-p:MiraValidation=false` : ces options y ferment Mira aussitôt (code 2), et `package.ps1` refuse un `Mira.dll` qui contient encore les harnais.
 
 | Commande | Ce qu’elle vérifie |
 | --- | --- |

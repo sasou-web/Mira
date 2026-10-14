@@ -25,7 +25,7 @@ Mira.Desktop (WPF)
   │   ├─ Guide : bienvenue, guide de démarrage, carte « Mira sur ton téléphone » (Tout préparer, QR code), nouveautés
   │   ├─ MiraWeb : installation vérifiée de Mira web, dépôt avancé au démarrage
   │   └─ TorLink : page Téléchargements (liste des téléchargeurs, TorLink activé ou non), téléchargements terminés, liste « Vers Jellyfin »
-  ├─ Checks : harnais de contrôle lancés par RunRequestedCheckAsync (--visual-check, --public-gallery, --player-check, --qa-window, --perf-probe, --windows-check, --torlink-check)
+  ├─ Checks : harnais de contrôle lancés par RunRequestedCheckAsync (--visual-check, --public-gallery, --player-check, --qa-window, --perf-probe, --windows-check, --torlink-check), absents des paquets (MiraValidation=false)
   ├─ Themes/Cinema.xaml : composants, couleurs nommées, focus et contrôles sombres
   ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions, défilement progressif, Timeline, Accessible (noms et annonces pour le Narrateur)
   ├─ Playback/MpvEngine : `MpvClient` de Core, rendu dans un HWND enfant, recherche du moteur (choisi, installé par Mira, connu)

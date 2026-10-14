@@ -7,7 +7,7 @@ Push-Location $workspace
 try {
     dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config -r win-x64
     if ($LASTEXITCODE -ne 0) { throw 'La restauration a échoué.' }
-    dotnet publish src/Mira.Desktop/Mira.Desktop.csproj --no-restore -c $Configuration -r win-x64 --self-contained true -o dist/Mira -p:DebugType=None -p:DebugSymbols=false
+    dotnet publish src/Mira.Desktop/Mira.Desktop.csproj --no-restore -c $Configuration -r win-x64 --self-contained true -o dist/Mira -p:DebugType=None -p:DebugSymbols=false -p:MiraValidation=false
     if ($LASTEXITCODE -ne 0) { throw 'La publication a échoué.' }
     Copy-Item -LiteralPath README.md -Destination dist/Mira/LISEZ-MOI.md
     $shortcutPath = Join-Path $workspace 'Mira.lnk'

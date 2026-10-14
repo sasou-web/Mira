@@ -17,6 +17,11 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+#if !MIRA_VALIDATION
+        // A package: the validation harnesses are not in it (Mira.Desktop.csproj), and their options open nothing.
+        if (e.Args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--public-gallery"
+            or "--qa-window" or "--perf-probe" or "--test-media" or "--loop-test-media")) { Shutdown(2); return; }
+#endif
         // The downloaded version replacing the old files: no window, no profile, no single-instance lock.
         if (e.Args.FirstOrDefault() == "--apply-update") { Shutdown(UpdateApplier.Run(e.Args)); return; }
         if (e.Args.Contains("--register-windows"))

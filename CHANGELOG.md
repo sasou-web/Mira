@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Les contrôles des développeurs quittent Mira pour Windows** : les harnais de validation (captures, lecteur, intégration à Windows, TorLink) ne sont plus dans les paquets publiés ; leurs options de ligne de commande y ferment Mira aussitôt. Rien ne change pour toi.
+
 ## 0.7.7 — 2026-10-13
 
 Connexion par code sur le téléphone, sagas sur la fiche, intros passées d’après les chapitres, séries mieux suivies et une fiche plus complète.

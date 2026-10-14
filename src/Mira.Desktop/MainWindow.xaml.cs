@@ -62,7 +62,9 @@ public partial class MainWindow : Window
         InitializeFilters();
         InitializePreview();
         InitializePlayerControls();
+#if MIRA_VALIDATION
         InitializePlayerProbe();
+#endif
         InitializeWindowsIntegration();
         InitializeTorLink();
         InitializeUpdates();
@@ -112,6 +114,8 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         _initializing = false;
     }
+    /// <summary>Validation runs set their own sizes, off screen: nothing is remembered from them.</summary>
+    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--offscreen");
     /// <summary>
     /// The size the window had when Mira last closed, or the default one (1480 × 930), kept within the screen it opens
     /// on, with that screen's scale: a 1080p screen at 125 % has about 1536 × 826 usable, at 150 % about 1280 × 688 (see
@@ -160,7 +164,9 @@ public partial class MainWindow : Window
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
         else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); }
         await RevealStartupAsync();
+#if MIRA_VALIDATION
         if (await RunRequestedCheckAsync()) return;
+#endif
         _fallbackRefresh.Start();
         _ = RefreshEngineAsync();
         ShowStartupScreen();
