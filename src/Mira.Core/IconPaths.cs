@@ -34,6 +34,7 @@ public static class IconPaths
         ["back"] = "M14.5 5L7.5 12L14.5 19",
         ["next"] = "M9.5 5L16.5 12L9.5 19",
         ["down"] = "M5 9L12 16L19 9",
+        ["up"] = "M5 15L12 8L19 15",
         ["close"] = "M6 6L18 18M18 6L6 18",
         ["refresh"] = "M19.5 8A8 8 0 1 0 20 14M19.5 3V8.5H14",
         ["check"] = "M4.5 12.5L9.5 17.5L19.5 6.5",

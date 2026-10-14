@@ -48,7 +48,7 @@ public partial class MainWindow
         _settingsBusy = true;
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip; RememberCheck.IsChecked = _settings.RememberPosition;
         ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion;
-        HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices;
+        HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting();
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
         SelectChoice(AudioLanguageChoice, _settings.AudioLanguage); SelectChoice(SubtitleLanguageChoice, _settings.SubtitleLanguage); SelectChoice(DensityChoice, _settings.PosterDensity);
         SubtitleSizeSlider.Value = _settings.SubtitleSize; MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;

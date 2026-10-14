@@ -42,6 +42,11 @@ public sealed class SettingsPage : Page
             Toggle("Passer les intros et les récaps", "Sans appuyer sur S, quand Jellyfin ou les chapitres du fichier les ont repérés. Revenir en arrière les rejoue.", settings.AutoSkip, v => settings.AutoSkip = v),
             Toggle("Décodage matériel", "Utilise la puce du Mac pour décoder la vidéo : moins de chauffe, plus d’autonomie.", settings.HardwareDecoding, v => settings.HardwareDecoding = v)));
 
+        // « Accueil à ta main »: the libraries come from Jellyfin, for their « Nouveau dans … ».
+        page.Children.Add(_home);
+        DrawHome();
+        if (shell.Session is { } account) _ = LoadLibrariesAsync(account.Client);
+
         page.Children.Add(Section("Langues",
             Choice("Audio", Audio, settings.AudioLanguage, v => settings.AudioLanguage = v),
             Choice("Sous-titres", Subtitles, settings.SubtitleLanguage, v => settings.SubtitleLanguage = v)));
@@ -61,6 +66,35 @@ public sealed class SettingsPage : Page
         Content = new ScrollViewer { Content = page };
     }
     private void Save() => Shell.Profile.SaveSettings(Shell.Settings);
+    private readonly ContentControl _home = new();
+    private List<LibrarySection> _libraries = [];
+    private async Task LoadLibrariesAsync(JellyfinClient client)
+    {
+        try { _libraries = await client.LibrariesAsync(); DrawHome(); }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+    }
+    /// <summary>Each row of the home page: shown or not, and two arrows to move it; the arrow pressed keeps the focus.</summary>
+    private void DrawHome(string? focus = null)
+    {
+        var settings = Shell.Settings;
+        var rows = HomeLayout.Rows(settings.HomeRows, _libraries);
+        Control? focused = null;
+        void Apply(string value, string key, string part) { settings.HomeRows = value; Save(); DrawHome(key + part); }
+        var controls = rows.Select((row, i) =>
+        {
+            var shown = new ToggleSwitch { IsChecked = row.Shown, OnContent = null, OffContent = null, MinWidth = 0 };
+            Avalonia.Automation.AutomationProperties.SetName(shown, "Afficher « " + row.Title + " »");
+            shown.IsCheckedChanged += (_, _) => Apply(HomeLayout.Show(settings.HomeRows, _libraries, row.Key, shown.IsChecked == true), row.Key, "shown");
+            var up = Ui.IconButton("up", "Monter « " + row.Title + " »", () => Apply(HomeLayout.Move(settings.HomeRows, _libraries, row.Key, -1), row.Key, i == 1 ? "down" : "up"), "icon", 18);
+            var down = Ui.IconButton("down", "Descendre « " + row.Title + " »", () => Apply(HomeLayout.Move(settings.HomeRows, _libraries, row.Key, 1), row.Key, i == rows.Count - 2 ? "up" : "down"), "icon", 18);
+            up.IsEnabled = i > 0; down.IsEnabled = i < rows.Count - 1;
+            if (focus == row.Key + "shown") focused = shown; else if (focus == row.Key + "up") focused = up; else if (focus == row.Key + "down") focused = down;
+            return Row(row.Title, HomeLayout.Detail(row), Ui.Row(8, shown, up, down));
+        }).ToList();
+        controls.Add(Row("Ordre de Mira", "Les rangées de départ, dans leur ordre.", Ui.Action("Rétablir", "refresh", "", () => { settings.HomeRows = ""; Save(); DrawHome(); })));
+        _home.Content = Section("Accueil", [.. controls]);
+        focused?.Focus();
+    }
     private static async Task ShowWhenEnabledAsync(JellyfinClient client, Control section)
     {
         try { section.IsVisible = await client.QuickConnectEnabledAsync(); }

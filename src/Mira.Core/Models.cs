@@ -200,6 +200,8 @@ public sealed class PlayerSettings
     public string PosterDensity { get; set; } = "Comfortable";
     public bool RememberPosition { get; set; } = true;
     public bool HeroAutoPlay { get; set; } = true;
+    /// <summary>« Accueil à ta main »: the home page's rows, in order, « - » before one put away (<see cref="HomeLayout"/>); empty: as Mira shows them.</summary>
+    public string HomeRows { get; set; } = "";
     /// <summary>Checks GitHub for new versions, downloads them and installs them when Mira closes. On the Mac: asks GitHub at
     /// each launch and says when one is out (« Rechercher les nouvelles versions »).</summary>
     public bool AutoUpdate { get; set; } = true;

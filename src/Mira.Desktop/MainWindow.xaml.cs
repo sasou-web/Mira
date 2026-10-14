@@ -293,7 +293,7 @@ public partial class MainWindow : Window
             if (ReferenceEquals(store, _store)) { _catalog.RecentPlayback = history ?? []; _catalog.HiddenResume = hidden ?? []; }
             if (cached is not null && ReferenceEquals(store, _store)) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; _catalog.Resume = cachedResume ?? []; _catalog.Loading = false; RenderLibrary(); }
             await RefreshAsync();
-            var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear();
+            var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
             _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = "Toutes les bibliothèques", Tag = "" }); LibraryFilter.SelectedIndex = 0;
             foreach (var library in libraries.Where(x => !LibrarySection.Groups(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
             _filterBusy = false;
@@ -335,7 +335,7 @@ public partial class MainWindow : Window
         _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
-        _catalog.RecentPlayback = []; _catalog.HiddenResume = [];
+        _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _homeLibraries = [];
         // Another account, the demo or none: this one's offline state is not theirs.
         _offlineShown = false; OfflineBadge.Visibility = Visibility.Collapsed;
     }
@@ -414,21 +414,23 @@ public partial class MainWindow : Window
             var browse = client.BrowseAsync(_catalog.Types, _catalog.ParentId, search, more ? _catalog.Items.Count : 0, !home && _catalog.Favorites, ct, filters, limit);
             Task<ItemsResult>? resume = home ? client.ResumeAsync(ct) : null;
             Task<ItemsResult>? next = home ? client.NextUpAsync(ct) : null;
+            var shelving = home ? LoadShelvesAsync(client, ct) : null;
             var result = await browse;
-            if (home) { await Task.WhenAll(resume!, next!); await _seasonThumbs.LoadAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
+            if (home) { await Task.WhenAll(resume!, next!, shelving!); await _seasonThumbs.LoadAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
             var resumeItems = home ? resume!.Result.Items : null;
+            var shelves = home ? shelving!.Result : null;
             List<MediaItem>? recent = null; var seasonThumbs = _seasonThumbs.Snapshot();
             // SQLite work stays off the UI thread; the page only redraws when it is done.
             await Task.Run(() => TryCache(() =>
             {
                 store.ApplyLocalProgress(result.Items);
-                if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); _seasonThumbs.Apply(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); store.Save("home", result); store.Save("resume", resumeItems); }
+                if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); _seasonThumbs.Apply(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); foreach (var shelf in shelves!.Values) store.ApplyLocalProgress(shelf); store.Save("home", result); store.Save("resume", resumeItems); }
                 else if (!more && search.Length == 0) store.Save(key, result);
             }), CancellationToken.None);
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
             _catalog.Receive(result, more);
-            if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? [])); }
+            if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? [])); }
             _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; RenderLibrary();
             // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.
             if (_sync is { PendingCount: > 0 } sync) sync.Wake();

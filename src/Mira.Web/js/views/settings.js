@@ -7,6 +7,7 @@ import { resetScreens, replaceRoute } from '../app.js';
 import { installHint } from './login.js';
 import { appleNative } from '../player/video.js';
 import { AUDIO_LANGUAGES, SUBTITLE_LANGUAGES } from '../player/tracks.js';
+import { homeRows, moveRow, showRow } from '../home-rows.js';
 
 export const QUALITIES = [
   ['auto', 'Automatique', 'Pleine qualité à la maison, adaptée à la connexion ailleurs'],
@@ -42,12 +43,13 @@ export function create() {
 
   // The account and the server, once Jellyfin has said: kept for the next times the screen is drawn. quick: Quick
   // Connect on this server, for « Autoriser un appareil ».
-  let user = null, info = null, quick = false, drawn = '';
+  // libraries: for « Nouveau dans … » on the home page.
+  let user = null, info = null, quick = false, libraries = [], drawn = '';
   // What the screen shows: drawn again only when one of these changed (coming back to the tab, Jellyfin's answer).
-  const SHOWN = ['quality', 'autoNext', 'resume', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer', 'textSize'];
+  const SHOWN = ['quality', 'autoNext', 'resume', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer', 'textSize', 'homeRows'];
   function render() {
     const current = session.current ?? {};
-    const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, info?.Version, quick]);
+    const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, info?.Version, quick, libraries.map((x) => x.Id + x.Name)]);
     if (signature === drawn) return;
     drawn = signature;
     const quality = QUALITIES.find(([k]) => k === settings.get('quality')) ?? QUALITIES[0];
@@ -99,6 +101,10 @@ export function create() {
           : null),
       h('p', { class: 'group-note' }, 'Les langues choisissent les pistes au début de chaque titre, comme Mira sur Windows et Mac. Sur la fiche d’un titre, « Audio et sous-titres » en choisit d’autres : Mira les retient pour les épisodes suivants de la série.'),
 
+      h('h2', { class: 'label group-title' }, 'Accueil'),
+      h('div', { class: 'group' }, choice('Rangées de l’accueil', homeSummary(), homeEditor)),
+      h('p', { class: 'group-note' }, 'Choisis l’ordre des rangées et celles qui s’affichent, comme sur Mira pour Windows et Mac, sur cet appareil.'),
+
       h('h2', { class: 'label group-title' }, 'Cet appareil'),
       h('div', { class: 'group' },
         choice('Taille du texte', textSize[1], () => sheet({
@@ -126,6 +132,42 @@ export function create() {
 
       h('p', { class: 'about' }, `Mira ${VERSION}`, info?.Version ? ` · Jellyfin ${info.Version}` : ''),
       h('p', { class: 'about' }, 'Ta progression est enregistrée sur ton serveur Jellyfin : elle te suit sur Mira pour Windows et pour Mac.'));
+  }
+
+  // « Accueil à ta main »: how many rows show, then each row with its switch and its arrows.
+  function homeSummary() {
+    const shown = homeRows(settings.get('homeRows'), libraries).filter((x) => x.shown).length;
+    return shown ? `${shown} rangée${shown > 1 ? 's' : ''}` : 'Aucune';
+  }
+  function homeEditor() {
+    const list = h('div', { class: 'group home-rows' });
+    const save = (value, focus) => {
+      settings.set('homeRows', value); draw(); render();
+      // The arrow pressed stays under the finger or the keyboard, on the row it moved.
+      if (focus) list.querySelector(`[data-key="${CSS.escape(focus[0])}"] .${focus[1]}`)?.focus();
+    };
+    const draw = () => {
+      const rows = homeRows(settings.get('homeRows'), libraries);
+      list.replaceChildren(...rows.map((row, i) => h('div', { class: 'item home-row', dataset: { key: row.key } },
+        h('button', {
+          class: 'grow home-switch', role: 'switch', 'aria-checked': String(row.shown),
+          on: { click: () => save(showRow(settings.get('homeRows'), libraries, row.key, !row.shown), [row.key, 'home-switch']) },
+        }, h('span', { class: 'grow' }, row.title), h('span', { class: 'switch', 'aria-hidden': 'true' })),
+        h('button', {
+          class: 'round flat up', 'aria-label': `Monter « ${row.title} »`, disabled: i === 0,
+          on: { click: () => save(moveRow(settings.get('homeRows'), libraries, row.key, -1), [row.key, i === 1 ? 'down' : 'up']) },
+        }, icon('up', { size: 20 })),
+        h('button', {
+          class: 'round flat down', 'aria-label': `Descendre « ${row.title} »`, disabled: i === rows.length - 1,
+          on: { click: () => save(moveRow(settings.get('homeRows'), libraries, row.key, 1), [row.key, i === rows.length - 2 ? 'up' : 'down']) },
+        }, icon('down', { size: 20 })))));
+    };
+    draw();
+    const reset = h('button', { class: 'btn quiet small', on: { click: () => save('') } }, 'Revenir à l’ordre de Mira');
+    sheet({
+      title: 'Rangées de l’accueil',
+      body: h('div', { class: 'sheet-form' }, list, h('p', { class: 'group-note' }, '« Nouveau dans … » montre les derniers titres d’une de tes bibliothèques.'), reset),
+    });
   }
 
   // Quick Connect: the code another device shows (Mira web on a phone, a TV), approved here for this account.
@@ -160,8 +202,8 @@ export function create() {
 
   let photo = null;
   render();
-  Promise.all([api.me().catch(() => null), api.publicInfo().catch(() => null), api.quickConnectEnabled()])
-    .then(([me, server, on]) => { user = me; info = server; quick = on; render(); });
+  Promise.all([api.me().catch(() => null), api.publicInfo().catch(() => null), api.quickConnectEnabled(), api.libraries().catch(() => [])])
+    .then(([me, server, on, views]) => { user = me; info = server; quick = on; libraries = views; render(); });
   // A setting changed elsewhere (the quality, in Mira's player) shows when the screen comes back.
   return { el, title: 'Réglages', keep: true, enter: () => render() };
 }

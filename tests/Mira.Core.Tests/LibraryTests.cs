@@ -100,6 +100,35 @@ internal static class LibraryTests
             store.Acknowledge(store.Peek()!.Id); Assert(store.MergeResume([], store.RecentPlayback()).Count == 0, "Acknowledged old history overrode the server");
             return Task.CompletedTask;
         });
+        await Test("Accueil à ta main : rangées dans l’ordre choisi, masquées, nouvelles bibliothèques à la suite, comme Mira web (tests/fixtures/home.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "home.json")));
+            var libraries = fixture.RootElement.GetProperty("libraries").EnumerateArray()
+                .Select(x => new LibrarySection(x.GetProperty("Id").GetString()!, x.GetProperty("Name").GetString()!, x.GetProperty("CollectionType").GetString())).ToList();
+            static string Line(IEnumerable<HomeLayout.Row> rows) => string.Join(" ", rows.Select(x => (x.Shown ? "" : "-") + x.Key));
+            foreach (var row in fixture.RootElement.GetProperty("rows").EnumerateArray())
+            {
+                var expected = string.Join(" ", row[1].EnumerateArray().Select(x => x.GetString()));
+                var actual = Line(HomeLayout.Rows(row[0].GetString(), libraries));
+                Assert(actual == expected, $"« {row[0]} »: {actual}");
+            }
+            var all = HomeLayout.Rows("", libraries);
+            foreach (var row in fixture.RootElement.GetProperty("titles").EnumerateArray())
+                Assert(all.FirstOrDefault(x => x.Key == row[0].GetString())?.Title == row[1].GetString(), $"Title of {row[0]}");
+            Assert(all.First(x => x.Key == "library:a1").LibraryId == "a1", "Library id");
+            foreach (var row in fixture.RootElement.GetProperty("moves").EnumerateArray())
+            {
+                var moved = HomeLayout.Move(row[0].GetString(), libraries, row[1].GetString()!, row[2].GetInt32());
+                Assert(moved == row[3].GetString(), $"« {row[0]} » {row[1]} {row[2]}: {moved}");
+            }
+            foreach (var row in fixture.RootElement.GetProperty("shows").EnumerateArray())
+            {
+                var shown = HomeLayout.Show(row[0].GetString(), libraries, row[1].GetString()!, row[2].GetBoolean());
+                Assert(shown == row[3].GetString(), $"« {row[0]} » {row[1]} {row[2]}: {shown}");
+            }
+            return Task.CompletedTask;
+        });
         await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro", async () =>
         {
             var removed = DateTimeOffset.UtcNow.AddHours(-1);
