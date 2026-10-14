@@ -140,6 +140,32 @@ internal static class TorLinkTests
             Assert(reopened.Entries.Count == 3 && reopened.Baseline == importer.Baseline && reopened.Find(Id('b'))!.Files.Count == 1, "The import log was not kept");
             Assert(!File.ReadAllText(Path.Combine(profile, "torlink-imports.json")).Contains("magnet:"), "Mira stored a magnet link");
         });
+        await Test("TorLink : rangement automatique, dossiers choisis puis trouvés, tour redemandé et messages", async () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-placement"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+            var downloads = Path.Combine(dir, "downloads"); var films = Path.Combine(dir, "FILMS");
+            foreach (var folder in new[] { state.ConfigDirectory, state.DataDirectory, downloads, films }) Directory.CreateDirectory(folder);
+            File.WriteAllText(state.ConfigFile, JsonSerializer.Serialize(new { downloadDir = downloads }));
+            using var torlink = new TorLinkPlacement(state, new TorLinkImporter(Path.Combine(dir, "profile")));
+            var id = new string('d', 40); var at = torlink.Importer.Baseline.AddSeconds(5).ToUnixTimeMilliseconds();
+            File.WriteAllText(state.HistoryFile, JsonSerializer.Serialize(new[] { new { id, name = "Placed.Film.2004.mkv", source = "yts", sizeBytes = 10, dir = downloads, completedAt = at } }));
+            File.WriteAllBytes(Path.Combine(downloads, "Placed.Film.2004.mkv"), new byte[10]);
+            var rounds = 0;
+            await torlink.PlaceAsync(() => (true, ImportMode.KeepSeeding), () => { rounds++; return Task.CompletedTask; }, CancellationToken.None);
+            Assert(rounds == 0 && torlink.Importer.Entries.Count == 0, "Placed before Jellyfin's folders were looked for");
+            await torlink.DetectLibrariesAsync(null, CancellationToken.None);
+            Assert(torlink.Ready && torlink.Choose("", " ", "") == false && torlink.Summary(true).StartsWith("Choisis", StringComparison.Ordinal), "No folder found nor chosen");
+            Assert(torlink.Choose(" " + films + " ", "", "") && torlink.Libraries == new MediaLibraries(films, null, null) && !torlink.Choose(films, "", ""), "Chosen folder, trimmed, changes once");
+            Assert(torlink.Summary(true) == "Rangement automatique. Dossier Séries à choisir dans Réglages → TorLink." && torlink.Summary(false).StartsWith("Rangement automatique désactivé", StringComparison.Ordinal), "Summary line");
+            Assert(torlink.PlacementDue(), "A new history is not due");
+            await torlink.PlaceAsync(() => (true, ImportMode.KeepSeeding), async () => { if (rounds++ == 0) await torlink.PlaceAsync(() => (true, ImportMode.KeepSeeding), () => Task.CompletedTask, CancellationToken.None); }, CancellationToken.None);
+            Assert(rounds == 2, "A round asked for during another one runs after it, not at the same time: " + rounds);
+            var entry = torlink.Importer.Find(id);
+            Assert(entry is { State: TorLinkImportState.Imported } && File.Exists(Path.Combine(films, "Placed Film (2004)", "Placed Film (2004).mkv")) && !torlink.PlacementDue(), "The download was not placed");
+            Assert(torlink.FirstOutcome(entry!) && !torlink.FirstOutcome(entry!) && !torlink.FirstOutcome(entry! with { State = TorLinkImportState.Waiting }), "One message per outcome");
+            Assert(TorLinkPlacement.Outcome(entry!) == "« Placed Film (2004) » rejoint Films. Jellyfin l’ajoute à la bibliothèque." && TorLinkPlacement.DetailOf(entry!).StartsWith("Films · rangé", StringComparison.Ordinal), "Outcome: " + TorLinkPlacement.Outcome(entry!));
+            Assert(TorLinkPlacement.Outcome(entry! with { JellyfinId = "j" }) == "« Placed Film (2004) » est disponible dans ta bibliothèque." && TorLinkPlacement.Outcome(entry! with { State = TorLinkImportState.Ignored }) is null, "Available or ignored");
+        });
         await Test("TorLink : dossier de téléchargement sur le disque de la bibliothèque, choisi seulement si TorLink n’en a pas", () =>
         {
             var dir = Path.Combine(testRoot, "torlink-drive"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

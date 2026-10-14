@@ -25,15 +25,12 @@ public partial class MainWindow
     // A terminal still not drawn after this delay gets a way out instead of an endless « Ouverture de TorLink… ».
     private readonly DispatcherTimer _torlinkStartWatch = new() { Interval = TimeSpan.FromSeconds(20) };
     private readonly CancellationTokenSource _torlinkLifetime = new();
-    private readonly HashSet<string> _torlinkRequested = [], _torlinkAnnounced = [];
-    private TorLinkImporter? _torlinkImporter;
+    /// <summary>Finished downloads placed in the libraries and followed until Jellyfin has them; null while TorLink is off.</summary>
+    private TorLinkPlacement? _torlink;
+    private TorLinkImporter? _torlinkImporter => _torlink?.Importer;
     private TorLinkTerminal? _torlinkTerminal;
     private TorLinkInstallation? _torlinkInstallation;
-    private FileSystemWatcher? _torlinkWatcher;
-    private MediaLibraries _torlinkLibraries = new(null, null, null), _torlinkDetected = new(null, null, null);
-    private List<TorLinkCompletion> _torlinkEarlier = [];
-    private (DateTime Stamp, long Length) _torlinkHistoryStamp;
-    private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling, _torlinkLooked, _torlinkRefreshTried;
+    private bool _torlinkEnabled, _torlinkInstalling, _torlinkLooked, _torlinkRefreshTried;
     private string? _torlinkBlocker, _torlinkAction, _torlinkSecondary;
     // The copy "npx torlnk" left, used by Mira 0.7.4 and earlier: looked for once, only to explain why it is not used.
     private readonly Lazy<bool> _torlinkNpx = new(TorLinkInstallation.NpxCopyFound);
@@ -47,8 +44,9 @@ public partial class MainWindow
             && (!_args.Contains("--torlink-check") || TorLinkCheckIsolated());
         TorLinkNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
         if (!_torlinkEnabled) return;
-        _torlinkImporter = new TorLinkImporter(_profile.DirectoryPath);
-        _torlinkImporter.Changed += entry => Dispatcher.BeginInvoke(() => TorLinkEntryChanged(entry));
+        _torlink = new TorLinkPlacement(_torlinkState, new TorLinkImporter(_profile.DirectoryPath));
+        _torlink.Importer.Changed += entry => Dispatcher.BeginInvoke(() => TorLinkEntryChanged(entry));
+        _torlink.HistoryChanged += () => Dispatcher.BeginInvoke(QueueTorLinkImport);
         _torlinkDebounce.Tick += async (_, _) => { _torlinkDebounce.Stop(); await ProcessTorLinkAsync(); };
         _torlinkPoll.Tick += (_, _) => TorLinkPoll();
         _torlinkPoll.Start();
@@ -58,7 +56,7 @@ public partial class MainWindow
             if (_torlinkBlocker is null && _torlinkTerminal?.State is null or TerminalState.Idle or TerminalState.Starting)
                 ShowTorLinkPanel("info", "TorLink tarde à s’afficher", "Le terminal intégré ne répond pas encore. Réessayer recharge la page ; les téléchargements ne sont pas touchés.", "Réessayer", "reload");
         };
-        WatchTorLinkHistory();
+        _torlink.Watch();
     }
     /// <summary>The TorLink check only works inside its output folder: demo mode, and both --data and TORLINK_STATE_DIR in it.</summary>
     private bool TorLinkCheckIsolated()
@@ -77,162 +75,57 @@ public partial class MainWindow
 
     // ---- Automatic placement ------------------------------------------------------------------
 
-    /// <summary>TorLink rewrites history.json each time a download finishes: that is the signal to import.</summary>
-    private void WatchTorLinkHistory()
-    {
-        if (_torlinkWatcher is not null || !Directory.Exists(_torlinkState.DataDirectory)) return;
-        try
-        {
-            var watcher = new FileSystemWatcher(_torlinkState.DataDirectory) { NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size };
-            void Changed(string? name) { if (string.Equals(name, "history.json", StringComparison.OrdinalIgnoreCase)) Dispatcher.BeginInvoke(QueueTorLinkImport); }
-            watcher.Changed += (_, e) => Changed(e.Name); watcher.Created += (_, e) => Changed(e.Name); watcher.Renamed += (_, e) => Changed(e.Name);
-            watcher.EnableRaisingEvents = true;
-            _torlinkWatcher = watcher;
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException) { }
-    }
-
     private void QueueTorLinkImport() { if (!_torlinkEnabled) return; _torlinkDebounce.Stop(); _torlinkDebounce.Start(); }
 
     /// <summary>Safety net for missed file events, retries of downloads still waiting, and Jellyfin availability.</summary>
     private void TorLinkPoll()
     {
-        WatchTorLinkHistory();
-        if (HistoryStamp() != _torlinkHistoryStamp || _torlinkImporter?.Entries.Any(x => x.State == TorLinkImportState.Waiting) == true) QueueTorLinkImport();
+        _torlink?.Watch();
+        if (_torlink?.PlacementDue() == true) QueueTorLinkImport();
         _ = CheckTorLinkAvailabilityAsync();
-    }
-
-    private (DateTime, long) HistoryStamp()
-    {
-        try { var file = new FileInfo(_torlinkState.HistoryFile); return file.Exists ? (file.LastWriteTimeUtc, file.Length) : default; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return default; }
     }
 
     /// <summary>Library folders: manual choices first, otherwise the Jellyfin libraries this PC can reach.</summary>
     private async Task RefreshTorLinkLibrariesAsync()
     {
-        if (!_torlinkEnabled) return;
-        List<VirtualFolder>? folders = null;
-        if (_client is { } client && !_demo)
-        {
-            try { folders = await client.VirtualFoldersAsync(_torlinkLifetime.Token); }
-            catch (Exception ex) when (IsExpected(ex)) { }
-        }
-        // A remote or containerised server may describe paths this PC does not have: those are not used.
-        var detected = MediaLibraries.FromJellyfin(folders);
-        _torlinkDetected = await Task.Run(() => new MediaLibraries(Reachable(detected.Movies), Reachable(detected.Series), Reachable(detected.Anime)));
-        _torlinkReady = true;
+        if (!_torlinkEnabled || _torlink is not { } torlink) return;
+        await torlink.DetectLibrariesAsync(_demo ? null : _client, _torlinkLifetime.Token);
         ApplyTorLinkLibraries(force: true);
     }
 
     private void ApplyTorLinkLibraries(bool force = false)
     {
-        var previous = _torlinkLibraries;
-        _torlinkLibraries = new(Manual(_settings.TorLinkMoviesFolder) ?? _torlinkDetected.Movies, Manual(_settings.TorLinkSeriesFolder) ?? _torlinkDetected.Series, Manual(_settings.TorLinkAnimeFolder) ?? _torlinkDetected.Anime);
+        if (_torlink is not { } torlink) return;
+        var changed = torlink.Choose(_settings.TorLinkMoviesFolder, _settings.TorLinkSeriesFolder, _settings.TorLinkAnimeFolder);
         RenderTorLinkImports();
-        if (force || _torlinkLibraries != previous) QueueTorLinkImport();
-    }
-
-    private static string? Manual(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static string? Reachable(string? path)
-    {
-        try { return path is not null && Directory.Exists(path) ? path : null; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return null; }
+        if (force || changed) QueueTorLinkImport();
     }
 
     private async Task ProcessTorLinkAsync()
     {
-        if (_torlinkImporter is not { } importer || !_torlinkReady || _torlinkLifetime.IsCancellationRequested) return;
-        if (_torlinkBusy) { _torlinkAgain = true; return; }
-        _torlinkBusy = true;
-        try
-        {
-            do
-            {
-                _torlinkAgain = false;
-                _torlinkHistoryStamp = HistoryStamp();
-                var libraries = _torlinkLibraries; var automatic = _settings.TorLinkAutoImport; var token = _torlinkLifetime.Token;
-                var mode = _settings.TorLinkKeepShared ? ImportMode.KeepSeeding : ImportMode.Move;
-                var requested = _torlinkRequested.ToList(); _torlinkRequested.Clear();
-                var state = _torlinkState;
-                // File work stays on the thread pool: a copy never slows the interface or the video.
-                _torlinkEarlier = await Task.Run(async () =>
-                {
-                    await importer.ProcessAsync(state, libraries, mode, automatic, requested, token);
-                    var known = importer.Entries.Select(x => x.Id).ToHashSet();
-                    return (state.ReadHistory() ?? []).Where(x => !known.Contains(x.Id)).Take(5).ToList();
-                }, token);
-                RenderTorLinkImports();
-                await NotifyTorLinkAsync();
-            } while (_torlinkAgain && !_torlinkLifetime.IsCancellationRequested);
-        }
-        catch (OperationCanceledException) { }
-        finally { _torlinkBusy = false; }
+        if (_torlink is not { } torlink) return;
+        await torlink.PlaceAsync(() => (_settings.TorLinkAutoImport, _settings.TorLinkKeepShared ? ImportMode.KeepSeeding : ImportMode.Move),
+            async () => { RenderTorLinkImports(); if (_client is { } client && !_demo) await torlink.NotifyAsync(client, _torlinkLifetime.Token); }, _torlinkLifetime.Token);
     }
 
-    private void RequestTorLinkImport(string id) { _torlinkRequested.Add(id); _ = ProcessTorLinkAsync(); }
+    private void RequestTorLinkImport(string id) { _torlink?.Request(id); _ = ProcessTorLinkAsync(); }
 
-    /// <summary>Tells Jellyfin where new titles arrived; its own folder monitor would find them too, a little later.</summary>
-    private async Task NotifyTorLinkAsync()
-    {
-        if (_client is not { } client || _demo || _torlinkImporter is not { } importer) return;
-        foreach (var entry in importer.Entries.Where(x => !x.Notified && x.State is TorLinkImportState.Imported or TorLinkImportState.Partial && x.Folders.Count > 0).Take(10).ToList())
-        {
-            try { if (await client.ReportMediaChangedAsync(entry.Folders, ct: _torlinkLifetime.Token)) importer.MarkNotified(entry.Id); }
-            catch (OperationCanceledException) { return; }
-        }
-    }
-
-    /// <summary>Finds the imported titles Jellyfin has indexed, by their exact file paths: one request for all of them.</summary>
     private async Task CheckTorLinkAvailabilityAsync()
     {
-        if (_torlinkChecking || _client is not { } client || _demo || _torlinkImporter is not { } importer) return;
-        var pending = importer.Entries.Where(x => x.JellyfinId is null && x.State is TorLinkImportState.Imported or TorLinkImportState.Partial
-            && DateTimeOffset.UtcNow - x.UpdatedAt < TimeSpan.FromHours(6) && x.Files.Any(f => f.Role == "video")).Take(20).ToList();
-        if (pending.Count == 0) return;
-        _torlinkChecking = true;
-        try
-        {
-            var found = await client.FindIndexedAsync(pending.SelectMany(x => x.Files.Where(f => f.Role == "video").Select(f => f.Destination)).ToList(), _torlinkLifetime.Token);
-            foreach (var entry in pending)
-                if (entry.Files.Where(f => f.Role == "video").Select(f => found.GetValueOrDefault(f.Destination)).FirstOrDefault(x => x is not null) is { } id)
-                    importer.MarkAvailable(entry.Id, id);
-        }
-        catch (Exception ex) when (IsExpected(ex)) { }
-        finally { _torlinkChecking = false; }
+        if (_client is { } client && !_demo && _torlink is { } torlink) await torlink.FindIndexedAsync(client, _torlinkLifetime.Token);
     }
 
     private void TorLinkEntryChanged(TorLinkImportEntry entry)
     {
         RenderTorLinkImports();
-        if (entry.State is TorLinkImportState.Importing or TorLinkImportState.Waiting) return;
-        // One message per outcome, not one per step.
-        if (!_torlinkAnnounced.Add($"{entry.Id}:{entry.State}:{entry.JellyfinId is not null}")) return;
+        if (_torlink?.FirstOutcome(entry) != true) return;
         if (TorLinkOverlay.Visibility != Visibility.Visible && entry.State is TorLinkImportState.Imported or TorLinkImportState.Partial) TorLinkBadge.Visibility = Visibility.Visible;
-        var text = entry.State switch
-        {
-            TorLinkImportState.Imported when entry.JellyfinId is not null => $"« {TitleOf(entry)} » est disponible dans ta bibliothèque.",
-            TorLinkImportState.Imported => $"« {TitleOf(entry)} » rejoint {KindName(entry.Kind)}. Jellyfin l’ajoute à la bibliothèque.",
-            TorLinkImportState.Partial => $"« {TitleOf(entry)} » : une partie des fichiers est rangée. Détails dans TorLink.",
-            TorLinkImportState.Conflict => $"« {TitleOf(entry)} » est déjà dans la bibliothèque : rien n’a été remplacé.",
-            TorLinkImportState.Failed => $"« {TitleOf(entry)} » n’a pas pu être rangé. Détails dans TorLink.",
-            TorLinkImportState.Blocked => "TorLink : choisis les dossiers de ta bibliothèque dans Réglages → TorLink.",
-            _ => null
-        };
-        if (text is not null && !_playing) SetNotice(text);
+        if (TorLinkPlacement.Outcome(entry) is { } text && !_playing) SetNotice(text);
     }
 
     private async Task ReclassifyTorLinkAsync(string id, MediaKind kind)
     {
-        if (_torlinkImporter is not { } importer) return;
-        var libraries = _torlinkLibraries; var token = _torlinkLifetime.Token;
-        try
-        {
-            var (entry, left) = await Task.Run(() => importer.ReclassifyAsync(id, kind, libraries, token), token);
-            if (entry is { State: TorLinkImportState.Imported or TorLinkImportState.Partial } && _client is { } client && !_demo
-                && await client.ReportMediaChangedAsync(entry.Folders, left, token)) importer.MarkNotified(entry.Id);
-        }
-        catch (OperationCanceledException) { }
+        if (_torlink is { } torlink) await torlink.ReclassifyAsync(id, kind, _demo ? null : _client, _torlinkLifetime.Token);
     }
 
     // ---- Page -----------------------------------------------------------------------------------
@@ -409,8 +302,7 @@ public partial class MainWindow
     /// </summary>
     private void PrepareTorLinkStart()
     {
-        if (_torlinkImporter is { } importer && importer.MovedSeeds() is { Count: > 0 } moved) importer.MarkSeedPaused(_torlinkState.PauseSeeds(moved));
-        if (_torlinkReady && TorLinkState.DownloadFolderBeside(_torlinkLibraries, _torlinkState.DownloadDirectory()) is { } folder && _torlinkState.ChooseDownloadDirectory(folder))
+        if (_torlink?.PrepareStart() is { } folder)
             SetNotice($"TorLink télécharge dans « {folder} », sur le disque de ta bibliothèque : chaque fichier terminé y est déplacé sans copie.");
     }
 
@@ -538,7 +430,7 @@ public partial class MainWindow
     private async Task StopTorLinkAsync()
     {
         _torlinkLifetime.Cancel(); _torlinkPoll.Stop(); _torlinkDebounce.Stop(); _torlinkStartWatch.Stop();
-        _torlinkWatcher?.Dispose(); _torlinkWatcher = null;
+        _torlink?.Dispose();
         if (_torlinkTerminal is { } terminal)
         {
             _torlinkTerminal = null;
@@ -551,22 +443,12 @@ public partial class MainWindow
 
     private void RenderTorLinkImports()
     {
-        if (_torlinkImporter is not { } importer || TorLinkImports is null) return;
-        TorLinkImportSummary.Text = ImportSummary();
+        if (_torlink is not { } torlink || TorLinkImports is null) return;
+        TorLinkImportSummary.Text = torlink.Summary(_settings.TorLinkAutoImport);
         TorLinkImports.Children.Clear();
-        foreach (var entry in importer.Entries.Take(40)) TorLinkImports.Children.Add(ImportRow(entry));
-        foreach (var earlier in _torlinkEarlier) TorLinkImports.Children.Add(EarlierRow(earlier));
+        foreach (var entry in torlink.Importer.Entries.Take(40)) TorLinkImports.Children.Add(ImportRow(entry));
+        foreach (var earlier in torlink.Earlier) TorLinkImports.Children.Add(EarlierRow(earlier));
         TorLinkImportsEmpty.Visibility = TorLinkImports.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private string ImportSummary()
-    {
-        var libraries = _torlinkLibraries;
-        var missing = new[] { ("Films", libraries.RootFor(MediaKind.Movie)), ("Séries", libraries.RootFor(MediaKind.Series)) }.Where(x => x.Item2 is null).Select(x => x.Item1).ToList();
-        if (!_settings.TorLinkAutoImport) return "Rangement automatique désactivé : « Importer » range un téléchargement à la demande.";
-        if (missing.Count == 2) return "Choisis les dossiers de ta bibliothèque dans Réglages → TorLink pour ranger les téléchargements.";
-        if (missing.Count == 1) return $"Rangement automatique. Dossier {missing[0]} à choisir dans Réglages → TorLink.";
-        return libraries.Anime is null ? "Rangement automatique dans Films et Séries (les animes rejoignent les séries)." : "Rangement automatique dans Films, Séries et Animes.";
     }
 
     private FrameworkElement ImportRow(TorLinkImportEntry entry)
@@ -604,10 +486,10 @@ public partial class MainWindow
             actions.Children.Add(classify);
         }
         var text = new StackPanel();
-        text.Children.Add(new TextBlock { Text = TitleOf(entry), FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Name });
-        text.Children.Add(new TextBlock { Text = DetailOf(entry), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        text.Children.Add(new TextBlock { Text = TorLinkPlacement.TitleOf(entry), FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Name });
+        text.Children.Add(new TextBlock { Text = TorLinkPlacement.DetailOf(entry), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         if (actions.Children.Count > 0) text.Children.Add(actions);
-        return Row(icon, color, text, menu, TitleOf(entry) + ", " + StatusOf(entry));
+        return Row(icon, color, text, menu, TorLinkPlacement.TitleOf(entry) + ", " + TorLinkPlacement.StatusOf(entry));
     }
 
     private FrameworkElement EarlierRow(TorLinkCompletion completion)
@@ -660,26 +542,5 @@ public partial class MainWindow
             Process.Start(new ProcessStartInfo("explorer.exe", arguments) { UseShellExecute = true })?.Dispose();
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { }
-    }
-
-    private static string TitleOf(TorLinkImportEntry entry) => entry.Title.Length > 0 ? entry.Title : entry.Name;
-    private static string KindName(MediaKind? kind) => kind switch { MediaKind.Movie => "Films", MediaKind.Series => "Séries", MediaKind.Anime => "Animes", _ => "la bibliothèque" };
-    private static string StatusOf(TorLinkImportEntry entry) => entry.State switch
-    {
-        TorLinkImportState.Waiting => "en attente des fichiers",
-        TorLinkImportState.Blocked => "dossier de bibliothèque à choisir",
-        TorLinkImportState.Importing => "rangement en cours…",
-        TorLinkImportState.Imported => entry.JellyfinId is not null ? "disponible dans Jellyfin" : entry.Notified ? "Jellyfin l’ajoute" : "rangé",
-        TorLinkImportState.Partial => "rangé en partie",
-        TorLinkImportState.Conflict => "déjà dans la bibliothèque",
-        TorLinkImportState.Failed => "échec",
-        _ => "ignoré"
-    };
-    private static string DetailOf(TorLinkImportEntry entry)
-    {
-        var status = StatusOf(entry);
-        var line = entry.Kind is { } kind && entry.State is not (TorLinkImportState.Ignored or TorLinkImportState.Waiting) ? $"{KindName(kind)} · {status}" : char.ToUpperInvariant(status[0]) + status[1..];
-        if (entry.Method is { } method && entry.State is TorLinkImportState.Imported or TorLinkImportState.Partial) line += " · " + method;
-        return entry.Message is { Length: > 0 } message ? line + "\n" + message : line;
     }
 }
