@@ -104,5 +104,7 @@
       <Setter Property="MinWidth" Value="150"/>
     </Style>
     <Style Selector="ScrollViewer"><Setter Property="AllowAutoHide" Value="True"/></Style>
+    <!-- No vertical bar, as on Windows: the wheel, the touchpad and the keys scroll a page. -->
+    <Style Selector="ScrollViewer /template/ ScrollBar#PART_VerticalScrollBar"><Setter Property="IsVisible" Value="False"/></Style>
   </Application.Styles>
 </Application>
