@@ -544,14 +544,18 @@ public sealed class PlayerPage : UserControl
     // —— Chapters, skippable passages and the next episode ——
     private void ResetMarkers()
     {
-        _skips.Reset(); _episodes = [];
+        _skips.Reset(); _episodes = []; _trickplay?.Dispose(); _trickplay = null; _timeline.SetPreview(null, null);
         _skip.IsVisible = false; _skipCancel.IsVisible = false; _timeline.SetChapters([]); _chapter.Text = "";
     }
     private async Task LoadMarkersAsync(Session session, MediaItem item, int generation)
     {
         try { var segments = await session.Client.SegmentsAsync(item.Id); if (generation == _generation) _skips.ServerSegments = PlaybackMarkers.FromJellyfin(segments); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
-        try { var chapters = await session.Client.ChaptersAsync(item.Id); if (generation == _generation) _skips.ServerChapters = PlaybackMarkers.FromJellyfin(chapters); }
+        try
+        {
+            var timeline = await session.Client.TimelineAsync(item.Id, _session.Source?.Id);
+            if (generation == _generation) { _skips.ServerChapters = PlaybackMarkers.FromJellyfin(timeline.Chapters); ShowTrickplay(session.Client, timeline.Trickplay); }
+        }
         catch (Exception ex) when (Errors.Expected(ex)) { }
         if (item.Type == "Episode" && item.SeriesId is { } series)
         {
@@ -570,6 +574,29 @@ public sealed class PlayerPage : UserControl
         _next.IsEnabled = _skips.Next is not null;
         ToolTip.SetTip(_next, _skips.Next is not { } next ? "Dernier épisode disponible" : "Épisode suivant · " + PlayerText.Subtitle(next, _episodes));
         Rebuild();
+    }
+    private TrickplayTiles<Avalonia.Media.Imaging.Bitmap>? _trickplay;
+    /// <summary>Jellyfin's trickplay pictures over the timeline, as on Windows and in Mira web.</summary>
+    private void ShowTrickplay(JellyfinClient client, TrickplaySet? set)
+    {
+        _trickplay?.Dispose(); _trickplay = null;
+        if (set is null) { _timeline.SetPreview(null, null); return; }
+        // Decoded no larger than the bubble shows on a Retina screen.
+        var width = (int)Math.Round(set.TilePixelWidth * Math.Min(1, 2.0 * TrickplaySet.Wanted / set.Info.Width));
+        var tiles = _trickplay = new TrickplayTiles<Avalonia.Media.Imaging.Bitmap>(set, (tile, ct) => client.TrickplayTileAsync(set, tile, ct), bytes => DecodeTile(bytes, width));
+        tiles.Loaded += _timeline.InvalidateVisual;
+        _timeline.SetPreview(set.Info.Width / (double)set.Info.Height, seconds =>
+        {
+            if (tiles.At(seconds) is not var (picture, cell)) return null;
+            var ratio = picture.PixelSize.Width / (double)set.TilePixelWidth;
+            var area = new Rect(cell.X * ratio, cell.Y * ratio, cell.Width * ratio, Math.Min(cell.Height * ratio, picture.PixelSize.Height - cell.Y * ratio));
+            return area.Height > 0 ? (picture, area) : null;
+        });
+    }
+    private static Avalonia.Media.Imaging.Bitmap? DecodeTile(byte[] bytes, int width)
+    {
+        try { using var stream = new MemoryStream(bytes); return Avalonia.Media.Imaging.Bitmap.DecodeToWidth(stream, width); }
+        catch (Exception ex) when (ex is IOException or ArgumentException or InvalidOperationException or NotSupportedException) { return null; }
     }
     /// <summary>File chapters first (the source), Jellyfin's chapter list otherwise; typed server segments win.</summary>
     private void Rebuild()

@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Mira.Core;
 using Mira.Desktop.Views;
 
@@ -20,7 +22,7 @@ public partial class MainWindow
     private bool SkipAvailable => _skipShown && _skips.Active is not null;
     private void ResetMarkers()
     {
-        _skips.Reset();
+        _skips.Reset(); _trickplay?.Dispose(); _trickplay = null;
         SeekBar.Reset(); SetSkipVisible(false, immediate: true); UpdateChapterText(0);
     }
     private void SkipCancel_Click(object sender, RoutedEventArgs e)
@@ -33,12 +35,16 @@ public partial class MainWindow
     {
         if (_demo || _client is not { } client) return;
         var segments = client.SegmentsAsync(item.Id);
-        var chapters = client.ChaptersAsync(item.Id);
+        var timeline = client.TimelineAsync(item.Id, _session.Source?.Id);
         var next = item.Type == "Episode" ? EpisodeContextAsync(item, quiet: true) : Task.FromResult<(MediaItem? Next, List<MediaItem> Episodes)>((null, []));
         // Older servers, or servers without a segment provider, simply have no markers.
         try { var result = await segments; if (generation == _playGeneration) _skips.ServerSegments = PlaybackMarkers.FromJellyfin(result); }
         catch (Exception ex) when (IsExpected(ex)) { }
-        try { var result = await chapters; if (generation == _playGeneration) _skips.ServerChapters = PlaybackMarkers.FromJellyfin(result); }
+        try
+        {
+            var result = await timeline;
+            if (generation == _playGeneration) { _skips.ServerChapters = PlaybackMarkers.FromJellyfin(result.Chapters); ShowTrickplay(client, result.Trickplay); }
+        }
         catch (Exception ex) when (IsExpected(ex)) { }
         var (following, episodes) = await next;
         if (generation != _playGeneration) return;
@@ -51,6 +57,41 @@ public partial class MainWindow
             if (episodes.Count > 0) PlayingSubtitle.Text = PlayerText.Subtitle(item, episodes);
         }
         RebuildSegments();
+    }
+    private TrickplayTiles<BitmapSource>? _trickplay;
+    private (int Tile, int X, int Y, BitmapSource Picture)? _trickplayShown;
+    /// <summary>Jellyfin's trickplay pictures over the timeline, as in Mira web: the moment pointed at, before jumping there.</summary>
+    private void ShowTrickplay(JellyfinClient client, TrickplaySet? set)
+    {
+        _trickplay?.Dispose(); _trickplay = null; _trickplayShown = null;
+        if (set is null) { SeekBar.SetPreview(null, null); return; }
+        // Decoded at the size the bubble shows: a whole tile is otherwise some 20 MB.
+        var scale = Math.Min(1, (double)TrickplaySet.Wanted / set.Info.Width);
+        var tiles = _trickplay = new TrickplayTiles<BitmapSource>(set, (tile, ct) => client.TrickplayTileAsync(set, tile, ct), bytes => DecodeTile(bytes, (int)Math.Round(set.TilePixelWidth * scale)));
+        tiles.Loaded += SeekBar.RefreshPreview;
+        SeekBar.SetPreview(set.Info.Width / (double)set.Info.Height, seconds =>
+        {
+            if (tiles.At(seconds) is not var (picture, cell)) return null;
+            if (_trickplayShown is { } shown && shown.Tile == cell.Tile && shown.X == cell.X && shown.Y == cell.Y) return shown.Picture;
+            var ratio = picture.PixelWidth / (double)set.TilePixelWidth;
+            var area = new Int32Rect((int)Math.Round(cell.X * ratio), (int)Math.Round(cell.Y * ratio), (int)Math.Round(cell.Width * ratio), (int)Math.Round(cell.Height * ratio));
+            // A tile whose last row Jellyfin cut short.
+            area.Width = Math.Min(area.Width, picture.PixelWidth - area.X); area.Height = Math.Min(area.Height, picture.PixelHeight - area.Y);
+            if (area.Width <= 0 || area.Height <= 0) return null;
+            var crop = new CroppedBitmap(picture, area); crop.Freeze();
+            _trickplayShown = (cell.Tile, cell.X, cell.Y, crop);
+            return crop;
+        });
+    }
+    private static BitmapSource? DecodeTile(byte[] bytes, int pixelWidth)
+    {
+        try
+        {
+            var image = new BitmapImage();
+            image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = new MemoryStream(bytes); image.DecodePixelWidth = pixelWidth; image.EndInit();
+            image.Freeze(); return image;
+        }
+        catch (Exception ex) when (ex is NotSupportedException or FileFormatException or IOException) { return null; }
     }
     private void LoadFileChapters()
     {
