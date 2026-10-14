@@ -21,6 +21,7 @@ import { presentationStep } from './presentation.js';
 import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, chapterPassages, withChapters, withoutFromStart } from './timeline.js';
 import { QUALITIES } from '../views/settings.js';
 import { sleep, sleepChoices } from './sleep.js';
+import { listen } from '../remote.js';
 
 // Forced subtitles (signs, foreign lines): Safari has the « forced » kind; elsewhere it reads as metadata, never drawn.
 const FORCED_KIND = (() => { try { const t = document.createElement('track'); t.kind = 'forced'; return t.kind === 'forced'; } catch { return false; } })();
@@ -894,6 +895,16 @@ export function create({ id, query }) {
   // Another server answers here (another network): the stream's addresses carry the session (signed), so the player
   // closes rather than ask it for one more piece; the screen over Mira says why (app.js).
   const unwatch = onForeignServer((yes) => { if (yes) close(); });
+  // Asked from another device (« Arrêter » in Mira for Windows, Jellyfin's dashboard).
+  const remote = listen({
+    playstate: (command) => {
+      if (closing || disposed) return;
+      if (command === 'Stop') { toast('Lecture arrêtée depuis un autre appareil.'); close(); }
+      else if (command === 'Pause') video.pause();
+      else if (command === 'Unpause') play();
+      else if (command === 'PlayPause') togglePlay();
+    },
+  });
 
   /**
    * Back to the title page, from Retour or from Apple's player once closed: at once, the stop going to Jellyfin on its
@@ -1041,7 +1052,7 @@ export function create({ id, query }) {
       removeEventListener('keydown', keys);
       document.removeEventListener('visibilitychange', onHide);
       removeEventListener('pagehide', onPageHide);
-      unwatch();
+      unwatch(); remote.close();
       for (const [name, fn] of Object.entries(on)) video.removeEventListener(name, fn);
       video.textTracks.removeEventListener('change', textTracksChanged);
       video.textTracks.removeEventListener('addtrack', trackAdded);

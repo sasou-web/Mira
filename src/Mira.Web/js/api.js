@@ -279,8 +279,25 @@ export const api = {
     recheckServer();
     session.set({ userId: result.User.Id, userName: result.User.Name, token: result.AccessToken, serverId: result.ServerId, serverName: info.ServerName ?? '' });
     // Lets Jellyfin's dashboard show what this phone can play.
-    post('Sessions/Capabilities', undefined, { playableMediaTypes: 'Video', supportsMediaControl: false }).catch(() => {});
+    api.capabilities();
     return result;
+  },
+  /**
+   * What this phone takes from elsewhere: video, and Stop or Pause while it plays (remote.js listens then). Told again
+   * as a title opens: Jellyfin forgets it when it restarts.
+   */
+  capabilities: () => post('Sessions/Capabilities', undefined, { playableMediaTypes: 'Video', supportsMediaControl: true }).catch(() => {}),
+  /**
+   * The address of Jellyfin's WebSocket for this session (its token in it, as Jellyfin 12.1 takes it: ApiKey), once the
+   * server is known to be the session's; null without a session.
+   */
+  async socketAddress() {
+    await trustServer();
+    const current = session.current;
+    if (!current?.token) return null;
+    const address = new URL(url('socket', { ApiKey: current.token, deviceId: device.id }), location.href);
+    address.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return address.href;
   },
 
   // Quick Connect, Jellyfin's sign-in by a code: this device shows six digits, a device already signed in approves

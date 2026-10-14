@@ -627,6 +627,45 @@ internal static class LibraryTests
             refuse = true;
             Assert(await client.SagasAsync() is null && !await client.EnableSagasAsync(), "Refused");
         });
+        await Test("En ce moment sur Jellyfin : qui regarde quoi, tel quel ou converti, sur quel matériel et pourquoi ; « Arrêter »", async () =>
+        {
+            // As Jellyfin 12.1 lists its sessions (Mira web converting a WebM, cut down), plus a friend on Tailscale playing
+            // the file as it is, this PC, and a session that plays nothing.
+            var sessions = """
+                [{"Id":"s-phone","UserName":"mira","Client":"Mira","DeviceName":"iPhone","DeviceId":"phone-1","RemoteEndPoint":"192.168.1.20","SupportsRemoteControl":true,
+                  "PlayState":{"PositionTicks":30058340,"IsPaused":false,"PlayMethod":"Transcode"},
+                  "TranscodingInfo":{"AudioCodec":"opus","VideoCodec":"vp9","IsVideoDirect":false,"IsAudioDirect":false,"Bitrate":1552384,"HardwareAccelerationType":"none","TranscodeReasons":["ContainerNotSupported","VideoCodecNotSupported","AudioCodecNotSupported"]},
+                  "NowPlayingItem":{"Name":"Signes Test (2022)","Type":"Movie","RunTimeTicks":450230000}},
+                 {"Id":"s-friend","UserName":"Léa","Client":"Jellyfin Web","DeviceName":"Firefox","DeviceId":"friend","RemoteEndPoint":"100.101.5.7","SupportsRemoteControl":false,
+                  "PlayState":{"PositionTicks":37230000000,"IsPaused":true,"PlayMethod":"DirectPlay"},
+                  "NowPlayingItem":{"Name":"Le départ","Type":"Episode","SeriesName":"Courte HLS","ParentIndexNumber":1,"IndexNumber":2,"RunTimeTicks":48000000000}},
+                 {"Id":"s-pc","UserName":"mira","Client":"Mira","DeviceName":"Windows","DeviceId":"device-1","RemoteEndPoint":"127.0.0.1","SupportsRemoteControl":true,
+                  "PlayState":{"PositionTicks":0,"PlayMethod":"Transcode"},
+                  "TranscodingInfo":{"AudioCodec":"aac","VideoCodec":"h264","IsVideoDirect":true,"IsAudioDirect":false,"HardwareAccelerationType":"nvenc","TranscodeReasons":["AudioCodecNotSupported","Bogus"]},
+                  "NowPlayingItem":{"Name":"Aube Test (2021)","Type":"Movie","RunTimeTicks":400230000}},
+                 {"Id":"s-idle","UserName":"mira","Client":"Mira","DeviceName":"iPad","DeviceId":"ipad"}]
+                """;
+            string? stopped = null; var refuse = false;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Sessions?activeWithinSeconds=960") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sessions, Encoding.UTF8, "application/json") });
+                if (path.StartsWith("/Sessions/", StringComparison.Ordinal) && path.EndsWith("/Playing/Stop", StringComparison.Ordinal) && request.Method == HttpMethod.Post)
+                { if (refuse) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)); stopped = path; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent)); }
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            var viewers = await client.ViewersAsync();
+            Assert(viewers.Count == 3 && viewers.Select(x => x.SessionId).SequenceEqual(["s-phone", "s-friend", "s-pc"]), "Playing only: " + string.Join(",", viewers.Select(x => x.SessionId)));
+            var (phone, friend, pc) = (viewers[0], viewers[1], viewers[2]);
+            Assert(Viewers.Who(phone) == "mira · iPhone · réseau de la maison" && Viewers.Who(friend) == "Léa · Firefox · Tailscale" && Viewers.Who(pc) == "ce PC", $"{Viewers.Who(phone)} | {Viewers.Who(friend)} | {Viewers.Who(pc)}");
+            Assert(Viewers.What(phone) == "Signes Test (2022) — 0:03 / 0:45" && Viewers.What(friend) == "Courte HLS · S1 É2 · Le départ — 1:02:03 / 1:20:00, en pause", $"{Viewers.What(phone)} | {Viewers.What(friend)}");
+            Assert(Viewers.How(phone) == ("Conversion : image en VP9, son en Opus, par le processeur · 1,6 Mb/s", "Pourquoi : format du fichier, codec vidéo, codec audio"), Viewers.How(phone).ToString());
+            Assert(Viewers.How(friend) == ("Lecture directe : le fichier tel quel", null) && Viewers.How(pc) == ("Conversion : image copiée, son en AAC", "Pourquoi : codec audio, Bogus"), $"{Viewers.How(friend)} | {Viewers.How(pc)}");
+            Assert(Viewers.How(phone with { Conversion = phone.Conversion! with { Hardware = "qsv" } }).How.EndsWith("par la carte graphique (Intel) · 1,6 Mb/s", StringComparison.Ordinal), "On the card");
+            Assert(phone.CanStop && !friend.CanStop && await client.StopViewerAsync("s-phone") && stopped == "/Sessions/s-phone/Playing/Stop", "Stop: " + stopped);
+            refuse = true;
+            Assert(!await client.StopViewerAsync("s-friend"), "Refused");
+        });
         await Test("Carte graphique : NVIDIA, puis Intel, puis AMD ; un adaptateur sans fabricant connu n’en propose aucune", () =>
         {
             var cards = GpuEncoding.Candidates(["Microsoft Basic Display Adapter", "AMD Radeon RX 6600", "Intel(R) UHD Graphics 770", null, " ", "NVIDIA GeForce RTX 3060", "NVIDIA GeForce GT 710", "Parsec Virtual Display Adapter"]);

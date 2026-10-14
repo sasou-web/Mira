@@ -83,6 +83,7 @@ public partial class MainWindow
         SettingsScroll.ScrollToTop();
         var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, _ => PlaybackSettings };
         SmoothScroll.Jump(SettingsScroll); Motion.Reveal(body, 230, 7);
+        WatchViewers(tab == "server");
     }
     private void LanguageChoice_Changed(object sender, SelectionChangedEventArgs e)
     {
