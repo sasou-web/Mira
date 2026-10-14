@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
@@ -50,12 +52,26 @@ public sealed class PlayerPage : UserControl
     private readonly SkipPlanner _skips = new();
     private readonly SleepTimer _sleep = new();
     private List<MediaItem> _episodes = [];
+    // « Regarder ensemble » (WatchGroup), for this playback.
+    // Arrow keys pressed in a row are one seek for the group.
+    private readonly DispatcherTimer _groupSeekSoon = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    private readonly DispatcherTimer _groupPlaySoon = new();
+    private double _groupPlayAt;
+    /// <summary>Loaded or moved for the group: Jellyfin hears « ready » once the picture is there.</summary>
+    private bool _groupReadyPending;
+    /// <summary>Until then, a seek that ends is one the group asked for, not one to send it.</summary>
+    private DateTimeOffset _groupQuietUntil;
+    private DateTimeOffset? _groupStallSince;
+    private bool _groupStalled;
+    private WatchGroup Group => _shell.Group;
     /// <summary>For the self-check.</summary>
     public MpvPlayer? Engine => _mpv;
     public IVideoSurface? Surface => _surface;
     /// <summary>Why the software view replaced OpenGL, when it did (diagnostics, self-check).</summary>
     public string? VideoFallback { get; private set; }
     public bool IsFileLoaded => _loaded;
+    /// <summary>Stopped, its file closed: between two episodes, or before it closes.</summary>
+    public bool IsStopped => _stopped;
     public double Position => _session.Position;
     public MediaItem? Item => _session.Item;
     public MediaItem? NextItem => _skips.Next;
@@ -129,6 +145,8 @@ public sealed class PlayerPage : UserControl
         _tick.Tick += (_, _) => Tick();
         _hide.Tick += (_, _) => { _hide.Stop(); SetControls(false); };
         _click.Tick += (_, _) => { _click.Stop(); TogglePause(); };
+        _groupSeekSoon.Tick += (_, _) => { _groupSeekSoon.Stop(); if (Group.PlaysFor(this)) Group.Send("Seek", new JsonObject { ["PositionTicks"] = WatchGroup.Ticks(_session.Position) }); };
+        _groupPlaySoon.Tick += (_, _) => { _groupPlaySoon.Stop(); if (Group.PlaysFor(this)) { MoveForGroup(_groupPlayAt); QuietPause(false); } };
         _videoHost.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(_videoHost).Properties.IsLeftButtonPressed) return;
@@ -147,8 +165,11 @@ public sealed class PlayerPage : UserControl
     };
 
     // —— Start and stop ——
-    /// <summary>Opens <paramref name="item"/> (a series: its next episode); false when it could not start.</summary>
-    public async Task<bool> StartAsync(MediaItem item, bool fromStart = false)
+    /// <summary>
+    /// Opens <paramref name="item"/> (a series: its next episode); false when it could not start. With
+    /// <paramref name="groupStart"/>, for the group: there, paused until Jellyfin says when to play.
+    /// </summary>
+    public async Task<bool> StartAsync(MediaItem item, bool fromStart = false, long? groupStart = null)
     {
         if (_shell.Session is not { } session) return false;
         var generation = ++_generation;
@@ -156,17 +177,7 @@ public sealed class PlayerPage : UserControl
         _spinner.IsVisible = true; ShowControls();
         try
         {
-            if (item.Type == "Series")
-            {
-                var next = await session.NextEpisodeAsync(item.Id);
-                if (next is null)
-                {
-                    var episodes = (await session.EpisodesAsync(item.Id)).Items;
-                    await Task.Run(() => session.Store.ApplyLocalProgress(episodes));
-                    next = episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? episodes.FirstOrDefault(x => !x.UserData.Played) ?? episodes.FirstOrDefault();
-                }
-                item = next ?? throw new IOException("Aucun épisode disponible.");
-            }
+            if (item.Type == "Series") item = await EpisodeOfAsync(session, item);
             var playback = await session.Client.PlaybackAsync(item.Id);
             var source = playback.MediaSources.FirstOrDefault() ?? throw new IOException("Aucune source lisible disponible.");
             string location; string? authorization = null;
@@ -175,13 +186,16 @@ public sealed class PlayerPage : UserControl
             else { location = session.Client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = session.Client.AuthorizationHeader; }
             if (generation != _generation) return false;
             _session.Begin(item, source, string.IsNullOrEmpty(playback.PlaySessionId) ? Guid.NewGuid().ToString("N") : playback.PlaySessionId,
-                PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart));
+                groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart));
             _title.Text = item.DisplayTitle; _subtitle.Text = PlayerText.Subtitle(item);
             _next.IsEnabled = false;
 
             await OpenEngineAsync();
             if (_mpv is null || generation != _generation) return false;
-            _mpv.Load(location, _session.Position, authorization);
+            // In a group: loaded paused, « ready » once there (GroupRestarted), played when Jellyfin says.
+            _groupReadyPending = groupStart is not null; _groupStallSince = null; _groupStalled = false;
+            if (groupStart is not null) { Group.SetAway(false); Group.Report("Buffering", _session.Position, false); }
+            _mpv.Load(location, _session.Position, authorization, paused: groupStart is not null);
             _session.LastReport = DateTimeOffset.Now;
             _tick.Start();
             _ = LoadMarkersAsync(session, item, generation);
@@ -195,6 +209,18 @@ public sealed class PlayerPage : UserControl
             return false;
         }
     }
+    /// <summary>The episode Lecture opens on a series: Jellyfin's next one, else one in progress, else the first unwatched.</summary>
+    public static async Task<MediaItem> EpisodeOfAsync(Session session, MediaItem series)
+    {
+        var next = await session.NextEpisodeAsync(series.Id);
+        if (next is null)
+        {
+            var episodes = (await session.EpisodesAsync(series.Id)).Items;
+            await Task.Run(() => session.Store.ApplyLocalProgress(episodes));
+            next = episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? episodes.FirstOrDefault(x => !x.UserData.Played) ?? episodes.FirstOrDefault();
+        }
+        return next ?? throw new IOException("Aucun épisode disponible.");
+    }
     /// <summary>mpv and the view it draws into: OpenGL, else (no OpenGL, or MIRA_SOFTWARE_VIDEO set) in software.</summary>
     private async Task OpenEngineAsync()
     {
@@ -202,7 +228,7 @@ public sealed class PlayerPage : UserControl
         var player = new MpvPlayer(_shell.Settings);
         _mpv = player;
         player.FileLoaded += FileLoaded;
-        player.PlaybackRestarted += () => _session.LastReport = DateTimeOffset.MinValue;
+        player.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
         var generation = _generation;
         player.Ended += eof => Dispatcher.UIThread.Post(() => _ = EndedAsync(eof, generation));
         player.Error += message => _session.Failure = message;
@@ -244,7 +270,7 @@ public sealed class PlayerPage : UserControl
     {
         if (_stopped) return;
         _stopped = true; ++_generation;
-        _tick.Stop(); _hide.Stop(); Cursor = Cursor.Default;
+        _tick.Stop(); _hide.Stop(); _groupSeekSoon.Stop(); _groupPlaySoon.Stop(); Cursor = Cursor.Default;
         SleepGuard.Set(false);
         var session = _shell.Session;
         if (_loaded && _mpv is not null && !completed) _session.Position = Reported(_mpv.Number("time-pos", _session.Position));
@@ -286,8 +312,29 @@ public sealed class PlayerPage : UserControl
     /// <summary>The next episode in this same player: the window stays as it is (fullscreen included).</summary>
     private async Task PlayNextAsync(MediaItem next, bool completed = false)
     {
+        var forGroup = Group.PlaysFor(this);
         await StopAsync(completed || _skips.ToNext && _skips.Active is not null);
+        if (forGroup)
+        {
+            // Jellyfin puts it on for the whole group, this Mac included (PlayForGroupAsync); the player waits for it.
+            if (await Group.AskAsync(next, fromStart: false)) { WaitForGroupTitle(); return; }
+            if (!await StartAsync(next, groupStart: Group.Queue?.StartTicks ?? 0)) await _shell.CloseOverlayPlayerAsync(this);
+            return;
+        }
         if (!await StartAsync(next)) await _shell.CloseOverlayPlayerAsync(this);
+    }
+    /// <summary>The group's next title, in this same player.</summary>
+    public async Task PlayForGroupAsync(MediaItem item, long start)
+    {
+        await StopAsync();
+        if (!await StartAsync(item, groupStart: start)) await _shell.CloseOverlayPlayerAsync(this);
+    }
+    /// <summary>Between two titles of the group: the player closes if Jellyfin never sends the next one.</summary>
+    private void WaitForGroupTitle()
+    {
+        _spinner.IsVisible = true; ShowControls();
+        var generation = _generation;
+        DispatcherTimer.RunOnce(() => { if (_stopped && generation == _generation && ReferenceEquals(_shell.Player, this)) _ = _shell.CloseOverlayPlayerAsync(this); }, TimeSpan.FromSeconds(8));
     }
 
     private async void FileLoaded()
@@ -333,7 +380,8 @@ public sealed class PlayerPage : UserControl
             _session.Position = Reported(mpv.Number("time-pos", _session.Position)); _session.Duration = mpv.Number("duration", _session.Duration);
             var paused = mpv.Flag("pause");
             SleepGuard.Set(!paused);
-            if (paused != _session.Paused) { _session.Paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _session.LastReport = DateTimeOffset.MinValue; }
+            if (paused != _session.Paused) { _session.Paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _session.LastReport = DateTimeOffset.MinValue; GroupPauseChanged(paused); }
+            WatchGroupStall(mpv);
             _timeline.SetPlayback(_session.Position, _session.Duration, mpv.Number("demuxer-cache-time", 0));
             _time.Text = $"{Timeline.Clock(_session.Position)} / {Timeline.Clock(_session.Duration)}";
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";
@@ -378,6 +426,8 @@ public sealed class PlayerPage : UserControl
     {
         if (_mpv is null) return;
         var pause = !_mpv.Flag("pause");
+        // In a group, play waits for Jellyfin, which starts every device at the same moment.
+        if (Group.PlaysFor(this) && _loaded) { if (pause) QuietPause(true); Group.Send(pause ? "Pause" : "Unpause"); ShowControls(); return; }
         _mpv.Set("pause", pause ? "yes" : "no");
         _session.Paused = pause; _pauseIcon.Kind = pause ? "play" : "pause";
         _session.LastReport = DateTimeOffset.MinValue; ShowControls();
@@ -510,7 +560,15 @@ public sealed class PlayerPage : UserControl
         foreach (var minutes in SleepTimer.Choices)
             sleep.Children.Add(Entry(SleepTimer.Duration(minutes), _sleep.Chosen == minutes ? _sleep.Status(DateTimeOffset.Now) : null, _sleep.Chosen == minutes, () => Sleep(minutes)));
         if (_session.Item?.Type == "Episode") sleep.Children.Add(Entry("Fin de l’épisode", null, _sleep.AtEnd, () => Sleep(0)));
-        return Ui.Row(22, speeds, delays, sleep);
+        var menu = Ui.Row(22, speeds, delays, sleep);
+        if (Group.Active && Group.Group is { } group)
+        {
+            var people = new TextBlock { Text = Together.GroupText(group), FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 220 };
+            if (group.Participants.Count > 0) ToolTip.SetTip(people, string.Join(", ", group.Participants));
+            var leave = Ui.Action("Quitter le groupe", "close", "", () => { (_more.Flyout as Flyout)?.Hide(); _ = Group.LeaveAsync(); });
+            menu.Children.Add(Ui.Column(10, new TextBlock { Text = "ENSEMBLE", Classes = { "label" }, Margin = new Thickness(10, 0, 0, 0) }, people, leave));
+        }
+        return menu;
     }
     private Button Entry(string label, string? details, bool selected, Action choose)
     {
@@ -524,7 +582,7 @@ public sealed class PlayerPage : UserControl
         button.Click += (_, _) => { choose(); RefreshMenus(); };
         return button;
     }
-    private void RefreshMenus()
+    public void RefreshMenus()
     {
         if (_tracks.Flyout is Flyout { IsOpen: true } tracks) tracks.Content = TracksMenu();
         if (_more.Flyout is Flyout { IsOpen: true } more) more.Content = MoreMenu();
@@ -607,7 +665,7 @@ public sealed class PlayerPage : UserControl
     private void UpdateSkip()
     {
         // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there.
-        if (_loaded && !_stopped && !_timeline.Dragging && _skips.AutoSkip(_session.Position, _shell.Settings.AutoSkip) is { } passage) SeekTo(passage.End, exact: true);
+        if (_loaded && !_stopped && !_timeline.Dragging && _skips.AutoSkip(_session.Position, _shell.Settings.AutoSkip && !Group.Active) is { } passage) SeekTo(passage.End, exact: true);
         // Without a credits marker, the next episode during the last seconds.
         if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext && !_sleep.AtEnd) && _skips.Active is not null)
         {
@@ -625,5 +683,77 @@ public sealed class PlayerPage : UserControl
         if (_skips.Active is not { } segment || _mpv is null || !_loaded) return;
         if (_skips.ToNext && _skips.Next is { } next) { _ = PlayNextAsync(next, completed: true); return; }
         SeekTo(segment.End, exact: true); _skip.IsVisible = false;
+    }
+
+    // —— « Regarder ensemble » ——
+    /// <summary>A command of the group, for the title playing here only: the Stop sent on joining names none.</summary>
+    public void GroupCommand(JsonElement data)
+    {
+        if (_mpv is null || Group.Queue is not { } queue) return;
+        if (!data.TryGetProperty("PlaylistItemId", out var id) || id.ValueKind != JsonValueKind.String || id.GetString() != queue.PlaylistItemId) return;
+        if (Together.CommandPlan(data, Group.Offset, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) is not { } plan) return;
+        _groupPlaySoon.Stop();
+        switch (plan.Action)
+        {
+            case "play":
+                _groupPlayAt = plan.Position;
+                if (plan.Wait > 0) { _groupPlaySoon.Interval = TimeSpan.FromMilliseconds(plan.Wait); _groupPlaySoon.Start(); }
+                else { MoveForGroup(plan.Position); QuietPause(false); }
+                break;
+            case "pause": QuietPause(true); MoveForGroup(plan.Position); break;
+            case "seek": WaitForGroup(plan.Position); break;
+            case "stop": _ = _shell.StopPlaybackAsync(); break;
+        }
+    }
+    /// <summary>Paused where the group is, « ready » once there.</summary>
+    public void WaitForGroup(double seconds)
+    {
+        QuietPause(true);
+        if (!MoveForGroup(seconds, ready: true)) Group.Report("Ready", seconds, false);
+    }
+    /// <summary>Paused or played for the group: not a press of this Mac's to send it back.</summary>
+    private void QuietPause(bool pause)
+    {
+        if (_mpv is null) return;
+        _mpv.Set("pause", pause ? "yes" : "no"); _session.Paused = pause; _pauseIcon.Kind = pause ? "play" : "pause";
+        _session.LastReport = DateTimeOffset.MinValue;
+    }
+    /// <summary>To where the group is, when it is far enough to be seen; true when it moves.</summary>
+    private bool MoveForGroup(double seconds, bool ready = false)
+    {
+        if (_mpv is null || !_loaded || !Together.NeedsSeek(_mpv.Number("time-pos", _session.Position), seconds)) return false;
+        _groupQuietUntil = DateTimeOffset.UtcNow.AddSeconds(2);
+        if (!_mpv.TryCommand("seek", seconds.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return false;
+        _groupReadyPending |= ready; Hold(seconds);
+        return true;
+    }
+    /// <summary>mpv played again after a load or a seek: ready for the group, or a seek of this Mac's that the group follows.</summary>
+    private void GroupRestarted()
+    {
+        if (!Group.PlaysFor(this) || _mpv is null) return;
+        if (_groupReadyPending) { _groupReadyPending = false; Group.Report("Ready", _mpv.Number("time-pos", _session.Position), !_mpv.Flag("pause")); return; }
+        // The bar dragged, the arrows, « Passer l’intro », a chapter: sent once the pointer is released.
+        if (_timeline.Dragging || DateTimeOffset.UtcNow < _groupQuietUntil) return;
+        _groupSeekSoon.Stop(); _groupSeekSoon.Start();
+    }
+    /// <summary>Paused or played here otherwise than by the button (the timer): the group does it, at the same moment.</summary>
+    private void GroupPauseChanged(bool paused)
+    {
+        if (!Group.PlaysFor(this) || !_loaded) return;
+        if (paused) { Group.Send("Pause"); return; }
+        QuietPause(true); Group.Send("Unpause");
+    }
+    /// <summary>Waiting for data more than a moment: the others wait too, then all go on together.</summary>
+    private void WatchGroupStall(MpvPlayer mpv)
+    {
+        if (!Group.PlaysFor(this)) return;
+        if (mpv.Flag("paused-for-cache"))
+        {
+            _groupStallSince ??= DateTimeOffset.UtcNow;
+            if (!_groupStalled && DateTimeOffset.UtcNow - _groupStallSince > TimeSpan.FromSeconds(1.5)) { _groupStalled = true; Group.Report("Buffering", _session.Position, true); }
+            return;
+        }
+        _groupStallSince = null;
+        if (_groupStalled) { _groupStalled = false; Group.Report("Ready", _session.Position, !mpv.Flag("pause")); }
     }
 }

@@ -51,12 +51,16 @@ public sealed class MainWindow : Window
     private readonly Dictionary<string, Button> _railButtons = [];
     private Action? _toastClick;
     public PlayerPage? Player { get; private set; }
+    /// <summary>« Regarder ensemble »: the group this Mac is in, whatever plays.</summary>
+    public WatchGroup Group { get; }
     /// <summary>Top room left for the macOS window buttons, which sit over Mira's own content.</summary>
     public double TitleBarInset { get; }
 
     public MainWindow(string[] args, Profile profile)
     {
         Args = args; Profile = profile; Settings = profile.LoadSettings();
+        Group = new WatchGroup(this);
+        Group.Changed += () => { Player?.RefreshMenus(); if (Current is DetailPage detail) detail.ShowTogether(); };
         Title = "Mira"; MinWidth = 960; MinHeight = 600;
         Width = Settings.WindowWidth > 0 ? Settings.WindowWidth : 1440; Height = Settings.WindowHeight > 0 ? Settings.WindowHeight : 900;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -178,7 +182,20 @@ public sealed class MainWindow : Window
             if (Login is { } login) login.Server = connection.Server;
             return;
         }
-        if (handler is null) Session.Listen(() => Dispatcher.UIThread.Post(() => { _serverChanged.Stop(); _serverChanged.Start(); }));
+        if (handler is null)
+        {
+            var session = Session;
+            void Changed() { _serverChanged.Stop(); _serverChanged.Start(); }
+            // Open again after a break: what changed meanwhile went unheard, and the group may have let this Mac go.
+            var opened = false;
+            void Listening(bool open) => Dispatcher.UIThread.Post(() =>
+            {
+                if (!ReferenceEquals(session, Session)) return;
+                if (open && opened) Changed();
+                opened |= open; Group.Listening(session, open);
+            });
+            session.Listen(() => Dispatcher.UIThread.Post(Changed), Listening, (type, data) => Dispatcher.UIThread.Post(() => Group.Message(session, type, data)));
+        }
         _avatar.Text = connection.UserName.Length > 0 ? connection.UserName[..1].ToUpperInvariant() : "?";
         _overlay.Children.Clear(); _rail.IsVisible = true;
         _history.Clear();
@@ -189,6 +206,7 @@ public sealed class MainWindow : Window
     public async Task SignOutAsync(bool erase = false)
     {
         await StopPlaybackAsync();
+        Group.Gone();
         var session = Session; Session = null;
         // Off this Mac first, so that quitting while Jellyfin is asked leaves no session saved; the keychain may ask the
         // person, never on the UI thread.
@@ -205,6 +223,7 @@ public sealed class MainWindow : Window
     }
     private async Task CloseSessionAsync()
     {
+        Group.Gone();
         if (Session is { } session) { Session = null; await session.DisposeAsync(); }
     }
 
@@ -264,15 +283,24 @@ public sealed class MainWindow : Window
     public void OpenPerson(PersonInfo person, bool director) => _ = NavigateAsync(new BrowsePage(this, BrowseKind.All, person, director));
 
     // —— Playback ——
-    public async Task PlayAsync(MediaItem item, bool fromStart = false)
+    /// <param name="groupStart">Put on by the group (<see cref="WatchGroup"/>), from there.</param>
+    public async Task PlayAsync(MediaItem item, bool fromStart = false, long? groupStart = null)
     {
-        if (Session is null) return;
+        if (Session is not { } session) return;
         if (MpvPlayer.FindLibrary(Settings.MpvPath) is null) { Notice("Le moteur de lecture mpv est introuvable. Réinstalle Mira depuis son image disque."); return; }
+        // In a group, Lecture puts the title on for everyone, this Mac included, at the moment Jellyfin says.
+        if (Group.Active && groupStart is null)
+        {
+            try { if (item.Type == "Series") item = await PlayerPage.EpisodeOfAsync(session, item); }
+            catch (Exception ex) when (Errors.Expected(ex)) { Notice(ex is IOException ? ex.Message : Errors.Friendly(ex)); return; }
+            if (await Group.AskAsync(item, fromStart)) return;
+            groupStart = Group.Queue?.StartTicks ?? 0;
+        }
         await StopPlaybackAsync();
         var player = new PlayerPage(this);
         Player = player;
         _overlay.Children.Clear(); _overlay.Children.Add(player);
-        if (!await player.StartAsync(item, fromStart)) await CloseOverlayPlayerAsync(player);
+        if (!await player.StartAsync(item, fromStart, groupStart)) await CloseOverlayPlayerAsync(player);
     }
     public async Task StopPlaybackAsync()
     {
@@ -284,6 +312,8 @@ public sealed class MainWindow : Window
     {
         if (Player != player) return;
         Player = null;
+        // The group plays on without this Mac.
+        Group.SetAway(true);
         _overlay.Children.Remove(player);
         if (WindowState == WindowState.FullScreen) WindowState = WindowState.Normal;
         Profile.SaveSettings(Settings);
