@@ -8,7 +8,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>Mira.Jellyfin</AssemblyName>
     <RootNamespace>Mira.Jellyfin</RootNamespace>
-    <Version>0.7.7</Version>
+    <Version>0.7.8</Version>
     <!-- Only Mira.Jellyfin.dll goes in the plugin: Jellyfin provides its own libraries. -->
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>

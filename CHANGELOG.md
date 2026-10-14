@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.7.8 — 2026-10-14
+
+Regarder ensemble, minuterie, conversions par la carte graphique, nouveaux épisodes notifiés et qui regarde quoi sur Jellyfin.
 
 - **Regarder ensemble** (Mira web et Windows) : regarde un film ou une série en même temps qu’un ami, chacun chez soi. Sur la fiche, **Regarder ensemble** → **Créer un groupe** ; ton ami ouvre la même fiche, **Regarder ensemble** et choisit ton groupe. **Lecture** lance le titre chez tous au même moment, et une pause, un saut ou l’épisode suivant de l’un est suivi par les autres. Mira attend celui qui charge encore. Le menu ⋮ du lecteur dit qui est là et permet de quitter le groupe ; fermer le lecteur laisse les autres continuer. Sous Windows, le bouton **Regarder ensemble** est sur la fiche, à côté de **Marquer comme vu**, et un PC peut rejoindre le groupe d’un téléphone (ou l’inverse). En groupe, les intros ne sont plus passées toutes seules : **Passer l’intro** reste là, pour tous. C’est le SyncPlay de Jellyfin : chaque ami a besoin de son propre compte, autorisé à SyncPlay (c’est le cas par défaut).
 - **Notification des nouveaux épisodes** (Windows) : quand un épisode d’une série que tu regardes, ou que tu as mise en favori, arrive sur Jellyfin, Windows te le dit (« Nouvel épisode : S2 É5 · Le départ », ou « 3 nouveaux épisodes » d’un coup), avec l’image de l’épisode ; un clic ouvre la série dans Mira. Tant que Mira est ouvert, même réduit ; ce qui arrive pendant qu’il est fermé est annoncé à son ouverture. Ce qui était déjà là au premier lancement ne l’est pas. **Réglages → Jellyfin & synchronisation → Prévenir des nouveaux épisodes** les coupe. Pas sur l’iPhone : Safari n’envoie de notifications qu’à un site en HTTPS.

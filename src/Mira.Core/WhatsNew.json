@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.7.8",
+    "summary": "Regarder ensemble, minuterie, carte graphique pour les conversions et nouveaux épisodes notifiés.",
+    "items": [
+      { "icon": "users", "title": "Regarder ensemble", "text": "Sur la fiche, crée un groupe : tes amis le rejoignent depuis leur téléphone ou leur PC, et tout le monde lit au même moment." },
+      { "icon": "clock", "title": "Minuterie", "text": "Pause au bout de 15 min, 30 min ou 1 h, ou à la fin de l’épisode. Sur iPhone, choisis-la sur la fiche." },
+      { "icon": "server", "title": "Conversions par la carte graphique", "text": "Réglages → Jellyfin & synchronisation → Utiliser la carte graphique : gardée seulement si l’essai réussit." },
+      { "icon": "series", "title": "Nouveaux épisodes notifiés", "text": "Sous Windows, un nouvel épisode d’une série que tu suis s’annonce dans une notification." },
+      { "icon": "user", "title": "En ce moment sur Jellyfin", "text": "Sous Windows, dans les Réglages : qui regarde quoi, converti ou non, et Arrêter." }
+    ]
+  },
+  {
     "version": "0.7.7",
     "summary": "Connexion par code, sagas, intros passées toutes seules et une fiche plus complète.",
     "items": [
