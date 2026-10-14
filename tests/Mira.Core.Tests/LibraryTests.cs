@@ -627,6 +627,47 @@ internal static class LibraryTests
             refuse = true;
             Assert(await client.SagasAsync() is null && !await client.EnableSagasAsync(), "Refused");
         });
+        await Test("Nouveaux épisodes : séries suivies seulement, une notice par série, marque = date de Jellyfin", async () =>
+        {
+            // As Jellyfin 12.1 answers (cut down): Courte Web is started (a third watched), Courte HLS never, Courte Anime
+            // is a favourite; one more episode of Courte Web came after the mark, and two of the other ones.
+            var episodes = """
+                {"Items":[
+                 {"Id":"a1","Name":"Courte Anime S01E01","Type":"Episode","SeriesId":"anime","SeriesName":"Courte Anime","DateCreated":"2026-10-14T14:07:20.2982336Z","ParentIndexNumber":1,"IndexNumber":1,"UserData":{"Played":false}},
+                 {"Id":"h2","Name":"Courte HLS S01E02","Type":"Episode","SeriesId":"hls","SeriesName":"Courte HLS","DateCreated":"2026-10-14T14:07:17.7782335Z","ParentIndexNumber":1,"IndexNumber":2,"UserData":{"Played":false}},
+                 {"Id":"w4","Name":"Le retour","Type":"Episode","SeriesId":"web","SeriesName":"Courte Web","DateCreated":"2026-10-14T14:07:17.1Z","ParentIndexNumber":1,"IndexNumber":4,"UserData":{"Played":false}},
+                 {"Id":"w3","Name":"Le départ","Type":"Episode","SeriesId":"web","SeriesName":"Courte Web","DateCreated":"2026-10-14T14:07:16.6582334Z","ParentIndexNumber":1,"IndexNumber":3,"UserData":{"Played":false}},
+                 {"Id":"w2","Name":"Courte Web S01E02","Type":"Episode","SeriesId":"web","SeriesName":"Courte Web","DateCreated":"2026-10-14T14:07:15.6582334Z","ParentIndexNumber":1,"IndexNumber":2,"UserData":{"PlayedPercentage":50.2,"Played":false}}],"TotalRecordCount":5}
+                """;
+            var series = """
+                {"Items":[
+                 {"Id":"anime","Name":"Courte Anime","Type":"Series","RecursiveItemCount":1,"UserData":{"PlayedPercentage":0,"UnplayedItemCount":1,"IsFavorite":true,"Played":false}},
+                 {"Id":"hls","Name":"Courte HLS","Type":"Series","RecursiveItemCount":2,"UserData":{"PlayedPercentage":0,"UnplayedItemCount":2,"IsFavorite":false,"Played":false}},
+                 {"Id":"web","Name":"Courte Web","Type":"Series","RecursiveItemCount":3,"UserData":{"PlayedPercentage":33.33333333333333,"UnplayedItemCount":2,"IsFavorite":false,"Played":false}}],"TotalRecordCount":3}
+                """;
+            var asked = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery; asked.Add(path);
+                var body = path.Contains("includeItemTypes=Episode", StringComparison.Ordinal) ? episodes : path.Contains("ids=", StringComparison.Ordinal) ? series : null;
+                return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+            }));
+            var (recent, shows) = await client.RecentEpisodesAsync();
+            Assert(asked.Count == 2 && asked[0].Contains("isPlayed=false", StringComparison.Ordinal) && asked[0].Contains("sortBy=DateCreated&sortOrder=Descending", StringComparison.Ordinal) && asked[0].Contains("fields=DateCreated", StringComparison.Ordinal)
+                && asked[1].Contains("ids=anime,hls,web", StringComparison.Ordinal) && asked[1].Contains("fields=RecursiveItemCount", StringComparison.Ordinal), string.Join(" | ", asked));
+            Assert(NewEpisodes.Newest(recent, null) == DateTimeOffset.Parse("2026-10-14T14:07:20.2982336Z", System.Globalization.CultureInfo.InvariantCulture), "Newest");
+            var seen = DateTimeOffset.Parse("2026-10-14T14:07:16Z", System.Globalization.CultureInfo.InvariantCulture);
+            var (notices, more) = NewEpisodes.Pick(recent, shows, seen);
+            Assert(notices.Count == 2 && more is null, string.Join(" | ", notices.Select(x => x.Title)));
+            Assert(notices[0] is { SeriesId: "anime", Title: "Courte Anime", Text: "Nouvel épisode : S1 É1 · Courte Anime S01E01", Count: 1 }, notices[0].ToString());
+            Assert(notices[1] is { SeriesId: "web", Text: "2 nouveaux épisodes : S1 É3 à É4", Count: 2 } && notices[1].Episode.Id == "w3", notices[1].ToString());
+            Assert(NewEpisodes.Pick(recent, shows, NewEpisodes.Newest(recent, seen)!.Value).Notices.Count == 0, "Nothing past the mark");
+            Assert(NewEpisodes.Text([recent[3] with { ParentIndexNumber = 1, IndexNumber = 9 }, recent[1] with { ParentIndexNumber = 2, IndexNumber = 1 }]) == "2 nouveaux épisodes, dès S1 É9", "Across seasons");
+            var many = Enumerable.Range(0, 5).Select(i => new MediaItem { Id = "e" + i, Type = "Episode", SeriesId = "s" + i, Name = "x", DateCreated = seen.AddMinutes(i + 1) }).ToList();
+            var followed = many.ToDictionary(x => x.SeriesId!, x => new MediaItem { Id = x.SeriesId!, Type = "Series", Name = "Série " + x.SeriesId, UserData = new() { IsFavorite = true } });
+            var picked = NewEpisodes.Pick(many, followed, seen);
+            Assert(picked.Notices.Select(x => x.SeriesId).SequenceEqual(["s4", "s3", "s2"]) && picked.More == "Et 2 autres séries que tu suis ont de nouveaux épisodes.", $"{string.Join(",", picked.Notices.Select(x => x.SeriesId))} {picked.More}");
+        });
         await Test("En ce moment sur Jellyfin : qui regarde quoi, tel quel ou converti, sur quel matériel et pourquoi ; « Arrêter »", async () =>
         {
             // As Jellyfin 12.1 lists its sessions (Mira web converting a WebM, cut down), plus a friend on Tailscale playing

@@ -98,6 +98,7 @@ public partial class MainWindow : Window
             _externalRefresh.Stop();
             // A library change may be a title TorLink just brought in.
             _ = CheckTorLinkAvailabilityAsync();
+            EpisodesMayHaveArrived();
             if (!_playing && !_demo) { _metadata?.Clear(); _heroSeries.Clear(); await RefreshAsync(quiet: true); }
         };
         _fallbackRefresh.Tick += async (_, _) =>
@@ -105,6 +106,7 @@ public partial class MainWindow : Window
             if (!_demo && !_playing && _client is not null && IsActive && Cadence.RefreshDue(_listening, _lastRefresh, DateTimeOffset.UtcNow)) await RefreshAsync(quiet: true);
         };
         _playerTimer.Tick += PlayerTick;
+        InitializeEpisodeNotices();
         VolumeSlider.Value = VolumeBoost.Clamp(_settings.Volume); ShowVolumeLevel();
         var testArg = Array.IndexOf(args, "--test-media");
         if (testArg >= 0 && testArg + 1 < args.Length) _testMedia = args[testArg + 1];
@@ -278,6 +280,7 @@ public partial class MainWindow : Window
         _sync.Changed += SyncChanged;
         _connectionLifetime = new(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         if (!_args.Contains("--visual-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
+        if (!_args.Contains("--visual-check")) StartEpisodeNotices();
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant();
         SettingsServerAddress.Text = connection.Server;
         LoginOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
@@ -326,7 +329,7 @@ public partial class MainWindow : Window
         _heroClock.Stop(); _heroClockAttached = false; _heroCandidates = [];
         _heroSeries.Clear();
         _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
-        _connectionLifetime.Cancel(); _browseCancellation?.Cancel();
+        _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
         _catalog.RecentPlayback = []; _catalog.HiddenResume = [];

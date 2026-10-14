@@ -590,6 +590,19 @@ public sealed class JellyfinClient : IDisposable
         }
         return found;
     }
+    /// <summary>
+    /// The 50 episodes Jellyfin added last, not watched yet, and their series with what this account watched of them
+    /// (RecursiveItemCount gives the share watched): what <see cref="NewEpisodes"/> picks from.
+    /// </summary>
+    public async Task<(List<MediaItem> Episodes, Dictionary<string, MediaItem> Series)> RecentEpisodesAsync(CancellationToken ct = default)
+    {
+        var episodes = (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Episode&isMissing=false&isPlayed=false" +
+            "&sortBy=DateCreated&sortOrder=Descending&limit=50&fields=DateCreated&enableImageTypes=Primary&imageTypeLimit=1", ct)).Items;
+        var ids = episodes.Select(x => x.SeriesId).OfType<string>().Distinct().ToList();
+        if (ids.Count == 0) return (episodes, []);
+        var series = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&ids={string.Join(',', ids.Select(Uri.EscapeDataString))}&fields=RecursiveItemCount&enableImages=false", ct);
+        return (episodes, series.Items.Where(x => x.Type == "Series").GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First()));
+    }
     /// <summary>The episode Jellyfin would play next for one series (resumable first, then the following one).</summary>
     public async Task<MediaItem?> NextEpisodeAsync(string seriesId, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Shows/NextUp?userId={Connection.UserId}&seriesId={Uri.EscapeDataString(seriesId)}&limit=1&enableResumable=true&fields=Overview", ct)).Items.FirstOrDefault();
