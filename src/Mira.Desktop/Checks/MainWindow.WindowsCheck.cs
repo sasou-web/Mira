@@ -56,7 +56,7 @@ public partial class MainWindow
             WindowsCommand(DesktopCommand.Back, 0); await Until(() => _mpv.Number("time-pos") < .5);
             WindowsCommand(DesktopCommand.Forward, 0); await Until(() => Math.Abs(_mpv.Number("time-pos") - 10) < .6);
             Require(Math.Abs(_mpv.Number("time-pos") - 10) < .6, "shared taskbar/tray commands seek by ten seconds and clamp at zero");
-            var next = DemoLibrary.Items()[1]; _nextItem = next; UpdateWindowsPlayback();
+            var next = DemoLibrary.Items()[1]; _skips.Next = next; UpdateWindowsPlayback();
             await Until(() => session.GetPlaybackInfo().Controls.IsNextEnabled);
             Require(TaskbarItemInfo.ThumbButtonInfos[3].IsEnabled, "next becomes available only when the episode has been resolved");
             Require(await session.TrySkipNextAsync(), "Windows accepts next episode");

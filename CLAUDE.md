@@ -41,7 +41,7 @@ Android, servie par le serveur Jellyfin lui-même. Pour un particulier qui regar
 - Les PR se fusionnent en rebase (depuis la session, à la demande de l'utilisateur) ; la publication se fait depuis son PC.
 - Windows : palette unique dans `Themes/Cinema.xaml` (fonds `Bg` à `LineStrong`, encres `Text` à `Dim`, `OnAccent`, états `Success`/`Warning`/`Danger`, calques `Hairline`, `Menu`, `Toast`, `Sheet`…), noms et neutres de Mira web ; XAML par `{StaticResource}` (`Muted`, `Faint`, `FocusRing` en `DynamicResource` : contraste élevé), code par `Palette.Get("Nom")`. Jamais une couleur écrite, sauf dégradés, contenu (démo, affiches, marque) et animations ; `Dim` jamais pour du texte (test de contraste).
 - Mira web : design sombre (tokens dans `:root` de `app.css`), police Nunito Sans auto-hébergée, icônes Phosphor (`js/icons.js`). Taille de texte en `calc(Npx * var(--text))` (réglage « Taille du texte »), sauf libellés des onglets et du lecteur.
-- Un test sans WPF va dans `tests/Mira.Core.Tests` (un fichier de Desktop sans WPF y est lié par son csproj) ; un test seulement Windows (chemins, liens physiques, DPAPI) dans `tests/Mira.Tests/Program.cs`. Code commun Windows/Mac dans Core (`IconPaths`, `MpvLists`, `PlaybackMarkers.Offer`).
+- Un test sans WPF va dans `tests/Mira.Core.Tests` (un fichier de Desktop sans WPF y est lié par son csproj) ; un test seulement Windows (chemins, liens physiques, DPAPI) dans `tests/Mira.Tests/Program.cs`. Code commun Windows/Mac dans Core (`IconPaths`, `MpvLists`, `MpvClient`, `PlaybackSession`, `SkipPlanner`).
 
 ## Décisions (et pourquoi)
 - 2026-10-08 — Mac en Avalonia avec libmpv embarquée — partage `Mira.Core` et le lecteur de Windows.

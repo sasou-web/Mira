@@ -228,6 +228,39 @@ internal static class PlayerTests
             Assert(PlaybackMarkers.CountdownEnd(1400, credits) == 1410 && PlaybackMarkers.CountdownEnd(1370, credits) == 1390, "Countdown counted from the wrong time");
             return Task.CompletedTask;
         });
+        await Test("Passages : l’offre, le compte à rebours et les intros sautées, communs à Windows et Mac", () =>
+        {
+            var skips = new SkipPlanner { Next = new MediaItem { Id = "next", Type = "Episode" } };
+            skips.ServerSegments = [new(SkipKind.Intro, 45, 135)];
+            skips.ServerChapters = [new(0, "Récap"), new(45, "Opening"), new(135, "Partie A"), new(1290, "Ending"), new(1380, "Preview")];
+            skips.Rebuild(1410);
+            Assert(skips.Segments.Select(s => s.Kind).SequenceEqual([SkipKind.Recap, SkipKind.Intro, SkipKind.Outro, SkipKind.Preview]), "Passages: " + string.Join(", ", skips.Segments));
+            skips.FileChapters = [new(0, "Opening"), new(90, "Partie A")];
+            Assert(skips.Chapters == skips.FileChapters, "The file's chapters come first");
+            skips.Rebuild(1410);
+            Assert(skips.Segments.Count == 1 && skips.Segments[0] == new SkipSegment(SkipKind.Intro, 45, 135), "A chapter guess over a server segment: " + string.Join(", ", skips.Segments));
+            Assert(skips.AutoSkip(50, enabled: false) is null && skips.AutoSkip(50, enabled: true) == skips.Segments[0] && skips.AutoSkip(50, enabled: true) is null, "An opening is jumped over once, and only with the setting");
+            Assert(skips.Offer(50, 1410, offering: true, autoNext: true) && skips.Label(episode: true) == "Passer l’opening" && !skips.Counting, "The opening is offered without a countdown");
+            Assert(!skips.Offer(60, 1410, offering: true, autoNext: true), "The same passage is not offered again");
+            Assert(skips.Offer(60, 1410, offering: false, autoNext: true) && skips.Active is null && skips.Label(episode: true) == "", "Nothing offered in the mini player");
+            skips.Segments = [new(SkipKind.Outro, 1290, 1380), new(SkipKind.Preview, 1380, 1410)];
+            Assert(skips.Offer(1300, 1410, offering: true, autoNext: true) && skips.ToNext && skips.Label(episode: true) == "Épisode suivant" && skips.CountdownEnd == 1310, "Credits then a preview lead to the next episode, with a countdown");
+            Assert(skips.CountdownText(1302.5) == "Épisode suivant dans 8 s" && skips.Due(1309.5) is null && skips.Due(1310) == skips.Next && skips.CountdownEnd is null, "Countdown text or end");
+            skips.Active = null; skips.Offer(1300, 1410, offering: true, autoNext: true);
+            Assert(skips.Cancel() == "Épisode suivant" && skips.Stay && !skips.Counting, "Cancelling stops the countdown");
+            skips.Active = null; skips.Offer(1300, 1410, offering: true, autoNext: true);
+            Assert(!skips.Counting && skips.CountdownText(1300) is null, "No countdown once the viewer stays on the episode");
+            skips.Reset();
+            Assert(skips.Next is null && !skips.Stay && skips.Segments.Count == 0 && skips.AutoSkipped.Count == 0 && skips.Active is null, "A new title starts clean");
+            return Task.CompletedTask;
+        });
+        await Test("mpv : fin de fichier, échec, et fin sans sortie son sur Mac", () =>
+        {
+            Assert(MpvClient.Ending(0, 0, false) == (true, false) && MpvClient.Ending(2, 0, false) == (false, false), "End of file, or stopped");
+            Assert(MpvClient.Ending(4, -13, true) == (false, true) && MpvClient.Ending(4, -14, false) == (false, true), "An error is a failure");
+            Assert(MpvClient.Ending(4, -14, true) == (true, false), "Without a sound output, the picture played to its end (Mac)");
+            return Task.CompletedTask;
+        });
         await Test("Lecture : départ, saut en attente, rapport à Jellyfin, fin et titre vu partout", () =>
         {
             var hour = TimeSpan.FromHours(1).Ticks;

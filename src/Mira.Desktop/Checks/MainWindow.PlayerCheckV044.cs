@@ -79,9 +79,9 @@ public partial class MainWindow
 
         if (SeekBar.Chapters.Count > 0)
         {
-            checks.Add("INFO chapters " + string.Join(", ", SeekBar.Chapters.Select(c => $"{c.Start:0.#} s {c.Title}")) + "; passages " + string.Join(", ", _segments.Select(s => $"{s.Kind} {s.Start:0.#}-{s.End:0.#} s")));
-            require(_segments.Any(s => s.Kind == SkipKind.Intro) && _segments.Any(s => s.Kind == SkipKind.Outro), "named file chapters become opening and ending passages");
-            var intro = _segments.First(s => s.Kind == SkipKind.Intro);
+            checks.Add("INFO chapters " + string.Join(", ", SeekBar.Chapters.Select(c => $"{c.Start:0.#} s {c.Title}")) + "; passages " + string.Join(", ", _skips.Segments.Select(s => $"{s.Kind} {s.Start:0.#}-{s.End:0.#} s")));
+            require(_skips.Segments.Any(s => s.Kind == SkipKind.Intro) && _skips.Segments.Any(s => s.Kind == SkipKind.Outro), "named file chapters become opening and ending passages");
+            var intro = _skips.Segments.First(s => s.Kind == SkipKind.Intro);
             TryCommand("seek", (intro.Start + 1).ToString(CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(intro.Start + 1);
             await Task.Delay(350); ShowPlayerControls(); UpdateSkip(); await Task.Delay(300);
             require(_skipShown && SkipButton.IsVisible && SkipText.Text.StartsWith("Passer", StringComparison.Ordinal), $"skip button offers « {SkipText.Text} » during the opening");
@@ -89,23 +89,23 @@ public partial class MainWindow
             Skip_Click(this, new()); await Task.Delay(450); mpv.Poll();
             require(Math.Abs(mpv.Number("time-pos") - intro.End) < .6 && !_skipShown, $"skip jumps to the end of the opening ({mpv.Number("time-pos"):0.0} s)");
             // « Passer les intros et les récaps »: jumped over by itself once, then played, with its button, when gone back into.
-            var autoSkip = _settings.AutoSkip; _settings.AutoSkip = true; _activeSkip = null;
+            var autoSkip = _settings.AutoSkip; _settings.AutoSkip = true; _skips.Active = null;
             TryCommand("seek", (intro.Start + 1).ToString(CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(intro.Start + 1);
             await Task.Delay(350); UpdateSkip(); await Task.Delay(450); mpv.Poll();
-            require(Math.Abs(mpv.Number("time-pos") - intro.End) < .6 && _autoSkipped.Contains(intro), $"the opening is jumped over by itself ({mpv.Number("time-pos"):0.0} s)");
+            require(Math.Abs(mpv.Number("time-pos") - intro.End) < .6 && _skips.AutoSkipped.Contains(intro), $"the opening is jumped over by itself ({mpv.Number("time-pos"):0.0} s)");
             TryCommand("seek", (intro.Start + 1).ToString(CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(intro.Start + 1);
             await Task.Delay(350); ShowPlayerControls(); UpdateSkip(); await Task.Delay(300); mpv.Poll();
             require(mpv.Number("time-pos") < intro.End - 1 && _skipShown, $"going back into a skipped opening plays it ({mpv.Number("time-pos"):0.0} s)");
-            _settings.AutoSkip = autoSkip; _autoSkipped.Clear(); _activeSkip = null;
+            _settings.AutoSkip = autoSkip; _skips.AutoSkipped.Clear(); _skips.Active = null;
             // Credits with a following episode: a countdown that the viewer can cancel.
-            var outro = _segments.First(s => s.Kind == SkipKind.Outro);
-            var autoNext = _settings.AutoNext; _settings.AutoNext = true; _nextItem = DemoLibrary.Items()[1]; _activeSkip = null;
+            var outro = _skips.Segments.First(s => s.Kind == SkipKind.Outro);
+            var autoNext = _settings.AutoNext; _settings.AutoNext = true; _skips.Next = DemoLibrary.Items()[1]; _skips.Active = null;
             TryCommand("seek", (outro.Start + .5).ToString(CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(outro.Start + .5);
             await Task.Delay(350); ShowPlayerControls(); UpdateSkip(); await Task.Delay(260);
             require(_skipShown && SkipText.Text.StartsWith("Épisode suivant dans", StringComparison.Ordinal) && SkipCancel.IsVisible, $"credits offer « {SkipText.Text} » with a cancel button");
             SkipCancel_Click(this, new()); UpdateSkip(); await Task.Delay(200);
-            require(_autoNextCancelled && SkipText.Text == "Épisode suivant" && _countdownEnd is null, "cancelling keeps the episode and stops the countdown");
-            _settings.AutoNext = autoNext; _nextItem = null; _activeSkip = null; _autoNextCancelled = false;
+            require(_skips.Stay && SkipText.Text == "Épisode suivant" && _skips.CountdownEnd is null, "cancelling keeps the episode and stops the countdown");
+            _settings.AutoNext = autoNext; _skips.Next = null; _skips.Active = null; _skips.Stay = false;
             TryCommand("seek", "2", "absolute+exact"); HoldPosition(2); await Task.Delay(300); UpdateSkip();
         }
         else { checks.Add("INFO test clip has no chapters: passages not exercised"); CaptureElement(output, "player-controls", PlayerSurface); }

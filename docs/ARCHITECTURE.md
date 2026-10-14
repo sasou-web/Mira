@@ -28,7 +28,7 @@ Mira.Desktop (WPF)
   ├─ Checks : harnais de contrôle lancés par RunRequestedCheckAsync (--visual-check, --public-gallery, --player-check, --qa-window, --perf-probe, --windows-check, --torlink-check)
   ├─ Themes/Cinema.xaml : composants, couleurs nommées, focus et contrôles sombres
   ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions, défilement progressif, Timeline, Accessible (noms et annonces pour le Narrateur)
-  ├─ Playback/MpvEngine : API C libmpv, rendu dans un HWND enfant, recherche du moteur (choisi, installé par Mira, connu)
+  ├─ Playback/MpvEngine : `MpvClient` de Core, rendu dans un HWND enfant, recherche du moteur (choisi, installé par Mira, connu)
   ├─ Playback/WindowFrame : coins, contour DWM et marges de fenêtre agrandie
   ├─ Playback/FullscreenWindow : limites du moniteur et restauration de fenêtre
   ├─ Playback/PlayerOverlay : couche native de commandes et réception de la souris
@@ -45,7 +45,9 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques, version minimale, avertissement HTTP
   ├─ LibraryStore, AccountData : cache SQLite, progression locale et file persistante ; fichiers d’un compte
   ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels
-  ├─ PlaybackSession : état d’une lecture sans WPF ni mpv (position, saut en attente, rapport, fin, titre vu)
+  ├─ PlaybackSession : état d’une lecture sans WPF ni mpv (position, saut en attente, rapport, fin, titre vu), Windows et Mac
+  ├─ MpvClient : API C de libmpv commune à Windows et Mac (options, propriétés, commandes, événements, volume au-delà de 100 %)
+  ├─ SkipPlanner : passages d’une lecture et épisode suivant (offre, intros sautées, compte à rebours), Windows et Mac
   ├─ DiskCache, ImageMemory : budget des images sur disque et en mémoire
   ├─ VerifiedDownload : téléchargement vérifié (taille, SHA-256, jamais vers HTTP, transfert muet abandonné)
   ├─ MpvPackage / MpvInstaller, NodeRuntime, PortableExecutable : builds figées de libmpv et Node.js, en-tête PE
@@ -73,7 +75,7 @@ Mira.Mac (Avalonia)
   ├─ MainWindow : barre latérale, historique des pages, notifications, compte
   ├─ Views : Login, Home, Browse (films, séries, bibliothèque, recherche, une personne), Detail, Settings, Player
   ├─ Playback
-  │   ├─ MpvPlayer : libmpv chargée depuis Mira.app/Contents/Frameworks, mêmes options et volume que sous Windows
+  │   ├─ MpvPlayer : `MpvClient` de Core, libmpv chargée depuis Mira.app/Contents/Frameworks, rendu par l’API de rendu de mpv
   │   ├─ VideoView : l’image dessinée par mpv avec OpenGL dans la fenêtre (API de rendu de libmpv)
   │   ├─ SoftwareVideoView : repli en rendu logiciel, sur son propre fil
   │   └─ Timeline : barre de progression découpée par chapitres
