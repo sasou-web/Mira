@@ -135,7 +135,7 @@ public partial class MainWindow
               + (installation.Detected ? " Mira te demandera de confirmer que c’est le tien avant de le lancer." : "")
               + (TorLinkPathBox.Text.Trim().Length == 0 ? " Laisse vide pour le retrouver automatiquement." : "");
         string Folder(string? path) => path ?? "non disponible";
-        var detected = _torlinkDetected;
+        var detected = _torlink?.Detected ?? new MediaLibraries(null, null, null);
         TorLinkFoldersStatus.Text = _demo
             ? "En démonstration, Jellyfin n’est pas consulté : seuls les dossiers choisis ici reçoivent les téléchargements."
             : detected.IsEmpty
