@@ -38,7 +38,7 @@ public partial class MainWindow
         || _settings.TorLinkAutoImport != (TorLinkAutoImportCheck.IsChecked == true) || _settings.TorLinkKeepShared != (TorLinkKeepSharedCheck.IsChecked == true)
         || _settings.TorLinkPath != TorLinkPathBox.Text.Trim() || _settings.TorLinkMoviesFolder != TorLinkMoviesBox.Text.Trim()
         || _settings.TorLinkSeriesFolder != TorLinkSeriesBox.Text.Trim() || _settings.TorLinkAnimeFolder != TorLinkAnimeBox.Text.Trim()
-        || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true);
+        || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true) || _settings.EpisodeNotices != (EpisodeNoticesCheck.IsChecked == true);
     private bool _settingsBusy;
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
@@ -48,7 +48,7 @@ public partial class MainWindow
         _settingsBusy = true;
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip; RememberCheck.IsChecked = _settings.RememberPosition;
         ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion;
-        HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay;
+        HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices;
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
         SelectChoice(AudioLanguageChoice, _settings.AudioLanguage); SelectChoice(SubtitleLanguageChoice, _settings.SubtitleLanguage); SelectChoice(DensityChoice, _settings.PosterDensity);
         SubtitleSizeSlider.Value = _settings.SubtitleSize; MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;
@@ -108,6 +108,9 @@ public partial class MainWindow
         _settings.HardwareDecoding = HardwareCheck.IsChecked == true; _settings.AutoNext = AutoNextCheck.IsChecked == true; _settings.AutoSkip = AutoSkipCheck.IsChecked == true; _settings.RememberPosition = RememberCheck.IsChecked == true;
         _settings.ShowProgress = ShowProgressCheck.IsChecked == true; _settings.ReduceMotion = ReduceMotionCheck.IsChecked == true; _settings.PosterDensity = Choice(DensityChoice);
         _settings.HeroAutoPlay = HeroAutoPlayCheck.IsChecked == true; Motion.Reduced = _settings.ReduceMotion;
+        // Turned on again: from what Jellyfin has now, not every episode that came while it was off.
+        if (!_settings.EpisodeNotices && EpisodeNoticesCheck.IsChecked == true) _settings.EpisodesSeenFor = "";
+        _settings.EpisodeNotices = EpisodeNoticesCheck.IsChecked == true; if (_settings.EpisodeNotices) EpisodesMayHaveArrived();
         _settings.AudioLanguage = AudioLanguageBox.Text.Trim(); _settings.SubtitleLanguage = SubtitleLanguageBox.Text.Trim();
         _settings.SubtitleSize = (int)SubtitleSizeSlider.Value; _settings.MpvPath = MpvPathBox.Text.Trim();
         // Switching automatic placement back on starts from now: downloads finished meanwhile stay listed, to import by hand.

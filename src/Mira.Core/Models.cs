@@ -46,6 +46,8 @@ public sealed record MediaItem
     public string? SeasonThumbImageTag { get; set; }
     public int? ChildCount { get; init; }
     public string? OfficialRating { get; init; }
+    /// <summary>When Jellyfin added it (« Ajouts récents »), asked for with Fields=DateCreated.</summary>
+    public DateTimeOffset? DateCreated { get; init; }
     /// <summary>A bonus video's kind (« BehindTheScenes », « DeletedScene »…, « Unknown » in an Extras folder); null for a title.</summary>
     public string? ExtraType { get; init; }
     /// <summary>How many bonus videos a film or series has (<see cref="JellyfinClient.ExtrasAsync"/>), returned by the single-item request.</summary>
@@ -228,4 +230,9 @@ public sealed class PlayerSettings
     public double? WindowY { get; set; }
     /// <summary>The guide opened once already: it is not offered again after a connection.</summary>
     public bool GuideSeen { get; set; }
+    /// <summary>Windows: a notice when an episode of a series this account follows arrives on Jellyfin (<see cref="NewEpisodes"/>).</summary>
+    public bool EpisodeNotices { get; set; } = true;
+    /// <summary>The account (« server user ») and Jellyfin's date of the newest episode already looked at for those notices.</summary>
+    public string EpisodesSeenFor { get; set; } = "";
+    public DateTimeOffset? EpisodesSeenUntil { get; set; }
 }
