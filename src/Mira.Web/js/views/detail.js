@@ -10,6 +10,8 @@ import {
 import { goBack, replaceRoute } from '../app.js';
 import { settings } from '../session.js';
 import { trackText, chooseTracks, qualityText } from '../player/tracks.js';
+import { appleNative } from '../player/video.js';
+import { sleep, sleepChoices } from '../player/sleep.js';
 
 const SLICE = 100;
 const seasonOf = (x) => x.ParentIndexNumber ?? 1;
@@ -116,7 +118,27 @@ export function create({ id, query }) {
       resume ? h('div', { style: { display: 'grid', gap: '6px' } },
         h('div', { class: 'progress-line' }, h('i', { style: { width: `${(progress(target) * 100).toFixed(1)}%` } })),
         h('div', { class: 'meta' }, left)) : null,
-      tracksLine(target));
+      tracksLine(target), sleepLine());
+  }
+
+  /**
+   * « Minuterie : désactivée », for Apple's player, which has no room for Mira's menus: chosen here, it pauses the film
+   * after its minutes, or stops at the end of the episode. Mira's own player has it in its menu.
+   */
+  function sleepLine() {
+    if (!appleNative()) return null;
+    const status = sleep.status(Date.now());
+    return h('button', { class: 'tracks-line', 'aria-haspopup': 'dialog', on: { click: sleepSheet } },
+      icon('clock', { size: 20 }),
+      h('span', { class: 'grow' }, h('span', {}, 'Minuterie : ', h('b', {}, status ? status.replace(/^./, (c) => c.toLowerCase()) : 'désactivée'))),
+      icon('right', { size: 18 }));
+  }
+  function sleepSheet() {
+    sheet({
+      title: 'Minuterie',
+      items: sleepChoices(sleep, { episode: item.Type !== 'Movie', now: Date.now() })
+        .map(({ label, sub, selected, minutes }) => ({ label, sub, selected, run: () => { sleep.choose(minutes, Date.now()); refreshActions(); } })),
+    });
   }
 
   /** « Audio : Japonais · Sous-titres : Français », a tap away from the other tracks. */

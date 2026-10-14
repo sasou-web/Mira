@@ -16,6 +16,28 @@ internal static class PlayerTests
     public static async Task RunAsync(TestRun run)
     {
         var Test = run.Test;
+        await Test("Minuterie : pause au bout des minutes, une seule fois, ou arrêt à la fin de l’épisode, comme Mira web (tests/fixtures/sleep.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "sleep.json")));
+            foreach (var row in fixture.RootElement.GetProperty("durations").EnumerateArray())
+                Assert(SleepTimer.Duration(row[0].GetInt32()) == row[1].GetString(), $"{row[0]}: {SleepTimer.Duration(row[0].GetInt32())}");
+            var start = new DateTimeOffset(2026, 10, 14, 23, 0, 0, TimeSpan.FromHours(2));
+            foreach (var row in fixture.RootElement.GetProperty("status").EnumerateArray())
+            {
+                var timer = new SleepTimer(); int? choice = row[0].ValueKind == JsonValueKind.Null ? null : row[0].GetInt32();
+                timer.Choose(choice, start);
+                var now = start.AddSeconds(row[1].GetInt32());
+                var due = timer.Due(now); var status = timer.Status(now);
+                Assert(due == row[3].GetBoolean() && status == (row[2].ValueKind == JsonValueKind.Null ? null : row[2].GetString()), $"{choice} after {row[1]} s: {due} « {status} »");
+                if (due) Assert(timer.Chosen is null && !timer.AtEnd, "Off once due");
+            }
+            var end = new SleepTimer(); end.Choose(0, start);
+            Assert(end.AtEnd && end.Chosen == 0 && !end.Due(start.AddHours(5)), "At the end: no pause");
+            end.Clear();
+            Assert(!end.AtEnd && end.Chosen is null && end.Status(start) is null && string.Join(",", SleepTimer.Choices) == "15,30,60", "Cleared");
+            return Task.CompletedTask;
+        });
         await Test("Volume : au-delà de 100 %, mpv reste à 100 et le filtre amplifie sans saturer", () =>
         {
             Assert(VolumeBoost.Split(80) == (80, 1) && VolumeBoost.Split(100) == (100, 1), "Up to 100, mpv's own volume and no gain");

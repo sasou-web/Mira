@@ -11,6 +11,7 @@ namespace Mira.Desktop;
 public partial class MainWindow
 {
     private readonly SkipPlanner _skips = new();
+    private readonly SleepTimer _sleep = new();
     private DateTimeOffset _skipSince;
     private bool _skipShown;
     private double _skipLift = double.NaN;
@@ -73,7 +74,7 @@ public partial class MainWindow
             if (TryCommand("seek", passage.End.ToString(CultureInfo.InvariantCulture), "absolute+exact")) HoldPosition(passage.End);
         }
         // Without a credits marker, the next episode during the last seconds.
-        if (_skips.Offer(_session.Position, _session.Duration, offering: _playing && _loaded && !_miniPlayer, _settings.AutoNext))
+        if (_skips.Offer(_session.Position, _session.Duration, offering: _playing && _loaded && !_miniPlayer, _settings.AutoNext && !_sleep.AtEnd))
         {
             _skipSince = DateTimeOffset.UtcNow;
             if (_skips.Active is not null)

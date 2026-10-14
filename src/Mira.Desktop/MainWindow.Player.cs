@@ -184,7 +184,7 @@ public partial class MainWindow
             SeekBar.SetBuffered(_mpv.Number("demuxer-cache-time", 0)); DurationText.Text = TimeLabel(_session.Duration);
             var changed = paused != _session.Paused; _session.Paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
-            UpdateSkip();
+            UpdateSkip(); CheckSleepTimer();
             UpdateWindowsPlayback();
             var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
@@ -211,7 +211,10 @@ public partial class MainWindow
             // Watched to the end: shown as seen right away, and the next play starts from the beginning.
             if (eof && previous is not null) { previous.UserData.Played = true; previous.UserData.PlaybackPositionTicks = 0; }
             var stoppedGeneration = _playGeneration;
-            if (eof && _settings.AutoNext && !_demo && !stay && previous?.Type == "Episode")
+            // « Arrêter à la fin de l’épisode »: this one was the last.
+            var last = eof && _sleep.AtEnd;
+            if (last) _sleep.Clear();
+            if (eof && _settings.AutoNext && !last && !_demo && !stay && previous?.Type == "Episode")
             {
                 var next = following ?? await GetNextAsync(previous);
                 if (stoppedGeneration != _playGeneration || _playing) return;
@@ -329,7 +332,7 @@ public partial class MainWindow
     { if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayer(true); }
     private void ReturnToLibrary()
     {
-        if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement();
+        if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); _sleep.Clear();
         PlayerShell.Visibility = Visibility.Collapsed; LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Visible;
         TitleBar.Visibility = Visibility.Visible;
         Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
