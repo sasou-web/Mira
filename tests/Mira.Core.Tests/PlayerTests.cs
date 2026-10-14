@@ -45,6 +45,16 @@ internal static class PlayerTests
             foreach (var row in root.GetProperty("groups").EnumerateArray())
                 Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupText(group) == row[1].GetString(), $"Group: {row[1]}");
             Assert(Together.GroupName("mira") == "Groupe de mira" && Together.NeedsSeek(10, 10.6) && !Together.NeedsSeek(10, 10.4), "Words, drift");
+            foreach (var row in root.GetProperty("invites").EnumerateArray())
+            {
+                var link = Together.InviteLink(row[0].GetString()!, row[1].GetString()!);
+                Assert(link == row[2].GetString() && Together.InviteSteps(link).SequenceEqual(row[3].EnumerateArray().Select(x => x.GetString())), $"Invite: {link}");
+            }
+            // A Jellyfin here: its Tailscale address first, else the home network's for localhost; any other keeps its own.
+            Assert(Together.InviteServer("http://localhost:8096", true, "100.101.102.103", "192.168.1.20") == "http://100.101.102.103:8096", "Here, Tailscale");
+            Assert(Together.InviteServer("http://127.0.0.1:8096/", true, null, "192.168.1.20") == "http://192.168.1.20:8096", "Here, home network");
+            Assert(Together.InviteServer("http://192.168.1.20:8096", true, null, "192.168.1.20") == "http://192.168.1.20:8096", "Here, at its address");
+            Assert(Together.InviteServer("https://films.example.org/jellyfin/", false, "100.101.102.103", null) == "https://films.example.org/jellyfin", "Elsewhere");
             return Task.CompletedTask;
         });
         await Test("Minuterie : pause au bout des minutes, une seule fois, ou arrêt à la fin de l’épisode, comme Mira web (tests/fixtures/sleep.json)", () =>

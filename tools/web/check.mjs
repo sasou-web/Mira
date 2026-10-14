@@ -1043,9 +1043,9 @@ try {
 }
 await big.close();
 
-// « Regarder ensemble » (Jellyfin's SyncPlay): two phones, two accounts (the second made here), one starts a group, the
-// other joins it from a title page; Lecture on the first opens the title on both, playing together; a pause and a jump on the first
-// reach the second; leaving the group on the second.
+// « Regarder ensemble » (Jellyfin's SyncPlay): two phones, two accounts (the second made here), one starts a group and
+// gets its invitation, the other opens the link signed out, signs in and is in the group; Lecture on the first opens the
+// title on both, playing together; a pause and a jump on the first reach the second; leaving the group on the second.
 const togetherA = await newContext('ensemble (1)'), togetherB = await newContext('ensemble (2)');
 const ta = await togetherA.newPage(), tb = await togetherB.newPage();
 const togetherErrors = [];
@@ -1061,27 +1061,35 @@ try {
   }, [path, method, body]);
   // A friend's account (kept from a run before when there is one): all the libraries, as Jellyfin gives a new account.
   await asA('Users/New', 'POST', { Name: 'Ami Mira', Password: 'ami-check' }).catch(() => null);
-  await tb.goto(`${base}#/connexion`); await tb.waitForTimeout(1500);
-  if (await tb.locator('.users').count()) await tb.getByRole('button', { name: 'Autre compte' }).click();
-  await tb.fill('#login-name', 'Ami Mira'); await tb.fill('#login-password', 'ami-check');
-  await tb.getByRole('button', { name: 'Se connecter', exact: true }).click();
-  await tb.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   // A film long enough for a jump of 10 s (the episodes last 8).
   const film = (await asA('Items?recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];
   const line = (p) => p.locator('#view .group-line');
-  for (const p of [ta, tb]) { await p.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await p.waitForTimeout(2500); }
+  await ta.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await ta.waitForTimeout(2500);
   await line(ta).click(); await ta.waitForTimeout(800);
   await ta.locator('.sheet-item', { hasText: 'Créer un groupe' }).click();
-  await ta.waitForFunction(() => /Ensemble/.test([...document.querySelectorAll('#view .group-line')].map((x) => x.textContent).join(' ')), null, { timeout: 10000 }).catch(() => {});
+  // A new group is empty: its invitation opens at once, with the link to send.
+  await ta.locator('.invite-link').waitFor({ timeout: 10000 }).catch(() => {});
+  const link = (await ta.locator('.invite-link').innerText().catch(() => '')).trim();
+  const steps = await ta.locator('.invite-steps li').count();
+  await ta.keyboard.press('Escape'); await ta.waitForTimeout(500);
   const created = (await line(ta).innerText()).replace(/\s+/g, ' ').trim();
-  await line(tb).click(); await tb.waitForTimeout(1500);
-  const offered = await tb.locator('.sheet-item', { hasText: 'Rejoindre' }).allInnerTexts();
-  await tb.locator('.sheet-item', { hasText: 'Rejoindre' }).first().click();
+  const groupId = (await ta.evaluate(() => JSON.parse(sessionStorage.getItem('mira.together') || 'null')?.id).catch(() => null)) ?? '';
+  // The friend opens it signed out (here, on this address: the link's own is the server's on the network): Mira asks to
+  // sign in, says why, then is in the group.
+  await tb.goto(`${base}${link.slice(link.indexOf('#'))}`); await tb.waitForTimeout(1500);
+  const invitedLead = (await tb.locator('.lead').first().innerText().catch(() => '')).trim();
+  if (await tb.locator('.users').count()) await tb.getByRole('button', { name: 'Autre compte' }).click();
+  await tb.fill('#login-name', 'Ami Mira'); await tb.fill('#login-password', 'ami-check');
+  await tb.getByRole('button', { name: 'Se connecter', exact: true }).click();
+  await tb.waitForFunction(() => /Tu es dans/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
+  const joinPage = (await tb.locator('#view h1').innerText().catch(() => '')).trim();
+  await tb.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await tb.waitForTimeout(2500);
   await tb.waitForFunction(() => /2 personnes/.test([...document.querySelectorAll('#view .group-line')].map((x) => x.textContent).join(' ')), null, { timeout: 10000 }).catch(() => {});
   const joinedLine = (await line(tb).innerText()).replace(/\s+/g, ' ').trim();
-  check('ensemble : un groupe créé sur un téléphone, rejoint depuis la fiche sur l’autre',
-    /Ensemble : Groupe de .+ · 1 personne/.test(created) && offered.length > 0 && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine),
-    `« ${created} » ; proposé : ${offered.map((x) => x.split('\n')[0]).join(', ') || 'rien'} ; « ${joinedLine} »`);
+  check('ensemble : un groupe créé, son lien d’invitation ouvert sur l’autre téléphone, connexion puis dans le groupe',
+    /Ensemble : Groupe de .+ · 1 personne/.test(created) && groupId && link.endsWith(`/Mira/#/ensemble/${groupId}`) && steps >= 3
+      && /invite à regarder ensemble/.test(invitedLead) && /^Tu es dans « Groupe de .+ »$/.test(joinPage) && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine),
+    `« ${created} » ; lien ${link || 'absent'} (${steps} étapes) ; « ${invitedLead} » ; « ${joinPage} » ; « ${joinedLine} »`);
   await ta.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
   const followed = await tb.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 15000 }).then(() => true, () => false);
   await ta.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 25000 }).catch(() => {});

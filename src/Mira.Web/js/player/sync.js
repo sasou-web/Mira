@@ -58,3 +58,33 @@ export const people = (count) => (count <= 1 ? '1 personne' : `${count} personne
 
 /** « Groupe de mira · 2 personnes ». */
 export const groupText = (group) => `${group?.GroupName ?? 'Groupe'} · ${people(group?.Participants?.length ?? 1)}`;
+
+/** The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it. */
+export const inviteLink = (server, groupId) => `${String(server).replace(/\/+$/, '')}/Mira/#/ensemble/${encodeURIComponent(groupId)}`;
+
+/** Where a host is reached from: Tailscale, the home network only, or the Internet. */
+function reach(host) {
+  const ip = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
+  if (ip) {
+    const [a, b] = [Number(ip[1]), Number(ip[2])];
+    if (a === 100 && b >= 64 && b < 128) return 'tailnet';
+    return a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b < 32) || a === 127 ? 'home' : 'internet';
+  }
+  if (/\.ts\.net$/i.test(host)) return 'tailnet';
+  return !host.includes('.') || /\.(local|lan)$/i.test(host) ? 'home' : 'internet';
+}
+
+/** What the invitation says under its link: who may follow it, and from where (Tailscale, the home network). */
+export function inviteSteps(link) {
+  let host = '';
+  try { host = new URL(link).hostname; } catch { /* not an address */ }
+  const steps = [
+    'Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe.',
+    'Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.',
+  ];
+  const where = reach(host);
+  if (where === 'tailnet') steps.push('Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.');
+  else if (where === 'home') steps.push('Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).');
+  steps.push('Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment.');
+  return steps;
+}

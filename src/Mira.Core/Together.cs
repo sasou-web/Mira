@@ -76,5 +76,41 @@ public static class Together
     public static string People(int count) => count <= 1 ? "1 personne" : $"{count} personnes";
     /// <summary>« Groupe de mira · 2 personnes ».</summary>
     public static string GroupText(Group group) => $"{group.GroupName} · {People(Math.Max(1, group.Participants.Count))}";
+    /// <summary>
+    /// The address of Jellyfin to put in an invitation: a Jellyfin on this computer at its Tailscale address when
+    /// Tailscale is connected here (a friend reaches it at home and away), else at its home network's address; another
+    /// server keeps the one this app reaches it at.
+    /// </summary>
+    public static string InviteServer(string server, bool onThisComputer, string? tailnet, string? home)
+    {
+        if (!Uri.TryCreate(server, UriKind.Absolute, out var uri)) return server.TrimEnd('/');
+        var host = onThisComputer ? tailnet ?? (uri.IsLoopback ? home : null) : null;
+        return (host is null ? uri : new UriBuilder(uri) { Host = host }.Uri).GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/');
+    }
+    /// <summary>The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it.</summary>
+    public static string InviteLink(string server, string groupId) => server.TrimEnd('/') + "/Mira/#/ensemble/" + Uri.EscapeDataString(groupId);
+    /// <summary>What the invitation says under its link: who may follow it, and from where (Tailscale, the home network).</summary>
+    public static List<string> InviteSteps(string link)
+    {
+        var host = Uri.TryCreate(link, UriKind.Absolute, out var uri) ? uri.Host : "";
+        var steps = new List<string>
+        {
+            "Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe.",
+            "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.",
+        };
+        var reach = Reach(host);
+        if (reach == "tailnet") steps.Add("Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.");
+        else if (reach == "home") steps.Add("Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).");
+        steps.Add("Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment.");
+        return steps;
+    }
+    /// <summary>Where a host is reached from: Tailscale, the home network only, or the Internet.</summary>
+    private static string Reach(string host)
+    {
+        if (System.Net.IPAddress.TryParse(host, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && ip.GetAddressBytes() is [var a, var b, _, _])
+            return a == 100 && b is >= 64 and < 128 ? "tailnet" : a == 10 || a == 192 && b == 168 || a == 172 && b is >= 16 and < 32 || a == 127 ? "home" : "internet";
+        if (host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase)) return "tailnet";
+        return !host.Contains('.') || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".lan", StringComparison.OrdinalIgnoreCase) ? "home" : "internet";
+    }
     private static string? Text(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } text ? text : null;
 }

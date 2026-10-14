@@ -1,0 +1,35 @@
+// « Inviter quelqu'un » in a group of « Regarder ensemble »: a link that opens Mira web on the group (#/ensemble/<id>,
+// views/join.js), to send to a friend, with what the friend needs: an account of this Jellyfin, Tailscale away from home.
+import { base, isTailnet } from './api.js';
+import { h, icon } from './dom.js';
+import { sheet, toast } from './components.js';
+import { inviteLink, inviteSteps } from './player/sync.js';
+import { phoneAddress, copy } from './views/share.js';
+
+/** This Jellyfin at an address a friend can open: this page's on Tailscale, else the home network's (never localhost). */
+async function friendServer() {
+  if (isTailnet(location.hostname)) return `${location.origin}${base}`;
+  return (await phoneAddress()).replace(/\/Mira\/?$/i, '');
+}
+
+export async function inviteSheet(group) {
+  if (!group) return;
+  const link = inviteLink(await friendServer(), group.GroupId);
+  const share = typeof navigator.share === 'function'
+    ? h('button', { class: 'btn small', on: { click: () => navigator.share({ title: group.GroupName, text: `Regarde avec moi sur Mira : ${group.GroupName}`, url: link }).catch(() => {}) } },
+      icon('share', { size: 16 }), 'Partager')
+    : null;
+  sheet({
+    title: 'Inviter quelqu’un',
+    body: h('div', { class: 'invite' },
+      h('p', { class: 'invite-lead' }, `Envoie ce lien à ton ami pour qu’il rejoigne « ${group.GroupName} ».`),
+      h('p', { class: 'invite-link' }, link),
+      h('div', { class: 'invite-actions' },
+        h('button', {
+          class: 'btn small primary',
+          on: { click: async () => toast(await copy(link) ? 'Lien copié : envoie-le à ton ami.' : 'Copie impossible ici : touche longuement le lien pour le sélectionner.') },
+        }, icon('link', { size: 16 }), 'Copier le lien'),
+        share),
+      h('ol', { class: 'invite-steps' }, inviteSteps(link).map((step) => h('li', {}, step)))),
+  });
+}

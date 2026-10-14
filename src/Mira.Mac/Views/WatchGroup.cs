@@ -184,7 +184,7 @@ public sealed class WatchGroup
     }
 
     /// <summary>« Créer un groupe » or « Rejoindre … »: done once Jellyfin says GroupJoined.</summary>
-    public async Task EnterAsync(Func<JellyfinClient, CancellationToken, Task> start)
+    public async Task EnterAsync(Func<JellyfinClient, CancellationToken, Task> start, bool invite = false)
     {
         if (_shell.Session is not { } session) return;
         var joined = _joined = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -193,11 +193,25 @@ public sealed class WatchGroup
             await start(session.Client, session.Lifetime);
             await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6)));
             if (Group is null && ReferenceEquals(session, _shell.Session)) _shell.Notice("Jellyfin n’a pas répondu. Réessaie dans un instant.");
+            // A new group is empty: its invitation comes at once, the way to bring someone in.
+            else if (Group is not null && invite) await InviteAsync();
             else if (Group is { } group) _shell.Notice($"Tu es dans « {group.GroupName} » : Lecture lance le titre pour tout le groupe, au même moment chez chacun.");
         }
         catch (UnauthorizedAccessException) { _shell.Notice(NoSyncPlay); }
         catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex)); }
         finally { if (ReferenceEquals(_joined, joined)) _joined = null; }
+    }
+    /// <summary>
+    /// « Inviter quelqu'un »: the link that opens Mira web on the group. A Jellyfin on this Mac is given at its
+    /// Tailscale address when there is one; another keeps the address this Mac reaches it at.
+    /// </summary>
+    public async Task InviteAsync()
+    {
+        if (!Active || Group is not { } group || _session is not { } session) return;
+        var server = session.Connection.Server;
+        var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
+        var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId);
+        await new InviteWindow(group, link, text => _shell.Notice(text)).ShowDialog(_shell);
     }
     public async Task LeaveAsync()
     {
