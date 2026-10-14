@@ -627,5 +627,59 @@ internal static class LibraryTests
             refuse = true;
             Assert(await client.SagasAsync() is null && !await client.EnableSagasAsync(), "Refused");
         });
+        await Test("Carte graphique : NVIDIA, puis Intel, puis AMD ; un adaptateur sans fabricant connu n’en propose aucune", () =>
+        {
+            var cards = GpuEncoding.Candidates(["Microsoft Basic Display Adapter", "AMD Radeon RX 6600", "Intel(R) UHD Graphics 770", null, " ", "NVIDIA GeForce RTX 3060", "NVIDIA GeForce GT 710", "Parsec Virtual Display Adapter"]);
+            Assert(string.Join(" | ", cards.Select(x => $"{x.Kind}={x.Name}")) == "nvenc=NVIDIA GeForce RTX 3060 | qsv=Intel(R) UHD Graphics 770 | amf=AMD Radeon RX 6600", string.Join(" | ", cards));
+            Assert(GpuEncoding.Candidates(["Advanced Micro Devices, Inc. Radeon"]).Single().Kind == "amf" && GpuEncoding.Candidates(["Microsoft Remote Display Adapter"]).Count == 0, "Makers");
+            Assert(GpuEncoding.Maker("qsv") == "Intel" && GpuEncoding.Maker("vaapi") == "vaapi", "Maker");
+            return Task.CompletedTask;
+        });
+        await Test("Carte graphique : chaque carte essayée sur une conversion, la première qui marche gardée, sinon le réglage de Jellyfin remis", async () =>
+        {
+            // As Jellyfin 12.1 gives its encoding settings (System/Configuration/encoding), cut down.
+            var encoding = System.Text.Json.Nodes.JsonNode.Parse("""{"HardwareAccelerationType":"none","EnableHardwareEncoding":false,"HardwareDecodingCodecs":["h264","vc1"],"H264Crf":23}""")!.AsObject();
+            var original = encoding.DeepClone();
+            var working = new HashSet<string>(); var tried = new List<string>(); var stopped = 0; var titles = true; var refuse = false;
+            string? streamed = null;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(async request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/System/Configuration/encoding")
+                {
+                    if (refuse) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+                    if (request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(encoding.ToJsonString(), Encoding.UTF8, "application/json") };
+                    encoding = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync())!.AsObject();
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                if (path.StartsWith("/Items?userId=user-1&recursive=true&includeItemTypes=Movie,Episode", StringComparison.Ordinal))
+                    return JsonResponse(new { Items = titles ? new object[] { new { Id = "vp9", MediaStreams = new[] { new { Type = "Video", Codec = "vp9" } } }, new { Id = "h264", MediaStreams = new[] { new { Type = "Audio", Codec = "aac" }, new { Type = "Video", Codec = "h264" } } } } : [] });
+                if (path.StartsWith("/Videos/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
+                {
+                    streamed = path; var kind = (string)encoding["HardwareAccelerationType"]!; tried.Add(kind);
+                    if (!working.Contains(kind)) return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[300 * 1024]) };
+                }
+                if (path.StartsWith("/Videos/ActiveEncodings?deviceId=device-1&playSessionId=", StringComparison.Ordinal) && request.Method == HttpMethod.Delete) { stopped++; return new HttpResponseMessage(HttpStatusCode.NoContent); }
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }));
+            var cards = GpuEncoding.Candidates(["Intel(R) UHD Graphics", "NVIDIA GeForce GTX 1050"]);
+            Assert(await client.HardwareAccelerationAsync() == "none", "Read");
+            working.Add("qsv");
+            var (outcome, card) = await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5));
+            Assert(outcome == GpuOutcome.Done && card?.Kind == "qsv" && string.Join(",", tried) == "nvenc,qsv" && stopped == 2, $"{outcome} {card} {string.Join(",", tried)} {stopped}");
+            Assert(streamed!.StartsWith("/Videos/h264/stream.ts?static=false&videoCodec=h264&", StringComparison.Ordinal) && streamed.Contains("allowVideoStreamCopy=false") && streamed.Contains("deviceId=device-1"), "H.264 title, converted: " + streamed);
+            var expected = original.DeepClone(); expected["HardwareAccelerationType"] = "qsv"; expected["EnableHardwareEncoding"] = true;
+            Assert(System.Text.Json.Nodes.JsonNode.DeepEquals(encoding, expected), "Other settings changed: " + encoding.ToJsonString());
+            // No card converts: Jellyfin is put back as it was, its other settings untouched.
+            Assert(await client.SetHardwareAccelerationAsync("none") && (string?)encoding["HardwareAccelerationType"] == "none", "Back to the processor");
+            working.Clear(); tried.Clear(); encoding["EnableHardwareEncoding"] = false;
+            Assert(await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5)) is (GpuOutcome.Failed, null) && tried.Count == 2, "Failed: " + string.Join(",", tried));
+            Assert(System.Text.Json.Nodes.JsonNode.DeepEquals(encoding["HardwareAccelerationType"], "none"), "Put back: " + encoding.ToJsonString());
+            titles = false;
+            Assert(await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5)) is (GpuOutcome.NothingToTry, null) && (string?)encoding["HardwareAccelerationType"] == "none", "Nothing to try");
+            refuse = true;
+            Assert(await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5)) is (GpuOutcome.Refused, null) && await client.HardwareAccelerationAsync() is null, "Refused");
+        });
     }
 }

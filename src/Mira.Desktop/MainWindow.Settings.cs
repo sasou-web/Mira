@@ -6,6 +6,7 @@ using System.Windows.Media;
 using Microsoft.Win32;
 using Mira.Core;
 using Mira.Desktop.Playback;
+using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
@@ -57,7 +58,7 @@ public partial class MainWindow
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
-        DescribeTorLinkSettings(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync();
+        DescribeTorLinkSettings(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowGpuAsync();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
         SettingsSaveStatus.Text = "Les changements s’appliquent après enregistrement.";
@@ -203,6 +204,74 @@ public partial class MainWindow
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { SagasStatus.Text = Friendly(ex); }
         finally { _sagasBusy = false; SagasButton.IsEnabled = true; }
+    }
+    private bool _gpuBusy;
+    private IReadOnlyList<GpuEncoding.Card> _gpuCards = [];
+    /// <summary>
+    /// « Conversions par la carte graphique »: for an administrator of a Jellyfin on this PC (Mira reads this PC's cards,
+    /// not the server's), what Jellyfin converts with, and a button for a card it could use. Hidden otherwise.
+    /// </summary>
+    private async Task ShowGpuAsync()
+    {
+        if (_gpuBusy) return;
+        GpuRow.Visibility = Visibility.Collapsed; GpuStatus.Text = "";
+        if (_demo || _client is not { } client) return;
+        string? kind;
+        try
+        {
+            var server = new Uri(client.Connection.Server);
+            if (!server.IsLoopback && !await Task.Run(() => LocalNetwork.IsThisPc(server.Host))) return;
+            _gpuCards = GpuEncoding.Candidates(await Task.Run(GraphicsCards.Names));
+            kind = await client.HardwareAccelerationAsync();
+        }
+        catch (Exception ex) when (IsExpected(ex)) { return; }
+        if (client != _client || kind is null || _gpuBusy) return;
+        var on = kind != GpuEncoding.None;
+        if (!on && _gpuCards.Count == 0) return;
+        ShowGpuState(on ? $"Activé : Jellyfin convertit avec la carte graphique ({GpuEncoding.Maker(kind)})." : "", on);
+        GpuRow.Visibility = Visibility.Visible;
+    }
+    private void ShowGpuState(string status, bool on)
+    {
+        GpuStatus.Text = status;
+        GpuButton.Visibility = on || _gpuCards.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        GpuOffButton.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+    }
+    /// <summary>Tries each card of this PC on a title, keeps the first that converts it, or puts Jellyfin back as it was.</summary>
+    private async void Gpu_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client is not { } client || _gpuBusy || _gpuCards.Count == 0) return;
+        _gpuBusy = true; GpuButton.IsEnabled = false; GpuStatus.Text = "Essai de conversion sur la carte graphique…";
+        var ct = _connectionLifetime.Token;
+        try
+        {
+            var (outcome, card) = await GpuEncoding.EnableAsync(client, _gpuCards, TimeSpan.FromSeconds(30), ct);
+            switch (outcome)
+            {
+                case GpuOutcome.Done: ShowGpuState($"Activé : ta {card!.Name} convertit les vidéos pour ton téléphone.", true); break;
+                case GpuOutcome.Refused: GpuStatus.Text = "Seul un administrateur de Jellyfin peut changer ce réglage."; break;
+                case GpuOutcome.NothingToTry: GpuStatus.Text = "Ajoute d’abord un film ou un épisode à ta bibliothèque : Mira essaie la carte sur l’un d’eux."; break;
+                default: GpuStatus.Text = "La carte graphique n’a pas réussi l’essai : Jellyfin continue avec le processeur. Mettre à jour son pilote peut suffire, puis réessaie."; break;
+            }
+        }
+        // Only Mira's own cancellation (another account, closing): HttpClient's 12 s limit is one too, and must be said.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (IsExpected(ex)) { GpuStatus.Text = Friendly(ex); }
+        finally { _gpuBusy = false; GpuButton.IsEnabled = true; }
+    }
+    private async void GpuOff_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client is not { } client || _gpuBusy) return;
+        _gpuBusy = true; GpuOffButton.IsEnabled = false;
+        var ct = _connectionLifetime.Token;
+        try
+        {
+            if (await client.SetHardwareAccelerationAsync(GpuEncoding.None, ct)) ShowGpuState("Jellyfin convertit de nouveau avec le processeur.", false);
+            else GpuStatus.Text = "Seul un administrateur de Jellyfin peut changer ce réglage.";
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (IsExpected(ex)) { GpuStatus.Text = Friendly(ex); }
+        finally { _gpuBusy = false; GpuOffButton.IsEnabled = true; }
     }
     private void ApproveCode_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     { if (e.Key == System.Windows.Input.Key.Enter) { e.Handled = true; ApproveDevice_Click(sender, e); } }

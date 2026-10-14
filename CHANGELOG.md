@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Conversions par la carte graphique** (Windows, effet sur le téléphone) : quand un fichier ne se lit pas tel quel sur l’iPhone, Jellyfin le convertit, jusqu’ici toujours avec le processeur. **Réglages → Jellyfin & synchronisation → Utiliser la carte graphique** essaie ta carte NVIDIA, Intel ou AMD sur un de tes titres et ne la garde que si l’essai réussit ; sinon Jellyfin reste comme avant. La lecture convertie démarre plus vite et le PC chauffe moins. **Revenir au processeur** annule. Visible avec le compte administrateur de Jellyfin, quand Jellyfin tourne sur ce PC.
 - **Plus de barre de défilement sur le côté** (Windows, Mac et Mira web sur ordinateur) : les pages défilent comme avant à la molette, au pavé tactile, au clavier ou au doigt, sans la barre qui prenait de la place. Sur ordinateur, la page derrière un panneau ouvert ne bouge plus non plus, comme sur le téléphone.
 - **Les contrôles des développeurs quittent Mira pour Windows** : les harnais de validation (captures, lecteur, intégration à Windows, TorLink) ne sont plus dans les paquets publiés ; leurs options de ligne de commande y ferment Mira aussitôt. Rien ne change pour toi.
 

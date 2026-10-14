@@ -307,6 +307,82 @@ public sealed class JellyfinClient : IDisposable
             .Select(x => ((string)x["ItemId"]!, x["LibraryOptions"] as JsonObject)).ToList();
     }
     /// <summary>
+    /// The kind of hardware Jellyfin converts with (HardwareAccelerationType: none, nvenc, qsv, amf…). Null when
+    /// unreadable: not an administrator, or a Jellyfin without the setting.
+    /// </summary>
+    public async Task<string?> HardwareAccelerationAsync(CancellationToken ct = default) =>
+        await EncodingSettingsAsync(ct) is { } encoding && encoding["HardwareAccelerationType"] is JsonValue value && value.TryGetValue<string>(out var kind) ? kind : null;
+    /// <summary>
+    /// Has Jellyfin convert with that kind of hardware, its encoder included, every other setting kept as it was
+    /// (which codecs it decodes there among them: H.264 and VC-1 by default). False when refused.
+    /// </summary>
+    public async Task<bool> SetHardwareAccelerationAsync(string kind, CancellationToken ct = default)
+    {
+        if (await EncodingSettingsAsync(ct) is not { } encoding) return false;
+        encoding["HardwareAccelerationType"] = kind;
+        if (kind != GpuEncoding.None) encoding["EnableHardwareEncoding"] = true;
+        using var content = new StringContent(encoding.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync("System/Configuration/encoding", content, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(response);
+        return true;
+    }
+    /// <summary>
+    /// Whether Jellyfin converts a title with its settings as they are: the start of a film or an episode, made again
+    /// in H.264 360p (never copied), read until <paramref name="enough"/> bytes, then stopped. A hardware it cannot open
+    /// answers 500 at once (checked on 12.1 with nvenc and no card); one that gives up midway ends the stream short.
+    /// Null when there is nothing to convert. An H.264 file is taken first: the card then decodes it too.
+    /// </summary>
+    public async Task<bool?> ConversionWorksAsync(TimeSpan limit, int enough = 256 * 1024, CancellationToken ct = default)
+    {
+        var result = await GetAsync<JsonElement>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Episode&mediaTypes=Video&sortBy=DateCreated&sortOrder=Descending&limit=20&fields=MediaStreams&enableImages=false&enableUserData=false", ct);
+        if (!result.TryGetProperty("Items", out var items) || items.ValueKind != JsonValueKind.Array) return null;
+        var titles = items.EnumerateArray().Where(x => x.TryGetProperty("Id", out var id) && id.ValueKind == JsonValueKind.String).ToList();
+        if (titles.Count == 0) return null;
+        static bool H264(JsonElement item) => item.TryGetProperty("MediaStreams", out var streams) && streams.ValueKind == JsonValueKind.Array
+            && streams.EnumerateArray().Any(s => s.TryGetProperty("Type", out var type) && type.ValueEquals("Video") && s.TryGetProperty("Codec", out var codec) && codec.ValueEquals("h264"));
+        var title = titles.FirstOrDefault(H264) is { ValueKind: JsonValueKind.Object } h264 ? h264 : titles[0];
+        var session = Guid.NewGuid().ToString("N");
+        var stop = $"Videos/ActiveEncodings?deviceId={Uri.EscapeDataString(Connection.DeviceId)}&playSessionId={session}";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(limit);
+        var answered = false;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"Videos/{title.GetProperty("Id").GetString()}/stream.ts?static=false&videoCodec=h264&audioCodec=aac&maxHeight=360&videoBitRate=1000000&audioBitRate=128000&maxAudioChannels=2&allowVideoStreamCopy=false&allowAudioStreamCopy=false&deviceId={Uri.EscapeDataString(Connection.DeviceId)}&playSessionId={session}");
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            // FFmpeg failed to start. Anything else (starting, refused, session ended) is not the hardware's doing.
+            if (response.StatusCode == HttpStatusCode.InternalServerError) return false;
+            await CheckAsync(response);
+            answered = true;
+            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+            var buffer = new byte[81920]; var read = 0;
+            while (read < enough)
+            {
+                var count = await stream.ReadAsync(buffer, timeout.Token);
+                if (count == 0) return false;
+                read += count;
+            }
+            return true;
+        }
+        // Too slow to give its first bytes: not worth keeping. HttpClient's own limit lands here as well.
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return false; }
+        // The stream cut once begun: FFmpeg stopped. Jellyfin out of reach before answering is not the card's doing.
+        catch (Exception ex) when (answered && ex is HttpRequestException or IOException) { return false; }
+        finally
+        {
+            try { using var stopped = await _http.DeleteAsync(stop, CancellationToken.None); }
+            catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException) { }
+        }
+    }
+    private async Task<JsonObject?> EncodingSettingsAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("System/Configuration/encoding", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject;
+    }
+    /// <summary>
     /// Whether this account administers Jellyfin (its policy): only an administrator installs Mira web or lets
     /// Tailscale in. Null when Jellyfin does not say.
     /// </summary>
