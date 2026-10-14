@@ -1,5 +1,5 @@
 {
-  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]",
+  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js) and tests/Mira.Core.Tests (Together.cs). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]",
   "times": [
     ["2026-10-14T14:48:08.5712105Z", 1791989288571],
     ["2026-10-14T14:48:08Z", 1791989288000],

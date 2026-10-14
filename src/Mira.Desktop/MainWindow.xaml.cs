@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -106,7 +107,7 @@ public partial class MainWindow : Window
             if (!_demo && !_playing && _client is not null && IsActive && Cadence.RefreshDue(_listening, _lastRefresh, DateTimeOffset.UtcNow)) await RefreshAsync(quiet: true);
         };
         _playerTimer.Tick += PlayerTick;
-        InitializeEpisodeNotices();
+        InitializeEpisodeNotices(); InitializeTogether();
         VolumeSlider.Value = VolumeBoost.Clamp(_settings.Volume); ShowVolumeLevel();
         var testArg = Array.IndexOf(args, "--test-media");
         if (testArg >= 0 && testArg + 1 < args.Length) _testMedia = args[testArg + 1];
@@ -311,9 +312,10 @@ public partial class MainWindow : Window
         {
             if (ct.IsCancellationRequested) return;
             var reopened = open && !_listening && _lastRefresh != DateTimeOffset.MinValue; _listening = open;
-            if (reopened) Changed();
+            if (reopened) { Changed(); RejoinGroup(client); }
         });
-        try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening); }
+        void SyncPlay(string type, JsonElement data) => Dispatcher.BeginInvoke(() => { if (!ct.IsCancellationRequested) GroupMessage(client, type, data); });
+        try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening, SyncPlay); }
         catch (OperationCanceledException) { }
     }
     /// <summary>Artwork decoded for the sharpest and widest of the screens connected now, and for the pages' zoom.</summary>
@@ -329,7 +331,7 @@ public partial class MainWindow : Window
         _heroClock.Stop(); _heroClockAttached = false; _heroCandidates = [];
         _heroSeries.Clear();
         _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
-        _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices();
+        _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); GroupGone();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
         _catalog.RecentPlayback = []; _catalog.HiddenResume = [];

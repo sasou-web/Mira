@@ -115,11 +115,12 @@ public abstract unsafe class MpvClient : IDisposable
         }
         finally { foreach (var p in pointers) Marshal.FreeCoTaskMem(p); Marshal.FreeHGlobal(array); }
     }
-    public void Load(string location, double startSeconds, string? authorization = null)
+    /// <param name="paused">Opened paused: « Regarder ensemble » plays it when the group does.</param>
+    public void Load(string location, double startSeconds, string? authorization = null, bool paused = false)
     {
         // Tokens are sent as request headers, never in media URLs, logs or shell commands.
         Set("http-header-fields", authorization is null ? "" : "Authorization: " + authorization.Replace(",", "\\,"));
-        Set("start", Format(startSeconds)); Set("pause", "no");
+        Set("start", Format(startSeconds)); Set("pause", paused ? "yes" : "no");
         _open = false;
         Command("loadfile", location, "replace");
     }

@@ -27,7 +27,8 @@ public partial class MainWindow
     private int _playGeneration;
     private bool _tickBusy;
 
-    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false)
+    /// <param name="groupStart">Put on by « Regarder ensemble » (MainWindow.Together.cs): opened paused there, until the group plays.</param>
+    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null)
     {
         ClosePreview(); var asked = item;
         if (_playBusy) return; _playBusy = true;
@@ -54,6 +55,11 @@ public partial class MainWindow
                 }
                 item = next ?? throw new IOException("Aucun épisode disponible.");
             }
+            if (InGroup && groupStart is null)
+            {
+                if (await AskGroupAsync(item, fromStart, completePrevious)) return;
+                groupStart = _groupQueue?.StartTicks ?? 0;
+            }
             string location; string? authorization = null; MediaSource? source = null; string session = "";
             if (_demo)
             {
@@ -77,7 +83,7 @@ public partial class MainWindow
             }
             await StopPlaybackAsync(completePrevious);
             // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
-            _session.Begin(item, source, session, PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart)); _loaded = false;
+            _session.Begin(item, source, session, groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart)); _loaded = false;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
             PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
@@ -100,7 +106,7 @@ public partial class MainWindow
             _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
             PublishWindowsTrack(item);
             _mpv.FileLoaded += FileLoaded;
-            _mpv.PlaybackRestarted += () => _session.LastReport = DateTimeOffset.MinValue;
+            _mpv.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
             var generation = ++_playGeneration;
             _ = LoadServerMarkersAsync(item, generation);
             _mpv.Ended += eof =>
@@ -113,7 +119,11 @@ public partial class MainWindow
             };
             _mpv.Error += message => { _session.Failure = message; };
             _mpv.Message += message => Dispatcher.BeginInvoke(() => { if (generation == _playGeneration) HandlePlayerMessage(message); });
-            _playing = true; UpdateHeroClock(); _session.LastReport = DateTimeOffset.Now; SetPlayerLoading(true); _fileOpen = true; _mpv.Load(location, _session.Position, authorization);
+            _playing = true; UpdateHeroClock(); _session.LastReport = DateTimeOffset.Now; SetPlayerLoading(true); _fileOpen = true;
+            // In a group: loaded paused, « ready » once there (GroupRestarted), played when Jellyfin says.
+            _groupReadyPending = groupStart is not null; _groupStallSince = null; _groupStalled = false;
+            if (groupStart is not null) { SetGroupAway(false); GroupReport("Buffering", _session.Position, false); }
+            _mpv.Load(location, _session.Position, authorization, paused: groupStart is not null);
             if (_demo && _testMedia is not null && _args.Contains("--loop-test-media")) _mpv.Set("loop-file", "inf");
             SetMiniPlayer(keepMini, preserveFullscreen: true); _playerTimer.Start();
         }
@@ -183,6 +193,8 @@ public partial class MainWindow
             if (!_seeking) { SeekBar.SetPlayback(_session.Position, _session.Duration, !paused, _mpv.Number("speed", 1)); PositionText.Text = TimeLabel(_session.Position); UpdateChapterText(_session.Position); }
             SeekBar.SetBuffered(_mpv.Number("demuxer-cache-time", 0)); DurationText.Text = TimeLabel(_session.Duration);
             var changed = paused != _session.Paused; _session.Paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
+            if (changed) GroupPauseChanged(paused);
+            WatchGroupStall();
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
             UpdateSkip(); CheckSleepTimer();
             UpdateWindowsPlayback();
@@ -333,6 +345,8 @@ public partial class MainWindow
     private void ReturnToLibrary()
     {
         if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); _sleep.Clear();
+        // The group plays on without this PC.
+        SetGroupAway(true);
         PlayerShell.Visibility = Visibility.Collapsed; LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Visible;
         TitleBar.Visibility = Visibility.Visible;
         Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
@@ -349,6 +363,8 @@ public partial class MainWindow
     {
         if (_mpv is null) return;
         var pause = !_mpv.Flag("pause");
+        // In a group, play waits for Jellyfin, which starts every device at the same moment.
+        if (PlayingForGroup && _loaded) { if (pause) QuietPause(true); SendGroup(pause ? "Pause" : "Unpause"); ShowPlayerControls(); return; }
         _mpv.Set("pause", pause ? "yes" : "no");
         // Swap the glyph now rather than at the next poll, so the press and the new icon are one movement.
         ShowPauseState(pause);

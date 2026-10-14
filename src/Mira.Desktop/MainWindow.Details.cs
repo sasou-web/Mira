@@ -269,6 +269,7 @@ public partial class MainWindow
         DetailRestart.Content ??= ActionLabel("refresh", "Depuis le début");
         FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
         WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu");
+        ShowTogetherButton();
     }
     /// <summary>Length and ratings, then the picture of the file Lecture plays and when it ends (the episode it picks up at, on a series).</summary>
     private void RenderDetailMeta()
