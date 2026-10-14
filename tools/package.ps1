@@ -35,8 +35,12 @@ Push-Location $workspace
 try {
     dotnet restore $project --configfile NuGet.Config -r win-x64
     if ($LASTEXITCODE -ne 0) { throw 'Restore failed.' }
-    dotnet publish $project --no-restore -c $Configuration -r win-x64 --self-contained true -o $bundle -p:DebugType=None -p:DebugSymbols=false "-p:Version=$version"
+    # Without the validation harnesses of Checks/ (Mira.Desktop.csproj): they stay in the builds the checks use.
+    dotnet publish $project --no-restore -c $Configuration -r win-x64 --self-contained true -o $bundle -p:DebugType=None -p:DebugSymbols=false "-p:Version=$version" -p:MiraValidation=false
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+    if ([Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes((Join-Path $bundle 'Mira.dll'))).Contains('RunRequestedCheckAsync')) {
+        throw 'The validation harnesses are still in the published Mira.dll.'
+    }
     # The .NET runtime these packages carry, to compare with the latest patch (https://dotnet.microsoft.com/download).
     $runtime = (Get-Item -LiteralPath (Join-Path $bundle 'System.Private.CoreLib.dll')).VersionInfo.ProductVersion -replace '[-+].*$', ''
     Write-Output ".NET runtime included: $runtime"
@@ -57,7 +61,7 @@ try {
     # One file: native libraries are extracted by .NET at first launch; mpv's key bindings and the Shell icon are
     # embedded in Mira and written into its profile, the TorLink page is served from its resources.
     dotnet publish $project --no-restore -c $Configuration -r win-x64 --self-contained true -o $single -p:DebugType=None -p:DebugSymbols=false "-p:Version=$version" `
-        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+        -p:MiraValidation=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
     if ($LASTEXITCODE -ne 0) { throw 'Single-file publish failed.' }
     $portable = Join-Path $output "Mira-$version-win-x64-portable.exe"
     Copy-Item -LiteralPath (Join-Path $single 'Mira.exe') -Destination $portable -Force
