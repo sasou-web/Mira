@@ -48,6 +48,7 @@ public sealed class PlayerPage : UserControl
     private double _lastAudible = 80;
     private int _generation;
     private readonly SkipPlanner _skips = new();
+    private readonly SleepTimer _sleep = new();
     private List<MediaItem> _episodes = [];
     /// <summary>For the self-check.</summary>
     public MpvPlayer? Engine => _mpv;
@@ -77,7 +78,7 @@ public sealed class PlayerPage : UserControl
 
         _next = Ui.IconButton("next-episode", "Épisode suivant · N", () => { if (_skips.Next is { } next) _ = PlayNextAsync(next); }, "player", 24);
         _tracks = Ui.IconButton("subtitles", "Audio et sous-titres", () => { }, "player", 23);
-        _more = Ui.IconButton("more", "Vitesse et décalage des sous-titres", () => { }, "player", 24);
+        _more = Ui.IconButton("more", "Vitesse, sous-titres et minuterie", () => { }, "player", 24);
         _tracks.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         _more.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         ((Flyout)_tracks.Flyout).Opening += (_, _) => ((Flyout)_tracks.Flyout).Content = TracksMenu();
@@ -267,7 +268,10 @@ public sealed class PlayerPage : UserControl
         if (generation != _generation || _stopped) return;
         var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay;
         if (eof && _session.Duration > 0) _session.Position = _session.Duration;
-        if (eof && _shell.Settings.AutoNext && !stay && _session.Item?.Type == "Episode" && (next ?? await NextAfterAsync(_session.Item)) is { } following)
+        // « Arrêter à la fin de l’épisode »: this one was the last.
+        var last = eof && _sleep.AtEnd;
+        if (last) _sleep.Clear();
+        if (eof && _shell.Settings.AutoNext && !last && !stay && _session.Item?.Type == "Episode" && (next ?? await NextAfterAsync(_session.Item)) is { } following)
         { await PlayNextAsync(following, completed: true); return; }
         await StopAsync(eof);
         await _shell.CloseOverlayPlayerAsync(this);
@@ -335,6 +339,8 @@ public sealed class PlayerPage : UserControl
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
+            // « Minuterie »: the minutes are over, the film pauses where it is.
+            if (_sleep.Due(DateTimeOffset.Now)) { if (!paused) { mpv.Set("pause", "yes"); _shell.Notice("Minuterie : lecture en pause."); } RefreshMenus(); }
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
             // Every 10 s while it plays, once when it pauses or resumes (MinValue above), never while it stays paused.
             if (_session.Reported && _shell.Session is { } session && Cadence.ProgressDue(false, paused, _session.LastReport, DateTimeOffset.Now))
@@ -492,7 +498,19 @@ public sealed class PlayerPage : UserControl
         }
         var shift = Ui.Row(6, Ui.IconButton("minus", "Sous-titres plus tôt", () => Shift(-0.5), "icon", 18), label, Ui.IconButton("plus", "Sous-titres plus tard", () => Shift(0.5), "icon", 18), Ui.IconButton("refresh", "Remettre à zéro", () => Shift(0), "icon", 18));
         var delays = Ui.Column(8, new TextBlock { Text = "DÉCALAGE DES SOUS-TITRES", Classes = { "label" }, Margin = new Thickness(10, 0, 0, 0) }, shift);
-        return Ui.Row(22, speeds, delays);
+        var sleep = new StackPanel { Spacing = 2, MinWidth = 180 };
+        sleep.Children.Add(new TextBlock { Text = "MINUTERIE", Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
+        void Sleep(int? minutes)
+        {
+            _sleep.Choose(minutes, DateTimeOffset.Now);
+            // A countdown to the next episode already running stops, as « Annuler » does.
+            if (_sleep.AtEnd && _skips.Counting) { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; }
+        }
+        sleep.Children.Add(Entry("Désactivée", null, _sleep.Chosen is null, () => Sleep(null)));
+        foreach (var minutes in SleepTimer.Choices)
+            sleep.Children.Add(Entry(SleepTimer.Duration(minutes), _sleep.Chosen == minutes ? _sleep.Status(DateTimeOffset.Now) : null, _sleep.Chosen == minutes, () => Sleep(minutes)));
+        if (_session.Item?.Type == "Episode") sleep.Children.Add(Entry("Fin de l’épisode", null, _sleep.AtEnd, () => Sleep(0)));
+        return Ui.Row(22, speeds, delays, sleep);
     }
     private Button Entry(string label, string? details, bool selected, Action choose)
     {
@@ -564,7 +582,7 @@ public sealed class PlayerPage : UserControl
         // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there.
         if (_loaded && !_stopped && !_timeline.Dragging && _skips.AutoSkip(_session.Position, _shell.Settings.AutoSkip) is { } passage) SeekTo(passage.End, exact: true);
         // Without a credits marker, the next episode during the last seconds.
-        if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext) && _skips.Active is not null)
+        if (_skips.Offer(_session.Position, _session.Duration, offering: _loaded && !_stopped, _shell.Settings.AutoNext && !_sleep.AtEnd) && _skips.Active is not null)
         {
             _skipText.Text = _skips.Label(_session.Item?.Type == "Episode");
             ToolTip.SetTip(_skip, _skipText.Text + " · S");

@@ -404,6 +404,20 @@ try {
   now = await state();
   check('lecteur d’Apple (simulé) : fermé pendant le chargement de l’épisode suivant, il ne revient pas', switched && now.hash.startsWith(`#/titre/${series.Id}`) && now.mode !== 'fullscreen',
     `${switched ? 'É2 en chargement' : 'É2 jamais atteint'}, puis ${now.hash.split('?')[0]}${now.mode ? `, ${now.mode}` : ''}`);
+  // « Minuterie : fin de l’épisode », chosen on the title page (Apple's player has no room for Mira's menus): the
+  // episode ends, the next one does not start, and the timer is gone for the next title.
+  await ap.evaluate((id) => { location.hash = `#/titre/${id}`; }, series.Id); await ap.waitForTimeout(2500);
+  await ap.locator('.tracks-line', { hasText: 'Minuterie' }).click(); await ap.waitForTimeout(600);
+  await ap.getByRole('menuitemradio', { name: /Fin de l’épisode/ }).click(); await ap.waitForTimeout(800);
+  const timerLine = await ap.locator('.tracks-line', { hasText: 'Minuterie' }).innerText();
+  await ap.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, episodes[0].Id);
+  const stopped = await ap.waitForFunction((id) => location.hash.startsWith(`#/titre/${id}`), series.Id, { timeout: 30000 }).then(() => true, () => false);
+  await ap.waitForTimeout(2000);
+  now = await state();
+  const timerAfter = await ap.locator('.tracks-line', { hasText: 'Minuterie' }).innerText().catch(() => '');
+  check('minuterie (lecteur d’Apple simulé) : « Fin de l’épisode » choisie sur la fiche, l’épisode suivant ne démarre pas',
+    /fin de l’épisode/.test(timerLine) && stopped && !now.hash.includes(episodes[1].Id) && /désactivée/.test(timerAfter),
+    `${timerLine.replace(/\s+/g, ' ')} ; puis ${now.hash.split('?')[0]}, ${timerAfter.replace(/\s+/g, ' ')}`);
 } catch (error) {
   check('lecteur d’Apple (simulé) : déroulé', false, error.message.split('\n')[0]);
   await ap.screenshot({ path: `${out}/error-apple.png` }).catch(() => {});

@@ -127,6 +127,9 @@
       <StackPanel x:Name="MoreMenu" Width="300" Visibility="Collapsed">
        <TextBlock Text="VITESSE" Style="{StaticResource PlayerMenuHeading}"/>
        <UniformGrid x:Name="SpeedList" Rows="1" Margin="8,0,8,10"/>
+       <TextBlock Text="MINUTERIE" Style="{StaticResource PlayerMenuHeading}"/>
+       <UniformGrid x:Name="SleepList" Rows="1" Margin="8,0,8,4"/>
+       <TextBlock x:Name="SleepStatus" Margin="10,2,10,8" FontSize="12" Foreground="{DynamicResource Muted}" v:Accessible.Announce="Polite"/>
        <Border Height="1" Background="{StaticResource Wash}" Margin="10,2,10,6"/>
        <DockPanel Margin="10,0,6,4"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="−" Tag="-0.5" Width="32" Style="{StaticResource PlayerMenuChip}" Margin="0" Click="SubtitleDelay_Click" ToolTip="Sous-titres 0,5 s plus tôt" AutomationProperties.Name="Sous-titres 0,5 seconde plus tôt"/><Button x:Name="SubtitleDelayReset" Content="0,0 s" Tag="0" MinWidth="58" Style="{StaticResource PlayerMenuChip}" Click="SubtitleDelay_Click" ToolTip="Réinitialiser le décalage" AutomationProperties.Name="Réinitialiser le décalage des sous-titres"/><Button Content="+" Tag="0.5" Width="32" Style="{StaticResource PlayerMenuChip}" Margin="0" Click="SubtitleDelay_Click" ToolTip="Sous-titres 0,5 s plus tard" AutomationProperties.Name="Sous-titres 0,5 seconde plus tard"/></StackPanel><TextBlock Text="Décalage des sous-titres" FontSize="13" Foreground="{StaticResource TextBody}" VerticalAlignment="Center"/></DockPanel>
        <Border Height="1" Background="{StaticResource Wash}" Margin="10,6,10,2"/>

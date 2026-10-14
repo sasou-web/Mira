@@ -20,6 +20,7 @@ import {
 import { presentationStep } from './presentation.js';
 import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, chapterPassages, withChapters, withoutFromStart } from './timeline.js';
 import { QUALITIES } from '../views/settings.js';
+import { sleep, sleepChoices } from './sleep.js';
 
 // Forced subtitles (signs, foreign lines): Safari has the « forced » kind; elsewhere it reads as metadata, never drawn.
 const FORCED_KIND = (() => { try { const t = document.createElement('track'); t.kind = 'forced'; return t.kind === 'forced'; } catch { return false; } })();
@@ -59,6 +60,8 @@ export function create({ id, query }) {
   const native = appleNative();
   // A speed chosen for another title does not follow into this one (the <video> is shared).
   video.defaultPlaybackRate = 1; video.playbackRate = 1;
+  // A timer chosen on a title page whose minutes ran out before Lecture: it does not pause the film at once.
+  sleep.due(Date.now());
   const el = h('div', { class: ['player', native && 'native'], role: 'region', 'aria-label': 'Lecteur vidéo' });
 
   // ---------- The title playing (the next episode replaces it in the same player) ----------
@@ -90,7 +93,7 @@ export function create({ id, query }) {
   const airplay = h('button', { class: 'round flat', 'aria-label': 'AirPlay', hidden: true, on: { click: () => video.webkitShowPlaybackTargetPicker?.() } }, icon('airplay'));
   const pip = h('button', { class: 'round flat', 'aria-label': 'Image dans l’image', hidden: !pipSupported(), on: { click: togglePip } }, icon('pip'));
   const tracksButton = h('button', { class: 'round flat', 'aria-label': 'Audio et sous-titres', on: { click: tracksSheet } }, icon('subtitles'));
-  const moreButton = h('button', { class: 'round flat', 'aria-label': 'Vitesse et qualité', on: { click: moreSheet } }, icon('sliders'));
+  const moreButton = h('button', { class: 'round flat', 'aria-label': 'Vitesse, qualité et minuterie', on: { click: moreSheet } }, icon('sliders'));
   const playButton = h('button', { class: 'round big', 'aria-label': 'Lecture', on: { click: (e) => { e.stopPropagation(); togglePlay(); } } }, icon('play', { size: 36 }));
   const skipMark = (name) => h('span', { class: 'skip-mark' }, icon(name, { size: 36 }), h('b', {}, '10'));
   const back10 = h('button', { class: 'round', 'aria-label': 'Reculer de 10 secondes', on: { click: (e) => { e.stopPropagation(); jump(-10); } } }, skipMark('back10'));
@@ -263,6 +266,8 @@ export function create({ id, query }) {
 
   function updateTime() {
     if (scrubbing) return;
+    // « Minuterie »: the minutes are over, the film pauses where it is (Apple's player too).
+    if (sleep.due(Date.now()) && !video.paused) { video.pause(); toast('Minuterie : lecture en pause.'); }
     const end = total || video.duration || 0, at = position();
     markers(at, end);
     if (native) return;
@@ -342,13 +347,15 @@ export function create({ id, query }) {
         pillLayer.append(h('button', { class: 'pill', on: { click: (e) => { e.stopPropagation(); seek(seconds(segment.EndTicks)); } } }, SKIP_LABELS[segment.Type], icon('next', { size: 20 })));
       }
     }
-    if (!next || nextDismissed || !settings.get('autoNext') || !end) return;
+    if (!next || nextDismissed || !autoNext() || !end) return;
     const from = nextFrom(segments, end);
     // Gone back before it, to watch again: the offer goes, and comes back when that point is reached again.
     if (countdownTimer && at < from - 2) { clearInterval(countdownTimer); countdownTimer = 0; pillLayer.querySelector('.up-next')?.remove(); return; }
     if (at >= from && !countdownTimer && !video.paused) offerNext();
   }
 
+  /** The next episode starts by itself: the settings say so, and the sleep timer does not stop at this one. */
+  const autoNext = () => settings.get('autoNext') && !sleep.atEnd;
   function offerNext() {
     countdown = COUNTDOWN;
     const counter = h('span', {}, `Dans ${countdown} s`);
@@ -667,13 +674,19 @@ export function create({ id, query }) {
     const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
     const quality = settings.get('quality');
     sheet({
-      title: 'Vitesse et qualité',
+      title: 'Vitesse, qualité et minuterie',
       items: [
         // The default rate too: a new stream (another track, quality or episode) keeps the speed chosen.
         ...speeds.map((s) => ({ label: s === 1 ? 'Vitesse normale' : `Vitesse × ${String(s).replace('.', ',')}`, selected: video.defaultPlaybackRate === s, run: () => { video.defaultPlaybackRate = s; video.playbackRate = s; } })),
         ...QUALITIES.map(([key, label, sub]) => ({ label: `Qualité : ${label}`, sub, selected: key === quality, run: () => {
           settings.set('quality', key);
           open(ticks(position()), { keepPaused: video.paused });
+        } })),
+        { heading: 'Minuterie' },
+        ...sleepChoices(sleep, { episode: item?.Type === 'Episode', now: Date.now() }).map(({ label, sub, selected, minutes }) => ({ label, sub, selected, run: () => {
+          sleep.choose(minutes, Date.now());
+          // An offer of the next episode already counting stops, as « Annuler » does.
+          if (sleep.atEnd && countdownTimer) cancelNext();
         } })),
       ],
     });
@@ -841,7 +854,7 @@ export function create({ id, query }) {
       ended = true;
       await stop({ finished: true });
       if (disposed || closing) return;
-      if (next && settings.get('autoNext') && !nextDismissed) playNext();
+      if (next && autoNext() && !nextDismissed) playNext();
       else close();
     },
     error: () => {
@@ -889,6 +902,8 @@ export function create({ id, query }) {
   function close({ landing = false } = {}) {
     if (closing) return;
     closing = true;
+    // The timer was for this sitting: the next title starts without it.
+    sleep.clear();
     clearTimeout(nativeCheck); stopWaiting();
     exitPresentation();
     leaveFullscreen();

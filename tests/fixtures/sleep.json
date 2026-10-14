@@ -1,0 +1,14 @@
+{
+  "about": "The sleep timer (« Minuterie ») of the players. Read by tests/Mira.Core.Tests (SleepTimer) and tools/web/unit (sleep.js): both must agree. durations: [minutes, label]; status: [choice (minutes, 0 for the end of the episode, null when off), seconds since chosen, status or null, due]",
+  "durations": [[15, "15 min"], [30, "30 min"], [60, "1 h"], [90, "1 h 30"], [125, "2 h 05"]],
+  "status": [
+    [null, 0, null, false],
+    [15, 0, "Pause dans 15 min", false],
+    [15, 1, "Pause dans 15 min", false],
+    [15, 61, "Pause dans 14 min", false],
+    [15, 899, "Pause dans 1 min", false],
+    [15, 900, null, true],
+    [60, 30, "Pause dans 1 h", false],
+    [0, 7200, "Arrêt à la fin de l’épisode", false]
+  ]
+}

@@ -394,12 +394,47 @@ public partial class MainWindow
             chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSpeed(speed); };
             SpeedList.Children.Add(chip);
         }
+        BuildSleepChoices();
         SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay"));
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");
         var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null }.Where(x => x is not null));
         var decoding = _mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? $"matériel ({hwdec})" : "logiciel";
         PlaybackInfo.Text = $"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nAudio  {PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"}\nImages perdues  {_mpv.Get("frame-drop-count") ?? "0"}";
+    }
+    /// <summary>« Minuterie »: off, 15 min, 30 min, 1 h, or the end of an episode (<see cref="SleepTimer"/>).</summary>
+    private void BuildSleepChoices()
+    {
+        SleepList.Children.Clear();
+        var choices = new List<(int? Minutes, string Label, string Name)> { (null, "Non", "Pas de minuterie") };
+        choices.AddRange(SleepTimer.Choices.Select(m => ((int?)m, SleepTimer.Duration(m), "Pause dans " + SleepTimer.Duration(m))));
+        if (_session.Item?.Type == "Episode") choices.Add((0, "Fin", "Arrêter à la fin de l’épisode"));
+        foreach (var (minutes, label, name) in choices)
+        {
+            var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "sleep", Content = label, ToolTip = name, IsChecked = _sleep.Chosen == minutes };
+            System.Windows.Automation.AutomationProperties.SetName(chip, name);
+            chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSleep(minutes); };
+            SleepList.Children.Add(chip);
+        }
+        ShowSleepStatus();
+    }
+    private void ChooseSleep(int? minutes)
+    {
+        _sleep.Choose(minutes, DateTimeOffset.Now); ShowSleepStatus(); ShowPlayerControls();
+        // A countdown to the next episode already running stops, as « Annuler » does.
+        if (_sleep.AtEnd && _skips.Counting) SkipCancel_Click(this, new RoutedEventArgs());
+    }
+    private void ShowSleepStatus()
+    {
+        var status = _sleep.Status(DateTimeOffset.Now);
+        SleepStatus.Text = status ?? ""; SleepStatus.Visibility = status is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+    /// <summary>The minutes are over: the film pauses where it is, and says why.</summary>
+    private void CheckSleepTimer()
+    {
+        if (!_sleep.Due(DateTimeOffset.Now)) return;
+        if (_mpv is not null && !_mpv.Flag("pause")) { _mpv.Set("pause", "yes"); SetNotice("Minuterie : lecture en pause."); }
+        if (PlayerOptionsPopup.IsOpen && MoreMenu.Visibility == Visibility.Visible) BuildSleepChoices();
     }
     private void ChooseSpeed(double speed)
     {
