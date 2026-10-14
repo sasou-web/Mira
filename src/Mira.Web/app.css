@@ -49,6 +49,9 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+/* No scrollbar anywhere: the wheel, the touchpad, the keys and the finger scroll, and the bar only took room. */
+* { scrollbar-width: none; }
+::-webkit-scrollbar { display: none; }
 html {
   background: var(--bg);
   color: var(--ink);
@@ -229,8 +232,7 @@ html:not(.touch) .round:active, .round.pressed { transform: scale(0.92); }
 .round.solid { background: var(--raised); }
 @media (hover: hover) { .round:hover { background: var(--raised-2); } }
 
-.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px var(--gutter); margin: 0 calc(-1 * var(--gutter)); }
-.chips::-webkit-scrollbar { display: none; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px var(--gutter); margin: 0 calc(-1 * var(--gutter)); }
 .chip {
   flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: var(--r-full);
   background: var(--raised); color: var(--ink); font-size: calc(14px * var(--text)); font-weight: 700; white-space: nowrap;
@@ -296,9 +298,8 @@ html:not(.touch) .section-head a:active, .section-head a.pressed { opacity: 0.55
 .row {
   display: grid; grid-auto-flow: column; grid-auto-columns: var(--poster-w); gap: 12px;
   overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding: 0 var(--gutter);
-  padding: 0 var(--gutter) 4px; scrollbar-width: none;
+  padding: 0 var(--gutter) 4px;
 }
-.row::-webkit-scrollbar { display: none; }
 .row > * { scroll-snap-align: start; }
 .row.wide { grid-auto-columns: var(--wide-w); }
 .row.people { grid-auto-columns: 84px; scroll-snap-type: x proximity; }
@@ -330,9 +331,9 @@ html:not(.touch) .section-head a:active, .section-head a.pressed { opacity: 0.55
 /* ---------- Sheets and toasts ---------- */
 .sheet-layer { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-layer { overscroll-behavior: contain; }
-/* While a sheet is open the page under it stays where it is, whatever the finger does on a short sheet (touch screens:
-   on a computer, hiding the scrollbar would reflow the page). */
-html.touch:has(.sheet-layer) { overflow: hidden; }
+/* While a sheet is open the page under it stays where it is, whatever the finger or the wheel does on a short sheet
+   (no scrollbar to take away, so nothing reflows). */
+html:has(.sheet-layer) { overflow: hidden; }
 /* The page behind a sheet does not scroll under the finger. */
 .sheet-backdrop { position: absolute; inset: 0; background: var(--scrim); animation: fade var(--fast) linear; touch-action: none; }
 .sheet {
@@ -401,8 +402,7 @@ body:has(.sheet-layer) .toast-layer { z-index: 89; }
 
 /* ---------- Home ---------- */
 .hero { position: relative; height: clamp(440px, 128vw, 74dvh); overflow: hidden; background: var(--surface); }
-.hero-track { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
-.hero-track::-webkit-scrollbar { display: none; }
+.hero-track { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; }
 .slide { position: relative; flex: 0 0 100%; height: 100%; scroll-snap-align: start; }
 .slide .art { position: absolute; inset: 0; height: 100%; aspect-ratio: auto; border-radius: 0; background-position: center top; }
 .slide .art > img { object-position: center top; }
@@ -497,10 +497,9 @@ html:not(.touch) .episode:active, .episode.pressed { background: var(--surface);
 .library-head { min-height: var(--bar); padding: calc(var(--top) + 12px) var(--gutter) 0; }
 /* « Tout | Séries | Animes »: which library of this kind, as iOS's segmented controls. */
 .segmented {
-  display: flex; gap: 2px; width: fit-content; max-width: 100%; margin-top: 12px; padding: 2px; overflow-x: auto; scrollbar-width: none;
+  display: flex; gap: 2px; width: fit-content; max-width: 100%; margin-top: 12px; padding: 2px; overflow-x: auto;
   border-radius: var(--r-full); background: var(--raised);
 }
-.segmented::-webkit-scrollbar { display: none; }
 .segmented[hidden] { display: none; }
 .segmented button {
   flex: none; height: 32px; padding: 0 16px; border-radius: var(--r-full); color: var(--muted); white-space: nowrap;

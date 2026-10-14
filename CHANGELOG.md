@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Plus de barre de défilement sur le côté** (Windows, Mac et Mira web sur ordinateur) : les pages défilent comme avant à la molette, au pavé tactile, au clavier ou au doigt, sans la barre qui prenait de la place. Sur ordinateur, la page derrière un panneau ouvert ne bouge plus non plus, comme sur le téléphone.
 - **Les contrôles des développeurs quittent Mira pour Windows** : les harnais de validation (captures, lecteur, intégration à Windows, TorLink) ne sont plus dans les paquets publiés ; leurs options de ligne de commande y ferment Mira aussitôt. Rien ne change pour toi.
 
 ## 0.7.7 — 2026-10-13
