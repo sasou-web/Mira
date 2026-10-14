@@ -61,7 +61,7 @@ public partial class MainWindow
     }
     private async Task PublishWindowsArtworkAsync(MediaItem item, int generation)
     {
-        ImageSource? image = _demo ? DemoLibrary.Artwork(Math.Max(0, _items.FindIndex(x => x.Id == item.Id))) :
+        ImageSource? image = _demo ? DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id))) :
             _images is { } cache ? await cache.GetAsync(item, targetWidth: 512) : null;
         if (generation != _windowsArtworkGeneration || _closing || _windows is null || _session.Item?.Id != item.Id) return;
         image ??= new BitmapImage(new Uri("pack://application:,,,/Assets/mira.png"));

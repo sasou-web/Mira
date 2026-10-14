@@ -38,7 +38,7 @@ public partial class MainWindow
             SetMiniPlayer(true); UpdateLayout(); await Task.Delay(150);
             Require(_miniPlayer && LibraryShell.IsVisible && PlayerShell.ActualWidth == MiniWidth && ReferenceEquals(engine, _mpv) && _videoHandle == handle, "mini-player preserves the video engine and exposes the library");
             await RunMiniPlayerChecksAsync(output, checks, Require, engine);
-            _view = "library"; await NavigateLibraryAsync();
+            _catalog.View = "library"; await NavigateLibraryAsync();
             Require(_miniPlayer && _playing && ReferenceEquals(engine, _mpv), "navigation keeps the mini-player alive");
             SetMiniPlayer(false); await Task.Delay(120);
             Require(!_miniPlayer && !LibraryShell.IsVisible && PlayerShell.ActualWidth > 900, "expanded player restores its full layout");

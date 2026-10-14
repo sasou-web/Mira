@@ -6,7 +6,7 @@
 Mira.Desktop (WPF)
   ├─ App : options sans fenêtre (--apply-update, --register-windows, --install-engine), verrous de mise à jour et d’instance, gestionnaire d’erreurs global
   ├─ MainWindow : navigation, connexion, actualisation (WebSocket, secours 45 s), fermeture
-  │   ├─ Catalog : requêtes filtrées, accueil, cartes, pages d’une personne et adaptation à la fenêtre
+  │   ├─ Catalog : dessin du catalogue (filtres, accueil, cartes, adaptation à la fenêtre) ; son état est `Catalog` de Core
   │   ├─ Details : fiches, saisons et épisodes, saga, bonus, titres similaires
   │   ├─ Carousel : horloge à 30 Hz, progression et fondu du bandeau d’accueil
   │   ├─ Preview : survol intégré suivi pendant le défilement et préchargement
@@ -47,6 +47,7 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels
   ├─ PlaybackSession : état d’une lecture sans WPF ni mpv (position, saut en attente, rapport, fin, titre vu), Windows et Mac
   ├─ MpvClient : API C de libmpv commune à Windows et Mac (options, propriétés, commandes, événements, volume au-delà de 100 %)
+  ├─ Catalog : liste affichée (page, favoris, bibliothèque, personne), pages reçues, « Continuer à regarder », titres, page vide, démo
   ├─ SkipPlanner : passages d’une lecture et épisode suivant (offre, intros sautées, compte à rebours), Windows et Mac
   ├─ DiskCache, ImageMemory : budget des images sur disque et en mémoire
   ├─ VerifiedDownload : téléchargement vérifié (taille, SHA-256, jamais vers HTTP, transfert muet abandonné)

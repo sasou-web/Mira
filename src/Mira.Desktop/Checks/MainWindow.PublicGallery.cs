@@ -21,7 +21,7 @@ public partial class MainWindow
             async Task Page(string view, string name, bool favorites = false)
             {
                 SettingsOverlay.Visibility = DetailOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
-                ResetFilters(); _view = view; _favorites = favorites; ShowFavoritesFilter(); RenderDemo(); SmoothScroll.Jump(LibraryScroll);
+                ResetFilters(); _catalog.View = view; _catalog.Favorites = favorites; ShowFavoritesFilter(); RenderDemo(); SmoothScroll.Jump(LibraryScroll);
                 await _heroReady; await CaptureAsync(output, name);
             }
             await Page("home", "01-home");
@@ -92,12 +92,12 @@ public partial class MainWindow
             TorLinkOverlay.Visibility = Visibility.Visible; TorLinkOverlay.Opacity = 1; ShowDownloaders(true);
             foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20-downloads", null, DownloadersPanel);
             TorLinkOverlay.Visibility = Visibility.Collapsed;
-            _demo = false; _items = []; _resume = []; _nextUp = []; _totalCount = 0; _catalogLoading = false; _view = "home"; RenderLibrary();
+            _demo = false; _catalog.Items = []; _catalog.Resume = []; _catalog.NextUp = []; _catalog.TotalCount = 0; _catalog.Loading = false; _catalog.View = "home"; RenderLibrary();
             await At(sizes[2], "21-empty-library", null, EmptyState);
             if (EmptyGuide.Visibility != Visibility.Visible) throw new InvalidOperationException("The empty library does not lead to the guide.");
             _demo = true;
             // Maximized, as Mira opens on a screen smaller than its default size: everything on the screen, to its edges.
-            ResetFilters(); _view = "home"; RenderDemo(); SmoothScroll.Jump(LibraryScroll); WindowState = WindowState.Maximized; await CaptureAsync(output, "22-maximized");
+            ResetFilters(); _catalog.View = "home"; RenderDemo(); SmoothScroll.Jump(LibraryScroll); WindowState = WindowState.Maximized; await CaptureAsync(output, "22-maximized");
             drawn.Add($"22-maximized (Windows {Environment.OSVersion.Version.Build}): {AssertMaximizedOnScreen()}");
             WindowState = WindowState.Normal;
             // A title that cannot play: the player's own screen, then « Retour » back to the library.

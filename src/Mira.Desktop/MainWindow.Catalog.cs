@@ -16,18 +16,17 @@ public partial class MainWindow
     private static string Choice(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
     private CatalogQuery CurrentQuery() => new(Choice(GenreFilter) is { Length: > 0 } genre ? genre : null,
         int.TryParse(Choice(YearFilter), out var year) ? year : null,
-        Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, Choice(SortFilter), _person?.Id);
-    /// <summary>Only the titles of one actor or director, chosen from a title page; <see cref="_personFrom"/> is that page.</summary>
-    private (string Id, string Name, bool Directed)? _person;
+        Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, Choice(SortFilter), _catalog.Person?.Id);
+    /// <summary>The title page a person's titles were chosen from (<see cref="Catalog.Person"/>).</summary>
     private MediaItem? _personFrom;
     private string _personReturnView = "home";
     /// <summary>A name clicked on a title page: the library with this person's titles, the page kept to come back to.</summary>
     private async Task ShowPersonAsync(PersonInfo person, bool directed)
     {
         if (person.Id is not { Length: > 0 } id) return;
-        var from = _detail; var view = _view;
+        var from = _detail; var view = _catalog.View;
         ResetFilters();
-        (_person, _personFrom, _personReturnView, _view) = ((id, person.Name, directed), from, view, "library");
+        (_catalog.Person, _personFrom, _personReturnView, _catalog.View) = ((id, person.Name, directed), from, view, "library");
         ShowPersonFilter();
         await NavigateLibraryAsync();
     }
@@ -35,15 +34,15 @@ public partial class MainWindow
     private async Task BackFromPersonAsync()
     {
         var title = _personFrom; var view = _personReturnView;
-        ResetFilters(); _view = view;
+        ResetFilters(); _catalog.View = view;
         await NavigateLibraryAsync();
         if (title is not null) await ShowDetailsAsync(title);
     }
-    private async void PersonFilter_Click(object sender, RoutedEventArgs e) { _person = null; _personFrom = null; ShowPersonFilter(); await RefreshAsync(); }
+    private async void PersonFilter_Click(object sender, RoutedEventArgs e) { _catalog.Person = null; _personFrom = null; ShowPersonFilter(); await RefreshAsync(); }
     private void ShowPersonFilter()
     {
-        PersonFilter.Visibility = _person is null ? Visibility.Collapsed : Visibility.Visible;
-        PersonFilterText.Text = _person is { } person ? (person.Directed ? "Réalisés par " : "Avec ") + person.Name : "";
+        PersonFilter.Visibility = _catalog.Person is null ? Visibility.Collapsed : Visibility.Visible;
+        PersonFilterText.Text = _catalog.Person is { } person ? Catalog.PersonText(person.Name, person.Directed) : "";
     }
     private void InitializeFilters()
     {
@@ -61,27 +60,26 @@ public partial class MainWindow
     }
     private void ResetFilters()
     {
-        _filterBusy = true; SearchBox.Text = ""; _parentId = null; _favorites = false; _person = null; _personFrom = null;
+        _filterBusy = true; SearchBox.Text = ""; _catalog.ParentId = null; _catalog.Favorites = false; _catalog.Person = null; _personFrom = null;
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = WatchedFilter.SelectedIndex = SortFilter.SelectedIndex = LibraryFilter.SelectedIndex = 0;
         _filterBusy = false; ShowFavoritesFilter(); ShowPersonFilter();
     }
-    private async void Favorites_Click(object sender, RoutedEventArgs e) { _favorites = !_favorites; ShowFavoritesFilter(); await RefreshAsync(); }
+    private async void Favorites_Click(object sender, RoutedEventArgs e) { _catalog.Favorites = !_catalog.Favorites; ShowFavoritesFilter(); await RefreshAsync(); }
     /// <summary>Lit like the rail's current page while only the favourites show; a second click shows everything again.</summary>
     private void ShowFavoritesFilter()
     {
-        if (_favorites) { FavoritesFilter.Background = Palette.Get("Text"); FavoritesFilter.Foreground = FavoritesIcon.Foreground = Palette.Get("OnAccent"); }
+        if (_catalog.Favorites) { FavoritesFilter.Background = Palette.Get("Text"); FavoritesFilter.Foreground = FavoritesIcon.Foreground = Palette.Get("OnAccent"); }
         else { FavoritesFilter.ClearValue(BackgroundProperty); FavoritesFilter.ClearValue(ForegroundProperty); FavoritesIcon.ClearValue(Views.Icon.ForegroundProperty); }
-        System.Windows.Automation.AutomationProperties.SetName(FavoritesFilter, _favorites ? "Favoris seulement, activé" : "Favoris seulement");
-        FavoritesFilter.ToolTip = _favorites ? "Afficher tous les titres" : "Afficher seulement tes favoris";
+        System.Windows.Automation.AutomationProperties.SetName(FavoritesFilter, _catalog.Favorites ? "Favoris seulement, activé" : "Favoris seulement");
+        FavoritesFilter.ToolTip = _catalog.Favorites ? "Afficher tous les titres" : "Afficher seulement tes favoris";
     }
-    private string CatalogKey(string search, CatalogQuery filters) => $"{_view}:{(_favorites ? "favorites" : "")}:{_parentId}:{search}:{filters.CacheKey}";
     private async void ResetFilters_Click(object sender, RoutedEventArgs e) { ResetFilters(); await RefreshAsync(); }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing && !_filterBusy) await RefreshAsync(); }
     private async void LibraryFilter_Changed(object sender, SelectionChangedEventArgs e)
-    { if (_initializing || _filterBusy) return; _parentId = Choice(LibraryFilter) is { Length: > 0 } id ? id : null; await RefreshAsync(); }
+    { if (_initializing || _filterBusy) return; _catalog.ParentId = Choice(LibraryFilter) is { Length: > 0 } id ? id : null; await RefreshAsync(); }
     private async void SearchNav_Click(object sender, RoutedEventArgs e)
     {
-        _view = "search"; var work = NavigateLibraryAsync(); SearchBox.Focus(); SearchBox.SelectAll(); await work;
+        _catalog.View = "search"; var work = NavigateLibraryAsync(); SearchBox.Focus(); SearchBox.SelectAll(); await work;
     }
     private int _navigationVersion;
     private async Task NavigateLibraryAsync()
@@ -90,14 +88,14 @@ public partial class MainWindow
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
         var closing = Task.WhenAll(Motion.HideAsync(DetailOverlay), Motion.HideAsync(SettingsOverlay), Motion.HideAsync(TorLinkOverlay), Motion.HideAsync(GuideOverlay));
         DetailOverlay.IsHitTestVisible = SettingsOverlay.IsHitTestVisible = TorLinkOverlay.IsHitTestVisible = GuideOverlay.IsHitTestVisible = false;
-        _catalogLoading = true; var navigation = ++_navigationVersion;
-        var key = CatalogKey(SearchBox.Text.Trim(), CurrentQuery()); var page = _view == "home" ? "home" : key;
+        _catalog.Loading = true; var navigation = ++_navigationVersion;
+        var key = _catalog.Key(SearchBox.Text.Trim(), CurrentQuery()); var page = _catalog.View == "home" ? "home" : key;
         // Read off the UI thread: a page of hundreds of titles takes tens of milliseconds to decode.
         var cached = _store is { } store ? await Task.Run(() => TryCache(() => store.Load<ItemsResult>(page))) : null;
         // Another page was chosen meanwhile: it shows instead.
         if (navigation != _navigationVersion) { await closing; return; }
-        _items = cached?.Items ?? []; _totalCount = cached?.TotalRecordCount ?? 0;
-        if (cached is not null || _demo) _catalogLoading = false;
+        _catalog.Items = cached?.Items ?? []; _catalog.TotalCount = cached?.TotalRecordCount ?? 0;
+        if (cached is not null || _demo) _catalog.Loading = false;
         RenderLibrary(); SmoothScroll.Jump(LibraryScroll); Motion.Reveal(LibraryScroll, 260, 10);
         UpdateHeroClock(); await RefreshAsync();
         await closing; UpdateNavigation(); UpdateHeroClock();
@@ -109,45 +107,43 @@ public partial class MainWindow
         var torlink = !guide && !settings && TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
         foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, TorLinkNav, GuideNav, SettingsNav })
         {
-            var active = guide ? button == GuideNav : settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _view;
+            var active = guide ? button == GuideNav : settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _catalog.View;
             button.Background = active ? Palette.Get("Text") : Brushes.Transparent;
             button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextTertiary");
         }
     }
     private void RenderLibrary()
     {
-        var search = SearchBox.Text.Trim(); var home = _view == "home" && search.Length == 0;
+        var search = SearchBox.Text.Trim(); var home = _catalog.IsHome(search);
         UpdateNavigation();
-        PageTitle.Text = _view switch { "Movie" => "Films", "Series" => "Séries & animes", "library" => "Ta bibliothèque", _ => "Explorer" };
-        CatalogDescription.Text = _favorites ? "Les histoires que tu gardes à portée de main." : "Trouve ta prochaine séance dans ta bibliothèque.";
-        Hero.Visibility = home && _items.Count + _resume.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PageTitle.Text = _catalog.PageTitle;
+        CatalogDescription.Text = _catalog.Description;
+        Hero.Visibility = home && _catalog.Items.Count + _catalog.Resume.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         CatalogHeader.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
         LibraryRows.Margin = new Thickness(110, home && Hero.Visibility == Visibility.Collapsed ? 80 : 0, 40, 42);
-        var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(_resume, _nextUp, _recentPlayback), _hiddenResume, _recentPlayback);
+        var row = _catalog.ContinueRow();
         ResumeSection.Visibility = home && row.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
-        GridTitle.Text = home ? "Ajoutés récemment" : search.Length > 0 ? $"Résultats pour « {search} »" : _person is { } shown ? (shown.Directed ? "Réalisés par " : "Avec ") + shown.Name : _favorites ? "Tes favoris" : "Tous les titres";
-        ItemCount.Text = $"{_totalCount:N0} titre{(_totalCount > 1 ? "s" : "")}";
+        GridTitle.Text = _catalog.GridTitle(search);
+        ItemCount.Text = Catalog.CountText(_catalog.TotalCount);
         if (home)
         {
             var previousCandidates = string.Join('|', _heroCandidates.Select(x => x.Id));
-            // A title taken out of the row does not come back in the banner either.
-            var kept = row.Select(ContinueWatching.Group).ToHashSet();
-            _heroCandidates = _resume.Concat(_nextUp).Where(x => kept.Contains(ContinueWatching.Group(x))).Concat(_items).DistinctBy(x => x.SeriesId ?? x.Id).Take(5).ToList();
+            _heroCandidates = _catalog.HeroCandidates(row);
             var candidate = _heroCandidates.FirstOrDefault(x => x.Id == _heroSelectedId) ?? _heroCandidates.FirstOrDefault();
             if (candidate is not null && !_heroBusy) RenderHero(candidate);
             if (previousCandidates != string.Join('|', _heroCandidates.Select(x => x.Id))) BuildHeroDots();
         }
-        AddCards(ResumeCards, row, true); AddCards(PosterCards, _items, false);
+        AddCards(ResumeCards, row, true); AddCards(PosterCards, _catalog.Items, false);
         ResizePosters();
-        var empty = !_catalogLoading && _items.Count == 0;
+        var empty = !_catalog.Loading && _catalog.Items.Count == 0;
         if (empty) DescribeEmptyState(search);
         if (empty && EmptyState.Visibility != Visibility.Visible) Motion.Reveal(EmptyState, 260, 8); else if (!empty) EmptyState.Visibility = Visibility.Collapsed;
-        ShowSkeleton(_catalogLoading);
-        if (_catalogLoading) ItemCount.Text = "Chargement…";
-        LoadMore.Visibility = !_demo && !_catalogLoading && _items.Count < _totalCount ? Visibility.Visible : Visibility.Collapsed;
+        ShowSkeleton(_catalog.Loading);
+        if (_catalog.Loading) ItemCount.Text = "Chargement…";
+        LoadMore.Visibility = !_demo && !_catalog.Loading && _catalog.Items.Count < _catalog.TotalCount ? Visibility.Visible : Visibility.Collapsed;
         UpdateResumeArrows(); UpdateHeroClock();
-        if (!_startupComplete && !_catalogLoading && (_items.Count > 0 || _resume.Count > 0)) _ = RevealStartupAsync();
+        if (!_startupComplete && !_catalog.Loading && (_catalog.Items.Count > 0 || _catalog.Resume.Count > 0)) _ = RevealStartupAsync();
     }
     /// <summary>Placeholders shaped like the real cards (artwork, title, details) so nothing jumps when they arrive.</summary>
     private void ShowSkeleton(bool visible)
@@ -168,20 +164,10 @@ public partial class MainWindow
     }
     private void DescribeEmptyState(string search)
     {
-        var query = CurrentQuery();
-        var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || _parentId is not null || query.PersonId is not null;
-        // Nothing at all in the library (not a search, a filter or the favourites): where videos go is what is missing.
-        var emptyLibrary = !_demo && search.Length == 0 && !filtered && !_favorites && _view is "home" or "library" && _resume.Count == 0;
-        (EmptyIcon.Kind, EmptyTitle.Text, EmptyHint.Text) = (_view, search.Length, filtered) switch
-        {
-            (_, > 0, _) => ("search", $"Aucun résultat pour « {search} »", "Vérifie l’orthographe ou essaie un autre titre."),
-            (_, _, true) => ("sliders", "Aucun titre ne correspond à ces filtres", "Élargis ta sélection pour retrouver tes titres."),
-            _ when _favorites => ("heart", "Aucun favori ici pour l’instant", "Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici."),
-            _ when emptyLibrary => ("folder", "Ta bibliothèque est vide", "Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici."),
-            _ => ("library", "Rien à afficher ici", "Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.")
-        };
-        EmptyReset.Visibility = filtered || search.Length > 0 || _favorites ? Visibility.Visible : Visibility.Collapsed;
-        EmptyGuide.Visibility = emptyLibrary ? Visibility.Visible : Visibility.Collapsed;
+        var empty = _catalog.Empty(search, CurrentQuery(), _demo);
+        (EmptyIcon.Kind, EmptyTitle.Text, EmptyHint.Text) = (empty.Icon, empty.Title, empty.Hint);
+        EmptyReset.Visibility = empty.Reset ? Visibility.Visible : Visibility.Collapsed;
+        EmptyGuide.Visibility = empty.Guide ? Visibility.Visible : Visibility.Collapsed;
     }
     private void UpdateResumeArrows()
     {
@@ -268,8 +254,8 @@ public partial class MainWindow
         var group = ContinueWatching.Group(item); var ticks = item.UserData.PlaybackPositionTicks;
         var resumable = ticks > 0 && !item.UserData.Played;
         var client = _demo ? null : _client; var store = _store;
-        var at = DateTimeOffset.UtcNow; _hiddenResume[group] = at;
-        if (resumable) _recentPlayback.RemoveAll(x => x.Id == item.Id);
+        var at = DateTimeOffset.UtcNow; _catalog.HiddenResume[group] = at;
+        if (resumable) _catalog.RecentPlayback.RemoveAll(x => x.Id == item.Id);
         RenderLibrary();
         SetNotice($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", "Annuler", () => _ = ShowInResumeAsync(item, group, resumable ? ticks : 0), sticky: false);
         _resumeChange = Save();
@@ -289,7 +275,7 @@ public partial class MainWindow
     private async Task ShowInResumeAsync(MediaItem item, string group, long ticks)
     {
         await _resumeChange;
-        _hiddenResume.Remove(group);
+        _catalog.HiddenResume.Remove(group);
         var client = _demo ? null : _client; var store = _store;
         try
         {
@@ -359,10 +345,7 @@ public partial class MainWindow
             if (_client is not null) await _client.SetPlayedAsync(item.Id, played);
             else if (!_demo) return;
             if (_store is { } store) await Task.Run(() => store.ForgetProgress(item.Id));
-            _recentPlayback.RemoveAll(x => x.Id == item.Id || x.SeriesId == item.Id);
-            foreach (var known in _items.Concat(_resume).Concat(_nextUp).Concat(_episodes).Concat(_similar).Append(item).Where(x => x.Id == item.Id))
-            { known.UserData.Played = played; known.UserData.PlaybackPositionTicks = 0; }
-            if (item.Type == "Series") foreach (var episode in _episodes.Concat(_resume).Where(x => x.SeriesId == item.Id)) { episode.UserData.Played = played; episode.UserData.PlaybackPositionTicks = 0; }
+            _catalog.MarkPlayed(item, played, _episodes, _similar);
             _metadata?.Clear();
             SetNotice($"« {item.DisplayTitle} » {(played ? "marqué comme vu" : "marqué comme non vu")}.");
             RenderAfterUserDataChange();
@@ -373,7 +356,7 @@ public partial class MainWindow
     /// <summary>Redraws whatever shows watched or favourite state after a change made in Mira.</summary>
     private void RenderAfterUserDataChange()
     {
-        if (_demo) { _resume = (_demoItems ?? []).Where(x => x.Progress > 0).ToList(); }
+        if (_demo) { _catalog.Resume = (_demoItems ?? []).Where(x => x.Progress > 0).ToList(); }
         RenderLibrary();
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0 || _saga is not null) RenderSimilar(); }
     }

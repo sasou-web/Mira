@@ -20,24 +20,24 @@ public partial class MainWindow
             BrandAssets.Export(output);
             if (!_startupComplete || StartupVeil.Visibility != Visibility.Collapsed) throw new InvalidOperationException("Startup veil did not release the interface.");
             if (!new Typeface(FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal).TryGetGlyphTypeface(out var glyphs) || !glyphs.FontUri.ToString().Contains("NunitoSans", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Bundled font was not resolved.");
-            if (_items.Count == 0) { await CaptureAsync(output, "00-empty"); await File.WriteAllTextAsync(Path.Combine(output, "connection-check.txt"), NoticeText.Text + "\n" + LoginError.Text + "\n" + SyncLabel.Text); throw new InvalidOperationException("Visual check requires a connected library or --demo."); }
+            if (_catalog.Items.Count == 0) { await CaptureAsync(output, "00-empty"); await File.WriteAllTextAsync(Path.Combine(output, "connection-check.txt"), NoticeText.Text + "\n" + LoginError.Text + "\n" + SyncLabel.Text); throw new InvalidOperationException("Visual check requires a connected library or --demo."); }
             Width = 1440; Height = 900;
             await SettleVisualAsync(); await CaptureAsync(output, "01-home");
             await File.WriteAllTextAsync(Path.Combine(output, "layout.txt"), $"Scroll style active: {LibraryScroll.Style == FindResource(typeof(ScrollViewer))}; template active: {LibraryScroll.Template == ((Style)FindResource(typeof(ScrollViewer))).Setters.OfType<Setter>().First(s => s.Property == Control.TemplateProperty).Value}; genre choices: {GenreFilter.Items.Count}; year choices: {YearFilter.Items.Count}");
-            _view = "library"; await RefreshAsync(); await SettleVisualAsync(); await CaptureAsync(output, "02-library");
+            _catalog.View = "library"; await RefreshAsync(); await SettleVisualAsync(); await CaptureAsync(output, "02-library");
             AssertContained(PosterCards, "Poster grid"); AssertContained(SortFilter, "Catalog filters");
-            if (!_demo && _items.Any(x => x.Genres.Length > 0) && GenreFilter.Items.Count < 2) throw new InvalidOperationException("Missing genre facets.");
+            if (!_demo && _catalog.Items.Any(x => x.Genres.Length > 0) && GenreFilter.Items.Count < 2) throw new InvalidOperationException("Missing genre facets.");
             if (GenreFilter.Items.Count > 1)
             {
                 _filterBusy = true; GenreFilter.SelectedIndex = 1; _filterBusy = false;
                 await RefreshAsync();
-                if (_items.Any(x => !x.Genres.Contains(Choice(GenreFilter)))) throw new InvalidOperationException("Genre filter did not apply.");
+                if (_catalog.Items.Any(x => !x.Genres.Contains(Choice(GenreFilter)))) throw new InvalidOperationException("Genre filter did not apply.");
                 await CaptureAsync(output, "12-filtered");
             }
             _filterBusy = true; SearchBox.Text = "mira-ui-test-no-matching-title-93718"; _filterBusy = false; await RefreshAsync();
-            if (_items.Count != 0 || EmptyState.Visibility != Visibility.Visible) throw new InvalidOperationException("Empty state did not appear.");
+            if (_catalog.Items.Count != 0 || EmptyState.Visibility != Visibility.Visible) throw new InvalidOperationException("Empty state did not appear.");
             await CaptureAsync(output, "13-empty-search"); ResetFilters(); await RefreshAsync();
-            var series = _items.FirstOrDefault(x => x.Type == "Series") ?? _items[0];
+            var series = _catalog.Items.FirstOrDefault(x => x.Type == "Series") ?? _catalog.Items[0];
             await ShowDetailsAsync(series);
             if (_images is { } cache) await Task.WhenAll(_episodes.Select(x => cache.EpisodeAsync(x)));
             await CaptureAsync(output, "03-detail");
@@ -46,10 +46,10 @@ public partial class MainWindow
             SelectSettingsTab("appearance"); await CaptureAsync(output, "06-appearance-settings");
             if (HeroAutoPlayCheck.IsChecked == true && (HeroAutoPlayCheck.Template.FindName("Track", HeroAutoPlayCheck) as Border)?.Background is SolidColorBrush switchBrush && switchBrush.Color.R != 245) throw new InvalidOperationException("Enabled switch looks disabled.");
             SelectSettingsTab("server"); await CaptureAsync(output, "07-server-settings");
-            SettingsOverlay.Visibility = Visibility.Collapsed; _view = "home"; await RefreshAsync();
+            SettingsOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; await RefreshAsync();
             Width = 1920; Height = 1080; await SettleVisualAsync(); await CaptureAsync(output, "08-home-wide");
             Width = 1024; Height = 720; await CaptureAsync(output, "09-home-small");
-            _view = "library"; await RefreshAsync(); await CaptureAsync(output, "10-library-small");
+            _catalog.View = "library"; await RefreshAsync(); await CaptureAsync(output, "10-library-small");
             AssertContained(SortFilter, "Small catalog filters");
             Settings_Click(this, new()); SelectSettingsTab("subtitles"); await CaptureAsync(output, "11-settings-small");
             AssertContained(SettingsScroll, "Small settings");

@@ -18,6 +18,45 @@ internal static class LibraryTests
         var Test = run.Test;
         var testRoot = run.Root;
         LibraryStore Store(string name) => new(testRoot, name);
+        await Test("Catalogue : titres de la page, pages ajoutées sans doublon, vu et favori partout, page vide et démo", () =>
+        {
+            MediaItem Film(string id, bool favorite = false, long position = 0) => new() { Id = id, Name = id, Type = "Movie", RunTimeTicks = 1000, UserData = new() { IsFavorite = favorite, PlaybackPositionTicks = position } };
+            var catalog = new Catalog();
+            Assert(catalog.IsHome("") && !catalog.IsHome("x") && catalog.Types == "Movie,Series" && catalog.PageTitle == "Explorer", "Accueil par défaut.");
+            catalog.Receive(new ItemsResult { Items = [Film("a"), Film("b")], TotalRecordCount = 3 }, more: false);
+            catalog.Receive(new ItemsResult { Items = [Film("b"), Film("c")], TotalRecordCount = 3 }, more: true);
+            Assert(string.Join(",", catalog.Items.Select(x => x.Id)) == "a,b,c" && Catalog.CountText(catalog.TotalCount) == "3 titres" && Catalog.CountText(1) == "1 titre", "Afficher plus : sans doublon.");
+            catalog.View = "Movie"; catalog.Favorites = true; catalog.ParentId = "lib";
+            Assert(catalog.Types == "Movie" && catalog.PageTitle == "Films" && catalog.GridTitle("") == "Tes favoris" && catalog.GridTitle("Alien") == "Résultats pour « Alien »", "Titres d’une page filtrée.");
+            Assert(catalog.Key("x", new CatalogQuery()) == "Movie:favorites:lib:x:" + new CatalogQuery().CacheKey, "Clé du cache.");
+            catalog.Person = ("p", "Ridley Scott", true);
+            Assert(catalog.GridTitle("") == "Réalisés par Ridley Scott" && Catalog.PersonText("Sigourney Weaver", false) == "Avec Sigourney Weaver", "Titres d’une personne.");
+
+            var resumed = Film("b", position: 500); catalog.Resume = [resumed];
+            var similar = Film("b");
+            Assert(catalog.MarkFavorite(Film("b"), false, [similar]) && catalog.Items.All(x => x.Id != "b") && catalog.TotalCount == 2 && !resumed.UserData.IsFavorite, "Favori retiré : hors de la liste des favoris.");
+            catalog.Favorites = false;
+            Assert(!catalog.MarkFavorite(Film("a"), true, []) && catalog.Items[0].UserData.IsFavorite, "Favori ajouté partout, la liste reste.");
+            catalog.MarkPlayed(Film("b"), true, [], [similar]);
+            Assert(resumed.UserData.Played && resumed.UserData.PlaybackPositionTicks == 0 && similar.UserData.Played, "Vu : reprise remise à zéro dans chaque liste.");
+
+            var playing = Film("d", position: 300);
+            catalog.Remember(playing);
+            Assert(catalog.Resume[0] == playing && catalog.RecentPlayback[0] == playing && catalog.ContinueRow().Any(x => x.Id == "d"), "Lecture : en tête de « Continuer à regarder ».");
+            Assert(catalog.HeroCandidates(catalog.ContinueRow())[0].Id == "d", "Bandeau : la rangée d’abord.");
+
+            var empty = catalog.Empty("", new CatalogQuery(), demo: false);
+            Assert(empty.Icon == "sliders" && empty.Reset && !empty.Guide, "Bibliothèque choisie : un filtre.");
+            catalog.View = "home"; catalog.ParentId = null; catalog.Person = null; catalog.Clear();
+            empty = catalog.Empty("", new CatalogQuery(), demo: false);
+            Assert(empty.Icon == "folder" && empty.Guide && !empty.Reset && catalog.Items.Count == 0 && catalog.RecentPlayback.Count == 0, "Bibliothèque vide : le guide.");
+            Assert(!catalog.Empty("", new CatalogQuery(), demo: true).Guide && catalog.Empty("zz", new CatalogQuery(), false).Title == "Aucun résultat pour « zz »", "Démo et recherche.");
+
+            catalog.View = "Movie";
+            catalog.ShowDemo([Film("b2", position: 500) with { Name = "Bravo" }, Film("a2") with { Name = "Alpha" }, new MediaItem { Id = "s", Name = "Série", Type = "Series" }], "", new CatalogQuery(Sort: "title"));
+            Assert(string.Join(",", catalog.Items.Select(x => x.Name)) == "Alpha,Bravo" && catalog.TotalCount == 2 && catalog.Resume.Count == 1, "Démo : films triés par titre.");
+            return Task.CompletedTask;
+        });
         await Test("Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture", () =>
         {
             var recent = DateTimeOffset.UtcNow;
