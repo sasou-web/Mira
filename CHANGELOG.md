@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Garder sur ce PC** (Windows) : pour regarder un film ou une série sans connexion, dans le train par exemple. Sur la fiche, le bouton ⤓ à droite des autres garde le film, ou la saison affichée, sur ce PC : le fichier d’origine, tel quel, avec ses sous-titres. Il arrive en fond, un titre après l’autre, et reprend là où il s’était arrêté si la connexion tombe ou si tu fermes Mira. Les titres gardés sont dans **Sur ce PC**, dans la barre de gauche (elle n’apparaît qu’une fois un titre gardé) : un clic les lance, même quand Jellyfin est injoignable, et l’épisode suivant gardé suit. Ta progression part sur Jellyfin dès qu’il répond. Le clic droit sur une affiche ou un épisode garde ou retire un titre ; **Réglages → Lecture → Titres gardés sur ce PC** dit la place prise, change de dossier (un disque plus grand) et retire tout. Mira refuse de remplir le disque : il garde toujours 1 Go libre. Le compte Jellyfin doit avoir le droit de télécharger (c’est le cas par défaut). Pas sur l’iPhone : sans HTTPS, Safari ne laisse pas Mira web garder de vidéos.
+
 ## 0.7.8 — 2026-10-14
 
 Regarder ensemble, minuterie, conversions par la carte graphique, nouveaux épisodes notifiés et qui regarde quoi sur Jellyfin.

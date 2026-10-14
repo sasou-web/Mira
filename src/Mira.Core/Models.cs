@@ -158,6 +158,8 @@ public sealed record MediaSource
     public string? Container { get; init; }
     public string? Path { get; init; }
     public string? Protocol { get; init; }
+    /// <summary>The file's size in bytes, when Jellyfin knows it.</summary>
+    public long? Size { get; init; }
     public List<MediaStream> MediaStreams { get; init; } = [];
 }
 public sealed record PlaybackInfo
@@ -235,4 +237,8 @@ public sealed class PlayerSettings
     /// <summary>The account (« server user ») and Jellyfin's date of the newest episode already looked at for those notices.</summary>
     public string EpisodesSeenFor { get; set; } = "";
     public DateTimeOffset? EpisodesSeenUntil { get; set; }
+    /// <summary>Windows: where « Garder sur ce PC » puts new copies (<see cref="OfflineCopies"/>); empty: « offline » in the profile.</summary>
+    public string OfflineFolder { get; set; } = "";
+    /// <summary>Every other folder copies were put in: choosing another leaves the earlier copies listed where they are.</summary>
+    public List<string> OfflineFolders { get; set; } = [];
 }
