@@ -7,7 +7,7 @@ namespace Mira.Core;
 /// </summary>
 public sealed class Catalog
 {
-    /// <summary>"home", "Movie", "Series", "library" or "search".</summary>
+    /// <summary>"home", "Movie", "Series", "library", "search" or "offline" (the titles kept on this PC, from no request).</summary>
     public string View { get; set; } = "home";
     /// <summary>Only the favourites of the current view (films, series, library, search): a filter like the others.</summary>
     public bool Favorites { get; set; }
@@ -33,9 +33,9 @@ public sealed class Catalog
     public string Types => View is "Movie" or "Series" ? View : "Movie,Series";
     /// <summary>Where a list is kept in the library cache.</summary>
     public string Key(string search, CatalogQuery query) => $"{View}:{(Favorites ? "favorites" : "")}:{ParentId}:{search}:{query.CacheKey}";
-    public string PageTitle => View switch { "Movie" => "Films", "Series" => "Séries & animes", "library" => "Ta bibliothèque", _ => "Explorer" };
+    public string PageTitle => View switch { "Movie" => "Films", "Series" => "Séries & animes", "library" => "Ta bibliothèque", "offline" => "Sur ce PC", _ => "Explorer" };
     public string Description => Favorites ? "Les histoires que tu gardes à portée de main." : "Trouve ta prochaine séance dans ta bibliothèque.";
-    public string GridTitle(string search) => IsHome(search) ? "Ajoutés récemment" : search.Length > 0 ? $"Résultats pour « {search} »"
+    public string GridTitle(string search) => IsHome(search) ? "Ajoutés récemment" : View == "offline" ? "Prêts sans connexion" : search.Length > 0 ? $"Résultats pour « {search} »"
         : Person is { } shown ? PersonText(shown.Name, shown.Directed) : Favorites ? "Tes favoris" : "Tous les titres";
     public static string PersonText(string name, bool directed) => (directed ? "Réalisés par " : "Avec ") + name;
     public static string CountText(int count) => $"{count:N0} titre{(count > 1 ? "s" : "")}";
@@ -99,6 +99,7 @@ public sealed class Catalog
         {
             ( > 0, _) => ("search", $"Aucun résultat pour « {search} »", "Vérifie l’orthographe ou essaie un autre titre."),
             (_, true) => ("sliders", "Aucun titre ne correspond à ces filtres", "Élargis ta sélection pour retrouver tes titres."),
+            _ when View == "offline" => ("laptop", "Rien sur ce PC pour l’instant", "Sur la fiche d’un film ou d’une série, le bouton ⤓ garde le titre sur ce PC pour le regarder sans connexion."),
             _ when Favorites => ("heart", "Aucun favori ici pour l’instant", "Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici."),
             _ when emptyLibrary => ("folder", "Ta bibliothèque est vide", "Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici."),
             _ => ("library", "Rien à afficher ici", "Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.")

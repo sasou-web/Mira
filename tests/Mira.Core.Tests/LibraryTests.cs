@@ -761,5 +761,72 @@ internal static class LibraryTests
             refuse = true;
             Assert(await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5)) is (GpuOutcome.Refused, null) && await client.HardwareAccelerationAsync() is null, "Refused");
         });
+        await Test("Sur ce PC : un film gardé, repris là où il s’est coupé, avec ses sous-titres ; par compte, dans l’ordre, épisode suivant sans Jellyfin", async () =>
+        {
+            var root = Path.Combine(testRoot, "offline"); var other = Path.Combine(testRoot, "offline-usb");
+            var connection = new Connection("http://nas:8096/", "user-1", "Alice", "token", "device-1");
+            var video = Enumerable.Range(0, 300_000).Select(x => (byte)(x % 251)).ToArray();
+            var ranges = new List<string>(); var cut = true; var ignoreRange = false; var refuse = false;
+            using var client = new JellyfinClient(connection, new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Items/film/Download")
+                {
+                    if (refuse) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+                    var from = ignoreRange ? 0 : request.Headers.Range?.Ranges.Single().From ?? 0; ranges.Add(request.Headers.Range?.ToString() ?? "");
+                    // The first answer stops halfway: the connection was cut.
+                    var body = video[(int)from..(cut ? 150_000 : video.Length)];
+                    var response = new HttpResponseMessage(from > 0 ? HttpStatusCode.PartialContent : HttpStatusCode.OK) { Content = new ByteArrayContent(body) };
+                    response.Content.Headers.ContentLength = video.Length - from;
+                    if (from > 0) response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(from, video.Length - 1, video.Length);
+                    return Task.FromResult(response);
+                }
+                if (path == "/Videos/film/src/Subtitles/2/0/Stream.srt") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("1\n00:00:01,000 --> 00:00:02,000\nBonjour\n") });
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            var source = new MediaSource { Id = "src", Container = "mkv", Path = @"D:\Films\Dune (2021)\Dune.MKV", Size = video.Length, MediaStreams = [new() { Index = 2, Type = "Subtitle", Codec = "subrip", IsExternal = true, Language = "fre", DisplayTitle = "Français" }, new() { Index = 3, Type = "Subtitle", Codec = "ass", IsExternal = false }] };
+            var film = new MediaItem { Id = "film", Name = "Dune", Type = "Movie", MediaSources = [source] };
+            var copy = OfflineCopies.Plan(root, connection, film, source, DateTimeOffset.UnixEpoch);
+            Assert(copy.File == "video.mkv" && copy.Item.MediaSources is null && OfflineCopies.List([root], connection).Single() is { Complete: false, Size: 300_000 }, "Planned, listed before it comes");
+            var seen = new List<long>();
+            try { await OfflineCopies.FetchAsync(client, copy, new SyncProgress<(long Done, long Total)>(x => seen.Add(x.Done)), CancellationToken.None); Assert(false, "Cut, not complete"); }
+            catch (HttpRequestException ex) { Assert(ex.StatusCode is null && new FileInfo(copy.PartPath).Length == 150_000 && !File.Exists(copy.VideoPath), "Part kept: " + ex.Message); }
+            cut = false;
+            copy = await OfflineCopies.FetchAsync(client, OfflineCopies.Read(copy.Folder)!, null, CancellationToken.None);
+            Assert(ranges.SequenceEqual(["", "bytes=150000-"]) && File.ReadAllBytes(copy.VideoPath).SequenceEqual(video) && !File.Exists(copy.PartPath), "Resumed: " + string.Join(" | ", ranges));
+            Assert(copy.Complete && copy.Subtitles.Single() is { File: "subtitle-2.srt", Language: "fre", Title: "Français" } && File.ReadAllText(Path.Combine(copy.Folder, "subtitle-2.srt")).Contains("Bonjour"), "External subtitle only");
+            Assert(OfflineCopies.Read(copy.Folder) is { Complete: true } read && read.BytesOnDisk > 300_000 && (await OfflineCopies.FetchAsync(client, read, null, CancellationToken.None)) == read with { } && ranges.Count == 2, "Complete: not fetched again");
+            // A server that ignores the range: from the start again, never a file with its beginning twice.
+            ignoreRange = true; ranges.Clear();
+            var again = OfflineCopies.Plan(root, connection, film with { Id = "film" }, source, DateTimeOffset.UnixEpoch);
+            File.Delete(again.VideoPath); File.WriteAllBytes(again.PartPath, new byte[1000]);
+            again = await OfflineCopies.FetchAsync(client, again, null, CancellationToken.None);
+            Assert(ranges.SequenceEqual(["bytes=1000-"]) && File.ReadAllBytes(again.VideoPath).SequenceEqual(video), "Range ignored: from the start");
+            refuse = true;
+            var refused = OfflineCopies.Plan(other, connection, film, source, DateTimeOffset.UnixEpoch);
+            try { await OfflineCopies.FetchAsync(client, refused, null, CancellationToken.None); Assert(false, "Refused"); }
+            catch (OfflineRefusedException ex) { Assert(ex.Message.Contains("autorise le téléchargement"), ex.Message); }
+
+            // Another account sees none of them; a folder that is not one of a copy is left out.
+            var bob = connection with { UserId = "user-2" };
+            Assert(OfflineCopies.List([root, other], bob).Count == 0 && OfflineCopies.AccountFolder(root, connection) != OfflineCopies.AccountFolder(root, bob), "Per account");
+            Directory.CreateDirectory(Path.Combine(OfflineCopies.AccountFolder(root, connection), "junk"));
+            File.WriteAllText(Path.Combine(OfflineCopies.AccountFolder(root, connection), "junk", OfflineCopies.Manifest), "{ not json");
+            var listed = OfflineCopies.List([root, other, root], connection);
+            Assert(listed.Count == 1 && listed[0].Complete && listed[0].Folder.StartsWith(root), "One per title, the complete one: " + listed.Count);
+            // A manifest naming a file outside its folder is not a copy.
+            File.WriteAllText(Path.Combine(copy.Folder, OfflineCopies.Manifest), File.ReadAllText(Path.Combine(copy.Folder, OfflineCopies.Manifest)).Replace("\"video.mkv\"", "\"..\\\\x.mkv\""));
+            Assert(OfflineCopies.Read(copy.Folder) is null, "Name outside its folder");
+
+            MediaItem Episode(string id, int season, int number) => new() { Id = id, Type = "Episode", SeriesId = "s", SeriesName = "Série", ParentIndexNumber = season, IndexNumber = number };
+            OfflineCopy Kept(MediaItem item, int day, bool complete = true) => new() { Item = item, Complete = complete, Added = DateTimeOffset.UnixEpoch.AddDays(day) };
+            var copies = new[] { Kept(Episode("e3", 1, 3), 1), Kept(Episode("e1", 1, 1), 2), Kept(Episode("s2e1", 2, 1), 3, complete: false), Kept(new MediaItem { Id = "m", Type = "Movie" }, 1) };
+            Assert(OfflineCopies.NextEpisode(copies, Episode("e1", 1, 1))?.Item.Id == "e3" && OfflineCopies.NextEpisode(copies, Episode("e3", 1, 3)) is null && OfflineCopies.NextEpisode(copies, new MediaItem { Id = "m" }) is null, "Next kept episode, complete only");
+            Assert(string.Join(",", OfflineCopies.Ordered(copies).Select(x => x.Item.Id)) == "e1,e3,s2e1,m", "Series together, in order, newest first: " + string.Join(",", OfflineCopies.Ordered(copies).Select(x => x.Item.Id)));
+            Assert(OfflineCopies.SizeText(850L << 20) == "850 Mo" && OfflineCopies.SizeText((long)(4.2 * (1L << 30))) == "4,2 Go" && OfflineCopies.SizeText(12L << 30) == "12 Go", "Sizes");
+            Assert(OfflineCopies.Extension(new MediaSource { Container = "mov,mp4,m4a" }) == "mov" && OfflineCopies.Extension(new MediaSource { Path = "/x/a.WEBM" }) == "webm" && OfflineCopies.Extension(new MediaSource { Path = "/x/a.b/c", Container = "../x" }) == "mkv", "Extension");
+            Assert(OfflineCopies.SubtitleExtension("ass") == "ass" && OfflineCopies.SubtitleExtension("PGSSUB") == "srt" && OfflineCopies.SubtitleExtension("webvtt") == "vtt", "Subtitle formats");
+            Assert(OfflineCopies.Erase([root, other], connection) && OfflineCopies.List([root, other], connection).Count == 0, "Erased with the account");
+        });
     }
 }

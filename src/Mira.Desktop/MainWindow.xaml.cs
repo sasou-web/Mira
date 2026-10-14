@@ -282,6 +282,7 @@ public partial class MainWindow : Window
         _connectionLifetime = new(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         if (!_args.Contains("--visual-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
         if (!_args.Contains("--visual-check")) StartEpisodeNotices();
+        _ = LoadOfflineAsync(client);
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant();
         SettingsServerAddress.Text = connection.Server;
         LoginOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
@@ -331,7 +332,7 @@ public partial class MainWindow : Window
         _heroClock.Stop(); _heroClockAttached = false; _heroCandidates = [];
         _heroSeries.Clear();
         _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
-        _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); GroupGone();
+        _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
         _catalog.RecentPlayback = []; _catalog.HiddenResume = [];
@@ -395,6 +396,8 @@ public partial class MainWindow : Window
     {
         _searchTimer.Stop();
         if (_demo) { RenderDemo(); return; }
+        // « Sur ce PC » asks Jellyfin nothing; a copy waiting for it is tried again.
+        if (_catalog.View == "offline") { await ShowOfflinePageAsync(); PumpOffline(); return; }
         if (_client is null || _store is null) return;
         _browseCancellation?.Cancel(); _browseCancellation = new CancellationTokenSource();
         var ct = _browseCancellation.Token; var version = ++_viewVersion;
@@ -429,6 +432,7 @@ public partial class MainWindow : Window
             _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; RenderLibrary();
             // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.
             if (_sync is { PendingCount: > 0 } sync) sync.Wake();
+            PumpOffline();
             // Back to the top for a new list, unless the reader has already started scrolling it.
             if (!quiet && !more && Math.Abs(LibraryScroll.VerticalOffset - startOffset) < 1) SmoothScroll.Jump(LibraryScroll, 0);
             if (!quiet) HideNotice(transientOnly: true); SyncChanged();
@@ -586,6 +590,8 @@ public partial class MainWindow : Window
             if (connection is not null) using (var client = new JellyfinClient(connection)) closed = await client.LogoutAsync();
             PasswordBox.Clear(); _catalog.Items = []; _catalog.Resume = []; _catalog.NextUp = []; _hero = null; _catalog.TotalCount = 0;
             var erased = erase && connection is not null ? await AccountData.EraseAsync(_profile.DirectoryPath, connection) : (bool?)null;
+            // Its titles kept on this PC too, wherever they were put.
+            if (erased is not null && connection is not null) { var roots = OfflineRoots; erased &= await Task.Run(() => OfflineCopies.Erase(roots, connection)); }
             RenderLibrary(); _ = RefreshTorLinkLibrariesAsync();
             LoginArt.Source = null;
             LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed;

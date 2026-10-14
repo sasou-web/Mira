@@ -172,6 +172,29 @@ public sealed class JellyfinClient : IDisposable
     public Uri StreamUri(string itemId, string sourceId) => new(_http.BaseAddress!,
         $"Videos/{Uri.EscapeDataString(itemId)}/stream?static=true&mediaSourceId={Uri.EscapeDataString(sourceId)}");
     public string AuthorizationHeader => _http.DefaultRequestHeaders.GetValues("Authorization").Single();
+    /// <summary>
+    /// Jellyfin's file of a title as it is (« Garder sur ce PC »), from <paramref name="from"/> bytes on when a previous
+    /// try stopped there: 206 then, or 200 with the whole file when Jellyfin ignores the range. The caller reads and
+    /// disposes the answer; HttpClient's time limit ends once its headers are in.
+    /// </summary>
+    public async Task<HttpResponseMessage> DownloadAsync(string itemId, long from, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"Items/{Uri.EscapeDataString(itemId)}/Download");
+        if (from > 0) request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(from, null);
+        var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        // 403 with a valid session: this account's policy forbids downloads (a session gone answers 401).
+        if (response.StatusCode == HttpStatusCode.Forbidden) { response.Dispose(); throw new OfflineRefusedException(); }
+        if (from > 0 && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable) return response;
+        try { await CheckAsync(response); } catch { response.Dispose(); throw; }
+        return response;
+    }
+    /// <summary>An external subtitle file of a title, in <paramref name="extension"/> (« srt », « ass »), converted by Jellyfin if needed.</summary>
+    public async Task<byte[]> SubtitleFileAsync(string itemId, string sourceId, int index, string extension, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Videos/{Uri.EscapeDataString(itemId)}/{Uri.EscapeDataString(sourceId)}/Subtitles/{index}/0/Stream.{extension}", ct);
+        await CheckAsync(response);
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
     public async Task ReportAsync(string kind, PlaybackReport report, CancellationToken ct = default)
     {
         if (kind == "watched") { await SetPlayedAsync(report.ItemId, true, ct); return; }

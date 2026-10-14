@@ -60,7 +60,7 @@ public partial class MainWindow
                 if (await AskGroupAsync(item, fromStart, completePrevious)) return;
                 groupStart = _groupQueue?.StartTicks ?? 0;
             }
-            string location; string? authorization = null; MediaSource? source = null; string session = "";
+            string location; string? authorization = null; MediaSource? source = null; string session = ""; OfflineCopy? kept = null;
             if (_demo)
             {
                 if (_testMedia is null)
@@ -71,6 +71,8 @@ public partial class MainWindow
                 }
                 else location = _testMedia;
             }
+            // Kept on this PC (« Garder sur ce PC »): its file, with or without Jellyfin; the progress goes as usual.
+            else if (KeptCopy(item.Id) is { } copy) { kept = copy; location = copy.VideoPath; source = copy.Source; session = Guid.NewGuid().ToString("N"); }
             else
             {
                 if (_client is null) return;
@@ -82,6 +84,7 @@ public partial class MainWindow
                 else { location = _client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = _client.AuthorizationHeader; }
             }
             await StopPlaybackAsync(completePrevious);
+            _playingCopy = kept;
             // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
             _session.Begin(item, source, session, groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart)); _loaded = false;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
@@ -176,6 +179,12 @@ public partial class MainWindow
                 try { _mpv.Command("sub-add", uri.AbsoluteUri, "auto", stream.DisplayTitle ?? "", stream.Language ?? ""); } catch (IOException) { }
             }
         }
+        // The subtitle files kept beside a copy.
+        if (_playingCopy is { } kept && kept.Item.Id == _session.Item.Id)
+            foreach (var subtitle in kept.Subtitles)
+            {
+                try { _mpv.Command("sub-add", Path.Combine(kept.Folder, subtitle.File), "auto", subtitle.Title ?? "", subtitle.Language ?? ""); } catch (IOException) { }
+            }
         if (reopened) RestoreTracks(); else await ChooseSeriesTracksAsync(generation);
     }
     private async void PlayerTick(object? sender, EventArgs e)
@@ -333,7 +342,13 @@ public partial class MainWindow
             var episodes = await _client.EpisodesAsync(current.SeriesId); var index = episodes.Items.FindIndex(x => x.Id == current.Id);
             return (index >= 0 ? episodes.Items.ElementAtOrDefault(index + 1) : null, episodes.Items);
         }
-        catch (Exception ex) when (IsExpected(ex)) { if (!quiet) SetNotice(Friendly(ex)); return (null, []); }
+        catch (Exception ex) when (IsExpected(ex))
+        {
+            // Without Jellyfin, the next episode kept on this PC.
+            if (OfflineCopies.NextEpisode(_offline, current) is { } kept) return (kept.Item, []);
+            if (!quiet) SetNotice(Friendly(ex));
+            return (null, []);
+        }
     }
     private async void Next_Click(object sender, RoutedEventArgs e)
     {

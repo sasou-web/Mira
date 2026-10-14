@@ -105,7 +105,7 @@ public partial class MainWindow
         var guide = GuideOverlay.IsHitTestVisible && GuideOverlay.Visibility == Visibility.Visible;
         var settings = !guide && SettingsOverlay.IsHitTestVisible && SettingsOverlay.Visibility == Visibility.Visible;
         var torlink = !guide && !settings && TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
-        foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, TorLinkNav, GuideNav, SettingsNav })
+        foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, OfflineNav, TorLinkNav, GuideNav, SettingsNav })
         {
             var active = guide ? button == GuideNav : settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _catalog.View;
             button.Background = active ? Palette.Get("Text") : Brushes.Transparent;
@@ -120,6 +120,9 @@ public partial class MainWindow
         CatalogDescription.Text = _catalog.Description;
         Hero.Visibility = home && _catalog.Items.Count + _catalog.Resume.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         CatalogHeader.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
+        // « Sur ce PC » lists the copies as they are: no search or filter of Jellyfin's.
+        CatalogFilters.Visibility = CatalogTools.Visibility = _catalog.View == "offline" ? Visibility.Collapsed : Visibility.Visible;
+        if (_catalog.View == "offline") CatalogDescription.Text = OfflineSummary();
         LibraryRows.Margin = new Thickness(110, home && Hero.Visibility == Visibility.Collapsed ? 80 : 0, 40, 42);
         var row = _catalog.ContinueRow();
         ResumeSection.Visibility = home && row.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -187,7 +190,7 @@ public partial class MainWindow
             if (!existing.Remove(key, out var card))
             {
                 card = new MediaCard(item, wide, i, _settings, _demo);
-                card.Click += async (_, _) => { ClosePreview(); if (wide) await PlayAsync(item); else await ShowDetailsAsync(item); };
+                card.Click += async (_, _) => { ClosePreview(); if (wide || _catalog.View == "offline") await PlayAsync(item); else await ShowDetailsAsync(item); };
                 card.HoverEntered += CardHoverEntered; card.FocusEntered += CardFocusEntered; card.HoverLeft += CardHoverLeft;
                 card.ContextMenu = CardMenu(card, wide);
                 panel.Children.Insert(Math.Min(i, panel.Children.Count), card);
@@ -241,6 +244,7 @@ public partial class MainWindow
             menu.Items.Add(MenuAction(item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu", item.UserData.Played ? "refresh" : "check", async () => await SetPlayedAsync(item, !item.UserData.Played)));
             menu.Items.Add(MenuAction(item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
             if (wide) menu.Items.Add(MenuAction("Retirer de Continuer à regarder", "close", async () => await HideFromResumeAsync(item)));
+            if (OfflineMenuItem(item) is { } offline) { menu.Items.Add(new Separator()); menu.Items.Add(offline); }
         };
         menu.Items.Add(new MenuItem { Header = "…" }); // replaced when opened
         return menu;

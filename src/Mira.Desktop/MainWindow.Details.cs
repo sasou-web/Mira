@@ -150,7 +150,7 @@ public partial class MainWindow
             var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip))
                 ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played));
             SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
-            _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta();
+            _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta(); ShowOfflineButton();
             if (_detailNext is { } target && _detailFile?.Id != target.Id) await LoadDetailFileAsync(target, version);
         }
         catch (Exception ex) when (IsExpected(ex))
@@ -269,7 +269,7 @@ public partial class MainWindow
         DetailRestart.Content ??= ActionLabel("refresh", "Depuis le début");
         FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
         WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu");
-        ShowTogetherButton();
+        ShowTogetherButton(); ShowOfflineButton();
     }
     /// <summary>Length and ratings, then the picture of the file Lecture plays and when it ends (the episode it picks up at, on a series).</summary>
     private void RenderDetailMeta()
@@ -283,10 +283,10 @@ public partial class MainWindow
     }
     private static StackPanel ActionLabel(string icon, string label)
     { var panel = new StackPanel { Orientation = Orientation.Horizontal }; panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18, Margin = new Thickness(0, 0, 9, 0) }); panel.Children.Add(new TextBlock { Text = label }); return panel; }
-    private void Season_Changed(object sender, SelectionChangedEventArgs e) { if (!_seasonBusy) { RenderEpisodes(); Motion.Reveal(EpisodesPanel, 220, 7); } }
+    private void Season_Changed(object sender, SelectionChangedEventArgs e) { if (!_seasonBusy) { RenderEpisodes(); ShowOfflineButton(); Motion.Reveal(EpisodesPanel, 220, 7); } }
     private void RenderEpisodes()
     {
-        EpisodesPanel.Children.Clear();
+        EpisodesPanel.Children.Clear(); _episodeCopyLabels.Clear();
         var page = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
         // The whole season's count, also on a slice of a long one.
@@ -312,8 +312,9 @@ public partial class MainWindow
             status.Children.Add(new TextBlock { Text = episode.DurationLabel, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Right });
             var state = episode.UserData.Played ? "✓ Vu" : isNext ? episode.Progress > 0 ? "En cours" : "À suivre" : null;
             if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 11, Foreground = Palette.Get(episode.UserData.Played ? "Success" : "TextBody"), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Right });
+            if (CanKeep(episode)) status.Children.Add(EpisodeCopyLabel(episode));
             grid.Children.Add(status); button.Content = grid;
-            AutomationProperties.SetName(button, $"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}");
+            AutomationProperties.SetName(button, $"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}{(CopyState(episode.Id) is { } kept ? ", " + kept.ToLowerInvariant() : "")}");
             button.Click += async (_, _) => await PlayAsync(episode);
             button.ContextMenu = EpisodeMenu(episode);
             EpisodesPanel.Children.Add(button);
@@ -327,6 +328,7 @@ public partial class MainWindow
         menu.Items.Add(MenuAction(resume ? "Reprendre" : "Regarder", "play", async () => await PlayAsync(episode)));
         if (resume) menu.Items.Add(MenuAction("Lire depuis le début", "refresh", async () => await PlayAsync(episode, fromStart: true)));
         menu.Items.Add(MenuAction(episode.UserData.Played ? "Marquer comme non vu" : "Marquer comme vu", episode.UserData.Played ? "refresh" : "check", async () => { await SetPlayedAsync(episode, !episode.UserData.Played); await RefreshDetailAsync(); }));
+        if (OfflineMenuItem(episode) is { } offline) menu.Items.Add(offline);
         return menu;
     }
     private async Task LoadEpisodeImageAsync(Image image, MediaItem item)
