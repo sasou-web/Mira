@@ -1011,6 +1011,90 @@ try {
 }
 await big.close();
 
+// « Regarder ensemble » (Jellyfin's SyncPlay): two phones, two accounts (the second made here), one starts a group, the
+// other joins it from a title page; Lecture on the first opens the title on both, playing together; a pause and a jump on the first
+// reach the second; leaving the group on the second.
+const togetherA = await newContext('ensemble (1)'), togetherB = await newContext('ensemble (2)');
+const ta = await togetherA.newPage(), tb = await togetherB.newPage();
+const togetherErrors = [];
+for (const p of [ta, tb]) p.on('pageerror', (e) => togetherErrors.push(e.message));
+const videoState = (p) => p.evaluate(() => { const v = document.querySelector('video'); return v ? { t: v.currentTime, paused: v.paused } : null; });
+try {
+  await signIn(ta);
+  const asA = (path, method = 'GET', body = null) => ta.evaluate(async ([p, m, b]) => {
+    const session = JSON.parse(localStorage.getItem('mira.session'));
+    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/${p}`, { method: m, body: b ? JSON.stringify(b) : undefined,
+      headers: { 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${session.token}"` } });
+    const t = await r.text(); return t ? JSON.parse(t) : null;
+  }, [path, method, body]);
+  // A friend's account (kept from a run before when there is one): all the libraries, as Jellyfin gives a new account.
+  await asA('Users/New', 'POST', { Name: 'Ami Mira', Password: 'ami-check' }).catch(() => null);
+  await tb.goto(`${base}#/connexion`); await tb.waitForTimeout(1500);
+  if (await tb.locator('.users').count()) await tb.getByRole('button', { name: 'Autre compte' }).click();
+  await tb.fill('#login-name', 'Ami Mira'); await tb.fill('#login-password', 'ami-check');
+  await tb.getByRole('button', { name: 'Se connecter', exact: true }).click();
+  await tb.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
+  // A film long enough for a jump of 10 s (the episodes last 8).
+  const film = (await asA('Items?recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];
+  const line = (p) => p.locator('#view .group-line');
+  for (const p of [ta, tb]) { await p.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await p.waitForTimeout(2500); }
+  await line(ta).click(); await ta.waitForTimeout(800);
+  await ta.locator('.sheet-item', { hasText: 'Créer un groupe' }).click();
+  await ta.waitForFunction(() => /Ensemble/.test([...document.querySelectorAll('#view .group-line')].map((x) => x.textContent).join(' ')), null, { timeout: 10000 }).catch(() => {});
+  const created = (await line(ta).innerText()).replace(/\s+/g, ' ').trim();
+  await line(tb).click(); await tb.waitForTimeout(1500);
+  const offered = await tb.locator('.sheet-item', { hasText: 'Rejoindre' }).allInnerTexts();
+  await tb.locator('.sheet-item', { hasText: 'Rejoindre' }).first().click();
+  await tb.waitForFunction(() => /2 personnes/.test([...document.querySelectorAll('#view .group-line')].map((x) => x.textContent).join(' ')), null, { timeout: 10000 }).catch(() => {});
+  const joinedLine = (await line(tb).innerText()).replace(/\s+/g, ' ').trim();
+  check('ensemble : un groupe créé sur un téléphone, rejoint depuis la fiche sur l’autre',
+    /Ensemble : Groupe de .+ · 1 personne/.test(created) && offered.length > 0 && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine),
+    `« ${created} » ; proposé : ${offered.map((x) => x.split('\n')[0]).join(', ') || 'rien'} ; « ${joinedLine} »`);
+  await ta.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
+  const followed = await tb.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 15000 }).then(() => true, () => false);
+  await ta.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 25000 }).catch(() => {});
+  await tb.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 15000 }).catch(() => {});
+  await ta.waitForTimeout(1500);
+  let [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
+  check('ensemble : Lecture sur l’un ouvre le titre sur l’autre, lus au même moment',
+    followed && a && b && !a.paused && !b.paused && Math.abs(a.t - b.t) < 1,
+    `${followed ? 'titre ouvert sur l’autre' : 'l’autre n’a rien ouvert'} ; ${a ? `${a.t.toFixed(2)} s${a.paused ? ' (en pause)' : ''}` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s${b.paused ? ' (en pause)' : ''}` : 'pas de vidéo'}`);
+  await ta.evaluate(() => document.querySelector('video').pause());
+  await tb.waitForFunction(() => document.querySelector('video')?.paused, null, { timeout: 8000 }).catch(() => {});
+  await tb.waitForTimeout(800);
+  [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
+  check('ensemble : une pause sur l’un met l’autre en pause, au même endroit', a?.paused && b?.paused && Math.abs(a.t - b.t) < 1,
+    `${a?.paused ? 'en pause' : 'en lecture'} à ${a?.t.toFixed(2)} s, ${b?.paused ? 'en pause' : 'en lecture'} à ${b?.t.toFixed(2)} s`);
+  const before = b?.t ?? 0;
+  await ta.keyboard.press('ArrowRight');
+  await tb.waitForFunction((t) => (document.querySelector('video')?.currentTime ?? 0) > t + 6, before, { timeout: 10000 }).catch(() => {});
+  await ta.keyboard.press(' ');
+  await tb.waitForFunction(() => !document.querySelector('video')?.paused, null, { timeout: 10000 }).catch(() => {});
+  await ta.waitForTimeout(1500);
+  [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
+  check('ensemble : un saut de 10 s puis la lecture sur l’un, suivis par l’autre', a && b && !a.paused && !b.paused && b.t > before + 6 && Math.abs(a.t - b.t) < 1,
+    `de ${before.toFixed(2)} s à ${b?.t.toFixed(2)} s ; écart ${a && b ? Math.abs(a.t - b.t).toFixed(2) : '?'} s ; ${b?.paused ? 'l’autre en pause' : 'les deux en lecture'}`);
+  await tb.keyboard.press('Escape');
+  await tb.waitForFunction(() => location.hash.startsWith('#/titre/'), null, { timeout: 8000 }).catch(() => {});
+  await tb.waitForTimeout(1500);
+  // Jellyfin no longer waits for the one who closed: a jump on the other still plays on.
+  const seekFrom = (await videoState(ta))?.t ?? 0;
+  await ta.keyboard.press('ArrowLeft');
+  await ta.waitForFunction((t) => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime < t - 4; }, seekFrom, { timeout: 10000 }).catch(() => {});
+  await ta.waitForTimeout(1000);
+  const stillA = await videoState(ta);
+  await line(tb).click(); await tb.waitForTimeout(800);
+  await tb.locator('.sheet-item', { hasText: 'Quitter le groupe' }).click();
+  await tb.waitForTimeout(1500);
+  const leftLine = (await line(tb).innerText()).replace(/\s+/g, ' ').trim();
+  check('ensemble : fermer le lecteur laisse les autres regarder, et sauter ; quitter le groupe', stillA && !stillA.paused && stillA.t < seekFrom - 4 && leftLine === 'Regarder ensemble' && !togetherErrors.length,
+    `${stillA && !stillA.paused ? 'l’autre continue' : 'l’autre s’est arrêté'}, de ${seekFrom.toFixed(2)} s à ${stillA?.t.toFixed(2)} s ; « ${leftLine} »${togetherErrors.length ? ` ; ${togetherErrors.slice(0, 2).join(' | ')}` : ''}`);
+  await ta.screenshot({ path: `${out}/23-together.png` });
+} catch (error) {
+  check('ensemble : déroulé', false, error.message.split('\n')[0]);
+}
+await togetherA.close(); await togetherB.close();
+
 // The security policy: inline styles refused but the page's own (allowed by its hash), and the watch above sees a
 // refusal (a style attribute and a style element slipped into the page, here on purpose).
 const probe = await browser.newContext({ ...devices['iPhone 15 Pro'] });

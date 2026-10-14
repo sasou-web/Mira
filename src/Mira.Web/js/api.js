@@ -393,6 +393,16 @@ export const api = {
   playbackInfo: (id, body) => post(`Items/${encodeURIComponent(id)}/PlaybackInfo`, { UserId: user(), ...body }, { userId: user() }),
   segments: (id) => get(`MediaSegments/${encodeURIComponent(id)}`, { includeSegmentTypes: ['Intro', 'Outro', 'Recap', 'Preview', 'Commercial'] }).then((r) => r?.Items ?? []).catch(() => []),
   report: (kind, body, keepalive = false) => post({ start: 'Sessions/Playing', progress: 'Sessions/Playing/Progress', stop: 'Sessions/Playing/Stopped' }[kind], body, null, { keepalive, timeout: 10000 }),
+  // « Regarder ensemble », Jellyfin's SyncPlay (together.js): 403 when Jellyfin does not let this account use it.
+  utcTime: () => get('GetUtcTime', null, { timeout: 5000 }),
+  syncGroups: () => get('SyncPlay/List'),
+  syncGroup: (groupId) => get(`SyncPlay/${encodeURIComponent(groupId)}`),
+  syncNew: (name) => post('SyncPlay/New', { GroupName: name }),
+  syncJoin: (groupId) => post('SyncPlay/Join', { GroupId: groupId }),
+  syncLeave: () => post('SyncPlay/Leave'),
+  syncQueue: (itemId, startTicks) => post('SyncPlay/SetNewQueue', { PlayingQueue: [itemId], PlayingItemPosition: 0, StartPositionTicks: Math.max(0, Math.round(startTicks || 0)) }),
+  /** Pause, Unpause, Seek ({ PositionTicks }), Buffering and Ready ({ When, PositionTicks, IsPlaying, PlaylistItemId }), Ping. */
+  syncSend: (what, body) => post(`SyncPlay/${what}`, body),
   stopEncoding: (playSessionId) => request('DELETE', 'Videos/ActiveEncodings', { params: { deviceId: device.id, playSessionId }, keepalive: true }).catch(() => {}),
   /**
    * Downloads about 1 MB to estimate the connection when away from home, for `limit` ms at most: cut there, what came

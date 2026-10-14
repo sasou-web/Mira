@@ -1,0 +1,31 @@
+{
+  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]",
+  "times": [
+    ["2026-10-14T14:48:08.5712105Z", 1791989288571],
+    ["2026-10-14T14:48:08Z", 1791989288000],
+    ["2026-10-14T14:48:08.5Z", 1791989288500]
+  ],
+  "clock": [
+    [[{"sent": 1000, "received": 1100, "serverIn": 5040, "serverOut": 5050}, {"sent": 2000, "received": 2030, "serverIn": 6010, "serverOut": 6020}], 4000, 20],
+    [[{"sent": 1000, "received": 1000, "serverIn": 900, "serverOut": 900}], -100, 0],
+    [[{"sent": 1000, "received": 990, "serverIn": 0, "serverOut": 0}], null, null]
+  ],
+  "commands": [
+    [0, 1791989287571, {"Command": "Unpause", "When": "2026-10-14T14:48:08.5712105Z", "PositionTicks": 100000000, "PlaylistItemId": "0a93a15fa6364646a5c9b858aa636ae4"}, {"action": "play", "wait": 1000, "position": 10}],
+    [0, 1791989290571, {"Command": "Unpause", "When": "2026-10-14T14:48:08.5712105Z", "PositionTicks": 100000000}, {"action": "play", "wait": 0, "position": 12}],
+    [4000, 1791989283571, {"Command": "Unpause", "When": "2026-10-14T14:48:08.5712105Z", "PositionTicks": 0}, {"action": "play", "wait": 1000, "position": 0}],
+    [0, 1791989287571, {"Command": "Pause", "When": "2026-10-14T14:48:11.4726549Z", "PositionTicks": 10695987}, {"action": "pause", "wait": 0, "position": 1.0695987}],
+    [0, 1791989287571, {"Command": "Seek", "When": "2026-10-14T14:48:12.2997867Z", "PositionTicks": 100000000}, {"action": "seek", "wait": 0, "position": 10}],
+    [0, 1791989287571, {"Command": "Stop", "When": "2026-10-14T14:47:38.9709653Z", "PositionTicks": 0, "PlaylistItemId": "00000000000000000000000000000000"}, {"action": "stop", "wait": 0, "position": 0}],
+    [0, 1791989287571, {"Command": "Rewind", "PositionTicks": 0}, null]
+  ],
+  "queue": [
+    [{"Reason": "NewPlaylist", "LastUpdate": "2026-10-14T14:48:06.6748072Z", "Playlist": [{"ItemId": "90892981f28a0ccb86a6e55a3a0039c6", "PlaylistItemId": "0a93a15fa6364646a5c9b858aa636ae4"}], "PlayingItemIndex": 0, "StartPositionTicks": 37230000, "IsPlaying": false, "ShuffleMode": "Sorted", "RepeatMode": "RepeatNone"},
+     {"itemId": "90892981f28a0ccb86a6e55a3a0039c6", "playlistItemId": "0a93a15fa6364646a5c9b858aa636ae4", "startTicks": 37230000}],
+    [{"Reason": "RemoveItems", "Playlist": [], "PlayingItemIndex": -1, "StartPositionTicks": 0}, null]
+  ],
+  "groups": [
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Idle", "Participants": ["mira"]}, "Groupe de mira · 1 personne"],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Soirée", "State": "Playing", "Participants": ["mira", "léa", "sam"]}, "Soirée · 3 personnes"]
+  ]
+}
