@@ -84,14 +84,17 @@ await Test("Relance : une copie qui démarre ou se ferme le dit, plus de faux «
 {
     var key = "test-" + Guid.NewGuid().ToString("N");
     Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.None, "Nothing listening: no answer");
-    var answer = ActivationAnswer.Starting; var asked = 0;
-    using var activation = new InstanceActivation(key, () => { Interlocked.Increment(ref asked); return answer; });
+    var answer = ActivationAnswer.Starting; var asked = 0; string? given = "";
+    using var activation = new InstanceActivation(key, link => { Interlocked.Increment(ref asked); given = link; return answer; });
     Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.Starting, "While it starts: « starting », the launch ends quietly");
     answer = ActivationAnswer.Closing;
     Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.Closing, "While it closes: « closing », the launch waits for it to end");
     answer = ActivationAnswer.Shown;
-    Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.Shown, "Open: its window comes forward");
-    Assert(Volatile.Read(ref asked) == 3, "Asked once per launch");
+    Assert(await Task.Run(() => InstanceActivation.ShowExisting(key)) == ActivationAnswer.Shown && given is null, "Open: its window comes forward");
+    // A mira:// link opened meanwhile goes to the Mira already open.
+    const string link = "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096";
+    Assert(await Task.Run(() => InstanceActivation.ShowExisting(key, link)) == ActivationAnswer.Shown && given == link, "The link reaches it");
+    Assert(Volatile.Read(ref asked) == 4, "Asked once per launch");
 });
 await Test("Préférences : migration des anciens réglages et persistance de l’apparence", () =>
 {

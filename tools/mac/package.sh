@@ -40,6 +40,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.entertainment</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>CFBundleURLTypes</key>
+  <array><dict>
+    <key>CFBundleURLName</key><string>io.github.sasou-web.mira.ensemble</string>
+    <key>CFBundleURLSchemes</key><array><string>mira</string></array>
+  </dict></array>
   <key>NSHumanReadableCopyright</key><string>Mira — client Jellyfin libre</string>
 </dict>
 </plist>

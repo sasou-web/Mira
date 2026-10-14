@@ -62,6 +62,9 @@ export const groupText = (group) => `${group?.GroupName ?? 'Groupe'} · ${people
 /** The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it. */
 export const inviteLink = (server, groupId) => `${String(server).replace(/\/+$/, '')}/Mira/#/ensemble/${encodeURIComponent(groupId)}`;
 
+/** The same invitation for Mira on a computer (« Ouvrir dans Mira »): Mira for Windows or Mac offers to join the group. */
+export const appLink = (server, groupId) => `mira://ensemble/${encodeURIComponent(groupId)}?server=${encodeURIComponent(String(server).replace(/\/+$/, ''))}`;
+
 /** Where a host is reached from: Tailscale, the home network only, or the Internet. */
 function reach(host) {
   const ip = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
@@ -79,7 +82,7 @@ export function inviteSteps(link) {
   let host = '';
   try { host = new URL(link).hostname; } catch { /* not an address */ }
   const steps = [
-    'Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe.',
+    'Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.',
     'Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.',
   ];
   const where = reach(host);

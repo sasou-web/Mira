@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps } from '../../../src/Mira.Web/js/player/sync.js';
+import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink } from '../../../src/Mira.Web/js/player/sync.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/syncplay.json', import.meta.url), 'utf8'));
 
@@ -41,4 +41,8 @@ test('the invitation: its link and what it says under it, from Tailscale, home o
     assert.equal(inviteLink(server, group), link);
     assert.deepEqual(inviteSteps(link), steps);
   }
+});
+
+test('« Ouvrir dans Mira »: the same invitation for Mira on a computer (read back by Together.ParseAppLink)', () => {
+  for (const [server, group, link] of fixture.appLinks) assert.equal(appLink(server, group), link);
 });

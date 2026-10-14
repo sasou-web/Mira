@@ -45,6 +45,13 @@ export const session = {
   clear() { this.current = null; write(SESSION, null); forgetAccount(); signedOut.dispatchEvent(new Event('out')); },
 };
 
+/** « Windows » or « Mac » on a computer, where Mira has an app that opens mira:// links (« Ouvrir dans Mira »); else null. */
+export function computerApp() {
+  const ua = navigator.userAgent;
+  if (/Windows NT/.test(ua)) return 'Windows';
+  return /Macintosh/.test(ua) && navigator.maxTouchPoints <= 1 ? 'Mac' : null;
+}
+
 /** iPhone, iPad, Android or the browser's name: how Jellyfin's dashboard lists this device. */
 function deviceName() {
   const ua = navigator.userAgent;

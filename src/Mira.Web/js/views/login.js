@@ -2,7 +2,8 @@
 // password to type on the phone, a code approved from a device already signed in (Quick Connect).
 import { api, base, exposed } from '../api.js';
 import { h, icon, clear, initials, wait } from '../dom.js';
-import { isIOS, isStandalone, storageBlocked, temp } from '../session.js';
+import { isIOS, isStandalone, storageBlocked, temp, computerApp } from '../session.js';
+import { appLink } from '../player/sync.js';
 import { markSvg, resetScreens, replaceRoute } from '../app.js';
 
 export function installHint() {
@@ -40,6 +41,14 @@ export function create() {
   if (storageBlocked()) {
     body.before(h('div', { class: 'hint warn', role: 'note' }, h('div', { class: 'step' }, icon('warning'),
       h('span', {}, h('b', {}, 'Mira a besoin du stockage du site. '), 'Ce navigateur le bloque : Mira ne pourra pas garder ta connexion, ni ce qu’il affiche, une fois fermé. Sur iPhone, désactive « Bloquer tous les cookies » dans les réglages de Safari, puis rouvre Mira.'))));
+  }
+  // On a computer with Mira: the group joined from the app (which asks first), with no sign-in here.
+  const group = invited ? /^#\/ensemble\/([0-9a-f-]+)$/i.exec(temp.get('mira.next'))?.[1] : null;
+  const app = group ? computerApp() : null;
+  if (app) {
+    body.before(h('div', { class: 'hint open-app' },
+      h('div', {}, h('b', {}, `Mira pour ${app} est installé ici ?`), ' Rejoins le groupe depuis l’app : ton navigateur te demandera de l’ouvrir.'),
+      h('a', { class: 'btn primary small', href: appLink(`${location.origin}${base}`, group) }, icon('users', { size: 16 }), `Ouvrir dans Mira pour ${app}`)));
   }
   const hint = installHint();
   if (hint) el.append(hint);

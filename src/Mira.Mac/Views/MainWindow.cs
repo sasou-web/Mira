@@ -134,13 +134,16 @@ public sealed class MainWindow : Window
         };
     }
 
-    /// <summary>A short message at the bottom of the window, with an optional action (« Réessayer », « Installer »…).</summary>
-    public void Notice(string text, string? action = null, Action? click = null)
+    /// <summary>
+    /// A short message at the bottom of the window, with an optional action (« Réessayer », « Installer »…); one marked
+    /// <paramref name="sticky"/> stays half a minute, time to read it and choose (« Rejoindre » of an invitation).
+    /// </summary>
+    public void Notice(string text, string? action = null, Action? click = null, bool sticky = false)
     {
         _toastText.Text = text; _toastClick = click;
         _toastAction.Content = action; _toastAction.IsVisible = action is not null;
         _toast.IsVisible = true; _toast.Opacity = 1;
-        _toastTimer.Stop(); _toastTimer.Interval = TimeSpan.FromSeconds(action is null ? 5 : 9); _toastTimer.Start();
+        _toastTimer.Stop(); _toastTimer.Interval = TimeSpan.FromSeconds(sticky ? 30 : action is null ? 5 : 9); _toastTimer.Start();
     }
     private void HideNotice() { _toastTimer.Stop(); _toast.Opacity = 0; DispatcherTimer.RunOnce(() => { if (_toast.Opacity == 0) _toast.IsVisible = false; }, TimeSpan.FromMilliseconds(200)); }
     public string? NoticeText => _toast.IsVisible ? _toastText.Text : null;
@@ -165,6 +168,8 @@ public sealed class MainWindow : Window
     {
         _rail.IsVisible = false;
         var login = new LoginPage(this, error);
+        // Opened from an invitation (a mira:// link) before any account: its Jellyfin, to sign in to.
+        if (_invite is { } invite) login.Server = invite.Server;
         _overlay.Children.Clear(); _overlay.Children.Add(login);
         _history.Clear(); _host.Content = null;
     }
@@ -192,7 +197,7 @@ public sealed class MainWindow : Window
             {
                 if (!ReferenceEquals(session, Session)) return;
                 if (open && opened) Changed();
-                opened |= open; Group.Listening(session, open);
+                opened |= open; _listening = open; Group.Listening(session, open);
             });
             session.Listen(() => Dispatcher.UIThread.Post(Changed), Listening, (type, data) => Dispatcher.UIThread.Post(() => Group.Message(session, type, data)));
         }
@@ -201,6 +206,49 @@ public sealed class MainWindow : Window
         _history.Clear();
         await NavigateAsync(new HomePage(this));
         if (Session.Store.DamagedCopy is not null) Notice("Le cache local de ce compte était illisible : il a été recréé.");
+        // Opened from a mira:// link before this account was: asked now.
+        if (_invite is not null) _ = OfferInviteAsync();
+    }
+
+    // —— Invitations ——
+    /// <summary>An invitation opened in Mira (a mira:// link), kept until an account of a Jellyfin is open to answer it.</summary>
+    private Together.Invitation? _invite;
+    /// <summary>Jellyfin's WebSocket is open for this session: GroupJoined will be heard.</summary>
+    private bool _listening;
+    /// <summary>
+    /// « Ouvrir dans Mira » of Mira web (a mira:// link, given by macOS to App): once signed in, Mira asks before
+    /// joining the group (« Rejoindre »); not signed in yet, the sign-in page gets the invitation's Jellyfin.
+    /// </summary>
+    public void OpenLink(string text)
+    {
+        if (Together.ParseAppLink(text) is not { } invite) { Notice("Mira ne sait pas ouvrir ce lien."); return; }
+        _invite = invite;
+        _ = OfferInviteAsync();
+    }
+    private async Task OfferInviteAsync()
+    {
+        if (_invite is not { } invite) return;
+        if (Session is not { } session)
+        {
+            if (Login is not { } login) return;
+            login.Server = invite.Server; Notice(Together.SignInToJoin);
+            return;
+        }
+        for (var i = 0; !_listening && i < 40 && ReferenceEquals(session, Session); i++) await Task.Delay(250);
+        if (!ReferenceEquals(session, Session) || !ReferenceEquals(_invite, invite)) return;
+        _invite = null;
+        List<Together.Group> groups;
+        try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
+        catch (UnauthorizedAccessException) { Notice(WatchGroup.NoSyncPlay); return; }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); return; }
+        if (!ReferenceEquals(session, Session)) return;
+        var answer = Together.Answer(invite, groups, session.Connection.Server, Group.Active ? Group.Group?.GroupId : null);
+        Activate();
+        if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
+            Notice(answer.Text, "Rejoindre", () => _ = Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct)), sticky: true);
+        else if (answer.Kind == Together.InviteKind.OtherServer)
+            Notice(answer.Text, "Ouvrir dans le navigateur", () => Updates.Open(new Uri(Together.InviteLink(invite.Server, invite.GroupId)), plainHttp: true), sticky: true);
+        else Notice(answer.Text);
     }
     /// <summary>« Se déconnecter »: the session ends here and on Jellyfin, and with <paramref name="erase"/> this account's data leaves this Mac.</summary>
     public async Task SignOutAsync(bool erase = false)
@@ -223,7 +271,7 @@ public sealed class MainWindow : Window
     }
     private async Task CloseSessionAsync()
     {
-        Group.Gone();
+        Group.Gone(); _listening = false;
         if (Session is { } session) { Session = null; await session.DisposeAsync(); }
     }
 
