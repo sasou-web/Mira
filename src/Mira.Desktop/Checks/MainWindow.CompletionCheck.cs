@@ -45,7 +45,7 @@ public partial class MainWindow
 
         // Use the real stop/mini paths and rendered row, with synthetic entries in the demo profile.
         var films = new[] { Episode("qa-recent-a") with { Type = "Movie", SeriesId = null }, Episode("qa-recent-b") with { Type = "Movie", SeriesId = null } };
-        _demoItems!.AddRange(films); _view = "home";
+        _demoItems!.AddRange(films); _catalog.View = "home";
         await At(films[0], 3); await StopPlaybackAsync(); ReturnToLibrary();
         await At(films[1], 4); await StopPlaybackAsync(); ReturnToLibrary();
         require(ResumeCards.Children.OfType<Views.MediaCard>().First().Item.Id == films[1].Id, "returning after playback puts the last watched film first in the rendered resume row");

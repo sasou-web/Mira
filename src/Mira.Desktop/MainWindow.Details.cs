@@ -45,7 +45,7 @@ public partial class MainWindow
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
-        if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _items.FindIndex(x => x.Id == item.Id)), true), animate: false);
+        if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), true), animate: false);
         RenderDetailText(item); EpisodesPanel.Children.Clear();
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
         EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
@@ -372,11 +372,11 @@ public partial class MainWindow
             if (_client is not null) await _client.SetFavoriteAsync(item.Id, favorite);
             else if (!_demo) return;
             item.UserData.IsFavorite = favorite; _favoriteOverride = (item.Id, favorite);
-            foreach (var known in _items.Concat(_resume).Concat(_nextUp).Concat(_similar).Where(x => x.Id == item.Id)) known.UserData.IsFavorite = favorite;
+            // In the favourites view, a removed title leaves the list.
+            var left = _catalog.MarkFavorite(item, favorite, _similar);
             if (_detail is { } open && open.Id == item.Id) open.UserData.IsFavorite = favorite;
             _metadata?.Clear();
-            // In the favourites view, a removed title leaves the list.
-            if (_favorites && !favorite) { _items.RemoveAll(x => x.Id == item.Id); _totalCount = Math.Max(0, _totalCount - 1); RenderLibrary(); }
+            if (left) RenderLibrary();
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
     }

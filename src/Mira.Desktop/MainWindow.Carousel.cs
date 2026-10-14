@@ -30,7 +30,7 @@ public partial class MainWindow
         try
         {
             var changed = _hero?.Id != item.Id; var first = _hero is null;
-            ImageSource? image = _demo ? DemoLibrary.Artwork(Math.Max(0, _items.FindIndex(x => x.Id == item.Id)), true) : null;
+            ImageSource? image = _demo ? DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), true) : null;
             ImageSource? logo = null; MediaItem? info = null;
             if (_hero is null) UpdateHeroCopy(item, null, null);
             if (_images is { } cache)
@@ -115,7 +115,7 @@ public partial class MainWindow
     private void UpdateHeroClock()
     {
         UpdateHeroSegments();
-        var enabled = !_closing && IsActive && _view == "home" && LibraryShell.IsVisible && DetailOverlay.Visibility != Visibility.Visible && SettingsOverlay.Visibility != Visibility.Visible && TorLinkOverlay.Visibility != Visibility.Visible && LoginOverlay.Visibility != Visibility.Visible
+        var enabled = !_closing && IsActive && _catalog.View == "home" && LibraryShell.IsVisible && DetailOverlay.Visibility != Visibility.Visible && SettingsOverlay.Visibility != Visibility.Visible && TorLinkOverlay.Visibility != Visibility.Visible && LoginOverlay.Visibility != Visibility.Visible
             && GuideOverlay.Visibility != Visibility.Visible && WelcomeOverlay.Visibility != Visibility.Visible && WhatsNewOverlay.Visibility != Visibility.Visible && !_playing && _settings.HeroAutoPlay && !Motion.Reduced && _heroCandidates.Count > 1
             && !HeroPaused;
         if (enabled == _heroClockAttached) return;

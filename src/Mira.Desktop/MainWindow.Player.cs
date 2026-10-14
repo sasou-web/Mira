@@ -295,7 +295,7 @@ public partial class MainWindow
             if (_session.Reported && _sync is not null) { _session.Reported = false; await _sync.RecordAsync(completed ? "complete" : "stop", Report()); }
             if (completed && _session.Item is { } finished)
             {
-                PlaybackSession.MarkWatched(finished, _items.Concat(_resume).Concat(_nextUp).Concat(_episodes), _resume, _nextUp);
+                PlaybackSession.MarkWatched(finished, _catalog.Items.Concat(_catalog.Resume).Concat(_catalog.NextUp).Concat(_episodes), _catalog.Resume, _catalog.NextUp);
                 _metadata?.Clear(); _heroSeries.Clear();
             }
             if (_loaded && _session.Item is { } stopped)
@@ -442,7 +442,7 @@ public partial class MainWindow
         if (TorLinkOverlay.Visibility == Visibility.Visible && TorLinkOverlay.IsHitTestVisible && (!_playing || _miniPlayer)) { _ = CloseTorLinkAsync(); return true; }
         if (_playing && !_miniPlayer) { BackFromPlayer_Click(this, new()); return true; }
         // A person's titles, opened from a title page: back to that page.
-        if (_person is not null && _personFrom is not null) { _ = BackFromPersonAsync(); return true; }
+        if (_catalog.Person is not null && _personFrom is not null) { _ = BackFromPersonAsync(); return true; }
         return false;
     }
     private async void Window_Closing(object? sender, CancelEventArgs e)

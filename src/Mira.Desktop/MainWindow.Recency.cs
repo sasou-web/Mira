@@ -4,9 +4,6 @@ namespace Mira.Desktop;
 
 public partial class MainWindow
 {
-    private List<MediaItem> _recentPlayback = [];
-    /// <summary>Films and series taken out of « Continuer à regarder », with when; kept per account in its library cache.</summary>
-    private Dictionary<string, DateTimeOffset> _hiddenResume = [];
     private async Task RememberCurrentPlaybackAsync()
     {
         // The row on screen is already right: a cache that cannot be written only loses it for the next start.
@@ -24,9 +21,7 @@ public partial class MainWindow
         var at = DateTimeOffset.UtcNow; item.UserData.LastPlayedDate = at;
         var snapshot = item with { UserData = item.UserData with { } };
         _seasonThumbs.Apply([snapshot]);
-        _recentPlayback = ContinueWatching.History(_recentPlayback.Append(snapshot));
-        _resume.RemoveAll(x => x.Id == item.Id);
-        if (!snapshot.UserData.Played && snapshot.UserData.PlaybackPositionTicks > 0) _resume.Insert(0, snapshot);
+        _catalog.Remember(snapshot);
         // The position of the last watched title is predictable on returning to the home row.
         SmoothResumeToStart();
         return snapshot;
