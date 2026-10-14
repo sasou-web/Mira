@@ -205,7 +205,7 @@ public partial class MainWindow
         {
             if (!_playing || generation != _playGeneration) return;
             if (interrupted) { _loaded = false; _session.Failure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
-            var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _autoNextCancelled; var following = _nextItem;
+            var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _skips.Stay; var following = _skips.Next;
             if (eof && _session.Duration > 0) _session.Position = _session.Duration;
             await StopPlaybackAsync(eof);
             // Watched to the end: shown as seen right away, and the next play starts from the beginning.
@@ -322,8 +322,8 @@ public partial class MainWindow
     }
     private async void Next_Click(object sender, RoutedEventArgs e)
     {
-        if (_session.Item is null) return; var next = _nextItem ?? await GetNextAsync(_session.Item);
-        if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skipToNext && _activeSkip is not null); else PlayingSubtitle.Text = "Aucun épisode suivant disponible.";
+        if (_session.Item is null) return; var next = _skips.Next ?? await GetNextAsync(_session.Item);
+        if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skips.ToNext && _skips.Active is not null); else PlayingSubtitle.Text = "Aucun épisode suivant disponible.";
     }
     private void BackFromPlayer_Click(object sender, RoutedEventArgs e)
     { if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayer(true); }
