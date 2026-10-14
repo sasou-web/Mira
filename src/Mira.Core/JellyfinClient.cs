@@ -375,6 +375,23 @@ public sealed class JellyfinClient : IDisposable
             catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException) { }
         }
     }
+    /// <summary>
+    /// Who plays what on Jellyfin right now (<see cref="Viewers"/>): every session for an administrator, this account's
+    /// own otherwise.
+    /// </summary>
+    public async Task<List<Viewer>> ViewersAsync(CancellationToken ct = default) =>
+        Viewers.Parse(await GetAsync<JsonElement>("Sessions?activeWithinSeconds=960", ct), Connection.DeviceId);
+    /// <summary>
+    /// Asks a session to stop (Jellyfin's Playstate Stop): only one whose WebSocket takes commands (CanStop) does,
+    /// Mira web among them while it plays. False when refused.
+    /// </summary>
+    public async Task<bool> StopViewerAsync(string sessionId, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync($"Sessions/{Uri.EscapeDataString(sessionId)}/Playing/Stop", null, ct);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return false;
+        await CheckAsync(response);
+        return true;
+    }
     private async Task<JsonObject?> EncodingSettingsAsync(CancellationToken ct)
     {
         using var response = await _http.GetAsync("System/Configuration/encoding", ct);

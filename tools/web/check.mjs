@@ -112,7 +112,22 @@ try {
   await page.locator('.detail-actions .btn.primary').click(); await wait(3000);
   const resumed = await page.evaluate(() => document.querySelector('video')?.currentTime ?? 0);
   check('reprise au bon endroit', resumed >= second.UserData.PlaybackPositionTicks / 1e7 - 1, `${resumed.toFixed(1)} s`);
-  await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
+  // « Arrêter » from Mira for Windows (« En ce moment sur Jellyfin »): Jellyfin's Playstate Stop, through the socket the
+  // player keeps open, closes it.
+  const phone = await page.evaluate(() => JSON.parse(localStorage.getItem('mira.device')));
+  const watching = await page.waitForFunction(async ([id]) => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Sessions`, { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+    const found = (await r.json()).find((x) => x.DeviceId === id);
+    return found?.SupportsRemoteControl && found.NowPlayingItem ? found.Id : null;
+  }, [phone], { timeout: 15000, polling: 500 }).then((handle) => handle.jsonValue(), () => null);
+  if (watching) await api(`Sessions/${watching}/Playing/Stop`, 'POST');
+  const stoppedFromPc = await page.waitForFunction((id) => location.hash.startsWith(`#/titre/${id}`), series.Id, { timeout: 8000 }).then(() => true, () => false);
+  const stopToast = await page.locator('.toast').innerText().catch(() => '');
+  check('arrêt depuis un autre appareil (Playstate Stop) : le lecteur se ferme', !!watching && stoppedFromPc,
+    `${watching ? 'session prête à recevoir les commandes' : 'session jamais prête'}, ${stoppedFromPc ? 'lecteur fermé' : 'lecteur resté ouvert'}${stopToast ? ` (« ${stopToast.trim()} »)` : ''}`);
+  if (!stoppedFromPc) { await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); }
+  await wait(1500);
 
   // A series under way: the episodes left on its poster (the first one seen, the others to watch).
   await page.locator('.tabbar a[data-tab="series"]').click(); await wait(2000);
