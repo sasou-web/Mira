@@ -595,6 +595,7 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .hint .step { display: flex; gap: 12px; align-items: center; }
 .hint .step .icon { color: var(--ink); width: 22px; height: 22px; }
 .hint.warn .step { align-items: flex-start; }
+.hint.open-app .btn { justify-self: start; }
 .hint.warn .step .icon { color: var(--danger); }
 /* Another server at this address (app.js): over every screen and the player, under sheets and notices. */
 .foreign { position: fixed; inset: 0; z-index: 85; overflow-y: auto; background: var(--bg); }

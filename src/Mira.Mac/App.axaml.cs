@@ -29,7 +29,12 @@ public partial class App : Application
             // The session's token goes to the login keychain. The self-check keeps it in its profile's file, so that no keychain
             // question can hold its sign-in on a Mac nobody watches (GitHub's); it checks the keychain apart, with a time limit.
             var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") ? new Keychain() : null;
-            desktop.MainWindow = new MainWindow(args, new Profile(data, tokens));
+            var window = new MainWindow(args, new Profile(data, tokens));
+            desktop.MainWindow = window;
+            // mira:// links (« Ouvrir dans Mira » of Mira web, CFBundleURLTypes in tools/mac/package.sh), given by macOS
+            // to the Mira already open, or to the one it starts for them.
+            if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime activation)
+                activation.Activated += (_, e) => { if (e is ProtocolActivatedEventArgs { Kind: ActivationKind.OpenUri } link) Dispatcher.UIThread.Post(() => window.OpenLink(link.Uri.OriginalString)); };
             Dispatcher.UIThread.UnhandledException += (_, e) => Unhandled(desktop, e);
         }
         base.OnFrameworkInitializationCompleted();

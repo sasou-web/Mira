@@ -89,13 +89,58 @@ public static class Together
     }
     /// <summary>The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it.</summary>
     public static string InviteLink(string server, string groupId) => server.TrimEnd('/') + "/Mira/#/ensemble/" + Uri.EscapeDataString(groupId);
+    /// <summary>
+    /// The same invitation for Mira on a computer (« Ouvrir dans Mira » of Mira web): mira://ensemble/&lt;group&gt;?server=…,
+    /// opened by Mira for Windows or Mac, which offers to join the group (<see cref="Answer"/>).
+    /// </summary>
+    public static string AppLink(string server, string groupId) => "mira://ensemble/" + Uri.EscapeDataString(groupId) + "?server=" + Uri.EscapeDataString(server.TrimEnd('/'));
+    /// <summary>A group of a Jellyfin, at the address the invitation gives for it.</summary>
+    public sealed record Invitation(string GroupId, string Server);
+    /// <summary>
+    /// An <see cref="AppLink"/>, from a web page: a group id (a GUID) and a Jellyfin at an http(s) address, nothing else
+    /// (no other scheme, no user name in the address). Null for anything else.
+    /// </summary>
+    public static Invitation? ParseAppLink(string? text)
+    {
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri) || uri.Scheme != "mira" || !uri.Host.Equals("ensemble", StringComparison.OrdinalIgnoreCase)) return null;
+        var group = Uri.UnescapeDataString(uri.AbsolutePath.Trim('/'));
+        if (!Guid.TryParse(group, out _) || group.Length is not (32 or 36)) return null;
+        string? server = null;
+        foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+            if (pair.StartsWith("server=", StringComparison.Ordinal)) server = Uri.UnescapeDataString(pair["server=".Length..]);
+        if (!Uri.TryCreate(server, UriKind.Absolute, out var address) || address.Scheme is not ("http" or "https") || address.UserInfo.Length > 0 || address.Query.Length > 0 || address.Fragment.Length > 0) return null;
+        return new(group, address.GetLeftPart(UriPartial.Authority) + address.AbsolutePath.TrimEnd('/'));
+    }
+    /// <summary>Jellyfin writes a group's id with or without dashes.</summary>
+    public static bool SameGroup(string a, string b) => string.Equals(a.Replace("-", ""), b.Replace("-", ""), StringComparison.OrdinalIgnoreCase);
+    public enum InviteKind { Join, Already, OtherServer, Gone }
+    /// <summary>What Mira says of an invitation opened in it: the group to join (« Rejoindre »), or why not.</summary>
+    public sealed record InviteAnswer(InviteKind Kind, string Text, Group? Group = null);
+    public const string SignInToJoin = "Connecte-toi avec ton compte Jellyfin : Mira te proposera ensuite de rejoindre le groupe.";
+    /// <summary>
+    /// An invitation, against the groups of the Jellyfin this app is signed in to (<paramref name="server"/>): a group id
+    /// is unique, so finding it there is enough, whatever address each one reaches that Jellyfin at.
+    /// </summary>
+    public static InviteAnswer Answer(Invitation invite, IReadOnlyList<Group> groups, string server, string? currentGroup)
+    {
+        if (groups.FirstOrDefault(g => SameGroup(g.GroupId, invite.GroupId)) is { } group)
+        {
+            if (currentGroup is not null && SameGroup(currentGroup, group.GroupId)) return new(InviteKind.Already, $"Tu es déjà dans « {group.GroupName} ».", group);
+            var people = People(Math.Max(1, group.Participants.Count)) + (group.Participants.Count > 0 ? " : " + string.Join(", ", group.Participants) : "");
+            return new(InviteKind.Join, $"On t’invite à regarder ensemble dans « {group.GroupName} » ({people}).", group);
+        }
+        var host = Uri.TryCreate(invite.Server, UriKind.Absolute, out var a) ? a.Host : invite.Server;
+        if (!Uri.TryCreate(server, UriKind.Absolute, out var b) || !b.Host.Equals(host, StringComparison.OrdinalIgnoreCase))
+            return new(InviteKind.OtherServer, $"Ce groupe est sur un autre serveur Jellyfin ({host}) que celui de Mira : ouvre-le dans ton navigateur.");
+        return new(InviteKind.Gone, "Ce groupe n’existe plus : demande un nouveau lien à la personne qui t’a invité.");
+    }
     /// <summary>What the invitation says under its link: who may follow it, and from where (Tailscale, the home network).</summary>
     public static List<string> InviteSteps(string link)
     {
         var host = Uri.TryCreate(link, UriKind.Absolute, out var uri) ? uri.Host : "";
         var steps = new List<string>
         {
-            "Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe.",
+            "Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.",
             "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.",
         };
         var reach = Reach(host);

@@ -46,10 +46,13 @@ public static class Updates
         { if (asked) window.Notice("Impossible de vérifier les mises à jour pour le moment."); }
     }
 
-    /// <summary>Opens a web page in the default browser: an HTTPS address only, given to macOS' open as a single argument.</summary>
-    public static void Open(Uri page)
+    /// <summary>
+    /// Opens a web page in the default browser: an HTTPS address only, or HTTP with <paramref name="plainHttp"/> (a
+    /// Jellyfin at home or on Tailscale), given to macOS' open as a single argument.
+    /// </summary>
+    public static void Open(Uri page, bool plainHttp = false)
     {
-        if (!page.IsAbsoluteUri || page.Scheme != Uri.UriSchemeHttps) return;
+        if (!page.IsAbsoluteUri || page.Scheme != Uri.UriSchemeHttps && !(plainHttp && page.Scheme == Uri.UriSchemeHttp)) return;
         try
         {
             // By its full path, so that no other « open » found on the PATH runs; Linux is where Mira's checks run.

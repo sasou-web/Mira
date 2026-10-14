@@ -367,6 +367,50 @@ public partial class MainWindow
     }
     private async void InviteClose_Click(object sender, RoutedEventArgs e) => await CloseInviteAsync();
     private async Task CloseInviteAsync() { await Motion.HideAsync(InviteOverlay); if (DetailOverlay.Visibility == Visibility.Visible) TogetherButton.Focus(); }
+    /// <summary>An invitation opened in Mira (a mira:// link), kept until an account of a Jellyfin is open to answer it.</summary>
+    private Together.Invitation? _invite;
+    /// <summary>
+    /// « Ouvrir dans Mira » of Mira web (a mira:// link, App): once signed in, Mira asks before joining the group
+    /// (« Rejoindre »); not signed in yet, the sign-in form gets the invitation's Jellyfin.
+    /// </summary>
+    internal void OpenLink(string text)
+    {
+        if (Together.ParseAppLink(text) is not { } invite) { SetNotice("Mira ne sait pas ouvrir ce lien."); return; }
+        _invite = invite;
+        _ = OfferInviteAsync();
+    }
+    private async Task OfferInviteAsync()
+    {
+        if (_invite is not { } invite) return;
+        if (_client is not { } client || _demo)
+        {
+            if (LoginOverlay.Visibility != Visibility.Visible) return;
+            ServerBox.Text = invite.Server; ShowSignInForm();
+            SetNotice(Together.SignInToJoin);
+            return;
+        }
+        // Jellyfin says GroupJoined through the WebSocket: open first, or the answer would go unheard.
+        for (var i = 0; !_listening && i < 40 && ReferenceEquals(client, _client); i++) await Task.Delay(250);
+        if (!ReferenceEquals(client, _client) || !ReferenceEquals(_invite, invite)) return;
+        _invite = null;
+        List<Together.Group> groups;
+        try { groups = await client.SyncGroupsAsync(_connectionLifetime.Token); }
+        catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); return; }
+        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
+        if (!ReferenceEquals(client, _client)) return;
+        var answer = Together.Answer(invite, groups, client.Connection.Server, _group?.GroupId);
+        RestoreFromWindows();
+        if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
+            SetNotice(answer.Text, "Rejoindre", () => _ = EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false));
+        else if (answer.Kind == Together.InviteKind.OtherServer)
+            SetNotice(answer.Text, "Ouvrir dans le navigateur", () => OpenInBrowser(Together.InviteLink(invite.Server, invite.GroupId)));
+        else SetNotice(answer.Text);
+    }
+    private void OpenInBrowser(string link)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(link) { UseShellExecute = true })?.Dispose(); }
+        catch (System.ComponentModel.Win32Exception) { SetNotice("Windows n’a pas pu ouvrir le navigateur : " + link); }
+    }
     /// <summary>The player's ⋮: the group and « Quitter », while in one.</summary>
     private void ShowGroupSection()
     {

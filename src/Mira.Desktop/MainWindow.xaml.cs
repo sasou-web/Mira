@@ -162,7 +162,7 @@ public partial class MainWindow : Window
     {
         if (_args.Contains("--demo")) await ShowDemoAsync();
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
-        else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); }
+        else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); if (_invite is not null) _ = OfferInviteAsync(); }
         await RevealStartupAsync();
 #if MIRA_VALIDATION
         if (await RunRequestedCheckAsync()) return;
@@ -282,6 +282,8 @@ public partial class MainWindow : Window
         _connectionLifetime = new(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         if (!_args.Contains("--visual-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
         if (!_args.Contains("--visual-check")) StartEpisodeNotices();
+        // Opened from a mira:// link before this account was: asked now.
+        if (_invite is not null) _ = OfferInviteAsync();
         _ = LoadOfflineAsync(client);
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant();
         SettingsServerAddress.Text = connection.Server;

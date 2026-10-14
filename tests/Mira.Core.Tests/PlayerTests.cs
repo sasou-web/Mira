@@ -50,6 +50,23 @@ internal static class PlayerTests
                 var link = Together.InviteLink(row[0].GetString()!, row[1].GetString()!);
                 Assert(link == row[2].GetString() && Together.InviteSteps(link).SequenceEqual(row[3].EnumerateArray().Select(x => x.GetString())), $"Invite: {link}");
             }
+            // « Ouvrir dans Mira »: built by Mira web, read back by Mira for Windows and Mac, which refuse anything else.
+            foreach (var row in root.GetProperty("appLinks").EnumerateArray())
+            {
+                var link = Together.AppLink(row[0].GetString()!, row[1].GetString()!);
+                Assert(link == row[2].GetString() && Together.ParseAppLink(link) == new Together.Invitation(row[1].GetString()!, row[0].GetString()!.TrimEnd('/')), $"App link: {link}");
+            }
+            foreach (var bad in root.GetProperty("badAppLinks").EnumerateArray())
+                Assert(Together.ParseAppLink(bad.GetString()) is null, $"Refused: {bad.GetString()}");
+            Assert(Together.ParseAppLink(null) is null, "No link");
+            // Found among the groups of this Jellyfin, whatever address it is reached at; else another Jellyfin, or gone.
+            var invite = new Together.Invitation("7464412130f54334a8a14638f0060cd6", "http://100.101.102.103:8096");
+            List<Together.Group> groups = [new("74644121-30f5-4334-a8a1-4638f0060cd6", "Groupe de mira", ["mira"], "Idle")];
+            var answer = Together.Answer(invite, groups, "http://192.168.1.20:8096", null);
+            Assert(answer.Kind == Together.InviteKind.Join && answer.Group == groups[0] && answer.Text == "On t’invite à regarder ensemble dans « Groupe de mira » (1 personne : mira).", answer.Text);
+            Assert(Together.Answer(invite, groups, "http://192.168.1.20:8096", "7464412130f54334a8a14638f0060cd6").Kind == Together.InviteKind.Already, "Already in it");
+            Assert(Together.Answer(invite, [], "http://192.168.1.20:8096", null).Kind == Together.InviteKind.OtherServer, "Another Jellyfin");
+            Assert(Together.Answer(invite, [], "http://100.101.102.103:8096/", null).Kind == Together.InviteKind.Gone, "Gone");
             // A Jellyfin here: its Tailscale address first, else the home network's for localhost; any other keeps its own.
             Assert(Together.InviteServer("http://localhost:8096", true, "100.101.102.103", "192.168.1.20") == "http://100.101.102.103:8096", "Here, Tailscale");
             Assert(Together.InviteServer("http://127.0.0.1:8096/", true, null, "192.168.1.20") == "http://192.168.1.20:8096", "Here, home network");

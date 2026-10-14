@@ -183,7 +183,7 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  Icon, Data, Left: String;
+  Icon, Command, Data, Left: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
@@ -193,6 +193,10 @@ begin
     if RegQueryStringValue(HKCU, 'Software\Classes\AppUserModelId\Mira.Desktop', 'IconUri', Icon) then
       if Pos(Lowercase(ExpandConstant('{app}\')), Lowercase(Icon)) = 1 then
         RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\AppUserModelId\Mira.Desktop');
+    { mira:// links likewise, while they still open this installation's Mira.exe. }
+    if RegQueryStringValue(HKCU, 'Software\Classes\mira\shell\open\command', '', Command) then
+      if Pos(Lowercase('"' + ExpandConstant('{app}\')), Lowercase(Command)) = 1 then
+        RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\mira');
   end;
   if CurUninstallStep = usPostUninstall then
   begin
