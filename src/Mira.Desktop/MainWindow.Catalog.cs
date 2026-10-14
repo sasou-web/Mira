@@ -125,8 +125,12 @@ public partial class MainWindow
         if (_catalog.View == "offline") CatalogDescription.Text = OfflineSummary();
         LibraryRows.Margin = new Thickness(110, home && Hero.Visibility == Visibility.Collapsed ? 80 : 0, 40, 42);
         var row = _catalog.ContinueRow();
-        ResumeSection.Visibility = home && row.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ResumeSection.Visibility = home && row.Count > 0 && HomeShows(HomeLayout.Continue) ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
+        RenderShelves(home);
+        // « Ajoutés récemment » put away (Réglages → Apparence): the home page ends with its rows.
+        var grid = !home || HomeShows(HomeLayout.Latest);
+        GridHeader.Visibility = PosterCards.Visibility = grid ? Visibility.Visible : Visibility.Collapsed;
         GridTitle.Text = _catalog.GridTitle(search);
         ItemCount.Text = Catalog.CountText(_catalog.TotalCount);
         if (home)
@@ -139,12 +143,12 @@ public partial class MainWindow
         }
         AddCards(ResumeCards, row, true); AddCards(PosterCards, _catalog.Items, false);
         ResizePosters();
-        var empty = !_catalog.Loading && _catalog.Items.Count == 0;
+        var empty = grid && !_catalog.Loading && _catalog.Items.Count == 0;
         if (empty) DescribeEmptyState(search);
         if (empty && EmptyState.Visibility != Visibility.Visible) Motion.Reveal(EmptyState, 260, 8); else if (!empty) EmptyState.Visibility = Visibility.Collapsed;
-        ShowSkeleton(_catalog.Loading);
+        ShowSkeleton(grid && _catalog.Loading);
         if (_catalog.Loading) ItemCount.Text = "Chargement…";
-        LoadMore.Visibility = !_demo && !_catalog.Loading && _catalog.Items.Count < _catalog.TotalCount ? Visibility.Visible : Visibility.Collapsed;
+        LoadMore.Visibility = grid && !_demo && !_catalog.Loading && _catalog.Items.Count < _catalog.TotalCount ? Visibility.Visible : Visibility.Collapsed;
         UpdateResumeArrows(); UpdateHeroClock();
         if (!_startupComplete && !_catalog.Loading && (_catalog.Items.Count > 0 || _catalog.Resume.Count > 0)) _ = RevealStartupAsync();
     }

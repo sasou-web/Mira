@@ -350,6 +350,25 @@ try {
   const approval = await (await fetch(`${server}/QuickConnect/Connect?secret=${tv.Secret}`, { headers: { Authorization: quickAuth('check-tv') } })).json();
   check('autoriser un appareil : le code d’un autre appareil validé depuis Réglages', approval.Authenticated === true && !!(await page.evaluate(() => localStorage.getItem('mira.session'))),
     `${approval.Authenticated ? 'validé' : 'pas validé'}, ${await page.locator('.toast').first().innerText().catch(() => 'aucun message')}`);
+  // « Accueil à ta main »: a library's own row, shown and moved to the top, opens the home page; then Mira's order again.
+  await page.getByRole('button', { name: /Rangées de l’accueil/ }).click(); await wait(500);
+  const shelfKey = await page.locator('.home-row', { hasText: 'Nouveau dans' }).first().getAttribute('data-key');
+  const shelfRow = () => page.locator(`.home-row[data-key="${shelfKey}"]`);
+  const shelfTitle = (await shelfRow().innerText()).trim();
+  await shelfRow().locator('.home-switch').click();
+  for (let i = 0; i < 8 && await shelfRow().locator('.up').isEnabled(); i++) { await shelfRow().locator('.up').click(); await wait(100); }
+  await shot('12-home-rows');
+  await page.keyboard.press('Escape'); await wait(500);
+  await page.locator('.tabbar a[data-tab="home"]').click(); await wait(2500);
+  const arranged = await page.locator('.view.home .section .h2').allInnerTexts();
+  await page.locator('.tabbar a[data-tab="settings"]').click(); await wait(800);
+  await page.getByRole('button', { name: /Rangées de l’accueil/ }).click(); await wait(500);
+  await page.getByRole('button', { name: 'Revenir à l’ordre de Mira' }).click(); await wait(300);
+  await page.keyboard.press('Escape'); await wait(500);
+  await page.locator('.tabbar a[data-tab="home"]').click(); await wait(1500);
+  const restored = await page.locator('.view.home .section .h2').allInnerTexts();
+  check('accueil à ta main : la rangée d’une bibliothèque en tête, puis l’ordre de Mira', shelfKey?.startsWith('library:') && arranged[0] === shelfTitle && !restored.includes(shelfTitle),
+    `${shelfTitle} → ${arranged.join(', ')} → ${restored.join(', ')}`);
 } catch (error) {
   check('déroulé', false, error.message.split('\n')[0]);
   await shot('error').catch(() => {});

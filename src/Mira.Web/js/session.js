@@ -85,6 +85,7 @@ const defaults = {
   recentSearches: [],
   hiddenResume: {},     // id → time removed from Continuer à regarder
   installHintDismissed: false,
+  homeRows: '',         // the home page's rows, in order, « - » before one put away (home-rows.js); empty: as Mira shows them
   textSize: 100,        // percent: Mira's text, for whoever finds it small (the bars' labels and the icons keep theirs)
 };
 

@@ -1,8 +1,10 @@
-// Home: a banner of titles, then Continuer à regarder, the latest additions and your favourites, as on Windows.
+// Home: a banner of titles, then Continuer à regarder, the latest additions and your favourites, as on Windows, in the
+// order chosen in the settings (« Accueil à ta main », home-rows.js), with the latest titles of a library if asked.
 import { api } from '../api.js';
 import { h, icon, clear, episodeCode, duration, seconds, progress, reducedMotion } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import { session, settings, isIOS, isStandalone } from '../session.js';
+import { homeRows, CONTINUE, LATEST, FAVORITES } from '../home-rows.js';
 import {
   row, wideCard, posterCard, skeletonRow, emptyState, errorState, changes, titleHref, playHref, reconcile, cardSig,
 } from '../components.js';
@@ -144,7 +146,7 @@ export function create() {
 
   function render() {
     // Nothing new from the server: the screen stays as it is, rows where the finger left them.
-    const signature = data ? JSON.stringify([data, settings.get('hiddenResume') ?? {}]) : '';
+    const signature = data ? JSON.stringify([data, settings.get('hiddenResume') ?? {}, settings.get('homeRows')]) : '';
     if (signature && signature === drawn) return;
     drawn = signature;
     const kept = positions();
@@ -171,11 +173,14 @@ export function create() {
     if (sig !== heroSig) { heroBox?.stop?.(); heroBox = hero(entries); heroSig = sig; }
     if (banner === undefined) banner = installBanner(() => { banner = null; });
     const top = heroBox ?? (titleBox ??= h('div', { class: 'page' }, h('h1', { class: 'page-title' }, 'Accueil')));
-    const parts = [top, banner,
-      section('Continuer à regarder', cont, (x) => wideCard(x), { wide: true }),
-      section('Ajouts récents', data.latest, (x) => posterCard(x), { more: '#/films' }),
-      section('Tes favoris', data.favorites, (x) => posterCard(x))].filter(Boolean);
-    if (!cont.length && !data.latest.length && !data.favorites.length) {
+    const rows = homeRows(settings.get('homeRows'), data.libraries ?? []).filter((x) => x.shown).map((x) => {
+      if (x.key === CONTINUE) return section(x.title, cont, (y) => wideCard(y), { wide: true });
+      if (x.key === LATEST) return section(x.title, data.latest, (y) => posterCard(y), { more: '#/films' });
+      if (x.key === FAVORITES) return section(x.title, data.favorites, (y) => posterCard(y));
+      return section(x.title, data.rows?.[x.library], (y) => posterCard(y));
+    });
+    const parts = [top, banner, ...rows].filter(Boolean);
+    if (!cont.length && !data.latest.length && !data.favorites.length && !Object.values(data.rows ?? {}).some((x) => x.length)) {
       parts.push(emptyBox ??= emptyState({ symbol: 'films', title: 'Ta bibliothèque est vide', text: 'Les films et séries ajoutés à Jellyfin apparaîtront ici.' }));
     }
     parts.push(spacer);
@@ -190,9 +195,14 @@ export function create() {
     if (loading) return loading;
     loading = (async () => {
       try {
-        const [resume, next, history, latest, favorites] = await Promise.all([
+        const [resume, next, history, latest, favorites, libraries] = await Promise.all([
           api.resume(), api.nextUp(), api.history(), api.browse({ limit: 24 }), api.browse({ favorite: true, limit: 24, sort: 'title' }),
+          api.libraries().catch(() => []),
         ]);
+        // « Nouveau dans Animes »: only the libraries whose row is shown are asked.
+        const wanted = homeRows(settings.get('homeRows'), libraries).filter((x) => x.shown && x.library);
+        const lists = await Promise.all(wanted.map((x) => api.browse({ library: x.library, limit: 24 }).catch(() => null)));
+        const rows = Object.fromEntries(wanted.map((x, i) => [x.library, lists[i]?.Items ?? []]));
         // The banner shows a series for its episode: its backdrop and logo.
         const seriesIds = [...new Set([...(resume?.Items ?? []), ...(next?.Items ?? [])].filter((x) => x.SeriesId).map((x) => x.SeriesId))].slice(0, 4);
         // In the server's order, whatever answers first: the same data reads the same, and the screen stays as it is.
@@ -201,6 +211,7 @@ export function create() {
         data = {
           resume: resume?.Items ?? [], next: next?.Items ?? [], history: (history?.Items ?? []).filter((x) => x.UserData?.LastPlayedDate),
           latest: latest?.Items ?? [], favorites: favorites?.Items ?? [], series,
+          libraries: libraries.map(({ Id, Name, CollectionType }) => ({ Id, Name, CollectionType })), rows,
         };
         writeCache(data);
         loadedAt = Date.now();
@@ -225,8 +236,11 @@ export function create() {
     ready: (data ? Promise.resolve() : first).then(firstPictures),
     leave() { kept = positions(); },
     enter() {
+      // The rows chosen again in the settings: in their new order at once, a library's row once Jellyfin answers.
+      render();
       if (kept) { restore(kept); heroBox?.light?.(); kept = null; }
-      if (Date.now() - loadedAt > 30_000) load();
+      const missing = data && homeRows(settings.get('homeRows'), data.libraries ?? []).some((x) => x.shown && x.library && !data.rows?.[x.library]);
+      if (missing || Date.now() - loadedAt > 30_000) load();
     },
     refresh: load,
     dispose() { heroBox?.stop?.(); changes.removeEventListener('item', onChange); },

@@ -24,6 +24,8 @@ public sealed class Catalog
     public List<MediaItem> RecentPlayback { get; set; } = [];
     /// <summary>Films and series taken out of « Continuer à regarder », with when; kept per account in its library cache.</summary>
     public Dictionary<string, DateTimeOffset> HiddenResume { get; set; } = [];
+    /// <summary>The home page's rows beside Continuer à regarder and the grid: « favorites », « library:id » (<see cref="HomeLayout"/>).</summary>
+    public Dictionary<string, List<MediaItem>> Shelves { get; set; } = [];
     /// <summary>Nothing to show yet: the page shows placeholders.</summary>
     public bool Loading { get; set; }
 

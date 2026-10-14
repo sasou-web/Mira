@@ -10,7 +10,10 @@ using Mira.Mac.Services;
 
 namespace Mira.Mac.Views;
 
-/// <summary>Accueil: a banner of titles to (re)start, then Continuer à regarder, the latest additions and the favourites.</summary>
+/// <summary>
+/// Accueil: a banner of titles to (re)start, then Continuer à regarder, the latest additions, the favourites and the
+/// latest titles of a library, in the order chosen in the settings (« Accueil à ta main », <see cref="HomeLayout"/>).
+/// </summary>
 public sealed class HomePage : Page
 {
     public override string Rail => "home";
@@ -61,12 +64,18 @@ public sealed class HomePage : Page
         var store = session.Store;
         // The last known home first, so the page never opens empty; then Jellyfin's answer.
         if (_heroItems.Count == 0 && await Task.Run(() => Errors.TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume")))) is ({ } cachedHome, var cachedResume))
-            Render(session, cachedResume ?? [], cachedHome.Items, []);
+            Render(session, cachedResume ?? [], cachedHome.Items, [], [], []);
         var client = session.Client;
         var resume = client.ResumeAsync(); var next = client.NextUpAsync();
         var latest = client.BrowseAsync(limit: 30);
         var favorites = client.BrowseAsync(favorites: true, limit: 30);
-        await Task.WhenAll(resume, next, latest, favorites);
+        var libraries = TryAsync(() => client.LibrariesAsync());
+        await Task.WhenAll(resume, next, latest, favorites, libraries);
+        // « Nouveau dans Animes »: only the libraries whose row is shown are asked.
+        var views = libraries.Result ?? [];
+        var wanted = HomeLayout.Rows(Shell.Settings.HomeRows, views).Where(x => x.Shown && x.LibraryId is not null).Select(x => x.LibraryId!).ToList();
+        var lists = await Task.WhenAll(wanted.Select(id => TryAsync(() => client.BrowseAsync(parentId: id, limit: 30))));
+        var shelves = wanted.Zip(lists).ToDictionary(x => x.First, x => x.Second?.Items ?? []);
         var seasons = Artwork.Seasons(resume.Result.Items.Concat(next.Result.Items)).ToList();
         var thumbs = seasons.Count > 0 ? await TryAsync(() => client.SeasonThumbsAsync(seasons)) ?? [] : [];
         var (merged, history, hidden) = await Task.Run(() =>
@@ -79,26 +88,37 @@ public sealed class HomePage : Page
             Errors.TryCache(() =>
             {
                 store.ApplyLocalProgress(merged); store.ApplyLocalProgress(next.Result.Items); store.ApplyLocalProgress(latest.Result.Items); store.ApplyLocalProgress(favorites.Result.Items);
+                foreach (var shelf in shelves.Values) store.ApplyLocalProgress(shelf);
                 store.Save("home", latest.Result); store.Save("resume", merged);
             });
             return (merged, history, Errors.TryCache(store.HiddenFromResume) ?? []);
         });
         var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(merged, next.Result.Items, history), hidden, history);
-        Render(session, row, latest.Result.Items, favorites.Result.Items);
+        Render(session, row, latest.Result.Items, favorites.Result.Items, views, shelves);
     }
     private static async Task<T?> TryAsync<T>(Func<Task<T>> load) where T : class
     {
         try { return await load(); } catch (Exception ex) when (Errors.Expected(ex)) { return null; }
     }
 
-    private void Render(Session session, List<MediaItem> resume, List<MediaItem> latest, List<MediaItem> favorites)
+    private void Render(Session session, List<MediaItem> resume, List<MediaItem> latest, List<MediaItem> favorites, List<LibrarySection> libraries, Dictionary<string, List<MediaItem>> shelves)
     {
         Continue = resume; Latest = latest;
         _rows.Children.Clear();
-        if (resume.Count > 0) _rows.Children.Add(new CardRow("Continuer à regarder", resume.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu))));
-        if (latest.Count > 0) _rows.Children.Add(new CardRow("Ajouts récents", latest.Select(x => (Control)Sized(Cards.Poster(x, session.Images, Shell.Open, Shell.Menu)))));
-        if (favorites.Count > 0) _rows.Children.Add(new CardRow("Tes favoris", favorites.Select(x => (Control)Sized(Cards.Poster(x, session.Images, Shell.Open, Shell.Menu)))));
-        if (resume.Count == 0 && latest.Count == 0)
+        Control Poster(MediaItem x) => Sized(Cards.Poster(x, session.Images, Shell.Open, Shell.Menu));
+        foreach (var row in HomeLayout.Rows(Shell.Settings.HomeRows, libraries).Where(x => x.Shown))
+        {
+            var items = row.Key switch
+            {
+                HomeLayout.Continue => resume,
+                HomeLayout.Latest => latest,
+                HomeLayout.Favorites => favorites,
+                _ => shelves.GetValueOrDefault(row.LibraryId ?? "") ?? []
+            };
+            if (items.Count == 0) continue;
+            _rows.Children.Add(new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu)) : items.Select(Poster)));
+        }
+        if (resume.Count == 0 && latest.Count == 0 && favorites.Count == 0 && shelves.Values.All(x => x.Count == 0))
             _rows.Children.Add(new Border { Margin = new Thickness(56, 0), Child = Ui.Column(8, Ui.Text("Ta bibliothèque est vide pour l’instant", 20, FontWeight.Bold), Ui.Text("Ajoute des films ou des séries dans les dossiers de Jellyfin : ils apparaîtront ici.", 14.5, color: Ui.Muted)) });
         // The banner: what is being watched first, then the latest titles with a backdrop.
         var heroes = resume.Take(2).Concat(latest.Where(x => x.BackdropImageTags.Length > 0)).DistinctBy(x => ContinueWatching.Group(x)).Take(5).ToList();
