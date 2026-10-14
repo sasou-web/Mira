@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mira.Core;
 
@@ -25,13 +26,19 @@ public sealed class Session : IAsyncDisposable
         Client = new JellyfinClient(connection, handler);
         Sync = new SyncService(Client, Store);
         Images = new Images(Client, profile.DirectoryPath);
+        Lifetime = _lifetime.Token;
     }
 
-    /// <summary>Calls <paramref name="changed"/> (on a worker thread) when the library changes on the server.</summary>
-    public void Listen(Action changed) => _ = ListenSafelyAsync(changed);
-    private async Task ListenSafelyAsync(Action changed)
+    /// <summary>Ends with the session: what is sent for it stops when it closes.</summary>
+    public CancellationToken Lifetime { get; }
+    /// <summary>
+    /// Calls <paramref name="changed"/> (on a worker thread) when the library changes on the server, <paramref name="listening"/>
+    /// when the connection opens or closes, and <paramref name="syncPlay"/> with each message of « Regarder ensemble ».
+    /// </summary>
+    public void Listen(Action changed, Action<bool>? listening = null, Action<string, JsonElement>? syncPlay = null) => _ = ListenSafelyAsync(changed, listening, syncPlay);
+    private async Task ListenSafelyAsync(Action changed, Action<bool>? listening, Action<string, JsonElement>? syncPlay)
     {
-        try { await Client.ListenAsync(changed, _lifetime.Token); }
+        try { await Client.ListenAsync(changed, Lifetime, listening, syncPlay); }
         catch (OperationCanceledException) { }
     }
 

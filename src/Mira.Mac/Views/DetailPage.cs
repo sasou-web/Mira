@@ -141,7 +141,44 @@ public sealed class DetailPage : Page
         }
         actions.Children.Add(Ui.Action(_item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris", _item.UserData.IsFavorite ? "heart-filled" : "heart", "", () => _ = Shell.SetFavoriteAsync(_item, !_item.UserData.IsFavorite)));
         actions.Children.Add(Ui.Action(_item.UserData.Played ? "Vu" : "Marquer comme vu", "check", _item.UserData.Played ? "chip on" : "", () => _ = Shell.SetPlayedAsync(_item, !_item.UserData.Played)));
+        var group = Shell.Group.Active ? Shell.Group.Group : null;
+        Button? together = null;
+        together = Ui.Action(group is null ? "Regarder ensemble" : "Ensemble · " + Together.People(Math.Max(1, group.Participants.Count)), "users", group is null ? "" : "chip on", () => _ = TogetherMenuAsync(together!));
+        actions.Children.Add(together);
         _top.Children.Add(actions);
+    }
+    /// <summary>The group changed: the button says so.</summary>
+    public void ShowTogether() => RenderTop();
+    /// <summary>« Regarder ensemble »: the group this Mac is in and « Quitter », or the groups to join and « Créer un groupe ».</summary>
+    private async Task TogetherMenuAsync(Button button)
+    {
+        if (Shell.Session is not { } session) return;
+        var watch = Shell.Group;
+        var menu = new ContextMenu();
+        void Add(string label, Action? action)
+        {
+            var entry = new MenuItem { Header = label, IsEnabled = action is not null };
+            if (action is not null) entry.Click += (_, _) => action();
+            menu.Items.Add(entry);
+        }
+        if (watch.Active && watch.Group is { } group)
+        {
+            Add(Together.GroupText(group) + (group.Participants.Count > 0 ? " : " + string.Join(", ", group.Participants) : ""), null);
+            Add("Quitter le groupe", () => _ = watch.LeaveAsync());
+        }
+        else
+        {
+            List<Together.Group> groups;
+            try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
+            catch (UnauthorizedAccessException) { Shell.Notice(WatchGroup.NoSyncPlay); return; }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
+            if (!ReferenceEquals(session, Shell.Session) || Shell.Current != this) return;
+            foreach (var g in groups)
+                Add($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
+            if (groups.Count > 0) menu.Items.Add(new Separator());
+            Add("Créer un groupe", () => _ = watch.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct)));
+        }
+        menu.Open(button);
     }
 
     private void RenderBody(Session session)
