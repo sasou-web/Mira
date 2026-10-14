@@ -353,6 +353,31 @@ export const api = {
       parentId: library,
     }, { signal });
   },
+  /**
+   * « Ton bilan »: the films and episodes played to the end since `from` (ms, by their last play), newest first, a few
+   * pages at most, and the series of those episodes (their genres, whether all is watched).
+   */
+  async playedSince(from) {
+    const page = 300, played = [];
+    while (played.length < 3000) {
+      const result = await get('Items', {
+        userId: user(), recursive: true, includeItemTypes: 'Movie,Episode', isPlayed: true, sortBy: 'DatePlayed', sortOrder: 'Descending',
+        fields: 'Genres', enableImages: false, enableUserData: true, enableTotalRecordCount: false, startIndex: played.length, limit: page,
+      });
+      const items = result?.Items ?? [];
+      played.push(...items);
+      const last = Date.parse(items.at(-1)?.UserData?.LastPlayedDate ?? '');
+      if (items.length < page || !(last >= from)) break;
+    }
+    const recent = played.filter((x) => Date.parse(x.UserData?.LastPlayedDate ?? '') >= from);
+    const ids = [...new Set(recent.filter((x) => x.Type === 'Episode' && x.SeriesId).map((x) => x.SeriesId))];
+    const series = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const result = await get('Items', { userId: user(), ids: ids.slice(i, i + 100).join(','), fields: 'Genres', enableImages: false, enableUserData: true });
+      series.push(...(result?.Items ?? []));
+    }
+    return { played: recent, series };
+  },
   /** The account's libraries (Films, Séries, Animes…), with their kind: CollectionType « movies », « tvshows »… */
   libraries: () => get('UserViews', { userId: user() }).then((r) => r?.Items ?? []),
   filters: (types = 'Movie,Series') => get('Items/Filters2', { userId: user(), includeItemTypes: types, recursive: true }),

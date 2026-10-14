@@ -1,0 +1,27 @@
+{
+  "about": "« Ton bilan »: what an account finished watching since a date. Read by tests/Mira.Core.Tests (WatchReport) and tools/web/unit (report.js): both must agree. from: the start of the period (ISO, UTC); played: Jellyfin's Items, IsPlayed, with UserData.LastPlayedDate; series: their series; expected: the summary; times: [minutes, text]",
+  "from": "2026-10-01T00:00:00Z",
+  "played": [
+    { "Id": "m1", "Name": "Lueur", "Type": "Movie", "RunTimeTicks": 72000000000, "Genres": ["Drame", "Science-fiction"], "UserData": { "Played": true, "LastPlayedDate": "2026-10-12T21:00:00Z" } },
+    { "Id": "m2", "Name": "Brume", "Type": "Movie", "RunTimeTicks": 54000000000, "Genres": ["Thriller"], "UserData": { "Played": true, "LastPlayedDate": "2026-10-02T20:00:00Z" } },
+    { "Id": "m3", "Name": "Avant", "Type": "Movie", "RunTimeTicks": 60000000000, "Genres": ["Comédie"], "UserData": { "Played": true, "LastPlayedDate": "2026-09-30T23:59:00Z" } },
+    { "Id": "e1", "Name": "Pilote", "Type": "Episode", "SeriesId": "s1", "SeriesName": "Courte", "RunTimeTicks": 14100000000, "Genres": [], "UserData": { "Played": true, "LastPlayedDate": "2026-10-03T20:00:00Z" } },
+    { "Id": "e2", "Name": "Suite", "Type": "Episode", "SeriesId": "s1", "SeriesName": "Courte", "RunTimeTicks": 14100000000, "Genres": [], "UserData": { "Played": true, "LastPlayedDate": "2026-10-13T20:00:00Z" } },
+    { "Id": "e3", "Name": "Un", "Type": "Episode", "SeriesId": "s2", "SeriesName": "Longue", "RunTimeTicks": 27000000000, "Genres": [], "UserData": { "Played": true, "LastPlayedDate": "2026-10-05T20:00:00Z" } },
+    { "Id": "e4", "Name": "Deux", "Type": "Episode", "SeriesId": "s2", "SeriesName": "Longue", "RunTimeTicks": 27000000000, "Genres": [], "UserData": { "Played": true, "LastPlayedDate": "2026-10-06T20:00:00Z" } },
+    { "Id": "e5", "Name": "Trois", "Type": "Episode", "SeriesId": "s3", "SeriesName": "Sans fiche", "RunTimeTicks": 9000000000, "Genres": [], "UserData": { "Played": true, "LastPlayedDate": "2026-10-07T20:00:00Z" } },
+    { "Id": "x1", "Name": "Bande-annonce", "Type": "Trailer", "RunTimeTicks": 1200000000, "UserData": { "Played": true, "LastPlayedDate": "2026-10-08T20:00:00Z" } },
+    { "Id": "e6", "Name": "Sans durée", "Type": "Episode", "SeriesId": "s1", "SeriesName": "Courte", "Genres": [], "UserData": { "Played": true, "LastPlayedDate": "2026-10-09T20:00:00Z" } }
+  ],
+  "series": [
+    { "Id": "s1", "Name": "Courte Web", "Type": "Series", "Genres": ["Animation", "Drame"], "UserData": { "Played": true } },
+    { "Id": "s2", "Name": "Longue Route", "Type": "Series", "Genres": ["Aventure"], "UserData": { "Played": false } }
+  ],
+  "expected": {
+    "minutes": 363, "films": 2, "episodes": 6,
+    "finished": ["Courte Web"],
+    "genres": ["Drame", "Science-fiction", "Aventure"],
+    "series": [{ "name": "Longue Route", "episodes": 2, "minutes": 90 }, { "name": "Courte Web", "episodes": 3, "minutes": 48 }, { "name": "Sans fiche", "episodes": 1, "minutes": 15 }]
+  },
+  "times": [[0, "0 min"], [45, "45 min"], [60, "1 h"], [125, "2 h 05"], [755, "12 h 35"]]
+}

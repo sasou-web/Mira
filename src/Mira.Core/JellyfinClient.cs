@@ -114,6 +114,28 @@ public sealed class JellyfinClient : IDisposable
             (parentId is null ? "" : $"&parentId={Uri.EscapeDataString(parentId)}") +
             (string.IsNullOrWhiteSpace(search) ? "" : $"&searchTerm={Uri.EscapeDataString(search)}") +
             (favorites ? "&isFavorite=true" : ""), ct);
+    /// <summary>
+    /// « Ton bilan »: the films and episodes played to the end since <paramref name="from"/> (by their last play), newest
+    /// first, a few pages at most, and the series of those episodes (their genres, whether all is watched).
+    /// </summary>
+    public async Task<(List<MediaItem> Played, List<MediaItem> Series)> PlayedSinceAsync(DateTimeOffset from, CancellationToken ct = default)
+    {
+        const int page = 300, most = 3000;
+        var played = new List<MediaItem>();
+        while (played.Count < most)
+        {
+            var result = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Episode&isPlayed=true&sortBy=DatePlayed&sortOrder=Descending" +
+                $"&fields=Genres&enableImages=false&enableUserData=true&enableTotalRecordCount=false&startIndex={played.Count}&limit={page}", ct);
+            played.AddRange(result.Items);
+            if (result.Items.Count < page || result.Items[^1].UserData.LastPlayedDate is not { } last || last < from) break;
+        }
+        played.RemoveAll(x => x.UserData.LastPlayedDate is not { } at || at < from);
+        var ids = played.Where(x => x.Type == "Episode").Select(x => x.SeriesId).OfType<string>().Distinct().ToList();
+        var series = new List<MediaItem>();
+        foreach (var chunk in ids.Chunk(100))
+            series.AddRange((await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&ids={string.Join(',', chunk.Select(Uri.EscapeDataString))}&fields=Genres&enableImages=false&enableUserData=true", ct)).Items);
+        return (played, series);
+    }
     public async Task<CatalogFilters> FiltersAsync(CancellationToken ct = default)
     {
         // The legacy Filters endpoint only examines immediate children of the user root.

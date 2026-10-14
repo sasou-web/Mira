@@ -30,6 +30,8 @@ public sealed class SettingsPage : Page
             Row("Serveur Jellyfin", connection?.Server ?? "—", null),
             Row("Utilisateur", connection?.UserName ?? "—", SignOut(erase)),
             Row("Effacer aussi les données de ce compte sur ce Mac", "En te déconnectant : le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.", erase)));
+        // « Ton bilan »: the month or the year, from Jellyfin's record of what was played to the end.
+        page.Children.Add(Section("Ton bilan", Report()));
         // Quick Connect: shown once Jellyfin says it lets devices in by a code.
         var devices = Section("Autoriser un appareil", ApproveDevice());
         devices.IsVisible = false;
@@ -66,6 +68,57 @@ public sealed class SettingsPage : Page
         Content = new ScrollViewer { Content = page };
     }
     private void Save() => Shell.Profile.SaveSettings(Shell.Settings);
+    private Control Report()
+    {
+        var time = new TextBlock { FontSize = 40, FontWeight = FontWeight.ExtraBold };
+        var counts = new TextBlock { FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+        var body = new StackPanel { Spacing = 4 };
+        var periods = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var year = false; var version = 0;
+        void Periods()
+        {
+            periods.Children.Clear();
+            periods.Children.Add(Ui.Action("Ce mois-ci", null, year ? "" : "chip on", () => { if (year) { year = false; _ = LoadAsync(); } }));
+            periods.Children.Add(Ui.Action("Cette année", null, year ? "chip on" : "", () => { if (!year) { year = true; _ = LoadAsync(); } }));
+        }
+        async Task LoadAsync()
+        {
+            var mine = ++version; var period = year ? "cette année" : "ce mois-ci";
+            Periods(); body.Children.Clear(); time.Text = ""; time.IsVisible = false;
+            if (Shell.Session is not { } session) return;
+            counts.Text = "Calcul de ton bilan…";
+            try
+            {
+                var from = WatchReport.Start(DateTimeOffset.Now, year);
+                var (played, series) = await session.Client.PlayedSinceAsync(from, session.Lifetime);
+                if (mine != version) return;
+                var report = WatchReport.Build(played, series, from);
+                if (report.Empty) { counts.Text = $"Aucun film ni épisode terminé {period} pour l’instant."; return; }
+                time.Text = WatchReport.Time(report.Minutes); time.IsVisible = true;
+                counts.Text = $"devant l’écran {period} · " + string.Join(" · ", new[] { report.Films > 0 ? WatchReport.Count(report.Films, "film", "films") : null, report.Episodes > 0 ? WatchReport.Count(report.Episodes, "épisode", "épisodes") : null }.OfType<string>());
+                Part("SÉRIES LES PLUS REGARDÉES", report.Series.Select(x => (x.Name, $"{WatchReport.Count(x.Episodes, "épisode", "épisodes")} · {WatchReport.Time(x.Minutes)}")));
+                Part(report.Finished.Count > 1 ? "SÉRIES TERMINÉES" : "SÉRIE TERMINÉE", report.Finished.Select(x => (x, "")));
+                if (report.Genres.Count > 0) Part("GENRES PRÉFÉRÉS", [(string.Join(" · ", report.Genres), "")]);
+            }
+            catch (Exception ex) when (Errors.Expected(ex)) { if (mine == version) counts.Text = Errors.Friendly(ex); }
+        }
+        void Part(string title, IEnumerable<(string Name, string Detail)> lines)
+        {
+            var rows = lines.ToList();
+            if (rows.Count == 0) return;
+            body.Children.Add(new TextBlock { Text = title, Classes = { "label" }, Margin = new Thickness(0, 14, 0, 4) });
+            foreach (var (name, detail) in rows)
+            {
+                var line = new DockPanel();
+                if (detail.Length > 0) { var right = new TextBlock { Text = detail, FontSize = 13.5, Foreground = Ui.Muted }; DockPanel.SetDock(right, Dock.Right); line.Children.Add(right); }
+                line.Children.Add(new TextBlock { Text = name, FontSize = 14.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 16, 0) });
+                body.Children.Add(line);
+            }
+        }
+        _ = LoadAsync();
+        return Ui.Column(12, periods, Ui.Column(2, time, counts), body,
+            new TextBlock { Text = "D’après Jellyfin : chaque film ou épisode vu jusqu’au bout compte une fois, à sa dernière lecture, sur tous tes appareils.", FontSize = 12.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+    }
     private readonly ContentControl _home = new();
     private List<LibrarySection> _libraries = [];
     private async Task LoadLibrariesAsync(JellyfinClient client)
