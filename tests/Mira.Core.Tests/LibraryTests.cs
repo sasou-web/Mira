@@ -627,6 +627,36 @@ internal static class LibraryTests
             refuse = true;
             Assert(await client.SagasAsync() is null && !await client.EnableSagasAsync(), "Refused");
         });
+        await Test("Aperçus de la barre : l’option trickplay cochée dans les films et les séries, puis la tâche de Jellyfin lancée", async () =>
+        {
+            var folders = System.Text.Json.Nodes.JsonNode.Parse("""
+                [{"Name":"Films","CollectionType":"movies","ItemId":"f1","LibraryOptions":{"EnableTrickplayImageExtraction":false,"AutomaticallyAddToCollection":true,"PathInfos":[{"Path":"C:\\Films"}]}},
+                 {"Name":"Séries","CollectionType":"tvshows","ItemId":"s1","LibraryOptions":{"EnableTrickplayImageExtraction":true}},
+                 {"Name":"Musique","CollectionType":"music","ItemId":"m1","LibraryOptions":{"EnableTrickplayImageExtraction":false}}]
+                """)!.AsArray();
+            var posted = new List<System.Text.Json.Nodes.JsonNode>(); var started = new List<string>(); var state = "Idle";
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Library/VirtualFolders") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(folders.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/Library/VirtualFolders/LibraryOptions" && request.Method == HttpMethod.Post)
+                {
+                    var body = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync())!;
+                    posted.Add(body);
+                    folders.First(x => (string?)x!["ItemId"] == (string?)body["Id"])!["LibraryOptions"] = body["LibraryOptions"]!.DeepClone();
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                // As Jellyfin 12.1 lists its tasks, cut down.
+                if (path == "/ScheduledTasks?isHidden=false") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($$"""[{"Name":"Scan Media Library","Key":"RefreshLibrary","Id":"a1","State":"Idle"},{"Name":"Generate Trickplay Images","Key":"RefreshTrickplayImages","Id":"t1","State":"{{state}}"{{(state == "Running" ? ",\"CurrentProgressPercentage\":42.5" : "")}}}]""") };
+                if (path.StartsWith("/ScheduledTasks/Running/", StringComparison.Ordinal) && request.Method == HttpMethod.Post) { started.Add(path); state = "Running"; return new HttpResponseMessage(HttpStatusCode.NoContent); }
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }));
+            Assert(await client.TrickplayEnabledAsync() == false && await client.TrickplayProgressAsync() is null, "Off in Films, the task idle");
+            Assert(await client.EnableTrickplayAsync() && posted.Count == 1 && (string?)posted[0]["Id"] == "f1" && (bool?)posted[0]["LibraryOptions"]!["EnableTrickplayImageExtraction"] == true
+                && (bool?)posted[0]["LibraryOptions"]!["AutomaticallyAddToCollection"] == true && started.SequenceEqual(["/ScheduledTasks/Running/t1"]), "Films only, then the task: " + string.Join(" ", started));
+            Assert(await client.TrickplayEnabledAsync() == true && await client.TrickplayProgressAsync() == .425, "On, the task running");
+            Assert(await client.EnableTrickplayAsync() && posted.Count == 1 && started.Count == 1, "Running: not started twice");
+        });
         await Test("Nouveaux épisodes : séries suivies seulement, une notice par série, marque = date de Jellyfin", async () =>
         {
             // As Jellyfin 12.1 answers (cut down): Courte Web is started (a third watched), Courte HLS never, Courte Anime

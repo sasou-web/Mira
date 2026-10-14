@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Mira.Core;
 
 namespace Mira.Mac.Playback;
@@ -22,6 +23,17 @@ public sealed class Timeline : Control
     /// <summary>A position chosen with the pointer (pressed or dragged), in seconds.</summary>
     public event Action<double>? Seek;
     public bool Dragging => _dragging;
+    private Func<double, (Bitmap Picture, Rect Area)?>? _preview;
+    private double _previewAspect;
+    private (Bitmap Picture, Rect Area)? _previewShown;
+    /// <summary>
+    /// Jellyfin's trickplay picture above the time while pointing, <paramref name="aspect"/> wide for 1 high; null: the time
+    /// alone. <paramref name="at"/> gives the picture and its place in it, or null while it comes (InvalidateVisual then).
+    /// </summary>
+    public void SetPreview(double? aspect, Func<double, (Bitmap Picture, Rect Area)?>? at)
+    {
+        _preview = aspect is > 0 ? at : null; _previewAspect = aspect ?? 0; _previewShown = null; InvalidateVisual();
+    }
     public Timeline() { Height = 28; Cursor = new Cursor(StandardCursorType.Hand); ClipToBounds = false; }
 
     public void SetPlayback(double position, double duration, double buffered)
@@ -87,6 +99,15 @@ public sealed class Timeline : Control
             var boxWidth = text.Width + 20; var x = Math.Clamp(_hover - boxWidth / 2, 0, Math.Max(0, width - boxWidth));
             context.DrawRectangle(Label, null, new Rect(x, -34, boxWidth, 26), 6, 6);
             context.DrawText(text, new Point(x + 10, -34 + (26 - text.Height) / 2));
+            if (_preview is not null)
+            {
+                // While the next picture comes, the last one stays rather than a blank.
+                if (_preview(time) is { } shown) _previewShown = shown;
+                const double previewWidth = 176; var previewHeight = Math.Round(previewWidth / _previewAspect);
+                var box = new Rect(Math.Clamp(_hover - previewWidth / 2, 0, Math.Max(0, width - previewWidth)), -34 - 6 - previewHeight, previewWidth, previewHeight);
+                context.DrawRectangle(Label, null, box.Inflate(2), 7, 7);
+                if (_previewShown is { } picture) using (context.PushClip(new RoundedRect(box, 5))) context.DrawImage(picture.Picture, picture.Area, box);
+            }
         }
     }
     public static string Clock(double seconds)

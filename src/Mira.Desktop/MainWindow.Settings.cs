@@ -58,7 +58,7 @@ public partial class MainWindow
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
-        DescribeTorLinkSettings(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowGpuAsync(); ShowOfflineSettings();
+        DescribeTorLinkSettings(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); ShowOfflineSettings();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
         SettingsSaveStatus.Text = "Les changements s’appliquent après enregistrement.";
@@ -208,6 +208,42 @@ public partial class MainWindow
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { SagasStatus.Text = Friendly(ex); }
         finally { _sagasBusy = false; SagasButton.IsEnabled = true; }
+    }
+    private bool _trickplayBusy;
+    /// <summary>
+    /// « Aperçus de la barre de lecture »: for an administrator, whether Jellyfin makes the trickplay pictures, how far its
+    /// task is, and a button while it does not. Hidden when Mira can neither tell nor change it.
+    /// </summary>
+    private async Task ShowTrickplaySettingAsync()
+    {
+        if (_trickplayBusy) return;
+        TrickplayRow.Visibility = Visibility.Collapsed; TrickplayStatus.Text = "";
+        if (_demo || _client is not { } client) return;
+        bool? enabled; double? progress = null;
+        try { enabled = await client.TrickplayEnabledAsync(); if (enabled == true) progress = await client.TrickplayProgressAsync(); }
+        catch (Exception ex) when (IsExpected(ex)) { return; }
+        if (client != _client || enabled is null || _trickplayBusy) return;
+        TrickplayButton.Visibility = enabled == true ? Visibility.Collapsed : Visibility.Visible;
+        TrickplayStatus.Text = enabled != true ? "" : progress is { } share ? TrickplayRunning(share) : TrickplayOn;
+        TrickplayRow.Visibility = Visibility.Visible;
+    }
+    private static string TrickplayRunning(double share) => $"Jellyfin prépare les aperçus… {share * 100:0} %. Ceux des titres déjà faits apparaissent dès maintenant.";
+    private const string TrickplayOn = "Activé : Jellyfin prépare les aperçus des nouveaux titres chaque nuit. Pour l’arrêter : Tableau de bord de Jellyfin → Médiathèques → la bibliothèque → images trickplay.";
+    /// <summary>Turns the option on in the film and series libraries and starts Jellyfin's task, which goes on alone.</summary>
+    private async void Trickplay_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client is not { } client || _trickplayBusy) return;
+        _trickplayBusy = true; TrickplayButton.IsEnabled = false; TrickplayStatus.Text = "Réglage de Jellyfin…";
+        var ct = _connectionLifetime.Token;
+        try
+        {
+            if (!await client.EnableTrickplayAsync(ct)) { TrickplayStatus.Text = "Seul un administrateur de Jellyfin peut changer ce réglage."; return; }
+            TrickplayButton.Visibility = Visibility.Collapsed;
+            TrickplayStatus.Text = await client.TrickplayProgressAsync(ct) is { } share ? TrickplayRunning(share) : TrickplayOn;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (IsExpected(ex)) { TrickplayStatus.Text = Friendly(ex); }
+        finally { _trickplayBusy = false; TrickplayButton.IsEnabled = true; }
     }
     private bool _gpuBusy;
     private IReadOnlyList<GpuEncoding.Card> _gpuCards = [];

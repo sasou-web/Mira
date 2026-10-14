@@ -344,5 +344,35 @@ internal static class PlayerTests
             Assert(finished.UserData is { Played: true, PlaybackPositionTicks: 0 } && resume.Count == 1 && resume[0].Id == "b" && next.Count == 0, "Watched in every list, out of « Continuer à regarder » and « À suivre »");
             return Task.CompletedTask;
         });
+        await Test("Aperçus de la barre : images trickplay de Jellyfin, case du moment visé, tuiles chargées une fois et peu gardées", async () =>
+        {
+            // As Jellyfin 12.1 answers for a film whose library extracts trickplay images.
+            const string answer = """{"Id":"film","Chapters":[{"StartPositionTicks":0,"Name":"Début"}],"Trickplay":{"other":{"320":{"Width":320,"Height":180,"TileWidth":10,"TileHeight":10,"ThumbnailCount":4,"Interval":10000}},"src":{"160":{"Width":160,"Height":90,"TileWidth":10,"TileHeight":10,"ThumbnailCount":250,"Interval":10000},"320":{"Width":320,"Height":180,"TileWidth":10,"TileHeight":10,"ThumbnailCount":1000,"Interval":10000},"0":{"Width":0}}}}""";
+            var fetched = new List<string>();
+            using var client = new JellyfinClient(new Connection("http://nas:8096/", "user-1", "Alice", "token", "device-1"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Items/film?userId=user-1") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(answer) });
+                fetched.Add(path);
+                return Task.FromResult(path.Contains("/9.jpg") ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([(byte)path[^"?mediaSourceId=src".Length..][0]]) });
+            }));
+            var timeline = await client.TimelineAsync("film", "src");
+            var set = timeline.Trickplay!;
+            Assert(timeline.Chapters.Count == 1 && set.SourceId == "src" && set.Info.Width == 320 && set.TilePixelWidth == 3200, "The file played, the size above 240: " + set);
+            Assert(set.TilePath(2) == "Videos/film/Trickplay/320/2.jpg?mediaSourceId=src", set.TilePath(2));
+            Assert((await client.TimelineAsync("film")).Trickplay?.SourceId == "other" && TrickplaySet.Pick("x", null, null) is null && TrickplaySet.Pick("x", new Dictionary<string, Dictionary<string, TrickplayInfo>> { ["s"] = new() { ["0"] = new() } }, "s") is null, "First file without the one played; none without pictures");
+            Assert(set.Cell(0) == new TrickplayCell(0, 0, 0, 320, 180) && set.Cell(125) == new TrickplayCell(0, 2 * 320, 1 * 180, 320, 180), "Cells: " + set.Cell(125));
+            Assert(set.Cell(1005).Tile == 1 && set.Cell(1005) is { X: 0, Y: 0 } && set.Cell(99_999).Tile == 9 && set.Cell(99_999) is { X: 9 * 320, Y: 9 * 180 } && set.Cell(-3).Tile == 0 && set.Cell(double.NaN).Tile == 0, "Next tiles, the last thumbnail at most");
+
+            var decoded = 0; var loaded = 0;
+            using var tiles = new TrickplayTiles<byte[]>(set, (tile, ct) => client.TrickplayTileAsync(set, tile, ct), bytes => { Interlocked.Increment(ref decoded); return bytes; }, keep: 2);
+            tiles.Loaded += () => Interlocked.Increment(ref loaded);
+            async Task<(byte[] Picture, TrickplayCell Cell)?> Wait(double seconds) { for (var i = 0; i < 100; i++) { if (tiles.At(seconds) is { } hit) return hit; await Task.Delay(10); } return null; }
+            Assert(tiles.At(5) is null && tiles.At(6) is null, "Asked for, not there yet");
+            Assert(await Wait(5) is { } first && first.Cell.Tile == 0 && fetched.Count(x => x.Contains("/0.jpg")) == 1, "One request for a tile pointed at twice");
+            await Wait(1005); await Wait(2005);
+            Assert(await Wait(5) is not null && fetched.Count(x => x.Contains("/0.jpg")) == 2 && decoded == 4 && loaded == 4, "Two tiles kept: the oldest fetched again: " + string.Join(",", fetched));
+            Assert(await Wait(9 * 1000 + 5) is null && fetched.Count(x => x.Contains("/9.jpg")) == 1, "A missing tile is asked for once: " + string.Join(",", fetched));
+        });
     }
 }

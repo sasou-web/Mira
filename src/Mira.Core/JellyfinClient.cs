@@ -165,10 +165,23 @@ public sealed class JellyfinClient : IDisposable
     public async Task<List<MediaSegment>> SegmentsAsync(string itemId, CancellationToken ct = default) =>
         (await GetAsync<MediaSegmentsResult>($"MediaSegments/{Uri.EscapeDataString(itemId)}" +
             "?includeSegmentTypes=Intro&includeSegmentTypes=Outro&includeSegmentTypes=Recap&includeSegmentTypes=Preview&includeSegmentTypes=Commercial", ct)).Items;
-    /// <summary>Chapters known to Jellyfin; the single-item endpoint returns them without extra fields.</summary>
-    public async Task<List<ChapterInfo>> ChaptersAsync(string itemId, CancellationToken ct = default) =>
-        (await GetAsync<ChapterHolder>($"Items/{Uri.EscapeDataString(itemId)}?userId={Connection.UserId}", ct)).Chapters ?? [];
-    private sealed record ChapterHolder { public List<ChapterInfo>? Chapters { get; init; } }
+    /// <summary>
+    /// What the player draws on its timeline: the chapters known to Jellyfin and its trickplay pictures, both returned by
+    /// the single-item endpoint without extra fields.
+    /// </summary>
+    public async Task<TitleTimeline> TimelineAsync(string itemId, string? sourceId = null, CancellationToken ct = default)
+    {
+        var item = await GetAsync<TimelineHolder>($"Items/{Uri.EscapeDataString(itemId)}?userId={Connection.UserId}", ct);
+        return new(item.Chapters ?? [], TrickplaySet.Pick(itemId, item.Trickplay, sourceId));
+    }
+    private sealed record TimelineHolder { public List<ChapterInfo>? Chapters { get; init; } public Dictionary<string, Dictionary<string, TrickplayInfo>>? Trickplay { get; init; } }
+    /// <summary>One tile image of a title's trickplay pictures.</summary>
+    public async Task<byte[]> TrickplayTileAsync(TrickplaySet set, int tile, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync(set.TilePath(tile), ct);
+        await CheckAsync(response);
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
     public Uri StreamUri(string itemId, string sourceId) => new(_http.BaseAddress!,
         $"Videos/{Uri.EscapeDataString(itemId)}/stream?static=true&mediaSourceId={Uri.EscapeDataString(sourceId)}");
     public string AuthorizationHeader => _http.DefaultRequestHeaders.GetValues("Authorization").Single();
@@ -294,7 +307,7 @@ public sealed class JellyfinClient : IDisposable
     /// library, or a Jellyfin without the option.
     /// </summary>
     public async Task<bool?> SagasAsync(CancellationToken ct = default) =>
-        await FilmLibrariesAsync(ct) is { Count: > 0 } films && films.All(x => AutoCollections(x.Options) is not null)
+        await LibraryOptionsAsync(["movies"], ct) is { Count: > 0 } films && films.All(x => AutoCollections(x.Options) is not null)
             ? films.All(x => AutoCollections(x.Options) == true) : null;
     /// <summary>
     /// Turns that option on in every film library, sending back their other options as Jellyfin gave them. Jellyfin
@@ -302,7 +315,7 @@ public sealed class JellyfinClient : IDisposable
     /// </summary>
     public async Task<bool> EnableSagasAsync(CancellationToken ct = default)
     {
-        if (await FilmLibrariesAsync(ct) is not { } films) return false;
+        if (await LibraryOptionsAsync(["movies"], ct) is not { } films) return false;
         foreach (var (id, options) in films)
         {
             if (AutoCollections(options) != false) continue;
@@ -319,14 +332,61 @@ public sealed class JellyfinClient : IDisposable
         (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&includeItemTypes=BoxSet&recursive=true&limit=0", ct)).TotalRecordCount;
     private static bool? AutoCollections(JsonObject? options) =>
         options?["AutomaticallyAddToCollection"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
-    /// <summary>The film libraries with their options, as Jellyfin's dashboard reads them; null when refused (not an administrator).</summary>
-    private async Task<List<(string Id, JsonObject? Options)>?> FilmLibrariesAsync(CancellationToken ct)
+    /// <summary>
+    /// Whether Jellyfin makes the trickplay pictures (the timeline's previews) of every film and series library: their
+    /// option « EnableTrickplayImageExtraction », off by default. Null as for <see cref="SagasAsync"/>.
+    /// </summary>
+    public async Task<bool?> TrickplayEnabledAsync(CancellationToken ct = default) =>
+        await LibraryOptionsAsync(["movies", "tvshows"], ct) is { Count: > 0 } libraries && libraries.All(x => Trickplay(x.Options) is not null)
+            ? libraries.All(x => Trickplay(x.Options) == true) : null;
+    /// <summary>
+    /// Turns that option on in every film and series library, their other options kept, then starts Jellyfin's task that
+    /// makes the pictures (« Generate Trickplay Images », run every night afterwards). False when refused.
+    /// </summary>
+    public async Task<bool> EnableTrickplayAsync(CancellationToken ct = default)
+    {
+        if (await LibraryOptionsAsync(["movies", "tvshows"], ct) is not { } libraries) return false;
+        foreach (var (id, options) in libraries)
+        {
+            if (Trickplay(options) != false) continue;
+            var changed = (JsonObject)options!.DeepClone();
+            changed["EnableTrickplayImageExtraction"] = true;
+            using var response = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = id, ["LibraryOptions"] = changed }, ct);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(response);
+        }
+        if (await TrickplayTaskAsync(ct) is { Id: { } task, Running: false })
+        {
+            using var started = await _http.PostAsync($"ScheduledTasks/Running/{Uri.EscapeDataString(task)}", null, ct);
+            await CheckAsync(started);
+        }
+        return true;
+    }
+    /// <summary>How far Jellyfin's trickplay task is (0 to 1, null before it says), or null when it is not running.</summary>
+    public async Task<double?> TrickplayProgressAsync(CancellationToken ct = default) =>
+        await TrickplayTaskAsync(ct) is { Running: true } task ? task.Progress ?? 0 : null;
+    private async Task<(string? Id, bool Running, double? Progress)?> TrickplayTaskAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("ScheduledTasks?isHidden=false", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        if (JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) is not JsonArray tasks) return null;
+        var task = tasks.OfType<JsonObject>().FirstOrDefault(x => x["Key"] is JsonValue key && key.TryGetValue<string>(out var name) && name == "RefreshTrickplayImages");
+        if (task is null) return null;
+        var running = task["State"] is JsonValue state && state.TryGetValue<string>(out var value) && value == "Running";
+        var progress = task["CurrentProgressPercentage"] is JsonValue percent && percent.TryGetValue<double>(out var share) ? Math.Clamp(share / 100, 0, 1) : (double?)null;
+        return (task["Id"] is JsonValue id && id.TryGetValue<string>(out var text) ? text : null, running, progress);
+    }
+    private static bool? Trickplay(JsonObject? options) =>
+        options?["EnableTrickplayImageExtraction"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
+    /// <summary>The libraries of these kinds with their options, as Jellyfin's dashboard reads them; null when refused (not an administrator).</summary>
+    private async Task<List<(string Id, JsonObject? Options)>?> LibraryOptionsAsync(string[] kinds, CancellationToken ct)
     {
         using var response = await _http.GetAsync("Library/VirtualFolders", ct);
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
         await CheckAsync(response);
         var folders = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
-        return folders.OfType<JsonObject>().Where(x => x["CollectionType"] is JsonValue type && type.TryGetValue<string>(out var kind) && kind == "movies" && x["ItemId"] is JsonValue)
+        return folders.OfType<JsonObject>().Where(x => x["CollectionType"] is JsonValue type && type.TryGetValue<string>(out var kind) && kinds.Contains(kind) && x["ItemId"] is JsonValue)
             .Select(x => ((string)x["ItemId"]!, x["LibraryOptions"] as JsonObject)).ToList();
     }
     /// <summary>
