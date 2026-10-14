@@ -555,7 +555,12 @@ function start() {
   checkForUpdate();
   // The other screens' code, fetched while nothing happens (not from another server): the first visit to a screen then
   // shows it at once.
-  setTimeout(() => yours().then((mine) => { if (mine) for (const r of ROUTES) if (!r.open) r.load().catch(() => {}); }), 2500);
+  setTimeout(() => yours().then((mine) => {
+    if (!mine) return;
+    for (const r of ROUTES) if (!r.open) r.load().catch(() => {});
+    // A « Regarder ensemble » group this page was in before a reload: joined again, to follow its titles.
+    if (session.current) import('./together.js').then(({ together }) => together.restore()).catch(() => {});
+  }), 2500);
 }
 
 start();

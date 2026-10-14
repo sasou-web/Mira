@@ -35,12 +35,14 @@ export const temp = {
   remove(key) { notes.delete(key); try { sessionStorage.removeItem(key); } catch { /* blocked: only in memory */ } },
 };
 
+/** Told when the session ends (« out »): what lives on in the page for the account (a group, together.js) goes too. */
+export const signedOut = new EventTarget();
 /** { userId, userName, token, serverId, serverName } once signed in. */
 export const session = {
   current: read(SESSION, null),
   set(value) { this.current = value; write(SESSION, value); },
   /** Signed out (here, or by Jellyfin): nothing of the account stays on this phone, see forgetAccount. */
-  clear() { this.current = null; write(SESSION, null); forgetAccount(); },
+  clear() { this.current = null; write(SESSION, null); forgetAccount(); signedOut.dispatchEvent(new Event('out')); },
 };
 
 /** iPhone, iPad, Android or the browser's name: how Jellyfin's dashboard lists this device. */

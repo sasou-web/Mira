@@ -12,6 +12,8 @@ import { settings } from '../session.js';
 import { trackText, chooseTracks, qualityText } from '../player/tracks.js';
 import { appleNative } from '../player/video.js';
 import { sleep, sleepChoices } from '../player/sleep.js';
+import { together } from '../together.js';
+import { groupText, people } from '../player/sync.js';
 
 const SLICE = 100;
 const seasonOf = (x) => x.ParentIndexNumber ?? 1;
@@ -118,7 +120,7 @@ export function create({ id, query }) {
       resume ? h('div', { style: { display: 'grid', gap: '6px' } },
         h('div', { class: 'progress-line' }, h('i', { style: { width: `${(progress(target) * 100).toFixed(1)}%` } })),
         h('div', { class: 'meta' }, left)) : null,
-      tracksLine(target), sleepLine());
+      tracksLine(target), sleepLine(), togetherLine());
   }
 
   /**
@@ -138,6 +140,47 @@ export function create({ id, query }) {
       title: 'Minuterie',
       items: sleepChoices(sleep, { episode: item.Type !== 'Movie', now: Date.now() })
         .map(({ label, sub, selected, minutes }) => ({ label, sub, selected, run: () => { sleep.choose(minutes, Date.now()); refreshActions(); } })),
+    });
+  }
+
+  /**
+   * « Regarder ensemble »: a group of Jellyfin (SyncPlay) to join or start; in one, Lecture puts the title on for the
+   * whole group (together.js).
+   */
+  function togetherLine() {
+    const group = together.group;
+    return h('button', { class: 'group-line', 'aria-haspopup': 'dialog', on: { click: togetherSheet } },
+      icon('users', { size: 20 }),
+      h('span', { class: 'grow' }, group ? h('span', {}, 'Ensemble : ', h('b', {}, groupText(group))) : h('span', {}, 'Regarder ensemble')),
+      icon('right', { size: 18 }));
+  }
+  async function togetherSheet() {
+    const group = together.group;
+    const about = (text) => h('p', { class: 'sheet-note' }, text);
+    if (group) {
+      sheet({
+        title: 'Regarder ensemble',
+        body: about('Lecture lance un titre pour tout le groupe, au même moment sur chaque appareil. Pause, lecture et déplacements sont partagés.'),
+        items: [
+          { label: groupText(group), sub: group.Participants.join(', '), selected: true },
+          { label: 'Quitter le groupe', danger: true, run: () => together.leave() },
+        ],
+      });
+      return;
+    }
+    let groups;
+    try { groups = await together.groups(); } catch (error) {
+      toast(error?.status === 403 ? 'Jellyfin ne permet pas à ce compte de regarder ensemble (tableau de bord → Utilisateurs → SyncPlay).' : error.message);
+      return;
+    }
+    const enter = async (run) => { try { await run(); } catch (error) { toast(error?.message || 'Le groupe n’a pas pu être rejoint.'); } };
+    sheet({
+      title: 'Regarder ensemble',
+      body: about('Regardez le même titre au même moment, chacun chez soi : les comptes de ce Jellyfin rejoignent ton groupe depuis la fiche d’un titre. Pause, lecture et déplacements sont partagés.'),
+      items: [
+        ...(groups ?? []).map((g) => ({ symbol: 'users', label: `Rejoindre « ${g.GroupName} »`, sub: `${people(g.Participants?.length ?? 1)} : ${(g.Participants ?? []).join(', ')}`, run: () => enter(() => together.join(g.GroupId)) })),
+        { symbol: 'play', label: 'Créer un groupe', sub: 'Les autres le rejoignent ici, puis Lecture lance le titre pour tous.', run: () => enter(() => together.create()) },
+      ],
     });
   }
 
@@ -418,6 +461,9 @@ export function create({ id, query }) {
     }
   };
   changes.addEventListener('item', onChange);
+  // Joined, left, someone came or went: the line under Lecture says so.
+  const unwatchGroup = together.watch(() => refreshActions());
+  together.restore();
 
   load();
   return {
@@ -425,6 +471,6 @@ export function create({ id, query }) {
     // Not at the first showing: the page is loading already.
     enter() { if (stale || (loadedAt && Date.now() - loadedAt > 5 * 60_000)) load(true); },
     refresh: () => load(true),
-    dispose() { changes.removeEventListener('item', onChange); },
+    dispose() { changes.removeEventListener('item', onChange); unwatchGroup(); },
   };
 }

@@ -367,6 +367,7 @@ html:not(.touch) .sheet-item:active, .sheet-item.pressed { background: var(--rai
 .sheet-item .tick { color: var(--accent); }
 .sheet-item.danger { color: var(--danger); }
 .sheet-heading { padding: 14px 20px 4px; font-size: calc(12px * var(--text)); font-weight: 800; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
+.sheet-note { margin: 0; padding: 0 20px 12px; font-size: calc(14px * var(--text)); line-height: 1.45; color: var(--muted); }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { to { opacity: 0; } }
@@ -454,15 +455,16 @@ body:has(.sheet-layer) .toast-layer { z-index: 89; }
 .detail-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .detail-actions .progress-line { height: 4px; border-radius: var(--r-full); background: var(--raised); overflow: hidden; }
 .detail-actions .progress-line i { display: block; height: 100%; background: var(--accent); }
-.tracks-line {
+/* A line under Lecture that opens a sheet: the tracks, the sleep timer (.tracks-line), « Regarder ensemble » (.group-line). */
+.tracks-line, .group-line {
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 12px 8px 14px; border-radius: var(--r-m);
   background: var(--surface); color: var(--muted); font-size: calc(14px * var(--text)); text-align: left; transition: background var(--fast) linear;
 }
-html:not(.touch) .tracks-line:active, .tracks-line.pressed { background: var(--raised); }
-.tracks-line .grow { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
-.tracks-line .grow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tracks-line b { color: var(--ink); font-weight: 700; }
-@media (hover: hover) { .tracks-line:hover { background: var(--raised); } }
+html:not(.touch) :is(.tracks-line, .group-line):active, :is(.tracks-line, .group-line).pressed { background: var(--raised); }
+:is(.tracks-line, .group-line) .grow { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
+:is(.tracks-line, .group-line) .grow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.tracks-line, .group-line) b { color: var(--ink); font-weight: 700; }
+@media (hover: hover) { :is(.tracks-line, .group-line):hover { background: var(--raised); } }
 .detail-secondary { display: flex; gap: 6px; }
 .detail-secondary .tool { flex: 1; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: var(--r-m); color: var(--muted); font-size: calc(12px * var(--text)); font-weight: 700; }
 .detail-secondary .tool.on { color: var(--ink); }

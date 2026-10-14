@@ -22,6 +22,8 @@ import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, ch
 import { QUALITIES } from '../views/settings.js';
 import { sleep, sleepChoices } from './sleep.js';
 import { listen } from '../remote.js';
+import { together } from '../together.js';
+import { needsSeek, groupText } from './sync.js';
 
 // Forced subtitles (signs, foreign lines): Safari has the « forced » kind; elsewhere it reads as metadata, never drawn.
 const FORCED_KIND = (() => { try { const t = document.createElement('track'); t.kind = 'forced'; return t.kind === 'forced'; } catch { return false; } })();
@@ -85,6 +87,10 @@ export function create({ id, query }) {
   let currentStart = 0;       // where the current opening was asked to start (ticks), until it plays
   let resumedByUser = true;   // the next 'playing' follows a pause the person made: the controls show then, not after a stall
   let switchFrom = '';        // how the title that ended was shown (Apple's full screen, Picture in Picture) when the next began
+  // « Regarder ensemble » (together.js): what the player did itself, not to be told to the group as the person's
+  // (until these times); the group's play to come; a stall told to the group; a seek told once the finger stops.
+  const expect = { play: 0, pause: 0, seek: 0 };
+  let groupTimer = 0, stallTimer = 0, stalled = false, readyPending = false, groupSeekTimer = 0;
 
   const position = () => offset + (video.currentTime || 0);
   const presentation = () => video.webkitPresentationMode ?? (video.webkitDisplayingFullscreen ? 'fullscreen' : 'inline');
@@ -212,6 +218,12 @@ export function create({ id, query }) {
   function togglePlay() {
     if (video.paused) play(); else video.pause();
   }
+  /** A pause Mira makes (closing, a stall, the group's): the group is not told it as the person's. */
+  function quietPause() {
+    if (!video.paused) expect.pause = Date.now() + 1500;
+    video.pause();
+  }
+  const expected = (kind) => { const yes = Date.now() < expect[kind]; expect[kind] = 0; return yes; };
   async function play() {
     try { await video.play(); hideMessage(); }
     catch (error) {
@@ -228,7 +240,10 @@ export function create({ id, query }) {
   function seek(at) {
     const end = total || video.duration || 0;
     const value = Math.max(0, end ? Math.min(at, end - 1) : at);
-    if (progressive) { open(ticks(value)); return; }
+    // In a group, the jump is seen here at once and asked of the group once the taps stop (±10 s, several times).
+    if (together.group) { clearTimeout(groupSeekTimer); groupSeekTimer = setTimeout(() => group.seek(value), 400); }
+    if (progressive) { open(ticks(value), { keepPaused: !!together.group || video.paused }); return; }
+    expect.seek = Date.now() + 3000;
     video.currentTime = value - offset;
     report('progress');
   }
@@ -255,7 +270,7 @@ export function create({ id, query }) {
     const step = presentationStep({ was, mode, closing, failed, paused: video.paused, ended, videoEnded: video.ended, switching });
     if (step === 'fullscreen') showNative('');
     else if (step === 'pip') showNative('pip');
-    else if (step === 'reenter') { if (!enterNative()) { video.pause(); showNative('tap'); } }
+    else if (step === 'reenter') { if (!enterNative()) { quietPause(); showNative('tap'); } }
     else if (step === 'close' || step === 'close-landing') close({ landing: step === 'close-landing' });
   }
 
@@ -334,7 +349,7 @@ export function create({ id, query }) {
     const segment = skippable(segments, at);
     // Skipped once by itself when the settings say so: going back into it plays it. Only once the stream plays: a stream
     // being opened says 0, and a jump then would move where it starts.
-    if (segment && streamPlaying && skipsItself(segment, { autoSkip: settings.get('autoSkip'), skipped })) {
+    if (segment && streamPlaying && skipsItself(segment, { autoSkip: settings.get('autoSkip') && !together.group, skipped })) {
       skipped.add(segment);
       seek(seconds(segment.EndTicks));
       return;
@@ -382,6 +397,8 @@ export function create({ id, query }) {
   /** The next episode in this same player: Apple's full screen stays open, and Back still leads to the title page. */
   async function playNext() {
     if (!next || switching || closing) return;
+    // In a group, the next episode is put on for the group, and comes back here as its title (groupSwitch).
+    if (together.group) { clearInterval(countdownTimer); countdownTimer = 0; pillLayer.querySelector('.up-next')?.remove(); group.start(next.Id, 0); return; }
     const upcoming = next, resume = progressFraction(upcoming) > 0;
     switching = true;
     // An opening of this title still on its way (a fallback) must not land while the next one starts.
@@ -390,7 +407,7 @@ export function create({ id, query }) {
     clearInterval(countdownTimer); countdownTimer = 0;
     clear(pillLayer);
     // The episode that ends stops at once, and the next one's name is there while it loads.
-    if (!video.ended) video.pause();
+    if (!video.ended) quietPause();
     busy.hidden = false;
     title.firstChild.textContent = upcoming.SeriesName ?? '';
     title.lastChild.textContent = `${episodeCode(upcoming)} · ${upcoming.Name ?? ''}`;
@@ -495,7 +512,8 @@ export function create({ id, query }) {
       // Apple's player was left while the next episode loaded: the person closed it, before WebKit even said so.
       if (native && switching && switchFrom === 'fullscreen' && presentation() === 'inline') { close({ landing: true }); return; }
       if (native && !enterNative()) { busy.hidden = true; showNative('tap'); return; }
-      if (!keepPaused) play();
+      if (!keepPaused) { expect.play = Date.now() + 3000; play(); }
+      if (keepPaused && together.group) checkReady();
     } catch (error) {
       if (attempt !== opening || disposed || closing) return;
       busy.hidden = true;
@@ -689,6 +707,11 @@ export function create({ id, query }) {
           // An offer of the next episode already counting stops, as « Annuler » does.
           if (sleep.atEnd && countdownTimer) cancelNext();
         } })),
+        ...(together.group ? [
+          { heading: 'Regarder ensemble' },
+          { label: groupText(together.group), sub: 'Pause, lecture et déplacements pour tout le groupe.', selected: true },
+          { label: 'Quitter le groupe', danger: true, run: () => together.leave() },
+        ] : []),
       ],
     });
   }
@@ -808,7 +831,7 @@ export function create({ id, query }) {
     loadedmetadata: () => {
       // WebKit sets up the tracks again now: its moves for a moment are not a choice made in the menu.
       tracksSettle = Math.max(tracksSettle, Date.now() + 1500);
-      if (pendingStart > 0 && !progressive) { try { video.currentTime = pendingStart; } catch { /* set again on canplay */ } }
+      if (pendingStart > 0 && !progressive) { expect.seek = Date.now() + 3000; try { video.currentTime = pendingStart; } catch { /* set again on canplay */ } }
       pendingStart = 0;
       if (playMethod === 'DirectPlay') selectAudioTrack();
       fitPicture();
@@ -817,6 +840,7 @@ export function create({ id, query }) {
     resize: fitPicture,
     playing: () => {
       busy.hidden = true; hideMessage(); updatePlayIcon();
+      groupResumed();
       streamPlaying = true;
       // After a stall, only the spinner went: the controls show at the start and after a pause made by the person (and
       // keep hiding by themselves whenever they are shown).
@@ -837,16 +861,29 @@ export function create({ id, query }) {
       if (native && presentation() === 'inline') {
         clearTimeout(nativeCheck);
         nativeCheck = setTimeout(() => {
-          if (!disposed && !closing && presentation() === 'inline' && !video.paused) { video.pause(); showNative('tap'); }
+          if (!disposed && !closing && presentation() === 'inline' && !video.paused) { quietPause(); showNative('tap'); }
         }, 1500);
       }
     },
-    pause: () => { if (!video.seeking && !video.ended) resumedByUser = true; updatePlayIcon(); showControls(true); report('progress'); },
-    play: () => updatePlayIcon(),
-    waiting: () => { busy.hidden = false; },
+    pause: () => {
+      if (!video.seeking && !video.ended) resumedByUser = true;
+      updatePlayIcon(); showControls(true); report('progress');
+      // Paused by the person (Mira's button, Apple's, the lock screen): for the whole group.
+      if (!expected('pause') && together.group && !closing && !switching && !video.ended && !video.seeking) { clearTimeout(groupTimer); group.pause(); }
+    },
+    play: () => {
+      updatePlayIcon();
+      // Played by the person: the group plays, all at the same moment; until Jellyfin says when, this one waits.
+      if (!expected('play') && together.group && !closing) { quietPause(); group.unpause(); }
+    },
+    waiting: () => { busy.hidden = false; groupStall(); },
     seeking: () => { busy.hidden = false; },
-    seeked: () => { busy.hidden = true; updateTime(); },
-    canplay: () => { busy.hidden = true; },
+    seeked: () => {
+      busy.hidden = true; updateTime(); checkReady();
+      // Moved in Apple's player: for the whole group. Mira's own controls tell it themselves (seek).
+      if (!expected('seek') && native && together.group && !closing && !switching) { clearTimeout(groupSeekTimer); group.seek(position()); }
+    },
+    canplay: () => { busy.hidden = true; checkReady(); groupResumed(); },
     timeupdate: updateTime,
     progress: updateTime,
     ratechange: () => report('progress'),
@@ -855,6 +892,7 @@ export function create({ id, query }) {
       ended = true;
       await stop({ finished: true });
       if (disposed || closing) return;
+      // In a group, the next episode is put on for everyone, and replaces this one here (groupSwitch).
       if (next && autoNext() && !nextDismissed) playNext();
       else close();
     },
@@ -905,6 +943,74 @@ export function create({ id, query }) {
       else if (command === 'PlayPause') togglePlay();
     },
   });
+
+  // « Regarder ensemble »: while this device is in a group, its title plays for the group (together.js). The group's
+  // commands come here; the person's pause, play and seeks go to the group (the video events above).
+  together.restore();
+  const group = together.bind({
+    itemId: () => item?.Id ?? null,
+    prepare: (startTicks) => { clearTimeout(groupTimer); quietPause(); seekTo(seconds(startTicks)); readyPending = true; checkReady(); },
+    switchTo: (id, startTicks) => groupSwitch(id, startTicks),
+    command: groupCommand,
+    left: () => { clearTimeout(groupTimer); toast('Tu as quitté le groupe : la lecture continue ici seulement.'); },
+  });
+  /** Where the group is: a seek here that it does not take as the person's. */
+  function seekTo(at) {
+    if (progressive) { open(ticks(at), { keepPaused: true }); return; }
+    expect.seek = Date.now() + 3000;
+    try { video.currentTime = Math.max(0, at - offset); } catch { /* not seekable yet: set on loading */ }
+  }
+  function groupCommand(plan) {
+    if (!plan || closing || disposed) return;
+    clearTimeout(groupTimer);
+    if (plan.action === 'stop') { toast('Le groupe a arrêté la lecture.'); close(); return; }
+    if (plan.action === 'pause') { quietPause(); if (needsSeek(position(), plan.position)) seekTo(plan.position); return; }
+    if (plan.action === 'seek') { quietPause(); seekTo(plan.position); readyPending = true; checkReady(); return; }
+    // Play: there at the moment Jellyfin set, from where the others are.
+    if (needsSeek(position(), plan.position)) seekTo(plan.position);
+    const go = () => { if (closing || disposed) return; expect.play = Date.now() + 1500; play(); };
+    if (plan.wait > 0) groupTimer = setTimeout(go, plan.wait); else go();
+  }
+  /** Told the group once the stream can play where it is: Jellyfin starts everyone when all are. */
+  function checkReady() {
+    if (!readyPending || !together.group || !item || video.seeking || video.readyState < 3) return;
+    readyPending = false;
+    group.ready(position(), !video.paused);
+  }
+  /** A stall of more than a moment while playing: the group waits for this device. */
+  function groupStall() {
+    if (!together.group || video.paused || closing || Date.now() < expect.seek) return;
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => {
+      if (!together.group || video.readyState >= 3 || closing) return;
+      stalled = true;
+      group.buffering(position(), true);
+    }, 1500);
+  }
+  function groupResumed() {
+    clearTimeout(stallTimer);
+    if (!stalled) return;
+    stalled = false;
+    group.ready(position(), !video.paused);
+  }
+  /** The group put another title on (the next episode, a title chosen by someone else): it replaces this one here. */
+  async function groupSwitch(id, startTicks) {
+    if (closing || disposed) return;
+    switching = true;
+    opening++;
+    switchFrom = presentation();
+    clearInterval(countdownTimer); countdownTimer = 0;
+    clear(pillLayer);
+    clearTimeout(groupTimer);
+    if (!video.ended) quietPause();
+    busy.hidden = false;
+    await stop();
+    if (disposed || closing) return;
+    history.replaceState(history.state, '', `#/lecture/${id}?ensemble=1`);
+    resetTitle();
+    target = { id, fromStart: false, tracks: null, startTicks };
+    await begin();
+  }
 
   /**
    * Back to the title page, from Retour or from Apple's player once closed: at once, the stop going to Jellyfin on its
@@ -978,7 +1084,10 @@ export function create({ id, query }) {
       title.firstChild.textContent = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
       title.lastChild.textContent = item.Type === 'Episode' ? `${episodeCode(item)} · ${item.Name ?? ''}` : [item.ProductionYear, item.OfficialRating].filter(Boolean).join(' · ');
       chapters = item.Chapters ?? [];
-      const resume = startPosition(item, { fromStart: target.fromStart, resume: settings.get('resume') });
+      // The group's title starts where the group does; any other one, chosen here, is put on for the group from where
+      // it would start.
+      const joining = !!together.group && together.queue?.itemId === item.Id;
+      const resume = target.startTicks ?? (joining ? together.queue.startTicks : startPosition(item, { fromStart: target.fromStart, resume: settings.get('resume') }));
       total = seconds(item.RunTimeTicks);
       // The title's own streams choose its tracks before Jellyfin is asked for a stream.
       source = item.MediaSources?.[0] ?? null;
@@ -990,8 +1099,11 @@ export function create({ id, query }) {
       drawChapters();
       setupTrickplay();
       mediaSession();
-      await open(resume);
+      readyPending = joining;
+      if (joining && target.startTicks == null) group.buffering(seconds(resume), false);
+      await open(resume, { keepPaused: !!together.group });
       if (disposed || attempt !== beginning) return;
+      if (together.group && !joining) group.start(item.Id, resume);
       // Once the title's own stream plays (before, a skip would move the one it replaces), and Jellyfin has answered: its
       // segments win, the passages the chapters name fill the rest (all of them without segments, or on Jellyfin 10.9).
       const fromChapters = chapterPassages(chapters, item.RunTimeTicks);
@@ -1052,7 +1164,8 @@ export function create({ id, query }) {
       removeEventListener('keydown', keys);
       document.removeEventListener('visibilitychange', onHide);
       removeEventListener('pagehide', onPageHide);
-      unwatch(); remote.close();
+      unwatch(); remote.close(); group.unbind();
+      clearTimeout(groupTimer); clearTimeout(stallTimer); clearTimeout(groupSeekTimer);
       for (const [name, fn] of Object.entries(on)) video.removeEventListener(name, fn);
       video.textTracks.removeEventListener('change', textTracksChanged);
       video.textTracks.removeEventListener('addtrack', trackAdded);
