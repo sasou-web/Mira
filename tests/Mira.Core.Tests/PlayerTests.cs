@@ -16,6 +16,37 @@ internal static class PlayerTests
     public static async Task RunAsync(TestRun run)
     {
         var Test = run.Test;
+        await Test("Regarder ensemble : horloge du serveur, commandes du groupe, titre et mots, comme Mira web (tests/fixtures/syncplay.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "syncplay.json")));
+            var root = fixture.RootElement;
+            foreach (var row in root.GetProperty("times").EnumerateArray())
+                Assert(Together.ServerTime(row[0].GetString()) == row[1].GetInt64(), $"{row[0]}: {Together.ServerTime(row[0].GetString())}");
+            Assert(Together.ServerTime(null) is null && Together.ServerTime("x") is null, "Not a date");
+            foreach (var row in root.GetProperty("clock").EnumerateArray())
+            {
+                var found = Together.ClockOffset(row[0].EnumerateArray().Select(x => new Together.ClockSample(x.GetProperty("sent").GetInt64(), x.GetProperty("received").GetInt64(), x.GetProperty("serverIn").GetInt64(), x.GetProperty("serverOut").GetInt64())));
+                Assert(row[1].ValueKind == JsonValueKind.Null ? found is null : found == (row[1].GetInt64(), row[2].GetInt64()), $"Clock: {found}");
+            }
+            foreach (var row in root.GetProperty("commands").EnumerateArray())
+            {
+                var plan = Together.CommandPlan(row[2], row[0].GetInt64(), row[1].GetInt64());
+                if (row[3].ValueKind == JsonValueKind.Null) { Assert(plan is null, "Unknown command: " + plan); continue; }
+                Assert(plan is not null && plan.Action == row[3].GetProperty("action").GetString() && plan.Wait == row[3].GetProperty("wait").GetInt64()
+                    && Math.Abs(plan.Position - row[3].GetProperty("position").GetDouble()) < 1e-6, $"{row[2]}: {plan}");
+            }
+            foreach (var row in root.GetProperty("queue").EnumerateArray())
+            {
+                var entry = Together.QueueItem(row[0]);
+                Assert(row[1].ValueKind == JsonValueKind.Null ? entry is null
+                    : entry == new Together.Entry(row[1].GetProperty("itemId").GetString()!, row[1].GetProperty("playlistItemId").GetString()!, row[1].GetProperty("startTicks").GetInt64()), $"Queue: {entry}");
+            }
+            foreach (var row in root.GetProperty("groups").EnumerateArray())
+                Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupText(group) == row[1].GetString(), $"Group: {row[1]}");
+            Assert(Together.GroupName("mira") == "Groupe de mira" && Together.NeedsSeek(10, 10.6) && !Together.NeedsSeek(10, 10.4), "Words, drift");
+            return Task.CompletedTask;
+        });
         await Test("Minuterie : pause au bout des minutes, une seule fois, ou arrêt à la fin de l’épisode, comme Mira web (tests/fixtures/sleep.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

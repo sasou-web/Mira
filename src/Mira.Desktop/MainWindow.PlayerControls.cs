@@ -394,7 +394,7 @@ public partial class MainWindow
             chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSpeed(speed); };
             SpeedList.Children.Add(chip);
         }
-        BuildSleepChoices();
+        BuildSleepChoices(); ShowGroupSection();
         SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay"));
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");

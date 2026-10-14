@@ -629,9 +629,35 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
+    // « Regarder ensemble », Jellyfin's SyncPlay (Together): Unauthorized when Jellyfin does not let this account use it.
+    public async Task<(long Sent, long Received, long ServerIn, long ServerOut)?> UtcTimeAsync(CancellationToken ct = default)
+    {
+        var sent = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var answer = await GetAsync<JsonElement>("GetUtcTime", ct);
+        var received = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return Together.ServerTime(answer.TryGetProperty("RequestReceptionTime", out var a) ? a.GetString() : null) is { } serverIn
+            && Together.ServerTime(answer.TryGetProperty("ResponseTransmissionTime", out var b) ? b.GetString() : null) is { } serverOut ? (sent, received, serverIn, serverOut) : null;
+    }
+    public async Task<List<Together.Group>> SyncGroupsAsync(CancellationToken ct = default) =>
+        (await GetAsync<JsonElement>("SyncPlay/List", ct)) is { ValueKind: JsonValueKind.Array } list ? list.EnumerateArray().Select(Together.ParseGroup).OfType<Together.Group>().ToList() : [];
+    public async Task<Together.Group?> SyncGroupAsync(string groupId, CancellationToken ct = default) =>
+        Together.ParseGroup(await GetAsync<JsonElement>("SyncPlay/" + Uri.EscapeDataString(groupId), ct));
+    public Task SyncNewAsync(string name, CancellationToken ct = default) => SyncSendAsync("New", new JsonObject { ["GroupName"] = name }, ct);
+    public Task SyncJoinAsync(string groupId, CancellationToken ct = default) => SyncSendAsync("Join", new JsonObject { ["GroupId"] = groupId }, ct);
+    public Task SyncLeaveAsync(CancellationToken ct = default) => SyncSendAsync("Leave", null, ct);
+    public Task SyncQueueAsync(string itemId, long startTicks, CancellationToken ct = default) =>
+        SyncSendAsync("SetNewQueue", new JsonObject { ["PlayingQueue"] = new JsonArray(itemId), ["PlayingItemPosition"] = 0, ["StartPositionTicks"] = Math.Max(0, startTicks) }, ct);
+    /// <summary>Pause, Unpause, Seek ({ PositionTicks }), Buffering and Ready ({ When, PositionTicks, IsPlaying, PlaylistItemId }), Ping.</summary>
+    public async Task SyncSendAsync(string what, JsonObject? body, CancellationToken ct = default)
+    {
+        using var content = new StringContent(body?.ToJsonString() ?? "{}", Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync("SyncPlay/" + what, content, ct);
+        await CheckAsync(response);
+    }
     /// <param name="listening">Told true once the WebSocket is open, false when it closes: while it is closed, library
     /// changes go unheard and the page needs refreshing more often.</param>
-    public async Task ListenAsync(Action changed, CancellationToken ct, Action<bool>? listening = null)
+    /// <param name="syncPlay">« Regarder ensemble »: Jellyfin's SyncPlayGroupUpdate and SyncPlayCommand, with their Data.</param>
+    public async Task ListenAsync(Action changed, CancellationToken ct, Action<bool>? listening = null, Action<string, JsonElement>? syncPlay = null)
     {
         var delay = 2;
         while (!ct.IsCancellationRequested)
@@ -666,8 +692,10 @@ public sealed class JellyfinClient : IDisposable
                         delay = 2;
                         using var doc = JsonDocument.Parse(message.ToArray());
                         // Any other shape is ignored: an exception here would end the listening for the whole session.
-                        if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("MessageType", out var type) &&
-                            type.ValueKind == JsonValueKind.String && type.GetString() is "LibraryChanged" or "UserDataChanged") changed();
+                        if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("MessageType", out var type) || type.ValueKind != JsonValueKind.String) continue;
+                        if (type.GetString() is "LibraryChanged" or "UserDataChanged") changed();
+                        else if (type.GetString() is "SyncPlayGroupUpdate" or "SyncPlayCommand" && syncPlay is not null && doc.RootElement.TryGetProperty("Data", out var data))
+                            syncPlay(type.GetString()!, data.Clone());
                     }
                 }
                 finally

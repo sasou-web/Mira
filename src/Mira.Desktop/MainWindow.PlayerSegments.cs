@@ -68,8 +68,8 @@ public partial class MainWindow
     {
         if (SkipHost is null) return;
         // « Passer les intros et les récaps »: the playhead moves past it, and what follows sees it there. Not while the
-        // bar is dragged: the pointer only passes through.
-        if (_playing && _loaded && !_seeking && _skips.AutoSkip(_session.Position, _settings.AutoSkip) is { } passage)
+        // bar is dragged: the pointer only passes through. Not in a group either: each device would send its own seek.
+        if (_playing && _loaded && !_seeking && _skips.AutoSkip(_session.Position, _settings.AutoSkip && !InGroup) is { } passage)
         {
             if (TryCommand("seek", passage.End.ToString(CultureInfo.InvariantCulture), "absolute+exact")) HoldPosition(passage.End);
         }
