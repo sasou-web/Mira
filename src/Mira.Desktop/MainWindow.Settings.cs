@@ -34,7 +34,8 @@ public partial class MainWindow
         _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true) || _settings.ResumeBack.ToString(CultureInfo.InvariantCulture) != Choice(ResumeBackChoice)
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
-        || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim())
+        || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || _settings.SubtitleBackground != (SubtitleBackgroundCheck.IsChecked == true) || _settings.SubtitleBold != (SubtitleBoldCheck.IsChecked == true)
+        || _settings.SubtitleColor != Choice(SubtitleColorChoice) || SubtitleStyle.Height(_settings.SubtitleHeight) != SubtitleHeight() || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim())
         || _settings.TorLinkAutoImport != (TorLinkAutoImportCheck.IsChecked == true) || _settings.TorLinkKeepShared != (TorLinkKeepSharedCheck.IsChecked == true)
         || _settings.TorLinkRemote != (TorLinkRemoteCheck.IsChecked == true)
         || _settings.TorLinkPath != TorLinkPathBox.Text.Trim() || _settings.TorLinkMoviesFolder != TorLinkMoviesBox.Text.Trim()
@@ -53,7 +54,7 @@ public partial class MainWindow
         HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting();
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
         SelectChoice(AudioLanguageChoice, _settings.AudioLanguage); SelectChoice(SubtitleLanguageChoice, _settings.SubtitleLanguage); SelectChoice(DensityChoice, _settings.PosterDensity);
-        SubtitleSizeSlider.Value = _settings.SubtitleSize; MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;
+        SubtitleSizeSlider.Value = _settings.SubtitleSize; ShowSubtitleStyle(); MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;
         ShowEngineState();
         SubtitlePreviewImage.Source = HeroImage.Source;
         TorLinkAutoImportCheck.IsChecked = _settings.TorLinkAutoImport; TorLinkKeepSharedCheck.IsChecked = _settings.TorLinkKeepShared;
@@ -99,7 +100,37 @@ public partial class MainWindow
         CustomLanguages.Visibility = Choice(AudioLanguageChoice) == "custom" || Choice(SubtitleLanguageChoice) == "custom" ? Visibility.Visible : Visibility.Collapsed;
     }
     private void SubtitleSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
-    { if (SubtitlePreview is null) return; SubtitlePreview.FontSize = e.NewValue * .65; SubtitleSizeLabel.Text = $"{e.NewValue:0}"; }
+    { if (SubtitleSizeLabel is null) return; SubtitleSizeLabel.Text = $"{e.NewValue:0}"; PreviewSubtitles(); }
+    private void SubtitleStyle_Changed(object sender, RoutedEventArgs e) => PreviewSubtitles();
+    /// <summary>The saved style in the page: the heights come from Core, with the Mac's.</summary>
+    private void ShowSubtitleStyle()
+    {
+        if (SubtitleHeightChoice.Items.Count == 0)
+            foreach (var (position, label) in SubtitleStyle.Heights) SubtitleHeightChoice.Items.Add(new ComboBoxItem { Content = label, Tag = position.ToString(CultureInfo.InvariantCulture) });
+        SubtitleBackgroundCheck.IsChecked = _settings.SubtitleBackground; SubtitleBoldCheck.IsChecked = _settings.SubtitleBold;
+        SelectChoice(SubtitleColorChoice, _settings.SubtitleColor == SubtitleStyle.Yellow ? SubtitleStyle.Yellow : SubtitleStyle.White);
+        SubtitleHeightChoice.SelectedItem = SubtitleHeightChoice.Items.OfType<ComboBoxItem>().First(x => (string)x.Tag == SubtitleStyle.Height(_settings.SubtitleHeight).ToString(CultureInfo.InvariantCulture));
+        PreviewSubtitles();
+    }
+    private int SubtitleHeight() => int.TryParse(Choice(SubtitleHeightChoice), NumberStyles.Integer, CultureInfo.InvariantCulture, out var height) ? height : 100;
+    private System.Windows.Media.Effects.Effect? _subtitleOutline;
+    /// <summary>
+    /// The preview as mpv draws a plain text subtitle: its colour, bold or not, an outline or the dark box (mpv's margin,
+    /// at the preview's scale), and its height (mpv's sub-pos, a share of the picture's height).
+    /// </summary>
+    private void PreviewSubtitles()
+    {
+        if (SubtitlePreview is null || SubtitlePreviewBox is null || SubtitleBackgroundCheck is null || SubtitleBoldCheck is null || SubtitleColorChoice is null || SubtitleHeightChoice is null) return;
+        _subtitleOutline ??= SubtitlePreview.Effect;
+        var size = SubtitleSizeSlider.Value * .65; var box = SubtitleBackgroundCheck.IsChecked == true;
+        SubtitlePreview.FontSize = size;
+        SubtitlePreview.Foreground = Brush(SubtitleStyle.Color(Choice(SubtitleColorChoice)));
+        SubtitlePreview.FontWeight = SubtitleBoldCheck.IsChecked == true ? FontWeights.Bold : FontWeights.SemiBold;
+        SubtitlePreview.Effect = box ? null : _subtitleOutline;
+        SubtitlePreviewBox.Background = box ? Brush(SubtitleStyle.Box) : Brushes.Transparent;
+        SubtitlePreviewBox.Padding = box ? new Thickness(size * .3, size * .08, size * .3, size * .12) : new Thickness(0);
+        SubtitlePreviewBox.Margin = new Thickness(20, 0, 20, 27 + (100 - SubtitleHeight()) / 100.0 * 165);
+    }
     private void BrowseMpv_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Title = "Sélectionner le moteur mpv 64 bits", Filter = "Bibliothèque mpv|mpv-2.dll;libmpv-2.dll;mpv-1.dll|Bibliothèques DLL|*.dll" };
@@ -119,7 +150,8 @@ public partial class MainWindow
         if (!_settings.EpisodeNotices && EpisodeNoticesCheck.IsChecked == true) _settings.EpisodesSeenFor = "";
         _settings.EpisodeNotices = EpisodeNoticesCheck.IsChecked == true; if (_settings.EpisodeNotices) EpisodesMayHaveArrived();
         _settings.AudioLanguage = AudioLanguageBox.Text.Trim(); _settings.SubtitleLanguage = SubtitleLanguageBox.Text.Trim();
-        _settings.SubtitleSize = (int)SubtitleSizeSlider.Value; _settings.MpvPath = MpvPathBox.Text.Trim();
+        _settings.SubtitleSize = (int)SubtitleSizeSlider.Value; _settings.SubtitleBackground = SubtitleBackgroundCheck.IsChecked == true; _settings.SubtitleBold = SubtitleBoldCheck.IsChecked == true;
+        _settings.SubtitleColor = Choice(SubtitleColorChoice) is { Length: > 0 } colour ? colour : SubtitleStyle.White; _settings.SubtitleHeight = SubtitleHeight(); _settings.MpvPath = MpvPathBox.Text.Trim();
         // Switching automatic placement back on starts from now: downloads finished meanwhile stay listed, to import by hand.
         var automaticAgain = !_settings.TorLinkAutoImport && TorLinkAutoImportCheck.IsChecked == true;
         _settings.TorLinkAutoImport = TorLinkAutoImportCheck.IsChecked == true; _settings.TorLinkKeepShared = TorLinkKeepSharedCheck.IsChecked == true;
@@ -137,7 +169,7 @@ public partial class MainWindow
         if (automaticAgain) _torlinkImporter?.RestartBaseline();
         if (_torlinkEnabled) ApplyTorLinkLibraries();
         if (remoteChanged) VisitRelaySoon();
-        _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.Set("sub-font-size", _settings.SubtitleSize.ToString(CultureInfo.InvariantCulture));
+        _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.StyleSubtitles(_settings);
         RenderLibrary(); UpdateHeroClock(); SettingsSaveStatus.Text = saved ? "Préférences enregistrées." : SettingsNotSaved;
         return saved;
     }

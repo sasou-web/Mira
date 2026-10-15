@@ -197,6 +197,12 @@ public sealed class PlayerSettings
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
     public bool AutoSkip { get; set; }
     public int SubtitleSize { get; set; } = 40;
+    /// <summary>« Taille et style des sous-titres » (<see cref="SubtitleStyle"/>): a dark box behind the text, its colour
+    /// (<see cref="SubtitleStyle.White"/> or <see cref="SubtitleStyle.Yellow"/>), bold, and mpv's sub-pos.</summary>
+    public bool SubtitleBackground { get; set; }
+    public string SubtitleColor { get; set; } = SubtitleStyle.White;
+    public bool SubtitleBold { get; set; }
+    public int SubtitleHeight { get; set; } = 100;
     public bool ShowProgress { get; set; } = true;
     public bool ReduceMotion { get; set; }
     public string PosterDensity { get; set; } = "Comfortable";

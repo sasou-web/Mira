@@ -47,6 +47,7 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels
   ├─ PlaybackSession : état d’une lecture sans WPF ni mpv (position, saut en attente, rapport, fin, titre vu, reprise un peu avant `ResumeBack` comme `resumeBack` de Mira web, cas communs `tests/fixtures/resume.json`), Windows et Mac
   ├─ MpvClient : API C de libmpv commune à Windows et Mac (options, propriétés, commandes, événements, volume au-delà de 100 %)
+  ├─ SubtitleStyle : taille, fond sombre, couleur, gras et hauteur des sous-titres en options de mpv, tolérées par un mpv ancien ; les ASS gardent leur style
   ├─ Catalog : liste affichée (page, favoris, bibliothèque, personne), pages reçues, « Continuer à regarder », titres, page vide, démo
   ├─ SkipPlanner : passages d’une lecture et épisode suivant (offre, intros sautées, compte à rebours), Windows et Mac
   ├─ DiskCache, ImageMemory : budget des images sur disque et en mémoire

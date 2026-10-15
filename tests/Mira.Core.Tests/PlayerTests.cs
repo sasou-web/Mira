@@ -193,6 +193,20 @@ internal static class PlayerTests
             Assert(VolumeBoost.Text(135.2) == "135 %" && VolumeBoost.Text(0) == "0 %", "The level beside the slider");
             return Task.CompletedTask;
         });
+        await Test("Sous-titres : taille, fond sombre, couleur, gras et hauteur donnés à mpv, ses défauts sinon (Windows et Mac)", () =>
+        {
+            var plain = SubtitleStyle.Options(new PlayerSettings());
+            Assert(plain.Count(x => x.Value is not null) == 1 && plain[0] == ("sub-font-size", "40"), "Default style: " + string.Join(", ", plain));
+            var options = SubtitleStyle.Options(new PlayerSettings { SubtitleSize = 52, SubtitleBackground = true, SubtitleColor = SubtitleStyle.Yellow, SubtitleBold = true, SubtitleHeight = 88 });
+            var styled = options.ToDictionary(x => x.Name, x => x.Value);
+            Assert(styled["sub-font-size"] == "52" && styled["sub-color"] == "#FFE14D" && styled["sub-bold"] == "yes" && styled["sub-pos"] == "88", "Text: " + string.Join(", ", options));
+            Assert(styled["sub-border-style"] == "background-box" && styled["sub-back-color"] == SubtitleStyle.Box && styled["sub-shadow-offset"] == "4" && styled["sub-outline-size"] == "0", "Box: " + string.Join(", ", options));
+            // The same options either way: turned off, what Mira set goes back to mpv's default. ASS keep their own styles.
+            Assert(plain.Select(x => x.Name).SequenceEqual(options.Select(x => x.Name)) && options.All(x => !x.Name.StartsWith("sub-ass", StringComparison.Ordinal)), "Options: " + string.Join(", ", options));
+            Assert(SubtitleStyle.Height(150) == 100 && SubtitleStyle.Height(95) == 94 && SubtitleStyle.Height(0) == 82 && SubtitleStyle.Heights[0] == (100, "En bas"), "Heights");
+            Assert(SubtitleStyle.Color("White") == "#FFFFFF" && SubtitleStyle.Color("Rouge") == "#FFFFFF", "Colour");
+            return Task.CompletedTask;
+        });
         await Test("Progression bornée et libellés d’épisodes", () =>
         {
             var item = new MediaItem { Id = "x", Name = "Le départ", SeriesName = "Les étoiles", Type = "Episode", ParentIndexNumber = 2, IndexNumber = 3, RunTimeTicks = 100, UserData = new() { PlaybackPositionTicks = 200 } };
