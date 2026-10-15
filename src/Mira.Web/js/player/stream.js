@@ -53,11 +53,13 @@ export function stageText(stage, playMethod = '') {
   if (playMethod === 'DirectPlay') return 'fichier lu tel quel';
   return stage === 0 ? 'conversion de Jellyfin' : stage === 1 ? 'vidéo convertie' : 'tout converti';
 }
-/** The detail under « Lecture impossible » for an error of the <video>. */
-export const videoErrorText = ({ code, message, playMethod, stage }) =>
-  `Erreur ${code ?? '?'}${message ? ` : ${message}` : ''} (${stageText(stage, playMethod)}).`;
+/** An error of the <video>: « Erreur 4 : … ». */
+export const videoError = ({ code, message }) => `Erreur ${code ?? '?'}${message ? ` : ${message}` : ''}`;
+/** The detail under « Lecture impossible » for an error of the <video>, with the stage it came at. */
+export const videoErrorText = ({ code, message, playMethod, stage }) => `${videoError({ code, message })} (${stageText(stage, playMethod)}).`;
 /** The same for a fatal error of hls.js. */
-export const hlsErrorText = ({ details, type, stage }) => `Erreur ${details ?? type} (${stageText(stage)}).`;
+export const hlsError = ({ details, type }) => `Erreur ${details ?? type}`;
+export const hlsErrorText = ({ details, type, stage }) => `${hlsError({ details, type })} (${stageText(stage)}).`;
 
 /**
  * An error of the <video>. A file Safari was thought to play directly but cannot (3: decode, 4: format): converted

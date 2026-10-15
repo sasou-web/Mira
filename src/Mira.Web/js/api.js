@@ -174,10 +174,11 @@ export function query(params) {
 export const url = (path, params) => `${base}/${path}${query(params)}`;
 
 /**
- * A request to Jellyfin; errors come back in French, ready to show. With the session's token unless `token` says
- * otherwise (null: none), and only once the server is known to be the session's (trustServer).
+ * A request to Jellyfin, with a JSON body or plain text (plain); errors come back in French, ready to show. With the
+ * session's token unless `token` says otherwise (null: none), and only once the server is known to be the session's
+ * (trustServer).
  */
-export async function request(method, path, { params, body, signal, timeout = 20000, keepalive = false, token = session.current?.token } = {}) {
+export async function request(method, path, { params, body, plain, signal, timeout = 20000, keepalive = false, token = session.current?.token } = {}) {
   if (token && token === session.current?.token) {
     // A report sent as Mira may go away (keepalive) does not wait for a new check: a server found yours a while ago
     // still is, unless the network may have changed since (a silence, a return: recheckServer).
@@ -196,8 +197,11 @@ export async function request(method, path, { params, body, signal, timeout = 20
       method,
       keepalive,
       signal: controller.signal,
-      headers: { Authorization: authorization(token), Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers: {
+        Authorization: authorization(token), Accept: 'application/json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : plain !== undefined ? { 'Content-Type': 'text/plain' } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : plain,
     });
   } catch (error) {
     if (signal?.aborted) throw error;
@@ -482,6 +486,11 @@ export const api = {
   syncQueue: (itemId, startTicks) => post('SyncPlay/SetNewQueue', { PlayingQueue: [itemId], PlayingItemPosition: 0, StartPositionTicks: Math.max(0, Math.round(startTicks || 0)) }),
   /** Pause, Unpause, Seek ({ PositionTicks }), Buffering and Ready ({ When, PositionTicks, IsPlaying, PlaylistItemId }), Ping. */
   syncSend: (what, body) => post(`SyncPlay/${what}`, body),
+  /**
+   * A text for Jellyfin's logs (ClientLog/Document: a file upload_Mira_<version>_….log, kept as long as its logs);
+   * its name. A 403 when Jellyfin takes none (AllowClientLogUpload).
+   */
+  sendLog: async (text) => (await request('POST', 'ClientLog/Document', { plain: text }))?.FileName ?? null,
   stopEncoding: (playSessionId) => request('DELETE', 'Videos/ActiveEncodings', { params: { deviceId: device.id, playSessionId }, keepalive: true }).catch(() => {}),
   /**
    * Downloads up to 4 MB to estimate the connection when away from home, for `limit` ms at most once Jellyfin starts

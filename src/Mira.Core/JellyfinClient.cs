@@ -535,6 +535,27 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return (await response.Content.ReadFromJsonAsync<AgentWork>(RemoteProtocol.Json, ct) ?? throw new IOException("Réponse Jellyfin vide."), response.StatusCode);
     }
+    /// <summary>
+    /// The « Lecture impossible » reports Mira web left in Jellyfin's logs (<see cref="PlaybackFailures"/>), the latest
+    /// first; null when this account may not read the logs (an administrator only).
+    /// </summary>
+    public async Task<List<PlaybackFailure>?> PlaybackFailuresAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("System/Logs", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        var files = await response.Content.ReadFromJsonAsync<List<LogFile>>(Json.Options, ct) ?? [];
+        var found = new List<PlaybackFailure>();
+        foreach (var file in files.Where(x => PlaybackFailures.IsMira(x.Name) && x.Size <= PlaybackFailures.MaxSize).OrderByDescending(x => x.DateModified).Take(PlaybackFailures.Shown))
+        {
+            using var log = await _http.GetAsync($"System/Logs/Log?name={Uri.EscapeDataString(file.Name)}", ct);
+            // Gone meanwhile (Jellyfin deletes its old logs): the others still show.
+            if (log.StatusCode == HttpStatusCode.NotFound) continue;
+            await CheckAsync(log);
+            if (PlaybackFailures.Parse(await log.Content.ReadAsStringAsync(ct)) is { } failure) found.Add(failure);
+        }
+        return found;
+    }
     private async Task<JsonObject?> EncodingSettingsAsync(CancellationToken ct)
     {
         using var response = await _http.GetAsync("System/Configuration/encoding", ct);
