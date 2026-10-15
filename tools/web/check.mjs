@@ -1068,20 +1068,37 @@ await big.close();
 
 // « Regarder ensemble » (Jellyfin's SyncPlay): two phones, two accounts (the second made here), one starts a group and
 // gets its invitation, the other opens the link signed out, signs in and is in the group; Lecture on the first opens the
-// title on both, playing together; a pause and a jump on the first reach the second; leaving the group on the second.
+// title on both, playing together; a pause and a jump on the first reach the second; the second away a few seconds
+// (iOS suspends a page in another app: Jellyfin lets its session go) comes back into the group in step; leaving the
+// group on the second. Then the host away until Jellyfin ends the empty group: the link waits for it, and the group
+// made again by the host on its return is joined.
 const togetherA = await newContext('ensemble (1)'), togetherB = await newContext('ensemble (2)');
 const ta = await togetherA.newPage(), tb = await togetherB.newPage();
 const togetherErrors = [];
 for (const p of [ta, tb]) p.on('pageerror', (e) => togetherErrors.push(e.message));
 const videoState = (p) => p.evaluate(() => { const v = document.querySelector('video'); return v ? { t: v.currentTime, paused: v.paused } : null; });
+// Jellyfin's socket of each phone, through Playwright: closed both ways and refused while the phone is away.
+const phones = new Map();
+for (const p of [ta, tb]) {
+  const state = { open: [], away: false };
+  phones.set(p, state);
+  await p.routeWebSocket(/\/socket\?/, (ws) => { if (state.away) { ws.close(); return; } state.open.push({ ws, server: ws.connectToServer() }); });
+}
+const suspend = async (p) => {
+  const state = phones.get(p);
+  state.away = true; await p.context().setOffline(true);
+  for (const { ws, server } of state.open.splice(0)) { server.close(); ws.close(); }
+};
+const resume = async (p) => { phones.get(p).away = false; await p.context().setOffline(false); };
+const as = (who) => (path, method = 'GET', body = null) => who.evaluate(async ([p, m, b]) => {
+  const session = JSON.parse(localStorage.getItem('mira.session'));
+  const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/${p}`, { method: m, body: b ? JSON.stringify(b) : undefined,
+    headers: { 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${session.token}"` } });
+  const t = await r.text(); return t ? JSON.parse(t) : null;
+}, [path, method, body]);
 try {
   await signIn(ta);
-  const asA = (path, method = 'GET', body = null) => ta.evaluate(async ([p, m, b]) => {
-    const session = JSON.parse(localStorage.getItem('mira.session'));
-    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/${p}`, { method: m, body: b ? JSON.stringify(b) : undefined,
-      headers: { 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${session.token}"` } });
-    const t = await r.text(); return t ? JSON.parse(t) : null;
-  }, [path, method, body]);
+  const asA = as(ta), asB = as(tb);
   // A friend's account (kept from a run before when there is one): all the libraries, as Jellyfin gives a new account.
   await asA('Users/New', 'POST', { Name: 'Ami Mira', Password: 'ami-check' }).catch(() => null);
   // A film long enough for a jump of 10 s (the episodes last 8).
@@ -1110,8 +1127,8 @@ try {
   await tb.waitForFunction(() => /2 personnes/.test([...document.querySelectorAll('#view .group-line')].map((x) => x.textContent).join(' ')), null, { timeout: 10000 }).catch(() => {});
   const joinedLine = (await line(tb).innerText()).replace(/\s+/g, ' ').trim();
   check('ensemble : un groupe créé, son lien d’invitation ouvert sur l’autre téléphone, connexion puis dans le groupe',
-    /Ensemble : Groupe de .+ · 1 personne/.test(created) && groupId && link.endsWith(`/Mira/#/ensemble/${groupId}`) && steps >= 3
-      && /invite à regarder ensemble/.test(invitedLead) && /^Tu es dans « Groupe de .+ »$/.test(joinPage) && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine),
+    /Ensemble : Groupe de .+ · 1 personne/.test(created) && groupId && link.endsWith(`/Mira/#/ensemble/${groupId}?hote=${encodeURIComponent(user)}`) && steps >= 3
+      && invitedLead.startsWith(`${user} t’invite à regarder ensemble`) && /^Tu es dans « Groupe de .+ »$/.test(joinPage) && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine),
     `« ${created} » ; lien ${link || 'absent'} (${steps} étapes) ; « ${invitedLead} » ; « ${joinPage} » ; « ${joinedLine} »`);
   await ta.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
   const followed = await tb.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 15000 }).then(() => true, () => false);
@@ -1137,12 +1154,28 @@ try {
   [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
   check('ensemble : un saut de 10 s puis la lecture sur l’un, suivis par l’autre', a && b && !a.paused && !b.paused && b.t > before + 6 && Math.abs(a.t - b.t) < 1,
     `de ${before.toFixed(2)} s à ${b?.t.toFixed(2)} s ; écart ${a && b ? Math.abs(a.t - b.t).toFixed(2) : '?'} s ; ${b?.paused ? 'l’autre en pause' : 'les deux en lecture'}`);
+  // The second phone away a few seconds: Jellyfin lets its session go, then takes it back as a newcomer, holding the
+  // group until it is ready where the group is.
+  await suspend(tb); await tb.waitForTimeout(3000);
+  const without = (await asA('SyncPlay/List'))?.find((g) => g.GroupId === groupId)?.Participants ?? [];
+  await resume(tb);
+  let back = [];
+  for (let i = 0; i < 20 && back.length < 2; i++) { await tb.waitForTimeout(500); back = (await asA('SyncPlay/List'))?.find((g) => g.GroupId === groupId)?.Participants ?? []; }
+  await ta.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused; }, null, { timeout: 30000 }).catch(() => {});
+  await tb.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused; }, null, { timeout: 30000 }).catch(() => {});
+  await ta.waitForTimeout(2000);
+  [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
+  check('ensemble : l’autre téléphone parti quelques secondes revient dans le groupe, au même moment que le premier',
+    without.length === 1 && back.length === 2 && a && b && !a.paused && !b.paused && Math.abs(a.t - b.t) < 1,
+    `${without.length} puis ${back.length} dans le groupe ; ${a ? `${a.t.toFixed(2)} s${a.paused ? ' (en pause)' : ''}` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s${b.paused ? ' (en pause)' : ''}` : 'pas de vidéo'}`);
   await tb.keyboard.press('Escape');
   await tb.waitForFunction(() => location.hash.startsWith('#/titre/'), null, { timeout: 8000 }).catch(() => {});
   await tb.waitForTimeout(1500);
   // Jellyfin no longer waits for the one who closed: a jump on the other still plays on.
   const seekFrom = (await videoState(ta))?.t ?? 0;
   await ta.keyboard.press('ArrowLeft');
+  // The jump goes to the group, which pauses it there until it is ready, then starts it: the time of that round trip.
+  await ta.waitForTimeout(2000);
   await ta.waitForFunction((t) => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime < t - 4; }, seekFrom, { timeout: 10000 }).catch(() => {});
   await ta.waitForTimeout(1000);
   const stillA = await videoState(ta);
@@ -1153,6 +1186,37 @@ try {
   check('ensemble : fermer le lecteur laisse les autres regarder, et sauter ; quitter le groupe', stillA && !stillA.paused && stillA.t < seekFrom - 4 && leftLine === 'Regarder ensemble' && !togetherErrors.length,
     `${stillA && !stillA.paused ? 'l’autre continue' : 'l’autre s’est arrêté'}, de ${seekFrom.toFixed(2)} s à ${stillA?.t.toFixed(2)} s ; « ${leftLine} »${togetherErrors.length ? ` ; ${togetherErrors.slice(0, 2).join(' | ')}` : ''}`);
   await ta.screenshot({ path: `${out}/23-together.png` });
+  // The host alone, away (its iPhone in Messages to send the link): Jellyfin ends the empty group. A link without its
+  // host (sent before) has nothing to find; the link of now waits, then joins the group the host makes again on its return.
+  await ta.keyboard.press('Escape');
+  await ta.waitForFunction(() => location.hash.startsWith('#/titre/'), null, { timeout: 8000 }).catch(() => {});
+  await ta.waitForTimeout(1000);
+  await ta.evaluate(() => {
+    window.seenToasts = [];
+    new MutationObserver(() => { const t = document.querySelector('.toast-layer')?.textContent?.trim(); if (t && window.seenToasts.at(-1) !== t) window.seenToasts.push(t); })
+      .observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+  });
+  await suspend(ta);
+  let ended = false;
+  for (let i = 0; i < 20 && !ended; i++) { await tb.waitForTimeout(500); ended = !((await asB('SyncPlay/List')) ?? []).some((g) => g.GroupId === groupId); }
+  await tb.evaluate((id) => { location.hash = `#/ensemble/${id}`; }, groupId);
+  await tb.waitForFunction(() => /pas pu être rejoint/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
+  const oldLink = (await tb.locator('#view .lead').innerText().catch(() => '')).trim();
+  await tb.evaluate((hash) => { location.hash = hash; }, link.slice(link.indexOf('#')));
+  await tb.waitForFunction(() => /pas encore lancé/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
+  const waitingPage = (await tb.locator('#view h1').innerText().catch(() => '')).trim();
+  await tb.screenshot({ path: `${out}/24-together-waiting.png` });
+  await resume(ta);
+  await tb.waitForFunction(() => /Tu es dans/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 40000 }).catch(() => {});
+  const rejoinedPage = (await tb.locator('#view h1').innerText().catch(() => '')).trim();
+  await ta.waitForFunction(() => /2 personnes/.test(document.querySelector('#view .group-line')?.textContent ?? ''), null, { timeout: 10000 }).catch(() => {});
+  const hostLine = (await line(ta).innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+  const hostToasts = await ta.evaluate(() => window.seenToasts ?? []);
+  const groupsNow = (await asB('SyncPlay/List')) ?? [];
+  check('ensemble : l’hôte parti, Jellyfin finit le groupe ; le lien attend, puis rejoint le groupe refait au retour de l’hôte',
+    ended && /n’existe plus/.test(oldLink) && waitingPage === `${user} n’a pas encore lancé la soirée` && /^Tu es dans « Groupe de .+ »$/.test(rejoinedPage)
+      && /Ensemble : Groupe de .+ · 2 personnes/.test(hostLine) && !hostToasts.some((t) => /n’existe plus/.test(t)) && groupsNow.length === 1 && groupsNow[0].GroupId !== groupId,
+    `${ended ? 'groupe fini par Jellyfin' : 'groupe toujours là'} ; ancien lien : « ${oldLink} » ; « ${waitingPage} » puis « ${rejoinedPage} » ; hôte : « ${hostLine} »${hostToasts.length ? ` (${hostToasts.join(' | ')})` : ''} ; ${groupsNow.length} groupe(s)`);
 } catch (error) {
   check('ensemble : déroulé', false, error.message.split('\n')[0]);
 }

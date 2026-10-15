@@ -1,5 +1,5 @@
 {
-  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js) and tests/Mira.Core.Tests (Together.cs). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]; invites: [address of Jellyfin for the friend, group, link of the invitation, what it says under the link]; appLinks: [address, group, link for Mira on a computer (Together.ParseAppLink reads it back)]; badAppLinks: links Mira for Windows and Mac refuse",
+  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js) and tests/Mira.Core.Tests (Together.cs). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]; invites: [address of Jellyfin for the friend, group, its host (who made it) or null, link of the invitation, what it says under the link]; appLinks: [address, group, host or null, link for Mira on a computer (Together.ParseAppLink reads it back)]; badAppLinks: links Mira for Windows and Mac refuse; hosts: [group name, who made it]; finds: [Jellyfin's groups, group of the invitation, its host, the group it means or null]; rejoins: [Jellyfin's groups, the group this device was in, made here, what it does to go back]",
   "times": [
     ["2026-10-14T14:48:08.5712105Z", 1791989288571],
     ["2026-10-14T14:48:08Z", 1791989288000],
@@ -29,8 +29,10 @@
     [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Soirée", "State": "Playing", "Participants": ["mira", "léa", "sam"]}, "Soirée · 3 personnes"]
   ],
   "appLinks": [
-    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096"],
-    ["https://films.example.org/jellyfin/", "74644121-30f5-4334-a8a1-4638f0060cd6", "mira://ensemble/74644121-30f5-4334-a8a1-4638f0060cd6?server=https%3A%2F%2Ffilms.example.org%2Fjellyfin"]
+    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", null, "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096"],
+    ["https://films.example.org/jellyfin/", "74644121-30f5-4334-a8a1-4638f0060cd6", null, "mira://ensemble/74644121-30f5-4334-a8a1-4638f0060cd6?server=https%3A%2F%2Ffilms.example.org%2Fjellyfin"],
+    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", "léa", "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096&hote=l%C3%A9a"],
+    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", "Marc D", "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096&hote=Marc%20D"]
   ],
   "badAppLinks": [
     "http://100.101.102.103:8096/Mira/#/ensemble/7464412130f54334a8a14638f0060cd6",
@@ -39,11 +41,35 @@
     "mira://ensemble/7464412130f54334a8a14638f0060cd6",
     "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=javascript%3Aalert(1)",
     "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=file%3A%2F%2F%2FC%3A%2FWindows",
-    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2Fmoi%3Asecret%40films.example.org"
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2Fmoi%3Asecret%40films.example.org",
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096&hote=",
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096&hote=l%C3%A9a%0A"
   ],
   "invites": [
-    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", "http://100.101.102.103:8096/Mira/#/ensemble/7464412130f54334a8a14638f0060cd6", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.", "Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]],
-    ["http://192.168.1.20:8096/", "7464412130f54334a8a14638f0060cd6", "http://192.168.1.20:8096/Mira/#/ensemble/7464412130f54334a8a14638f0060cd6", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.", "Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]],
-    ["https://films.example.org/jellyfin", "74644121-30f5-4334-a8a1-4638f0060cd6", "https://films.example.org/jellyfin/Mira/#/ensemble/74644121-30f5-4334-a8a1-4638f0060cd6", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]]
+    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", "mira", "http://100.101.102.103:8096/Mira/#/ensemble/7464412130f54334a8a14638f0060cd6?hote=mira", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.", "Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]],
+    ["http://192.168.1.20:8096/", "7464412130f54334a8a14638f0060cd6", "léa", "http://192.168.1.20:8096/Mira/#/ensemble/7464412130f54334a8a14638f0060cd6?hote=l%C3%A9a", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.", "Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]],
+    ["https://films.example.org/jellyfin", "74644121-30f5-4334-a8a1-4638f0060cd6", null, "https://films.example.org/jellyfin/Mira/#/ensemble/74644121-30f5-4334-a8a1-4638f0060cd6", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]]
+  ],
+  "hosts": [
+    ["Groupe de mira", "mira"],
+    ["Groupe de Marc D", "Marc D"],
+    ["Soirée", null],
+    ["Groupe de ", null]
+  ],
+  "finds": [
+    [[{"GroupId": "74644121-30f5-4334-a8a1-4638f0060cd6", "GroupName": "Groupe de mira", "Participants": ["mira"]}], "7464412130f54334a8a14638f0060cd6", "mira", "74644121-30f5-4334-a8a1-4638f0060cd6"],
+    [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de mira", "Participants": ["mira"]}], "7464412130f54334a8a14638f0060cd6", "mira", "b61818a0ff7c4c6eb39e2b73b85f3bcc"],
+    [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de mira", "Participants": ["mira"]}], "7464412130f54334a8a14638f0060cd6", null, null],
+    [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de léa", "Participants": ["léa"]}], "7464412130f54334a8a14638f0060cd6", "mira", null],
+    [[{"GroupId": "11111111111111111111111111111111", "GroupName": "Groupe de mira", "Participants": ["léa", "sam"]}, {"GroupId": "22222222222222222222222222222222", "GroupName": "Groupe de mira", "Participants": ["mira"]}], "7464412130f54334a8a14638f0060cd6", "mira", "22222222222222222222222222222222"],
+    [[{"GroupId": "11111111111111111111111111111111", "GroupName": "Groupe de mira", "Participants": ["léa"]}, {"GroupId": "22222222222222222222222222222222", "GroupName": "Groupe de mira", "Participants": ["léa", "sam"]}], "7464412130f54334a8a14638f0060cd6", "mira", "22222222222222222222222222222222"],
+    [[], "7464412130f54334a8a14638f0060cd6", "mira", null]
+  ],
+  "rejoins": [
+    [[{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "Participants": ["léa"]}], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, false, {"join": "7464412130f54334a8a14638f0060cd6"}],
+    [[], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, true, {"create": "Groupe de mira"}],
+    [[], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, false, null],
+    [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de mira", "Participants": ["mira"]}], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, true, {"join": "b61818a0ff7c4c6eb39e2b73b85f3bcc"}],
+    [[], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Soirée"}, true, {"create": "Soirée"}]
   ]
 }

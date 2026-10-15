@@ -177,7 +177,7 @@ public sealed class DetailPage : Page
             foreach (var g in groups)
                 Add($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
-            Add("Créer un groupe et inviter…", () => _ = watch.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct), invite: true));
+            Add("Créer un groupe et inviter…", () => _ = watch.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct), invite: true, made: true));
         }
         menu.Open(button);
     }

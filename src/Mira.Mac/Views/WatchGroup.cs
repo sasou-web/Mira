@@ -12,7 +12,9 @@ namespace Mira.Mac.Views;
 /// A group plays one title at the same moment on each of its devices: Lecture puts a title on for the group, and pause,
 /// play, seeks and the next episode go to Jellyfin, which tells each device what to do and when, on its clock
 /// (<see cref="Together"/>). One group at a time, joined or left from the title page, left from the player's ⋮ too. The
-/// group outlives the player (each playback has its own <see cref="PlayerPage"/>): it lives with the window.
+/// group outlives the player (each playback has its own <see cref="PlayerPage"/>): it lives with the window. Jellyfin
+/// lets a device go with its socket (Wi-Fi lost, the Mac asleep): back, this Mac joins the group again, or makes it again
+/// under the same name when it made it and the group ended empty, so that the invitation sent still finds it.
 /// </summary>
 public sealed class WatchGroup
 {
@@ -32,6 +34,12 @@ public sealed class WatchGroup
     private bool _listening;
     // In order: a Ready sent after its Buffering must arrive after it.
     private Task _sends = Task.CompletedTask;
+    /// <summary>The group was made on this Mac: made again if Jellyfin ends it (<see cref="Together.RejoinPlan"/>).</summary>
+    private bool _made;
+    /// <summary>Back in the group: Jellyfin sends its title again, and holds the others until this Mac is ready.</summary>
+    private bool _rejoined;
+    /// <summary>Going back to the group after Jellyfin let this Mac go, once at a time.</summary>
+    private Task? _recovering;
     /// <summary>The group changed (joined, left, someone came): the title page and the player's ⋮ show it again.</summary>
     public event Action? Changed;
 
@@ -55,6 +63,11 @@ public sealed class WatchGroup
         {
             case "GroupJoined":
                 if (Together.ParseGroup(body) is not { } group) return;
+                // The same group again (back after a break): its title stays until Jellyfin sends it again. Jellyfin
+                // takes this Mac as a newcomer, which it does not tell to wait or not: said again with the title.
+                var again = Active && Group is { } was && Together.SameGroup(was.GroupId, group.GroupId);
+                if (!again) Queue = null;
+                _rejoined = again && Queue is not null; _away = false;
                 _session = session; Group = group; _joined?.TrySetResult(); _joined = null;
                 _clock.Start(); _ = SyncClockAsync(); Changed?.Invoke();
                 break;
@@ -63,7 +76,10 @@ public sealed class WatchGroup
                 _ = RefreshAsync(session);
                 break;
             case "GroupLeft": Gone(); break;
-            case "NotInGroup" or "GroupDoesNotExist": Gone(Group is null ? null : "Le groupe n’existe plus."); break;
+            // Jellyfin let this Mac go (its session ended): back in the group, or out of it when there is none to go back to.
+            case "NotInGroup" or "GroupDoesNotExist":
+                if (Group is null) Gone(); else Recover(session);
+                break;
             case "LibraryAccessDenied": _shell.Notice("Un membre du groupe n’a pas accès à ce titre dans Jellyfin."); break;
             case "PlayQueue": _ = QueueAsync(session, body); break;
         }
@@ -73,9 +89,37 @@ public sealed class WatchGroup
     {
         if (!ReferenceEquals(session, _shell.Session)) return;
         var reopened = open && !_listening; _listening = open;
-        if (!reopened || !Active || Group is not { } group) return;
-        _ = RejoinAsync();
-        async Task RejoinAsync() { try { await session.Client.SyncJoinAsync(group.GroupId, session.Lifetime); } catch (Exception ex) when (Errors.Expected(ex)) { } }
+        if (reopened) Recover(session);
+    }
+    /// <summary>
+    /// Back in the group after Jellyfin let this Mac go (its session ended with the WebSocket): joined again where it is,
+    /// or made again under its name when this Mac made it and it ended empty (<see cref="Together.RejoinPlan"/>). Out of
+    /// it when there is none to go back to, or when Jellyfin twice says nothing; still in it while Jellyfin cannot be
+    /// reached (the socket's next opening tries again).
+    /// </summary>
+    private void Recover(Session session)
+    {
+        if (!Active || Group is not { } lost || !ReferenceEquals(session, _session) || _recovering is { IsCompleted: false }) return;
+        _recovering = RecoverAsync();
+        async Task RecoverAsync()
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var joined = _joined = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                try
+                {
+                    var plan = Together.RejoinPlan(await session.Client.SyncGroupsAsync(session.Lifetime), lost, _made);
+                    if (!ReferenceEquals(session, _shell.Session) || !ReferenceEquals(Group, lost)) return;
+                    if (plan is null) { Gone("Le groupe n’existe plus."); return; }
+                    await (plan.Join is { } id ? session.Client.SyncJoinAsync(id, session.Lifetime) : session.Client.SyncNewAsync(plan.Create!, session.Lifetime));
+                    await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6), session.Lifetime));
+                }
+                catch (Exception ex) when (Errors.Expected(ex)) { return; }
+                finally { if (ReferenceEquals(_joined, joined)) _joined = null; }
+                if (!ReferenceEquals(Group, lost)) return;
+            }
+            Gone("Le groupe n’existe plus.");
+        }
     }
     /// <summary>Jellyfin names each account once, whatever its devices: its own list, rather than a count kept here.</summary>
     private async Task RefreshAsync(Session session)
@@ -92,7 +136,7 @@ public sealed class WatchGroup
     public void Gone(string? notice = null)
     {
         var was = Group is not null;
-        Group = null; Queue = null; Offset = 0; _away = false; _session = null; _listening = false;
+        Group = null; Queue = null; Offset = 0; _away = false; _session = null; _listening = false; _made = false; _rejoined = false;
         _clock.Stop(); _joined?.TrySetResult(); _joined = null;
         if (was) Changed?.Invoke();
         if (notice is not null) _shell.Notice(notice);
@@ -143,9 +187,14 @@ public sealed class WatchGroup
     private async Task QueueAsync(Session session, JsonElement data)
     {
         if (Together.QueueItem(data) is not { } next) { Queue = null; return; }
-        // Shuffle, repeat or the list changed around the same title: nothing to load again.
-        if (Queue?.PlaylistItemId == next.PlaylistItemId) return;
-        Queue = next; SetAway(false);
+        var same = Queue?.PlaylistItemId == next.PlaylistItemId;
+        // Shuffle, repeat or the list changed around the same title: nothing to load again. Unless this Mac is back in the
+        // group: Jellyfin holds the others until it is ready there, or told that its player is closed.
+        if (same && !_rejoined) return;
+        _rejoined = false;
+        Queue = next;
+        if (same && !(_shell.Player is { } shown && shown.Item?.Id == next.ItemId && !shown.IsStopped)) { SetAway(true); return; }
+        SetAway(false);
         var start = next.StartTicks / 1e7;
         Report("Buffering", start, false);
         // The same title put on again by another device: it waits there with the others.
@@ -183,10 +232,11 @@ public sealed class WatchGroup
         return true;
     }
 
-    /// <summary>« Créer un groupe » or « Rejoindre … »: done once Jellyfin says GroupJoined.</summary>
-    public async Task EnterAsync(Func<JellyfinClient, CancellationToken, Task> start, bool invite = false)
+    /// <summary>« Créer un groupe » (<paramref name="made"/>) or « Rejoindre … »: done once Jellyfin says GroupJoined.</summary>
+    public async Task EnterAsync(Func<JellyfinClient, CancellationToken, Task> start, bool invite = false, bool made = false)
     {
         if (_shell.Session is not { } session) return;
+        _made = made;
         var joined = _joined = new(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
@@ -210,7 +260,7 @@ public sealed class WatchGroup
         if (!Active || Group is not { } group || _session is not { } session) return;
         var server = session.Connection.Server;
         var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
-        var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId);
+        var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId, Together.GroupHost(group.GroupName));
         await new InviteWindow(group, link, text => _shell.Notice(text)).ShowDialog(_shell);
     }
     public async Task LeaveAsync()

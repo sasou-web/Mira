@@ -1,17 +1,24 @@
 // Jellyfin's WebSocket, one for the page, open while something listens: the player (« Arrêter » from Mira for Windows
 // or Jellyfin's dashboard) and a « Regarder ensemble » group (together.js). Jellyfin sends those only to a session that
 // takes them (api.capabilities) and whose socket is open. Lost (Wi-Fi to 4G, PC asleep), it comes back by itself,
-// sooner or later.
+// sooner or later, and at once when the network or the page is back (iOS suspends a page in another app: a group of
+// « Regarder ensemble » waits for this device until then).
 import { api } from './api.js';
 
 const listeners = new Set();
-let socket = null, retry = 0, beat = 0, failures = 0, opening = false;
+let socket = null, retry = 0, beat = 0, failures = 0, opening = false, watching = false;
 
 const send = (m) => { try { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(m)); } catch { /* closing */ } };
 function again() {
   clearTimeout(retry);
   if (!listeners.size) return;
   retry = setTimeout(open, Math.min(30_000, 1000 * 2 ** failures++));
+}
+/** The network or the page back: no waiting out the delay of the failures while it was gone. */
+function now() {
+  if (socket || !listeners.size || document.hidden) return;
+  clearTimeout(retry); failures = 0;
+  open();
 }
 async function open() {
   if (socket || opening || !listeners.size) return;
@@ -55,6 +62,11 @@ async function open() {
 export function listen(handlers = {}) {
   const mine = { ...handlers };
   listeners.add(mine);
+  if (!watching) {
+    watching = true;
+    window.addEventListener('online', now);
+    document.addEventListener('visibilitychange', now);
+  }
   open();
   return {
     send,

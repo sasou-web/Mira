@@ -53,17 +53,62 @@ export function queueItem(data) {
 /** The name a new group takes: « Groupe de mira ». */
 export const groupName = (user) => `Groupe de ${user}`;
 
+/** Who made a group of Mira, from its name (« Groupe de mira » → mira); null for a name Mira does not give. */
+export function groupHost(name) {
+  const m = /^Groupe de (.+)$/.exec(name ?? '');
+  return m ? m[1] : null;
+}
+
+/** Jellyfin writes a group's id with or without dashes. */
+export const sameGroup = (a, b) => String(a ?? '').replace(/-/g, '').toLowerCase() === String(b ?? '').replace(/-/g, '').toLowerCase();
+
+/**
+ * The group an invitation means among Jellyfin's: the one of its id, else the one its host made again since under the
+ * same name (Jellyfin ends an empty group with its last device; together.js makes it again), with the host in it
+ * first, then the fullest. Null when none is open.
+ */
+export function findGroup(groups, id, host) {
+  const list = Array.isArray(groups) ? groups : [];
+  const same = list.find((g) => sameGroup(g.GroupId, id));
+  if (same || !host) return same ?? null;
+  const there = (g) => (g.Participants ?? []).includes(host);
+  const named = list.filter((g) => g.GroupName === groupName(host));
+  named.sort((a, b) => Number(there(b)) - Number(there(a)) || (b.Participants?.length ?? 0) - (a.Participants?.length ?? 0));
+  return named[0] ?? null;
+}
+
+/**
+ * Back in a group Jellyfin let this device go from (its session ended with its socket: an iPhone gone to Messages, Wi-Fi
+ * to 4G): `{ join: id }` where it still is, `{ create: name }` when this device made it and it ended (empty), so that
+ * the invitations sent still find it (findGroup); null when there is nothing to go back to.
+ */
+export function rejoinPlan(groups, lost, made) {
+  const found = findGroup(groups, lost?.GroupId, groupHost(lost?.GroupName));
+  if (found) return { join: found.GroupId };
+  return made && lost?.GroupName ? { create: lost.GroupName } : null;
+}
+
+/** What a friend reads when the host has no group open yet: « mira n’a pas encore lancé la soirée ». */
+export const waitingText = (host) => `${host} n’a pas encore lancé la soirée`;
+/** What it says under it, while Mira waits for the group. */
+export const WAITING_LEAD = 'Garde Mira ouvert : tu entres dans le groupe dès qu’il est ouvert.';
+
 /** « 2 personnes » (Jellyfin names each account of the group once, whatever its devices). */
 export const people = (count) => (count <= 1 ? '1 personne' : `${count} personnes`);
 
 /** « Groupe de mira · 2 personnes ». */
 export const groupText = (group) => `${group?.GroupName ?? 'Groupe'} · ${people(group?.Participants?.length ?? 1)}`;
 
-/** The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it. */
-export const inviteLink = (server, groupId) => `${String(server).replace(/\/+$/, '')}/Mira/#/ensemble/${encodeURIComponent(groupId)}`;
+/**
+ * The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it. Its
+ * host (who made the group) keeps it valid when the group is made again, or not open yet (findGroup).
+ */
+export const inviteLink = (server, groupId, host) =>
+  `${String(server).replace(/\/+$/, '')}/Mira/#/ensemble/${encodeURIComponent(groupId)}${host ? `?hote=${encodeURIComponent(host)}` : ''}`;
 
 /** The same invitation for Mira on a computer (« Ouvrir dans Mira »): Mira for Windows or Mac offers to join the group. */
-export const appLink = (server, groupId) => `mira://ensemble/${encodeURIComponent(groupId)}?server=${encodeURIComponent(String(server).replace(/\/+$/, ''))}`;
+export const appLink = (server, groupId, host) =>
+  `mira://ensemble/${encodeURIComponent(groupId)}?server=${encodeURIComponent(String(server).replace(/\/+$/, ''))}${host ? `&hote=${encodeURIComponent(host)}` : ''}`;
 
 /** Where a host is reached from: Tailscale, the home network only, or the Internet. */
 function reach(host) {
