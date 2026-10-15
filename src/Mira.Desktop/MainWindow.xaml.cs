@@ -169,6 +169,7 @@ public partial class MainWindow : Window
 #endif
         _fallbackRefresh.Start();
         StartKeepingAwake();
+        StartGpuRecheck();
         _ = RefreshEngineAsync();
         ShowStartupScreen();
         _ = NoticeStaleRuleAsync();

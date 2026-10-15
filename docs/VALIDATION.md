@@ -2,6 +2,14 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## Carte graphique revérifiée après une mise à jour (non publié)
+
+- **Besoin** : une mise à jour du pilote de la carte ou de Jellyfin peut casser les conversions qui marchaient quand « Utiliser la carte graphique » a gardé la carte ; le téléphone n’a plus alors que « Lecture impossible » pour tout titre à convertir, et rien ne le disait sur le PC.
+- **Correctif** : pour un administrateur d’un Jellyfin sur ce PC qui convertit avec une carte, Mira compare la version de Jellyfin et les pilotes des cartes à ceux du dernier essai réussi, deux minutes après son démarrage puis toutes les demi-heures ; s’ils ont changé et que personne ne regarde, il refait l’essai de conversion ; deux échecs de suite remettent le processeur, avec un avis.
+- **Vérifié sur Jellyfin 12.1 (conteneur, sans carte graphique)** : par `JellyfinClient` et `GpuRecheck` eux-mêmes, `nvenc` réglé : premier essai `False` (500 de Jellyfin), `TryAgain` ; second `False`, `Processor`, `HardwareAccelerationType` relu `none` ; essai suivant avec le processeur `True`.
+- **Tests** : empreinte (ordre, doublons, version ou cartes inconnues), décision (processeur, réglage illisible, rien de changé, quelqu’un regarde), verdicts après un essai, avis, version lue dans `System/Info/Public` (Core, partout).
+- **Non vérifié** : sur un vrai PC, les pilotes lus par WMI, une vraie mise à jour de pilote, l’avis dans Mira pour Windows.
+
 ## Mira web à jour le jour même (non publié)
 
 - **Besoin** : après une mise à jour de Mira, Jellyfin ne prenait la nouvelle version de Mira web qu’à sa recherche de mises à jour (à son démarrage, puis toutes les 24 h), puis à son redémarrage suivant : parfois des jours plus tard.

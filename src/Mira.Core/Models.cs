@@ -226,6 +226,12 @@ public sealed class PlayerSettings
     public string MiraWebUpdated { get; set; } = "";
     /// <summary>The same, once Jellyfin serves that version of Mira web or a newer one (after its restart); empty before 0.7.9.</summary>
     public string MiraWebServed { get; set; } = "";
+    /// <summary>
+    /// The Jellyfin version and graphics drivers (<see cref="GpuRecheck.Fingerprint"/>) for which a conversion on the card
+    /// last worked, and the failed tries since they changed; empty and 0 before 0.7.9.
+    /// </summary>
+    public string GpuCheckedFor { get; set; } = "";
+    public int GpuFailures { get; set; }
     /// <summary>The window's size (outside fullscreen and the mini-player) and state when Mira last closed; 0: never saved.</summary>
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }
