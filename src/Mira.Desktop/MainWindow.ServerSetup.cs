@@ -57,7 +57,7 @@ public partial class MainWindow
         if (password.Length == 0) { SetupStatus.Text = "Choisis un mot de passe."; SetupPasswordBox.Focus(); return; }
         if (MediaFolders.Refusal(root) is { } refusal) { SetupStatus.Text = refusal; SetupFolderBox.Focus(); return; }
         SetServerSetupBusy(true);
-        var server = JellyfinSetup.LocalServer; var started = DateTimeOffset.Now.AddMinutes(-1);
+        var server = JellyfinSetup.LocalServer; var started = DateTimeOffset.Now.AddMinutes(-1); RunningInstaller? installer = null;
         try
         {
             SetupStatus.Text = "Recherche de Jellyfin…";
@@ -74,23 +74,36 @@ public partial class MainWindow
                     if (JellyfinSetup.PortInUse(server.Port))
                         throw new InstallException("Le port 8096, celui de Jellyfin, est déjà pris : ferme le programme qui l’utilise, puis réessaie.");
                     var version = JellyfinServerPackage.Current.Version; SetupStatus.Text = $"Téléchargement de Jellyfin {version}…";
-                    var code = await JellyfinInstaller.InstallAsync(_profile.DirectoryPath, new Progress<double>(p => SetupStatus.Text = p < 1
+                    installer = await JellyfinInstaller.StartAsync(_profile.DirectoryPath, new Progress<double>(p => SetupStatus.Text = p < 1
                         ? $"Téléchargement de Jellyfin {version}… {Math.Floor(p * 100):0} %"
-                        : "Accepte l’autorisation de Windows. Si l’installateur affiche « Could not start the Jellyfin Server service », choisis Ignorer."));
+                        : "Accepte l’autorisation de Windows."));
                     // "Could not start the Jellyfin Server service" can come while the service does start ("nssm start" gives
-                    // up before it runs; seen on a real PC): once installed, whether Jellyfin answers is what counts.
-                    if (code != 0 && !JellyfinInstaller.IsInstalled())
-                        throw new InstallException($"L’installateur de Jellyfin s’est arrêté sans terminer (code {code})." + LoggedCause(started, orWhere: false));
+                    // up before it runs; seen on a real PC), and its window then waits, often behind Mira: once installed,
+                    // whether Jellyfin answers is what counts, and the setup goes on without that window's answer.
+                    SetupStatus.Text = "Installation de Jellyfin…"; var shown = false; var waiting = true;
+                    var wait = await JellyfinSetup.AwaitInstallerAsync(installer.Exited, server, new Progress<int>(_ =>
+                    {
+                        // Reported on this thread, maybe after the wait: then the status says the next step.
+                        if (shown || !waiting || !installer.HasWindow) return;
+                        shown = true; installer.BringForward();
+                        SetupStatus.Text = "L’installateur de Jellyfin affiche un message : si c’est « Could not start the Jellyfin Server service », choisis Ignorer. Mira attend ensuite que Jellyfin réponde.";
+                    }));
+                    waiting = false; state = wait.State;
+                    if (state is null && wait.ExitCode != 0 && !JellyfinInstaller.IsInstalled())
+                        throw new InstallException($"L’installateur de Jellyfin s’est arrêté sans terminer (code {wait.ExitCode})." + LoggedCause(started, orWhere: false));
                     installed = true;
                 }
-                SetupStatus.Text = existing && probe.Answer == ServerAnswer.Nothing ? "Jellyfin est déjà installé : attente de son démarrage…" : "Démarrage de Jellyfin…";
-                try { state = await JellyfinSetup.WaitAsync(server, existing && probe.Answer == ServerAnswer.Nothing ? TimeSpan.FromMinutes(1) : TimeSpan.FromMinutes(3)); }
-                catch (InstallException)
+                if (state is null)
                 {
-                    // A Jellyfin found installed may have failed at the PC's start, well before this attempt.
-                    throw new InstallException(installed
-                        ? "Jellyfin est installé mais ne démarre pas : redémarre le PC, puis réessaie." + LoggedCause(started)
-                        : "Jellyfin est installé mais ne répond pas : lance « Jellyfin Server » depuis le menu Démarrer, puis réessaie." + LoggedCause(DateTimeOffset.Now.AddDays(-1)));
+                    SetupStatus.Text = existing && probe.Answer == ServerAnswer.Nothing ? "Jellyfin est déjà installé : attente de son démarrage…" : "Démarrage de Jellyfin…";
+                    try { state = await JellyfinSetup.WaitAsync(server, existing && probe.Answer == ServerAnswer.Nothing ? TimeSpan.FromMinutes(1) : TimeSpan.FromMinutes(3)); }
+                    catch (InstallException)
+                    {
+                        // A Jellyfin found installed may have failed at the PC's start, well before this attempt.
+                        throw new InstallException(installed
+                            ? "Jellyfin est installé mais ne démarre pas : redémarre le PC, puis réessaie." + LoggedCause(started)
+                            : "Jellyfin est installé mais ne répond pas : lance « Jellyfin Server » depuis le menu Démarrer, puis réessaie." + LoggedCause(DateTimeOffset.Now.AddDays(-1)));
+                    }
                 }
             }
             if (state.WizardCompleted)
@@ -114,10 +127,27 @@ public partial class MainWindow
             _serverSetupBusy = false; ShowSignInForm();
             await ActivateConnectionAsync(connection);
             OpenGuide($"Jellyfin est prêt. Range tes vidéos dans {folders.Root}.");
+            if (installer is { Running: true }) InstallerStillAsking(installer);
         }
-        catch (Exception ex) when (ex is InstallException or UserInputException) { SetupFailed(ex.Message); }
-        catch (Exception ex) when (IsExpected(ex)) { SetupFailed(Friendly(ex)); }
+        catch (Exception ex) when (ex is InstallException or UserInputException) { SetupFailed(ex.Message, installer); }
+        catch (Exception ex) when (IsExpected(ex)) { SetupFailed(Friendly(ex), installer); }
         finally { SetServerSetupBusy(false); }
+    }
+    private const string InstallerAsks = "L’installateur de Jellyfin attend encore une réponse : dans sa fenêtre « Could not start the Jellyfin Server service », choisis Ignorer. Jellyfin fonctionne déjà.";
+    /// <summary>
+    /// The installer's message box left waiting while Jellyfin runs: brought in front of Mira to be answered, and said
+    /// until it ends.
+    /// </summary>
+    private void InstallerStillAsking(RunningInstaller installer)
+    {
+        SetNotice(InstallerAsks, null, null, sticky: true);
+        installer.BringForward();
+        _ = HideOnceEndedAsync();
+        async Task HideOnceEndedAsync()
+        {
+            try { await installer.Exited; } catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+            if (NoticeText.Text == InstallerAsks) HideNotice();
+        }
     }
     /// <summary>Why Jellyfin stopped, from its own log since <paramref name="since"/>; otherwise where that log is, or nothing.</summary>
     private static string LoggedCause(DateTimeOffset since, bool orWhere = true)
@@ -125,9 +155,13 @@ public partial class MainWindow
         var folder = Path.Combine(JellyfinInstaller.DataFolder(), "log");
         return JellyfinLog.LastFatal(folder, since) is { } cause ? $" Jellyfin indique : « {cause} »." : orWhere ? $" Son journal est dans {folder}." : "";
     }
-    /// <summary>Shown in the setup panel, and as a notice when the library was reopened during the installation.</summary>
-    private void SetupFailed(string message)
+    /// <summary>
+    /// Shown in the setup panel, and as a notice when the library was reopened during the installation; with the
+    /// installer's message box when it still waits, for it holds the next attempt (one installer at a time).
+    /// </summary>
+    private void SetupFailed(string message, RunningInstaller? installer = null)
     {
+        if (installer is { Running: true }) { message += " " + InstallerAsks; installer.BringForward(); }
         SetupStatus.Text = message;
         if (LoginOverlay.Visibility != Visibility.Visible) SetNotice("Installation de Jellyfin : " + message);
     }

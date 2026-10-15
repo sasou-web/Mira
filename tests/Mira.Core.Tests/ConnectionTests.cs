@@ -59,6 +59,31 @@ internal static class ConnectionTests
                 Assert(ExpectedErrors.Are(expected), expected.GetType().Name + " not counted as expected");
             static Action[] Inputs() => [() => ServerAddress.Candidates("  "), () => JellyfinClient.NormalizeServer("http://user:secret@localhost")];
         });
+        await Test("Installation de Jellyfin : la suite part dès que Jellyfin répond, même si son installateur attend une réponse", async () =>
+        {
+            var server = new Uri("http://127.0.0.1:8096/");
+            var ready = false; var probes = 0;
+            var handler = new Handler(request =>
+            {
+                probes++;
+                if (!ready) throw new HttpRequestException("Connection refused");
+                return Task.FromResult(request.RequestUri!.AbsolutePath == "/System/Ping" ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("\"Jellyfin Server\"") }
+                    : JsonResponse(new { Id = "a", Version = "12.1.0", StartupWizardCompleted = false }));
+            });
+            // « Could not start the Jellyfin Server service » left unanswered: the installer never ends, Jellyfin starts.
+            var asking = new TaskCompletionSource<int>(); var waited = new List<int>();
+            var wait = JellyfinSetup.AwaitInstallerAsync(asking.Task, server, new SyncProgress<int>(n => { waited.Add(n); if (n == 3) ready = true; }), handler, TimeSpan.FromMilliseconds(5));
+            var answered = await wait.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert(answered is { ExitCode: null, State: { Version: "12.1.0", WizardCompleted: false } } && waited.SequenceEqual([1, 2, 3]), $"Jellyfin answering while the installer asks: {answered}, {string.Join(",", waited)}");
+            // The installer ends first, Jellyfin not yet started: its exit code, for the wait that follows.
+            ready = false; probes = 0;
+            var ended = new TaskCompletionSource<int>();
+            var exit = JellyfinSetup.AwaitInstallerAsync(ended.Task, server, new SyncProgress<int>(n => { if (n == 1) ended.SetResult(2); }), handler, TimeSpan.FromSeconds(30));
+            Assert(await exit.WaitAsync(TimeSpan.FromSeconds(5)) == new InstallerWait(2, null) && probes == 1, "Installer ending before Jellyfin answers");
+            // Already ended: nothing asked of Jellyfin.
+            probes = 0;
+            Assert(await JellyfinSetup.AwaitInstallerAsync(Task.FromResult(0), server, null, handler) == new InstallerWait(0, null) && probes == 0, "Ended installer");
+        });
         await Test("Recherche du serveur : première adresse Jellyfin dans l’ordre, autres serveurs et versions anciennes refusés", async () =>
         {
             HttpResponseMessage Info(string version = "10.10.3", string product = "Jellyfin Server") => JsonResponse(new { ServerName = "Salon", Version = version, ProductName = product, Id = "server-1" });
