@@ -1,8 +1,8 @@
-// Search films, series and people as you type; recent searches stay on this phone.
+// Search films, series, people, episodes and sagas as you type; recent searches stay on this phone.
 import { api, GRID_FIELDS } from '../api.js';
 import { h, icon, clear, plural } from '../dom.js';
 import { settings } from '../session.js';
-import { posterCard, personCard, row, skeletonGrid, errorState, emptyState } from '../components.js';
+import { posterCard, personCard, wideCard, row, skeletonGrid, errorState, emptyState } from '../components.js';
 
 export function create({ query }) {
   const input = h('input', {
@@ -28,7 +28,7 @@ export function create({ query }) {
 
   function recent() {
     const list = settings.get('recentSearches');
-    if (!list.length) return emptyState({ symbol: 'search', title: 'Que veux-tu regarder ?', text: 'Cherche un film, une série ou un acteur de ta bibliothèque.' });
+    if (!list.length) return emptyState({ symbol: 'search', title: 'Que veux-tu regarder ?', text: 'Cherche un film, une série, un épisode, une saga ou un acteur de ta bibliothèque.' });
     return h('div', {}, h('div', { class: 'section-head' }, h('h2', { class: 'label' }, 'Recherches récentes'),
       h('button', { class: 'btn quiet small', on: { click: () => { settings.set('recentSearches', []); clear(results).append(recent()); } } }, 'Effacer')),
     h('div', { class: 'recent' }, list.map((text) => h('button', { on: { click: () => { input.value = text; update(); } } }, icon('history', { size: 20 }), text))));
@@ -45,26 +45,36 @@ export function create({ query }) {
     if (showing) { if (!quiet) results.classList.add('pending'); }
     else if (!quiet) clear(results).append(h('div', { style: { padding: '0 var(--gutter)' } }, skeletonGrid(6)));
     try {
-      const [titles, people] = await Promise.all([
+      // Only the films and series are needed: people, episodes and sagas that cannot be had are left out.
+      const [titles, people, found, boxes] = await Promise.all([
         api.browse({ search: text, limit: 60, sort: 'title', fields: GRID_FIELDS, signal: controller.signal }),
         api.persons(text, controller.signal).catch(() => null),
+        api.searchOthers('Episode', text, controller.signal).catch(() => null),
+        api.searchOthers('BoxSet', text, controller.signal).catch(() => null),
       ]);
       const items = titles?.Items ?? [], persons = (people?.Items ?? []).slice(0, 12);
+      const episodes = (found?.Items ?? []).slice(0, 12), sagas = (boxes?.Items ?? []).slice(0, 12);
       results.classList.remove('pending');
-      const signature = JSON.stringify([items, persons]);
+      const signature = JSON.stringify([items, persons, episodes, sagas]);
       if (quiet && signature === shownSignature) return;
       shownSignature = signature;
       clear(results);
-      status.textContent = items.length + persons.length ? plural(items.length + persons.length, 'résultat', 'résultats') : 'Aucun résultat';
-      if (!items.length && !persons.length) {
+      const total = items.length + persons.length + episodes.length + sagas.length;
+      status.textContent = total ? plural(total, 'résultat', 'résultats') : 'Aucun résultat';
+      if (!total) {
         results.append(emptyState({ symbol: 'search', title: 'Aucun résultat', text: `Rien ne correspond à « ${text} » dans ta bibliothèque.` }));
         return;
       }
+      // A result opened keeps the search among the recent ones.
+      const kept = (card) => { card.addEventListener('click', () => remember(text)); return card; };
       if (persons.length) results.append(row('Personnes', persons, (p) => personCard(p), { people: true }));
       if (items.length) {
         results.append(h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, 'Films et séries')),
-          h('div', { class: 'grid', style: { padding: '0 var(--gutter) 24px' } }, items.map((x) => { const c = posterCard(x); c.addEventListener('click', () => remember(text)); return c; }))));
+          h('div', { class: 'grid', style: { padding: '0 var(--gutter) 24px' } }, items.map((x) => kept(posterCard(x))))));
       }
+      // An episode opens its series at it; a saga, its own page with its films in order.
+      if (episodes.length) results.append(row('Épisodes', episodes, (x) => kept(wideCard(x, { play: false })), { wide: true }));
+      if (sagas.length) results.append(row('Sagas', sagas, (x) => kept(posterCard(x))));
     } catch (error) {
       if (error.name === 'AbortError') return;
       results.classList.remove('pending');

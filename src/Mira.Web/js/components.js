@@ -9,9 +9,11 @@ import { qualityText } from './player/tracks.js';
 export const changes = new EventTarget();
 export function changed(item, detail = {}) { changes.dispatchEvent(new CustomEvent('item', { detail: { item, ...detail } })); }
 
-export const titleHref = (item) => item.Type === 'Episode' && item.SeriesId
-  ? `#/titre/${item.SeriesId}?episode=${item.Id}`
-  : `#/titre/${item.Id}`;
+/** A title's page; an episode's is its series', open at it; a saga (a Jellyfin collection) has a page of its own. */
+export function titleHref(item) {
+  if (item.Type === 'Episode' && item.SeriesId) return `#/titre/${item.SeriesId}?episode=${item.Id}`;
+  return item.Type === 'BoxSet' ? `#/saga/${item.Id}` : `#/titre/${item.Id}`;
+}
 /** The player for an item: from the start, or with tracks chosen on its page ({ audio, subtitle } as Jellyfin indexes). */
 export function playHref(item, fromStart = false, tracks = null) {
   const params = new URLSearchParams();
@@ -29,6 +31,7 @@ export function subtitle(item) {
     const seasons = item.ChildCount;
     return seasons ? plural(seasons, 'saison', 'saisons') : (item.ProductionYear ? String(item.ProductionYear) : 'Série');
   }
+  if (item.Type === 'BoxSet') return item.ChildCount ? plural(item.ChildCount, 'titre', 'titres') : 'Saga';
   return [item.ProductionYear, remaining(item)].filter(Boolean).join(' · ');
 }
 
@@ -337,10 +340,13 @@ export function itemMenu(item, { resumeRow = false, inTitle = false, held = fals
   const name = item.Type === 'Episode' ? `${item.SeriesName} · ${episodeCode(item)}` : item.Name;
   const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
   const items = [];
-  if (item.Type !== 'Series') items.push({ label: progress(item) > 0 ? 'Reprendre' : 'Lecture', symbol: 'play', run: () => { location.hash = playHref(item); } });
+  // A saga plays nothing by itself: its films do, from its page.
+  const plays = item.Type !== 'Series' && item.Type !== 'BoxSet';
+  if (plays) items.push({ label: progress(item) > 0 ? 'Reprendre' : 'Lecture', symbol: 'play', run: () => { location.hash = playHref(item); } });
   // A title under way starts again from its beginning, wherever its card is (Windows has it on a right click).
-  if (item.Type !== 'Series' && progress(item) > 0) items.push({ label: 'Lire depuis le début', symbol: 'back10', run: () => { location.hash = playHref(item, true); } });
-  if (!inTitle) items.push({ label: item.Type === 'Episode' ? 'Voir la série' : 'Voir la fiche', symbol: 'info', run: () => { location.hash = titleHref(item); } });
+  if (plays && progress(item) > 0) items.push({ label: 'Lire depuis le début', symbol: 'back10', run: () => { location.hash = playHref(item, true); } });
+  const see = { Episode: 'Voir la série', BoxSet: 'Voir la saga' }[item.Type] ?? 'Voir la fiche';
+  if (!inTitle) items.push({ label: see, symbol: 'info', run: () => { location.hash = titleHref(item); } });
   items.push({ label: played ? 'Marquer comme non vu' : 'Marquer comme vu', symbol: 'check', run: () => setPlayed(item, !played) });
   items.push({ label: favorite ? 'Retirer des favoris' : 'Ajouter aux favoris', symbol: favorite ? 'heart-fill' : 'heart', run: () => setFavorite(item, !favorite) });
   if (resumeRow) items.push({ label: 'Retirer de Continuer à regarder', symbol: 'close', run: () => hideFromResume(item) });

@@ -383,6 +383,14 @@ export const api = {
   filters: (types = 'Movie,Series') => get('Items/Filters2', { userId: user(), includeItemTypes: types, recursive: true }),
   years: (types = 'Movie,Series') => get('Years', { userId: user(), includeItemTypes: types, recursive: true, enableImages: false, sortBy: 'SortName', sortOrder: 'Descending' }),
   persons: (search, signal) => get('Persons', { userId: user(), searchTerm: search, limit: 12, enableImageTypes: 'Primary' }, { signal }),
+  /**
+   * What the search finds beside films and series: episodes by their own name (a dozen, those Jellyfin lists as missing
+   * left out) or sagas, Jellyfin's collections (« Harry Potter - Saga »).
+   */
+  searchOthers: (types, search, signal) => get('Items', {
+    userId: user(), recursive: true, includeItemTypes: types, searchTerm: search, limit: 12, isMissing: types === 'Episode' ? false : undefined,
+    fields: GRID_FIELDS, ...CARD_IMAGES,
+  }, { signal }),
 
   item: (id) => get(`Items/${encodeURIComponent(id)}`, { userId: user() }),
   /** Every episode of a series, without those Jellyfin lists as missing; long series have more than 500. */
@@ -405,10 +413,13 @@ export const api = {
   async sagas(id) {
     const found = await get(`Items/${encodeURIComponent(id)}/Collections`, { userId: user(), limit: 1 }).catch(() => null);
     return Promise.all((found?.Items ?? []).filter((box) => box.Type === 'BoxSet').map(async (box) => {
-      const titles = await get('Items', { userId: user(), parentId: box.Id, sortBy: 'ProductionYear,PremiereDate,SortName', fields: CARD_FIELDS, ...CARD_IMAGES, enableUserData: true });
-      return { id: box.Id, name: box.Name, items: (titles?.Items ?? []).filter((x) => x.Id !== id) };
+      const titles = await this.sagaTitles(box.Id);
+      return { id: box.Id, name: box.Name, items: titles.filter((x) => x.Id !== id) };
     }));
   },
+  /** A saga's titles in the order they came out (its page, and the row on the page of one of its films). */
+  sagaTitles: (id) => get('Items', { userId: user(), parentId: id, sortBy: 'ProductionYear,PremiereDate,SortName', fields: CARD_FIELDS, ...CARD_IMAGES, enableUserData: true })
+    .then((r) => r?.Items ?? []),
 
   setPlayed: (id, played) => request(played ? 'POST' : 'DELETE', `UserPlayedItems/${encodeURIComponent(id)}`, { params: { userId: user() } }),
   setFavorite: (id, favorite) => request(favorite ? 'POST' : 'DELETE', `UserFavoriteItems/${encodeURIComponent(id)}`, { params: { userId: user() } }),

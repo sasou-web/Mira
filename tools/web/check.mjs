@@ -73,6 +73,32 @@ try {
   await page.fill('input[type=search]', seriesName.split(' ')[0]); await wait(1800);
   check('recherche', await page.locator('.search .card').count() > 0);
   await shot('04-search');
+  // An episode by its own name, a saga by its name (tools/web/media.sh), each in a section of its own: the episode
+  // opens its series at it, the saga its own page, its films in the order they came out.
+  const section = (title) => page.waitForFunction((name) => {
+    if (document.querySelector('#view .search .pending')) return null;
+    const head = [...document.querySelectorAll('#view .search .section h2')].find((x) => x.textContent === name);
+    return head ? [...head.closest('.section').querySelectorAll('.card')].map((c) => [c.querySelector('.card-title')?.textContent, c.querySelector('.card-sub')?.textContent, c.getAttribute('href')].join(' | ')) : null;
+  }, title, { timeout: 8000 }).then((handle) => handle.jsonValue(), () => null);
+  await page.fill('input[type=search]', 'S01E03'); await wait(1500);
+  const foundEpisodes = await section('Épisodes');
+  check('recherche : un épisode par son nom, avec sa série et son numéro', foundEpisodes?.length === 1 && /^Courte Web \| S1 · É3 · Courte Web S01E03 \| #\/titre\/[0-9a-f]+\?episode=[0-9a-f]+$/.test(foundEpisodes[0]),
+    foundEpisodes?.join(' ; ') ?? 'aucune section « Épisodes »');
+  await page.fill('input[type=search]', 'Saga Test'); await wait(1500);
+  const foundSagas = await section('Sagas');
+  let sagaPage = null;
+  if (foundSagas?.length === 1) {
+    await page.locator('#view .search .card[href^="#/saga/"]').click();
+    sagaPage = await page.waitForFunction(() => {
+      // The page's own cards, not the placeholders it shows while Jellyfin answers.
+      const titles = [...document.querySelectorAll('#view .saga-page .grid:not([aria-hidden="true"]) .card-title')].map((x) => x.textContent);
+      return location.hash.startsWith('#/saga/') && titles.length ? { titles, sub: document.querySelector('#view .saga-page .page-sub')?.textContent ?? '' } : null;
+    }, null, { timeout: 8000 }).then((handle) => handle.jsonValue(), () => null);
+    await wait(600); await shot('04-saga');
+  }
+  check('recherche : une saga, sa page avec ses films dans l’ordre', /^Saga Test \| 2 titres \| #\/saga\/[0-9a-f]+$/.test(foundSagas?.[0] ?? '')
+    && sagaPage?.titles.join(', ') === 'Lueur Web (2020), Aube Test (2021)' && sagaPage.sub === '2 films · 2020 – 2021',
+    `${foundSagas?.join(' ; ') ?? 'aucune section « Sagas »'} ; ${sagaPage ? `${sagaPage.titles.join(', ')} (${sagaPage.sub})` : 'pas de page de saga'}`);
 
   const found = await api(`Items?recursive=true&includeItemTypes=Series&searchTerm=${encodeURIComponent(seriesName)}`);
   const series = found.Items[0];
@@ -209,11 +235,14 @@ try {
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
   // Its saga (tools/web/media.sh, setup.mjs): the collection Jellyfin made of the two films, the other one in a row.
+  // « Tout voir » opens the saga's page.
   const saga = await page.waitForFunction(() => {
     const head = [...document.querySelectorAll('#view .section h2')].find((x) => x.textContent === 'Saga Test');
-    return head ? [...head.closest('.section').querySelectorAll('.card-title')].map((x) => x.textContent) : null;
+    const section = head?.closest('.section');
+    return section ? [...section.querySelectorAll('.card-title')].map((x) => x.textContent).concat(section.querySelector('.section-head a')?.getAttribute('href') ?? 'pas de « Tout voir »') : null;
   }, null, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => null);
-  check('fiche : saga d’un film (collection faite par Jellyfin), ses autres films', saga?.length === 1 && /^Aube Test/.test(saga[0]), saga ? saga.join(', ') : 'aucune rangée « Saga Test »');
+  check('fiche : saga d’un film (collection faite par Jellyfin), ses autres films', saga?.length === 2 && /^Aube Test/.test(saga[0]) && /^#\/saga\/[0-9a-f]+$/.test(saga[1]),
+    saga ? saga.join(', ') : 'aucune rangée « Saga Test »');
   // Bonus videos (tools/web/media.sh): the film's extras folder and its « behind the scenes » one, the series' extras
   // folder. They have no page: a tap on the card plays it.
   const bonus = page.locator('#view .section', { has: page.locator('h2', { hasText: 'Bonus' }) });

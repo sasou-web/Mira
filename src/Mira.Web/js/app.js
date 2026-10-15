@@ -23,6 +23,7 @@ const ROUTES = [
   { pattern: /^\/reglages$/, tab: 'settings', load: () => import('./views/settings.js') },
   { pattern: /^\/titre\/([0-9a-f-]+)$/i, load: () => import('./views/detail.js'), args: (m) => ({ id: m[1] }) },
   { pattern: /^\/personne\/([0-9a-f-]+)$/i, load: () => import('./views/person.js'), args: (m) => ({ id: m[1] }) },
+  { pattern: /^\/saga\/([0-9a-f-]+)$/i, load: () => import('./views/saga.js'), args: (m) => ({ id: m[1] }) },
   { pattern: /^\/lecture\/([0-9a-f-]+)$/i, bare: true, load: () => import('./player/player.js'), args: (m) => ({ id: m[1] }) },
   // An invitation to « Regarder ensemble » (invite.js): signed in first, then in the group.
   { pattern: /^\/ensemble\/([0-9a-f-]+)$/i, bare: true, load: () => import('./views/join.js'), args: (m) => ({ id: m[1] }) },
