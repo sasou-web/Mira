@@ -6,7 +6,7 @@
 - Un serveur Jellyfin accessible, sur le même PC ou le réseau, et un compte sur ce serveur. Sans serveur, Mira peut [installer Jellyfin sur ce PC](#installer-jellyfin-depuis-mira).
 - Le moteur vidéo **libmpv x64**. Mira l’installe à la demande (31 Mo) et le tient à jour ; un moteur déjà présent est réutilisé tel quel. `mpv.exe` seul ne suffit pas.
 
-L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. Mira est une préversion de développement non signée.
+L’installateur, l’exécutable portable et l’archive incluent le runtime .NET : il n’est pas nécessaire d’installer le SDK ou .NET. L’interface est actuellement en français. Mira est une préversion de développement.
 
 Facultatif : [TorLink](#torlink), que Mira installe quand tu l’actives, et le runtime Microsoft Edge WebView2 (présent sur Windows 11 et la plupart des Windows 10) pour afficher son terminal dans Mira.
 
@@ -18,7 +18,7 @@ La [dernière release](https://github.com/sasou-web/Mira/releases) propose trois
 - **`Mira-<version>-win-x64-portable.exe`.** Mira en un seul fichier, sans installation. Range-le dans un dossier à lui où ton compte peut écrire, par exemple `Documents\Mira` : il y crée son dossier `data`. Au premier lancement, .NET extrait quelques bibliothèques natives dans `%TEMP%\.net`.
 - **`Mira-<version>-win-x64.zip`.** Le dossier complet de l’application. Extraire **tout** le dossier `Mira` dans un emplacement accessible en écriture, sans lancer l’exécutable depuis l’archive ni copier uniquement `Mira.exe`.
 
-Les fichiers ne sont pas encore signés : Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Vérifier l’empreinte du fichier (plus bas), puis choisir **Informations complémentaires → Exécuter quand même**.
+Tant que les fichiers ne sont pas signés (politique de signature du code dans le README du dépôt ; demande à SignPath Foundation en cours), Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Vérifier l’empreinte du fichier (plus bas), puis choisir **Informations complémentaires → Exécuter quand même**.
 
 1. Ouvrir Mira. Un raccourci Mira est ajouté au menu Démarrer au premier lancement du profil principal, ou dès l’installation.
 2. Entrer l’adresse de Jellyfin, le nom d’utilisateur et le mot de passe. Pour Jellyfin sur le même PC, l’adresse habituelle est `http://127.0.0.1:8096`. Sur le réseau, l’adresse IP ou le nom du PC suffit (`192.168.1.20`, `nas:8096`), comme l’adresse copiée depuis la page web de Jellyfin. Jellyfin 10.9 ou plus récent est nécessaire.

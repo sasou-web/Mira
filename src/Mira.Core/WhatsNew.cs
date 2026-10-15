@@ -60,7 +60,7 @@ public static class WhatsNew
             .Append(release.Version).Append("/docs/INSTALLATION-MAC.md).\n\n");
         text.Append("**Sur iPhone, iPad et Android** : Mira web, servie par Jellyfin. Dans Mira pour Windows, **Guide → Mira sur ton téléphone → Tout préparer** : [Mira sur iPhone, iPad et Android](https://github.com/sasou-web/Mira/blob/v")
             .Append(release.Version).Append("/docs/INSTALLATION-WEB.md).\n\n");
-        text.Append("Tous les détails : [CHANGELOG](https://github.com/sasou-web/Mira/blob/v").Append(release.Version).Append("/CHANGELOG.md)\n");
+        text.Append("Tous les détails : [CHANGELOG](https://github.com/sasou-web/Mira/blob/v").Append(release.Version).Append("/CHANGELOG.md) · [Politique de signature du code](https://github.com/sasou-web/Mira#politique-de-signature-du-code)\n");
         return text.ToString();
     }
     private static Version Trim(Version version) => new(version.Major, version.Minor, Math.Max(0, version.Build));

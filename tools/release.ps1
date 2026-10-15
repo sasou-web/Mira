@@ -1,21 +1,23 @@
-﻿param([switch]$SkipBuild, [switch]$DryRun)
+﻿param([switch]$Unsigned, [switch]$DryRun)
 # Publishes the version in src/Mira.Desktop/Mira.Desktop.csproj in one command, on the PC that holds the signing key:
-#   1. checks gh, immutable releases on the repository, the signing key (it opens, installed copies trust it), Inno
-#      Setup, a clean checkout with no untracked file (it would be built or embedded), then brings main up to date
-#      (fast-forward only) and checks that GitHub's Windows build (ci.yml) passed on it;
-#   2. builds the Windows packages (tools/package.ps1), unless -SkipBuild uses those this script built from the same
-#      commit (a -DryRun, an attempt that stopped later);
-#   3. creates the release vX.Y.Z as a draft on that commit, with the Windows files and their .sha256: a draft is seen
-#      by no one and has no tag yet;
-#   4. runs mac.yml and web.yml on main for that draft, which build from the same commit and attach the .dmg and its
-#      .sha256, mira-jellyfin-X.Y.Z.zip and jellyfin-manifest.json, and waits for both;
-#   5. takes those files from the runs it watched (their artifacts), checks them (Mira.Release, the checks Mira for
-#      Windows makes too), signs mira-update.json for every platform, checks that signature against the keys installed
-#      copies trust, and attaches it;
-#   6. checks that the draft holds exactly the 12 expected files, each with the SHA-256 of the file checked here (the
-#      four built by GitHub uploaded by GitHub Actions), then publishes it: the release appears whole, at once, with the
-#      notes from WhatsNew.json, and checks that GitHub made it immutable.
-# -DryRun does all of it but the publication: the draft stays, unseen, and the next run replaces it.
+#   1. checks gh, immutable releases on the repository, the signing key (it opens, installed copies trust it), a clean
+#      checkout with no untracked file, then brings main up to date (fast-forward only) and checks that GitHub's
+#      Windows build (ci.yml) passed on it;
+#   2. creates the release vX.Y.Z as a draft on that commit, with the notes from WhatsNew.json and no file yet: a draft
+#      is seen by no one and has no tag yet;
+#   3. runs windows.yml, mac.yml and web.yml on main for that draft, which build from the same commit and attach the
+#      Windows files (built by GitHub, never on this PC, and signed by SignPath Foundation: two signing requests to
+#      approve in SignPath while the script waits), the .dmg, mira-jellyfin-X.Y.Z.zip and jellyfin-manifest.json, with
+#      their .sha256, and waits for all three;
+#   4. takes those files from the runs it watched (their artifacts), checks them (Mira.Release, the checks Mira for
+#      Windows makes too, and the Authenticode signatures of the Windows executables), signs mira-update.json for every
+#      platform, checks that signature against the keys installed copies trust, and attaches it;
+#   5. checks that the draft holds exactly the 12 expected files, each with the SHA-256 of the file checked here (all
+#      but the manifest uploaded by GitHub Actions itself), then publishes it: the release appears whole, at once, with
+#      the notes from WhatsNew.json, and checks that GitHub made it immutable.
+# -Unsigned has windows.yml skip SignPath (Windows files without Authenticode signature: before SignPath accepts the
+# project, or while it is down). -DryRun does all of it but the publication: the draft stays, unseen, and the next run
+# replaces it.
 # Works in Windows PowerShell 5.1 and PowerShell 7 (saved with a BOM; messages with an apostrophe in double quotes:
 # PowerShell reads a typographic apostrophe as a single quote). jq expressions passed to gh hold no double quote: Windows
 # PowerShell drops them from a native command's arguments.
@@ -24,7 +26,7 @@ $ErrorActionPreference = 'Stop'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $repository = 'sasou-web/Mira'
-$workflows = @('web.yml', 'mac.yml')
+$workflows = @('windows.yml', 'web.yml', 'mac.yml')
 
 function Invoke-Native([string]$what, [scriptblock]$command) {
     & $command
@@ -52,10 +54,11 @@ function Get-Runs([string]$workflow) {
         [pscustomobject]@{ Workflow = $workflow; Id = $id; Status = $status; Url = $url }
     }
 }
-# Runs $workflow on main for the draft and returns that run: the one gh names, or else the first new one in the list.
-function Start-ReleaseWorkflow([string]$workflow, [string]$tag, [string]$commit) {
+# Runs $workflow on main for the draft (with $more, other "-f name=value" inputs) and returns that run: the one gh
+# names, or else the first new one in the list.
+function Start-ReleaseWorkflow([string]$workflow, [string]$tag, [string]$commit, [string[]]$more = @()) {
     $known = @(Get-Runs $workflow | ForEach-Object { $_.Id })
-    $printed = @(gh workflow run $workflow --repo $repository --ref main -f "release=$tag" -f "commit=$commit")
+    $printed = @(gh workflow run $workflow --repo $repository --ref main -f "release=$tag" -f "commit=$commit" @more)
     if ($LASTEXITCODE -ne 0) { throw "gh workflow run $workflow a échoué (code $LASTEXITCODE)." }
     $named = $null
     if (($printed -join ' ') -match '/actions/runs/(\d+)') { $named = $Matches[1] }
@@ -71,6 +74,20 @@ function Start-ReleaseWorkflow([string]$workflow, [string]$tag, [string]$commit)
 function Get-ReleaseState([string]$tag) {
     [string](Get-Native { gh release view $tag --repo $repository --json isDraft,targetCommitish --jq '[(.isDraft | tostring), .targetCommitish] | @tsv' })
 }
+# Mira's own files of the application folder, taken out of the archive to check their signatures.
+function Expand-Checked([string]$archive, [string]$folder) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    New-Item -ItemType Directory -Path $folder -Force | Out-Null
+    $zip = [IO.Compression.ZipFile]::OpenRead($archive)
+    try {
+        foreach ($name in @('Mira.exe', 'Mira.dll', 'Mira.Core.dll')) {
+            $entry = $zip.Entries | Where-Object { ($_.FullName -replace '\\', '/') -eq "Mira/$name" } | Select-Object -First 1
+            if (-not $entry) { throw "Mira/$name manque dans $([IO.Path]::GetFileName($archive))." }
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $folder $name), $true)
+            Join-Path $folder $name
+        }
+    } finally { $zip.Dispose() }
+}
 
 Push-Location $workspace
 try {
@@ -85,27 +102,22 @@ try {
     if ((Get-Native { gh api "repos/$repository/immutable-releases" --jq .enabled }) -ne 'true') {
         throw "Les releases immuables ne sont pas activées sur $repository (ou gh ne peut pas le lire) : sans elles, les fichiers d’une release publiée pourraient encore être remplacés. Active-les une fois : https://github.com/$repository/settings, section « Releases », case « Enable release immutability » (ou « gh api -X PUT repos/$repository/immutable-releases »), puis relance."
     }
-    # mira-update.json is signed at the end, once the workflows have built the other platforms: the key is needed even
-    # with -SkipBuild. A new key would be refused by every installed copy: a lost one comes back from its backup.
+    # mira-update.json is signed at the end, once the workflows have built every platform: the key is needed first. A
+    # new key would be refused by every installed copy: a lost one comes back from its backup.
     $key = if ($env:APPDATA) { Join-Path $env:APPDATA 'Mira Release\update-signing.key' } else { '%APPDATA%\Mira Release\update-signing.key' }
     if (-not ($env:APPDATA -and (Test-Path -LiteralPath $key))) {
         throw "Clé de signature introuvable ($key) : sans elle, les copies installées ne se mettraient pas à jour. Restaure-la avec « dotnet run --project tools/Mira.Release -c Release -- import-backup --in <copie> » ; ne lance pas « keygen » : une nouvelle clé serait refusée par toutes les copies installées."
     }
-    if (-not $SkipBuild) {
-        $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe", "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") |
-            Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
-        if (-not $iscc) { throw "Inno Setup 6 (ISCC.exe) introuvable : il construit l’installateur, Mira-X.Y.Z-win-x64-setup.exe." }
-    }
 
     # What is published is main as it is on GitHub, nothing else.
     if (git status --porcelain --untracked-files=no) { throw 'Des fichiers suivis sont modifiés : valide-les ou mets-les de côté (git stash) avant de publier.' }
-    # The packages are built from this folder: a file git does not know would be compiled or embedded all the same.
+    # Nothing is built on this PC any more, but Mira.Release (the notes, the manifest) runs from this folder.
     $untracked = @(git ls-files --others --exclude-standard)
     if ($LASTEXITCODE -ne 0) { throw "git ls-files a échoué (code $LASTEXITCODE)." }
     if ($untracked.Count) {
         $shown = ($untracked | Select-Object -First 15) -join ', '
         if ($untracked.Count -gt 15) { $shown += " (et $($untracked.Count - 15) autres)" }
-        throw "Fichiers absents de git, qui seraient compilés ou embarqués dans la release : $shown. Valide-les, déplace-les ou supprime-les avant de publier."
+        throw "Fichiers absents de git : $shown. Valide-les, déplace-les ou supprime-les avant de publier."
     }
     Invoke-Native 'git checkout main' { git checkout main }
     Invoke-Native 'git pull' { git pull --ff-only }
@@ -141,7 +153,7 @@ try {
     }
 
     # The SDK global.json asks for, read once main is up to date: without it, dotnet only says that no compatible SDK
-    # was found. Needed for the signature even with -SkipBuild.
+    # was found. Mira.Release needs it for the notes, the key and the signature.
     $sdk = [string](Get-Content -LiteralPath (Join-Path $workspace 'global.json') -Raw | ConvertFrom-Json).sdk.version
     $channel = ($sdk.Split('.')[0..1]) -join '.'
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue) -or -not (Test-Native { dotnet --version })) {
@@ -150,29 +162,10 @@ try {
     # The key opens on this Windows account and installed copies trust it: checked in seconds, not after the workflows.
     $tool = Join-Path $workspace 'tools/Mira.Release/Mira.Release.csproj'
     Invoke-Native 'Mira.Release check-key' { dotnet run --project $tool -c Release -- check-key }
-
-    $packages = Join-Path $workspace 'dist/packages'
-    $built = Join-Path $packages 'source-commit.txt'
+    # The release page's text, from the version's entry in WhatsNew.json (Mira.Release stops without one).
     $notes = Join-Path $workspace ".artifacts/release-notes-$version.md"
-    if (-not $SkipBuild) {
-        Remove-Item -LiteralPath $built, $notes -ErrorAction SilentlyContinue
-        & (Join-Path $PSScriptRoot 'package.ps1')
-        Set-Content -LiteralPath $built -Value $commit -Encoding ascii
-    } elseif (-not (Test-Path -LiteralPath $built) -or ([string](Get-Content -LiteralPath $built)).Trim() -ne $commit) {
-        throw "Les paquets de dist/packages ne sont pas ceux de main ($short) : relance sans -SkipBuild."
-    }
-
-    $names = @("Mira-$version-win-x64-setup.exe", "Mira-$version-win-x64-portable.exe", "Mira-$version-win-x64.zip")
-    $windows = @($names | ForEach-Object { $_; "$_.sha256" })
-    $missing = @($windows | Where-Object { -not (Test-Path -LiteralPath (Join-Path $packages $_)) })
-    if ($missing.Count) { throw "Fichiers manquants dans dist/packages : $($missing -join ', ')." }
-    # Checked before the workflows' long wait: a build stopped halfway leaves new files beside older digests.
-    foreach ($name in $names) {
-        $path = Join-Path $packages $name
-        $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
-        if (([string](Get-Content -LiteralPath "$path.sha256")).Trim().Split(' ')[0] -ne $hash) { throw "$name.sha256 ne correspond pas à $name : relance sans -SkipBuild." }
-    }
-    if (-not (Test-Path -LiteralPath $notes)) { throw "Notes de version introuvables ($notes) : l’entrée $version manque dans src/Mira.Core/WhatsNew.json." }
+    Remove-Item -LiteralPath $notes -ErrorAction SilentlyContinue
+    Invoke-Native 'Mira.Release notes' { dotnet run --project $tool -c Release -- notes --version $version --out $notes }
 
     # A run still going from an earlier attempt would attach its own files to the new draft.
     foreach ($workflow in $workflows) {
@@ -183,16 +176,24 @@ try {
         Invoke-Native 'gh release delete' { gh release delete $tag --repo $repository --yes }
         Write-Output "Brouillon de $tag laissé par un lancement précédent : supprimé."
     }
-    $arguments = @('release', 'create', $tag) + @($windows | ForEach-Object { Join-Path $packages $_ }) + @('--repo', $repository, '--draft', '--target', $commit, '--title', "Mira $version", '--notes-file', $notes)
-    Invoke-Native 'gh release create' { gh @arguments }
-    Write-Output "Brouillon de $tag créé sur $short, avec les fichiers Windows."
+    Invoke-Native 'gh release create' { gh release create $tag --repo $repository --draft --target $commit --title "Mira $version" --notes-file $notes }
+    Write-Output "Brouillon de $tag créé sur $short, sans fichier encore."
 
-    # The Mac disk image and Mira web, built by GitHub from the same commit and attached to the draft.
-    $runs = @($workflows | ForEach-Object { Start-ReleaseWorkflow $_ $tag $commit })
-    foreach ($run in $runs) {
+    # Every platform, built by GitHub from the same commit and attached to the draft: the Windows files, signed by
+    # SignPath Foundation unless -Unsigned; the Mac disk image; Mira web.
+    $runs = @()
+    foreach ($workflow in $workflows) {
+        $more = @()
+        if ($workflow -eq 'windows.yml' -and $Unsigned) { $more = @('-f', 'sign=false') }
+        $run = Start-ReleaseWorkflow $workflow $tag $commit $more
+        $runs += $run
         Write-Output "$($run.Workflow) : $($run.Url)"
+    }
+    if ($Unsigned) { Write-Warning 'Les fichiers Windows de cette release ne seront pas signés (-Unsigned).' }
+    else { Write-Output "SignPath va te demander d’approuver deux signatures pendant windows.yml (l’application, puis l’installateur) : https://app.signpath.io, ou le lien de son e-mail. Chacune attend une heure au plus ; le script attend." }
+    foreach ($run in $runs) {
         gh run watch $run.Id --repo $repository --exit-status --interval 30
-        if ($LASTEXITCODE -ne 0) { throw "$($run.Workflow) a échoué : $($run.Url). Corrige, puis relance (avec -SkipBuild, les paquets Windows sont repris)." }
+        if ($LASTEXITCODE -ne 0) { throw "$($run.Workflow) a échoué : $($run.Url). Corrige, puis relance." }
         # Run on main, at the commit of the draft: main moved meanwhile, and the run is not the one to sign.
         $head = ([string](Get-Native { gh run view $run.Id --repo $repository --json headSha,headBranch --jq '[.headSha, .headBranch] | @tsv' })).Trim()
         if ($head -ne "$commit`tmain") { throw "$($run.Workflow) a tourné sur « $head », pas sur main en $short ($($run.Url)) : main a changé pendant la publication. Relance." }
@@ -200,17 +201,29 @@ try {
 
     # What is signed comes from the runs watched above (their artifacts), not from whatever the draft holds now; the
     # draft's copies are then compared with them, digest by digest.
+    $packages = Join-Path $workspace 'dist/packages'
     $release = Join-Path $workspace 'dist/release'
-    if (Test-Path -LiteralPath $release) { Remove-Item -LiteralPath $release -Recurse -Force }
-    New-Item -ItemType Directory -Path $release | Out-Null
+    foreach ($folder in @($packages, $release)) {
+        if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force }
+        New-Item -ItemType Directory -Path $folder | Out-Null
+    }
+    $names = @("Mira-$version-win-x64-setup.exe", "Mira-$version-win-x64-portable.exe", "Mira-$version-win-x64.zip")
+    $windows = @($names | ForEach-Object { $_; "$_.sha256" })
     $others = @("Mira-$version-mac-arm64.dmg", "Mira-$version-mac-arm64.dmg.sha256", "mira-jellyfin-$version.zip", 'jellyfin-manifest.json')
-    $artifacts = @{ 'mac.yml' = 'Mira-mac-arm64'; 'web.yml' = 'Mira-web-release' }
+    $artifacts = @{ 'windows.yml' = 'Mira-win-x64-release'; 'mac.yml' = 'Mira-mac-arm64'; 'web.yml' = 'Mira-web-release' }
     foreach ($run in $runs) {
         $artifact = $artifacts[$run.Workflow]
-        Invoke-Native "gh run download ($artifact)" { gh run download $run.Id --repo $repository --name $artifact --dir $release }
+        $into = if ($run.Workflow -eq 'windows.yml') { $packages } else { $release }
+        Invoke-Native "gh run download ($artifact)" { gh run download $run.Id --repo $repository --name $artifact --dir $into }
     }
-    $missing = @($others | Where-Object { -not (Test-Path -LiteralPath (Join-Path $release $_)) })
+    $missing = @($windows | Where-Object { -not (Test-Path -LiteralPath (Join-Path $packages $_)) }) + @($others | Where-Object { -not (Test-Path -LiteralPath (Join-Path $release $_)) })
     if ($missing.Count) { throw "Les exécutions de $tag n’ont pas produit : $($missing -join ', '). Regarde les exécutions ci-dessus, puis relance." }
+    # The Authenticode signatures SignPath Foundation put on the installer, the portable Mira and, in the archive,
+    # Mira's own files: valid, by that publisher, timestamped.
+    if (-not $Unsigned) {
+        $checked = @(Expand-Checked (Join-Path $packages "Mira-$version-win-x64.zip") (Join-Path $workspace '.artifacts/release-signed'))
+        & (Join-Path $PSScriptRoot 'check-signed.ps1') -Files (@($names[0..1] | ForEach-Object { Join-Path $packages $_ }) + $checked)
+    }
 
     # Signed for every platform, then checked as installed copies will: the keys they trust, every file's size and
     # SHA-256, the .dmg against its .sha256, Jellyfin's manifest against the plugin.
@@ -223,6 +236,7 @@ try {
     $expected = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([StringComparer]::Ordinal)
     foreach ($name in $windows + @('mira-update.json', 'mira-update.json.sig')) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $packages $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
     foreach ($name in $others) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $release $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
+    $byActions = $windows + $others
     # A draft has no tag: its assets are read through its API address.
     $api = ([string](Get-Native { gh release view $tag --repo $repository --json apiUrl --jq .apiUrl })).Trim() -replace '^https://api\.github\.com/', ''
     if (-not $api) { throw "gh release view a échoué pour $tag." }
@@ -236,7 +250,7 @@ try {
         [void]$seen.Add($name)
         if (-not $expected.ContainsKey($name)) { $problems.Add("$name en trop") }
         elseif ($digest -ne "sha256:$($expected[$name])" -or $state -ne 'uploaded') { $problems.Add("$name ($digest, $state) différent de celui vérifié ici (sha256:$($expected[$name]))") }
-        elseif ($others -contains $name -and $uploader -ne 'github-actions[bot]') { $problems.Add("$name envoyé par $uploader, pas par GitHub Actions") }
+        elseif ($byActions -contains $name -and $uploader -ne 'github-actions[bot]') { $problems.Add("$name envoyé par $uploader, pas par GitHub Actions") }
     }
     foreach ($name in $expected.Keys) { if (-not $seen.Contains($name)) { $problems.Add("$name manquant") } }
     if ($problems.Count) { throw "Le brouillon de $tag ne contient pas exactement les fichiers vérifiés : $($problems -join ' ; ')." }
