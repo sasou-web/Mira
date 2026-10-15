@@ -1541,6 +1541,101 @@ try {
 }
 await togetherA.close(); await togetherB.close();
 
+// « Télécharger sur le PC serveur » (an administrator): Mira for Windows on the PC of Jellyfin is played here by a fake
+// agent, which visits the extension's relay as it does (Mira/torlink/agent): it answers a search with a result, takes
+// the download and reports it under way, pauses and cancels it as asked. Another account is refused.
+const relayServer = base.replace(/\/Mira\/?.*$/i, '');
+const relayAuth = (id, token) => `MediaBrowser Client="check", Device="check", DeviceId="${id}", Version="1"${token ? `, Token="${token}"` : ''}`;
+const tokenFor = async (id, name, pw) => (await (await fetch(`${relayServer}/Users/AuthenticateByName`, {
+  method: 'POST', headers: { Authorization: relayAuth(id), 'Content-Type': 'application/json' }, body: JSON.stringify({ Username: name, Pw: pw }),
+})).json()).AccessToken;
+const picked = 'c12fe1c06bba254a9dc9f519b335aa7c1367a88a', pasted = '0123456789abcdef0123456789abcdef01234567';
+const magnetOf = (hash, name) => `magnet:?xt=urn:btih:${hash}&dn=${encodeURIComponent(name)}`;
+const fake = { searches: [], requests: [], controls: [], downloads: [], seen: [], stop: false };
+const agentToken = await tokenFor('check-agent', user, password).catch(() => null);
+const agentLoop = (async () => {
+  while (!fake.stop && agentToken) {
+    const report = { name: 'PC-CHECK', accepting: true, problem: null, downloads: fake.downloads, placed: [], searches: fake.searches.splice(0), requests: fake.requests.splice(0), controls: fake.controls.splice(0) };
+    const answer = await fetch(`${relayServer}/Mira/torlink/agent`, { method: 'POST', headers: { Authorization: relayAuth('check-agent', agentToken), 'Content-Type': 'application/json' }, body: JSON.stringify(report) }).catch(() => null);
+    const work = answer?.ok ? await answer.json() : null;
+    for (const s of work?.searches ?? []) {
+      fake.seen.push(`search ${s.category} ${s.query}`);
+      fake.searches.push({ id: s.id, state: 'done', results: [{ id: picked, name: 'Mira Check 2026 1080p', size: Math.round(1.4 * 2 ** 30), seeders: 42, leechers: 3, source: 'check', magnet: magnetOf(picked, 'Mira Check 2026 1080p'), added: null }], error: null });
+    }
+    for (const r of work?.requests ?? []) {
+      fake.seen.push(`add ${r.name}`);
+      fake.requests.push({ id: r.id, state: 'sent', error: null });
+      fake.downloads.push({ id: /btih:([0-9a-f]{40})/i.exec(r.magnet)[1].toLowerCase(), name: r.name, status: 'downloading', progress: 37, speed: 2.5 * 2 ** 20, peers: 4 });
+    }
+    for (const c of work?.controls ?? []) {
+      fake.seen.push(`${c.action} ${c.target}`);
+      if (c.action === 'delete') fake.downloads = fake.downloads.filter((d) => d.id !== c.target);
+      else { const d = fake.downloads.find((x) => x.id === c.target); if (d) d.status = c.action === 'pause' ? 'paused' : 'downloading'; }
+      fake.controls.push({ id: c.id, state: 'done', error: null });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+})();
+const dlContext = await newContext('télécharger');
+const dp = await dlContext.newPage();
+const dlErrors = [];
+dp.on('pageerror', (e) => dlErrors.push(e.message));
+const dl = { ready: '', hit: '', row: '', paused: '', cancelled: false, refused: '', pasted: '', other: 0, entry: false, failure: '' };
+try {
+  await signIn(dp);
+  await dp.locator('.tabbar a[data-tab="settings"]').click();
+  await dp.getByRole('link', { name: /Télécharger sur le PC serveur/ }).click();
+  const screen = dp.locator('.torlink-page');
+  await dp.waitForFunction(() => /PC-CHECK est prêt/.test(document.querySelector('.torlink-page .page-sub')?.textContent ?? ''), null, { timeout: 15000 });
+  dl.ready = (await screen.locator('.page-sub').innerText()).trim();
+  await screen.locator('input[type=search]').fill('  --mira   check ');
+  await screen.getByRole('radio', { name: 'Séries' }).click();
+  await screen.getByRole('button', { name: 'Chercher' }).click();
+  const hit = screen.locator('.torlink-results .torlink-item').first();
+  await hit.waitFor({ timeout: 15000 });
+  dl.hit = (await hit.innerText()).trim().replace(/\s*\n\s*/g, ' | ');
+  await dp.screenshot({ path: `${out}/25-download-search.png` });
+  await hit.click();
+  await dp.getByRole('menuitem', { name: 'Télécharger', exact: true }).click();
+  const row = screen.locator(`.torlink-list [data-key="d:${picked}"]`);
+  await row.waitFor({ timeout: 15000 });
+  dl.row = (await row.innerText()).trim().replace(/\s*\n\s*/g, ' | ');
+  await dp.screenshot({ path: `${out}/26-download-list.png` });
+  await row.getByRole('button', { name: /^Actions pour/ }).click();
+  await dp.getByRole('menuitem', { name: 'Mettre en pause' }).click();
+  await dp.waitForFunction((key) => /En pause/.test(document.querySelector(`.torlink-page [data-key="${key}"] .torlink-line`)?.textContent ?? ''), `d:${picked}`, { timeout: 15000 });
+  dl.paused = (await row.locator('.torlink-line').innerText()).trim();
+  await row.getByRole('button', { name: /^Actions pour/ }).click();
+  await dp.getByRole('menuitem', { name: /Annuler le téléchargement/ }).click();
+  dl.cancelled = await row.waitFor({ state: 'detached', timeout: 15000 }).then(() => true, () => false);
+  // A magnet link pasted: refused when it is not one, then sent.
+  await screen.getByRole('button', { name: 'Coller un lien magnet' }).click();
+  await dp.fill('#torlink-magnet', 'https://example.test/film');
+  await dp.getByRole('button', { name: 'Envoyer au PC serveur' }).click();
+  dl.refused = (await dp.locator('.sheet .form-error').innerText()).trim();
+  await dp.fill('#torlink-magnet', magnetOf(pasted, 'Collé Check'));
+  await dp.getByRole('button', { name: 'Envoyer au PC serveur' }).click();
+  const sent = screen.locator(`.torlink-list [data-key="d:${pasted}"]`);
+  await sent.waitFor({ timeout: 15000 });
+  dl.pasted = (await sent.innerText()).trim().replace(/\s*\n\s*/g, ' | ');
+} catch (error) { dl.failure = error.message.split('\n')[0]; }
+// Another account (the friend of « Regarder ensemble » above, made again when it is missing): the relay refuses it.
+const friendName = 'Ami Mira', friendPassword = 'ami-check';
+let friendToken = await tokenFor('check-friend', friendName, friendPassword).catch(() => null);
+if (!friendToken && agentToken) {
+  await fetch(`${relayServer}/Users/New`, { method: 'POST', headers: { Authorization: relayAuth('check-agent', agentToken), 'Content-Type': 'application/json' }, body: JSON.stringify({ Name: friendName, Password: friendPassword }) }).catch(() => null);
+  friendToken = await tokenFor('check-friend', friendName, friendPassword).catch(() => null);
+}
+dl.other = friendToken ? (await fetch(`${relayServer}/Mira/torlink`, { headers: { Authorization: relayAuth('check-friend', friendToken) } })).status : 0;
+fake.stop = true; await agentLoop;
+await dlContext.close();
+check('télécharger sur le PC serveur (administrateur) : recherche faite par le PC, téléchargement suivi, pause, annulation, lien magnet collé',
+  /PC-CHECK est prêt/.test(dl.ready) && fake.seen.includes('search tv mira check') && dl.hit === 'Mira Check 2026 1080p | 1,4 Go · 42 sources · check'
+    && /37 % · 2,5 Mo\/s · 4 pairs/.test(dl.row) && /^En pause/.test(dl.paused) && dl.cancelled && fake.seen.includes(`delete ${picked}`)
+    && /pas un lien magnet/.test(dl.refused) && /Collé Check/.test(dl.pasted) && !dlErrors.length,
+  dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
+check('télécharger sur le PC serveur : refusé à un compte qui n’est pas administrateur', dl.other === 403, String(dl.other));
+
 // The security policy: inline styles refused but the page's own (allowed by its hash), and the watch above sees a
 // refusal (a style attribute and a style element slipped into the page, here on purpose).
 const probe = await browser.newContext({ ...devices['iPhone 15 Pro'] });

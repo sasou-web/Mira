@@ -218,6 +218,9 @@ export async function request(method, path, { params, body, signal, timeout = 20
     throw new ApiError(401, 'Ta session a pris fin. Reconnecte-toi.');
   }
   if (!response.ok) {
+    // Mira's own routes (the extension's) say why in French: { error }.
+    const said = path.startsWith('Mira/') ? await response.json().then((x) => (typeof x?.error === 'string' && x.error ? x.error : null), () => null) : null;
+    if (said) throw new ApiError(response.status, said);
     throw new ApiError(response.status, response.status === 403
       ? 'Ton compte Jellyfin n’a pas accès à ceci.'
       : response.status === 404 ? 'Ce titre n’existe plus sur le serveur.' : `Jellyfin a répondu avec une erreur (${response.status}).`);
@@ -339,6 +342,21 @@ export const api = {
   sessions: () => get('Sessions', { activeWithinSeconds: 960 }),
   /** Asks a session to stop playing: one whose WebSocket takes commands (Mira web while it plays, remote.js). */
   stopSession: (id) => post(`Sessions/${encodeURIComponent(id)}/Playing/Stop`),
+
+  // « Télécharger sur le PC serveur » (an administrator): the relay of the extension, which Mira for Windows on the
+  // PC of Jellyfin visits every few seconds (views/torlink.js).
+  /** { agent, requests, controls, downloads, placed }. */
+  torlink: () => get('Mira/torlink', null, { timeout: 10000 }),
+  /** { id } of a search the PC runs with TorLink; refused ({ error }) while Mira is not open there. */
+  torlinkSearch: (query, category) => post('Mira/torlink/search', { query, category }),
+  /** { state: waiting, running, done or failed, results (without their magnet links), error }. */
+  torlinkSearchState: (id) => get(`Mira/torlink/search/${encodeURIComponent(id)}`, null, { timeout: 10000 }),
+  /** A result of a search ({ search, result, name, size }) or a pasted magnet link ({ magnet }): { id }. */
+  torlinkRequest: (body) => post('Mira/torlink/requests', body),
+  /** A request not yet taken by the PC (409 once it has it). */
+  torlinkCancel: (id) => request('DELETE', `Mira/torlink/requests/${encodeURIComponent(id)}`),
+  /** pause, resume or delete (its files with it) a download TorLink has. */
+  torlinkControl: (id, action) => post('Mira/torlink/control', { id, action }),
 
   resume: (limit = 16) => get('UserItems/Resume', { userId: user(), limit, mediaTypes: 'Video', fields: CARD_FIELDS, ...CARD_IMAGES, enableUserData: true }),
   nextUp: (limit = 16) => get('Shows/NextUp', { userId: user(), limit, fields: CARD_FIELDS, ...CARD_IMAGES, enableResumable: false, enableRewatching: false }),

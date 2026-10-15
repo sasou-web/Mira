@@ -1,0 +1,57 @@
+// « Télécharger sur le PC serveur » of Mira web (src/Mira.Web/js/torlink.js), without a browser.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import {
+  CATEGORIES, cleanQuery, infoHash, displayName, cleanName, size, speed, agentLine, hitLine, requestLine, downloadLine, controllable,
+} from '../../../src/Mira.Web/js/torlink.js';
+
+const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/torlink-remote.json', import.meta.url), 'utf8'));
+
+test('magnet links, searches and names checked as Mira.Core checks them (tests/fixtures/torlink-remote.json)', () => {
+  for (const [link, expected] of fixture.magnets) assert.equal(infoHash(link), expected, `info hash of ${JSON.stringify(link)}`);
+  for (const [typed, expected] of fixture.queries) assert.equal(cleanQuery(typed), expected, `search ${JSON.stringify(typed)}`);
+  for (const [link, expected] of fixture.names) assert.equal(displayName(link), expected, `name of ${JSON.stringify(link)}`);
+  assert.equal(infoHash(`magnet:?xt=urn:btih:${'a'.repeat(40)}&tr=${'x'.repeat(8192)}`), null, 'too long');
+  assert.equal(infoHash(null), null);
+  assert.equal(cleanQuery(42), null);
+  assert.equal(cleanName('x'.repeat(301)), `${'x'.repeat(300)}…`);
+  assert.deepEqual(CATEGORIES.map(([key]) => key), ['movies', 'tv', 'anime'], 'never games');
+});
+
+test('sizes and speeds as Mira for Windows writes them', () => {
+  assert.equal(size(0), '1 Mo');
+  assert.equal(size(850 * 2 ** 20), '850 Mo');
+  assert.equal(size(4.2 * 2 ** 30), '4,2 Go');
+  assert.equal(size(12.4 * 2 ** 30), '12 Go');
+  assert.equal(speed(0), '');
+  assert.equal(speed(350 * 1024), '350 Ko/s');
+  assert.equal(speed(2.44 * 2 ** 20), '2,4 Mo/s');
+  assert.equal(speed(12 * 2 ** 20), '12 Mo/s');
+});
+
+test('what the screen says of the PC, a result, a request and a download', () => {
+  const now = Date.parse('2026-10-15T12:00:00Z');
+  assert.equal(agentLine(null).ready, false);
+  assert.match(agentLine(null).text, /pas encore été ouvert/);
+  const away = agentLine({ name: 'DESKTOP-INVEFQH', online: false, seen: '2026-10-15T09:00:00Z', accepting: false }, now);
+  assert.equal(away.ready, false);
+  assert.equal(away.text, 'Mira n’est pas ouvert sur DESKTOP-INVEFQH (vu il y a 3 h) : tes demandes l’attendent, il les fera à son retour.');
+  assert.deepEqual(agentLine({ name: 'PC', online: true, accepting: false, problem: 'TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page.' }, now),
+    { text: 'TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page.', ready: true });
+  assert.equal(agentLine({ name: 'PC', online: true, accepting: true }, now).text, 'PC est prêt : TorLink y télécharge, puis Mira range le titre dans ta bibliothèque.');
+
+  assert.equal(hitLine({ size: 1.4 * 2 ** 30, seeders: 120, source: 'YTS' }), '1,4 Go · 120 sources · YTS');
+  assert.equal(hitLine({ size: 700 * 2 ** 20, seeders: 0, source: '' }), '700 Mo · aucune source');
+
+  assert.equal(requestLine({ state: 'waiting' }), 'En attente du PC serveur');
+  assert.equal(requestLine({ state: 'failed', error: 'Ce n’est pas un lien magnet.' }), 'Ce n’est pas un lien magnet.');
+  assert.equal(requestLine({ state: 'failed' }), 'TorLink a refusé ce téléchargement.');
+
+  assert.equal(downloadLine({ status: 'downloading', progress: 42.4, speed: 2.44 * 2 ** 20, peers: 12 }), '42 % · 2,4 Mo/s · 12 pairs');
+  assert.equal(downloadLine({ status: 'downloading', progress: 0, speed: 0, peers: 0 }), '0 % · recherche de pairs');
+  assert.equal(downloadLine({ status: 'paused', progress: 10 }), 'En pause · 10 %');
+  assert.equal(downloadLine({ status: 'stopped', progress: 10 }), 'Arrêté · 10 % · reprend quand TorLink rouvre sur le PC serveur');
+  assert.equal(downloadLine({ status: 'completed', progress: 100 }), 'Terminé · rangement dans ta bibliothèque…');
+  assert.ok(controllable({ status: 'queued' }) && controllable({ status: 'paused' }) && !controllable({ status: 'completed' }));
+});

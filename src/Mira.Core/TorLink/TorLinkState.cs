@@ -166,6 +166,13 @@ public sealed partial class TorLinkState
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return 0; }
     }
 
+    /// <summary>queue.json as TorLink last wrote it (at each change), for « Télécharger sur le PC serveur »; null when unreadable.</summary>
+    public string? ReadQueue()
+    {
+        try { return ReadShared(QueueFile); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
     /// <summary>The file list TorLink saved for a torrent (its .torrent metadata), laid out as WebTorrent writes it.</summary>
     public TorrentInfo? ReadTorrent(string id) => ReadTorrent(id, out _);
     /// <summary><paramref name="refused"/>: the .torrent is over <see cref="Bencode"/>'s limits and was not read.</summary>

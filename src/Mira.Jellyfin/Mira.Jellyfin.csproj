@@ -22,6 +22,11 @@
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8g4q-xg66-9fp4" />
   </ItemGroup>
   <ItemGroup>
+    <!-- What a search or a download sent from Mira web may be, and what Mira for Windows exchanges with the relay: shared with it. -->
+    <Compile Include="../Mira.Core/TorLink/RemoteDownloads.cs" Link="RemoteDownloads.cs" />
+    <Compile Include="../Mira.Core/TorLink/RemoteProtocol.cs" Link="RemoteProtocol.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <EmbeddedResource Include="../Mira.Web/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Each version's main points (Mira.Core): the phone shows those of a new Mira web once, « Nouveau dans Mira ». -->
     <EmbeddedResource Include="../Mira.Core/WhatsNew.json" LogicalName="web/whats-new.json" />

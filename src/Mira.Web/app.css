@@ -585,6 +585,27 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .now-what { display: block; margin-top: 3px; font-size: calc(15px * var(--text)); font-weight: 400; line-height: 1.35; color: var(--muted); }
 .now-item .btn { flex: none; }
 .now-confirm { padding: 0 20px 10px; font-size: calc(15px * var(--text)); line-height: 1.45; color: var(--muted); }
+/* « Télécharger sur le PC serveur »: the search and its category, then what the PC has under way, one row each. */
+.torlink-tools { padding: 4px var(--gutter) 20px; display: grid; gap: 12px; justify-items: start; }
+.torlink-search { width: 100%; display: grid; gap: 10px; }
+.torlink-kinds { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.torlink-kinds .segmented { margin-top: 0; }
+.torlink-paste { margin-left: -12px; }
+.torlink-paste .icon { width: 16px; height: 16px; }
+.torlink-results { min-height: 8px; }
+.torlink-results.pending .torlink-list { opacity: 0.55; transition: opacity var(--fast) linear 120ms; }
+.torlink-searching { display: flex; align-items: center; gap: 12px; margin: 0 calc(var(--gutter) + 4px) 24px; color: var(--muted); font-size: calc(15px * var(--text)); line-height: 1.45; }
+.torlink-searching .spinner { flex: none; width: 18px; height: 18px; border-width: 2px; }
+.torlink-failed { color: var(--danger); }
+.torlink-item { align-items: flex-start; padding-top: 12px; padding-bottom: 12px; }
+.torlink-item > .icon { flex: none; margin-top: 2px; color: var(--faint); }
+.torlink-item > .round { margin: -8px -8px -8px 0; }
+.torlink-name { display: block; overflow-wrap: anywhere; }
+.torlink-line { overflow-wrap: anywhere; }
+.torlink-bar { display: block; height: 4px; margin-top: 8px; border-radius: var(--r-full); background: var(--raised-2); overflow: hidden; }
+.torlink-bar i { display: block; height: 100%; background: var(--accent); transition: width var(--slow) linear; }
+.torlink-confirm { font-size: calc(16px * var(--text)); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.torlink-note { margin-top: 0; }
 /* « Ton bilan »: the time in large, then the counts, the series and the genres. */
 .report-periods { display: flex; gap: 8px; }
 .report { display: grid; gap: 18px; min-height: 120px; align-content: start; }

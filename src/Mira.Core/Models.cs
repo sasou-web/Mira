@@ -217,6 +217,11 @@ public sealed class PlayerSettings
     /// sharing it. Replaces TorLinkKeepSeeding (on by default before 0.5.7), which saved profiles leave behind: they move too.
     /// </summary>
     public bool TorLinkKeepShared { get; set; }
+    /// <summary>
+    /// On the PC of Jellyfin: searches and downloads sent from Mira web by an administrator of Jellyfin
+    /// (« Télécharger sur le PC serveur ») are run here, by TorLink without a window.
+    /// </summary>
+    public bool TorLinkRemote { get; set; } = true;
     /// <summary>Manual library folders; empty: the folders of the Jellyfin libraries.</summary>
     public string TorLinkMoviesFolder { get; set; } = "";
     public string TorLinkSeriesFolder { get; set; } = "";

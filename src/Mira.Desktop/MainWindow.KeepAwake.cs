@@ -29,16 +29,22 @@ public partial class MainWindow
         var awake = false;
         try
         {
-            if (!_demo && _client is { } client && Uri.TryCreate(client.Connection.Server, UriKind.Absolute, out var uri))
-            {
-                if (_awakeServer?.Server != client.Connection.Server)
-                    _awakeServer = (client.Connection.Server, uri.IsLoopback || await Task.Run(() => LocalNetwork.IsThisPc(uri.Host)));
-                if (_awakeServer.Value.Local) awake = ServerSleep.KeepAwake(await client.ViewersAsync());
-            }
+            if (!_demo && _client is { } client && await JellyfinOnThisPcAsync(client)) awake = ServerSleep.KeepAwake(await client.ViewersAsync());
         }
         catch (Exception ex) when (IsExpected(ex)) { }
         finally { _readingPlayback = false; }
-        KeepAwake(awake);
+        // Downloading for another device (« Télécharger sur le PC serveur ») keeps it awake too.
+        KeepAwake(awake || HeadlessDownloading());
+    }
+
+    /// <summary>Jellyfin on this PC (its address is this PC's), judged once per server.</summary>
+    private async Task<bool> JellyfinOnThisPcAsync(JellyfinClient client)
+    {
+        if (_awakeServer is { } known && known.Server == client.Connection.Server) return known.Local;
+        if (!Uri.TryCreate(client.Connection.Server, UriKind.Absolute, out var uri)) return false;
+        var local = uri.IsLoopback || await Task.Run(() => LocalNetwork.IsThisPc(uri.Host));
+        _awakeServer = (client.Connection.Server, local);
+        return local;
     }
 
     /// <summary>

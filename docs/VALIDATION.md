@@ -2,6 +2,15 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## Télécharger sur le PC serveur depuis un autre appareil (non publié)
+
+- **Besoin** : lancer un téléchargement TorLink depuis le téléphone ou un autre PC pour qu’il se fasse sur le PC de Jellyfin, sans bureau à distance ; TorLink ne téléchargeait que sur le PC où Mira est ouvert.
+- **Fait** : Mira web d’un administrateur (**Réglages → Télécharger sur le PC serveur**, ou depuis une recherche sans résultat) cherche, envoie un résultat ou un lien magnet collé, suit, met en pause, reprend et annule ; l’extension relaie (`/Mira/torlink`, en mémoire) ; Mira pour Windows ouvert sur le PC de Jellyfin vient au relais, cherche par `torlnk search` et télécharge par `torlnk serve` (TorLink sans fenêtre, même file que la page Téléchargements, qui passe la main quand personne ne s’en sert et la reprend à l’affichage) ; le rangement est celui de toujours. Option « Télécharger depuis tes autres appareils » (Réglages → TorLink), active ; sur un autre PC, elle ouvre Mira web.
+- **Vérifié sur Jellyfin 12.1 (conteneur, Chromium à la taille d’un iPhone, faux Mira pour Windows au relais)** : recherche « --mira check » en Séries nettoyée en « mira check » côté PC, résultat « 1,4 Go · 42 sources », téléchargement suivi à 37 %, pause puis annulation reçues par le PC, lien qui n’est pas un magnet refusé, lien magnet collé envoyé ; un compte non administrateur reçoit 403 ; aucune erreur JavaScript ni refus de la politique de sécurité.
+- **Vérifié avec le vrai TorLink 1.9.0 (Linux)** : `TorLinkServeClient` contre `torlnk serve` lancé par `TorLinkRemote.ServeArguments` : mauvais jeton refusé (401), ajout puis doublon (`duplicate`), lien invalide refusé avec la raison de TorLink, pause, reprise, annulation, `stop-seed` d’un partage absent (404, « pas ce téléchargement ») ; file enregistrée sur Ctrl+C (SIGINT) et retrouvée au démarrage suivant, comme quand la page reprend la main.
+- **Tests** : cas communs à Mira.Core et Mira web (`tests/fixtures/torlink-remote.json` : liens magnet hexadécimaux et base32, recherches, noms) ; relais (comptes, plafonds, un seul agent, demandes reprises après 2 min, annulation avant le PC) ; sortie de `torlnk search`, file de TorLink, raisons affichées (Core, partout) ; `check.mjs` avec un faux agent.
+- **Non vérifié** : sur un vrai PC Windows, le passage de la page TorLink à TorLink sans fenêtre et retour, une vraie recherche (le conteneur n’atteint pas les sources de TorLink), un vrai téléchargement rangé.
+
 ## « En ce moment sur Jellyfin » dans Mira web (non publié)
 
 - **Besoin** : voir depuis le téléphone qui regarde quoi sur le serveur, et pourquoi un titre est converti, sans allumer Mira pour Windows ; jusqu’ici seul Windows le montrait.

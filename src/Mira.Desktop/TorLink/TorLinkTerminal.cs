@@ -143,14 +143,18 @@ internal sealed class TorLinkTerminal : IDisposable
         catch (Exception ex) when (ex is COMException or InvalidOperationException or ArgumentException) { }
     }
 
-    /// <summary>Asks TorLink to quit (Ctrl+C lets it save its queue), then ends it after a short grace period.</summary>
-    public async Task StopAsync()
+    /// <summary>
+    /// Asks TorLink to quit (Ctrl+C lets it save its queue), then ends it after a short grace period. <paramref name="idle"/>:
+    /// handed over to TorLink without a window (« Télécharger sur le PC serveur »), the page starts it again when it is shown.
+    /// </summary>
+    public async Task StopAsync(bool idle = false)
     {
         var console = _console;
         _console = null;
         if (console is null) return;
         await console.StopAsync(TimeSpan.FromSeconds(3));
         console.Dispose();
+        if (idle) { ExitCode = null; Problem = null; SetState(TerminalState.Idle); }
     }
 
     private void Launch()
@@ -274,7 +278,8 @@ internal sealed class TorLinkTerminal : IDisposable
     /// own TorLink is updated with Mira (its update notice would point to npm commands) and was installed without its
     /// optional WebRTC module.
     /// </summary>
-    private static IReadOnlyDictionary<string, string> ChildEnvironment(bool managed)
+    /// <summary>Mira's environment for a TorLink it runs: colours, and no update check nor WebRTC for its own TorLink.</summary>
+    internal static IReadOnlyDictionary<string, string> ChildEnvironment(bool managed)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
