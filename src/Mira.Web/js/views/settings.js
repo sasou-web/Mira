@@ -11,7 +11,7 @@ import { homeRows, moveRow, showRow } from '../home-rows.js';
 import { watchReport, reportStart, reportTime, reportCount } from '../report.js';
 
 export const QUALITIES = [
-  ['auto', 'Automatique', 'Pleine qualité à la maison, adaptée à la connexion ailleurs'],
+  ['auto', 'Automatique', 'Pleine qualité à la maison ou quand ta connexion la tient, sinon adaptée à elle'],
   ['max', 'Maximale', 'Le fichier tel quel dès que possible'],
   [20_000_000, '20 Mb/s', '1080p, très bonne qualité'],
   [10_000_000, '10 Mb/s', '1080p'],

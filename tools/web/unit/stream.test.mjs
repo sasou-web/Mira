@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  FULL_BITRATE, UNMEASURED_BITRATE, MEASURE_KEPT, knownBitrate, measuredBitrate, LAST_STAGE, nextStage, stageRequest,
+  FULL_BITRATE, FULL_MARGIN, UNMEASURED_BITRATE, MEASURE_KEPT, knownBitrate, measuredBitrate, autoBitrate, LAST_STAGE, nextStage, stageRequest,
   stageText, videoErrorText, hlsErrorText, videoErrorStep, hlsErrorStep, afterCheck, resumeTicks, playbackError,
   copiesVideo, chooseStream, burnedIn, subtitleSwitch, webVttAddress, progressFraction, startPosition,
 } from '../../../src/Mira.Web/js/player/stream.js';
@@ -13,8 +13,10 @@ test('bitrate: chosen, full quality, or a fresh measure; null when a measure is 
   assert.equal(knownBitrate(6_000_000, { atHome: true, now }), 6_000_000);
   assert.equal(knownBitrate('max', { now }), FULL_BITRATE);
   assert.equal(knownBitrate('auto', { atHome: true, now }), FULL_BITRATE);
-  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT + 1, value: 7_000_000 }, now }), 7_000_000);
-  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT, value: 7_000_000 }, now }), null);
+  // A fresh measure: what it allows for this file (autoBitrate).
+  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT + 1, speed: 10_000_000 }, now }), 7_000_000);
+  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT + 1, speed: 10_000_000 }, now, fileBitrate: 5_000_000 }), FULL_BITRATE);
+  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT, speed: 10_000_000 }, now }), null);
   assert.equal(knownBitrate('auto', { now }), null);
   assert.equal(knownBitrate(undefined, { now }), null);
   assert.equal(UNMEASURED_BITRATE, 8_000_000);
@@ -25,6 +27,20 @@ test('bitrate: 70 % of the measure, between 1.5 and 40 Mb/s', () => {
   assert.equal(measuredBitrate(10_000_000), 7_000_000);
   assert.equal(measuredBitrate(100_000_000), 40_000_000);
   assert.equal(measuredBitrate(3_333_333), 2_333_333);
+});
+
+test('bitrate: the file as it is when the connection holds one and a half times its bitrate, above 40 Mb/s too', () => {
+  assert.equal(FULL_MARGIN, 1.5);
+  // A 4K remux at 60 Mb/s on a line of 95 Mb/s: as it is. At 85 Mb/s: converted, under what the line allows.
+  assert.equal(autoBitrate(95_000_000, 60_000_000), FULL_BITRATE);
+  assert.equal(autoBitrate(90_000_000, 60_000_000), FULL_BITRATE);
+  assert.equal(autoBitrate(85_000_000, 60_000_000), 40_000_000);
+  // A 1080p file at 8 Mb/s on a 4G line of 15 Mb/s: as it is; on 10 Mb/s, converted at 7 Mb/s.
+  assert.equal(autoBitrate(15_000_000, 8_000_000), FULL_BITRATE);
+  assert.equal(autoBitrate(10_000_000, 8_000_000), 7_000_000);
+  // A file whose bitrate Jellyfin does not know: what the measure allows.
+  assert.equal(autoBitrate(200_000_000, 0), 40_000_000);
+  assert.equal(autoBitrate(200_000_000, undefined), 40_000_000);
 });
 
 test('cascade: three stages, each converting more', () => {

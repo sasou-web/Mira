@@ -441,18 +441,22 @@ export const api = {
   syncSend: (what, body) => post(`SyncPlay/${what}`, body),
   stopEncoding: (playSessionId) => request('DELETE', 'Videos/ActiveEncodings', { params: { deviceId: device.id, playSessionId }, keepalive: true }).catch(() => {}),
   /**
-   * Downloads about 1 MB to estimate the connection when away from home, for `limit` ms at most: cut there, what came
-   * by then gives the speed. Throws when Jellyfin refuses (a 503 while it starts is not a slow line) or sends nothing.
+   * Downloads up to 4 MB to estimate the connection when away from home, for `limit` ms at most once Jellyfin starts
+   * sending: cut there, what came by then gives the speed. The wait for its answer is not counted: on a fast line, a
+   * short download timed from the request would mostly measure that wait. Throws when Jellyfin refuses (a 503 while it
+   * starts is not a slow line), does not answer within 5 s, or sends nothing.
    */
-  async bitrateTest(size = 1_000_000, limit = 5000) {
+  async bitrateTest(size = 4_000_000, limit = 1500) {
     await trustServer();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), limit);
-    const started = performance.now();
-    let bytes = 0;
+    let timer = setTimeout(() => controller.abort(), 5000);
+    let started = performance.now(), bytes = 0;
     try {
       const response = await fetch(url('Playback/BitrateTest', { size }), { headers: { Authorization: authorization() }, cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new ApiError(response.status, `Jellyfin a répondu avec une erreur (${response.status}).`);
+      clearTimeout(timer);
+      started = performance.now();
+      timer = setTimeout(() => controller.abort(), limit);
       const reader = response.body?.getReader?.();
       if (!reader) bytes = (await response.arrayBuffer()).byteLength;
       else for (let part = await reader.read(); !part.done; part = await reader.read()) bytes += part.value.byteLength;

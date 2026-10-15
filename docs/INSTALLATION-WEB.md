@@ -59,7 +59,7 @@ Jellyfin met ensuite l’extension à jour tout seul à chaque nouvelle version 
 
 **Hors de chez toi** : installe Tailscale sur le serveur et sur le téléphone, avec le même compte. Dans Jellyfin, **Tableau de bord → Réseau → LAN networks**, ajoute `100.64.0.0/10` (avec, si la liste était vide, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12` et `192.168.0.0/16`), puis ouvre `http://100.x.y.z:8096/Mira` avec l’adresse Tailscale du serveur. Sous Windows, le pare-feu doit laisser entrer `jellyfin.exe` sur son port depuis `100.64.0.0/10`.
 
-Hors de chez toi, la qualité **Automatique** mesure la connexion et demande à Jellyfin une vidéo adaptée. Tu peux la fixer dans **Réglages → Qualité** ou dans le lecteur.
+Hors de chez toi, la qualité **Automatique** mesure la connexion pendant que le titre charge : si elle tient une fois et demie le débit du fichier, il est lu tel quel, en pleine qualité ; sinon Jellyfin envoie une vidéo adaptée. Tu peux la fixer dans **Réglages → Qualité** ou dans le lecteur.
 
 ## Ce qui change par rapport à Mira sur Windows et Mac
 
