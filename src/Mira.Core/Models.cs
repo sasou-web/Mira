@@ -132,8 +132,8 @@ public sealed record LibrarySection(string Id, string Name, string? CollectionTy
     /// </summary>
     public static bool Groups(string? collectionType) => collectionType is "boxsets" or "playlists";
 }
-/// <summary>A server library with its folders, as returned by Library/VirtualFolders.</summary>
-public sealed record VirtualFolder(string Name, string? CollectionType, string[] Locations);
+/// <summary>A server library with its folders, as returned by Library/VirtualFolders (ItemId: what a policy names).</summary>
+public sealed record VirtualFolder(string Name, string? CollectionType, string[] Locations, string? ItemId = null);
 public sealed record AuthUser(string Id, string Name);
 public sealed record AuthenticationResult(string AccessToken, AuthUser User);
 public sealed record Connection(string Server, string UserId, string UserName, string Token, string DeviceId);

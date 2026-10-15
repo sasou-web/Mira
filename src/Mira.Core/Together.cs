@@ -198,7 +198,7 @@ public static class Together
         var steps = new List<string>
         {
             "Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.",
-            "Pas encore de compte ? Crée-le-lui dans Jellyfin : tableau de bord → Utilisateurs → +, avec l’accès à tes bibliothèques.",
+            "Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).",
         };
         var reach = Reach(host);
         if (reach == "tailnet") steps.Add("Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.");

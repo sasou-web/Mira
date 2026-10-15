@@ -61,13 +61,14 @@ public sealed class JellyfinClient : IDisposable
         return response.IsSuccessStatusCode && (await response.Content.ReadAsStringAsync(ct)).Trim() == "true";
     }
     /// <summary>
-    /// Approves another device's code for this account. Asks first whether Quick Connect is on: turned off, Jellyfin
-    /// answers 401, which Mira would take for an ended session.
+    /// Approves another device's code for this account, or for another one (<paramref name="userId"/>, which an
+    /// administrator may: a friend's phone). Asks first whether Quick Connect is on: turned off, Jellyfin answers 401,
+    /// which Mira would take for an ended session.
     /// </summary>
-    public async Task<CodeApproval> ApproveCodeAsync(string code, CancellationToken ct = default)
+    public async Task<CodeApproval> ApproveCodeAsync(string code, string? userId = null, CancellationToken ct = default)
     {
         if (!await QuickConnectEnabledAsync(ct)) return CodeApproval.Disabled;
-        using var response = await _http.PostAsync($"QuickConnect/Authorize?code={Uri.EscapeDataString(code)}&userId={Uri.EscapeDataString(Connection.UserId)}", null, ct);
+        using var response = await _http.PostAsync($"QuickConnect/Authorize?code={Uri.EscapeDataString(code)}&userId={Uri.EscapeDataString(userId ?? Connection.UserId)}", null, ct);
         if (response.StatusCode == HttpStatusCode.NotFound) return CodeApproval.Unknown;
         await CheckAsync(response);
         return CodeApproval.Approved;
@@ -511,6 +512,46 @@ public sealed class JellyfinClient : IDisposable
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return null;
         await CheckAsync(response);
         return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject;
+    }
+    /// <summary>Jellyfin's accounts, the hidden ones too, as an administrator sees them; null when this account may not.</summary>
+    public async Task<List<AuthUser>?> UsersAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Users", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        return await response.Content.ReadFromJsonAsync<List<AuthUser>>(Json.Options, ct) ?? [];
+    }
+    /// <summary>
+    /// « Ajouter un ami »: a new account with its own password, which sees only <paramref name="folders"/> and
+    /// downloads nothing (Friends.Policy). Never left as Jellyfin makes it (every library, downloads): removed again
+    /// when its policy cannot be set. A name Jellyfin refuses (taken, or a sign it does not take) is said in words.
+    /// </summary>
+    public async Task<AuthUser> CreateFriendAsync(string name, string password, IReadOnlyCollection<string> folders, CancellationToken ct = default)
+    {
+        if (folders.Count == 0) throw new UserInputException("Choisis au moins une bibliothèque à partager.");
+        using var created = await _http.PostAsJsonAsync("Users/New", new { Name = name, Password = password }, ct);
+        if (created.StatusCode == HttpStatusCode.BadRequest)
+            throw new UserInputException($"Jellyfin refuse le nom « {name} » : il est déjà pris, ou contient un signe qu’il n’accepte pas.");
+        await CheckAsync(created);
+        var user = await created.Content.ReadFromJsonAsync<AuthUser>(Json.Options, ct) ?? throw new IOException("Jellyfin n’a pas donné le compte créé.");
+        try
+        {
+            using var read = await _http.GetAsync($"Users/{Uri.EscapeDataString(user.Id)}", ct);
+            await CheckAsync(read);
+            var policy = (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) as JsonObject)?["Policy"] as JsonObject
+                ?? throw new IOException("Jellyfin n’a pas donné les droits du compte créé.");
+            using var content = new StringContent(Friends.Policy(policy, folders).ToJsonString(), Encoding.UTF8, "application/json");
+            using var set = await _http.PostAsync($"Users/{Uri.EscapeDataString(user.Id)}/Policy", content, ct);
+            await CheckAsync(set);
+        }
+        catch
+        {
+            // Even when Mira is closing: an account that sees everything must not stay behind.
+            try { using var removed = await _http.DeleteAsync($"Users/{Uri.EscapeDataString(user.Id)}", CancellationToken.None); }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException) { }
+            throw;
+        }
+        return user;
     }
     /// <summary>
     /// Whether this account administers Jellyfin (its policy): only an administrator installs Mira web or lets
