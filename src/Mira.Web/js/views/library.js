@@ -24,6 +24,8 @@ const SORTS = [
   ['recent', 'Ajouts récents'], ['title', 'Titre'], ['year', 'Année'], ['rating', 'Note'], ['played', 'Vus récemment'],
 ];
 const PAGE = 60;
+/** « Lettre »: « # » for the titles before A (a number first, « 2001 »), then A to Z. */
+const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 /** The kind of Jellyfin library that holds each tab's titles. */
 const KINDS = { Movie: 'movies', Series: 'tvshows' };
 
@@ -31,13 +33,13 @@ export function create({ type, query }) {
   const movies = type === 'Movie';
   const noun = movies ? ['film', 'films'] : ['série', 'séries'];
   // library: one of several libraries of this kind (Séries or Animes), '' for all of them.
-  const state = { sort: 'recent', genre: query.get('genre') ?? '', year: '', unplayed: false, favorite: query.get('favoris') === '1', library: '' };
+  const state = { sort: 'recent', genre: query.get('genre') ?? '', year: '', unplayed: false, favorite: query.get('favoris') === '1', library: '', letter: '' };
   let total = null, start = 0, done = false, busy = false, controller = null, loadedAt = 0, options = null, stale = false;
   let generation = 0, refreshing = null;   // a reset starts a new generation: the answers of an older one are dropped
   // Resolved once the first page shows, its first screenful of pictures decoded: the tab waits for it (app.js).
   let markReady = () => {};
   const ready = new Promise((resolve) => { markReady = resolve; });
-  const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite, state.library].join('|')}`;
+  const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite, state.library, state.letter].join('|')}`;
   // The account's libraries, kept on the phone so that the choice between them shows at once, without moving the grid.
   const viewsKey = () => `mira.library.${session.current?.userId}.views`;
   const ofKind = (views) => views.filter((v) => v.type === KINDS[type]);
@@ -63,7 +65,8 @@ export function create({ type, query }) {
     h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? 'Films' : 'Séries'), shelves),
     h('div', { class: 'library-filters' }, chips), count, body);
 
-  const filtered = () => state.genre || state.year || state.unplayed || state.favorite;
+  const filtered = () => state.genre || state.year || state.unplayed || state.favorite || state.letter;
+  const noFilters = { genre: '', year: '', unplayed: false, favorite: false, letter: '' };
 
   function chip(label, { on = false, menu = false, run }) {
     return h('button', { class: ['chip', on && 'on'], 'aria-pressed': menu ? null : String(on), 'aria-haspopup': menu ? 'dialog' : null, on: { click: run } },
@@ -73,13 +76,15 @@ export function create({ type, query }) {
   function renderChips() {
     clear(chips).append(
       chip(`Trier : ${SORTS.find(([k]) => k === state.sort)[1]}`, { menu: true, run: () => sheet({
-        title: 'Trier par', items: SORTS.map(([key, label]) => ({ label, selected: state.sort === key, run: () => apply({ sort: key }) })),
+        // A letter goes with the sort by title only.
+        title: 'Trier par', items: SORTS.map(([key, label]) => ({ label, selected: state.sort === key, run: () => apply({ sort: key, letter: key === 'title' ? state.letter : '' }) })),
       }) }),
+      state.sort === 'title' ? chip(state.letter ? `Lettre : ${state.letter}` : 'Lettre', { on: !!state.letter, menu: true, run: pickLetter }) : null,
       chip(state.genre || 'Genre', { on: !!state.genre, menu: true, run: pickGenre }),
       chip(state.year || 'Année', { on: !!state.year, menu: true, run: pickYear }),
       chip('Non vus', { on: state.unplayed, run: () => apply({ unplayed: !state.unplayed }) }),
       chip('Favoris', { on: state.favorite, run: () => apply({ favorite: !state.favorite }) }),
-      filtered() ? h('button', { class: 'chip', on: { click: () => apply({ genre: '', year: '', unplayed: false, favorite: false }) } }, icon('close', { size: 16 }), 'Réinitialiser') : null,
+      filtered() ? h('button', { class: 'chip', on: { click: () => apply(noFilters) } }, icon('close', { size: 16 }), 'Réinitialiser') : null,
     );
   }
 
@@ -120,6 +125,20 @@ export function create({ type, query }) {
       ...years.map((y) => ({ label: y, selected: state.year === y, run: () => apply({ year: y }) }))] });
   }
 
+  /**
+   * « Lettre », with the sort by title: only the titles under one letter, as Jellyfin sorts them, by their sort name
+   * (« The Batman » under B). Rather than a column of letters on the right edge, where iOS's swipe back starts.
+   */
+  function pickLetter() {
+    let close = () => {};
+    const pick = (letter) => { close(); if (letter !== state.letter) apply({ letter }); };
+    const letters = h('div', { class: 'letters', role: 'group', 'aria-label': 'Lettres' }, LETTERS.map((letter) => h('button', {
+      class: ['letter', state.letter === letter && 'on'], 'aria-pressed': String(state.letter === letter),
+      'aria-label': letter === '#' ? 'Chiffres et symboles' : letter, on: { click: () => pick(letter) },
+    }, letter)));
+    close = sheet({ title: 'Lettre', body: letters, items: [{ label: 'Toutes les lettres', selected: !state.letter, run: () => pick('') }] });
+  }
+
   function apply(change) {
     Object.assign(state, change);
     renderShelves(); renderChips();
@@ -147,6 +166,7 @@ export function create({ type, query }) {
   const fetchPage = (from, limit, signal) => api.browse({
     types: type, start: from, limit, sort: state.sort, genre: state.genre || undefined, year: state.year || undefined,
     played: state.unplayed ? false : undefined, favorite: state.favorite, library: state.library || undefined, fields: GRID_FIELDS, signal,
+    startsWith: state.letter !== '#' ? state.letter || undefined : undefined, before: state.letter === '#' ? 'A' : undefined,
   });
 
   /**
@@ -203,8 +223,11 @@ export function create({ type, query }) {
 
   /** Nothing to show: why, and what to do. */
   function showEmpty() {
-    grid.append(filtered()
-      ? emptyState({ symbol: 'filter', title: 'Aucun titre ne correspond', text: 'Essaie un autre genre ou une autre année.', action: { label: 'Réinitialiser les filtres', run: () => apply({ genre: '', year: '', unplayed: false, favorite: false }) } })
+    const onlyLetter = state.letter && !state.genre && !state.year && !state.unplayed && !state.favorite;
+    grid.append(onlyLetter
+      ? emptyState({ symbol: 'filter', title: state.letter === '#' ? 'Aucun titre avant A' : `Aucun titre en ${state.letter}`, text: 'Choisis une autre lettre.', action: { label: 'Toutes les lettres', run: () => apply({ letter: '' }) } })
+      : filtered()
+      ? emptyState({ symbol: 'filter', title: 'Aucun titre ne correspond', text: 'Essaie un autre genre ou une autre année.', action: { label: 'Réinitialiser les filtres', run: () => apply(noFilters) } })
       : emptyState({ symbol: movies ? 'films' : 'series', title: movies ? 'Aucun film pour l’instant' : 'Aucune série pour l’instant', text: 'Ajoute-en dans les dossiers de Jellyfin : ils apparaîtront ici après l’analyse.' }));
     grid.lastChild.style.gridColumn = '1 / -1';
   }

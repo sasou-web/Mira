@@ -385,6 +385,15 @@ html:not(.touch) .sheet-item:active, .sheet-item.pressed { background: var(--rai
 .news-text { margin: 4px 0 0; font-size: calc(14px * var(--text)); line-height: 1.45; color: var(--muted); }
 .news-also { margin: 0; font-size: calc(13px * var(--text)); line-height: 1.4; color: var(--faint); }
 .news .btn { margin-top: 4px; }
+/* « Lettre » (Films and Séries): seven to a line, each a finger wide. */
+.letters { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 2px 20px 12px; }
+.letter {
+  height: 44px; border-radius: var(--r-m); background: var(--raised); color: var(--ink); font-size: calc(17px * var(--text)); font-weight: 800;
+  transition: transform var(--fast) var(--ease), background var(--fast) linear;
+}
+.letter.on { background: var(--accent); color: var(--on-accent); }
+html:not(.touch) .letter:active, .letter.pressed { transform: scale(0.94); }
+@media (hover: hover) { .letter:not(.on):hover { background: var(--raised-2); } }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { to { opacity: 0; } }

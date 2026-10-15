@@ -342,7 +342,8 @@ export const api = {
   history: () => get('Items', { userId: user(), recursive: true, includeItemTypes: 'Movie,Episode', sortBy: 'DatePlayed', sortOrder: 'Descending', limit: 40, fields: 'SeriesInfo', enableImages: false, enableUserData: true }),
 
   /** Films and series, newest first unless sorted otherwise; filters as Mira on Windows. */
-  browse({ types = 'Movie,Series', start = 0, limit = 60, sort = 'recent', genre, year, played, favorite, person, search, library, fields = CARD_FIELDS, signal } = {}) {
+  /** startsWith: titles whose sort name starts with it (« The Batman » under B); before: those that sort before it. */
+  browse({ types = 'Movie,Series', start = 0, limit = 60, sort = 'recent', genre, year, played, favorite, person, search, library, startsWith, before, fields = CARD_FIELDS, signal } = {}) {
     const sorts = {
       title: ['SortName', 'Ascending'], year: ['ProductionYear,SortName', 'Descending'], rating: ['CommunityRating,SortName', 'Descending'],
       played: ['DatePlayed,SortName', 'Descending'], recent: ['DateCreated,SortName', 'Descending'],
@@ -352,7 +353,7 @@ export const api = {
       userId: user(), recursive: true, includeItemTypes: types, startIndex: start, limit, sortBy, sortOrder,
       fields, ...CARD_IMAGES, enableTotalRecordCount: true,
       genres: genre, years: year, isPlayed: played, isFavorite: favorite ? true : undefined, personIds: person, searchTerm: search,
-      parentId: library,
+      parentId: library, nameStartsWith: startsWith, nameLessThan: before,
     }, { signal });
   },
   /**
