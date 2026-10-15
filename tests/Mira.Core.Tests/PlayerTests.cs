@@ -44,6 +44,12 @@ internal static class PlayerTests
             }
             foreach (var row in root.GetProperty("groups").EnumerateArray())
                 Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupText(group) == row[1].GetString(), $"Group: {row[1]}");
+            foreach (var row in root.GetProperty("names").EnumerateArray())
+                Assert(Together.NamesText([.. row[0].EnumerateArray().Select(x => x.GetString()!)]) == row[1].GetString(), $"Names: {row[1]}");
+            foreach (var row in root.GetProperty("statuses").EnumerateArray())
+                Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupStatus(group, row[1].GetString(), row[2].GetBoolean()) is var status
+                    && status.Text == row[3].GetProperty("text").GetString() && status.Alert == row[3].GetProperty("alert").GetBoolean(), $"Status: {row[3]} ≠ {(Together.ParseGroup(row[0]) is { } g ? Together.GroupStatus(g, row[1].GetString(), row[2].GetBoolean()) : null)}");
+            Assert(Together.MemberText("Marc", true) == "Marc a rejoint le groupe" && Together.MemberText("Marc", false) == "Marc a quitté le groupe", "Member");
             Assert(Together.GroupName("mira") == "Groupe de mira" && Together.NeedsSeek(10, 10.6) && !Together.NeedsSeek(10, 10.4), "Words, drift");
             foreach (var row in root.GetProperty("invites").EnumerateArray())
             {

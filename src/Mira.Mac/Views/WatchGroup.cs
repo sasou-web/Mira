@@ -14,7 +14,8 @@ namespace Mira.Mac.Views;
 /// (<see cref="Together"/>). One group at a time, joined or left from the title page, left from the player's ⋮ too. The
 /// group outlives the player (each playback has its own <see cref="PlayerPage"/>): it lives with the window. Jellyfin
 /// lets a device go with its socket (Wi-Fi lost, the Mac asleep): back, this Mac joins the group again, or makes it again
-/// under the same name when it made it and the group ended empty, so that the invitation sent still finds it.
+/// under the same name when it made it and the group ended empty, so that the invitation sent still finds it. In the
+/// player, a pill says what the group is doing (<see cref="PlayerPage.ShowGroup"/>).
 /// </summary>
 public sealed class WatchGroup
 {
@@ -42,6 +43,8 @@ public sealed class WatchGroup
     private Task? _recovering;
     /// <summary>The group changed (joined, left, someone came): the title page and the player's ⋮ show it again.</summary>
     public event Action? Changed;
+    /// <summary>Someone came or went (« Marc a rejoint le groupe »): the player's pill says it, a notice otherwise.</summary>
+    public event Action<string>? Member;
 
     public WatchGroup(MainWindow shell)
     {
@@ -72,8 +75,13 @@ public sealed class WatchGroup
                 _clock.Start(); _ = SyncClockAsync(); Changed?.Invoke();
                 break;
             case "UserJoined" or "UserLeft" when Group is not null:
-                if (body.ValueKind == JsonValueKind.String) _shell.Notice($"{body.GetString()} {(kind == "UserJoined" ? "a rejoint" : "a quitté")} le groupe.");
+                if (body.ValueKind == JsonValueKind.String && body.GetString() is { Length: > 0 } name) Member?.Invoke(Together.MemberText(name, kind == "UserJoined"));
                 _ = RefreshAsync(session);
+                break;
+            // Idle, Waiting (for a device to load), Paused or Playing: never who caused it (Together.GroupStatus).
+            case "StateUpdate" when Group is not null:
+                if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("State", out var state) && state.ValueKind == JsonValueKind.String)
+                { Group = Group with { State = state.GetString()! }; Changed?.Invoke(); }
                 break;
             case "GroupLeft": Gone(); break;
             // Jellyfin let this Mac go (its session ended): back in the group, or out of it when there is none to go back to.

@@ -8,12 +8,12 @@ import {
   knownItem, overview,
 } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
-import { settings } from '../session.js';
+import { settings, session } from '../session.js';
 import { trackText, chooseTracks, qualityText } from '../player/tracks.js';
 import { appleNative } from '../player/video.js';
 import { sleep, sleepChoices } from '../player/sleep.js';
 import { together } from '../together.js';
-import { groupText, people } from '../player/sync.js';
+import { groupText, people, groupStatus, namesText } from '../player/sync.js';
 import { inviteSheet } from '../invite.js';
 
 const SLICE = 100;
@@ -150,9 +150,14 @@ export function create({ id, query }) {
    */
   function togetherLine() {
     const group = together.group;
+    // Under it, what the group is doing (a wait, a pause), else who is there: back from Apple's player too.
+    const status = groupStatus(group, session.current?.userName);
+    const others = (group?.Participants?.length ?? 0) > 1;
+    const sub = !status ? '' : status.alert ? status.text : others ? namesText(group.Participants) : 'Personne d’autre pour l’instant : invite quelqu’un.';
     return h('button', { class: 'group-line', 'aria-haspopup': 'dialog', on: { click: togetherSheet } },
       icon('users', { size: 20 }),
-      h('span', { class: 'grow' }, group ? h('span', {}, 'Ensemble : ', h('b', {}, groupText(group))) : h('span', {}, 'Regarder ensemble')),
+      h('span', { class: 'grow' }, group ? h('span', {}, 'Ensemble : ', h('b', {}, groupText(group))) : h('span', {}, 'Regarder ensemble'),
+        sub ? h('span', { class: status.alert ? 'group-state alert' : 'group-state' }, sub) : ''),
       icon('right', { size: 18 }));
   }
   async function togetherSheet() {

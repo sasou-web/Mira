@@ -490,6 +490,8 @@ html:not(.touch) :is(.tracks-line, .group-line):active, :is(.tracks-line, .group
 :is(.tracks-line, .group-line) .grow { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
 :is(.tracks-line, .group-line) .grow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :is(.tracks-line, .group-line) b { color: var(--ink); font-weight: 700; }
+.group-line .group-state { font-size: calc(13px * var(--text)); color: var(--muted); }
+.group-line .group-state.alert { color: var(--ink); }
 @media (hover: hover) { :is(.tracks-line, .group-line):hover { background: var(--raised); } }
 .detail-secondary { display: flex; gap: 6px; }
 .detail-secondary .tool { flex: 1; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: var(--r-m); color: var(--muted); font-size: calc(12px * var(--text)); font-weight: 700; }
@@ -697,6 +699,17 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
   background: rgba(245, 245, 247, 0.96); color: var(--on-accent); font-weight: 800; font-size: calc(15px * var(--text)); box-shadow: var(--shadow);
   animation: rise var(--slow) var(--ease);
 }
+/* « Regarder ensemble »: what the group is doing, under the top bar. A wait or a pause for the group stays when the controls go. */
+.group-pill {
+  position: absolute; z-index: 3; top: calc(var(--top) + 62px); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.62); color: rgba(255, 255, 255, 0.9); font-size: calc(13px * var(--text)); font-weight: 700;
+  white-space: nowrap; pointer-events: none; transition: opacity var(--slow) linear;
+}
+.group-pill span { overflow: hidden; text-overflow: ellipsis; }
+.group-pill.alert { background: rgba(17, 17, 18, 0.92); color: #fff; box-shadow: var(--shadow); }
+.player.idle .group-pill:not(.alert) { opacity: 0; }
+.n-stage .group-pill { position: static; transform: none; background: var(--raised); color: var(--ink); box-shadow: none; }
 .up-next {
   position: absolute; z-index: 3; right: calc(var(--right) + 16px); bottom: calc(var(--bottom) + 96px); width: min(340px, calc(100% - 32px));
   display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding: 10px; border-radius: var(--r-m);

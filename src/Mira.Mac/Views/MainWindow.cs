@@ -60,7 +60,8 @@ public sealed class MainWindow : Window
     {
         Args = args; Profile = profile; Settings = profile.LoadSettings();
         Group = new WatchGroup(this);
-        Group.Changed += () => { Player?.RefreshMenus(); if (Current is DetailPage detail) detail.ShowTogether(); };
+        Group.Changed += () => { Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); };
+        Group.Member += said => { if (Player is { } player) player.ShowMember(said); else Notice(said + "."); };
         Title = "Mira"; MinWidth = 960; MinHeight = 600;
         Width = Settings.WindowWidth > 0 ? Settings.WindowWidth : 1440; Height = Settings.WindowHeight > 0 ? Settings.WindowHeight : 900;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;

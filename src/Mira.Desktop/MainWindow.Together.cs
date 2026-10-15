@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using Mira.Core;
+using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
@@ -17,6 +18,7 @@ namespace Mira.Desktop;
 /// joined or left from the title page, left from the player's ⋮ too. Its messages come through Jellyfin's WebSocket.
 /// Jellyfin lets a device go with its socket (Wi-Fi lost, the PC asleep): back, this PC joins the group again, or makes
 /// it again under the same name when it made it and the group ended empty, so that the invitation sent still finds it.
+/// In the player, a pill says what the group is doing (<see cref="UpdateGroupPill"/>).
 /// </summary>
 public partial class MainWindow
 {
@@ -52,6 +54,10 @@ public partial class MainWindow
     private Task? _groupRecovering;
     /// <summary>An invitation waited for (« Attendre »): its group joined once its host opens it.</summary>
     private CancellationTokenSource? _inviteWait;
+    /// <summary>« Marc a rejoint le groupe », said by the player's pill until <see cref="_groupMemberUntil"/>.</summary>
+    private string? _groupMember;
+    private DateTimeOffset _groupMemberUntil;
+    private bool _groupPillShown;
 
     private bool InGroup => _group is not null && !_demo && _client is not null;
     private bool PlayingForGroup => InGroup && _playing && _groupQueue is { } queue && _session.Item?.Id == queue.ItemId;
@@ -83,8 +89,13 @@ public partial class MainWindow
                 _groupClock.Start(); _ = SyncGroupClockAsync(); GroupChanged();
                 break;
             case "UserJoined" or "UserLeft" when _group is not null:
-                if (body.ValueKind == JsonValueKind.String) SetNotice($"{body.GetString()} {(kind == "UserJoined" ? "a rejoint" : "a quitté")} le groupe.");
+                if (body.ValueKind == JsonValueKind.String && body.GetString() is { Length: > 0 } name) GroupMember(name, kind == "UserJoined");
                 _ = RefreshGroupAsync(client);
+                break;
+            // Idle, Waiting (for a device to load), Paused or Playing: never who caused it (Together.GroupStatus).
+            case "StateUpdate" when _group is not null:
+                if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("State", out var state) && state.ValueKind == JsonValueKind.String)
+                { _group = _group with { State = state.GetString()! }; GroupChanged(); }
                 break;
             case "GroupLeft": GroupGone(); break;
             // Jellyfin let this PC go (its session ended): back in the group, or out of it when there is none to go back to.
@@ -119,8 +130,37 @@ public partial class MainWindow
     }
     private void GroupChanged()
     {
-        ShowTogetherButton();
+        ShowTogetherButton(); UpdateGroupPill();
         if (PlayerOptionsPopup.IsOpen && MoreMenu.Visibility == Visibility.Visible) ShowGroupSection();
+    }
+    /// <summary>
+    /// Someone came or went: said by the player's pill while a title plays (a message of the window would sit under the
+    /// video), by a message otherwise. Mira minimized or behind another window, a Windows notification says who came;
+    /// clicked, it brings Mira back where it was (the title page, ready for Lecture).
+    /// </summary>
+    private void GroupMember(string name, bool joined)
+    {
+        var said = Together.MemberText(name, joined);
+        if (joined && _group is { } group && (WindowState == WindowState.Minimized || !IsActive))
+            Toasts.Show(group.GroupName, said + ".", null, () => Dispatcher.BeginInvoke(RestoreFromWindows), "together", TimeSpan.FromHours(1));
+        if (!_playing) { SetNotice(said + "."); return; }
+        _groupMember = said; _groupMemberUntil = DateTimeOffset.UtcNow.AddSeconds(4);
+        UpdateGroupPill();
+    }
+    /// <summary>
+    /// The player's pill, top center, as in Mira web (player/group-pill.js): « Ensemble · … » with the controls; a wait
+    /// or a pause for the group, and someone who came or went, in sight whatever they do. Loading here (opening, a seek
+    /// for the group, data awaited): Jellyfin's wait may be for this PC rather than for the others.
+    /// </summary>
+    private void UpdateGroupPill()
+    {
+        var status = InGroup && _playing && !_miniPlayer ? Together.GroupStatus(_group!, _client!.Connection.UserName, !_loaded || _groupReadyPending || _groupStallSince is not null) : null;
+        var said = status is null ? null : DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
+        if (status is not null && GroupPillText.Text != (said ?? status.Text)) GroupPillText.Text = said ?? status.Text;
+        var show = status is not null && (said is not null || status.Alert || _controlsVisible);
+        if (show == _groupPillShown) return;
+        _groupPillShown = show;
+        if (show) Motion.Reveal(GroupPill, 200, 6); else _ = Motion.HideAsync(GroupPill, 160);
     }
     /// <summary>Opened again after a break: Jellyfin may have let the session go, with its place in the group.</summary>
     private void RejoinGroup(JellyfinClient client) => RecoverGroup(client);
