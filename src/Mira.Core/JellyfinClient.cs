@@ -143,6 +143,13 @@ public sealed class JellyfinClient : IDisposable
     /// </summary>
     public async Task<List<MediaItem>> PersonsAsync(string search, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Persons?userId={Connection.UserId}&searchTerm={Uri.EscapeDataString(search)}&limit=12&enableImageTypes=Primary", ct)).Items;
+    /// <summary>
+    /// What a search finds beside films and series (Mira web asks the same): episodes by their own name, those Jellyfin
+    /// lists as missing left out (<paramref name="type"/> « Episode »), or sagas, its collections (« BoxSet »); a dozen at most.
+    /// </summary>
+    public async Task<List<MediaItem>> SearchOthersAsync(string type, string search, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={type}&searchTerm={Uri.EscapeDataString(search)}&limit=12" +
+            "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (type == "Episode" ? "&isMissing=false" : ""), ct)).Items;
     public async Task<CatalogFilters> FiltersAsync(CancellationToken ct = default)
     {
         // The legacy Filters endpoint only examines immediate children of the user root.

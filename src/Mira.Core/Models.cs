@@ -121,6 +121,8 @@ public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? 
             "year" => "&sortBy=ProductionYear,SortName&sortOrder=Descending",
             "rating" => "&sortBy=CommunityRating,SortName&sortOrder=Descending",
             "played" => "&sortBy=DatePlayed,SortName&sortOrder=Descending",
+            // A saga's titles in the order they came out.
+            "saga" => "&sortBy=ProductionYear,PremiereDate,SortName&sortOrder=Ascending",
             _ => "&sortBy=DateCreated,SortName&sortOrder=Descending"
         });
 }

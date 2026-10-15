@@ -27,14 +27,16 @@ public sealed class DetailPage : Page
     /// <summary>The file of the episode Lecture plays on a series: its picture shows in the page (« 1080p »).</summary>
     private (string Id, MediaSource? Source)? _targetFile;
     private bool _filling;
+    /// <summary>An episode a search found: the series' page opens at its season, the episode set apart.</summary>
+    private readonly MediaItem? _found;
     public override string Rail => "";
     public MediaItem Item => _item;
     public IReadOnlyList<MediaItem> Episodes => _allEpisodes;
     public IEnumerable<string> SeasonLabels => _seasons.Items.OfType<ComboBoxItem>().Select(x => x.Content as string ?? "");
 
-    public DetailPage(MainWindow shell, MediaItem item) : base(shell)
+    public DetailPage(MainWindow shell, MediaItem item, MediaItem? atEpisode = null) : base(shell)
     {
-        _item = item;
+        _item = item; _found = atEpisode;
         _backdrop.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(380) }];
         _header.Children.Add(new Border { Background = Ui.Brush("#0E0E10") });
         _header.Children.Add(_backdrop);
@@ -227,8 +229,10 @@ public sealed class DetailPage : Page
         _filling = true;
         _seasons.Items.Clear();
         foreach (var page in pages) _seasons.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
-        // The page shown before a refresh, else the one of the next episode, of an episode in progress, of the first unwatched.
+        // The page shown before a refresh, else the one of the episode found by a search, of the next episode, of an
+        // episode in progress, of the first unwatched.
         var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip))
+            ?? EpisodePages.Holding(pages, _allEpisodes, _allEpisodes.FirstOrDefault(x => x.Id == _found?.Id))
             ?? EpisodePages.Holding(pages, _allEpisodes, SeriesTarget);
         _seasons.SelectedItem = _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? _seasons.Items.OfType<ComboBoxItem>().FirstOrDefault();
         _filling = false;
@@ -273,7 +277,7 @@ public sealed class DetailPage : Page
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         grid.Children.Add(art); Grid.SetColumn(copy, 1); grid.Children.Add(copy); Grid.SetColumn(status, 2); grid.Children.Add(status);
         var button = new Button { Content = grid, Classes = { "row" } };
-        if (isNext) button.Background = Ui.Brush("#18181B");
+        if (isNext || _found?.Id == episode.Id) button.Background = Ui.Brush("#18181B");
         button.Click += (_, _) => _ = Shell.PlayAsync(episode);
         button.ContextMenu = Shell.Menu(episode);
         Avalonia.Automation.AutomationProperties.SetName(button, $"Épisode {episode.IndexNumber}, {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}");

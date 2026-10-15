@@ -404,8 +404,10 @@ public sealed class MainWindow : Window
     }
     public void Open(MediaItem item)
     {
-        // An episode opens its series' page.
-        if (item.Type == "Episode" && item.SeriesId is not null) item = new MediaItem { Id = item.SeriesId, Name = item.SeriesName ?? item.Name, Type = "Series" };
+        // A saga plays nothing by itself: its titles, in the order they came out.
+        if (item.Type == "BoxSet") { _ = NavigateAsync(new BrowsePage(this, BrowseKind.All, saga: item)); return; }
+        // An episode opens its series' page, at its season.
+        if (item.Type == "Episode" && item.SeriesId is not null) { _ = NavigateAsync(new DetailPage(this, new MediaItem { Id = item.SeriesId, Name = item.SeriesName ?? item.Name, Type = "Series" }, item)); return; }
         _ = NavigateAsync(new DetailPage(this, item));
     }
     /// <summary>A person's titles: <paramref name="director"/> says what they did, null when it is not known (found by a search).</summary>
@@ -492,6 +494,13 @@ public sealed class MainWindow : Window
     {
         var menu = new ContextMenu();
         void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
+        // A saga plays nothing by itself: its films do, from their page.
+        if (item.Type == "BoxSet")
+        {
+            Add("Voir la saga", () => Open(item));
+            Add(item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
+            return menu;
+        }
         Add(item.Progress > 0 && !item.UserData.Played ? "Reprendre" : "Lecture", () => _ = PlayAsync(item));
         if (item.Progress > 0 && !item.UserData.Played) Add("Lire depuis le début", () => _ = PlayAsync(item, fromStart: true));
         Add("Plus d’infos", () => Open(item));

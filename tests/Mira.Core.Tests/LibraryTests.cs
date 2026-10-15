@@ -78,6 +78,30 @@ internal static class LibraryTests
             Assert(people.Single() is { Id: "p1", Name: "Keanu Reeves" } person && person.ImageTags["Primary"] == "t", "Personne lue.");
             Assert(requested!.PathAndQuery == "/jellyfin/Persons?userId=user-1&searchTerm=Keanu%20%26%20co&limit=12&enableImageTypes=Primary", "Requête : " + requested);
         });
+        await Test("Recherche : épisodes et sagas, une saga dans l’ordre de sortie, sans recherche dans ses titres", async () =>
+        {
+            var catalog = new Catalog { View = "search", ParentId = "lib" };
+            catalog.Episodes = [new() { Id = "e1", Type = "Episode" }];
+            Assert(catalog.FoundBeside("Courte") && !catalog.FoundBeside("C"), "Un épisode trouvé, dès deux lettres.");
+            Assert(catalog.Sort("recent") == "recent" && catalog.Parent == "lib", "Sans saga : le tri et la bibliothèque choisis.");
+            catalog.Saga = ("b1", "Harry Potter - Saga");
+            Assert(!catalog.SearchesPeople("Harry") && !catalog.FoundBeside("Harry"), "Dans une saga, ni personnes, ni épisodes, ni sagas.");
+            Assert(catalog.Parent == "b1" && catalog.Sort("recent") == "saga" && catalog.Sort("") == "saga" && catalog.Sort("title") == "title", "Saga : ses titres, dans l’ordre de sortie sauf autre tri.");
+            Assert(catalog.GridTitle("") == "Harry Potter - Saga" && catalog.Key("", new CatalogQuery()).Contains(":b1:"), "Saga : son nom, sa clé de cache.");
+            Assert(catalog.Empty("", new CatalogQuery(Sort: "saga"), demo: false).Title == "Aucun titre dans cette saga", "Saga vide.");
+            Assert(new CatalogQuery(Sort: "saga").Parameters.EndsWith("&sortBy=ProductionYear,PremiereDate,SortName&sortOrder=Ascending"), "Ordre de sortie.");
+            catalog.Clear(); Assert(catalog.Episodes.Count == 0 && catalog.Sagas.Count == 0, "Un autre compte : plus rien de trouvé.");
+            var requested = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                requested.Add(request.RequestUri!.PathAndQuery);
+                return Task.FromResult(JsonResponse(new { Items = new object[] { new { Id = "x", Name = "X", Type = "Episode" } }, TotalRecordCount = 1 }));
+            }));
+            Assert((await client.SearchOthersAsync("Episode", "Courte & co")).Single().Id == "x", "Épisode lu.");
+            await client.SearchOthersAsync("BoxSet", "Harry");
+            Assert(requested[0] == "/jellyfin/Items?userId=user-1&recursive=true&includeItemTypes=Episode&searchTerm=Courte%20%26%20co&limit=12&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true&isMissing=false"
+                && requested[1].Contains("includeItemTypes=BoxSet&searchTerm=Harry&limit=12") && !requested[1].Contains("isMissing"), "Requêtes : " + string.Join(" ; ", requested));
+        });
         await Test("Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture", () =>
         {
             var recent = DateTimeOffset.UtcNow;

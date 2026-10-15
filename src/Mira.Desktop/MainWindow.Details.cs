@@ -34,9 +34,13 @@ public partial class MainWindow
         if (_detailOrigin is UIElement { IsVisible: true } origin) origin.Focus();
         _detailOrigin = null;
     }
-    private async Task ShowDetailsAsync(MediaItem item)
+    /// <summary>An episode a search found, on its series' page: its season shows, and the page scrolls to it once.</summary>
+    private MediaItem? _detailEpisode;
+    private bool _detailEpisodeShown;
+    /// <param name="atEpisode">The series' page opened at this episode (found by a search).</param>
+    private async Task ShowDetailsAsync(MediaItem item, MediaItem? atEpisode = null)
     {
-        var version = ++_detailVersion;
+        var version = ++_detailVersion; (_detailEpisode, _detailEpisodeShown) = (atEpisode, false);
         var previewArt = _hoverCard?.Item.Id == item.Id ? _hoverCard.ImageSource : null;
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
         ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null;
@@ -146,8 +150,10 @@ public partial class MainWindow
             foreach (var page in pages) SeasonSelector.Items.Add(new ComboBoxItem { Content = page.Label, Tag = page });
             // « Saison 1 · 1001–1100 » needs more room than « Saison 1 ».
             SeasonSelector.Width = pages.GroupBy(x => x.Season).Any(x => x.Count() > 1) ? 230 : 180;
-            // The page shown before a refresh, else the one of the next episode, of an episode in progress, of the first unwatched.
+            // The page shown before a refresh, else the one of the episode found by a search, of the next episode, of an
+            // episode in progress, of the first unwatched.
             var resume = (previous is null ? null : pages.FirstOrDefault(x => x.Season == previous.Season && x.Skip == previous.Skip))
+                ?? EpisodePages.Holding(pages, _episodes, _episodes.FirstOrDefault(x => x.Id == _detailEpisode?.Id))
                 ?? EpisodePages.Holding(pages, _episodes, _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played));
             SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, resume)) ?? SeasonSelector.Items.Cast<object>().FirstOrDefault();
             _seasonBusy = false; RenderEpisodes(); UpdateDetailPlayLabel(); RenderDetailMeta(); ShowOfflineButton();
@@ -294,8 +300,8 @@ public partial class MainWindow
         if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = "Aucun épisode disponible dans cette bibliothèque.", Foreground = Palette.Get("Muted") }); return; }
         foreach (var episode in episodes)
         {
-            var isNext = _detailNext?.Id == episode.Id;
-            var button = new Button { Background = Palette.Get(isNext ? "Raised" : "Surface"), BorderBrush = isNext ? Palette.Get("Line") : Brushes.Transparent, Padding = new Thickness(15), Margin = new Thickness(0, 0, 0, 9), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            var isNext = _detailNext?.Id == episode.Id; var wanted = _detailEpisode?.Id == episode.Id;
+            var button = new Button { Background = Palette.Get(isNext || wanted ? "Raised" : "Surface"), BorderBrush = isNext || wanted ? Palette.Get("Line") : Brushes.Transparent, Padding = new Thickness(15), Margin = new Thickness(0, 0, 0, 9), HorizontalContentAlignment = HorizontalAlignment.Stretch };
             var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
             var thumb = new Grid { Width = 160, Height = 90, Clip = new RectangleGeometry(new Rect(0, 0, 160, 90), 4, 4), Background = Palette.Get("Raised2") };
             var image = new Image { Stretch = Stretch.UniformToFill }; thumb.Children.Add(image);
@@ -319,6 +325,12 @@ public partial class MainWindow
             button.ContextMenu = EpisodeMenu(episode);
             EpisodesPanel.Children.Add(button);
             if (_images is not null) _ = LoadEpisodeImageAsync(image, episode);
+            // The episode found by a search comes into view the first time its season shows.
+            if (wanted && !_detailEpisodeShown)
+            {
+                _detailEpisodeShown = true;
+                _ = Dispatcher.BeginInvoke(() => button.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
         }
     }
     private ContextMenu EpisodeMenu(MediaItem episode)

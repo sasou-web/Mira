@@ -93,7 +93,7 @@ public sealed class MediaCard : Button
             ? "Reste " + MediaItem.FormatDuration(TimeSpan.FromTicks(Math.Max(TimeSpan.TicksPerMinute, item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks))) : null;
         var meta = wide && item.Type == "Episode"
             ? string.Join("  ·  ", new[] { $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00}", remaining, item.Name }.Where(x => !string.IsNullOrEmpty(x)))
-            : remaining ?? string.Join("   ·   ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.Type == "Series" ? "Série" : item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)));
+            : remaining ?? string.Join("   ·   ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.Type == "Series" ? "Série" : item.Type == "BoxSet" ? "Saga" : item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)));
         root.Children.Add(new TextBlock { Text = meta, Foreground = Palette.Get("Muted"), FontSize = 12, FontWeight = FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 7, 0, 0) });
         Content = root; Resize(wide ? 290 : 185);
     }
