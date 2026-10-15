@@ -1,7 +1,7 @@
 namespace Mira.Core;
 
 /// <summary>
-/// The catalogue of the Windows app, free of WPF: which list is shown (page, favourites, library, person), what Jellyfin
+/// The catalogue of the Windows app, free of WPF: which list is shown (page, favourites, library, person, saga), what Jellyfin
 /// gave for it, « Continuer à regarder » and the rules that turn them into titles, the banner, an empty page and the
 /// demo. MainWindow.Catalog keeps one and draws it.
 /// </summary>
@@ -20,6 +20,11 @@ public sealed class Catalog
     public (string Id, string Name, bool? Directed)? Person { get; set; }
     /// <summary>The actors and directors whose name matches the search, shown above its titles (<see cref="SearchesPeople"/>).</summary>
     public List<MediaItem> People { get; set; } = [];
+    /// <summary>Only the titles of one saga (a Jellyfin collection) found by a search, in the order they came out.</summary>
+    public (string Id, string Name)? Saga { get; set; }
+    /// <summary>The episodes and the sagas whose name matches the search, shown under its titles, as in Mira web.</summary>
+    public List<MediaItem> Episodes { get; set; } = [];
+    public List<MediaItem> Sagas { get; set; } = [];
     public List<MediaItem> Items { get; set; } = [];
     /// <summary>How many titles the list has on Jellyfin, beyond the pages loaded.</summary>
     public int TotalCount { get; set; }
@@ -39,14 +44,23 @@ public sealed class Catalog
     /// <summary>Jellyfin's item types for this page.</summary>
     public string Types => View is "Movie" or "Series" ? View : "Movie,Series";
     /// <summary>Where a list is kept in the library cache.</summary>
-    public string Key(string search, CatalogQuery query) => $"{View}:{(Favorites ? "favorites" : "")}:{ParentId}:{search}:{query.CacheKey}";
+    public string Key(string search, CatalogQuery query) => $"{View}:{(Favorites ? "favorites" : "")}:{Parent}:{search}:{query.CacheKey}";
+    /// <summary>Where Jellyfin's titles are asked from: the saga shown, else the library chosen (or all of them).</summary>
+    public string? Parent => Saga?.Id ?? ParentId;
+    /// <summary>The order asked: a saga's titles in the order they came out, unless another one is chosen.</summary>
+    public string Sort(string chosen) => Saga is not null && chosen is "" or "recent" ? "saga" : chosen;
     public string PageTitle => View switch { "Movie" => "Films", "Series" => "Séries & animes", "library" => "Ta bibliothèque", "offline" => "Sur ce PC", _ => "Explorer" };
     public string Description => Favorites ? "Les histoires que tu gardes à portée de main." : "Trouve ta prochaine séance dans ta bibliothèque.";
     public string GridTitle(string search) => IsHome(search) ? "Ajoutés récemment" : View == "offline" ? "Prêts sans connexion" : search.Length > 0 ? $"Résultats pour « {search} »"
-        : Person is { } shown ? PersonText(shown.Name, shown.Directed) : Favorites ? "Tes favoris" : "Tous les titres";
+        : Person is { } shown ? PersonText(shown.Name, shown.Directed) : Saga is { } saga ? saga.Name : Favorites ? "Tes favoris" : "Tous les titres";
     public static string PersonText(string name, bool? directed) => directed switch { true => "Réalisés par ", false => "Avec ", null => "" } + name;
-    /// <summary>A search of two letters or more looks for people too, as Mira web does; not in a person's titles nor « Sur ce PC ».</summary>
-    public bool SearchesPeople(string search) => search.Length >= 2 && View != "offline" && Person is null;
+    /// <summary>
+    /// A search of two letters or more looks for people, episodes and sagas too, as Mira web does; not in a person's or a
+    /// saga's titles nor « Sur ce PC ».
+    /// </summary>
+    public bool SearchesPeople(string search) => search.Length >= 2 && View != "offline" && Person is null && Saga is null;
+    /// <summary>The search found people, episodes or sagas: without titles, the page shows them rather than « Aucun résultat ».</summary>
+    public bool FoundBeside(string search) => SearchesPeople(search) && People.Count + Episodes.Count + Sagas.Count > 0;
     /// <summary>« KR » for Keanu Reeves: in a person's circle when Jellyfin has no photo, as Mira web.</summary>
     public static string Initials(string name)
     {
@@ -58,7 +72,7 @@ public sealed class Catalog
     /// <summary>A new account or none: nothing of the previous one stays.</summary>
     public void Clear()
     {
-        Items = []; Resume = []; NextUp = []; RecentPlayback = []; HiddenResume = []; People = []; TotalCount = 0;
+        Items = []; Resume = []; NextUp = []; RecentPlayback = []; HiddenResume = []; People = []; Episodes = []; Sagas = []; TotalCount = 0;
     }
     /// <summary>A page from Jellyfin: the first replaces the list, the next ones (« Afficher plus ») add what is new.</summary>
     public void Receive(ItemsResult result, bool more)
@@ -107,7 +121,7 @@ public sealed class Catalog
     /// <summary>What an empty page says: a search, filters, the favourites, or an empty library (then where videos go).</summary>
     public CatalogEmpty Empty(string search, CatalogQuery query, bool demo)
     {
-        var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || ParentId is not null || query.PersonId is not null;
+        var filtered = query.Genre is not null || query.Year is not null || query.Played is not null || ParentId is not null && Saga is null || query.PersonId is not null;
         // Nothing at all in the library (not a search, a filter or the favourites): where videos go is what is missing.
         var emptyLibrary = !demo && search.Length == 0 && !filtered && !Favorites && View is "home" or "library" && Resume.Count == 0;
         var (icon, title, hint) = (search.Length, filtered) switch
@@ -117,6 +131,7 @@ public sealed class Catalog
             _ when View == "offline" => ("laptop", "Rien sur ce PC pour l’instant", "Sur la fiche d’un film ou d’une série, le bouton ⤓ garde le titre sur ce PC pour le regarder sans connexion."),
             _ when Favorites => ("heart", "Aucun favori ici pour l’instant", "Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici."),
             _ when emptyLibrary => ("folder", "Ta bibliothèque est vide", "Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici."),
+            _ when Saga is not null => ("film", "Aucun titre dans cette saga", "Ses films ne sont pas dans ta bibliothèque."),
             _ => ("library", "Rien à afficher ici", "Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.")
         };
         return new(icon, title, hint, Reset: filtered || search.Length > 0 || Favorites, Guide: emptyLibrary);
