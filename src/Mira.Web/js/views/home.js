@@ -3,7 +3,7 @@
 import { api } from '../api.js';
 import { h, icon, clear, episodeCode, duration, seconds, progress, reducedMotion } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
-import { session, settings, isIOS, isStandalone } from '../session.js';
+import { session, settings, settingsChanged, isIOS, isStandalone } from '../session.js';
 import { homeRows, CONTINUE, LATEST, FAVORITES } from '../home-rows.js';
 import {
   row, wideCard, posterCard, skeletonRow, emptyState, errorState, changes, titleHref, playHref, reconcile, cardSig,
@@ -225,6 +225,9 @@ export function create() {
 
   const onChange = () => { loadedAt = 0; if (el.isConnected) load(); };
   changes.addEventListener('item', onChange);
+  // A title removed or put back on another device (account-choices.js).
+  const onSetting = (event) => { if (event.detail === 'hiddenResume' && el.isConnected) render(); };
+  settingsChanged.addEventListener('change', onSetting);
 
   render();
   const first = load();
@@ -243,6 +246,6 @@ export function create() {
       if (missing || Date.now() - loadedAt > 30_000) load();
     },
     refresh: load,
-    dispose() { heroBox?.stop?.(); changes.removeEventListener('item', onChange); },
+    dispose() { heroBox?.stop?.(); changes.removeEventListener('item', onChange); settingsChanged.removeEventListener('change', onSetting); },
   };
 }

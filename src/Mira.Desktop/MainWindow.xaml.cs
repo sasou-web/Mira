@@ -107,7 +107,7 @@ public partial class MainWindow : Window
             if (!_demo && !_playing && _client is not null && IsActive && Cadence.RefreshDue(_listening, _lastRefresh, DateTimeOffset.UtcNow)) await RefreshAsync(quiet: true);
         };
         _playerTimer.Tick += PlayerTick;
-        InitializeEpisodeNotices(); InitializeTogether();
+        InitializeEpisodeNotices(); InitializeTogether(); InitializeChoices();
         VolumeSlider.Value = VolumeBoost.Clamp(_settings.Volume); ShowVolumeLevel();
         var testArg = Array.IndexOf(args, "--test-media");
         if (testArg >= 0 && testArg + 1 < args.Length) _testMedia = args[testArg + 1];
@@ -284,7 +284,7 @@ public partial class MainWindow : Window
         _sync.Changed += SyncChanged;
         _connectionLifetime = new(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         if (!_args.Contains("--visual-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
-        if (!_args.Contains("--visual-check")) StartEpisodeNotices();
+        if (!_args.Contains("--visual-check")) { StartEpisodeNotices(); ChoicesChanged(); }
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
         _ = LoadOfflineAsync(client);
@@ -337,7 +337,7 @@ public partial class MainWindow : Window
         _heroClock.Stop(); _heroClockAttached = false; _heroCandidates = [];
         _heroSeries.Clear();
         _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
-        _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); GroupGone(); ForgetOfflineState();
+        _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); _choicesSoon.Stop(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
         _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _homeLibraries = [];

@@ -546,7 +546,10 @@ public sealed class PlayerPage : UserControl
         _mpv.Set(property, id);
         if (_session.Item?.SeriesId is not { Length: > 0 } series || _shell.Session is not { } session) return;
         if (SeriesTracks.Remember(_mpv.Get("track-list"), _mpv.Get("aid"), _mpv.Get("sid")) is { } tracks)
+        {
             _ = Task.Run(() => Errors.TryCache(() => session.Store.RememberTracks(series, tracks)));
+            _shell.ChoicesChanged();
+        }
     }
     private Control MoreMenu()
     {

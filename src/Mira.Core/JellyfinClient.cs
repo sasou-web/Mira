@@ -563,6 +563,23 @@ public sealed class JellyfinClient : IDisposable
         return user;
     }
     /// <summary>
+    /// Mira's display preferences of this account, where « Tes choix gardés sur ton Jellyfin » are kept
+    /// (<see cref="AccountChoices"/>): Jellyfin's whole answer, sent back whole with the change (it keeps only what it is sent).
+    /// </summary>
+    public async Task<JsonObject> ChoicesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync(ChoicesPath, ct);
+        await CheckAsync(response);
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject ?? throw new IOException("Réponse Jellyfin vide.");
+    }
+    public async Task SaveChoicesAsync(JsonObject preferences, CancellationToken ct = default)
+    {
+        using var content = new StringContent(preferences.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync(ChoicesPath, content, ct);
+        await CheckAsync(response);
+    }
+    private string ChoicesPath => $"DisplayPreferences/{AccountChoices.DisplayPreferences}?userId={Uri.EscapeDataString(Connection.UserId)}&client={AccountChoices.DisplayPreferences}";
+    /// <summary>
     /// Whether this account administers Jellyfin (its policy): only an administrator installs Mira web or lets
     /// Tailscale in. Null when Jellyfin does not say.
     /// </summary>

@@ -97,15 +97,17 @@ const defaults = {
   seenVersion: '',      // the last Mira web whose « Nouveau dans Mira » this device saw (whats-new.js); empty: none yet
 };
 
+/** Told of each setting changed (« change », its key as detail): by Réglages, the player, or Jellyfin (account-choices.js). */
+export const settingsChanged = new EventTarget();
 export const settings = {
   values: { ...defaults, ...read(SETTINGS, {}) },
   get(key) { return this.values[key]; },
-  set(key, value) { this.values[key] = value; write(SETTINGS, this.values); },
+  set(key, value) { this.values[key] = value; write(SETTINGS, this.values); settingsChanged.dispatchEvent(new CustomEvent('change', { detail: key })); },
 };
 
 // What Mira keeps of the account signed in, beside its session: its screens as last shown (home, Films and Séries,
-// by user) and, in the settings, what it did with its titles. This device's id and its settings stay.
-const ACCOUNT_KEYS = /^mira\.(home|library)\./;
+// by user), the times of its choices kept on Jellyfin (account-choices.js) and, in the settings, what it did with its titles. This device's id and its settings stay.
+const ACCOUNT_KEYS = /^mira\.(home|library|choices)\./;
 const ACCOUNT_SETTINGS = ['recentSearches', 'hiddenResume', 'seriesTracks'];
 function forgetAccount() {
   try {

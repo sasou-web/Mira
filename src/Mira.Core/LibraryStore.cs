@@ -218,6 +218,18 @@ public sealed class LibraryStore
         }
     }
     private sealed record RememberedTracks(string Series, TrackMemory Tracks);
+    /// <summary>Every series' tracks, the oldest choice first.</summary>
+    public List<(string Series, TrackMemory Tracks)> AllTracks() => (Load<List<RememberedTracks>>("series-tracks") ?? []).Select(x => (x.Series, x.Tracks)).ToList();
+    /// <summary>The tracks of every series at once, as Jellyfin brought them (<see cref="AccountChoices"/>); the 100 last are kept.</summary>
+    public void ReplaceTracks(IEnumerable<(string Series, TrackMemory Tracks)> all)
+    {
+        lock (_gate) Save("series-tracks", all.Select(x => new RememberedTracks(x.Series, x.Tracks)).TakeLast(100).ToList());
+    }
+    /// <summary>The titles removed from « Continuer à regarder » at once, as Jellyfin brought them; the 200 latest are kept.</summary>
+    public void ReplaceHidden(IReadOnlyDictionary<string, DateTimeOffset> hidden)
+    {
+        lock (_gate) Save("resume-hidden", hidden.OrderByDescending(x => x.Value).Take(200).ToDictionary());
+    }
     public void RememberPlayback(MediaItem item)
     {
         lock (_gate)

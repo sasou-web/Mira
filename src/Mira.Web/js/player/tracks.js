@@ -190,7 +190,11 @@ export function trackMemory(source, audioIndex, subtitleIndex) {
   const streams = source?.MediaStreams ?? [];
   const audio = streams.find((s) => s.Type === 'Audio' && s.Index === audioIndex);
   const subtitle = streams.find((s) => s.Type === 'Subtitle' && s.Index === subtitleIndex);
-  return { audio: audio?.Language ?? null, subtitle: subtitle ? subtitle.Language ?? 'und' : null, forced: !!subtitle?.IsForced };
+  // Their names too, as Windows and Mac keep them (« Complet », « Panneaux »): the choice goes to them (choices.js).
+  return {
+    audio: audio?.Language ?? null, subtitle: subtitle ? subtitle.Language ?? 'und' : null, forced: !!subtitle?.IsForced,
+    audioTitle: audio?.Title || null, subtitleTitle: subtitle?.Title || null,
+  };
 }
 
 /** Tracks chosen on the title page, from the player's address (« ?audio=2&sous-titres=-1 »); null when none. */

@@ -124,6 +124,7 @@ public partial class MainWindow
         var updatesAgain = !_settings.AutoUpdate && AutoUpdateCheck.IsChecked == true;
         _settings.AutoUpdate = AutoUpdateCheck.IsChecked == true;
         var saved = TrySaveSettings();
+        ChoicesChanged();
         if (updatesAgain) _ = _updater?.CheckAsync();
         if (automaticAgain) _torlinkImporter?.RestartBaseline();
         if (_torlinkEnabled) ApplyTorLinkLibraries();

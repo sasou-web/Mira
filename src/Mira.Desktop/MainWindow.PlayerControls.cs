@@ -371,6 +371,7 @@ public partial class MainWindow
         if (_mpv is null || _store is not { } store || _session.Item?.SeriesId is not { Length: > 0 } series) return;
         if (SeriesTracks.Remember(_mpv.Get("track-list"), _mpv.Get("aid"), _mpv.Get("sid")) is not { } tracks) return;
         _ = Task.Run(() => TryCache(() => store.RememberTracks(series, tracks)));
+        ChoicesChanged();
     }
     /// <summary>An episode starts with the audio and subtitles last chosen in its series, where it has them.</summary>
     private async Task ChooseSeriesTracksAsync(int generation)

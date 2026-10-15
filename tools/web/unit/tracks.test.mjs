@@ -37,7 +37,9 @@ test('tracks a title starts with', () => {
   assert.deepEqual(chooseTracks(source, { audioOrder: 'fre,fra,fr', subtitleOrder: 'fre,fra,fr,eng,en' }), { audio: 2, subtitle: 4 });
   // The series' last choice: none.
   assert.deepEqual(chooseTracks(source, { memory: { audio: 'jpn', subtitle: null } }), { audio: 1, subtitle: -1 });
-  assert.deepEqual(trackMemory(source, 1, 4), { audio: 'jpn', subtitle: 'fre', forced: true });
+  assert.deepEqual(trackMemory(source, 1, 4), { audio: 'jpn', subtitle: 'fre', forced: true, audioTitle: null, subtitleTitle: null });
+  assert.deepEqual(trackMemory({ MediaStreams: [{ Type: 'Audio', Index: 0, Language: 'jpn', Title: 'Japonais' }, { Type: 'Subtitle', Index: 1, Language: 'fre', Title: 'Complet' }] }, 0, 1),
+    { audio: 'jpn', subtitle: 'fre', forced: false, audioTitle: 'Japonais', subtitleTitle: 'Complet' });
 });
 
 test('tracks chosen on the title page, from the player’s address', () => {
