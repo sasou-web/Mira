@@ -328,7 +328,8 @@ public sealed class MainWindow : Window
         if (item.Type == "Episode" && item.SeriesId is not null) item = new MediaItem { Id = item.SeriesId, Name = item.SeriesName ?? item.Name, Type = "Series" };
         _ = NavigateAsync(new DetailPage(this, item));
     }
-    public void OpenPerson(PersonInfo person, bool director) => _ = NavigateAsync(new BrowsePage(this, BrowseKind.All, person, director));
+    /// <summary>A person's titles: <paramref name="director"/> says what they did, null when it is not known (found by a search).</summary>
+    public void OpenPerson(PersonInfo person, bool? director) => _ = NavigateAsync(new BrowsePage(this, BrowseKind.All, person, director));
 
     // —— Playback ——
     /// <param name="groupStart">Put on by the group (<see cref="WatchGroup"/>), from there.</param>

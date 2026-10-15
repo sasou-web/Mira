@@ -416,10 +416,14 @@ public partial class MainWindow : Window
             // A background refresh keeps every page already loaded instead of shrinking the grid back to one page.
             var limit = quiet && !more ? Math.Max(JellyfinClient.PageSize, _catalog.Items.Count) : JellyfinClient.PageSize;
             var browse = client.BrowseAsync(_catalog.Types, _catalog.ParentId, search, more ? _catalog.Items.Count : 0, !home && _catalog.Favorites, ct, filters, limit);
+            var people = !more && _catalog.SearchesPeople(search) ? client.PersonsAsync(search, ct) : null;
             Task<ItemsResult>? resume = home ? client.ResumeAsync(ct) : null;
             Task<ItemsResult>? next = home ? client.NextUpAsync(ct) : null;
             var shelving = home ? LoadShelvesAsync(client, ct) : null;
             var result = await browse;
+            // The people are a bonus: the titles show even if Jellyfin does not answer for them.
+            List<MediaItem> found = [];
+            if (people is not null) try { found = await people; } catch (Exception ex) when (!ct.IsCancellationRequested && IsExpected(ex)) { }
             if (home) { await Task.WhenAll(resume!, next!, shelving!); await _seasonThumbs.LoadAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
             var resumeItems = home ? resume!.Result.Items : null;
@@ -434,6 +438,7 @@ public partial class MainWindow : Window
             }), CancellationToken.None);
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
             _catalog.Receive(result, more);
+            if (!more) _catalog.People = found;
             if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? [])); }
             _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; RenderLibrary();
             // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.

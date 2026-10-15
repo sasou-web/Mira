@@ -183,6 +183,30 @@ public static class Cards
         "Episode" => $"S{item.ParentIndexNumber ?? 1} · É{item.IndexNumber ?? 1}",
         _ => string.Join(" · ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)))
     };
+    /// <summary>
+    /// An actor or director found by a search: their photo in a circle (their initials without one) and their name;
+    /// a click shows their titles.
+    /// </summary>
+    public static Button Person(MediaItem person, Images? images, Action<MediaItem> open)
+    {
+        const double size = 88;
+        var image = new Image { Stretch = Stretch.UniformToFill, Width = size, Height = size };
+        var circle = new Border
+        {
+            Width = size, Height = size, CornerRadius = new CornerRadius(size / 2), ClipToBounds = true, Background = Ui.Raised, HorizontalAlignment = HorizontalAlignment.Center,
+            Child = new Grid { Children = { new TextBlock { Text = Catalog.Initials(person.Name), FontSize = 26, FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }, image } }
+        };
+        var body = new StackPanel { Spacing = 10, Width = 112 };
+        body.Children.Add(circle);
+        body.Children.Add(new TextBlock { Text = person.Name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis });
+        var button = new Button { Content = body, Classes = { "card" } };
+        Hover(button, circle);
+        button.Click += (_, _) => open(person);
+        Avalonia.Automation.AutomationProperties.SetName(button, person.Name);
+        if (images is not null && person.ImageTags.ContainsKey("Primary")) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(person, 200));
+        return button;
+    }
+
     /// <summary>Behind the artwork while it loads, or when there is none: the initials on a quiet tone.</summary>
     private static Control Placeholder(MediaItem item)
     {

@@ -57,6 +57,27 @@ internal static class LibraryTests
             Assert(string.Join(",", catalog.Items.Select(x => x.Name)) == "Alpha,Bravo" && catalog.TotalCount == 2 && catalog.Resume.Count == 1, "Démo : films triés par titre.");
             return Task.CompletedTask;
         });
+        await Test("Recherche : les personnes dès 2 lettres, avec leur photo, ni dans les titres d’une personne ni « Sur ce PC »", async () =>
+        {
+            var catalog = new Catalog { View = "search" };
+            Assert(!catalog.SearchesPeople("k") && catalog.SearchesPeople("ke"), "Deux lettres.");
+            catalog.View = "Movie"; Assert(catalog.SearchesPeople("Keanu"), "Une recherche dans Films cherche aussi les personnes.");
+            catalog.View = "offline"; Assert(!catalog.SearchesPeople("Keanu"), "« Sur ce PC » ne demande rien à Jellyfin.");
+            catalog.View = "library"; catalog.Person = ("p1", "Keanu Reeves", null);
+            Assert(!catalog.SearchesPeople("Keanu") && catalog.GridTitle("") == "Keanu Reeves", "Titres d’une personne trouvée par une recherche : son nom seul.");
+            catalog.People = [new() { Id = "p1", Name = "Keanu Reeves" }]; catalog.Clear();
+            Assert(catalog.People.Count == 0, "Un autre compte : plus de personnes.");
+            Assert(Catalog.Initials("Keanu Reeves") == "KR" && Catalog.Initials("hayao  miyazaki jr") == "HM" && Catalog.Initials(" ") == "?", "Initiales.");
+            Uri? requested = null;
+            using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                requested = request.RequestUri;
+                return Task.FromResult(JsonResponse(new { Items = new object[] { new { Id = "p1", Name = "Keanu Reeves", Type = "Person", ImageTags = new { Primary = "t" } } }, TotalRecordCount = 1 }));
+            }));
+            var people = await client.PersonsAsync("Keanu & co");
+            Assert(people.Single() is { Id: "p1", Name: "Keanu Reeves" } person && person.ImageTags["Primary"] == "t", "Personne lue.");
+            Assert(requested!.PathAndQuery == "/jellyfin/Persons?userId=user-1&searchTerm=Keanu%20%26%20co&limit=12&enableImageTypes=Primary", "Requête : " + requested);
+        });
         await Test("Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture", () =>
         {
             var recent = DateTimeOffset.UtcNow;

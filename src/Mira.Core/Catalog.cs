@@ -13,8 +13,13 @@ public sealed class Catalog
     public bool Favorites { get; set; }
     /// <summary>One Jellyfin library, or all of them.</summary>
     public string? ParentId { get; set; }
-    /// <summary>Only the titles of one actor or director, chosen from a title page.</summary>
-    public (string Id, string Name, bool Directed)? Person { get; set; }
+    /// <summary>
+    /// Only the titles of one actor or director, chosen from a title page (Directed says which) or from a search (null:
+    /// Jellyfin does not say what they did).
+    /// </summary>
+    public (string Id, string Name, bool? Directed)? Person { get; set; }
+    /// <summary>The actors and directors whose name matches the search, shown above its titles (<see cref="SearchesPeople"/>).</summary>
+    public List<MediaItem> People { get; set; } = [];
     public List<MediaItem> Items { get; set; } = [];
     /// <summary>How many titles the list has on Jellyfin, beyond the pages loaded.</summary>
     public int TotalCount { get; set; }
@@ -39,13 +44,21 @@ public sealed class Catalog
     public string Description => Favorites ? "Les histoires que tu gardes à portée de main." : "Trouve ta prochaine séance dans ta bibliothèque.";
     public string GridTitle(string search) => IsHome(search) ? "Ajoutés récemment" : View == "offline" ? "Prêts sans connexion" : search.Length > 0 ? $"Résultats pour « {search} »"
         : Person is { } shown ? PersonText(shown.Name, shown.Directed) : Favorites ? "Tes favoris" : "Tous les titres";
-    public static string PersonText(string name, bool directed) => (directed ? "Réalisés par " : "Avec ") + name;
+    public static string PersonText(string name, bool? directed) => directed switch { true => "Réalisés par ", false => "Avec ", null => "" } + name;
+    /// <summary>A search of two letters or more looks for people too, as Mira web does; not in a person's titles nor « Sur ce PC ».</summary>
+    public bool SearchesPeople(string search) => search.Length >= 2 && View != "offline" && Person is null;
+    /// <summary>« KR » for Keanu Reeves: in a person's circle when Jellyfin has no photo, as Mira web.</summary>
+    public static string Initials(string name)
+    {
+        var letters = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0]));
+        return string.Concat(letters) is { Length: > 0 } text ? text : "?";
+    }
     public static string CountText(int count) => $"{count:N0} titre{(count > 1 ? "s" : "")}";
 
     /// <summary>A new account or none: nothing of the previous one stays.</summary>
     public void Clear()
     {
-        Items = []; Resume = []; NextUp = []; RecentPlayback = []; HiddenResume = []; TotalCount = 0;
+        Items = []; Resume = []; NextUp = []; RecentPlayback = []; HiddenResume = []; People = []; TotalCount = 0;
     }
     /// <summary>A page from Jellyfin: the first replaces the list, the next ones (« Afficher plus ») add what is new.</summary>
     public void Receive(ItemsResult result, bool more)
