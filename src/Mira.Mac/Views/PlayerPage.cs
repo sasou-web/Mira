@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Animation;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -63,6 +64,11 @@ public sealed class PlayerPage : UserControl
     private DateTimeOffset _groupQuietUntil;
     private DateTimeOffset? _groupStallSince;
     private bool _groupStalled;
+    private readonly Border _groupPill;
+    private readonly TextBlock _groupText = new() { FontSize = 13, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+    /// <summary>« Marc a rejoint le groupe », said by the pill until <see cref="_groupMemberUntil"/>.</summary>
+    private string? _groupMember;
+    private DateTimeOffset _groupMemberUntil;
     private WatchGroup Group => _shell.Group;
     /// <summary>For the self-check.</summary>
     public MpvPlayer? Engine => _mpv;
@@ -140,6 +146,16 @@ public sealed class PlayerPage : UserControl
         var skipHost = Ui.Row(0, _skipCancel, _skip);
         skipHost.HorizontalAlignment = HorizontalAlignment.Right; skipHost.VerticalAlignment = VerticalAlignment.Bottom; skipHost.Margin = new Thickness(0, 0, 36, 150);
         _root.Children.Add(skipHost);
+        // « Regarder ensemble »: what the group is doing, top center, under the title (ShowGroup).
+        _groupPill = new Border
+        {
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(120, 76 + shell.TitleBarInset, 120, 0),
+            Padding = new Thickness(13, 8, 16, 8), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#E0151517"), BorderBrush = Ui.Brush("#30FFFFFF"), BorderThickness = new Thickness(1),
+            IsHitTestVisible = false, IsVisible = false, Opacity = 0, Child = Ui.Row(9, new Icon("users", 16) { VerticalAlignment = VerticalAlignment.Center }, _groupText),
+            Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) }]
+        };
+        AutomationProperties.SetLiveSetting(_groupText, AutomationLiveSetting.Polite);
+        _root.Children.Add(_groupPill);
         Content = _root;
 
         _tick.Tick += (_, _) => Tick();
@@ -375,7 +391,7 @@ public sealed class PlayerPage : UserControl
         _tickBusy = true;
         try
         {
-            mpv.Poll();
+            mpv.Poll(); ShowGroup();
             if (_mpv is null || !_loaded || _stopped) return;
             _session.Position = Reported(mpv.Number("time-pos", _session.Position)); _session.Duration = mpv.Number("duration", _session.Duration);
             var paused = mpv.Flag("pause");
@@ -480,7 +496,7 @@ public sealed class PlayerPage : UserControl
         _top.Opacity = _bottom.Opacity = shown ? 1 : 0;
         _top.IsHitTestVisible = _bottom.IsHitTestVisible = shown;
         Cursor = shown ? Cursor.Default : new Cursor(StandardCursorType.None);
-        UpdateSkip();
+        UpdateSkip(); ShowGroup();
     }
 
     public void HandleKey(KeyEventArgs e)
@@ -686,6 +702,19 @@ public sealed class PlayerPage : UserControl
     }
 
     // —— « Regarder ensemble » ——
+    /// <summary>
+    /// The pill, top center, as on Windows and in Mira web: « Ensemble · … » with the controls; a wait or a pause for the
+    /// group, and someone who came or went, in sight whatever they do. Loading here (opening, a seek for the group, data
+    /// awaited): Jellyfin's wait may be for this Mac rather than for the others.
+    /// </summary>
+    public void ShowGroup()
+    {
+        var status = Group.Active && Group.Group is { } group && _shell.Session is { } session ? Together.GroupStatus(group, session.Connection.UserName, !_loaded || _groupReadyPending || _groupStallSince is not null) : null;
+        var said = status is not null && DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
+        if (status is not null) { _groupText.Text = said ?? status.Text; _groupPill.IsVisible = true; }
+        _groupPill.Opacity = status is not null && (said is not null || status.Alert || _controlsShown) ? 1 : 0;
+    }
+    public void ShowMember(string said) { _groupMember = said; _groupMemberUntil = DateTimeOffset.UtcNow.AddSeconds(4); ShowGroup(); }
     /// <summary>A command of the group, for the title playing here only: the Stop sent on joining names none.</summary>
     public void GroupCommand(JsonElement data)
     {

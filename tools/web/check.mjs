@@ -1269,7 +1269,8 @@ try {
   const joinedLine = (await line(tb).innerText()).replace(/\s+/g, ' ').trim();
   check('ensemble : un groupe créé, son lien d’invitation ouvert sur l’autre téléphone, connexion puis dans le groupe',
     /Ensemble : Groupe de .+ · 1 personne/.test(created) && groupId && link.endsWith(`/Mira/#/ensemble/${groupId}?hote=${encodeURIComponent(user)}`) && steps >= 3
-      && invitedLead.startsWith(`${user} t’invite à regarder ensemble`) && /^Tu es dans « Groupe de .+ »$/.test(joinPage) && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine),
+      && invitedLead.startsWith(`${user} t’invite à regarder ensemble`) && /^Tu es dans « Groupe de .+ »$/.test(joinPage) && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine)
+      && created.includes('Personne d’autre pour l’instant') && (joinedLine.includes(`${user} et Ami Mira`) || joinedLine.includes(`Ami Mira et ${user}`)),
     `« ${created} » ; lien ${link || 'absent'} (${steps} étapes) ; « ${invitedLead} » ; « ${joinPage} » ; « ${joinedLine} »`);
   await ta.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
   const followed = await tb.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 15000 }).then(() => true, () => false);
@@ -1284,8 +1285,10 @@ try {
   await tb.waitForFunction(() => document.querySelector('video')?.paused, null, { timeout: 8000 }).catch(() => {});
   await tb.waitForTimeout(800);
   [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
-  check('ensemble : une pause sur l’un met l’autre en pause, au même endroit', a?.paused && b?.paused && Math.abs(a.t - b.t) < 1,
-    `${a?.paused ? 'en pause' : 'en lecture'} à ${a?.t.toFixed(2)} s, ${b?.paused ? 'en pause' : 'en lecture'} à ${b?.t.toFixed(2)} s`);
+  const pill = (p) => p.evaluate(() => { const e = document.querySelector('.group-pill'); return e && !e.hidden ? `${e.classList.contains('alert') ? '!' : ''}${e.textContent.trim()}` : ''; });
+  const pausedPill = await pill(tb);
+  check('ensemble : une pause sur l’un met l’autre en pause, au même endroit, et le dit', a?.paused && b?.paused && Math.abs(a.t - b.t) < 1 && pausedPill === '!En pause pour le groupe',
+    `${a?.paused ? 'en pause' : 'en lecture'} à ${a?.t.toFixed(2)} s, ${b?.paused ? 'en pause' : 'en lecture'} à ${b?.t.toFixed(2)} s ; « ${pausedPill} »`);
   const before = b?.t ?? 0;
   await ta.keyboard.press('ArrowRight');
   await tb.waitForFunction((t) => (document.querySelector('video')?.currentTime ?? 0) > t + 6, before, { timeout: 10000 }).catch(() => {});
@@ -1295,8 +1298,36 @@ try {
   [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
   check('ensemble : un saut de 10 s puis la lecture sur l’un, suivis par l’autre', a && b && !a.paused && !b.paused && b.t > before + 6 && Math.abs(a.t - b.t) < 1,
     `de ${before.toFixed(2)} s à ${b?.t.toFixed(2)} s ; écart ${a && b ? Math.abs(a.t - b.t).toFixed(2) : '?'} s ; ${b?.paused ? 'l’autre en pause' : 'les deux en lecture'}`);
+  const playingPill = await pill(ta);
+  // The second phone slow to load (said by its own Mira, as its player does): Jellyfin holds the group for it, and the
+  // first, ready, says whom it waits for; the second ready, both play on.
+  const sendAsB = (what) => tb.evaluate(async (kind) => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const [{ api }, { together }] = await Promise.all([import(`${root}api.js`), import(`${root}together.js`)]);
+    const v = document.querySelector('video');
+    await api.syncSend(kind, { When: new Date().toISOString(), PositionTicks: Math.round(v.currentTime * 1e7), IsPlaying: kind === 'Ready', PlaylistItemId: together.queue.playlistItemId });
+  }, what);
+  await sendAsB('Buffering');
+  await ta.waitForFunction(() => /On attend/.test(document.querySelector('.group-pill')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
+  const waitingPill = await pill(ta);
+  const held = await videoState(ta);
+  await ta.screenshot({ path: `${out}/23-together-pill.png` });
+  await sendAsB('Ready');
+  await ta.waitForFunction(() => !document.querySelector('video')?.paused, null, { timeout: 10000 }).catch(() => {});
+  await tb.waitForFunction(() => !document.querySelector('video')?.paused, null, { timeout: 10000 }).catch(() => {});
+  await ta.waitForTimeout(1000);
+  [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
+  const playsPill = await pill(ta);
+  check('ensemble : l’autre téléphone qui charge : le premier attend et dit qui, puis les deux reprennent ensemble',
+    [`Ensemble · ${user} et Ami Mira`, `Ensemble · Ami Mira et ${user}`].includes(playingPill) && waitingPill === '!On attend Ami Mira…' && held?.paused && a && b && !a.paused && !b.paused && Math.abs(a.t - b.t) < 1 && playsPill === playingPill,
+    `« ${playingPill} » ; « ${waitingPill} »${held?.paused ? ' en pause' : ' sans pause'} ; puis ${a ? `${a.t.toFixed(2)} s` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s` : 'pas de vidéo'}, « ${playsPill} »`);
   // The second phone away a few seconds: Jellyfin lets its session go, then takes it back as a newcomer, holding the
-  // group until it is ready where the group is.
+  // group until it is ready where the group is. The first says who left and who came back.
+  await ta.evaluate(() => {
+    window.seenPills = [];
+    new MutationObserver(() => { const t = document.querySelector('.group-pill')?.textContent?.trim(); if (t && window.seenPills.at(-1) !== t) window.seenPills.push(t); })
+      .observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+  });
   await suspend(tb); await tb.waitForTimeout(3000);
   const without = (await asA('SyncPlay/List'))?.find((g) => g.GroupId === groupId)?.Participants ?? [];
   await resume(tb);
@@ -1306,9 +1337,10 @@ try {
   await tb.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused; }, null, { timeout: 30000 }).catch(() => {});
   await ta.waitForTimeout(2000);
   [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
+  const seenPills = await ta.evaluate(() => window.seenPills ?? []);
   check('ensemble : l’autre téléphone parti quelques secondes revient dans le groupe, au même moment que le premier',
-    without.length === 1 && back.length === 2 && a && b && !a.paused && !b.paused && Math.abs(a.t - b.t) < 1,
-    `${without.length} puis ${back.length} dans le groupe ; ${a ? `${a.t.toFixed(2)} s${a.paused ? ' (en pause)' : ''}` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s${b.paused ? ' (en pause)' : ''}` : 'pas de vidéo'}`);
+    without.length === 1 && back.length === 2 && a && b && !a.paused && !b.paused && Math.abs(a.t - b.t) < 1 && seenPills.includes('Ami Mira a rejoint le groupe'),
+    `${without.length} puis ${back.length} dans le groupe ; ${a ? `${a.t.toFixed(2)} s${a.paused ? ' (en pause)' : ''}` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s${b.paused ? ' (en pause)' : ''}` : 'pas de vidéo'} ; ${seenPills.join(' | ')}`);
   await tb.keyboard.press('Escape');
   await tb.waitForFunction(() => location.hash.startsWith('#/titre/'), null, { timeout: 8000 }).catch(() => {});
   await tb.waitForTimeout(1500);

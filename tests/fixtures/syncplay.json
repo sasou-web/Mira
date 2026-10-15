@@ -1,5 +1,5 @@
 {
-  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js) and tests/Mira.Core.Tests (Together.cs). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]; invites: [address of Jellyfin for the friend, group, its host (who made it) or null, link of the invitation, what it says under the link]; appLinks: [address, group, host or null, link for Mira on a computer (Together.ParseAppLink reads it back)]; badAppLinks: links Mira for Windows and Mac refuse; hosts: [group name, who made it]; finds: [Jellyfin's groups, group of the invitation, its host, the group it means or null]; rejoins: [Jellyfin's groups, the group this device was in, made here, what it does to go back]",
+  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js) and tests/Mira.Core.Tests (Together.cs). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]; invites: [address of Jellyfin for the friend, group, its host (who made it) or null, link of the invitation, what it says under the link]; appLinks: [address, group, host or null, link for Mira on a computer (Together.ParseAppLink reads it back)]; badAppLinks: links Mira for Windows and Mac refuse; hosts: [group name, who made it]; finds: [Jellyfin's groups, group of the invitation, its host, the group it means or null]; rejoins: [Jellyfin's groups, the group this device was in, made here, what it does to go back] names: [participants, line]; statuses: [group, this account's name, loading here, what the player's pill and the title page say] (Jellyfin never says who a wait or a pause is for).",
   "times": [
     ["2026-10-14T14:48:08.5712105Z", 1791989288571],
     ["2026-10-14T14:48:08Z", 1791989288000],
@@ -71,5 +71,23 @@
     [[], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, false, null],
     [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de mira", "Participants": ["mira"]}], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, true, {"join": "b61818a0ff7c4c6eb39e2b73b85f3bcc"}],
     [[], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Soirée"}, true, {"create": "Soirée"}]
+  ],
+  "names": [
+    [[], ""],
+    [["mira"], "mira"],
+    [["mira", "Marc"], "mira et Marc"],
+    [["mira", "Marc", "Léa"], "mira, Marc et Léa"],
+    [["mira", "Marc", "Léa", "sam", "Zoé"], "mira, Marc et 3 autres"]
+  ],
+  "statuses": [
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Idle", "Participants": ["mira"]}, "mira", false, {"text": "Ensemble · personne d’autre pour l’instant", "alert": false}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, "mira", false, {"text": "Ensemble · mira et Marc", "alert": false}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc", "Léa"]}, "MIRA", false, {"text": "Ensemble · mira, Marc et Léa", "alert": false}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, "mira", false, {"text": "On attend Marc…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, "Marc", false, {"text": "On attend mira…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc", "Léa"]}, "mira", false, {"text": "On attend quelqu’un du groupe…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, "mira", true, {"text": "Chargement pour le groupe…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira"]}, "mira", false, {"text": "Chargement pour le groupe…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Paused", "Participants": ["mira", "Marc"]}, "mira", false, {"text": "En pause pour le groupe", "alert": true}]
   ]
 }

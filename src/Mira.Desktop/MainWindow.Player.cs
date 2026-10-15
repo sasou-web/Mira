@@ -195,7 +195,7 @@ public partial class MainWindow
         if (_tickBusy) return; _tickBusy = true;
         try
         {
-            UpdatePlayerControls(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
+            UpdatePlayerControls(); UpdateGroupPill(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
             _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position)); _session.Duration = _mpv.Number("duration", _session.Duration);
             var paused = _mpv.Flag("pause"); ShowPauseState(paused);
             // The timeline interpolates between these polls on every frame.
@@ -312,7 +312,7 @@ public partial class MainWindow
         ++_playGeneration; ClosePlayerPopups(); _playerTimer.Stop(); SeekBar.IsEnabled = false; SetPlayerLoading(false);
         if (_playing && _loaded && _mpv is not null && !completed) _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position));
         completed = _session.Completes(_loaded, completed);
-        _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null;
+        _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null; UpdateGroupPill();
         try
         {
             _windows?.Clear();

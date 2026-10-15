@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink, groupHost, findGroup, rejoinPlan, waitingText } from '../../../src/Mira.Web/js/player/sync.js';
+import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink, groupHost, findGroup, rejoinPlan, waitingText, namesText, groupStatus, memberText } from '../../../src/Mira.Web/js/player/sync.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/syncplay.json', import.meta.url), 'utf8'));
 
@@ -34,6 +34,14 @@ test('the title a queue puts on, and the group\'s words', () => {
   for (const [group, words] of fixture.groups) assert.equal(groupText(group), words);
   assert.equal(groupName('mira'), 'Groupe de mira');
   assert.ok(needsSeek(10, 10.6) && !needsSeek(10, 10.4));
+});
+
+test('what the group is doing, in words: Jellyfin never says who a wait or a pause is for', () => {
+  for (const [names, text] of fixture.names) assert.equal(namesText(names), text);
+  for (const [group, me, loading, status] of fixture.statuses) assert.deepEqual(groupStatus(group, me, loading), status, `${group.State} · ${me}`);
+  assert.equal(groupStatus(null, 'mira'), null);
+  assert.equal(memberText('Marc', true), 'Marc a rejoint le groupe');
+  assert.equal(memberText('Marc', false), 'Marc a quitté le groupe');
 });
 
 test('the invitation: its link and what it says under it, from Tailscale, home or the Internet', () => {

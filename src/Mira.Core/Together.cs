@@ -107,6 +107,34 @@ public static class Together
     public static string People(int count) => count <= 1 ? "1 personne" : $"{count} personnes";
     /// <summary>« Groupe de mira · 2 personnes ».</summary>
     public static string GroupText(Group group) => $"{group.GroupName} · {People(Math.Max(1, group.Participants.Count))}";
+    /// <summary>Who is in a group, as a line says it: « mira et Marc », « mira, Marc et Léa », « mira, Marc et 3 autres ».</summary>
+    public static string NamesText(IReadOnlyList<string> names) => names.Count switch
+    {
+        <= 1 => string.Concat(names),
+        > 3 => $"{string.Join(", ", names.Take(2))} et {names.Count - 2} autres",
+        _ => $"{string.Join(", ", names.Take(names.Count - 1))} et {names[^1]}",
+    };
+    /// <summary>What the group is doing, in a line, and whether it holds the picture (Alert).</summary>
+    public sealed record Status(string Text, bool Alert);
+    /// <summary>
+    /// What the group is doing, for the player's pill and the title page. Jellyfin says only its state (Idle, Waiting,
+    /// Paused, Playing), never who caused it: a wait while this device is ready (not <paramref name="loading"/>) is for
+    /// the others, named when there is one. <paramref name="me"/>: this account's name, as Participants names each
+    /// account once. The same as Mira web's groupStatus.
+    /// </summary>
+    public static Status GroupStatus(Group group, string? me, bool loading = false)
+    {
+        var others = group.Participants.Where(x => !string.Equals(x, me, StringComparison.OrdinalIgnoreCase)).ToList();
+        return group.State switch
+        {
+            "Waiting" when loading || others.Count == 0 => new("Chargement pour le groupe…", true),
+            "Waiting" => new(others.Count == 1 ? $"On attend {others[0]}…" : "On attend quelqu’un du groupe…", true),
+            "Paused" => new("En pause pour le groupe", true),
+            _ => new(others.Count > 0 ? $"Ensemble · {NamesText(group.Participants)}" : "Ensemble · personne d’autre pour l’instant", false),
+        };
+    }
+    /// <summary>« Marc a rejoint le groupe », « Marc a quitté le groupe ».</summary>
+    public static string MemberText(string name, bool joined) => $"{name} {(joined ? "a rejoint" : "a quitté")} le groupe";
     /// <summary>
     /// The address of Jellyfin to put in an invitation: a Jellyfin on this computer at its Tailscale address when
     /// Tailscale is connected here (a friend reaches it at home and away), else at its home network's address; another

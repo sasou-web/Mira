@@ -9,7 +9,7 @@ import { api } from './api.js';
 import { listen } from './remote.js';
 import { session, temp, signedOut } from './session.js';
 import { toast } from './components.js';
-import { clockOffset, commandPlan, queueItem, groupName, serverTime, rejoinPlan, sameGroup } from './player/sync.js';
+import { clockOffset, commandPlan, queueItem, groupName, serverTime, rejoinPlan, sameGroup, memberText } from './player/sync.js';
 
 const KEY = 'mira.together';
 const events = new EventTarget();
@@ -96,9 +96,12 @@ function groupUpdate({ Type: type, Data: data }) {
       joined?.(); joined = null;
       break;
     }
-    case 'UserJoined': case 'UserLeft':
+    case 'UserJoined': case 'UserLeft': {
       if (!group) return;
-      toast(`${data} ${type === 'UserJoined' ? 'a rejoint' : 'a quitté'} le groupe.`);
+      const said = memberText(data, type === 'UserJoined');
+      // In the player, its pill says it (player/group-pill.js).
+      if (!player) toast(`${said}.`);
+      events.dispatchEvent(new CustomEvent('member', { detail: said }));
       // Jellyfin names each account once, whatever its devices: its own list, rather than a count kept here.
       api.syncGroup(group.GroupId).then((info) => {
         if (!group || info?.GroupId !== group.GroupId) return;
@@ -106,6 +109,7 @@ function groupUpdate({ Type: type, Data: data }) {
         changed();
       }).catch(() => {});
       break;
+    }
     case 'GroupLeft': gone(); break;
     // Jellyfin let this device go (its session ended): back in the group, or out of it when there is none to go back to.
     case 'NotInGroup': case 'GroupDoesNotExist': if (group) recover(); else gone(); break;
@@ -186,6 +190,8 @@ export const together = {
   get queue() { return queue; },
   /** `fn` at each change of the group (joined, left, someone came or went); returns what stops it. */
   watch(fn) { events.addEventListener('change', fn); return () => events.removeEventListener('change', fn); },
+  /** `fn(words)` when someone joins or leaves the group (« Marc a rejoint le groupe »); returns what stops it. */
+  onMember(fn) { const f = (e) => fn(e.detail); events.addEventListener('member', f); return () => events.removeEventListener('member', f); },
   groups: () => api.syncGroups(),
   create: () => { made = true; return enter(() => api.syncNew(groupName(session.current?.userName ?? 'Mira'))); },
   join: (id) => { made = false; return enter(() => api.syncJoin(id)); },

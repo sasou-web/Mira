@@ -99,6 +99,33 @@ export const people = (count) => (count <= 1 ? '1 personne' : `${count} personne
 /** « Groupe de mira · 2 personnes ». */
 export const groupText = (group) => `${group?.GroupName ?? 'Groupe'} · ${people(group?.Participants?.length ?? 1)}`;
 
+/** Who is in a group, as a line says it: « mira et Marc », « mira, Marc et Léa », « mira, Marc et 3 autres ». */
+export function namesText(names) {
+  const list = [...(names ?? [])];
+  if (list.length <= 1) return list.join('');
+  if (list.length > 3) return `${list.slice(0, 2).join(', ')} et ${list.length - 2} autres`;
+  return `${list.slice(0, -1).join(', ')} et ${list.at(-1)}`;
+}
+/**
+ * What the group is doing, in a line (the player's pill, the title page), and whether it holds the picture (`alert`).
+ * Jellyfin says only its state (Idle, Waiting, Paused, Playing), never who caused it: a wait while this device is
+ * ready (not `loading`) is for the others, named when there is one. `me`: this account's name, as Participants names
+ * each account once. The same as Together.GroupStatus.
+ */
+export function groupStatus(group, me, loading = false) {
+  if (!group) return null;
+  const mine = String(me ?? '').toLowerCase();
+  const others = (group.Participants ?? []).filter((x) => String(x).toLowerCase() !== mine);
+  if (group.State === 'Waiting') {
+    if (loading || !others.length) return { text: 'Chargement pour le groupe…', alert: true };
+    return { text: others.length === 1 ? `On attend ${others[0]}…` : 'On attend quelqu’un du groupe…', alert: true };
+  }
+  if (group.State === 'Paused') return { text: 'En pause pour le groupe', alert: true };
+  return { text: others.length ? `Ensemble · ${namesText(group.Participants)}` : 'Ensemble · personne d’autre pour l’instant', alert: false };
+}
+/** « Marc a rejoint le groupe », « Marc a quitté le groupe ». */
+export const memberText = (name, joined) => `${name} ${joined ? 'a rejoint' : 'a quitté'} le groupe`;
+
 /**
  * The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it. Its
  * host (who made the group) keeps it valid when the group is made again, or not open yet (findGroup).

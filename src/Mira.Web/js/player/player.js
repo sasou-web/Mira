@@ -25,6 +25,7 @@ import { listen } from '../remote.js';
 import { together } from '../together.js';
 import { needsSeek, groupText } from './sync.js';
 import { inviteSheet } from '../invite.js';
+import { groupPill } from './group-pill.js';
 
 // Forced subtitles (signs, foreign lines): Safari has the « forced » kind; elsewhere it reads as metadata, never drawn.
 const FORCED_KIND = (() => { try { const t = document.createElement('track'); t.kind = 'forced'; return t.kind === 'forced'; } catch { return false; } })();
@@ -137,6 +138,7 @@ export function create({ id, query }) {
   const busy = h('div', { class: 'p-busy', hidden: true }, h('div', { class: 'spinner' }));
   const pillLayer = h('div');
   const message = h('div', { class: 'p-message', hidden: true });
+  const groupLine = groupPill(video);
 
   // Apple's player covers the screen: under it, the title and what Mira is doing, seen while it opens and closes.
   const nativeStatus = h('div', { class: 'n-status', role: 'status', 'aria-live': 'polite' });
@@ -147,7 +149,7 @@ export function create({ id, query }) {
     nativeScreen.append(video);
     el.append(
       h('div', { class: 'n-top' }, h('button', { class: 'round', 'aria-label': 'Retour', on: { click: close } }, icon('back'))),
-      h('div', { class: 'n-stage' }, nativeScreen, title, nativeStatus),
+      h('div', { class: 'n-stage' }, nativeScreen, title, nativeStatus, groupLine.el),
       message);
   } else {
     const controls = h('div', { class: 'controls layer' },
@@ -160,7 +162,7 @@ export function create({ id, query }) {
         h('div', { class: 'p-row' }, now, h('div', { class: 'spacer' }), muteButton, nextButton, fullButton, left)),
       busy);
     const surface = h('div', { class: 'layer', 'aria-hidden': 'true' });
-    el.append(video, surface, controls, pillLayer, message);
+    el.append(video, surface, controls, pillLayer, groupLine.el, message);
     setupSurface(surface, controls);
   }
 
@@ -1204,7 +1206,7 @@ export function create({ id, query }) {
       removeEventListener('keydown', keys);
       document.removeEventListener('visibilitychange', onHide);
       removeEventListener('pagehide', onPageHide);
-      unwatch(); remote.close(); group.unbind();
+      unwatch(); remote.close(); group.unbind(); groupLine.dispose();
       clearTimeout(groupTimer); clearTimeout(stallTimer); clearTimeout(groupSeekTimer);
       for (const [name, fn] of Object.entries(on)) video.removeEventListener(name, fn);
       video.textTracks.removeEventListener('change', textTracksChanged);
