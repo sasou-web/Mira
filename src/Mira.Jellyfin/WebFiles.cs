@@ -87,6 +87,9 @@ public sealed class WebFiles
         var root = Path.GetFullPath(folder);
         var contents = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
             .ToDictionary(file => Path.GetRelativePath(root, file).Replace('\\', '/'), File.ReadAllBytes, StringComparer.Ordinal);
+        // Each version's main points, built in beside the app (Mira.Jellyfin.csproj): from src/Mira.Core next to it.
+        var notes = Path.Combine(root, "..", "Mira.Core", "WhatsNew.json");
+        if (File.Exists(notes)) contents.TryAdd("whats-new.json", File.ReadAllBytes(notes));
         return new WebFiles(contents) { Immutable = false };
     }
 

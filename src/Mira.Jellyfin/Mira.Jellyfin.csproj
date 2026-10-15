@@ -23,5 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="../Mira.Web/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Each version's main points (Mira.Core): the phone shows those of a new Mira web once, « Nouveau dans Mira ». -->
+    <EmbeddedResource Include="../Mira.Core/WhatsNew.json" LogicalName="web/whats-new.json" />
   </ItemGroup>
 </Project>

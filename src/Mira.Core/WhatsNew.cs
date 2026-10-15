@@ -3,8 +3,11 @@ using System.Text.Json;
 
 namespace Mira.Core;
 
-/// <summary>One point of a version, as the "what's new" screen and the release page show it.</summary>
-public sealed record Highlight(string Icon, string Title, string Text);
+/// <summary>
+/// One point of a version, as the "what's new" screen and the release page show it. <paramref name="Web"/>: Mira web
+/// shows it too, once, on the phone (« Nouveau dans Mira », js/whats-new.js); Windows and the Mac show every point.
+/// </summary>
+public sealed record Highlight(string Icon, string Title, string Text, bool Web = false);
 /// <summary>A version's main points: a one-line summary and a few highlights, never the full changelog.</summary>
 public sealed record ReleaseHighlights(string Version, string Summary, IReadOnlyList<Highlight> Items)
 {

@@ -1,0 +1,23 @@
+{
+  "about": "« Nouveau dans Mira »: which versions' main points a Mira shows after an update, and those Mira web shows (only the points marked web). Read by tests/Mira.Core.Tests (WhatsNew.Since) and tools/web/unit (whats-new.js): both must agree. seen: the last version shown on that device, empty when unknown; since: newest first; phone: the versions with points for Mira web.",
+  "entries": [
+    { "version": "0.5.4", "summary": "Quatre", "items": [
+      { "icon": "phone", "title": "Pour le téléphone", "text": "Un point de Mira web.", "web": true },
+      { "icon": "server", "title": "Pour Windows", "text": "Un point de Windows seulement." } ] },
+    { "version": "0.5.6", "summary": "Six", "items": [
+      { "icon": "users", "title": "Partout", "text": "Un point de Windows, du Mac et de Mira web.", "web": true },
+      { "icon": "film", "title": "Pour le Mac", "text": "Un point du Mac seulement.", "web": false } ] },
+    { "version": "0.5.5", "summary": "Cinq", "items": [
+      { "icon": "server", "title": "Pour Windows", "text": "Un point de Windows seulement." } ] }
+  ],
+  "cases": [
+    { "seen": "", "current": "0.5.5", "since": ["0.5.5"], "phone": [] },
+    { "seen": "", "current": "0.5.6", "since": ["0.5.6"], "phone": ["0.5.6"] },
+    { "seen": "0.5.3", "current": "0.5.6", "since": ["0.5.6", "0.5.5", "0.5.4"], "phone": ["0.5.6", "0.5.4"] },
+    { "seen": "0.5.4", "current": "0.5.6", "since": ["0.5.6", "0.5.5"], "phone": ["0.5.6"] },
+    { "seen": "0.5.6", "current": "0.5.6", "since": [], "phone": [] },
+    { "seen": "0.5.6", "current": "0.5.5", "since": [], "phone": [] },
+    { "seen": "", "current": "0.5.7", "since": [], "phone": [] },
+    { "seen": "pas une version", "current": "0.5.4", "since": ["0.5.4"], "phone": ["0.5.4"] }
+  ]
+}
