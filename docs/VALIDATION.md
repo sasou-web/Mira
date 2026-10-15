@@ -2,6 +2,13 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## « En ce moment sur Jellyfin » dans Mira web (non publié)
+
+- **Besoin** : voir depuis le téléphone qui regarde quoi sur le serveur, et pourquoi un titre est converti, sans allumer Mira pour Windows ; jusqu’ici seul Windows le montrait.
+- **Fait** : pour un administrateur de Jellyfin (`Users/Me`, `Policy.IsAdministrator`), **Réglages → En ce moment sur Jellyfin** ouvre `#/en-ce-moment` : `Sessions?activeWithinSeconds=960` relu toutes les 5 s tant que l’écran est affiché et le téléphone devant, lignes mises à jour sur place ; textes de `viewers.js`, identiques à ceux de `Viewers` (Mira.Core) ; **Arrêter**, confirmé par une feuille, envoie `Sessions/{id}/Playing/Stop`.
+- **Vérifié sur Jellyfin 12.1 (conteneur, Chromium à la taille d’un iPhone)** : un téléphone lit un film (converti en VP9 et Opus, 1,4 Mb/s, « format du fichier, codec vidéo, codec audio ») et une télé déclare une lecture directe par l’API ; l’administrateur voit les deux, **Arrêter** seulement pour le téléphone ; la ligne suit le temps sans être refaite ; écran quitté, plus aucune lecture des sessions ; **Arrêter** confirmé ferme le lecteur du téléphone et la liste n’a plus que la télé ; un autre compte n’a pas l’entrée. Aucune erreur JavaScript ni refus de la politique de sécurité.
+- **Tests** : cas communs à Mira.Core et Mira web (`tests/fixtures/viewers.json` : sessions, lieux en IPv4 et IPv6, Tailscale en IPv6 compris, durées) ; `check.mjs` arrête la lecture du téléphone depuis cet écran, sur un autre appareil.
+
 ## Carte graphique revérifiée après une mise à jour (non publié)
 
 - **Besoin** : une mise à jour du pilote de la carte ou de Jellyfin peut casser les conversions qui marchaient quand « Utiliser la carte graphique » a gardé la carte ; le téléphone n’a plus alors que « Lecture impossible » pour tout titre à convertir, et rien ne le disait sur le PC.

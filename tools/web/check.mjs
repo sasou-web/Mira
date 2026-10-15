@@ -201,8 +201,8 @@ try {
   await page.locator('.detail-actions .btn.primary').click(); await wait(3000);
   const resumed = await page.evaluate(() => document.querySelector('video')?.currentTime ?? 0);
   check('reprise au bon endroit', resumed >= second.UserData.PlaybackPositionTicks / 1e7 - 1, `${resumed.toFixed(1)} s`);
-  // « Arrêter » from Mira for Windows (« En ce moment sur Jellyfin »): Jellyfin's Playstate Stop, through the socket the
-  // player keeps open, closes it.
+  // « Arrêter » from « En ce moment sur Jellyfin » (Mira for Windows, Mira web): Jellyfin's Playstate Stop, through the
+  // socket the player keeps open, closes it.
   const phone = await page.evaluate(() => JSON.parse(localStorage.getItem('mira.device')));
   const watching = await page.waitForFunction(async ([id]) => {
     const s = JSON.parse(localStorage.getItem('mira.session'));
@@ -210,7 +210,30 @@ try {
     const found = (await r.json()).find((x) => x.DeviceId === id);
     return found?.SupportsRemoteControl && found.NowPlayingItem ? found.Id : null;
   }, [phone], { timeout: 15000, polling: 500 }).then((handle) => handle.jsonValue(), () => null);
-  if (watching) await api(`Sessions/${watching}/Playing/Stop`, 'POST');
+  // « En ce moment sur Jellyfin » in Mira web, on another device with this administrator's account: the phone's
+  // session and how Jellyfin sends it; its « Arrêter » is what stops it here.
+  let nowRow = '', stoppedFromList = false;
+  if (watching) {
+    const admin = await newContext('en ce moment');
+    const other = await admin.newPage();
+    other.on('pageerror', (e) => errors.push(`en ce moment : ${e.message}`));
+    try {
+      await signIn(other);
+      await other.locator('.tabbar a[data-tab="settings"]').click();
+      await other.getByRole('link', { name: /En ce moment sur Jellyfin/ }).click();
+      const row = other.locator(`.now-item[data-session="${watching}"]`);
+      await row.waitFor({ timeout: 10000 });
+      nowRow = (await row.innerText()).trim().replace(/\s*\n\s*/g, ' | ');
+      await other.screenshot({ path: `${out}/11b-now.png` });
+      await row.getByRole('button', { name: /^Arrêter la lecture sur/ }).click();
+      await other.getByRole('menuitem', { name: 'Arrêter la lecture' }).click();
+      stoppedFromList = true;
+    } catch (error) { nowRow ||= error.message.split('\n')[0]; }
+    await admin.close();
+  }
+  check('en ce moment (Mira web, administrateur) : la lecture du téléphone, comment Jellyfin l’envoie, « Arrêter »',
+    stoppedFromList && nowRow.includes(seriesName) && /Lecture directe|Conversion|Fichier remis/.test(nowRow), nowRow || 'session jamais prête');
+  if (watching && !stoppedFromList) await api(`Sessions/${watching}/Playing/Stop`, 'POST');
   const stoppedFromPc = await page.waitForFunction((id) => location.hash.startsWith(`#/titre/${id}`), series.Id, { timeout: 8000 }).then(() => true, () => false);
   const stopToast = await page.locator('.toast').innerText().catch(() => '');
   check('arrêt depuis un autre appareil (Playstate Stop) : le lecteur se ferme', !!watching && stoppedFromPc,

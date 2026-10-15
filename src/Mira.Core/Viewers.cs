@@ -1,12 +1,14 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 
 namespace Mira.Core;
 
 /// <summary>
 /// « En ce moment sur Jellyfin »: who plays what on the server (its Sessions), and how: the file as it is, or converted,
-/// on which hardware and why. What a slow title or a « Lecture impossible » needs explained.
+/// on which hardware and why. What a slow title or a « Lecture impossible » needs explained. Mira web writes it the same
+/// way (js/viewers.js), with shared cases in tests/fixtures/viewers.json.
 /// </summary>
 public static class Viewers
 {
@@ -56,7 +58,8 @@ public static class Viewers
         if (address is null || !IPAddress.TryParse(address, out var ip)) return null;
         if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
         if (IPAddress.IsLoopback(ip)) return null;
-        if (LocalNetwork.IsTailnet(ip.ToString())) return "Tailscale";
+        // Tailscale's IPv6 range too (fd7a:115c:a1e0::/48), before the private ranges it belongs to.
+        if (LocalNetwork.IsTailnet(ip.ToString()) || ip.AddressFamily == AddressFamily.InterNetworkV6 && ip.GetAddressBytes() is [0xfd, 0x7a, 0x11, 0x5c, 0xa1, 0xe0, ..]) return "Tailscale";
         return LocalNetwork.IsHome(ip) ? "réseau de la maison" : "Internet";
     }
     /// <summary>« Courte HLS · S1 É2 · Le départ — 12:34 / 40:00, en pause ».</summary>

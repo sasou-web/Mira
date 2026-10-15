@@ -39,7 +39,7 @@ dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release -- 
 
 ## Mira web
 
-**Tests Node** (`tools/web/unit/*.test.mjs`, `node:test`, sans dépendance) : cascade de secours et adresses des flux (`stream.js`), passages (chapitres compris, mêmes cas que Mira.Core dans `tests/fixtures/chapters.json`), épisode suivant et trickplay (`timeline.js`), plein écran d’Apple (`presentation.js`), noms et choix des pistes (`tracks.js`), versions et points de « Nouveau dans Mira » (`whats-new.js`, mêmes cas que `WhatsNew.Since` dans `tests/fixtures/whats-new.json`).
+**Tests Node** (`tools/web/unit/*.test.mjs`, `node:test`, sans dépendance) : cascade de secours et adresses des flux (`stream.js`), passages (chapitres compris, mêmes cas que Mira.Core dans `tests/fixtures/chapters.json`), épisode suivant et trickplay (`timeline.js`), plein écran d’Apple (`presentation.js`), noms et choix des pistes (`tracks.js`), « En ce moment sur Jellyfin » (`viewers.js`, mêmes cas que Mira.Core dans `tests/fixtures/viewers.json`), versions et points de « Nouveau dans Mira » (`whats-new.js`, mêmes cas que `WhatsNew.Since` dans `tests/fixtures/whats-new.json`).
 
 ```bash
 node --test tools/web/unit/*.test.mjs
