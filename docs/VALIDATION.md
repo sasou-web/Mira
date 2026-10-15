@@ -2,6 +2,13 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## Le PC serveur ne s’endort pas pendant une lecture ailleurs (non publié)
+
+- **Besoin** : un PC endormi est injoignable, et Tailscale ne sait pas le réveiller ; ni Mira ni Jellyfin 12.1 ne le gardaient éveillé pendant une lecture sur un autre appareil.
+- **Correctif** : pour un Jellyfin sur ce PC, Mira lit ses sessions chaque minute (`Sessions?activeWithinSeconds=960`) et, tant qu’un autre appareil a un titre en cours, en pause comprise, garde le PC éveillé (`SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)` depuis le fil de l’interface ; fermer l’écran ou demander la veille endort toujours). La carte lit le plan d’alimentation actif sur secteur (powrprof : veille, veille prolongée, écran fermé si le PC en a un) ; **Pas de veille sur secteur** passe par `powercfg` dans les droits de la personne, puis relit.
+- **Tests** : textes et étapes de `ServerSleep` (portable, fixe, veille prolongée seule, écran fermé seul, jamais), PC gardé éveillé ou non selon les sessions (Core, partout).
+- **Non vérifié** : sur un vrai PC, les valeurs lues par powrprof, `powercfg /change` sans droits d’administrateur, la veille réellement retenue pendant une lecture.
+
 ## Tailscale sans session et expiration de sa connexion (non publié)
 
 - **Besoin** : après un redémarrage sans session (Windows Update la nuit), Tailscale sans « Run unattended » reste coupé : Jellyfin tourne, mais le téléphone ne le trouve plus, même à la maison (le QR code donne l’adresse Tailscale), et la carte disait « Disponible dès l’allumage du PC ». Même chose le jour où la clé de ce PC expire (180 jours par défaut).
