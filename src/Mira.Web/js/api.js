@@ -1,5 +1,5 @@
 // Jellyfin's API, from the same address as Mira web: no server to type, no cross-site request.
-import { session, device } from './session.js';
+import { session, device, settings } from './session.js';
 
 export const VERSION = document.querySelector('meta[name="mira-version"]')?.content.replace('{{version}}', '0.0.0') || '0.0.0';
 
@@ -278,6 +278,8 @@ export const api = {
     // A new session: the server that gave it is checked anew, whatever was concluded of the one before.
     recheckServer();
     session.set({ userId: result.User.Id, userName: result.User.Name, token: result.AccessToken, serverId: result.ServerId, serverName: info.ServerName ?? '' });
+    // Just signed in: this version is no news here, « Nouveau dans Mira » waits for the next one (whats-new.js).
+    settings.set('seenVersion', VERSION);
     // Lets Jellyfin's dashboard show what this phone can play.
     api.capabilities();
     return result;

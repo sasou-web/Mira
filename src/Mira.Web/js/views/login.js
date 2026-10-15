@@ -1,8 +1,8 @@
 // Sign-in: the server is the one Mira web comes from; pick your profile, type your password, done. Or, with no
 // password to type on the phone, a code approved from a device already signed in (Quick Connect).
-import { api, base, exposed, VERSION } from '../api.js';
+import { api, base, exposed } from '../api.js';
 import { h, icon, clear, initials, wait } from '../dom.js';
-import { isIOS, isStandalone, storageBlocked, temp, computerApp, settings } from '../session.js';
+import { isIOS, isStandalone, storageBlocked, temp, computerApp } from '../session.js';
 import { appLink } from '../player/sync.js';
 import { markSvg, resetScreens, replaceRoute } from '../app.js';
 
@@ -64,8 +64,6 @@ export function create() {
     busy(true); errorBox.textContent = '';
     try {
       await open();
-      // Just signed in: this version is no news here, « Nouveau dans Mira » waits for the next one (whats-new.js).
-      settings.set('seenVersion', VERSION);
       resetScreens();
       const next = temp.get('mira.next');
       temp.remove('mira.next');
