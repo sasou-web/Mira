@@ -402,9 +402,7 @@ public partial class MainWindow
     private void ShowInvite()
     {
         if (_group is not { } group || _client is not { } client) return;
-        var server = client.Connection.Server;
-        var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
-        var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId, Together.GroupHost(group.GroupName));
+        var link = Together.InviteLink(ReachableServer(client), group.GroupId, Together.GroupHost(group.GroupName));
         InviteLead.Text = $"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».";
         InviteLink.Text = link;
         InviteSteps.Children.Clear();
@@ -413,7 +411,18 @@ public partial class MainWindow
             InviteSteps.Children.Add(new TextBlock { Text = $"{i + 1}. {steps[i]}", FontSize = 13, LineHeight = 19, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
         InviteCopy.Content = ActionLabel("link", "Copier le lien");
         Motion.Reveal(InviteOverlay, 260, 0); Motion.Reveal(InviteCard, 360, 16);
+        _ = ShowInviteAddFriendAsync(client);
         _ = Dispatcher.BeginInvoke(() => InviteCopy.Focus(), DispatcherPriority.Input);
+    }
+    /// <summary>
+    /// Where a friend reaches this Jellyfin: on this PC, its Tailscale address when there is one (at home and away),
+    /// else its address at home; another server, the account's own address.
+    /// </summary>
+    private static string ReachableServer(JellyfinClient client)
+    {
+        var server = client.Connection.Server;
+        var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
+        return Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null).TrimEnd('/');
     }
     private void InviteCopy_Click(object sender, RoutedEventArgs e)
     {

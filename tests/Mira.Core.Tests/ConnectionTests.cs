@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Mira.Core;
 using Mira.Core.Updates;
 using Mira.Desktop.Services;
@@ -322,6 +323,68 @@ internal static class ConnectionTests
             using (var client = Server(false, HttpStatusCode.Unauthorized)) Assert(await client.ApproveCodeAsync("458128") == CodeApproval.Disabled && asked.Count == 1, "Disabled: " + string.Join(" | ", asked));
             using (var client = Server(true, HttpStatusCode.Unauthorized))
             { try { await client.ApproveCodeAsync("458128"); throw new Exception("A refused session went unnoticed"); } catch (UnauthorizedAccessException) { } }
+            // An administrator approves a friend's phone for the friend's account.
+            asked.Clear();
+            using (var client = Server(true, HttpStatusCode.OK)) Assert(await client.ApproveCodeAsync("458128", "ami 2") == CodeApproval.Approved && asked[^1] == "POST /jellyfin/QuickConnect/Authorize?code=458128&userId=ami%202", string.Join(" | ", asked));
+        });
+        await Test("Ajouter un ami : son compte ne voit que les bibliothèques choisies, ne télécharge rien, retiré si ses droits ne passent pas", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            var made = File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "jellyfin-new-user.json"));
+            var policy = (JsonNode.Parse(made)!["policy"] as JsonObject)!;
+            VirtualFolder[] folders = [new("Animes", "tvshows", [], "a1"), new("Films", "movies", [], "f1"), new("Séries", "tvshows", [], "s1"), new("Collections", "boxsets", [], "c1"), new("Sans id", "movies", [])];
+            Assert(string.Join(",", Friends.Choices(folders).Select(x => x.Name)) == "Animes,Films,Séries", "Choices");
+            Assert(string.Join(",", Friends.Folders(folders, ["f1", "S1"])) == "f1,s1,c1" && Friends.Folders(folders, []).Count == 0 && Friends.Folders(folders, ["c1"]).Count == 0, "Folders");
+            var friend = Friends.Policy(policy, ["f1", "c1"]);
+            Assert(friend["EnableAllFolders"]!.GetValue<bool>() == false && string.Join(",", friend["EnabledFolders"]!.AsArray().Select(x => x!.GetValue<string>())) == "f1,c1"
+                && friend["EnableContentDownloading"]!.GetValue<bool>() == false && friend["EnableSyncTranscoding"]!.GetValue<bool>() == false && friend["EnableMediaConversion"]!.GetValue<bool>() == false
+                && friend["IsAdministrator"]!.GetValue<bool>() == false, "Friend policy: " + friend.ToJsonString());
+            // Everything else as Jellyfin set it (sent back whole), and the policy read left as it was.
+            Assert(friend.Count == policy.Count && friend["IsHidden"]!.GetValue<bool>() && friend["SyncPlayAccess"]!.GetValue<string>() == "CreateAndJoinGroups"
+                && friend["AuthenticationProviderId"]!.GetValue<string>() == policy["AuthenticationProviderId"]!.GetValue<string>() && policy["EnableAllFolders"]!.GetValue<bool>(), "Rest of the policy");
+            foreach (var (name, problem) in new[] { ("Léa", null), ("  Marc-André ", null), ("o’neil", null), ("名前", null), ("", "Écris son prénom."), ("a/b", "ces signes"), ("a,b", "ces signes"), ("ami mira", "existe déjà"), ("Ami Mira ", "existe déjà") })
+                Assert(Friends.NameProblem(name, ["Ami Mira", "mira"]) is var found && (problem is null ? found is null : found?.Contains(problem) == true), $"Name « {name} » → {Friends.NameProblem(name, ["Ami Mira", "mira"])}");
+            Assert(Friends.CleanName("  o’neil ") == "o'neil", "Clean name");
+            Assert(Friends.Joined(["Films"]) == "Films" && Friends.Joined(["Films", "Séries"]) == "Films et Séries" && Friends.Joined(["Animes", "Films", "Séries"]) == "Animes, Films et Séries", "Joined");
+            var passwords = Enumerable.Range(0, 50).Select(_ => Friends.NewPassword()).ToList();
+            Assert(passwords.Distinct().Count() == 50 && passwords.All(x => x.Length == 19 && x.Split('-') is { Length: 4 } parts && parts.All(p => p.Length == 4 && p.All(Friends.Alphabet.Contains))), "Passwords: " + passwords[0]);
+            // Created, its policy read and sent back; refused, the account is removed again; a refused name in words.
+            var asked = new List<string>();
+            JellyfinClient Server(HttpStatusCode create, HttpStatusCode setPolicy) => new(new("http://localhost/", "u1", "Alice", "jeton", "device"), new Handler(async request =>
+            {
+                var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync();
+                asked.Add($"{request.Method} {request.RequestUri!.PathAndQuery}");
+                var path = request.RequestUri.AbsolutePath;
+                if (path == "/Users/New") return new HttpResponseMessage(create) { Content = new StringContent(create == HttpStatusCode.OK ? "{\"Name\":\"Léa\",\"Id\":\"ami1\"}" : "Error processing request.") };
+                if (path == "/Users/ami1" && request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($"{{\"Name\":\"Léa\",\"Id\":\"ami1\",\"Policy\":{policy.ToJsonString()}}}") };
+                if (path == "/Users/ami1/Policy")
+                {
+                    var sent = JsonNode.Parse(body)!.AsObject();
+                    asked[^1] += sent["EnableAllFolders"]!.GetValue<bool>() ? " all" : " " + string.Join(",", sent["EnabledFolders"]!.AsArray().Select(x => x!.GetValue<string>()));
+                    return new HttpResponseMessage(setPolicy);
+                }
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }));
+            using (var client = Server(HttpStatusCode.OK, HttpStatusCode.NoContent))
+                Assert((await client.CreateFriendAsync("Léa", "k7mq-t3vx-9hcw-p2ra", ["f1", "c1"])).Id == "ami1" && asked.SequenceEqual(["POST /Users/New", "GET /Users/ami1", "POST /Users/ami1/Policy f1,c1"]), string.Join(" | ", asked));
+            asked.Clear();
+            using (var client = Server(HttpStatusCode.OK, HttpStatusCode.InternalServerError))
+            {
+                try { await client.CreateFriendAsync("Léa", "k7mq-t3vx-9hcw-p2ra", ["f1"]); throw new Exception("A policy refused went unnoticed"); }
+                catch (HttpRequestException) { }
+                Assert(asked.SequenceEqual(["POST /Users/New", "GET /Users/ami1", "POST /Users/ami1/Policy f1", "DELETE /Users/ami1"]), "Removed again: " + string.Join(" | ", asked));
+            }
+            using (var client = Server(HttpStatusCode.BadRequest, HttpStatusCode.NoContent))
+            {
+                try { await client.CreateFriendAsync("Léa", "k7mq-t3vx-9hcw-p2ra", ["f1"]); throw new Exception("A refused name went unnoticed"); }
+                catch (UserInputException ex) { Assert(ex.Message.Contains("« Léa »"), ex.Message); }
+            }
+            asked.Clear();
+            using (var client = Server(HttpStatusCode.OK, HttpStatusCode.NoContent))
+            {
+                try { await client.CreateFriendAsync("Léa", "k7mq-t3vx-9hcw-p2ra", []); throw new Exception("An account without library made"); }
+                catch (UserInputException) { Assert(asked.Count == 0, "Asked: " + string.Join(" | ", asked)); }
+            }
         });
         await Test("Saga d’un film : ses autres films dans l’ordre, rien sans collection ni d’un Jellyfin qui ne sait pas le dire", async () =>
         {
