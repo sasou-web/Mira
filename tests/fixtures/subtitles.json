@@ -1,0 +1,269 @@
+{
+  "about": "« Sous-titres gardés sur Jellyfin » : les mêmes cas pour Mira web (js/subtitles.js, tools/web/unit/subtitles.test.mjs) et pour Windows et Mac (Mira.Core JellyfinSubtitles, tests/Mira.Core.Tests). « guess » ne concerne que Windows et Mac (un fichier chargé dans le lecteur).",
+  "searchLanguages": [
+    {
+      "preferences": "fre,fra,fr,eng,en",
+      "languages": [
+        "fre",
+        "eng"
+      ]
+    },
+    {
+      "preferences": "jpn,ja",
+      "languages": [
+        "jpn",
+        "fre",
+        "eng"
+      ]
+    },
+    {
+      "preferences": "eng,en",
+      "languages": [
+        "eng",
+        "fre"
+      ]
+    },
+    {
+      "preferences": "spa,es,ita,it,fre",
+      "languages": [
+        "spa",
+        "ita",
+        "fre"
+      ]
+    },
+    {
+      "preferences": "",
+      "languages": [
+        "fre",
+        "eng"
+      ]
+    },
+    {
+      "preferences": "kor,ko",
+      "languages": [
+        "fre",
+        "eng"
+      ]
+    }
+  ],
+  "remote": [
+    {
+      "found": {
+        "Id": "os-1",
+        "Name": "Aube.Test.2021.1080p.WEB",
+        "ProviderName": "Open Subtitles",
+        "Format": "srt",
+        "ThreeLetterISOLanguageName": "fre",
+        "DownloadCount": 12345,
+        "IsHashMatch": true
+      },
+      "label": "Aube.Test.2021.1080p.WEB",
+      "details": "Open Subtitles · SRT · 12 345 téléchargements · pour ce fichier"
+    },
+    {
+      "found": {
+        "Id": "os-2",
+        "Name": "",
+        "ProviderName": "Open Subtitles",
+        "Format": "ass",
+        "DownloadCount": 1,
+        "Forced": true,
+        "HearingImpaired": true
+      },
+      "label": "Sous-titres",
+      "details": "Open Subtitles · ASS · 1 téléchargement · forcés · pour sourds et malentendants"
+    },
+    {
+      "found": {
+        "Id": "os-3",
+        "Name": "Aube Test",
+        "ProviderName": "Open Subtitles",
+        "Format": "srt",
+        "DownloadCount": 0,
+        "AiTranslated": true
+      },
+      "label": "Aube Test",
+      "details": "Open Subtitles · SRT · traduction automatique"
+    },
+    {
+      "found": {
+        "Id": "os-4",
+        "Name": "Aube Test",
+        "ProviderName": "Open Subtitles",
+        "Format": "srt",
+        "DownloadCount": 1234567,
+        "MachineTranslated": true
+      },
+      "label": "Aube Test",
+      "details": "Open Subtitles · SRT · 1 234 567 téléchargements · traduction automatique"
+    }
+  ],
+  "sort": {
+    "found": [
+      {
+        "Id": "a",
+        "DownloadCount": 50
+      },
+      {
+        "Id": "b",
+        "DownloadCount": 9000,
+        "MachineTranslated": true
+      },
+      {
+        "Id": "c",
+        "DownloadCount": 10,
+        "IsHashMatch": true
+      },
+      {
+        "Id": "d",
+        "DownloadCount": 700
+      },
+      {
+        "Name": "sans identifiant",
+        "DownloadCount": 99999
+      }
+    ],
+    "order": [
+      "c",
+      "d",
+      "a",
+      "b"
+    ]
+  },
+  "privacy": [
+    {
+      "providers": [
+        "Open Subtitles"
+      ],
+      "text": "Jellyfin demande à Open Subtitles : le nom du fichier et son empreinte partent chez ce service."
+    },
+    {
+      "providers": [
+        "Open Subtitles",
+        "Addic7ed"
+      ],
+      "text": "Jellyfin demande à Open Subtitles et Addic7ed : le nom du fichier et son empreinte partent chez ce service."
+    },
+    {
+      "providers": [],
+      "text": "Jellyfin demande à son extension de sous-titres : le nom du fichier et son empreinte partent chez ce service."
+    }
+  ],
+  "kept": [
+    {
+      "kept": "Kept",
+      "language": "fre",
+      "text": "Sous-titres gardés sur Jellyfin, en français : tes autres appareils les proposent aussi."
+    },
+    {
+      "kept": "Kept",
+      "language": "und",
+      "text": "Sous-titres gardés sur Jellyfin : tes autres appareils les proposent aussi."
+    },
+    {
+      "kept": "KeptInJellyfinData",
+      "language": "eng",
+      "text": "Sous-titres gardés sur Jellyfin, en anglais : tes autres appareils les proposent aussi. Jellyfin n’a que le droit de lire le dossier de tes vidéos : il range ceux de cette bibliothèque dans ses propres données."
+    },
+    {
+      "kept": "Refused",
+      "language": "fre",
+      "text": "Ton compte Jellyfin n’a pas le droit de gérer les sous-titres : son administrateur peut le lui donner (Tableau de bord → Utilisateurs)."
+    },
+    {
+      "kept": "NotWritten",
+      "language": "fre",
+      "text": "Jellyfin n’a pas pu enregistrer ces sous-titres : il n’a pas le droit d’écrire dans le dossier de ce titre."
+    }
+  ],
+  "arrived": {
+    "before": [
+      {
+        "Type": "Video",
+        "Index": 0
+      },
+      {
+        "Type": "Subtitle",
+        "Index": 1,
+        "IsExternal": true,
+        "Path": "/media/Films/Aube/Aube.eng.srt"
+      },
+      {
+        "Type": "Subtitle",
+        "Index": 2,
+        "IsExternal": false
+      }
+    ],
+    "now": [
+      {
+        "Type": "Video",
+        "Index": 0
+      },
+      {
+        "Type": "Subtitle",
+        "Index": 1,
+        "IsExternal": true,
+        "Path": "/config/metadata/library/90/aube/Aube.fre.srt"
+      },
+      {
+        "Type": "Subtitle",
+        "Index": 2,
+        "IsExternal": true,
+        "Path": "/media/Films/Aube/Aube.eng.srt"
+      },
+      {
+        "Type": "Subtitle",
+        "Index": 3,
+        "IsExternal": false
+      }
+    ],
+    "index": 1
+  },
+  "guess": [
+    {
+      "file": "Aube.Test.2021.fr.forced.srt",
+      "preferences": "eng,en",
+      "format": "srt",
+      "language": "fre",
+      "forced": true,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Movie.It.Follows.en.SDH.ass",
+      "preferences": "fre,fra,fr",
+      "format": "ass",
+      "language": "eng",
+      "forced": false,
+      "hearingImpaired": true
+    },
+    {
+      "file": "Mon film (2020) [VOSTFR].VTT",
+      "preferences": "eng,en",
+      "format": "vtt",
+      "language": "fre",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Episode 04.srt",
+      "preferences": "jpn,ja,fre",
+      "format": "srt",
+      "language": "jpn",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "Episode 04.srt",
+      "preferences": "",
+      "format": "srt",
+      "language": "fre",
+      "forced": false,
+      "hearingImpaired": false
+    },
+    {
+      "file": "sous-titres.idx",
+      "preferences": "fre",
+      "format": null
+    }
+  ]
+}

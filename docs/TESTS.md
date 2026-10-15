@@ -63,6 +63,8 @@ safaridriver -p 4444 &  node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dos
 
 Reprise un peu avant : `check.mjs` arrête un titre à 34 s ; il doit reprendre 5 s avant, puis pile au point d’arrêt une fois « Non » choisi dans **Reprendre un peu avant**.
 
+Sous-titres gardés sur Jellyfin : `check.mjs` simule l’extension de sous-titres de Jellyfin (`Items/{id}/RemoteSearch/Subtitles`) ; la feuille doit lister ses résultats par langue, garder le fichier choisi sur Jellyfin et le proposer à la lecture.
+
 ## Harnais des applications
 
 Ils sont dans `src/Mira.Desktop/Checks` et ne tournent qu’avec un profil isolé (`--data`), le plus souvent avec la démo (`--demo`). Chacun écrit son résultat dans son dossier de sortie. `dotnet build` les compile (propriété `MiraValidation`, vraie par défaut) ; les paquets (`tools/package.ps1`) et `dist/Mira` (`tools/publish.ps1`) sont construits avec `-p:MiraValidation=false` : ces options y ferment Mira aussitôt (code 2), et `package.ps1` refuse un `Mira.dll` qui contient encore les harnais.
