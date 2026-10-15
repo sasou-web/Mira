@@ -13,7 +13,7 @@ import { deviceProfile, lastResortProfile, useHlsJs, audioTracks as switchesAudi
 import { sharedVideo, appleNative } from './video.js';
 import { trackText, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex } from './tracks.js';
 import {
-  knownBitrate, measuredBitrate, UNMEASURED_BITRATE, nextStage, stageRequest, videoErrorText, hlsErrorText, videoErrorStep,
+  knownBitrate, autoBitrate, UNMEASURED_BITRATE, nextStage, stageRequest, videoErrorText, hlsErrorText, videoErrorStep,
   hlsErrorStep, afterCheck, resumeTicks, playbackError, chooseStream, burnedIn, subtitleSwitch, webVttAddress,
   progressFraction, startPosition,
 } from './stream.js';
@@ -34,10 +34,11 @@ const PROGRESS_EVERY = 10_000;
 // is the one the phone uses away from home too (on mobile data), where only a measure tells what the line takes.
 const atHome = isLocalHost(location.hostname) && !viaTailscale(location.hostname);
 
-// The last measure of the connection, kept an hour (MEASURE_KEPT): each title does not download its megabyte again.
+// The last measure of the connection, kept an hour (MEASURE_KEPT): each title does not download its megabytes again.
 // Forgotten when the phone may have changed networks (lost and found again, another kind of connection, a while in
 // the background).
-let measure = null;   // { at, value }
+let measure = null;     // { at, speed }
+let measuring = null;   // the measure on its way, shared by whoever needs it
 const forgetMeasure = () => { measure = null; };
 addEventListener('online', forgetMeasure);
 addEventListener('offline', forgetMeasure);
@@ -48,15 +49,25 @@ document.addEventListener('visibilitychange', () => {
   else if (leftAt && Date.now() - leftAt > 5 * 60_000) forgetMeasure();
 });
 
-/** The bitrate to ask for: the chosen one, or, on « Automatique », full quality at home and a measure elsewhere. */
-async function bitrate() {
-  const known = knownBitrate(settings.get('quality'), { atHome, measure, now: Date.now() });
+/** The connection's speed (bits per second), measured once for whoever asks meanwhile; null when it cannot be. */
+function measureConnection() {
+  measuring ??= api.bitrateTest().then((speed) => { measure = { at: Date.now(), speed }; return speed; }, () => null)
+    .finally(() => { measuring = null; });
+  return measuring;
+}
+/** On « Automatique » away from home, without a fresh measure: measured from now, while the title itself loads. */
+function measureAhead() {
+  if (knownBitrate(settings.get('quality'), { atHome, measure, now: Date.now() }) == null) measureConnection();
+}
+/**
+ * The bitrate to ask for a file of this bitrate: the chosen one, or, on « Automatique », full quality at home and,
+ * elsewhere, full quality when the connection holds it, else what it allows.
+ */
+async function bitrate(fileBitrate) {
+  const known = knownBitrate(settings.get('quality'), { atHome, measure, now: Date.now(), fileBitrate });
   if (known != null) return known;
-  try {
-    const value = measuredBitrate(await api.bitrateTest(1_000_000));
-    measure = { at: Date.now(), value };
-    return value;
-  } catch { return UNMEASURED_BITRATE; }
+  const speed = await measureConnection();
+  return speed == null ? UNMEASURED_BITRATE : autoBitrate(speed, fileBitrate);
 }
 
 export function create({ id, query }) {
@@ -501,7 +512,7 @@ export function create({ id, query }) {
     busy.hidden = false; hideMessage(); failed = false;
     if (started) { await report('progress'); }
     try {
-      const max = await bitrate();
+      const max = await bitrate(source?.Bitrate ?? item.MediaSources?.[0]?.Bitrate ?? 0);
       const { lastResort, ...stage } = stageRequest(fallback);
       const info = await api.playbackInfo(item.Id, {
         DeviceProfile: lastResort ? lastResortProfile(max, { hlsSubtitles: native }) : deviceProfile(max, { hlsSubtitles: native }),
@@ -1097,6 +1108,8 @@ export function create({ id, query }) {
     // Muted when Apple's player closed (see dispose): the title plays with its sound. Mira's own mute button stays
     // as it was left elsewhere.
     if (native) { video.muted = false; updateMute(); }
+    // The connection is measured while the title loads, not after (« Automatique », away from home).
+    measureAhead();
     try {
       let found = await api.item(target.id);
       if (found.Type === 'Series') {

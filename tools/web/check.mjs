@@ -20,9 +20,11 @@ const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-che
 fs.mkdirSync(out, { recursive: true });
 const results = [];
 const check = (name, ok, detail = '') => { results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`); console.log(results.at(-1)); };
-// mira-check.example: Mira at an Internet name, served by the same Jellyfin (the warning on the sign-in screen).
-const internetName = 'mira-check.example';
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', `--host-resolver-rules=MAP ${internetName} ${new URL(base).hostname}`] });
+// mira-check.example: Mira at an Internet name, served by the same Jellyfin (the warning on the sign-in screen);
+// mira-check.tail0000.ts.net: at a Tailscale name, as the QR code gives it (« Automatique » measures the connection).
+const internetName = 'mira-check.example', tailscaleName = 'mira-check.tail0000.ts.net';
+const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required',
+  `--host-resolver-rules=MAP ${internetName} ${new URL(base).hostname}, MAP ${tailscaleName} ${new URL(base).hostname}`] });
 // What the page's security policy refuses, in every page of every context below: nothing is expected.
 const violations = [];
 const watchPolicy = async (context, name, seen = violations) => {
@@ -988,6 +990,37 @@ try {
   check('connexion en clair : déroulé', false, error.message.split('\n')[0]);
 }
 await plain.close();
+
+// Through Tailscale (its name, as the QR code gives the PC's address): not « the home », so « Automatique » measures
+// the connection, at the same time as the title loads rather than after it; a line that holds the file one and a half
+// times over plays it as it is (full quality), whatever its bitrate.
+const tailnet = await newContext('Tailscale');
+try {
+  const tp = await tailnet.newPage();
+  const seen = [];
+  tp.on('request', (r) => {
+    if (/\/Playback\/BitrateTest/.test(r.url())) seen.push({ what: 'test', at: Date.now() });
+    if (/\/PlaybackInfo/.test(r.url()) && r.method() === 'POST') seen.push({ what: 'info', at: Date.now(), max: JSON.parse(r.postData() || '{}').MaxStreamingBitrate });
+  });
+  tp.on('response', (r) => { if (/\/Items\/[0-9a-f]{32}\?/.test(r.url()) && r.request().method() === 'GET') seen.push({ what: 'item', at: Date.now() }); });
+  const address = new URL(base); address.hostname = tailscaleName;
+  await signIn(tp, `${address.href}#/connexion`);
+  const film = await tp.evaluate(async () => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { api } = await import(`${root}api.js`);
+    return (await api.browse({ types: 'Movie', search: 'Lueur Web' })).Items?.[0]?.Id ?? null;
+  });
+  seen.length = 0;
+  await tp.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film);
+  const played = await tp.waitForFunction(() => (document.querySelector('video')?.currentTime ?? 0) > 0.5, null, { timeout: 20000 }).then(() => true, () => false);
+  const test = seen.find((x) => x.what === 'test'), item = seen.find((x) => x.what === 'item'), info = seen.find((x) => x.what === 'info');
+  check('par Tailscale : connexion mesurée pendant le chargement du titre, fichier tel quel quand elle le tient',
+    played && !!test && !!item && test.at <= item.at && info?.max === 120_000_000 && seen.filter((x) => x.what === 'test').length === 1,
+    `${seen.map((x) => x.what + (x.max ? ` ${x.max / 1e6} Mb/s` : '')).join(' → ')}${played ? ', lu' : ', pas lu'}`);
+} catch (error) {
+  check('par Tailscale : déroulé', false, error.message.split('\n')[0]);
+}
+await tailnet.close();
 
 // The site's storage blocked (Safari's « Bloquer tous les cookies »): reading it throws. Mira opens on the sign-in
 // screen, says what it needs, and still signs in, for as long as it stays open.

@@ -11,18 +11,27 @@ export const UNMEASURED_BITRATE = 8_000_000;
 /** How long a measure of the connection is kept. */
 export const MEASURE_KEPT = 60 * 60_000;
 
+/** A connection that holds this many times the file's bitrate plays the file as it is. */
+export const FULL_MARGIN = 1.5;
+
 /**
  * The bitrate known without measuring: the one chosen in the settings, full quality (« Maximale », or at home on
- * « Automatique »), or a measure still fresh; null when the connection must be measured.
+ * « Automatique »), or what a measure still fresh allows for this file (autoBitrate); null when the connection must
+ * be measured. measure: { at, speed } (bits per second).
  */
-export function knownBitrate(choice, { atHome = false, measure = null, now = Date.now() } = {}) {
+export function knownBitrate(choice, { atHome = false, measure = null, now = Date.now(), fileBitrate = 0 } = {}) {
   if (typeof choice === 'number') return choice;
   if (choice === 'max' || atHome) return FULL_BITRATE;
-  if (measure && now - measure.at < MEASURE_KEPT) return measure.value;
+  if (measure && now - measure.at < MEASURE_KEPT) return autoBitrate(measure.speed, fileBitrate);
   return null;
 }
-/** What a measured speed (bits per second) allows: 70 % of it, between 1.5 and 40 Mb/s. */
+/** What a measured speed (bits per second) allows for a conversion: 70 % of it, between 1.5 and 40 Mb/s. */
 export const measuredBitrate = (measured) => Math.max(1_500_000, Math.min(40_000_000, Math.round(measured * 0.7)));
+/**
+ * « Automatique » with a measure: full quality, the file as it is (a 4K film or a remux above 40 Mb/s too), when the
+ * connection holds about one and a half times its bitrate; else what the measure allows (measuredBitrate), converted.
+ */
+export const autoBitrate = (speed, fileBitrate) => (fileBitrate > 0 && speed >= fileBitrate * FULL_MARGIN ? FULL_BITRATE : measuredBitrate(speed));
 
 // ---------- The cascade: a stream the player refused, asked again with more of it converted ----------
 // Stage 0: as Jellyfin decides (the file as it is when it can, its video or audio copied into HLS); 1: its video
