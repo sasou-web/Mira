@@ -162,6 +162,24 @@ internal static class PlayerTests
             Assert(!end.AtEnd && end.Chosen is null && end.Status(start) is null && string.Join(",", SleepTimer.Choices) == "15,30,60", "Cleared");
             return Task.CompletedTask;
         });
+        await Test("Reprise un peu avant l’arrêt, sauf sous 30 s de visionnage, comme Mira web (tests/fixtures/resume.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "resume.json")));
+            Assert(string.Join(",", PlaybackSession.ResumeBackChoices) == string.Join(",", fixture.RootElement.GetProperty("choices").EnumerateArray().Select(x => x.GetInt32())), "The same choices");
+            Assert(PlaybackSession.ResumeBackFrom == fixture.RootElement.GetProperty("from").GetDouble() && new PlayerSettings().ResumeBack == 5, "From 30 s watched, 5 s by default");
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var at = PlaybackSession.ResumeBack(row[0].GetDouble(), row[1].GetInt32());
+                Assert(Math.Abs(at - row[2].GetDouble()) < 1e-9, $"{row[0]} s, {row[1]} s back: {at}");
+            }
+            var hour = TimeSpan.FromHours(1).Ticks;
+            MediaItem Film(long position, bool played = false) => new() { Id = "a", RunTimeTicks = hour, UserData = new() { PlaybackPositionTicks = position, Played = played } };
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(20).Ticks), remember: true, back: 5) == 1195, "Resumes 5 s before");
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(20).Ticks), remember: false, back: 5) == 0, "Not remembered: from the start");
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(56).Ticks), remember: true, back: 5) == 0, "Nearly finished: starts over");
+            return Task.CompletedTask;
+        });
         await Test("Volume : au-delà de 100 %, mpv reste à 100 et le filtre amplifie sans saturer", () =>
         {
             Assert(VolumeBoost.Split(80) == (80, 1) && VolumeBoost.Split(100) == (100, 1), "Up to 100, mpv's own volume and no gain");

@@ -31,7 +31,7 @@ public partial class MainWindow
     }
     private const string SettingsNotSaved = "Réglages appliqués, mais pas enregistrés : le disque est plein ou le fichier des réglages est utilisé par un autre programme. Mira réessaiera en se fermant.";
     private bool SettingsChanged() =>
-        _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true)
+        _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true) || _settings.ResumeBack.ToString(CultureInfo.InvariantCulture) != Choice(ResumeBackChoice)
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
         || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || (_settings.MpvPath != MpvPathBox.Text.Trim() && MpvEngine.FindLibrary(_settings.MpvPath) != MpvPathBox.Text.Trim())
@@ -48,6 +48,7 @@ public partial class MainWindow
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
         _settingsBusy = true;
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip; RememberCheck.IsChecked = _settings.RememberPosition;
+        SelectChoice(ResumeBackChoice, _settings.ResumeBack.ToString(CultureInfo.InvariantCulture));
         ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion;
         HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting();
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
@@ -111,6 +112,7 @@ public partial class MainWindow
     private bool ApplySettings()
     {
         _settings.HardwareDecoding = HardwareCheck.IsChecked == true; _settings.AutoNext = AutoNextCheck.IsChecked == true; _settings.AutoSkip = AutoSkipCheck.IsChecked == true; _settings.RememberPosition = RememberCheck.IsChecked == true;
+        _settings.ResumeBack = int.TryParse(Choice(ResumeBackChoice), NumberStyles.Integer, CultureInfo.InvariantCulture, out var back) ? back : 5;
         _settings.ShowProgress = ShowProgressCheck.IsChecked == true; _settings.ReduceMotion = ReduceMotionCheck.IsChecked == true; _settings.PosterDensity = Choice(DensityChoice);
         _settings.HeroAutoPlay = HeroAutoPlayCheck.IsChecked == true; Motion.Reduced = _settings.ReduceMotion;
         // Turned on again: from what Jellyfin has now, not every episode that came while it was off.

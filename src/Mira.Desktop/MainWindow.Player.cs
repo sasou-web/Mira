@@ -87,7 +87,7 @@ public partial class MainWindow
             await StopPlaybackAsync(completePrevious);
             _playingCopy = kept;
             // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
-            _session.Begin(item, source, session, groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart)); _loaded = false;
+            _session.Begin(item, source, session, groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack)); _loaded = false;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
             PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.

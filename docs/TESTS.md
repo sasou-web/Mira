@@ -61,6 +61,8 @@ safaridriver -p 4444 &  node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dos
 
 « Lecture impossible » : `check.mjs` coupe chaque flux d’un titre ; l’écran doit dire ce que contient le fichier et chaque essai, et le rapport « Envoyer le détail à Jellyfin » est relu dans les journaux de Jellyfin (`System/Logs`), sans jeton ni dossier.
 
+Reprise un peu avant : `check.mjs` arrête un titre à 34 s ; il doit reprendre 5 s avant, puis pile au point d’arrêt une fois « Non » choisi dans **Reprendre un peu avant**.
+
 ## Harnais des applications
 
 Ils sont dans `src/Mira.Desktop/Checks` et ne tournent qu’avec un profil isolé (`--data`), le plus souvent avec la démo (`--demo`). Chacun écrit son résultat dans son dossier de sortie. `dotnet build` les compile (propriété `MiraValidation`, vraie par défaut) ; les paquets (`tools/package.ps1`) et `dist/Mira` (`tools/publish.ps1`) sont construits avec `-p:MiraValidation=false` : ces options y ferment Mira aussitôt (code 2), et `package.ps1` refuse un `Mira.dll` qui contient encore les harnais.

@@ -1169,7 +1169,8 @@ export function create({ id, query }) {
       // The group's title starts where the group does; any other one, chosen here, is put on for the group from where
       // it would start.
       const joining = !!together.group && together.queue?.itemId === item.Id;
-      const resume = target.startTicks ?? (joining ? together.queue.startTicks : startPosition(item, { fromStart: target.fromStart, resume: settings.get('resume') }));
+      // A few seconds before where it was left (« Reprendre un peu avant »): put on for the group from there too.
+      const resume = target.startTicks ?? (joining ? together.queue.startTicks : startPosition(item, { fromStart: target.fromStart, resume: settings.get('resume'), back: settings.get('resumeBack') }));
       titleStart = seconds(resume);
       total = seconds(item.RunTimeTicks);
       // The title's own streams choose its tracks before Jellyfin is asked for a stream.

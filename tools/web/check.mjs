@@ -1738,6 +1738,42 @@ check('télécharger sur le PC serveur (administrateur) : recherche faite par le
     && /pas un lien magnet/.test(dl.refused) && /Collé Check/.test(dl.pasted) && !dlErrors.length,
   dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
 check('télécharger sur le PC serveur : refusé à un compte qui n’est pas administrateur', dl.other === 403, String(dl.other));
+// « Reprendre un peu avant »: a film left at 34 s starts 5 s before (the default), and exactly there once « Non » is
+// chosen in Réglages. Its position is put back to nothing for the rest of the run.
+const resumed = await newContext('reprendre un peu avant');
+const rp = await resumed.newPage();
+let resumeFilm = null;
+const asUser = (path, method = 'GET', body) => rp.evaluate(async ([p, m, b]) => {
+  const s = JSON.parse(localStorage.getItem('mira.session'));
+  const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/${p.replace('{user}', s.userId)}`, { method: m, body: b === undefined ? undefined : JSON.stringify(b),
+    headers: { 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+  const t = await r.text(); return t ? JSON.parse(t) : null;
+}, [path, method, body]);
+try {
+  await signIn(rp);
+  resumeFilm = (await asUser('Items?userId={user}&recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];
+  const startsAt = async () => {
+    await asUser(`UserItems/${resumeFilm.Id}/UserData?userId={user}`, 'POST', { PlaybackPositionTicks: 34 * 10_000_000 });
+    await rp.evaluate((id) => { location.hash = `#/lecture/${id}`; }, resumeFilm.Id);
+    const handle = await rp.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.readyState >= 2 ? v.currentTime : null; }, null, { timeout: 20000 });
+    const at = await handle.jsonValue();
+    await rp.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await rp.waitForTimeout(1200);
+    return at;
+  };
+  const before = await startsAt();
+  await rp.evaluate(() => { location.hash = '#/reglages'; });
+  await rp.getByRole('button', { name: /Reprendre un peu avant/ }).click();
+  await rp.getByRole('menuitemradio', { name: /^Non/ }).click();
+  await rp.waitForTimeout(400);
+  const exactly = await startsAt();
+  check('reprise un peu avant : 5 s avant le point d’arrêt, pile dessus une fois « Non » choisi',
+    before >= 28.8 && before < 31 && exactly >= 33.8 && exactly < 36, `${before.toFixed(1)} s, puis ${exactly.toFixed(1)} s (arrêté à 34 s)`);
+} catch (error) {
+  check('reprise un peu avant : déroulé', false, error.message.split('\n').slice(0, 3).join(' / ')); await rp.screenshot({ path: `${out}/error-resume.png` }).catch(() => {});
+} finally {
+  if (resumeFilm) await asUser(`UserItems/${resumeFilm.Id}/UserData?userId={user}`, 'POST', { PlaybackPositionTicks: 0 }).catch(() => {});
+}
+await resumed.close();
 
 // The security policy: inline styles refused but the page's own (allowed by its hash), and the watch above sees a
 // refusal (a style attribute and a style element slipped into the page, here on purpose).

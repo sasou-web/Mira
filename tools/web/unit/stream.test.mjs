@@ -2,10 +2,11 @@
 // without a browser: node --test tools/web/unit/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   FULL_BITRATE, FULL_MARGIN, UNMEASURED_BITRATE, MEASURE_KEPT, knownBitrate, measuredBitrate, autoBitrate, LAST_STAGE, nextStage, stageRequest,
   stageText, videoErrorText, hlsErrorText, videoErrorStep, hlsErrorStep, afterCheck, resumeTicks, playbackError,
-  copiesVideo, chooseStream, burnedIn, subtitleSwitch, webVttAddress, progressFraction, startPosition,
+  copiesVideo, chooseStream, burnedIn, subtitleSwitch, webVttAddress, progressFraction, startPosition, RESUME_BACK, RESUME_BACK_FROM, resumeBack,
 } from '../../../src/Mira.Web/js/player/stream.js';
 
 test('bitrate: chosen, full quality, or a fresh measure; null when a measure is needed', () => {
@@ -244,4 +245,18 @@ test('where a title starts', () => {
   assert.equal(startPosition({ RunTimeTicks: 1000, UserData: { PlaybackPositionTicks: 950 } }, { fromStart: false, resume: true }), 0);
   assert.equal(startPosition({ RunTimeTicks: 1000, UserData: { PlaybackPositionTicks: 949 } }, { fromStart: false, resume: true }), 949);
   assert.equal(startPosition({ RunTimeTicks: 1000 }, { fromStart: false, resume: true }), 0);
+  // « Reprendre un peu avant »: 5 s before, from 30 s watched.
+  const twentyMinutes = { RunTimeTicks: 36_000_000_000, UserData: { PlaybackPositionTicks: 12_000_000_000 } };
+  assert.equal(startPosition(twentyMinutes, { fromStart: false, resume: true, back: 5 }), 11_950_000_000);
+  assert.equal(startPosition(twentyMinutes, { fromStart: true, resume: true, back: 5 }), 0);
+  assert.equal(startPosition(twentyMinutes, { fromStart: false, resume: true, back: 0 }), 12_000_000_000);
+  assert.equal(startPosition({ RunTimeTicks: 36_000_000_000, UserData: { PlaybackPositionTicks: 200_000_000 } }, { fromStart: false, resume: true, back: 5 }), 200_000_000);
+});
+
+// The same cases as Mira for Windows and Mac (tests/Mira.Core.Tests, PlaybackSession.ResumeBack).
+test('« Reprendre un peu avant »: the cases Mira for Windows and Mac read', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/resume.json', import.meta.url), 'utf8'));
+  assert.deepEqual(RESUME_BACK, fixture.choices);
+  assert.equal(RESUME_BACK_FROM, fixture.from);
+  for (const [position, back, at] of fixture.cases) assert.ok(Math.abs(resumeBack(position, back) - at) < 1e-9, `${position} s, ${back} s back`);
 });

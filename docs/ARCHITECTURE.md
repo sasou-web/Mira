@@ -45,7 +45,7 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques, version minimale, avertissement HTTP
   ├─ LibraryStore, AccountData : cache SQLite, progression locale et file persistante ; fichiers d’un compte
   ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels
-  ├─ PlaybackSession : état d’une lecture sans WPF ni mpv (position, saut en attente, rapport, fin, titre vu), Windows et Mac
+  ├─ PlaybackSession : état d’une lecture sans WPF ni mpv (position, saut en attente, rapport, fin, titre vu, reprise un peu avant `ResumeBack` comme `resumeBack` de Mira web, cas communs `tests/fixtures/resume.json`), Windows et Mac
   ├─ MpvClient : API C de libmpv commune à Windows et Mac (options, propriétés, commandes, événements, volume au-delà de 100 %)
   ├─ Catalog : liste affichée (page, favoris, bibliothèque, personne), pages reçues, « Continuer à regarder », titres, page vide, démo
   ├─ SkipPlanner : passages d’une lecture et épisode suivant (offre, intros sautées, compte à rebours), Windows et Mac

@@ -150,8 +150,23 @@ export const webVttAddress = (deliveryUrl) => deliveryUrl.replace(/\/Stream\.(as
 
 /** How far a title was watched, 0 to 1. */
 export const progressFraction = (x) => (x.RunTimeTicks ? (x.UserData?.PlaybackPositionTicks ?? 0) / x.RunTimeTicks : 0);
-/** Where a title starts (ticks): where it was left, unless asked from the start, resuming is off, or it was nearly done. */
-export function startPosition(item, { fromStart, resume }) {
+/** The choices of « Reprendre un peu avant », in seconds; 0 resumes exactly where the title was left. */
+export const RESUME_BACK = [0, 5, 10, 15];
+/** Under this much watched (seconds), a title resumes exactly where it was left. */
+export const RESUME_BACK_FROM = 30;
+/**
+ * « Reprendre un peu avant » (seconds): `back` seconds before where the title was left, to pick up the thread rather
+ * than land mid-sentence; exactly there under RESUME_BACK_FROM. As Mira.Core PlaybackSession.ResumeBack
+ * (tests/fixtures/resume.json).
+ */
+export const resumeBack = (position, back) => (!(back > 0) || position < RESUME_BACK_FROM ? position : Math.max(0, position - back));
+/**
+ * Where a title starts (ticks): where it was left, `back` seconds before (resumeBack), unless asked from the start,
+ * resuming is off, or it was nearly done.
+ */
+export function startPosition(item, { fromStart, resume, back = 0 }) {
   const fraction = progressFraction(item);
-  return !fromStart && resume && fraction > 0 && fraction < 0.95 ? item.UserData.PlaybackPositionTicks : 0;
+  if (fromStart || !resume || fraction <= 0 || fraction >= 0.95) return 0;
+  const position = item.UserData.PlaybackPositionTicks, at = resumeBack(position / 10_000_000, back);
+  return at === position / 10_000_000 ? position : Math.round(at * 10_000_000);
 }

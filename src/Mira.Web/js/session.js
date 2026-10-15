@@ -82,6 +82,7 @@ const defaults = {
   quality: 'auto',      // 'auto', 'max' or a bitrate in bits per second
   autoNext: true,       // the next episode starts by itself
   resume: true,         // a title resumes where it was left
+  resumeBack: 5,        // seconds it resumes before that point (« Reprendre un peu avant »), as Mira on Windows and Mac
   subtitleSize: 100,    // percent, for subtitles drawn by Mira (Apple's player follows iOS's own settings)
   audioLanguages: 'jpn,ja,fre,fra,fr,eng,en', // as Mira on Windows and Mac
   subtitleLanguages: 'fre,fra,fr,eng,en',

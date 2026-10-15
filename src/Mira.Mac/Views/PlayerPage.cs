@@ -202,7 +202,7 @@ public sealed class PlayerPage : UserControl
             else { location = session.Client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = session.Client.AuthorizationHeader; }
             if (generation != _generation) return false;
             _session.Begin(item, source, string.IsNullOrEmpty(playback.PlaySessionId) ? Guid.NewGuid().ToString("N") : playback.PlaySessionId,
-                groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart));
+                groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart, back: _shell.Settings.ResumeBack));
             _title.Text = item.DisplayTitle; _subtitle.Text = PlayerText.Subtitle(item);
             _next.IsEnabled = false;
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -40,6 +41,9 @@ public sealed class SettingsPage : Page
 
         page.Children.Add(Section("Lecture",
             Toggle("Reprendre là où tu t’es arrêté", "Sinon, chaque titre repart du début.", settings.RememberPosition, v => settings.RememberPosition = v),
+            Choice("Reprendre un peu avant", PlaybackSession.ResumeBackChoices.Select(x => (x > 0 ? $"{x} s avant" : "Non", x.ToString(CultureInfo.InvariantCulture))).ToArray(),
+                settings.ResumeBack.ToString(CultureInfo.InvariantCulture), v => settings.ResumeBack = int.Parse(v, CultureInfo.InvariantCulture),
+                "Pour retrouver le fil plutôt que de tomber au milieu d’une phrase. Un titre vu moins de 30 s reprend pile là où tu t’es arrêté."),
             Toggle("Épisode suivant automatique", "À la fin d’un épisode, le suivant démarre.", settings.AutoNext, v => settings.AutoNext = v),
             Toggle("Passer les intros et les récaps", "Sans appuyer sur S, quand Jellyfin ou les chapitres du fichier les ont repérés. Revenir en arrière les rejoue.", settings.AutoSkip, v => settings.AutoSkip = v),
             Toggle("Décodage matériel", "Utilise la puce du Mac pour décoder la vidéo : moins de chauffe, plus d’autonomie.", settings.HardwareDecoding, v => settings.HardwareDecoding = v)));
@@ -219,7 +223,7 @@ public sealed class SettingsPage : Page
         toggle.IsCheckedChanged += (_, _) => { set(toggle.IsChecked == true); Save(); };
         return Row(title, detail, toggle);
     }
-    private Control Choice(string title, (string Label, string Value)[] options, string current, Action<string> set)
+    private Control Choice(string title, (string Label, string Value)[] options, string current, Action<string> set, string detail = "Les pistes choisies en premier, dans cet ordre.")
     {
         var box = new ComboBox { MinWidth = 240 };
         foreach (var (label, value) in options) box.Items.Add(new ComboBoxItem { Content = label, Tag = value });
@@ -227,6 +231,6 @@ public sealed class SettingsPage : Page
         box.SelectedItem = box.Items.OfType<ComboBoxItem>().First(x => (string)x.Tag! == current);
         Avalonia.Automation.AutomationProperties.SetName(box, title);
         box.SelectionChanged += (_, _) => { if (box.SelectedItem is ComboBoxItem { Tag: string value }) { set(value); Save(); } };
-        return Row(title, "Les pistes choisies en premier, dans cet ordre.", box);
+        return Row(title, detail, box);
     }
 }
