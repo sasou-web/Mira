@@ -488,6 +488,38 @@ try {
   check('minuterie (lecteur d’Apple simulé) : « Fin de l’épisode » choisie sur la fiche, l’épisode suivant ne démarre pas',
     /fin de l’épisode/.test(timerLine) && stopped && !now.hash.includes(episodes[1].Id) && /désactivée/.test(timerAfter),
     `${timerLine.replace(/\s+/g, ' ')} ; puis ${now.hash.split('?')[0]}, ${timerAfter.replace(/\s+/g, ' ')}`);
+  // End credits that only the preview follows (chapters « Ending » 12-25 s, « Preview » 25-30 s): the next episode
+  // starts by itself 10 s into them (22 s), before the end. Moved into them by the person (past 22 s, here), they play
+  // to the end.
+  const fin = (await call(`Items?recursive=true&includeItemTypes=Series&searchTerm=${encodeURIComponent('Courte Fin')}`)).Items[0];
+  const parts = (await call(`Shows/${fin.Id}/Episodes?userId=${token.userId}`)).Items;
+  const switchedAt = async (moveTo) => {
+    await ap.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, parts[0].Id);
+    await ap.waitForFunction(() => (document.querySelector('video')?.currentTime ?? 0) > 1, null, { timeout: 20000 });
+    // A seek in Apple's player: the video moved by something other than Mira.
+    if (moveTo) await ap.evaluate((t) => { document.querySelector('video').currentTime = t; }, moveTo);
+    // The last moment of the first episode before the second one's address.
+    const at = await ap.evaluate((id) => new Promise((resolve) => {
+      let last = 0;
+      const timer = setInterval(() => {
+        if (location.hash.includes(id)) { clearInterval(timer); resolve(last); return; }
+        last = document.querySelector('video')?.currentTime ?? last;
+      }, 100);
+      setTimeout(() => { clearInterval(timer); resolve(-1); }, 45000);
+    }), parts[1].Id);
+    await ap.waitForTimeout(1500);
+    const shown = await state();
+    await ap.evaluate(() => document.querySelector('video')?.webkitExitFullscreen());
+    await ap.waitForFunction((id) => location.hash.startsWith(`#/titre/${id}`), fin.Id, { timeout: 8000 }).catch(() => {});
+    await ap.waitForTimeout(800);
+    return { at, mode: shown.mode };
+  };
+  const early = await switchedAt(0);
+  check('lecteur d’Apple (simulé) : épisode suivant 10 s après le début du générique de fin, avant l’aperçu',
+    parts.length === 2 && early.at > 21 && early.at < 25 && early.mode === 'fullscreen', `É1 quitté à ${early.at.toFixed(1)} s sur 30, puis ${early.mode}`);
+  const watched = await switchedAt(24);
+  check('lecteur d’Apple (simulé) : générique rejoint à la main, regardé jusqu’au bout, puis épisode suivant',
+    watched.at > 28 && watched.mode === 'fullscreen', `É1 quitté à ${watched.at.toFixed(1)} s sur 30, puis ${watched.mode}`);
 } catch (error) {
   check('lecteur d’Apple (simulé) : déroulé', false, error.message.split('\n')[0]);
   await ap.screenshot({ path: `${out}/error-apple.png` }).catch(() => {});

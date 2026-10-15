@@ -22,9 +22,21 @@ export const skipsItself = (segment, { autoSkip, skipped }) => !!segment && !!au
  * Where the next episode is offered: from the end credits when they are marked and only credits or a preview follow
  * them, else over the last seconds, so that nothing of the end is cut (a scene after the credits stays).
  */
-export function nextFrom(segments, end) {
+export const nextFrom = (segments, end) => creditsFrom(segments, end) ?? end - COUNTDOWN;
+/** Where end credits that only credits or a preview follow begin (a segment, or a chapter's passage); null without them. */
+export function creditsFrom(segments, end) {
   const outro = segments.find((s) => s.Type === 'Outro' && endsPlayback(segments, s, end));
-  return outro ? seconds(outro.StartTicks) : end - COUNTDOWN;
+  return outro ? seconds(outro.StartTicks) : null;
+}
+/**
+ * Apple's player, which has no room for Mira's countdown: when the next episode starts by itself, COUNTDOWN seconds
+ * into such credits, the moment Mira's countdown ends elsewhere. Null when it waits for the end of the title (no such
+ * credits, or too short for it), and for a title started in its credits (resumed there: the person came back to them).
+ */
+export function nativeNextAt(segments, end, { startedAt = 0 } = {}) {
+  const from = creditsFrom(segments, end);
+  if (from == null || startedAt >= from - 1 || from + COUNTDOWN >= end - 1) return null;
+  return from + COUNTDOWN;
 }
 /** True when skipping the credits would only leave further credits, a preview or a few seconds (PlaybackMarkers.EndsPlayback). */
 function endsPlayback(segments, segment, end) {

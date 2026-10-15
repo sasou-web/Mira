@@ -18,7 +18,7 @@ import {
   progressFraction, startPosition,
 } from './stream.js';
 import { presentationStep } from './presentation.js';
-import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, chapterPassages, withChapters, withoutFromStart } from './timeline.js';
+import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, creditsFrom, nativeNextAt, trickCell, chapterMarks, chapterPassages, withChapters, withoutFromStart } from './timeline.js';
 import { QUALITIES } from '../views/settings.js';
 import { sleep, sleepChoices } from './sleep.js';
 import { listen } from '../remote.js';
@@ -79,6 +79,10 @@ export function create({ id, query }) {
   let inband = false;         // the HLS stream carries the text subtitles (Apple's player): no <track> beside it
   let started = false, ended = false, progressTimer = 0, lastReport = 0;
   let segments = [], chapters = [], trick = null, next = null, nextDismissed = false, countdown = 0, countdownTimer = 0;
+  // Apple's player: where the title started (seconds), and whether the person moved into its end credits: then they
+  // play to the end, and the next episode follows there, as before.
+  // lastAt: the position at the previous tick, to tell playing on from a jump.
+  let titleStart = 0, creditsWatched = false, lastAt = 0;
   let pendingStart = 0, opening = 0, beginning = 0, target = { id, fromStart: query.get('debut') === '1', tracks: chosenTracks(query) };
   const skipped = new Set();
   // ---------- The player itself ----------
@@ -355,8 +359,9 @@ export function create({ id, query }) {
       seek(seconds(segment.EndTicks));
       return;
     }
-    // Apple's player has no room for Mira's buttons: there, the next episode starts at the end.
-    if (native) return;
+    // Apple's player has no room for Mira's buttons: there, the next episode starts by itself a few seconds into end
+    // credits that only a preview follows, or at the end.
+    if (native) { nativeNext(at, end); return; }
     if (segment !== currentSkip) {
       currentSkip = segment;
       pillLayer.querySelector('.pill')?.remove();
@@ -373,6 +378,19 @@ export function create({ id, query }) {
 
   /** The next episode starts by itself: the settings say so, and the sleep timer does not stop at this one. */
   const autoNext = () => settings.get('autoNext') && !sleep.atEnd;
+  /**
+   * Apple's player: the next episode a countdown into the end credits, as Mira's own controls start it once their
+   * countdown ends, without a word (there is no room for one). Not in a group: the others would lose the credits
+   * without seeing it coming; there, and without such credits, it starts at the end of the title.
+   */
+  function nativeNext(at, end) {
+    const before = lastAt;
+    lastAt = at;
+    if (!next || nextDismissed || creditsWatched || !autoNext() || together.group || !end || !streamPlaying || video.paused || switching) return;
+    const when = nativeNextAt(segments, end, { startedAt: titleStart });
+    // Reached by playing on, not by a jump: the person's seek in Apple's player lands past it before `seeked` says so.
+    if (when != null && before < when && at >= when && at - before < 5) playNext();
+  }
   function offerNext() {
     countdown = COUNTDOWN;
     const counter = h('span', {}, `Dans ${countdown} s`);
@@ -430,6 +448,7 @@ export function create({ id, query }) {
     item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0; inband = false;
     audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; started = false; ended = false;
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
+    titleStart = 0; creditsWatched = false; lastAt = 0;
     skipped.clear();
     nextButton.hidden = true;
     tipThumb.hidden = true; tipThumb.style.backgroundImage = '';
@@ -881,9 +900,13 @@ export function create({ id, query }) {
     waiting: () => { busy.hidden = false; groupStall(); },
     seeking: () => { busy.hidden = false; },
     seeked: () => {
+      const byPerson = !expected('seek');
+      // Moved in Apple's player into the end credits: they play to the end; back before them, the next episode comes
+      // again from them (as Mira's countdown goes and comes back elsewhere).
+      if (byPerson && native) { const from = creditsFrom(segments, total || video.duration || 0); creditsWatched = from != null && position() >= from - 1; }
       busy.hidden = true; updateTime(); checkReady();
       // Moved in Apple's player: for the whole group. Mira's own controls tell it themselves (seek).
-      if (!expected('seek') && native && together.group && !closing && !switching) { clearTimeout(groupSeekTimer); group.seek(position()); }
+      if (byPerson && native && together.group && !closing && !switching) { clearTimeout(groupSeekTimer); group.seek(position()); }
     },
     canplay: () => { busy.hidden = true; checkReady(); groupResumed(); },
     timeupdate: updateTime,
@@ -1091,6 +1114,7 @@ export function create({ id, query }) {
       // it would start.
       const joining = !!together.group && together.queue?.itemId === item.Id;
       const resume = target.startTicks ?? (joining ? together.queue.startTicks : startPosition(item, { fromStart: target.fromStart, resume: settings.get('resume') }));
+      titleStart = seconds(resume);
       total = seconds(item.RunTimeTicks);
       // The title's own streams choose its tracks before Jellyfin is asked for a stream.
       source = item.MediaSources?.[0] ?? null;

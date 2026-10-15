@@ -84,7 +84,9 @@ export function create() {
           items: QUALITIES.map(([key, label, sub]) => ({ label, sub, selected: key === quality[0], run: () => { settings.set('quality', key); render(); } })),
         })),
         toggle('resume', 'Reprendre là où tu t’es arrêté', 'Sinon, chaque titre repart du début.'),
-        toggle('autoNext', 'Épisode suivant automatique', 'À la fin d’un épisode, le suivant démarre.'),
+        toggle('autoNext', 'Épisode suivant automatique', appleNative()
+          ? 'Quand Jellyfin ou les chapitres repèrent le générique de fin, le suivant démarre 10 secondes après son début, sauf si une scène suit le générique. Sinon, à la fin de l’épisode.'
+          : 'À la fin d’un épisode, le suivant démarre.'),
         toggle('autoSkip', 'Passer les intros et les récaps', 'Quand Jellyfin ou les chapitres du fichier les ont repérés, la lecture saute par-dessus.'),
         choice('Langue audio', audio[1], languages('Langue audio préférée', AUDIO_LANGUAGES, audio, 'audioLanguages')),
         choice('Langue des sous-titres', subtitles[1], languages('Langue des sous-titres', SUBTITLE_LANGUAGES, subtitles, 'subtitleLanguages')),
