@@ -1069,7 +1069,10 @@ try {
     if (/\/Playback\/BitrateTest/.test(r.url())) seen.push({ what: 'test', at: Date.now() });
     if (/\/PlaybackInfo/.test(r.url()) && r.method() === 'POST') seen.push({ what: 'info', at: Date.now(), max: JSON.parse(r.postData() || '{}').MaxStreamingBitrate });
   });
-  tp.on('response', (r) => { if (/\/Items\/[0-9a-f]{32}\?/.test(r.url()) && r.request().method() === 'GET') seen.push({ what: 'item', at: Date.now() }); });
+  tp.on('response', (r) => {
+    const id = r.url().match(/\/Items\/([0-9a-f]{32})\?/)?.[1];
+    if (id && r.request().method() === 'GET') seen.push({ what: 'item', at: Date.now(), id });
+  });
   const address = new URL(base); address.hostname = tailscaleName;
   await signIn(tp, `${address.href}#/connexion`);
   const film = await tp.evaluate(async () => {
@@ -1077,10 +1080,16 @@ try {
     const { api } = await import(`${root}api.js`);
     return (await api.browse({ types: 'Movie', search: 'Lueur Web' })).Items?.[0]?.Id ?? null;
   });
+  // The title answers a second late, as from a phone away from home: measured while it loads, the test starts first.
+  await tp.route(/\/Items\/[0-9a-f]{32}\?/, async (route) => {
+    if (route.request().method() === 'GET') await new Promise((resolve) => setTimeout(resolve, 1000));
+    await route.continue();
+  });
   seen.length = 0;
   await tp.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film);
   const played = await tp.waitForFunction(() => (document.querySelector('video')?.currentTime ?? 0) > 0.5, null, { timeout: 20000 }).then(() => true, () => false);
-  const test = seen.find((x) => x.what === 'test'), item = seen.find((x) => x.what === 'item'), info = seen.find((x) => x.what === 'info');
+  // The title's own answer: the home behind it may still be asking for its banner's series.
+  const test = seen.find((x) => x.what === 'test'), item = seen.find((x) => x.what === 'item' && x.id === film), info = seen.find((x) => x.what === 'info');
   check('par Tailscale : connexion mesurée pendant le chargement du titre, fichier tel quel quand elle le tient',
     played && !!test && !!item && test.at <= item.at && info?.max === 120_000_000 && seen.filter((x) => x.what === 'test').length === 1,
     `${seen.map((x) => x.what + (x.max ? ` ${x.max / 1e6} Mb/s` : '')).join(' → ')}${played ? ', lu' : ', pas lu'}`);
