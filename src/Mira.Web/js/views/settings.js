@@ -80,6 +80,11 @@ export function create() {
         user?.Policy?.IsAdministrator
           ? h('a', { class: 'item', href: '#/en-ce-moment' }, icon('server'),
             h('span', { class: 'grow' }, 'En ce moment sur Jellyfin', h('span', { class: 'sub' }, 'Qui regarde quoi, et si Jellyfin doit convertir.')), icon('right', { size: 20 }))
+          : null,
+        // TorLink on the PC of Jellyfin, sent from here: only an administrator, as for Jellyfin's own dashboard.
+        user?.Policy?.IsAdministrator
+          ? h('a', { class: 'item', href: '#/telecharger' }, icon('download'),
+            h('span', { class: 'grow' }, 'Télécharger sur le PC serveur', h('span', { class: 'sub' }, 'Cherche un titre : TorLink le télécharge là-bas, Mira le range dans ta bibliothèque.')), icon('right', { size: 20 }))
           : null),
 
       h('h2', { class: 'label group-title' }, 'Lecture'),

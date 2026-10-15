@@ -89,13 +89,15 @@ public sealed record TorLinkInstallation(string Root, string Node, string Entry,
     /// A TorLink started outside Mira (Start menu shortcut, a terminal). Two instances would share the same queue and
     /// write the same files, so Mira does not start a second one.
     /// </summary>
-    public int? RunningElsewhere(int? own)
+    public int? RunningElsewhere(int? own) => RunningOutside(own is { } id ? [id] : []);
+    /// <summary>The same, <paramref name="own"/> being every TorLink process Mira runs (the page's, without a window, a search).</summary>
+    public int? RunningOutside(IReadOnlyCollection<int> own)
     {
         foreach (var process in Process.GetProcessesByName("node"))
         {
             using (process)
             {
-                if (process.Id == own || CommandLine(process.Id) is not { } command) continue;
+                if (own.Contains(process.Id) || CommandLine(process.Id) is not { } command) continue;
                 if (command.Contains(Entry, StringComparison.OrdinalIgnoreCase) || command.Contains("torlnk", StringComparison.OrdinalIgnoreCase)) return process.Id;
             }
         }

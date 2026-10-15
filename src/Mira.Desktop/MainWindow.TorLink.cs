@@ -57,6 +57,7 @@ public partial class MainWindow
                 ShowTorLinkPanel("info", "TorLink tarde à s’afficher", "Le terminal intégré ne répond pas encore. Réessayer recharge la page ; les téléchargements ne sont pas touchés.", "Réessayer", "reload");
         };
         _torlink.Watch();
+        StartTorLinkRemote();
     }
     /// <summary>The TorLink check only works inside its output folder: demo mode, and both --data and TORLINK_STATE_DIR in it.</summary>
     private bool TorLinkCheckIsolated()
@@ -233,6 +234,7 @@ public partial class MainWindow
         _settings.TorLinkActive = false; _profile.SaveSettings(_settings);
         _torlinkStartWatch.Stop(); SetTorLinkBlocker(null);
         if (_torlinkTerminal is { } terminal) await terminal.StopAsync();
+        await TakeBackFromHeadlessAsync();
         ShowDownloaders(true); UpdateTorLinkState();
     }
 
@@ -255,9 +257,10 @@ public partial class MainWindow
         if (_torlinkTerminal.State == TerminalState.Unavailable) { SetTorLinkBlocker("webview"); return; }
         if (_torlinkTerminal.Running) { SetTorLinkBlocker(null); if (TorLinkOverlay.IsVisible) _torlinkTerminal.Focus(); return; }
         if (_torlinkTerminal.State is TerminalState.Exited or TerminalState.Starting && !restart) { SetTorLinkBlocker(null); return; }
-        // Two TorLink would share the same queue and write the same files.
+        // Two TorLink would share the same queue and write the same files: the one without a window hands it back first.
         var installation = _torlinkInstallation;
-        if (await Task.Run(() => installation.RunningElsewhere(null)) is not null) { SetTorLinkBlocker("elsewhere"); return; }
+        await TakeBackFromHeadlessAsync();
+        if (await Task.Run(() => installation.RunningOutside(_torlinkHeadless.ProcessIds)) is not null) { SetTorLinkBlocker("elsewhere"); return; }
         // Found by searching this PC, neither installed by Mira nor chosen: it runs only once the person says it is theirs.
         if (installation.Detected) { SetTorLinkBlocker("confirm"); return; }
         installation = await TakePreparedTorLinkAsync(installation);
@@ -321,6 +324,7 @@ public partial class MainWindow
         var state = _torlinkTerminal?.State ?? TerminalState.Idle;
         if (_torlinkBlocker is not null || state is TerminalState.Running or TerminalState.Exited or TerminalState.Unavailable) _torlinkStartWatch.Stop();
         var (status, dot) = _torlinkInstalling ? ("Installation…", "Warning") : !TorLinkActive() ? ("Désactivé", "Dim")
+            : _torlinkHeadless.Running && state != TerminalState.Running ? ("Sans fenêtre", "Success")
             : _torlinkBlocker == "confirm" ? ("À confirmer", "Warning") : _torlinkBlocker is not null ? ("Indisponible", "Warning") : state switch
             {
                 TerminalState.Running => ("En cours", "Success"),
@@ -341,6 +345,8 @@ public partial class MainWindow
             case "confirm" when _torlinkInstallation is { } found:
                 ShowTorLinkPanel("folder", "Utiliser ce TorLink ?", $"Mira a trouvé TorLink {found.Version ?? "(version inconnue)"} dans {found.Root}. Il n’a pas été installé par Mira : utilise-le seulement si c’est toi qui l’as installé. Mira s’en souviendra.",
                     "Utiliser ce TorLink", "trust", "Installer celui de Mira", "install"); return;
+            case "remote":
+                ShowTorLinkPanel("download", "TorLink télécharge pour un autre appareil", "Une demande est arrivée de Mira web : TorLink continue sans fenêtre. Le rouvrir ici reprend tout, sans rien perdre.", "Rouvrir TorLink ici", "retry"); return;
             case "webview":
                 ShowTorLinkPanel("info", "Terminal intégré indisponible", (_torlinkTerminal?.Problem ?? "") + " TorLink peut s’ouvrir dans sa propre fenêtre ; ses téléchargements terminés seront quand même rangés.", "Ouvrir dans une fenêtre", "window"); return;
         }
@@ -391,7 +397,8 @@ public partial class MainWindow
                 break;
             case "window" when _torlinkInstallation is { } installation:
                 // Its own window is a TorLink like the one of its shortcut: still only one at a time.
-                if (await Task.Run(() => installation.RunningElsewhere(null)) is not null) { SetNotice("TorLink est déjà ouvert dans une autre fenêtre."); break; }
+                await TakeBackFromHeadlessAsync();
+                if (await Task.Run(() => installation.RunningOutside(_torlinkHeadless.ProcessIds)) is not null) { SetNotice("TorLink est déjà ouvert dans une autre fenêtre."); break; }
                 installation = await TakePreparedTorLinkAsync(installation);
                 PrepareTorLinkStart();
                 try { installation.OpenInWindow(); SetNotice("TorLink s’ouvre dans sa propre fenêtre ; ses téléchargements terminés seront rangés."); _ = RefreshTorLinkAsync(installation); }
@@ -429,8 +436,9 @@ public partial class MainWindow
 
     private async Task StopTorLinkAsync()
     {
-        _torlinkLifetime.Cancel(); _torlinkPoll.Stop(); _torlinkDebounce.Stop(); _torlinkStartWatch.Stop();
+        _torlinkLifetime.Cancel(); _torlinkPoll.Stop(); _torlinkDebounce.Stop(); _torlinkStartWatch.Stop(); _remoteTimer.Stop();
         _torlink?.Dispose();
+        await _torlinkHeadless.StopAsync(); _torlinkHeadless.Dispose();
         if (_torlinkTerminal is { } terminal)
         {
             _torlinkTerminal = null;

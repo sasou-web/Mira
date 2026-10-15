@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Mira.Core.TorLink;
 
 namespace Mira.Core;
 
@@ -521,6 +522,18 @@ public sealed class JellyfinClient : IDisposable
         if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return false;
         await CheckAsync(response);
         return true;
+    }
+    /// <summary>
+    /// « Télécharger sur le PC serveur »: Mira for Windows' visit to the relay of the extension (POST Mira/torlink/agent),
+    /// its report sent, its work back. No work with the status when the relay refuses: 403 (not an administrator) or
+    /// 404 (an extension older than this Mira).
+    /// </summary>
+    public async Task<(AgentWork? Work, HttpStatusCode Status)> TorLinkExchangeAsync(AgentReport report, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/agent", report, RemoteProtocol.Json, ct);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return (null, response.StatusCode);
+        await CheckAsync(response);
+        return (await response.Content.ReadFromJsonAsync<AgentWork>(RemoteProtocol.Json, ct) ?? throw new IOException("Réponse Jellyfin vide."), response.StatusCode);
     }
     private async Task<JsonObject?> EncodingSettingsAsync(CancellationToken ct)
     {

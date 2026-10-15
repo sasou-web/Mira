@@ -19,6 +19,9 @@ export function create({ query }) {
       h('form', { class: 'search-box', role: 'search', on: { submit: (e) => { e.preventDefault(); remember(input.value); input.blur(); } } }, icon('search'), input, clearButton)),
     status, results);
   let timer = 0, controller = null, lastText = null;
+  // Asked once, the first time a search finds nothing.
+  let adminAsked = null;
+  const administrator = () => (adminAsked ??= api.me().then((me) => !!me?.Policy?.IsAdministrator, () => false));
 
   function remember(text) {
     const value = text.trim();
@@ -62,7 +65,14 @@ export function create({ query }) {
       const total = items.length + persons.length + episodes.length + sagas.length;
       status.textContent = total ? plural(total, 'résultat', 'résultats') : 'Aucun résultat';
       if (!total) {
-        results.append(emptyState({ symbol: 'search', title: 'Aucun résultat', text: `Rien ne correspond à « ${text} » dans ta bibliothèque.` }));
+        // An administrator can have it downloaded on the PC of Jellyfin (views/torlink.js).
+        const own = controller;
+        const admin = await administrator();
+        if (own !== controller) return;
+        results.append(emptyState({
+          symbol: 'search', title: 'Aucun résultat', text: `Rien ne correspond à « ${text} » dans ta bibliothèque.`,
+          action: admin ? { label: 'Le télécharger sur le PC serveur', href: `#/telecharger?q=${encodeURIComponent(text)}` } : null,
+        }));
         return;
       }
       // A result opened keeps the search among the recent ones.
