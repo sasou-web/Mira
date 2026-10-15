@@ -2,6 +2,14 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## Tailscale sans session et expiration de sa connexion (non publié)
+
+- **Besoin** : après un redémarrage sans session (Windows Update la nuit), Tailscale sans « Run unattended » reste coupé : Jellyfin tourne, mais le téléphone ne le trouve plus, même à la maison (le QR code donne l’adresse Tailscale), et la carte disait « Disponible dès l’allumage du PC ». Même chose le jour où la clé de ce PC expire (180 jours par défaut).
+- **Correctif** : pour un Jellyfin sur ce PC et Tailscale connecté, Mira lance `tailscale status --json` puis `tailscale debug prefs` (le `tailscale.exe` de Program Files, dans les droits de la personne) ; `TailscaleNode` (Core) lit `ForceDaemon` et `Self.KeyExpiry`/`Expired`. Étape « Tailscale se coupe sans ta session » avec **Garder Tailscale connecté** (`tailscale set --unattended=true`, relu), étape et avis au démarrage deux semaines avant l’expiration, avec la page Machines de Tailscale.
+- **Sources lues** (tailscale/tailscale, `main`) : `ForceDaemon` en `omitempty` dans `ipn/prefs.go` ; `--unattended` dans `tailscale set` (Windows) ; `KeyExpiry` de `Self` absent quand l’expiration est coupée (`peerStatusFromNode`) ; sous Windows, la LocalAPI donne lecture et écriture à qui peut s’y connecter (`actor.Permissions`).
+- **Tests** : `TailscaleNode.Parse` (sans session ou non, expiration lointaine, proche, passée, coupée ; Tailscale muet, erreur, préférences illisibles), étapes de la carte (Core, partout).
+- **Non vérifié** : sur un vrai PC, les sorties de `tailscale.exe`, `tailscale set --unattended` sans droits d’administrateur, la politique `TS_UNATTENDEDMODE` d’un PC géré.
+
 ## Jellyfin arrêté sur ce PC (non publié)
 
 - **Besoin** : un Jellyfin arrêté sur le PC serveur (trois relances de Windows ratées, arrêt depuis son tableau de bord) ne se remarquait qu’au téléphone, par « Serveur injoignable » ; Mira pour Windows disait « momentanément inaccessible », comme pour un serveur lointain.

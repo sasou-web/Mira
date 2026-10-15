@@ -171,6 +171,7 @@ public partial class MainWindow : Window
         _ = RefreshEngineAsync();
         ShowStartupScreen();
         _ = NoticeStaleRuleAsync();
+        _ = NoticeTailscaleExpiryAsync();
         _ = KeepMiraWebCurrentAsync();
         // Once, after the first refresh, which would otherwise hide it at once, and beside what the start already said
         // (a cache recreated, an update that failed, Jellyfin offline) rather than in its place.

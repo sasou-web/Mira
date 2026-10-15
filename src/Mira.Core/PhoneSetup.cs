@@ -21,11 +21,13 @@ public static class PhoneSetup
     /// PC, which the firewall is opened for. <paramref name="Answering"/>: Jellyfin answers (it may be restarting, or
     /// stopped). <paramref name="NetworkKept"/>: Windows did not let « Passer en privé » make the public network
     /// (<see cref="JellyfinFirewall.Reach.Public"/>) private. <paramref name="Down"/>: what a Jellyfin on this PC that
-    /// does not answer is (<see cref="LocalJellyfin.Judge"/>). Null: not known, or not readable with this account.
+    /// does not answer is (<see cref="LocalJellyfin.Judge"/>). <paramref name="Node"/>: Tailscale on this PC, read by its
+    /// command line (<see cref="TailscaleNode"/>). Null: not known, or not readable with this account.
     /// </summary>
     public sealed record Facts(string Server, bool Local, bool? Web, string? Home, bool? Admin = null, string? Tailnet = null, bool? TailnetAllowed = null,
         JellyfinFirewall.Reach? Firewall = null, JellyfinFirewall.RuleState MiraRule = JellyfinFirewall.RuleState.Missing, JellyfinStartup.State? Boot = null,
-        bool Program = true, bool Answering = true, bool NetworkKept = false, LocalJellyfin.Verdict Down = LocalJellyfin.Verdict.Unknown);
+        bool Program = true, bool Answering = true, bool NetworkKept = false, LocalJellyfin.Verdict Down = LocalJellyfin.Verdict.Unknown,
+        TailscaleNode.State? Node = null);
 
     public static IReadOnlyList<Step> Steps(Facts facts)
     {
@@ -99,8 +101,32 @@ public static class PhoneSetup
             (_, null) when facts.Admin != false => new("tailscale", Mark.Note, "Tailscale dans Jellyfin", facts.Answering ? "Vérification…" : "Vérifié dès que Jellyfin répond."),
             _ => new("tailscale", Mark.Yours, "Autoriser Tailscale dans Jellyfin", "Il faut le compte administrateur de Jellyfin : connecte Mira avec celui-ci."),
         });
+        // Tailscale on this PC, once it has its address: connected without a Windows session, and this PC's connection
+        // not about to expire. Both are the person's: « Tout préparer » never changes Tailscale; « Run unattended » has
+        // its own button, which runs Tailscale's command line, in the person's rights.
+        if (facts.Tailnet is not null && facts.Node is { } node)
+        {
+            steps.Add(node.Unattended switch
+            {
+                true => new("unattended", Mark.Done, "Tailscale reste connecté sans ta session", "Après un redémarrage, il se reconnecte sans attendre que tu ouvres ta session."),
+                false => new("unattended", Mark.Yours, "Tailscale se coupe sans ta session",
+                    $"Après un redémarrage (une mise à jour de Windows la nuit, par exemple), ton téléphone ne trouve plus ce PC tant que tu n’as pas ouvert ta session. Mira peut le régler ; sinon, {TailscaleNode.WhereUnattended}.",
+                    TailscaleNode.KeepConnected),
+                null => new("unattended", Mark.Note, "Tailscale sans ta session",
+                    $"Mira ne peut pas lire les réglages de Tailscale. Pour que ton téléphone trouve ce PC après un redémarrage, avant que tu ouvres ta session, {TailscaleNode.WhereUnattended}."),
+            });
+            if (TailscaleNode.ExpiresSoon(node))
+                steps.Add(node.Expired
+                    ? new("keyexpiry", Mark.Yours, "La connexion de ce PC à Tailscale a expiré",
+                        $"Hors de chez toi, ton téléphone ne le trouve plus. Reconnecte-toi dans le menu de Tailscale ; puis, pour qu’elle n’expire plus, {TailscaleNode.Disable(node)}.", TailscaleNode.OpenMachines)
+                    : new("keyexpiry", Mark.Yours, $"La connexion de ce PC à Tailscale expire le {TailscaleNode.Day(node.KeyExpiry!.Value)}",
+                        $"Ensuite, hors de chez toi, ton téléphone ne le trouvera plus jusqu’à ce que tu te reconnectes sur ce PC. Pour qu’elle n’expire plus, {TailscaleNode.Disable(node)}.", TailscaleNode.OpenMachines));
+        }
         steps.Add(facts.Boot switch
         {
+            // Away from home, Tailscale too waits for the session: said by its own step, above.
+            { StartsAtBoot: true } when facts.Tailnet is not null && facts.Node?.Unattended == false =>
+                new("boot", Mark.Done, "Jellyfin démarre dès l’allumage du PC", "Avant ta session, et il repart après une erreur ; hors de chez toi, Tailscale attend encore ta session (plus haut)."),
             { StartsAtBoot: true } =>
                 new("boot", Mark.Done, "Disponible dès l’allumage du PC", "Jellyfin démarre avec Windows, avant ta session, et repart après une erreur."),
             { HasService: true } => new("boot", Mark.ToDo, "Disponible dès l’allumage du PC", "Jellyfin démarrera avec Windows, sans attendre ta session, et repartira après une erreur."),
