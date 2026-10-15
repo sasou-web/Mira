@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { h, icon, progress, remaining, episodeCode, plural, clear, duration, seconds, extraKind } from './dom.js';
 import { artFor, picture } from './images.js';
 import { settings } from './session.js';
+import { qualityText } from './player/tracks.js';
 
 /** Item changes (watched, favourite, hidden) that every screen showing the item takes into account. */
 export const changes = new EventTarget();
@@ -337,11 +338,40 @@ export function itemMenu(item, { resumeRow = false, inTitle = false, held = fals
   const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
   const items = [];
   if (item.Type !== 'Series') items.push({ label: progress(item) > 0 ? 'Reprendre' : 'Lecture', symbol: 'play', run: () => { location.hash = playHref(item); } });
+  // A title under way starts again from its beginning, wherever its card is (Windows has it on a right click).
+  if (item.Type !== 'Series' && progress(item) > 0) items.push({ label: 'Lire depuis le début', symbol: 'back10', run: () => { location.hash = playHref(item, true); } });
   if (!inTitle) items.push({ label: item.Type === 'Episode' ? 'Voir la série' : 'Voir la fiche', symbol: 'info', run: () => { location.hash = titleHref(item); } });
   items.push({ label: played ? 'Marquer comme non vu' : 'Marquer comme vu', symbol: 'check', run: () => setPlayed(item, !played) });
   items.push({ label: favorite ? 'Retirer des favoris' : 'Ajouter aux favoris', symbol: favorite ? 'heart-fill' : 'heart', run: () => setFavorite(item, !favorite) });
   if (resumeRow) items.push({ label: 'Retirer de Continuer à regarder', symbol: 'close', run: () => hideFromResume(item) });
-  sheet({ title: name, items, held });
+  sheet({ title: name, items, held, body: about(item) });
+}
+
+/**
+ * What the menu of a film or an episode says above its actions: the episode's name, the length, the picture of its
+ * file and its whole summary, which a card leaves out and the episode list cuts at two lines. Only here, asked for:
+ * nothing unfolds in a list, where a summary would give away what comes. What the card does not know yet (summary,
+ * file) is asked for and comes in place.
+ */
+function about(item) {
+  if (item.Type !== 'Movie' && item.Type !== 'Episode') return null;
+  const facts = (x) => [x.Type === 'Movie' ? x.ProductionYear : '', x.RunTimeTicks ? duration(seconds(x.RunTimeTicks)) : '', remaining(x),
+    qualityText(x.MediaSources?.[0])].filter(Boolean).join(' · ');
+  const meta = h('div', { class: 'sheet-about-meta' }, facts(item));
+  let text = item.Overview ? h('p', { class: 'sheet-about-text' }, item.Overview)
+    : h('div', { class: 'sheet-about-text', 'aria-hidden': 'true' }, h('div', { class: 'skeleton line', style: { width: '100%', marginTop: '0' } }), h('div', { class: 'skeleton line', style: { marginTop: '0' } }));
+  const box = h('div', { class: 'sheet-about' },
+    item.Type === 'Episode' && item.Name ? h('div', { class: 'sheet-about-name' }, `${item.IndexNumber != null ? `${item.IndexNumber}. ` : ''}${item.Name}`) : null,
+    meta, text);
+  if (!item.MediaSources?.[0]) {
+    api.item(item.Id).then((full) => {
+      // Where the title is now stays the card's: what the menu acts on.
+      meta.textContent = facts({ ...full, UserData: item.UserData ?? full.UserData });
+      const summary = full.Overview ? h('p', { class: 'sheet-about-text' }, full.Overview) : null;
+      if (summary) { text.replaceWith(summary); text = summary; } else if (!item.Overview) text.remove();
+    }, () => { if (!item.Overview) text.remove(); });
+  }
+  return box;
 }
 
 /**

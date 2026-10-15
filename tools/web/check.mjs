@@ -109,6 +109,29 @@ try {
   check('retour sur la fiche : reprise proposée', /Reprendre S1 · É2/.test(resumeLabel), resumeLabel.replace(/\s+/g, ' '));
   await shot('07-series-after');
 
+  // A long press on an episode: its whole summary (cut at two lines in the list), its length and picture, and « Lire
+  // depuis le début » for the one under way. The summary is given to it here (the test files have none).
+  const summary = 'Un résumé assez long pour dépasser les deux lignes de la liste des épisodes : il continue encore, et encore, '
+    + 'jusqu’à la fin de cette phrase que seul le menu du toucher long montre en entier.';
+  await page.evaluate(async ([id, text]) => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    const headers = { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"`, 'Content-Type': 'application/json' };
+    const root = location.pathname.replace(/\/Mira\/?.*$/i, '');
+    const item = await (await fetch(`${root}/Items/${id}?userId=${s.userId}`, { headers })).json();
+    await fetch(`${root}/Items/${id}`, { method: 'POST', headers, body: JSON.stringify({ ...item, Overview: text, LockedFields: [...(item.LockedFields ?? []), 'Overview'] }) });
+  }, [episodes[1].Id, summary]);
+  await page.locator(`#view .episode[data-id="${episodes[1].Id}"]`).click({ button: 'right' });
+  await page.waitForFunction(() => /SD/.test(document.querySelector('.sheet .sheet-about-meta')?.textContent ?? '') && document.querySelector('.sheet p.sheet-about-text'), null, { timeout: 8000 }).catch(() => {});
+  const menu = await page.evaluate(() => ({
+    name: document.querySelector('.sheet .sheet-about-name')?.textContent ?? '', facts: document.querySelector('.sheet .sheet-about-meta')?.textContent ?? '',
+    text: document.querySelector('.sheet p.sheet-about-text')?.textContent ?? '', actions: [...document.querySelectorAll('.sheet .sheet-item')].map((x) => x.textContent.trim()),
+  }));
+  await shot('07-episode-menu');
+  check('toucher long sur un épisode : résumé entier, durée, image, « Lire depuis le début »',
+    menu.text === summary && /^2\. /.test(menu.name) && /min/.test(menu.facts) && /SD/.test(menu.facts) && menu.actions[0] === 'Reprendre' && menu.actions[1] === 'Lire depuis le début',
+    `${menu.name} ; ${menu.facts} ; ${menu.text.length} caractères ; ${menu.actions.join(', ')}`);
+  await page.keyboard.press('Escape'); await wait(500);
+
   await page.locator('.detail-actions .btn.primary').click(); await wait(3000);
   const resumed = await page.evaluate(() => document.querySelector('video')?.currentTime ?? 0);
   check('reprise au bon endroit', resumed >= second.UserData.PlaybackPositionTicks / 1e7 - 1, `${resumed.toFixed(1)} s`);
