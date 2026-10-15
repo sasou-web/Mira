@@ -70,7 +70,13 @@ public abstract unsafe class MpvClient : IDisposable
         using var n = new Utf8(name); using var v = new Utf8(value);
         if (_setOption(_handle, n, v) < 0) throw new IOException($"Option mpv indisponible : {name}.");
     }
-    /// <summary>The options set from Réglages → Lecture: volume, preferred languages and subtitle size.</summary>
+    /// <summary>An option an older mpv, chosen by hand, may not know: left out rather than stopping the playback.</summary>
+    private bool TryOption(string name, string value)
+    {
+        using var n = new Utf8(name); using var v = new Utf8(value);
+        return _setOption(_handle, n, v) >= 0;
+    }
+    /// <summary>The options set from Réglages: volume, preferred languages, and the subtitles' size and style.</summary>
     protected void PlayerOptions(PlayerSettings settings)
     {
         _level = VolumeBoost.Clamp(settings.Volume);
@@ -78,7 +84,17 @@ public abstract unsafe class MpvClient : IDisposable
         Option("volume-max", Format(VolumeBoost.Maximum));
         Option("volume", Format(VolumeBoost.Split(_level).Volume));
         Option("alang", settings.AudioLanguage); Option("slang", settings.SubtitleLanguage);
-        Option("sub-font-size", settings.SubtitleSize.ToString(CultureInfo.InvariantCulture));
+        foreach (var (name, value) in SubtitleStyle.Options(settings))
+            if (value is not null) TryOption(name, value);
+    }
+    /// <summary>
+    /// The subtitles' size and style changed while a video plays: each option set again, mpv's own default where Mira
+    /// sets none (so a box turned off goes away). One this mpv does not know is left out.
+    /// </summary>
+    public void StyleSubtitles(PlayerSettings settings)
+    {
+        foreach (var (name, value) in SubtitleStyle.Options(settings))
+            if ((value ?? Get($"option-info/{name}/default-value")) is { } text) Set(name, text);
     }
     protected void Initialize(string failure) { if (_initialize(_handle) < 0) throw new IOException(failure); }
     public bool Set(string name, string value)

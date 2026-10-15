@@ -57,11 +57,7 @@ public sealed class SettingsPage : Page
             Choice("Audio", Audio, settings.AudioLanguage, v => settings.AudioLanguage = v),
             Choice("Sous-titres", Subtitles, settings.SubtitleLanguage, v => settings.SubtitleLanguage = v)));
 
-        var size = new Slider { Minimum = 24, Maximum = 64, Value = settings.SubtitleSize, Width = 240, TickFrequency = 2, IsSnapToTickEnabled = true };
-        var sizeLabel = new TextBlock { Text = $"{settings.SubtitleSize}", Width = 36, VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.Muted };
-        size.ValueChanged += (_, e) => { settings.SubtitleSize = (int)e.NewValue; sizeLabel.Text = $"{settings.SubtitleSize}"; Save(); };
-        Avalonia.Automation.AutomationProperties.SetName(size, "Taille des sous-titres");
-        page.Children.Add(Section("Sous-titres", Row("Taille", "Appliquée à la prochaine lecture.", Ui.Row(12, size, sizeLabel))));
+        page.Children.Add(Section("Sous-titres", SubtitleRows(settings)));
 
         page.Children.Add(Section("Mira",
             Row($"Version {Updates.Current}", "Mira pour Mac (Apple Silicon).", Ui.Action("Rechercher une mise à jour", "download", "", () => _ = Updates.CheckAsync(Shell, asked: true))),
@@ -222,6 +218,50 @@ public sealed class SettingsPage : Page
         Avalonia.Automation.AutomationProperties.SetName(toggle, title);
         toggle.IsCheckedChanged += (_, _) => { set(toggle.IsChecked == true); Save(); };
         return Row(title, detail, toggle);
+    }
+    /// <summary>
+    /// « Taille et style des sous-titres », as on Windows (<see cref="SubtitleStyle"/>): a preview over a bright scene,
+    /// where a white subtitle is hardest to read, then each setting, saved as soon as it changes.
+    /// </summary>
+    private Control[] SubtitleRows(PlayerSettings settings)
+    {
+        var text = new TextBlock { Text = "Encore un épisode ?", TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap };
+        var box = new Border { Child = text, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom };
+        var outline = new DropShadowEffect { Color = Colors.Black, OffsetX = 0, OffsetY = 1, BlurRadius = 4, Opacity = 1 };
+        var scene = new Border
+        {
+            Height = 150, CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = box,
+            Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#DCE3EA"), 0), new GradientStop(Color.Parse("#A9B4C0"), .62), new GradientStop(Color.Parse("#545B64"), 1) } },
+        };
+        void Preview()
+        {
+            var size = settings.SubtitleSize * .55; var dark = settings.SubtitleBackground;
+            text.FontSize = size; text.Foreground = Ui.Brush(SubtitleStyle.Color(settings.SubtitleColor));
+            text.FontWeight = settings.SubtitleBold ? FontWeight.Bold : FontWeight.SemiBold;
+            text.Effect = dark ? null : outline;
+            box.Background = dark ? Ui.Brush(SubtitleStyle.Box) : null;
+            box.Padding = dark ? new Thickness(size * .3, size * .08, size * .3, size * .12) : default;
+            box.Margin = new Thickness(16, 0, 16, 22 + (100 - SubtitleStyle.Height(settings.SubtitleHeight)) / 100.0 * 150);
+        }
+        var size = new Slider { Minimum = 24, Maximum = 64, Value = settings.SubtitleSize, Width = 240, TickFrequency = 2, IsSnapToTickEnabled = true };
+        var sizeLabel = new TextBlock { Text = $"{settings.SubtitleSize}", Width = 36, VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.Muted };
+        size.ValueChanged += (_, e) => { settings.SubtitleSize = (int)e.NewValue; sizeLabel.Text = $"{settings.SubtitleSize}"; Save(); Preview(); };
+        Avalonia.Automation.AutomationProperties.SetName(size, "Taille des sous-titres");
+        Preview();
+        var note = new TextBlock
+        {
+            Text = "Aperçu indicatif, appliqué à la prochaine lecture. Taille, couleur, fond et gras valent pour les sous-titres simples (SRT, WebVTT…) : les sous-titres stylés des animés (ASS) gardent leur mise en forme, seule la hauteur remonte leurs dialogues.",
+            FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap,
+        };
+        return [
+            Ui.Column(12, scene, note),
+            Row("Taille", "La taille du texte à l’écran.", Ui.Row(12, size, sizeLabel)),
+            Toggle("Fond sombre", "Un bandeau derrière le texte, lisible même sur une scène claire.", settings.SubtitleBackground, v => { settings.SubtitleBackground = v; Preview(); }),
+            Choice("Couleur", [("Blanc", SubtitleStyle.White), ("Jaune", SubtitleStyle.Yellow)], settings.SubtitleColor == SubtitleStyle.Yellow ? SubtitleStyle.Yellow : SubtitleStyle.White,
+                v => { settings.SubtitleColor = v; Preview(); }, "Le jaune se détache mieux des scènes blanches."),
+            Toggle("Texte en gras", "Plus épais, plus facile à lire de loin.", settings.SubtitleBold, v => { settings.SubtitleBold = v; Preview(); }),
+            Choice("Hauteur à l’écran", [.. SubtitleStyle.Heights.Select(x => (x.Label, x.Position.ToString(CultureInfo.InvariantCulture)))], SubtitleStyle.Height(settings.SubtitleHeight).ToString(CultureInfo.InvariantCulture),
+                v => { settings.SubtitleHeight = int.Parse(v, CultureInfo.InvariantCulture); Preview(); }, "Plus haut, ils évitent un texte incrusté en bas de l’image.")];
     }
     private Control Choice(string title, (string Label, string Value)[] options, string current, Action<string> set, string detail = "Les pistes choisies en premier, dans cet ordre.")
     {
