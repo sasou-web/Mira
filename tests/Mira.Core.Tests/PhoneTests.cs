@@ -458,6 +458,48 @@ internal static class PhoneTests
             foreach (var url in new[] { "https://repo.jellyfin.org/files/plugin/manifest.json", "https://github.com/someone/Mira/releases/latest/download/jellyfin-manifest.json", "https://github.com.evil.example/sasou-web/Mira/releases/x", "file:///sasou-web/Mira/releases/", "", null })
                 Assert(!MiraWeb.IsRepository(url), "Another repository taken for Mira's: " + url);
         });
+        await Test("Mira web le jour même : la mise à jour des extensions lancée tout de suite, la version qui attend le redémarrage repérée", async () =>
+        {
+            // Jellyfin 12.1, Mira web 0.7.8 served, 0.7.9 offered by its repository: its « Update Plugins » task installs 0.7.9
+            // beside it, which waits for a restart while 0.7.8 turns Superseded (checked on 12.1 with two versions of Mira's).
+            string Plugins(params (string Version, string Status)[] mira) => "[" + string.Join(",", mira.Select(p => $$"""{"Name":"Mira","Version":"{{p.Version}}","Id":"{{MiraWeb.PluginId:N}}","CanUninstall":true,"Status":"{{p.Status}}"}""")
+                .Append("""{"Name":"TMDb","Version":"12.1.0.0","Id":"b8715ed16c4745289ad3f72deb539cd4","Status":"Active"}""")) + "]";
+            MiraWeb.Versions Installed(string json) => MiraWeb.Installed((System.Text.Json.Nodes.JsonArray)System.Text.Json.Nodes.JsonNode.Parse(json)!);
+            Assert(Installed(Plugins(("0.7.8.0", "Active"))) == new MiraWeb.Versions(new(0, 7, 8), null)
+                && Installed(Plugins(("0.7.8.0", "Superseded"), ("0.7.9.0", "Restart"))) == new MiraWeb.Versions(null, new(0, 7, 9))
+                && Installed(Plugins(("0.7.8.0", "Disabled"))) == new MiraWeb.Versions(null, null) && Installed(Plugins()) == new MiraWeb.Versions(null, null), "Versions read wrong");
+
+            string plugins = Plugins(("0.7.8.0", "Active")), ended = "2026-10-15T03:00:00.0000000Z"; var state = "Idle"; var admin = true; var runs = 0; var calls = new List<string>();
+            string Tasks() => $$$"""[{"Name":"Rafraîchir","Key":"RefreshLibrary","Id":"aaa","State":"Idle"},{"Name":"Mettre à jour les extensions","Key":"PluginUpdates","Id":"f9b057c054e9e6daee4a88ffd146a403","State":"{{{state}}}","LastExecutionResult":{"EndTimeUtc":"{{{ended}}}","Status":"Completed"}}]""";
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.AbsolutePath.TrimStart('/');
+                calls.Add($"{request.Method} {path}");
+                HttpResponseMessage Json(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                if (!admin) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+                if (path == "Plugins") return Task.FromResult(Json(plugins));
+                if (path == "ScheduledTasks") return Task.FromResult(Json(Tasks()));
+                if (path == "ScheduledTasks/Running/f9b057c054e9e6daee4a88ffd146a403" && request.Method == HttpMethod.Post)
+                {
+                    // Over in a few seconds: 0.7.9 installed, waiting for the restart.
+                    runs++; ended = "2026-10-15T13:04:03.1883347Z"; plugins = Plugins(("0.7.8.0", "Superseded"), ("0.7.9.0", "Restart"));
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+                }
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            Assert(await client.WebAppVersionsAsync() == new MiraWeb.Versions(new(0, 7, 8), null), "Before");
+            Assert(await client.UpdatePluginsNowAsync(TimeSpan.FromSeconds(10)) && runs == 1 && await client.WebAppVersionsAsync() == new MiraWeb.Versions(null, new(0, 7, 9)), "Task not run, or not waited for");
+            // Already running (its own 24-hour run): waited for, not started twice; still running past the limit: false.
+            state = "Running"; runs = 0; var before = ended;
+            var waited = client.UpdatePluginsNowAsync(TimeSpan.FromSeconds(10));
+            await Task.Delay(1500); state = "Idle"; ended = "2026-10-15T13:10:00.0000000Z";
+            Assert(await waited && runs == 0, "A running task started again");
+            state = "Running";
+            Assert(!await client.UpdatePluginsNowAsync(TimeSpan.FromSeconds(1.5)) && runs == 0, "A task still running taken for over");
+            // A guest: nothing read, nothing run.
+            state = "Idle"; admin = false; calls.Clear();
+            Assert(await client.WebAppVersionsAsync() is null && !await client.UpdatePluginsNowAsync() && !calls.Any(c => c.StartsWith("POST")), "A guest ran Jellyfin's task");
+        });
         await Test("Mira web : au démarrage, le dépôt de Mira avance jusqu’à cette version vérifiée, jamais en arrière, sans rien installer", async () =>
         {
             var version = new Version(0, 7, 5); var pinned = MiraWeb.RepositoryFor(version);

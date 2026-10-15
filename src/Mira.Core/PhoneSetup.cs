@@ -36,7 +36,7 @@ public static class PhoneSetup
         {
             facts.Web switch
             {
-                true => new("web", Mark.Done, "Mira web est installé sur Jellyfin", "Il suit la version de Mira : quand Mira se met à jour et que tu l’ouvres avec le compte administrateur de Jellyfin, Jellyfin prend la nouvelle version à sa recherche de mises à jour suivante, puis à son redémarrage."),
+                true => new("web", Mark.Done, "Mira web est installé sur Jellyfin", "Il suit la version de Mira : quand Mira se met à jour et que tu l’ouvres avec le compte administrateur de Jellyfin, Jellyfin installe la nouvelle version tout de suite, et Mira propose de le redémarrer dès que personne ne regarde."),
                 false when facts.Admin == false => new("web", Mark.Yours, "Installer Mira web sur Jellyfin", "Il faut le compte administrateur de Jellyfin : connecte Mira avec celui-ci."),
                 false => new("web", Mark.ToDo, "Installer Mira web sur Jellyfin", "C’est Jellyfin qui sert Mira à ton téléphone : rien à prendre sur l’App Store ou le Play Store."),
                 // Its button starts it: Windows' consent for its service, none for its program.

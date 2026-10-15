@@ -224,6 +224,8 @@ public sealed class PlayerSettings
     /// <summary>The version of Mira and the Jellyfin server for which Jellyfin's repository of Mira web was last found
     /// or moved where it should be at startup (« 0.7.5 http://192.168.1.20:8096/ »); empty before 0.7.5.</summary>
     public string MiraWebUpdated { get; set; } = "";
+    /// <summary>The same, once Jellyfin serves that version of Mira web or a newer one (after its restart); empty before 0.7.9.</summary>
+    public string MiraWebServed { get; set; } = "";
     /// <summary>The window's size (outside fullscreen and the mini-player) and state when Mira last closed; 0: never saved.</summary>
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }

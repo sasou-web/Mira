@@ -377,7 +377,7 @@ public sealed class JellyfinClient : IDisposable
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
             await CheckAsync(response);
         }
-        if (await TrickplayTaskAsync(ct) is { Id: { } task, Running: false })
+        if (await ScheduledTaskAsync("RefreshTrickplayImages", ct) is { Id: { } task, Running: false })
         {
             using var started = await _http.PostAsync($"ScheduledTasks/Running/{Uri.EscapeDataString(task)}", null, ct);
             await CheckAsync(started);
@@ -386,18 +386,20 @@ public sealed class JellyfinClient : IDisposable
     }
     /// <summary>How far Jellyfin's trickplay task is (0 to 1, null before it says), or null when it is not running.</summary>
     public async Task<double?> TrickplayProgressAsync(CancellationToken ct = default) =>
-        await TrickplayTaskAsync(ct) is { Running: true } task ? task.Progress ?? 0 : null;
-    private async Task<(string? Id, bool Running, double? Progress)?> TrickplayTaskAsync(CancellationToken ct)
+        await ScheduledTaskAsync("RefreshTrickplayImages", ct) is { Running: true } task ? task.Progress ?? 0 : null;
+    /// <summary>One of Jellyfin's scheduled tasks by its key: its id, whether it runs, how far, and when it last ended; null when refused or missing.</summary>
+    private async Task<(string? Id, bool Running, double? Progress, string? Ended)?> ScheduledTaskAsync(string key, CancellationToken ct)
     {
         using var response = await _http.GetAsync("ScheduledTasks?isHidden=false", ct);
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
         await CheckAsync(response);
         if (JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) is not JsonArray tasks) return null;
-        var task = tasks.OfType<JsonObject>().FirstOrDefault(x => x["Key"] is JsonValue key && key.TryGetValue<string>(out var name) && name == "RefreshTrickplayImages");
+        var task = tasks.OfType<JsonObject>().FirstOrDefault(x => x["Key"] is JsonValue found && found.TryGetValue<string>(out var name) && name == key);
         if (task is null) return null;
         var running = task["State"] is JsonValue state && state.TryGetValue<string>(out var value) && value == "Running";
         var progress = task["CurrentProgressPercentage"] is JsonValue percent && percent.TryGetValue<double>(out var share) ? Math.Clamp(share / 100, 0, 1) : (double?)null;
-        return (task["Id"] is JsonValue id && id.TryGetValue<string>(out var text) ? text : null, running, progress);
+        var ended = task["LastExecutionResult"] is JsonObject last && last["EndTimeUtc"] is JsonValue end && end.TryGetValue<string>(out var at) ? at : null;
+        return (task["Id"] is JsonValue id && id.TryGetValue<string>(out var text) ? text : null, running, progress, ended);
     }
     private static bool? Trickplay(JsonObject? options) =>
         options?["EnableTrickplayImageExtraction"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
@@ -572,7 +574,7 @@ public sealed class JellyfinClient : IDisposable
     public async Task<WebAppInstall> InstallWebAppAsync(string repository, TimeSpan? restartLimit = null, CancellationToken ct = default)
     {
         if (await InstallFromAsync(repository, ct) is { } refused) return refused;
-        using (var restart = await _http.PostAsync("System/Restart", null, ct)) await CheckAsync(restart);
+        await RestartAsync(ct);
         // Jellyfin stops answering while it restarts, then serves the plugin's pages.
         var limit = DateTime.UtcNow + (restartLimit ?? TimeSpan.FromSeconds(90));
         await Task.Delay(TimeSpan.FromSeconds(2), ct);
@@ -601,6 +603,43 @@ public sealed class JellyfinClient : IDisposable
         if (mira.Any(url => MiraWeb.PinnedVersion(url) is { } pinned && pinned >= version)) return true;
         if (await WebAppVersionAsync(ct) is { } installed && installed >= version) return true;
         return await PinAsync(repositories, await verified(), ct) is null;
+    }
+    /// <summary>Jellyfin restarted, as its dashboard does (administrator): it stops answering for a few seconds.</summary>
+    public async Task RestartAsync(CancellationToken ct = default)
+    {
+        using var restart = await _http.PostAsync("System/Restart", null, ct);
+        await CheckAsync(restart);
+    }
+    /// <summary>Mira web as Jellyfin serves it and as it waits for a restart (<see cref="MiraWeb.Installed"/>); null when this account may not read the plugins.</summary>
+    public async Task<MiraWeb.Versions?> WebAppVersionsAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Plugins", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        return MiraWeb.Installed(JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? []);
+    }
+    /// <summary>
+    /// Jellyfin's « Update Plugins » task (PluginUpdates, which it runs at its start and every 24 hours) run now, as its
+    /// dashboard does, then waited for until it ends (a few seconds on 12.1). It updates every plugin under its own
+    /// rules: one kept from updating stays as it is. False when refused, missing, or not over within <paramref name="limit"/>.
+    /// </summary>
+    public async Task<bool> UpdatePluginsNowAsync(TimeSpan? limit = null, CancellationToken ct = default)
+    {
+        if (await ScheduledTaskAsync("PluginUpdates", ct) is not { Id: { } id } before) return false;
+        if (!before.Running)
+        {
+            using var started = await _http.PostAsync($"ScheduledTasks/Running/{Uri.EscapeDataString(id)}", null, ct);
+            if (started.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(started);
+        }
+        // Over once it no longer runs and its last run is another one than before.
+        var deadline = DateTime.UtcNow + (limit ?? TimeSpan.FromMinutes(3));
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            if (await ScheduledTaskAsync("PluginUpdates", ct) is { Running: false, Ended: { } ended } && ended != before.Ended) return true;
+        }
+        return false;
     }
     /// <summary>The newest version of Mira's plugin Jellyfin lists (one waiting for a restart included); null without one.</summary>
     private async Task<Version?> WebAppVersionAsync(CancellationToken ct)

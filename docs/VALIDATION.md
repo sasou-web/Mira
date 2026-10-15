@@ -2,6 +2,14 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## Mira web à jour le jour même (non publié)
+
+- **Besoin** : après une mise à jour de Mira, Jellyfin ne prenait la nouvelle version de Mira web qu’à sa recherche de mises à jour (à son démarrage, puis toutes les 24 h), puis à son redémarrage suivant : parfois des jours plus tard.
+- **Correctif** : une fois le dépôt avancé, Mira pour Windows lance la tâche `PluginUpdates` de Jellyfin et attend sa fin, puis propose « Redémarrer Jellyfin » quand aucune session n’a de titre en cours, relu toutes les 5 min.
+- **Vérifié sur Jellyfin 12.1 (conteneur)** : extension 0.7.8 installée depuis un dépôt local, dépôt passé à 0.7.9, tâche lancée par l’API : finie en 1 s, `/Plugins` donne 0.7.8 `Superseded` et 0.7.9 `Restart` ; après `System/Restart`, 0.7.9 `Active`. Puis par `JellyfinClient` lui-même (0.7.9 → 0.7.10) : `UpdatePluginsNowAsync` vrai en 1,1 s, 0.7.10 en attente, servie 4 s après le redémarrage. La tâche tourne aussi au démarrage de Jellyfin et toutes les 24 h (`StartupTrigger`, `IntervalTrigger`).
+- **Tests** : versions lues de `/Plugins` (servie, en attente, désactivée, absente), tâche lancée et attendue, tâche déjà en cours attendue sans la relancer, tâche trop longue, compte invité (Core, partout).
+- **Non vérifié** : l’avis « Redémarrer Jellyfin » dans Mira pour Windows sur un vrai PC.
+
 ## Le PC serveur ne s’endort pas pendant une lecture ailleurs (non publié)
 
 - **Besoin** : un PC endormi est injoignable, et Tailscale ne sait pas le réveiller ; ni Mira ni Jellyfin 12.1 ne le gardaient éveillé pendant une lecture sur un autre appareil.
