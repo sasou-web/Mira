@@ -3,7 +3,8 @@
 #   WebM (VP9, Opus): played as they are by browsers without H.264 (Chromium as tests use it); the film has French
 #   and English audio tracks and subtitles in both languages beside it, for the choice of tracks;
 #   Matroska (H.264, AAC) with French subtitles beside it: converted by Jellyfin into HLS, the way an iPhone plays;
-#   an anime-like Matroska with its ASS and SRT subtitles inside it; a WebM film whose chapters name its opening;
+#   an anime-like Matroska with its ASS and SRT subtitles inside it; a WebM film whose chapters name its opening, and a
+#   series whose chapters name its end credits and preview;
 #   a one-episode series in Animes, a second library of series (the choice between them);
 #   bonus videos (Extras folders) beside the WebM film and series, for the « Bonus » row; two films of one saga
 #   (their movie.nfo), gathered into a collection by Jellyfin when the library adds films to collections;
@@ -62,6 +63,20 @@ for chapter in '0 4000 Avant-générique' '4000 14000 Opening' '14000 30000 Part
 done
 q -f lavfi -i testsrc2=duration=30:size=640x360:rate=24 -f lavfi -i sine=frequency=480:duration=30 -i "$meta" -map 0:v -map 1:a -map_chapters 2 \
   -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 500k -c:a libopus -t 30 "$ROOT/Films/Chapitres Web (2024)/Chapitres Web (2024).webm"
+rm -f "$meta"
+# A series whose chapters name its end credits, then the next episode's preview: in Apple's player, the next episode
+# starts by itself 10 s into the credits (22 s), before the end (30 s).
+mkdir -p "$ROOT/Séries/Courte Fin/Season 01"
+meta="$(mktemp)"
+printf ';FFMETADATA1\n' > "$meta"
+for chapter in '0 12000 Partie A' '12000 25000 Ending' '25000 30000 Preview'; do
+  read -r start end title <<< "$chapter"
+  printf '[CHAPTER]\nTIMEBASE=1/1000\nSTART=%s\nEND=%s\ntitle=%s\n' "$start" "$end" "$title" >> "$meta"
+done
+for e in 1 2; do
+  q -f lavfi -i testsrc=duration=30:size=640x360:rate=24 -f lavfi -i "sine=frequency=$((350 + e * 100)):duration=30" -i "$meta" -map 0:v -map 1:a -map_chapters 2 \
+    -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -c:a libopus -t 30 "$ROOT/Séries/Courte Fin/Season 01/Courte Fin S01E0$e.webm"
+done
 rm -f "$meta"
 # An anime the way they come: H.264 and Japanese sound in Matroska, its subtitles inside it. ASS in French (the
 # dialogue, by default), ASS signs in French (forced), SRT in English, SRT with no language. Jellyfin never converts

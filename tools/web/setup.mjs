@@ -63,7 +63,7 @@ const items = await until('the library scan', async () => {
   const read = (result.Items ?? []).every((x) => x.RunTimeTicks > 0 && x.MediaSources?.[0]?.RunTimeTicks > 0);
   // The bonus videos of tools/web/media.sh (the « Bonus » row): two for the WebM film, one for its series; and its
   // saga, made by Jellyfin once the films are in.
-  const titles = read && result.TotalRecordCount >= 10 ? await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Series,BoxSet&fields=SpecialFeatureCount`, { token }) : null;
+  const titles = read && result.TotalRecordCount >= 12 ? await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Series,BoxSet&fields=SpecialFeatureCount`, { token }) : null;
   if (titles && (titles.Items ?? []).reduce((sum, x) => sum + (x.SpecialFeatureCount ?? 0), 0) >= 3 && (!sagas || titles.Items.some((x) => x.Type === 'BoxSet'))) return result.Items;
   if (scans++ % 15 === 0) await call('POST', 'Library/Refresh', { token });
   return null;

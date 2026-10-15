@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, trickCell, chapterMarks, chapterKind, chapterPassages, withChapters, withoutFromStart } from '../../../src/Mira.Web/js/player/timeline.js';
+import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, creditsFrom, nativeNextAt, trickCell, chapterMarks, chapterKind, chapterPassages, withChapters, withoutFromStart } from '../../../src/Mira.Web/js/player/timeline.js';
 
 const s = (seconds) => seconds * 10_000_000;
 const intro = { Type: 'Intro', StartTicks: s(10), EndTicks: s(40) };
@@ -41,6 +41,25 @@ test('the next episode is offered from the end credits, else over the last secon
   const credits = { Type: 'Outro', StartTicks: s(1200), EndTicks: s(1290) };
   assert.equal(nextFrom([credits, { Type: 'Preview', StartTicks: s(1290), EndTicks: s(1398) }], 1400), 1200);
   assert.equal(nextFrom([credits], 1400), 1400 - COUNTDOWN);
+});
+
+test('Apple’s player: the next episode a countdown into end credits that nothing but a preview follows, else at the end', () => {
+  const credits = { Type: 'Outro', StartTicks: s(1200), EndTicks: s(1290) };
+  const preview = { Type: 'Preview', StartTicks: s(1290), EndTicks: s(1398) };
+  assert.equal(creditsFrom([credits, preview], 1400), 1200);
+  assert.equal(nativeNextAt([intro, credits, preview], 1400), 1200 + COUNTDOWN);
+  assert.equal(nativeNextAt(segments, 1400, { startedAt: 600 }), 1300 + COUNTDOWN);
+  // No marked credits, or a scene after them: never over the last seconds (the end of the title takes it).
+  assert.equal(creditsFrom([intro], 1400), null);
+  assert.equal(nativeNextAt([intro], 1400), null);
+  assert.equal(nativeNextAt([credits], 1400), null);
+  assert.equal(nativeNextAt([], 1400), null);
+  // Credits shorter than the countdown: the end comes first.
+  assert.equal(nativeNextAt([{ Type: 'Outro', StartTicks: s(1392), EndTicks: s(1400) }], 1400), null);
+  // A title resumed in its credits plays them: the person came back to them.
+  assert.equal(nativeNextAt([credits, preview], 1400, { startedAt: 1250 }), null);
+  assert.equal(nativeNextAt([credits, preview], 1400, { startedAt: 1199.5 }), null);
+  assert.equal(nativeNextAt([credits, preview], 1400, { startedAt: 1100 }), 1210);
 });
 
 // The same cases as Mira for Windows and Mac (tests/Mira.Core.Tests, PlaybackMarkers): both read them.
