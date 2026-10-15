@@ -95,6 +95,8 @@ public sealed class MainWindow : Window
         Content = _root;
         _toastTimer.Tick += (_, _) => HideNotice();
         _serverChanged.Tick += (_, _) => { _serverChanged.Stop(); _ = RefreshPagesAsync(fromServer: true); };
+        _choicesSoon.Tick += async (_, _) => { _choicesSoon.Stop(); await SyncChoicesAsync(); };
+        Activated += (_, _) => { if (DateTimeOffset.UtcNow - _choicesAsked > TimeSpan.FromMinutes(1)) ChoicesChanged(); };
         KeyDown += OnKeyDown;
         PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsXButton1Pressed) Back(); };
         Closing += OnClosing;
@@ -208,6 +210,48 @@ public sealed class MainWindow : Window
         if (Session.Store.DamagedCopy is not null) Notice("Le cache local de ce compte était illisible : il a été recréé.");
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
+        ChoicesChanged();
+    }
+
+    // —— « Tes choix gardés sur ton Jellyfin » ——
+    // The languages, the intros, the tracks of each series and the titles removed from « Continuer à regarder » follow the
+    // account (AccountChoices). A change here goes a moment later; the window coming forward brings what changed elsewhere.
+    private readonly DispatcherTimer _choicesSoon = new() { Interval = TimeSpan.FromSeconds(2) };
+    private DateTimeOffset _choicesAsked = DateTimeOffset.MinValue;
+    private bool _choicesBusy, _choicesAgain;
+    /// <summary>Something kept on Jellyfin changed on this Mac, or may have changed elsewhere: Mira and Jellyfin compare them shortly.</summary>
+    public void ChoicesChanged()
+    {
+        if (Session is null) return;
+        _choicesSoon.Stop(); _choicesSoon.Start();
+    }
+    private async Task SyncChoicesAsync()
+    {
+        if (Session is not { } session) return;
+        if (_choicesBusy) { _choicesAgain = true; return; }
+        _choicesBusy = true; _choicesAsked = DateTimeOffset.UtcNow;
+        try
+        {
+            var update = await AccountChoices.SyncAsync(session.Client, session.Store, () => (Settings.AudioLanguage, Settings.SubtitleLanguage, Settings.AutoSkip), session.Lifetime);
+            if (!ReferenceEquals(session, Session)) return;
+            if (update.SettingsChanged)
+            {
+                if (update.AudioLanguage is { } audio) Settings.AudioLanguage = audio;
+                if (update.SubtitleLanguage is { } subtitles) Settings.SubtitleLanguage = subtitles;
+                if (update.AutoSkip is { } skip) Settings.AutoSkip = skip;
+                Profile.SaveSettings(Settings);
+                // The settings on screen show the new ones.
+                if (Current is SettingsPage) { var fresh = new SettingsPage(this); _host.Content = fresh; await fresh.LoadAsync(); }
+            }
+            if (update.Hidden is not null && Current is HomePage) await RefreshPagesAsync(fromServer: true);
+        }
+        // Jellyfin or the disk not answering now: what changed here keeps its time for the next try.
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+        finally
+        {
+            _choicesBusy = false;
+            if (_choicesAgain) { _choicesAgain = false; ChoicesChanged(); }
+        }
     }
 
     // —— Invitations ——
@@ -306,7 +350,7 @@ public sealed class MainWindow : Window
     }
     private async Task CloseSessionAsync()
     {
-        Group.Gone(); _listening = false;
+        Group.Gone(); _listening = false; _choicesSoon.Stop();
         if (Session is { } session) { Session = null; await session.DisposeAsync(); }
     }
 

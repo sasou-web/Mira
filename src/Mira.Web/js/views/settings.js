@@ -1,7 +1,7 @@
 // Settings: playback quality and behaviour, this phone, the account; what Mira and the server are.
 import { api, base, VERSION } from '../api.js';
 import { h, icon, clear, initials } from '../dom.js';
-import { session, settings, isIOS, isStandalone, device, applyTextSize } from '../session.js';
+import { session, settings, settingsChanged, isIOS, isStandalone, device, applyTextSize } from '../session.js';
 import { sheet, toast } from '../components.js';
 import { resetScreens, replaceRoute } from '../app.js';
 import { installHint } from './login.js';
@@ -106,6 +106,7 @@ export function create() {
             { onTurnOn: () => toast('Coupe le mode silencieux pour avoir le son.', { duration: 6000 }) })
           : null),
       h('p', { class: 'group-note' }, 'Les langues choisissent les pistes au début de chaque titre, comme Mira sur Windows et Mac. Sur la fiche d’un titre, « Audio et sous-titres » en choisit d’autres : Mira les retient pour les épisodes suivants de la série.'),
+      h('p', { class: 'group-note' }, 'Ces choix sont gardés sur ton Jellyfin, avec les pistes de chaque série et les titres retirés de Continuer à regarder : tu les retrouves sur ton iPhone, ton iPad, Windows et Mac, même après avoir remis l’icône.'),
 
       h('h2', { class: 'label group-title' }, 'Accueil'),
       h('div', { class: 'group' }, choice('Rangées de l’accueil', homeSummary(), homeEditor)),
@@ -245,6 +246,8 @@ export function create() {
 
   let photo = null;
   render();
+  // A choice brought from another device by Jellyfin (account-choices.js) shows at once.
+  settingsChanged.addEventListener('change', () => { if (el.isConnected) render(); });
   Promise.all([api.me().catch(() => null), api.publicInfo().catch(() => null), api.quickConnectEnabled(), api.libraries().catch(() => [])])
     .then(([me, server, on, views]) => { user = me; info = server; quick = on; libraries = views; render(); });
   // A setting changed elsewhere (the quality, in Mira's player) shows when the screen comes back.

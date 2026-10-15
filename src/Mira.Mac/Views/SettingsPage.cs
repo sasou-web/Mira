@@ -67,7 +67,7 @@ public sealed class SettingsPage : Page
             Row("Projet", "Le code, les nouveautés et les versions pour Windows et Mac.", Ui.Action("Ouvrir GitHub", "globe", "", () => Updates.Open(Updates.Project)))));
         Content = new ScrollViewer { Content = page };
     }
-    private void Save() => Shell.Profile.SaveSettings(Shell.Settings);
+    private void Save() { Shell.Profile.SaveSettings(Shell.Settings); Shell.ChoicesChanged(); }
     private Control Report()
     {
         var time = new TextBlock { FontSize = 40, FontWeight = FontWeight.ExtraBold };

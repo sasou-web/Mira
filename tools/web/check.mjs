@@ -21,6 +21,17 @@ const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-che
 fs.mkdirSync(out, { recursive: true });
 const results = [];
 const check = (name, ok, detail = '') => { results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`); console.log(results.at(-1)); };
+// The account's choices kept on Jellyfin by an earlier run (« Tes choix gardés sur ton Jellyfin ») would follow it into
+// every phone below: each starts from Mira's defaults.
+await (async () => {
+  const server = base.replace(/\/Mira\/?.*$/i, ''), auth = (token) => `MediaBrowser Client="check", Device="check", DeviceId="check-start", Version="1"${token ? `, Token="${token}"` : ''}`;
+  const signed = await (await fetch(`${server}/Users/AuthenticateByName`, { method: 'POST', headers: { Authorization: auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ Username: user, Pw: password }) })).json();
+  const headers = { Authorization: auth(signed.AccessToken), 'Content-Type': 'application/json' };
+  const address = `${server}/DisplayPreferences/mira?userId=${signed.User.Id}&client=mira`;
+  const prefs = await (await fetch(address, { headers })).json();
+  if (prefs.CustomPrefs?.['mira.choices']) { delete prefs.CustomPrefs['mira.choices']; await fetch(address, { method: 'POST', headers, body: JSON.stringify(prefs) }); }
+  await fetch(`${server}/Sessions/Logout`, { method: 'POST', headers });
+})().catch(() => {});
 // mira-check.example: Mira at an Internet name, served by the same Jellyfin (the warning on the sign-in screen);
 // mira-check.tail0000.ts.net: at a Tailscale name, as the QR code gives it (« Automatique » measures the connection).
 const internetName = 'mira-check.example', tailscaleName = 'mira-check.tail0000.ts.net';
@@ -414,7 +425,7 @@ try {
   await page.locator('.sheet-item.danger').click(); await wait(1500);
   check('déconnexion', (await page.evaluate(() => location.hash)) === '#/connexion' && !(await page.evaluate(() => localStorage.getItem('mira.session'))));
   const left = await page.evaluate(() => ({ keys: Object.keys(localStorage), device: localStorage.getItem('mira.device'), settings: JSON.parse(localStorage.getItem('mira.settings') ?? '{}') }));
-  const account = (keys) => keys.filter((k) => /^mira\.(home|library)\./.test(k));
+  const account = (keys) => keys.filter((k) => /^mira\.(home|library|choices)\./.test(k));
   check('déconnexion : rien du compte ne reste, l’appareil garde son identifiant et ses réglages',
     account(kept.keys).some((k) => k.startsWith('mira.home.')) && account(kept.keys).some((k) => k.startsWith('mira.library.')) && !account(left.keys).length
     && !left.settings.recentSearches?.length && !Object.keys(left.settings.hiddenResume ?? {}).length && !Object.keys(left.settings.seriesTracks ?? {}).length
@@ -1210,6 +1221,69 @@ try {
 }
 if (followed) await asNews(`UserFavoriteItems/${followed.Id}`, 'DELETE').catch(() => {});
 await news.close();
+
+// « Tes choix gardés sur ton Jellyfin »: the languages and the intros chosen on one phone, a series' tracks and a title
+// removed there, found on another phone signed in to the same account; what that one changes comes back to the first.
+const choiceA = await newContext('choix gardés (1)'), choiceB = await newContext('choix gardés (2)');
+const ca = await choiceA.newPage(), cb = await choiceB.newPage();
+const choiceErrors = [];
+for (const p of [ca, cb]) p.on('pageerror', (e) => choiceErrors.push(e.message));
+// What Jellyfin keeps of them, read as the account; and the settings a phone uses.
+const keptOn = (p, body) => p.evaluate(async (send) => {
+  const s = JSON.parse(localStorage.getItem('mira.session'));
+  const address = `${location.pathname.replace(/\/Mira\/?.*$/i, '')}/DisplayPreferences/mira?userId=${s.userId}&client=mira`;
+  const headers = { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"`, 'Content-Type': 'application/json' };
+  const prefs = await (await fetch(address, { headers })).json();
+  if (send) { delete prefs.CustomPrefs['mira.choices']; await fetch(address, { method: 'POST', headers, body: JSON.stringify(prefs) }); return null; }
+  return JSON.parse(prefs.CustomPrefs?.['mira.choices'] ?? '{}');
+}, !!body);
+const settingsOf = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('mira.settings') ?? '{}'));
+const until = async (test, seconds = 12) => { for (let i = 0; i < seconds * 4; i++) { if (await test().catch(() => false)) return true; await new Promise((r) => setTimeout(r, 250)); } return false; };
+const setOn = (p, changes) => p.evaluate(async (all) => {
+  const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+  const { settings } = await import(`${root}session.js`);
+  for (const [key, value] of Object.entries(all)) settings.set(key, value);
+}, changes);
+const FRENCH = 'fre,fra,fr,eng,en', JAPANESE = 'jpn,ja,fre,fra,fr,eng,en';
+try {
+  await signIn(ca);
+  await ca.locator('.tabbar a[data-tab="settings"]').click(); await ca.waitForTimeout(1200);
+  await ca.locator('#view .settings .item', { hasText: 'Langue audio' }).click(); await ca.waitForTimeout(500);
+  await ca.locator('.sheet-item', { hasText: 'Français, puis anglais' }).click(); await ca.waitForTimeout(300);
+  await ca.getByRole('switch', { name: /Passer les intros et les récaps/ }).click();
+  // A series' tracks and a title removed from Continuer à regarder, as the player and the home page keep them.
+  await setOn(ca, {
+    seriesTracks: { 'serie-du-controle': { audio: 'jpn', subtitle: 'fre', forced: false, audioTitle: null, subtitleTitle: 'Complet' } },
+    hiddenResume: { 'titre-du-controle': new Date().toISOString() },
+  });
+  const sent = await until(async () => {
+    const k = await keptOn(ca);
+    return k.settings?.audioLanguages?.value === FRENCH && k.settings?.autoSkip?.value === true && k.tracks?.['serie-du-controle']?.subtitleTitle === 'Complet' && k.hidden?.['titre-du-controle']?.hidden;
+  });
+  await signIn(cb);
+  const arrived = await until(async () => { const s = await settingsOf(cb); return s.audioLanguages === FRENCH && !!s.hiddenResume?.['titre-du-controle']; });
+  await cb.locator('.tabbar a[data-tab="settings"]').click(); await cb.waitForTimeout(1200);
+  const audioLine = (await cb.locator('#view .settings .item', { hasText: 'Langue audio' }).innerText()).replace(/\s+/g, ' ');
+  const skipOn = await cb.getByRole('switch', { name: /Passer les intros et les récaps/ }).getAttribute('aria-checked');
+  const tracksB = (await settingsOf(cb)).seriesTracks?.['serie-du-controle'];
+  await cb.screenshot({ path: `${out}/25-choices.png` });
+  // The other phone puts the title back and goes back to Japanese: the first finds it when it opens again.
+  await setOn(cb, { hiddenResume: {} });
+  await cb.locator('#view .settings .item', { hasText: 'Langue audio' }).click(); await cb.waitForTimeout(500);
+  await cb.locator('.sheet-item', { hasText: 'Japonais, puis français' }).click(); await cb.waitForTimeout(300);
+  const back = await until(async () => { const k = await keptOn(cb); return k.settings?.audioLanguages?.value === JAPANESE && k.hidden?.['titre-du-controle']?.hidden === false; });
+  await ca.reload();
+  const returned = await until(async () => { const s = await settingsOf(ca); return s.audioLanguages === JAPANESE && !s.hiddenResume?.['titre-du-controle'] && s.autoSkip === true; });
+  check('choix gardés sur Jellyfin : langues, intros, pistes d’une série et titre retiré retrouvés sur l’autre téléphone, et retour',
+    sent && arrived && /Français, puis anglais/.test(audioLine) && skipOn === 'true' && tracksB?.subtitle === 'fre' && tracksB?.subtitleTitle === 'Complet' && back && returned && !choiceErrors.length,
+    `${sent ? 'envoyés' : 'pas envoyés'} ; ${arrived ? 'arrivés' : 'pas arrivés'} (« ${audioLine} », intros ${skipOn === 'true' ? 'passées' : 'jouées'}, pistes ${tracksB ? `${tracksB.audio}/${tracksB.subtitle} ${tracksB.subtitleTitle}` : 'absentes'}) ; `
+    + `${back ? 'retour envoyé' : 'retour pas envoyé'} ; ${returned ? 'revenu sur le premier' : 'pas revenu sur le premier'}${choiceErrors.length ? ` ; ${choiceErrors[0]}` : ''}`);
+} catch (error) {
+  check('choix gardés sur Jellyfin : déroulé', false, error.message.split('\n')[0]);
+}
+// The next phones of these checks start from Mira's defaults again.
+await keptOn(ca, true).catch(() => {});
+await choiceA.close(); await choiceB.close();
 
 // A large library (3,000 films, simulated: Jellyfin's answers for Films are made up here). The grid asks for its
 // cards without their summaries, page by page as it scrolls; a refresh asks for the first page only, and the grid

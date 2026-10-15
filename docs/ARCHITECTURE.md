@@ -167,6 +167,8 @@ Les écritures de la file passent par une chaîne de tâches du pool de threads,
 
 La livraison est **au moins une fois** : si le serveur accepte un envoi et que la réponse se perd, il peut recevoir à nouveau ce rapport. L’ordre est conservé, mais le protocole Jellyfin ne fournit pas de clé d’idempotence pour ces appels.
 
+**Choix du compte** (« Tes choix gardés sur ton Jellyfin », `AccountChoices` de Core, `choices.js` et `account-choices.js` de Mira web, cas communs `tests/fixtures/choices.json`). Les langues, les intros, la qualité de Mira web, les pistes de chaque série et les titres retirés de « Continuer à regarder » vont dans une préférence personnalisée `mira.choices` des préférences d’affichage `DisplayPreferences/mira?client=mira` du compte : un document JSON où chaque entrée porte son heure (ms). Comparaison : l’appareil note ce qui a changé chez lui depuis sa dernière comparaison (son document gardé : `cache` de `LibraryStore` sous Windows et Mac, `localStorage` `mira.choices.<compte>` sur le téléphone), lit Jellyfin, garde pour chaque entrée la plus récente (Jellyfin à égalité), applique, puis renvoie le document entier si Jellyfin n’a pas le même. La première fois, ce que l’appareil avait déjà compte pour l’heure 0 (Jellyfin l’emporte) et un réglage resté au défaut n’est pas écrit. Un titre remis garde une entrée `hidden: false` pour que les autres le remettent aussi ; 100 séries et 200 titres au plus, les plus récents. Ce que Mira ne connaît pas (une version future) reste dans le document. Comparaison deux secondes après un changement, à l’ouverture, et au retour après plus d’une minute.
+
 ## Réactivité
 
 - Requêtes asynchrones, recherche avec délai de 250 ms et annulation de la recherche précédente.

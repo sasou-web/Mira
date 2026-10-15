@@ -447,6 +447,9 @@ export const api = {
   playbackInfo: (id, body) => post(`Items/${encodeURIComponent(id)}/PlaybackInfo`, { UserId: user(), ...body }, { userId: user() }),
   segments: (id) => get(`MediaSegments/${encodeURIComponent(id)}`, { includeSegmentTypes: ['Intro', 'Outro', 'Recap', 'Preview', 'Commercial'] }).then((r) => r?.Items ?? []).catch(() => []),
   report: (kind, body, keepalive = false) => post({ start: 'Sessions/Playing', progress: 'Sessions/Playing/Progress', stop: 'Sessions/Playing/Stopped' }[kind], body, null, { keepalive, timeout: 10000 }),
+  // « Tes choix gardés sur ton Jellyfin » (account-choices.js): Mira's display preferences of the account, sent back whole.
+  choices: () => get('DisplayPreferences/mira', { userId: user(), client: 'mira' }),
+  saveChoices: (preferences) => post('DisplayPreferences/mira', preferences, { userId: user(), client: 'mira' }),
   // « Regarder ensemble », Jellyfin's SyncPlay (together.js): 403 when Jellyfin does not let this account use it.
   utcTime: () => get('GetUtcTime', null, { timeout: 5000 }),
   syncGroups: () => get('SyncPlay/List'),

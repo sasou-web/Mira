@@ -298,6 +298,7 @@ public partial class MainWindow
         SetNotice($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", "Annuler", () => _ = ShowInResumeAsync(item, group, resumable ? ticks : 0), sticky: false);
         _resumeChange = Save();
         await _resumeChange;
+        ChoicesChanged();
         async Task Save()
         {
             try
@@ -321,6 +322,7 @@ public partial class MainWindow
             if (ticks > 0 && client is not null) await client.SetPlaybackPositionAsync(item.Id, ticks);
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        ChoicesChanged();
         RenderLibrary(); await RefreshAsync(quiet: true);
     }
     private static MenuItem MenuAction(string header, string icon, Func<Task> action)

@@ -152,6 +152,8 @@ async function route() {
   // « Nouvel épisode » once a session shows a screen of Mira (not the player, an invitation or the sign-in), a moment
   // after it: when Mira opens, and right after signing in (that first time only sets the mark).
   if (session.current && !bare && !newsLooked) { newsLooked = true; setTimeout(lookForNews, 2500); }
+  // « Tes choix gardés sur ton Jellyfin »: this phone and Jellyfin compared once a session shows a screen of Mira.
+  if (session.current && !bare && !choicesLooked) { choicesLooked = true; setTimeout(() => choices().then(({ syncChoices }) => syncChoices()).catch(() => {}), 1500); }
 
   const id = ++routeToken;
   let entry = cache.get(key);
@@ -231,9 +233,10 @@ async function route() {
   }
 }
 let lastDepth = 0, routeToken = 0, transitions = 0;
-let newsLooked = false;
+let newsLooked = false, choicesLooked = false;
 const lookForNews = () => import('./news.js').then(({ announceNewEpisodes }) => announceNewEpisodes()).catch(() => {});
-signedOut.addEventListener('out', () => { newsLooked = false; });
+const choices = () => import('./account-choices.js');
+signedOut.addEventListener('out', () => { newsLooked = false; choicesLooked = false; });
 
 /** The screen's title takes the focus, without a ring for a touch, unless something in the screen already has it. */
 function focusTitle(el) {
@@ -589,6 +592,8 @@ function start() {
     if (probeTimer) { clearTimeout(probeTimer); probeDelay = 1000; probe(); }
     else if (hiddenAt && Date.now() - hiddenAt > 60_000) {
       current?.refresh?.(); checkForUpdate();
+      // What changed on the other devices meanwhile (the tracks of a series, a title removed).
+      if (choicesLooked) choices().then(({ lookAgain }) => lookAgain()).catch(() => {});
       // A Home Screen app stays in memory for days: back after a long while, what came out meanwhile.
       if (Date.now() - hiddenAt > 15 * 60_000) lookForNews();
     }

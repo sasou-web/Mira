@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Mira.Core;
 using Mira.Core.Updates;
 using Mira.Desktop.Services;
@@ -186,6 +187,76 @@ internal static class SyncTests
             Volatile.Write(ref online, true); var watch = Stopwatch.StartNew(); sync.Wake();
             await WaitUntil(() => store.PendingCount == 0, 6);
             Assert(watch.Elapsed < TimeSpan.FromSeconds(1.5), "Wake did not send at once: " + watch.Elapsed);
+        });
+        await Test("Tes choix gardés sur ton Jellyfin : ce qui change ici, le plus récent l'emporte, comme Mira web (tests/fixtures/choices.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "choices.json")))!;
+            foreach (var row in fixture["capture"]!.AsArray())
+            {
+                var got = AccountChoices.Capture(row!["doc"], (JsonObject)row["local"]!, row["now"]!.GetValue<long>());
+                Assert(AccountChoices.Same(got, row["expected"]), $"{row["name"]}: {got.ToJsonString()}");
+            }
+            foreach (var row in fixture["merge"]!.AsArray())
+            {
+                var got = AccountChoices.Merge(row!["doc"], row["remote"]);
+                Assert(AccountChoices.Same(got, row["expected"]), $"{row["name"]}: {got.ToJsonString()}");
+                Assert(AccountChoices.Differs(got, row["remote"]) == row["differs"]!.GetValue<bool>(), $"{row["name"]}: Jellyfin told or not");
+            }
+            foreach (var row in fixture["apply"]!.AsArray())
+            {
+                var got = AccountChoices.Apply(row!["doc"]); var expected = row["expected"]!;
+                Assert(AccountChoices.Same(got["settings"], expected["settings"]) && AccountChoices.Same(got["tracks"], expected["tracks"]) && AccountChoices.Same(got["hidden"], expected["hidden"]), $"{row["name"]}: {got.ToJsonString()}");
+                Assert(((JsonObject)got["tracks"]!).Select(x => x.Key).SequenceEqual(expected["order"]!.AsArray().Select(x => x!.GetValue<string>())), "Tracks out of order: " + got["tracks"]!.ToJsonString());
+            }
+            // The newest only, by name on a tie: the same entries go on every device.
+            var many = new JsonObject();
+            for (var i = 0; i < AccountChoices.TrackLimit + 5; i++) many["s" + i] = new JsonObject { ["audio"] = "jpn", ["subtitles"] = false, ["at"] = i == 0 ? 1000 : i };
+            var kept = (JsonObject)AccountChoices.Merge(new JsonObject { ["seen"] = true }, new JsonObject { ["tracks"] = many })["tracks"]!;
+            Assert(kept.Count == AccountChoices.TrackLimit && kept.ContainsKey("s0") && kept.ContainsKey("s6") && !kept.ContainsKey("s5") && !kept.ContainsKey("s1"), "Tracks kept: " + kept.Count);
+            var tied = new JsonObject();
+            for (var i = 0; i <= AccountChoices.HiddenLimit; i++) tied[$"m{i:000}"] = new JsonObject { ["hidden"] = true, ["at"] = 5 };
+            var hidden = (JsonObject)AccountChoices.Merge(null, new JsonObject { ["hidden"] = tied })["hidden"]!;
+            Assert(hidden.ContainsKey("m000") && !hidden.ContainsKey($"m{AccountChoices.HiddenLimit}"), "Hidden kept on a tie");
+            // A series' tracks, as Windows and Mac keep them, and back.
+            var memory = new TrackMemory("jpn", "Japonais", true, "fre", "Panneaux", true);
+            Assert(AccountChoices.Memory(AccountChoices.Track(memory)) == memory && AccountChoices.Memory(AccountChoices.Track(memory with { Subtitles = false })) == new TrackMemory("jpn", "Japonais", false, null, null, false), "Tracks changed on the way");
+            return Task.CompletedTask;
+        });
+        await Test("Tes choix gardés sur ton Jellyfin : un appareil les envoie, l'autre les retrouve, les autres préférences de Jellyfin restent", async () =>
+        {
+            var stored = """{"Id":"x","SortBy":"SortName","CustomPrefs":{"chromecastVersion":"stable","skipForwardLength":"30000"},"Client":"mira"}""";
+            var posts = 0; var paths = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                paths.Add(request.Method + " " + request.RequestUri!.PathAndQuery);
+                if (request.Method == HttpMethod.Post) { stored = await request.Content!.ReadAsStringAsync(); posts++; return new HttpResponseMessage(HttpStatusCode.NoContent); }
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(stored, Encoding.UTF8, "application/json") };
+            }));
+            const string Audio = "jpn,ja,fre,fra,fr,eng,en", Subtitles = "fre,fra,fr,eng,en";
+            // The PC: a choice of tracks and a title removed before this version, French audio chosen in its settings.
+            var pc = Store("choices-pc");
+            pc.RememberTracks("serie-1", new TrackMemory("jpn", null, true, "fre", "Complet", false));
+            pc.HideFromResume("film-1", DateTimeOffset.FromUnixTimeMilliseconds(1_760_000_000_000));
+            var update = await AccountChoices.SyncAsync(client, pc, () => ("fre,fra,fr", Subtitles, false), CancellationToken.None);
+            Assert(posts == 1 && !update.SettingsChanged && update.Hidden is null, "First sync of the PC: " + posts);
+            Assert(paths[0] == "GET /DisplayPreferences/mira?userId=user-1&client=mira", paths[0]);
+            var sent = JsonNode.Parse(stored)!;
+            Assert(sent["SortBy"]!.GetValue<string>() == "SortName" && sent["CustomPrefs"]!["chromecastVersion"]!.GetValue<string>() == "stable", "Jellyfin's own preferences lost: " + stored);
+            // Nothing new: Jellyfin is not told again.
+            await AccountChoices.SyncAsync(client, pc, () => ("fre,fra,fr", Subtitles, false), CancellationToken.None);
+            Assert(posts == 1, "Told Jellyfin without a change");
+            // The Mac, signed in for the first time: what Jellyfin keeps wins over its defaults.
+            var mac = Store("choices-mac");
+            update = await AccountChoices.SyncAsync(client, mac, () => (Audio, Subtitles, false), CancellationToken.None);
+            Assert(update.AudioLanguage == "fre,fra,fr" && update.SubtitleLanguage is null && update.AutoSkip is null, "Mac settings: " + update);
+            Assert(mac.TracksOf("serie-1") == new TrackMemory("jpn", null, true, "fre", "Complet", false), "Mac tracks: " + mac.TracksOf("serie-1"));
+            Assert(update.Hidden is { } macHidden && macHidden.Keys.SequenceEqual(["film-1"]) && mac.HiddenFromResume()["film-1"].ToUnixTimeMilliseconds() == 1_760_000_000_000, "Mac hidden");
+            // The Mac puts the film back and turns the intros on: the PC follows.
+            mac.HideFromResume("film-1", null);
+            await AccountChoices.SyncAsync(client, mac, () => ("fre,fra,fr", Subtitles, true), CancellationToken.None);
+            update = await AccountChoices.SyncAsync(client, pc, () => ("fre,fra,fr", Subtitles, false), CancellationToken.None);
+            Assert(update.AutoSkip == true && update.Hidden is { Count: 0 } && pc.HiddenFromResume().Count == 0, "PC after the Mac: " + update);
         });
     }
 }
