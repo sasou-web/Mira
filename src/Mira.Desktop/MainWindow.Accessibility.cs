@@ -87,16 +87,18 @@ public partial class MainWindow
         _offlineShown = offline;
         if (offline) { Motion.Reveal(OfflineBadge, 200, 4); return; }
         _ = Motion.HideAsync(OfflineBadge);
-        // The other half of the message said when it stopped answering (RefreshAsync), under an error still waiting for you.
-        const string back = "Jellyfin répond de nouveau.";
-        if (_noticeSticky) AddNotice(back); else SetNotice(back);
+        // The other half of the message said when it stopped answering (RefreshAsync), under an error still waiting for
+        // you; the one about Jellyfin on this PC (stopped, starting) is over, and replaced.
+        if (_noticeSticky && NoticeText.Text != _localJellyfinNotice) AddNotice(JellyfinBack); else SetNotice(JellyfinBack);
     }
+    private const string JellyfinBack = "Jellyfin répond de nouveau.";
     private async void OfflineRetry_Click(object sender, RoutedEventArgs e)
     {
         OfflineRetry.IsEnabled = false;
         try { await RefreshAsync(); }
         finally { OfflineRetry.IsEnabled = true; }
-        if (_sync is { } sync && SyncStatus.Offline(sync.LastSynced, _offlineSince)) SetNotice("Jellyfin ne répond toujours pas. Mira réessaie tout seul et te le dira dès qu’il répond.");
+        if (_client is { } client && _sync is { } sync && SyncStatus.Offline(sync.LastSynced, _offlineSince))
+            await SayUnansweredAsync(client, null, "Jellyfin ne répond toujours pas. Mira réessaie tout seul et te le dira dès qu’il répond.");
     }
 
     private DateTime _lastUnexpected = DateTime.MinValue;

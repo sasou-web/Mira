@@ -465,7 +465,7 @@ public partial class MainWindow : Window
                 _offlineSince = DateTimeOffset.Now;
                 // Said once as Jellyfin stops answering, not at each try (every 45 s): « Hors connexion » then stays in
                 // the title bar until it answers again.
-                if (!wasOffline) SetNotice(Friendly(ex) + " Les informations déjà chargées restent disponibles.");
+                if (!wasOffline) _ = SayUnansweredAsync(client, ex, Friendly(ex) + " Les informations déjà chargées restent disponibles.");
                 SyncChanged();
                 _catalog.Loading = false; RenderLibrary();
             }

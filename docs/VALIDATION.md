@@ -2,6 +2,13 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## Jellyfin arrêté sur ce PC (non publié)
+
+- **Besoin** : un Jellyfin arrêté sur le PC serveur (trois relances de Windows ratées, arrêt depuis son tableau de bord) ne se remarquait qu’au téléphone, par « Serveur injoignable » ; Mira pour Windows disait « momentanément inaccessible », comme pour un serveur lointain.
+- **Correctif** : pour un Jellyfin sur ce PC qui ne répond pas (aucune réponse ou 503), Mira lit l’état de son service (`QueryServiceStatus`, sans droits) ou, sans service, si `jellyfin.exe` tourne ; `LocalJellyfin.Judge` (Core) en fait arrêté, démarre ou s’arrête après chaque démarrage (deux démarrages ratés de suite). **Démarrer Jellyfin** : `sc start` par le script élevé de **Tout préparer**, ou son programme avec `--datadir`, comme son application de la zone de notification ; Mira attend sa réponse trois minutes au plus et compte un démarrage raté s’il s’arrête de nouveau.
+- **Tests** : les cas de `LocalJellyfin.Judge` et `Says`, et l’étape « web » de `PhoneSetup` pour chacun (Core, partout).
+- **Non vérifié** : sur un vrai PC, l’état du service lu sans droits, `sc start` élevé, le programme démarré sans service, la cause lue dans le journal.
+
 ## Installation de Jellyfin qui restait bloquée (non publié)
 
 - **Défaut signalé** (2026-10-14, puis au déménagement de Jellyfin sur un autre PC) : la première installation depuis l’accueil affiche une erreur et reste bloquée ; relancer Mira et recommencer termine la configuration sans retélécharger. Même tableau qu’au premier essai de la 0.5.5 (plus bas).

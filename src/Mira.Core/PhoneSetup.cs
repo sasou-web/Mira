@@ -20,11 +20,12 @@ public static class PhoneSetup
     /// judged by its content) then deciding; <paramref name="Program"/>: whether Mira found Jellyfin's program on this
     /// PC, which the firewall is opened for. <paramref name="Answering"/>: Jellyfin answers (it may be restarting, or
     /// stopped). <paramref name="NetworkKept"/>: Windows did not let « Passer en privé » make the public network
-    /// (<see cref="JellyfinFirewall.Reach.Public"/>) private. Null: not known, or not readable with this account.
+    /// (<see cref="JellyfinFirewall.Reach.Public"/>) private. <paramref name="Down"/>: what a Jellyfin on this PC that
+    /// does not answer is (<see cref="LocalJellyfin.Judge"/>). Null: not known, or not readable with this account.
     /// </summary>
     public sealed record Facts(string Server, bool Local, bool? Web, string? Home, bool? Admin = null, string? Tailnet = null, bool? TailnetAllowed = null,
         JellyfinFirewall.Reach? Firewall = null, JellyfinFirewall.RuleState MiraRule = JellyfinFirewall.RuleState.Missing, JellyfinStartup.State? Boot = null,
-        bool Program = true, bool Answering = true, bool NetworkKept = false);
+        bool Program = true, bool Answering = true, bool NetworkKept = false, LocalJellyfin.Verdict Down = LocalJellyfin.Verdict.Unknown);
 
     public static IReadOnlyList<Step> Steps(Facts facts)
     {
@@ -35,6 +36,12 @@ public static class PhoneSetup
                 true => new("web", Mark.Done, "Mira web est installé sur Jellyfin", "Il suit la version de Mira : quand Mira se met à jour et que tu l’ouvres avec le compte administrateur de Jellyfin, Jellyfin prend la nouvelle version à sa recherche de mises à jour suivante, puis à son redémarrage."),
                 false when facts.Admin == false => new("web", Mark.Yours, "Installer Mira web sur Jellyfin", "Il faut le compte administrateur de Jellyfin : connecte Mira avec celui-ci."),
                 false => new("web", Mark.ToDo, "Installer Mira web sur Jellyfin", "C’est Jellyfin qui sert Mira à ton téléphone : rien à prendre sur l’App Store ou le Play Store."),
+                // Its button starts it: Windows' consent for its service, none for its program.
+                null when !facts.Answering && facts.Local && facts.Down == LocalJellyfin.Verdict.Stopped => new("web", Mark.Yours, "Jellyfin est arrêté sur ce PC",
+                    "Ton téléphone ne le trouve plus" + (facts.Boot?.HasService == true ? " : le démarrer demande une autorisation de Windows." : "."), LocalJellyfin.Start),
+                null when !facts.Answering && facts.Local && facts.Down == LocalJellyfin.Verdict.Starting => new("web", Mark.Note, "Jellyfin démarre sur ce PC", "Cette carte se met à jour dès qu’il répond."),
+                null when !facts.Answering && facts.Local && facts.Down == LocalJellyfin.Verdict.Failing => new("web", Mark.Yours, "Jellyfin s’arrête juste après avoir démarré",
+                    "Son journal dit pourquoi. Une fois la cause corrigée, cette carte propose de nouveau de le démarrer.", LocalJellyfin.OpenLog),
                 null when !facts.Answering => new("web", Mark.Note, "Jellyfin ne répond pas pour l’instant", "Il redémarre, ou il est arrêté : cette carte se met à jour dès qu’il répond."),
                 null => new("web", Mark.Note, "Mira web sur Jellyfin", "Vérification…"),
             },

@@ -152,9 +152,11 @@ public partial class MainWindow
             });
             tailnet = AtThisPc(address);
         }
+        // Silent on this PC: stopped (its button starts it), starting, or stopping after each start.
+        var down = local && !answering ? (await ReadLocalJellyfinAsync(server)).Verdict : LocalJellyfin.Verdict.Unknown;
         if (version != _phoneVersion) return;
         _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, rule, boot, Program: program is not null, Answering: answering,
-            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic);
+            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic, Down: down);
         ShowPhone(_phone);
         if (!answering) _ = WaitForJellyfinAsync(client, version);
     }
@@ -254,6 +256,8 @@ public partial class MainWindow
             button.Click += async (_, _) =>
             {
                 if (step.Key == "tailscale") OpenWebPage("https://tailscale.com/download/windows");
+                else if (step.Key == "web" && action == LocalJellyfin.Start && _client is { } client) { button.IsEnabled = false; await StartJellyfinAsync(client); }
+                else if (step.Key == "web" && action == LocalJellyfin.OpenLog) { OpenJellyfinLog(); _ = DescribePhoneAsync(); }
                 // « Passer en privé »: the person says the public network is home's.
                 else if (step.Key == "firewall") await PreparePhoneAsync(privateNetwork: true);
             };
