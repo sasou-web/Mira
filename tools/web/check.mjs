@@ -1447,11 +1447,13 @@ try {
     `de ${before.toFixed(2)} s à ${b?.t.toFixed(2)} s ; écart ${a && b ? Math.abs(a.t - b.t).toFixed(2) : '?'} s ; ${b?.paused ? 'l’autre en pause' : 'les deux en lecture'}`);
   const playingPill = await pill(ta);
   // The second phone slow to load (said by its own Mira, as its player does): Jellyfin holds the group for it, and the
-  // first, ready, says whom it waits for; the second ready, both play on.
+  // first, ready, says whom it waits for; the second ready, both play on. Its video stands still meanwhile, as a
+  // stalled stream does, without a pause (rate 0): played on, it would be ahead by the wait.
   const sendAsB = (what) => tb.evaluate(async (kind) => {
     const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
     const [{ api }, { together }] = await Promise.all([import(`${root}api.js`), import(`${root}together.js`)]);
     const v = document.querySelector('video');
+    v.playbackRate = kind === 'Ready' ? 1 : 0;
     await api.syncSend(kind, { When: new Date().toISOString(), PositionTicks: Math.round(v.currentTime * 1e7), IsPlaying: kind === 'Ready', PlaylistItemId: together.queue.playlistItemId });
   }, what);
   await sendAsB('Buffering');
