@@ -7,6 +7,7 @@ import { resetScreens, replaceRoute } from '../app.js';
 import { installHint } from './login.js';
 import { appleNative } from '../player/video.js';
 import { AUDIO_LANGUAGES, SUBTITLE_LANGUAGES } from '../player/tracks.js';
+import { RESUME_BACK } from '../player/stream.js';
 import { homeRows, moveRow, showRow } from '../home-rows.js';
 import { watchReport, reportStart, reportTime, reportCount } from '../report.js';
 
@@ -19,6 +20,8 @@ export const QUALITIES = [
   [3_000_000, '3 Mb/s', '720p, 4G'],
   [1_500_000, '1,5 Mb/s', '480p, connexion faible'],
 ];
+/** « 5 s avant », or « Non » for exactly where the title was left. */
+const backText = (seconds) => (seconds > 0 ? `${seconds} s avant` : 'Non');
 const SIZES = [[80, 'Petite'], [100, 'Normale'], [125, 'Grande'], [150, 'Très grande']];
 // Mira's text, on this phone: iOS's text size does not reach a web page, and an app of the Home Screen has no Safari
 // around it to zoom the page. The layout holds up to the largest.
@@ -47,7 +50,7 @@ export function create() {
   // libraries: for « Nouveau dans … » on the home page.
   let user = null, info = null, quick = false, libraries = [], drawn = '';
   // What the screen shows: drawn again only when one of these changed (coming back to the tab, Jellyfin's answer).
-  const SHOWN = ['quality', 'autoNext', 'resume', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer', 'textSize', 'homeRows'];
+  const SHOWN = ['quality', 'autoNext', 'resume', 'resumeBack', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer', 'textSize', 'homeRows'];
   function render() {
     const current = session.current ?? {};
     const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, user?.Policy?.IsAdministrator, info?.Version, quick, libraries.map((x) => x.Id + x.Name)]);
@@ -94,6 +97,14 @@ export function create() {
           items: QUALITIES.map(([key, label, sub]) => ({ label, sub, selected: key === quality[0], run: () => { settings.set('quality', key); render(); } })),
         })),
         toggle('resume', 'Reprendre là où tu t’es arrêté', 'Sinon, chaque titre repart du début.'),
+        choice('Reprendre un peu avant', backText(settings.get('resumeBack')), () => sheet({
+          title: 'Reprendre un peu avant',
+          body: h('p', { class: 'sheet-note' }, 'Pour retrouver le fil plutôt que de tomber au milieu d’une phrase. Un titre vu moins de 30 s reprend pile là où tu t’es arrêté.'),
+          items: RESUME_BACK.map((seconds) => ({
+            label: backText(seconds), selected: seconds === settings.get('resumeBack'), sub: seconds ? '' : 'Pile là où tu t’es arrêté.',
+            run: () => { settings.set('resumeBack', seconds); render(); },
+          })),
+        })),
         toggle('autoNext', 'Épisode suivant automatique', appleNative()
           ? 'Quand Jellyfin ou les chapitres repèrent le générique de fin, le suivant démarre 10 secondes après son début, sauf si une scène suit le générique. Sinon, à la fin de l’épisode.'
           : 'À la fin d’un épisode, le suivant démarre.'),

@@ -292,7 +292,7 @@ public partial class MainWindow
             if (_session.Item?.Id == item.Id && _playing) return true;
             return false;
         }
-        var start = PlaybackSession.StartAt(item, remember: _settings.RememberPosition && !fromStart);
+        var start = PlaybackSession.StartAt(item, remember: _settings.RememberPosition && !fromStart, back: _settings.ResumeBack);
         if (completePrevious) _groupCompletes = item.Id;
         try { await _client!.SyncQueueAsync(item.Id, Ticks(start), _connectionLifetime.Token); }
         catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); }

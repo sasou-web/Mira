@@ -201,6 +201,8 @@ public sealed class PlayerSettings
     public bool ReduceMotion { get; set; }
     public string PosterDensity { get; set; } = "Comfortable";
     public bool RememberPosition { get; set; } = true;
+    /// <summary>« Reprendre un peu avant »: seconds a title resumes before where it was left (<see cref="PlaybackSession.ResumeBack"/>); 0: exactly there.</summary>
+    public int ResumeBack { get; set; } = 5;
     public bool HeroAutoPlay { get; set; } = true;
     /// <summary>« Accueil à ta main »: the home page's rows, in order, « - » before one put away (<see cref="HomeLayout"/>); empty: as Mira shows them.</summary>
     public string HomeRows { get; set; } = "";

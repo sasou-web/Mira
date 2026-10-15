@@ -235,7 +235,7 @@ public sealed class WatchGroup
             // group's title opens again where the group is (Jellyfin moves it there once it is ready).
             return _shell.Player is { } player && player.Item?.Id == item.Id && !player.IsStopped;
         }
-        var start = PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart);
+        var start = PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart, back: _shell.Settings.ResumeBack);
         try { await session.Client.SyncQueueAsync(item.Id, Ticks(start), session.Lifetime); }
         catch (UnauthorizedAccessException) { _shell.Notice(NoSyncPlay); }
         catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex)); }
