@@ -4,8 +4,8 @@ import { api } from '../api.js';
 import { h, icon, clear, duration, seconds, progress, remaining, endsAt, episodeCode, plural } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import {
-  row, posterCard, extraCard, cardSig, personCard, errorState, spinner, changes, playHref, setPlayed, setFavorite, toast, sheet, withActions, knownItem,
-  overview,
+  row, posterCard, extraCard, cardSig, personCard, errorState, spinner, changes, playHref, titleHref, setPlayed, setFavorite, toast, sheet, withActions,
+  knownItem, overview,
 } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
 import { settings } from '../session.js';
@@ -383,8 +383,8 @@ export function create({ id, query }) {
     }
   }
 
-  /** The row of the film's saga, named as Jellyfin names it (« Harry Potter - Saga »). */
-  const sagaRows = () => (sagas ?? []).map((saga) => row(saga.name, saga.items, (x) => posterCard(x)) ?? '');
+  /** The row of the film's saga, named as Jellyfin names it (« Harry Potter - Saga »); « Tout voir » opens its page. */
+  const sagaRows = () => (sagas ?? []).map((saga) => row(saga.name, saga.items, (x) => posterCard(x), { more: `#/saga/${saga.id}` }) ?? '');
 
   async function load(quiet = false) {
     // Only the latest load draws: an older answer, read before a mark or the end of the player, never wins.
@@ -403,8 +403,8 @@ export function create({ id, query }) {
       if (fresh.Type === 'Series') {
         [eps, nextUp] = await (early ?? seriesParts());
         if (seq !== loadSeq) return;
-      } else if (fresh.Type === 'Episode' && fresh.SeriesId) {
-        replaceRoute(`#/titre/${fresh.SeriesId}?episode=${fresh.Id}`);
+      } else if ((fresh.Type === 'Episode' && fresh.SeriesId) || fresh.Type === 'BoxSet') {
+        replaceRoute(titleHref(fresh));
         return;
       }
       const inPlace = quiet && item?.Type === fresh.Type && !!actionsBox && el.contains(actionsBox);

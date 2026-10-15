@@ -103,7 +103,7 @@ Mira.Web
   ├─ app.js : barre d’onglets (barre latérale sur grand écran), routes par ancre, écrans gardés pour un retour instantané, mouvements d’iOS et glissement retour
   ├─ api.js, session.js : API Jellyfin, serveur de la session vérifié avant d’envoyer le jeton (trustServer), session sur l’appareil (jamais le mot de passe), réglages
   ├─ dom.js, components.js, images.js, blurhash.js, icons.js, press.js : éléments, cartes et rangées, images et leur flou d’attente, icônes Phosphor, appuis tactiles
-  ├─ views : connexion (profils), accueil, films et séries, recherche, fiche, personne, réglages, QR code (share.js)
+  ├─ views : connexion (profils), accueil, films et séries, recherche, fiche, personne, saga, réglages, QR code (share.js)
   └─ player
       ├─ player.js : lecteur d’Apple ou commandes de Mira, débit, rapports à Jellyfin
       ├─ profile.js, video.js : profil de lecture selon le navigateur, <video> partagée et appleNative()
