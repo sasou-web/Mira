@@ -1,5 +1,6 @@
 // Jellyfin's API, from the same address as Mira web: no server to type, no cross-site request.
 import { session, device, settings } from './session.js';
+import { SUBTITLE_FORMATS } from './subtitles.js';
 
 export const VERSION = document.querySelector('meta[name="mira-version"]')?.content.replace('{{version}}', '0.0.0') || '0.0.0';
 
@@ -246,6 +247,30 @@ const get = (path, params, options) => request('GET', path, { params, ...options
 const post = (path, body, params, options) => request('POST', path, { body, params, ...options });
 const user = () => session.current?.userId;
 
+// « Sous-titres gardés sur Jellyfin »: the providers asked once per session (api.subtitleProviders).
+let providers = null;   // { token, list }
+/** The bytes of a file, as the base64 Jellyfin's subtitle upload takes. */
+function base64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let text = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
+/**
+ * The library holding this title keeps the subtitles Jellyfin is given in its own data (SaveSubtitlesWithMedia off),
+ * its other options sent back as they were. False when it already does, or the account may not change it.
+ */
+async function keepSubtitlesInJellyfinData(itemId) {
+  const ancestors = await get(`Items/${itemId}/Ancestors`, { userId: user() });
+  const refused = (error) => { if (error instanceof ApiError && error.status === 403) return null; throw error; };
+  const folders = await get('Library/VirtualFolders').catch(refused);
+  const library = (folders ?? []).find((folder) => (ancestors ?? []).some((a) => a.Id === folder.ItemId));
+  if (!library?.LibraryOptions?.SaveSubtitlesWithMedia) return false;
+  const saved = await post('Library/VirtualFolders/LibraryOptions', { Id: library.ItemId, LibraryOptions: { ...library.LibraryOptions, SaveSubtitlesWithMedia: false } })
+    .then(() => true, refused);
+  return !!saved;
+}
+
 // Fields the cards need: child counts for series (RecursiveItemCount: Jellyfin 10.9 then says how much of a series
 // was watched, for the episodes left), and genres for the banner (Home). A grid asks for less still: GRID_FIELDS,
 // without the genres. No summary: a title page asks for its own.
@@ -361,6 +386,63 @@ export const api = {
   torlinkCancel: (id) => request('DELETE', `Mira/torlink/requests/${encodeURIComponent(id)}`),
   /** pause, resume or delete (its files with it) a download TorLink has. */
   torlinkControl: (id, action) => post('Mira/torlink/control', { id, action }),
+  /**
+   * « Chercher des sous-titres »: the subtitle extensions of Jellyfin (« Open Subtitles »), for an account that may use
+   * them (an administrator, or one allowed to manage subtitles); [] otherwise. Asked once per session.
+   */
+  subtitleProviders() {
+    const token = session.current?.token;
+    if (providers?.token !== token) {
+      providers = {
+        token,
+        list: (async () => {
+          const me = await get('Users/Me');
+          if (!me?.Policy?.IsAdministrator && !me?.Policy?.EnableSubtitleManagement) return [];
+          const options = await get('Libraries/AvailableOptions', { libraryContentType: 'movies' });
+          return (options?.SubtitleFetchers ?? []).map((fetcher) => fetcher?.Name).filter(Boolean);
+        })().catch(() => { providers = null; return []; }),
+      };
+    }
+    return providers.list;
+  },
+  /** What Jellyfin's subtitle extensions find for a title in a language (« fre »), as Jellyfin gives it. */
+  searchSubtitles: (itemId, language) => get(`Items/${itemId}/RemoteSearch/Subtitles/${encodeURIComponent(language)}`),
+  /**
+   * Keeps a subtitle found by the search: fetched through Jellyfin, then sent back to it as a file (keepSubtitle).
+   * Jellyfin's own download (POST RemoteSearch/Subtitles/{id}) answers 204 even when it could not write the file.
+   */
+  async keepRemoteSubtitle(itemId, found) {
+    await trustServer();
+    let response;
+    try {
+      response = await fetch(url(`Providers/Subtitles/Subtitles/${encodeURIComponent(found.Id)}`), { headers: { Authorization: authorization() }, cache: 'no-store' });
+    } catch { throw new ApiError(0, UNREACHABLE); }
+    if (response.status === 403) return 'Refused';
+    if (!response.ok) throw new ApiError(response.status, `Jellyfin a répondu avec une erreur (${response.status}).`);
+    const format = String(found.Format ?? '').toLowerCase();
+    return this.keepSubtitle(itemId, {
+      Format: SUBTITLE_FORMATS.includes(format) ? format : 'srt', Language: found.ThreeLetterISOLanguageName || 'und',
+      IsForced: !!found.Forced, IsHearingImpaired: !!found.HearingImpaired, Data: base64(await response.arrayBuffer()),
+    });
+  },
+  /**
+   * Sends a subtitle file to Jellyfin, which keeps it for every device: Kept, KeptInJellyfinData, Refused or NotWritten
+   * (subtitles.js keptText). Jellyfin writes it beside the video unless its library says otherwise; when it cannot
+   * (500: a media folder it only reads, as a Mira install leaves them), the library of an administrator is switched to
+   * Jellyfin's own data and the file sent again, as Mira for Windows does (Mira.Core JellyfinClient.KeepSubtitleAsync).
+   */
+  async keepSubtitle(itemId, subtitle) {
+    const send = () => post(`Videos/${itemId}/Subtitles`, subtitle).then(() => 204, (error) => {
+      if (error instanceof ApiError && (error.status === 403 || error.status === 500)) return error.status;
+      throw error;
+    });
+    const first = await send();
+    if (first === 403) return 'Refused';
+    if (first !== 500) return 'Kept';
+    if (!await keepSubtitlesInJellyfinData(itemId)) return 'NotWritten';
+    const again = await send();
+    return again === 403 ? 'Refused' : again === 500 ? 'NotWritten' : 'KeptInJellyfinData';
+  },
 
   resume: (limit = 16) => get('UserItems/Resume', { userId: user(), limit, mediaTypes: 'Video', fields: CARD_FIELDS, ...CARD_IMAGES, enableUserData: true }),
   nextUp: (limit = 16) => get('Shows/NextUp', { userId: user(), limit, fields: CARD_FIELDS, ...CARD_IMAGES, enableResumable: false, enableRewatching: false }),

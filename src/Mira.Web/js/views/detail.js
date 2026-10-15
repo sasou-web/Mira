@@ -9,7 +9,8 @@ import {
 } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
 import { settings, session } from '../session.js';
-import { trackText, chooseTracks, qualityText } from '../player/tracks.js';
+import { trackText, chooseTracks, qualityText, languageName } from '../player/tracks.js';
+import { searchLanguages, sortRemote, remoteText, privacyText, keptText, arrivedSubtitle } from '../subtitles.js';
 import { appleNative } from '../player/video.js';
 import { sleep, sleepChoices } from '../player/sleep.js';
 import { together } from '../together.js';
@@ -97,6 +98,8 @@ export function create({ id, query }) {
   let actionsBox = null, toolsBox = null, sagaBox = null, extrasBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
+  // The subtitle extensions of Jellyfin (« Open Subtitles »), when this account may search with them.
+  let finders = [];
   // The episode the page was opened for (« Voir la série » from it): marked, its season shown, until Lecture moves on.
   let wanted = query.get('episode');
 
@@ -208,7 +211,7 @@ export function create({ id, query }) {
     if (!pick) return null;
     const all = streams.source.MediaStreams ?? [];
     const audios = all.filter((s) => s.Type === 'Audio'), subs = all.filter((s) => s.Type === 'Subtitle');
-    if (audios.length < 2 && !subs.length) return null;
+    if (audios.length < 2 && !subs.length && !finders.length) return null;
     const audio = audios.find((s) => s.Index === pick.audio), sub = subs.find((s) => s.Index === pick.subtitle);
     const name = (s, list) => trackText(s, list.indexOf(s) + 1).label + (s.IsForced ? ' (forcés)' : '');
     // A single audio track of unknown language says nothing worth a line.
@@ -236,8 +239,79 @@ export function create({ id, query }) {
         { heading: 'Sous-titres' },
         { label: 'Aucun', selected: pick.subtitle === -1 || !subs.some((s) => s.Index === pick.subtitle), run: () => choose({ subtitle: -1 }) },
         ...subs.map((s) => ({ label: trackText(s, subs.indexOf(s) + 1).label, sub: details(s, subs), selected: s.Index === pick.subtitle, run: () => choose({ subtitle: s.Index }) })),
+        ...(finders.length ? [{ symbol: 'search', label: 'Chercher des sous-titres', sub: `Avec ${finders.join(' et ')}, gardés sur Jellyfin`, run: () => searchSheet(target) }] : []),
       ],
     });
+  }
+
+  // « Chercher des sous-titres », once Jellyfin says an extension of its own can (asked once per session).
+  function findSubtitles() {
+    if (finders.length) return;
+    api.subtitleProviders().then((list) => { if (!list.length || finders.length) return; finders = list; refreshActions(); });
+  }
+  /**
+   * « Chercher des sous-titres »: what Jellyfin's extension finds in a language. A tap keeps one on Jellyfin, for every
+   * device, and Lecture starts with it once Jellyfin has read it.
+   */
+  function searchSheet(target) {
+    const languages = searchLanguages(settings.get('subtitleLanguages'));
+    let language = languages[0], version = 0, keeping = false;
+    const chips = h('div', { class: 'report-periods' });
+    const status = h('p', { class: 'group-note', role: 'status' });
+    const results = h('div', { role: 'menu', 'aria-label': 'Sous-titres trouvés' });
+    const busy = (on) => results.querySelectorAll('button').forEach((button) => { button.disabled = on; });
+    async function search() {
+      const mine = ++version;
+      chips.replaceChildren(...languages.map((code) => h('button', {
+        class: 'chip', 'aria-pressed': String(code === language),
+        on: { click: () => { if (!keeping && code !== language) { language = code; search(); } } },
+      }, languageName(code) ?? code)));
+      results.replaceChildren(); status.textContent = 'Recherche…';
+      try {
+        const found = sortRemote(await api.searchSubtitles(target.Id, language)).slice(0, 30);
+        if (mine !== version) return;
+        status.textContent = found.length ? '' : `Aucun sous-titre trouvé en ${(languageName(language) ?? language).toLowerCase()}.`;
+        results.replaceChildren(...found.map((x) => {
+          const { label, details } = remoteText(x);
+          return h('button', { class: 'sheet-item', role: 'menuitem', on: { click: () => keep(x) } },
+            icon('subtitles'), h('span', { class: 'grow' }, label, h('span', { class: 'sub' }, details)));
+        }));
+      } catch (error) { if (mine === version) status.textContent = error.message; }
+    }
+    async function keep(found) {
+      if (keeping) return;
+      keeping = true; busy(true); status.textContent = 'Ajout sur Jellyfin…';
+      try {
+        const before = (streams?.for === target.Id ? streams.source : (await api.item(target.Id)).MediaSources?.[0])?.MediaStreams ?? [];
+        const kept = await api.keepRemoteSubtitle(target.Id, found);
+        const said = keptText(kept, found.ThreeLetterISOLanguageName || language);
+        if (kept === 'Refused' || kept === 'NotWritten') { status.textContent = said; return; }
+        status.textContent = 'Jellyfin lit le nouveau fichier…';
+        const arrived = await waitForSubtitle(target, before);
+        close();
+        toast(arrived ? said : `${said} Jellyfin ne le montre pas encore : rouvre la fiche dans un moment.`, { duration: 7000 });
+      } catch (error) { status.textContent = error.message; } finally { keeping = false; busy(false); }
+    }
+    const close = sheet({
+      title: 'Chercher des sous-titres',
+      body: h('div', { class: 'subtitle-search' }, h('div', { class: 'sheet-form' }, h('p', { class: 'group-note' }, privacyText(finders)), chips, status), results),
+    });
+    search();
+  }
+  /** Jellyfin reads a kept subtitle after a moment: once there, Lecture starts with it. Null when it is still not, half a minute on. */
+  async function waitForSubtitle(target, before) {
+    for (let waited = 0; waited < 30_000; waited += 1500) {
+      await new Promise((resolve) => { setTimeout(resolve, 1500); });
+      const source = (await api.item(target.Id).catch(() => null))?.MediaSources?.[0];
+      const arrived = arrivedSubtitle(before, source?.MediaStreams);
+      if (!arrived) continue;
+      const pick = tracksFor(target);
+      streams = { for: target.Id, source };
+      chosen = { audio: pick?.audio ?? source.DefaultAudioStreamIndex ?? null, subtitle: arrived.Index, for: target.Id };
+      refreshMeta(); refreshActions();
+      return arrived;
+    }
+    return null;
   }
 
   /** Lecture, its tracks and Du début again, without rebuilding the page. */
@@ -430,7 +504,7 @@ export function create({ id, query }) {
       // A film's streams come with it, fresh; a series' come with the episode it picks up at (else they are asked for).
       if (item.Type !== 'Series') streams = null;
       else if (next?.MediaSources?.[0]) streams = { for: next.Id, source: next.MediaSources[0] };
-      loadStreams();
+      loadStreams(); findSubtitles();
       if (inPlace) update(); else render();
       if (!similar.length && !sagas) {
         // Only their rows are drawn when they arrive: the page does not jump or flash under the finger. A film of a

@@ -228,8 +228,9 @@ public static partial class JellyfinSetup
             if (existing.Contains(name)) continue;
             // The path goes in the body: the query form splits paths on commas. Films are gathered into sagas (the saga
             // row of a film page) and the timeline's previews are made (trickplay), which Jellyfin leaves off by default.
+            // Subtitles added from Mira go to Jellyfin's own data: its service only reads the media folders.
             await Send(http, HttpMethod.Post, $"Library/VirtualFolders?name={Uri.EscapeDataString(name)}&collectionType={type}&refreshLibrary=false",
-                new { LibraryOptions = new { PathInfos = new[] { new { Path = path } }, PreferredMetadataLanguage = "fr", MetadataCountryCode = "FR", EnableRealtimeMonitor = true, AutomaticallyAddToCollection = type == "movies", EnableTrickplayImageExtraction = true } },
+                new { LibraryOptions = new { PathInfos = new[] { new { Path = path } }, PreferredMetadataLanguage = "fr", MetadataCountryCode = "FR", EnableRealtimeMonitor = true, AutomaticallyAddToCollection = type == "movies", EnableTrickplayImageExtraction = true, SaveSubtitlesWithMedia = false } },
                 "la bibliothèque " + name, ct).ConfigureAwait(false);
         }
         // Devices on the local network still connect; access from the Internet stays off until chosen in Jellyfin.

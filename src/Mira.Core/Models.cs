@@ -147,6 +147,8 @@ public sealed record MediaStream
     public string? Language { get; init; }
     public string? DisplayTitle { get; init; }
     public bool IsExternal { get; init; }
+    /// <summary>An external subtitle's file on the server: tells one just kept from the others (<see cref="JellyfinSubtitles.Arrived"/>).</summary>
+    public string? Path { get; init; }
     public string? DeliveryUrl { get; init; }
     public int? Width { get; init; }
     public int? Height { get; init; }

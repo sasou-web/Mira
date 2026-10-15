@@ -188,6 +188,8 @@ public partial class MainWindow
             {
                 try { _mpv.Command("sub-add", Path.Combine(kept.Folder, subtitle.File), "auto", subtitle.Title ?? "", subtitle.Language ?? ""); } catch (IOException) { }
             }
+        // Whether « Chercher des sous-titres… » shows, known before the menu opens.
+        _ = ShowSubtitleSearchAsync();
         if (reopened) RestoreTracks(); else await ChooseSeriesTracksAsync(generation);
     }
     private async void PlayerTick(object? sender, EventArgs e)

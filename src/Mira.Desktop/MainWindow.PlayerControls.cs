@@ -344,6 +344,7 @@ public partial class MainWindow
         var tracks = ReferenceEquals(anchor, PlayerTracksButton); var episodes = ReferenceEquals(anchor, PlayerEpisodesButton);
         TracksMenu.Visibility = tracks ? Visibility.Visible : Visibility.Collapsed;
         EpisodesMenu.Visibility = episodes ? Visibility.Visible : Visibility.Collapsed;
+        SubtitleSearchMenu.Visibility = Visibility.Collapsed;
         MoreMenu.Visibility = tracks || episodes ? Visibility.Collapsed : Visibility.Visible;
         _menuBuilding = true;
         try { if (tracks) BuildTrackMenu(); else if (episodes) BuildEpisodesMenu(); else BuildMoreMenu(); } finally { _menuBuilding = false; }
@@ -369,6 +370,7 @@ public partial class MainWindow
         SubtitleTrackList.Children.Add(MenuChoice("subtitles", "Désactivés", "", subtitle is "no" or "" or "false", () => ChooseTrack("sid", "no")));
         foreach (var track in tracks.Where(t => t.Type == "sub"))
             SubtitleTrackList.Children.Add(MenuChoice("subtitles", track.Label, track.Details, track.Id == subtitle, () => ChooseTrack("sid", track.Id)));
+        _ = ShowSubtitleSearchAsync();
     }
     /// <summary>The menu stays open, so that the other kind of track can be picked too. The next episodes start with the same.</summary>
     private void ChooseTrack(string property, string id) { _mpv?.Set(property, id); ShowPlayerControls(); RememberTracks(); }
@@ -490,7 +492,11 @@ public partial class MainWindow
     {
         PlayerOptionsPopup.IsOpen = false;
         var dialog = new OpenFileDialog { Filter = "Sous-titres|*.srt;*.ass;*.ssa;*.vtt;*.sub|Tous les fichiers|*.*" };
-        if (dialog.ShowDialog(this) == true && !TryCommand("sub-add", dialog.FileName, "select")) SetNotice("Ce fichier de sous-titres n’a pas pu être chargé.");
+        if (dialog.ShowDialog(this) == true)
+        {
+            if (!TryCommand("sub-add", dialog.FileName, "select")) SetNotice("Ce fichier de sous-titres n’a pas pu être chargé.");
+            else _ = OfferToKeepSubtitleAsync(dialog.FileName);
+        }
         ShowPlayerControls();
     }
     private void SubtitleDelay_Click(object sender, RoutedEventArgs e)

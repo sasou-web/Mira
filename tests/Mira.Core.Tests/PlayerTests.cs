@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Mira.Core;
 using Mira.Core.Updates;
 using Mira.Desktop.Services;
@@ -206,6 +207,101 @@ internal static class PlayerTests
             Assert(SubtitleStyle.Height(150) == 100 && SubtitleStyle.Height(95) == 94 && SubtitleStyle.Height(0) == 82 && SubtitleStyle.Heights[0] == (100, "En bas"), "Heights");
             Assert(SubtitleStyle.Color("White") == "#FFFFFF" && SubtitleStyle.Color("Rouge") == "#FFFFFF", "Colour");
             return Task.CompletedTask;
+        });
+        await Test("Sous-titres gardés sur Jellyfin : langues, résultats, messages et nouvelle piste, comme Mira web (tests/fixtures/subtitles.json)", () =>
+        {
+            var repository = TestSupport.Repository() ?? throw new Exception("Repository not found");
+            var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "subtitles.json")))!.AsObject();
+            foreach (var x in fixture["searchLanguages"]!.AsArray())
+                Assert(JellyfinSubtitles.SearchLanguages((string)x!["preferences"]!).SequenceEqual(x["languages"]!.AsArray().Select(l => (string)l!)), "Languages of " + x["preferences"]);
+            Assert(JellyfinSubtitles.SearchCode("fr-FR") == "fre" && JellyfinSubtitles.SearchCode("deu") == "ger" && JellyfinSubtitles.SearchCode("und") is null, "Search codes");
+            foreach (var x in fixture["remote"]!.AsArray())
+            {
+                var found = JellyfinSubtitles.FromJellyfin(x!["found"]!.AsObject(), "fre")!;
+                Assert(JellyfinSubtitles.Describe(found) == ((string)x["label"]!, (string)x["details"]!), "Row: " + JellyfinSubtitles.Describe(found));
+            }
+            var sorted = JellyfinSubtitles.Sort(fixture["sort"]!["found"]!.AsArray().Select(x => JellyfinSubtitles.FromJellyfin(x!.AsObject(), "fre")).OfType<RemoteSubtitle>());
+            Assert(sorted.Select(x => x.Id).SequenceEqual(fixture["sort"]!["order"]!.AsArray().Select(x => (string)x!)), "Order: " + string.Join(", ", sorted.Select(x => x.Id)));
+            foreach (var x in fixture["privacy"]!.AsArray())
+                Assert(JellyfinSubtitles.Privacy([.. x!["providers"]!.AsArray().Select(p => (string)p!)]) == (string)x["text"]!, "Privacy");
+            foreach (var x in fixture["kept"]!.AsArray())
+                Assert(JellyfinSubtitles.KeptText(Enum.Parse<SubtitleKept>((string)x!["kept"]!), (string)x["language"]!) == (string)x["text"]!, "Kept: " + x["kept"]);
+            List<MediaStream> Streams(string key) => [.. fixture["arrived"]![key]!.AsArray().Select(s => new MediaStream { Type = (string)s!["Type"]!, Index = (int)s["Index"]!, IsExternal = s["IsExternal"] is { } e && (bool)e!, Path = (string?)s["Path"] })];
+            Assert(JellyfinSubtitles.Arrived(Streams("before"), Streams("now"))?.Index == (int)fixture["arrived"]!["index"]! && JellyfinSubtitles.Arrived(Streams("now"), Streams("now")) is null, "New track");
+            foreach (var x in fixture["guess"]!.AsArray())
+            {
+                var guess = JellyfinSubtitles.Guess((string)x!["file"]!, (string)x["preferences"]!);
+                var expected = x["format"] is null ? null : ((string)x["format"]!, (string)x["language"]!, (bool)x["forced"]!, (bool)x["hearingImpaired"]!) as (string, string, bool, bool)?;
+                Assert(guess == expected, $"Guess of {x["file"]}: {guess}");
+            }
+            return Task.CompletedTask;
+        });
+        await Test("Sous-titres gardés sur Jellyfin : envoi, dossier du film en lecture seule, droit refusé et recherche", async () =>
+        {
+            // Jellyfin 12.1 with a media folder it only reads: 500, then the film library keeps them in its own data.
+            var calls = new List<string>(); JsonObject? options = null; var sent = new List<JsonObject>(); var uploads = 0; var policy = "IsAdministrator";
+            HttpResponseMessage Answer(HttpRequestMessage request)
+            {
+                var path = request.RequestUri!.PathAndQuery; calls.Add(request.Method + " " + path);
+                var body = request.Content?.ReadAsStringAsync().Result;
+                if (path == "/Videos/film/Subtitles") { sent.Add(JsonNode.Parse(body!)!.AsObject()); return new(++uploads == 1 ? HttpStatusCode.InternalServerError : HttpStatusCode.NoContent); }
+                if (path.StartsWith("/Items/film/Ancestors", StringComparison.Ordinal)) return JsonResponse(new object[] { new { Id = "lib-films", Type = "CollectionFolder" }, new { Id = "root", Type = "UserRootFolder" } });
+                if (path == "/Library/VirtualFolders") return JsonResponse(new object[] { new { Name = "Séries", ItemId = "lib-series", LibraryOptions = new { SaveSubtitlesWithMedia = true } }, new { Name = "Films", ItemId = "lib-films", LibraryOptions = new { SaveSubtitlesWithMedia = true, EnableRealtimeMonitor = true } } });
+                if (path == "/Library/VirtualFolders/LibraryOptions") { options = JsonNode.Parse(body!)!.AsObject(); return new(HttpStatusCode.NoContent); }
+                if (path == "/Providers/Subtitles/Subtitles/os%2F1") return new(HttpStatusCode.OK) { Content = new ByteArrayContent(Encoding.UTF8.GetBytes("1\n00:00:01,000 --> 00:00:02,000\nÇa va ?\n")) };
+                if (path == "/Users/Me") return JsonResponse(new { Policy = new Dictionary<string, bool> { [policy] = true } });
+                if (path == "/Libraries/AvailableOptions?libraryContentType=movies") return JsonResponse(new { SubtitleFetchers = new[] { new { Name = "Open Subtitles", DefaultEnabled = true } } });
+                if (path == "/Items/film/RemoteSearch/Subtitles/fre") return JsonResponse(new object[] { new { Id = "os/2", Name = "Vieux", ProviderName = "Open Subtitles", Format = "srt", DownloadCount = 900 }, new { Id = "os/1", Name = "Exact", ProviderName = "Open Subtitles", Format = "SRT", ThreeLetterISOLanguageName = "fre", IsHashMatch = true, DownloadCount = 3 } });
+                return new(HttpStatusCode.NotFound);
+            }
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => Task.FromResult(Answer(request))));
+            Assert((await client.SubtitleProvidersAsync()).SequenceEqual(["Open Subtitles"]), "Providers for an administrator");
+            var found = await client.SearchSubtitlesAsync("film", "fre");
+            Assert(found.Select(x => x.Id).SequenceEqual(["os/1", "os/2"]), "Found: " + string.Join(", ", found.Select(x => x.Id)));
+            Assert(await client.KeepRemoteSubtitleAsync("film", found[0]) == SubtitleKept.KeptInJellyfinData, "Kept in Jellyfin's data");
+            Assert(options?["Id"]?.GetValue<string>() == "lib-films" && options["LibraryOptions"]?["SaveSubtitlesWithMedia"]?.GetValue<bool>() == false
+                && options["LibraryOptions"]?["EnableRealtimeMonitor"]?.GetValue<bool>() == true, "Library options: " + options?.ToJsonString());
+            Assert(sent.Count == 2 && sent[1]["Language"]!.GetValue<string>() == "fre" && sent[1]["Format"]!.GetValue<string>() == "srt" && !sent[1]["IsForced"]!.GetValue<bool>()
+                && Encoding.UTF8.GetString(Convert.FromBase64String(sent[1]["Data"]!.GetValue<string>())).Contains("Ça va ?"), "Sent: " + sent.LastOrDefault()?.ToJsonString());
+            // Already in Jellyfin's data, and still refused to write: nothing more to change.
+            uploads = 0; options = null;
+            var upload = new SubtitleUpload("srt", "eng", true, false, [1, 2, 3]);
+            using var data = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => Task.FromResult(request.RequestUri!.AbsolutePath switch
+            {
+                "/Videos/film/Subtitles" => new HttpResponseMessage(HttpStatusCode.InternalServerError),
+                "/Library/VirtualFolders" => JsonResponse(new object[] { new { ItemId = "lib-films", LibraryOptions = new { SaveSubtitlesWithMedia = false } } }),
+                _ => request.RequestUri.AbsolutePath.StartsWith("/Items/film/Ancestors", StringComparison.Ordinal) ? JsonResponse(new object[] { new { Id = "lib-films" } }) : new HttpResponseMessage(HttpStatusCode.NotFound),
+            })));
+            Assert(await data.KeepSubtitleAsync("film", upload) == SubtitleKept.NotWritten && options is null, "Not written");
+            using var refused = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden))));
+            Assert(await refused.KeepSubtitleAsync("film", upload) == SubtitleKept.Refused, "Refused");
+            policy = "EnableSubtitleManagement"; Assert(await client.CanManageSubtitlesAsync() == true, "Allowed to manage subtitles");
+            policy = "EnableMediaPlayback"; Assert(await client.CanManageSubtitlesAsync() == false && (await client.SubtitleProvidersAsync()).Count == 0, "No search without the right");
+            // The file just kept, once Jellyfin lists it (by its path: it moved the index of the other one), and the
+            // address mpv reads it from; nothing when Jellyfin never lists it.
+            var looks = 0;
+            using var listing = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(_ => Task.FromResult(JsonResponse(new
+            {
+                Id = "film", MediaSources = new[] { new { Id = "src", MediaStreams = ++looks < 2
+                    ? new object[] { new { Index = 2, Type = "Subtitle", Codec = "subrip", IsExternal = true, Path = "/media/Film.en.srt" } }
+                    : [new { Index = 2, Type = "Subtitle", Codec = "subrip", IsExternal = true, Path = "/config/metadata/Film.fre.srt" }, new { Index = 3, Type = "Subtitle", Codec = "subrip", IsExternal = true, Path = "/media/Film.en.srt" }] } },
+            }))));
+            var known = await listing.StreamsAsync("film", "src");
+            var arrived = await listing.KeptSubtitleAsync("film", "src", known, TimeSpan.FromSeconds(5));
+            Assert(arrived?.Path == "/config/metadata/Film.fre.srt" && listing.SubtitleUri("film", "src", arrived).AbsoluteUri == "http://localhost/Videos/film/src/Subtitles/2/0/Stream.srt",
+                "Arrived: " + arrived?.Path);
+            Assert(await listing.KeptSubtitleAsync("film", "src", await listing.StreamsAsync("film", "src"), TimeSpan.Zero) is null, "Never listed");
+            // A file loaded during playback: read to be sent, unless it is too big to be subtitles.
+            var file = Path.Combine(Path.GetTempPath(), $"mira-{Guid.NewGuid():N}.fr.srt");
+            try
+            {
+                await File.WriteAllTextAsync(file, "1\n00:00:01,000 --> 00:00:02,000\nSalut\n");
+                var guess = JellyfinSubtitles.Guess(Path.GetFileName(file), null)!.Value;
+                Assert((await JellyfinSubtitles.ReadAsync(file, guess)) is { Language: "fre", Format: "srt", Data.Length: > 0 }, "Read");
+                using (var stream = File.OpenWrite(file)) stream.SetLength(JellyfinSubtitles.MaxSize + 1);
+                Assert(await JellyfinSubtitles.ReadAsync(file, guess) is null, "Too big");
+            }
+            finally { File.Delete(file); }
         });
         await Test("Progression bornée et libellés d’épisodes", () =>
         {

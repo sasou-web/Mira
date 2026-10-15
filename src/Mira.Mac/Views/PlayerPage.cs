@@ -614,8 +614,34 @@ public sealed class PlayerPage : UserControl
             Title = "Choisir un fichier de sous-titres", AllowMultiple = false,
             FileTypeFilter = [new FilePickerFileType("Sous-titres") { Patterns = ["*.srt", "*.ass", "*.ssa", "*.vtt", "*.sub"] }]
         });
-        if (files.FirstOrDefault()?.TryGetLocalPath() is { } path && _mpv?.TryCommand("sub-add", path, "select") != true)
-            _shell.Notice("Ce fichier de sous-titres n’a pas pu être chargé.");
+        if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
+        if (_mpv?.TryCommand("sub-add", path, "select") != true) { _shell.Notice("Ce fichier de sous-titres n’a pas pu être chargé."); return; }
+        await OfferToKeepSubtitleAsync(path);
+    }
+    /// <summary>
+    /// The file plays here only: Mira offers to keep it on Jellyfin (« Sous-titres gardés sur Jellyfin », as Mira for
+    /// Windows), for an account allowed to, its language read from its name (<see cref="JellyfinSubtitles.Guess"/>).
+    /// </summary>
+    private async Task OfferToKeepSubtitleAsync(string file)
+    {
+        if (_shell.Session is not { } session || _session.Item is not { } item) return;
+        if (JellyfinSubtitles.Guess(Path.GetFileName(file), _shell.Settings.SubtitleLanguage) is not { } guess) return;
+        var generation = _generation;
+        bool? allowed;
+        try { allowed = await session.Client.CanManageSubtitlesAsync(); }
+        catch (Exception ex) when (Errors.Expected(ex)) { return; }
+        if (allowed == false || generation != _generation) return;
+        _shell.Notice(JellyfinSubtitles.LoadedText, "Garder sur Jellyfin", () => _ = KeepLoadedSubtitleAsync(session.Client, item.Id, file, guess));
+    }
+    private async Task KeepLoadedSubtitleAsync(JellyfinClient client, string itemId, string file, (string Format, string Language, bool Forced, bool HearingImpaired) guess)
+    {
+        SubtitleUpload? upload;
+        try { upload = await JellyfinSubtitles.ReadAsync(file, guess); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { _shell.Notice(JellyfinSubtitles.UnreadableText); return; }
+        if (upload is null) { _shell.Notice(JellyfinSubtitles.TooBigText); return; }
+        _shell.Notice("Envoi des sous-titres à Jellyfin…");
+        try { _shell.Notice(JellyfinSubtitles.KeptText(await client.KeepSubtitleAsync(itemId, upload), guess.Language)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice("Jellyfin n’a pas gardé ces sous-titres. " + Errors.Friendly(ex)); }
     }
 
     // —— Chapters, skippable passages and the next episode ——

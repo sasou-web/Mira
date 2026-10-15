@@ -245,6 +245,120 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
+    // —— Subtitles kept on Jellyfin (JellyfinSubtitles) ——
+    /// <summary>Whether this account may add subtitles to Jellyfin: an administrator, or allowed to manage them. Null when Jellyfin does not say.</summary>
+    public async Task<bool?> CanManageSubtitlesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Users/Me", ct);
+        if (!response.IsSuccessStatusCode) return null;
+        if (JsonNode.Parse(await response.Content.ReadAsStringAsync(ct))?["Policy"] is not JsonObject policy) return null;
+        return Flag(policy, "IsAdministrator") || Flag(policy, "EnableSubtitleManagement");
+    }
+    /// <summary>The subtitle extensions installed on Jellyfin (« Open Subtitles »); empty without one, or for an account that may not use them.</summary>
+    public async Task<IReadOnlyList<string>> SubtitleProvidersAsync(CancellationToken ct = default)
+    {
+        if (await CanManageSubtitlesAsync(ct) != true) return [];
+        using var response = await _http.GetAsync("Libraries/AvailableOptions?libraryContentType=movies", ct);
+        if (!response.IsSuccessStatusCode) return [];
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct))?["SubtitleFetchers"] is JsonArray fetchers
+            ? fetchers.OfType<JsonObject>().Select(x => Field(x, "Name")).OfType<string>().ToList() : [];
+    }
+    /// <summary>What Jellyfin's subtitle extensions find for a title in a language (« fre »), sorted (<see cref="JellyfinSubtitles.Sort"/>).</summary>
+    public async Task<IReadOnlyList<RemoteSubtitle>> SearchSubtitlesAsync(string itemId, string language, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Items/{Uri.EscapeDataString(itemId)}/RemoteSearch/Subtitles/{Uri.EscapeDataString(language)}", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new HttpRequestException(JellyfinSubtitles.KeptText(SubtitleKept.Refused, null), null, response.StatusCode);
+        await CheckAsync(response);
+        var found = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+        return JellyfinSubtitles.Sort(found.OfType<JsonObject>().Select(x => JellyfinSubtitles.FromJellyfin(x, language)).OfType<RemoteSubtitle>());
+    }
+    /// <summary>
+    /// Keeps a subtitle found by the search: fetched through Jellyfin, then sent back to it as a file
+    /// (<see cref="KeepSubtitleAsync"/>). Jellyfin's own download (POST RemoteSearch/Subtitles/{id}) answers 204 even
+    /// when it could not write the file.
+    /// </summary>
+    public async Task<SubtitleKept> KeepRemoteSubtitleAsync(string itemId, RemoteSubtitle subtitle, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Providers/Subtitles/Subtitles/{Uri.EscapeDataString(subtitle.Id)}", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return SubtitleKept.Refused;
+        await CheckAsync(response);
+        var data = await response.Content.ReadAsByteArrayAsync(ct);
+        var format = subtitle.Format.ToLowerInvariant() is var named && JellyfinSubtitles.Formats.Contains(named) ? named : "srt";
+        return await KeepSubtitleAsync(itemId, new SubtitleUpload(format, subtitle.Language.Length > 0 ? subtitle.Language : "und", subtitle.Forced, subtitle.HearingImpaired, data), ct);
+    }
+    /// <summary>
+    /// Sends a subtitle file to Jellyfin, which keeps it for every device. Jellyfin writes it beside the video unless
+    /// its library says otherwise (SaveSubtitlesWithMedia). When it cannot (500: a media folder it only reads, as a
+    /// Mira install leaves them), the library of an administrator is switched to Jellyfin's own data and the file sent
+    /// again: the next ones go there too.
+    /// </summary>
+    public async Task<SubtitleKept> KeepSubtitleAsync(string itemId, SubtitleUpload subtitle, CancellationToken ct = default)
+    {
+        var sent = await SendSubtitleAsync(itemId, subtitle, ct);
+        if (sent is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return SubtitleKept.Refused;
+        if (sent != HttpStatusCode.InternalServerError) return SubtitleKept.Kept;
+        if (!await KeepSubtitlesInJellyfinDataAsync(itemId, ct)) return SubtitleKept.NotWritten;
+        return await SendSubtitleAsync(itemId, subtitle, ct) switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => SubtitleKept.Refused,
+            HttpStatusCode.InternalServerError => SubtitleKept.NotWritten,
+            _ => SubtitleKept.KeptInJellyfinData,
+        };
+    }
+    private async Task<HttpStatusCode> SendSubtitleAsync(string itemId, SubtitleUpload subtitle, CancellationToken ct)
+    {
+        var body = new JsonObject { ["Language"] = subtitle.Language, ["Format"] = subtitle.Format, ["IsForced"] = subtitle.Forced, ["IsHearingImpaired"] = subtitle.HearingImpaired, ["Data"] = Convert.ToBase64String(subtitle.Data) };
+        using var response = await _http.PostAsJsonAsync($"Videos/{Uri.EscapeDataString(itemId)}/Subtitles", body, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.InternalServerError) return response.StatusCode;
+        await CheckAsync(response);
+        return response.StatusCode;
+    }
+    /// <summary>
+    /// The library holding this title keeps the subtitles Jellyfin is given in its own data (SaveSubtitlesWithMedia off),
+    /// its other options sent back as they were. False when it already does, or the account may not change it.
+    /// </summary>
+    private async Task<bool> KeepSubtitlesInJellyfinDataAsync(string itemId, CancellationToken ct)
+    {
+        var ancestors = await GetAsync<List<MediaItem>>($"Items/{Uri.EscapeDataString(itemId)}/Ancestors?userId={Connection.UserId}", ct);
+        using var response = await _http.GetAsync("Library/VirtualFolders", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(response);
+        var folders = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+        var library = folders.OfType<JsonObject>().FirstOrDefault(x => Field(x, "ItemId") is { } id && ancestors.Any(a => a.Id == id));
+        if (library?["LibraryOptions"] is not JsonObject options || !Flag(options, "SaveSubtitlesWithMedia")) return false;
+        var changed = (JsonObject)options.DeepClone();
+        changed["SaveSubtitlesWithMedia"] = false;
+        using var saved = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = Field(library, "ItemId"), ["LibraryOptions"] = changed }, ct);
+        if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(saved);
+        return true;
+    }
+    /// <summary>The address mpv reads a title's subtitle file from (with <see cref="AuthorizationHeader"/>), in its own format.</summary>
+    public Uri SubtitleUri(string itemId, string sourceId, MediaStream subtitle) => new(_http.BaseAddress!,
+        $"Videos/{Uri.EscapeDataString(itemId)}/{Uri.EscapeDataString(sourceId)}/Subtitles/{subtitle.Index}/0/Stream.{JellyfinSubtitles.Extension(subtitle.Codec)}");
+    /// <summary>A title's streams as Jellyfin lists them now: those of <paramref name="sourceId"/>, else of its first file.</summary>
+    public async Task<IReadOnlyList<MediaStream>> StreamsAsync(string itemId, string? sourceId, CancellationToken ct = default)
+    {
+        var sources = (await ItemAsync(itemId, ct)).MediaSources ?? [];
+        return (sources.FirstOrDefault(x => x.Id == sourceId) ?? sources.FirstOrDefault())?.MediaStreams ?? [];
+    }
+    /// <summary>
+    /// The subtitle file just kept on a title, once Jellyfin lists it (it reads the file about a second later): looked
+    /// for every 1.5 s, null after <paramref name="timeout"/>.
+    /// </summary>
+    public async Task<MediaStream?> KeptSubtitleAsync(string itemId, string? sourceId, IReadOnlyList<MediaStream> before, TimeSpan timeout, CancellationToken ct = default)
+    {
+        var until = DateTimeOffset.UtcNow + timeout;
+        while (true)
+        {
+            if (JellyfinSubtitles.Arrived(before, await StreamsAsync(itemId, sourceId, ct)) is { } arrived) return arrived;
+            if (DateTimeOffset.UtcNow >= until) return null;
+            await Task.Delay(1500, ct);
+        }
+    }
+    private static string? Field(JsonObject node, string name) => node[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+    private static bool Flag(JsonObject node, string name) => node[name] is JsonValue value && value.TryGetValue<bool>(out var on) && on;
     public async Task ReportAsync(string kind, PlaybackReport report, CancellationToken ct = default)
     {
         if (kind == "watched") { await SetPlayedAsync(report.ItemId, true, ct); return; }

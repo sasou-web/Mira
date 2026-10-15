@@ -1775,6 +1775,66 @@ try {
 }
 await resumed.close();
 
+// « Chercher des sous-titres »: Jellyfin's subtitle extension simulated (none is installed here, and Open Subtitles
+// needs an account), the rest real. The film without subtitles gets the line of its tracks, the search says what
+// leaves the server, the file found is sent to Jellyfin, which keeps it (here its media folder is read-only: in its own
+// data, the library switched) and Lecture starts with it. Then the file is deleted and the library put back.
+const subtitled = await newContext('sous-titres');
+const sb = await subtitled.newPage();
+const subtitleErrors = [];
+sb.on('pageerror', (e) => subtitleErrors.push(e.message));
+const asAdmin = (path, method = 'GET', body) => sb.evaluate(async ([p, m, b]) => {
+  const s = JSON.parse(localStorage.getItem('mira.session'));
+  const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/${p}`, { method: m, body: b === undefined ? undefined : JSON.stringify(b),
+    headers: { 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+  const t = await r.text(); return t ? JSON.parse(t) : null;
+}, [path, method, body]);
+let subtitleFilm = null, subtitleLibrary = null;
+try {
+  await sb.route(/\/Libraries\/AvailableOptions/i, (route) => route.fulfill({ json: { SubtitleFetchers: [{ Name: 'Open Subtitles', DefaultEnabled: true }] } }));
+  await sb.route(/\/RemoteSearch\/Subtitles\//i, (route) => route.fulfill({ json: [
+    { Id: 'os-traduit', Name: 'Chapitres.Web.2024.MT', ProviderName: 'Open Subtitles', Format: 'srt', ThreeLetterISOLanguageName: 'fre', DownloadCount: 9000, MachineTranslated: true },
+    { Id: 'os-exact', Name: 'Chapitres.Web.2024.WEB', ProviderName: 'Open Subtitles', Format: 'srt', ThreeLetterISOLanguageName: 'fre', DownloadCount: 1234, IsHashMatch: true },
+  ] }));
+  await sb.route(/\/Providers\/Subtitles\/Subtitles\//i, (route) => route.fulfill({ contentType: 'text/plain', body: '1\n00:00:01,000 --> 00:00:04,000\nBonjour depuis Mira\n\n' }));
+  await signIn(sb);
+  subtitleFilm = (await asAdmin('Items?recursive=true&includeItemTypes=Movie&searchTerm=Chapitres')).Items[0];
+  const userId = JSON.parse(await sb.evaluate(() => localStorage.getItem('mira.session'))).userId;
+  const ancestors = await asAdmin(`Items/${subtitleFilm.Id}/Ancestors?userId=${userId}`);
+  subtitleLibrary = (await asAdmin('Library/VirtualFolders')).find((f) => ancestors.some((a) => a.Id === f.ItemId));
+  await sb.evaluate((id) => { location.hash = `#/titre/${id}`; }, subtitleFilm.Id);
+  await sb.locator('.tracks-line').waitFor({ timeout: 10000 });
+  await sb.locator('.tracks-line').click();
+  await sb.getByRole('menuitem', { name: /Chercher des sous-titres/ }).click();
+  await sb.locator('.subtitle-search .sheet-item').first().waitFor({ timeout: 10000 });
+  const note = await sb.locator('.subtitle-search .group-note').first().innerText();
+  const rows = await sb.locator('.subtitle-search .sheet-item').allInnerTexts();
+  const languages = await sb.locator('.subtitle-search .chip').allInnerTexts();
+  await sb.screenshot({ path: `${out}/30-subtitle-search.png` });
+  await sb.locator('.subtitle-search .sheet-item').first().click();
+  await sb.locator('.toast').filter({ hasText: /Sous-titres gardés sur Jellyfin/ }).waitFor({ timeout: 40000 });
+  const said = await sb.locator('.toast').last().innerText();
+  const line = await sb.locator('.tracks-line').innerText();
+  const streams = (await asAdmin(`Items/${subtitleFilm.Id}`)).MediaSources[0].MediaStreams.filter((s) => s.Type === 'Subtitle');
+  await sb.screenshot({ path: `${out}/31-subtitle-kept.png` });
+  check('sous-titres : chercher avec l’extension de Jellyfin, garder le fichier sur Jellyfin, choisi pour Lecture',
+    /Open Subtitles.*le nom du fichier et son empreinte/.test(note) && /^Chapitres\.Web\.2024\.WEB/.test(rows[0] ?? '') && /pour ce fichier/.test(rows[0] ?? '') && /traduction automatique/.test(rows[1] ?? '')
+      && languages.join(',') === 'Français,Anglais' && /en français/.test(said) && /Sous-titres : Français/.test(line.replace(/\s+/g, ' ')) && streams.length === 1 && streams[0].IsExternal,
+    `${rows.length} résultats (${rows.map((r) => r.split('\n')[0]).join(', ')}), langues ${languages.join(', ')} ; « ${said.split('\n')[0]} » ; ${line.replace(/\s+/g, ' ')} ; ${streams.length} piste(s) sur Jellyfin`);
+} catch (error) {
+  check('sous-titres : déroulé', false, error.message.split('\n')[0]);
+  await sb.screenshot({ path: `${out}/error-subtitles.png` }).catch(() => {});
+} finally {
+  // Left as it was found, for the next run.
+  if (subtitleFilm) {
+    const added = (await asAdmin(`Items/${subtitleFilm.Id}`).catch(() => null))?.MediaSources?.[0]?.MediaStreams?.filter((s) => s.Type === 'Subtitle' && s.IsExternal) ?? [];
+    for (const s of added.reverse()) await asAdmin(`Videos/${subtitleFilm.Id}/Subtitles/${s.Index}`, 'DELETE').catch(() => {});
+  }
+  if (subtitleLibrary?.LibraryOptions) await asAdmin('Library/VirtualFolders/LibraryOptions', 'POST', { Id: subtitleLibrary.ItemId, LibraryOptions: subtitleLibrary.LibraryOptions }).catch(() => {});
+}
+check('sous-titres : aucune erreur JavaScript', subtitleErrors.length === 0, subtitleErrors.slice(0, 3).join(' | '));
+await subtitled.close();
+
 // The security policy: inline styles refused but the page's own (allowed by its hash), and the watch above sees a
 // refusal (a style attribute and a style element slipped into the page, here on purpose).
 const probe = await browser.newContext({ ...devices['iPhone 15 Pro'] });
