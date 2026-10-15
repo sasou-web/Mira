@@ -54,7 +54,6 @@ public partial class MainWindow
     private Task LeaveWelcomeAsync() => Motion.HideAsync(WelcomeOverlay);
     private async void WelcomeInstall_Click(object sender, RoutedEventArgs e) { await LeaveWelcomeAsync(); ShowServerSetup(true); }
     private async void WelcomeConnect_Click(object sender, RoutedEventArgs e) { await LeaveWelcomeAsync(); ShowSignInForm(); FocusLogin(); }
-    private async void WelcomeDemo_Click(object sender, RoutedEventArgs e) { await LeaveWelcomeAsync(); await ShowDemoAsync(); }
 
     // What's new: the main points of the versions installed since the last one this profile saw.
     private void ShowWhatsNew(IReadOnlyList<ReleaseHighlights> releases)
