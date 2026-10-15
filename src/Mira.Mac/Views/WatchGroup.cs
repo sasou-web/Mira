@@ -194,13 +194,15 @@ public sealed class WatchGroup
     /// <summary>The group's title: put on here too, paused where it starts until Jellyfin says when to play.</summary>
     private async Task QueueAsync(Session session, JsonElement data)
     {
-        if (Together.QueueItem(data) is not { } next) { Queue = null; return; }
+        if (Together.QueueItem(data) is not { } next) { if (Queue is not null) { Queue = null; Changed?.Invoke(); } return; }
         var same = Queue?.PlaylistItemId == next.PlaylistItemId;
         // Shuffle, repeat or the list changed around the same title: nothing to load again. Unless this Mac is back in the
         // group: Jellyfin holds the others until it is ready there, or told that its player is closed.
         if (same && !_rejoined) return;
         _rejoined = false;
         Queue = next;
+        // Lecture's label on the title page says whether it joins the group's title or replaces it.
+        if (!same) Changed?.Invoke();
         if (same && !(_shell.Player is { } shown && shown.Item?.Id == next.ItemId && !shown.IsStopped)) { SetAway(true); return; }
         SetAway(false);
         var start = next.StartTicks / 1e7;
@@ -240,6 +242,19 @@ public sealed class WatchGroup
         return true;
     }
 
+    /// <summary>
+    /// « Remplacer « Dune » pour tout le groupe ? », with « Remplacer »: the title the group has on (named by one request)
+    /// is replaced for everyone only once asked.
+    /// </summary>
+    public async Task OfferReplaceAsync(MediaItem item, bool fromStart)
+    {
+        if (!Active || _session is not { } session || Queue is not { } queue) return;
+        string? name = null;
+        try { name = Together.TitleName(await session.Client.ItemAsync(queue.ItemId, session.Lifetime)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+        if (!Active || !ReferenceEquals(queue, Queue)) return;
+        _shell.Notice(Together.ReplaceQuestion(name) + " Le groupe le regarde en ce moment.", "Remplacer", () => _ = AskAsync(item, fromStart), sticky: true);
+    }
     /// <summary>« Créer un groupe » (<paramref name="made"/>) or « Rejoindre … »: done once Jellyfin says GroupJoined.</summary>
     public async Task EnterAsync(Func<JellyfinClient, CancellationToken, Task> start, bool invite = false, bool made = false)
     {

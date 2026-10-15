@@ -136,6 +136,37 @@ public static class Together
     /// <summary>« Marc a rejoint le groupe », « Marc a quitté le groupe ».</summary>
     public static string MemberText(string name, bool joined) => $"{name} {(joined ? "a rejoint" : "a quitté")} le groupe";
     /// <summary>
+    /// Lecture of <paramref name="itemId"/> while the group has another title on, not over (Idle): asked first, rather
+    /// than changed for everyone unannounced. The same as Mira web's asksToReplace.
+    /// </summary>
+    public static bool AsksToReplace(Group? group, Entry? queue, string itemId) =>
+        group is not null && queue is { ItemId.Length: > 0 } && queue.ItemId != itemId && group.State != "Idle";
+    /// <summary>A title as a question names it: a film by its name, an episode with its series (« Dark · S1 · É3 »).</summary>
+    public static string TitleName(MediaItem item)
+    {
+        if (item.Type != "Episode" || string.IsNullOrEmpty(item.SeriesName)) return item.Name;
+        var code = string.Join(" · ", new[] { item.ParentIndexNumber is { } s ? $"S{s}" : "", item.IndexNumber is { } e ? $"É{e}" : "" }.Where(x => x.Length > 0));
+        return code.Length > 0 ? $"{item.SeriesName} · {code}" : item.SeriesName;
+    }
+    /// <summary>« Remplacer « Dune » pour tout le groupe ? », or « Remplacer le titre du groupe ? » when its name is not known.</summary>
+    public static string ReplaceQuestion(string? current) => string.IsNullOrEmpty(current) ? "Remplacer le titre du groupe ?" : $"Remplacer « {current} » pour tout le groupe ?";
+    /// <summary>« à 42 min », « à 1 h 05 », « à 30 s »: where the group starts a title Lecture resumes.</summary>
+    public static string AtText(double seconds)
+    {
+        var s = (long)Math.Floor(Math.Max(0, seconds)); var m = s / 60;
+        return m < 1 ? $"à {s} s" : m < 60 ? $"à {m} min" : $"à {m / 60} h {m % 60:00}";
+    }
+    /// <summary>
+    /// Lecture's label in a group, which starts the title for everyone: « Lancer pour le groupe », « Reprendre pour le
+    /// groupe à 42 min » (from this account's progress), « Lancer S01 E03 pour le groupe » (<paramref name="code"/>: the
+    /// episode, as the page writes it), « Regarder avec le groupe » on the group's own title. Mira web's groupPlayLabel.
+    /// </summary>
+    public static string GroupPlayLabel(string code, double resumeAt, bool groupTitle)
+    {
+        if (groupTitle) return "Regarder avec le groupe";
+        return string.Join(" ", new[] { resumeAt > 0 ? "Reprendre" : "Lancer", code, "pour le groupe", resumeAt > 0 && code.Length == 0 ? AtText(resumeAt) : "" }.Where(x => x.Length > 0));
+    }
+    /// <summary>
     /// The address of Jellyfin to put in an invitation: a Jellyfin on this computer at its Tailscale address when
     /// Tailscale is connected here (a friend reaches it at home and away), else at its home network's address; another
     /// server keeps the one this app reaches it at.

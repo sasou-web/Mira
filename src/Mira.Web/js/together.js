@@ -5,11 +5,13 @@
 // Its messages come through Jellyfin's WebSocket (remote.js), open while in a group. Jellyfin lets a device go with its
 // socket (an iPhone gone to Messages to send the invitation): back, it joins the group again, or makes it again under
 // the same name when it made it and the group ended empty, so that the invitation sent still finds it (views/join.js).
+// Lecture of another title than the one the group has on asks first (askFirst).
 import { api } from './api.js';
 import { listen } from './remote.js';
 import { session, temp, signedOut } from './session.js';
-import { toast } from './components.js';
-import { clockOffset, commandPlan, queueItem, groupName, serverTime, rejoinPlan, sameGroup, memberText } from './player/sync.js';
+import { h } from './dom.js';
+import { toast, sheet } from './components.js';
+import { clockOffset, commandPlan, queueItem, groupName, serverTime, rejoinPlan, sameGroup, memberText, asksToReplace, titleName, replaceQuestion } from './player/sync.js';
 
 const KEY = 'mira.together';
 const events = new EventTarget();
@@ -121,13 +123,15 @@ function groupUpdate({ Type: type, Data: data }) {
 }
 function playQueue(data) {
   const next = queueItem(data);
-  if (!next) { queue = null; return; }
+  if (!next) { if (queue) { queue = null; changed(); } return; }
   const same = queue?.playlistItemId === next.playlistItemId;
   // Shuffle, repeat or the list changed around the same title: nothing to load again. Unless this device is back in the
   // group: Jellyfin holds the others until it is ready there, or told that its player is closed.
   if (same && !rejoined) return;
   rejoined = false;
   queue = next;
+  // Lecture's label on the title page says whether it joins the group's title or replaces it.
+  if (!same) changed();
   if (same && !player) { setAway(true); return; }
   setAway(false);
   // Loading: Jellyfin holds the others until this device says it is ready.
@@ -185,9 +189,45 @@ async function enter(start) {
 // Signed out: the group is the account's (Jellyfin drops the session from it).
 signedOut.addEventListener('out', () => gone());
 
+/** The title a player link opens (#/lecture/<id>?…). */
+const linkedItem = (href) => decodeURIComponent(/^#\/lecture\/([^?]+)/.exec(href ?? '')?.[1] ?? '');
+/**
+ * Lecture of another title than the one the group has on, which would replace it for everyone (asksToReplace): a sheet
+ * asks first, naming that title, and offers to join it instead. A tap on a choice is a gesture, from which Apple's
+ * player may open. True when it asks.
+ */
+function askFirst(href) {
+  const itemId = linkedItem(href);
+  if (!itemId || !asksToReplace(group, queue, itemId)) return false;
+  const current = queue;
+  api.item(current.itemId).then(titleName, () => '').then((name) => {
+    // The group moved on meanwhile (another title, or none): asked again on what it has now.
+    if (queue !== current) { if (!askFirst(href)) location.hash = href; return; }
+    sheet({
+      title: 'Regarder ensemble',
+      body: h('div', {}, h('p', { class: 'sheet-question' }, replaceQuestion(name)),
+        h('p', { class: 'sheet-note' }, 'Le groupe le regarde en ce moment. Lecture le remplace chez chacun, au même moment.')),
+      items: [
+        { symbol: 'play', label: 'Remplacer pour le groupe', run: () => { location.hash = href; } },
+        { symbol: 'users', label: 'Regarder avec le groupe', sub: name ? `« ${name} », là où il en est.` : 'Là où il en est.', run: () => { location.hash = `#/lecture/${encodeURIComponent(current.itemId)}`; } },
+      ],
+    });
+  });
+  return true;
+}
+// Lecture through a link (a title page, a card) or a menu (components.js openPlayer).
+document.addEventListener('click', (event) => {
+  if (event.defaultPrevented || event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const link = event.target instanceof Element ? event.target.closest('a[href^="#/lecture/"]') : null;
+  if (link && askFirst(link.getAttribute('href'))) event.preventDefault();
+});
+addEventListener('mira-play', (event) => { if (askFirst(event.detail)) event.preventDefault(); });
+
 export const together = {
   get group() { return group; },
   get queue() { return queue; },
+  /** Lecture of `itemId` would replace the title the group has on (and asks first). */
+  replaces: (itemId) => asksToReplace(group, queue, itemId),
   /** `fn` at each change of the group (joined, left, someone came or went); returns what stops it. */
   watch(fn) { events.addEventListener('change', fn); return () => events.removeEventListener('change', fn); },
   /** `fn(words)` when someone joins or leaves the group (« Marc a rejoint le groupe »); returns what stops it. */

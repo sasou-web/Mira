@@ -131,6 +131,7 @@ public partial class MainWindow
     private void GroupChanged()
     {
         ShowTogetherButton(); UpdateGroupPill();
+        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) ShowDetailPlayLabel(detail);
         if (PlayerOptionsPopup.IsOpen && MoreMenu.Visibility == Visibility.Visible) ShowGroupSection();
     }
     /// <summary>
@@ -240,13 +241,15 @@ public partial class MainWindow
     /// <summary>The group's title: put on here too, paused where it starts until Jellyfin says when to play.</summary>
     private async Task GroupQueueAsync(JellyfinClient client, JsonElement data)
     {
-        if (Together.QueueItem(data) is not { } next) { _groupQueue = null; return; }
+        if (Together.QueueItem(data) is not { } next) { if (_groupQueue is not null) { _groupQueue = null; GroupChanged(); } return; }
         var same = _groupQueue?.PlaylistItemId == next.PlaylistItemId;
         // Shuffle, repeat or the list changed around the same title: nothing to load again. Unless this PC is back in the
         // group: Jellyfin holds the others until it is ready there, or told that its player is closed.
         if (same && !_groupRejoined) return;
         _groupRejoined = false;
         _groupQueue = next;
+        // Lecture's label on the title page says whether it joins the group's title or replaces it.
+        if (!same) GroupChanged();
         if (same && !(_playing && _session.Item?.Id == next.ItemId)) { SetGroupAway(true); return; }
         SetGroupAway(false);
         var start = next.StartTicks / 1e7;
@@ -273,10 +276,12 @@ public partial class MainWindow
     }
     /// <summary>
     /// Lecture in a group: Jellyfin puts the title on for every device, this one included (GroupQueueAsync). True when
-    /// the group took it; false when it plays here, at the group's title the player had left.
+    /// the group took it, or when it asks first (<paramref name="chosen"/> on a page while the group has another title
+    /// on); false when it plays here, at the group's title the player had left.
     /// </summary>
-    private async Task<bool> AskGroupAsync(MediaItem item, bool fromStart, bool completePrevious)
+    private async Task<bool> AskGroupAsync(MediaItem item, bool fromStart, bool completePrevious, bool chosen)
     {
+        if (chosen && Together.AsksToReplace(_group, _groupQueue, item.Id)) { _ = OfferReplaceAsync(item, fromStart); return true; }
         if (_groupQueue?.ItemId == item.Id)
         {
             // Every device reaches the end of an episode: the next one is put on once. The player closed on the
@@ -292,6 +297,19 @@ public partial class MainWindow
         // An episode that ended waits in the player for the next one, unless Jellyfin never sends it.
         if (PlayerShell.Visibility == Visibility.Visible && !_playing) { SetPlayerLoading(true); _ = LeaveEmptyPlayerAsync(); }
         return true;
+    }
+    /// <summary>
+    /// « Remplacer « Dune » pour tout le groupe ? », with « Remplacer »: the title the group has on (named by one request)
+    /// is replaced for everyone only once asked.
+    /// </summary>
+    private async Task OfferReplaceAsync(MediaItem item, bool fromStart)
+    {
+        if (_client is not { } client || _groupQueue is not { } queue) return;
+        string? name = null;
+        try { name = Together.TitleName(await client.ItemAsync(queue.ItemId, _connectionLifetime.Token)); }
+        catch (Exception ex) when (IsExpected(ex)) { }
+        if (!ReferenceEquals(client, _client) || !ReferenceEquals(queue, _groupQueue) || _group is null) return;
+        SetNotice(Together.ReplaceQuestion(name) + " Le groupe le regarde en ce moment.", "Remplacer", () => _ = PlayAsync(item, fromStart: fromStart));
     }
     private async Task LeaveEmptyPlayerAsync()
     {

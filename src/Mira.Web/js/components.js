@@ -336,15 +336,20 @@ export function withActions(card, item, { resumeRow = false, inTitle = false } =
   card.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') fired = false; });
 }
 
+/** The player on `href`, unless something asks first (a watch group about to change its title, together.js). */
+export function openPlayer(href) {
+  if (dispatchEvent(new CustomEvent('mira-play', { cancelable: true, detail: href }))) location.hash = href;
+}
+
 export function itemMenu(item, { resumeRow = false, inTitle = false, held = false } = {}) {
   const name = item.Type === 'Episode' ? `${item.SeriesName} · ${episodeCode(item)}` : item.Name;
   const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
   const items = [];
   // A saga plays nothing by itself: its films do, from its page.
   const plays = item.Type !== 'Series' && item.Type !== 'BoxSet';
-  if (plays) items.push({ label: progress(item) > 0 ? 'Reprendre' : 'Lecture', symbol: 'play', run: () => { location.hash = playHref(item); } });
+  if (plays) items.push({ label: progress(item) > 0 ? 'Reprendre' : 'Lecture', symbol: 'play', run: () => openPlayer(playHref(item)) });
   // A title under way starts again from its beginning, wherever its card is (Windows has it on a right click).
-  if (plays && progress(item) > 0) items.push({ label: 'Lire depuis le début', symbol: 'back10', run: () => { location.hash = playHref(item, true); } });
+  if (plays && progress(item) > 0) items.push({ label: 'Lire depuis le début', symbol: 'back10', run: () => openPlayer(playHref(item, true)) });
   const see = { Episode: 'Voir la série', BoxSet: 'Voir la saga' }[item.Type] ?? 'Voir la fiche';
   if (!inTitle) items.push({ label: see, symbol: 'info', run: () => { location.hash = titleHref(item); } });
   items.push({ label: played ? 'Marquer comme non vu' : 'Marquer comme vu', symbol: 'check', run: () => setPlayed(item, !played) });

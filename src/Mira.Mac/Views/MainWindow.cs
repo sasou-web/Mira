@@ -424,6 +424,8 @@ public sealed class MainWindow : Window
         {
             try { if (item.Type == "Series") item = await PlayerPage.EpisodeOfAsync(session, item); }
             catch (Exception ex) when (Errors.Expected(ex)) { Notice(ex is IOException ? ex.Message : Errors.Friendly(ex)); return; }
+            // Another title than the one the group has on: asked first, rather than changed for everyone unannounced.
+            if (Together.AsksToReplace(Group.Group, Group.Queue, item.Id)) { _ = Group.OfferReplaceAsync(item, fromStart); return; }
             if (await Group.AskAsync(item, fromStart)) return;
             groupStart = Group.Queue?.StartTicks ?? 0;
         }
