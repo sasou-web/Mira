@@ -1162,6 +1162,55 @@ try {
 }
 await portal.close();
 
+// « Nouvel épisode » when Mira opens (news.js): a series followed (Courte Web, made a favourite here) with episodes not
+// watched, added after the mark kept on the phone. The first look only sets the mark; an older one announces them,
+// « Voir » opens the series at the first of them, and the mark moves on: nothing the next time.
+const news = await newContext('nouveaux épisodes');
+const np = await news.newPage();
+const newsErrors = [];
+np.on('pageerror', (e) => newsErrors.push(e.message));
+const asNews = (path, method = 'GET') => np.evaluate(async ([p, m]) => {
+  const s = JSON.parse(localStorage.getItem('mira.session'));
+  const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/${p}`, { method: m, headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+  const t = await r.text(); return t ? JSON.parse(t) : null;
+}, [path, method]);
+let followed = null;
+try {
+  await signIn(np);
+  const uid = await np.evaluate(() => JSON.parse(localStorage.getItem('mira.session')).userId);
+  followed = (await asNews(`Items?recursive=true&includeItemTypes=Series&searchTerm=${encodeURIComponent(seriesName)}`)).Items[0];
+  const all = (await asNews(`Shows/${followed.Id}/Episodes?userId=${uid}`)).Items;
+  await asNews(`UserPlayedItems/${all.at(-1).Id}?userId=${uid}`, 'DELETE');
+  await asNews(`UserFavoriteItems/${followed.Id}?userId=${uid}`, 'POST');
+  const unwatched = (await asNews(`Shows/${followed.Id}/Episodes?userId=${uid}`)).Items.filter((x) => !x.UserData?.Played);
+  const key = `mira.home.${uid}.episodes`;
+  const mark = () => np.evaluate((k) => localStorage.getItem(k), key);
+  const firstMark = await np.waitForFunction((k) => localStorage.getItem(k), key, { timeout: 15000 }).then(() => mark(), () => null);
+  const firstSaid = await np.locator('.toast', { hasText: 'épisode' }).count();
+  await np.evaluate((k) => localStorage.setItem(k, '0'), key);
+  await np.reload();
+  const notice = np.locator('.toast', { hasText: 'épisode' });
+  await notice.waitFor({ timeout: 15000 }).catch(() => {});
+  const said = (await notice.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+  await np.screenshot({ path: `${out}/24-new-episodes.png` });
+  await notice.getByRole('button', { name: 'Voir' }).click({ timeout: 3000 }).catch(() => {});
+  // Several series: a sheet of them; one: the series at once.
+  await np.locator('.sheet-item', { hasText: followed.Name }).click({ timeout: 2000 }).catch(() => {});
+  await np.waitForTimeout(1500);
+  const opened = await np.evaluate(() => location.hash);
+  const movedOn = Number(await mark()) > 0;
+  await np.reload(); await np.waitForTimeout(5000);
+  const again = await np.locator('.toast', { hasText: 'épisode' }).count();
+  const wanted = `#/titre/${followed.Id}?episode=${unwatched[0]?.Id}`;
+  check('nouveaux épisodes : rien au premier passage, puis annoncés une fois, « Voir » ouvre la série à l’épisode',
+    !!firstMark && Number(firstMark) > 0 && !firstSaid && /Courte Web|séries que tu suis/.test(said) && opened === wanted && movedOn && !again && !newsErrors.length,
+    `premier passage : ${firstMark ? 'repère posé' : 'aucun repère'}${firstSaid ? ', annoncé à tort' : ''} ; « ${said || 'rien'} » ; ${opened}${opened === wanted ? '' : ` au lieu de ${wanted}`} ; ${again ? 'annoncé de nouveau' : 'pas de nouveau'}${newsErrors.length ? ` ; ${newsErrors[0]}` : ''}`);
+} catch (error) {
+  check('nouveaux épisodes : déroulé', false, error.message.split('\n')[0]);
+}
+if (followed) await asNews(`UserFavoriteItems/${followed.Id}`, 'DELETE').catch(() => {});
+await news.close();
+
 // A large library (3,000 films, simulated: Jellyfin's answers for Films are made up here). The grid asks for its
 // cards without their summaries, page by page as it scrolls; a refresh asks for the first page only, and the grid
 // keeps its cards and its scroll.

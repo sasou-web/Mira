@@ -1,0 +1,46 @@
+{
+  "about": "« Nouvel épisode »: the episodes added since the mark, of the series followed (started or favourite). Read by tests/Mira.Core.Tests (NewEpisodes, Windows notifications) and tools/web/unit (new-episodes.js, Mira web's notice): both must agree. episodes and series: as Jellyfin 12.1 answers (cut down); cases: a mark (seen, ISO) and what comes of it; texts: episodes and their line.",
+  "episodes": [
+    { "Id": "a1", "Name": "Courte Anime S01E01", "Type": "Episode", "SeriesId": "anime", "SeriesName": "Courte Anime", "DateCreated": "2026-10-14T14:07:20.2982336Z", "ParentIndexNumber": 1, "IndexNumber": 1, "UserData": { "Played": false } },
+    { "Id": "h2", "Name": "Courte HLS S01E02", "Type": "Episode", "SeriesId": "hls", "SeriesName": "Courte HLS", "DateCreated": "2026-10-14T14:07:17.7782335Z", "ParentIndexNumber": 1, "IndexNumber": 2, "UserData": { "Played": false } },
+    { "Id": "w4", "Name": "Le retour", "Type": "Episode", "SeriesId": "web", "SeriesName": "Courte Web", "DateCreated": "2026-10-14T14:07:17.1Z", "ParentIndexNumber": 1, "IndexNumber": 4, "UserData": { "Played": false } },
+    { "Id": "w3", "Name": "Le départ", "Type": "Episode", "SeriesId": "web", "SeriesName": "Courte Web", "DateCreated": "2026-10-14T14:07:16.6582334Z", "ParentIndexNumber": 1, "IndexNumber": 3, "UserData": { "Played": false } },
+    { "Id": "w5", "Name": "Déjà vu", "Type": "Episode", "SeriesId": "web", "SeriesName": "Courte Web", "DateCreated": "2026-10-14T14:07:16.9Z", "ParentIndexNumber": 1, "IndexNumber": 5, "UserData": { "Played": true } },
+    { "Id": "w2", "Name": "Courte Web S01E02", "Type": "Episode", "SeriesId": "web", "SeriesName": "Courte Web", "DateCreated": "2026-10-14T14:07:15.6582334Z", "ParentIndexNumber": 1, "IndexNumber": 2, "UserData": { "PlayedPercentage": 50.2, "Played": false } },
+    { "Id": "n1", "Name": "Sans date", "Type": "Episode", "SeriesId": "web", "SeriesName": "Courte Web", "ParentIndexNumber": 2, "IndexNumber": 1, "UserData": { "Played": false } }
+  ],
+  "series": [
+    { "Id": "anime", "Name": "Courte Anime", "Type": "Series", "UserData": { "PlayedPercentage": 0, "IsFavorite": true, "Played": false } },
+    { "Id": "hls", "Name": "Courte HLS", "Type": "Series", "UserData": { "PlayedPercentage": 0, "IsFavorite": false, "Played": false } },
+    { "Id": "web", "Name": "Courte Web", "Type": "Series", "UserData": { "PlayedPercentage": 33.33333333333333, "IsFavorite": false, "Played": false } }
+  ],
+  "newest": "2026-10-14T14:07:20.2982336Z",
+  "cases": [
+    {
+      "seen": "2026-10-14T14:07:16Z",
+      "notices": [
+        { "seriesId": "anime", "title": "Courte Anime", "text": "Nouvel épisode : S1 É1 · Courte Anime S01E01", "episode": "a1", "count": 1 },
+        { "seriesId": "web", "title": "Courte Web", "text": "2 nouveaux épisodes : S1 É3 à É4", "episode": "w3", "count": 2 }
+      ],
+      "more": null
+    },
+    { "seen": "2026-10-14T14:07:20.2982336Z", "notices": [], "more": null },
+    {
+      "seen": "2026-10-14T14:07:00Z",
+      "notices": [
+        { "seriesId": "anime", "title": "Courte Anime", "text": "Nouvel épisode : S1 É1 · Courte Anime S01E01", "episode": "a1", "count": 1 },
+        { "seriesId": "web", "title": "Courte Web", "text": "3 nouveaux épisodes : S1 É2 à É4", "episode": "w2", "count": 3 }
+      ],
+      "more": null
+    }
+  ],
+  "many": { "series": 5, "notices": ["s4", "s3", "s2"], "more": "Et 2 autres séries que tu suis ont de nouveaux épisodes." },
+  "four": { "more": "Et une autre série que tu suis a un nouvel épisode." },
+  "texts": [
+    { "episodes": [{ "Name": "Le départ", "ParentIndexNumber": 2, "IndexNumber": 5 }], "text": "Nouvel épisode : S2 É5 · Le départ" },
+    { "episodes": [{ "Name": "", "ParentIndexNumber": 2, "IndexNumber": 5 }], "text": "Nouvel épisode : S2 É5" },
+    { "episodes": [{ "Name": "Spécial", "ParentIndexNumber": 0 }], "text": "Nouvel épisode : S0 · Spécial" },
+    { "episodes": [{ "Name": "a", "ParentIndexNumber": 2, "IndexNumber": 5 }, { "Name": "b", "ParentIndexNumber": 2, "IndexNumber": 6 }, { "Name": "c", "ParentIndexNumber": 2, "IndexNumber": 7 }], "text": "3 nouveaux épisodes : S2 É5 à É7" },
+    { "episodes": [{ "Name": "a", "ParentIndexNumber": 1, "IndexNumber": 9 }, { "Name": "b", "ParentIndexNumber": 2, "IndexNumber": 1 }], "text": "2 nouveaux épisodes, dès S1 É9" }
+  ]
+}

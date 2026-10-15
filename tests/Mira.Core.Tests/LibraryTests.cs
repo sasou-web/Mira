@@ -773,6 +773,41 @@ internal static class LibraryTests
             var picked = NewEpisodes.Pick(many, followed, seen);
             Assert(picked.Notices.Select(x => x.SeriesId).SequenceEqual(["s4", "s3", "s2"]) && picked.More == "Et 2 autres séries que tu suis ont de nouveaux épisodes.", $"{string.Join(",", picked.Notices.Select(x => x.SeriesId))} {picked.More}");
         });
+        await Test("Nouveaux épisodes : séries suivies, marque, lignes et « Et 2 autres séries », comme Mira web (tests/fixtures/new-episodes.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "new-episodes.json")));
+            var root = fixture.RootElement;
+            static DateTimeOffset Date(JsonElement x) => DateTimeOffset.Parse(x.GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            var episodes = root.GetProperty("episodes").Deserialize<List<MediaItem>>(Json.Options)!;
+            var series = root.GetProperty("series").Deserialize<List<MediaItem>>(Json.Options)!.ToDictionary(x => x.Id);
+            Assert(NewEpisodes.Newest(episodes, null) == Date(root.GetProperty("newest")), "Newest: " + NewEpisodes.Newest(episodes, null));
+            Assert(series.Values.Select(NewEpisodes.Follows).SequenceEqual([true, false, true]), "Follows");
+            foreach (var row in root.GetProperty("cases").EnumerateArray())
+            {
+                var (notices, more) = NewEpisodes.Pick(episodes, series, Date(row.GetProperty("seen")));
+                var got = string.Join(" | ", notices.Select(x => $"{x.SeriesId} {x.Title} {x.Text} {x.Episode.Id} {x.Count}"));
+                var wanted = string.Join(" | ", row.GetProperty("notices").EnumerateArray().Select(x =>
+                    $"{x.GetProperty("seriesId").GetString()} {x.GetProperty("title").GetString()} {x.GetProperty("text").GetString()} {x.GetProperty("episode").GetString()} {x.GetProperty("count").GetInt32()}"));
+                Assert(got == wanted && more == row.GetProperty("more").GetString(), $"{row.GetProperty("seen")}: {got} ; {more}");
+            }
+            foreach (var row in root.GetProperty("texts").EnumerateArray())
+            {
+                var text = NewEpisodes.Text(row.GetProperty("episodes").Deserialize<List<MediaItem>>(Json.Options)!);
+                Assert(text == row.GetProperty("text").GetString(), text);
+            }
+            var seen = DateTimeOffset.Parse("2026-10-14T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
+            (List<NewEpisodes.Notice> Notices, string? More) Make(int count)
+            {
+                var many = Enumerable.Range(0, count).Select(i => new MediaItem { Id = "e" + i, Type = "Episode", SeriesId = "s" + i, Name = "x", DateCreated = seen.AddMinutes(i + 1) }).ToList();
+                return NewEpisodes.Pick(many, many.ToDictionary(x => x.SeriesId!, x => new MediaItem { Id = x.SeriesId!, Type = "Series", Name = "Série " + x.SeriesId, UserData = new() { IsFavorite = true } }), seen);
+            }
+            var five = Make(root.GetProperty("many").GetProperty("series").GetInt32());
+            Assert(five.Notices.Select(x => x.SeriesId).SequenceEqual(root.GetProperty("many").GetProperty("notices").EnumerateArray().Select(x => x.GetString()))
+                && five.More == root.GetProperty("many").GetProperty("more").GetString(), $"{string.Join(",", five.Notices.Select(x => x.SeriesId))} {five.More}");
+            Assert(Make(4).More == root.GetProperty("four").GetProperty("more").GetString() && Make(3).More is null, "Four, three");
+            return Task.CompletedTask;
+        });
         await Test("En ce moment sur Jellyfin : qui regarde quoi, tel quel ou converti, sur quel matériel et pourquoi ; « Arrêter »", async () =>
         {
             // As Jellyfin 12.1 lists its sessions (Mira web converting a WebM, cut down), plus a friend on Tailscale playing

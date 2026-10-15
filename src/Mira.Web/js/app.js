@@ -1,7 +1,7 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
 import { onUnauthorized, onReachable, onForeignServer, ping, recheckServer, trustServer, FOREIGN, UNREACHABLE, UNREACHABLE_SHORT, VERSION } from './api.js';
 import { h, icon, clear } from './dom.js';
-import { session, device, isStandalone, temp, applyTextSize, settings, storageBlocked } from './session.js';
+import { session, signedOut, device, isStandalone, temp, applyTextSize, settings, storageBlocked } from './session.js';
 import { toast, sheet } from './components.js';
 import { icons } from './icons.js';
 import { phoneNotes, worthAsking, webIcon } from './whats-new.js';
@@ -149,6 +149,9 @@ async function route() {
     replaceRoute('#/connexion');
     return;
   }
+  // « Nouvel épisode » once a session shows a screen of Mira (not the player, an invitation or the sign-in), a moment
+  // after it: when Mira opens, and right after signing in (that first time only sets the mark).
+  if (session.current && !bare && !newsLooked) { newsLooked = true; setTimeout(lookForNews, 2500); }
 
   const id = ++routeToken;
   let entry = cache.get(key);
@@ -228,6 +231,9 @@ async function route() {
   }
 }
 let lastDepth = 0, routeToken = 0, transitions = 0;
+let newsLooked = false;
+const lookForNews = () => import('./news.js').then(({ announceNewEpisodes }) => announceNewEpisodes()).catch(() => {});
+signedOut.addEventListener('out', () => { newsLooked = false; });
 
 /** The screen's title takes the focus, without a ring for a touch, unless something in the screen already has it. */
 function focusTitle(el) {
@@ -581,7 +587,11 @@ function start() {
     // Back on your network perhaps (home Wi-Fi, Tailscale turned on): api.js has just asked again.
     if (!foreign.hidden) { retryServer(); return; }
     if (probeTimer) { clearTimeout(probeTimer); probeDelay = 1000; probe(); }
-    else if (hiddenAt && Date.now() - hiddenAt > 60_000) { current?.refresh?.(); checkForUpdate(); }
+    else if (hiddenAt && Date.now() - hiddenAt > 60_000) {
+      current?.refresh?.(); checkForUpdate();
+      // A Home Screen app stays in memory for days: back after a long while, what came out meanwhile.
+      if (Date.now() - hiddenAt > 15 * 60_000) lookForNews();
+    }
   });
   addEventListener('offline', () => { if (netbar.hidden) toast('Plus de connexion : Mira reprendra dès le retour du réseau.'); });
   addEventListener('online', () => { if (probeTimer) { clearTimeout(probeTimer); probeDelay = 500; probe(); } else current?.refresh?.(); });
