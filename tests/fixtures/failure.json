@@ -1,0 +1,237 @@
+{
+  "about": "« Lecture impossible »: read by tools/web/unit (player/failure.js) and tests/Mira.Core.Tests (PlaybackFailures, Viewers.Reason); both must agree. reasons: Jellyfin's TranscodeReasons in words; media: what a file holds, in a line; attempts: a stream Mira tried; report: what Mira web sends Jellyfin's logs (input → document), and how Mira for Windows says it (heading, copy, at the offset); when: [at, now, text]; files: [name in System/Logs, a report of Mira's].",
+  "reasons": [
+    ["ContainerNotSupported", "format du fichier"],
+    ["VideoCodecNotSupported", "codec vidéo"],
+    ["AudioCodecNotSupported", "codec audio"],
+    ["SubtitleCodecNotSupported", "sous-titres à incruster"],
+    ["AudioIsExternal", "piste audio à part"],
+    ["SecondaryAudioNotSupported", "piste audio secondaire"],
+    ["VideoProfileNotSupported", "profil vidéo"],
+    ["VideoLevelNotSupported", "niveau vidéo"],
+    ["VideoResolutionNotSupported", "définition"],
+    ["VideoBitDepthNotSupported", "vidéo 10 bits"],
+    ["VideoFramerateNotSupported", "images par seconde"],
+    ["RefFramesNotSupported", "images de référence"],
+    ["AnamorphicVideoNotSupported", "image anamorphosée"],
+    ["InterlacedVideoNotSupported", "image entrelacée"],
+    ["AudioChannelsNotSupported", "canaux audio"],
+    ["AudioProfileNotSupported", "profil audio"],
+    ["AudioSampleRateNotSupported", "fréquence audio"],
+    ["AudioBitDepthNotSupported", "audio haute résolution"],
+    ["ContainerBitrateExceedsLimit", "débit au-dessus de la qualité choisie"],
+    ["VideoBitrateNotSupported", "débit vidéo"],
+    ["AudioBitrateNotSupported", "débit audio"],
+    ["UnknownVideoStreamInfo", "vidéo mal décrite"],
+    ["UnknownAudioStreamInfo", "audio mal décrit"],
+    ["DirectPlayError", "lecture directe en échec"],
+    ["VideoRangeTypeNotSupported", "HDR"],
+    ["VideoCodecTagNotSupported", "étiquette du codec vidéo"],
+    ["StreamCountExceedsLimit", "trop de pistes"],
+    ["SomethingNew", "SomethingNew"]
+  ],
+  "media": [
+    {"source": {"Id": "4f0c2a7e9b1d4c3e8a6b5d7f9e1c2b3a", "Container": "mkv", "Bitrate": 18500000, "DefaultAudioStreamIndex": 1, "Path": "C:\\Users\\snake\\Videos\\MEDIAS\\SERIES\\Courte Web\\Saison 1\\Courte Web S01E02.mkv", "TranscodingUrl": "/videos/4f0c/master.m3u8?ApiKey=secret-token&TranscodeReasons=VideoCodecNotSupported", "MediaStreams": [{"Type": "Video", "Index": 0, "Codec": "hevc", "Profile": "Main 10", "Level": 153, "BitDepth": 10, "Width": 3840, "Height": 2160, "AverageFrameRate": 23.976, "BitRate": 16000000, "VideoRange": "HDR", "VideoRangeType": "HDR10", "IsInterlaced": false, "Path": "C:\\secret\\film.mkv"}, {"Type": "Audio", "Index": 1, "Codec": "dts", "Profile": "DTS-HD MA", "Channels": 6, "ChannelLayout": "5.1", "SampleRate": 48000, "Language": "fre", "IsForced": false, "IsExternal": false}, {"Type": "Audio", "Index": 2, "Codec": "aac", "Channels": 2, "Language": "jpn"}, {"Type": "Subtitle", "Index": 3, "Codec": "PGSSUB", "Language": "fre", "IsForced": false, "IsExternal": false, "IsTextSubtitleStream": false, "DeliveryMethod": "Encode", "DeliveryUrl": "/Videos/x/Subtitles/3/0/Stream.sup?ApiKey=secret-token"}]}, "audioIndex": 1, "subtitleIndex": 3, "line": "MKV · HEVC 4K 10 bits HDR10 · DTS 5.1 · sous-titres PGS"},
+    {"source": {"Container": "mov,mp4,m4a,3gp,3g2,mj2", "DefaultAudioStreamIndex": 1, "MediaStreams": [{"Type": "Video", "Index": 0, "Codec": "h264", "BitDepth": 8, "Width": 1920, "Height": 800, "VideoRange": "SDR", "VideoRangeType": "SDR"}, {"Type": "Audio", "Index": 1, "Codec": "aac", "Channels": 2}, {"Type": "Subtitle", "Index": 2, "Codec": "subrip"}]}, "audioIndex": null, "subtitleIndex": -1, "line": "MP4 · H.264 1080p · AAC stéréo"},
+    {"source": {"Container": "mkv,webm", "Path": "/media/Films/Lueur Web (2020)/Lueur Web.webm", "MediaStreams": [{"Type": "Video", "Index": 0, "Codec": "vp9", "Width": 854, "Height": 480}, {"Type": "Audio", "Index": 1, "Codec": "opus", "Channels": 2}]}, "audioIndex": 1, "subtitleIndex": -1, "line": "WebM · VP9 SD · Opus stéréo"},
+    {"source": {"Container": "avi", "MediaStreams": [{"Type": "Video", "Index": 0, "Codec": "mpeg4", "Width": 720, "Height": 576, "IsInterlaced": true}, {"Type": "Audio", "Index": 1, "Codec": "mp3", "Channels": 1}]}, "audioIndex": null, "subtitleIndex": null, "line": "AVI · MPEG-4 SD entrelacée · MP3 mono"},
+    {"source": {"Container": "mkv", "DefaultAudioStreamIndex": 2, "MediaStreams": [{"Type": "Video", "Index": 0, "Codec": "hevc", "BitDepth": 10, "Width": 3840, "Height": 1608, "VideoRange": "HDR", "VideoRangeType": "DOVIWithHDR10"}, {"Type": "Audio", "Index": 1, "Codec": "ac3", "Channels": 6}, {"Type": "Audio", "Index": 2, "Codec": "truehd", "Channels": 8}, {"Type": "Subtitle", "Index": 3, "Codec": "ass"}]}, "audioIndex": null, "subtitleIndex": 3, "line": "MKV · HEVC 4K 10 bits Dolby Vision · Dolby TrueHD 7.1 · sous-titres ASS"},
+    {"source": null, "audioIndex": null, "subtitleIndex": null, "line": ""}
+  ],
+  "attempts": [
+    [{"stage": 0, "method": "DirectPlay", "reasons": [], "error": "Erreur 4 : MEDIA_ERR_SRC_NOT_SUPPORTED"}, "Fichier lu tel quel : Erreur 4 : MEDIA_ERR_SRC_NOT_SUPPORTED"],
+    [{"stage": 0, "method": "DirectStream", "reasons": ["ContainerNotSupported", "AudioCodecNotSupported"], "error": ""}, "Vidéo copiée par Jellyfin (format du fichier, codec audio)"],
+    [{"stage": 1, "method": "Transcode", "reasons": ["VideoCodecNotSupported", "VideoBitDepthNotSupported", "VideoCodecNotSupported"], "error": "Erreur 4"}, "Vidéo convertie par Jellyfin (codec vidéo, vidéo 10 bits) : Erreur 4"],
+    [{"stage": 1, "method": "Transcode", "reasons": ["DirectPlayError"], "error": "Erreur 4 : MEDIA_ELEMENT_ERROR: Format error"}, "Vidéo convertie par Jellyfin : Erreur 4 : MEDIA_ELEMENT_ERROR: Format error"],
+    [{"stage": 2, "method": "Transcode", "reasons": ["VideoCodecNotSupported"], "error": "Erreur bufferAppendError"}, "Tout converti par Jellyfin en H.264 et AAC stéréo (codec vidéo) : Erreur bufferAppendError"],
+    [{"stage": 1, "method": "", "reasons": [], "error": "Jellyfin ne sait pas convertir ce fichier pour cet appareil."}, "Demandé à Jellyfin : Jellyfin ne sait pas convertir ce fichier pour cet appareil."]
+  ],
+  "report": {
+    "input": {
+      "item": {
+        "Id": "4f0c2a7e9b1d4c3e8a6b5d7f9e1c2b3a",
+        "Type": "Episode",
+        "Name": "Le départ",
+        "SeriesName": "Courte Web",
+        "ParentIndexNumber": 1,
+        "IndexNumber": 2
+      },
+      "source": {
+        "Id": "4f0c2a7e9b1d4c3e8a6b5d7f9e1c2b3a",
+        "Container": "mkv",
+        "Bitrate": 18500000,
+        "DefaultAudioStreamIndex": 1,
+        "Path": "C:\\Users\\snake\\Videos\\MEDIAS\\SERIES\\Courte Web\\Saison 1\\Courte Web S01E02.mkv",
+        "TranscodingUrl": "/videos/4f0c/master.m3u8?ApiKey=secret-token&TranscodeReasons=VideoCodecNotSupported",
+        "MediaStreams": [
+          {
+            "Type": "Video",
+            "Index": 0,
+            "Codec": "hevc",
+            "Profile": "Main 10",
+            "Level": 153,
+            "BitDepth": 10,
+            "Width": 3840,
+            "Height": 2160,
+            "AverageFrameRate": 23.976,
+            "BitRate": 16000000,
+            "VideoRange": "HDR",
+            "VideoRangeType": "HDR10",
+            "IsInterlaced": false,
+            "Path": "C:\\secret\\film.mkv"
+          },
+          {
+            "Type": "Audio",
+            "Index": 1,
+            "Codec": "dts",
+            "Profile": "DTS-HD MA",
+            "Channels": 6,
+            "ChannelLayout": "5.1",
+            "SampleRate": 48000,
+            "Language": "fre",
+            "IsForced": false,
+            "IsExternal": false
+          },
+          {
+            "Type": "Audio",
+            "Index": 2,
+            "Codec": "aac",
+            "Channels": 2,
+            "Language": "jpn"
+          },
+          {
+            "Type": "Subtitle",
+            "Index": 3,
+            "Codec": "PGSSUB",
+            "Language": "fre",
+            "IsForced": false,
+            "IsExternal": false,
+            "IsTextSubtitleStream": false,
+            "DeliveryMethod": "Encode",
+            "DeliveryUrl": "/Videos/x/Subtitles/3/0/Stream.sup?ApiKey=secret-token"
+          }
+        ]
+      },
+      "audioIndex": 1,
+      "subtitleIndex": 3,
+      "message": "Ce titre n’a pas pu être lu sur cet appareil, même entièrement converti par Jellyfin.",
+      "attempts": [
+        {
+          "stage": 0,
+          "method": "DirectStream",
+          "reasons": [
+            "ContainerNotSupported",
+            "AudioCodecNotSupported"
+          ],
+          "error": "Erreur 3 : PIPELINE_ERROR_DECODE"
+        },
+        {
+          "stage": 1,
+          "method": "Transcode",
+          "reasons": [
+            "VideoCodecNotSupported",
+            "VideoBitDepthNotSupported",
+            "VideoCodecNotSupported"
+          ],
+          "error": "Erreur 4"
+        },
+        {
+          "stage": 2,
+          "method": "Transcode",
+          "reasons": [
+            "VideoCodecNotSupported",
+            "SubtitleCodecNotSupported"
+          ],
+          "error": "Erreur 4 : MEDIA_ERR_SRC_NOT_SUPPORTED"
+        }
+      ],
+      "device": "iPhone",
+      "user": "mira",
+      "version": "0.7.8",
+      "browser": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1",
+      "at": "2026-10-15T19:03:00.000Z"
+    },
+    "document": {
+      "mira": "lecture-impossible",
+      "at": "2026-10-15T19:03:00.000Z",
+      "title": "Courte Web · S1 · É2 · Le départ",
+      "itemId": "4f0c2a7e9b1d4c3e8a6b5d7f9e1c2b3a",
+      "device": "iPhone",
+      "user": "mira",
+      "version": "0.7.8",
+      "browser": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1",
+      "file": "Courte Web S01E02.mkv",
+      "media": "MKV · HEVC 4K 10 bits HDR10 · DTS 5.1 · sous-titres PGS",
+      "message": "Ce titre n’a pas pu être lu sur cet appareil, même entièrement converti par Jellyfin.",
+      "attempts": [
+        "Vidéo copiée par Jellyfin (format du fichier, codec audio) : Erreur 3 : PIPELINE_ERROR_DECODE",
+        "Vidéo convertie par Jellyfin (codec vidéo, vidéo 10 bits) : Erreur 4",
+        "Tout converti par Jellyfin en H.264 et AAC stéréo (codec vidéo, sous-titres à incruster) : Erreur 4 : MEDIA_ERR_SRC_NOT_SUPPORTED"
+      ],
+      "container": "mkv",
+      "bitrate": 18500000,
+      "streams": [
+        {
+          "Type": "Video",
+          "Index": 0,
+          "Codec": "hevc",
+          "Profile": "Main 10",
+          "Level": 153,
+          "BitDepth": 10,
+          "Width": 3840,
+          "Height": 2160,
+          "AverageFrameRate": 23.976,
+          "BitRate": 16000000,
+          "VideoRange": "HDR",
+          "VideoRangeType": "HDR10",
+          "IsInterlaced": false
+        },
+        {
+          "Type": "Audio",
+          "Index": 1,
+          "Codec": "dts",
+          "Profile": "DTS-HD MA",
+          "Channels": 6,
+          "ChannelLayout": "5.1",
+          "SampleRate": 48000,
+          "Language": "fre",
+          "IsForced": false,
+          "IsExternal": false
+        },
+        {
+          "Type": "Audio",
+          "Index": 2,
+          "Codec": "aac",
+          "Channels": 2,
+          "Language": "jpn"
+        },
+        {
+          "Type": "Subtitle",
+          "Index": 3,
+          "Codec": "PGSSUB",
+          "Language": "fre",
+          "IsForced": false,
+          "IsExternal": false,
+          "IsTextSubtitleStream": false,
+          "DeliveryMethod": "Encode"
+        }
+      ]
+    },
+    "heading": "« Courte Web · S1 · É2 · Le départ » sur iPhone (mira)",
+    "offset": "+02:00",
+    "copy": "« Courte Web · S1 · É2 · Le départ » n’a pas pu être lu sur iPhone (mira), le 15 octobre 2026 à 21 h 03.\nFichier : Courte Web S01E02.mkv\nMédia : MKV · HEVC 4K 10 bits HDR10 · DTS 5.1 · sous-titres PGS\nMessage : Ce titre n’a pas pu être lu sur cet appareil, même entièrement converti par Jellyfin.\nEssayé :\n- Vidéo copiée par Jellyfin (format du fichier, codec audio) : Erreur 3 : PIPELINE_ERROR_DECODE\n- Vidéo convertie par Jellyfin (codec vidéo, vidéo 10 bits) : Erreur 4\n- Tout converti par Jellyfin en H.264 et AAC stéréo (codec vidéo, sous-titres à incruster) : Erreur 4 : MEDIA_ERR_SRC_NOT_SUPPORTED\nMira web 0.7.8 · Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1\n"
+  },
+  "when": [
+    ["2026-10-15T21:03:00+02:00", "2026-10-15T23:59:00+02:00", "aujourd’hui à 21 h 03"],
+    ["2026-10-14T09:30:00+02:00", "2026-10-15T00:10:00+02:00", "hier à 9 h 30"],
+    ["2026-10-03T21:03:00+02:00", "2026-10-15T12:00:00+02:00", "le 3 octobre à 21 h 03"],
+    ["2025-12-31T23:05:00+01:00", "2026-10-15T12:00:00+02:00", "le 31 décembre 2025 à 23 h 05"]
+  ],
+  "files": [
+    ["upload_Mira_0.7.8_20261015125646_a3ff29ab7540457088a18de430f9df17.log", true],
+    ["upload_Mira web_0.7.8_20261015124641_770d8b.log", false],
+    ["upload_Jellyfin Web_10.11.0_20261015124641_770d8b.log", false],
+    ["log_20261015.log", false],
+    ["upload_Mira_0.7.8_x.txt", false]
+  ]
+}

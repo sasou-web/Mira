@@ -894,6 +894,59 @@ internal static class LibraryTests
                 Assert(Viewers.Clock(row[0].GetDouble()) == row[1].GetString(), $"Clock of {row[0]}: {Viewers.Clock(row[0].GetDouble())}");
             return Task.CompletedTask;
         });
+        await Test("Lecture impossible : les rapports de Mira web lus dans les journaux de Jellyfin, comme Mira web les écrit (tests/fixtures/failure.json)", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "failure.json")));
+            var root = fixture.RootElement;
+            foreach (var row in root.GetProperty("reasons").EnumerateArray())
+                Assert(Viewers.Reason(row[0].GetString()!) == row[1].GetString(), $"{row[0]}: {Viewers.Reason(row[0].GetString()!)}");
+            foreach (var row in root.GetProperty("files").EnumerateArray())
+                Assert(PlaybackFailures.IsMira(row[0].GetString()) == row[1].GetBoolean(), "File: " + row[0].GetString());
+            var report = root.GetProperty("report");
+            var document = JsonSerializer.Serialize(report.GetProperty("document"), new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var failure = PlaybackFailures.Parse(document) ?? throw new Exception("Not read: " + document);
+            Assert(PlaybackFailures.Heading(failure) == report.GetProperty("heading").GetString(), PlaybackFailures.Heading(failure));
+            var at = failure.At.ToOffset(TimeSpan.Parse(report.GetProperty("offset").GetString()!.TrimStart('+'), System.Globalization.CultureInfo.InvariantCulture));
+            var copy = PlaybackFailures.Text(failure, at);
+            Assert(copy == report.GetProperty("copy").GetString() + "\nDétail technique :\n" + document + "\n", copy);
+            static DateTimeOffset Time(JsonElement e) => DateTimeOffset.Parse(e.GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            foreach (var row in root.GetProperty("when").EnumerateArray())
+            {
+                var when = PlaybackFailures.When(Time(row[0]), Time(row[1]));
+                Assert(when == row[2].GetString(), $"{row[0]}: {when}");
+            }
+            Assert(PlaybackFailures.Parse("""{"mira":"autre","at":"2026-10-15T19:03:00Z"}""") is null && PlaybackFailures.Parse("pas du JSON") is null
+                && PlaybackFailures.Parse("""{"mira":"lecture-impossible"}""") is null && PlaybackFailures.Parse("[1]") is null, "Not a report");
+            // From Jellyfin (12.1's System/Logs): Mira's reports only, the latest first, one deleted meanwhile or too large
+            // skipped; none for an account that may not read the logs.
+            var refuse = false; var read = new List<string>();
+            var logs = """
+                [{"DateCreated":"2026-10-15T12:46:41Z","DateModified":"2026-10-15T12:46:41Z","Size":2100,"Name":"upload_Mira_0.7.8_20261015124641_a1.log"},
+                 {"DateCreated":"2026-10-15T00:00:00Z","DateModified":"2026-10-15T12:59:00Z","Size":90000,"Name":"log_20261015.log"},
+                 {"DateCreated":"2026-10-15T12:56:46Z","DateModified":"2026-10-15T12:56:46Z","Size":2100,"Name":"upload_Mira_0.7.8_20261015125646_b2.log"},
+                 {"DateCreated":"2026-10-15T12:50:00Z","DateModified":"2026-10-15T12:50:00Z","Size":2100,"Name":"upload_Mira_0.7.8_20261015125000_gone.log"},
+                 {"DateCreated":"2026-10-15T12:40:00Z","DateModified":"2026-10-15T12:40:00Z","Size":900000,"Name":"upload_Mira_0.7.8_20261015124000_big.log"},
+                 {"DateCreated":"2026-10-15T12:30:00Z","DateModified":"2026-10-15T12:30:00Z","Size":40,"Name":"upload_Mira_0.7.8_20261015123000_c3.log"}]
+                """;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (refuse) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+                if (path == "/System/Logs") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(logs, Encoding.UTF8, "application/json") });
+                if (!path.StartsWith("/System/Logs/Log?name=", StringComparison.Ordinal)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+                var name = Uri.UnescapeDataString(path["/System/Logs/Log?name=".Length..]); read.Add(name);
+                if (name.Contains("gone", StringComparison.Ordinal)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+                var text = name.Contains("_b2", StringComparison.Ordinal) ? document.Replace("Le départ", "Le retour", StringComparison.Ordinal)
+                    : name.Contains("_a1", StringComparison.Ordinal) ? document : """{"autre":true}""";
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(text, Encoding.UTF8, "text/plain") });
+            }));
+            var found = await client.PlaybackFailuresAsync() ?? throw new Exception("No reports");
+            Assert(string.Join(" | ", found.Select(x => x.Title)) == "Courte Web · S1 · É2 · Le retour | Courte Web · S1 · É2 · Le départ", string.Join(" | ", found.Select(x => x.Title)));
+            Assert(string.Join(",", read) == "upload_Mira_0.7.8_20261015125646_b2.log,upload_Mira_0.7.8_20261015125000_gone.log,upload_Mira_0.7.8_20261015124641_a1.log,upload_Mira_0.7.8_20261015123000_c3.log", "Read: " + string.Join(",", read));
+            refuse = true;
+            Assert(await client.PlaybackFailuresAsync() is null, "Not an administrator");
+        });
         await Test("Carte graphique : NVIDIA, puis Intel, puis AMD ; un adaptateur sans fabricant connu n’en propose aucune", () =>
         {
             var cards = GpuEncoding.Candidates(["Microsoft Basic Display Adapter", "AMD Radeon RX 6600", "Intel(R) UHD Graphics 770", null, " ", "NVIDIA GeForce RTX 3060", "NVIDIA GeForce GT 710", "Parsec Virtual Display Adapter"]);

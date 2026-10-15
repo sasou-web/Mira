@@ -3,9 +3,9 @@
 // of its menu. Elsewhere, Mira's controls on top: resume, ±10 s, a timeline with previews, opening and recap to skip,
 // the next episode, audio and subtitle tracks, speed, quality, AirPlay and Picture in Picture. Progress goes to
 // Jellyfin as on Windows, and the next episode follows in the same player.
-import { api, signed, ping, onForeignServer, recheckServer, isLocalHost, viaTailscale } from '../api.js';
+import { api, signed, ping, onForeignServer, recheckServer, isLocalHost, viaTailscale, VERSION } from '../api.js';
 import { h, icon, clear, clock, seconds, ticks, episodeCode } from '../dom.js';
-import { settings, device } from '../session.js';
+import { settings, device, session } from '../session.js';
 import { artFor, imageUrl, picture } from '../images.js';
 import { sheet, toast, changed, titleHref } from '../components.js';
 import { goBack } from '../app.js';
@@ -13,11 +13,12 @@ import { deviceProfile, lastResortProfile, useHlsJs, audioTracks as switchesAudi
 import { sharedVideo, appleNative } from './video.js';
 import { trackText, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex } from './tracks.js';
 import {
-  knownBitrate, autoBitrate, UNMEASURED_BITRATE, nextStage, stageRequest, videoErrorText, hlsErrorText, videoErrorStep,
+  knownBitrate, autoBitrate, UNMEASURED_BITRATE, nextStage, stageRequest, videoError, videoErrorText, hlsError, hlsErrorText, videoErrorStep,
   hlsErrorStep, afterCheck, resumeTicks, playbackError, chooseStream, burnedIn, subtitleSwitch, webVttAddress,
   progressFraction, startPosition,
 } from './stream.js';
 import { presentationStep } from './presentation.js';
+import { mediaLine, attemptText, transcodeReasons, failureReport } from './failure.js';
 import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, creditsFrom, nativeNextAt, trickCell, chapterMarks, chapterPassages, withChapters, withoutFromStart } from './timeline.js';
 import { QUALITIES } from '../views/settings.js';
 import { sleep, sleepChoices } from './sleep.js';
@@ -87,6 +88,9 @@ export function create({ id, query }) {
   // The stage of the cascade a title refused by the player is asked at (stream.js): 0 as Jellyfin decides, 1 its video
   // converted, 2 everything converted. Kept for the title (seeks, other tracks), back to 0 for the next one.
   let fallback = 0, lastError = '';
+  // The streams asked for the title, { stage, method, reasons, error } (failure.js): those that failed, and the one in
+  // the <video> (current). Said under « Lecture impossible ».
+  let attempts = [], current = null;
   let streamAttempt = 0;      // the opening whose stream is in the <video>: errors of an older one say nothing
   let inband = false;         // the HLS stream carries the text subtitles (Apple's player): no <track> beside it
   let started = false, ended = false, progressTimer = 0, lastReport = 0;
@@ -459,7 +463,7 @@ export function create({ id, query }) {
     // An opening or a check of the server still on its way for the title before lands on nothing.
     opening++;
     item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0; inband = false;
-    audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; started = false; ended = false;
+    audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; attempts = []; current = null; started = false; ended = false;
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
     titleStart = 0; creditsWatched = false; lastAt = 0;
     skipped.clear();
@@ -512,6 +516,8 @@ export function create({ id, query }) {
     const attempt = ++opening;
     currentStart = startTicks ?? 0;
     busy.hidden = false; hideMessage(); failed = false;
+    const tried = { stage: fallback, method: '', reasons: [], error: '' };
+    attempts.push(tried);
     if (started) { await report('progress'); }
     try {
       const max = await bitrate(source?.Bitrate ?? item.MediaSources?.[0]?.Bitrate ?? 0);
@@ -540,6 +546,7 @@ export function create({ id, query }) {
       if (!stream) throw new Error('Jellyfin ne propose aucun flux lisible pour cet appareil.');
       const url = signed(stream.address), hlsStream = stream.hlsStream;
       ({ playMethod, progressive, inband } = stream);
+      tried.method = playMethod; tried.reasons = transcodeReasons(source.TranscodingUrl); current = tried;
       offset = progressive ? seconds(startTicks) : 0;
       if (!(await attach(url, hlsStream, progressive ? 0 : seconds(startTicks), attempt)) || attempt !== opening || disposed || closing) return;
       // Apple's player was left while the next episode loaded: the person closed it, before WebKit even said so.
@@ -552,6 +559,7 @@ export function create({ id, query }) {
       busy.hidden = true;
       // Jellyfin did not answer (PC asleep, network changing): Mira waits for it rather than giving up.
       if (error?.unreachable && item) { waitForServer(startTicks); return; }
+      tried.error ||= error.message || '';
       fail(error.message || 'La lecture n’a pas pu démarrer.');
     }
   }
@@ -578,6 +586,7 @@ export function create({ id, query }) {
         // (a segment it could not make), the stream is asked again with more of it converted.
         if (hlsErrorStep({ fatal: data.fatal, mediaError: data.type === Hls.ErrorTypes.MEDIA_ERROR, recovered }) === 'recover') { recovered = true; hls.recoverMediaError(); return; }
         lastError = hlsErrorText({ details: data.details, type: data.type, stage: fallback });
+        if (current) current.error = hlsError({ details: data.details, type: data.type });
         // Read before hls.js resets the video (its time back to 0); the failed stream stops there.
         const at = resumeAt(), paused = streamPlaying && video.paused;
         hls.stopLoad();
@@ -786,17 +795,46 @@ export function create({ id, query }) {
   // ---------- Errors and messages ----------
   function showMessage(content) { clear(message).append(content); message.hidden = false; }
   function hideMessage() { message.hidden = true; }
+  /**
+   * « Lecture impossible »: why, what the file holds (« MKV · HEVC 4K 10 bits HDR10 · DTS 5.1 »), each stream Mira
+   * tried, and « Envoyer le détail à Jellyfin »: the same in a report Mira for Windows shows its administrator.
+   */
   function fail(text, detail = '') {
     failed = true; switching = false;
     busy.hidden = true;
     clearTimeout(nativeCheck);
     exitPresentation();
     showNative('');
+    const file = source ?? item?.MediaSources?.[0];
+    const media = mediaLine(file, { audioIndex, subtitleIndex });
+    const tried = attempts.filter((a) => a.method).map(attemptText);
+    const report = item ? failureReport({
+      item, source: file, audioIndex, subtitleIndex, message: text, attempts, device: device.name,
+      user: session.current?.userName, version: VERSION, browser: navigator.userAgent,
+    }) : null;
+    const sent = h('p', { class: 'detail', role: 'status' });
+    const send = report ? h('button', { class: 'btn quiet small', on: { click: () => sendReport(report, send, sent) } }, 'Envoyer le détail à Jellyfin') : null;
     showMessage(h('div', {}, icon('warning', { size: 36 }), h('h2', { class: 'h3' }, 'Lecture impossible'), h('p', {}, text),
-      detail ? h('p', { class: 'detail' }, detail) : null,
+      media ? h('p', { class: 'detail media' }, media) : null,
+      tried.length ? h('ol', { class: 'tried', 'aria-label': 'Essayé' }, tried.map((line) => h('li', {}, line))) : detail ? h('p', { class: 'detail' }, detail) : null,
       h('div', { class: 'actions' },
         h('button', { class: 'btn', on: { click: close } }, 'Retour'),
-        h('button', { class: 'btn primary', on: { click: retry } }, 'Réessayer'))));
+        h('button', { class: 'btn primary', on: { click: retry } }, 'Réessayer')),
+      send, sent));
+  }
+  /** The report in Jellyfin's logs; said under the button, which goes once it is there. */
+  async function sendReport(report, button, said) {
+    button.disabled = true; said.textContent = 'Envoi…';
+    try {
+      await api.sendLog(report);
+      button.remove();
+      said.textContent = 'Envoyé à Jellyfin. Mira pour Windows le montre à son administrateur : Réglages → Jellyfin & synchronisation.';
+    } catch (error) {
+      button.disabled = false;
+      said.textContent = error?.status === 403
+        ? 'Ton serveur Jellyfin refuse les rapports des appareils (son réglage AllowClientLogUpload est coupé). Ce qui est écrit ici reste valable.'
+        : error?.message || 'L’envoi n’a pas abouti.';
+    }
   }
   function retry() {
     hideMessage(); failed = false; showNative('loading');
@@ -876,6 +914,8 @@ export function create({ id, query }) {
       busy.hidden = true; hideMessage(); updatePlayIcon();
       groupResumed();
       streamPlaying = true;
+      // What played is no failure: only the streams refused before it stay, for a later « Lecture impossible ».
+      attempts = attempts.filter((a) => a.error || a === current);
       // After a stall, only the spinner went: the controls show at the start and after a pause made by the person (and
       // keep hiding by themselves whenever they are shown).
       if (!started || resumedByUser || !el.classList.contains('idle')) showControls();
@@ -939,6 +979,7 @@ export function create({ id, query }) {
       if (disposed || closing || !item || !video.getAttribute('src') || streamAttempt !== opening) return;
       const code = video.error?.code;
       lastError = videoErrorText({ code, message: video.error?.message, playMethod, stage: fallback });
+      if (current) current.error = videoError({ code, message: video.error?.message });
       // A file Safari was thought to play directly but cannot (decode, format): Jellyfin converts it instead, at once.
       if (videoErrorStep({ playMethod, stage: fallback, code }) === 'convert') { nextFallback()(resumeAt(), streamPlaying && video.paused); return; }
       // Anything else: the server is asked. Silent, Mira waits for it; answering, the stream is at fault: asked again,

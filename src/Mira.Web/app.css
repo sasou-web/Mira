@@ -757,13 +757,16 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .up-next strong { display: block; font-size: calc(14px * var(--text)); line-height: 1.3; }
 .up-next .actions { grid-column: 1 / -1; display: flex; gap: 8px; }
 .up-next .actions .btn { flex: 1; height: 40px; font-size: calc(14px * var(--text)); }
-.p-message { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 32px; background: rgba(0, 0, 0, 0.82); text-align: center; }
-.p-message > div { display: grid; justify-items: center; gap: 12px; max-width: 360px; }
+.p-message { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 32px; overflow-y: auto; overscroll-behavior: contain; background: rgba(0, 0, 0, 0.82); text-align: center; }
+/* Taller than the screen (a phone on its side, « Lecture impossible » and what Mira tried): from its top, scrolled. */
+.p-message > div { display: grid; justify-items: center; gap: 12px; max-width: 360px; margin: auto; }
 .p-message p { color: rgba(255, 255, 255, 0.75); }
 /* A message over the picture: the play controls under it go, only the top bar (Retour, title) stays. */
 .player:has(.p-message:not([hidden])) :is(.p-center, .p-bottom) { visibility: hidden; }
 .p-message p.detail { font-size: calc(12px * var(--text)); color: rgba(255, 255, 255, 0.5); overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
 .p-message .actions { display: flex; gap: 10px; margin-top: 6px; }
+.p-message p.media { color: rgba(255, 255, 255, 0.75); font-weight: 600; }
+.p-message ol.tried { display: grid; gap: 4px; margin: 0; padding-left: 18px; text-align: left; font-size: calc(12px * var(--text)); color: rgba(255, 255, 255, 0.5); overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
 /* Apple's player (iPhone, iPad) plays in full screen: under it, the title and what Mira is doing, seen as it opens and closes. */
 .player.native { display: grid; grid-template-rows: auto 1fr; background: var(--bg); }
 .n-top { padding: calc(var(--top) + 8px) calc(var(--right) + 12px) 0 calc(var(--left) + 12px); }

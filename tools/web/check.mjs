@@ -913,14 +913,16 @@ try {
       if (state.t > 1.5 || state.failed) break;
     }
     return fp.evaluate(() => ({ t: document.querySelector('video')?.currentTime ?? 0, message: document.querySelector('.p-message:not([hidden])')?.textContent ?? '',
-      detail: document.querySelector('.p-message:not([hidden]) .detail')?.textContent ?? '' }));
+      detail: document.querySelector('.p-message:not([hidden]) .detail')?.textContent ?? '',
+      tried: [...document.querySelectorAll('.p-message:not([hidden]) ol.tried li')].map((li) => li.textContent) }));
   };
   let state = await play(2);
   check('lecture refusée : demandée à nouveau, vidéo puis tout converti, et elle joue', asks.join(',') === '111,001,000' && state.t > 1.5 && !state.message,
     `demandes ${asks.join(', ')} (lecture directe, vidéo copiée, audio copié), ${state.t.toFixed(1)} s`);
   state = await play(99);
-  check('lecture refusée partout : le dit, avec l’erreur du navigateur', asks.join(',') === '111,001,000' && /même entièrement converti/.test(state.message) && /^Erreur/.test(state.detail),
-    `demandes ${asks.join(', ')}, « ${state.detail} »`);
+  check('lecture refusée partout : le dit, avec le fichier et l’erreur du navigateur à chaque essai', asks.join(',') === '111,001,000' && /même entièrement converti/.test(state.message)
+    && /^MKV · H\.264/.test(state.detail) && state.tried.length === 3 && state.tried.every((line) => / : Erreur/.test(line)),
+    `demandes ${asks.join(', ')}, « ${state.detail} » ; ${state.tried.join(' | ')}`);
   await fp.screenshot({ path: `${out}/17-refused.png` });
 } catch (error) {
   check('lecture refusée : déroulé', false, error.message.split('\n')[0]);
@@ -1126,11 +1128,60 @@ try {
   const test = seen.find((x) => x.what === 'test'), item = seen.find((x) => x.what === 'item' && x.id === film), info = seen.find((x) => x.what === 'info');
   check('par Tailscale : connexion mesurée pendant le chargement du titre, fichier tel quel quand elle le tient',
     played && !!test && !!item && test.at <= item.at && info?.max === 120_000_000 && seen.filter((x) => x.what === 'test').length === 1,
-    `${seen.map((x) => x.what + (x.max ? ` ${x.max / 1e6} Mb/s` : '')).join(' → ')}${played ? ', lu' : ', pas lu'}`);
+    `${seen.map((x) => (x.id === film ? 'titre' : x.what) + (x.max ? ` ${x.max / 1e6} Mb/s` : '')).join(' → ')}${played ? ', lu' : ', pas lu'}`);
 } catch (error) {
   check('par Tailscale : déroulé', false, error.message.split('\n')[0]);
 }
 await tailnet.close();
+
+// « Lecture impossible »: every stream of a title refused (here, cut off while Jellyfin answers). The screen says what
+// the file holds and each stream Mira tried; « Envoyer le détail à Jellyfin » leaves the report among Jellyfin's logs,
+// where Mira for Windows reads it (System/Logs), without the token or the file's folders.
+const broken = await newContext('lecture impossible');
+try {
+  const bp = await broken.newPage();
+  await signIn(bp);
+  const film = await bp.evaluate(async () => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { api } = await import(`${root}api.js`);
+    const found = (await api.browse({ types: 'Movie', search: 'Lueur Web' })).Items?.[0];
+    return found ? { id: found.Id, name: found.Name } : null;
+  });
+  await bp.route(/\/videos\/[0-9a-f]{32}\//i, (route) => route.abort());
+  await bp.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.id);
+  await bp.waitForSelector('.p-message:not([hidden]) h2', { timeout: 45000 });
+  const screen = await bp.evaluate(() => ({
+    title: document.querySelector('.p-message h2')?.textContent,
+    media: document.querySelector('.p-message p.media')?.textContent ?? '',
+    tried: [...document.querySelectorAll('.p-message ol.tried li')].map((li) => li.textContent),
+  }));
+  check('lecture impossible : ce que contient le fichier, puis chaque flux essayé',
+    screen.title === 'Lecture impossible' && /^WebM · VP9 /.test(screen.media) && screen.tried.length >= 2
+      && /^Fichier lu tel quel/.test(screen.tried[0]) && /^Tout converti/.test(screen.tried.at(-1)),
+    `${screen.media} ; ${screen.tried.join(' | ')}`);
+  await bp.screenshot({ path: `${out}/lecture-impossible.png` });
+  await bp.getByRole('button', { name: 'Envoyer le détail à Jellyfin' }).click();
+  const said = await bp.locator('.p-message p[role=status]').filter({ hasText: /Envoyé|refuse|abouti|Jellyfin a/ }).innerText({ timeout: 10000 }).catch(() => '');
+  const logged = await bp.evaluate(async () => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    const headers = { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` };
+    const root = location.pathname.replace(/\/Mira\/?.*$/i, '');
+    const files = await (await fetch(`${root}/System/Logs`, { headers })).json();
+    const latest = files.filter((f) => /^upload_Mira_/.test(f.Name)).sort((a, b) => b.DateModified.localeCompare(a.DateModified))[0];
+    const text = latest ? await (await fetch(`${root}/System/Logs/Log?name=${encodeURIComponent(latest.Name)}`, { headers })).text() : '';
+    return { name: latest?.Name ?? '', text, token: s.token };
+  });
+  let sent = null;
+  try { sent = JSON.parse(logged.text); } catch { /* not a report */ }
+  check('lecture impossible : le détail envoyé à Jellyfin, lisible par Mira pour Windows, sans jeton ni dossier',
+    /^Envoyé/.test(said) && sent?.mira === 'lecture-impossible' && sent.title === film.name && sent.media === screen.media
+      && sent.attempts.length === screen.tried.length && /\.webm$/i.test(sent.file ?? '') && !logged.text.includes(logged.token)
+      && !/\/media\/|ApiKey|api_key/i.test(logged.text),
+    `${said} ; ${logged.name}`);
+} catch (error) {
+  check('lecture impossible : déroulé', false, error.message.split('\n')[0]);
+}
+await broken.close();
 
 // The site's storage blocked (Safari's « Bloquer tous les cookies »): reading it throws. Mira opens on the sign-in
 // screen, says what it needs, and still signs in, for as long as it stays open.
