@@ -1,10 +1,13 @@
 // Home: a banner of titles, then Continuer à regarder, the latest additions and your favourites, as on Windows, in the
 // order chosen in the settings (« Accueil à ta main », home-rows.js), with the latest titles of a library if asked.
+// A « Regarder ensemble » group open on Jellyfin is a line under the banner, to join it, while this device is in none.
 import { api } from '../api.js';
 import { h, icon, clear, episodeCode, duration, seconds, progress, reducedMotion } from '../dom.js';
 import { artFor, picture, logo } from '../images.js';
 import { session, settings, settingsChanged, isIOS, isStandalone } from '../session.js';
 import { homeRows, CONTINUE, LATEST, FAVORITES } from '../home-rows.js';
+import { together } from '../together.js';
+import { people } from '../player/sync.js';
 import {
   row, wideCard, posterCard, skeletonRow, emptyState, errorState, changes, titleHref, playHref, reconcile, cardSig,
 } from '../components.js';
@@ -36,6 +39,9 @@ export function withoutHidden(items, hidden, history) {
     return !when || played(x) > when || history.some((y) => group(y) === group(x) && played(y) > when);
   });
 }
+
+// The account Jellyfin does not let watch together (403 on its groups): asked no more.
+let refusedFor = null;
 
 function cacheKey() { return `mira.home.${session.current?.userId}`; }
 function readCache() { try { return JSON.parse(localStorage.getItem(cacheKey()) ?? 'null'); } catch { return null; } }
@@ -115,6 +121,8 @@ export function create() {
   // The parts drawn last time, changed in place when the server's answer differs: a row keeps its cards (pictures
   // and all) and its scroll, and only what changed is drawn again.
   let heroSig = '', titleBox = null, banner, emptyBox = null;
+  // Jellyfin's « Regarder ensemble » groups, read at each refresh of Home (never on a clock), and the line of the one shown.
+  let groups = [], groupBox = null;
   const sections = new Map();
   const spacer = h('div', { style: { height: '24px' } });
   function section(title, items, card, options) {
@@ -144,9 +152,32 @@ export function create() {
     if (track && left) { track.style.scrollBehavior = 'auto'; track.scrollLeft = left; track.style.scrollBehavior = ''; }
   }
 
+  /**
+   * « Groupe de Marc · 2 personnes · Rejoindre »: the first group open on Jellyfin, a tap from its invitation page
+   * (views/join.js), which joins it and opens its title once the group plays one. None while this device is in one.
+   */
+  function groupLine() {
+    const open = together.group ? null : groups[0];
+    if (!open) { groupBox = null; return null; }
+    const key = JSON.stringify([open.GroupId, open.GroupName, open.Participants?.length]);
+    if (groupBox?.key !== key) {
+      groupBox = h('a', { class: 'home-group', href: `#/ensemble/${open.GroupId}` }, icon('users', { size: 20 }),
+        h('span', { class: 'grow' }, h('b', {}, open.GroupName), ` · ${people(open.Participants?.length ?? 1)}`),
+        h('span', { class: 'chip' }, 'Rejoindre'));
+      groupBox.key = key;
+    }
+    return groupBox;
+  }
+  async function loadGroups() {
+    const account = session.current?.userId;
+    if (!account || refusedFor === account) return;
+    try { groups = (await api.syncGroups()) ?? []; } catch (error) { if (error?.status === 403) { refusedFor = account; groups = []; } return; }
+    if (session.current?.userId === account) render();
+  }
+
   function render() {
     // Nothing new from the server: the screen stays as it is, rows where the finger left them.
-    const signature = data ? JSON.stringify([data, settings.get('hiddenResume') ?? {}, settings.get('homeRows')]) : '';
+    const signature = data ? JSON.stringify([data, settings.get('hiddenResume') ?? {}, settings.get('homeRows'), groupLine()?.key ?? '']) : '';
     if (signature && signature === drawn) return;
     drawn = signature;
     const kept = positions();
@@ -179,7 +210,7 @@ export function create() {
       if (x.key === FAVORITES) return section(x.title, data.favorites, (y) => posterCard(y));
       return section(x.title, data.rows?.[x.library], (y) => posterCard(y));
     });
-    const parts = [top, banner, ...rows].filter(Boolean);
+    const parts = [top, banner, groupLine(), ...rows].filter(Boolean);
     if (!cont.length && !data.latest.length && !data.favorites.length && !Object.values(data.rows ?? {}).some((x) => x.length)) {
       parts.push(emptyBox ??= emptyState({ symbol: 'films', title: 'Ta bibliothèque est vide', text: 'Les films et séries ajoutés à Jellyfin apparaîtront ici.' }));
     }
@@ -193,6 +224,7 @@ export function create() {
 
   async function load() {
     if (loading) return loading;
+    loadGroups();
     loading = (async () => {
       try {
         const [resume, next, history, latest, favorites, libraries] = await Promise.all([
@@ -228,6 +260,13 @@ export function create() {
   // A title removed or put back on another device (account-choices.js).
   const onSetting = (event) => { if (event.detail === 'hiddenResume' && el.isConnected) render(); };
   settingsChanged.addEventListener('change', onSetting);
+  // Joined or left a group: the line goes, or comes back with the groups as they are now (the one left may be over).
+  let inGroup = together.group?.GroupId ?? null;
+  const unwatchGroup = together.watch(() => {
+    if ((together.group?.GroupId ?? null) === inGroup) return;
+    inGroup = together.group?.GroupId ?? null;
+    render(); loadGroups();
+  });
 
   render();
   const first = load();
@@ -244,8 +283,9 @@ export function create() {
       if (kept) { restore(kept); heroBox?.light?.(); kept = null; }
       const missing = data && homeRows(settings.get('homeRows'), data.libraries ?? []).some((x) => x.shown && x.library && !data.rows?.[x.library]);
       if (missing || Date.now() - loadedAt > 30_000) load();
+      else loadGroups();
     },
     refresh: load,
-    dispose() { heroBox?.stop?.(); changes.removeEventListener('item', onChange); settingsChanged.removeEventListener('change', onSetting); },
+    dispose() { heroBox?.stop?.(); changes.removeEventListener('item', onChange); settingsChanged.removeEventListener('change', onSetting); unwatchGroup(); },
   };
 }

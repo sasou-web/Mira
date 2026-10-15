@@ -429,6 +429,16 @@ body:has(.sheet-layer) .toast-layer { z-index: 89; }
 .banner .grow { flex: 1; }
 
 /* ---------- Home ---------- */
+/* « Regarder ensemble »: a group open on Jellyfin, a tap away (views/home.js). */
+.home-group {
+  display: flex; align-items: center; gap: 12px; margin: 16px var(--gutter) 0; padding: 8px 8px 8px 14px; border-radius: var(--r-m);
+  background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: calc(14px * var(--text)); transition: background var(--fast) linear;
+}
+.home-group .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-group b { color: var(--ink); font-weight: 700; }
+.home-group .chip { height: 34px; background: var(--accent); color: var(--on-accent); }
+html:not(.touch) .home-group:active, .home-group.pressed { background: var(--raised); }
+@media (hover: hover) { .home-group:hover { background: var(--raised); } }
 .hero { position: relative; height: clamp(440px, 128vw, 74dvh); overflow: hidden; background: var(--surface); }
 .hero-track { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; }
 .slide { position: relative; flex: 0 0 100%; height: 100%; scroll-snap-align: start; }

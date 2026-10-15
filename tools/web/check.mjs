@@ -1357,9 +1357,9 @@ await big.close();
 // gets its invitation, the other opens the link signed out, signs in and is in the group; Lecture on the first opens the
 // title on both, playing together; a pause and a jump on the first reach the second; the second away a few seconds
 // (iOS suspends a page in another app: Jellyfin lets its session go) comes back into the group in step; leaving the
-// group on the second, after Lecture of another title asked before replacing the group's (joined instead). Then the
-// host away until Jellyfin ends the empty group: the link waits for it, and the group made again by the host on its
-// return is joined.
+// group on the second, after Lecture of another title asked before replacing the group's (joined instead); the group
+// on the second's Home, joined from there. Then the host away until Jellyfin ends the empty group: the link waits for
+// it, and the group made again by the host on its return is joined.
 const togetherA = await newContext('ensemble (1)'), togetherB = await newContext('ensemble (2)');
 const ta = await togetherA.newPage(), tb = await togetherB.newPage();
 const togetherErrors = [];
@@ -1531,6 +1531,31 @@ try {
   const leftLine = (await line(tb).innerText()).replace(/\s+/g, ' ').trim();
   check('ensemble : fermer le lecteur laisse les autres regarder, et sauter ; quitter le groupe', stillA && !stillA.paused && stillA.t < seekFrom - 4 && leftLine === 'Regarder ensemble' && !togetherErrors.length,
     `${stillA && !stillA.paused ? 'l’autre continue' : 'l’autre s’est arrêté'}, de ${seekFrom.toFixed(2)} s à ${stillA?.t.toFixed(2)} s ; « ${leftLine} »${togetherErrors.length ? ` ; ${togetherErrors.slice(0, 2).join(' | ')}` : ''}`);
+  // Home, out of the group: the group open on Jellyfin is a line, a tap from joining it (its title then opens, as
+  // the group plays it); once in it, the line goes.
+  const homeGroup = tb.locator('#view .home-group');
+  await tb.evaluate(() => { location.hash = '#/'; });
+  await homeGroup.waitFor({ timeout: 10000 }).catch(() => {});
+  const offered = (await homeGroup.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+  await tb.screenshot({ path: `${out}/23-together-home.png` });
+  await homeGroup.click().catch(() => {});
+  await tb.waitForFunction((id) => /Tu es dans/.test(document.querySelector('#view h1')?.textContent ?? '') || location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 15000 }).catch(() => {});
+  const fromHome = (await tb.evaluate(() => location.hash)).startsWith(`#/lecture/${film.Id}`) ? 'titre du groupe ouvert' : (await tb.locator('#view h1').innerText().catch(() => '')).trim();
+  let inGroup = [];
+  for (let i = 0; i < 10 && inGroup.length < 2; i++) { inGroup = (await asA('SyncPlay/List'))?.find((g) => g.GroupId === groupId)?.Participants ?? []; if (inGroup.length < 2) await tb.waitForTimeout(500); }
+  await tb.evaluate(() => { location.hash = '#/'; }); await tb.waitForTimeout(2500);
+  const lineInGroup = await homeGroup.count();
+  // Out of it again, for what follows (the host alone, then away).
+  await tb.evaluate(async () => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { together } = await import(`${root}together.js`);
+    await together.leave();
+  });
+  await tb.waitForTimeout(1000);
+  check('ensemble : l’accueil montre le groupe ouvert sur Jellyfin, à rejoindre d’un toucher, et plus une fois dedans',
+    offered.includes(`Groupe de ${user}`) && offered.includes('1 personne') && offered.endsWith('Rejoindre') && (fromHome === 'titre du groupe ouvert' || /^Tu es dans « Groupe de .+ »$/.test(fromHome))
+      && inGroup.length === 2 && lineInGroup === 0,
+    `« ${offered} » ; ${fromHome || 'rien'} ; ${inGroup.length} dans le groupe ; ligne ${lineInGroup ? 'encore là' : 'partie'} une fois dedans`);
   await ta.screenshot({ path: `${out}/23-together.png` });
   // The host alone, away (its iPhone in Messages to send the link): Jellyfin ends the empty group. A link without its
   // host (sent before) has nothing to find; the link of now waits, then joins the group the host makes again on its return.
