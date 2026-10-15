@@ -194,6 +194,7 @@ public partial class MainWindow : Window
         await Motion.HideAsync(StartupVeil, 220);
         _startupComplete = true;
     }
+    // The fictional catalogue of the checks and of the gallery (--demo): the app itself offers no demo.
     private async Task ShowDemoAsync()
     {
         await DisconnectServicesAsync();
@@ -566,7 +567,6 @@ public partial class MainWindow : Window
     private static T? TryCache<T>(Func<T> read) { try { return read(); } catch (Exception ex) when (IsCacheFailure(ex)) { return default; } }
     private static void TryCache(Action write) { try { write(); } catch (Exception ex) when (IsCacheFailure(ex)) { } }
     private static bool IsCacheFailure(Exception ex) => ex is SqliteException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException;
-    private async void Demo_Click(object sender, RoutedEventArgs e) => await ShowDemoAsync();
     private void Account_Click(object sender, RoutedEventArgs e)
     {
         ClosePreview(); ServerBox.Text = _client?.Connection.Server ?? "http://127.0.0.1:8096"; UsernameBox.Text = _client?.Connection.UserName ?? "";

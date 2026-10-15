@@ -4,9 +4,9 @@ Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vi
 
 ## Démarrer
 
-Ouvrir **`dist/Mira/Mira.exe`**. L’adresse proposée est `http://127.0.0.1:8096` : Jellyfin reste lancé en arrière-plan sur le PC. Se connecter avec son compte Jellyfin, ou choisir **Explorer la démo** pour découvrir l’interface avec des titres et illustrations fictifs.
+Ouvrir **`dist/Mira/Mira.exe`**. L’adresse proposée est `http://127.0.0.1:8096` : Jellyfin reste lancé en arrière-plan sur le PC. Se connecter avec son compte Jellyfin.
 
-Au tout premier lancement, un écran de bienvenue explique ce que font Jellyfin (le serveur qui garde tes vidéos) et Mira (le lecteur), puis propose d’installer Jellyfin sur ce PC, de se connecter à un serveur ou de découvrir la démo.
+Au tout premier lancement, un écran de bienvenue explique ce que font Jellyfin (le serveur qui garde tes vidéos) et Mira (le lecteur), puis propose d’installer Jellyfin sur ce PC ou de se connecter à un serveur.
 
 **Guide de démarrage** : bouton **?** de la barre de gauche, touche **F1**, **Réglages → Jellyfin & synchronisation**, ou **Où mettre mes vidéos ?** quand la bibliothèque est vide. Il montre les dossiers de chaque bibliothèque Jellyfin (bouton **Ouvrir**) avec des exemples de noms reconnus. Il ouvre aussi la page d’administration de Jellyfin dans le navigateur, pour ajouter une bibliothèque, créer un compte ou ouvrir l’accès depuis Internet. Il donne aussi l’adresse à entrer dans l’application Jellyfin d’une TV ou d’une console : celle de ce PC sur le réseau de la maison, quand Jellyfin y tourne. Le guide s’ouvre une fois après la première connexion.
 
@@ -72,7 +72,7 @@ Le moteur vidéo mpv s’installe depuis l’installateur (case cochée par déf
 - File persistante pour les envois échoués, reprise des tentatives toutes les 3 secondes, état et erreur visibles dans Réglages → Jellyfin & synchronisation. Un rapport refusé définitivement (titre supprimé) ne bloque plus les suivants ; à la fermeture, Mira laisse jusqu’à 2 secondes au dernier rapport pour partir.
 - Écoute des changements Jellyfin par WebSocket et actualisation de secours toutes les 45 secondes lorsque l’application est active.
 
-Les commandes **Favoris** et la lecture mettent à jour le compte connecté. Le mode démo ne communique pas avec Jellyfin ; son bouton de lecture permet de choisir une vidéo locale.
+Les commandes **Favoris** et la lecture mettent à jour le compte connecté.
 
 ## TorLink
 
@@ -107,7 +107,7 @@ Prérequis : Windows 10 2004 ou plus récent, x64, SDK .NET 10, une bibliothèqu
 
 ```powershell
 dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
-dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo
+dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .artifacts/dev-profile
 dotnet run --project tests/Mira.Tests/Mira.Tests.csproj -c Release
 ```
 
