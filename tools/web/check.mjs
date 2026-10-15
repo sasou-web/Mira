@@ -74,6 +74,29 @@ try {
   const count = await page.locator('.library-count').innerText();
   check('films : grille', /film/.test(count), count);
   await shot('03-films');
+  // « Lettre », with the sort by title only: the films under L (tools/web/media.sh: Aube, Chapitres, Lueur, Signes).
+  const sortBy = async (label) => {
+    await page.locator('#view .library .chip', { hasText: 'Trier' }).click();
+    await page.locator('.sheet-item', { hasText: label }).click(); await wait(1500);
+  };
+  const letterChip = () => page.locator('#view .library .chip', { hasText: 'Lettre' });
+  const chipBefore = await letterChip().count();
+  await sortBy('Titre');
+  await letterChip().click(); await wait(500);
+  await shot('03-films-letters');
+  await page.locator('.letters .letter', { hasText: /^L$/ }).click(); await wait(500);
+  // The page's own cards, not the placeholders it shows while Jellyfin answers.
+  const titlesShown = () => page.locator('#view .library .grid .card:not([aria-hidden="true"]) .card-title');
+  const settled = () => page.waitForFunction(() => document.querySelectorAll('#view .library .grid .card').length > 0
+    && !document.querySelector('#view .library .grid .card[aria-hidden="true"]'), null, { timeout: 10000 }).catch(() => {});
+  await settled();
+  const lettered = await titlesShown().allInnerTexts();
+  const chipText = await letterChip().innerText().catch(() => '');
+  await shot('03-films-letter');
+  await sortBy('Ajouts récents'); await settled();
+  const afterLetter = await titlesShown().count();
+  check('films : « Lettre » avec le tri par titre seulement, les titres en L', !chipBefore && lettered.join(', ') === 'Lueur Web (2020)' && /Lettre : L/.test(chipText)
+    && await letterChip().count() === 0 && afterLetter >= 4, `${lettered.join(', ')} ; « ${chipText} » ; ${afterLetter} films avec un autre tri`);
 
   await page.locator('.tabbar a[data-tab="search"]').click(); await wait(800);
   await page.fill('input[type=search]', seriesName.split(' ')[0]); await wait(1800);
