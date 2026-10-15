@@ -9,6 +9,7 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 - **Vérifié sur Jellyfin 12.1 (conteneur)** : extension 0.7.8 installée depuis un dépôt local, dépôt passé à 0.7.9, tâche lancée par l’API : finie en 1 s, `/Plugins` donne 0.7.8 `Superseded` et 0.7.9 `Restart` ; après `System/Restart`, 0.7.9 `Active`. Puis par `JellyfinClient` lui-même (0.7.9 → 0.7.10) : `UpdatePluginsNowAsync` vrai en 1,1 s, 0.7.10 en attente, servie 4 s après le redémarrage. La tâche tourne aussi au démarrage de Jellyfin et toutes les 24 h (`StartupTrigger`, `IntervalTrigger`).
 - **Tests** : versions lues de `/Plugins` (servie, en attente, désactivée, absente), tâche lancée et attendue, tâche déjà en cours attendue sans la relancer, tâche trop longue, compte invité (Core, partout).
 - **Non vérifié** : l’avis « Redémarrer Jellyfin » dans Mira pour Windows sur un vrai PC.
+- **Nouveau dans Mira, sur le téléphone** : connecté sur une extension 0.7.7, Jellyfin passé à 0.7.8 par sa tâche puis redémarré, Mira web rouvert montre « Mira 0.7.8 » avec ses seuls points pour le téléphone (Regarder ensemble, Minuterie), une seule fois ; rien à la connexion, ni sur une invitation (la feuille attend l’accueil), ni pour une connexion faite pendant l’ouverture ; une session antérieure (version vue inconnue) voit la version actuelle (Chromium, Jellyfin 12.1 en conteneur, aucune erreur ni refus de la politique de sécurité). Pas encore vu sur un vrai iPhone.
 
 ## Le PC serveur ne s’endort pas pendant une lecture ailleurs (non publié)
 

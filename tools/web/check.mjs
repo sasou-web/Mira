@@ -15,6 +15,7 @@
 // Robustness: the site's storage blocked, a Wi-Fi's page answering for Jellyfin, a library of 3,000 films.
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
+import { phoneNotes } from '../../src/Mira.Web/js/whats-new.js';
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
 const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-check', seriesName = 'Courte Web', out = 'shots/e2e'] = process.argv.slice(2);
 fs.mkdirSync(out, { recursive: true });
@@ -63,6 +64,9 @@ try {
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
   await page.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   await wait(3000);
+  const version = await page.evaluate(() => document.querySelector('meta[name="mira-version"]').content);
+  const seenVersion = () => page.evaluate(() => JSON.parse(localStorage.getItem('mira.settings') ?? '{}').seenVersion ?? null);
+  check('connexion : « Nouveau dans Mira » attend la version suivante', (await seenVersion()) === version && !(await page.locator('.news').count()), `${version}, vue ${await seenVersion()}`);
   check('accueil : rangées affichées', await page.locator('.section').count() > 0, `${await page.locator('.section h2').allInnerTexts()}`);
   await shot('02-home');
 
@@ -362,6 +366,17 @@ try {
   check('grand écran : barre de navigation à gauche', await page.locator('.tabbar').evaluate((n) => getComputedStyle(n).flexDirection === 'column'));
   await shot('10-wide-home');
   await page.setViewportSize({ width: 393, height: 852 }); await wait(300);
+  // After an update of Mira web (a phone that last saw 0.0.1): its points for the phone, once, those of WhatsNew.json.
+  const notes = phoneNotes(JSON.parse(fs.readFileSync(new URL('../../src/Mira.Core/WhatsNew.json', import.meta.url), 'utf8')), '0.0.1', version);
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('mira.settings') ?? '{}'); s.seenVersion = '0.0.1'; localStorage.setItem('mira.settings', JSON.stringify(s)); });
+  await page.reload(); await wait(4500);
+  const news = await page.locator('.sheet .news').count() ? await page.locator('.sheet .news').innerText() : '';
+  if (news) await shot('10b-whats-new');
+  await page.getByRole('button', { name: 'C’est parti' }).click({ timeout: 2000 }).catch(() => {}); await wait(600);
+  await page.reload(); await wait(4500);
+  check('« Nouveau dans Mira » : les points de Mira web de la nouvelle version, une seule fois',
+    (notes.length ? news.includes(`Mira ${notes[0].version}`) && notes[0].items.every((x) => news.includes(x.title)) : !news) && (await seenVersion()) === version && !(await page.locator('.news').count()),
+    notes.length ? `${notes[0].version} : ${notes[0].items.map((x) => x.title).join(', ')}` : `aucun point pour Mira web jusqu’à ${version}`);
   await page.locator('.tabbar a[data-tab="settings"]').click(); await wait(1200);
   // What the account left on the phone (its screens, and in the settings what it did with its titles), and a setting
   // of this phone, through Mira's own settings.

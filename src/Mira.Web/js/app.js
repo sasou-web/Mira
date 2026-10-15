@@ -1,8 +1,10 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
-import { onUnauthorized, onReachable, onForeignServer, ping, recheckServer, trustServer, FOREIGN, UNREACHABLE, UNREACHABLE_SHORT } from './api.js';
+import { onUnauthorized, onReachable, onForeignServer, ping, recheckServer, trustServer, FOREIGN, UNREACHABLE, UNREACHABLE_SHORT, VERSION } from './api.js';
 import { h, icon, clear } from './dom.js';
-import { session, device, isStandalone, temp, applyTextSize } from './session.js';
-import { toast } from './components.js';
+import { session, device, isStandalone, temp, applyTextSize, settings, storageBlocked } from './session.js';
+import { toast, sheet } from './components.js';
+import { icons } from './icons.js';
+import { phoneNotes, worthAsking, webIcon } from './whats-new.js';
 import { setupPress } from './press.js';
 import './player/video.js';
 
@@ -203,6 +205,8 @@ async function route() {
     current.enter?.({ query });
     // A screen reader, or the keyboard, starts on the new screen's title rather than on what was touched to get here.
     if (move && !bare) focusTitle(current.el);
+    // Once the move is drawn (a sheet opened during it would be drawn with it).
+    if (newsWaiting && !bare) setTimeout(offerNews, 600);
   };
   // iOS's moves: a screen comes in from the right and goes back to it; a tab's screen dissolves into the next (see
   // dissolve). The player opens on its own (Apple's full screen, or Mira's), the first screen without a move, and a
@@ -419,6 +423,40 @@ async function applyUpdate(hidden = false) {
 }
 let touched = false;
 
+// ---------- « Nouveau dans Mira » ----------
+// Once Jellyfin serves a new Mira web (see above), its main points for the phone, once (whats-new.js). Never at the
+// first sign-in (login.js), in the player or on an invitation: the next screen with the tab bar shows them, and a sheet
+// already open goes first.
+let newsWaiting = false;
+const busyScreen = () => currentBare || !!document.querySelector('.sheet-layer:not(.leaving)');
+async function offerNews() {
+  newsWaiting = false;
+  const seen = settings.get('seenVersion');
+  // Without the site's storage, nothing would keep it from coming back at every start.
+  if (!session.current || pendingUpdate || !worthAsking(seen, VERSION) || storageBlocked()) return;
+  if (busyScreen()) { newsWaiting = true; return; }
+  let notes;
+  try {
+    const response = await fetch(new URL('../whats-new.json', import.meta.url));
+    if (!response.ok) return;
+    notes = phoneNotes(await response.json(), seen, VERSION);
+  } catch { return; } // Server away: asked again at the next start.
+  if (busyScreen()) { newsWaiting = true; return; }
+  settings.set('seenVersion', VERSION);
+  if (!notes.length) return;
+  const [latest, ...older] = notes, known = new Set(Object.keys(icons));
+  let close = () => {};
+  const body = h('div', { class: 'news' },
+    h('h2', { class: 'news-version' }, `Mira ${latest.version}`),
+    h('ul', { class: 'news-list' }, latest.items.map((item) => h('li', { class: 'news-item' },
+      h('span', { class: 'news-badge' }, icon(webIcon(item.icon, known))),
+      h('div', {}, h('div', { class: 'news-name' }, item.title), h('p', { class: 'news-text' }, item.text))))),
+    // Versions skipped by this update: one line each, as Mira for Windows says them.
+    older.slice(0, 2).map((entry) => h('p', { class: 'news-also' }, `Aussi en ${entry.version} : ${entry.items.map((x) => x.title).join(', ')}.`)),
+    h('button', { class: 'btn primary block', on: { click: () => close() } }, 'C’est parti'));
+  close = sheet({ title: 'Nouveau dans Mira', body });
+}
+
 let fadedTitle = null;
 function updateScrolled() {
   document.body.classList.toggle('scrolled', scrollY > 8);
@@ -554,8 +592,10 @@ function start() {
     temp.set('mira.notice', 'Ta session a pris fin. Reconnecte-toi.');
     replaceRoute('#/connexion');
   });
+  // Signed in when Mira opened: only then is a new version news here (a sign-in shows nothing, see offerNews).
+  const signedIn = !!session.current;
   route();
-  checkForUpdate();
+  const updateChecked = checkForUpdate();
   // The other screens' code, fetched while nothing happens (not from another server): the first visit to a screen then
   // shows it at once.
   setTimeout(() => yours().then((mine) => {
@@ -563,6 +603,8 @@ function start() {
     for (const r of ROUTES) if (!r.open) r.load().catch(() => {});
     // A « Regarder ensemble » group this page was in before a reload: joined again, to follow its titles.
     if (session.current) import('./together.js').then(({ together }) => together.restore()).catch(() => {});
+    // What is new, unless a newer Mira web is about to replace this one.
+    if (signedIn) updateChecked.then(offerNews);
   }), 2500);
 }
 

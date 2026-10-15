@@ -94,6 +94,7 @@ const defaults = {
   installHintDismissed: false,
   homeRows: '',         // the home page's rows, in order, « - » before one put away (home-rows.js); empty: as Mira shows them
   textSize: 100,        // percent: Mira's text, for whoever finds it small (the bars' labels and the icons keep theirs)
+  seenVersion: '',      // the last Mira web whose « Nouveau dans Mira » this device saw (whats-new.js); empty: none yet
 };
 
 export const settings = {

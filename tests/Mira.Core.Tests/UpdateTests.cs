@@ -120,7 +120,7 @@ internal static class UpdateTests
             var current = MpvPackage.Current;
             Assert(current.Url.Scheme == "https" && current.ArchiveName.EndsWith(".7z") && current.ArchiveSha256.Length == 64 && current.LibrarySha256.Length == 64 && current.Size > 1_000_000, "Pinned engine");
         });
-        await Test("Nouveautés : bienvenue sur un profil neuf, points forts après une mise à jour, notes de version courtes", () =>
+        await Test("Nouveautés : bienvenue sur un profil neuf, points forts après une mise à jour, notes de version courtes, comme Mira web (tests/fixtures/whats-new.json)", () =>
         {
             var all = WhatsNew.All;
             Assert(all.Count >= 2 && all.Select(x => x.Number).SequenceEqual(all.Select(x => x.Number).OrderDescending()), "Versions not newest first");
@@ -144,6 +144,17 @@ internal static class UpdateTests
             };
             Assert(decisions.SequenceEqual([StartupScreen.Welcome, StartupScreen.WhatsNew, StartupScreen.WhatsNew, StartupScreen.None, StartupScreen.None, StartupScreen.None, StartupScreen.Welcome]),
                 "Startup screens: " + string.Join(", ", decisions));
+            // The versions shown after an update, here and by Mira web (js/whats-new.js), with the points Mira web shows.
+            using var shared = JsonDocument.Parse(File.ReadAllText(Path.Combine(Repository() ?? throw new Exception("Repository not found"), "tests", "fixtures", "whats-new.json")));
+            var sharedEntries = WhatsNew.Parse(shared.RootElement.GetProperty("entries").GetRawText());
+            static string Names(JsonElement list) => string.Join(" ", list.EnumerateArray().Select(x => x.GetString()));
+            foreach (var row in shared.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var seen = row.GetProperty("seen").GetString()!; var current = ReleaseFeed.ParseVersion(row.GetProperty("current").GetString()!)!;
+                var shown = WhatsNew.Since(ReleaseFeed.ParseVersion(seen), current, sharedEntries);
+                Assert(string.Join(" ", shown.Select(x => x.Version)) == Names(row.GetProperty("since")), $"Since {seen} up to {current}: " + string.Join(" ", shown.Select(x => x.Version)));
+                Assert(string.Join(" ", shown.Where(x => x.Items.Any(i => i.Web)).Select(x => x.Version)) == Names(row.GetProperty("phone")), $"Mira web, since {seen} up to {current}");
+            }
             var notes = WhatsNew.ReleaseNotes(all[0]);
             Assert(notes.StartsWith(all[0].Summary) && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains("/docs/INSTALLATION-WEB.md")
                 && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Length < 1500, "Release notes:\n" + notes);
