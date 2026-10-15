@@ -19,26 +19,36 @@ public partial class MainWindow
         Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, Choice(SortFilter), _catalog.Person?.Id);
     /// <summary>The title page a person's titles were chosen from (<see cref="Catalog.Person"/>).</summary>
     private MediaItem? _personFrom;
+    /// <summary>The search a person was found by (« Personnes »): taken back when their titles are left.</summary>
+    private string? _personSearch;
     private string _personReturnView = "home";
-    /// <summary>A name clicked on a title page: the library with this person's titles, the page kept to come back to.</summary>
-    private async Task ShowPersonAsync(PersonInfo person, bool directed)
+    /// <summary>
+    /// A name clicked on a title page, or found by a search (<paramref name="search"/>; <paramref name="directed"/> is
+    /// then unknown): the library with this person's titles, the page or the search kept to come back to.
+    /// </summary>
+    private async Task ShowPersonAsync(PersonInfo person, bool? directed, string? search = null)
     {
         if (person.Id is not { Length: > 0 } id) return;
-        var from = _detail; var view = _catalog.View;
+        var from = search is null ? _detail : null; var view = _catalog.View;
         ResetFilters();
-        (_catalog.Person, _personFrom, _personReturnView, _catalog.View) = ((id, person.Name, directed), from, view, "library");
+        (_catalog.Person, _personFrom, _personSearch, _personReturnView, _catalog.View) = ((id, person.Name, directed), from, search, view, "library");
         ShowPersonFilter();
         await NavigateLibraryAsync();
     }
-    /// <summary>Back from a person's titles: the page they were chosen from, over the view it was opened from.</summary>
+    /// <summary>Back from a person's titles: the page they were chosen from, or the search, over the view it was opened from.</summary>
     private async Task BackFromPersonAsync()
     {
-        var title = _personFrom; var view = _personReturnView;
+        var title = _personFrom; var search = _personSearch; var view = _personReturnView;
         ResetFilters(); _catalog.View = view;
+        if (search is not null) { _filterBusy = true; SearchBox.Text = search; _filterBusy = false; }
         await NavigateLibraryAsync();
         if (title is not null) await ShowDetailsAsync(title);
     }
-    private async void PersonFilter_Click(object sender, RoutedEventArgs e) { _catalog.Person = null; _personFrom = null; ShowPersonFilter(); await RefreshAsync(); }
+    private async void PersonFilter_Click(object sender, RoutedEventArgs e)
+    {
+        if (_personSearch is not null) { await BackFromPersonAsync(); return; }
+        _catalog.Person = null; _personFrom = null; ShowPersonFilter(); await RefreshAsync();
+    }
     private void ShowPersonFilter()
     {
         PersonFilter.Visibility = _catalog.Person is null ? Visibility.Collapsed : Visibility.Visible;
@@ -60,7 +70,7 @@ public partial class MainWindow
     }
     private void ResetFilters()
     {
-        _filterBusy = true; SearchBox.Text = ""; _catalog.ParentId = null; _catalog.Favorites = false; _catalog.Person = null; _personFrom = null;
+        _filterBusy = true; SearchBox.Text = ""; _catalog.ParentId = null; _catalog.Favorites = false; _catalog.Person = null; _personFrom = null; _personSearch = null;
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = WatchedFilter.SelectedIndex = SortFilter.SelectedIndex = LibraryFilter.SelectedIndex = 0;
         _filterBusy = false; ShowFavoritesFilter(); ShowPersonFilter();
     }
@@ -128,6 +138,7 @@ public partial class MainWindow
         ResumeSection.Visibility = home && row.Count > 0 && HomeShows(HomeLayout.Continue) ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
         RenderShelves(home);
+        RenderPeople(search);
         // « Ajoutés récemment » put away (Réglages → Apparence): the home page ends with its rows.
         var grid = !home || HomeShows(HomeLayout.Latest);
         GridHeader.Visibility = PosterCards.Visibility = grid ? Visibility.Visible : Visibility.Collapsed;
@@ -151,6 +162,25 @@ public partial class MainWindow
         LoadMore.Visibility = grid && !_demo && !_catalog.Loading && _catalog.Items.Count < _catalog.TotalCount ? Visibility.Visible : Visibility.Collapsed;
         UpdateResumeArrows(); UpdateHeroClock();
         if (!_startupComplete && !_catalog.Loading && (_catalog.Items.Count > 0 || _catalog.Resume.Count > 0)) _ = RevealStartupAsync();
+    }
+    /// <summary>
+    /// « Personnes » above a search's titles: the actors and directors whose name matches, as in Mira web. Drawn again
+    /// only when they change, so that their photos do not flash at each refresh.
+    /// </summary>
+    private void RenderPeople(string search)
+    {
+        var people = _catalog.SearchesPeople(search) ? _catalog.People : [];
+        PeopleSection.Visibility = people.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var shown = PeopleCards.Children.OfType<PersonCard>().Select(x => x.Person.Id);
+        if (shown.SequenceEqual(people.Select(x => x.Id))) return;
+        PeopleCards.Children.Clear();
+        foreach (var person in people)
+        {
+            var card = new PersonCard(person);
+            card.Click += async (_, _) => await ShowPersonAsync(new PersonInfo { Id = person.Id, Name = person.Name }, null, SearchBox.Text.Trim());
+            PeopleCards.Children.Add(card);
+            if (_images is { } images) _ = card.LoadImageAsync(images);
+        }
     }
     /// <summary>Placeholders shaped like the real cards (artwork, title, details) so nothing jumps when they arrive.</summary>
     private void ShowSkeleton(bool visible)

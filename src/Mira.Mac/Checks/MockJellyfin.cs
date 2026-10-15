@@ -95,6 +95,12 @@ public sealed class MockJellyfin : HttpMessageHandler
             return Json(new { PlaySessionId = "session-" + id, MediaSources = new[] { new { Id = "source-" + id, Protocol = "File", Path = file, MediaStreams = Array.Empty<object>() } } });
         }
         if (path.StartsWith("MediaSegments/")) return Json(new { Items = Array.Empty<object>() });
+        if (path == "Persons")
+        {
+            var people = new[] { ("actor-1", "Jeanne Essai"), ("actor-2", "Paul Témoin"), ("director-1", "Réa Lisatrice") };
+            return Items(people.Where(x => x.Item2.Contains(query["searchTerm"] ?? "", StringComparison.CurrentCultureIgnoreCase))
+                .Select(x => (object)new { Id = x.Item1, Name = x.Item2, Type = "Person", ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + x.Item1 } }));
+        }
         if (path.StartsWith("Items/") && path.Split('/').Length == 2) return Find(path.Split('/')[1]) is { } item ? Json(item) : new HttpResponseMessage(HttpStatusCode.NotFound);
         if (path == "Items")
         {

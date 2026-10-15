@@ -65,6 +65,13 @@ public static class SelfCheck
             ((BrowsePage)window.Current!).Search(word);
             Check(await Until(() => window.Current is BrowsePage search && search.Items.Any(x => x.Id == movie.Id), 15), "recherche", $"« {word} »");
             await Task.Delay(800); Capture(window, output, "04-search");
+            if (mock is not null)
+            {
+                ((BrowsePage)window.Current!).Search("Jeanne");
+                Check(await Until(() => window.Current is BrowsePage { People.Count: > 0 } found && found.People[0].Id == "actor-1", 15), "recherche : une personne",
+                    string.Join(", ", (window.Current as BrowsePage)?.People.Select(x => x.Name) ?? []));
+                await Task.Delay(800); Capture(window, output, "04-search-people");
+            }
 
             // —— Title pages ——
             window.Open(movie);

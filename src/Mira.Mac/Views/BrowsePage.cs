@@ -12,17 +12,22 @@ public enum BrowseKind { Movies, Series, All, Search }
 
 /// <summary>
 /// A grid of the library: films, series, everything, a search, or the titles of one actor or director. Filters by
-/// genre, year and watched state, sorts, keeps only favourites; more titles load as the grid scrolls.
+/// genre, year and watched state, sorts, keeps only favourites; more titles load as the grid scrolls. A search also
+/// finds people, above its titles.
 /// </summary>
 public sealed class BrowsePage : Page
 {
     private readonly BrowseKind _kind;
     private readonly PersonInfo? _person;
-    private readonly bool _director;
+    private readonly bool? _director;
     private readonly CardGrid _grid = new();
+    /// <summary>« Personnes »: the actors and directors a search finds, as in Mira web.</summary>
+    private readonly WrapPanel _people = new() { ItemSpacing = 18, LineSpacing = 18 };
+    private readonly StackPanel _peopleSection = new() { Spacing = 16, IsVisible = false, Margin = new Thickness(0, 0, 0, 30) };
+    private readonly List<MediaItem> _found = [];
     private readonly ScrollViewer _scroll;
     private readonly TextBlock _count = new() { FontSize = 14, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 6) };
-    private readonly TextBox _search = new() { Watermark = "Un film, une série…", FontSize = 18, Padding = new Thickness(18, 14) };
+    private readonly TextBox _search = new() { Watermark = "Un film, une série, un acteur…", FontSize = 18, Padding = new Thickness(18, 14) };
     private readonly ComboBox _genre = new(), _year = new(), _state = new(), _sort = new(), _library = new() { IsVisible = false };
     /// <summary>The libraries of this kind (Séries and Animes), when there are several: one at a time, or all of them.</summary>
     private List<LibrarySection> _libraries = [];
@@ -35,13 +40,15 @@ public sealed class BrowsePage : Page
     private CancellationTokenSource? _request;
     public override string Rail => _person is not null ? "" : _kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", BrowseKind.Search => "search", _ => "library" };
     public IReadOnlyList<MediaItem> Items => _items;
+    /// <summary>The people the search found, shown above its titles.</summary>
+    public IReadOnlyList<MediaItem> People => _found;
     /// <summary>Types a search, as the field does (the self-check).</summary>
     public void Search(string text) => _search.Text = text;
 
-    public BrowsePage(MainWindow shell, BrowseKind kind, PersonInfo? person = null, bool director = false) : base(shell)
+    public BrowsePage(MainWindow shell, BrowseKind kind, PersonInfo? person = null, bool? director = false) : base(shell)
     {
         _kind = kind; _person = person; _director = director;
-        var title = person is not null ? (director ? "Réalisés par " : "Avec ") + person.Name
+        var title = person is not null ? Catalog.PersonText(person.Name, director)
             : kind switch { BrowseKind.Movies => "Films", BrowseKind.Series => "Séries", BrowseKind.Search => "Rechercher", _ => "Bibliothèque" };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
         DockPanel.SetDock(_count, Dock.Right); header.Children.Add(_count);
@@ -74,12 +81,15 @@ public sealed class BrowsePage : Page
         else page.Children.Add(filters);
         if (person is not null)
         {
-            var chip = Ui.Action((director ? "Réalisés par " : "Avec ") + person.Name, "close", "chip on", () => Shell.Back());
+            var chip = Ui.Action(Catalog.PersonText(person.Name, director), "close", "chip on", () => Shell.Back());
             ToolTip.SetTip(chip, "Retirer ce filtre");
             chip.HorizontalAlignment = HorizontalAlignment.Left; chip.Margin = new Thickness(0, -12, 0, 22);
             page.Children.Add(chip);
         }
         page.Children.Add(_empty);
+        _peopleSection.Children.Add(Ui.Text("Personnes", 22, FontWeight.Bold));
+        _peopleSection.Children.Add(_people);
+        page.Children.Add(_peopleSection);
         page.Children.Add(_grid);
         _scroll = new ScrollViewer { Content = page };
         _scroll.ScrollChanged += (_, _) => { if (_scroll.Offset.Y + _scroll.Viewport.Height > _scroll.Extent.Height - 700) _ = MoreAsync(); };
@@ -143,7 +153,7 @@ public sealed class BrowsePage : Page
         if (Shell.Session is not { } session) return;
         _reset.IsVisible = Filtered;
         var search = _search.Text?.Trim() ?? "";
-        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); _count.Text = ""; ShowEmpty("Tape le nom d’un film, d’une série ou d’un épisode."); return; }
+        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); _count.Text = ""; ShowEmpty("Tape le nom d’un film, d’une série ou d’un acteur."); return; }
         _request?.Cancel(); _request = new CancellationTokenSource();
         var ct = _request.Token; var version = ++_version;
         _loading = true;
@@ -151,16 +161,21 @@ public sealed class BrowsePage : Page
         {
             // A refresh keeps every page already loaded, so the grid does not shrink back under the reader.
             var limit = keep ? Math.Clamp(_items.Count, JellyfinClient.PageSize, 600) : JellyfinClient.PageSize;
+            var people = _kind == BrowseKind.Search && search.Length >= 2 ? session.Client.PersonsAsync(search, ct) : null;
             var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, 0, _favoritesOnly, ct, Query, limit);
             await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)), CancellationToken.None);
+            // The people are a bonus: the titles show even if Jellyfin does not answer for them.
+            List<MediaItem> found = [];
+            if (people is not null) try { found = await people; } catch (Exception ex) when (!ct.IsCancellationRequested && Errors.Expected(ex)) { }
             if (version != _version) return;
+            ShowPeople(found);
             _items.Clear(); _items.AddRange(result.Items); _total = result.TotalRecordCount;
             var offset = _scroll.Offset;
             _grid.Children.Clear();
             foreach (var item in result.Items) _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu));
             if (keep) _scroll.Offset = offset; else _scroll.Offset = default;
             Count();
-            if (_items.Count == 0) ShowEmpty(_kind == BrowseKind.Search ? $"Rien ne correspond à « {search} »." : Filtered ? "Aucun titre ne correspond à ces filtres." : "Aucun titre dans cette bibliothèque pour l’instant.");
+            if (_items.Count == 0 && _found.Count == 0) ShowEmpty(_kind == BrowseKind.Search ? $"Rien ne correspond à « {search} »." : Filtered ? "Aucun titre ne correspond à ces filtres." : "Aucun titre dans cette bibliothèque pour l’instant.");
             else _empty.IsVisible = false;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
@@ -186,5 +201,14 @@ public sealed class BrowsePage : Page
         finally { if (version == _version) _loading = false; }
     }
     private void Count() => _count.Text = _total == 1 ? "1 titre" : $"{_total} titres";
+    /// <summary>The people found, drawn again only when they change (their photos do not flash at each refresh).</summary>
+    private void ShowPeople(List<MediaItem> people)
+    {
+        _peopleSection.IsVisible = people.Count > 0;
+        if (people.Select(x => x.Id).SequenceEqual(_found.Select(x => x.Id))) return;
+        _found.Clear(); _found.AddRange(people); _people.Children.Clear();
+        foreach (var person in people)
+            _people.Children.Add(Cards.Person(person, Shell.Session?.Images, x => Shell.OpenPerson(new PersonInfo { Id = x.Id, Name = x.Name }, null)));
+    }
     private void ShowEmpty(string text) { _empty.Text = text; _empty.IsVisible = true; }
 }

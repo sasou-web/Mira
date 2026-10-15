@@ -136,6 +136,12 @@ public sealed class JellyfinClient : IDisposable
             series.AddRange((await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&ids={string.Join(',', chunk.Select(Uri.EscapeDataString))}&fields=Genres&enableImages=false&enableUserData=true", ct)).Items);
         return (played, series);
     }
+    /// <summary>
+    /// The actors, directors and other people whose name matches a search, a dozen at most, with their photo when
+    /// Jellyfin has one (Mira web asks the same). A title's search (Items) never finds a name.
+    /// </summary>
+    public async Task<List<MediaItem>> PersonsAsync(string search, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Persons?userId={Connection.UserId}&searchTerm={Uri.EscapeDataString(search)}&limit=12&enableImageTypes=Primary", ct)).Items;
     public async Task<CatalogFilters> FiltersAsync(CancellationToken ct = default)
     {
         // The legacy Filters endpoint only examines immediate children of the user root.
