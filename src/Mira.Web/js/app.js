@@ -424,8 +424,8 @@ async function applyUpdate(hidden = false) {
 let touched = false;
 
 // ---------- « Nouveau dans Mira » ----------
-// Once Jellyfin serves a new Mira web (see above), its main points for the phone, once (whats-new.js). Never at the
-// first sign-in (login.js), in the player or on an invitation: the next screen with the tab bar shows them, and a sheet
+// Once Jellyfin serves a new Mira web (see above), its main points for the phone, once (whats-new.js). Never after a
+// sign-in (api.opened), in the player or on an invitation: the next screen with the tab bar shows them, and a sheet
 // already open goes first.
 let newsWaiting = false;
 const busyScreen = () => currentBare || !!document.querySelector('.sheet-layer:not(.leaving)');
