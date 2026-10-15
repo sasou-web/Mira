@@ -37,6 +37,7 @@ public sealed class Icon : FrameworkElement
         // A favourite: the heart, filled.
         ["heart-fill"] = Shape(IconPaths.Heart),
         ["next-episode"] = Shape(IconPaths.NextEpisode),
+        ["previous-episode"] = Shape(IconPaths.PreviousEpisode),
         ["more"] = Shape(IconPaths.More)
     };
     protected override Size MeasureOverride(Size availableSize) => new(double.IsNaN(Width) ? 22 : Width, double.IsNaN(Height) ? 22 : Height);

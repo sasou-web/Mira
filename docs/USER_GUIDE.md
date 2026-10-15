@@ -94,7 +94,7 @@ Mira ne choisit ni ne vérifie les contenus. Les sources intégrées à TorLink 
 
 ## Raccourcis du lecteur
 
-**Espace** ou **K** : lecture / pause · **← / →** : −10 / +10 secondes · **↑ / ↓** : volume · **F** ou double-clic vidéo : plein écran · **I** : mini-lecteur / agrandir · **M** : couper / réactiver le son · **S** : passer l’opening, l’ending ou lancer l’épisode suivant quand le bouton est affiché. Ces raccourcis restent actifs après un clic sur un bouton ou sur la barre. **Échap** ferme le menu ouvert, quitte le plein écran, puis réduit la lecture dans la bibliothèque. Un clic sur la vidéo met en pause ou reprend ; un double-clic sur le mini-lecteur l’agrandit. Le **×** du mini-lecteur arrête la lecture.
+**Espace** ou **K** : lecture / pause · **← / →** : −10 / +10 secondes · **↑ / ↓** : volume · **F** ou double-clic vidéo : plein écran · **I** : mini-lecteur / agrandir · **M** : couper / réactiver le son · **N** / **P** : épisode suivant / précédent · **E** : les épisodes de la saison · **S** : passer l’opening, l’ending ou lancer l’épisode suivant quand le bouton est affiché. Ces raccourcis restent actifs après un clic sur un bouton ou sur la barre. **Échap** ferme le menu ouvert, quitte le plein écran, puis réduit la lecture dans la bibliothèque. Un clic sur la vidéo met en pause ou reprend ; un double-clic sur le mini-lecteur l’agrandit. Le **×** du mini-lecteur arrête la lecture.
 
 ## Données locales
 

@@ -187,6 +187,8 @@ public partial class MainWindow
             case Key.F: if (!e.IsRepeat) ToggleFullscreen(); break;
             case Key.S: if (!SkipAvailable) return; if (!e.IsRepeat) Skip_Click(this, new()); e.Handled = true; return;
             case Key.N: if (!NextButton.IsEnabled) return; if (!e.IsRepeat) Next_Click(this, new()); e.Handled = true; return;
+            case Key.P: if (!PreviousButton.IsEnabled || PreviousButton.Visibility != Visibility.Visible) return; if (!e.IsRepeat) Previous_Click(this, new()); e.Handled = true; return;
+            case Key.E: if (!PlayerEpisodesButton.IsEnabled || PlayerEpisodesButton.Visibility != Visibility.Visible || _miniPlayer) return; if (!e.IsRepeat) Episodes_Click(this, new()); e.Handled = true; return;
             default: return;
         }
         ShowPlayerControls(); e.Handled = true;
@@ -220,6 +222,8 @@ public partial class MainWindow
             case "mira-mute": Mute_Click(this, new()); break;
             case "mira-skip": if (SkipAvailable) Skip_Click(this, new()); break;
             case "mira-next": if (NextButton.IsEnabled) Next_Click(this, new()); break;
+            case "mira-previous": if (PreviousButton.IsEnabled && PreviousButton.Visibility == Visibility.Visible) Previous_Click(this, new()); break;
+            case "mira-episodes": if (PlayerEpisodesButton.IsEnabled && PlayerEpisodesButton.Visibility == Visibility.Visible && !_miniPlayer) Episodes_Click(this, new()); break;
         }
     }
     private void Scrub(double seconds)
@@ -274,7 +278,7 @@ public partial class MainWindow
         PlayerTransport.Height = mini ? 36 : 44; PlayerTransport.Margin = new Thickness(-8, mini ? 0 : 2, -8, 0);
         Grid.SetColumnSpan(PlayerLeftGroup, mini ? 3 : 1); PlayerLeftGroup.HorizontalAlignment = mini ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         foreach (var control in new FrameworkElement[] { PlayerBackButton, PlayerVolumeGroup, PlayerRightGroup }) control.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
-        NextButton.Visibility = !mini && !_demo && _session.Item?.Type == "Episode" ? Visibility.Visible : Visibility.Collapsed;
+        NextButton.Visibility = PreviousButton.Visibility = PlayerEpisodesButton.Visibility = !mini && !_demo && _session.Item?.Type == "Episode" ? Visibility.Visible : Visibility.Collapsed;
         PauseButton.Width = PauseButton.Height = mini ? 34 : 40; Motion.SetRadius(PauseButton, new CornerRadius(mini ? 17 : 20));
         PauseIcon.Width = PauseIcon.Height = mini ? 19 : 24;
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls(); UpdateSkip();
@@ -331,24 +335,27 @@ public partial class MainWindow
 
     private void Tracks_Click(object sender, RoutedEventArgs e) => TogglePlayerMenu(PlayerTracksButton);
     private void More_Click(object sender, RoutedEventArgs e) => TogglePlayerMenu(PlayerMoreButton);
-    /// <summary>Opens the audio and subtitles menu, or the ⋮ menu, above its button; the same button closes it.</summary>
+    /// <summary>Opens the audio and subtitles menu, the episodes, or the ⋮ menu, above its button; the same button closes it.</summary>
     private void TogglePlayerMenu(Button anchor)
     {
         if (_mpv is null) return;
         if (PlayerOptionsPopup.IsOpen) { var same = ReferenceEquals(_menuAnchor, anchor); PlayerOptionsPopup.IsOpen = false; if (same) return; }
         _menuAnchor = anchor;
-        var tracks = ReferenceEquals(anchor, PlayerTracksButton);
+        var tracks = ReferenceEquals(anchor, PlayerTracksButton); var episodes = ReferenceEquals(anchor, PlayerEpisodesButton);
         TracksMenu.Visibility = tracks ? Visibility.Visible : Visibility.Collapsed;
-        MoreMenu.Visibility = tracks ? Visibility.Collapsed : Visibility.Visible;
+        EpisodesMenu.Visibility = episodes ? Visibility.Visible : Visibility.Collapsed;
+        MoreMenu.Visibility = tracks || episodes ? Visibility.Collapsed : Visibility.Visible;
         _menuBuilding = true;
-        try { if (tracks) BuildTrackMenu(); else BuildMoreMenu(); } finally { _menuBuilding = false; }
+        try { if (tracks) BuildTrackMenu(); else if (episodes) BuildEpisodesMenu(); else BuildMoreMenu(); } finally { _menuBuilding = false; }
         ShowPlayerControls(); PlayerOptionsPopup.IsOpen = true;
+        if (episodes) ShowCurrentEpisodeRow();
         // The current choice takes focus: arrows and Enter work at once, and a mouse opening shows no focus ring.
         Dispatcher.BeginInvoke(() => { if (PlayerOptionsPopup.IsOpen) CurrentMenuChoice()?.Focus(); }, DispatcherPriority.Input);
     }
     private bool _menuBuilding;
-    private RadioButton? CurrentMenuChoice() => TracksMenu.Visibility == Visibility.Visible
+    private Control? CurrentMenuChoice() => TracksMenu.Visibility == Visibility.Visible
         ? AudioTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen) ?? SubtitleTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen)
+        : EpisodesMenu.Visibility == Visibility.Visible ? CurrentEpisodeRow()
         : SpeedList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen);
     private static bool IsChosen(RadioButton choice) => choice.IsChecked == true;
     private void BuildTrackMenu()

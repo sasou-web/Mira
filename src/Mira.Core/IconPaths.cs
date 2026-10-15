@@ -11,8 +11,9 @@ public static class IconPaths
     public const string BrandM = "M6.3 16.5V10.6C6.3 6.3 12 6.3 12 10.6V15.6M12 10.6C12 6.3 17.7 6.3 17.7 10.6V16.5";
     /// <summary>The player's speaker, solid, under the waves of "volume" and "volume-low" or the cross of "mute".</summary>
     public const string Speaker = "M10.3 4.9Q12 3.8 12 5.8V18.2Q12 20.2 10.3 19.1L6.5 16.2H4.6Q2.6 16.2 2.6 14.2V9.8Q2.6 7.8 4.6 7.8H6.5Z";
-    /// <summary>Solid parts: the next episode's triangle, the three dots of a menu, a favourite's filled heart.</summary>
+    /// <summary>Solid parts: the next and previous episodes' triangles, the three dots of a menu, a favourite's filled heart.</summary>
     public const string NextEpisode = "M6.3 5.3Q4.2 4.1 4.2 6.5V17.5Q4.2 19.9 6.3 18.7L15.2 13.3Q17.3 12 15.2 10.7Z";
+    public const string PreviousEpisode = "M17.7 5.3Q19.8 4.1 19.8 6.5V17.5Q19.8 19.9 17.7 18.7L8.8 13.3Q6.7 12 8.8 10.7Z";
     public const string More = "M13.55 5A1.55 1.55 0 1 1 10.45 5A1.55 1.55 0 1 1 13.55 5Z M13.55 12A1.55 1.55 0 1 1 10.45 12A1.55 1.55 0 1 1 13.55 12Z M13.55 19A1.55 1.55 0 1 1 10.45 19A1.55 1.55 0 1 1 13.55 19Z";
     public const string Heart = "M12 20C10 19 3 14 3 8.7C3 2.8 10 1.8 12 6C14 1.8 21 2.8 21 8.7C21 14 14 19 12 20Z";
     /// <summary>Outlines, by kind (play and pause are filled).</summary>
@@ -43,6 +44,9 @@ public static class IconPaths
         ["volume-low"] = "M15.6 8.4Q18.3 12 15.6 15.6",
         ["mute"] = "M16.2 9.4L21.4 14.6M21.4 9.4L16.2 14.6",
         ["next-episode"] = "M19.6 5.2V18.8",
+        ["previous-episode"] = "M4.4 5.2V18.8",
+        // The episodes of a season, in a list.
+        ["episodes"] = "M9 6H20M9 12H20M9 18H20M4.5 6H4.6M4.5 12H4.6M4.5 18H4.6",
         ["subtitles"] = "M7 4H17Q21 4 21 8V16Q21 20 17 20H7Q3 20 3 16V8Q3 4 7 4Z M6 11H9M13 11H18M6 15H13M17 15H18",
         ["fullscreen"] = "M3 8V6Q3 3 6 3H8M16 3H18Q21 3 21 6V8M21 16V18Q21 21 18 21H16M8 21H6Q3 21 3 18V16",
         ["collapse"] = "M3 8H6Q8 8 8 6V3M16 3V6Q16 8 18 8H21M21 16H18Q16 16 16 18V21M8 21V18Q8 16 6 16H3",

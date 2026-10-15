@@ -97,6 +97,8 @@ public partial class MainWindow
             // The player's keys must reach Mira, not the TorLink terminal left open underneath.
             if (TorLinkOverlay.IsKeyboardFocusWithin) Focus();
             NextButton.IsEnabled = !_demo && item.Type == "Episode";
+            // The episodes around this one follow with the series (LoadServerMarkersAsync).
+            _playerEpisodes = []; PreviousButton.IsEnabled = PlayerEpisodesButton.IsEnabled = false;
             if (_videoHost is null)
             {
                 var ready = new TaskCompletionSource<IntPtr>(TaskCreationOptions.RunContinuationsAsynchronously);
