@@ -284,6 +284,50 @@ internal static class PhoneTests
                 && LocalJellyfin.Says(LocalJellyfin.Verdict.Unknown, service: true) is null, "What is said");
             return Task.CompletedTask;
         });
+        await Test("Tailscale sur ce PC : connecté sans ta session, et sa connexion qui expire dite deux semaines avant", () =>
+        {
+            var now = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
+            static string Status(string self) => """{"Version":"1.90.4","BackendState":"Running","Self":{"ID":"n1","HostName":"DESKTOP-INVEFQH","TailscaleIPs":["100.101.102.103"]""" + self + "}}";
+            const string unattended = """{"ControlURL":"https://controlplane.tailscale.com","WantRunning":true,"ForceDaemon":true}""", attended = """{"ControlURL":"https://controlplane.tailscale.com","WantRunning":true}""";
+            // Its command line: « Run unattended » (ForceDaemon, left out when false), and its key's expiry (left out when disabled).
+            var kept = TailscaleNode.Parse(Status(""","KeyExpiry":"2027-03-20T08:30:00Z" """), unattended, now);
+            Assert(kept is { Readable: true, Unattended: true, Expired: false, Name: "DESKTOP-INVEFQH" } && kept.KeyExpiry == new DateTimeOffset(2027, 3, 20, 8, 30, 0, TimeSpan.Zero)
+                && !TailscaleNode.ExpiresSoon(kept) && TailscaleNode.Warning(kept) is null, "Unattended, expiring in five months");
+            var never = TailscaleNode.Parse(Status(""), attended, now);
+            Assert(never is { Readable: true, Unattended: false, KeyExpiry: null } && !TailscaleNode.ExpiresSoon(never), "Attended, never expiring");
+            var soon = TailscaleNode.Parse(Status(""","KeyExpiry":"2026-10-28T12:00:00Z" """), unattended, now);
+            Assert(TailscaleNode.ExpiresSoon(soon) && TailscaleNode.Warning(soon) is { } warning && warning.Contains("expire le 28 octobre")
+                && !TailscaleNode.ExpiresSoon(TailscaleNode.Parse(Status(""","KeyExpiry":"2026-10-30T12:00:00Z" """), unattended, now)), "Expiring within two weeks, and just after");
+            var expired = TailscaleNode.Parse(Status(""","KeyExpiry":"2026-10-01T12:00:00Z","Expired":true """), unattended, now);
+            Assert(expired is { Expired: true } && TailscaleNode.Warning(expired) is { } gone && gone.Contains("a expiré")
+                && TailscaleNode.Parse(Status(""","KeyExpiry":"2026-10-14T12:00:00Z" """), unattended, now).Expired, "Expired, said or past");
+            // Not answering (its service stopped), an error instead of JSON, preferences unreadable.
+            Assert(TailscaleNode.Parse(null, null, now) == TailscaleNode.Unreadable && TailscaleNode.Parse("failed to connect to local tailscaled", null, now) == TailscaleNode.Unreadable
+                && TailscaleNode.Parse("""{"Health":[]}""", null, now) == TailscaleNode.Unreadable
+                && TailscaleNode.Parse(Status(""), null, now) is { Readable: true, Unattended: null } && TailscaleNode.Parse(Status(""), "Access denied", now).Unattended is null
+                && TailscaleNode.Parse(Status(""), """{"ForceDaemon":true}""", now).Unattended is null, "Unreadable");
+
+            // The card: its own step once Tailscale has its address; never « Tout préparer »'s, which never changes Tailscale.
+            const string server = "http://127.0.0.1:8096", tailnet = "http://100.101.102.103:8096";
+            var ready = new PhoneSetup.Facts(server, true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, Tailnet: tailnet, TailnetAllowed: true,
+                Firewall: new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Private), Boot: new(true, true, false, true));
+            static string Marks(IReadOnlyList<PhoneSetup.Step> steps) => string.Join(" ", steps.Select(x => $"{x.Key}:{x.Mark}"));
+            PhoneSetup.Step Step(PhoneSetup.Facts facts, string key) => PhoneSetup.Steps(facts).Single(x => x.Key == key);
+            Assert(Marks(PhoneSetup.Steps(ready)) == "web:Done firewall:Done tailscale:Done boot:Done", "Not read: as before");
+            var steps = PhoneSetup.Steps(ready with { Node = kept });
+            Assert(Marks(steps) == "web:Done firewall:Done tailscale:Done unattended:Done boot:Done" && steps.Single(x => x.Key == "boot").Title == "Disponible dès l’allumage du PC", "Unattended: " + Marks(steps));
+            steps = PhoneSetup.Steps(ready with { Node = never });
+            Assert(Step(ready with { Node = never }, "unattended") is { Mark: PhoneSetup.Mark.Yours, Action: TailscaleNode.KeepConnected } off && off.Text.Contains("Run unattended")
+                && !PhoneSetup.CanPrepare(steps) && steps.Single(x => x.Key == "boot") is { Mark: PhoneSetup.Mark.Done } boot && !boot.Title.StartsWith("Disponible"), "Attended: " + Marks(steps));
+            Assert(Step(ready with { Node = TailscaleNode.Unreadable }, "unattended") is { Mark: PhoneSetup.Mark.Note, Action: null } note && note.Text.Contains("Run unattended"), "Its command line missing");
+            Assert(Step(ready with { Node = soon }, "keyexpiry") is { Mark: PhoneSetup.Mark.Yours, Action: TailscaleNode.OpenMachines } expiring && expiring.Title.EndsWith("expire le 28 octobre")
+                && expiring.Text.Contains("« DESKTOP-INVEFQH »") && expiring.Text.Contains("Disable key expiry")
+                && Step(ready with { Node = expired }, "keyexpiry").Title.Contains("a expiré") && !PhoneSetup.CanPrepare(PhoneSetup.Steps(ready with { Node = soon })), "Expiring");
+            // Without Tailscale's address (not installed, or not connected), or Jellyfin on another computer: nothing about it.
+            Assert(Marks(PhoneSetup.Steps(ready with { Tailnet = null, TailnetAllowed = null, Node = never })) == "web:Done firewall:Done tailscale:Yours boot:Done"
+                && Marks(PhoneSetup.Steps(ready with { Local = false, Node = never })) == "web:Done elsewhere:Note", "Without Tailscale here");
+            return Task.CompletedTask;
+        });
         await Test("Autres appareils : l’adresse du PC sur le réseau de la maison, pas celle d’un adaptateur virtuel", () =>
         {
             LocalNetwork.Candidate C(string address, bool gateway = true, bool isVirtual = false) => new(address, gateway, isVirtual);

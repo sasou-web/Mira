@@ -143,12 +143,16 @@ public partial class MainWindow
         JellyfinFirewall.Reach? firewall = null;
         var rule = JellyfinFirewall.RuleState.Missing;
         JellyfinStartup.State? boot = null;
+        TailscaleNode.State? node = null;
         if (local)
         {
-            (var address, program, firewall, rule, boot) = await Task.Run(() =>
+            (var address, program, firewall, rule, boot, node) = await Task.Run(() =>
             {
                 var found = JellyfinAutostart.Program();
-                return (LocalNetwork.ThisPcOnTailnet(), found, JellyfinAutostart.Phones(found, uri.Port), JellyfinAutostart.MiraRule(found, uri.Port), JellyfinAutostart.Read());
+                var address = LocalNetwork.ThisPcOnTailnet();
+                // Tailscale's command line, once it has its address: without a session, and its expiry.
+                return (address, found, JellyfinAutostart.Phones(found, uri.Port), JellyfinAutostart.MiraRule(found, uri.Port), JellyfinAutostart.Read(),
+                    address is null ? null : TailscaleCli.Read());
             });
             tailnet = AtThisPc(address);
         }
@@ -156,7 +160,7 @@ public partial class MainWindow
         var down = local && !answering ? (await ReadLocalJellyfinAsync(server)).Verdict : LocalJellyfin.Verdict.Unknown;
         if (version != _phoneVersion) return;
         _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, rule, boot, Program: program is not null, Answering: answering,
-            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic, Down: down);
+            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic, Down: down, Node: node);
         ShowPhone(_phone);
         if (!answering) _ = WaitForJellyfinAsync(client, version);
     }
@@ -172,6 +176,17 @@ public partial class MainWindow
             && JellyfinAutostart.MiraRule(program, uri.Port) == JellyfinFirewall.RuleState.Stale);
         if (stale && Notice.Visibility != Visibility.Visible && GuideOverlay.Visibility != Visibility.Visible)
             SetNotice("Pour ton téléphone, la règle de Mira dans le pare-feu de Windows est à mettre à jour : le guide s’en charge.", "Ouvrir le guide", () => OpenGuide());
+    }
+    /// <summary>
+    /// At start, for a Jellyfin on this PC: this PC's connection to Tailscale expiring within two weeks, or expired, is
+    /// said, with Tailscale's page where it stops expiring. Said only when no other notice is.
+    /// </summary>
+    private async Task NoticeTailscaleExpiryAsync()
+    {
+        if (_demo || _client?.Connection.Server is not { } server || !Uri.TryCreate(server, UriKind.Absolute, out var uri)) return;
+        var node = await Task.Run(() => (uri.IsLoopback || LocalNetwork.IsThisPc(uri.Host)) && LocalNetwork.ThisPcOnTailnet() is not null ? TailscaleCli.Read() : null);
+        if (node is not null && TailscaleNode.Warning(node) is { } warning && Notice.Visibility != Visibility.Visible && GuideOverlay.Visibility != Visibility.Visible)
+            SetNotice(warning, TailscaleNode.OpenMachines, () => OpenWebPage(TailscaleNode.Machines));
     }
     /// <summary>A Jellyfin restarting (after Mira web's installation) or stopped: the card reads again once it answers.</summary>
     private async Task WaitForJellyfinAsync(JellyfinClient client, int version)
@@ -258,6 +273,14 @@ public partial class MainWindow
                 if (step.Key == "tailscale") OpenWebPage("https://tailscale.com/download/windows");
                 else if (step.Key == "web" && action == LocalJellyfin.Start && _client is { } client) { button.IsEnabled = false; await StartJellyfinAsync(client); }
                 else if (step.Key == "web" && action == LocalJellyfin.OpenLog) { OpenJellyfinLog(); _ = DescribePhoneAsync(); }
+                // « Run unattended », as Tailscale's menu does; where to tick it when Tailscale does not take it.
+                else if (step.Key == "unattended")
+                {
+                    button.IsEnabled = false;
+                    if (!await Task.Run(TailscaleCli.KeepConnected)) SetNotice($"Tailscale n’a pas pris ce réglage : {TailscaleNode.WhereUnattended}.");
+                    if (!_preparing) _ = DescribePhoneAsync();
+                }
+                else if (step.Key == "keyexpiry") OpenWebPage(TailscaleNode.Machines);
                 // « Passer en privé »: the person says the public network is home's.
                 else if (step.Key == "firewall") await PreparePhoneAsync(privateNetwork: true);
             };
