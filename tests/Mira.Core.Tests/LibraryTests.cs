@@ -866,6 +866,39 @@ internal static class LibraryTests
             refuse = true;
             Assert(await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5)) is (GpuOutcome.Refused, null) && await client.HardwareAccelerationAsync() is null, "Refused");
         });
+        await Test("Carte graphique revérifiée : essayée après une mise à jour de Jellyfin ou d’un pilote, jamais pendant une lecture, processeur après deux échecs", async () =>
+        {
+            const string nvidia = "NVIDIA GeForce RTX 3060 32.0.15.6094", intel = "Intel(R) UHD Graphics 770 31.0.101.4502";
+            var before = GpuRecheck.Fingerprint("12.1.0", [nvidia, intel, " ", nvidia]) ?? "";
+            Assert(before == $"12.1.0 | {intel} | {nvidia}" && GpuRecheck.Fingerprint("12.1.0", [intel, nvidia]) == before, "Fingerprint: " + before);
+            Assert(GpuRecheck.Fingerprint(null, [nvidia]) is null && GpuRecheck.Fingerprint(" ", [nvidia]) is null && GpuRecheck.Fingerprint("12.1.0", []) is null, "Unknown: nothing judged");
+            var newDriver = GpuRecheck.Fingerprint("12.1.0", ["NVIDIA GeForce RTX 3060 32.0.15.7000", intel]); var newJellyfin = GpuRecheck.Fingerprint("12.2.0", [nvidia, intel]);
+            Assert(newDriver != before && newJellyfin != before, "A driver or Jellyfin changed");
+            var steps = new[]
+            {
+                GpuRecheck.Decide("nvenc", before, before, false), GpuRecheck.Decide("nvenc", newDriver, before, false), GpuRecheck.Decide("nvenc", newJellyfin, before, true),
+                GpuRecheck.Decide("none", newDriver, before, false), GpuRecheck.Decide(null, newDriver, before, false), GpuRecheck.Decide("qsv", null, before, false),
+                GpuRecheck.Decide("amf", before, "", false),
+            };
+            Assert(steps.SequenceEqual([GpuRecheck.Step.Nothing, GpuRecheck.Step.Try, GpuRecheck.Step.Wait, GpuRecheck.Step.Nothing, GpuRecheck.Step.Nothing, GpuRecheck.Step.Nothing, GpuRecheck.Step.Try]),
+                "Steps: " + string.Join(", ", steps));
+            // A first failure is tried again at the next look; the second puts Jellyfin back on the processor. Nothing to
+            // convert judges nothing: the card stays.
+            Assert(GpuRecheck.After(false, 0) == (GpuRecheck.Verdict.TryAgain, 1) && GpuRecheck.After(false, 1) == (GpuRecheck.Verdict.Processor, 0)
+                && GpuRecheck.After(true, 1) == (GpuRecheck.Verdict.Kept, 0) && GpuRecheck.After(null, 1) == (GpuRecheck.Verdict.Kept, 0), "After a try");
+            var notice = GpuRecheck.Notice("nvenc");
+            Assert(notice.Contains("(NVIDIA)", StringComparison.Ordinal) && notice.Contains("processeur", StringComparison.Ordinal) && notice.Contains("Utiliser la carte graphique", StringComparison.Ordinal), notice);
+            Assert(GpuRecheck.FirstLook < GpuRecheck.Retry && GpuRecheck.FailuresBeforeProcessor == 2, "Timing");
+            // Jellyfin's version, as 12.1 gives it, camelCase while it starts.
+            var info = """{"LocalAddress":"http://127.0.0.1:8096","ServerName":"vm","Version":"12.1.0","Id":"5c63"}""";
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+                Task.FromResult(request.RequestUri!.PathAndQuery == "/System/Info/Public" ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(info, Encoding.UTF8, "application/json") } : new HttpResponseMessage(HttpStatusCode.NotFound))));
+            Assert(await client.ServerVersionAsync() == "12.1.0", "Version");
+            info = """{"serverName":"vm","version":"12.1.1"}""";
+            Assert(await client.ServerVersionAsync() == "12.1.1", "camelCase");
+            info = """{"ServerName":"vm"}""";
+            Assert(await client.ServerVersionAsync() is null, "Unsaid");
+        });
         await Test("Sur ce PC : un film gardé, repris là où il s’est coupé, avec ses sous-titres ; par compte, dans l’ordre, épisode suivant sans Jellyfin", async () =>
         {
             var root = Path.Combine(testRoot, "offline"); var other = Path.Combine(testRoot, "offline-usb");

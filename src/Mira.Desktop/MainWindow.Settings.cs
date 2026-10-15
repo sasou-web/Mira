@@ -316,7 +316,7 @@ public partial class MainWindow
             var (outcome, card) = await GpuEncoding.EnableAsync(client, _gpuCards, TimeSpan.FromSeconds(30), ct);
             switch (outcome)
             {
-                case GpuOutcome.Done: ShowGpuState($"Activé : ta {card!.Name} convertit les vidéos pour ton téléphone.", true); break;
+                case GpuOutcome.Done: ShowGpuState($"Activé : ta {card!.Name} convertit les vidéos pour ton téléphone.", true); _ = RememberGpuCheckedAsync(client); break;
                 case GpuOutcome.Refused: GpuStatus.Text = "Seul un administrateur de Jellyfin peut changer ce réglage."; break;
                 case GpuOutcome.NothingToTry: GpuStatus.Text = "Ajoute d’abord un film ou un épisode à ta bibliothèque : Mira essaie la carte sur l’un d’eux."; break;
                 default: GpuStatus.Text = "La carte graphique n’a pas réussi l’essai : Jellyfin continue avec le processeur. Mettre à jour son pilote peut suffire, puis réessaie."; break;

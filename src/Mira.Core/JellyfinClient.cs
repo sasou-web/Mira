@@ -490,6 +490,15 @@ public sealed class JellyfinClient : IDisposable
         }
     }
     /// <summary>
+    /// Jellyfin's version (« 12.1.0 »), from its public information (camelCase while it starts); null when it does not say.
+    /// </summary>
+    public async Task<string?> ServerVersionAsync(CancellationToken ct = default)
+    {
+        var info = await GetAsync<JsonElement>("System/Info/Public", ct);
+        return info.ValueKind == JsonValueKind.Object && (info.TryGetProperty("Version", out var version) || info.TryGetProperty("version", out version))
+            && version.ValueKind == JsonValueKind.String && version.GetString() is { Length: > 0 } text ? text : null;
+    }
+    /// <summary>
     /// Who plays what on Jellyfin right now (<see cref="Viewers"/>): every session for an administrator, this account's
     /// own otherwise.
     /// </summary>
