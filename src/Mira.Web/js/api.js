@@ -338,6 +338,21 @@ export const api = {
 
   resume: (limit = 16) => get('UserItems/Resume', { userId: user(), limit, mediaTypes: 'Video', fields: CARD_FIELDS, ...CARD_IMAGES, enableUserData: true }),
   nextUp: (limit = 16) => get('Shows/NextUp', { userId: user(), limit, fields: CARD_FIELDS, ...CARD_IMAGES, enableResumable: false, enableRewatching: false }),
+  /**
+   * The 50 latest episodes not watched yet, with when Jellyfin added them, and their series (favourite, part watched):
+   * what « Nouvel épisode » looks at (news.js), as Mira for Windows does (RecentEpisodesAsync).
+   */
+  async recentEpisodes() {
+    const found = await get('Items', {
+      userId: user(), recursive: true, includeItemTypes: 'Episode', isMissing: false, isPlayed: false, sortBy: 'DateCreated', sortOrder: 'Descending', limit: 50,
+      fields: 'DateCreated', enableImageTypes: 'Primary', imageTypeLimit: 1,
+    });
+    const episodes = found?.Items ?? [];
+    const ids = [...new Set(episodes.map((x) => x.SeriesId).filter(Boolean))];
+    if (!ids.length) return { episodes, series: {} };
+    const shows = await get('Items', { userId: user(), ids: ids.join(','), enableImages: false });
+    return { episodes, series: Object.fromEntries((shows?.Items ?? []).filter((x) => x.Type === 'Series').map((x) => [x.Id, x])) };
+  },
   /** What was watched lately, to order Continuer à regarder by the last activity on each film or series. */
   history: () => get('Items', { userId: user(), recursive: true, includeItemTypes: 'Movie,Episode', sortBy: 'DatePlayed', sortOrder: 'Descending', limit: 40, fields: 'SeriesInfo', enableImages: false, enableUserData: true }),
 
