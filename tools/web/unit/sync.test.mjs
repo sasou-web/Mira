@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink } from '../../../src/Mira.Web/js/player/sync.js';
+import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink, groupHost, findGroup, rejoinPlan, waitingText } from '../../../src/Mira.Web/js/player/sync.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/syncplay.json', import.meta.url), 'utf8'));
 
@@ -37,12 +37,20 @@ test('the title a queue puts on, and the group\'s words', () => {
 });
 
 test('the invitation: its link and what it says under it, from Tailscale, home or the Internet', () => {
-  for (const [server, group, link, steps] of fixture.invites) {
-    assert.equal(inviteLink(server, group), link);
+  for (const [server, group, host, link, steps] of fixture.invites) {
+    assert.equal(inviteLink(server, group, host), link);
     assert.deepEqual(inviteSteps(link), steps);
   }
 });
 
 test('« Ouvrir dans Mira »: the same invitation for Mira on a computer (read back by Together.ParseAppLink)', () => {
-  for (const [server, group, link] of fixture.appLinks) assert.equal(appLink(server, group), link);
+  for (const [server, group, host, link] of fixture.appLinks) assert.equal(appLink(server, group, host), link);
+});
+
+test('a link that stays valid: the group of its id, or the one its host made again since, else none', () => {
+  for (const [name, host] of fixture.hosts) assert.equal(groupHost(name), host, name);
+  for (const [groups, id, host, found] of fixture.finds) assert.equal(findGroup(groups, id, host)?.GroupId ?? null, found, `${id} · ${host}`);
+  for (const [groups, lost, made, plan] of fixture.rejoins) assert.deepEqual(rejoinPlan(groups, lost, made), plan, `${lost.GroupName} · ${made}`);
+  assert.equal(findGroup(null, 'x', 'mira'), null);
+  assert.equal(waitingText('mira'), 'mira n’a pas encore lancé la soirée');
 });

@@ -951,6 +951,7 @@ export function create({ id, query }) {
   together.restore();
   const group = together.bind({
     itemId: () => item?.Id ?? null,
+    position: () => position(),
     prepare: (startTicks) => { clearTimeout(groupTimer); quietPause(); seekTo(seconds(startTicks)); readyPending = true; checkReady(); },
     switchTo: (id, startTicks) => groupSwitch(id, startTicks),
     command: groupCommand,

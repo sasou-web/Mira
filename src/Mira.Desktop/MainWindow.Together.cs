@@ -15,6 +15,8 @@ namespace Mira.Desktop;
 /// on each of its devices: Lecture puts a title on for the group, and pause, play, seeks and the next episode go to
 /// Jellyfin, which tells each device what to do and when, on its clock (<see cref="Together"/>). One group at a time,
 /// joined or left from the title page, left from the player's ⋮ too. Its messages come through Jellyfin's WebSocket.
+/// Jellyfin lets a device go with its socket (Wi-Fi lost, the PC asleep): back, this PC joins the group again, or makes
+/// it again under the same name when it made it and the group ended empty, so that the invitation sent still finds it.
 /// </summary>
 public partial class MainWindow
 {
@@ -42,6 +44,14 @@ public partial class MainWindow
     private string? _groupCompletes;
     // In order: a Ready sent after its Buffering must arrive after it.
     private Task _groupSends = Task.CompletedTask;
+    /// <summary>The group was made on this PC: made again if Jellyfin ends it (<see cref="Together.RejoinPlan"/>).</summary>
+    private bool _groupMade;
+    /// <summary>Back in the group: Jellyfin sends its title again, and holds the others until this PC is ready.</summary>
+    private bool _groupRejoined;
+    /// <summary>Going back to the group after Jellyfin let this PC go, once at a time.</summary>
+    private Task? _groupRecovering;
+    /// <summary>An invitation waited for (« Attendre »): its group joined once its host opens it.</summary>
+    private CancellationTokenSource? _inviteWait;
 
     private bool InGroup => _group is not null && !_demo && _client is not null;
     private bool PlayingForGroup => InGroup && _playing && _groupQueue is { } queue && _session.Item?.Id == queue.ItemId;
@@ -64,6 +74,11 @@ public partial class MainWindow
         {
             case "GroupJoined":
                 if (Together.ParseGroup(body) is not { } group) return;
+                // The same group again (back after a break): its title stays until Jellyfin sends it again. Jellyfin
+                // takes this PC as a newcomer, which it does not tell to wait or not: said again with the title.
+                var again = _group is { } was && Together.SameGroup(was.GroupId, group.GroupId);
+                if (!again) _groupQueue = null;
+                _groupRejoined = again && _groupQueue is not null; _groupAway = false;
                 _group = group; _groupJoined?.TrySetResult(); _groupJoined = null;
                 _groupClock.Start(); _ = SyncGroupClockAsync(); GroupChanged();
                 break;
@@ -72,7 +87,10 @@ public partial class MainWindow
                 _ = RefreshGroupAsync(client);
                 break;
             case "GroupLeft": GroupGone(); break;
-            case "NotInGroup" or "GroupDoesNotExist": GroupGone(_group is null ? null : "Le groupe n’existe plus."); break;
+            // Jellyfin let this PC go (its session ended): back in the group, or out of it when there is none to go back to.
+            case "NotInGroup" or "GroupDoesNotExist":
+                if (_group is null) GroupGone(); else RecoverGroup(client);
+                break;
             case "LibraryAccessDenied": SetNotice("Un membre du groupe n’a pas accès à ce titre dans Jellyfin."); break;
             case "PlayQueue": _ = GroupQueueAsync(client, body); break;
         }
@@ -93,6 +111,7 @@ public partial class MainWindow
     {
         var was = _group is not null;
         _group = null; _groupQueue = null; _groupOffset = 0; _groupAway = false; _groupReadyPending = false; _groupStallSince = null; _groupStalled = false; _groupCompletes = null;
+        _groupMade = false; _groupRejoined = false;
         _groupClock.Stop(); _groupSeekSoon.Stop(); _groupPlaySoon.Stop();
         _groupJoined?.TrySetResult(); _groupJoined = null;
         if (was) GroupChanged();
@@ -104,11 +123,37 @@ public partial class MainWindow
         if (PlayerOptionsPopup.IsOpen && MoreMenu.Visibility == Visibility.Visible) ShowGroupSection();
     }
     /// <summary>Opened again after a break: Jellyfin may have let the session go, with its place in the group.</summary>
-    private void RejoinGroup(JellyfinClient client)
+    private void RejoinGroup(JellyfinClient client) => RecoverGroup(client);
+    /// <summary>
+    /// Back in the group after Jellyfin let this PC go (its session ended with the WebSocket): joined again where it is,
+    /// or made again under its name when this PC made it and it ended empty (<see cref="Together.RejoinPlan"/>). Out of
+    /// it when there is none to go back to, or when Jellyfin twice says nothing; still in it while Jellyfin cannot be
+    /// reached (the socket's next opening tries again).
+    /// </summary>
+    private void RecoverGroup(JellyfinClient client)
     {
-        if (_group is not { } group || !ReferenceEquals(client, _client)) return;
-        _ = RejoinAsync();
-        async Task RejoinAsync() { try { await client.SyncJoinAsync(group.GroupId, _connectionLifetime.Token); } catch (Exception ex) when (IsExpected(ex)) { } }
+        if (_group is not { } lost || !ReferenceEquals(client, _client) || _groupRecovering is { IsCompleted: false }) return;
+        _groupRecovering = RecoverAsync();
+        async Task RecoverAsync()
+        {
+            var ct = _connectionLifetime.Token;
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var joined = _groupJoined = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                try
+                {
+                    var plan = Together.RejoinPlan(await client.SyncGroupsAsync(ct), lost, _groupMade);
+                    if (!ReferenceEquals(client, _client) || !ReferenceEquals(_group, lost)) return;
+                    if (plan is null) { GroupGone("Le groupe n’existe plus."); return; }
+                    await (plan.Join is { } id ? client.SyncJoinAsync(id, ct) : client.SyncNewAsync(plan.Create!, ct));
+                    await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6), ct));
+                }
+                catch (Exception ex) when (IsExpected(ex)) { return; }
+                finally { if (ReferenceEquals(_groupJoined, joined)) _groupJoined = null; }
+                if (!ReferenceEquals(_group, lost)) return;
+            }
+            GroupGone("Le groupe n’existe plus.");
+        }
     }
 
     private async Task SyncGroupClockAsync()
@@ -156,9 +201,14 @@ public partial class MainWindow
     private async Task GroupQueueAsync(JellyfinClient client, JsonElement data)
     {
         if (Together.QueueItem(data) is not { } next) { _groupQueue = null; return; }
-        // Shuffle, repeat or the list changed around the same title: nothing to load again.
-        if (_groupQueue?.PlaylistItemId == next.PlaylistItemId) return;
-        _groupQueue = next; SetGroupAway(false);
+        var same = _groupQueue?.PlaylistItemId == next.PlaylistItemId;
+        // Shuffle, repeat or the list changed around the same title: nothing to load again. Unless this PC is back in the
+        // group: Jellyfin holds the others until it is ready there, or told that its player is closed.
+        if (same && !_groupRejoined) return;
+        _groupRejoined = false;
+        _groupQueue = next;
+        if (same && !(_playing && _session.Item?.Id == next.ItemId)) { SetGroupAway(true); return; }
+        SetGroupAway(false);
         var start = next.StartTicks / 1e7;
         GroupReport("Buffering", start, false);
         if (_playing && _loaded && _session.Item?.Id == next.ItemId)
@@ -310,14 +360,19 @@ public partial class MainWindow
             foreach (var g in groups)
                 menu.Items.Add(MenuAction($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", "users", () => EnterGroupAsync(c => c.SyncJoinAsync(g.GroupId), invite: false)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
-            menu.Items.Add(MenuAction("Créer un groupe et inviter…", "plus", () => EnterGroupAsync(c => c.SyncNewAsync(Together.GroupName(c.Connection.UserName)), invite: true)));
+            menu.Items.Add(MenuAction("Créer un groupe et inviter…", "plus", () => EnterGroupAsync(c => c.SyncNewAsync(Together.GroupName(c.Connection.UserName)), invite: true, made: true)));
         }
         menu.IsOpen = true;
     }
-    /// <summary>« Créer un groupe » (then its invitation: a new group is empty) or « Rejoindre … »: done once Jellyfin says GroupJoined.</summary>
-    private async Task EnterGroupAsync(Func<JellyfinClient, Task> start, bool invite)
+    /// <summary>
+    /// « Créer un groupe » (<paramref name="made"/>, then its invitation: a new group is empty) or « Rejoindre … »: done
+    /// once Jellyfin says GroupJoined.
+    /// </summary>
+    private async Task EnterGroupAsync(Func<JellyfinClient, Task> start, bool invite, bool made = false)
     {
         if (_client is not { } client) return;
+        _inviteWait?.Cancel(); _inviteWait = null;
+        _groupMade = made;
         var joined = _groupJoined = new(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
@@ -349,7 +404,7 @@ public partial class MainWindow
         if (_group is not { } group || _client is not { } client) return;
         var server = client.Connection.Server;
         var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
-        var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId);
+        var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId, Together.GroupHost(group.GroupName));
         InviteLead.Text = $"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».";
         InviteLink.Text = link;
         InviteSteps.Children.Clear();
@@ -376,6 +431,7 @@ public partial class MainWindow
     internal void OpenLink(string text)
     {
         if (Together.ParseAppLink(text) is not { } invite) { SetNotice("Mira ne sait pas ouvrir ce lien."); return; }
+        _inviteWait?.Cancel(); _inviteWait = null;
         _invite = invite;
         _ = OfferInviteAsync();
     }
@@ -403,8 +459,40 @@ public partial class MainWindow
         if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
             SetNotice(answer.Text, "Rejoindre", () => _ = EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false));
         else if (answer.Kind == Together.InviteKind.OtherServer)
-            SetNotice(answer.Text, "Ouvrir dans le navigateur", () => OpenInBrowser(Together.InviteLink(invite.Server, invite.GroupId)));
+            SetNotice(answer.Text, "Ouvrir dans le navigateur", () => OpenInBrowser(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)));
+        else if (answer.Kind == Together.InviteKind.Waiting)
+            SetNotice(answer.Text, "Attendre", () => WaitForInvite(client, invite));
         else SetNotice(answer.Text);
+    }
+    /// <summary>
+    /// « Attendre »: the group of an invitation joined as soon as its host opens it (Jellyfin's groups read every few
+    /// seconds, three hours at most), unless another group, another invitation or another account comes first.
+    /// </summary>
+    private void WaitForInvite(JellyfinClient client, Together.Invitation invite)
+    {
+        if (!ReferenceEquals(client, _client)) return;
+        _inviteWait?.Cancel();
+        var wait = _inviteWait = CancellationTokenSource.CreateLinkedTokenSource(_connectionLifetime.Token);
+        wait.CancelAfter(TimeSpan.FromHours(3));
+        SetNotice(Together.WaitingLead, "Annuler", () => wait.Cancel(), sticky: false);
+        _ = WaitAsync();
+        async Task WaitAsync()
+        {
+            Together.Group group;
+            try { group = await Together.WaitForGroupAsync(ReadAsync, invite, TimeSpan.FromSeconds(4), wait.Token); }
+            catch (OperationCanceledException) { return; }
+            if (!ReferenceEquals(_inviteWait, wait) || !ReferenceEquals(client, _client)) return;
+            _inviteWait = null;
+            if (_group is not null) return;
+            RestoreFromWindows();
+            await EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false);
+        }
+        async Task<IReadOnlyList<Together.Group>?> ReadAsync(CancellationToken ct)
+        {
+            try { return await client.SyncGroupsAsync(ct); }
+            catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); wait.Cancel(); return null; }
+            catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested) { return null; }
+        }
     }
     private void OpenInBrowser(string link)
     {

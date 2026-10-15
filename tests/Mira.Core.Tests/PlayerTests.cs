@@ -47,14 +47,14 @@ internal static class PlayerTests
             Assert(Together.GroupName("mira") == "Groupe de mira" && Together.NeedsSeek(10, 10.6) && !Together.NeedsSeek(10, 10.4), "Words, drift");
             foreach (var row in root.GetProperty("invites").EnumerateArray())
             {
-                var link = Together.InviteLink(row[0].GetString()!, row[1].GetString()!);
-                Assert(link == row[2].GetString() && Together.InviteSteps(link).SequenceEqual(row[3].EnumerateArray().Select(x => x.GetString())), $"Invite: {link}");
+                var link = Together.InviteLink(row[0].GetString()!, row[1].GetString()!, row[2].GetString());
+                Assert(link == row[3].GetString() && Together.InviteSteps(link).SequenceEqual(row[4].EnumerateArray().Select(x => x.GetString())), $"Invite: {link}");
             }
             // « Ouvrir dans Mira »: built by Mira web, read back by Mira for Windows and Mac, which refuse anything else.
             foreach (var row in root.GetProperty("appLinks").EnumerateArray())
             {
-                var link = Together.AppLink(row[0].GetString()!, row[1].GetString()!);
-                Assert(link == row[2].GetString() && Together.ParseAppLink(link) == new Together.Invitation(row[1].GetString()!, row[0].GetString()!.TrimEnd('/')), $"App link: {link}");
+                var link = Together.AppLink(row[0].GetString()!, row[1].GetString()!, row[2].GetString());
+                Assert(link == row[3].GetString() && Together.ParseAppLink(link) == new Together.Invitation(row[1].GetString()!, row[0].GetString()!.TrimEnd('/'), row[2].GetString()), $"App link: {link}");
             }
             foreach (var bad in root.GetProperty("badAppLinks").EnumerateArray())
                 Assert(Together.ParseAppLink(bad.GetString()) is null, $"Refused: {bad.GetString()}");
@@ -73,6 +73,47 @@ internal static class PlayerTests
             Assert(Together.InviteServer("http://192.168.1.20:8096", true, null, "192.168.1.20") == "http://192.168.1.20:8096", "Here, at its address");
             Assert(Together.InviteServer("https://films.example.org/jellyfin/", false, "100.101.102.103", null) == "https://films.example.org/jellyfin", "Elsewhere");
             return Task.CompletedTask;
+        });
+        await Test("Regarder ensemble : un lien qui reste valable, groupe refait sous le même nom ou attendu, comme Mira web (tests/fixtures/syncplay.json)", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "syncplay.json")));
+            var root = fixture.RootElement;
+            static List<Together.Group> Groups(JsonElement list) => list.EnumerateArray().Select(Together.ParseGroup).OfType<Together.Group>().ToList();
+            foreach (var row in root.GetProperty("hosts").EnumerateArray())
+                Assert(Together.GroupHost(row[0].GetString()) == row[1].GetString(), $"Host of {row[0]}: {Together.GroupHost(row[0].GetString())}");
+            foreach (var row in root.GetProperty("finds").EnumerateArray())
+            {
+                var found = Together.FindGroup(Groups(row[0]), row[1].GetString()!, row[2].GetString());
+                Assert(found?.GroupId == row[3].GetString(), $"Find {row[1]} · {row[2]}: {found?.GroupId}");
+            }
+            foreach (var row in root.GetProperty("rejoins").EnumerateArray())
+            {
+                var lost = Together.ParseGroup(row[1])!;
+                var plan = Together.RejoinPlan(Groups(row[0]), lost, row[2].GetBoolean());
+                var expected = row[3].ValueKind == JsonValueKind.Null ? null
+                    : new Together.Rejoin(row[3].TryGetProperty("join", out var j) ? j.GetString() : null, row[3].TryGetProperty("create", out var c) ? c.GetString() : null);
+                Assert(plan == expected, $"Rejoin {lost.GroupName} · {row[2]}: {plan}");
+            }
+            Assert(Together.WaitingText("mira") == "mira n’a pas encore lancé la soirée", "Waiting words");
+            // An invitation with its host: the group made again since is the one to join; none yet, Mira can wait for it.
+            var invite = new Together.Invitation("7464412130f54334a8a14638f0060cd6", "http://100.101.102.103:8096", "mira");
+            List<Together.Group> again = [new("b61818a0ff7c4c6eb39e2b73b85f3bcc", "Groupe de mira", ["mira"], "Idle")];
+            var answer = Together.Answer(invite, again, "http://100.101.102.103:8096", null);
+            Assert(answer.Kind == Together.InviteKind.Join && answer.Group == again[0], answer.Text);
+            answer = Together.Answer(invite, [], "http://100.101.102.103:8096", null);
+            Assert(answer.Kind == Together.InviteKind.Waiting && answer.Text == "mira n’a pas encore lancé la soirée : Mira peut t’y faire entrer dès que le groupe est ouvert.", answer.Text);
+            Assert(Together.Answer(invite, [], "http://192.168.1.20:8096", null).Kind == Together.InviteKind.OtherServer, "Waiting is for this Jellyfin only");
+            // Waited for: Jellyfin read again until the group opens; a time it does not answer changes nothing.
+            var reads = 0;
+            List<IReadOnlyList<Together.Group>?> answers = [[], null, [new Together.Group("11111111111111111111111111111111", "Groupe de léa", ["léa"], "Idle")], again];
+            var waited = await Together.WaitForGroupAsync(_ => Task.FromResult(answers[Math.Min(reads++, answers.Count - 1)]), invite, TimeSpan.FromMilliseconds(5), CancellationToken.None);
+            Assert(waited == again[0] && reads == 4, $"Waited: {waited.GroupId} after {reads} reads");
+            using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(60));
+            var stopped = false;
+            try { await Together.WaitForGroupAsync(_ => Task.FromResult<IReadOnlyList<Together.Group>?>([]), invite, TimeSpan.FromMilliseconds(5), stop.Token); }
+            catch (OperationCanceledException) { stopped = true; }
+            Assert(stopped, "Waiting stops when canceled");
         });
         await Test("Minuterie : pause au bout des minutes, une seule fois, ou arrêt à la fin de l’épisode, comme Mira web (tests/fixtures/sleep.json)", () =>
         {

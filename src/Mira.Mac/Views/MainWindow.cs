@@ -222,6 +222,7 @@ public sealed class MainWindow : Window
     public void OpenLink(string text)
     {
         if (Together.ParseAppLink(text) is not { } invite) { Notice("Mira ne sait pas ouvrir ce lien."); return; }
+        _inviteWait?.Cancel(); _inviteWait = null;
         _invite = invite;
         _ = OfferInviteAsync();
     }
@@ -247,8 +248,42 @@ public sealed class MainWindow : Window
         if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
             Notice(answer.Text, "Rejoindre", () => _ = Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct)), sticky: true);
         else if (answer.Kind == Together.InviteKind.OtherServer)
-            Notice(answer.Text, "Ouvrir dans le navigateur", () => Updates.Open(new Uri(Together.InviteLink(invite.Server, invite.GroupId)), plainHttp: true), sticky: true);
+            Notice(answer.Text, "Ouvrir dans le navigateur", () => Updates.Open(new Uri(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)), plainHttp: true), sticky: true);
+        else if (answer.Kind == Together.InviteKind.Waiting)
+            Notice(answer.Text, "Attendre", () => WaitForInvite(session, invite), sticky: true);
         else Notice(answer.Text);
+    }
+    /// <summary>An invitation waited for (« Attendre »): its group joined once its host opens it.</summary>
+    private CancellationTokenSource? _inviteWait;
+    /// <summary>
+    /// « Attendre »: the group of an invitation joined as soon as its host opens it (Jellyfin's groups read every few
+    /// seconds, three hours at most), unless another group, another invitation or another account comes first.
+    /// </summary>
+    private void WaitForInvite(Session session, Together.Invitation invite)
+    {
+        if (!ReferenceEquals(session, Session)) return;
+        _inviteWait?.Cancel();
+        var wait = _inviteWait = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime);
+        wait.CancelAfter(TimeSpan.FromHours(3));
+        Notice(Together.WaitingLead, "Annuler", () => wait.Cancel());
+        _ = WaitAsync();
+        async Task WaitAsync()
+        {
+            Together.Group group;
+            try { group = await Together.WaitForGroupAsync(ReadAsync, invite, TimeSpan.FromSeconds(4), wait.Token); }
+            catch (OperationCanceledException) { return; }
+            if (!ReferenceEquals(_inviteWait, wait) || !ReferenceEquals(session, Session)) return;
+            _inviteWait = null;
+            if (Group.Active) return;
+            Activate();
+            await Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct));
+        }
+        async Task<IReadOnlyList<Together.Group>?> ReadAsync(CancellationToken ct)
+        {
+            try { return await session.Client.SyncGroupsAsync(ct); }
+            catch (UnauthorizedAccessException) { Notice(WatchGroup.NoSyncPlay); wait.Cancel(); return null; }
+            catch (Exception ex) when (Errors.Expected(ex) && !ct.IsCancellationRequested) { return null; }
+        }
     }
     /// <summary>« Se déconnecter »: the session ends here and on Jellyfin, and with <paramref name="erase"/> this account's data leaves this Mac.</summary>
     public async Task SignOutAsync(bool erase = false)

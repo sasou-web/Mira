@@ -28,8 +28,11 @@ export function create() {
   const el = h('div', { class: 'view gate' });
   const title = h('h1', {}, 'Bienvenue sur Mira');
   // Brought here by an invitation to « Regarder ensemble » (views/join.js): the group comes once signed in.
-  const invited = (temp.get('mira.next') ?? '').startsWith('#/ensemble/');
-  const lead = h('p', { class: 'lead' }, invited ? 'On t’invite à regarder ensemble : connecte-toi avec ton compte Jellyfin pour rejoindre le groupe.' : 'Connecte-toi avec ton compte Jellyfin.');
+  const invitation = /^#\/ensemble\/([0-9a-f-]+)(?:\?(.*))?$/i.exec(temp.get('mira.next') ?? '');
+  const host = invitation ? new URLSearchParams(invitation[2] ?? '').get('hote') || null : null;
+  const lead = h('p', { class: 'lead' }, invitation
+    ? `${host ? `${host} t’invite` : 'On t’invite'} à regarder ensemble : connecte-toi avec ton compte Jellyfin pour rejoindre le groupe.`
+    : 'Connecte-toi avec ton compte Jellyfin.');
   const body = h('div', { style: { display: 'grid', justifyItems: 'center', gap: '22px', width: '100%' } });
   el.append(markSvg(64), h('div', { style: { display: 'grid', gap: '8px', justifyItems: 'center' } }, title, lead), body);
   // Over plain HTTP from the Internet, the password could be read on its way: said before it is typed.
@@ -43,12 +46,12 @@ export function create() {
       h('span', {}, h('b', {}, 'Mira a besoin du stockage du site. '), 'Ce navigateur le bloque : Mira ne pourra pas garder ta connexion, ni ce qu’il affiche, une fois fermé. Sur iPhone, désactive « Bloquer tous les cookies » dans les réglages de Safari, puis rouvre Mira.'))));
   }
   // On a computer with Mira: the group joined from the app (which asks first), with no sign-in here.
-  const group = invited ? /^#\/ensemble\/([0-9a-f-]+)$/i.exec(temp.get('mira.next'))?.[1] : null;
+  const group = invitation?.[1] ?? null;
   const app = group ? computerApp() : null;
   if (app) {
     body.before(h('div', { class: 'hint open-app' },
       h('div', {}, h('b', {}, `Mira pour ${app} est installé ici ?`), ' Rejoins le groupe depuis l’app : ton navigateur te demandera de l’ouvrir.'),
-      h('a', { class: 'btn primary small', href: appLink(`${location.origin}${base}`, group) }, icon('users', { size: 16 }), `Ouvrir dans Mira pour ${app}`)));
+      h('a', { class: 'btn primary small', href: appLink(`${location.origin}${base}`, group, host) }, icon('users', { size: 16 }), `Ouvrir dans Mira pour ${app}`)));
   }
   const hint = installHint();
   if (hint) el.append(hint);

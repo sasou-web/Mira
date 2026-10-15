@@ -72,6 +72,37 @@ public static class Together
             : null;
     /// <summary>« Groupe de mira ».</summary>
     public static string GroupName(string user) => "Groupe de " + user;
+    /// <summary>Who made a group of Mira, from its name (« Groupe de mira » → mira); null for a name Mira does not give.</summary>
+    public static string? GroupHost(string? name) =>
+        name is not null && name.StartsWith("Groupe de ", StringComparison.Ordinal) && name.Length > "Groupe de ".Length ? name["Groupe de ".Length..] : null;
+    /// <summary>
+    /// The group an invitation means among Jellyfin's: the one of its id, else the one its host made again since under
+    /// the same name (Jellyfin ends an empty group with its last device; Mira makes it again, <see cref="RejoinPlan"/>),
+    /// with the host in it first, then the fullest. Null when none is open.
+    /// </summary>
+    public static Group? FindGroup(IReadOnlyList<Group> groups, string groupId, string? host)
+    {
+        if (groups.FirstOrDefault(g => SameGroup(g.GroupId, groupId)) is { } same) return same;
+        if (string.IsNullOrEmpty(host)) return null;
+        var name = GroupName(host);
+        return groups.Where(g => g.GroupName == name).OrderByDescending(g => g.Participants.Contains(host)).ThenByDescending(g => g.Participants.Count).FirstOrDefault();
+    }
+    /// <summary>How to go back to a group: join the one of <see cref="Join"/>, or make it again under the name <see cref="Create"/>.</summary>
+    public sealed record Rejoin(string? Join, string? Create);
+    /// <summary>
+    /// Back in a group Jellyfin let this device go from (its session ended with its WebSocket: Wi-Fi lost, the PC asleep):
+    /// joined where it still is; made again under the same name when this device made it and it ended (empty), so that
+    /// the invitations sent still find it (<see cref="FindGroup"/>); null when there is nothing to go back to.
+    /// </summary>
+    public static Rejoin? RejoinPlan(IReadOnlyList<Group> groups, Group lost, bool made)
+    {
+        if (FindGroup(groups, lost.GroupId, GroupHost(lost.GroupName)) is { } found) return new(found.GroupId, null);
+        return made && lost.GroupName.Length > 0 ? new(null, lost.GroupName) : null;
+    }
+    /// <summary>What a friend reads when the host has no group open yet: « mira n’a pas encore lancé la soirée ».</summary>
+    public static string WaitingText(string host) => host + " n’a pas encore lancé la soirée";
+    /// <summary>What it says under it, while Mira waits for the group.</summary>
+    public const string WaitingLead = "Garde Mira ouvert : tu entres dans le groupe dès qu’il est ouvert.";
     /// <summary>« 1 personne », « 2 personnes ».</summary>
     public static string People(int count) => count <= 1 ? "1 personne" : $"{count} personnes";
     /// <summary>« Groupe de mira · 2 personnes ».</summary>
@@ -87,43 +118,54 @@ public static class Together
         var host = onThisComputer ? tailnet ?? (uri.IsLoopback ? home : null) : null;
         return (host is null ? uri : new UriBuilder(uri) { Host = host }.Uri).GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/');
     }
-    /// <summary>The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it.</summary>
-    public static string InviteLink(string server, string groupId) => server.TrimEnd('/') + "/Mira/#/ensemble/" + Uri.EscapeDataString(groupId);
+    /// <summary>
+    /// The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it. Its
+    /// host (who made the group) keeps it valid when the group is made again, or not open yet (<see cref="FindGroup"/>).
+    /// </summary>
+    public static string InviteLink(string server, string groupId, string? host = null) =>
+        server.TrimEnd('/') + "/Mira/#/ensemble/" + Uri.EscapeDataString(groupId) + (string.IsNullOrEmpty(host) ? "" : "?hote=" + Uri.EscapeDataString(host));
     /// <summary>
     /// The same invitation for Mira on a computer (« Ouvrir dans Mira » of Mira web): mira://ensemble/&lt;group&gt;?server=…,
     /// opened by Mira for Windows or Mac, which offers to join the group (<see cref="Answer"/>).
     /// </summary>
-    public static string AppLink(string server, string groupId) => "mira://ensemble/" + Uri.EscapeDataString(groupId) + "?server=" + Uri.EscapeDataString(server.TrimEnd('/'));
-    /// <summary>A group of a Jellyfin, at the address the invitation gives for it.</summary>
-    public sealed record Invitation(string GroupId, string Server);
+    public static string AppLink(string server, string groupId, string? host = null) =>
+        "mira://ensemble/" + Uri.EscapeDataString(groupId) + "?server=" + Uri.EscapeDataString(server.TrimEnd('/')) + (string.IsNullOrEmpty(host) ? "" : "&hote=" + Uri.EscapeDataString(host));
+    /// <summary>A group of a Jellyfin, at the address the invitation gives for it, and who made it when the link says.</summary>
+    public sealed record Invitation(string GroupId, string Server, string? Host = null);
     /// <summary>
     /// An <see cref="AppLink"/>, from a web page: a group id (a GUID) and a Jellyfin at an http(s) address, nothing else
-    /// (no other scheme, no user name in the address). Null for anything else.
+    /// (no other scheme, no user name in the address), and maybe its host (a name, without control characters). Null for
+    /// anything else.
     /// </summary>
     public static Invitation? ParseAppLink(string? text)
     {
         if (!Uri.TryCreate(text, UriKind.Absolute, out var uri) || uri.Scheme != "mira" || !uri.Host.Equals("ensemble", StringComparison.OrdinalIgnoreCase)) return null;
         var group = Uri.UnescapeDataString(uri.AbsolutePath.Trim('/'));
         if (!Guid.TryParse(group, out _) || group.Length is not (32 or 36)) return null;
-        string? server = null;
+        string? server = null, host = null;
         foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
             if (pair.StartsWith("server=", StringComparison.Ordinal)) server = Uri.UnescapeDataString(pair["server=".Length..]);
+            else if (pair.StartsWith("hote=", StringComparison.Ordinal)) host = Uri.UnescapeDataString(pair["hote=".Length..]);
+        }
         if (!Uri.TryCreate(server, UriKind.Absolute, out var address) || address.Scheme is not ("http" or "https") || address.UserInfo.Length > 0 || address.Query.Length > 0 || address.Fragment.Length > 0) return null;
-        return new(group, address.GetLeftPart(UriPartial.Authority) + address.AbsolutePath.TrimEnd('/'));
+        if (host is not null && (host.Length is 0 or > 128 || host.Any(char.IsControl))) return null;
+        return new(group, address.GetLeftPart(UriPartial.Authority) + address.AbsolutePath.TrimEnd('/'), host);
     }
     /// <summary>Jellyfin writes a group's id with or without dashes.</summary>
     public static bool SameGroup(string a, string b) => string.Equals(a.Replace("-", ""), b.Replace("-", ""), StringComparison.OrdinalIgnoreCase);
-    public enum InviteKind { Join, Already, OtherServer, Gone }
+    public enum InviteKind { Join, Already, OtherServer, Gone, Waiting }
     /// <summary>What Mira says of an invitation opened in it: the group to join (« Rejoindre »), or why not.</summary>
     public sealed record InviteAnswer(InviteKind Kind, string Text, Group? Group = null);
     public const string SignInToJoin = "Connecte-toi avec ton compte Jellyfin : Mira te proposera ensuite de rejoindre le groupe.";
     /// <summary>
     /// An invitation, against the groups of the Jellyfin this app is signed in to (<paramref name="server"/>): a group id
-    /// is unique, so finding it there is enough, whatever address each one reaches that Jellyfin at.
+    /// is unique, so finding it there is enough, whatever address each one reaches that Jellyfin at; its host's group
+    /// made again since will do too. With a host and no group yet, Mira can wait for it (<see cref="WaitForGroupAsync"/>).
     /// </summary>
     public static InviteAnswer Answer(Invitation invite, IReadOnlyList<Group> groups, string server, string? currentGroup)
     {
-        if (groups.FirstOrDefault(g => SameGroup(g.GroupId, invite.GroupId)) is { } group)
+        if (FindGroup(groups, invite.GroupId, invite.Host) is { } group)
         {
             if (currentGroup is not null && SameGroup(currentGroup, group.GroupId)) return new(InviteKind.Already, $"Tu es déjà dans « {group.GroupName} ».", group);
             var people = People(Math.Max(1, group.Participants.Count)) + (group.Participants.Count > 0 ? " : " + string.Join(", ", group.Participants) : "");
@@ -132,7 +174,22 @@ public static class Together
         var host = Uri.TryCreate(invite.Server, UriKind.Absolute, out var a) ? a.Host : invite.Server;
         if (!Uri.TryCreate(server, UriKind.Absolute, out var b) || !b.Host.Equals(host, StringComparison.OrdinalIgnoreCase))
             return new(InviteKind.OtherServer, $"Ce groupe est sur un autre serveur Jellyfin ({host}) que celui de Mira : ouvre-le dans ton navigateur.");
+        if (invite.Host is { Length: > 0 } who) return new(InviteKind.Waiting, WaitingText(who) + " : Mira peut t’y faire entrer dès que le groupe est ouvert.");
         return new(InviteKind.Gone, "Ce groupe n’existe plus : demande un nouveau lien à la personne qui t’a invité.");
+    }
+    /// <summary>
+    /// The group of an invitation, once its host opens it: Jellyfin's groups read every <paramref name="every"/> until
+    /// one is the invitation's (<see cref="FindGroup"/>). <paramref name="groups"/> gives null when Jellyfin did not
+    /// answer this time. Ends by an <see cref="OperationCanceledException"/> when <paramref name="ct"/> is canceled.
+    /// </summary>
+    public static async Task<Group> WaitForGroupAsync(Func<CancellationToken, Task<IReadOnlyList<Group>?>> groups, Invitation invite, TimeSpan every, CancellationToken ct)
+    {
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (await groups(ct) is { } list && FindGroup(list, invite.GroupId, invite.Host) is { } found) return found;
+            await Task.Delay(every, ct);
+        }
     }
     /// <summary>What the invitation says under its link: who may follow it, and from where (Tailscale, the home network).</summary>
     public static List<string> InviteSteps(string link)
