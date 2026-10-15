@@ -226,6 +226,12 @@ internal static class PhoneTests
             var silent = fresh with { Web = null, Admin = null, TailnetAllowed = null, Answering = false };
             steps = PhoneSetup.Steps(silent);
             Assert(Marks(steps) == "web:Note firewall:ToDo tailscale:Note boot:Note" && steps[0].Title.Contains("ne répond pas"), "Jellyfin silent: " + Marks(steps));
+            // Silent on this PC: stopped (its button starts it), starting, or stopping after each start (its log).
+            Assert(PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Stopped, Boot = service })[0] is { Mark: PhoneSetup.Mark.Yours, Action: LocalJellyfin.Start } stopped
+                && stopped.Text.Contains("autorisation de Windows") && !PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Stopped })[0].Text.Contains("autorisation")
+                && PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Starting })[0] is { Mark: PhoneSetup.Mark.Note, Title: "Jellyfin démarre sur ce PC" }
+                && PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Failing })[0] is { Mark: PhoneSetup.Mark.Yours, Action: LocalJellyfin.OpenLog }
+                && PhoneSetup.Steps(new PhoneSetup.Facts("http://192.168.1.30:8096", false, Web: null, Home: "http://192.168.1.30:8096") with { Answering = false, Web = null, Down = LocalJellyfin.Verdict.Stopped })[0].Title.Contains("ne répond pas"), "Jellyfin stopped on this PC");
             Assert(PhoneSetup.Is(PhoneSetup.Steps(ready with { TailnetAllowed = null }), "tailscale", PhoneSetup.Mark.Note), "The administrator, Tailscale not read yet");
             // Unreadable firewall: Mira's rule decides, when it is as Mira writes it. The service: set up with the same consent when it lacks something.
             Assert(PhoneSetup.Is(PhoneSetup.Steps(ready with { Firewall = null, MiraRule = JellyfinFirewall.RuleState.Ready }), "firewall", PhoneSetup.Mark.Done)
@@ -257,6 +263,25 @@ internal static class PhoneTests
             // A Jellyfin here reached at this PC's own address is this PC's.
             Assert(LocalNetwork.IsThisPc("127.0.0.1") && LocalNetwork.IsThisPc("localhost") && LocalNetwork.IsThisPc("[::1]") && !LocalNetwork.IsThisPc("192.0.2.1")
                 && (LocalNetwork.ThisPc() is not { } own || LocalNetwork.IsThisPc(own)), "This PC's own addresses");
+            return Task.CompletedTask;
+        });
+        await Test("Jellyfin arrêté sur ce PC : dit tel quel, démarré d’un clic, son journal après deux démarrages ratés", () =>
+        {
+            LocalJellyfin.Verdict Judge(LocalJellyfin.Service service, bool running = false, bool canStart = true, int failed = 0) => LocalJellyfin.Judge(service, running, canStart, failed);
+            // Its service: stopped (also after Windows' three restarts, or a stop from its dashboard), starting or running without answering yet.
+            Assert(Judge(LocalJellyfin.Service.Stopped) == LocalJellyfin.Verdict.Stopped && Judge(LocalJellyfin.Service.Stopping) == LocalJellyfin.Verdict.Stopped
+                && Judge(LocalJellyfin.Service.Starting) == LocalJellyfin.Verdict.Starting && Judge(LocalJellyfin.Service.Running) == LocalJellyfin.Verdict.Starting, "Service states");
+            // Without a service: its program, running or not; nothing to start it with is Mira's usual message.
+            Assert(Judge(LocalJellyfin.Service.None, running: true) == LocalJellyfin.Verdict.Starting && Judge(LocalJellyfin.Service.None) == LocalJellyfin.Verdict.Stopped
+                && Judge(LocalJellyfin.Service.None, canStart: false) == LocalJellyfin.Verdict.Unknown && Judge(LocalJellyfin.Service.Unknown) == LocalJellyfin.Verdict.Unknown, "Without a service");
+            // Two starts in a row it did not answer after: its log, never a third start; starting again meanwhile is still said.
+            Assert(Judge(LocalJellyfin.Service.Stopped, failed: 1) == LocalJellyfin.Verdict.Stopped && Judge(LocalJellyfin.Service.Stopped, failed: 2) == LocalJellyfin.Verdict.Failing
+                && Judge(LocalJellyfin.Service.None, failed: 2) == LocalJellyfin.Verdict.Failing && Judge(LocalJellyfin.Service.Running, failed: 2) == LocalJellyfin.Verdict.Starting, "Failed starts");
+            Assert(LocalJellyfin.Says(LocalJellyfin.Verdict.Stopped, service: true) is { Action: LocalJellyfin.Start } stopped && stopped.Text.Contains("arrêté sur ce PC") && stopped.Text.Contains("autorisation")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Stopped, service: false) is { } program && !program.Text.Contains("autorisation")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Starting, service: true) is { Action: null } starting && starting.Text.Contains("démarre")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Failing, service: true, "Error while starting server (address already in use)") is { Action: LocalJellyfin.OpenLog } failing && failing.Text.Contains("« Error while starting server")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Unknown, service: true) is null, "What is said");
             return Task.CompletedTask;
         });
         await Test("Autres appareils : l’adresse du PC sur le réseau de la maison, pas celle d’un adaptateur virtuel", () =>

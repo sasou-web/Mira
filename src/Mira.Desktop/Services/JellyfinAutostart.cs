@@ -41,6 +41,68 @@ internal static class JellyfinAutostart
     }
 
     /// <summary>
+    /// The service's state as Windows reports it (QueryServiceStatus, which needs no administrator rights): None when
+    /// there is no such service, Unknown when Windows does not say.
+    /// </summary>
+    public static LocalJellyfin.Service ServiceState(string service = JellyfinStartup.ServiceName)
+    {
+        var manager = OpenSCManagerW(null, null, ScManagerConnect);
+        if (manager == IntPtr.Zero) return LocalJellyfin.Service.Unknown;
+        try
+        {
+            var handle = OpenServiceW(manager, service, ServiceQueryStatus);
+            if (handle == IntPtr.Zero) return Marshal.GetLastWin32Error() == ErrorServiceDoesNotExist ? LocalJellyfin.Service.None : LocalJellyfin.Service.Unknown;
+            try
+            {
+                if (!QueryServiceStatus(handle, out var status)) return LocalJellyfin.Service.Unknown;
+                // SERVICE_STATUS.dwCurrentState: 1 stopped, 2 start pending, 3 stop pending, 4 running, 5 continue pending, 6 pause pending, 7 paused.
+                return status.CurrentState switch
+                {
+                    1 or 7 => LocalJellyfin.Service.Stopped,
+                    2 or 5 => LocalJellyfin.Service.Starting,
+                    3 or 6 => LocalJellyfin.Service.Stopping,
+                    4 => LocalJellyfin.Service.Running,
+                    _ => LocalJellyfin.Service.Unknown,
+                };
+            }
+            finally { CloseServiceHandle(handle); }
+        }
+        finally { CloseServiceHandle(manager); }
+    }
+    /// <summary>Whether a jellyfin.exe runs on this PC, in any account: what tells, without a service.</summary>
+    public static bool ProgramRunning()
+    {
+        var found = Process.GetProcessesByName("jellyfin");
+        foreach (var process in found) process.Dispose();
+        return found.Length > 0;
+    }
+    /// <summary>
+    /// « Démarrer Jellyfin » for its service: <c>sc start</c> through the same elevated script as « Tout préparer »,
+    /// Windows asking for consent. Done once the script ran (a service already starting makes sc fail, which is no
+    /// failure here): whether Jellyfin then answers is what counts.
+    /// </summary>
+    public static async Task<AutostartResult> StartServiceAsync(string service = JellyfinStartup.ServiceName)
+    {
+        var code = await ElevatedAsync(new([], [], [new("sc.exe", $"start {service}", Optional: true)]));
+        return code is null ? AutostartResult.Refused : code == 0 ? AutostartResult.Done : AutostartResult.Failed;
+    }
+    /// <summary>
+    /// « Démarrer Jellyfin » without a service: its program with its data folder, hidden, as its tray app starts it,
+    /// in the person's own rights. False when Mira finds no program or it does not start.
+    /// </summary>
+    public static bool StartProgram()
+    {
+        if (Program() is not { } program) return false;
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(program, $"--datadir \"{JellyfinInstaller.DataFolder()}\"")
+            { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = Path.GetDirectoryName(program)! });
+            return process is not null;
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException) { return false; }
+    }
+
+    /// <summary>
     /// The jellyfin.exe the service runs (NSSM's Application value), the one in the installer's folder (also the one
     /// its tray app starts), or the one running, for a Jellyfin installed some other way.
     /// </summary>
@@ -379,6 +441,14 @@ internal static class JellyfinAutostart
     public static void RemoveRule(string rule) => Execute(new("netsh.exe", $"advfirewall firewall delete rule name=\"{rule}\""));
     /// <summary>A program of System32 with its arguments: its exit code.</summary>
     public static int RunSystem(string file, string arguments) => Execute(new(file, arguments));
+
+    private const uint ScManagerConnect = 0x0001, ServiceQueryStatus = 0x0004;
+    private const int ErrorServiceDoesNotExist = 1060;
+    [StructLayout(LayoutKind.Sequential)] private struct ServiceStatus { public uint ServiceType, CurrentState, ControlsAccepted, Win32ExitCode, ServiceSpecificExitCode, CheckPoint, WaitHint; }
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] private static extern IntPtr OpenSCManagerW(string? machine, string? database, uint access);
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] private static extern IntPtr OpenServiceW(IntPtr manager, string service, uint access);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool QueryServiceStatus(IntPtr service, out ServiceStatus status);
+    [DllImport("advapi32.dll")] private static extern bool CloseServiceHandle(IntPtr handle);
 
     /// <summary>A program of System32 (never one found on the PATH: this may run with administrator rights), hidden.</summary>
     private static int Execute(StartupCommand command, TimeSpan? timeout = null)
