@@ -157,7 +157,7 @@ internal static class UpdateTests
             }
             var notes = WhatsNew.ReleaseNotes(all[0]);
             Assert(notes.StartsWith(all[0].Summary) && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains("/docs/INSTALLATION-WEB.md")
-                && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Length < 1500, "Release notes:\n" + notes);
+                && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Contains("#politique-de-signature-du-code") && notes.Length < 1600, "Release notes:\n" + notes);
             return Task.CompletedTask;
         });
         await Test("Mises à jour : manifeste signé accepté ; modifié, mal formé ou d’une autre clé, refusé", () =>
