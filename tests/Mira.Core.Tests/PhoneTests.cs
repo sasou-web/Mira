@@ -328,6 +328,38 @@ internal static class PhoneTests
                 && Marks(PhoneSetup.Steps(ready with { Local = false, Node = never })) == "web:Done elsewhere:Note", "Without Tailscale here");
             return Task.CompletedTask;
         });
+        await Test("Veille du PC serveur : dite sur la carte, « Pas de veille sur secteur » au choix, PC gardé éveillé pendant une lecture ailleurs", () =>
+        {
+            // Windows' defaults on a laptop: sleep after 30 min, hibernation after it, the lid sleeps it; a desktop has neither lid nor battery.
+            ServerSleep.Plan laptop = new(1800, 10800, 1, true), desktop = new(3600, 0, null, false), never = new(0, 0, 0, true);
+            Assert(ServerSleep.Duration(1800) == "30 min" && ServerSleep.Duration(3600) == "1 h" && ServerSleep.Duration(5400) == "1 h 30" && ServerSleep.Duration(45) == "45 s"
+                && ServerSleep.Duration(18000) == "5 h", "Durations");
+            var (title, text) = ServerSleep.Says(laptop);
+            Assert(ServerSleep.Sleeps(laptop) && title == "Ce PC se met en veille après 30 min" && text.Contains("Tailscale ne sait pas le réveiller") && text.Contains("l’endort aussi")
+                && text.Contains("écran fermé compris") && text.EndsWith("jamais sur batterie."), "A laptop: " + title + " / " + text);
+            (title, text) = ServerSleep.Says(desktop);
+            Assert(title == "Ce PC se met en veille après 1 h" && !text.Contains("écran") && !text.Contains("batterie"), "A desktop: " + text);
+            Assert(ServerSleep.Says(new(0, 7200, null, false)).Title == "Ce PC se met en veille prolongée après 2 h" && ServerSleep.Says(new(0, 0, 1, true)).Title == "Fermer son écran met ce PC en veille"
+                && ServerSleep.Says(new(0, 0, 3, true)).Title == "Fermer son écran éteint ce PC" && ServerSleep.Says(new(1800, 0, 3, true)).Text.Contains("l’éteint aussi"), "Hibernation and the lid alone");
+            Assert(!ServerSleep.Sleeps(never) && ServerSleep.Says(never) is ("Ce PC reste éveillé sur secteur", var awake) && awake.Contains("branché")
+                && !ServerSleep.Says(new(0, 0, null, false)).Text.Contains("branché"), "Never on mains power");
+
+            // The card: the person's own button, never « Tout préparer »'s; nothing without the plan read.
+            var ready = new PhoneSetup.Facts("http://127.0.0.1:8096", true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, Tailnet: "http://100.101.102.103:8096", TailnetAllowed: true,
+                Firewall: new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Private), Boot: new(true, true, false, true));
+            var steps = PhoneSetup.Steps(ready with { Power = laptop });
+            Assert(steps[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Yours, Action: ServerSleep.NeverOnMains } && !PhoneSetup.CanPrepare(steps) && !PhoneSetup.NeedsWindows(steps), "Sleeping: the person's");
+            Assert(PhoneSetup.Steps(ready with { Power = never })[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Done, Action: null } && PhoneSetup.Steps(ready).All(x => x.Key != "sleep")
+                && PhoneSetup.Steps(ready with { Local = false, Power = laptop }).All(x => x.Key != "sleep"), "Awake, not read, another computer's");
+
+            // Kept awake while another device plays, paused or not; this PC's own playback (mpv keeps it awake) and nothing playing do not.
+            static List<Viewer> Sessions(string json) => Viewers.Parse(JsonDocument.Parse(json).RootElement, "mira-pc");
+            const string phone = """{"Id":"s1","DeviceId":"iphone","UserName":"ogsas","DeviceName":"iPhone","NowPlayingItem":{"Type":"Movie","Name":"Dune"},"PlayState":{"IsPaused":true}}""";
+            const string own = """{"Id":"s2","DeviceId":"mira-pc","UserName":"ogsas","DeviceName":"PC","NowPlayingItem":{"Type":"Movie","Name":"Dune"}}""";
+            const string idle = """{"Id":"s3","DeviceId":"ipad","UserName":"ogsas","DeviceName":"iPad"}""";
+            Assert(ServerSleep.KeepAwake(Sessions($"[{phone},{own}]")) && !ServerSleep.KeepAwake(Sessions($"[{own},{idle}]")) && !ServerSleep.KeepAwake(Sessions("[]")), "Kept awake");
+            return Task.CompletedTask;
+        });
         await Test("Autres appareils : l’adresse du PC sur le réseau de la maison, pas celle d’un adaptateur virtuel", () =>
         {
             LocalNetwork.Candidate C(string address, bool gateway = true, bool isVirtual = false) => new(address, gateway, isVirtual);

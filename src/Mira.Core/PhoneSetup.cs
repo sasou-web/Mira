@@ -22,12 +22,13 @@ public static class PhoneSetup
     /// stopped). <paramref name="NetworkKept"/>: Windows did not let « Passer en privé » make the public network
     /// (<see cref="JellyfinFirewall.Reach.Public"/>) private. <paramref name="Down"/>: what a Jellyfin on this PC that
     /// does not answer is (<see cref="LocalJellyfin.Judge"/>). <paramref name="Node"/>: Tailscale on this PC, read by its
-    /// command line (<see cref="TailscaleNode"/>). Null: not known, or not readable with this account.
+    /// command line (<see cref="TailscaleNode"/>). <paramref name="Power"/>: Windows' power plan on mains power
+    /// (<see cref="ServerSleep"/>). Null: not known, or not readable with this account.
     /// </summary>
     public sealed record Facts(string Server, bool Local, bool? Web, string? Home, bool? Admin = null, string? Tailnet = null, bool? TailnetAllowed = null,
         JellyfinFirewall.Reach? Firewall = null, JellyfinFirewall.RuleState MiraRule = JellyfinFirewall.RuleState.Missing, JellyfinStartup.State? Boot = null,
         bool Program = true, bool Answering = true, bool NetworkKept = false, LocalJellyfin.Verdict Down = LocalJellyfin.Verdict.Unknown,
-        TailscaleNode.State? Node = null);
+        TailscaleNode.State? Node = null, ServerSleep.Plan? Power = null);
 
     public static IReadOnlyList<Step> Steps(Facts facts)
     {
@@ -132,6 +133,12 @@ public static class PhoneSetup
             { HasService: true } => new("boot", Mark.ToDo, "Disponible dès l’allumage du PC", "Jellyfin démarrera avec Windows, sans attendre ta session, et repartira après une erreur."),
             _ => new("boot", Mark.Note, "Jellyfin démarre avec ta session", "Ton téléphone le trouve une fois ta session Windows ouverte sur ce PC."),
         });
+        // Asleep, the PC answers no one: changed only by the person's own button, never by « Tout préparer ».
+        if (facts.Power is { } power)
+        {
+            var (title, text) = ServerSleep.Says(power);
+            steps.Add(ServerSleep.Sleeps(power) ? new("sleep", Mark.Yours, title, text, ServerSleep.NeverOnMains) : new("sleep", Mark.Done, title, text));
+        }
         return steps;
     }
 

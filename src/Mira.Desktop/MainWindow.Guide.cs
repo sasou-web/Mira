@@ -144,15 +144,16 @@ public partial class MainWindow
         var rule = JellyfinFirewall.RuleState.Missing;
         JellyfinStartup.State? boot = null;
         TailscaleNode.State? node = null;
+        ServerSleep.Plan? power = null;
         if (local)
         {
-            (var address, program, firewall, rule, boot, node) = await Task.Run(() =>
+            (var address, program, firewall, rule, boot, node, power) = await Task.Run(() =>
             {
                 var found = JellyfinAutostart.Program();
                 var address = LocalNetwork.ThisPcOnTailnet();
                 // Tailscale's command line, once it has its address: without a session, and its expiry.
                 return (address, found, JellyfinAutostart.Phones(found, uri.Port), JellyfinAutostart.MiraRule(found, uri.Port), JellyfinAutostart.Read(),
-                    address is null ? null : TailscaleCli.Read());
+                    address is null ? null : TailscaleCli.Read(), PowerPlan.Read());
             });
             tailnet = AtThisPc(address);
         }
@@ -160,7 +161,7 @@ public partial class MainWindow
         var down = local && !answering ? (await ReadLocalJellyfinAsync(server)).Verdict : LocalJellyfin.Verdict.Unknown;
         if (version != _phoneVersion) return;
         _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, rule, boot, Program: program is not null, Answering: answering,
-            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic, Down: down, Node: node);
+            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic, Down: down, Node: node, Power: power);
         ShowPhone(_phone);
         if (!answering) _ = WaitForJellyfinAsync(client, version);
     }
@@ -281,6 +282,14 @@ public partial class MainWindow
                     if (!_preparing) _ = DescribePhoneAsync();
                 }
                 else if (step.Key == "keyexpiry") OpenWebPage(TailscaleNode.Machines);
+                // « Pas de veille sur secteur », on mains power only: where to set it when Windows does not take it.
+                else if (step.Key == "sleep")
+                {
+                    button.IsEnabled = false;
+                    if (!await Task.Run(PowerPlan.NeverOnMains))
+                        SetNotice("Windows n’a pas changé la mise en veille : dans Paramètres → Système → Alimentation, choisis « Jamais » pour la mise en veille sur secteur.");
+                    if (!_preparing) _ = DescribePhoneAsync();
+                }
                 // « Passer en privé »: the person says the public network is home's.
                 else if (step.Key == "firewall") await PreparePhoneAsync(privateNetwork: true);
             };
