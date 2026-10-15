@@ -121,6 +121,8 @@ public sealed record ServerState(string Version, bool WizardCompleted);
 /// <summary>What answers at a Jellyfin address: nothing, Jellyfin while it loads, Jellyfin ready, or another program.</summary>
 public enum ServerAnswer { Nothing, Loading, Ready, Other }
 public sealed record ServerProbe(ServerAnswer Answer, ServerState? State = null);
+/// <summary>How the wait on Jellyfin's installer ended: its exit code once it ended, Jellyfin's state once it answered (either or both).</summary>
+public sealed record InstallerWait(int? ExitCode, ServerState? State);
 
 /// <summary>Brings a newly installed Jellyfin to a ready library: its first-run wizard, done through the same routes as its own page.</summary>
 public static partial class JellyfinSetup
@@ -179,6 +181,25 @@ public static partial class JellyfinSetup
             if (await StateAsync(server, handler, ct).ConfigureAwait(false) is { } state) return state;
             if (DateTime.UtcNow >= deadline) throw new InstallException("Jellyfin ne répond pas. Redémarre le PC, ou lance « Jellyfin Server » depuis le menu Démarrer, puis réessaie.");
             await Task.Delay(interval ?? TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
+        }
+    }
+    /// <summary>
+    /// Waits for Jellyfin's installer (<paramref name="installer"/>: its exit code) to end, or for
+    /// <paramref name="server"/> to be ready while it still runs. Its last step starts the service and, when
+    /// "nssm start" gives up before the service runs (seen on real PCs), asks « Could not start the Jellyfin Server
+    /// service » with Abort, Retry and Ignore, often behind Mira, Retry failing again on the running service: Jellyfin
+    /// answering is what counts, and the setup goes on whatever that window gets. <paramref name="waiting"/> is told how
+    /// many times Jellyfin was found not ready while the installer ran.
+    /// </summary>
+    public static async Task<InstallerWait> AwaitInstallerAsync(Task<int> installer, Uri server, IProgress<int>? waiting = null, HttpMessageHandler? handler = null, TimeSpan? interval = null, CancellationToken ct = default)
+    {
+        for (var tries = 1; ; tries++)
+        {
+            if (installer.IsCompleted) return new(await installer.ConfigureAwait(false), null);
+            if (await StateAsync(server, handler, ct).ConfigureAwait(false) is { } state) return new(installer.IsCompleted ? await installer.ConfigureAwait(false) : null, state);
+            waiting?.Report(tries);
+            await Task.WhenAny(installer, Task.Delay(interval ?? TimeSpan.FromSeconds(2), ct)).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
         }
     }
     /// <summary>

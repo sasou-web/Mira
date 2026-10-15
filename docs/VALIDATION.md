@@ -2,6 +2,14 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## Installation de Jellyfin qui restait bloquée (non publié)
+
+- **Défaut signalé** (2026-10-14, puis au déménagement de Jellyfin sur un autre PC) : la première installation depuis l’accueil affiche une erreur et reste bloquée ; relancer Mira et recommencer termine la configuration sans retélécharger. Même tableau qu’au premier essai de la 0.5.5 (plus bas).
+- **Cause, lue dans `jellyfin.nsi` (jellyfin-server-windows)** : le dernier pas de l’installateur silencieux est `nssm start JellyfinServer` ; quand il rend la main avant que le service tourne, `ShowError` ouvre « Could not start the Jellyfin Server service » en `MB_ABORTRETRYIGNORE`, même en silencieux, et l’installateur attend. Mira attendait sa fin, sans bouton Retour. Réessayer refait `nssm start` sur un service qui tourne : nouvel échec, même fenêtre. Le correctif de la 0.5.5 ne jugeait que le code de sortie, qui n’arrive qu’après la réponse.
+- **Correctif** : `JellyfinSetup.AwaitInstallerAsync` rend la main dès que Jellyfin est prêt, même si l’installateur attend encore ; sa fenêtre est mise devant Mira, avec « choisis Ignorer », rappelé par un avis jusqu’à sa fermeture.
+- **Tests** : Jellyfin qui répond pendant que l’installateur attend, installateur qui finit avant Jellyfin, installateur déjà fini (Core, partout). Le parcours entier (`WaitAsync`, assistant, connexion, bibliothèques, filtres) refait sur un Jellyfin 12.1 neuf en conteneur, lancé dès son démarrage : prêt en 11 s, configuré en 16 s.
+- **Non vérifié** : l’installateur et sa fenêtre sur un vrai PC ; `SetForegroundWindow` vers une fenêtre d’un programme administrateur.
+
 ## Mira 0.7.4 : Mira sur ton téléphone, en un clic
 
 - **Défaut signalé** (2026-10-10, PC d’un ami de l’utilisateur) : Tailscale ouvert sur le PC et le téléphone, `http://100.x.y.z:8096/Mira` n’affiche rien, ni même `http://100.x.y.z:8096`.
