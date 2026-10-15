@@ -335,6 +335,10 @@ export const api = {
     }).catch(() => {});
   },
   me: () => get('Users/Me'),
+  /** « En ce moment sur Jellyfin »: the sessions Jellyfin heard from lately, as Mira for Windows reads them (all of them for an administrator). */
+  sessions: () => get('Sessions', { activeWithinSeconds: 960 }),
+  /** Asks a session to stop playing: one whose WebSocket takes commands (Mira web while it plays, remote.js). */
+  stopSession: (id) => post(`Sessions/${encodeURIComponent(id)}/Playing/Stop`),
 
   resume: (limit = 16) => get('UserItems/Resume', { userId: user(), limit, mediaTypes: 'Video', fields: CARD_FIELDS, ...CARD_IMAGES, enableUserData: true }),
   nextUp: (limit = 16) => get('Shows/NextUp', { userId: user(), limit, fields: CARD_FIELDS, ...CARD_IMAGES, enableResumable: false, enableRewatching: false }),

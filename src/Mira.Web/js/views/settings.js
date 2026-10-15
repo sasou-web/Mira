@@ -50,7 +50,7 @@ export function create() {
   const SHOWN = ['quality', 'autoNext', 'resume', 'subtitleSize', 'audioLanguages', 'subtitleLanguages', 'autoSkip', 'ambientAudio', 'nativePlayer', 'textSize', 'homeRows'];
   function render() {
     const current = session.current ?? {};
-    const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, info?.Version, quick, libraries.map((x) => x.Id + x.Name)]);
+    const signature = JSON.stringify([SHOWN.map((key) => settings.get(key)), current.userName, current.serverName, user?.Id, user?.PrimaryImageTag, user?.Policy?.IsAdministrator, info?.Version, quick, libraries.map((x) => x.Id + x.Name)]);
     if (signature === drawn) return;
     drawn = signature;
     const quality = QUALITIES.find(([k]) => k === settings.get('quality')) ?? QUALITIES[0];
@@ -75,7 +75,12 @@ export function create() {
         h('div', { class: 'meta' }, current.serverName ? `Serveur « ${current.serverName} »` : 'Serveur Jellyfin'))),
       h('div', { class: 'group' },
         h('button', { class: 'item', on: { click: showReport } }, icon('history'),
-          h('span', { class: 'grow' }, 'Ton bilan', h('span', { class: 'sub' }, 'Ce que tu as regardé ce mois-ci et cette année.')), icon('right', { size: 20 }))),
+          h('span', { class: 'grow' }, 'Ton bilan', h('span', { class: 'sub' }, 'Ce que tu as regardé ce mois-ci et cette année.')), icon('right', { size: 20 })),
+        // An administrator sees every session (another account only its own): who plays what, and how.
+        user?.Policy?.IsAdministrator
+          ? h('a', { class: 'item', href: '#/en-ce-moment' }, icon('server'),
+            h('span', { class: 'grow' }, 'En ce moment sur Jellyfin', h('span', { class: 'sub' }, 'Qui regarde quoi, et si Jellyfin doit convertir.')), icon('right', { size: 20 }))
+          : null),
 
       h('h2', { class: 'label group-title' }, 'Lecture'),
       h('div', { class: 'group' },

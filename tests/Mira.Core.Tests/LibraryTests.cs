@@ -847,6 +847,29 @@ internal static class LibraryTests
             refuse = true;
             Assert(!await client.StopViewerAsync("s-friend"), "Refused");
         });
+        await Test("En ce moment sur Jellyfin : écrit comme Mira web (tests/fixtures/viewers.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "viewers.json")));
+            var root = fixture.RootElement;
+            var viewers = Viewers.Parse(root.GetProperty("sessions"), root.GetProperty("ownDevice").GetString()!);
+            var expected = root.GetProperty("viewers").EnumerateArray().ToList();
+            Assert(viewers.Select(x => x.SessionId).SequenceEqual(expected.Select(x => x.GetProperty("id").GetString())), "Sessions: " + string.Join(",", viewers.Select(x => x.SessionId)));
+            static string? Text(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+            foreach (var (viewer, e) in viewers.Zip(expected))
+            {
+                var (how, why) = Viewers.How(viewer);
+                Assert(Viewers.Who(viewer) == Text(e.GetProperty("who")), $"{viewer.SessionId}: « {Viewers.Who(viewer)} »");
+                Assert(Viewers.What(viewer) == Text(e.GetProperty("what")), $"{viewer.SessionId}: « {Viewers.What(viewer)} »");
+                Assert(how == Text(e.GetProperty("how")) && why == Text(e.GetProperty("why")), $"{viewer.SessionId}: « {how} », « {why} »");
+                Assert(viewer.CanStop == e.GetProperty("canStop").GetBoolean(), $"{viewer.SessionId}: CanStop");
+            }
+            foreach (var row in root.GetProperty("places").EnumerateArray())
+                Assert(Viewers.Place(Text(row[0])) == Text(row[1]), $"Place of {row[0]}: « {Viewers.Place(Text(row[0]))} »");
+            foreach (var row in root.GetProperty("clocks").EnumerateArray())
+                Assert(Viewers.Clock(row[0].GetDouble()) == row[1].GetString(), $"Clock of {row[0]}: {Viewers.Clock(row[0].GetDouble())}");
+            return Task.CompletedTask;
+        });
         await Test("Carte graphique : NVIDIA, puis Intel, puis AMD ; un adaptateur sans fabricant connu n’en propose aucune", () =>
         {
             var cards = GpuEncoding.Candidates(["Microsoft Basic Display Adapter", "AMD Radeon RX 6600", "Intel(R) UHD Graphics 770", null, " ", "NVIDIA GeForce RTX 3060", "NVIDIA GeForce GT 710", "Parsec Virtual Display Adapter"]);

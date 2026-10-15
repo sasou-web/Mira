@@ -1,0 +1,47 @@
+{
+  "about": "« En ce moment sur Jellyfin »: Jellyfin 12.1's Sessions and what Mira writes of each. Read by tests/Mira.Core.Tests (Viewers) and tools/web/unit (js/viewers.js): both must agree. ownDevice: this device's id, whose session is « ce PC » (Mira web passes its own words). places: [address, place]. clocks: [seconds, text].",
+  "ownDevice": "device-1",
+  "sessions": [
+    {"Id": "s-phone", "UserName": "mira", "Client": "Mira", "DeviceName": "iPhone", "DeviceId": "phone-1", "RemoteEndPoint": "192.168.1.20", "SupportsRemoteControl": true,
+     "PlayState": {"PositionTicks": 30058340, "IsPaused": false, "PlayMethod": "Transcode"},
+     "TranscodingInfo": {"AudioCodec": "opus", "VideoCodec": "vp9", "IsVideoDirect": false, "IsAudioDirect": false, "Bitrate": 1552384, "HardwareAccelerationType": "none", "TranscodeReasons": ["ContainerNotSupported", "VideoCodecNotSupported", "AudioCodecNotSupported"]},
+     "NowPlayingItem": {"Name": "Signes Test (2022)", "Type": "Movie", "RunTimeTicks": 450230000}},
+    {"Id": "s-friend", "UserName": "Léa", "Client": "Jellyfin Web", "DeviceName": "Firefox", "DeviceId": "friend", "RemoteEndPoint": "100.101.5.7", "SupportsRemoteControl": false,
+     "PlayState": {"PositionTicks": 37230000000, "IsPaused": true, "PlayMethod": "DirectPlay"},
+     "NowPlayingItem": {"Name": "Le départ", "Type": "Episode", "SeriesName": "Courte HLS", "ParentIndexNumber": 1, "IndexNumber": 2, "RunTimeTicks": 48000000000}},
+    {"Id": "s-pc", "UserName": "mira", "Client": "Mira", "DeviceName": "Windows", "DeviceId": "device-1", "RemoteEndPoint": "127.0.0.1", "SupportsRemoteControl": true,
+     "PlayState": {"PositionTicks": 0, "PlayMethod": "Transcode"},
+     "TranscodingInfo": {"AudioCodec": "aac", "VideoCodec": "h264", "IsVideoDirect": true, "IsAudioDirect": false, "HardwareAccelerationType": "nvenc", "TranscodeReasons": ["AudioCodecNotSupported", "Bogus"]},
+     "NowPlayingItem": {"Name": "Aube Test (2021)", "Type": "Movie", "RunTimeTicks": 400230000}},
+    {"Id": "s-idle", "UserName": "mira", "Client": "Mira", "DeviceName": "iPad", "DeviceId": "ipad"},
+    {"Id": "s-tv", "UserName": "Sam", "Client": "Jellyfin Android TV", "DeviceName": "", "DeviceId": "tv", "RemoteEndPoint": "fd7a:115c:a1e0::3", "SupportsRemoteControl": true,
+     "PlayState": {"PositionTicks": 6000000000, "IsPaused": false, "PlayMethod": "DirectStream"},
+     "TranscodingInfo": {"AudioCodec": "aac", "VideoCodec": "h264", "IsVideoDirect": true, "IsAudioDirect": true, "TranscodeReasons": ["ContainerNotSupported"]},
+     "NowPlayingItem": {"Name": "La suite", "Type": "Episode", "SeriesName": "Courte HLS", "IndexNumber": 4, "RunTimeTicks": 24000000000}},
+    {"Id": "s-card", "UserName": "Léa", "Client": "Mira", "DeviceName": "iPad", "DeviceId": "ipad-lea", "RemoteEndPoint": "2a01:e0a:1::5", "SupportsRemoteControl": true,
+     "PlayState": {"PositionTicks": 7540000000, "IsPaused": false, "PlayMethod": "Transcode"},
+     "TranscodingInfo": {"AudioCodec": "aac", "VideoCodec": "h264", "IsVideoDirect": false, "IsAudioDirect": true, "Bitrate": 8000000, "HardwareAccelerationType": "qsv", "TranscodeReasons": ["VideoRangeTypeNotSupported", "VideoRangeTypeNotSupported"]},
+     "NowPlayingItem": {"Name": "Nuit Test (2023)", "Type": "Movie"}},
+    {"Id": "s-quiet", "UserName": "mira", "Client": "Mira", "DeviceName": "iPhone", "DeviceId": "phone-2", "RemoteEndPoint": "::ffff:192.168.1.30",
+     "NowPlayingItem": {"Name": "Aube Test (2021)", "Type": "Movie"}},
+    {"UserName": "mira", "NowPlayingItem": {"Name": "Sans session", "Type": "Movie"}}
+  ],
+  "viewers": [
+    {"id": "s-phone", "who": "mira · iPhone · réseau de la maison", "what": "Signes Test (2022) — 0:03 / 0:45", "how": "Conversion : image en VP9, son en Opus, par le processeur · 1,6 Mb/s", "why": "Pourquoi : format du fichier, codec vidéo, codec audio", "canStop": true},
+    {"id": "s-friend", "who": "Léa · Firefox · Tailscale", "what": "Courte HLS · S1 É2 · Le départ — 1:02:03 / 1:20:00, en pause", "how": "Lecture directe : le fichier tel quel", "why": null, "canStop": false},
+    {"id": "s-pc", "who": "ce PC", "what": "Aube Test (2021) — 0:00 / 0:40", "how": "Conversion : image copiée, son en AAC", "why": "Pourquoi : codec audio, Bogus", "canStop": true},
+    {"id": "s-tv", "who": "Sam · Jellyfin Android TV · Tailscale", "what": "Courte HLS · É4 · La suite — 10:00 / 40:00", "how": "Fichier remis dans un autre format, sans conversion", "why": "Pourquoi : format du fichier", "canStop": true},
+    {"id": "s-card", "who": "Léa · iPad · Internet", "what": "Nuit Test (2023) — 12:34", "how": "Conversion : image en H.264, son copié, par la carte graphique (Intel) · 8,0 Mb/s", "why": "Pourquoi : HDR", "canStop": true},
+    {"id": "s-quiet", "who": "mira · iPhone · réseau de la maison", "what": "Aube Test (2021) — 0:00", "how": "Lecture directe : le fichier tel quel", "why": null, "canStop": false}
+  ],
+  "places": [
+    ["192.168.1.20", "réseau de la maison"], ["10.0.0.4", "réseau de la maison"], ["172.16.0.1", "réseau de la maison"], ["172.31.255.1", "réseau de la maison"],
+    ["169.254.3.3", "réseau de la maison"], ["172.32.0.1", "Internet"], ["8.8.8.8", "Internet"],
+    ["100.64.0.1", "Tailscale"], ["100.127.255.254", "Tailscale"], ["100.63.255.255", "Internet"], ["100.128.0.1", "Internet"],
+    ["127.0.0.1", null], ["::1", null], ["::ffff:10.0.0.5", "réseau de la maison"], ["::ffff:100.101.5.7", "Tailscale"],
+    ["fd7a:115c:a1e0::12", "Tailscale"], ["fd7a:115c:a1e0:ab12:4843:cd96:6258:b240", "Tailscale"], ["fe80::1%12", "réseau de la maison"],
+    ["fd12:3456::1", "réseau de la maison"], ["2a01:e0a:1::5", "Internet"],
+    ["pas une adresse", null], ["", null], [null, null], ["1:2:3", null], ["300.1.1.1", null]
+  ],
+  "clocks": [[0, "0:00"], [3.005834, "0:03"], [59, "0:59"], [754, "12:34"], [3600, "1:00:00"], [3723, "1:02:03"], [-5, "0:00"]]
+}

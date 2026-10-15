@@ -22,6 +22,7 @@ const CODECS = {
   aac: 'AAC', ac3: 'Dolby Digital', eac3: 'Dolby Digital Plus', truehd: 'Dolby TrueHD', dts: 'DTS', flac: 'FLAC', opus: 'Opus',
   vorbis: 'Vorbis', mp3: 'MP3', subrip: 'SRT', srt: 'SRT', ass: 'ASS', ssa: 'ASS', hdmv_pgs_subtitle: 'PGS', pgs: 'PGS', pgssub: 'PGS',
   dvd_subtitle: 'VobSub', vobsub: 'VobSub', dvdsub: 'VobSub', webvtt: 'WebVTT', vtt: 'WebVTT', mov_text: 'Texte',
+  h264: 'H.264', hevc: 'HEVC', h265: 'HEVC', av1: 'AV1', vp9: 'VP9', vp8: 'VP8', mpeg2video: 'MPEG-2', mpeg4: 'MPEG-4',
 };
 export function codecName(codec) {
   const key = String(codec ?? '').trim().toLowerCase();
