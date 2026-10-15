@@ -251,7 +251,7 @@ public partial class MainWindow
                     ClosePreview();
                     if (item.Type == "BoxSet") await ShowSagaAsync(item, SearchBox.Text.Trim());
                     else if (found && item.Type == "Episode") await ShowDetailsAsync(await PageItemAsync(item), item);
-                    else if (wide || _catalog.View == "offline") await PlayAsync(item);
+                    else if (wide || _catalog.View == "offline") await PlayAsync(item, chosen: true);
                     else await ShowDetailsAsync(item);
                 };
                 card.HoverEntered += CardHoverEntered; card.FocusEntered += CardFocusEntered; card.HoverLeft += CardHoverLeft;
@@ -307,8 +307,8 @@ public partial class MainWindow
                 return;
             }
             var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
-            menu.Items.Add(MenuAction(resume ? "Reprendre" : "Regarder", "play", async () => await PlayAsync(item)));
-            if (resume) menu.Items.Add(MenuAction("Lire depuis le début", "refresh", async () => await PlayAsync(item, fromStart: true)));
+            menu.Items.Add(MenuAction(resume ? "Reprendre" : "Regarder", "play", async () => await PlayAsync(item, chosen: true)));
+            if (resume) menu.Items.Add(MenuAction("Lire depuis le début", "refresh", async () => await PlayAsync(item, fromStart: true, chosen: true)));
             menu.Items.Add(MenuAction(item.Type == "Episode" ? "Voir la série" : "Voir la fiche", "info", async () => await ShowDetailsAsync(await PageItemAsync(item))));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuAction(item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu", item.UserData.Played ? "refresh" : "check", async () => await SetPlayedAsync(item, !item.UserData.Played)));
@@ -438,7 +438,7 @@ public partial class MainWindow
     }
     private void ResumePrevious_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, -624, true);
     private void ResumeNext_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, 624, true);
-    private async void HeroPlay_Click(object sender, RoutedEventArgs e) { if (_hero is not null) await PlayAsync(_hero); }
+    private async void HeroPlay_Click(object sender, RoutedEventArgs e) { if (_hero is not null) await PlayAsync(_hero, chosen: true); }
     private async void HeroDetails_Click(object sender, RoutedEventArgs e)
     {
         if (_hero is not { } hero) return;

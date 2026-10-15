@@ -127,6 +127,36 @@ export function groupStatus(group, me, loading = false) {
 export const memberText = (name, joined) => `${name} ${joined ? 'a rejoint' : 'a quitté'} le groupe`;
 
 /**
+ * Lecture of `itemId` while the group has another title on, not over (Idle): asked first, rather than changed for
+ * everyone unannounced. The same as Together.AsksToReplace.
+ */
+export const asksToReplace = (group, queue, itemId) => !!group && !!queue?.itemId && queue.itemId !== itemId && group.State !== 'Idle';
+/** A title as a question names it: a film by its name, an episode with its series (« Dark · S1 · É3 »). */
+export function titleName(item) {
+  if (!item) return '';
+  if (item.Type !== 'Episode' || !item.SeriesName) return item.Name ?? '';
+  const code = [item.ParentIndexNumber != null ? `S${item.ParentIndexNumber}` : '', item.IndexNumber != null ? `É${item.IndexNumber}` : ''].filter(Boolean).join(' · ');
+  return code ? `${item.SeriesName} · ${code}` : item.SeriesName;
+}
+/** « Remplacer « Dune » pour tout le groupe ? », or « Remplacer le titre du groupe ? » when its name is not known. */
+export const replaceQuestion = (current) => (current ? `Remplacer « ${current} » pour tout le groupe ?` : 'Remplacer le titre du groupe ?');
+/** « à 42 min », « à 1 h 05 », « à 30 s »: where the group starts a title Lecture resumes. */
+export function atText(seconds) {
+  const s = Math.max(0, Math.floor(seconds)), m = Math.floor(s / 60);
+  if (m < 1) return `à ${s} s`;
+  return m < 60 ? `à ${m} min` : `à ${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+}
+/**
+ * Lecture's label in a group, which starts the title for everyone: « Lancer pour le groupe », « Reprendre pour le
+ * groupe à 42 min » (from this account's progress), « Lancer S1 · É3 pour le groupe » (`code`: the episode, as the
+ * page writes it), « Regarder avec le groupe » on the group's own title (joined where it is). Together.GroupPlayLabel.
+ */
+export function groupPlayLabel({ code = '', resumeAt = 0, groupTitle = false } = {}) {
+  if (groupTitle) return 'Regarder avec le groupe';
+  return [resumeAt > 0 ? 'Reprendre' : 'Lancer', code, 'pour le groupe', resumeAt > 0 && !code ? atText(resumeAt) : ''].filter(Boolean).join(' ');
+}
+
+/**
  * The link that opens Mira web on the group: the friend signs in with an account of this Jellyfin, then is in it. Its
  * host (who made the group) keeps it valid when the group is made again, or not open yet (findGroup).
  */

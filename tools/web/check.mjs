@@ -1357,8 +1357,9 @@ await big.close();
 // gets its invitation, the other opens the link signed out, signs in and is in the group; Lecture on the first opens the
 // title on both, playing together; a pause and a jump on the first reach the second; the second away a few seconds
 // (iOS suspends a page in another app: Jellyfin lets its session go) comes back into the group in step; leaving the
-// group on the second. Then the host away until Jellyfin ends the empty group: the link waits for it, and the group
-// made again by the host on its return is joined.
+// group on the second, after Lecture of another title asked before replacing the group's (joined instead). Then the
+// host away until Jellyfin ends the empty group: the link waits for it, and the group made again by the host on its
+// return is joined.
 const togetherA = await newContext('ensemble (1)'), togetherB = await newContext('ensemble (2)');
 const ta = await togetherA.newPage(), tb = await togetherB.newPage();
 const togetherErrors = [];
@@ -1498,6 +1499,30 @@ try {
   await ta.waitForFunction((t) => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime < t - 4; }, seekFrom, { timeout: 10000 }).catch(() => {});
   await ta.waitForTimeout(1000);
   const stillA = await videoState(ta);
+  // Lecture in a group: on the group's title it joins it; on another, it would replace it for everyone, so it asks
+  // first, and offers to join the group's title instead (taken here: back in step with the first).
+  const lecture = (p) => p.locator('#view .detail-actions .btn.primary').innerText().then((t) => t.replace(/\s+/g, ' ').trim(), () => '');
+  const onGroupTitle = await lecture(tb);
+  const other = (await asB('Items?recursive=true&includeItemTypes=Movie&limit=20')).Items.find((x) => x.Id !== film.Id);
+  await tb.evaluate((id) => { location.hash = `#/titre/${id}`; }, other.Id); await tb.waitForTimeout(2500);
+  const onOther = await lecture(tb);
+  await tb.locator('#view .detail-actions .btn.primary').click();
+  await tb.locator('.sheet-question').waitFor({ timeout: 8000 }).catch(() => {});
+  const question = (await tb.locator('.sheet-question').textContent().catch(() => '') ?? '').trim();
+  await tb.screenshot({ path: `${out}/23-together-replace.png` });
+  const stayed = (await tb.evaluate(() => location.hash)).startsWith('#/titre/');
+  await tb.locator('.sheet-item', { hasText: 'Regarder avec le groupe' }).click();
+  await tb.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`) && !document.querySelector('video')?.paused, film.Id, { timeout: 20000 }).catch(() => {});
+  await tb.waitForTimeout(2500);
+  [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
+  const rejoinedTitle = (await tb.evaluate(() => location.hash)).startsWith(`#/lecture/${film.Id}`);
+  check('ensemble : Lecture d’un autre titre demande avant de remplacer celui du groupe, et propose de le rejoindre',
+    onGroupTitle === 'Regarder avec le groupe' && /^(Lancer|Reprendre) pour le groupe/.test(onOther) && question === `Remplacer « ${film.Name} » pour tout le groupe ?` && stayed
+      && rejoinedTitle && a && b && !a.paused && !b.paused && Math.abs(a.t - b.t) < 1,
+    `« ${onGroupTitle} », « ${onOther} » ; « ${question} »${stayed ? '' : ' (titre changé sans attendre)'} ; ${rejoinedTitle ? 'titre du groupe rouvert' : 'titre du groupe pas rouvert'}, ${a ? `${a.t.toFixed(2)} s` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s${b.paused ? ' (en pause)' : ''}` : 'pas de vidéo'}`);
+  await tb.keyboard.press('Escape');
+  await tb.waitForFunction(() => location.hash.startsWith('#/titre/'), null, { timeout: 8000 }).catch(() => {});
+  await tb.waitForTimeout(1500);
   await line(tb).click(); await tb.waitForTimeout(800);
   await tb.locator('.sheet-item', { hasText: 'Quitter le groupe' }).click();
   await tb.waitForTimeout(1500);

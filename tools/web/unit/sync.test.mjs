@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink, groupHost, findGroup, rejoinPlan, waitingText, namesText, groupStatus, memberText } from '../../../src/Mira.Web/js/player/sync.js';
+import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink, groupHost, findGroup, rejoinPlan, waitingText, namesText, groupStatus, memberText, asksToReplace, titleName, replaceQuestion, groupPlayLabel } from '../../../src/Mira.Web/js/player/sync.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/syncplay.json', import.meta.url), 'utf8'));
 
@@ -42,6 +42,13 @@ test('what the group is doing, in words: Jellyfin never says who a wait or a pau
   assert.equal(groupStatus(null, 'mira'), null);
   assert.equal(memberText('Marc', true), 'Marc a rejoint le groupe');
   assert.equal(memberText('Marc', false), 'Marc a quitté le groupe');
+});
+
+test('Lecture in a group: what its button says, and when it asks before replacing the title the group has on', () => {
+  for (const [group, queue, itemId, asks] of fixture.replaces) assert.equal(asksToReplace(group, queue, itemId), asks, `${group?.State} · ${queue?.itemId} → ${itemId}`);
+  for (const [item, name] of fixture.titles) assert.equal(titleName(item), name);
+  for (const [options, label] of fixture.playLabels) assert.equal(groupPlayLabel(options), label);
+  for (const [current, question] of fixture.questions) assert.equal(replaceQuestion(current), question);
 });
 
 test('the invitation: its link and what it says under it, from Tailscale, home or the Internet', () => {

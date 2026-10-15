@@ -50,6 +50,22 @@ internal static class PlayerTests
                 Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupStatus(group, row[1].GetString(), row[2].GetBoolean()) is var status
                     && status.Text == row[3].GetProperty("text").GetString() && status.Alert == row[3].GetProperty("alert").GetBoolean(), $"Status: {row[3]} ≠ {(Together.ParseGroup(row[0]) is { } g ? Together.GroupStatus(g, row[1].GetString(), row[2].GetBoolean()) : null)}");
             Assert(Together.MemberText("Marc", true) == "Marc a rejoint le groupe" && Together.MemberText("Marc", false) == "Marc a quitté le groupe", "Member");
+            // Lecture in a group: its label, and the question before it replaces the title the group has on.
+            foreach (var row in root.GetProperty("replaces").EnumerateArray())
+            {
+                var queue = row[1].ValueKind == JsonValueKind.Null ? null : new Together.Entry(row[1].GetProperty("itemId").GetString()!, row[1].GetProperty("playlistItemId").GetString()!, row[1].GetProperty("startTicks").GetInt64());
+                var group = row[0].ValueKind == JsonValueKind.Null ? null : Together.ParseGroup(row[0]);
+                Assert(Together.AsksToReplace(group, queue, row[2].GetString()!) == row[3].GetBoolean(), $"Replace: {group?.State} {queue?.ItemId} → {row[2]}");
+            }
+            foreach (var row in root.GetProperty("titles").EnumerateArray())
+                Assert(Together.TitleName(JsonSerializer.Deserialize<MediaItem>(row[0].GetRawText())!) == row[1].GetString(), $"Title: {row[1]}");
+            foreach (var row in root.GetProperty("playLabels").EnumerateArray())
+            {
+                var label = Together.GroupPlayLabel(row[0].GetProperty("code").GetString()!, row[0].GetProperty("resumeAt").GetDouble(), row[0].GetProperty("groupTitle").GetBoolean());
+                Assert(label == row[1].GetString(), $"Label: {label}");
+            }
+            foreach (var row in root.GetProperty("questions").EnumerateArray())
+                Assert(Together.ReplaceQuestion(row[0].GetString()) == row[1].GetString(), $"Question: {row[1]}");
             Assert(Together.GroupName("mira") == "Groupe de mira" && Together.NeedsSeek(10, 10.6) && !Together.NeedsSeek(10, 10.4), "Words, drift");
             foreach (var row in root.GetProperty("invites").EnumerateArray())
             {

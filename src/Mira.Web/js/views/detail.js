@@ -13,7 +13,8 @@ import { trackText, chooseTracks, qualityText } from '../player/tracks.js';
 import { appleNative } from '../player/video.js';
 import { sleep, sleepChoices } from '../player/sleep.js';
 import { together } from '../together.js';
-import { groupText, people, groupStatus, namesText } from '../player/sync.js';
+import { groupText, people, groupStatus, namesText, groupPlayLabel } from '../player/sync.js';
+import { startPosition } from '../player/stream.js';
 import { inviteSheet } from '../invite.js';
 
 const SLICE = 100;
@@ -115,6 +116,15 @@ export function create({ id, query }) {
     const resume = progress(target) > 0;
     let label = resume ? 'Reprendre' : 'Lecture';
     if (item.Type === 'Series') label = `${resume ? 'Reprendre' : 'Regarder'} ${episodeCode(target)}`;
+    // In a group, Lecture starts the title for everyone, from where this account left it; on the group's own title,
+    // it joins it where it is.
+    if (together.group) {
+      label = groupPlayLabel({
+        code: item.Type === 'Series' ? episodeCode(target) : '',
+        resumeAt: startPosition(target, { fromStart: false, resume: settings.get('resume') }) / 1e7,
+        groupTitle: together.queue?.itemId === target.Id,
+      });
+    }
     const left = resume ? remaining(target) : '';
     return h('div', { class: 'detail-actions' },
       h('a', { class: 'btn primary block', href: playHref(target, false, chosen?.for === target.Id ? chosen : null) }, icon('play', { size: 20 }), label),

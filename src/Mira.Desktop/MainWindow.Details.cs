@@ -19,10 +19,10 @@ public partial class MainWindow
     private (string Id, MediaSource? Source)? _detailFile;
     private List<MediaItem> _similar = [];
     private async void DetailPlay_Click(object sender, RoutedEventArgs e)
-    { if (DetailTarget() is { } target) await PlayAsync(target); }
+    { if (DetailTarget() is { } target) await PlayAsync(target, chosen: true); }
     /// <summary>« Depuis le début », beside « Reprendre »: the same title, from its first second (as on Mac and in Mira web).</summary>
     private async void DetailRestart_Click(object sender, RoutedEventArgs e)
-    { if (DetailTarget() is { } target) await PlayAsync(target, fromStart: true); }
+    { if (DetailTarget() is { } target) await PlayAsync(target, fromStart: true, chosen: true); }
     /// <summary>What Lecture plays: the film, or the episode the series picks up at.</summary>
     private MediaItem? DetailTarget() => _detailNext is { } next && _detail?.Type == "Series" ? next : _detail;
     private async void CloseDetails_Click(object sender, RoutedEventArgs e) => await CloseDetailsAsync();
@@ -124,7 +124,7 @@ public partial class MainWindow
         foreach (var extra in extras)
         {
             var card = new MediaCard(extra, true, 0, _settings, _demo);
-            card.Click += async (_, _) => await PlayAsync(extra);
+            card.Click += async (_, _) => await PlayAsync(extra, chosen: true);
             card.HoverEntered += x => x.SetHover(true); card.FocusEntered += x => x.SetHover(true); card.HoverLeft += x => x.SetHover(false);
             ExtrasCards.Children.Add(card); _ = card.LoadImageAsync(_images, true);
         }
@@ -252,10 +252,22 @@ public partial class MainWindow
         var target = _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played);
         if (target is null) { DetailPlay.Content = ActionLabel("play", _episodes.Count > 0 ? "Revoir depuis le début" : "Regarder"); DetailRestart.Visibility = Visibility.Collapsed; return; }
         var resume = target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
-        DetailPlay.Content = ActionLabel("play", $"{(resume ? "Reprendre" : "Regarder")} · S{target.ParentIndexNumber ?? 1:00} E{target.IndexNumber ?? 1:00}");
+        var code = $"S{target.ParentIndexNumber ?? 1:00} E{target.IndexNumber ?? 1:00}";
+        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(target, code) ?? $"{(resume ? "Reprendre" : "Regarder")} · {code}");
         DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
         _detailNext ??= target;
     }
+    /// <summary>Lecture's label: what it plays, or, in a group, that it starts it for everyone (or joins its title).</summary>
+    private void ShowDetailPlayLabel(MediaItem item)
+    {
+        if (item.Type == "Series") { UpdateDetailPlayLabel(); return; }
+        var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
+        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(item, "") ?? (resume ? "Reprendre" : item.UserData.Played ? "Revoir" : "Regarder"));
+        DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
+    }
+    /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>
+    private string? GroupPlayLabel(MediaItem target, string code) =>
+        InGroup ? Together.GroupPlayLabel(code, PlaybackSession.StartAt(target, remember: _settings.RememberPosition), _groupQueue?.ItemId == target.Id) : null;
     private void RenderDetailText(MediaItem item)
     {
         DetailTitle.Text = item.DisplayTitle;
@@ -265,13 +277,7 @@ public partial class MainWindow
         DetailOverview.Text = PlainText(item.Overview ?? "Aucun résumé disponible pour ce titre."); DetailGenres.Text = item.Genres.Length > 0 ? string.Join("  ·  ", item.Genres) : "Non renseignés";
         ShowPeople(DetailCast, item.CastPeople, false); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (item.Type != "Series")
-        {
-            var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
-            DetailPlay.Content = ActionLabel("play", resume ? "Reprendre" : item.UserData.Played ? "Revoir" : "Regarder");
-            DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
-        }
-        else UpdateDetailPlayLabel();
+        ShowDetailPlayLabel(item);
         DetailRestart.Content ??= ActionLabel("refresh", "Depuis le début");
         FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
         WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu");
@@ -321,7 +327,7 @@ public partial class MainWindow
             if (CanKeep(episode)) status.Children.Add(EpisodeCopyLabel(episode));
             grid.Children.Add(status); button.Content = grid;
             AutomationProperties.SetName(button, $"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}{(CopyState(episode.Id) is { } kept ? ", " + kept.ToLowerInvariant() : "")}");
-            button.Click += async (_, _) => await PlayAsync(episode);
+            button.Click += async (_, _) => await PlayAsync(episode, chosen: true);
             button.ContextMenu = EpisodeMenu(episode);
             EpisodesPanel.Children.Add(button);
             if (_images is not null) _ = LoadEpisodeImageAsync(image, episode);
@@ -337,8 +343,8 @@ public partial class MainWindow
     {
         var menu = new ContextMenu();
         var resume = episode.Progress > 0 && !episode.UserData.Played && _settings.RememberPosition;
-        menu.Items.Add(MenuAction(resume ? "Reprendre" : "Regarder", "play", async () => await PlayAsync(episode)));
-        if (resume) menu.Items.Add(MenuAction("Lire depuis le début", "refresh", async () => await PlayAsync(episode, fromStart: true)));
+        menu.Items.Add(MenuAction(resume ? "Reprendre" : "Regarder", "play", async () => await PlayAsync(episode, chosen: true)));
+        if (resume) menu.Items.Add(MenuAction("Lire depuis le début", "refresh", async () => await PlayAsync(episode, fromStart: true, chosen: true)));
         menu.Items.Add(MenuAction(episode.UserData.Played ? "Marquer comme non vu" : "Marquer comme vu", episode.UserData.Played ? "refresh" : "check", async () => { await SetPlayedAsync(episode, !episode.UserData.Played); await RefreshDetailAsync(); }));
         if (OfflineMenuItem(episode) is { } offline) menu.Items.Add(offline);
         return menu;

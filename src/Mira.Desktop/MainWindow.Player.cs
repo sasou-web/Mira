@@ -28,7 +28,8 @@ public partial class MainWindow
     private bool _tickBusy;
 
     /// <param name="groupStart">Put on by « Regarder ensemble » (MainWindow.Together.cs): opened paused there, until the group plays.</param>
-    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null)
+    /// <param name="chosen">Picked on a page (a title, a card, a menu), not by the player: in a group that has another title on, asked first.</param>
+    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null, bool chosen = false)
     {
         ClosePreview(); var asked = item;
         if (_playBusy) return; _playBusy = true;
@@ -57,7 +58,7 @@ public partial class MainWindow
             }
             if (InGroup && groupStart is null)
             {
-                if (await AskGroupAsync(item, fromStart, completePrevious)) return;
+                if (await AskGroupAsync(item, fromStart, completePrevious, chosen)) return;
                 groupStart = _groupQueue?.StartTicks ?? 0;
             }
             string location; string? authorization = null; MediaSource? source = null; string session = ""; OfflineCopy? kept = null;

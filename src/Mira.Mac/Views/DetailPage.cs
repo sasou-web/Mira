@@ -132,13 +132,14 @@ public sealed class DetailPage : Page
         if (_item.Type == "Series")
         {
             var target = SeriesTarget;
-            var label = target is null ? "Lecture" : (target.Progress > 0 && !target.UserData.Played ? "Reprendre" : "Regarder") + $" · S{target.ParentIndexNumber ?? 1} É{target.IndexNumber ?? 1}";
+            var label = target is null ? "Lecture" : GroupPlayLabel(target, $"S{target.ParentIndexNumber ?? 1} É{target.IndexNumber ?? 1}")
+                ?? (target.Progress > 0 && !target.UserData.Played ? "Reprendre" : "Regarder") + $" · S{target.ParentIndexNumber ?? 1} É{target.IndexNumber ?? 1}";
             actions.Children.Add(Ui.Action(label, "play", "primary", () => { if (SeriesTarget is { } episode) _ = Shell.PlayAsync(episode); else _ = Shell.PlayAsync(_item); }));
         }
         else
         {
             var resume = _item.Progress > 0 && !_item.UserData.Played;
-            actions.Children.Add(Ui.Action(resume ? "Reprendre · " + Ui.Remaining(_item).ToLowerInvariant() : "Lecture", "play", "primary", () => _ = Shell.PlayAsync(_item)));
+            actions.Children.Add(Ui.Action(GroupPlayLabel(_item, "") ?? (resume ? "Reprendre · " + Ui.Remaining(_item).ToLowerInvariant() : "Lecture"), "play", "primary", () => _ = Shell.PlayAsync(_item)));
             if (resume) actions.Children.Add(Ui.Action("Depuis le début", "refresh", "", () => _ = Shell.PlayAsync(_item, fromStart: true)));
         }
         actions.Children.Add(Ui.Action(_item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris", _item.UserData.IsFavorite ? "heart-filled" : "heart", "", () => _ = Shell.SetFavoriteAsync(_item, !_item.UserData.IsFavorite)));
@@ -149,6 +150,9 @@ public sealed class DetailPage : Page
         actions.Children.Add(together);
         _top.Children.Add(actions);
     }
+    /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>
+    private string? GroupPlayLabel(MediaItem target, string code) =>
+        Shell.Group.Active ? Together.GroupPlayLabel(code, PlaybackSession.StartAt(target, remember: Shell.Settings.RememberPosition), Shell.Group.Queue?.ItemId == target.Id) : null;
     /// <summary>The group changed: the button says so.</summary>
     public void ShowTogether() => RenderTop();
     /// <summary>« Regarder ensemble »: the group this Mac is in and « Quitter », or the groups to join and « Créer un groupe ».</summary>

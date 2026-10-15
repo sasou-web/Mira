@@ -1,5 +1,5 @@
 {
-  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js) and tests/Mira.Core.Tests (Together.cs). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]; invites: [address of Jellyfin for the friend, group, its host (who made it) or null, link of the invitation, what it says under the link]; appLinks: [address, group, host or null, link for Mira on a computer (Together.ParseAppLink reads it back)]; badAppLinks: links Mira for Windows and Mac refuse; hosts: [group name, who made it]; finds: [Jellyfin's groups, group of the invitation, its host, the group it means or null]; rejoins: [Jellyfin's groups, the group this device was in, made here, what it does to go back] names: [participants, line]; statuses: [group, this account's name, loading here, what the player's pill and the title page say] (Jellyfin never says who a wait or a pause is for).",
+  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js) and tests/Mira.Core.Tests (Together.cs). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]; invites: [address of Jellyfin for the friend, group, its host (who made it) or null, link of the invitation, what it says under the link]; appLinks: [address, group, host or null, link for Mira on a computer (Together.ParseAppLink reads it back)]; badAppLinks: links Mira for Windows and Mac refuse; hosts: [group name, who made it]; finds: [Jellyfin's groups, group of the invitation, its host, the group it means or null]; rejoins: [Jellyfin's groups, the group this device was in, made here, what it does to go back] names: [participants, line]; statuses: [group, this account's name, loading here, what the player's pill and the title page say] (Jellyfin never says who a wait or a pause is for); replaces: [group, its title (queue), the title Lecture starts, asked first]; titles: [item, as a question names it]; playLabels: [episode code, resumed at (seconds), the group's own title, Lecture's label in a group]; questions: [the group's title, the question].",
   "times": [
     ["2026-10-14T14:48:08.5712105Z", 1791989288571],
     ["2026-10-14T14:48:08Z", 1791989288000],
@@ -89,5 +89,34 @@
     [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, "mira", true, {"text": "Chargement pour le groupe…", "alert": true}],
     [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira"]}, "mira", false, {"text": "Chargement pour le groupe…", "alert": true}],
     [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Paused", "Participants": ["mira", "Marc"]}, "mira", false, {"text": "En pause pour le groupe", "alert": true}]
+  ],
+  "replaces": [
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "matrix", true],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Paused", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "matrix", true],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "matrix", true],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Idle", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "matrix", false],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "dune", false],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, null, "matrix", false],
+    [null, null, "matrix", false]
+  ],
+  "titles": [
+    [{"Type": "Movie", "Name": "Dune"}, "Dune"],
+    [{"Type": "Episode", "Name": "Secrets", "SeriesName": "Dark", "ParentIndexNumber": 1, "IndexNumber": 3}, "Dark · S1 · É3"],
+    [{"Type": "Episode", "Name": "Pilote", "SeriesName": "Dark"}, "Dark"],
+    [{"Type": "Episode", "Name": "Pilote"}, "Pilote"]
+  ],
+  "playLabels": [
+    [{"code": "", "resumeAt": 0, "groupTitle": false}, "Lancer pour le groupe"],
+    [{"code": "", "resumeAt": 2520, "groupTitle": false}, "Reprendre pour le groupe à 42 min"],
+    [{"code": "", "resumeAt": 3930, "groupTitle": false}, "Reprendre pour le groupe à 1 h 05"],
+    [{"code": "", "resumeAt": 30.6, "groupTitle": false}, "Reprendre pour le groupe à 30 s"],
+    [{"code": "S1 · É3", "resumeAt": 0, "groupTitle": false}, "Lancer S1 · É3 pour le groupe"],
+    [{"code": "S1 · É3", "resumeAt": 600, "groupTitle": false}, "Reprendre S1 · É3 pour le groupe"],
+    [{"code": "", "resumeAt": 600, "groupTitle": true}, "Regarder avec le groupe"]
+  ],
+  "questions": [
+    ["Dune", "Remplacer « Dune » pour tout le groupe ?"],
+    ["", "Remplacer le titre du groupe ?"],
+    [null, "Remplacer le titre du groupe ?"]
   ]
 }
