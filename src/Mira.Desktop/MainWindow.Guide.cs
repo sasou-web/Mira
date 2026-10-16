@@ -65,7 +65,7 @@ public partial class MainWindow
         foreach (var item in latest.Items) WhatsNewItems.Children.Add(HighlightRow(item));
         // Versions skipped by this update: one line each, never a long list.
         foreach (var release in releases.Skip(1).Take(2))
-            WhatsNewItems.Children.Add(new TextBlock { Text = $"Aussi en {release.Version} : {release.Summary}", FontSize = 12, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 6) });
+            WhatsNewItems.Children.Add(new TextBlock { Text = L($"Aussi en {release.Version} : {release.Summary}", $"Also in {release.Version}: {release.Summary}"), FontSize = 12, Foreground = Palette.Get("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 6) });
         Motion.Reveal(WhatsNewOverlay, 260, 0); Motion.Reveal(WhatsNewCard, 360, 16);
         _ = Dispatcher.BeginInvoke(() => WhatsNewDone.Focus(), DispatcherPriority.Input);
     }
@@ -100,7 +100,7 @@ public partial class MainWindow
         _settings.GuideSeen = true;
         if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); }
         ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(TorLinkOverlay);
-        GuideIntro.Text = intro ?? "L’essentiel pour bien démarrer.";
+        GuideIntro.Text = intro ?? L("L’essentiel pour bien démarrer.", "The essentials to get you started.");
         GuideTorLink.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
         DescribeServerForGuide();
         SmoothScroll.Jump(GuideScroll);
@@ -175,7 +175,7 @@ public partial class MainWindow
         var stale = await Task.Run(() => (uri.IsLoopback || LocalNetwork.IsThisPc(uri.Host)) && JellyfinAutostart.Program() is { } program
             && JellyfinAutostart.MiraRule(program, uri.Port) == JellyfinFirewall.RuleState.Stale);
         if (stale && Notice.Visibility != Visibility.Visible && GuideOverlay.Visibility != Visibility.Visible)
-            SetNotice("Pour ton téléphone, la règle de Mira dans le pare-feu de Windows est à mettre à jour : le guide s’en charge.", "Ouvrir le guide", () => OpenGuide());
+            SetNotice(L("Pour ton téléphone, la règle de Mira dans le pare-feu de Windows est à mettre à jour : le guide s’en charge.", "For your phone, Mira’s rule in Windows’ firewall needs an update: the guide takes care of it."), L("Ouvrir le guide", "Open the guide"), () => OpenGuide());
     }
     /// <summary>
     /// At start, for a Jellyfin on this PC: this PC's connection to Tailscale expiring within two weeks, or expired, is
@@ -206,7 +206,7 @@ public partial class MainWindow
         PhoneSteps.Children.Clear();
         if (facts is null)
         {
-            PhoneSteps.Children.Add(new TextBlock { Text = checking ? "Vérification de ton serveur…" : "Connecte-toi d’abord à Jellyfin : les étapes s’afficheront ici.", Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0, 0, 0, 12) });
+            PhoneSteps.Children.Add(new TextBlock { Text = checking ? L("Vérification de ton serveur…", "Checking your server…") : L("Connecte-toi d’abord à Jellyfin : les étapes s’afficheront ici.", "Sign in to Jellyfin first: the steps will show here."), Style = (Style)FindResource("SettingDescription"), Margin = new Thickness(0, 0, 0, 12) });
             PhoneActions.Visibility = PhoneStatus.Visibility = PhoneAddressLine.Visibility = Visibility.Collapsed;
             return;
         }
@@ -217,8 +217,8 @@ public partial class MainWindow
         {
             var close = new Button
             {
-                Content = "Ne plus ouvrir Jellyfin au réseau", Style = (Style)FindResource("Quiet"), Padding = new Thickness(12, 5, 12, 5), HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(38, 0, 0, 14), IsEnabled = !_preparing, ToolTip = "Retire la règle « Mira - Jellyfin » du pare-feu de Windows, avec son autorisation"
+                Content = L("Ne plus ouvrir Jellyfin au réseau", "Close Jellyfin to the network"), Style = (Style)FindResource("Quiet"), Padding = new Thickness(12, 5, 12, 5), HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(38, 0, 0, 14), IsEnabled = !_preparing, ToolTip = L("Retire la règle « Mira - Jellyfin » du pare-feu de Windows, avec son autorisation", "Removes the “Mira - Jellyfin” rule from Windows’ firewall, with its permission")
             };
             close.Click += async (_, _) => await ClosePhoneAsync();
             PhoneSteps.Children.Add(close);
@@ -226,17 +226,17 @@ public partial class MainWindow
         var prepare = PhoneSetup.CanPrepare(steps);
         var ready = facts.Web == true;
         // A reading that ends while « Tout préparer » runs leaves its button and progress alone.
-        if (!_preparing) PhoneMain.Content = prepare ? "Tout préparer" : "Afficher le QR code";
+        if (!_preparing) PhoneMain.Content = prepare ? L("Tout préparer", "Set everything up") : L("Afficher le QR code", "Show the QR code");
         PhoneMain.Visibility = prepare || ready ? Visibility.Visible : Visibility.Collapsed;
         PhoneShare.Visibility = prepare && ready ? Visibility.Visible : Visibility.Collapsed;
         PhoneActions.Visibility = PhoneMain.Visibility;
-        var windows = new[] { PhoneSetup.Is(steps, "firewall", PhoneSetup.Mark.ToDo) ? "le pare-feu" : null, PhoneSetup.Is(steps, "boot", PhoneSetup.Mark.ToDo) ? "le démarrage de Jellyfin" : null }.OfType<string>().ToList();
+        var windows = new[] { PhoneSetup.Is(steps, "firewall", PhoneSetup.Mark.ToDo) ? L("le pare-feu", "the firewall") : null, PhoneSetup.Is(steps, "boot", PhoneSetup.Mark.ToDo) ? L("le démarrage de Jellyfin", "Jellyfin’s startup") : null }.OfType<string>().ToList();
         if (!_preparing) ShowPhoneStatus(prepare
-            ? windows.Count > 0 ? $"Une seule autorisation de Windows, pour {string.Join(" et ", windows)}." : ""
+            ? windows.Count > 0 ? L($"Une seule autorisation de Windows, pour {string.Join(" et ", windows)}.", $"Just one permission from Windows, for {string.Join(" and ", windows)}.") : ""
             : ready ? PhoneSetup.Everywhere(facts) is not null
-                ? "Le QR code marche chez toi et ailleurs, Tailscale activé sur ton téléphone."
+                ? L("Le QR code marche chez toi et ailleurs, Tailscale activé sur ton téléphone.", "The QR code works at home and away, with Tailscale active on your phone.")
                 // A firewall step left to the person (a public network, « block all »…) keeps the phone out at home.
-                : FirewallDone(steps) ? "Le QR code marche sur le Wi-Fi de la maison." : "Chez toi, ton téléphone trouvera Jellyfin une fois l’étape du pare-feu faite." : "");
+                : FirewallDone(steps) ? L("Le QR code marche sur le Wi-Fi de la maison.", "The QR code works on your home Wi-Fi.") : L("Chez toi, ton téléphone trouvera Jellyfin une fois l’étape du pare-feu faite.", "At home, your phone will find Jellyfin once the firewall step is done.") : "");
         PhoneAddress.Text = PhoneSetup.Address(facts);
         PhoneAddressLine.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -277,7 +277,7 @@ public partial class MainWindow
                 else if (step.Key == "unattended")
                 {
                     button.IsEnabled = false;
-                    if (!await Task.Run(TailscaleCli.KeepConnected)) SetNotice($"Tailscale n’a pas pris ce réglage : {TailscaleNode.WhereUnattended}.");
+                    if (!await Task.Run(TailscaleCli.KeepConnected)) SetNotice(L($"Tailscale n’a pas pris ce réglage : {TailscaleNode.WhereUnattended}.", $"Tailscale didn’t take this setting: {TailscaleNode.WhereUnattended}."));
                     if (!_preparing) _ = DescribePhoneAsync();
                 }
                 else if (step.Key == "keyexpiry") OpenWebPage(TailscaleNode.Machines);
@@ -286,7 +286,7 @@ public partial class MainWindow
                 {
                     button.IsEnabled = false;
                     if (!await Task.Run(PowerPlan.NeverOnMains))
-                        SetNotice("Windows n’a pas changé la mise en veille : dans Paramètres → Système → Alimentation, choisis « Jamais » pour la mise en veille sur secteur.");
+                        SetNotice(L("Windows n’a pas changé la mise en veille : dans Paramètres → Système → Alimentation, choisis « Jamais » pour la mise en veille sur secteur.", "Windows didn’t change sleep: in Settings → System → Power, choose “Never” for sleep when plugged in."));
                     if (!_preparing) _ = DescribePhoneAsync();
                 }
                 // « Passer en privé »: the person says the public network is home's.
@@ -322,39 +322,39 @@ public partial class MainWindow
         var problems = new List<string>();
         string? waiting = null;
         var kept = false;
-        _preparing = true; PhoneMain.IsEnabled = PhoneShare.IsEnabled = false; PhoneMain.Content = "Préparation…";
+        _preparing = true; PhoneMain.IsEnabled = PhoneShare.IsEnabled = false; PhoneMain.Content = L("Préparation…", "Setting up…");
         try
         {
             if (privateNetwork || PhoneSetup.NeedsWindows(steps))
             {
                 // Windows asks for Windows PowerShell, which does it: never a file of Mira's own folder.
-                ShowPhoneStatus("Accepte l’autorisation de Windows, pour Windows PowerShell…");
+                ShowPhoneStatus(L("Accepte l’autorisation de Windows, pour Windows PowerShell…", "Accept Windows’ permission prompt for Windows PowerShell…"));
                 switch (await JellyfinAutostart.ApplyAsync(uri.Port, privateNetwork))
                 {
-                    case AutostartResult.Refused: problems.Add("Windows n’a pas reçu l’autorisation : le pare-feu n’a pas changé."); break;
-                    case AutostartResult.Failed: problems.Add("Le pare-feu ou le démarrage de Jellyfin n’a pas pu être réglé. Réessaie."); break;
-                    case AutostartResult.KeptPublic: kept = true; problems.Add("Windows garde ton réseau en public : l’étape du pare-feu dit où le passer en privé."); break;
+                    case AutostartResult.Refused: problems.Add(L("Windows n’a pas reçu l’autorisation : le pare-feu n’a pas changé.", "Windows didn’t get permission: the firewall hasn’t changed.")); break;
+                    case AutostartResult.Failed: problems.Add(L("Le pare-feu ou le démarrage de Jellyfin n’a pas pu être réglé. Réessaie.", "The firewall or Jellyfin’s startup couldn’t be set up. Try again.")); break;
+                    case AutostartResult.KeptPublic: kept = true; problems.Add(L("Windows garde ton réseau en public : l’étape du pare-feu dit où le passer en privé.", "Windows keeps your network public: the firewall step says where to make it private.")); break;
                 }
             }
             if (PhoneSetup.Is(steps, "tailscale", PhoneSetup.Mark.ToDo))
             {
-                ShowPhoneStatus("Jellyfin accepte tes appareils Tailscale…");
-                try { if (!await client.AllowTailnetAsync()) problems.Add("Il faut le compte administrateur de Jellyfin pour autoriser Tailscale."); }
+                ShowPhoneStatus(L("Jellyfin accepte tes appareils Tailscale…", "Letting your Tailscale devices into Jellyfin…"));
+                try { if (!await client.AllowTailnetAsync()) problems.Add(L("Il faut le compte administrateur de Jellyfin pour autoriser Tailscale.", "Allowing Tailscale needs Jellyfin’s administrator account.")); }
                 catch (Exception ex) when (IsExpected(ex)) { problems.Add(Friendly(ex)); }
             }
             if (PhoneSetup.Is(steps, "web", PhoneSetup.Mark.ToDo))
             {
-                ShowPhoneStatus("Vérification de Mira web…");
+                ShowPhoneStatus(L("Vérification de Mira web…", "Checking Mira web…"));
                 try
                 {
                     // Checked against this version's signed release before Jellyfin is pointed at it: nothing otherwise.
                     var repository = await VerifiedMiraWebAsync();
-                    ShowPhoneStatus("Installation de Mira web, puis Jellyfin redémarre quelques secondes…");
+                    ShowPhoneStatus(L("Installation de Mira web, puis Jellyfin redémarre quelques secondes…", "Installing Mira web, then Jellyfin restarts for a few seconds…"));
                     switch (await client.InstallWebAppAsync(repository))
                     {
-                        case WebAppInstall.NotAllowed: problems.Add("Il faut le compte administrateur de Jellyfin pour installer Mira web."); break;
-                        case WebAppInstall.Unavailable: problems.Add("Jellyfin n’a pas pu télécharger Mira web : vérifie que ce PC a accès à Internet, puis réessaie."); break;
-                        case WebAppInstall.Restarting: waiting = "Mira web est installé ; Jellyfin finit de redémarrer, et cette carte se met à jour dès qu’il répond."; break;
+                        case WebAppInstall.NotAllowed: problems.Add(L("Il faut le compte administrateur de Jellyfin pour installer Mira web.", "Installing Mira web needs Jellyfin’s administrator account.")); break;
+                        case WebAppInstall.Unavailable: problems.Add(L("Jellyfin n’a pas pu télécharger Mira web : vérifie que ce PC a accès à Internet, puis réessaie.", "Jellyfin couldn’t download Mira web: check that this PC can reach the Internet, then try again.")); break;
+                        case WebAppInstall.Restarting: waiting = L("Mira web est installé ; Jellyfin finit de redémarrer, et cette carte se met à jour dès qu’il répond.", "Mira web is installed; Jellyfin is finishing its restart, and this card updates as soon as it answers."); break;
                     }
                 }
                 catch (UpdateException ex) { problems.Add(ex.Message); }
@@ -374,7 +374,7 @@ public partial class MainWindow
         // A firewall step left to the person keeps the phone out at home, unless Tailscale lets it in: the card says so,
         // rather than a QR code that leads nowhere.
         if (_phone is not { Web: true } now || PhoneSetup.Everywhere(now) is null && !FirewallDone(PhoneSetup.Steps(now))) return;
-        SetNotice("C’est prêt : scanne le QR code avec ton téléphone.");
+        SetNotice(L("C’est prêt : scanne le QR code avec ton téléphone.", "It’s ready: scan the QR code with your phone."));
         OpenPhoneShare();
     }
     /// <summary>
@@ -388,19 +388,19 @@ public partial class MainWindow
         _preparing = true; PhoneMain.IsEnabled = PhoneShare.IsEnabled = false;
         try
         {
-            ShowPhoneStatus("Accepte l’autorisation de Windows, pour Windows PowerShell…");
+            ShowPhoneStatus(L("Accepte l’autorisation de Windows, pour Windows PowerShell…", "Accept Windows’ permission prompt for Windows PowerShell…"));
             problem = await JellyfinAutostart.CloseAsync(uri.Port) switch
             {
                 AutostartResult.Done => null,
-                AutostartResult.Refused => "Windows n’a pas reçu l’autorisation : le pare-feu n’a pas changé.",
-                _ => "La règle de Mira n’a pas pu être retirée du pare-feu. Réessaie.",
+                AutostartResult.Refused => L("Windows n’a pas reçu l’autorisation : le pare-feu n’a pas changé.", "Windows didn’t get permission: the firewall hasn’t changed."),
+                _ => L("La règle de Mira n’a pas pu être retirée du pare-feu. Réessaie.", "Mira’s rule couldn’t be removed from the firewall. Try again."),
             };
             await DescribePhoneAsync();
         }
         finally { _preparing = false; PhoneMain.IsEnabled = PhoneShare.IsEnabled = true; }
         if (_phone is { } read) ShowPhone(read);
         if (problem is not null) { ShowPhoneStatus(problem, problem: true); SetNotice(problem); return; }
-        SetNotice("Mira n’ouvre plus Jellyfin au réseau : sa règle est retirée du pare-feu de Windows.");
+        SetNotice(L("Mira n’ouvre plus Jellyfin au réseau : sa règle est retirée du pare-feu de Windows.", "Mira no longer opens Jellyfin to the network: its rule is removed from Windows’ firewall."));
     }
     private void PhoneShare_Click(object sender, RoutedEventArgs e) => OpenPhoneShare();
     /// <summary>The page with the QR code, in this PC's browser: for the address that works everywhere when there is one.</summary>
@@ -408,8 +408,8 @@ public partial class MainWindow
     private void CopyPhoneAddress_Click(object sender, RoutedEventArgs e)
     {
         if (_phone is not { } facts) return;
-        try { Clipboard.SetText(PhoneSetup.Address(facts)); SetNotice("Adresse copiée."); }
-        catch (System.Runtime.InteropServices.ExternalException) { SetNotice("Le presse-papiers est occupé : réessaie."); }
+        try { Clipboard.SetText(PhoneSetup.Address(facts)); SetNotice(L("Adresse copiée.", "Address copied.")); }
+        catch (System.Runtime.InteropServices.ExternalException) { SetNotice(L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again.")); }
     }
     /// <summary>Jellyfin's page and the address for TVs and consoles: this PC's network address when Jellyfin runs here.</summary>
     private void DescribeServerForGuide()
@@ -427,7 +427,7 @@ public partial class MainWindow
         GuideFolders.Children.Clear(); GuideFoldersHint.Visibility = Visibility.Collapsed;
         if (_demo || _client is not { } client)
         {
-            ShowGuideFoldersHint("En démonstration, aucun serveur n’est relié : connecte-toi pour voir tes dossiers ici.");
+            ShowGuideFoldersHint(L("En démonstration, aucun serveur n’est relié : connecte-toi pour voir tes dossiers ici.", "In the demo, no server is linked: sign in to see your folders here."));
             return;
         }
         List<VirtualFolder>? libraries; Exception? failure = null;
@@ -435,16 +435,16 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex)) { libraries = null; failure = ex; }
         if (version != _guideVersion) return;
         // Jellyfin out of reach is not a question of rights: only a refusal (null) means an account that is not an administrator.
-        if (failure is not null) { ShowGuideFoldersHint(Friendly(failure) + " Tes dossiers s’afficheront ici dès qu’il répondra."); return; }
-        if (libraries is null) { ShowGuideFoldersHint("Seul un administrateur de Jellyfin voit ces dossiers : demande-les à la personne qui gère le serveur."); return; }
-        if (libraries.Count == 0) { ShowGuideFoldersHint("Aucune bibliothèque : ajoutes-en une dans Jellyfin (Tableau de bord → Bibliothèques)."); return; }
+        if (failure is not null) { ShowGuideFoldersHint(Friendly(failure) + L(" Tes dossiers s’afficheront ici dès qu’il répondra.", " Your folders will show here as soon as it answers.")); return; }
+        if (libraries is null) { ShowGuideFoldersHint(L("Seul un administrateur de Jellyfin voit ces dossiers : demande-les à la personne qui gère le serveur.", "Only a Jellyfin administrator sees these folders: ask the person who runs the server.")); return; }
+        if (libraries.Count == 0) { ShowGuideFoldersHint(L("Aucune bibliothèque : ajoutes-en une dans Jellyfin (Tableau de bord → Bibliothèques).", "No libraries yet: add one in Jellyfin (Dashboard → Libraries).")); return; }
         var reachable = await Task.Run(() => libraries.SelectMany(x => x.Locations).Distinct().ToDictionary(x => x, Exists));
         if (version != _guideVersion) return;
         foreach (var library in libraries.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase))
             foreach (var location in library.Locations.DefaultIfEmpty(""))
                 GuideFolders.Children.Add(FolderRow(library.Name, location, location.Length > 0 && reachable.GetValueOrDefault(location)));
         if (!reachable.Values.Any(x => x))
-            ShowGuideFoldersHint("Ces dossiers sont sur l’ordinateur où tourne Jellyfin.");
+            ShowGuideFoldersHint(L("Ces dossiers sont sur l’ordinateur où tourne Jellyfin.", "These folders are on the computer where Jellyfin runs."));
     }
     /// <summary>Two columns of cards on a wide window, one on a narrow one.</summary>
     private void GuideGrid_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -458,14 +458,14 @@ public partial class MainWindow
         var row = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         if (here)
         {
-            var open = new Button { Content = "Ouvrir", Padding = new Thickness(14, 6, 14, 6), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
-            System.Windows.Automation.AutomationProperties.SetName(open, $"Ouvrir le dossier {library}");
+            var open = new Button { Content = L("Ouvrir", "Open"), Padding = new Thickness(14, 6, 14, 6), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+            System.Windows.Automation.AutomationProperties.SetName(open, L($"Ouvrir le dossier {library}", $"Open the {library} folder"));
             open.Click += (_, _) => OpenInExplorer(location, null);
             DockPanel.SetDock(open, Dock.Right); row.Children.Add(open);
         }
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(new TextBlock { Text = library, FontWeight = FontWeights.SemiBold, FontSize = 13 });
-        text.Children.Add(new TextBlock { Text = location.Length > 0 ? location : "Aucun dossier pour l’instant", FontSize = 12, Foreground = Palette.Get("Faint"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = location.Length > 0 ? location : null });
+        text.Children.Add(new TextBlock { Text = location.Length > 0 ? location : L("Aucun dossier pour l’instant", "No folder yet"), FontSize = 12, Foreground = Palette.Get("Faint"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = location.Length > 0 ? location : null });
         row.Children.Add(text);
         return row;
     }
@@ -477,19 +477,19 @@ public partial class MainWindow
     private void CopyRemoteAddress_Click(object sender, RoutedEventArgs e)
     {
         if (_remoteAddress is null) return;
-        try { Clipboard.SetText(_remoteAddress); SetNotice("Adresse copiée."); }
-        catch (System.Runtime.InteropServices.ExternalException) { SetNotice("Le presse-papiers est occupé : réessaie."); }
+        try { Clipboard.SetText(_remoteAddress); SetNotice(L("Adresse copiée.", "Address copied.")); }
+        catch (System.Runtime.InteropServices.ExternalException) { SetNotice(L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again.")); }
     }
     /// <summary>Jellyfin's own web page, signed in with the same account: its dashboard holds the libraries, users and network.</summary>
     private void OpenJellyfin_Click(object sender, RoutedEventArgs e)
     {
-        if (_demo || _client?.Connection.Server is not { } server) { SetNotice("Connecte-toi d’abord à ton serveur Jellyfin."); return; }
+        if (_demo || _client?.Connection.Server is not { } server) { SetNotice(L("Connecte-toi d’abord à ton serveur Jellyfin.", "Sign in to your Jellyfin server first.")); return; }
         OpenWebPage(server.TrimEnd('/') + "/web/#/dashboard");
     }
     private void OpenWebPage(string address)
     {
         if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) return;
         try { using var _ = Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
-        catch (System.ComponentModel.Win32Exception) { SetNotice("Le navigateur n’a pas pu s’ouvrir."); }
+        catch (System.ComponentModel.Win32Exception) { SetNotice(L("Le navigateur n’a pas pu s’ouvrir.", "The browser couldn’t open.")); }
     }
 }

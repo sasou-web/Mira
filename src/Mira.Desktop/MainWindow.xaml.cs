@@ -177,7 +177,7 @@ public partial class MainWindow : Window
         _ = KeepMiraWebCurrentAsync();
         // Once, after the first refresh, which would otherwise hide it at once, and beside what the start already said
         // (a cache recreated, an update that failed, Jellyfin offline) rather than in its place.
-        if (_profile.SettingsUnreadable) AddNotice("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut." + (_profile.SettingsCopy is { } copy ? $" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}." : ""));
+        if (_profile.SettingsUnreadable) AddNotice(L("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut.", "Your settings couldn’t be read: Mira started over from the default settings.") + (_profile.SettingsCopy is { } copy ? L($" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}.", $" The old file is kept as {Path.GetFileName(copy)}.") : ""));
         if (_testMedia is not null && _args.Contains("--autoplay")) await PlayAsync(DemoLibrary.Items()[0]);
     }
     private Task? _startupRevealTask;
@@ -199,9 +199,9 @@ public partial class MainWindow : Window
     {
         await DisconnectServicesAsync();
         _demo = true; LoginOverlay.Visibility = Visibility.Collapsed; DemoBadge.Visibility = Visibility.Visible;
-        ServerLabel.Text = "Mode démonstration"; SyncLabel.Text = "○  Données fictives · rien n’est envoyé";
+        ServerLabel.Text = L("Mode démonstration", "Demo mode"); SyncLabel.Text = L("○  Données fictives · rien n’est envoyé", "○  Made-up data · nothing is sent");
         AvatarLetter.Text = "M";
-        LibrariesPanel.Children.Clear(); AddLibraryButton("Films & séries", null);
+        LibrariesPanel.Children.Clear(); AddLibraryButton(L("Films & séries", "Movies & shows"), null);
         _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
         PopulateFilters(new CatalogFilters { Genres = DemoLibrary.Items().SelectMany(x => x.Genres).Distinct().ToArray(), Years = DemoLibrary.Items().Select(x => x.ProductionYear ?? 0).Where(x => x > 0).Distinct().ToArray() });
         RenderDemo();
@@ -219,21 +219,21 @@ public partial class MainWindow : Window
     {
         // Another address is another question: the warning given for the previous one no longer answers it.
         if (_warnedPlainHttp is null || !ConnectButton.IsEnabled || ServerBox.Text == _warnedPlainHttp) return;
-        _warnedPlainHttp = null; ConnectText.Text = "Se connecter"; LoginError.Text = "";
+        _warnedPlainHttp = null; ConnectText.Text = L("Se connecter", "Sign in"); LoginError.Text = "";
     }
     private async void Connect_Click(object sender, RoutedEventArgs e)
     {
-        ConnectButton.IsEnabled = false; ConnectText.Text = "Connexion…"; LoginError.Text = "";
+        ConnectButton.IsEnabled = false; ConnectText.Text = L("Connexion…", "Signing in…"); LoginError.Text = "";
         JellyfinClient? client = null;
         try
         {
-            if (string.IsNullOrWhiteSpace(UsernameBox.Text)) throw new UserInputException("Indique ton nom d’utilisateur Jellyfin.");
+            if (string.IsNullOrWhiteSpace(UsernameBox.Text)) throw new UserInputException(L("Indique ton nom d’utilisateur Jellyfin.", "Enter your Jellyfin username."));
             // "192.168.1.20", "nas:8096" or the address of Jellyfin's web page: find the server before sending the password.
-            ConnectText.Text = "Recherche du serveur…";
+            ConnectText.Text = L("Recherche du serveur…", "Looking for the server…");
             var server = await ServerAddress.DiscoverAsync(ServerBox.Text);
             ServerBox.Text = server.Address;
             if (server.Address != _warnedPlainHttp && await ServerAddress.ExposesPasswordAsync(server.Address)) { _warnedPlainHttp = server.Address; LoginError.Text = ServerAddress.PlainHttpWarning; return; }
-            ConnectText.Text = "Connexion…";
+            ConnectText.Text = L("Connexion…", "Signing in…");
             client = new JellyfinClient(new(server.Address, "", UsernameBox.Text.Trim(), "", _profile.DeviceId));
             var connection = await client.LoginAsync(UsernameBox.Text.Trim(), PasswordBox.Password);
             // Another account or server replaces the saved session: the old one ends on its Jellyfin too, since nothing
@@ -241,17 +241,17 @@ public partial class MainWindow : Window
             var previous = _profile.LoadConnection();
             _profile.SaveConnection(connection); PasswordBox.Clear(); _warnedPlainHttp = null;
             await ActivateConnectionAsync(connection);
-            OfferGuide("Connecté. Voici l’essentiel.");
+            OfferGuide(L("Connecté. Voici l’essentiel.", "Signed in. Here are the essentials."));
             if (previous is not null && (previous.Server != connection.Server || previous.UserId != connection.UserId)) _ = EndReplacedSessionAsync(previous);
         }
         catch (Exception ex) when (IsExpected(ex)) { LoginError.Text = Friendly(ex); }
-        finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = _warnedPlainHttp == ServerBox.Text ? "Se connecter quand même" : "Se connecter"; }
+        finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = _warnedPlainHttp == ServerBox.Text ? L("Se connecter quand même", "Sign in anyway") : L("Se connecter", "Sign in"); }
     }
     private async Task EndReplacedSessionAsync(Connection previous)
     {
         bool closed;
         using (var old = new JellyfinClient(previous)) closed = await old.LogoutAsync();
-        if (!closed) AddNotice($"Ton ancienne session ({previous.UserName}) n’a pas pu être fermée sur son serveur Jellyfin : retire ce PC de ses appareils (Tableau de bord, Appareils).");
+        if (!closed) AddNotice(L($"Ton ancienne session ({previous.UserName}) n’a pas pu être fermée sur son serveur Jellyfin : retire ce PC de ses appareils (Tableau de bord, Appareils).", $"Your previous session ({previous.UserName}) couldn’t be closed on its Jellyfin server: remove this PC from its devices (Dashboard, Devices)."));
     }
     private async Task ActivateConnectionAsync(Connection connection)
     {
@@ -300,7 +300,7 @@ public partial class MainWindow : Window
             if (cached is not null && ReferenceEquals(store, _store)) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; _catalog.Resume = cachedResume ?? []; _catalog.Loading = false; RenderLibrary(); }
             await RefreshAsync();
             var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
-            _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = "Toutes les bibliothèques", Tag = "" }); LibraryFilter.SelectedIndex = 0;
+            _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
             foreach (var library in libraries.Where(x => !LibrarySection.Groups(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
             _filterBusy = false;
             PopulateFilters(await _client.FiltersAsync());
@@ -308,7 +308,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         SyncChanged();
         // Said once the first refresh is done, which would otherwise hide it at once.
-        if (damaged) SetNotice("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.", null, null, sticky: true);
+        if (damaged) SetNotice(L("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.", "This account’s local cache couldn’t be read: it was rebuilt. Progress reports that hadn’t been sent yet are lost."), null, null, sticky: true);
         _ = RefreshTorLinkLibrariesAsync();
     }
     private async Task ListenSafelyAsync(JellyfinClient client, CancellationToken ct)
@@ -376,28 +376,28 @@ public partial class MainWindow : Window
         if (_scanning) return;
         _scanning = true; var before = _catalog.TotalCount; var view = (_catalog.View, _catalog.Favorites, _catalog.ParentId, SearchBox.Text); var shown = Task.Delay(700);
         var ct = _connectionLifetime.Token;
-        SpinRefresh(true); RefreshLabel.Text = "Analyse…";
+        SpinRefresh(true); RefreshLabel.Text = L("Analyse…", "Scanning…");
         try
         {
             var scanned = false;
             if (!_demo && _client is { } client)
             {
-                var progress = new Progress<double?>(p => RefreshLabel.Text = p is { } share ? $"Analyse… {share * 100:0} %" : "Analyse…");
+                var progress = new Progress<double?>(p => RefreshLabel.Text = p is { } share ? L($"Analyse… {share * 100:0} %", $"Scanning… {share * 100:0}%") : L("Analyse…", "Scanning…"));
                 scanned = await client.ScanAndWaitAsync(progress, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), ct);
-                RefreshLabel.Text = "Chargement…";
+                RefreshLabel.Text = L("Chargement…", "Loading…");
             }
             await RefreshAsync(quiet: true); await shown;
             // Counted only on the list it started from: another view has another total.
             var added = view == (_catalog.View, _catalog.Favorites, _catalog.ParentId, SearchBox.Text) ? _catalog.TotalCount - before : 0;
-            SetNotice(_demo ? "Démo à jour."
-                : !scanned ? "Liste rechargée. Seul un administrateur de Jellyfin peut lui faire analyser les dossiers : un nouveau fichier apparaît après sa prochaine analyse."
-                : added > 0 ? $"Bibliothèque à jour : {added} nouveau{(added > 1 ? "x" : "")} titre{(added > 1 ? "s" : "")}."
-                : "Bibliothèque à jour : Jellyfin a vérifié tous tes dossiers.");
+            SetNotice(_demo ? L("Démo à jour.", "Demo up to date.")
+                : !scanned ? L("Liste rechargée. Seul un administrateur de Jellyfin peut lui faire analyser les dossiers : un nouveau fichier apparaît après sa prochaine analyse.", "List reloaded. Only a Jellyfin administrator can have it scan the folders: a new file shows up after its next scan.")
+                : added > 0 ? L($"Bibliothèque à jour : {added} nouveau{(added > 1 ? "x" : "")} titre{(added > 1 ? "s" : "")}.", $"Library up to date: {added} new {(added == 1 ? "title" : "titles")}.")
+                : L("Bibliothèque à jour : Jellyfin a vérifié tous tes dossiers.", "Library up to date: Jellyfin checked all your folders."));
         }
         // Only Mira's own cancellation (another account, closing): HttpClient's 12 s limit is one too, and must be said.
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
-        finally { _scanning = false; SpinRefresh(false); RefreshLabel.Text = "Actualiser"; }
+        finally { _scanning = false; SpinRefresh(false); RefreshLabel.Text = L("Actualiser", "Refresh"); }
     }
     private async void LoadMore_Click(object sender, RoutedEventArgs e) => await RefreshAsync(more: true);
     private async Task RefreshAsync(bool more = false, bool quiet = false)
@@ -416,7 +416,7 @@ public partial class MainWindow : Window
         // « Regarder ensemble »: a group open on Jellyfin, a line of Home's to join it.
         if (home && !more) _ = LoadHomeGroupsAsync(client);
         LoadMore.IsEnabled = false; var startOffset = LibraryScroll.VerticalOffset; var started = DateTimeOffset.UtcNow;
-        if (!quiet && !more) { SyncLabel.Text = "↻  Actualisation…"; SpinRefresh(true); }
+        if (!quiet && !more) { SyncLabel.Text = L("↻  Actualisation…", "↻  Refreshing…"); SpinRefresh(true); }
         try
         {
             // A background refresh keeps every page already loaded instead of shrinking the grid back to one page.
@@ -484,7 +484,7 @@ public partial class MainWindow : Window
                 _offlineSince = DateTimeOffset.Now;
                 // Said once as Jellyfin stops answering, not at each try (every 45 s): « Hors connexion » then stays in
                 // the title bar until it answers again.
-                if (!wasOffline) _ = SayUnansweredAsync(client, ex, Friendly(ex) + " Les informations déjà chargées restent disponibles.");
+                if (!wasOffline) _ = SayUnansweredAsync(client, ex, Friendly(ex) + L(" Les informations déjà chargées restent disponibles.", " What’s already loaded stays available."));
                 SyncChanged();
                 _catalog.Loading = false; RenderLibrary();
             }
@@ -559,20 +559,20 @@ public partial class MainWindow : Window
     private static bool IsExpected(Exception e) => ExpectedErrors.Are(e);
     private static string Friendly(Exception ex) => ex switch
     {
-        // Mira's own messages are written for you; .NET's (a file refused, a wrong argument) are not, nor in French.
-        UnauthorizedAccessException => FromMira(ex) ? ex.Message : "Windows refuse à Mira l’accès à l’un de ses fichiers : vérifie que son dossier de données n’est pas en lecture seule.",
+        // Mira's own messages are written for you; .NET's (a file refused, a wrong argument) are not, nor in Mira's language.
+        UnauthorizedAccessException => FromMira(ex) ? ex.Message : L("Windows refuse à Mira l’accès à l’un de ses fichiers : vérifie que son dossier de données n’est pas en lecture seule.", "Windows denies Mira access to one of its files: check that its data folder isn’t read-only."),
         UserInputException => ex.Message,
         ServerDiscoveryException => ex.Message,
-        OperationCanceledException => "Jellyfin met trop de temps à répondre.",
+        OperationCanceledException => L("Jellyfin met trop de temps à répondre.", "Jellyfin is taking too long to answer."),
         HttpRequestException { StatusCode: { } status } => JellyfinClient.StatusMessage(status),
-        HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.",
+        HttpRequestException => L("Le serveur Jellyfin est momentanément inaccessible.", "The Jellyfin server can’t be reached right now."),
         SqliteException => StorageUnavailable,
-        _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie."
+        _ => L("L’opération n’a pas abouti. Vérifie la connexion et réessaie.", "That didn’t work. Check the connection and try again.")
     };
     /// <summary>Thrown by Mira's own code, with a message written for the person using it.</summary>
     private static bool FromMira(Exception ex) => ex.TargetSite?.DeclaringType?.Assembly is { } assembly && (assembly == typeof(JellyfinClient).Assembly || assembly == typeof(MainWindow).Assembly);
-    private const string CacheUnavailable = "Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier en lecture seule ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.";
-    private const string StorageUnavailable = "Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.";
+    private static string CacheUnavailable => L("Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier en lecture seule ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.", "Mira can’t open this account’s cache in its data folder: the disk is full, the folder is read-only or a file is in use by another program. Free up some space if needed, then restart Mira: it’ll reopen this account without asking for your password again.");
+    private static string StorageUnavailable => L("Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.", "Mira’s local storage is unavailable (full disk or busy file): free up some space on the disk, or restart Mira.");
     /// <summary>The local cache is a bonus: a full disk, a locked or damaged database leaves Jellyfin's answer, or nothing, on screen.</summary>
     private static T? TryCache<T>(Func<T> read) { try { return read(); } catch (Exception ex) when (IsCacheFailure(ex)) { return default; } }
     private static void TryCache(Action write) { try { write(); } catch (Exception ex) when (IsCacheFailure(ex)) { } }
@@ -601,7 +601,7 @@ public partial class MainWindow : Window
         // The saved session: also when the library could not open (no client then), or in the demo.
         var connection = _profile.LoadConnection(); var erase = EraseAccountData.IsChecked == true;
         // Nothing else on this screen until it is done: a sign-in meanwhile would be undone by what follows.
-        _signingOut = true; LoginOverlay.IsEnabled = false; LogoutButton.Content = "Déconnexion…";
+        _signingOut = true; LoginOverlay.IsEnabled = false; LogoutButton.Content = L("Déconnexion…", "Signing out…");
         try
         {
             // Off this PC first, so that closing Mira while Jellyfin is asked leaves no session saved.
@@ -617,9 +617,9 @@ public partial class MainWindow : Window
             RenderLibrary(); _ = RefreshTorLinkLibrariesAsync();
             LoginArt.Source = null;
             LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed;
-            LoginError.Text = connection is null ? "Session déconnectée sur ce PC." : AccountData.SignedOut("ce PC", closed, erased); FocusLogin();
+            LoginError.Text = connection is null ? L("Session déconnectée sur ce PC.", "Signed out on this PC.") : AccountData.SignedOut(L("ce PC", "this PC"), closed, erased); FocusLogin();
         }
-        finally { _signingOut = false; LoginOverlay.IsEnabled = true; LogoutButton.Content = "Déconnecter ce compte"; EraseAccountData.IsChecked = false; FocusLogin(); }
+        finally { _signingOut = false; LoginOverlay.IsEnabled = true; LogoutButton.Content = L("Déconnecter ce compte", "Sign out of this account"); EraseAccountData.IsChecked = false; FocusLogin(); }
     }
     private bool _signingOut;
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -631,7 +631,7 @@ public partial class MainWindow : Window
         foreach (var (button, icon) in new[] { (MaximizeButton, MaximizeIcon), (PlayerMaximizeButton, PlayerMaximizeIcon) })
         {
             icon.Kind = maximized ? "restore" : "maximize";
-            var label = maximized ? "Restaurer la fenêtre" : "Agrandir la fenêtre";
+            var label = maximized ? L("Restaurer la fenêtre", "Restore the window") : L("Agrandir la fenêtre", "Maximize the window");
             button.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(button, label);
         }
     }

@@ -65,13 +65,13 @@ public partial class MainWindow
             {
                 var full = item.MediaSources is { Count: > 0 } ? item : await client.ItemAsync(item.Id);
                 if (!ReferenceEquals(client, _client)) return;
-                sources.Add((full, full.MediaSources?.FirstOrDefault() ?? throw new IOException("Jellyfin ne donne aucun fichier pour « " + item.DisplayTitle + " ».")));
+                sources.Add((full, full.MediaSources?.FirstOrDefault() ?? throw new IOException(L("Jellyfin ne donne aucun fichier pour « " + item.DisplayTitle + " ».", "Jellyfin has no file for “" + item.DisplayTitle + "”."))));
             }
             var needed = sources.Sum(x => x.Source.Size ?? 0);
             var free = await Task.Run(() => { Directory.CreateDirectory(folder); return OfflineCopies.FreeSpace(folder); });
             if (free is { } room && needed > room - OfflineCopies.Reserve)
             {
-                SetNotice($"Pas assez de place pour garder {(wanted.Count == 1 ? "ce titre" : $"ces {wanted.Count} épisodes")} sur ce PC : il faut {OfflineCopies.SizeText(needed)}, il reste {OfflineCopies.SizeText(Math.Max(0, room))}. Libère de la place, ou choisis un autre dossier dans Réglages → Lecture.", "Réglages", () => Settings_Click(this, new()));
+                SetNotice(L($"Pas assez de place pour garder {(wanted.Count == 1 ? "ce titre" : $"ces {wanted.Count} épisodes")} sur ce PC : il faut {OfflineCopies.SizeText(needed)}, il reste {OfflineCopies.SizeText(Math.Max(0, room))}. Libère de la place, ou choisis un autre dossier dans Réglages → Lecture.", $"Not enough room to keep {(wanted.Count == 1 ? "this title" : $"these {wanted.Count} episodes")} on this PC: it needs {OfflineCopies.SizeText(needed)}, {OfflineCopies.SizeText(Math.Max(0, room))} is left. Free up some space, or choose another folder in Settings → Playback."), L("Réglages", "Settings"), () => Settings_Click(this, new()));
                 return;
             }
             var now = DateTimeOffset.Now; var connection = client.Connection;
@@ -79,7 +79,7 @@ public partial class MainWindow
             if (!ReferenceEquals(client, _client)) return;
             RememberOfflineFolder(folder);
             foreach (var copy in planned) { _offline.Insert(0, copy); _offlinePending.Enqueue(copy.Item.Id); }
-            SetNotice(planned.Count == 1 ? $"« {planned[0].Item.DisplayTitle} » arrive sur ce PC. Tu le retrouveras dans « Sur ce PC », dans la barre de gauche." : $"{planned.Count} épisodes arrivent sur ce PC, l’un après l’autre. Tu les retrouveras dans « Sur ce PC », dans la barre de gauche.", null, null, sticky: false);
+            SetNotice(planned.Count == 1 ? L($"« {planned[0].Item.DisplayTitle} » arrive sur ce PC. Tu le retrouveras dans « Sur ce PC », dans la barre de gauche.", $"“{planned[0].Item.DisplayTitle}” is coming to this PC. You’ll find it under “On this PC” in the sidebar.") : L($"{planned.Count} épisodes arrivent sur ce PC, l’un après l’autre. Tu les retrouveras dans « Sur ce PC », dans la barre de gauche.", $"{planned.Count} episodes are coming to this PC, one after the other. You’ll find them under “On this PC” in the sidebar."), null, null, sticky: false);
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(OfflineFailure(ex)); }
         OfflineChanged(); PumpOffline();
@@ -141,14 +141,14 @@ public partial class MainWindow
     {
         OfflineRefusedException => ex.Message,
         IOException when FromMira(ex) => ex.Message,
-        IOException or UnauthorizedAccessException => $"Mira n’a pas pu écrire {(copy is null ? "le fichier" : $"« {copy.Item.DisplayTitle} »")} sur ce PC : disque plein, débranché ou dossier en lecture seule. Vérifie le dossier dans Réglages → Lecture.",
-        HttpRequestException { StatusCode: { } } http => $"{(copy is null ? "" : $"« {copy.Item.DisplayTitle} » n’a pas pu venir sur ce PC. ")}{Friendly(http)}",
+        IOException or UnauthorizedAccessException => L($"Mira n’a pas pu écrire {(copy is null ? "le fichier" : $"« {copy.Item.DisplayTitle} »")} sur ce PC : disque plein, débranché ou dossier en lecture seule. Vérifie le dossier dans Réglages → Lecture.", $"Mira couldn’t write {(copy is null ? "the file" : $"“{copy.Item.DisplayTitle}”")} to this PC: the disk is full or unplugged, or the folder is read-only. Check the folder in Settings → Playback."),
+        HttpRequestException { StatusCode: { } } http => L($"{(copy is null ? "" : $"« {copy.Item.DisplayTitle} » n’a pas pu venir sur ce PC. ")}{Friendly(http)}", $"{(copy is null ? "" : $"“{copy.Item.DisplayTitle}” couldn’t be copied to this PC. ")}{Friendly(http)}"),
         _ => Friendly(ex)
     };
     /// <summary>Removes copies from this PC; one still arriving stops first. Not the one playing.</summary>
     private async Task ForgetOfflineAsync(IReadOnlyList<OfflineCopy> copies)
     {
-        if (_playing && copies.Any(x => _playLocation == x.VideoPath)) { SetNotice("Ferme le lecteur avant de retirer de ce PC le titre qu’il lit."); return; }
+        if (_playing && copies.Any(x => _playLocation == x.VideoPath)) { SetNotice(L("Ferme le lecteur avant de retirer de ce PC le titre qu’il lit.", "Close the player before removing the title it’s playing from this PC.")); return; }
         foreach (var copy in copies) _offline.Remove(copy);
         if (_offlineProgress is { } running && copies.Any(x => x.Item.Id == running.Id))
         {
@@ -168,7 +168,7 @@ public partial class MainWindow
             }
             return stayed;
         });
-        if (left.Count > 0) SetNotice("Un fichier gardé sur ce PC est encore utilisé par un autre programme : Mira n’a pas pu le retirer. Réessaie après l’avoir fermé.");
+        if (left.Count > 0) SetNotice(L("Un fichier gardé sur ce PC est encore utilisé par un autre programme : Mira n’a pas pu le retirer. Réessaie après l’avoir fermé.", "A file kept on this PC is still in use by another program: Mira couldn’t remove it. Try again once it’s closed."));
         PumpOffline();
     }
 
@@ -188,20 +188,21 @@ public partial class MainWindow
         foreach (var (id, label) in _episodeCopyLabels) label.Text = CopyState(id) ?? "";
     }
     /// <summary>« Sur ce PC », « 42 % », « En attente », « En pause »; null when not kept.</summary>
+    private static string Paused => L("En pause", "Paused");
     private string? CopyState(string id)
     {
         if (CopyOf(id) is not { } copy) return null;
-        if (copy.Complete) return "Sur ce PC";
-        if (_offlineProgress is { } running && running.Id == id) return running.Total > 0 ? $"{Math.Min(99, running.Done * 100 / running.Total)} %" : "Arrive…";
-        return _offlinePending.Contains(id) ? "En attente" : "En pause";
+        if (copy.Complete) return L("Sur ce PC", "On this PC");
+        if (_offlineProgress is { } running && running.Id == id) return running.Total > 0 ? L($"{Math.Min(99, running.Done * 100 / running.Total)} %", $"{Math.Min(99, running.Done * 100 / running.Total)}%") : L("Arrive…", "Copying…");
+        return _offlinePending.Contains(id) ? L("En attente", "Waiting") : Paused;
     }
     private string OfflineSummary()
     {
         var kept = _offline.Count(x => x.Complete);
-        var parts = new List<string> { kept == 0 ? "Rien de prêt pour l’instant" : $"{kept} titre{(kept > 1 ? "s" : "")} à regarder sans connexion · {OfflineCopies.SizeText(_offline.Where(x => x.Complete).Sum(x => x.Size))}" };
-        if (_offlineProgress is { } running && CopyOf(running.Id) is { } copy) parts.Add($"« {copy.Item.DisplayTitle}{(copy.Item.Type == "Episode" ? $" S{copy.Item.ParentIndexNumber ?? 1:00} E{copy.Item.IndexNumber ?? 1:00}" : "")} » arrive : {CopyState(running.Id)}");
+        var parts = new List<string> { kept == 0 ? L("Rien de prêt pour l’instant", "Nothing ready yet") : L($"{kept} titre{(kept > 1 ? "s" : "")} à regarder sans connexion · {OfflineCopies.SizeText(_offline.Where(x => x.Complete).Sum(x => x.Size))}", $"{kept} {(kept == 1 ? "title" : "titles")} to watch offline · {OfflineCopies.SizeText(_offline.Where(x => x.Complete).Sum(x => x.Size))}") };
+        if (_offlineProgress is { } running && CopyOf(running.Id) is { } copy) parts.Add(L($"« {copy.Item.DisplayTitle}{(copy.Item.Type == "Episode" ? $" S{copy.Item.ParentIndexNumber ?? 1:00} E{copy.Item.IndexNumber ?? 1:00}" : "")} » arrive : {CopyState(running.Id)}", $"Copying “{copy.Item.DisplayTitle}{(copy.Item.Type == "Episode" ? $" S{copy.Item.ParentIndexNumber ?? 1:00} E{copy.Item.IndexNumber ?? 1:00}" : "")}”: {CopyState(running.Id)}"));
         var waiting = _offlinePending.Count(x => x != _offlineProgress?.Id);
-        if (waiting > 0) parts.Add($"{waiting} en attente");
+        if (waiting > 0) parts.Add(L($"{waiting} en attente", $"{waiting} waiting"));
         return string.Join("  ·  ", parts);
     }
 
@@ -228,14 +229,14 @@ public partial class MainWindow
         if (copies.Count == 0)
         {
             (icon, label) = ("download", "");
-            tip = item.Type == "Series" ? $"Garder la saison {SeasonShown()} sur ce PC ({Episodes(targets.Count)}), pour la regarder sans connexion" : "Garder ce film sur ce PC, pour le regarder sans connexion";
+            tip = item.Type == "Series" ? L($"Garder la saison {SeasonShown()} sur ce PC ({Episodes(targets.Count)}), pour la regarder sans connexion", $"Keep season {SeasonShown()} on this PC ({Episodes(targets.Count)}), to watch it offline") : L("Garder ce film sur ce PC, pour le regarder sans connexion", "Keep this movie on this PC, to watch it offline");
         }
-        else if (complete == targets.Count) { (icon, label) = ("check", "Sur ce PC"); tip = $"Sur ce PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Clique pour le retirer"; }
+        else if (complete == targets.Count) { (icon, label) = ("check", L("Sur ce PC", "On this PC")); tip = L($"Sur ce PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Clique pour le retirer", $"On this PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Click to remove it"); }
         else
         {
             icon = "download";
             label = item.Type == "Series" ? $"{complete}/{targets.Count}" + (_offlineProgress is { } running && copies.Any(x => x.Item.Id == running.Id) ? " · " + CopyState(running.Id) : "") : CopyState(item.Id) ?? "";
-            tip = "Arrive sur ce PC. Clique pour l’arrêter";
+            tip = L("Arrive sur ce PC. Clique pour l’arrêter", "Coming to this PC. Click to stop it");
         }
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
         panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18 });
@@ -243,7 +244,7 @@ public partial class MainWindow
         OfflineButton.Content = panel; OfflineButton.ToolTip = tip;
         AutomationProperties.SetName(OfflineButton, label.Length > 0 ? label + ". " + tip : tip);
     }
-    private static string Episodes(int count) => count == 1 ? "1 épisode" : $"{count} épisodes";
+    private static string Episodes(int count) => count == 1 ? L("1 épisode", "1 episode") : L($"{count} épisodes", $"{count} episodes");
     private int SeasonShown() => ((SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage)?.Season ?? 1;
     /// <summary>What the button acts on: the film, or every episode of the season shown (not only a slice of a long one).</summary>
     private List<MediaItem> OfflineTargets()
@@ -259,11 +260,11 @@ public partial class MainWindow
         if (copies.Count == 0) { _ = KeepOfflineAsync(targets); return; }
         var menu = new ContextMenu { PlacementTarget = OfflineButton, Placement = PlacementMode.Bottom };
         var missing = targets.Count - copies.Count;
-        if (missing > 0) menu.Items.Add(MenuAction($"Garder {(missing == 1 ? "l’épisode qui manque" : $"les {missing} épisodes qui manquent")}", "download", () => KeepOfflineAsync(targets)));
-        var paused = copies.Where(x => !x.Complete && CopyState(x.Item.Id) == "En pause").ToList();
-        if (paused.Count > 0) menu.Items.Add(MenuAction("Reprendre", "download", () => { ResumeOffline(paused); return Task.CompletedTask; }));
-        var whole = _detail?.Type == "Series" ? "la saison" : "le film";
-        menu.Items.Add(MenuAction(copies.All(x => x.Complete) ? $"Retirer {whole} de ce PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}" : "Arrêter et retirer de ce PC", "close", () => ForgetOfflineAsync(copies)));
+        if (missing > 0) menu.Items.Add(MenuAction(L($"Garder {(missing == 1 ? "l’épisode qui manque" : $"les {missing} épisodes qui manquent")}", $"Keep {(missing == 1 ? "the missing episode" : $"the {missing} missing episodes")}"), "download", () => KeepOfflineAsync(targets)));
+        var paused = copies.Where(x => !x.Complete && CopyState(x.Item.Id) == Paused).ToList();
+        if (paused.Count > 0) menu.Items.Add(MenuAction(L("Reprendre", "Resume"), "download", () => { ResumeOffline(paused); return Task.CompletedTask; }));
+        var whole = _detail?.Type == "Series" ? L("la saison", "the season") : L("le film", "the movie");
+        menu.Items.Add(MenuAction(copies.All(x => x.Complete) ? L($"Retirer {whole} de ce PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}", $"Remove {whole} from this PC · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}") : L("Arrêter et retirer de ce PC", "Stop and remove from this PC"), "close", () => ForgetOfflineAsync(copies)));
         menu.IsOpen = true;
     }
     private void ResumeOffline(IEnumerable<OfflineCopy> copies)
@@ -275,9 +276,9 @@ public partial class MainWindow
     private MenuItem? OfflineMenuItem(MediaItem item)
     {
         if (_demo || !CanKeep(item)) return null;
-        if (CopyOf(item.Id) is not { } copy) return MenuAction("Garder sur ce PC", "download", () => KeepOfflineAsync([item]));
-        if (!copy.Complete && CopyState(item.Id) == "En pause") return MenuAction("Reprendre l’arrivée sur ce PC", "download", () => { ResumeOffline([copy]); return Task.CompletedTask; });
-        return MenuAction(copy.Complete ? $"Retirer de ce PC · {OfflineCopies.SizeText(copy.Size)}" : "Arrêter et retirer de ce PC", "close", () => ForgetOfflineAsync([copy]));
+        if (CopyOf(item.Id) is not { } copy) return MenuAction(L("Garder sur ce PC", "Keep on this PC"), "download", () => KeepOfflineAsync([item]));
+        if (!copy.Complete && CopyState(item.Id) == Paused) return MenuAction(L("Reprendre l’arrivée sur ce PC", "Resume copying to this PC"), "download", () => { ResumeOffline([copy]); return Task.CompletedTask; });
+        return MenuAction(copy.Complete ? L($"Retirer de ce PC · {OfflineCopies.SizeText(copy.Size)}", $"Remove from this PC · {OfflineCopies.SizeText(copy.Size)}") : L("Arrêter et retirer de ce PC", "Stop and remove from this PC"), "close", () => ForgetOfflineAsync([copy]));
     }
     /// <summary>A line under an episode's length on the title page, kept to update as it progresses.</summary>
     private TextBlock EpisodeCopyLabel(MediaItem episode)
@@ -291,13 +292,13 @@ public partial class MainWindow
     {
         var kept = _offline.Where(x => x.Complete).ToList();
         OfflineFolderBox.Text = OfflineFolder;
-        OfflineStatus.Text = "Sur la fiche d’un film ou d’une série, le bouton ⤓ garde son fichier d’origine sur ce PC, pour le regarder sans connexion. Ils sont dans « Sur ce PC », dans la barre de gauche."
-            + (kept.Count > 0 ? $" Ici : {kept.Count} titre{(kept.Count > 1 ? "s" : "")}, {OfflineCopies.SizeText(kept.Sum(x => x.Size))}." : "");
+        OfflineStatus.Text = L("Sur la fiche d’un film ou d’une série, le bouton ⤓ garde son fichier d’origine sur ce PC, pour le regarder sans connexion. Ils sont dans « Sur ce PC », dans la barre de gauche.", "On a movie’s or a show’s page, the ⤓ button keeps its original file on this PC, to watch it offline. They’re under “On this PC” in the sidebar.")
+            + (kept.Count > 0 ? L($" Ici : {kept.Count} titre{(kept.Count > 1 ? "s" : "")}, {OfflineCopies.SizeText(kept.Sum(x => x.Size))}.", $" Here: {kept.Count} {(kept.Count == 1 ? "title" : "titles")}, {OfflineCopies.SizeText(kept.Sum(x => x.Size))}.") : "");
         OfflineClearButton.Visibility = _offline.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
     private void OfflineFolder_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = "Dossier des titres gardés sur ce PC" };
+        var dialog = new OpenFolderDialog { Title = L("Dossier des titres gardés sur ce PC", "Folder for titles kept on this PC") };
         if (Directory.Exists(OfflineFolder)) dialog.InitialDirectory = OfflineFolder;
         if (dialog.ShowDialog(this) != true) return;
         _settings.OfflineFolder = string.Equals(dialog.FolderName, DefaultOfflineFolder, StringComparison.OrdinalIgnoreCase) ? "" : dialog.FolderName;
@@ -307,6 +308,6 @@ public partial class MainWindow
     {
         if (_offline.Count == 0) return;
         var all = _offline.ToList();
-        SetNotice($"Retirer de ce PC les {all.Count} titre{(all.Count > 1 ? "s" : "")} gardé{(all.Count > 1 ? "s" : "")} ({OfflineCopies.SizeText(all.Sum(x => x.BytesOnDisk))}) ? Ils restent sur Jellyfin.", "Retirer", () => _ = ForgetOfflineAsync(all), sticky: true);
+        SetNotice(L($"Retirer de ce PC les {all.Count} titre{(all.Count > 1 ? "s" : "")} gardé{(all.Count > 1 ? "s" : "")} ({OfflineCopies.SizeText(all.Sum(x => x.BytesOnDisk))}) ? Ils restent sur Jellyfin.", $"Remove {(all.Count == 1 ? "the title" : $"the {all.Count} titles")} kept on this PC ({OfflineCopies.SizeText(all.Sum(x => x.BytesOnDisk))})? {(all.Count == 1 ? "It stays" : "They stay")} on Jellyfin."), L("Retirer", "Remove"), () => _ = ForgetOfflineAsync(all), sticky: true);
     }
 }
