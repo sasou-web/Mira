@@ -83,7 +83,7 @@ internal sealed class TorLinkTerminal : IDisposable
         {
             Directory.CreateDirectory(_userData);
             // A local page needs no background services (field trials, component downloads, reputation lookups).
-            var options = new CoreWebView2EnvironmentOptions("--disable-background-networking") { Language = "fr-FR", AreBrowserExtensionsEnabled = false };
+            var options = new CoreWebView2EnvironmentOptions("--disable-background-networking") { Language = Culture.Name, AreBrowserExtensionsEnabled = false };
             var environment = await CoreWebView2Environment.CreateAsync(null, _userData, options);
             // Composition hosting: drawn by WPF, so the mini-player and notices can overlap it.
             var view = new WebView2CompositionControl { DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 14, 14, 16), Focusable = true };

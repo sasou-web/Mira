@@ -67,7 +67,8 @@ jobs:
           $output = Join-Path $PWD '.artifacts/gallery'
           $profile = Join-Path $PWD '.artifacts/gallery-profile'
           $env:MIRA_GALLERY_USER = $env:GALLERY_USER; $env:MIRA_GALLERY_PASSWORD = $env:GALLERY_PASSWORD
-          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--readme-gallery', "`"$output`"") -PassThru
+          # In French, as the README's text: the runner's Windows is in English, which Mira would follow.
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', 'fr', '--readme-gallery', "`"$output`"") -PassThru
           if (-not $run.WaitForExit(300000)) { $run.Kill(); throw 'The captures did not finish within 5 minutes.' }
           $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
           Write-Output $result

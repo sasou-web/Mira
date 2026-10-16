@@ -39,7 +39,7 @@ public partial class MainWindow
             await Page("library", "11-hover");
             CardHoverEntered((MediaCard)PosterCards.Children[0]);
             await CaptureAsync(output, "11-hover"); ClosePreview();
-            _filterBusy = true; SearchBox.Text = "étoiles"; _filterBusy = false; RenderDemo();
+            _filterBusy = true; SearchBox.Text = L("étoiles", "stars"); _filterBusy = false; RenderDemo();
             await CaptureAsync(output, "12-search");
             await Page("home", "01-home");
             Width = 1024; Height = 720; await CaptureAsync(output, "13-compact-window");
@@ -63,18 +63,18 @@ public partial class MainWindow
             foreach (var size in sizes)
             {
                 LoginOverlay.Visibility = Visibility.Visible; LoginOverlay.Opacity = 1; ShowWelcome(); await At(size, "15-welcome", WelcomeContent);
-                WelcomeOverlay.Visibility = Visibility.Collapsed; ShowSignInForm(); LoginError.Text = "Nom d’utilisateur ou mot de passe incorrect."; await At(size, "16-sign-in", LoginPanel);
-                LoginError.Text = ""; ShowServerSetup(true); SetupFolderBox.Text = @"C:\Users\Toi\Videos\Jellyfin"; SetupUserBox.Text = "Toi";
-                SetupStatus.Text = "Accepte l’autorisation de Windows. Si l’installateur affiche « Could not start the Jellyfin Server service », choisis Ignorer.";
+                WelcomeOverlay.Visibility = Visibility.Collapsed; ShowSignInForm(); LoginError.Text = L("Nom d’utilisateur ou mot de passe incorrect.", "Wrong username or password."); await At(size, "16-sign-in", LoginPanel);
+                LoginError.Text = ""; ShowServerSetup(true); SetupFolderBox.Text = $@"C:\Users\{You}\Videos\Jellyfin"; SetupUserBox.Text = You;
+                SetupStatus.Text = L("Accepte l’autorisation de Windows. Si l’installateur affiche « Could not start the Jellyfin Server service », choisis Ignorer.", "Accept Windows’ permission prompt. If the installer shows “Could not start the Jellyfin Server service”, choose Ignore.");
                 await At(size, "17-jellyfin-setup", ServerSetupPanel);
                 ShowSignInForm(); LoginOverlay.Visibility = Visibility.Collapsed;
                 ShowWhatsNew(WhatsNew.All.Take(3).ToList()); await At(size, "18-whats-new", WhatsNewCard);
                 WhatsNewOverlay.Visibility = Visibility.Collapsed;
             }
-            OpenGuide("Jellyfin est prêt. Range tes vidéos dans C:\\Users\\Toi\\Videos\\Jellyfin.");
+            OpenGuide(L($@"Jellyfin est prêt. Range tes vidéos dans C:\Users\{You}\Videos\Jellyfin.", $@"Jellyfin is ready. Put your videos in C:\Users\{You}\Videos\Jellyfin."));
             // Fictional folders and address: the demo has no server to read them from.
             await Task.Delay(50); GuideFolders.Children.Clear(); GuideFoldersHint.Visibility = Visibility.Collapsed; GuideTorLink.Visibility = Visibility.Visible;
-            foreach (var (library, folder) in new[] { ("Animes", "Animes"), ("Films", "Films"), ("Séries", "Séries") }) GuideFolders.Children.Add(FolderRow(library, $@"C:\Users\Toi\Videos\Jellyfin\{folder}", true));
+            foreach (var library in new[] { L("Animes", "Anime"), L("Films", "Movies"), L("Séries", "Shows") }) GuideFolders.Children.Add(FolderRow(library, $@"C:\Users\{You}\Videos\Jellyfin\{library}", true));
             GuideJellyfinActions.Visibility = GuideRemote.Visibility = Visibility.Visible; GuideServerAddress.Text = "http://127.0.0.1:8096";
             GuideRemoteAddress.Text = "http://192.168.1.20:8096";
             // The phone, half ready: Mira web there, the firewall still in the way, Tailscale not installed yet.
@@ -107,7 +107,7 @@ public partial class MainWindow
             drawn.Add($"22-maximized (Windows {Environment.OSVersion.Version.Build}): {AssertMaximizedOnScreen()}");
             WindowState = WindowState.Normal;
             // A title that cannot play: the player's own screen, then « Retour » back to the library.
-            PlaybackFailed("mpv n’a pas pu lire ce média. Vérifie l’accès au fichier et la connexion Jellyfin.", _demoItems!.First(x => x.Type == "Movie"), mini: false, "Réessayer", () => Task.CompletedTask);
+            PlaybackFailed(L("mpv n’a pas pu lire ce média. Vérifie l’accès au fichier et la connexion Jellyfin.", "mpv couldn’t play this media. Check access to the file and the connection to Jellyfin."), _demoItems!.First(x => x.Type == "Movie"), mini: false, RetryText, () => Task.CompletedTask);
             foreach (var size in new[] { sizes[0], sizes[3] }) await At(size, "23-player-error", null, PlayerError);
             GoBack();
             if (PlayerErrorShown || PlayerShell.IsVisible || !LibraryShell.IsVisible) throw new InvalidOperationException("« Retour » does not leave the player's error screen.");
@@ -123,6 +123,9 @@ public partial class MainWindow
         finally { Close(); }
     }
 
+    /// <summary>The Windows account of the captures' sample paths.</summary>
+    private static string You => L("Toi", "You");
+
     private void ShowServerDownloadsSample()
     {
         _serverScreen = true;
@@ -136,7 +139,7 @@ public partial class MainWindow
             [new("r1", "Les.Etoiles.du.Nord.S01E05.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, Hash('b'), "waiting", null, now)], [],
             [new(Hash('a'), "Les.Etoiles.du.Nord.S01E04.MULTI.1080p.WEB-DL.H264-NOTAG", "downloading", 41, 2 * MiB, 12, 29 * GiB / 10, 12 * GiB / 10, 750),
              new(Hash('c'), "La.Maison.du.Lac.2023.1080p.BluRay.x265.10bit-NOTAG", "paused", 63, 0, 0, 4 * GiB, 5 * GiB / 2)],
-            [new(Hash('d'), "Le Dernier Phare (2022)", "disponible dans Jellyfin", null, true)]), now);
+            [new(Hash('d'), "Le Dernier Phare (2022)", L("disponible dans Jellyfin", "available in Jellyfin"), null, true)]), now);
         ServerQueryBox.Text = "Les Étoiles du Nord"; ServerCategory.SelectedIndex = 1;
         ShowServerHits("sample", "Les Étoiles du Nord", "tv",
         [

@@ -1,5 +1,8 @@
+using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using System.Windows;
+using System.Windows.Markup;
 using Mira.Core;
 using Mira.Desktop.Services;
 
@@ -33,6 +36,8 @@ public partial class App : Application
         if (args.Contains("--register-windows"))
         {
             WindowsIdentity.SetProcessIdentity(WindowsIdentity.AppId);
+            // Run by the installer, after it wrote its language: the Start menu shortcut's description is in it.
+            Lang.Use(Lang.Resolve(ChosenLanguage(Path.Combine(AppContext.BaseDirectory, "data")), InstalledLanguage(), CultureInfo.CurrentUICulture));
             WindowsIdentity.Register();
             var shortcutArg = Array.IndexOf(args, "--shortcut");
             if (shortcutArg >= 0 && shortcutArg + 1 < args.Length) WindowsIdentity.WriteShortcut(args[shortcutArg + 1], Environment.ProcessPath!);
@@ -53,6 +58,7 @@ public partial class App : Application
         // Setup's "Télécharger le moteur vidéo mpv" task: no window, and an engine already on this PC is kept.
         if (args.Contains("--install-engine")) { Shutdown(InstallEngine(directory)); return; }
         var installed = Updater.Detect(AppContext.BaseDirectory, !File.Exists(Path.Combine(AppContext.BaseDirectory, "Mira.dll"))) == InstallKind.Installer;
+        UseLanguage(args, dataArg >= 0, installed);
         // Same key as the update lock of this profile.
         var key = UpdateLock.Key(directory); var instance = "Local\\Mira-" + key;
         ShellValidation = dataArg >= 0 || args.Any(x => x is "--demo" or "--visual-check" or "--player-check" or "--windows-check" or "--qa-window");
@@ -63,7 +69,7 @@ public partial class App : Application
         {
             // The files of this copy are being replaced by an update, or its installer runs: wait rather than start half-replaced.
             if (!WaitForUpdate(directory, installed, TimeSpan.FromSeconds(30)))
-            { MessageBox.Show("Mira est en cours de mise à jour. Relance-le dans un instant.", "Mira"); Shutdown(); return; }
+            { MessageBox.Show(L("Mira est en cours de mise à jour. Relance-le dans un instant.", "Mira is being updated. Open it again in a moment."), "Mira"); Shutdown(); return; }
             // An update of this folder cut short (power loss): its previous files come back and Mira starts again on them.
             if (UpdateApplier.RecoverAtStartup(directory, args, instance)) { Shutdown(); return; }
             _instance = new Mutex(true, instance, out var created);
@@ -76,7 +82,8 @@ public partial class App : Application
             var released = attempt == 0 && WaitReleased(_instance, TimeSpan.FromSeconds(answer == ActivationAnswer.Closing ? 30 : 3));
             _instance.Dispose(); _instance = null;
             if (released) continue;
-            MessageBox.Show(answer == ActivationAnswer.Closing ? "Mira est encore en train de se fermer. Relance-le dans un instant." : "Mira est déjà ouvert. Retrouve sa fenêtre dans la barre des tâches.", "Mira");
+            MessageBox.Show(answer == ActivationAnswer.Closing ? L("Mira est encore en train de se fermer. Relance-le dans un instant.", "Mira is still closing. Open it again in a moment.")
+                : L("Mira est déjà ouvert. Retrouve sa fenêtre dans la barre des tâches.", "Mira is already open. Find its window in the taskbar."), "Mira");
             Shutdown(); return;
         }
         // Listening from now on: a launch while this one starts is answered « starting » instead of « déjà ouvert ».
@@ -108,7 +115,7 @@ public partial class App : Application
             if (args.Contains("--visual-check") || args.Contains("--player-check") || args.Contains("--public-gallery") || args.Contains("--readme-gallery")) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; window.ShowInTaskbar = false; }
             // --offscreen: validation runs with an isolated profile (update checks) stay off the user's screen, closable as usual.
             else if (args.Contains("--offscreen") && dataArg >= 0) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; }
-            if (args.Contains("--qa-window")) window.Title = "Mira · Validation du lecteur";
+            if (args.Contains("--qa-window")) window.Title = L("Mira · Validation du lecteur", "Mira · Player validation");
             window.Show(); _shown = true;
             // Launched again while this one was starting: brought forward now that it is there.
             if (_activationPending) window.RestoreFromWindows();
@@ -120,8 +127,9 @@ public partial class App : Application
             if (CheckFailed(ex)) { Shutdown(1); return; }
             ErrorLog.Append(AppFiles.ProfileDirectory, ex);
             if (!ShellValidation) MessageBox.Show(ex is IOException or UnauthorizedAccessException
-                ? $"Mira ne peut pas écrire dans son dossier de données :\n{AppFiles.ProfileDirectory}\n\nVérifie qu’il reste de la place sur le disque et que ce dossier n’est pas en lecture seule, ou place Mira dans un dossier à toi (Documents, par exemple), puis relance-le."
-                : "Mira n’a pas pu démarrer. Relance-le dans un instant.", "Mira", MessageBoxButton.OK, MessageBoxImage.Error);
+                ? L($"Mira ne peut pas écrire dans son dossier de données :\n{AppFiles.ProfileDirectory}\n\nVérifie qu’il reste de la place sur le disque et que ce dossier n’est pas en lecture seule, ou place Mira dans un dossier à toi (Documents, par exemple), puis relance-le.",
+                    $"Mira can’t write to its data folder:\n{AppFiles.ProfileDirectory}\n\nCheck that the drive has free space and that this folder isn’t read-only, or put Mira in a folder of your own (Documents, for example), then open it again.")
+                : L("Mira n’a pas pu démarrer. Relance-le dans un instant.", "Mira couldn’t start. Open it again in a moment."), "Mira", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1); return;
         }
         // The installed copy keeps the Start menu's shortcut; another copy only fills in a missing or broken one.
@@ -153,7 +161,7 @@ public partial class App : Application
         {
             Title = "Mira", Width = 380, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 16, 18)),
-            Content = new System.Windows.Controls.TextBlock { Text = "Mira termine une mise à jour : il s’ouvre dès qu’elle est finie.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(24), FontSize = 14, Foreground = System.Windows.Media.Brushes.WhiteSmoke }
+            Content = new System.Windows.Controls.TextBlock { Text = L("Mira termine une mise à jour : il s’ouvre dès qu’elle est finie.", "Mira is finishing an update: it opens as soon as it’s done."), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(24), FontSize = 14, Foreground = System.Windows.Media.Brushes.WhiteSmoke }
         };
         window.Closed += (_, _) => { waiting = false; frame.Continue = false; };
         _ = UpdateLock.WaitIdleAsync(directory, installed, timeout).ContinueWith(done => Dispatcher.BeginInvoke(() =>
@@ -165,6 +173,40 @@ public partial class App : Application
         }
         finally { if (window.IsVisible) window.Close(); ShutdownMode = mode; }
         return idle;
+    }
+    /// <summary>
+    /// Mira's language, before any window: the one chosen in its settings, else the one chosen when installing it (Inno
+    /// Setup writes "english" or "french" for the installed copy), else French on a French Windows, else English.
+    /// Validation runs are in French, the language of what they check, unless <c>--language en</c> says otherwise; the
+    /// public captures follow the system, as a first start does.
+    /// </summary>
+    private static void UseLanguage(string[] args, bool isolated, bool installed)
+    {
+        var forced = Array.IndexOf(args, "--language") is var at and >= 0 && at + 1 < args.Length && isolated ? args[at + 1] : null;
+        if (forced is null && args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--qa-window" or "--perf-probe")) forced = Lang.French;
+        Lang.Use(Lang.Resolve(forced ?? ChosenLanguage(AppFiles.ProfileDirectory), installed ? InstalledLanguage() : null, CultureInfo.CurrentUICulture));
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = Lang.Culture;
+        // Dates, numbers and hyphenation that WPF formats itself (bindings, StringFormat).
+        FrameworkElement.LanguageProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(XmlLanguage.GetLanguage(Lang.Culture.IetfLanguageTag)));
+    }
+    /// <summary>The settings' "Language", read alone: an unreadable file is LocalProfile's to report.</summary>
+    private static string? ChosenLanguage(string profile)
+    {
+        try
+        {
+            using var settings = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(profile, "settings.json")));
+            if (settings.RootElement.ValueKind != JsonValueKind.Object) return null;
+            foreach (var property in settings.RootElement.EnumerateObject())
+                if (property.NameEquals("Language") || property.Name.Equals("language", StringComparison.OrdinalIgnoreCase)) return property.Value.ValueKind == JsonValueKind.String ? property.Value.GetString() : null;
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
+    /// <summary>What the installer wrote (HKCU\Software\Mira, Language): the language chosen in its first screen.</summary>
+    private static string? InstalledLanguage()
+    {
+        try { using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Mira"); return key?.GetValue("Language") as string; }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException) { return null; }
     }
     /// <summary>Whether the Mira holding the lock released it (or ended without releasing it) within <paramref name="timeout"/>.</summary>
     private static bool WaitReleased(Mutex mutex, TimeSpan timeout)
