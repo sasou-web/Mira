@@ -15,8 +15,8 @@ public static class LocalJellyfin
     public enum Verdict { Unknown, Stopped, Starting, Failing }
     /// <summary>Starts in a row that did not bring it to answer, after which Mira shows its log instead of starting it again.</summary>
     public const int FailedStartsBeforeLog = 2;
-    public const string Start = "Démarrer Jellyfin";
-    public const string OpenLog = "Ouvrir son journal";
+    public static string Start => L("Démarrer Jellyfin", "Start Jellyfin");
+    public static string OpenLog => L("Ouvrir son journal", "Open its log");
 
     /// <summary>
     /// <paramref name="programRunning"/>: jellyfin.exe runs (what tells, without a service); <paramref name="canStart"/>:
@@ -40,11 +40,11 @@ public static class LocalJellyfin
     /// </summary>
     public static (string Text, string? Action)? Says(Verdict verdict, bool service, string? cause = null) => verdict switch
     {
-        Verdict.Stopped => ("Jellyfin est arrêté sur ce PC : ton téléphone et tes autres appareils ne le trouvent plus."
-            + (service ? " Le démarrer demande une autorisation de Windows." : ""), Start),
-        Verdict.Starting => ("Jellyfin démarre sur ce PC… Mira le retrouve dès qu’il répond.", null),
-        Verdict.Failing => ("Jellyfin s’arrête juste après avoir démarré : son journal dit pourquoi."
-            + (cause is { Length: > 0 } ? $" Jellyfin indique : « {cause} »." : ""), OpenLog),
+        Verdict.Stopped => (L("Jellyfin est arrêté sur ce PC : ton téléphone et tes autres appareils ne le trouvent plus.", "Jellyfin is stopped on this PC: your phone and your other devices can’t find it anymore.")
+            + (service ? L(" Le démarrer demande une autorisation de Windows.", " Starting it asks for Windows’ permission.") : ""), Start),
+        Verdict.Starting => (L("Jellyfin démarre sur ce PC… Mira le retrouve dès qu’il répond.", "Jellyfin is starting on this PC… Mira finds it again as soon as it answers."), null),
+        Verdict.Failing => (L("Jellyfin s’arrête juste après avoir démarré : son journal dit pourquoi.", "Jellyfin stops right after starting: its log says why.")
+            + (cause is { Length: > 0 } ? L($" Jellyfin indique : « {cause} ».", $" Jellyfin says: “{cause}”.") : ""), OpenLog),
         _ => null,
     };
 }

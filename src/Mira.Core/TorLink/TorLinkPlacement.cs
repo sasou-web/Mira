@@ -168,41 +168,41 @@ public sealed class TorLinkPlacement : IDisposable
     /// <summary>What Mira says of an outcome, if anything.</summary>
     public static string? Outcome(TorLinkImportEntry entry) => entry.State switch
     {
-        TorLinkImportState.Imported when entry.JellyfinId is not null => $"« {TitleOf(entry)} » est disponible dans ta bibliothèque.",
-        TorLinkImportState.Imported => $"« {TitleOf(entry)} » rejoint {KindName(entry.Kind)}. Jellyfin l’ajoute à la bibliothèque.",
-        TorLinkImportState.Partial => $"« {TitleOf(entry)} » : une partie des fichiers est rangée. Détails dans TorLink.",
-        TorLinkImportState.Conflict => $"« {TitleOf(entry)} » est déjà dans la bibliothèque : rien n’a été remplacé.",
-        TorLinkImportState.Failed => $"« {TitleOf(entry)} » n’a pas pu être rangé. Détails dans TorLink.",
-        TorLinkImportState.Blocked => "TorLink : choisis les dossiers de ta bibliothèque dans Réglages → TorLink.",
+        TorLinkImportState.Imported when entry.JellyfinId is not null => L($"« {TitleOf(entry)} » est disponible dans ta bibliothèque.", $"“{TitleOf(entry)}” is available in your library."),
+        TorLinkImportState.Imported => L($"« {TitleOf(entry)} » rejoint {KindName(entry.Kind)}. Jellyfin l’ajoute à la bibliothèque.", $"“{TitleOf(entry)}” goes to {KindName(entry.Kind)}. Jellyfin is adding it to the library."),
+        TorLinkImportState.Partial => L($"« {TitleOf(entry)} » : une partie des fichiers est rangée. Détails dans TorLink.", $"“{TitleOf(entry)}”: some of the files are in place. Details in TorLink."),
+        TorLinkImportState.Conflict => L($"« {TitleOf(entry)} » est déjà dans la bibliothèque : rien n’a été remplacé.", $"“{TitleOf(entry)}” is already in the library: nothing was replaced."),
+        TorLinkImportState.Failed => L($"« {TitleOf(entry)} » n’a pas pu être rangé. Détails dans TorLink.", $"“{TitleOf(entry)}” couldn’t be put in place. Details in TorLink."),
+        TorLinkImportState.Blocked => L("TorLink : choisis les dossiers de ta bibliothèque dans Réglages → TorLink.", "TorLink: choose your library folders in Settings → TorLink."),
         _ => null
     };
     /// <summary>The line above the list of downloads.</summary>
     public string Summary(bool automatic)
     {
         var libraries = Libraries;
-        var missing = new[] { ("Films", libraries.RootFor(MediaKind.Movie)), ("Séries", libraries.RootFor(MediaKind.Series)) }.Where(x => x.Item2 is null).Select(x => x.Item1).ToList();
-        if (!automatic) return "Rangement automatique désactivé : « Importer » range un téléchargement à la demande.";
-        if (missing.Count == 2) return "Choisis les dossiers de ta bibliothèque dans Réglages → TorLink pour ranger les téléchargements.";
-        if (missing.Count == 1) return $"Rangement automatique. Dossier {missing[0]} à choisir dans Réglages → TorLink.";
-        return libraries.Anime is null ? "Rangement automatique dans Films et Séries (les animes rejoignent les séries)." : "Rangement automatique dans Films, Séries et Animes.";
+        var missing = new[] { (L("Films", "Movies"), libraries.RootFor(MediaKind.Movie)), (L("Séries", "Shows"), libraries.RootFor(MediaKind.Series)) }.Where(x => x.Item2 is null).Select(x => x.Item1).ToList();
+        if (!automatic) return L("Rangement automatique désactivé : « Importer » range un téléchargement à la demande.", "Automatic sorting is off: “Import” puts a download in place when you ask.");
+        if (missing.Count == 2) return L("Choisis les dossiers de ta bibliothèque dans Réglages → TorLink pour ranger les téléchargements.", "Choose your library folders in Settings → TorLink to sort downloads.");
+        if (missing.Count == 1) return L($"Rangement automatique. Dossier {missing[0]} à choisir dans Réglages → TorLink.", $"Automatic sorting. Choose the {missing[0]} folder in Settings → TorLink.");
+        return libraries.Anime is null ? L("Rangement automatique dans Films et Séries (les animes rejoignent les séries).", "Automatic sorting into Movies and Shows (anime goes with shows).") : L("Rangement automatique dans Films, Séries et Animes.", "Automatic sorting into Movies, Shows and Anime.");
     }
     public static string TitleOf(TorLinkImportEntry entry) => entry.Title.Length > 0 ? entry.Title : entry.Name;
-    public static string KindName(MediaKind? kind) => kind switch { MediaKind.Movie => "Films", MediaKind.Series => "Séries", MediaKind.Anime => "Animes", _ => "la bibliothèque" };
+    public static string KindName(MediaKind? kind) => kind switch { MediaKind.Movie => L("Films", "Movies"), MediaKind.Series => L("Séries", "Shows"), MediaKind.Anime => L("Animes", "Anime"), _ => L("la bibliothèque", "the library") };
     public static string StatusOf(TorLinkImportEntry entry) => entry.State switch
     {
-        TorLinkImportState.Waiting => "en attente des fichiers",
-        TorLinkImportState.Blocked => "dossier de bibliothèque à choisir",
-        TorLinkImportState.Importing => "rangement en cours…",
-        TorLinkImportState.Imported => entry.JellyfinId is not null ? "disponible dans Jellyfin" : entry.Notified ? "Jellyfin l’ajoute" : "rangé",
-        TorLinkImportState.Partial => "rangé en partie",
-        TorLinkImportState.Conflict => "déjà dans la bibliothèque",
-        TorLinkImportState.Failed => "échec",
-        _ => "ignoré"
+        TorLinkImportState.Waiting => L("en attente des fichiers", "waiting for the files"),
+        TorLinkImportState.Blocked => L("dossier de bibliothèque à choisir", "library folder to choose"),
+        TorLinkImportState.Importing => L("rangement en cours…", "sorting…"),
+        TorLinkImportState.Imported => entry.JellyfinId is not null ? L("disponible dans Jellyfin", "available in Jellyfin") : entry.Notified ? L("Jellyfin l’ajoute", "Jellyfin is adding it") : L("rangé", "in place"),
+        TorLinkImportState.Partial => L("rangé en partie", "partly in place"),
+        TorLinkImportState.Conflict => L("déjà dans la bibliothèque", "already in the library"),
+        TorLinkImportState.Failed => L("échec", "failed"),
+        _ => L("ignoré", "skipped")
     };
     public static string DetailOf(TorLinkImportEntry entry)
     {
         var status = StatusOf(entry);
-        var line = entry.Kind is { } kind && entry.State is not (TorLinkImportState.Ignored or TorLinkImportState.Waiting) ? $"{KindName(kind)} · {status}" : char.ToUpperInvariant(status[0]) + status[1..];
+        var line = entry.Kind is { } kind && entry.State is not (TorLinkImportState.Ignored or TorLinkImportState.Waiting) ? $"{KindName(kind)} · {status}" : char.ToUpper(status[0], Culture) + status[1..];
         if (entry.Method is { } method && entry.State is TorLinkImportState.Imported or TorLinkImportState.Partial) line += " · " + method;
         return entry.Message is { Length: > 0 } message ? line + "\n" + message : line;
     }

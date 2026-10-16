@@ -25,10 +25,11 @@ public static class TailscaleNode
     public const int WarnDays = 14;
     /// <summary>Tailscale's admin console, where each machine's menu has « Disable key expiry ».</summary>
     public const string Machines = "https://login.tailscale.com/admin/machines";
-    public const string KeepConnected = "Garder Tailscale connecté";
-    public const string OpenMachines = "Ouvrir la page de Tailscale";
+    public static string KeepConnected => L("Garder Tailscale connecté", "Keep Tailscale connected");
+    public static string OpenMachines => L("Ouvrir la page de Tailscale", "Open Tailscale’s page");
     /// <summary>Where the person ticks it, when Mira cannot.</summary>
-    public const string WhereUnattended = "dans le menu de Tailscale (son icône près de l’horloge, clic droit) → Preferences, coche « Run unattended »";
+    public static string WhereUnattended => L("dans le menu de Tailscale (son icône près de l’horloge, clic droit) → Preferences, coche « Run unattended »",
+        "in Tailscale’s menu (its icon near the clock, right-click) → Preferences, tick “Run unattended”");
 
     /// <summary>
     /// <paramref name="status"/>: the output of <c>tailscale status --json</c>, null when it failed; <paramref name="prefs"/>:
@@ -70,14 +71,17 @@ public static class TailscaleNode
 
     /// <summary>Expired, or expiring within <see cref="WarnDays"/> days of when it was read.</summary>
     public static bool ExpiresSoon(State state) => state.Readable && (state.Expired || state.KeyExpiry is { } at && at - state.ReadAt <= TimeSpan.FromDays(WarnDays));
-    /// <summary>Its day, in French and in this PC's time zone (« 3 novembre »).</summary>
-    public static string Day(DateTimeOffset at) => at.ToLocalTime().ToString("d MMMM", PlayerText.French);
+    /// <summary>Its day, in this PC's time zone (« 3 novembre », "November 3").</summary>
+    public static string Day(DateTimeOffset at) => Lang.Day(at.ToLocalTime().DateTime);
 
     /// <summary>Said once at Mira's start for an expiry within <see cref="WarnDays"/> days; null otherwise.</summary>
     public static string? Warning(State state) => !ExpiresSoon(state) ? null : state.Expired
-        ? "La connexion de ce PC à Tailscale a expiré : hors de chez toi, ton téléphone ne le trouve plus. Reconnecte-toi dans le menu de Tailscale, puis coupe cette expiration sur sa page Machines."
-        : $"La connexion de ce PC à Tailscale expire le {Day(state.KeyExpiry!.Value)} : ensuite, hors de chez toi, ton téléphone ne le trouvera plus. Coupe cette expiration sur la page Machines de Tailscale.";
+        ? L("La connexion de ce PC à Tailscale a expiré : hors de chez toi, ton téléphone ne le trouve plus. Reconnecte-toi dans le menu de Tailscale, puis coupe cette expiration sur sa page Machines.",
+            "This PC’s Tailscale connection has expired: away from home, your phone can’t find it anymore. Sign in again from Tailscale’s menu, then turn off this expiry on its Machines page.")
+        : L($"La connexion de ce PC à Tailscale expire le {Day(state.KeyExpiry!.Value)} : ensuite, hors de chez toi, ton téléphone ne le trouvera plus. Coupe cette expiration sur la page Machines de Tailscale.",
+            $"This PC’s Tailscale connection expires on {Day(state.KeyExpiry!.Value)}: after that, away from home, your phone won’t find it. Turn off this expiry on Tailscale’s Machines page.");
 
     /// <summary>On the machine's line of the page Machines: its menu, then « Disable key expiry ».</summary>
-    public static string Disable(State state) => $"sur la page Machines de Tailscale, ouvre le menu ⋯ de « {state.Name ?? "ce PC"} » puis choisis « Disable key expiry »";
+    public static string Disable(State state) => L($"sur la page Machines de Tailscale, ouvre le menu ⋯ de « {state.Name ?? "ce PC"} » puis choisis « Disable key expiry »",
+        $"on Tailscale’s Machines page, open the ⋯ menu of “{state.Name ?? "this PC"}” and choose “Disable key expiry”");
 }

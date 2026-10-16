@@ -17,7 +17,7 @@ public static class EpisodePages
         var pages = new List<EpisodePage>();
         foreach (var season in episodes.GroupBy(Season).OrderBy(x => x.Key))
         {
-            var list = season.ToList(); var name = season.Key == 0 ? "Épisodes spéciaux" : $"Saison {season.Key}";
+            var list = season.ToList(); var name = season.Key == 0 ? L("Épisodes spéciaux", "Specials") : L($"Saison {season.Key}", $"Season {season.Key}");
             if (list.Count <= Size) { pages.Add(new(season.Key, 0, list.Count, name)); continue; }
             for (var skip = 0; skip < list.Count; skip += Size)
             {

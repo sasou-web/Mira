@@ -59,11 +59,11 @@ public static class TorLinkRemote
             // No result: said differently when no source answered at all (no network, or every site down).
             var sources = root.TryGetProperty("sources", out var s) && s.ValueKind == JsonValueKind.Object ? s.EnumerateObject().Select(x => x.Value).ToList() : [];
             var answered = sources.Any(x => x.ValueKind == JsonValueKind.Object && x.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.True);
-            return ([], sources.Count > 0 && !answered ? "Aucune source de TorLink n’a répondu au PC serveur : vérifie sa connexion à Internet." : null);
+            return ([], sources.Count > 0 && !answered ? L("Aucune source de TorLink n’a répondu au PC serveur : vérifie sa connexion à Internet.", "None of TorLink’s sources answered the server PC: check its Internet connection.") : null);
         }
         catch (JsonException) { return ([], Unreadable); }
     }
-    private const string Unreadable = "TorLink n’a pas répondu comme prévu.";
+    private static string Unreadable => L("TorLink n’a pas répondu comme prévu.", "TorLink didn’t answer as expected.");
 
     /// <summary>TorLink's downloads from its API (GET /downloads: {downloads, seeds}); the finished ones are the placed titles.</summary>
     public static List<RelayDownload> ParseDownloads(JsonElement root) =>
@@ -112,10 +112,10 @@ public static class TorLinkRemote
     /// <paramref name="onScreen"/>: TorLink's page is in front on this PC, where someone may be using it.
     /// </summary>
     public static string? Problem(bool installed, bool confirmed, bool elsewhere, bool onScreen) =>
-        !installed ? "TorLink n’est pas activé dans Mira sur le PC serveur."
-        : !confirmed ? "Sur le PC serveur, confirme d’abord dans Mira que ce TorLink est le tien."
-        : elsewhere ? "TorLink est ouvert dans une autre fenêtre du PC serveur : tes demandes partent quand il est fermé."
-        : onScreen ? "TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page."
+        !installed ? L("TorLink n’est pas activé dans Mira sur le PC serveur.", "TorLink isn’t turned on in Mira on the server PC.")
+        : !confirmed ? L("Sur le PC serveur, confirme d’abord dans Mira que ce TorLink est le tien.", "On the server PC, first confirm in Mira that this TorLink is yours.")
+        : elsewhere ? L("TorLink est ouvert dans une autre fenêtre du PC serveur : tes demandes partent quand il est fermé.", "TorLink is open in another window of the server PC: your requests go once it’s closed.")
+        : onScreen ? L("TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page.", "TorLink is on screen on the server PC: your requests go as soon as someone leaves its page.")
         : null;
 
     private static string? Text(JsonElement item, string name) => item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
@@ -150,7 +150,7 @@ public sealed class TorLinkServeClient : IDisposable
         using var response = await _http.PostAsJsonAsync("add", new { magnet }, ct);
         var body = await ReadAsync(response, ct);
         if (response.IsSuccessStatusCode) return (body is { } ok && ok.TryGetProperty("outcome", out var outcome) && outcome.ValueKind == JsonValueKind.String ? outcome.GetString() : "added", null);
-        return (null, body is { } refused && refused.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String ? error.GetString() : $"TorLink a répondu avec une erreur ({(int)response.StatusCode}).");
+        return (null, body is { } refused && refused.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String ? error.GetString() : L($"TorLink a répondu avec une erreur ({(int)response.StatusCode}).", $"TorLink answered with an error ({(int)response.StatusCode})."));
     }
 
     /// <summary>pause, resume, delete (its files with it: TorLink's own « delete »), stop-seed…: false when TorLink does not have that download.</summary>
@@ -158,7 +158,7 @@ public sealed class TorLinkServeClient : IDisposable
     {
         using var response = await _http.PostAsJsonAsync("control", new { id, action }, ct);
         if (response.StatusCode == HttpStatusCode.NotFound) return false;
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"TorLink a répondu avec une erreur ({(int)response.StatusCode}).");
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException(L($"TorLink a répondu avec une erreur ({(int)response.StatusCode}).", $"TorLink answered with an error ({(int)response.StatusCode})."));
         return true;
     }
 
@@ -167,7 +167,7 @@ public sealed class TorLinkServeClient : IDisposable
     {
         using var response = await _http.GetAsync("downloads", ct);
         response.EnsureSuccessStatusCode();
-        return await ReadAsync(response, ct) ?? throw new HttpRequestException("TorLink a répondu sans liste.");
+        return await ReadAsync(response, ct) ?? throw new HttpRequestException(L("TorLink a répondu sans liste.", "TorLink answered without a list."));
     }
 
     private static async Task<JsonElement?> ReadAsync(HttpResponseMessage response, CancellationToken ct)

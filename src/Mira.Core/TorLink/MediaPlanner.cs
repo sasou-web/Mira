@@ -68,18 +68,18 @@ public static class MediaPlanner
     public static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced = null, IReadOnlyList<KnownShow>? known = null)
     {
         if (string.Equals(source, "fitgirl", StringComparison.OrdinalIgnoreCase))
-            return Ignore("Jeu vidéo : il reste dans le dossier TorLink, rien n’est ajouté à Jellyfin.");
+            return Ignore(L("Jeu vidéo : il reste dans le dossier TorLink, rien n’est ajouté à Jellyfin.", "Video game: it stays in the TorLink folder, nothing is added to Jellyfin."));
         var videos = files.Where(f => ReleaseName.IsVideo(f.RelativePath)).ToList();
         var largest = videos.Count == 0 ? 0 : videos.Max(v => v.Length);
         // A clip called "sample" beside a real feature is left out; a lone "sample" file is not second-guessed.
         var samples = videos.Where(v => ReleaseName.IsSample(v.RelativePath) && v.Length < largest * .3).ToList();
         videos = videos.Except(samples).ToList();
         var subtitles = files.Where(f => ReleaseName.IsSubtitle(f.RelativePath) && !ReleaseName.IsSample(f.RelativePath)).ToList();
-        if (videos.Count == 0) return Ignore("Aucune vidéo dans ce téléchargement.");
+        if (videos.Count == 0) return Ignore(L("Aucune vidéo dans ce téléchargement.", "No video in this download."));
         var notes = new List<string>();
         var others = files.Count - videos.Count - subtitles.Count - samples.Count;
-        if (samples.Count > 0) notes.Add(Count(samples.Count, "échantillon ignoré", "échantillons ignorés"));
-        if (others > 0) notes.Add(Count(others, "fichier annexe laissé dans TorLink", "fichiers annexes laissés dans TorLink"));
+        if (samples.Count > 0) notes.Add(Count(samples.Count, "échantillon ignoré", "échantillons ignorés", "sample skipped", "samples skipped"));
+        if (others > 0) notes.Add(Count(others, "fichier annexe laissé dans TorLink", "fichiers annexes laissés dans TorLink", "extra file left in TorLink", "extra files left in TorLink"));
 
         var context = new Context(torrentName, source, libraries, notes)
         {
@@ -157,7 +157,7 @@ public static class MediaPlanner
     private static ImportPlan PlanMovies(Context context, List<SourceFile> videos, List<SourceFile> subtitles)
     {
         var root = context.Libraries.RootFor(MediaKind.Movie);
-        if (root is null) return Blocked(MediaKind.Movie, "Choisis le dossier Films de Jellyfin dans Réglages → TorLink.");
+        if (root is null) return Blocked(MediaKind.Movie, L("Choisis le dossier Films de Jellyfin dans Réglages → TorLink.", "Choose Jellyfin’s Movies folder in Settings → TorLink."));
         var mains = videos.Where(v => !ReleaseName.InExtrasFolder(v.RelativePath)).OrderByDescending(v => v.Length).ToList();
         if (mains.Count == 0) mains = videos.OrderByDescending(v => v.Length).ToList();
         var bonus = videos.Except(mains).ToList();
@@ -176,7 +176,7 @@ public static class MediaPlanner
             foreach (var (file, (title, year)) in parsed)
                 targets.Add((MovieFolder(root, title, year), [(file, "", "video")]));
             var loose = mains.Except(large).Concat(bonus).Count();
-            if (loose > 0) context.Notes.Add(Count(loose, "bonus non attribué laissé dans TorLink", "bonus non attribués laissés dans TorLink"));
+            if (loose > 0) context.Notes.Add(Count(loose, "bonus non attribué laissé dans TorLink", "bonus non attribués laissés dans TorLink", "unmatched extra left in TorLink", "unmatched extras left in TorLink"));
         }
         else
         {
@@ -224,7 +224,7 @@ public static class MediaPlanner
             if (owner is null) { unmatched++; continue; }
             operations.Add(Operation(subtitle, Unique(Path.Combine(root, owner, owner) + ReleaseName.SubtitleTags(subtitle.RelativePath), Path.GetExtension(subtitle.RelativePath), used), "subtitle"));
         }
-        if (unmatched > 0) context.Notes.Add(Count(unmatched, "sous-titre non attribué", "sous-titres non attribués"));
+        if (unmatched > 0) context.Notes.Add(Count(unmatched, "sous-titre non attribué", "sous-titres non attribués", "unmatched subtitle", "unmatched subtitles"));
         var display = targets.Count == 1 ? targets[0].Folder : $"{targets.Count} films";
         return new(MediaKind.Movie, display, root, targets.Select(t => Path.Combine(root, t.Folder)).Distinct().ToList(), operations, context.Notes);
     }
@@ -258,7 +258,8 @@ public static class MediaPlanner
             : context.TvSource ? MediaKind.Series
             : context.Grouped || numbered.Any(x => x.Absolute) ? MediaKind.Anime : MediaKind.Series);
         var root = context.Libraries.RootFor(kind);
-        if (root is null) return Blocked(kind, $"Choisis le dossier {(kind == MediaKind.Anime ? "Animes" : "Séries")} de Jellyfin dans Réglages → TorLink.");
+        if (root is null) return Blocked(kind, kind == MediaKind.Anime ? L("Choisis le dossier Animes de Jellyfin dans Réglages → TorLink.", "Choose Jellyfin’s Anime folder in Settings → TorLink.")
+            : L("Choisis le dossier Séries de Jellyfin dans Réglages → TorLink.", "Choose Jellyfin’s Shows folder in Settings → TorLink."));
         var show = FindFolder(root, title, year) ?? (alias is not null && SameFolder(alias.Root, root) ? alias.Folder : null) ?? ReleaseName.SafeName(year is null ? title : $"{title} ({year})");
         var showPath = Path.Combine(root, show);
         var seasons = ExistingFolders(showPath);
@@ -281,7 +282,7 @@ public static class MediaPlanner
             }
             bonus.Add((video, ReleaseName.CreditlessLabel(name, bare: true)));
         }
-        if (duplicates > 0) context.Notes.Add(Count(duplicates, "doublon d’épisode laissé dans TorLink", "doublons d’épisodes laissés dans TorLink"));
+        if (duplicates > 0) context.Notes.Add(Count(duplicates, "doublon d’épisode laissé dans TorLink", "doublons d’épisodes laissés dans TorLink", "duplicate episode left in TorLink", "duplicate episodes left in TorLink"));
         var episodeStems = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (label, (file, number)) in episodes.OrderBy(x => x.Value.Number.Season).ThenBy(x => x.Value.Number.Episode))
         {
@@ -296,7 +297,7 @@ public static class MediaPlanner
             var stem = label is null ? ReleaseName.SafeName(Path.GetFileNameWithoutExtension(file.RelativePath)) : $"{show} - {label}";
             operations.Add(Operation(file, Unique(Path.Combine(showPath, "Extras", stem), Path.GetExtension(file.RelativePath), used), "extra"));
         }
-        if (unnumbered > 0) context.Notes.Add(Count(unnumbered, "vidéo sans numéro placée dans Extras", "vidéos sans numéro placées dans Extras"));
+        if (unnumbered > 0) context.Notes.Add(Count(unnumbered, "vidéo sans numéro placée dans Extras", "vidéos sans numéro placées dans Extras", "unnumbered video put in Extras", "unnumbered videos put in Extras"));
         var unmatched = 0;
         foreach (var subtitle in subtitles)
         {
@@ -305,9 +306,9 @@ public static class MediaPlanner
             if (stem is null) { unmatched++; continue; }
             operations.Add(Operation(subtitle, Unique(stem + ReleaseName.SubtitleTags(subtitle.RelativePath), Path.GetExtension(subtitle.RelativePath), used), "subtitle"));
         }
-        if (unmatched > 0) context.Notes.Add(Count(unmatched, "sous-titre non attribué", "sous-titres non attribués"));
+        if (unmatched > 0) context.Notes.Add(Count(unmatched, "sous-titre non attribué", "sous-titres non attribués", "unmatched subtitle", "unmatched subtitles"));
         var cleanTitle = ReleaseName.Key(show).Length > 0 ? show : title;
-        var display = episodes.Count == 1 ? $"{cleanTitle} · {episodes.Keys.Single()}" : episodes.Count > 1 ? $"{cleanTitle} · {episodes.Count} épisodes" : cleanTitle;
+        var display = episodes.Count == 1 ? $"{cleanTitle} · {episodes.Keys.Single()}" : episodes.Count > 1 ? $"{cleanTitle} · " + Count(episodes.Count, "épisode", "épisodes", "episode", "episodes") : cleanTitle;
         return new(kind, display, root, [showPath], operations, context.Notes);
     }
 
@@ -360,5 +361,4 @@ public static class MediaPlanner
     private static ImportOperation Operation(SourceFile file, string destination, string role) => new(file.Path, destination, role, file.RelativePath);
     private static ImportPlan Ignore(string reason) => new(MediaKind.Movie, "", null, [], [], [], Ignored: reason);
     private static ImportPlan Blocked(MediaKind kind, string problem) => new(kind, "", null, [], [], [], Problem: problem);
-    private static string Count(int count, string one, string many) => $"{count} {(count > 1 ? many : one)}";
 }

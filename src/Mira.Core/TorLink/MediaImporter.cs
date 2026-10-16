@@ -18,7 +18,7 @@ public sealed record ImportFailure(ImportOperation Operation, string Reason);
 /// </summary>
 public sealed record ImportResult(IReadOnlyList<ImportOperation> Placed, IReadOnlyList<ImportOperation> AlreadyThere, IReadOnlyList<ImportFailure> Conflicts, IReadOnlyList<ImportFailure> Failures, bool Linked, bool Copied, bool Moved, bool Canceled = false, bool OtherDrive = false)
 {
-    public string? Method => Copied ? "copie" : Moved ? (OtherDrive ? "déplacement depuis un autre disque" : "déplacement") : Linked ? "lien physique" : null;
+    public string? Method => Copied ? L("copie", "copy") : Moved ? (OtherDrive ? L("déplacement depuis un autre disque", "move from another drive") : L("déplacement", "move")) : Linked ? L("lien physique", "hard link") : null;
 }
 
 /// <summary>Executes an import plan. Never replaces an existing file and never writes outside the plan's library folder.</summary>
@@ -42,17 +42,17 @@ public static class MediaImporter
                 ct.ThrowIfCancellationRequested();
                 string destination;
                 try { destination = Path.GetFullPath(operation.Destination); }
-                catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { failures.Add(new(operation, "Nom de destination invalide.")); continue; }
+                catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { failures.Add(new(operation, L("Nom de destination invalide.", "Invalid destination name."))); continue; }
                 if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !(ReleaseName.IsVideo(destination) || ReleaseName.IsSubtitle(destination)))
-                { failures.Add(new(operation, "Destination refusée.")); continue; }
+                { failures.Add(new(operation, L("Destination refusée.", "Destination refused."))); continue; }
                 var source = new FileInfo(operation.Source);
-                if (!source.Exists || source.Attributes.HasFlag(FileAttributes.ReparsePoint)) { failures.Add(new(operation, "Fichier source introuvable.")); continue; }
+                if (!source.Exists || source.Attributes.HasFlag(FileAttributes.ReparsePoint)) { failures.Add(new(operation, L("Fichier source introuvable.", "Source file not found."))); continue; }
                 var target = new FileInfo(destination);
                 if (target.Exists)
                 {
                     // Same size: an earlier run already placed it. Otherwise it is someone else's file, left untouched.
                     if (target.Length == source.Length) already.Add(operation);
-                    else conflicts.Add(new(operation, "Un autre fichier porte déjà ce nom."));
+                    else conflicts.Add(new(operation, L("Un autre fichier porte déjà ce nom.", "Another file already has this name.")));
                     continue;
                 }
                 try
@@ -178,10 +178,10 @@ public static class MediaImporter
         : path.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\UNC\" + path[2..] : @"\\?\" + path;
     private static string Reason(Exception ex) => ex switch
     {
-        UnauthorizedAccessException => "Accès refusé au dossier de la bibliothèque.",
-        IOException io when (io.HResult & 0xFFFF) is 112 or 39 => "Espace disque insuffisant.",
-        IOException io when (io.HResult & 0xFFFF) is 32 or 33 => "Fichier utilisé par une autre application.",
-        _ => "Le fichier n’a pas pu être placé dans la bibliothèque."
+        UnauthorizedAccessException => L("Accès refusé au dossier de la bibliothèque.", "Access to the library folder denied."),
+        IOException io when (io.HResult & 0xFFFF) is 112 or 39 => L("Espace disque insuffisant.", "Not enough disk space."),
+        IOException io when (io.HResult & 0xFFFF) is 32 or 33 => L("Fichier utilisé par une autre application.", "File in use by another app."),
+        _ => L("Le fichier n’a pas pu être placé dans la bibliothèque.", "The file couldn’t be put in the library.")
     };
 
     [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]

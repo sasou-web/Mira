@@ -58,7 +58,7 @@ public abstract unsafe class MpvClient : IDisposable
             _free = (delegate* unmanaged[Cdecl]<IntPtr, void>)Export("mpv_free");
             _destroy = (delegate* unmanaged[Cdecl]<IntPtr, void>)Export("mpv_terminate_destroy");
             _wait = (delegate* unmanaged[Cdecl]<IntPtr, double, IntPtr>)Export("mpv_wait_event");
-            _handle = create(); if (_handle == IntPtr.Zero) throw new IOException("mpv n’a pas pu démarrer.");
+            _handle = create(); if (_handle == IntPtr.Zero) throw new IOException(L("mpv n’a pas pu démarrer.", "mpv couldn’t start."));
             Option("config", "no"); Option("terminal", "no"); Option("osc", "no"); Option("idle", "yes");
             Option("keep-open", "no"); Option("input-default-bindings", "no");
         }
@@ -68,7 +68,7 @@ public abstract unsafe class MpvClient : IDisposable
     protected void Option(string name, string value)
     {
         using var n = new Utf8(name); using var v = new Utf8(value);
-        if (_setOption(_handle, n, v) < 0) throw new IOException($"Option mpv indisponible : {name}.");
+        if (_setOption(_handle, n, v) < 0) throw new IOException(L($"Option mpv indisponible : {name}.", $"mpv option unavailable: {name}."));
     }
     /// <summary>An option an older mpv, chosen by hand, may not know: left out rather than stopping the playback.</summary>
     private bool TryOption(string name, string value)
@@ -115,8 +115,8 @@ public abstract unsafe class MpvClient : IDisposable
     public void Command(params string[] arguments)
     {
         // A native call on a destroyed handle would end the whole process, not just this playback.
-        if (_handle == IntPtr.Zero) throw new IOException("La lecture est arrêtée.");
-        if (!Run(arguments)) throw new IOException("La commande de lecture a échoué.");
+        if (_handle == IntPtr.Zero) throw new IOException(L("La lecture est arrêtée.", "Playback is stopped."));
+        if (!Run(arguments)) throw new IOException(L("La commande de lecture a échoué.", "The playback command failed."));
     }
     public bool TryCommand(params string[] arguments) => _handle != IntPtr.Zero && Run(arguments);
     private bool Run(string[] arguments)

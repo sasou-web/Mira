@@ -15,8 +15,8 @@ public static class HomeLayout
     public static bool Offered(LibrarySection library) => library.CollectionType is null or "movies" or "tvshows" or "mixed";
     public static List<Row> Rows(string? saved, IEnumerable<LibrarySection> libraries)
     {
-        var all = new List<Row> { new(Continue, "Continuer à regarder", true), new(Latest, "Ajouts récents", true), new(Favorites, "Tes favoris", true) };
-        all.AddRange(libraries.Where(Offered).Select(x => new Row(LibraryPrefix + x.Id, "Nouveau dans " + x.Name, false, x.Id)));
+        var all = new List<Row> { new(Continue, L("Continuer à regarder", "Continue watching"), true), new(Latest, L("Ajouts récents", "Recently added"), true), new(Favorites, L("Tes favoris", "Your favorites"), true) };
+        all.AddRange(libraries.Where(Offered).Select(x => new Row(LibraryPrefix + x.Id, L("Nouveau dans ", "New in ") + x.Name, false, x.Id)));
         var rows = new List<Row>();
         foreach (var part in (saved ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -30,10 +30,10 @@ public static class HomeLayout
     /// <summary>What a row shows, for the settings.</summary>
     public static string Detail(Row row) => row.Key switch
     {
-        Continue => "Tes titres en cours et les épisodes qui suivent.",
-        Latest => "Les derniers films et séries arrivés sur Jellyfin.",
-        Favorites => "Les titres que tu as mis en favori.",
-        _ => "Les derniers titres de cette bibliothèque."
+        Continue => L("Tes titres en cours et les épisodes qui suivent.", "What you’re watching and the episodes that come next."),
+        Latest => L("Les derniers films et séries arrivés sur Jellyfin.", "The latest movies and shows added to Jellyfin."),
+        Favorites => L("Les titres que tu as mis en favori.", "The titles you’ve added to your favorites."),
+        _ => L("Les derniers titres de cette bibliothèque.", "The latest titles in this library.")
     };
     public static string Save(IEnumerable<Row> rows) => string.Join(",", rows.Select(x => (x.Shown ? "" : "-") + x.Key));
     /// <summary>The row <paramref name="key"/> moved up (−1) or down (+1); as it was at either end.</summary>

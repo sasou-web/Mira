@@ -46,7 +46,7 @@ public static class NodeInstaller
         package ??= NodePackage.Current;
         if (IsInstalled(profile, package)) { progress?.Report(1); return Executable(profile); }
         await PrepareAsync(profile, package, handler, progress, ct).ConfigureAwait(false);
-        if (!ActivatePrepared(profile, package)) throw new InstallException("Node.js est en cours d’utilisation : ferme TorLink, puis réessaie.");
+        if (!ActivatePrepared(profile, package)) throw new InstallException(L("Node.js est en cours d’utilisation : ferme TorLink, puis réessaie.", "Node.js is in use: close TorLink, then try again."));
         progress?.Report(1);
         return Executable(profile);
     }
@@ -113,23 +113,23 @@ public static class NodeInstaller
                 var relative = entry.FullName[package.Root.Length..];
                 if (!Wanted(relative) || relative.EndsWith('/')) continue;
                 var destination = Path.GetFullPath(Path.Combine(target, relative.Replace('/', Path.DirectorySeparatorChar)));
-                if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InstallException("L’archive de Node.js contient un chemin inattendu : elle n’est pas installée.");
+                if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InstallException(L("L’archive de Node.js contient un chemin inattendu : elle n’est pas installée.", "Node.js’s archive contains an unexpected path: it isn’t installed."));
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 entry.ExtractToFile(destination, overwrite: true);
                 found |= relative == "node.exe";
             }
             if (!found || !File.Exists(Path.Combine(target, "node_modules", "npm", "bin", "npm-cli.js")))
-                throw new InstallException("L’archive téléchargée ne contient pas Node.js et npm : rien n’est installé.");
+                throw new InstallException(L("L’archive téléchargée ne contient pas Node.js et npm : rien n’est installé.", "The downloaded archive doesn’t contain Node.js and npm: nothing is installed."));
         }
         catch (InstallException) { throw; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { throw DiskError(); }
-        catch (InvalidDataException) { throw new InstallException("L’archive de Node.js est illisible : elle n’est pas installée."); }
+        catch (InvalidDataException) { throw new InstallException(L("L’archive de Node.js est illisible : elle n’est pas installée.", "Node.js’s archive can’t be read: it isn’t installed.")); }
     }
     private static bool Wanted(string relative) => relative is "node.exe" or "LICENSE" || relative.StartsWith("node_modules/npm/", StringComparison.Ordinal);
     /// <summary>The major version of a node.exe from its file version (22 for "22.15.0"); null when unreadable.</summary>
     public static int? MajorVersion(string? productVersion) =>
         productVersion is not null && int.TryParse(productVersion.TrimStart('v', 'V').Split('.')[0], out var major) && major > 0 ? major : null;
-    private static InstallException DiskError() => new("Node.js n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie.");
+    private static InstallException DiskError() => new(L("Node.js n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie.", "Node.js couldn’t be saved in Mira’s folder: check the free space, then try again."));
     private static void TryDelete(string path) { try { File.Delete(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
     private static void TryDeleteFolder(string path) { try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
 }

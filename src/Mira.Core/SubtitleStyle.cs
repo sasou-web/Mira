@@ -20,7 +20,7 @@ public static class SubtitleStyle
     /// The heights offered, as mpv's sub-pos: 100 is its own place, just above the bottom. Never below it: libass may cut
     /// a text subtitle under 100.
     /// </summary>
-    public static readonly IReadOnlyList<(int Position, string Label)> Heights = [(100, "En bas"), (94, "Un peu plus haut"), (88, "Plus haut"), (82, "Bien plus haut")];
+    public static readonly IReadOnlyList<(int Position, string Label)> Heights = [(100, L("En bas", "At the bottom")), (94, L("Un peu plus haut", "A little higher")), (88, L("Plus haut", "Higher")), (82, L("Bien plus haut", "Much higher"))];
     /// <summary>The height offered closest to a saved one (a hand-edited settings file may hold anything).</summary>
     public static int Height(int position) => Heights.MinBy(x => Math.Abs(x.Position - position)).Position;
 

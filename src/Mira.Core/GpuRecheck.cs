@@ -51,6 +51,8 @@ public static class GpuRecheck
 
     /// <summary>What Mira says once Jellyfin is back on the processor.</summary>
     public static string Notice(string kind) =>
-        $"Depuis la mise à jour de Jellyfin ou du pilote de ta carte graphique ({GpuEncoding.Maker(kind)}), elle n’a pas réussi deux essais de conversion : "
-        + "Jellyfin convertit de nouveau avec le processeur, et tes titres se lisent comme avant. Pour la réessayer : Réglages → Jellyfin & synchronisation → Utiliser la carte graphique.";
+        L($"Depuis la mise à jour de Jellyfin ou du pilote de ta carte graphique ({GpuEncoding.Maker(kind)}), elle n’a pas réussi deux essais de conversion : "
+        + "Jellyfin convertit de nouveau avec le processeur, et tes titres se lisent comme avant. Pour la réessayer : Réglages → Jellyfin & synchronisation → Utiliser la carte graphique.",
+        $"Since Jellyfin or your graphics card’s driver ({GpuEncoding.Maker(kind)}) was updated, the card failed two conversion tests: "
+        + "Jellyfin converts with the processor again, and your titles play as before. To try it again: Settings → Jellyfin & sync → Use the graphics card.");
 }

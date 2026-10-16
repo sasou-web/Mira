@@ -30,7 +30,7 @@ public sealed class JellyfinClient : IDisposable
         if (!Uri.TryCreate(server.Trim(), UriKind.Absolute, out var uri) ||
             (uri.Scheme != "http" && uri.Scheme != "https") || !string.IsNullOrEmpty(uri.UserInfo) ||
             !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
-            throw new UserInputException("Saisis une adresse http:// ou https://, sans identifiants dans l’adresse.");
+            throw new UserInputException(L("Saisis une adresse http:// ou https://, sans identifiants dans l’adresse.", "Enter an http:// or https:// address, without credentials in it."));
         return uri.AbsoluteUri.TrimEnd('/') + "/";
     }
     private void SetAuthorization()
@@ -45,10 +45,10 @@ public sealed class JellyfinClient : IDisposable
     {
         using var response = await _http.PostAsJsonAsync("Users/AuthenticateByName", new { Username = username, Pw = password }, ct);
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new UnauthorizedAccessException("Nom d’utilisateur ou mot de passe incorrect.");
+            throw new UnauthorizedAccessException(L("Nom d’utilisateur ou mot de passe incorrect.", "Wrong username or password."));
         await CheckAsync(response);
         var result = await response.Content.ReadFromJsonAsync<AuthenticationResult>(Json.Options, ct)
-            ?? throw new IOException("Réponse de connexion vide.");
+            ?? throw new IOException(L("Réponse de connexion vide.", "Empty sign-in answer."));
         Connection = Connection with { Token = result.AccessToken, UserId = result.User.Id, UserName = result.User.Name };
         SetAuthorization();
         return Connection;
@@ -103,7 +103,7 @@ public sealed class JellyfinClient : IDisposable
     {
         using var response = await _http.GetAsync(path, ct);
         await CheckAsync(response);
-        return await response.Content.ReadFromJsonAsync<T>(Json.Options, ct) ?? throw new IOException("Réponse Jellyfin vide.");
+        return await response.Content.ReadFromJsonAsync<T>(Json.Options, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
     }
     public Task<ItemsResult> ResumeAsync(CancellationToken ct = default) => GetAsync<ItemsResult>(
         $"UserItems/Resume?userId={Connection.UserId}&limit=16&mediaTypes=Video&fields=Overview,Genres&enableImageTypes=Primary,Backdrop,Thumb", ct);
@@ -647,7 +647,7 @@ public sealed class JellyfinClient : IDisposable
         using var response = await _http.PostAsJsonAsync("Mira/torlink/agent", report, RemoteProtocol.Json, ct);
         if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return (null, response.StatusCode);
         await CheckAsync(response);
-        return (await response.Content.ReadFromJsonAsync<AgentWork>(RemoteProtocol.Json, ct) ?? throw new IOException("Réponse Jellyfin vide."), response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<AgentWork>(RemoteProtocol.Json, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin.")), response.StatusCode);
     }
     /// <summary>
     /// « Télécharger sur le PC serveur » from another PC (an administrator): what the PC of Jellyfin has under way, as
@@ -657,7 +657,7 @@ public sealed class JellyfinClient : IDisposable
     {
         using var response = await _http.GetAsync("Mira/torlink", ct);
         await CheckRelayAsync(response, ct);
-        var status = await response.Content.ReadFromJsonAsync<RelayStatus>(RemoteProtocol.Json, ct) ?? throw new IOException("Réponse Jellyfin vide.");
+        var status = await response.Content.ReadFromJsonAsync<RelayStatus>(RemoteProtocol.Json, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
         return status with { Requests = status.Requests ?? [], Controls = status.Controls ?? [], Downloads = status.Downloads ?? [], Placed = status.Placed ?? [] };
     }
     /// <summary>A search the PC of Jellyfin runs with TorLink: its id, to follow with <see cref="TorLinkSearchStateAsync"/>.</summary>
@@ -705,7 +705,7 @@ public sealed class JellyfinClient : IDisposable
     {
         await CheckRelayAsync(response, ct);
         using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        return body.RootElement.TryGetProperty("id", out var id) && id.GetString() is { Length: > 0 } text ? text : throw new IOException("Réponse Jellyfin vide.");
+        return body.RootElement.TryGetProperty("id", out var id) && id.GetString() is { Length: > 0 } text ? text : throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
     }
     /// <summary>A 404 of a request is the request gone, not the relay missing, when the relay itself answers.</summary>
     private async Task<bool> HasRelayAsync(CancellationToken ct)
@@ -729,7 +729,7 @@ public sealed class JellyfinClient : IDisposable
                 if (body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("error", out var value) && value.ValueKind == JsonValueKind.String) error = value.GetString();
             }
             catch (JsonException) { }
-            throw new RelayRefusedException(string.IsNullOrWhiteSpace(error) ? "Le PC serveur a refusé cette demande." : error, response.StatusCode);
+            throw new RelayRefusedException(string.IsNullOrWhiteSpace(error) ? L("Le PC serveur a refusé cette demande.", "The server PC refused this request.") : error, response.StatusCode);
         }
         await CheckAsync(response);
     }
@@ -776,18 +776,18 @@ public sealed class JellyfinClient : IDisposable
     /// </summary>
     public async Task<AuthUser> CreateFriendAsync(string name, string password, IReadOnlyCollection<string> folders, CancellationToken ct = default)
     {
-        if (folders.Count == 0) throw new UserInputException("Choisis au moins une bibliothèque à partager.");
+        if (folders.Count == 0) throw new UserInputException(L("Choisis au moins une bibliothèque à partager.", "Choose at least one library to share."));
         using var created = await _http.PostAsJsonAsync("Users/New", new { Name = name, Password = password }, ct);
         if (created.StatusCode == HttpStatusCode.BadRequest)
-            throw new UserInputException($"Jellyfin refuse le nom « {name} » : il est déjà pris, ou contient un signe qu’il n’accepte pas.");
+            throw new UserInputException(L($"Jellyfin refuse le nom « {name} » : il est déjà pris, ou contient un signe qu’il n’accepte pas.", $"Jellyfin refuses the name “{name}”: it’s already taken, or has a character it doesn’t accept."));
         await CheckAsync(created);
-        var user = await created.Content.ReadFromJsonAsync<AuthUser>(Json.Options, ct) ?? throw new IOException("Jellyfin n’a pas donné le compte créé.");
+        var user = await created.Content.ReadFromJsonAsync<AuthUser>(Json.Options, ct) ?? throw new IOException(L("Jellyfin n’a pas donné le compte créé.", "Jellyfin didn’t return the account it made."));
         try
         {
             using var read = await _http.GetAsync($"Users/{Uri.EscapeDataString(user.Id)}", ct);
             await CheckAsync(read);
             var policy = (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) as JsonObject)?["Policy"] as JsonObject
-                ?? throw new IOException("Jellyfin n’a pas donné les droits du compte créé.");
+                ?? throw new IOException(L("Jellyfin n’a pas donné les droits du compte créé.", "Jellyfin didn’t return the new account’s permissions."));
             using var content = new StringContent(Friends.Policy(policy, folders).ToJsonString(), Encoding.UTF8, "application/json");
             using var set = await _http.PostAsync($"Users/{Uri.EscapeDataString(user.Id)}/Policy", content, ct);
             await CheckAsync(set);
@@ -809,7 +809,7 @@ public sealed class JellyfinClient : IDisposable
     {
         using var response = await _http.GetAsync(ChoicesPath, ct);
         await CheckAsync(response);
-        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject ?? throw new IOException("Réponse Jellyfin vide.");
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
     }
     public async Task SaveChoicesAsync(JsonObject preferences, CancellationToken ct = default)
     {
@@ -1141,7 +1141,7 @@ public sealed class JellyfinClient : IDisposable
                             part = await socket.ReceiveAsync(buffer, ct);
                             if (part.MessageType == WebSocketMessageType.Close) break;
                             message.Write(buffer, 0, part.Count);
-                            if (message.Length > 1_000_000) throw new IOException("Message trop volumineux.");
+                            if (message.Length > 1_000_000) throw new IOException(L("Message trop volumineux.", "Message too large."));
                         } while (!part.EndOfMessage);
                         if (part.MessageType == WebSocketMessageType.Close) break;
                         // Only a socket that actually talks resets the back-off: one closed right after opening keeps waiting longer.
@@ -1178,7 +1178,7 @@ public sealed class JellyfinClient : IDisposable
     private static Task CheckAsync(HttpResponseMessage response)
     {
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new UnauthorizedAccessException("Connexion refusée ou session expirée. Reconnecte ton compte Jellyfin.");
+            throw new UnauthorizedAccessException(L("Connexion refusée ou session expirée. Reconnecte ton compte Jellyfin.", "Sign-in refused or session expired. Sign in to your Jellyfin account again."));
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(StatusMessage(response.StatusCode), null, response.StatusCode);
         return Task.CompletedTask;
@@ -1187,10 +1187,10 @@ public sealed class JellyfinClient : IDisposable
     public static string StatusMessage(HttpStatusCode status) => (int)status switch
     {
         // Jellyfin answers 503 to everything but its public information until it has started.
-        503 => "Jellyfin démarre : réessaie dans un instant.",
-        404 => "Jellyfin ne trouve pas ce qui est demandé : le titre a peut-être été retiré de la bibliothèque.",
-        >= 500 => $"Jellyfin a rencontré une erreur (code {(int)status}). Réessaie dans un instant ; si ça continue, son journal en dit plus (Tableau de bord → Journaux).",
-        _ => $"Jellyfin a refusé la demande (code {(int)status})."
+        503 => L("Jellyfin démarre : réessaie dans un instant.", "Jellyfin is starting: try again in a moment."),
+        404 => L("Jellyfin ne trouve pas ce qui est demandé : le titre a peut-être été retiré de la bibliothèque.", "Jellyfin can’t find what was asked for: the title may have been removed from the library."),
+        >= 500 => L($"Jellyfin a rencontré une erreur (code {(int)status}). Réessaie dans un instant ; si ça continue, son journal en dit plus (Tableau de bord → Journaux).", $"Jellyfin ran into an error (code {(int)status}). Try again in a moment; if it keeps happening, its log says more (Dashboard → Logs)."),
+        _ => L($"Jellyfin a refusé la demande (code {(int)status}).", $"Jellyfin refused the request (code {(int)status}).")
     };
     public void Dispose() => _http.Dispose();
 }

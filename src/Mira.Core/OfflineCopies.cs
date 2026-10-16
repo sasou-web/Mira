@@ -37,7 +37,7 @@ public sealed record OfflineCopy
 public sealed record OfflineSubtitle(string File, int Index, string? Language, string? Title);
 
 /// <summary>Jellyfin refused the download: this account may not download (its policy on Jellyfin).</summary>
-public sealed class OfflineRefusedException() : IOException("Jellyfin ne permet pas à ce compte de télécharger ses vidéos. Dans Jellyfin, Tableau de bord → Utilisateurs → ce compte, autorise le téléchargement des médias, puis réessaie.");
+public sealed class OfflineRefusedException() : IOException(L("Jellyfin ne permet pas à ce compte de télécharger ses vidéos. Dans Jellyfin, Tableau de bord → Utilisateurs → ce compte, autorise le téléchargement des médias, puis réessaie.", "Jellyfin doesn’t let this account download its videos. In Jellyfin, Dashboard → Users → this account, allow media downloads, then try again."));
 
 /// <summary>
 /// The films and episodes kept on this computer: where they are, how they are fetched from Jellyfin (resumed where a
@@ -136,7 +136,7 @@ public static class OfflineCopies
             var total = response.Content.Headers.ContentRange?.Length ?? (response.Content.Headers.ContentLength is { } length ? length + done : copy.Size);
             if (total > 0 && total != copy.Size) { copy = copy with { Size = total }; Save(copy); }
             if (FreeSpace(copy.Folder) is { } free && total - done > free - Reserve)
-                throw new IOException($"Pas assez de place sur le disque pour garder « {copy.Item.DisplayTitle} » : il faut {SizeText(total - done)}, il reste {SizeText(Math.Max(0, free))}. Libère de la place ou choisis un autre dossier dans Réglages → Lecture.");
+                throw new IOException(L($"Pas assez de place sur le disque pour garder « {copy.Item.DisplayTitle} » : il faut {SizeText(total - done)}, il reste {SizeText(Math.Max(0, free))}. Libère de la place ou choisis un autre dossier dans Réglages → Lecture.", $"Not enough disk space to keep “{copy.Item.DisplayTitle}”: it needs {SizeText(total - done)}, {SizeText(Math.Max(0, free))} is left. Free up some space or choose another folder in Settings → Playback."));
             progress?.Report((done, total));
             await using (var output = new FileStream(copy.PartPath, done > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16, useAsync: true))
             await using (var input = await response.Content.ReadAsStreamAsync(ct))
@@ -148,13 +148,13 @@ public static class OfflineCopies
                     using var silence = CancellationTokenSource.CreateLinkedTokenSource(ct); silence.CancelAfter(TimeSpan.FromMinutes(1));
                     int read;
                     try { read = await input.ReadAsync(buffer, silence.Token); }
-                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new HttpRequestException("Jellyfin a cessé d’envoyer le fichier."); }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new HttpRequestException(L("Jellyfin a cessé d’envoyer le fichier.", "Jellyfin stopped sending the file.")); }
                     if (read == 0) break;
                     await output.WriteAsync(buffer.AsMemory(0, read), ct); done += read;
                     if (DateTime.UtcNow - reported > TimeSpan.FromMilliseconds(250)) { reported = DateTime.UtcNow; progress?.Report((done, total)); }
                 }
             }
-            if (total > 0 && done < total) throw new HttpRequestException("Le fichier a été coupé avant la fin. Mira le reprendra là où il s’est arrêté.");
+            if (total > 0 && done < total) throw new HttpRequestException(L("Le fichier a été coupé avant la fin. Mira le reprendra là où il s’est arrêté.", "The file was cut off before the end. Mira will pick it up where it stopped."));
         }
         finally { response.Dispose(); }
         System.IO.File.Move(copy.PartPath, copy.VideoPath, overwrite: true);
@@ -203,8 +203,8 @@ public static class OfflineCopies
 
     /// <summary>« 850 Mo », « 4,2 Go ».</summary>
     public static string SizeText(long bytes) => bytes >= 1L << 30
-        ? (bytes / (double)(1L << 30)).ToString(bytes >= 10L << 30 ? "0" : "0.0", System.Globalization.CultureInfo.GetCultureInfo("fr-FR")) + " Go"
-        : Math.Max(1, (int)Math.Round(bytes / (double)(1L << 20))) + " Mo";
+        ? (bytes / (double)(1L << 30)).ToString(bytes >= 10L << 30 ? "0" : "0.0", Culture) + L(" Go", " GB")
+        : Math.Max(1, (int)Math.Round(bytes / (double)(1L << 20))) + L(" Mo", " MB");
     /// <summary>The video's extension: that of Jellyfin's file, else its container (« mkv », « mp4 »).</summary>
     public static string Extension(MediaSource source)
     {

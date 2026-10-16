@@ -107,13 +107,13 @@ public static class MpvInstaller
         var extracted = library + ".partial";
         try
         {
-            await VerifiedDownload.DownloadAsync(package.Url, archive, package.ArchiveSha256, package.Size, package.Size, "Le moteur vidéo", handler,
+            await VerifiedDownload.DownloadAsync(package.Url, archive, package.ArchiveSha256, package.Size, package.Size, L("Le moteur vidéo", "The video engine"), handler,
                 Scaled.By(progress, .8), ct).ConfigureAwait(false);
             await Task.Run(() => Extract(package, archive, extracted), ct).ConfigureAwait(false);
             progress?.Report(.98);
             try { File.Move(extracted, library, overwrite: true); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            { throw new InstallException("Le moteur vidéo actuel est en cours d’utilisation : arrête la lecture, puis réessaie."); }
+            { throw new InstallException(L("Le moteur vidéo actuel est en cours d’utilisation : arrête la lecture, puis réessaie.", "The current video engine is in use: stop playback, then try again.")); }
             await File.WriteAllTextAsync(Path.Combine(folder, SourceFile),
                 $"libmpv {package.Version}, installé par Mira depuis {package.Url}\nSHA-256 de l’archive : {package.ArchiveSha256}\nSHA-256 de {MpvPackage.LibraryName} : {package.LibrarySha256}\n" +
                 "Build Windows de mpv par shinchiro (https://github.com/shinchiro/mpv-winbuild-cmake), listée sur https://mpv.io/installation/.\n" +
@@ -131,7 +131,7 @@ public static class MpvInstaller
         {
             using var archive = SevenZipArchive.Open(archivePath);
             var entry = archive.Entries.FirstOrDefault(x => !x.IsDirectory && x.Key is MpvPackage.LibraryName)
-                ?? throw new InstallException("L’archive téléchargée ne contient pas le moteur vidéo attendu.");
+                ?? throw new InstallException(L("L’archive téléchargée ne contient pas le moteur vidéo attendu.", "The downloaded archive doesn’t contain the expected video engine."));
             using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             using (var input = entry.OpenEntryStream())
             using (var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
@@ -141,15 +141,15 @@ public static class MpvInstaller
                 // On the disk before version.txt: after a power cut, a stamped engine is a whole one.
                 output.Flush(flushToDisk: true);
             }
-            if (!VerifiedDownload.Matches(sha.GetHashAndReset(), package.LibrarySha256)) throw new InstallException("Le moteur extrait ne correspond pas à la version vérifiée par Mira : il n’est pas installé.");
+            if (!VerifiedDownload.Matches(sha.GetHashAndReset(), package.LibrarySha256)) throw new InstallException(L("Le moteur extrait ne correspond pas à la version vérifiée par Mira : il n’est pas installé.", "The extracted engine doesn’t match the version Mira checked: it isn’t installed."));
         }
         catch (InstallException) { throw; }
         // The archive was checked by its hash before this point: a read or write failure here comes from the disk.
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { throw DiskError(); }
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException))
-        { throw new InstallException("L’archive du moteur vidéo est illisible : elle n’est pas installée."); }
+        { throw new InstallException(L("L’archive du moteur vidéo est illisible : elle n’est pas installée.", "The video engine’s archive can’t be read: it isn’t installed.")); }
     }
-    private static InstallException DiskError() => new("Le moteur vidéo n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie.");
+    private static InstallException DiskError() => new(L("Le moteur vidéo n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie.", "The video engine couldn’t be saved in Mira’s folder: check the free space, then try again."));
     private static void TryDelete(string path) { try { File.Delete(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
     private static void TryDeleteFolder(string path) => PreparedFolder.Delete(path);
 }

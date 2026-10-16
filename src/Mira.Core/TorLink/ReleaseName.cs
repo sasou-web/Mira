@@ -287,7 +287,7 @@ public static partial class ReleaseName
         }
         var stem = safe.Split('.')[0].Trim().ToUpperInvariant();
         if (stem is "CON" or "PRN" or "AUX" or "NUL" || (stem.Length == 4 && (stem.StartsWith("COM") || stem.StartsWith("LPT")) && char.IsDigit(stem[3]))) safe += "_";
-        return safe.Length == 0 ? "Sans titre" : safe;
+        return safe.Length == 0 ? L("Sans titre", "Untitled") : safe;
     }
 
     private static string StripExtension(string name)

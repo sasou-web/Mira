@@ -36,7 +36,7 @@ public static class ReleaseFeed
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (document.RootElement.ValueKind != JsonValueKind.Array) throw new UpdateException("La réponse de GitHub est inattendue.");
+            if (document.RootElement.ValueKind != JsonValueKind.Array) throw new UpdateException(L("La réponse de GitHub est inattendue.", "GitHub’s answer is unexpected."));
             var releases = new List<UpdateRelease>();
             foreach (var release in document.RootElement.EnumerateArray())
             {
@@ -52,7 +52,7 @@ public static class ReleaseFeed
             }
             return releases;
         }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { throw new UpdateException("La réponse de GitHub est illisible."); }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { throw new UpdateException(L("La réponse de GitHub est illisible.", "GitHub’s answer can’t be read.")); }
     }
     internal static string Text(JsonElement element, string name) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()! : "";
@@ -86,7 +86,7 @@ public sealed class UpdateClient : IDisposable
     public UpdateClient(Version current, IReadOnlyList<string> trustedKeys, Uri? feed = null, HttpMessageHandler? handler = null)
     {
         _current = current; _keys = trustedKeys; _feed = feed ?? GitHubReleases;
-        if (!Allowed(_feed)) throw new ArgumentException("Seuls GitHub et, pour les essais, une adresse locale peuvent servir les mises à jour.", nameof(feed));
+        if (!Allowed(_feed)) throw new ArgumentException(L("Seuls GitHub et, pour les essais, une adresse locale peuvent servir les mises à jour.", "Only GitHub and, for tests, a local address can serve updates."), nameof(feed));
         // Redirects are followed by hand, so that each one is checked before it is contacted.
         _http = handler is null ? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.All }) : new HttpClient(handler, disposeHandler: false);
         _http.Timeout = Timeout.InfiniteTimeSpan;
@@ -107,12 +107,12 @@ public sealed class UpdateClient : IDisposable
             var manifestBytes = await GetBytesAsync(manifestAsset.Url, 64 * 1024, "application/octet-stream", ct).ConfigureAwait(false);
             var signature = UpdateSignature.Decode(Encoding.ASCII.GetString(await GetBytesAsync(signatureAsset.Url, 4096, "application/octet-stream", ct).ConfigureAwait(false)));
             if (signature is null || !UpdateSignature.Verify(manifestBytes, signature, _keys))
-                throw new UpdateException($"La version {release.Version.ToString(3)} n’est pas signée par Mira : elle n’est pas installée.");
+                throw new UpdateException(L($"La version {release.Version.ToString(3)} n’est pas signée par Mira : elle n’est pas installée.", $"Version {release.Version.ToString(3)} isn’t signed by Mira: it isn’t installed."));
             var manifest = UpdateManifest.Parse(manifestBytes);
-            if (manifest.Version != release.Version) throw new UpdateException($"La release {release.Tag} annonce une autre version : elle n’est pas installée.");
-            var file = manifest.Files.FirstOrDefault(f => f.Kind == kind) ?? throw new UpdateException($"La version {release.Version.ToString(3)} ne fournit pas de fichier pour ce type d’installation.");
-            var asset = release.Asset(file.Name) ?? throw new UpdateException($"Le fichier {file.Name} manque dans la release {release.Tag}.");
-            if (asset.Size != file.Size) throw new UpdateException($"Le fichier {file.Name} ne correspond pas à la version signée.");
+            if (manifest.Version != release.Version) throw new UpdateException(L($"La release {release.Tag} annonce une autre version : elle n’est pas installée.", $"Release {release.Tag} announces another version: it isn’t installed."));
+            var file = manifest.Files.FirstOrDefault(f => f.Kind == kind) ?? throw new UpdateException(L($"La version {release.Version.ToString(3)} ne fournit pas de fichier pour ce type d’installation.", $"Version {release.Version.ToString(3)} has no file for this kind of installation."));
+            var asset = release.Asset(file.Name) ?? throw new UpdateException(L($"Le fichier {file.Name} manque dans la release {release.Tag}.", $"The file {file.Name} is missing from release {release.Tag}."));
+            if (asset.Size != file.Size) throw new UpdateException(L($"Le fichier {file.Name} ne correspond pas à la version signée.", $"The file {file.Name} doesn’t match the signed version."));
             return new UpdateOffer(release.Version, release.Tag, release.Page, file, asset.Url);
         }
         return null;
@@ -137,13 +137,13 @@ public sealed class UpdateClient : IDisposable
         {
             headers.CancelAfter(RequestTimeout);
             try { started = await SendAsync(offer.Url, "application/octet-stream", headers.Token, kept > 0 ? kept : null).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException("GitHub met trop de temps à répondre.", network: true); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException(L("GitHub met trop de temps à répondre.", "GitHub is taking too long to answer."), network: true); }
         }
         using var response = started;
         // A server that ignores the range sends the whole file again: start over.
         var resumed = kept > 0 && response.StatusCode == HttpStatusCode.PartialContent && response.Content.Headers.ContentRange?.From == kept;
         if (!resumed) kept = 0;
-        if (response.Content.Headers.ContentLength is { } length && length != offer.File.Size - kept) { Discard(); throw new UpdateException("Le fichier reçu n’a pas la taille annoncée."); }
+        if (response.Content.Headers.ContentLength is { } length && length != offer.File.Size - kept) { Discard(); throw new UpdateException(L("Le fichier reçu n’a pas la taille annoncée.", "The file received doesn’t have the announced size.")); }
         using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[1 << 16];
         await using (var output = new FileStream(partial, resumed ? FileMode.Open : FileMode.Create, FileAccess.ReadWrite, FileShare.None, 1 << 16, useAsync: true))
@@ -161,19 +161,19 @@ public sealed class UpdateClient : IDisposable
                 using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct); stall.CancelAfter(StallTimeout);
                 int read;
                 try { read = await input.ReadAsync(buffer, stall.Token).ConfigureAwait(false); }
-                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException("Le téléchargement de la mise à jour s’est interrompu : il reprendra à la prochaine vérification."); }
-                catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new UpdateException("Le téléchargement de la mise à jour s’est interrompu : il reprendra à la prochaine vérification."); }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException(L("Le téléchargement de la mise à jour s’est interrompu : il reprendra à la prochaine vérification.", "The update’s download stopped: it’ll resume at the next check.")); }
+                catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new UpdateException(L("Le téléchargement de la mise à jour s’est interrompu : il reprendra à la prochaine vérification.", "The update’s download stopped: it’ll resume at the next check.")); }
                 if (read == 0) break;
                 total += read;
-                if (total > offer.File.Size) { await output.DisposeAsync().ConfigureAwait(false); Discard(); throw new UpdateException("Le fichier reçu dépasse la taille annoncée."); }
+                if (total > offer.File.Size) { await output.DisposeAsync().ConfigureAwait(false); Discard(); throw new UpdateException(L("Le fichier reçu dépasse la taille annoncée.", "The file received is larger than announced.")); }
                 sha.AppendData(buffer, 0, read);
                 await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
                 progress?.Report(total / (double)offer.File.Size);
             }
-            if (total != offer.File.Size) throw new UpdateException("Le téléchargement de la mise à jour est incomplet : il reprendra à la prochaine vérification.");
+            if (total != offer.File.Size) throw new UpdateException(L("Le téléchargement de la mise à jour est incomplet : il reprendra à la prochaine vérification.", "The update’s download is incomplete: it’ll resume at the next check."));
         }
         if (!string.Equals(Convert.ToHexString(sha.GetHashAndReset()), offer.File.Sha256, StringComparison.OrdinalIgnoreCase))
-        { Discard(); throw new UpdateException("Le fichier reçu ne correspond pas à la version signée : il est supprimé."); }
+        { Discard(); throw new UpdateException(L("Le fichier reçu ne correspond pas à la version signée : il est supprimé.", "The file received doesn’t match the signed version: it’s deleted.")); }
         File.Move(partial, target, overwrite: true);
         return target;
     }
@@ -199,7 +199,7 @@ public sealed class UpdateClient : IDisposable
             using var document = JsonDocument.Parse(json);
             return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("immutable", out var immutable) && immutable.ValueKind == JsonValueKind.True;
         }
-        catch (JsonException) { throw new UpdateException("La réponse de GitHub est illisible."); }
+        catch (JsonException) { throw new UpdateException(L("La réponse de GitHub est illisible.", "GitHub’s answer can’t be read.")); }
     }
     /// <summary>Whether <paramref name="manifest"/> carries a valid signature from one of the keys this client trusts.</summary>
     public bool Signed(byte[] manifest, byte[]? signature) => signature is not null && UpdateSignature.Verify(manifest, signature, _keys);
@@ -232,23 +232,23 @@ public sealed class UpdateClient : IDisposable
         try
         {
             using var response = await SendAsync(url, accept, timeout.Token).ConfigureAwait(false);
-            if (response.Content.Headers.ContentLength > limit) throw new UpdateException("La réponse de GitHub est trop volumineuse.");
+            if (response.Content.Headers.ContentLength > limit) throw new UpdateException(L("La réponse de GitHub est trop volumineuse.", "GitHub’s answer is too large."));
             await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
             using var buffer = new MemoryStream();
             var chunk = new byte[16384]; int read;
             while ((read = await stream.ReadAsync(chunk, timeout.Token).ConfigureAwait(false)) > 0)
             {
-                if (buffer.Length + read > limit) throw new UpdateException("La réponse de GitHub est trop volumineuse.");
+                if (buffer.Length + read > limit) throw new UpdateException(L("La réponse de GitHub est trop volumineuse.", "GitHub’s answer is too large."));
                 buffer.Write(chunk, 0, read);
             }
             return buffer.ToArray();
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException("GitHub met trop de temps à répondre.", network: true); }
-        catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new UpdateException("GitHub est injoignable pour le moment.", network: true); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new UpdateException(L("GitHub met trop de temps à répondre.", "GitHub is taking too long to answer."), network: true); }
+        catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new UpdateException(L("GitHub est injoignable pour le moment.", "GitHub can’t be reached right now."), network: true); }
     }
     private async Task<HttpResponseMessage> SendAsync(Uri url, string accept, CancellationToken ct, long? from = null)
     {
-        if (!Allowed(url) || url != _feed && !IsReleaseFile(url) && !IsReleaseInfo(url)) throw new UpdateException("Adresse de mise à jour refusée : " + url.GetLeftPart(UriPartial.Authority));
+        if (!Allowed(url) || url != _feed && !IsReleaseFile(url) && !IsReleaseInfo(url)) throw new UpdateException(L("Adresse de mise à jour refusée : ", "Update address refused: ") + url.GetLeftPart(UriPartial.Authority));
         for (var hop = 0; ; hop++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -257,19 +257,19 @@ public sealed class UpdateClient : IDisposable
             if (from is > 0) request.Headers.Range = new RangeHeaderValue(from, null);
             HttpResponseMessage response;
             try { response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false); }
-            catch (HttpRequestException) { throw new UpdateException("GitHub est injoignable pour le moment.", network: true); }
+            catch (HttpRequestException) { throw new UpdateException(L("GitHub est injoignable pour le moment.", "GitHub can’t be reached right now."), network: true); }
             if ((int)response.StatusCode is 301 or 302 or 303 or 307 or 308)
             {
                 var location = response.Headers.Location; response.Dispose();
-                if (location is null || hop >= MaximumRedirects) throw new UpdateException("Redirection de mise à jour invalide.");
+                if (location is null || hop >= MaximumRedirects) throw new UpdateException(L("Redirection de mise à jour invalide.", "Invalid update redirect."));
                 var next = location.IsAbsoluteUri ? location : new Uri(url, location);
                 // Every hop is checked before it is contacted, not only the last one.
-                if (!Allowed(next)) throw new UpdateException("Redirection de mise à jour refusée : " + next.GetLeftPart(UriPartial.Authority));
+                if (!Allowed(next)) throw new UpdateException(L("Redirection de mise à jour refusée : ", "Update redirect refused: ") + next.GetLeftPart(UriPartial.Authority));
                 url = next;
                 continue;
             }
-            if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests) { var limited = response.StatusCode; response.Dispose(); throw new UpdateException("GitHub limite les vérifications pour le moment : nouvel essai plus tard.", limited); }
-            if (!response.IsSuccessStatusCode) { var status = response.StatusCode; response.Dispose(); throw new UpdateException($"GitHub a répondu {(int)status} à la vérification des mises à jour.", status); }
+            if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests) { var limited = response.StatusCode; response.Dispose(); throw new UpdateException(L("GitHub limite les vérifications pour le moment : nouvel essai plus tard.", "GitHub is limiting checks for now: Mira will try again later."), limited); }
+            if (!response.IsSuccessStatusCode) { var status = response.StatusCode; response.Dispose(); throw new UpdateException(L($"GitHub a répondu {(int)status} à la vérification des mises à jour.", $"GitHub answered {(int)status} to the update check."), status); }
             return response;
         }
     }

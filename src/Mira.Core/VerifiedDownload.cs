@@ -25,12 +25,12 @@ public static class VerifiedDownload
         {
             headers.CancelAfter(StallTimeout);
             try { response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, headers.Token).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new InstallException("Le serveur de téléchargement ne répond pas. Réessaie plus tard."); }
-            catch (HttpRequestException) { throw new InstallException($"{subject} n’a pas pu être téléchargé : vérifie la connexion Internet, puis réessaie."); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new InstallException(L("Le serveur de téléchargement ne répond pas. Réessaie plus tard.", "The download server isn’t answering. Try again later.")); }
+            catch (HttpRequestException) { throw new InstallException(L($"{subject} n’a pas pu être téléchargé : vérifie la connexion Internet, puis réessaie.", $"{subject} couldn’t be downloaded: check the Internet connection, then try again.")); }
         }
         using (response)
         {
-            if (!response.IsSuccessStatusCode) throw new InstallException($"{subject} n’a pas pu être téléchargé (code {(int)response.StatusCode}). Réessaie plus tard.");
+            if (!response.IsSuccessStatusCode) throw new InstallException(L($"{subject} n’a pas pu être téléchargé (code {(int)response.StatusCode}). Réessaie plus tard.", $"{subject} couldn’t be downloaded (code {(int)response.StatusCode}). Try again later."));
             var expected = size ?? response.Content.Headers.ContentLength;
             if (response.Content.Headers.ContentLength is { } length && (size is { } known && length != known || length > maximumSize)) throw Unexpected();
             using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -42,8 +42,8 @@ public static class VerifiedDownload
                 using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct); stall.CancelAfter(StallTimeout);
                 int read;
                 try { read = await input.ReadAsync(buffer, stall.Token).ConfigureAwait(false); }
-                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new InstallException("Le téléchargement s’est interrompu. Réessaie."); }
-                catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new InstallException("Le téléchargement s’est interrompu. Réessaie."); }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new InstallException(L("Le téléchargement s’est interrompu. Réessaie.", "The download stopped. Try again.")); }
+                catch (Exception ex) when (ex is IOException or HttpRequestException) { throw new InstallException(L("Le téléchargement s’est interrompu. Réessaie.", "The download stopped. Try again.")); }
                 if (read == 0) break;
                 total += read;
                 if (total > (size ?? maximumSize)) throw Unexpected();
@@ -51,12 +51,12 @@ public static class VerifiedDownload
                 await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
                 if (expected is > 0) progress?.Report(Math.Min(1, total / (double)expected.Value));
             }
-            if (size is { } whole && total != whole) throw new InstallException("Le téléchargement est incomplet. Réessaie.");
-            if (!Matches(sha.GetHashAndReset(), sha256)) throw new InstallException("Le fichier téléchargé ne correspond pas à la version vérifiée par Mira : il n’est pas installé.");
+            if (size is { } whole && total != whole) throw new InstallException(L("Le téléchargement est incomplet. Réessaie.", "The download is incomplete. Try again."));
+            if (!Matches(sha.GetHashAndReset(), sha256)) throw new InstallException(L("Le fichier téléchargé ne correspond pas à la version vérifiée par Mira : il n’est pas installé.", "The downloaded file doesn’t match the version Mira checked: it isn’t installed."));
         }
     }
     public static bool Matches(byte[] hash, string expected) => string.Equals(Convert.ToHexString(hash), expected, StringComparison.OrdinalIgnoreCase);
-    private static InstallException Unexpected() => new("Le fichier proposé n’est pas celui attendu : il n’est pas installé.");
+    private static InstallException Unexpected() => new(L("Le fichier proposé n’est pas celui attendu : il n’est pas installé.", "The file offered isn’t the expected one: it isn’t installed."));
 }
 
 /// <summary>
