@@ -184,6 +184,25 @@ public static partial class ReleaseName
             .Select(x => Number(x, "s")).Distinct().ToList();
         return values.Count == 1 ? values[0] : null;
     }
+    /// <summary>
+    /// Other names a release gives its show in parentheses, as fansub and anime groups do: "[ToonsHub] JoJos Bizarre
+    /// Adventure S06E05 1080p … (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio, Multi-Subs)" gives "JoJo no Kimyou
+    /// na Bouken: Steel Ball Run". What follows " - " (a part or a stage) is left out; tags and years are not names.
+    /// </summary>
+    public static IReadOnlyList<string> AlternateTitles(string name)
+    {
+        var titles = new List<string>();
+        foreach (Match m in Parenthesized().Matches(StripExtension(name.Trim())))
+        {
+            var first = m.Groups["c"].Value.Split(',')[0];
+            var dash = first.IndexOf(" - ", StringComparison.Ordinal);
+            if (dash > 0) first = first[..dash];
+            first = first.Trim();
+            if (first.Length < 3 || !first.Any(char.IsLetter) || Year().IsMatch(first) && first.Length <= 6 || IsTagGroup(first)) continue;
+            if (Tidy(first) is { Length: > 0 } title && !titles.Contains(title, StringComparer.OrdinalIgnoreCase)) titles.Add(title);
+        }
+        return titles;
+    }
     public static bool IsCompletePack(string name) => CompleteMarker().IsMatch(Readable(name, out _));
     public static bool HasGroupPrefix(string name) { Readable(name, out var group); return group is not null; }
     /// <summary>Sample clip: "sample" in the file name or one of its folders (the torrent's own top folder is not considered).</summary>

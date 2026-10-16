@@ -126,7 +126,9 @@ public sealed class TorLinkImporter
             });
             return;
         }
-        var plan = await Task.Run(() => MediaPlanner.Plan(completion.Name, completion.Source, files, libraries, entry.ForcedKind), ct);
+        // The shows placed before: an episode named otherwise joins its show (« JoJo no Kimyou na Bouken - 05 » after « JoJos Bizarre Adventure S06E04 »).
+        var known = Entries.Where(x => x.Id != completion.Id).ToList();
+        var plan = await Task.Run(() => MediaPlanner.Plan(completion.Name, completion.Source, files, libraries, entry.ForcedKind, MediaPlanner.KnownShows(known)), ct);
         if (plan.Ignored is { } reason) { Update(entry with { State = TorLinkImportState.Ignored, Message = reason, UpdatedAt = DateTimeOffset.UtcNow }); return; }
         if (plan.Problem is not null || !Directory.Exists(plan.LibraryRoot))
         {
@@ -165,7 +167,8 @@ public sealed class TorLinkImporter
                 };
                 Update(gone); return (gone, []);
             }
-            var plan = await Task.Run(() => MediaPlanner.Plan(entry.Name, entry.Source, sources, libraries, kind), ct);
+            var known = Entries.Where(x => x.Id != id).ToList();
+            var plan = await Task.Run(() => MediaPlanner.Plan(entry.Name, entry.Source, sources, libraries, kind, MediaPlanner.KnownShows(known)), ct);
             if (plan.Problem is not null || plan.Ignored is not null || !Directory.Exists(plan.LibraryRoot))
             {
                 // Ignored: the video was already in the library before Mira, so only side files would move.

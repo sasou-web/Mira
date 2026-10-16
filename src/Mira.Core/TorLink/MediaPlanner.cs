@@ -49,13 +49,23 @@ public sealed record ImportOperation(string Source, string Destination, string R
 /// </summary>
 public sealed record ImportPlan(MediaKind Kind, string Title, string? LibraryRoot, IReadOnlyList<string> Folders, IReadOnlyList<ImportOperation> Operations, IReadOnlyList<string> Notes, string? Ignored = null, string? Problem = null);
 
+/// <summary>
+/// A show Mira already placed, under one of the names releases give it (<see cref="ReleaseName.Key"/>): its library,
+/// its folder there, and the season of the episodes placed under that name (null when they spanned several).
+/// </summary>
+public sealed record KnownShow(string Key, string Root, string Folder, int? Season);
+
 /// <summary>Turns a finished download into Jellyfin-style paths: "Films\Title (Year)\Title (Year).mkv", "Series\Show\Season 01\Show - S01E02.mkv".</summary>
 public static class MediaPlanner
 {
     private static readonly HashSet<string> TvSources = new(StringComparer.OrdinalIgnoreCase) { "eztv", "solid", "tpb-tv", "x1337-tv" };
     private static readonly HashSet<string> AnimeSources = new(StringComparer.OrdinalIgnoreCase) { "nyaa", "subsplease" };
 
-    public static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced = null)
+    /// <summary>
+    /// <paramref name="known"/>: the shows placed before (<see cref="KnownShows"/>), so that an episode named otherwise
+    /// (the romaji title of a fansub group, an English one elsewhere) joins the show it belongs to.
+    /// </summary>
+    public static ImportPlan Plan(string torrentName, string? source, IReadOnlyList<SourceFile> files, MediaLibraries libraries, MediaKind? forced = null, IReadOnlyList<KnownShow>? known = null)
     {
         if (string.Equals(source, "fitgirl", StringComparison.OrdinalIgnoreCase))
             return Ignore("Jeu vidéo : il reste dans le dossier TorLink, rien n’est ajouté à Jellyfin.");
@@ -73,6 +83,7 @@ public static class MediaPlanner
 
         var context = new Context(torrentName, source, libraries, notes)
         {
+            Known = known ?? [],
             AnimeSource = source is not null && AnimeSources.Contains(source),
             TvSource = source is not null && TvSources.Contains(source),
             Grouped = ReleaseName.HasGroupPrefix(torrentName),
@@ -99,6 +110,34 @@ public static class MediaPlanner
         public List<string> Notes { get; } = notes;
         public bool AnimeSource, TvSource, Grouped, AbsoluteAllowed;
         public int? PackSeason;
+        public IReadOnlyList<KnownShow> Known = [];
+    }
+
+    /// <summary>
+    /// The shows of earlier placements under the name of their release and the other names it gave
+    /// (<see cref="ReleaseName.AlternateTitles"/>), one per name: the folder that received the most episodes under it
+    /// (the most recent at equal count), and their season. Only folders still there count.
+    /// </summary>
+    public static List<KnownShow> KnownShows(IEnumerable<TorLinkImportEntry> entries)
+    {
+        var seen = new List<(string Key, string Root, string Folder, int? Season, DateTimeOffset At)>();
+        foreach (var entry in entries.Where(x => x.Kind is MediaKind.Series or MediaKind.Anime && x.LibraryRoot is not null))
+        {
+            var root = entry.LibraryRoot!;
+            var episodes = entry.Files.Where(f => f.Role == "video" && !f.Found).Select(f => Path.GetRelativePath(root, f.Destination).Split('\\', '/')).Where(x => x.Length == 3 && x[0] is not ("." or "..")).ToList();
+            if (episodes.Count == 0) continue;
+            var folder = episodes[0][0];
+            if (episodes.Any(x => !string.Equals(x[0], folder, StringComparison.OrdinalIgnoreCase)) || !Directory.Exists(Path.Combine(root, folder))) continue;
+            var seasons = episodes.Select(x => ReleaseName.SeasonOfFolder(x[1])).Distinct().ToList();
+            var season = seasons is [{ } one] ? one : (int?)null;
+            foreach (var key in ReleaseName.AlternateTitles(entry.Name).Prepend(ReleaseName.Show(entry.Name).Title).Select(ReleaseName.Key).Where(x => x.Length > 0).Distinct())
+                seen.Add((key, root, folder, season, entry.CompletedAt));
+        }
+        return seen.GroupBy(x => x.Key).Select(byKey =>
+        {
+            var place = byKey.GroupBy(x => (Root: x.Root.ToLowerInvariant(), Folder: x.Folder.ToLowerInvariant())).OrderByDescending(x => x.Count()).ThenByDescending(x => x.Max(y => y.At)).First().OrderByDescending(x => x.At).ToList();
+            return new KnownShow(byKey.Key, place[0].Root, place[0].Folder, place.FirstOrDefault(x => x.Season is not null).Season);
+        }).ToList();
     }
 
     private static bool IsBonus(SourceFile file) =>
@@ -197,9 +236,21 @@ public static class MediaPlanner
         if (title.Length == 0) (title, year) = ReleaseName.Show(Path.GetFileName(reference.RelativePath));
         if (title.Length == 0) title = ReleaseName.SafeName(Path.GetFileNameWithoutExtension(context.TorrentName));
         var single = videos.Count == 1;
-        var numbered = videos.Where(v => !IsBonus(v)).Select(v => EpisodeOf(v, context, single)).OfType<EpisodeNumber>().ToList();
         var animeFolder = FindFolder(context.Libraries.Anime, title, year);
         var seriesFolder = string.Equals(context.Libraries.Series, context.Libraries.Anime, StringComparison.OrdinalIgnoreCase) ? null : FindFolder(context.Libraries.Series, title, year);
+        // No folder under this name: a show placed before under it, or one of the other names this release gives.
+        var alias = animeFolder is null && seriesFolder is null ? KnownAs(context, title) : null;
+        if (alias is not null)
+        {
+            if (forced is null || context.Libraries.RootFor(forced.Value) is { } forcedRoot && SameFolder(forcedRoot, alias.Root))
+            {
+                if (SameFolder(alias.Root, context.Libraries.Anime)) animeFolder = alias.Folder; else if (SameFolder(alias.Root, context.Libraries.Series)) seriesFolder = alias.Folder; else alias = null;
+            }
+            else alias = null;
+        }
+        // Numbered without a season ("[Erai-raws] Show - 05"): the season of the episodes placed under this name.
+        if (alias?.Season is { } aliasSeason) context.PackSeason ??= aliasSeason;
+        var numbered = videos.Where(v => !IsBonus(v)).Select(v => EpisodeOf(v, context, single)).OfType<EpisodeNumber>().ToList();
         // An existing show decides first, then TorLink's source, then fansub conventions.
         var kind = forced ?? (animeFolder is not null ? MediaKind.Anime
             : seriesFolder is not null ? MediaKind.Series
@@ -208,7 +259,7 @@ public static class MediaPlanner
             : context.Grouped || numbered.Any(x => x.Absolute) ? MediaKind.Anime : MediaKind.Series);
         var root = context.Libraries.RootFor(kind);
         if (root is null) return Blocked(kind, $"Choisis le dossier {(kind == MediaKind.Anime ? "Animes" : "Séries")} de Jellyfin dans Réglages → TorLink.");
-        var show = FindFolder(root, title, year) ?? ReleaseName.SafeName(year is null ? title : $"{title} ({year})");
+        var show = FindFolder(root, title, year) ?? (alias is not null && SameFolder(alias.Root, root) ? alias.Folder : null) ?? ReleaseName.SafeName(year is null ? title : $"{title} ({year})");
         var showPath = Path.Combine(root, show);
         var seasons = ExistingFolders(showPath);
         string SeasonFolder(int season) => seasons.FirstOrDefault(x => ReleaseName.SeasonOfFolder(x) == season) ?? (season == 0 ? "Season 00" : $"Season {season:00}");
@@ -259,6 +310,24 @@ public static class MediaPlanner
         var display = episodes.Count == 1 ? $"{cleanTitle} · {episodes.Keys.Single()}" : episodes.Count > 1 ? $"{cleanTitle} · {episodes.Count} épisodes" : cleanTitle;
         return new(kind, display, root, [showPath], operations, context.Notes);
     }
+
+    /// <summary>
+    /// The show known under <paramref name="title"/> (placed before under that name, or under one of the release's
+    /// other names), else an existing folder named like one of those other names.
+    /// </summary>
+    private static KnownShow? KnownAs(Context context, string title)
+    {
+        var names = ReleaseName.AlternateTitles(context.TorrentName).Prepend(title).Select(ReleaseName.Key).Where(x => x.Length > 0).Distinct().ToList();
+        foreach (var key in names)
+            if (context.Known.FirstOrDefault(x => x.Key == key) is { } known) return known;
+        foreach (var name in ReleaseName.AlternateTitles(context.TorrentName))
+            foreach (var root in new[] { context.Libraries.Anime, context.Libraries.Series }.OfType<string>())
+                if (FindFolder(root, name, null) is { } folder) return new(ReleaseName.Key(name), root, folder, null);
+        return null;
+    }
+
+    private static bool SameFolder(string? a, string? b) =>
+        a is not null && b is not null && string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(a)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(b)), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     /// <summary>An existing folder of the library for this title (any punctuation or case), preferring the same year.</summary>
     public static string? FindFolder(string? root, string title, int? year)
