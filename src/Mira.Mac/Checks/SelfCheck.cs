@@ -88,6 +88,23 @@ public static class SelfCheck
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
 
+            // —— Téléchargements: sent to the PC of Jellyfin ——
+            if (mock is not null)
+            {
+                Check(await Until(() => window.Offers("downloads"), 5), "téléchargements : proposés à un administrateur");
+                window.Go("downloads");
+                Check(await Until(() => window.Current is DownloadsPage { Ready: true, QueueCount: > 1 }, 10), "téléchargements : le PC serveur et sa file", $"{(window.Current as DownloadsPage)?.QueueCount} lignes");
+                if (window.Current is DownloadsPage downloads)
+                {
+                    await downloads.SearchAsync("Brume basse");
+                    Check(downloads.ResultGroups == 1, "téléchargements : versions regroupées par titre", $"{downloads.ResultGroups} groupes");
+                    await downloads.SendBestAsync();
+                    bool sent; lock (mock.Requests) sent = mock.Requests.Contains("Brume.Basse.2024.MULTI.1080p.BluRay.x264-NOTAG");
+                    Check(sent && await Until(() => downloads.QueueCount > 2, 6), "téléchargements : la meilleure version envoyée", string.Join(", ", mock.Requests));
+                    await Task.Delay(800); Capture(window, output, "07-downloads");
+                }
+            }
+
             // —— Playback, OpenGL then software ——
             foreach (var software in new[] { false, true })
             {
