@@ -47,7 +47,8 @@ export function create({ query }) {
   const placedList = h('div', { class: 'group torlink-list', hidden: true });
   const note = h('p', { class: 'group-note torlink-note' },
     'TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les comptes administrateurs de Jellyfin voient cet écran.');
-  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), found, listTitle, list, placedTitle, placedList, note);
+  // What the PC has under way comes before the results: a download just asked for shows at once, not 60 results below.
+  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, found, placedTitle, placedList, note);
   clear(el).append(back,
     h('div', { class: 'page', style: { paddingTop: 'calc(var(--top) + 64px)', paddingBottom: '12px' } }, h('h1', { class: 'page-title' }, 'Télécharger'), status),
     body);
@@ -264,7 +265,9 @@ export function create({ query }) {
     try {
       await api.torlinkRequest(body);
       toast(ready ? 'Envoyé au PC serveur.' : 'Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.');
-      load();
+      await load();
+      // Its row, with its progress, is above the results: brought into view when the results hid it.
+      if (!listTitle.hidden && listTitle.getBoundingClientRect().top < 0) listTitle.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       return true;
     } catch (error) {
       toast(explain(error));

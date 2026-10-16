@@ -1668,7 +1668,7 @@ const agentLoop = (async () => {
     for (const r of work?.requests ?? []) {
       fake.seen.push(`add ${r.name}`);
       fake.requests.push({ id: r.id, state: 'sent', error: null });
-      fake.downloads.push({ id: /btih:([0-9a-f]{40})/i.exec(r.magnet)[1].toLowerCase(), name: r.name, status: 'downloading', progress: 37, speed: 2.5 * 2 ** 20, peers: 4 });
+      fake.downloads.push({ id: /btih:([0-9a-f]{40})/i.exec(r.magnet)[1].toLowerCase(), name: r.name, status: 'downloading', progress: 37, speed: 2.5 * 2 ** 20, peers: 4, size: Math.round(1.4 * 2 ** 30), downloaded: Math.round(0.37 * 1.4 * 2 ** 30), eta: 380 });
     }
     for (const c of work?.controls ?? []) {
       fake.seen.push(`${c.action} ${c.target}`);
@@ -1734,7 +1734,7 @@ fake.stop = true; await agentLoop;
 await dlContext.close();
 check('télécharger sur le PC serveur (administrateur) : recherche faite par le PC, téléchargement suivi, pause, annulation, lien magnet collé',
   /PC-CHECK est prêt/.test(dl.ready) && fake.seen.includes('search tv mira check') && dl.hit === 'Mira Check 2026 1080p | 1,4 Go · 42 sources · check'
-    && /37 % · 2,5 Mo\/s · 4 pairs/.test(dl.row) && /^En pause/.test(dl.paused) && dl.cancelled && fake.seen.includes(`delete ${picked}`)
+    && /37 % · 530 Mo sur 1,4 Go · 2,5 Mo\/s · reste 6 min · 4 pairs/.test(dl.row) && /^En pause/.test(dl.paused) && dl.cancelled && fake.seen.includes(`delete ${picked}`)
     && /pas un lien magnet/.test(dl.refused) && /Collé Check/.test(dl.pasted) && !dlErrors.length,
   dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
 check('télécharger sur le PC serveur : refusé à un compte qui n’est pas administrateur', dl.other === 403, String(dl.other));

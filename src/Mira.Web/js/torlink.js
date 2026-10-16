@@ -122,15 +122,53 @@ export function requestLine(request) {
   }
 }
 
-/** A download in TorLink: « 42 % · 2,4 Mo/s · 12 pairs », « En pause · 42 % », « Arrêté · 42 % ». */
+/** « moins d’une minute », « 12 min », « 1 h 05 », « 3 jours »: what is left, in seconds. */
+export function remaining(seconds) {
+  const n = Math.max(0, Number(seconds) || 0);
+  if (n < 60) return 'moins d’une minute';
+  const minutes = Math.round(n / 60);
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+  const days = Math.round(n / 86400);
+  return days === 1 ? '1 jour' : `${days} jours`;
+}
+
+/**
+ * Seconds a download still needs: TorLink's own guess (eta), or what is left of its size at its speed (an agent of
+ * 0.7.9 sends neither); null when nothing comes or the size is unknown.
+ */
+export function timeLeft(download) {
+  if (download?.status !== 'downloading') return null;
+  const eta = Number(download.eta);
+  if (eta > 0) return eta;
+  const total = Number(download.size) || 0, rate = Number(download.speed) || 0;
+  if (total <= 0 || rate <= 0) return null;
+  return Math.max(0, total - (Number(download.downloaded) || 0)) / rate;
+}
+
+/** « 1,2 Go sur 2,9 Go », or « 2,9 Go » before anything came; empty when TorLink does not know the size yet. */
+export function amountLine(download) {
+  const total = Number(download?.size) || 0;
+  if (total <= 0) return '';
+  const done = Math.min(total, Math.max(0, Number(download.downloaded) || 0));
+  return done > 0 && done < total ? `${size(done)} sur ${size(total)}` : size(total);
+}
+
+/**
+ * A download in TorLink: « 42 % · 1,2 Go sur 2,9 Go · 2,4 Mo/s · reste 12 min · 12 pairs », « En pause · 42 % »,
+ * « Arrêté · 42 % ».
+ */
 export function downloadLine(download) {
   const progress = `${Math.max(0, Math.min(100, Math.round(Number(download?.progress) || 0)))} %`;
   const peers = Math.max(0, Number(download?.peers) || 0);
   switch (download?.status) {
-    case 'downloading':
-      return [progress, speed(download.speed), peers === 1 ? '1 pair' : peers > 1 ? `${peers} pairs` : 'recherche de pairs'].filter(Boolean).join(' · ');
-    case 'queued': return `En file d’attente · ${progress}`;
-    case 'paused': return `En pause · ${progress}`;
+    case 'downloading': {
+      const rate = speed(download.speed), left = timeLeft(download);
+      if (!rate) return [progress, amountLine(download), peers === 1 ? '1 pair, en attente de données' : peers > 1 ? `${peers} pairs, en attente de données` : 'recherche de pairs…'].filter(Boolean).join(' · ');
+      return [progress, amountLine(download), rate, left !== null && `reste ${remaining(left)}`, peers === 1 ? '1 pair' : peers > 1 ? `${peers} pairs` : ''].filter(Boolean).join(' · ');
+    }
+    case 'queued': return [`En file d’attente · ${progress}`, amountLine(download)].filter(Boolean).join(' · ');
+    case 'paused': return [`En pause · ${progress}`, amountLine(download)].filter(Boolean).join(' · ');
     case 'stopped': return `Arrêté · ${progress} · reprend quand TorLink rouvre sur le PC serveur`;
     case 'failed': return `Échec · ${progress}`;
     case 'completed': case 'seeding': return 'Terminé · rangement dans ta bibliothèque…';

@@ -78,7 +78,7 @@ public static class TorLinkRemote
             using var document = JsonDocument.Parse(json);
             return document.RootElement.ValueKind == JsonValueKind.Array
                 ? document.RootElement.EnumerateArray().Select(Download).OfType<RelayDownload>()
-                    .Select(x => running ? x : x with { Speed = 0, Peers = 0, Status = x.Status is "downloading" or "queued" ? "stopped" : x.Status }).DistinctBy(x => x.Id).Take(60).ToList()
+                    .Select(x => running ? x : x with { Speed = 0, Peers = 0, Eta = null, Status = x.Status is "downloading" or "queued" ? "stopped" : x.Status }).DistinctBy(x => x.Id).Take(60).ToList()
                 : [];
         }
         catch (JsonException) { return []; }
@@ -87,7 +87,8 @@ public static class TorLinkRemote
     private static RelayDownload? Download(JsonElement item) =>
         item.ValueKind == JsonValueKind.Object && Text(item, "id") is { } id && RemoteDownloads.IsInfoHash(id.ToLowerInvariant())
             ? new(id.ToLowerInvariant(), RemoteDownloads.CleanName(Text(item, "name")) ?? id, Text(item, "status") ?? "", (int)Math.Clamp(Number(item, "progress"), 0, 100),
-                Number(item, "speed"), (int)Math.Min(int.MaxValue, Number(item, "peers")))
+                Number(item, "speed"), (int)Math.Min(int.MaxValue, Number(item, "peers")), Number(item, "totalBytes"), Number(item, "downloadedBytes"),
+                Number(item, "eta") is > 0 and var eta && Text(item, "status") == "downloading" ? Math.Min(eta, RemoteDownloads.MaxEta) : null)
             : null;
 
     /// <summary>Something still downloads, waits its turn, or is shared: TorLink without a window keeps running.</summary>

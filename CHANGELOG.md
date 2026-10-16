@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Où en est un téléchargement lancé depuis ton téléphone** (Mira web, Télécharger sur le PC serveur) : la liste de ce que fait le PC serveur passe au-dessus des résultats de recherche, et la page y remonte quand tu touches **Télécharger** (avant, elle restait sous 60 résultats, et rien ne semblait se passer). Chaque ligne dit maintenant la taille reçue, le débit et le temps restant : « 41 % · 1,2 Go sur 2,9 Go · 2,0 Mo/s · reste 13 min · 12 pairs ». Il faut l’extension et Mira pour Windows de cette version sur le PC serveur pour la taille et le temps restant.
+
 ## 0.7.9 — 2026-10-16
 
 Regarder ensemble plus simple, lecture plus fiable, PC serveur toujours joignable, recherche enrichie, titres gardés sur le PC et Mira web à jour le jour même.
