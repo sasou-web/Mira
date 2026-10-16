@@ -40,7 +40,7 @@ public partial class MainWindow
         foreach (var folder in Friends.Choices(_friendFolders))
         {
             var check = new CheckBox { Tag = folder.ItemId };
-            AutomationProperties.SetName(check, $"Partager « {folder.Name} »");
+            AutomationProperties.SetName(check, L($"Partager « {folder.Name} »", $"Share “{folder.Name}”"));
             var line = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
             DockPanel.SetDock(check, Dock.Right); line.Children.Add(check);
             line.Children.Add(new TextBlock { Text = folder.Name, VerticalAlignment = VerticalAlignment.Center });
@@ -57,12 +57,12 @@ public partial class MainWindow
         var name = Friends.CleanName(FriendNameBox.Text);
         if (Friends.NameProblem(name, []) is { } wrong) { FriendStatus.Text = wrong; FriendNameBox.Focus(); return; }
         var chosen = ChosenLibraries();
-        if (chosen.Count == 0) { FriendStatus.Text = "Choisis au moins une bibliothèque à partager."; return; }
-        _friendBusy = true; FriendCreateButton.IsEnabled = false; FriendStatus.Text = "Création de son compte…";
+        if (chosen.Count == 0) { FriendStatus.Text = L("Choisis au moins une bibliothèque à partager.", "Choose at least one library to share."); return; }
+        _friendBusy = true; FriendCreateButton.IsEnabled = false; FriendStatus.Text = L("Création de son compte…", "Creating their account…");
         var ct = _connectionLifetime.Token;
         try
         {
-            if (await client.UsersAsync(ct) is not { } users) { FriendStatus.Text = "Seul un administrateur de Jellyfin peut ajouter un compte."; return; }
+            if (await client.UsersAsync(ct) is not { } users) { FriendStatus.Text = L("Seul un administrateur de Jellyfin peut ajouter un compte.", "Only a Jellyfin administrator can add an account."); return; }
             if (Friends.NameProblem(name, users.Select(x => x.Name)) is { } taken) { FriendStatus.Text = taken; FriendNameBox.Focus(); FriendNameBox.SelectAll(); return; }
             var password = Friends.NewPassword();
             var friend = await client.CreateFriendAsync(name, password, Friends.Folders(_friendFolders, chosen), ct);
@@ -85,11 +85,13 @@ public partial class MainWindow
     private void ShowFriendDone(JellyfinClient client, AuthUser friend, string password, bool codes, IReadOnlyList<string> shared)
     {
         FriendForm.Visibility = Visibility.Collapsed; FriendDone.Visibility = Visibility.Visible;
-        FriendDoneTitle.Text = $"Compte de {friend.Name} créé, avec {Friends.Joined(shared)}.";
+        FriendDoneTitle.Text = L($"Compte de {friend.Name} créé, avec {Friends.Joined(shared)}.", $"{friend.Name}’s account is ready, with {Friends.Joined(shared)}.");
         var address = ReachableServer(client) + "/Mira";
         FriendDoneText.Text = codes
-            ? $"Sur son téléphone, {friend.Name} ouvre {address}, touche « Se connecter avec un code » et te donne les 6 chiffres : « Autoriser son téléphone » les saisit pour son compte. Aucun mot de passe à lui envoyer."
-            : $"{friend.Name} se connecte sur son téléphone ({address}) ou dans Mira pour Windows ou Mac avec son prénom et ce mot de passe. Envoie-le-lui : Mira ne le garde pas.";
+            ? L($"Sur son téléphone, {friend.Name} ouvre {address}, touche « Se connecter avec un code » et te donne les 6 chiffres : « Autoriser son téléphone » les saisit pour son compte. Aucun mot de passe à lui envoyer.",
+                $"On their phone, {friend.Name} opens {address}, taps “Sign in with a code” and gives you the 6 digits: “Allow their phone” enters them for their account. No password to send them.")
+            : L($"{friend.Name} se connecte sur son téléphone ({address}) ou dans Mira pour Windows ou Mac avec son prénom et ce mot de passe. Envoie-le-lui : Mira ne le garde pas.",
+                $"{friend.Name} signs in on their phone ({address}) or in Mira for Windows or Mac with their name and this password. Send it to them: Mira doesn’t keep it.");
         FriendPasswordBox.Text = password;
         FriendPasswordPanel.Visibility = codes ? Visibility.Collapsed : Visibility.Visible;
         FriendPasswordButton.Visibility = codes ? Visibility.Visible : Visibility.Collapsed;
@@ -102,20 +104,20 @@ public partial class MainWindow
         if (_friendMade is not { } made || ApproveDeviceRow.Visibility != Visibility.Visible) return;
         SelectApproveAccount(made.User.Id);
         ApproveDeviceRow.BringIntoView();
-        ApproveDeviceStatus.Text = $"Saisis les 6 chiffres que {made.User.Name} voit sur son téléphone.";
+        ApproveDeviceStatus.Text = L($"Saisis les 6 chiffres que {made.User.Name} voit sur son téléphone.", $"Enter the 6 digits {made.User.Name} sees on their phone.");
         ApproveCodeBox.Focus();
     }
     private void FriendPassword_Click(object sender, RoutedEventArgs e)
     {
         if (_friendMade is not { } made) return;
         FriendPasswordPanel.Visibility = Visibility.Visible; FriendPasswordButton.Visibility = Visibility.Collapsed;
-        FriendStatus.Text = $"Sans code, {made.User.Name} se connecte avec son prénom et ce mot de passe, sur son téléphone ou dans Mira pour Windows ou Mac. Mira ne le garde pas.";
+        FriendStatus.Text = L($"Sans code, {made.User.Name} se connecte avec son prénom et ce mot de passe, sur son téléphone ou dans Mira pour Windows ou Mac. Mira ne le garde pas.", $"Without a code, {made.User.Name} signs in with their name and this password, on their phone or in Mira for Windows or Mac. Mira doesn’t keep it.");
         FriendPasswordBox.Focus(); FriendPasswordBox.SelectAll();
     }
     private void FriendPasswordCopy_Click(object sender, RoutedEventArgs e)
     {
-        try { Clipboard.SetText(FriendPasswordBox.Text); FriendStatus.Text = "Mot de passe copié."; }
-        catch (System.Runtime.InteropServices.ExternalException) { FriendStatus.Text = "Le presse-papiers est occupé : réessaie."; }
+        try { Clipboard.SetText(FriendPasswordBox.Text); FriendStatus.Text = L("Mot de passe copié.", "Password copied."); }
+        catch (System.Runtime.InteropServices.ExternalException) { FriendStatus.Text = L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again."); }
     }
     private void FriendAgain_Click(object sender, RoutedEventArgs e)
     {

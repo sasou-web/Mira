@@ -15,22 +15,22 @@ public partial class MainWindow
     private void ReportPeriod_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing && ReportSettings.IsVisible) _ = ShowReportAsync(); }
     private async Task ShowReportAsync()
     {
-        var version = ++_reportVersion; var year = Choice(ReportPeriod) == "year"; var period = year ? "cette année" : "ce mois-ci";
+        var version = ++_reportVersion; var year = Choice(ReportPeriod) == "year"; var period = year ? L("cette année", "this year") : L("ce mois-ci", "this month");
         ReportBody.Children.Clear(); ReportTime.Text = "";
-        if (_demo || _client is not { } client) { ReportCounts.Text = "Ton bilan se calcule avec ton compte Jellyfin."; return; }
-        ReportCounts.Text = "Calcul de ton bilan…";
+        if (_demo || _client is not { } client) { ReportCounts.Text = L("Ton bilan se calcule avec ton compte Jellyfin.", "Your recap is worked out from your Jellyfin account."); return; }
+        ReportCounts.Text = L("Calcul de ton bilan…", "Working out your recap…");
         try
         {
             var from = WatchReport.Start(DateTimeOffset.Now, year);
             var (played, series) = await client.PlayedSinceAsync(from, _connectionLifetime.Token);
             if (version != _reportVersion) return;
             var report = WatchReport.Build(played, series, from);
-            if (report.Empty) { ReportCounts.Text = $"Aucun film ni épisode terminé {period} pour l’instant."; return; }
+            if (report.Empty) { ReportCounts.Text = L($"Aucun film ni épisode terminé {period} pour l’instant.", $"No movie or episode finished {period} yet."); return; }
             ReportTime.Text = WatchReport.Time(report.Minutes);
-            ReportCounts.Text = $"devant l’écran {period} · " + string.Join(" · ", new[] { report.Films > 0 ? WatchReport.Count(report.Films, "film", "films") : null, report.Episodes > 0 ? WatchReport.Count(report.Episodes, "épisode", "épisodes") : null }.OfType<string>());
-            Part("SÉRIES LES PLUS REGARDÉES", report.Series.Select(x => (x.Name, $"{WatchReport.Count(x.Episodes, "épisode", "épisodes")} · {WatchReport.Time(x.Minutes)}")));
-            Part(report.Finished.Count > 1 ? "SÉRIES TERMINÉES" : "SÉRIE TERMINÉE", report.Finished.Select(x => (x, "")));
-            if (report.Genres.Count > 0) Part("GENRES PRÉFÉRÉS", [(string.Join(" · ", report.Genres), "")]);
+            ReportCounts.Text = L($"devant l’écran {period} · ", $"watched {period} · ") + string.Join(" · ", new[] { report.Films > 0 ? WatchReport.Count(report.Films, L("film", "movie"), L("films", "movies")) : null, report.Episodes > 0 ? WatchReport.Count(report.Episodes, L("épisode", "episode"), L("épisodes", "episodes")) : null }.OfType<string>());
+            Part(L("SÉRIES LES PLUS REGARDÉES", "MOST WATCHED SHOWS"), report.Series.Select(x => (x.Name, $"{WatchReport.Count(x.Episodes, L("épisode", "episode"), L("épisodes", "episodes"))} · {WatchReport.Time(x.Minutes)}")));
+            Part(report.Finished.Count > 1 ? L("SÉRIES TERMINÉES", "FINISHED SHOWS") : L("SÉRIE TERMINÉE", "FINISHED SHOW"), report.Finished.Select(x => (x, "")));
+            if (report.Genres.Count > 0) Part(L("GENRES PRÉFÉRÉS", "FAVORITE GENRES"), [(string.Join(" · ", report.Genres), "")]);
         }
         catch (Exception ex) when (IsExpected(ex) && !_connectionLifetime.IsCancellationRequested)
         {

@@ -67,14 +67,14 @@ public partial class MainWindow
     private void InitializeFilters()
     {
         PopulateFilters(new CatalogFilters());
-        LibraryFilter.Items.Add(new ComboBoxItem { Content = "Toutes les bibliothèques", Tag = "" }); LibraryFilter.SelectedIndex = 0;
+        LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
     }
     private void PopulateFilters(CatalogFilters filters)
     {
         _filterBusy = true;
-        GenreFilter.Items.Clear(); GenreFilter.Items.Add(new ComboBoxItem { Content = "Tous", Tag = "" });
+        GenreFilter.Items.Clear(); GenreFilter.Items.Add(new ComboBoxItem { Content = L("Tous", "All"), Tag = "" });
         foreach (var genre in filters.Genres.Order(StringComparer.CurrentCultureIgnoreCase)) GenreFilter.Items.Add(new ComboBoxItem { Content = genre, Tag = genre });
-        YearFilter.Items.Clear(); YearFilter.Items.Add(new ComboBoxItem { Content = "Toutes", Tag = "" });
+        YearFilter.Items.Clear(); YearFilter.Items.Add(new ComboBoxItem { Content = L("Toutes", "All"), Tag = "" });
         foreach (var year in filters.Years.OrderDescending()) YearFilter.Items.Add(new ComboBoxItem { Content = year.ToString(), Tag = year.ToString() });
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = 0; _filterBusy = false;
     }
@@ -90,8 +90,8 @@ public partial class MainWindow
     {
         if (_catalog.Favorites) { FavoritesFilter.Background = Palette.Get("Text"); FavoritesFilter.Foreground = FavoritesIcon.Foreground = Palette.Get("OnAccent"); }
         else { FavoritesFilter.ClearValue(BackgroundProperty); FavoritesFilter.ClearValue(ForegroundProperty); FavoritesIcon.ClearValue(Views.Icon.ForegroundProperty); }
-        System.Windows.Automation.AutomationProperties.SetName(FavoritesFilter, _catalog.Favorites ? "Favoris seulement, activé" : "Favoris seulement");
-        FavoritesFilter.ToolTip = _catalog.Favorites ? "Afficher tous les titres" : "Afficher seulement tes favoris";
+        System.Windows.Automation.AutomationProperties.SetName(FavoritesFilter, _catalog.Favorites ? L("Favoris seulement, activé", "Favorites only, on") : L("Favoris seulement", "Favorites only"));
+        FavoritesFilter.ToolTip = _catalog.Favorites ? L("Afficher tous les titres", "Show all titles") : L("Afficher seulement tes favoris", "Show only your favorites");
     }
     private async void ResetFilters_Click(object sender, RoutedEventArgs e) { ResetFilters(); await RefreshAsync(); }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing && !_filterBusy) await RefreshAsync(); }
@@ -170,7 +170,7 @@ public partial class MainWindow
         if (empty) DescribeEmptyState(search);
         if (empty && EmptyState.Visibility != Visibility.Visible) Motion.Reveal(EmptyState, 260, 8); else if (!empty) EmptyState.Visibility = Visibility.Collapsed;
         ShowSkeleton(grid && _catalog.Loading);
-        if (_catalog.Loading) ItemCount.Text = "Chargement…";
+        if (_catalog.Loading) ItemCount.Text = L("Chargement…", "Loading…");
         LoadMore.Visibility = grid && !_demo && !_catalog.Loading && _catalog.Items.Count < _catalog.TotalCount ? Visibility.Visible : Visibility.Collapsed;
         UpdateResumeArrows(); UpdateHeroClock();
         if (!_startupComplete && !_catalog.Loading && (_catalog.Items.Count > 0 || _catalog.Resume.Count > 0)) _ = RevealStartupAsync();
@@ -302,18 +302,18 @@ public partial class MainWindow
             // A saga plays nothing by itself: its films do, from their page.
             if (item.Type == "BoxSet")
             {
-                menu.Items.Add(MenuAction("Voir la saga", "info", async () => await ShowSagaAsync(item, SearchBox.Text.Trim())));
-                menu.Items.Add(MenuAction(item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
+                menu.Items.Add(MenuAction(L("Voir la saga", "View collection"), "info", async () => await ShowSagaAsync(item, SearchBox.Text.Trim())));
+                menu.Items.Add(MenuAction(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
                 return;
             }
             var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
-            menu.Items.Add(MenuAction(resume ? "Reprendre" : "Regarder", "play", async () => await PlayAsync(item, chosen: true)));
-            if (resume) menu.Items.Add(MenuAction("Lire depuis le début", "refresh", async () => await PlayAsync(item, fromStart: true, chosen: true)));
-            menu.Items.Add(MenuAction(item.Type == "Episode" ? "Voir la série" : "Voir la fiche", "info", async () => await ShowDetailsAsync(await PageItemAsync(item))));
+            menu.Items.Add(MenuAction(resume ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", async () => await PlayAsync(item, chosen: true)));
+            if (resume) menu.Items.Add(MenuAction(L("Lire depuis le début", "Play from the beginning"), "refresh", async () => await PlayAsync(item, fromStart: true, chosen: true)));
+            menu.Items.Add(MenuAction(item.Type == "Episode" ? L("Voir la série", "View show") : L("Voir la fiche", "View details"), "info", async () => await ShowDetailsAsync(await PageItemAsync(item))));
             menu.Items.Add(new Separator());
-            menu.Items.Add(MenuAction(item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu", item.UserData.Played ? "refresh" : "check", async () => await SetPlayedAsync(item, !item.UserData.Played)));
-            menu.Items.Add(MenuAction(item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
-            if (wide) menu.Items.Add(MenuAction("Retirer de Continuer à regarder", "close", async () => await HideFromResumeAsync(item)));
+            menu.Items.Add(MenuAction(item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"), item.UserData.Played ? "refresh" : "check", async () => await SetPlayedAsync(item, !item.UserData.Played)));
+            menu.Items.Add(MenuAction(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
+            if (wide) menu.Items.Add(MenuAction(L("Retirer de Continuer à regarder", "Remove from Continue watching"), "close", async () => await HideFromResumeAsync(item)));
             if (OfflineMenuItem(item) is { } offline) { menu.Items.Add(new Separator()); menu.Items.Add(offline); }
         };
         menu.Items.Add(new MenuItem { Header = "…" }); // replaced when opened
@@ -331,7 +331,7 @@ public partial class MainWindow
         var at = DateTimeOffset.UtcNow; _catalog.HiddenResume[group] = at;
         if (resumable) _catalog.RecentPlayback.RemoveAll(x => x.Id == item.Id);
         RenderLibrary();
-        SetNotice($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", "Annuler", () => _ = ShowInResumeAsync(item, group, resumable ? ticks : 0), sticky: false);
+        SetNotice(L($"« {item.DisplayTitle} » ne sera plus dans Continuer à regarder.", $"“{item.DisplayTitle}” removed from Continue watching."), L("Annuler", "Undo"), () => _ = ShowInResumeAsync(item, group, resumable ? ticks : 0), sticky: false);
         _resumeChange = Save();
         await _resumeChange;
         ChoicesChanged();
@@ -342,7 +342,7 @@ public partial class MainWindow
                 if (store is not null) await Task.Run(() => { store.HideFromResume(group, at); if (resumable) store.ForgetProgress(item.Id); });
                 if (resumable && client is not null) await client.SetPlaybackPositionAsync(item.Id, 0);
             }
-            catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex) + " Le titre est retiré de Mira seulement."); }
+            catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex) + L(" Le titre est retiré de Mira seulement.", " The title is removed from Mira only.")); }
         }
     }
     /// <summary>The last removal still being saved: « Annuler » waits for it, so that it cannot land after the undo.</summary>
@@ -423,7 +423,7 @@ public partial class MainWindow
             if (_store is { } store) await Task.Run(() => store.ForgetProgress(item.Id));
             _catalog.MarkPlayed(item, played, _episodes, _similar);
             _metadata?.Clear();
-            SetNotice($"« {item.DisplayTitle} » {(played ? "marqué comme vu" : "marqué comme non vu")}.");
+            SetNotice(L($"« {item.DisplayTitle} » {(played ? "marqué comme vu" : "marqué comme non vu")}.", $"“{item.DisplayTitle}” marked as {(played ? "watched" : "unwatched")}."));
             RenderAfterUserDataChange();
             if (!_demo) await RefreshAsync(quiet: true);
         }

@@ -74,18 +74,18 @@ public partial class MainWindow
         HeroTitle.Text = item.DisplayTitle; HeroTitle.Visibility = logo is null ? Visibility.Visible : Visibility.Collapsed;
         HeroLogo.Source = logo; HeroLogo.Visibility = logo is null ? Visibility.Collapsed : Visibility.Visible;
         HeroOverview.Text = HeroSmallOverview.Text = PlainText(string.IsNullOrWhiteSpace(item.Overview) ? series?.Overview ?? "" : item.Overview);
-        HeroPlayText.Text = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition ? "Reprendre" : "Regarder";
+        HeroPlayText.Text = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition ? L("Reprendre", "Resume") : L("Regarder", "Watch");
         HeroMetaPills.Children.Clear();
         if (item.ProductionYear is { } year) AddPill(HeroMetaPills, year.ToString());
-        AddPill(HeroMetaPills, item.Type switch { "Series" => "Série", "Episode" => $"S{item.ParentIndexNumber ?? 1:00} · E{item.IndexNumber ?? 1:00}", _ => "Film" });
+        AddPill(HeroMetaPills, item.Type switch { "Series" => L("Série", "Series"), "Episode" => $"S{item.ParentIndexNumber ?? 1:00} · E{item.IndexNumber ?? 1:00}", _ => L("Film", "Movie") });
         if (item.DurationLabel.Length > 0) AddPill(HeroMetaPills, item.DurationLabel);
-        if (item.Type != "Episode" && item.CommunityRating is > 0) AddPill(HeroMetaPills, $"★  {item.CommunityRating:0.0}", "Success");
+        if (item.Type != "Episode" && item.CommunityRating is { } rating and > 0) AddPill(HeroMetaPills, $"★  {Number(rating, "0.0")}", "Success");
         HeroGenrePills.Children.Clear(); foreach (var genre in (series ?? item).Genres.Take(3)) AddPill(HeroGenrePills, genre);
         foreach (var pill in HeroMetaPills.Children.OfType<Border>().Concat(HeroGenrePills.Children.OfType<Border>())) if (pill.Child is TextBlock label) label.Foreground = _heroAccent;
         var favorite = (series ?? item).UserData.IsFavorite;
         // A full heart, not only a tint close to white, says the title is a favourite.
         HeroFavorite.Foreground = favorite ? _heroAccent : Brushes.White; HeroFavoriteIcon.Kind = favorite ? "heart-fill" : "heart";
-        HeroFavorite.ToolTip = favorite ? "Retirer des favoris" : "Ajouter aux favoris";
+        HeroFavorite.ToolTip = favorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites");
         System.Windows.Automation.AutomationProperties.SetName(HeroFavorite, (string)HeroFavorite.ToolTip);
     }
     private void BuildHeroDots()
@@ -97,7 +97,7 @@ public partial class MainWindow
             var track = new CarouselProgress { Width = 42, Height = 3, Accent = _heroAccent }; _heroSegments.Add(track);
             var button = new Button { Content = track, Style = (Style)FindResource("Quiet"), Width = 52, Height = 30, Padding = new Thickness(5, 10, 5, 10), BorderThickness = new Thickness(0), ToolTip = candidate.DisplayTitle };
             Motion.SetRadius(button, new CornerRadius(15));
-            System.Windows.Automation.AutomationProperties.SetName(button, "À l’affiche : " + candidate.DisplayTitle);
+            System.Windows.Automation.AutomationProperties.SetName(button, L("À l’affiche : ", "Featured: ") + candidate.DisplayTitle);
             button.Click += (_, _) => { _heroReady = SelectHeroAsync(candidate); }; HeroDots.Children.Add(button);
         }
         UpdateHeroSegments();

@@ -76,7 +76,7 @@ public partial class MainWindow
             button.Click += (_, _) => SmoothScroll.By(scroll, by, true);
             return button;
         }
-        var previous = Arrow("back", "Titres précédents", -624); var next = Arrow("next", "Titres suivants", 624);
+        var previous = Arrow("back", L("Titres précédents", "Previous titles"), -624); var next = Arrow("next", L("Titres suivants", "Next titles"), 624);
         var arrows = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
         arrows.Children.Add(previous); arrows.Children.Add(next);
         DockPanel.SetDock(arrows, Dock.Right);
@@ -108,7 +108,7 @@ public partial class MainWindow
         {
             var row = rows[i]; var grid = row.Key == HomeLayout.Latest;
             var check = new CheckBox { IsChecked = row.Shown, VerticalAlignment = VerticalAlignment.Center };
-            System.Windows.Automation.AutomationProperties.SetName(check, "Afficher « " + RowTitle(row) + " »");
+            System.Windows.Automation.AutomationProperties.SetName(check, L("Afficher « " + RowTitle(row) + " »", "Show “" + RowTitle(row) + "”"));
             check.Click += (_, _) => ApplyHomeRows(HomeLayout.Show(Ordered(rows), _homeLibraries, row.Key, check.IsChecked == true), row.Key + "check");
             var line = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
             var tools = new StackPanel { Orientation = Orientation.Horizontal };
@@ -117,8 +117,8 @@ public partial class MainWindow
                 var index = i;
                 Button Arrow(string kind, string verb, int step)
                 {
-                    var button = new Button { Style = (Style)FindResource("IconButton"), Width = 34, Height = 34, ToolTip = $"{verb} « {row.Title} »", Content = new Icon { Kind = kind, Width = 15, Height = 15 } };
-                    System.Windows.Automation.AutomationProperties.SetName(button, $"{verb} « {row.Title} »");
+                    var button = new Button { Style = (Style)FindResource("IconButton"), Width = 34, Height = 34, ToolTip = L($"{verb} « {row.Title} »", $"{verb} “{row.Title}”"), Content = new Icon { Kind = kind, Width = 15, Height = 15 } };
+                    System.Windows.Automation.AutomationProperties.SetName(button, L($"{verb} « {row.Title} »", $"{verb} “{row.Title}”"));
                     // The arrow pressed keeps the focus, or the other one once the row reaches an end.
                     var lands = step < 0 ? (index == 1 ? "down" : "up") : (index == rows.Count - 3 ? "up" : "down");
                     button.Click += (_, _) => ApplyHomeRows(HomeLayout.Move(Ordered(rows), _homeLibraries, row.Key, step), row.Key + lands);
@@ -126,7 +126,7 @@ public partial class MainWindow
                     if (focus == row.Key + kind) focused = button;
                     return button;
                 }
-                tools.Children.Add(Arrow("up", "Monter", -1)); tools.Children.Add(Arrow("down", "Descendre", 1));
+                tools.Children.Add(Arrow("up", L("Monter", "Move up"), -1)); tools.Children.Add(Arrow("down", L("Descendre", "Move down"), 1));
             }
             tools.Children.Add(check);
             if (focus == row.Key + "check") focused = check;
@@ -138,7 +138,7 @@ public partial class MainWindow
             HomeRowsList.Children.Add(line);
         }
         focused?.Focus();
-        static string RowTitle(HomeLayout.Row row) => row.Key == HomeLayout.Latest ? "Ajoutés récemment" : row.Title;
+        static string RowTitle(HomeLayout.Row row) => row.Key == HomeLayout.Latest ? L("Ajoutés récemment", "Recently added") : row.Title;
         static string Ordered(List<HomeLayout.Row> rows) => HomeLayout.Save(rows);
     }
     private void ApplyHomeRows(string value, string? focus = null)
