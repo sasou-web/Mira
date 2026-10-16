@@ -127,6 +127,12 @@ internal static class UpdateTests
             foreach (var release in all)
                 Assert(release.Summary.Length is > 10 and <= 100 && release.Items.Count is >= 2 and <= 5 && release.Items.All(x => x.Icon.Length > 0 && x.Title.Length is > 3 and <= 50 && x.Text.Length is > 10 and <= 200),
                     "Highlights of " + release.Version + " are not short");
+            // Each version written in English too (its "en" in WhatsNew.json), as short, never the French left in place.
+            foreach (var release in all)
+                Assert(release.EnglishSummary.Length is > 10 and <= 100 && release.EnglishSummary != release.FrenchSummary
+                    && release.Items.All(x => x.EnglishTitle.Length is > 3 and <= 50 && x.EnglishText.Length is > 10 and <= 200 && x.EnglishTitle != x.FrenchTitle && x.EnglishText != x.FrenchText)
+                    && !System.Text.RegularExpressions.Regex.IsMatch(release.EnglishSummary + string.Concat(release.Items.Select(x => x.EnglishTitle + x.EnglishText)), "[éèêàùçôîœ«»]"),
+                    "English highlights of " + release.Version + " are missing, French or not short");
             // The version being built has its main points: the screen after the update and the release page need them.
             var project = Path.Combine("src", "Mira.Desktop", "Mira.Desktop.csproj");
             if (File.Exists(project) && System.Text.RegularExpressions.Regex.Match(File.ReadAllText(project), "<Version>([^<]+)</Version>") is { Success: true } version)
@@ -159,6 +165,12 @@ internal static class UpdateTests
             Assert(notes.StartsWith("**Mira** est un client Jellyfin") && notes.Contains("\n\n" + all[0].Summary + "\n\n") && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains("/docs/INSTALLATION-WEB.md")
                 && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Contains("**Code signing policy**") && notes.Contains("certificate by [SignPath Foundation]") && notes.Contains("#politique-de-signature-du-code") && notes.Length < 2000, "Release notes (" + notes.Length + "):\n" + notes);
             Assert(unsigned.Contains("**Code signing policy**") && unsigned.Contains("ne sont pas signés") && !unsigned.Contains("certificate by") && unsigned.Contains("#politique-de-signature-du-code"), "Release notes, unsigned:\n" + unsigned);
+            // Mira in English: the screen after an update speaks English, the release page stays French (Mira.Release runs in English).
+            Lang.Use(Lang.English);
+            var point = all[0].Items[0];
+            Assert(all[0].Summary == all[0].EnglishSummary && point.Title == point.EnglishTitle && point.Text == point.EnglishText && WhatsNew.ReleaseNotes(all[0]) == notes, "What’s new in English");
+            Lang.Use(Lang.French);
+            Assert(WhatsNew.Parse("""[{"version":"0.5.4","summary":"Quatre","items":[{"icon":"check","title":"Titre","text":"Texte"}]}]""")[0] is { EnglishSummary: "Quatre", Items: [{ EnglishTitle: "Titre", EnglishText: "Texte" }] }, "Without English, the French");
             return Task.CompletedTask;
         });
         await Test("Mises à jour : manifeste signé accepté ; modifié, mal formé ou d’une autre clé, refusé", () =>
