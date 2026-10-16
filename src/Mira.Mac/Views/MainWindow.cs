@@ -59,9 +59,10 @@ public sealed class MainWindow : Window
 
     public MainWindow(string[] args, Profile profile)
     {
-        Args = args; Profile = profile; Settings = profile.LoadSettings();
-        // Before anything shows: each text is written in Mira's language as it is built.
-        SystemLanguage.Apply(Settings);
+        // Before anything shows, and before the settings: each text is written in Mira's language as it is built, and the
+        // defaults of a new profile (the audio and subtitle languages) follow it.
+        Args = args; Profile = profile; SystemLanguage.Apply(profile.ChosenLanguage());
+        Settings = profile.LoadSettings();
         Group = new WatchGroup(this);
         Group.Changed += () => { Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); };
         Group.Member += said => { if (Player is { } player) player.ShowMember(said); else Notice(said + "."); };
