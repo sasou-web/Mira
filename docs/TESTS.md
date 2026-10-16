@@ -72,6 +72,7 @@ Ils sont dans `src/Mira.Desktop/Checks` et ne tournent qu’avec un profil isol�
 | Commande | Ce qu’elle vérifie |
 | --- | --- |
 | `Mira.exe --demo --data <profil> --public-gallery <dossier>` | les 14 captures de la galerie (`gallery-result.txt`) ; `tools/capture-gallery.ps1` les copie dans `docs/screenshots` |
+| `Mira.exe --data <profil> --readme-gallery <dossier>` | les captures du README, la vraie fenêtre connectée au Jellyfin de `MIRA_GALLERY_SERVER` (`_USER`, `_PASSWORD`), au double de sa taille ; lancé par `gallery.yml` après `tools/gallery/media.sh` et `setup.mjs` (films libres, affiches de TMDb), avec `tools/gallery/web.mjs` pour Mira web |
 | `Mira.exe --demo --data <profil> --visual-check <dossier>` | rendus, disposition et mouvements (`result.txt`, `layout.txt`, `motion-checks.txt`) |
 | `Mira.exe --demo --data <profil> --test-media <vidéo> --player-check <dossier>` | le vrai lecteur : modes, plein écran, menus, raccourcis (`--perf-probe` mesure en plus les images par seconde) |
 | `Mira.exe … --windows-check <dossier>` | session multimédia de Windows et vrai mpv (`failure.txt` si la fenêtre ne se crée pas) |

@@ -1,71 +1,94 @@
 <div align="center">
-  <img src="src/Mira.Desktop/Assets/mira.png" width="88" alt="Logo Mira" />
+  <img src="src/Mira.Desktop/Assets/mira.png" width="80" alt="Logo Mira" />
   <h1>Mira</h1>
-  <p><strong>Ta bibliothèque Jellyfin. Le confort d’un lecteur fait pour elle.</strong></p>
-  <p>Un client Windows natif, sa version Mac et Mira web pour iPhone et Android, une interface cinéma et mpv directement dans l’application.</p>
+  <p><strong>Ta bibliothèque Jellyfin, comme au cinéma.</strong></p>
+  <p>Une app pour Windows et Mac qui lit tout elle-même, et Mira web pour ton iPhone ou ton Android.<br />Gratuite, sans compte ni abonnement, et rien ne quitte ton serveur.</p>
   <p>
-    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.7.9_preview-e8e8ed?style=flat-square" alt="Version 0.7.9 preview" /></a>
-    <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
-    <img src="https://img.shields.io/badge/macOS-15+_Apple_Silicon-555555?style=flat-square" alt="macOS 15 et plus, Apple Silicon" />
-    <img src="https://img.shields.io/badge/iPhone_·_Android-Mira_web-555555?style=flat-square" alt="iPhone et Android : Mira web" />
-    <img src="https://img.shields.io/badge/.NET-10-512BD4?style=flat-square" alt=".NET 10" />
-    <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
-    <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Windows build" /></a>
+    <a href="https://github.com/sasou-web/Mira/releases/tag/v0.7.9"><img src="https://img.shields.io/badge/version-0.7.9_préversion-e8e8ed?style=flat-square" alt="Version 0.7.9, préversion" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-e8e8ed?style=flat-square" alt="Licence MIT" /></a>
+    <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Compilation et tests" /></a>
   </p>
-  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.7.9">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
+  <p>
+    <a href="https://github.com/sasou-web/Mira/releases/tag/v0.7.9"><strong>Télécharger pour Windows</strong></a> ·
+    <a href="docs/INSTALLATION-MAC.md">Mac</a> ·
+    <a href="docs/INSTALLATION-WEB.md">iPhone et Android</a> ·
+    <a href="docs/README.en.md">English</a>
+  </p>
 </div>
 
-![Accueil de Mira : bandeau Jujutsu Kaisen et rangée « Continuer à regarder »](docs/screenshots/readme-home.jpg)
-
-> Captures de l’application réelle, connectée à une bibliothèque Jellyfin personnelle. Les affiches et illustrations appartiennent à leurs ayants droit ; aucun film, épisode ou compte n’est fourni avec Mira. Mira est un projet indépendant, encore en développement.
+![L’accueil de Mira pour Windows : le bandeau du film du moment, « Continuer à regarder » et les ajouts récents](docs/screenshots/readme/windows-home.jpg)
 
 ## Pourquoi Mira ?
 
-Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau centrée sur le visionnage. Parcours tes films et séries, retrouve ta dernière lecture et regarde directement dans la même fenêtre avec **libmpv**.
+[Jellyfin](https://jellyfin.org) range tes films et tes séries sur ton PC et te les sert partout. Mira est la façon agréable de les regarder.
 
-- **Une bibliothèque visuelle** : bandeau panoramique, couleur adaptée à l’image, recherche, filtres, favoris et fiches avec saisons, épisodes, distribution et titres similaires.
-- **Une navigation soignée** : typographie embarquée, icônes arrondies, défilement progressif, survol continu et préférence de réduction des animations.
-- **Un lecteur intégré** : barre de lecture épurée découpée par chapitres, plein écran, mini-lecteur déplaçable, pistes audio et sous-titres, vitesse et passage à l’épisode suivant.
-- **Une reprise fiable** : dernière lecture à gauche, progression locale, statut vu, file d’envoi persistante et reprise de synchronisation après coupure.
-- **Une place dans Windows** : logo et raccourci Démarrer, icône de notification, commandes dans l’aperçu de la barre des tâches et session multimédia système.
-- **Toujours à jour** (à partir de la 0.5.2) : chaque nouvelle version est téléchargée en arrière-plan, vérifiée (signature, SHA-256) et installée à la fermeture de Mira, sans toucher à tes données.
-- **Un guide pour bien démarrer** : au premier lancement, Mira explique ce que font Jellyfin et Mira ; le guide (bouton **?** ou **F1**) montre où ranger tes vidéos, ouvre la page d’administration de Jellyfin et donne l’adresse à entrer sur ton téléphone ou ta TV, même hors de chez toi avec Tailscale. Après chaque mise à jour, les nouveautés sont résumées en un écran.
-- **TorLink, si tu l’actives** : dans la page Téléchargements, un interrupteur installe TorLink (avec son Node.js) et ouvre son interface dans Mira ; chaque téléchargement terminé est déplacé dans les dossiers de Jellyfin, sans doublon, et nommé comme il l’attend. TorLink est un projet indépendant ; Mira ne fournit ni sources ni contenus.
+- **Tout est beau dès l’ouverture.** Affiches, grands visuels, résumés, distribution, sagas : ta bibliothèque ressemble à celle d’un service de streaming.
+- **Tu reprends où tu en étais.** Sur le PC, le Mac ou le téléphone, « Continuer à regarder » te ramène à la bonne minute, et l’épisode suivant s’enchaîne seul.
+- **La lecture se fait dans Mira.** Le moteur mpv lit presque tous les fichiers tels quels : sous-titres, pistes audio, chapitres, intros passées d’un geste.
+- **Regarder ensemble.** Un lien suffit pour lancer le même film chez un ami, en même temps, chacun chez soi.
+- **Aucune installation compliquée.** Pas encore de Jellyfin ? Mira l’installe et le prépare pour toi. Le téléphone se connecte en scannant un QR code.
+- **Ta vie privée reste chez toi.** Pas de compte Mira, pas de publicité, rien de collecté ; seule la recherche de mises à jour contacte GitHub.
+
+## Sur ton téléphone aussi
+
+Mira web est servie par ton propre serveur Jellyfin : rien à télécharger sur l’App Store, ni compte Apple. Sur iPhone, **Partager → Sur l’écran d’accueil**, et elle s’ouvre comme une app, à la maison comme ailleurs avec Tailscale.
 
 <table>
-  <tr><td width="50%"><img src="docs/screenshots/readme-library.jpg" alt="Toute la bibliothèque, avec recherche, genres, années, progression et tri" /></td><td width="50%"><img src="docs/screenshots/readme-subtitles.jpg" alt="Réglages audio et sous-titres, avec aperçu de la taille des sous-titres" /></td></tr>
-  <tr><td align="center">Toute la bibliothèque et ses filtres</td><td align="center">Langues et taille des sous-titres</td></tr>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/readme/web-home.jpg" alt="Mira web sur iPhone : l’accueil" /></td>
+    <td width="33%"><img src="docs/screenshots/readme/web-film.jpg" alt="Mira web sur iPhone : la fiche d’un film" /></td>
+    <td width="33%"><img src="docs/screenshots/readme/web-series.jpg" alt="Mira web sur iPhone : une série et ses épisodes" /></td>
+  </tr>
+  <tr>
+    <td align="center">Accueil</td>
+    <td align="center">Un film</td>
+    <td align="center">Une série</td>
+  </tr>
 </table>
 
-[Voir la galerie de démonstration : 14 captures du catalogue fictif intégré →](docs/SCREENSHOTS.md)
+## Sur ton ordinateur
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/readme/windows-film.jpg" alt="La fiche d’un film dans Mira pour Windows, avec « Reprendre »" /></td>
+    <td width="50%"><img src="docs/screenshots/readme/windows-series.jpg" alt="Une série dans Mira pour Windows, avec ses épisodes" /></td>
+  </tr>
+  <tr><td align="center">La fiche d’un film</td><td align="center">Une série et ses épisodes</td></tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/readme/windows-films.jpg" alt="Tous les films, avec recherche, filtres et tri" /></td>
+    <td width="50%"><img src="docs/screenshots/readme/windows-subtitles.jpg" alt="Les réglages des langues et des sous-titres" /></td>
+  </tr>
+  <tr><td align="center">Tous tes films</td><td align="center">Langues et sous-titres</td></tr>
+</table>
+
+<sub>Captures de la vraie application, connectée à un serveur Jellyfin rempli de films libres : les films ouverts de la <a href="https://studio.blender.org/films/">Blender Foundation</a> (CC BY), <i>Pioneer One</i> (CC BY-NC-SA) et des classiques du domaine public. Affiches et résumés fournis par TMDb.</sub>
 
 ## Installer
 
-Dans la [release 0.7.9](https://github.com/sasou-web/Mira/releases/tag/v0.7.9), choisir l’un des trois fichiers :
+| Sur | Ce qu’il faut | Comment |
+| --- | --- | --- |
+| **Windows** 10 ou 11 (x64) | `Mira-0.7.9-win-x64-setup.exe` | Lance l’installateur, connecte ton serveur Jellyfin, ou laisse Mira l’installer. [Guide](docs/INSTALLATION.md) |
+| **Mac** à puce Apple, macOS 15 ou plus | `Mira-0.7.9-mac-arm64.dmg` | Glisse Mira dans Applications, autorise-la une fois (elle n’est pas signée par Apple). [Guide](docs/INSTALLATION-MAC.md) |
+| **iPhone, iPad, Android** | Rien à télécharger | Dans Mira pour Windows : **Guide → Mira sur ton téléphone → Tout préparer**, puis scanne le QR code. [Guide](docs/INSTALLATION-WEB.md) |
 
-| Fichier | Pour qui |
-| --- | --- |
-| **Mira-0.7.9-win-x64-setup.exe** | Recommandé. Installe Mira pour ton compte, sans droits administrateur, avec son raccourci Démarrer et sa désinstallation depuis les paramètres de Windows. |
-| **Mira-0.7.9-win-x64-portable.exe** | Un seul fichier à lancer tel quel. À ranger dans son propre dossier : il y crée son dossier `data`. |
-| **Mira-0.7.9-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
+Tous les fichiers sont dans la [release 0.7.9](https://github.com/sasou-web/Mira/releases/tag/v0.7.9). Il te faut un serveur Jellyfin 10.9 ou plus récent. Tant que les fichiers Windows ne sont pas signés, SmartScreen peut afficher un avertissement : **Informations complémentaires → Exécuter quand même**. Mira se met ensuite à jour toute seule.
 
-1. Lancer l’installateur ou l’exécutable. Tant que les fichiers ne sont pas signés (voir [Politique de signature du code](#politique-de-signature-du-code)), Windows peut afficher un avertissement SmartScreen : **Informations complémentaires → Exécuter quand même**.
-2. Connecter ton serveur Jellyfin (10.9 ou plus récent) — généralement `http://127.0.0.1:8096` sur le même PC ; sur le réseau, son adresse IP ou son nom suffit. Pas encore de serveur ? **Installer Jellyfin sur ce PC**, sous le formulaire de connexion, l’installe, crée les dossiers Films, Séries et Animes, le configure en français (films rangés en sagas) et te connecte.
-3. Le moteur vidéo **mpv** : laisser cochée la case « Télécharger le moteur vidéo mpv » de l’installateur, ou choisir **Installer le moteur mpv** dans **Réglages → Lecture** (Mira le propose aussi à la première lecture). Un moteur déjà installé avec mpv.net ou Jellyfin MPV Shim est réutilisé.
+<details>
+<summary>Les autres fichiers pour Windows</summary>
 
-**Le runtime .NET est inclus ; libmpv est téléchargé à la demande** (31 Mo, depuis les builds Windows de mpv, empreinte vérifiée), puis mis à jour en arrière-plan quand Mira en fige une build plus récente. Windows 10 2004+ / Windows 11 x64, interface française, préversion. Aucun abonnement ou compte Mira n’est nécessaire. Jellyfin reste lancé pour fournir la bibliothèque.
+- **Mira-0.7.9-win-x64-portable.exe** : un seul fichier à lancer tel quel. Range-le dans son propre dossier : il y crée son dossier `data`.
+- **Mira-0.7.9-win-x64.zip** : le dossier complet de l’application, à extraire où tu veux.
 
-La page **Téléchargements** est facultative : TorLink s’y active d’un clic, et Mira l’installe (Node.js et TorLink, vérifiés, dans son dossier `data`) s’il n’est pas déjà sur le PC. Son terminal utilise le runtime Microsoft Edge WebView2 de Windows.
+Le runtime .NET est inclus. Le moteur vidéo mpv (31 Mo) est téléchargé à la demande, depuis les builds Windows de mpv, et son empreinte est vérifiée ; un moteur déjà installé avec mpv.net ou Jellyfin MPV Shim est réutilisé. La page **Téléchargements**, facultative, active TorLink d’un clic ; TorLink est un projet indépendant, et Mira ne fournit ni sources ni contenus.
+</details>
 
-[Guide complet : moteur vidéo, raccourcis, mise à jour et dépannage](docs/INSTALLATION.md)
+## Où en est Mira
 
-### Sur Mac
+Mira **0.7.9** est une préversion : elle sert tous les jours, mais certaines choses manquent encore (choix entre plusieurs versions d’un même titre, collections modifiables, signature des fichiers Windows) et le HDR, le multicanal et le multi-écrans n’ont pas été essayés partout. L’interface est en français.
 
-Mira existe aussi pour les Mac à puce Apple (macOS 15 Sequoia ou plus récent ; macOS 14 Sonoma jusqu’à la 0.7.4) : **Mira-0.7.9-mac-arm64.dmg**, dans la même [release 0.7.9](https://github.com/sasou-web/Mira/releases/tag/v0.7.9). Elle se connecte à un serveur Jellyfin existant et lit avec le même moteur mpv, intégré à l’application. Elle n’est pas signée par Apple : macOS demande de l’autoriser une fois. [Installer Mira sur Mac](docs/INSTALLATION-MAC.md)
-
-### Sur iPhone, iPad et Android
-
-**Mira web** est servie par ton serveur Jellyfin lui-même, grâce à l’extension Mira : rien à installer sur le téléphone, ni App Store ni compte Apple. Ouvre `http://<adresse du serveur>:8096/Mira`, puis, sur iPhone, **Partager → Sur l’écran d’accueil** : elle s’ouvre comme une app. Mira pour Windows prépare tout en un clic (**Guide → Mira sur ton téléphone → Tout préparer** : extension, pare-feu, Tailscale pour regarder hors de chez toi) et affiche un QR code pour le téléphone. [Mira sur iPhone, iPad et Android](docs/INSTALLATION-WEB.md)
+- [Toutes les fonctions et les raccourcis](docs/USER_GUIDE.md)
+- [Historique des versions](CHANGELOG.md)
+- [Signaler un bug](https://github.com/sasou-web/Mira/issues/new/choose) ou [une faille de sécurité](SECURITY.md)
 
 ## Politique de signature du code
 
@@ -77,6 +100,9 @@ Mira existe aussi pour les Mac à puce Apple (macOS 15 Sequoia ou plus récent ;
 - **Où en est la signature.** Tout est prêt, mais la demande d’adhésion à SignPath Foundation n’est pas encore déposée : jusqu’à la 0.7.9, les fichiers Windows ne sont pas signés, et SmartScreen demande confirmation.
 
 ## Développer
+
+<details>
+<summary>Compiler, tester et publier Mira</summary>
 
 Prérequis : Windows x64 et SDK .NET 10. Les tests de base n’exigent ni serveur Jellyfin ni libmpv.
 
@@ -98,28 +124,24 @@ dotnet run --project src/Mira.Desktop/Mira.Desktop.csproj -- --demo --data .arti
 ./tools/update-check.ps1     # Mises à jour de bout en bout : archive, portable et installateur, flux local et clé d’essai
 ```
 
+Les captures de cette page sont refaites par le workflow [`gallery.yml`](.github/workflows/gallery.yml) (`tools/gallery`).
+
 | Dossier | Rôle |
 | --- | --- |
 | `src/Mira.Desktop` | Interface WPF, lecteur mpv, intégration Windows, terminal TorLink |
+| `src/Mira.Mac` | Mira pour Mac (Avalonia), même moteur mpv |
 | `src/Mira.Core` | API Jellyfin, cache SQLite, synchronisation, règles de lecture et rangement des téléchargements |
+| `src/Mira.Web` et `src/Mira.Jellyfin` | Mira web et l’extension Jellyfin qui la sert |
 | `tests/Mira.Core.Tests` | Tests sans WPF (comportement, persistance, mises à jour), lancés aussi sous Linux |
 | `tests/Mira.Tests` | Les mêmes, puis ceux de l’app Windows |
 | `tools` | Publication, captures, contrôles, serveur fictif et import des ressources ; `tools/web/unit` : tests Node de Mira web |
 | `docs` | Guides, architecture, galerie et validation |
 
-La compilation et les tests de base sont lancés sur Windows dans GitHub Actions, et les tests sans WPF aussi sous Linux (`dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release`, sur tout système) ; Mira web est contrôlée dans Chromium et Safari contre un vrai Jellyfin. Les essais natifs du lecteur et du système ont aussi été réalisés localement ; ils ne sont pas tous couverts par le runner CI. Tout est décrit dans [docs/TESTS.md](docs/TESTS.md).
-
-## État du projet
-
-Mira **0.7.9** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, signature des releases (demande à SignPath Foundation pas encore déposée) et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
-
-- [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
-- [Architecture](docs/ARCHITECTURE.md), [tests](docs/TESTS.md) et [validation](docs/VALIDATION.md)
-- [Historique](CHANGELOG.md) et [contribuer](CONTRIBUTING.md)
-- [Signaler un bug](https://github.com/sasou-web/Mira/issues/new/choose) ou [une vulnérabilité](SECURITY.md)
+La compilation et les tests de base tournent sur Windows dans GitHub Actions, les tests sans WPF aussi sous Linux ; Mira web est contrôlée dans Chromium et Safari contre un vrai Jellyfin. Tout est décrit dans [docs/TESTS.md](docs/TESTS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) et [CONTRIBUTING.md](CONTRIBUTING.md).
+</details>
 
 ## Licence et crédits
 
-Code original sous [licence MIT](LICENSE). Le logo, les icônes actuelles et les illustrations de démonstration sont dessinés pour Mira. Police **Nunito Sans** sous SIL OFL 1.1 ; composants .NET, SQLite, WebView2 et Windows selon leurs licences respectives ; **xterm.js** sous licence MIT pour le terminal TorLink. Les anciens SVG Phosphor sont conservés avec leur notice MIT. TorLink est un projet tiers, ni inclus ni modifié.
+Code original sous [licence MIT](LICENSE). Le logo et les icônes sont dessinés pour Mira. Police **Nunito Sans** sous SIL OFL 1.1 ; composants .NET, SQLite, WebView2 et Windows selon leurs licences respectives ; **xterm.js** sous licence MIT pour le terminal TorLink. Les anciens SVG Phosphor sont conservés avec leur notice MIT. TorLink est un projet tiers, ni inclus ni modifié. Voir [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) pour les attributions et [licenses](licenses) pour les textes inclus. libmpv est un composant externe, non distribué avec Mira : Mira le télécharge depuis son distributeur quand tu le lui demandes.
 
-Voir [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) pour les attributions et [licenses](licenses) pour les textes inclus. libmpv est un composant externe, non distribué avec Mira : Mira le télécharge depuis son distributeur quand tu le lui demandes.
+Mira est un projet indépendant, sans lien avec Jellyfin. Aucun film, épisode ou compte n’est fourni avec Mira.
