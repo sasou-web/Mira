@@ -286,6 +286,16 @@ public sealed class WatchGroup
         var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId, Together.GroupHost(group.GroupName));
         await new InviteWindow(group, link, text => _shell.Notice(text)).ShowDialog(_shell);
     }
+    /// <summary>The account Jellyfin does not let watch together (403 on its groups): Home asks no more.</summary>
+    private Session? _refused;
+    /// <summary>Jellyfin's groups for Home's line: none for an account Jellyfin refuses; null when it does not answer.</summary>
+    public async Task<List<Together.Group>?> OpenGroupsAsync(Session session)
+    {
+        if (ReferenceEquals(session, _refused)) return [];
+        try { return await session.Client.SyncGroupsAsync(session.Lifetime); }
+        catch (UnauthorizedAccessException) { _refused = session; return []; }
+        catch (Exception ex) when (Errors.Expected(ex)) { return null; }
+    }
     public async Task LeaveAsync()
     {
         if (_session is { } session && ReferenceEquals(session, _shell.Session))

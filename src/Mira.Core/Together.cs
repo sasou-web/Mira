@@ -107,6 +107,11 @@ public static class Together
     public static string People(int count) => count <= 1 ? "1 personne" : $"{count} personnes";
     /// <summary>« Groupe de mira · 2 personnes ».</summary>
     public static string GroupText(Group group) => $"{group.GroupName} · {People(Math.Max(1, group.Participants.Count))}";
+    /// <summary>
+    /// The group Home offers to join (« Groupe de Marc · 2 personnes », Rejoindre): the first Jellyfin has open, none
+    /// while this device is in one (<paramref name="current"/>). As Mira web's Home (views/home.js).
+    /// </summary>
+    public static Group? HomeGroup(IReadOnlyList<Group> groups, string? current) => current is null && groups.Count > 0 ? groups[0] : null;
     /// <summary>Who is in a group, as a line says it: « mira et Marc », « mira, Marc et Léa », « mira, Marc et 3 autres ».</summary>
     public static string NamesText(IReadOnlyList<string> names) => names.Count switch
     {

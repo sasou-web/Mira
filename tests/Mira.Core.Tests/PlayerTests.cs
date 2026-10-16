@@ -67,6 +67,9 @@ internal static class PlayerTests
             foreach (var row in root.GetProperty("questions").EnumerateArray())
                 Assert(Together.ReplaceQuestion(row[0].GetString()) == row[1].GetString(), $"Question: {row[1]}");
             Assert(Together.GroupName("mira") == "Groupe de mira" && Together.NeedsSeek(10, 10.6) && !Together.NeedsSeek(10, 10.4), "Words, drift");
+            // Home's line: the first group open on Jellyfin, none while this device is in one.
+            List<Together.Group> open = [new("a", "Groupe de Marc", ["Marc"], "Playing"), new("b", "Groupe de Léa", [], "Idle")];
+            Assert(Together.HomeGroup(open, null)?.GroupId == "a" && Together.HomeGroup(open, "b") is null && Together.HomeGroup([], null) is null, "Home group");
             foreach (var row in root.GetProperty("invites").EnumerateArray())
             {
                 var link = Together.InviteLink(row[0].GetString()!, row[1].GetString()!, row[2].GetString());

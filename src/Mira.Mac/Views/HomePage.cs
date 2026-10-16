@@ -13,6 +13,7 @@ namespace Mira.Mac.Views;
 /// <summary>
 /// Accueil: a banner of titles to (re)start, then Continuer à regarder, the latest additions, the favourites and the
 /// latest titles of a library, in the order chosen in the settings (« Accueil à ta main », <see cref="HomeLayout"/>).
+/// A « Regarder ensemble » group open on Jellyfin is a line under the banner, to join it, while this Mac is in none.
 /// </summary>
 public sealed class HomePage : Page
 {
@@ -26,6 +27,13 @@ public sealed class HomePage : Page
     private readonly DispatcherTimer _rotate = new() { Interval = TimeSpan.FromSeconds(9) };
     private readonly ScrollViewer _scroll;
     private List<MediaItem> _heroItems = [];
+    // Jellyfin's groups, read at each refresh of Home and when this Mac leaves a group, and the line of the one shown.
+    private readonly Border _groupLine;
+    private readonly TextBlock _groupName = new() { FontSize = 14.5, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _groupPeople = new() { FontSize = 14.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Button _groupJoin;
+    private List<Together.Group> _groups = [];
+    private string? _groupFor, _groupShown;
     private int _heroIndex, _heroVersion;
     /// <summary>Titles shown, for the self-check.</summary>
     public IReadOnlyList<MediaItem> Continue { get; private set; } = [];
@@ -42,8 +50,20 @@ public sealed class HomePage : Page
         _hero.PointerEntered += (_, _) => _rotate.Stop();
         _hero.PointerExited += (_, _) => { if (_heroItems.Count > 1) _rotate.Start(); };
         _rotate.Tick += (_, _) => ShowHero(_heroIndex + 1);
+        _groupJoin = Ui.Action("Rejoindre", null, "primary", () => _ = JoinGroupAsync());
+        _groupJoin.Margin = new Thickness(18, 0, 0, 0);
+        DockPanel.SetDock(_groupJoin, Dock.Right);
+        var groupText = Ui.Row(14, new Icon("users", 20) { Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center }, Ui.Row(0, _groupName, _groupPeople));
+        groupText.VerticalAlignment = VerticalAlignment.Center;
+        _groupLine = new Border
+        {
+            IsVisible = false, HorizontalAlignment = HorizontalAlignment.Left, MaxWidth = 760, Margin = new Thickness(56, 0, 56, 30), Padding = new Thickness(18, 10, 10, 10),
+            CornerRadius = new CornerRadius(12), Background = Ui.Brush("#111112"), BorderBrush = Ui.Brush("#26262A"), BorderThickness = new Thickness(1),
+            Child = new DockPanel { Children = { _groupJoin, groupText } }
+        };
+        _groupFor = Shell.Group.Active ? Shell.Group.Group?.GroupId : null;
         var page = new StackPanel { Spacing = 8 };
-        page.Children.Add(_hero); page.Children.Add(_rows);
+        page.Children.Add(_hero); page.Children.Add(_groupLine); page.Children.Add(_rows);
         _scroll = new ScrollViewer { Content = page };
         Content = _scroll;
         SizeChanged += (_, e) => _hero.Height = Math.Clamp(e.NewSize.Height * 0.7, 440, 760);
@@ -61,6 +81,7 @@ public sealed class HomePage : Page
     public override async Task RefreshAsync()
     {
         if (Shell.Session is not { } session) return;
+        _ = LoadGroupsAsync(session);
         var store = session.Store;
         // The last known home first, so the page never opens empty; then Jellyfin's answer.
         if (_heroItems.Count == 0 && await Task.Run(() => Errors.TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume")))) is ({ } cachedHome, var cachedResume))
@@ -127,6 +148,50 @@ public sealed class HomePage : Page
         _rotate.Stop(); if (heroes.Count > 1 && IsAttachedToVisualTree()) _rotate.Start();
     }
     private bool IsAttachedToVisualTree() => this.GetVisualRoot() is not null;
+
+    private async Task LoadGroupsAsync(Session session)
+    {
+        if (await Shell.Group.OpenGroupsAsync(session) is not { } groups || !ReferenceEquals(session, Shell.Session)) return;
+        _groups = groups; ShowGroupLine();
+    }
+    /// <summary>Joined or left a group (<see cref="WatchGroup.Changed"/>): the line goes, or comes back with the groups as they are now.</summary>
+    public void GroupChanged()
+    {
+        var current = Shell.Group.Active ? Shell.Group.Group?.GroupId : null;
+        ShowGroupLine();
+        if (current == _groupFor) return;
+        _groupFor = current;
+        if (current is null && Shell.Session is { } session) _ = LoadGroupsAsync(session);
+    }
+    /// <summary>« Groupe de Marc · 2 personnes » with « Rejoindre »: the first group open on Jellyfin, none while in one.</summary>
+    private void ShowGroupLine()
+    {
+        var open = Shell.Session is null ? null : Together.HomeGroup(_groups, Shell.Group.Active ? Shell.Group.Group?.GroupId : null);
+        _groupLine.IsVisible = open is not null;
+        _groupShown = open?.GroupId;
+        if (open is null) return;
+        _groupName.Text = open.GroupName; _groupPeople.Text = " · " + Together.People(Math.Max(1, open.Participants.Count));
+        Avalonia.Automation.AutomationProperties.SetName(_groupJoin, $"Rejoindre « {open.GroupName} »");
+    }
+    /// <summary>The group joined, and its title put on here once it plays one (<see cref="WatchGroup"/>).</summary>
+    private async Task JoinGroupAsync()
+    {
+        if (Shell.Session is not { } session || _groupShown is not { } id) return;
+        _groupJoin.IsEnabled = false;
+        try
+        {
+            // It may have ended since Home read it: Jellyfin would answer a join with nothing to say.
+            List<Together.Group> groups;
+            try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
+            catch (UnauthorizedAccessException) { Shell.Notice(WatchGroup.NoSyncPlay); return; }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
+            if (!ReferenceEquals(session, Shell.Session)) return;
+            _groups = groups; ShowGroupLine();
+            if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { Shell.Notice("Ce groupe n’existe plus."); return; }
+            await Shell.Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct));
+        }
+        finally { _groupJoin.IsEnabled = true; }
+    }
     private static Control Sized(Control card) { card.Width = 176; return card; }
 
     private void ShowHero(int index, bool animate = true)
