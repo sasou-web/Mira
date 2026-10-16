@@ -1,7 +1,7 @@
 namespace Mira.Desktop;
 
 /// <summary>
-/// The validation harnesses of the window, all in this folder: captures (--visual-check, --public-gallery), the real
+/// The validation harnesses of the window, all in this folder: captures (--visual-check, --public-gallery, --readme-gallery), the real
 /// player (--player-check, --qa-window), Windows integration (--windows-check) and TorLink (--torlink-check). They drive
 /// the window's own state, hence partial classes of it. The window starts them from here; App.xaml.cs only places
 /// their window off screen and writes failure.txt. None of this folder is in the packages: tools/package.ps1 builds with
@@ -13,6 +13,7 @@ public partial class MainWindow
     private async Task<bool> RunRequestedCheckAsync()
     {
         if (_args.Contains("--public-gallery")) await RunPublicGalleryAsync();
+        else if (_args.Contains("--readme-gallery")) await RunReadmeGalleryAsync();
         else if (_args.Contains("--visual-check")) await RunVisualCheckAsync();
         else if (_args.Contains("--player-check")) await RunPlayerCheckAsync();
         else if (_args.Contains("--windows-check")) await RunWindowsCheckAsync();
