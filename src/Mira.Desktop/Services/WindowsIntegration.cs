@@ -45,23 +45,23 @@ internal sealed class WindowsIntegration : IDisposable
         try { WindowsIdentity.ApplyToWindow(hwnd, appId, validation); }
         catch (COMException) { }
         var taskbar = new TaskbarItemInfo();
-        _back = AddButton(taskbar, "rewind", "Reculer de 10 secondes", DesktopCommand.Back);
-        _pause = AddButton(taskbar, "play", "Lire", DesktopCommand.TogglePause);
-        _forward = AddButton(taskbar, "forward", "Avancer de 10 secondes", DesktopCommand.Forward);
-        _next = AddButton(taskbar, "skip", "Épisode suivant", DesktopCommand.Next);
+        _back = AddButton(taskbar, "rewind", L("Reculer de 10 secondes", "Back 10 seconds"), DesktopCommand.Back);
+        _pause = AddButton(taskbar, "play", L("Lire", "Play"), DesktopCommand.TogglePause);
+        _forward = AddButton(taskbar, "forward", L("Avancer de 10 secondes", "Forward 10 seconds"), DesktopCommand.Forward);
+        _next = AddButton(taskbar, "skip", L("Épisode suivant", "Next episode"), DesktopCommand.Next);
         window.TaskbarItemInfo = taskbar;
 
         _menu = new Forms.ContextMenuStrip { ShowImageMargin = false };
-        AddMenu("Ouvrir Mira", DesktopCommand.Show).Font = new System.Drawing.Font(_menu.Font, System.Drawing.FontStyle.Bold);
+        AddMenu(L("Ouvrir Mira", "Open Mira"), DesktopCommand.Show).Font = new System.Drawing.Font(_menu.Font, System.Drawing.FontStyle.Bold);
         _menu.Items.Add(new Forms.ToolStripSeparator());
-        _trayPause = AddMenu("Lire", DesktopCommand.TogglePause);
-        _trayBack = AddMenu("Reculer de 10 secondes", DesktopCommand.Back);
-        _trayForward = AddMenu("Avancer de 10 secondes", DesktopCommand.Forward);
-        _trayNext = AddMenu("Épisode suivant", DesktopCommand.Next);
-        _trayStop = AddMenu("Arrêter la lecture", DesktopCommand.Stop);
+        _trayPause = AddMenu(L("Lire", "Play"), DesktopCommand.TogglePause);
+        _trayBack = AddMenu(L("Reculer de 10 secondes", "Back 10 seconds"), DesktopCommand.Back);
+        _trayForward = AddMenu(L("Avancer de 10 secondes", "Forward 10 seconds"), DesktopCommand.Forward);
+        _trayNext = AddMenu(L("Épisode suivant", "Next episode"), DesktopCommand.Next);
+        _trayStop = AddMenu(L("Arrêter la lecture", "Stop playback"), DesktopCommand.Stop);
         _menu.Items.Add(new Forms.ToolStripSeparator());
-        AddMenu("Réduire dans la zone de notification", DesktopCommand.Hide);
-        AddMenu("Quitter Mira", DesktopCommand.Quit);
+        AddMenu(L("Réduire dans la zone de notification", "Minimize to the notification area"), DesktopCommand.Hide);
+        AddMenu(L("Quitter Mira", "Quit Mira"), DesktopCommand.Quit);
         _trayIcon = new System.Drawing.Icon(WindowsIdentity.IconPath, 32, 32);
         _tray = new Forms.NotifyIcon { Icon = _trayIcon, Text = validation ? "Mira · Validation" : "Mira", ContextMenuStrip = _menu, Visible = true };
         _tray.MouseClick += TrayClicked;
@@ -204,11 +204,11 @@ internal sealed class WindowsIntegration : IDisposable
         foreach (var button in new[] { _back, _pause, _forward, _next })
         { button.Visibility = _active ? Visibility.Visible : Visibility.Collapsed; button.IsEnabled = _active && _ready; }
         _next.IsEnabled = _active && _ready && _canNext;
-        _pause.ImageSource = Glyph(_paused ? "play" : "pause"); _pause.Description = _paused ? "Reprendre la lecture" : "Mettre en pause";
-        _trayPause.Text = _paused ? "Reprendre la lecture" : "Mettre en pause";
+        _pause.ImageSource = Glyph(_paused ? "play" : "pause"); _pause.Description = _paused ? L("Reprendre la lecture", "Resume playback") : L("Mettre en pause", "Pause");
+        _trayPause.Text = _paused ? L("Reprendre la lecture", "Resume playback") : L("Mettre en pause", "Pause");
         _trayPause.Enabled = _trayBack.Enabled = _trayForward.Enabled = _trayStop.Enabled = _active && _ready;
         _trayNext.Enabled = _active && _ready && _canNext;
-        var text = _active ? (_paused ? "En pause · " : "Lecture · ") + _title : _idleTitle;
+        var text = _active ? (_paused ? L("En pause · ", "Paused · ") : L("Lecture · ", "Playing · ")) + _title : _idleTitle;
         if (text.Length > 63) { text = text[..61]; if (char.IsHighSurrogate(text[^1])) text = text[..^1]; text += "…"; }
         _tray.Text = text;
     }

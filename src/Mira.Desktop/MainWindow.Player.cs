@@ -41,7 +41,7 @@ public partial class MainWindow
             // Without an engine nothing can play: say so before any request, with the one click that fixes it.
             if (MpvEngine.FindLibrary(_settings.MpvPath) is null)
             {
-                SetNotice("Pour lire tes vidéos, Mira a besoin du moteur mpv (31 Mo).", "Installer", () => _ = InstallEngineThenPlayAsync(item, keepMini, fromStart));
+                SetNotice(L("Pour lire tes vidéos, Mira a besoin du moteur mpv (31 Mo).", "To play your videos, Mira needs the mpv video engine (31 MB)."), L("Installer", "Install"), () => _ = InstallEngineThenPlayAsync(item, keepMini, fromStart));
                 return;
             }
             if (item.Type == "Series" && !_demo && _client is not null)
@@ -54,7 +54,7 @@ public partial class MainWindow
                     if (_store is { } store) await Task.Run(() => store.ApplyLocalProgress(episodes.Items));
                     next = episodes.Items.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? episodes.Items.FirstOrDefault(x => !x.UserData.Played) ?? episodes.Items.FirstOrDefault();
                 }
-                item = next ?? throw new IOException("Aucun épisode disponible.");
+                item = next ?? throw new IOException(L("Aucun épisode disponible.", "No episodes available."));
             }
             if (InGroup && groupStart is null)
             {
@@ -66,7 +66,7 @@ public partial class MainWindow
             {
                 if (_testMedia is null)
                 {
-                    var dialog = new OpenFileDialog { Title = "Choisir une vidéo locale pour essayer le lecteur", Filter = "Vidéos|*.mkv;*.mp4;*.avi;*.webm;*.mov;*.m4v;*.ts|Tous les fichiers|*.*" };
+                    var dialog = new OpenFileDialog { Title = L("Choisir une vidéo locale pour essayer le lecteur", "Choose a local video to try the player"), Filter = L("Vidéos|*.mkv;*.mp4;*.avi;*.webm;*.mov;*.m4v;*.ts|Tous les fichiers|*.*", "Videos|*.mkv;*.mp4;*.avi;*.webm;*.mov;*.m4v;*.ts|All files|*.*") };
                     if (dialog.ShowDialog(this) != true) return;
                     location = dialog.FileName;
                 }
@@ -78,7 +78,7 @@ public partial class MainWindow
             {
                 if (_client is null) return;
                 var info = await _client.PlaybackAsync(item.Id);
-                source = info.MediaSources.FirstOrDefault() ?? throw new IOException("Aucune source lisible disponible.");
+                source = info.MediaSources.FirstOrDefault() ?? throw new IOException(L("Aucune source lisible disponible.", "No playable source available."));
                 session = string.IsNullOrEmpty(info.PlaySessionId) ? Guid.NewGuid().ToString("N") : info.PlaySessionId;
                 var isLocalServer = new Uri(_client.Connection.Server).IsLoopback;
                 if (isLocalServer && string.Equals(source.Protocol, "File", StringComparison.OrdinalIgnoreCase) && source.Path is { } path && await ReachableFileAsync(path)) location = path;
@@ -89,7 +89,7 @@ public partial class MainWindow
             // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
             _session.Begin(item, source, session, groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack)); _loaded = false;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
-            PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
+            PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : PlayerText.Subtitle(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
             AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
             HidePlayerError(); LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
@@ -136,14 +136,14 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex) || ex is TimeoutException)
         {
             await StopPlaybackAsync();
-            var reason = ex is IOException && FromMira(ex) ? ex.Message : ex is TimeoutException ? "Le lecteur vidéo n’a pas pu s’ouvrir à temps." : Friendly(ex);
-            PlaybackFailed("La lecture n’a pas pu démarrer. " + reason, asked, keepMini, "Réessayer", () => PlayAsync(asked, keepMini));
+            var reason = ex is IOException && FromMira(ex) ? ex.Message : ex is TimeoutException ? L("Le lecteur vidéo n’a pas pu s’ouvrir à temps.", "The video player couldn’t open in time.") : Friendly(ex);
+            PlaybackFailed(L("La lecture n’a pas pu démarrer. ", "Playback couldn’t start. ") + reason, asked, keepMini, RetryText, () => PlayAsync(asked, keepMini));
         }
         catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException or BadImageFormatException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             // An incompatible engine DLL must not leave a black screen with no way back.
             await StopPlaybackAsync();
-            PlaybackFailed("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.", asked, keepMini, "Ouvrir les réglages", () => { Settings_Click(this, new()); return Task.CompletedTask; });
+            PlaybackFailed(L("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.", "The chosen mpv engine seems incompatible. Check its location in Settings → Playback."), asked, keepMini, L("Ouvrir les réglages", "Open settings"), () => { Settings_Click(this, new()); return Task.CompletedTask; });
         }
         finally { _playBusy = false; Mouse.OverrideCursor = null; }
     }
@@ -246,7 +246,7 @@ public partial class MainWindow
                 if (stoppedGeneration != _playGeneration || _playing) return;
                 if (next is not null) { await PlayAsync(next, keepMini); return; }
             }
-            if (error is not null) { PlaybackFailed(error, previous, keepMini, "Réessayer", previous is null ? null : () => PlayAsync(previous, keepMini)); return; }
+            if (error is not null) { PlaybackFailed(error, previous, keepMini, RetryText, previous is null ? null : () => PlayAsync(previous, keepMini)); return; }
             ReturnToLibrary();
             if (!_demo) await RefreshAsync(quiet: true);
             else RenderAfterUserDataChange();
@@ -278,6 +278,7 @@ public partial class MainWindow
     }
     private Func<Task>? _playerErrorAction;
     private string _playerErrorMessage = "";
+    private static string RetryText => L("Réessayer", "Try again");
     private bool PlayerErrorShown => PlayerError.Visibility == Visibility.Visible;
     private void HidePlayerError()
     {
@@ -293,8 +294,8 @@ public partial class MainWindow
     {
         if (_playerErrorAction is not { } action) return;
         // Another try keeps the screen until the player opens or fails again (which says why once more); settings leave it.
-        if (PlayerErrorAction.Content is not "Réessayer") { HidePlayerError(); ReturnToLibrary(); await action(); return; }
-        PlayerErrorAction.IsEnabled = false; PlayerErrorText.Text = "Nouvel essai…"; Accessible.Say(PlayerErrorText);
+        if (!Equals(PlayerErrorAction.Content, RetryText)) { HidePlayerError(); ReturnToLibrary(); await action(); return; }
+        PlayerErrorAction.IsEnabled = false; PlayerErrorText.Text = L("Nouvel essai…", "Trying again…"); Accessible.Say(PlayerErrorText);
         await action();
         // Neither (no account any more, a file choice cancelled in the demo): the screen comes back as it was.
         if (PlayerErrorShown && !PlayerErrorAction.IsEnabled) { PlayerErrorAction.IsEnabled = true; PlayerErrorText.Text = _playerErrorMessage; }
@@ -358,7 +359,7 @@ public partial class MainWindow
     private async void Next_Click(object sender, RoutedEventArgs e)
     {
         if (_session.Item is null) return; var next = _skips.Next ?? await GetNextAsync(_session.Item);
-        if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skips.ToNext && _skips.Active is not null); else PlayingSubtitle.Text = "Aucun épisode suivant disponible.";
+        if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skips.ToNext && _skips.Active is not null); else PlayingSubtitle.Text = L("Aucun épisode suivant disponible.", "No next episode available.");
     }
     private void BackFromPlayer_Click(object sender, RoutedEventArgs e)
     { if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayer(true); }
@@ -396,8 +397,8 @@ public partial class MainWindow
     private void ShowPauseState(bool paused)
     {
         Motion.Swap(PauseIcon, paused ? "play" : "pause");
-        var label = paused ? "Lecture · Espace" : "Pause · Espace";
-        if (!Equals(PauseButton.ToolTip, label)) { PauseButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(PauseButton, paused ? "Lecture" : "Pause"); }
+        var label = paused ? L("Lecture · Espace", "Play · Space") : L("Pause · Espace", "Pause · Space");
+        if (!Equals(PauseButton.ToolTip, label)) { PauseButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(PauseButton, paused ? L("Lecture", "Play") : "Pause"); }
     }
     private void SeekRelative(double seconds)
     {
@@ -434,7 +435,7 @@ public partial class MainWindow
         PlayerWindowChrome.Visibility = _fullscreen ? Visibility.Collapsed : Visibility.Visible;
         PlayerHeaderBody.Margin = new Thickness(24, _fullscreen ? 22 : 42, 24, 22);
         Motion.Swap(FullscreenIcon, _fullscreen ? "collapse" : "fullscreen");
-        FullscreenButton.ToolTip = _fullscreen ? "Quitter le plein écran · Échap" : "Plein écran · F";
+        FullscreenButton.ToolTip = _fullscreen ? L("Quitter le plein écran · Échap", "Exit full screen · Esc") : L("Plein écran · F", "Full screen · F");
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls();
     }
     private void Window_KeyDown(object sender, KeyEventArgs e)

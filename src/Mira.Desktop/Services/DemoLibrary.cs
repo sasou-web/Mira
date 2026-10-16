@@ -8,14 +8,14 @@ public static class DemoLibrary
 {
     public static List<MediaItem> Items() =>
     [
-        Item("demo-1", "Les heures bleues", "Movie", 2025, 118, ["Aventure", "Animation"], "Sur une île oubliée, deux voyageurs suivent les lumières d’une forêt qui ne s’éveille qu’à la tombée du jour.", 36),
-        Item("demo-2", "Au-delà des dunes", "Movie", 2024, 142, ["Science-fiction"], "Une traversée du désert, à la recherche de ce que le temps a laissé derrière lui."),
-        Item("demo-3", "La dernière orbite", "Series", 2025, 48, ["Science-fiction"], "Un signal inattendu traverse le silence. Pour l’équipage d’Aster, tout commence ici."),
-        Item("demo-4", "Les jours d’été", "Movie", 2023, 96, ["Drame"], "Un été sur la côte, des retrouvailles et toutes les choses qu’on n’avait pas su se dire.", 22),
-        Item("demo-5", "Là-haut, les étoiles", "Series", 2025, 24, ["Animation"], "Chaque nuit, une nouvelle constellation apparaît au-dessus du village."),
-        Item("demo-6", "Une autre rive", "Movie", 2024, 109, ["Aventure"], "Une cabane au bord de l’eau. Une lettre. Un départ qui change tout."),
-        Item("demo-7", "Après la pluie", "Movie", 2025, 103, ["Drame"], "Les chemins de trois inconnus se croisent dans une ville en mouvement."),
-        Item("demo-8", "Le chant du monde", "Series", 2024, 32, ["Documentaire"], "Des histoires de paysages et des voix de celles et ceux qui les habitent.")
+        Item("demo-1", L("Les heures bleues", "The Blue Hours"), "Movie", 2025, 118, [L("Aventure", "Adventure"), "Animation"], L("Sur une île oubliée, deux voyageurs suivent les lumières d’une forêt qui ne s’éveille qu’à la tombée du jour.", "On a forgotten island, two travelers follow the lights of a forest that only wakes at dusk."), 36),
+        Item("demo-2", L("Au-delà des dunes", "Beyond the Dunes"), "Movie", 2024, 142, [L("Science-fiction", "Science Fiction")], L("Une traversée du désert, à la recherche de ce que le temps a laissé derrière lui.", "A journey across the desert, in search of what time left behind.")),
+        Item("demo-3", L("La dernière orbite", "The Last Orbit"), "Series", 2025, 48, [L("Science-fiction", "Science Fiction")], L("Un signal inattendu traverse le silence. Pour l’équipage d’Aster, tout commence ici.", "An unexpected signal breaks the silence. For the crew of the Aster, it all begins here.")),
+        Item("demo-4", L("Les jours d’été", "Summer Days"), "Movie", 2023, 96, [L("Drame", "Drama")], L("Un été sur la côte, des retrouvailles et toutes les choses qu’on n’avait pas su se dire.", "A summer on the coast, a reunion, and all the things that were never said."), 22),
+        Item("demo-5", L("Là-haut, les étoiles", "Up Among the Stars"), "Series", 2025, 24, ["Animation"], L("Chaque nuit, une nouvelle constellation apparaît au-dessus du village.", "Every night, a new constellation appears above the village.")),
+        Item("demo-6", L("Une autre rive", "Another Shore"), "Movie", 2024, 109, [L("Aventure", "Adventure")], L("Une cabane au bord de l’eau. Une lettre. Un départ qui change tout.", "A cabin by the water. A letter. A departure that changes everything.")),
+        Item("demo-7", L("Après la pluie", "After the Rain"), "Movie", 2025, 103, [L("Drame", "Drama")], L("Les chemins de trois inconnus se croisent dans une ville en mouvement.", "Three strangers’ paths cross in a city that never stands still.")),
+        Item("demo-8", L("Le chant du monde", "Song of the World"), "Series", 2024, 32, [L("Documentaire", "Documentary")], L("Des histoires de paysages et des voix de celles et ceux qui les habitent.", "Stories of landscapes, and the voices of the people who live in them."))
     ];
     private static MediaItem Item(string id, string title, string type, int year, int minutes, string[] genres, string overview, int progress = 0) => new()
     {

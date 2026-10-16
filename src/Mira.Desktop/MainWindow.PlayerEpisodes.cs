@@ -22,7 +22,7 @@ public partial class MainWindow
         _playerEpisodes = episodes;
         var previous = PreviousEpisode(current);
         PreviousButton.IsEnabled = previous is not null;
-        PreviousButton.ToolTip = previous is null ? "Premier épisode disponible" : "Épisode précédent · " + PlayerText.Subtitle(previous, episodes);
+        PreviousButton.ToolTip = previous is null ? L("Premier épisode disponible", "First available episode") : L("Épisode précédent · ", "Previous episode · ") + PlayerText.Subtitle(previous, episodes);
         PlayerEpisodesButton.IsEnabled = episodes.Count > 0;
     }
     private MediaItem? PreviousEpisode(MediaItem current)
@@ -57,10 +57,10 @@ public partial class MainWindow
     {
         EpisodeList.Children.Clear();
         var page = _playerPages.ElementAtOrDefault(_playerPage);
-        EpisodePageLabel.Text = page?.Label ?? "Épisodes";
+        EpisodePageLabel.Text = page?.Label ?? L("Épisodes", "Episodes");
         EpisodePageBack.IsEnabled = _playerPage > 0; EpisodePageNext.IsEnabled = _playerPage < _playerPages.Count - 1;
         EpisodePageBack.Visibility = EpisodePageNext.Visibility = _playerPages.Count > 1 ? Visibility.Visible : Visibility.Hidden;
-        if (page is null) { EpisodeList.Children.Add(new TextBlock { Text = "Aucun épisode disponible.", Margin = new Thickness(10, 8, 10, 8), Foreground = Palette.Get("Muted") }); return; }
+        if (page is null) { EpisodeList.Children.Add(new TextBlock { Text = L("Aucun épisode disponible.", "No episodes available."), Margin = new Thickness(10, 8, 10, 8), Foreground = Palette.Get("Muted") }); return; }
         foreach (var episode in EpisodePages.Episodes(_playerEpisodes, page)) EpisodeList.Children.Add(EpisodeRow(episode));
     }
     private Button EpisodeRow(MediaItem episode)
@@ -76,12 +76,13 @@ public partial class MainWindow
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; Grid.SetColumn(text, 1);
         var title = episode.IndexNumber is { } number ? $"{number}. {episode.Name}" : episode.Name;
         text.Children.Add(new TextBlock { Text = title, FontWeight = playing ? FontWeights.SemiBold : FontWeights.Normal, Foreground = Palette.Get("Text"), TextTrimming = TextTrimming.CharacterEllipsis });
-        var state = playing ? "En lecture" : episode.UserData.Played ? "✓ Vu" : episode.Progress > 0 ? "En cours" : null;
+        var state = playing ? L("En lecture", "Playing") : episode.UserData.Played ? L("✓ Vu", "✓ Watched") : episode.Progress > 0 ? L("En cours", "In progress") : null;
         var details = string.Join(" · ", new[] { episode.DurationLabel, state }.Where(x => !string.IsNullOrEmpty(x)));
         text.Children.Add(new TextBlock { Text = details, FontSize = 12, Foreground = Palette.Get(episode.UserData.Played && !playing ? "Success" : "Muted"), Margin = new Thickness(0, 4, 0, 0) });
         grid.Children.Add(text);
         row.Content = grid;
-        AutomationProperties.SetName(row, $"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Progress > 0 ? ", en cours" : "")}");
+        AutomationProperties.SetName(row, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(playing ? ", en lecture" : episode.UserData.Played ? ", vu" : episode.Progress > 0 ? ", en cours" : "")}",
+            $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(playing ? ", playing" : episode.UserData.Played ? ", watched" : episode.Progress > 0 ? ", in progress" : "")}"));
         row.Click += async (_, _) =>
         {
             PlayerOptionsPopup.IsOpen = false;

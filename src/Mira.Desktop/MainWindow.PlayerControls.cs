@@ -302,8 +302,8 @@ public partial class MainWindow
     {
         var muted = _mpv?.Flag("mute") == true || VolumeSlider.Value <= 0;
         Motion.Swap(VolumeIcon, muted ? "mute" : VolumeSlider.Value < 50 ? "volume-low" : "volume");
-        var label = muted ? "Réactiver le son · M" : "Couper le son · M";
-        if (!Equals(MuteButton.ToolTip, label)) { MuteButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(MuteButton, muted ? "Réactiver le son" : "Couper le son"); }
+        var label = muted ? L("Réactiver le son · M", "Unmute · M") : L("Couper le son · M", "Mute · M");
+        if (!Equals(MuteButton.ToolTip, label)) { MuteButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(MuteButton, muted ? L("Réactiver le son", "Unmute") : L("Couper le son", "Mute")); }
     }
 
     // Volume slider beside the speaker: out while the pointer is on the group, while dragging, or with keyboard focus.
@@ -366,8 +366,8 @@ public partial class MainWindow
         var tracks = _mpv.Tracks(); var audio = _mpv.Get("aid") ?? ""; var subtitle = _mpv.Get("sid") ?? "no";
         foreach (var track in tracks.Where(t => t.Type == "audio"))
             AudioTrackList.Children.Add(MenuChoice("audio", track.Label, track.Details, track.Id == audio, () => ChooseTrack("aid", track.Id)));
-        if (AudioTrackList.Children.Count == 0) AudioTrackList.Children.Add(new TextBlock { Text = "Aucune piste audio", Foreground = Palette.Get("Faint"), FontSize = 13, Margin = new Thickness(10, 8, 10, 8) });
-        SubtitleTrackList.Children.Add(MenuChoice("subtitles", "Désactivés", "", subtitle is "no" or "" or "false", () => ChooseTrack("sid", "no")));
+        if (AudioTrackList.Children.Count == 0) AudioTrackList.Children.Add(new TextBlock { Text = L("Aucune piste audio", "No audio track"), Foreground = Palette.Get("Faint"), FontSize = 13, Margin = new Thickness(10, 8, 10, 8) });
+        SubtitleTrackList.Children.Add(MenuChoice("subtitles", L("Désactivés", "Off"), "", subtitle is "no" or "" or "false", () => ChooseTrack("sid", "no")));
         foreach (var track in tracks.Where(t => t.Type == "sub"))
             SubtitleTrackList.Children.Add(MenuChoice("subtitles", track.Label, track.Details, track.Id == subtitle, () => ChooseTrack("sid", track.Id)));
         _ = ShowSubtitleSearchAsync();
@@ -400,7 +400,7 @@ public partial class MainWindow
         foreach (var speed in Speeds)
         {
             var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "speed", Content = PlayerText.Speed(speed), Tag = speed, IsChecked = Math.Abs(current - speed) < .001 };
-            System.Windows.Automation.AutomationProperties.SetName(chip, "Vitesse " + PlayerText.Speed(speed));
+            System.Windows.Automation.AutomationProperties.SetName(chip, L("Vitesse ", "Speed ") + PlayerText.Speed(speed));
             chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSpeed(speed); };
             SpeedList.Children.Add(chip);
         }
@@ -409,16 +409,17 @@ public partial class MainWindow
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");
         var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null }.Where(x => x is not null));
-        var decoding = _mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? $"matériel ({hwdec})" : "logiciel";
-        PlaybackInfo.Text = $"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nAudio  {PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"}\nImages perdues  {_mpv.Get("frame-drop-count") ?? "0"}";
+        var decoding = _mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? L($"matériel ({hwdec})", $"hardware ({hwdec})") : L("logiciel", "software");
+        var shown = video.Length > 0 ? video : "—"; var audio = PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"; var dropped = _mpv.Get("frame-drop-count") ?? "0";
+        PlaybackInfo.Text = L($"Vidéo  {shown}\nDécodage  {decoding}\nAudio  {audio}\nImages perdues  {dropped}", $"Video  {shown}\nDecoding  {decoding}\nAudio  {audio}\nDropped frames  {dropped}");
     }
     /// <summary>« Minuterie »: off, 15 min, 30 min, 1 h, or the end of an episode (<see cref="SleepTimer"/>).</summary>
     private void BuildSleepChoices()
     {
         SleepList.Children.Clear();
-        var choices = new List<(int? Minutes, string Label, string Name)> { (null, "Non", "Pas de minuterie") };
-        choices.AddRange(SleepTimer.Choices.Select(m => ((int?)m, SleepTimer.Duration(m), "Pause dans " + SleepTimer.Duration(m))));
-        if (_session.Item?.Type == "Episode") choices.Add((0, "Fin", "Arrêter à la fin de l’épisode"));
+        var choices = new List<(int? Minutes, string Label, string Name)> { (null, L("Non", "Off"), L("Pas de minuterie", "No sleep timer")) };
+        choices.AddRange(SleepTimer.Choices.Select(m => ((int?)m, SleepTimer.Duration(m), L("Pause dans ", "Pause in ") + SleepTimer.Duration(m))));
+        if (_session.Item?.Type == "Episode") choices.Add((0, L("Fin", "End"), L("Arrêter à la fin de l’épisode", "Stop at the end of the episode")));
         foreach (var (minutes, label, name) in choices)
         {
             var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "sleep", Content = label, ToolTip = name, IsChecked = _sleep.Chosen == minutes };
@@ -443,7 +444,7 @@ public partial class MainWindow
     private void CheckSleepTimer()
     {
         if (!_sleep.Due(DateTimeOffset.Now)) return;
-        if (_mpv is not null && !_mpv.Flag("pause")) { _mpv.Set("pause", "yes"); SetNotice("Minuterie : lecture en pause."); }
+        if (_mpv is not null && !_mpv.Flag("pause")) { _mpv.Set("pause", "yes"); SetNotice(L("Minuterie : lecture en pause.", "Sleep timer: playback paused.")); }
         if (PlayerOptionsPopup.IsOpen && MoreMenu.Visibility == Visibility.Visible) BuildSleepChoices();
     }
     private void ChooseSpeed(double speed)
@@ -491,10 +492,10 @@ public partial class MainWindow
     private void LoadSubtitle_Click(object sender, RoutedEventArgs e)
     {
         PlayerOptionsPopup.IsOpen = false;
-        var dialog = new OpenFileDialog { Filter = "Sous-titres|*.srt;*.ass;*.ssa;*.vtt;*.sub|Tous les fichiers|*.*" };
+        var dialog = new OpenFileDialog { Filter = L("Sous-titres|*.srt;*.ass;*.ssa;*.vtt;*.sub|Tous les fichiers|*.*", "Subtitles|*.srt;*.ass;*.ssa;*.vtt;*.sub|All files|*.*") };
         if (dialog.ShowDialog(this) == true)
         {
-            if (!TryCommand("sub-add", dialog.FileName, "select")) SetNotice("Ce fichier de sous-titres n’a pas pu être chargé.");
+            if (!TryCommand("sub-add", dialog.FileName, "select")) SetNotice(L("Ce fichier de sous-titres n’a pas pu être chargé.", "This subtitle file couldn’t be loaded."));
             else _ = OfferToKeepSubtitleAsync(dialog.FileName);
         }
         ShowPlayerControls();
