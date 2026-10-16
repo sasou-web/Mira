@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.7.9 — 2026-10-16
+
+Regarder ensemble plus simple, lecture plus fiable, PC serveur toujours joignable, recherche enrichie, titres gardés sur le PC et Mira web à jour le jour même.
 
 - **Fichiers Windows construits par GitHub Actions, prêts à être signés** : `tools/release.ps1` ne compile plus rien sur le PC du mainteneur. Le workflow `windows.yml` construit l’installateur, l’exécutable portable et l’archive depuis le commit publié, sur une machine neuve de GitHub, et les fait signer par SignPath Foundation (Authenticode, gratuit pour un projet libre) dès que le projet est accepté : fini l’avertissement « éditeur inconnu », et un antivirus a moins de raisons de se tromper sur un fichier neuf. La politique de signature du code est dans le README ; les notes de chaque release portent la mention « Code signing policy » demandée par SignPath, et chaque fichier signé doit porter le nom de produit « Mira » et la version de la release, ce que le workflow vérifie avant de l’envoyer. Les notes de chaque release commencent par ce qu’est Mira (la page de téléchargement doit décrire le programme), et la politique nomme les services que Mira contacte et leurs politiques de confidentialité.
 - **Trouver un épisode ou une saga dans la recherche sous Windows et Mac** : comme dans Mira web, la recherche montre sous les films et séries les **Épisodes** dont le nom correspond (« Le départ ») et les **Sagas** (« Harry Potter »). Un épisode ouvre la fiche de sa série à sa saison, l’épisode mis en avant ; une saga montre ses films dans l’ordre de sortie, et la pastille à son nom (ou Échap sous Windows) te ramène à ta recherche. Une saga ne se lance pas d’elle-même : ses films, depuis leur fiche.

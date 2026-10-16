@@ -4,7 +4,7 @@
   <p><strong>Ta bibliothèque Jellyfin. Le confort d’un lecteur fait pour elle.</strong></p>
   <p>Un client Windows natif, sa version Mac et Mira web pour iPhone et Android, une interface cinéma et mpv directement dans l’application.</p>
   <p>
-    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.7.8_preview-e8e8ed?style=flat-square" alt="Version 0.7.8 preview" /></a>
+    <a href="https://github.com/sasou-web/Mira/releases"><img src="https://img.shields.io/badge/version-0.7.9_preview-e8e8ed?style=flat-square" alt="Version 0.7.9 preview" /></a>
     <img src="https://img.shields.io/badge/Windows-10%20%2F%2011_x64-0078D4?style=flat-square" alt="Windows 10 et 11 x64" />
     <img src="https://img.shields.io/badge/macOS-15+_Apple_Silicon-555555?style=flat-square" alt="macOS 15 et plus, Apple Silicon" />
     <img src="https://img.shields.io/badge/iPhone_·_Android-Mira_web-555555?style=flat-square" alt="iPhone et Android : Mira web" />
@@ -12,7 +12,7 @@
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-white?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Windows build" /></a>
   </p>
-  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.7.8">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
+  <p><a href="https://github.com/sasou-web/Mira/releases/tag/v0.7.9">Télécharger pour Windows</a> · <a href="docs/SCREENSHOTS.md">Galerie</a> · <a href="docs/INSTALLATION.md">Installation</a> · <a href="docs/README.en.md">English</a></p>
 </div>
 
 ![Accueil de Mira : bandeau Jujutsu Kaisen et rangée « Continuer à regarder »](docs/screenshots/readme-home.jpg)
@@ -41,13 +41,13 @@ Mira garde Jellyfin comme bibliothèque et lui ajoute une interface de bureau ce
 
 ## Installer
 
-Dans la [release 0.7.8](https://github.com/sasou-web/Mira/releases/tag/v0.7.8), choisir l’un des trois fichiers :
+Dans la [release 0.7.9](https://github.com/sasou-web/Mira/releases/tag/v0.7.9), choisir l’un des trois fichiers :
 
 | Fichier | Pour qui |
 | --- | --- |
-| **Mira-0.7.8-win-x64-setup.exe** | Recommandé. Installe Mira pour ton compte, sans droits administrateur, avec son raccourci Démarrer et sa désinstallation depuis les paramètres de Windows. |
-| **Mira-0.7.8-win-x64-portable.exe** | Un seul fichier à lancer tel quel. À ranger dans son propre dossier : il y crée son dossier `data`. |
-| **Mira-0.7.8-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
+| **Mira-0.7.9-win-x64-setup.exe** | Recommandé. Installe Mira pour ton compte, sans droits administrateur, avec son raccourci Démarrer et sa désinstallation depuis les paramètres de Windows. |
+| **Mira-0.7.9-win-x64-portable.exe** | Un seul fichier à lancer tel quel. À ranger dans son propre dossier : il y crée son dossier `data`. |
+| **Mira-0.7.9-win-x64.zip** | Le dossier complet de l’application, à extraire où tu veux. |
 
 1. Lancer l’installateur ou l’exécutable. Tant que les fichiers ne sont pas signés (voir [Politique de signature du code](#politique-de-signature-du-code)), Windows peut afficher un avertissement SmartScreen : **Informations complémentaires → Exécuter quand même**.
 2. Connecter ton serveur Jellyfin (10.9 ou plus récent) — généralement `http://127.0.0.1:8096` sur le même PC ; sur le réseau, son adresse IP ou son nom suffit. Pas encore de serveur ? **Installer Jellyfin sur ce PC**, sous le formulaire de connexion, l’installe, crée les dossiers Films, Séries et Animes, le configure en français (films rangés en sagas) et te connecte.
@@ -61,7 +61,7 @@ La page **Téléchargements** est facultative : TorLink s’y active d’un clic
 
 ### Sur Mac
 
-Mira existe aussi pour les Mac à puce Apple (macOS 15 Sequoia ou plus récent ; macOS 14 Sonoma jusqu’à la 0.7.4) : **Mira-0.7.8-mac-arm64.dmg**, dans la même [release 0.7.8](https://github.com/sasou-web/Mira/releases/tag/v0.7.8). Elle se connecte à un serveur Jellyfin existant et lit avec le même moteur mpv, intégré à l’application. Elle n’est pas signée par Apple : macOS demande de l’autoriser une fois. [Installer Mira sur Mac](docs/INSTALLATION-MAC.md)
+Mira existe aussi pour les Mac à puce Apple (macOS 15 Sequoia ou plus récent ; macOS 14 Sonoma jusqu’à la 0.7.4) : **Mira-0.7.9-mac-arm64.dmg**, dans la même [release 0.7.9](https://github.com/sasou-web/Mira/releases/tag/v0.7.9). Elle se connecte à un serveur Jellyfin existant et lit avec le même moteur mpv, intégré à l’application. Elle n’est pas signée par Apple : macOS demande de l’autoriser une fois. [Installer Mira sur Mac](docs/INSTALLATION-MAC.md)
 
 ### Sur iPhone, iPad et Android
 
@@ -74,7 +74,7 @@ Mira existe aussi pour les Mac à puce Apple (macOS 15 Sequoia ou plus récent ;
 - **Ce qui est signé.** Les fichiers Windows de chaque release : l’installateur `Mira-X.Y.Z-win-x64-setup.exe`, l’exécutable portable `Mira-X.Y.Z-win-x64-portable.exe` et, dans `Mira-X.Y.Z-win-x64.zip`, `Mira.exe`, `Mira.dll` et `Mira.Core.dll`. GitHub Actions ([`windows.yml`](.github/workflows/windows.yml)) les construit depuis le commit de `main` que la release publie, jamais sur un PC ; SignPath Foundation les signe après l’approbation du mainteneur ; ils sont publiés d’un coup, avec leurs empreintes SHA-256, dans une release immuable. Avant de signer, SignPath vérifie que chaque fichier porte le nom de produit « Mira » et la version de la release (configurations d’artefact dans [`installer/signpath/`](installer/signpath)). Le désinstallateur créé par Inno Setup, le runtime .NET et les bibliothèques tierces du dossier gardent leur signature d’origine ou n’en ont pas. Mira pour Mac est signée ad hoc, sans compte Apple ; Mira web (l’extension Jellyfin) n’est pas un exécutable Windows.
 - **Rôles.** [sasou-web](https://github.com/sasou-web) (ogsas) est le mainteneur : son compte GitHub est le seul à écrire sur `main`, lui seul lance une release (`tools/release.ps1`) et approuve chaque demande de signature dans SignPath, avec l’authentification à deux facteurs sur GitHub et sur SignPath. Les modifications sont écrites et testées par l’assistant IA Claude (Anthropic), sur ses demandes, sous son compte et sa responsabilité ; rien n’entre dans une release sans la réussite des contrôles de GitHub Actions (compilation, tests, Mira web contre un vrai Jellyfin).
 - **Vie privée.** Mira ne transmet aucune information à d’autres systèmes que ton serveur Jellyfin, sauf à ta demande (installer le moteur mpv, Jellyfin, Node.js ou TorLink, ouvrir un lien), à une exception près : la recherche de mises à jour sur GitHub (l’API des releases de ce dépôt), à l’ouverture puis toutes les 6 h sous Windows, à chaque ouverture sur Mac. Elle n’envoie que la requête elle-même (adresse IP, version de Mira) et ne rapporte rien ; sous Windows, **Réglages → Mises à jour** l’arrête. Rien n’est collecté, ni sur toi ni sur ta bibliothèque. Les services contactés ont leurs propres politiques de confidentialité : [GitHub](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) (mises à jour, Mira web), [npm](https://docs.npmjs.com/policies/privacy) (TorLink), la [fondation OpenJS](https://privacy-policy.openjsf.org/) (Node.js, depuis nodejs.org), SourceForge (le moteur mpv) et Jellyfin (son installateur) ; une fois lancé, TorLink est un client BitTorrent (pairs, trackers, routeur), et son terminal repose sur [WebView2](https://learn.microsoft.com/microsoft-edge/webview2/concepts/data-privacy), composant de Windows qui suit les réglages de diagnostic de Windows. Le détail : [SECURITY.md](SECURITY.md).
-- **Où en est la signature.** Tout est prêt, mais la demande d’adhésion à SignPath Foundation n’est pas encore déposée : jusqu’à la 0.7.8, les fichiers Windows ne sont pas signés, et SmartScreen demande confirmation.
+- **Où en est la signature.** Tout est prêt, mais la demande d’adhésion à SignPath Foundation n’est pas encore déposée : jusqu’à la 0.7.9, les fichiers Windows ne sont pas signés, et SmartScreen demande confirmation.
 
 ## Développer
 
@@ -111,7 +111,7 @@ La compilation et les tests de base sont lancés sur Windows dans GitHub Actions
 
 ## État du projet
 
-Mira **0.7.8** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, signature des releases (demande à SignPath Foundation en cours) et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
+Mira **0.7.9** est une préversion utilisable pour tester le projet, avec des évolutions encore nécessaires : transcodage, choix des versions multiples d’un titre, édition des collections, signature des releases (demande à SignPath Foundation pas encore déposée) et essais approfondis HDR, multicanal et multi-écrans. Jellyfin 10.9 ou plus récent est nécessaire. Les mises à jour sont automatiques depuis la 0.5.2 ; une copie plus ancienne se met à jour une fois à la main.
 
 - [Fonctionnalités détaillées et raccourcis](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md), [tests](docs/TESTS.md) et [validation](docs/VALIDATION.md)
