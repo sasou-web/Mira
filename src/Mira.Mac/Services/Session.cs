@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mira.Core;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Services;
 
@@ -93,11 +94,11 @@ public static class Errors
         UnauthorizedAccessException => ex.Message,
         UserInputException => ex.Message,
         ServerDiscoveryException => ex.Message,
-        OperationCanceledException or TimeoutException => "Jellyfin met trop de temps à répondre.",
+        OperationCanceledException or TimeoutException => L("Jellyfin met trop de temps à répondre.", "Jellyfin is taking too long to answer."),
         HttpRequestException h when h.StatusCode is not null => h.Message,
-        HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.",
-        SqliteException => "Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.",
-        _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie."
+        HttpRequestException => L("Le serveur Jellyfin est momentanément inaccessible.", "Can’t reach the Jellyfin server right now."),
+        SqliteException => L("Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.", "Mira’s local storage is unavailable (full disk or file in use): free up some disk space, or open Mira again."),
+        _ => L("L’opération n’a pas abouti. Vérifie la connexion et réessaie.", "That didn’t work. Check the connection and try again.")
     };
     /// <summary>The local cache is a bonus: a full disk, a locked or damaged database leaves Jellyfin's answer, or nothing, on screen.</summary>
     public static T? TryCache<T>(Func<T> read) { try { return read(); } catch (Exception ex) when (CacheFailure(ex)) { return default; } }

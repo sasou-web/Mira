@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Mira.Core;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -16,28 +17,28 @@ public sealed class InviteWindow : Window
 {
     public InviteWindow(Together.Group group, string link, Action<string> notice)
     {
-        Title = "Inviter quelqu’un"; Width = 560; SizeToContent = SizeToContent.Height; CanResize = false;
+        Title = L("Inviter quelqu’un", "Invite someone"); Width = 560; SizeToContent = SizeToContent.Height; CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var field = new TextBox { Text = link, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 14, FontWeight = FontWeight.SemiBold };
-        Avalonia.Automation.AutomationProperties.SetName(field, "Lien d’invitation");
+        Avalonia.Automation.AutomationProperties.SetName(field, L("Lien d’invitation", "Invite link"));
         var steps = new StackPanel { Spacing = 10 };
         var list = Together.InviteSteps(link);
         for (var i = 0; i < list.Count; i++) steps.Children.Add(Ui.Text($"{i + 1}. {list[i]}", 13.5, color: Ui.Muted));
         foreach (var step in steps.Children.OfType<TextBlock>()) { step.TextWrapping = TextWrapping.Wrap; step.LineHeight = 20; }
-        var copy = Ui.Action("Copier le lien", "link", "primary", async () =>
+        var copy = Ui.Action(L("Copier le lien", "Copy the link"), "link", "primary", async () =>
         {
-            if (Clipboard is not { } clipboard) { notice("Copie impossible ici : sélectionne le lien."); return; }
+            if (Clipboard is not { } clipboard) { notice(L("Copie impossible ici : sélectionne le lien.", "Can’t copy here: select the link.")); return; }
             await clipboard.SetTextAsync(link);
-            notice("Lien copié : envoie-le à ton ami.");
+            notice(L("Lien copié : envoie-le à ton ami.", "Link copied: send it to your friend."));
             Close();
         });
-        var close = Ui.Action("Fermer", null, "quiet", Close);
+        var close = Ui.Action(L("Fermer", "Close"), null, "quiet", Close);
         Content = new Border
         {
             Padding = new Thickness(32, 28),
             Child = Ui.Column(16,
-                Ui.Text("Inviter quelqu’un", 26, FontWeight.Bold),
-                new TextBlock { Text = $"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
+                Ui.Text(L("Inviter quelqu’un", "Invite someone"), 26, FontWeight.Bold),
+                new TextBlock { Text = L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”."), FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
                 field, steps,
                 new DockPanel { Children = { close, copy } }),
         };

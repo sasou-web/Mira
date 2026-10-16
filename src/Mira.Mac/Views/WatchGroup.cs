@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Avalonia.Threading;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -19,7 +20,7 @@ namespace Mira.Mac.Views;
 /// </summary>
 public sealed class WatchGroup
 {
-    public const string NoSyncPlay = "Jellyfin ne permet pas à ce compte de regarder ensemble (tableau de bord → Utilisateurs → SyncPlay).";
+    public static string NoSyncPlay => L("Jellyfin ne permet pas à ce compte de regarder ensemble (tableau de bord → Utilisateurs → SyncPlay).", "Jellyfin doesn’t let this account watch together (dashboard → Users → SyncPlay).");
     private readonly MainWindow _shell;
     /// <summary>The account the group belongs to: messages of an account signed out since are ignored.</summary>
     private Session? _session;
@@ -88,7 +89,7 @@ public sealed class WatchGroup
             case "NotInGroup" or "GroupDoesNotExist":
                 if (Group is null) Gone(); else Recover(session);
                 break;
-            case "LibraryAccessDenied": _shell.Notice("Un membre du groupe n’a pas accès à ce titre dans Jellyfin."); break;
+            case "LibraryAccessDenied": _shell.Notice(L("Un membre du groupe n’a pas accès à ce titre dans Jellyfin.", "Someone in the group can’t access this title in Jellyfin.")); break;
             case "PlayQueue": _ = QueueAsync(session, body); break;
         }
     }
@@ -118,7 +119,7 @@ public sealed class WatchGroup
                 {
                     var plan = Together.RejoinPlan(await session.Client.SyncGroupsAsync(session.Lifetime), lost, _made);
                     if (!ReferenceEquals(session, _shell.Session) || !ReferenceEquals(Group, lost)) return;
-                    if (plan is null) { Gone("Le groupe n’existe plus."); return; }
+                    if (plan is null) { Gone(L("Le groupe n’existe plus.", "The group no longer exists.")); return; }
                     await (plan.Join is { } id ? session.Client.SyncJoinAsync(id, session.Lifetime) : session.Client.SyncNewAsync(plan.Create!, session.Lifetime));
                     await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6), session.Lifetime));
                 }
@@ -126,7 +127,7 @@ public sealed class WatchGroup
                 finally { if (ReferenceEquals(_joined, joined)) _joined = null; }
                 if (!ReferenceEquals(Group, lost)) return;
             }
-            Gone("Le groupe n’existe plus.");
+            Gone(L("Le groupe n’existe plus.", "The group no longer exists."));
         }
     }
     /// <summary>Jellyfin names each account once, whatever its devices: its own list, rather than a count kept here.</summary>
@@ -253,7 +254,7 @@ public sealed class WatchGroup
         try { name = Together.TitleName(await session.Client.ItemAsync(queue.ItemId, session.Lifetime)); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
         if (!Active || !ReferenceEquals(queue, Queue)) return;
-        _shell.Notice(Together.ReplaceQuestion(name) + " Le groupe le regarde en ce moment.", "Remplacer", () => _ = AskAsync(item, fromStart), sticky: true);
+        _shell.Notice(Together.ReplaceQuestion(name) + L(" Le groupe le regarde en ce moment.", " The group is watching it right now."), L("Remplacer", "Replace"), () => _ = AskAsync(item, fromStart), sticky: true);
     }
     /// <summary>« Créer un groupe » (<paramref name="made"/>) or « Rejoindre … »: done once Jellyfin says GroupJoined.</summary>
     public async Task EnterAsync(Func<JellyfinClient, CancellationToken, Task> start, bool invite = false, bool made = false)
@@ -265,10 +266,10 @@ public sealed class WatchGroup
         {
             await start(session.Client, session.Lifetime);
             await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6)));
-            if (Group is null && ReferenceEquals(session, _shell.Session)) _shell.Notice("Jellyfin n’a pas répondu. Réessaie dans un instant.");
+            if (Group is null && ReferenceEquals(session, _shell.Session)) _shell.Notice(L("Jellyfin n’a pas répondu. Réessaie dans un instant.", "Jellyfin didn’t answer. Try again in a moment."));
             // A new group is empty: its invitation comes at once, the way to bring someone in.
             else if (Group is not null && invite) await InviteAsync();
-            else if (Group is { } group) _shell.Notice($"Tu es dans « {group.GroupName} » : Lecture lance le titre pour tout le groupe, au même moment chez chacun.");
+            else if (Group is { } group) _shell.Notice(L($"Tu es dans « {group.GroupName} » : Lecture lance le titre pour tout le groupe, au même moment chez chacun.", $"You’re in “{group.GroupName}”: Play starts the title for the whole group, at the same moment for everyone."));
         }
         catch (UnauthorizedAccessException) { _shell.Notice(NoSyncPlay); }
         catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex)); }

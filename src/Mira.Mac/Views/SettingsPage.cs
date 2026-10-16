@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -12,62 +13,89 @@ namespace Mira.Mac.Views;
 public sealed class SettingsPage : Page
 {
     public override string Rail => "settings";
-    private static readonly (string Label, string Value)[] Audio =
-        [("Japonais, puis français", "jpn,ja,fre,fra,fr,eng,en"), ("Français, puis anglais", "fre,fra,fr,eng,en"), ("Anglais, puis français", "eng,en,fre,fra,fr")];
-    private static readonly (string Label, string Value)[] Subtitles =
-        [("Français, puis anglais", "fre,fra,fr,eng,en"), ("Anglais", "eng,en"), ("Japonais", "jpn,ja")];
+    // Built with the page: the language is set once Mira opens.
+    private static (string Label, string Value)[] Audio =>
+        [(L("Japonais, puis français", "Japanese, then French"), "jpn,ja,fre,fra,fr,eng,en"), (L("Français, puis anglais", "French, then English"), "fre,fra,fr,eng,en"), (L("Anglais, puis français", "English, then French"), "eng,en,fre,fra,fr")];
+    private static (string Label, string Value)[] Subtitles =>
+        [(L("Français, puis anglais", "French, then English"), "fre,fra,fr,eng,en"), (L("Anglais", "English"), "eng,en"), (L("Japonais", "Japanese"), "jpn,ja")];
 
     public SettingsPage(MainWindow shell) : base(shell)
     {
         var settings = shell.Settings;
         var page = new StackPanel { Spacing = 34, Margin = new Thickness(56, 44 + shell.TitleBarInset, 56, 60), MaxWidth = 860, HorizontalAlignment = HorizontalAlignment.Left };
-        page.Children.Add(Ui.Text("Réglages", 34, FontWeight.ExtraBold));
+        page.Children.Add(Ui.Text(L("Réglages", "Settings"), 34, FontWeight.ExtraBold));
 
         var connection = shell.Session?.Connection;
         // Read when « Se déconnecter » is clicked, never kept: each sign-out asks anew.
         var erase = new ToggleSwitch { IsChecked = false, OnContent = null, OffContent = null, MinWidth = 0 };
-        Avalonia.Automation.AutomationProperties.SetName(erase, "Effacer aussi les données de ce compte sur ce Mac");
-        page.Children.Add(Section("Compte",
-            Row("Serveur Jellyfin", connection?.Server ?? "—", null),
-            Row("Utilisateur", connection?.UserName ?? "—", SignOut(erase)),
-            Row("Effacer aussi les données de ce compte sur ce Mac", "En te déconnectant : le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.", erase)));
+        Avalonia.Automation.AutomationProperties.SetName(erase, L("Effacer aussi les données de ce compte sur ce Mac", "Also erase this account’s data on this Mac"));
+        page.Children.Add(Section(L("Compte", "Account"),
+            Row(L("Serveur Jellyfin", "Jellyfin server"), connection?.Server ?? "—", null),
+            Row(L("Utilisateur", "User"), connection?.UserName ?? "—", SignOut(erase)),
+            Row(L("Effacer aussi les données de ce compte sur ce Mac", "Also erase this account’s data on this Mac"),
+                L("En te déconnectant : le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.",
+                    "When you sign out: your library’s cache, the posters and any progress not yet sent to Jellyfin. Your settings stay."), erase)));
         // « Ton bilan »: the month or the year, from Jellyfin's record of what was played to the end.
-        page.Children.Add(Section("Ton bilan", Report()));
+        page.Children.Add(Section(L("Ton bilan", "Your recap"), Report()));
         // Quick Connect: shown once Jellyfin says it lets devices in by a code.
-        var devices = Section("Autoriser un appareil", ApproveDevice());
+        var devices = Section(L("Autoriser un appareil", "Allow a device"), ApproveDevice());
         devices.IsVisible = false;
         page.Children.Add(devices);
         if (shell.Session is { } session) _ = ShowWhenEnabledAsync(session.Client, devices);
 
-        page.Children.Add(Section("Lecture",
-            Toggle("Reprendre là où tu t’es arrêté", "Sinon, chaque titre repart du début.", settings.RememberPosition, v => settings.RememberPosition = v),
-            Choice("Reprendre un peu avant", PlaybackSession.ResumeBackChoices.Select(x => (x > 0 ? $"{x} s avant" : "Non", x.ToString(CultureInfo.InvariantCulture))).ToArray(),
+        page.Children.Add(Section(L("Lecture", "Playback"),
+            Toggle(L("Reprendre là où tu t’es arrêté", "Resume where you left off"), L("Sinon, chaque titre repart du début.", "Otherwise, every title starts from the beginning."), settings.RememberPosition, v => settings.RememberPosition = v),
+            Choice(L("Reprendre un peu avant", "Resume a little earlier"), PlaybackSession.ResumeBackChoices.Select(x => (x > 0 ? L($"{x} s avant", $"{x} s earlier") : L("Non", "No"), x.ToString(CultureInfo.InvariantCulture))).ToArray(),
                 settings.ResumeBack.ToString(CultureInfo.InvariantCulture), v => settings.ResumeBack = int.Parse(v, CultureInfo.InvariantCulture),
-                "Pour retrouver le fil plutôt que de tomber au milieu d’une phrase. Un titre vu moins de 30 s reprend pile là où tu t’es arrêté."),
-            Toggle("Épisode suivant automatique", "À la fin d’un épisode, le suivant démarre.", settings.AutoNext, v => settings.AutoNext = v),
-            Toggle("Passer les intros et les récaps", "Sans appuyer sur S, quand Jellyfin ou les chapitres du fichier les ont repérés. Revenir en arrière les rejoue.", settings.AutoSkip, v => settings.AutoSkip = v),
-            Toggle("Décodage matériel", "Utilise la puce du Mac pour décoder la vidéo : moins de chauffe, plus d’autonomie.", settings.HardwareDecoding, v => settings.HardwareDecoding = v)));
+                L("Pour retrouver le fil plutôt que de tomber au milieu d’une phrase. Un titre vu moins de 30 s reprend pile là où tu t’es arrêté.",
+                    "To pick up the thread rather than land in the middle of a sentence. A title watched for less than 30 s resumes exactly where you left off.")),
+            Toggle(L("Épisode suivant automatique", "Play the next episode automatically"), L("À la fin d’un épisode, le suivant démarre.", "When an episode ends, the next one starts."), settings.AutoNext, v => settings.AutoNext = v),
+            Toggle(L("Passer les intros et les récaps", "Skip intros and recaps"), L("Sans appuyer sur S, quand Jellyfin ou les chapitres du fichier les ont repérés. Revenir en arrière les rejoue.",
+                "Without pressing S, when Jellyfin or the file’s chapters found them. Going back plays them again."), settings.AutoSkip, v => settings.AutoSkip = v),
+            Toggle(L("Décodage matériel", "Hardware decoding"), L("Utilise la puce du Mac pour décoder la vidéo : moins de chauffe, plus d’autonomie.", "Uses the Mac’s chip to decode the video: less heat, longer battery life."), settings.HardwareDecoding, v => settings.HardwareDecoding = v)));
 
         // « Accueil à ta main »: the libraries come from Jellyfin, for their « Nouveau dans … ».
         page.Children.Add(_home);
         DrawHome();
         if (shell.Session is { } account) _ = LoadLibrariesAsync(account.Client);
 
-        page.Children.Add(Section("Langues",
-            Choice("Audio", Audio, settings.AudioLanguage, v => settings.AudioLanguage = v),
-            Choice("Sous-titres", Subtitles, settings.SubtitleLanguage, v => settings.SubtitleLanguage = v)));
+        page.Children.Add(Section(L("Langues", "Languages"),
+            AppLanguage(settings),
+            Choice(L("Audio", "Audio"), Audio, settings.AudioLanguage, v => settings.AudioLanguage = v),
+            Choice(L("Sous-titres", "Subtitles"), Subtitles, settings.SubtitleLanguage, v => settings.SubtitleLanguage = v)));
 
-        page.Children.Add(Section("Sous-titres", SubtitleRows(settings)));
+        page.Children.Add(Section(L("Sous-titres", "Subtitles"), SubtitleRows(settings)));
 
         page.Children.Add(Section("Mira",
-            Row($"Version {Updates.Current}", "Mira pour Mac (Apple Silicon).", Ui.Action("Rechercher une mise à jour", "download", "", () => _ = Updates.CheckAsync(Shell, asked: true))),
+            Row($"Version {Updates.Current}", L("Mira pour Mac (Apple Silicon).", "Mira for Mac (Apple silicon)."), Ui.Action(L("Rechercher une mise à jour", "Check for updates"), "download", "", () => _ = Updates.CheckAsync(Shell, asked: true))),
             // Switched back on: GitHub is asked now rather than at the next launch, as on Windows.
-            Toggle("Rechercher les nouvelles versions", "À chaque ouverture, Mira demande à GitHub s’il existe une nouvelle version. Sinon, seulement quand tu cliques sur « Rechercher une mise à jour ».",
+            Toggle(L("Rechercher les nouvelles versions", "Look for new versions"), L("À chaque ouverture, Mira demande à GitHub s’il existe une nouvelle version. Sinon, seulement quand tu cliques sur « Rechercher une mise à jour ».",
+                    "Each time it opens, Mira asks GitHub whether there’s a new version. Otherwise, only when you click “Check for updates”."),
                 settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }),
-            Row("Projet", "Le code, les nouveautés et les versions pour Windows et Mac.", Ui.Action("Ouvrir GitHub", "globe", "", () => Updates.Open(Updates.Project)))));
+            Row(L("Projet", "Project"), L("Le code, les nouveautés et les versions pour Windows et Mac.", "The code, what’s new and the versions for Windows and Mac."), Ui.Action(L("Ouvrir GitHub", "Open GitHub"), "globe", "", () => Updates.Open(Updates.Project)))));
         Content = new ScrollViewer { Content = page };
     }
     private void Save() { Shell.Profile.SaveSettings(Shell.Settings); Shell.ChoicesChanged(); }
+    /// <summary>
+    /// « Langue de Mira »: the Mac's language, English or French. Mira opens in it next time (its texts are written as it
+    /// starts, <see cref="Lang"/>); from Mira.app, « Relancer » opens it again at once. Said in the language chosen.
+    /// </summary>
+    private Control AppLanguage(PlayerSettings settings)
+    {
+        var mac = Resolve(null, null, SystemLanguage.Preferred()) == French ? "Français" : "English";
+        (string, string)[] options = [(L($"Langue du Mac ({mac})", $"Mac’s language ({mac})"), ""), ("English", English), ("Français", French)];
+        return Choice(L("Langue de Mira", "Mira’s language"), options, Known(settings.Language) ?? "", v =>
+        {
+            settings.Language = v;
+            var chosen = Resolve(v, null, SystemLanguage.Preferred());
+            if (chosen == Code) return;
+            string Said(string french, string english) => chosen == French ? french : english;
+            var text = Said("Mira passera en français à sa prochaine ouverture.", "Mira will be in English the next time it opens.");
+            // Opened again once this Mira has quit, which saves the settings and closes the session as any quit does.
+            if (SystemLanguage.Bundle() is { } bundle) Shell.Notice(text, Said("Relancer", "Relaunch"), () => { if (SystemLanguage.RelaunchAfterExit(bundle)) Shell.Close(); });
+            else Shell.Notice(text);
+        }, L("Appliquée à la prochaine ouverture de Mira.", "Applies the next time Mira opens."));
+    }
     private Control Report()
     {
         var time = new TextBlock { FontSize = 40, FontWeight = FontWeight.ExtraBold };
@@ -78,27 +106,27 @@ public sealed class SettingsPage : Page
         void Periods()
         {
             periods.Children.Clear();
-            periods.Children.Add(Ui.Action("Ce mois-ci", null, year ? "" : "chip on", () => { if (year) { year = false; _ = LoadAsync(); } }));
-            periods.Children.Add(Ui.Action("Cette année", null, year ? "chip on" : "", () => { if (!year) { year = true; _ = LoadAsync(); } }));
+            periods.Children.Add(Ui.Action(L("Ce mois-ci", "This month"), null, year ? "" : "chip on", () => { if (year) { year = false; _ = LoadAsync(); } }));
+            periods.Children.Add(Ui.Action(L("Cette année", "This year"), null, year ? "chip on" : "", () => { if (!year) { year = true; _ = LoadAsync(); } }));
         }
         async Task LoadAsync()
         {
-            var mine = ++version; var period = year ? "cette année" : "ce mois-ci";
+            var mine = ++version; var period = year ? L("cette année", "this year") : L("ce mois-ci", "this month");
             Periods(); body.Children.Clear(); time.Text = ""; time.IsVisible = false;
             if (Shell.Session is not { } session) return;
-            counts.Text = "Calcul de ton bilan…";
+            counts.Text = L("Calcul de ton bilan…", "Working out your recap…");
             try
             {
                 var from = WatchReport.Start(DateTimeOffset.Now, year);
                 var (played, series) = await session.Client.PlayedSinceAsync(from, session.Lifetime);
                 if (mine != version) return;
                 var report = WatchReport.Build(played, series, from);
-                if (report.Empty) { counts.Text = $"Aucun film ni épisode terminé {period} pour l’instant."; return; }
+                if (report.Empty) { counts.Text = L($"Aucun film ni épisode terminé {period} pour l’instant.", $"No movie or episode finished {period} yet."); return; }
                 time.Text = WatchReport.Time(report.Minutes); time.IsVisible = true;
-                counts.Text = $"devant l’écran {period} · " + string.Join(" · ", new[] { report.Films > 0 ? WatchReport.Count(report.Films, "film", "films") : null, report.Episodes > 0 ? WatchReport.Count(report.Episodes, "épisode", "épisodes") : null }.OfType<string>());
-                Part("SÉRIES LES PLUS REGARDÉES", report.Series.Select(x => (x.Name, $"{WatchReport.Count(x.Episodes, "épisode", "épisodes")} · {WatchReport.Time(x.Minutes)}")));
-                Part(report.Finished.Count > 1 ? "SÉRIES TERMINÉES" : "SÉRIE TERMINÉE", report.Finished.Select(x => (x, "")));
-                if (report.Genres.Count > 0) Part("GENRES PRÉFÉRÉS", [(string.Join(" · ", report.Genres), "")]);
+                counts.Text = L($"devant l’écran {period}", $"spent watching {period}") + " · " + string.Join(" · ", new[] { report.Films > 0 ? Count(report.Films, "film", "films", "movie", "movies") : null, report.Episodes > 0 ? Count(report.Episodes, "épisode", "épisodes", "episode", "episodes") : null }.OfType<string>());
+                Part(L("SÉRIES LES PLUS REGARDÉES", "MOST WATCHED SHOWS"), report.Series.Select(x => (x.Name, $"{Count(x.Episodes, "épisode", "épisodes", "episode", "episodes")} · {WatchReport.Time(x.Minutes)}")));
+                Part(report.Finished.Count > 1 ? L("SÉRIES TERMINÉES", "SHOWS FINISHED") : L("SÉRIE TERMINÉE", "SHOW FINISHED"), report.Finished.Select(x => (x, "")));
+                if (report.Genres.Count > 0) Part(L("GENRES PRÉFÉRÉS", "FAVORITE GENRES"), [(string.Join(" · ", report.Genres), "")]);
             }
             catch (Exception ex) when (Errors.Expected(ex)) { if (mine == version) counts.Text = Errors.Friendly(ex); }
         }
@@ -117,7 +145,7 @@ public sealed class SettingsPage : Page
         }
         _ = LoadAsync();
         return Ui.Column(12, periods, Ui.Column(2, time, counts), body,
-            new TextBlock { Text = "D’après Jellyfin : chaque film ou épisode vu jusqu’au bout compte une fois, à sa dernière lecture, sur tous tes appareils.", FontSize = 12.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+            new TextBlock { Text = L("D’après Jellyfin : chaque film ou épisode vu jusqu’au bout compte une fois, à sa dernière lecture, sur tous tes appareils.", "From Jellyfin: each movie or episode watched to the end counts once, at its last playback, on all your devices."), FontSize = 12.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
     }
     private readonly ContentControl _home = new();
     private List<LibrarySection> _libraries = [];
@@ -136,16 +164,16 @@ public sealed class SettingsPage : Page
         var controls = rows.Select((row, i) =>
         {
             var shown = new ToggleSwitch { IsChecked = row.Shown, OnContent = null, OffContent = null, MinWidth = 0 };
-            Avalonia.Automation.AutomationProperties.SetName(shown, "Afficher « " + row.Title + " »");
+            Avalonia.Automation.AutomationProperties.SetName(shown, L($"Afficher « {row.Title} »", $"Show “{row.Title}”"));
             shown.IsCheckedChanged += (_, _) => Apply(HomeLayout.Show(settings.HomeRows, _libraries, row.Key, shown.IsChecked == true), row.Key, "shown");
-            var up = Ui.IconButton("up", "Monter « " + row.Title + " »", () => Apply(HomeLayout.Move(settings.HomeRows, _libraries, row.Key, -1), row.Key, i == 1 ? "down" : "up"), "icon", 18);
-            var down = Ui.IconButton("down", "Descendre « " + row.Title + " »", () => Apply(HomeLayout.Move(settings.HomeRows, _libraries, row.Key, 1), row.Key, i == rows.Count - 2 ? "up" : "down"), "icon", 18);
+            var up = Ui.IconButton("up", L($"Monter « {row.Title} »", $"Move “{row.Title}” up"), () => Apply(HomeLayout.Move(settings.HomeRows, _libraries, row.Key, -1), row.Key, i == 1 ? "down" : "up"), "icon", 18);
+            var down = Ui.IconButton("down", L($"Descendre « {row.Title} »", $"Move “{row.Title}” down"), () => Apply(HomeLayout.Move(settings.HomeRows, _libraries, row.Key, 1), row.Key, i == rows.Count - 2 ? "up" : "down"), "icon", 18);
             up.IsEnabled = i > 0; down.IsEnabled = i < rows.Count - 1;
             if (focus == row.Key + "shown") focused = shown; else if (focus == row.Key + "up") focused = up; else if (focus == row.Key + "down") focused = down;
             return Row(row.Title, HomeLayout.Detail(row), Ui.Row(8, shown, up, down));
         }).ToList();
-        controls.Add(Row("Ordre de Mira", "Les rangées de départ, dans leur ordre.", Ui.Action("Rétablir", "refresh", "", () => { settings.HomeRows = ""; Save(); DrawHome(); })));
-        _home.Content = Section("Accueil", [.. controls]);
+        controls.Add(Row(L("Ordre de Mira", "Mira’s order"), L("Les rangées de départ, dans leur ordre.", "The original rows, in their order."), Ui.Action(L("Rétablir", "Restore"), "refresh", "", () => { settings.HomeRows = ""; Save(); DrawHome(); })));
+        _home.Content = Section(L("Accueil", "Home"), [.. controls]);
         focused?.Focus();
     }
     private static async Task ShowWhenEnabledAsync(JellyfinClient client, Control section)
@@ -157,39 +185,43 @@ public sealed class SettingsPage : Page
     private Control ApproveDevice()
     {
         var box = new TextBox { Width = 150, MaxLength = 7, FontSize = 16, Watermark = "000 000" };
-        Avalonia.Automation.AutomationProperties.SetName(box, "Code de l’appareil à autoriser");
+        Avalonia.Automation.AutomationProperties.SetName(box, L("Code de l’appareil à autoriser", "Code of the device to allow"));
         var status = new TextBlock { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
         Button? button = null;
         async Task ApproveAsync()
         {
             if (Shell.Session?.Client is not { } client || !button!.IsEnabled) return;
-            if (JellyfinClient.QuickConnectCode(box.Text) is not { } code) { status.Text = "Le code a 6 chiffres."; box.Focus(); box.SelectAll(); return; }
-            button.IsEnabled = false; status.Text = "Autorisation…";
+            if (JellyfinClient.QuickConnectCode(box.Text) is not { } code) { status.Text = L("Le code a 6 chiffres.", "The code has 6 digits."); box.Focus(); box.SelectAll(); return; }
+            button.IsEnabled = false; status.Text = L("Autorisation…", "Allowing…");
             try
             {
                 var approval = await client.ApproveCodeAsync(code);
                 status.Text = approval switch
                 {
-                    CodeApproval.Approved => "Appareil autorisé : il se connecte à ton compte.",
-                    CodeApproval.Unknown => "Code inconnu ou expiré. Vérifie-le, ou demandes-en un nouveau sur l’appareil.",
-                    _ => "Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).",
+                    CodeApproval.Approved => L("Appareil autorisé : il se connecte à ton compte.", "Device allowed: it’s signing in to your account."),
+                    CodeApproval.Unknown => L("Code inconnu ou expiré. Vérifie-le, ou demandes-en un nouveau sur l’appareil.", "Unknown or expired code. Check it, or ask the device for a new one."),
+                    _ => L("Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).", "Quick Connect is turned off on this server: turn it on in Jellyfin’s dashboard (General)."),
                 };
                 if (approval == CodeApproval.Approved) box.Text = ""; else { box.Focus(); box.SelectAll(); }
             }
             catch (Exception ex) when (Errors.Expected(ex)) { status.Text = Errors.Friendly(ex); }
             finally { button.IsEnabled = true; }
         }
-        button = Ui.Action("Autoriser", null, "", () => _ = ApproveAsync());
+        button = Ui.Action(L("Autoriser", "Allow"), null, "", () => _ = ApproveAsync());
         box.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; _ = ApproveAsync(); } };
         return Ui.Column(12,
-            new TextBlock { Text = "Sur ton téléphone, « Se connecter avec un code » affiche 6 chiffres : saisis-les ici pour le connecter à ton compte, sans y taper ton mot de passe. N’autorise qu’un appareil que tu as sous les yeux.", FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
+            new TextBlock
+            {
+                Text = L("Sur ton téléphone, « Se connecter avec un code » affiche 6 chiffres : saisis-les ici pour le connecter à ton compte, sans y taper ton mot de passe. N’autorise qu’un appareil que tu as sous les yeux.",
+                    "On your phone, “Sign in with a code” shows 6 digits: type them here to sign it in to your account, without typing your password on it. Only allow a device you can see in front of you."), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap
+            },
             Ui.Row(10, box, button), status);
     }
     /// <summary>« Se déconnecter »: one click, as telling Jellyfin can take a few seconds.</summary>
     private Button SignOut(ToggleSwitch erase)
     {
         Button? button = null;
-        button = Ui.Action("Se déconnecter", "exit", "", () => { button!.IsEnabled = false; _ = Shell.SignOutAsync(erase.IsChecked == true); });
+        button = Ui.Action(L("Se déconnecter", "Sign out"), "exit", "", () => { button!.IsEnabled = false; _ = Shell.SignOutAsync(erase.IsChecked == true); });
         return button;
     }
 
@@ -225,7 +257,7 @@ public sealed class SettingsPage : Page
     /// </summary>
     private Control[] SubtitleRows(PlayerSettings settings)
     {
-        var text = new TextBlock { Text = "Encore un épisode ?", TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap };
+        var text = new TextBlock { Text = L("Encore un épisode ?", "One more episode?"), TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap };
         var box = new Border { Child = text, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom };
         var outline = new DropShadowEffect { Color = Colors.Black, OffsetX = 0, OffsetY = 1, BlurRadius = 4, Opacity = 1 };
         var scene = new Border
@@ -246,31 +278,32 @@ public sealed class SettingsPage : Page
         var size = new Slider { Minimum = 24, Maximum = 64, Value = settings.SubtitleSize, Width = 240, TickFrequency = 2, IsSnapToTickEnabled = true };
         var sizeLabel = new TextBlock { Text = $"{settings.SubtitleSize}", Width = 36, VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.Muted };
         size.ValueChanged += (_, e) => { settings.SubtitleSize = (int)e.NewValue; sizeLabel.Text = $"{settings.SubtitleSize}"; Save(); Preview(); };
-        Avalonia.Automation.AutomationProperties.SetName(size, "Taille des sous-titres");
+        Avalonia.Automation.AutomationProperties.SetName(size, L("Taille des sous-titres", "Subtitle size"));
         Preview();
         var note = new TextBlock
         {
-            Text = "Aperçu indicatif, appliqué à la prochaine lecture. Taille, couleur, fond et gras valent pour les sous-titres simples (SRT, WebVTT…) : les sous-titres stylés des animés (ASS) gardent leur mise en forme, seule la hauteur remonte leurs dialogues.",
+            Text = L("Aperçu indicatif, appliqué à la prochaine lecture. Taille, couleur, fond et gras valent pour les sous-titres simples (SRT, WebVTT…) : les sous-titres stylés des animés (ASS) gardent leur mise en forme, seule la hauteur remonte leurs dialogues.",
+                "A preview, applied at the next playback. Size, color, background and bold apply to plain subtitles (SRT, WebVTT…): the styled subtitles of anime (ASS) keep their look, only the height moves their dialogue up."),
             FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap,
         };
         return [
             Ui.Column(12, scene, note),
-            Row("Taille", "La taille du texte à l’écran.", Ui.Row(12, size, sizeLabel)),
-            Toggle("Fond sombre", "Un bandeau derrière le texte, lisible même sur une scène claire.", settings.SubtitleBackground, v => { settings.SubtitleBackground = v; Preview(); }),
-            Choice("Couleur", [("Blanc", SubtitleStyle.White), ("Jaune", SubtitleStyle.Yellow)], settings.SubtitleColor == SubtitleStyle.Yellow ? SubtitleStyle.Yellow : SubtitleStyle.White,
-                v => { settings.SubtitleColor = v; Preview(); }, "Le jaune se détache mieux des scènes blanches."),
-            Toggle("Texte en gras", "Plus épais, plus facile à lire de loin.", settings.SubtitleBold, v => { settings.SubtitleBold = v; Preview(); }),
-            Choice("Hauteur à l’écran", [.. SubtitleStyle.Heights.Select(x => (x.Label, x.Position.ToString(CultureInfo.InvariantCulture)))], SubtitleStyle.Height(settings.SubtitleHeight).ToString(CultureInfo.InvariantCulture),
-                v => { settings.SubtitleHeight = int.Parse(v, CultureInfo.InvariantCulture); Preview(); }, "Plus haut, ils évitent un texte incrusté en bas de l’image.")];
+            Row(L("Taille", "Size"), L("La taille du texte à l’écran.", "The size of the text on screen."), Ui.Row(12, size, sizeLabel)),
+            Toggle(L("Fond sombre", "Dark background"), L("Un bandeau derrière le texte, lisible même sur une scène claire.", "A band behind the text, readable even over a bright scene."), settings.SubtitleBackground, v => { settings.SubtitleBackground = v; Preview(); }),
+            Choice(L("Couleur", "Color"), [(L("Blanc", "White"), SubtitleStyle.White), (L("Jaune", "Yellow"), SubtitleStyle.Yellow)], settings.SubtitleColor == SubtitleStyle.Yellow ? SubtitleStyle.Yellow : SubtitleStyle.White,
+                v => { settings.SubtitleColor = v; Preview(); }, L("Le jaune se détache mieux des scènes blanches.", "Yellow stands out better against white scenes.")),
+            Toggle(L("Texte en gras", "Bold text"), L("Plus épais, plus facile à lire de loin.", "Thicker, easier to read from a distance."), settings.SubtitleBold, v => { settings.SubtitleBold = v; Preview(); }),
+            Choice(L("Hauteur à l’écran", "Height on screen"), [.. SubtitleStyle.Heights.Select(x => (x.Label, x.Position.ToString(CultureInfo.InvariantCulture)))], SubtitleStyle.Height(settings.SubtitleHeight).ToString(CultureInfo.InvariantCulture),
+                v => { settings.SubtitleHeight = int.Parse(v, CultureInfo.InvariantCulture); Preview(); }, L("Plus haut, ils évitent un texte incrusté en bas de l’image.", "Higher up, they stay clear of text burned into the bottom of the picture."))];
     }
-    private Control Choice(string title, (string Label, string Value)[] options, string current, Action<string> set, string detail = "Les pistes choisies en premier, dans cet ordre.")
+    private Control Choice(string title, (string Label, string Value)[] options, string current, Action<string> set, string? detail = null)
     {
         var box = new ComboBox { MinWidth = 240 };
         foreach (var (label, value) in options) box.Items.Add(new ComboBoxItem { Content = label, Tag = value });
-        if (options.All(x => x.Value != current)) box.Items.Add(new ComboBoxItem { Content = "Personnalisé : " + current, Tag = current });
+        if (options.All(x => x.Value != current)) box.Items.Add(new ComboBoxItem { Content = L("Personnalisé : ", "Custom: ") + current, Tag = current });
         box.SelectedItem = box.Items.OfType<ComboBoxItem>().First(x => (string)x.Tag! == current);
         Avalonia.Automation.AutomationProperties.SetName(box, title);
         box.SelectionChanged += (_, _) => { if (box.SelectedItem is ComboBoxItem { Tag: string value }) { set(value); Save(); } };
-        return Row(title, detail, box);
+        return Row(title, detail ?? L("Les pistes choisies en premier, dans cet ordre.", "The tracks chosen first, in this order."), box);
     }
 }

@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -34,7 +35,7 @@ public sealed class BrowsePage : Page
     private List<MediaItem> _foundEpisodes = [], _foundSagas = [];
     private readonly ScrollViewer _scroll;
     private readonly TextBlock _count = new() { FontSize = 14, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 6) };
-    private readonly TextBox _search = new() { Watermark = "Un film, une série, un acteur…", FontSize = 18, Padding = new Thickness(18, 14) };
+    private readonly TextBox _search = new() { Watermark = L("Un film, une série, un acteur…", "A movie, a show, an actor…"), FontSize = 18, Padding = new Thickness(18, 14) };
     private readonly ComboBox _genre = new(), _year = new(), _state = new(), _sort = new(), _library = new() { IsVisible = false };
     /// <summary>The libraries of this kind (Séries and Animes), when there are several: one at a time, or all of them.</summary>
     private List<LibrarySection> _libraries = [];
@@ -59,18 +60,17 @@ public sealed class BrowsePage : Page
     {
         _kind = kind; _person = person; _director = director; _saga = saga;
         var title = person is not null ? Catalog.PersonText(person.Name, director) : saga is not null ? saga.Name
-            : kind switch { BrowseKind.Movies => "Films", BrowseKind.Series => "Séries", BrowseKind.Search => "Rechercher", _ => "Bibliothèque" };
+            : kind switch { BrowseKind.Movies => L("Films", "Movies"), BrowseKind.Series => L("Séries", "Shows"), BrowseKind.Search => L("Rechercher", "Search"), _ => L("Bibliothèque", "Library") };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
         DockPanel.SetDock(_count, Dock.Right); header.Children.Add(_count);
         header.Children.Add(Ui.Text(title, 34, FontWeight.ExtraBold));
 
-        _favorites = Ui.Action("Favoris", "heart", "chip", () => { _favoritesOnly = !_favoritesOnly; _favorites!.Classes.Set("on", _favoritesOnly); _ = ReloadAsync(); });
-        _reset = Ui.Action("Réinitialiser", "refresh", "chip quiet", Reset);
-        Fill(_state, "Tous", "Non vus", "Vus");
-        if (saga is not null) Fill(_sort, "Ordre de sortie", "Titre", "Année", "Note", "Derniers vus");
-        else Fill(_sort, "Ajouts récents", "Titre", "Année", "Note", "Derniers vus");
-        _genre.PlaceholderText = "Genre"; _year.PlaceholderText = "Année";
-        foreach (var (box, name) in new[] { (_library, "Bibliothèque"), (_genre, "Genre"), (_year, "Année"), (_state, "État"), (_sort, "Tri") })
+        _favorites = Ui.Action(L("Favoris", "Favorites"), "heart", "chip", () => { _favoritesOnly = !_favoritesOnly; _favorites!.Classes.Set("on", _favoritesOnly); _ = ReloadAsync(); });
+        _reset = Ui.Action(L("Réinitialiser", "Reset"), "refresh", "chip quiet", Reset);
+        Fill(_state, L("Tous", "All"), L("Non vus", "Unwatched"), L("Vus", "Watched"));
+        Fill(_sort, saga is not null ? L("Ordre de sortie", "Release order") : L("Ajouts récents", "Recently added"), L("Titre", "Title"), L("Année", "Year"), L("Note", "Rating"), L("Derniers vus", "Last watched"));
+        _genre.PlaceholderText = L("Genre", "Genre"); _year.PlaceholderText = L("Année", "Year");
+        foreach (var (box, name) in new[] { (_library, L("Bibliothèque", "Library")), (_genre, L("Genre", "Genre")), (_year, L("Année", "Year")), (_state, L("État", "Status")), (_sort, L("Tri", "Sort")) })
         {
             Avalonia.Automation.AutomationProperties.SetName(box, name);
             box.SelectionChanged += (_, _) => { if (!_filling) _ = ReloadAsync(); };
@@ -85,7 +85,7 @@ public sealed class BrowsePage : Page
             _search.Margin = new Thickness(0, 0, 0, 22);
             _search.TextChanged += (_, _) => { _typing.Stop(); _typing.Start(); };
             _typing.Tick += (_, _) => { _typing.Stop(); _ = ReloadAsync(); };
-            Avalonia.Automation.AutomationProperties.SetName(_search, "Rechercher dans la bibliothèque");
+            Avalonia.Automation.AutomationProperties.SetName(_search, L("Rechercher dans la bibliothèque", "Search the library"));
             page.Children.Add(_search);
             AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() => _search.Focus(), DispatcherPriority.Input);
         }
@@ -93,25 +93,25 @@ public sealed class BrowsePage : Page
         if (person is not null)
         {
             var chip = Ui.Action(Catalog.PersonText(person.Name, director), "close", "chip on", () => Shell.Back());
-            ToolTip.SetTip(chip, "Retirer ce filtre");
+            ToolTip.SetTip(chip, L("Retirer ce filtre", "Remove this filter"));
             chip.HorizontalAlignment = HorizontalAlignment.Left; chip.Margin = new Thickness(0, -12, 0, 22);
             page.Children.Add(chip);
         }
         if (saga is not null)
         {
-            var chip = Ui.Action("Saga", "close", "chip on", () => Shell.Back());
-            ToolTip.SetTip(chip, "Retirer ce filtre");
+            var chip = Ui.Action(L("Saga", "Collection"), "close", "chip on", () => Shell.Back());
+            ToolTip.SetTip(chip, L("Retirer ce filtre", "Remove this filter"));
             chip.HorizontalAlignment = HorizontalAlignment.Left; chip.Margin = new Thickness(0, -12, 0, 22);
             page.Children.Add(chip);
         }
         page.Children.Add(_empty);
-        _peopleSection.Children.Add(Ui.Text("Personnes", 22, FontWeight.Bold));
+        _peopleSection.Children.Add(Ui.Text(L("Personnes", "People"), 22, FontWeight.Bold));
         _peopleSection.Children.Add(_people);
         page.Children.Add(_peopleSection);
         page.Children.Add(_grid);
-        _episodesSection.Children.Add(Ui.Text("Épisodes", 22, FontWeight.Bold));
+        _episodesSection.Children.Add(Ui.Text(L("Épisodes", "Episodes"), 22, FontWeight.Bold));
         _episodesSection.Children.Add(_episodes);
-        _sagasSection.Children.Add(Ui.Text("Sagas", 22, FontWeight.Bold));
+        _sagasSection.Children.Add(Ui.Text(L("Sagas", "Collections"), 22, FontWeight.Bold));
         _sagasSection.Children.Add(_sagas);
         page.Children.Add(_episodesSection); page.Children.Add(_sagasSection);
         _scroll = new ScrollViewer { Content = page };
@@ -151,7 +151,7 @@ public sealed class BrowsePage : Page
                 var kinds = _kind switch { BrowseKind.Movies => ["movies"], BrowseKind.Series => ["tvshows"], _ => new[] { "movies", "tvshows" } };
                 _libraries = (await libraries).Where(x => kinds.Contains(x.CollectionType)).ToList();
                 _filling = true;
-                _library.Items.Add("Toutes les bibliothèques"); foreach (var library in _libraries) _library.Items.Add(library.Name);
+                _library.Items.Add(L("Toutes les bibliothèques", "All libraries")); foreach (var library in _libraries) _library.Items.Add(library.Name);
                 _library.SelectedIndex = 0; _library.IsVisible = _person is null && _saga is null && _libraries.Count > 1;
                 _filling = false;
             }
@@ -160,8 +160,8 @@ public sealed class BrowsePage : Page
             {
                 var filters = await options;
                 _filling = true;
-                _genre.Items.Add("Tous les genres"); foreach (var genre in filters.Genres) _genre.Items.Add(genre);
-                _year.Items.Add("Toutes les années"); foreach (var year in filters.Years.OrderDescending()) _year.Items.Add(year.ToString());
+                _genre.Items.Add(L("Tous les genres", "All genres")); foreach (var genre in filters.Genres) _genre.Items.Add(genre);
+                _year.Items.Add(L("Toutes les années", "All years")); foreach (var year in filters.Years.OrderDescending()) _year.Items.Add(year.ToString());
                 _genre.SelectedIndex = 0; _year.SelectedIndex = 0;
                 _filling = false;
             }
@@ -176,7 +176,7 @@ public sealed class BrowsePage : Page
         if (Shell.Session is not { } session) return;
         _reset.IsVisible = Filtered;
         var search = _search.Text?.Trim() ?? "";
-        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowFound([], []); _count.Text = ""; ShowEmpty("Tape le nom d’un film, d’une série, d’un épisode, d’une saga ou d’un acteur."); return; }
+        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowFound([], []); _count.Text = ""; ShowEmpty(L("Tape le nom d’un film, d’une série, d’un épisode, d’une saga ou d’un acteur.", "Type the name of a movie, a show, an episode, a collection or an actor.")); return; }
         _request?.Cancel(); _request = new CancellationTokenSource();
         var ct = _request.Token; var version = ++_version;
         _loading = true;
@@ -206,12 +206,12 @@ public sealed class BrowsePage : Page
             if (keep) _scroll.Offset = offset; else _scroll.Offset = default;
             Count();
             if (_items.Count == 0 && _found.Count + _foundEpisodes.Count + _foundSagas.Count == 0)
-                ShowEmpty(_kind == BrowseKind.Search ? $"Rien ne correspond à « {search} »." : Filtered ? "Aucun titre ne correspond à ces filtres."
-                    : _saga is not null ? "Les films de cette saga ne sont pas dans ta bibliothèque." : "Aucun titre dans cette bibliothèque pour l’instant.");
+                ShowEmpty(_kind == BrowseKind.Search ? L($"Rien ne correspond à « {search} ».", $"Nothing matches “{search}”.") : Filtered ? L("Aucun titre ne correspond à ces filtres.", "No title matches these filters.")
+                    : _saga is not null ? L("Les films de cette saga ne sont pas dans ta bibliothèque.", "This collection’s movies aren’t in your library.") : L("Aucun titre dans cette bibliothèque pour l’instant.", "No titles in this library yet."));
             else _empty.IsVisible = false;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-        catch (Exception ex) when (Errors.Expected(ex)) { if (version == _version) Shell.Notice(Errors.Friendly(ex), "Réessayer", () => _ = ReloadAsync()); }
+        catch (Exception ex) when (Errors.Expected(ex)) { if (version == _version) Shell.Notice(Errors.Friendly(ex), L("Réessayer", "Try again"), () => _ = ReloadAsync()); }
         finally { if (version == _version) _loading = false; }
     }
     private async Task MoreAsync()
@@ -232,7 +232,7 @@ public sealed class BrowsePage : Page
         catch (Exception ex) when (Errors.Expected(ex)) { }
         finally { if (version == _version) _loading = false; }
     }
-    private void Count() => _count.Text = _total == 1 ? "1 titre" : $"{_total} titres";
+    private void Count() => _count.Text = Lang.Count(_total, "titre", "titres", "title", "titles");
     /// <summary>The people found, drawn again only when they change (their photos do not flash at each refresh).</summary>
     private void ShowPeople(List<MediaItem> people)
     {

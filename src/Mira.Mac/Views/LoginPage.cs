@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -12,9 +13,9 @@ namespace Mira.Mac.Views;
 public sealed class LoginPage : UserControl
 {
     private readonly MainWindow _shell;
-    private readonly TextBox _server = new() { Watermark = "Adresse du serveur (ex. 192.168.1.20)" };
-    private readonly TextBox _user = new() { Watermark = "Nom d’utilisateur" };
-    private readonly TextBox _password = new() { Watermark = "Mot de passe", PasswordChar = '•', RevealPassword = false };
+    private readonly TextBox _server = new() { Watermark = L("Adresse du serveur (ex. 192.168.1.20)", "Server address (e.g. 192.168.1.20)") };
+    private readonly TextBox _user = new() { Watermark = L("Nom d’utilisateur", "User name") };
+    private readonly TextBox _password = new() { Watermark = L("Mot de passe", "Password"), PasswordChar = '•', RevealPassword = false };
     private readonly Button _connect;
     private readonly TextBlock _error = new() { Foreground = Ui.Brush("#F0B4A7"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     public string Server { get => _server.Text ?? ""; set => _server.Text = value; }
@@ -22,22 +23,22 @@ public sealed class LoginPage : UserControl
     public LoginPage(MainWindow shell, string? error = null)
     {
         _shell = shell;
-        Avalonia.Automation.AutomationProperties.SetName(_server, "Adresse du serveur Jellyfin");
-        Avalonia.Automation.AutomationProperties.SetName(_user, "Nom d’utilisateur");
-        Avalonia.Automation.AutomationProperties.SetName(_password, "Mot de passe");
-        _connect = Ui.Action("Se connecter", null, "primary", () => _ = ConnectAsync());
+        Avalonia.Automation.AutomationProperties.SetName(_server, L("Adresse du serveur Jellyfin", "Jellyfin server address"));
+        Avalonia.Automation.AutomationProperties.SetName(_user, L("Nom d’utilisateur", "User name"));
+        Avalonia.Automation.AutomationProperties.SetName(_password, L("Mot de passe", "Password"));
+        _connect = Ui.Action(L("Se connecter", "Sign in"), null, "primary", () => _ = ConnectAsync());
         _connect.HorizontalAlignment = HorizontalAlignment.Stretch; _connect.HorizontalContentAlignment = HorizontalAlignment.Center; _connect.Padding = new Thickness(18, 13);
         foreach (var box in new[] { _server, _user, _password }) box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; _ = ConnectAsync(); } };
         // Another address is another question: the warning given for the previous one no longer answers it.
-        _server.TextChanged += (_, _) => { if (_warned is not null && !_busy && _server.Text != _warned) { _warned = null; Label.Text = "Se connecter"; _error.IsVisible = false; } };
+        _server.TextChanged += (_, _) => { if (_warned is not null && !_busy && _server.Text != _warned) { _warned = null; Label.Text = L("Se connecter", "Sign in"); _error.IsVisible = false; } };
         if (error is not null) ShowError(error);
 
         var form = Ui.Column(14,
             new Icon("brand", 52) { Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 10) },
-            Ui.Text("Connexion à Jellyfin", 28, FontWeight.Bold),
-            Ui.Text("Mira lit ta bibliothèque Jellyfin. Chez toi, l’adresse du PC qui l’héberge suffit ; ailleurs, celle que Tailscale lui donne.", 14.5, color: Ui.Muted),
+            Ui.Text(L("Connexion à Jellyfin", "Sign in to Jellyfin"), 28, FontWeight.Bold),
+            Ui.Text(L("Mira lit ta bibliothèque Jellyfin. Chez toi, l’adresse du PC qui l’héberge suffit ; ailleurs, celle que Tailscale lui donne.", "Mira plays your Jellyfin library. At home, the address of the PC it runs on is enough; elsewhere, the one Tailscale gives it."), 14.5, color: Ui.Muted),
             Spaced(_server, 10), _user, _password, _error, Spaced(_connect, 6),
-            Ui.Text("Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin.", 12.5, color: Ui.Faint));
+            Ui.Text(L("Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin.", "Your password is never saved: Mira only keeps the session Jellyfin opened."), 12.5, color: Ui.Faint));
         form.Width = 420;
         Content = new Grid
         {
@@ -69,13 +70,13 @@ public sealed class LoginPage : UserControl
         JellyfinClient? client = null;
         try
         {
-            if (string.IsNullOrWhiteSpace(_user.Text)) throw new UserInputException("Indique ton nom d’utilisateur Jellyfin.");
+            if (string.IsNullOrWhiteSpace(_user.Text)) throw new UserInputException(L("Indique ton nom d’utilisateur Jellyfin.", "Enter your Jellyfin user name."));
             // Find the server before sending the password.
-            label.Text = "Recherche du serveur…";
+            label.Text = L("Recherche du serveur…", "Finding the server…");
             var server = await ServerAddress.DiscoverAsync(_server.Text ?? "");
             _server.Text = server.Address;
             if (server.Address != _warned && await ServerAddress.ExposesPasswordAsync(server.Address)) { _warned = server.Address; ShowError(ServerAddress.PlainHttpWarning); return; }
-            label.Text = "Connexion…";
+            label.Text = L("Connexion…", "Signing in…");
             JellyfinClient.DeviceName = "Mac";
             client = new JellyfinClient(new(server.Address, "", _user.Text.Trim(), "", _shell.Profile.DeviceId));
             var connection = await client.LoginAsync(_user.Text.Trim(), _password.Text ?? "");
@@ -84,6 +85,6 @@ public sealed class LoginPage : UserControl
             await _shell.ActivateAsync(connection);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { ShowError(Errors.Friendly(ex)); }
-        finally { client?.Dispose(); _connect.IsEnabled = true; label.Text = _warned == _server.Text ? "Se connecter quand même" : "Se connecter"; _busy = false; }
+        finally { client?.Dispose(); _connect.IsEnabled = true; label.Text = _warned == _server.Text ? L("Se connecter quand même", "Sign in anyway") : L("Se connecter", "Sign in"); _busy = false; }
     }
 }

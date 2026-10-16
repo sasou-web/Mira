@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -50,7 +51,7 @@ public sealed class HomePage : Page
         _hero.PointerEntered += (_, _) => _rotate.Stop();
         _hero.PointerExited += (_, _) => { if (_heroItems.Count > 1) _rotate.Start(); };
         _rotate.Tick += (_, _) => ShowHero(_heroIndex + 1);
-        _groupJoin = Ui.Action("Rejoindre", null, "primary", () => _ = JoinGroupAsync());
+        _groupJoin = Ui.Action(L("Rejoindre", "Join"), null, "primary", () => _ = JoinGroupAsync());
         _groupJoin.Margin = new Thickness(18, 0, 0, 0);
         DockPanel.SetDock(_groupJoin, Dock.Right);
         var groupText = Ui.Row(14, new Icon("users", 20) { Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center }, Ui.Row(0, _groupName, _groupPeople));
@@ -140,7 +141,7 @@ public sealed class HomePage : Page
             _rows.Children.Add(new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu)) : items.Select(Poster)));
         }
         if (resume.Count == 0 && latest.Count == 0 && favorites.Count == 0 && shelves.Values.All(x => x.Count == 0))
-            _rows.Children.Add(new Border { Margin = new Thickness(56, 0), Child = Ui.Column(8, Ui.Text("Ta bibliothèque est vide pour l’instant", 20, FontWeight.Bold), Ui.Text("Ajoute des films ou des séries dans les dossiers de Jellyfin : ils apparaîtront ici.", 14.5, color: Ui.Muted)) });
+            _rows.Children.Add(new Border { Margin = new Thickness(56, 0), Child = Ui.Column(8, Ui.Text(L("Ta bibliothèque est vide pour l’instant", "Your library is empty for now"), 20, FontWeight.Bold), Ui.Text(L("Ajoute des films ou des séries dans les dossiers de Jellyfin : ils apparaîtront ici.", "Add movies or shows to Jellyfin’s folders: they’ll show up here."), 14.5, color: Ui.Muted)) });
         // The banner: what is being watched first, then the latest titles with a backdrop.
         var heroes = resume.Take(2).Concat(latest.Where(x => x.BackdropImageTags.Length > 0)).DistinctBy(x => ContinueWatching.Group(x)).Take(5).ToList();
         if (heroes.Select(x => x.Id).SequenceEqual(_heroItems.Select(x => x.Id)) && heroes.Count > 0) { _heroItems = heroes; ShowHero(_heroIndex, animate: false); return; }
@@ -171,7 +172,7 @@ public sealed class HomePage : Page
         _groupShown = open?.GroupId;
         if (open is null) return;
         _groupName.Text = open.GroupName; _groupPeople.Text = " · " + Together.People(Math.Max(1, open.Participants.Count));
-        Avalonia.Automation.AutomationProperties.SetName(_groupJoin, $"Rejoindre « {open.GroupName} »");
+        Avalonia.Automation.AutomationProperties.SetName(_groupJoin, L($"Rejoindre « {open.GroupName} »", $"Join “{open.GroupName}”"));
     }
     /// <summary>The group joined, and its title put on here once it plays one (<see cref="WatchGroup"/>).</summary>
     private async Task JoinGroupAsync()
@@ -187,7 +188,7 @@ public sealed class HomePage : Page
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
             if (!ReferenceEquals(session, Shell.Session)) return;
             _groups = groups; ShowGroupLine();
-            if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { Shell.Notice("Ce groupe n’existe plus."); return; }
+            if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { Shell.Notice(L("Ce groupe n’existe plus.", "This group no longer exists.")); return; }
             await Shell.Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct));
         }
         finally { _groupJoin.IsEnabled = true; }
@@ -208,18 +209,18 @@ public sealed class HomePage : Page
         var title = new TextBlock { Text = item.DisplayTitle, FontSize = 58, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, LineHeight = 64 };
         _heroText.Children.Add(title);
         var tags = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        if (item.Type == "Episode") tags.Children.Add(Ui.Tag($"S{item.ParentIndexNumber ?? 1} · É{item.IndexNumber ?? 1}"));
+        if (item.Type == "Episode") tags.Children.Add(Ui.Tag(Cards.EpisodeCode(item)));
         if (item.ProductionYear is { } year) tags.Children.Add(Ui.Tag(year.ToString()));
         tags.Children.Add(Ui.Tag(Ui.Kind(item)));
         if (item.Type != "Series" && item.DurationLabel.Length > 0) tags.Children.Add(Ui.Tag(item.Progress > 0 ? Ui.Remaining(item) : item.DurationLabel));
-        if (item.CommunityRating is { } rating) tags.Children.Add(Ui.Tag($"★ {rating:0.0}"));
+        if (item.CommunityRating is { } rating) tags.Children.Add(Ui.Tag("★ " + Number(rating, "0.0")));
         _heroText.Children.Add(tags);
         var resume = item.Progress > 0 && !item.UserData.Played;
-        var heart = Ui.IconButton(item.UserData.IsFavorite ? "heart-filled" : "heart", item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", () => _ = Shell.SetFavoriteAsync(item, !item.UserData.IsFavorite), "icon", 24);
+        var heart = Ui.IconButton(item.UserData.IsFavorite ? "heart-filled" : "heart", item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = Shell.SetFavoriteAsync(item, !item.UserData.IsFavorite), "icon", 24);
         heart.Width = heart.Height = 46;
         _heroText.Children.Add(Ui.Row(12,
-            Ui.Action(resume ? "Reprendre" : "Lecture", "play", "primary", () => _ = Shell.PlayAsync(item)),
-            Ui.Action("Plus d’infos", "info", "", () => Shell.Open(item)), heart));
+            Ui.Action(resume ? L("Reprendre", "Resume") : L("Lecture", "Play"), "play", "primary", () => _ = Shell.PlayAsync(item)),
+            Ui.Action(L("Plus d’infos", "More info"), "info", "", () => Shell.Open(item)), heart));
         if (!string.IsNullOrWhiteSpace(item.Overview))
             _heroSide.Children.Add(new TextBlock { Text = item.Overview, FontSize = 14.5, LineHeight = 22, Foreground = Ui.Brush("#D8D8DD"), TextWrapping = TextWrapping.Wrap, MaxLines = 4, TextTrimming = TextTrimming.WordEllipsis });
         if (item.Genres.Length > 0)

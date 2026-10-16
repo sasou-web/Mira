@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Mira.Core;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Playback;
 
@@ -45,10 +46,10 @@ public sealed class MpvPlayer : MpvClient
             // Extra mpv options for a diagnosis, MIRA_MPV_OPTIONS="name=value;name=value".
             foreach (var pair in (Environment.GetEnvironmentVariable("MIRA_MPV_OPTIONS") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
                 if (pair.Split('=', 2) is [var name, var value]) Option(name.Trim(), value.Trim());
-            Initialize("Échec de l’initialisation de mpv.");
+            Initialize(L("Échec de l’initialisation de mpv.", "mpv failed to start."));
         }
         catch { Dispose(); throw; }
     }
-    protected override string PlaybackFailure => "mpv n’a pas pu lire ce média. Vérifie la connexion au serveur Jellyfin.";
+    protected override string PlaybackFailure => L("mpv n’a pas pu lire ce média. Vérifie la connexion au serveur Jellyfin.", "mpv couldn’t play this media. Check the connection to the Jellyfin server.");
     protected override bool SoundlessEndIsEnd => true;
 }

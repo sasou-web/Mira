@@ -8,6 +8,7 @@ using Avalonia.Animation;
 using Avalonia.Threading;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -81,14 +82,14 @@ public static class Ui
         host.EffectiveViewportChanged += (_, e) => { if (e.EffectiveViewport.Width > 0 && e.EffectiveViewport.Height > 0 && e.EffectiveViewport.Intersects(new Rect(host.Bounds.Size))) Start(); };
     }
 
-    /// <summary>The time left, « Reste 1 h 22 ».</summary>
+    /// <summary>The time left, « Reste 1 h 22 », “1 h 22 left”.</summary>
     public static string Remaining(MediaItem item)
     {
         if (item.RunTimeTicks is not > 0) return "";
         var left = TimeSpan.FromTicks(Math.Max(0, item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks));
-        return "Reste " + MediaItem.FormatDuration(left);
+        return L("Reste ", "") + MediaItem.FormatDuration(left) + L("", " left");
     }
-    public static string Kind(MediaItem item) => item.Type switch { "Series" => "Série", "Episode" => "Épisode", _ => "Film" };
+    public static string Kind(MediaItem item) => item.Type switch { "Series" => L("Série", "Series"), "Episode" => L("Épisode", "Episode"), _ => L("Film", "Movie") };
 }
 
 /// <summary>Columns of equal width that fill the page, as many as fit: the library grid.</summary>
@@ -163,7 +164,7 @@ public static class Cards
         frame.Children.Add(new Border { Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0.55, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#00000000"), 0), new GradientStop(Color.Parse("#A0000000"), 1) } } });
         if (item.Progress > 0 && !item.UserData.Played) frame.Children.Add(Progress(item.Progress));
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
-        var line = item.Type == "Episode" ? $"S{item.ParentIndexNumber ?? 1} · É{item.IndexNumber ?? 1} — {item.Name}" : item.Progress > 0 ? Ui.Remaining(item) : Caption(item);
+        var line = item.Type == "Episode" ? $"{EpisodeCode(item)} — {item.Name}" : item.Progress > 0 ? Ui.Remaining(item) : Caption(item);
         var caption = Ui.Column(2,
             new TextBlock { Text = item.DisplayTitle, FontSize = 14.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             new TextBlock { Text = line, FontSize = 12.5, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });
@@ -179,11 +180,13 @@ public static class Cards
     }
     private static string Caption(MediaItem item) => item.Type switch
     {
-        "Series" => string.Join(" · ", new[] { item.ProductionYear?.ToString(), "Série" }.Where(x => x is not null)),
-        "Episode" => $"S{item.ParentIndexNumber ?? 1} · É{item.IndexNumber ?? 1}",
-        "BoxSet" => "Saga",
+        "Series" => string.Join(" · ", new[] { item.ProductionYear?.ToString(), L("Série", "Series") }.Where(x => x is not null)),
+        "Episode" => EpisodeCode(item),
+        "BoxSet" => L("Saga", "Collection"),
         _ => string.Join(" · ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)))
     };
+    /// <summary>« S1 · É3 », “S1 · E3”.</summary>
+    public static string EpisodeCode(MediaItem item) => $"S{item.ParentIndexNumber ?? 1} · {L("É", "E")}{item.IndexNumber ?? 1}";
     /// <summary>
     /// An actor or director found by a search: their photo in a circle (their initials without one) and their name;
     /// a click shows their titles.
@@ -285,7 +288,7 @@ public sealed class CardRow : StackPanel
         _items.Margin = new Thickness(sidePadding, 4, sidePadding, 8);
         _scroll = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _items };
         var header = new DockPanel { Margin = new Thickness(sidePadding, 0, sidePadding - 8, 0) };
-        var arrows = Ui.Row(4, Ui.IconButton("back", "Précédents", () => Page(-1), "icon", 18), Ui.IconButton("next", "Suivants", () => Page(1), "icon", 18));
+        var arrows = Ui.Row(4, Ui.IconButton("back", L("Précédents", "Previous"), () => Page(-1), "icon", 18), Ui.IconButton("next", L("Suivants", "Next"), () => Page(1), "icon", 18));
         DockPanel.SetDock(arrows, Dock.Right); header.Children.Add(arrows);
         header.Children.Add(new TextBlock { Text = title, FontSize = 21, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center });
         Children.Add(header); Children.Add(_scroll);
