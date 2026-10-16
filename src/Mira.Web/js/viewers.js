@@ -2,6 +2,7 @@
 // on which hardware and why. Written as Mira for Windows writes it (Mira.Core/Viewers.cs), with shared cases in
 // tests/fixtures/viewers.json. Imported by Node: nothing of the browser here.
 import { codecName } from './player/tracks.js';
+import { tr, number } from './i18n.js';
 
 /**
  * The sessions playing something, as Jellyfin 12.1 lists them (Sessions?activeWithinSeconds=960): its PlayState and
@@ -48,7 +49,7 @@ const text = (value) => (typeof value === 'string' && value.length > 0 ? value :
 const seconds = (ticks) => (Number.isInteger(ticks) ? ticks / 1e7 : 0);
 
 /** « ogsas · iPhone · Tailscale »; `own` for this device's own session (« ce PC » on Windows). */
-export function who(viewer, own = 'cet appareil') {
+export function who(viewer, own = tr('cet appareil')) {
   if (viewer.own) return own;
   return [viewer.user, viewer.device || viewer.client, place(viewer.address)].filter(Boolean).join(' · ');
 }
@@ -63,7 +64,7 @@ export function place(address) {
     if (a === 127) return null;
     if (a === 100 && b >= 64 && b < 128) return 'Tailscale';
     const home = a === 10 || (a === 172 && b >= 16 && b < 32) || (a === 192 && b === 168) || (a === 169 && b === 254);
-    return home ? 'réseau de la maison' : 'Internet';
+    return home ? tr('réseau de la maison') : 'Internet';
   }
   const v6 = ipv6(raw);
   if (!v6) return null;
@@ -71,7 +72,7 @@ export function place(address) {
   // Tailscale's own IPv6 range, fd7a:115c:a1e0::/48, before the private ranges it belongs to.
   if (v6[0] === 0xfd7a && v6[1] === 0x115c && v6[2] === 0xa1e0) return 'Tailscale';
   const home = (v6[0] & 0xffc0) === 0xfe80 || (v6[0] & 0xfe00) === 0xfc00;
-  return home ? 'réseau de la maison' : 'Internet';
+  return home ? tr('réseau de la maison') : 'Internet';
 }
 function ipv4(value) {
   const parts = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(value);
@@ -100,7 +101,7 @@ function ipv6(value) {
 
 /** « Courte HLS · S1 É2 · Le départ », « Signes Test (2022) ». */
 export function titleOf(viewer) {
-  const code = viewer.episode == null ? null : viewer.season == null ? `É${viewer.episode}` : `S${viewer.season} É${viewer.episode}`;
+  const code = viewer.episode == null ? null : viewer.season == null ? tr('É{n}', { n: viewer.episode }) : tr('S{season} É{episode}', { season: viewer.season, episode: viewer.episode });
   return viewer.type === 'Episode' && viewer.series ? [viewer.series, code, viewer.name].filter(Boolean).join(' · ') : viewer.name;
 }
 
@@ -108,7 +109,7 @@ export function titleOf(viewer) {
 export function what(viewer) {
   const title = titleOf(viewer);
   const time = viewer.duration > 0 ? `${clock(viewer.position)} / ${clock(viewer.duration)}` : clock(viewer.position);
-  return `${title} — ${time}${viewer.paused ? ', en pause' : ''}`;
+  return viewer.paused ? tr('{title} — {time}, en pause', { title, time }) : `${title} — ${time}`;
 }
 
 /** « 1:02:03 », « 12:34 ». */
@@ -127,47 +128,48 @@ const MAKERS = { nvenc: 'NVIDIA', qsv: 'Intel', amf: 'AMD' };
  */
 export function how(viewer) {
   const c = viewer.conversion;
-  if (viewer.method === 'DirectPlay' || (!viewer.method && !c)) return { how: 'Lecture directe : le fichier tel quel', why: null };
-  if (viewer.method === 'DirectStream' || (c?.videoDirect && c?.audioDirect)) return { how: 'Fichier remis dans un autre format, sans conversion', why: why(c) };
-  if (!c) return { how: 'Conversion', why: null };
+  if (viewer.method === 'DirectPlay' || (!viewer.method && !c)) return { how: tr('Lecture directe : le fichier tel quel'), why: null };
+  if (viewer.method === 'DirectStream' || (c?.videoDirect && c?.audioDirect)) return { how: tr('Fichier remis dans un autre format, sans conversion'), why: why(c) };
+  if (!c) return { how: tr('Conversion'), why: null };
   const parts = [
-    c.videoDirect ? 'image copiée' : `image en ${codecName(c.videoCodec) ?? '?'}`,
-    c.audioDirect ? 'son copié' : `son en ${codecName(c.audioCodec) ?? '?'}`,
+    c.videoDirect ? tr('image copiée') : tr('image en {codec}', { codec: codecName(c.videoCodec) ?? '?' }),
+    c.audioDirect ? tr('son copié') : tr('son en {codec}', { codec: codecName(c.audioCodec) ?? '?' }),
   ];
-  const on = c.videoDirect ? '' : c.hardware && c.hardware !== 'none' ? `, par la carte graphique (${MAKERS[c.hardware] ?? c.hardware})` : ', par le processeur';
-  const rate = c.bitrate > 0 ? ` · ${(c.bitrate / 1e6).toFixed(1).replace('.', ',')} Mb/s` : '';
-  return { how: `Conversion : ${parts.join(', ')}${on}${rate}`, why: why(c) };
+  if (!c.videoDirect) parts.push(c.hardware && c.hardware !== 'none' ? tr('par la carte graphique ({maker})', { maker: MAKERS[c.hardware] ?? c.hardware }) : tr('par le processeur'));
+  const rate = c.bitrate > 0 ? ` · ${tr('{rate} Mb/s', { rate: number(c.bitrate / 1e6, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) })}` : '';
+  return { how: tr('Conversion : {details}', { details: parts.join(', ') }) + rate, why: why(c) };
 }
-const why = (c) => (c?.reasons.length ? `Pourquoi : ${[...new Set(c.reasons.map(reason))].join(', ')}` : null);
+const why = (c) => (c?.reasons.length ? tr('Pourquoi : {reasons}', { reasons: [...new Set(c.reasons.map(reason))].join(', ') }) : null);
 
-const REASONS = {
-  ContainerNotSupported: 'format du fichier',
-  VideoCodecNotSupported: 'codec vidéo',
-  AudioCodecNotSupported: 'codec audio',
-  SubtitleCodecNotSupported: 'sous-titres à incruster',
-  AudioIsExternal: 'piste audio à part',
-  SecondaryAudioNotSupported: 'piste audio secondaire',
-  VideoProfileNotSupported: 'profil vidéo',
-  VideoLevelNotSupported: 'niveau vidéo',
-  VideoResolutionNotSupported: 'définition',
-  VideoBitDepthNotSupported: 'vidéo 10 bits',
-  VideoFramerateNotSupported: 'images par seconde',
-  RefFramesNotSupported: 'images de référence',
-  AnamorphicVideoNotSupported: 'image anamorphosée',
-  InterlacedVideoNotSupported: 'image entrelacée',
-  AudioChannelsNotSupported: 'canaux audio',
-  AudioProfileNotSupported: 'profil audio',
-  AudioSampleRateNotSupported: 'fréquence audio',
-  AudioBitDepthNotSupported: 'audio haute résolution',
-  ContainerBitrateExceedsLimit: 'débit au-dessus de la qualité choisie',
-  VideoBitrateNotSupported: 'débit vidéo',
-  AudioBitrateNotSupported: 'débit audio',
-  UnknownVideoStreamInfo: 'vidéo mal décrite',
-  UnknownAudioStreamInfo: 'audio mal décrit',
-  DirectPlayError: 'lecture directe en échec',
+// A function: its words are those of the language shown when it is asked (the tests switch it).
+const REASONS = () => ({
+  ContainerNotSupported: tr('format du fichier'),
+  VideoCodecNotSupported: tr('codec vidéo'),
+  AudioCodecNotSupported: tr('codec audio'),
+  SubtitleCodecNotSupported: tr('sous-titres à incruster'),
+  AudioIsExternal: tr('piste audio à part'),
+  SecondaryAudioNotSupported: tr('piste audio secondaire'),
+  VideoProfileNotSupported: tr('profil vidéo'),
+  VideoLevelNotSupported: tr('niveau vidéo'),
+  VideoResolutionNotSupported: tr('définition'),
+  VideoBitDepthNotSupported: tr('vidéo 10 bits'),
+  VideoFramerateNotSupported: tr('images par seconde'),
+  RefFramesNotSupported: tr('images de référence'),
+  AnamorphicVideoNotSupported: tr('image anamorphosée'),
+  InterlacedVideoNotSupported: tr('image entrelacée'),
+  AudioChannelsNotSupported: tr('canaux audio'),
+  AudioProfileNotSupported: tr('profil audio'),
+  AudioSampleRateNotSupported: tr('fréquence audio'),
+  AudioBitDepthNotSupported: tr('audio haute résolution'),
+  ContainerBitrateExceedsLimit: tr('débit au-dessus de la qualité choisie'),
+  VideoBitrateNotSupported: tr('débit vidéo'),
+  AudioBitrateNotSupported: tr('débit audio'),
+  UnknownVideoStreamInfo: tr('vidéo mal décrite'),
+  UnknownAudioStreamInfo: tr('audio mal décrit'),
+  DirectPlayError: tr('lecture directe en échec'),
   VideoRangeTypeNotSupported: 'HDR',
-  VideoCodecTagNotSupported: 'étiquette du codec vidéo',
-  StreamCountExceedsLimit: 'trop de pistes',
-};
+  VideoCodecTagNotSupported: tr('étiquette du codec vidéo'),
+  StreamCountExceedsLimit: tr('trop de pistes'),
+});
 /** Jellyfin's TranscodeReasons in words; the name itself for one Mira does not know. */
-export const reason = (name) => (Object.hasOwn(REASONS, name) ? REASONS[name] : name);
+export const reason = (name) => { const all = REASONS(); return Object.hasOwn(all, name) ? all[name] : name; };

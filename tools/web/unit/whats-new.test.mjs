@@ -1,9 +1,11 @@
 // « Nouveau dans Mira » of Mira web (src/Mira.Web/js/whats-new.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { since, phoneNotes, worthAsking, webIcon } from '../../../src/Mira.Web/js/whats-new.js';
 import { icons } from '../../../src/Mira.Web/js/icons.js';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/whats-new.json', import.meta.url), 'utf8'));
 const notes = JSON.parse(readFileSync(new URL('../../../src/Mira.Core/WhatsNew.json', import.meta.url), 'utf8'));
@@ -37,4 +39,17 @@ test('WhatsNew.json: "web" is true, false or absent, and each point for Mira web
   }
   assert.equal(webIcon('film', known), 'films');
   assert.equal(webIcon('pas une icône', known), 'star');
+});
+
+test('in English, a point\'s "en" title and text, its French without one', () => {
+  const entries = [{ version: '0.8.1', items: [
+    { title: 'Partout', text: 'Le texte', web: true, en: { title: 'Everywhere', text: 'The text' } },
+    { title: 'Sans anglais', text: 'Encore', web: true },
+  ] }];
+  try {
+    setLanguage('en');
+    assert.deepEqual(phoneNotes(entries, '0.8.0', '0.8.1')[0].items.map((x) => [x.title, x.text]), [['Everywhere', 'The text'], ['Sans anglais', 'Encore']]);
+    setLanguage('fr');
+    assert.deepEqual(phoneNotes(entries, '0.8.0', '0.8.1')[0].items.map((x) => x.title), ['Partout', 'Sans anglais']);
+  } finally { setLanguage('fr'); }
 });

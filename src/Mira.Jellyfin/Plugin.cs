@@ -22,5 +22,5 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
     public override string Name => "Mira";
     public override Guid Id => PluginId;
     public override string Description =>
-        "Mira sur iPhone, iPad et Android : ouvre http://<adresse du serveur>:8096/Mira dans le navigateur, puis ajoute la page à l’écran d’accueil.";
+        "Mira on iPhone, iPad and Android: open http://<server address>:8096/Mira in the browser, then add the page to the Home Screen.";
 }

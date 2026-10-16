@@ -1,6 +1,8 @@
 // Audio and subtitle tracks of the web player (src/Mira.Web/js/player/tracks.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import { readFileSync } from 'node:fs';
 import {
   trackText, menuNames, chooseTracks, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex, qualityText,
@@ -117,4 +119,17 @@ const extras = JSON.parse(readFileSync(new URL('../../../tests/fixtures/extras.j
 
 test('a bonus video\'s kind is named as on Windows and Mac', () => {
   for (const [type, kind] of extras.kinds) assert.equal(extraKind(type), kind, String(type));
+});
+
+test('track names in English: Intl names the language, a French title that names it already is not repeated', () => {
+  try {
+    setLanguage('en');
+    assert.deepEqual(trackText(source.MediaStreams[2], 2), { label: 'French', details: 'Dolby Digital Plus · 5.1' });
+    assert.deepEqual(trackText(source.MediaStreams[4], 2), { label: 'French', details: 'ASS · forced' });
+    assert.deepEqual(trackText(source.MediaStreams[5], 3), { label: 'English', details: 'SRT · external file' });
+    assert.deepEqual(trackText({ Type: 'Audio', Index: 9 }, 3), { label: 'Track 3', details: '' });
+    assert.deepEqual(trackText({ Type: 'Audio', Index: 1, Language: 'fre', Title: 'Français', Codec: 'aac', Channels: 2 }), { label: 'Français', details: 'AAC · stereo' });
+    assert.deepEqual(trackText({ Type: 'Audio', Index: 1, Language: 'jpn', Title: 'Complet', Codec: 'aac', Channels: 8 }), { label: 'Complet', details: 'Japanese · AAC · 7.1' });
+    assert.deepEqual([...menuNames(source)], [[3, 'French (ASS)'], [4, 'French (ASS · forced)'], [5, 'English']]);
+  } finally { setLanguage('fr'); }
 });

@@ -1,5 +1,6 @@
-// Small helpers to build the interface: elements, icons and French formatting.
+// Small helpers to build the interface: elements, icons, and lengths and times in the language shown.
 import { icons } from './icons.js';
+import { tr, timeOfDay } from './i18n.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -50,19 +51,19 @@ const TICKS = 10_000_000;
 export const seconds = (ticks) => (ticks ?? 0) / TICKS;
 export const ticks = (secondsValue) => Math.max(0, Math.round(secondsValue * TICKS));
 
-/** « 1 h 52 », « 48 min ». */
+/** « 1 h 52 », « 48 min »; « 1h 52m » in English. */
 export function duration(totalSeconds) {
   const minutes = Math.round(totalSeconds / 60);
-  if (minutes < 1) return '1 min';
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1) return tr('{m} min', { m: 1 });
+  if (minutes < 60) return tr('{m} min', { m: minutes });
   const h = Math.floor(minutes / 60), m = minutes % 60;
-  return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
+  return m ? tr('{h} h {mm}', { h, mm: String(m).padStart(2, '0') }) : tr('{h} h', { h });
 }
 
-/** French name of a bonus video's kind (Jellyfin's ExtraType), as Mira.Core PlayerText.ExtraKind; '' for a video of an Extras folder. */
+/** Name of a bonus video's kind (Jellyfin's ExtraType), as Mira.Core PlayerText.ExtraKind; '' for a video of an Extras folder. */
 export const extraKind = (type) => ({
-  BehindTheScenes: 'Coulisses', DeletedScene: 'Scène coupée', Featurette: 'Making-of', Interview: 'Interview', Scene: 'Scène',
-  Short: 'Court métrage', Clip: 'Extrait', Sample: 'Extrait', Trailer: 'Bande-annonce',
+  BehindTheScenes: tr('Coulisses'), DeletedScene: tr('Scène coupée'), Featurette: tr('Making-of'), Interview: tr('Interview'),
+  Scene: tr('Scène'), Short: tr('Court métrage'), Clip: tr('Extrait'), Sample: tr('Extrait'), Trailer: tr('Bande-annonce'),
 })[type] ?? '';
 
 /** « 1:02:03 » or « 4:05 ». */
@@ -75,7 +76,7 @@ export function clock(totalSeconds) {
 /** What is left of a title in progress: « reste 32 min ». */
 export function remaining(item) {
   const total = seconds(item.RunTimeTicks), done = seconds(item.UserData?.PlaybackPositionTicks);
-  return total > 0 && done > 0 ? `reste ${duration(total - done)}` : '';
+  return total > 0 && done > 0 ? tr('reste {time}', { time: duration(total - done) }) : '';
 }
 
 /** « Fin à 23 h 12 »: when a title started now ends, from where it resumes; '' without a length. As Mira.Core MediaQuality.EndsAt. */
@@ -84,7 +85,7 @@ export function endsAt(item, now = new Date()) {
   const left = seconds(item.RunTimeTicks) - (progress(item) > 0 ? seconds(item.UserData.PlaybackPositionTicks) : 0);
   if (!(left > 0)) return '';
   const end = new Date(now.getTime() + left * 1000);
-  return `Fin à ${end.getHours()} h ${String(end.getMinutes()).padStart(2, '0')}`;
+  return tr('Fin à {time}', { time: timeOfDay(end) });
 }
 
 export function progress(item) {
@@ -92,13 +93,12 @@ export function progress(item) {
   return total > 0 && done > 0 && !item.UserData?.Played ? Math.min(1, done / total) : 0;
 }
 
-/** « S1 · É3 », or « É3 » when the season number is unknown. */
+/** « S1 · É3 », or « É3 » when the season number is unknown; « S1 · E3 » in English. */
 export function episodeCode(item) {
-  const e = item.IndexNumber != null ? `É${item.IndexNumber}${item.IndexNumberEnd ? '–' + item.IndexNumberEnd : ''}` : '';
+  const e = item.IndexNumber != null ? tr('É{n}', { n: `${item.IndexNumber}${item.IndexNumberEnd ? '–' + item.IndexNumberEnd : ''}` }) : '';
   return [item.ParentIndexNumber != null ? `S${item.ParentIndexNumber}` : '', e].filter(Boolean).join(' · ');
 }
 
-export const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 
 export function initials(name = '') {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';

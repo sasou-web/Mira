@@ -1,8 +1,10 @@
 // « En ce moment sur Jellyfin » of Mira web (src/Mira.Web/js/viewers.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseViewers, who, what, how, place, clock, reason } from '../../../src/Mira.Web/js/viewers.js';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/viewers.json', import.meta.url), 'utf8'));
 
@@ -28,4 +30,21 @@ test('where a device is, and the times', () => {
   assert.equal(clock(Number.NaN), '0:00');
   assert.equal(reason('HDR'), 'HDR');
   assert.equal(reason('toString'), 'toString');
+});
+
+test('the same lines in English', () => {
+  try {
+    setLanguage('en');
+    const viewers = parseViewers(fixture.sessions, fixture.ownDevice);
+    const byId = (id) => viewers.find((x) => x.sessionId === id);
+    assert.equal(who(byId('s-phone')), 'mira · iPhone · home network');
+    assert.equal(who(byId('s-pc')), 'this device');
+    assert.deepEqual(how(byId('s-phone')), {
+      how: 'Converted: video to VP9, audio to Opus, on the processor · 1.6 Mbps', why: 'Why: file format, video codec, audio codec',
+    });
+    assert.equal(what(byId('s-friend')), 'Courte HLS · S1 E2 · Le départ — 1:02:03 / 1:20:00, paused');
+    assert.equal(how(byId('s-friend')).how, 'Direct play: the file as it is');
+    assert.equal(place('192.168.1.20'), 'home network');
+    assert.equal(reason('VideoResolutionNotSupported'), 'resolution');
+  } finally { setLanguage('fr'); }
 });

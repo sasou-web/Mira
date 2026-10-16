@@ -13,6 +13,7 @@
 // (simulated) never gets the token; the sign-in screen warns over plain HTTP from the Internet; the page's security
 // policy refuses inline styles but its own, and no page of the whole run breaks it.
 // Robustness: the site's storage blocked, a Wi-Fi's page answering for Jellyfin, a library of 3,000 films.
+import './unit/fr.mjs';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 import { phoneNotes } from '../../src/Mira.Web/js/whats-new.js';
@@ -45,7 +46,8 @@ const watchPolicy = async (context, name, seen = violations) => {
     window.miraPolicyViolation?.(`${e.effectiveDirective} ${e.blockedURI || 'inline'}${e.sourceFile ? ` (${e.sourceFile.split('/').pop()}:${e.lineNumber})` : ''}`);
   }, true));
 };
-const newContext = async (name) => { const c = await browser.newContext({ ...devices['iPhone 15 Pro'] }); await watchPolicy(c, name); return c; };
+// A phone set in French: the checks below read Mira's French (English, Mira's default, is checked at the end).
+const newContext = async (name, locale = 'fr-FR') => { const c = await browser.newContext({ ...devices['iPhone 15 Pro'], locale }); await watchPolicy(c, name); return c; };
 const signIn = async (p, url = `${base}#/connexion`) => {
   await p.goto(url); await p.waitForTimeout(1500);
   if (await p.locator('.users').count()) await p.getByRole('button', { name: 'Autre compte' }).click();
@@ -1839,9 +1841,82 @@ try {
 check('sous-titres : aucune erreur JavaScript', subtitleErrors.length === 0, subtitleErrors.slice(0, 3).join(' | '));
 await subtitled.close();
 
+// Mira in English, its default: a phone whose browser is in English (Chromium's en-US) gets English everywhere, and
+// Réglages → Language switches to French and back, the page reloaded on the same screen.
+const inEnglish = await newContext('anglais', 'en-US');
+const lp = await inEnglish.newPage();
+const englishErrors = [];
+lp.on('pageerror', (e) => englishErrors.push(e.message));
+// Words of Mira's French that English never shows (the test media's names have none of them).
+const FRENCH_WORDS = /(?<!\p{L})(Accueil|Réglages|Recherche|Séries|Reprendre|Lecture|Connexion|Se connecter|Serveur|Regarder|Langue|Épisodes?|Saisons?|Qualité|Déconnecter)(?!\p{L})/u;
+// The libraries of the test media are named « Séries » and « Animes » on Jellyfin: its data, not Mira's words.
+const frenchLeft = async () => (await lp.locator('#app').innerText()).split('\n').filter((line) => FRENCH_WORDS.test(line) && line.trim() !== 'Séries').slice(0, 4);
+try {
+  await lp.goto(`${base}#/connexion`); await lp.waitForTimeout(1500);
+  const lang = await lp.evaluate(() => document.documentElement.lang);
+  if (await lp.locator('.users').count()) await lp.getByRole('button', { name: 'Other account' }).click();
+  const signInButton = await lp.getByRole('button', { name: 'Sign in', exact: true }).count();
+  const loginFrench = await frenchLeft();
+  await lp.screenshot({ path: `${out}/en-01-login.png` });
+  check('anglais : connexion en anglais par défaut', lang === 'en' && signInButton === 1 && !loginFrench.length, `lang ${lang}, « Sign in » ${signInButton}${loginFrench.length ? `, français : ${loginFrench.join(' | ')}` : ''}`);
+  await lp.fill('#login-name', user); await lp.fill('#login-password', password);
+  await lp.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await lp.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
+  await lp.waitForTimeout(2500);
+  // Dismiss « New in Mira » or a notice if one came up: it is not what is checked here.
+  const tabs = await lp.locator('.tabbar a span').allInnerTexts();
+  const screens = [];
+  for (const [tab, name] of [['home', 'accueil'], ['films', 'films'], ['series', 'séries'], ['settings', 'réglages']]) {
+    await lp.locator(`.tabbar a[data-tab="${tab}"]`).click(); await lp.waitForTimeout(1800);
+    const left = await frenchLeft();
+    if (left.length) screens.push(`${name} : ${left.join(' | ')}`);
+    await lp.screenshot({ path: `${out}/en-02-${tab}.png` });
+  }
+  check('anglais : onglets et écrans en anglais', tabs.join(',') === 'Home,Movies,Shows,Search,Settings' && !screens.length, `${tabs.join(', ')}${screens.length ? ` ; français : ${screens.join(' ; ')}` : ''}`);
+  // A title page: its buttons and its facts.
+  await lp.locator('.tabbar a[data-tab="films"]').click(); await lp.waitForTimeout(1500);
+  await lp.locator('#view .library .grid .card').first().click(); await lp.waitForTimeout(2500);
+  const titleFrench = await frenchLeft();
+  const play = await lp.locator('#view a, #view button').filter({ hasText: /^(Play|Resume|Watch)\b/ }).count();
+  await lp.screenshot({ path: `${out}/en-03-title.png` });
+  check('anglais : fiche d’un titre en anglais', play > 0 && !titleFrench.length, `${play} bouton(s) Play${titleFrench.length ? ` ; français : ${titleFrench.join(' | ')}` : ''}`);
+  // Réglages → Language → Français: the page reloads on Réglages, in French; English again the same way.
+  await lp.locator('.tabbar a[data-tab="settings"]').click(); await lp.waitForTimeout(1500);
+  const row = lp.locator('#view .settings button.item', { has: lp.locator('.grow', { hasText: /^Language$/ }) });
+  const shown = await row.innerText().catch(() => '');
+  await row.click(); await lp.waitForTimeout(500);
+  await Promise.all([lp.waitForEvent('load', { timeout: 15000 }), lp.locator('.sheet-item', { hasText: 'Français' }).click()]);
+  await lp.waitForTimeout(2500);
+  const frenchTabs = await lp.locator('.tabbar a span').allInnerTexts();
+  const afterSwitch = { hash: await lp.evaluate(() => location.hash), lang: await lp.evaluate(() => document.documentElement.lang) };
+  await lp.screenshot({ path: `${out}/en-04-francais.png` });
+  await lp.locator('#view .settings button.item', { has: lp.locator('.grow', { hasText: /^Langue$/ }) }).click(); await lp.waitForTimeout(500);
+  await Promise.all([lp.waitForEvent('load', { timeout: 15000 }), lp.locator('.sheet-item', { hasText: 'Automatique' }).click()]);
+  await lp.waitForTimeout(2500);
+  const backTabs = await lp.locator('.tabbar a span').allInnerTexts();
+  check('anglais : Réglages → Language passe en français puis revient à la langue du navigateur',
+    /Automatic · English/.test(shown) && frenchTabs.join(',') === 'Accueil,Films,Séries,Recherche,Réglages' && afterSwitch.hash === '#/reglages' && afterSwitch.lang === 'fr'
+    && backTabs.join(',') === 'Home,Movies,Shows,Search,Settings',
+    `« ${shown.replace(/\s+/g, ' ')} » ; ${frenchTabs.join(', ')} sur ${afterSwitch.hash} (${afterSwitch.lang}) ; puis ${backTabs.join(', ')}`);
+  // The plugin's own errors in the language Mira web asks for (Accept-Language), French or English.
+  const refusal = (language) => lp.evaluate(async (lang) => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Mira/torlink/search`, { method: 'POST', body: JSON.stringify({ query: ' ', category: 'movies' }),
+      headers: { 'Content-Type': 'application/json', 'Accept-Language': lang, Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+    return (await r.json()).error;
+  }, language);
+  const refused = { en: await refusal('en'), fr: await refusal('fr'), both: await refusal('de-DE,fr;q=0.8,en;q=0.5') };
+  check('anglais : erreurs de l’extension dans la langue demandée', refused.en === 'Type what you’re looking for.' && refused.fr === 'Écris ce que tu cherches.' && refused.fr === refused.both,
+    `${refused.en} · ${refused.fr} · ${refused.both}`);
+} catch (error) {
+  check('anglais : déroulé', false, error.message.split('\n')[0]);
+}
+check('anglais : aucune erreur JavaScript', englishErrors.length === 0, englishErrors.slice(0, 3).join(' | '));
+await inEnglish.close();
+
 // The security policy: inline styles refused but the page's own (allowed by its hash), and the watch above sees a
 // refusal (a style attribute and a style element slipped into the page, here on purpose).
-const probe = await browser.newContext({ ...devices['iPhone 15 Pro'] });
+const probe = await browser.newContext({ ...devices['iPhone 15 Pro'], locale: 'fr-FR' });
 const probed = [];
 await watchPolicy(probe, 'contrôle', probed);
 const pp = await probe.newPage();

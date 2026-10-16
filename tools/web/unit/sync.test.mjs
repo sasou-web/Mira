@@ -1,6 +1,8 @@
 // « Regarder ensemble » in Mira web (src/Mira.Web/js/player/sync.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import { readFileSync } from 'node:fs';
 import { serverTime, clockOffset, commandPlan, needsSeek, queueItem, groupName, groupText, inviteLink, inviteSteps, appLink, groupHost, findGroup, rejoinPlan, waitingText, namesText, groupStatus, memberText, asksToReplace, titleName, replaceQuestion, groupPlayLabel } from '../../../src/Mira.Web/js/player/sync.js';
 
@@ -68,4 +70,38 @@ test('a link that stays valid: the group of its id, or the one its host made aga
   for (const [groups, lost, made, plan] of fixture.rejoins) assert.deepEqual(rejoinPlan(groups, lost, made), plan, `${lost.GroupName} · ${made}`);
   assert.equal(findGroup(null, 'x', 'mira'), null);
   assert.equal(waitingText('mira'), 'mira n’a pas encore lancé la soirée');
+});
+
+test('the group\'s words in English, and its name read back in either language', () => {
+  try {
+    setLanguage('en');
+    assert.equal(groupText({ GroupName: 'Groupe de mira', Participants: ['mira'] }), 'mira’s group · 1 person');
+    assert.equal(groupText({ GroupName: 'Soirée', Participants: ['mira', 'léa', 'sam'] }), 'Soirée · 3 people');
+    assert.equal(groupName('mira'), 'mira’s group');
+    assert.equal(groupHost(groupName('Marc D')), 'Marc D');
+    assert.equal(groupHost('Marc\'s group'), 'Marc');
+    assert.equal(groupText({ GroupName: 'mira’s group', Participants: ['mira'] }), 'mira’s group · 1 person');
+    // An invitation from a French device finds the group an English one made again, and the other way round.
+    const made = [{ GroupId: 'b', GroupName: 'mira’s group', Participants: ['mira'] }];
+    assert.equal(findGroup(made, 'a', groupHost('Groupe de mira'))?.GroupId, 'b');
+    assert.equal(findGroup([{ GroupId: 'c', GroupName: 'Groupe de mira', Participants: [] }], 'a', groupHost(groupName('mira')))?.GroupId, 'c');
+    assert.equal(namesText(['mira', 'Marc', 'Léa']), 'mira, Marc and Léa');
+    assert.equal(namesText(['mira', 'Marc', 'Léa', 'sam', 'Zoé']), 'mira, Marc and 3 others');
+    const group = { GroupName: 'Groupe de mira', Participants: ['mira', 'Marc'] };
+    assert.deepEqual(groupStatus({ ...group, State: 'Waiting' }, 'mira'), { text: 'Waiting for Marc…', alert: true });
+    assert.deepEqual(groupStatus({ ...group, State: 'Waiting' }, 'mira', true), { text: 'Loading for the group…', alert: true });
+    assert.deepEqual(groupStatus({ ...group, State: 'Paused' }, 'mira'), { text: 'Paused for the group', alert: true });
+    assert.deepEqual(groupStatus({ ...group, State: 'Playing' }, 'mira'), { text: 'Together · mira and Marc', alert: false });
+    assert.equal(memberText('Marc', true), 'Marc joined the group');
+    assert.equal(groupPlayLabel({}), 'Start for the group');
+    assert.equal(groupPlayLabel({ resumeAt: 2520 }), 'Resume for the group at 42 min');
+    assert.equal(groupPlayLabel({ code: 'S1 · E3', resumeAt: 600 }), 'Resume S1 · E3 for the group');
+    assert.equal(titleName({ Type: 'Episode', SeriesName: 'Dark', ParentIndexNumber: 1, IndexNumber: 3 }), 'Dark · S1 · E3');
+    assert.equal(replaceQuestion('Dune'), 'Replace “Dune” for the whole group?');
+    assert.equal(waitingText('mira'), 'mira hasn’t started the watch party yet');
+    setLanguage('fr');
+    assert.equal(groupText({ GroupName: 'mira’s group', Participants: ['mira'] }), 'Groupe de mira · 1 personne');
+    setLanguage('en');
+    assert.match(inviteSteps('http://192.168.1.20:8096/Mira/#/ensemble/x')[2], /^This link only works on your Wi-Fi\./);
+  } finally { setLanguage('fr'); }
 });

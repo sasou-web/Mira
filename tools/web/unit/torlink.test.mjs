@@ -1,7 +1,9 @@
 // « Télécharger sur le PC serveur » of Mira web (src/Mira.Web/js/torlink.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import {
   CATEGORIES, cleanQuery, infoHash, displayName, cleanName, size, speed, agentLine, hitLine, requestLine, downloadLine, controllable, remaining, timeLeft,
 } from '../../../src/Mira.Web/js/torlink.js';
@@ -77,4 +79,24 @@ test('the lines Mira for Windows and Mac write too (tests/fixtures/torlink-lines
   for (const [request, text] of lines.requests) assert.equal(requestLine(request), text, `request ${request.state}`);
   for (const [download, text] of lines.downloads) assert.equal(downloadLine(download), text, `download ${JSON.stringify(download)}`);
   for (const [seconds, text] of lines.remaining) assert.equal(remaining(seconds), text, `remaining ${seconds}`);
+});
+
+test('the same lines in English', () => {
+  try {
+    setLanguage('en');
+    const now = Date.parse('2026-10-15T12:00:00Z');
+    assert.equal(size(4.2 * 2 ** 30), '4.2 GB');
+    assert.equal(size(850 * 2 ** 20), '850 MB');
+    assert.equal(speed(2.44 * 2 ** 20), '2.4 MB/s');
+    assert.equal(agentLine({ name: 'DESKTOP-INVEFQH', online: false, seen: '2026-10-15T09:00:00Z' }, now).text,
+      'Mira isn’t open on DESKTOP-INVEFQH (seen 3h ago). Your requests will wait for it and go through when it’s back.');
+    assert.equal(hitLine({ size: 1.4 * 2 ** 30, seeders: 1, source: 'nyaa' }), '1.4 GB · 1 seeder · nyaa');
+    assert.equal(hitLine({ size: 700 * 2 ** 20, seeders: 0, source: '' }), '700 MB · no seeders');
+    assert.equal(requestLine({ state: 'sent', error: 'x' }), 'Sent to TorLink: x');
+    assert.equal(downloadLine({ status: 'downloading', progress: 41, speed: 2 * 2 ** 20, peers: 12, size: 2.9 * 2 ** 30, downloaded: 1.2 * 2 ** 30, eta: 750 }),
+      '41% · 1.2 GB of 2.9 GB · 2.0 MB/s · 13 min left · 12 peers');
+    assert.equal(downloadLine({ status: 'downloading', progress: 0, speed: 0, peers: 1 }), '0% · 1 peer, waiting for data');
+    assert.equal(downloadLine({ status: 'paused', progress: 10 }), 'Paused · 10%');
+    assert.deepEqual([30, 720, 3900, 86400, 3 * 86400].map(remaining), ['less than a minute', '12 min', '1h 05m', '1 day', '3 days']);
+  } finally { setLanguage('fr'); }
 });

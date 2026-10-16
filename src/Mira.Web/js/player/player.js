@@ -5,6 +5,7 @@
 // Jellyfin as on Windows, and the next episode follows in the same player.
 import { api, signed, ping, onForeignServer, recheckServer, isLocalHost, viaTailscale, VERSION } from '../api.js';
 import { h, icon, clear, clock, seconds, ticks, episodeCode } from '../dom.js';
+import { tr, number } from '../i18n.js';
 import { settings, device, session } from '../session.js';
 import { artFor, imageUrl, picture } from '../images.js';
 import { sheet, toast, changed, titleHref } from '../components.js';
@@ -19,7 +20,7 @@ import {
 } from './stream.js';
 import { presentationStep } from './presentation.js';
 import { mediaLine, attemptText, transcodeReasons, failureReport } from './failure.js';
-import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, creditsFrom, nativeNextAt, trickCell, chapterMarks, chapterPassages, withChapters, withoutFromStart } from './timeline.js';
+import { skipLabel, COUNTDOWN, skippable, skipsItself, nextFrom, creditsFrom, nativeNextAt, trickCell, chapterMarks, chapterPassages, withChapters, withoutFromStart } from './timeline.js';
 import { QUALITIES } from '../views/settings.js';
 import { sleep, sleepChoices } from './sleep.js';
 import { listen } from '../remote.js';
@@ -79,7 +80,7 @@ export function create({ id, query }) {
   video.defaultPlaybackRate = 1; video.playbackRate = 1;
   // A timer chosen on a title page whose minutes ran out before Lecture: it does not pause the film at once.
   sleep.due(Date.now());
-  const el = h('div', { class: ['player', native && 'native'], role: 'region', 'aria-label': 'Lecteur vidéo' });
+  const el = h('div', { class: ['player', native && 'native'], role: 'region', 'aria-label': tr('Lecteur vidéo') });
 
   // ---------- The title playing (the next episode replaces it in the same player) ----------
   let item = null, source = null, playSessionId = '', playMethod = 'DirectPlay', hls = null;
@@ -119,16 +120,16 @@ export function create({ id, query }) {
   // ---------- Elements ----------
   const title = h('div', { class: 'p-title' }, h('strong', {}, ''), h('span', {}, ''));
   const airplay = h('button', { class: 'round flat', 'aria-label': 'AirPlay', hidden: true, on: { click: () => video.webkitShowPlaybackTargetPicker?.() } }, icon('airplay'));
-  const pip = h('button', { class: 'round flat', 'aria-label': 'Image dans l’image', hidden: !pipSupported(), on: { click: togglePip } }, icon('pip'));
-  const tracksButton = h('button', { class: 'round flat', 'aria-label': 'Audio et sous-titres', on: { click: tracksSheet } }, icon('subtitles'));
-  const moreButton = h('button', { class: 'round flat', 'aria-label': 'Vitesse, qualité et minuterie', on: { click: moreSheet } }, icon('sliders'));
-  const playButton = h('button', { class: 'round big', 'aria-label': 'Lecture', on: { click: (e) => { e.stopPropagation(); togglePlay(); } } }, icon('play', { size: 36 }));
+  const pip = h('button', { class: 'round flat', 'aria-label': tr('Image dans l’image'), hidden: !pipSupported(), on: { click: togglePip } }, icon('pip'));
+  const tracksButton = h('button', { class: 'round flat', 'aria-label': tr('Audio et sous-titres'), on: { click: tracksSheet } }, icon('subtitles'));
+  const moreButton = h('button', { class: 'round flat', 'aria-label': tr('Vitesse, qualité et minuterie'), on: { click: moreSheet } }, icon('sliders'));
+  const playButton = h('button', { class: 'round big', 'aria-label': tr('Lecture'), on: { click: (e) => { e.stopPropagation(); togglePlay(); } } }, icon('play', { size: 36 }));
   const skipMark = (name) => h('span', { class: 'skip-mark' }, icon(name, { size: 36 }), h('b', {}, '10'));
-  const back10 = h('button', { class: 'round', 'aria-label': 'Reculer de 10 secondes', on: { click: (e) => { e.stopPropagation(); jump(-10); } } }, skipMark('back10'));
-  const fwd10 = h('button', { class: 'round', 'aria-label': 'Avancer de 10 secondes', on: { click: (e) => { e.stopPropagation(); jump(10); } } }, skipMark('forward10'));
-  const nextButton = h('button', { class: 'round flat', 'aria-label': 'Épisode suivant', hidden: true, on: { click: () => playNext() } }, icon('next'));
-  const muteButton = h('button', { class: 'round flat', 'aria-label': 'Couper le son', hidden: /iPhone|iPad/.test(device.name), on: { click: () => { video.muted = !video.muted; updateMute(); } } }, icon('volume'));
-  const fullButton = h('button', { class: 'round flat', 'aria-label': 'Plein écran', on: { click: fullscreen } }, icon('fullscreen'));
+  const back10 = h('button', { class: 'round', 'aria-label': tr('Reculer de 10 secondes'), on: { click: (e) => { e.stopPropagation(); jump(-10); } } }, skipMark('back10'));
+  const fwd10 = h('button', { class: 'round', 'aria-label': tr('Avancer de 10 secondes'), on: { click: (e) => { e.stopPropagation(); jump(10); } } }, skipMark('forward10'));
+  const nextButton = h('button', { class: 'round flat', 'aria-label': tr('Épisode suivant'), hidden: true, on: { click: () => playNext() } }, icon('next'));
+  const muteButton = h('button', { class: 'round flat', 'aria-label': tr('Couper le son'), hidden: /iPhone|iPad/.test(device.name), on: { click: () => { video.muted = !video.muted; updateMute(); } } }, icon('volume'));
+  const fullButton = h('button', { class: 'round flat', 'aria-label': tr('Plein écran'), on: { click: fullscreen } }, icon('fullscreen'));
   const now = h('span', { class: 'p-time' }, '0:00');
   const left = h('span', { class: 'p-time right' }, '');
   const played = h('div', { class: 'played' });
@@ -138,7 +139,7 @@ export function create({ id, query }) {
   const tipThumb = h('div', { class: 'thumb', hidden: true });
   const tipTime = h('span', {}, '');
   const tip = h('div', { class: 'scrub-tip', hidden: true }, tipThumb, tipTime);
-  const timeline = h('div', { class: 'timeline', role: 'slider', tabIndex: 0, 'aria-label': 'Position', 'aria-valuemin': '0' }, track, tip);
+  const timeline = h('div', { class: 'timeline', role: 'slider', tabIndex: 0, 'aria-label': tr('Position'), 'aria-valuemin': '0' }, track, tip);
   const busy = h('div', { class: 'p-busy', hidden: true }, h('div', { class: 'spinner' }));
   const pillLayer = h('div');
   const message = h('div', { class: 'p-message', hidden: true });
@@ -152,13 +153,13 @@ export function create({ id, query }) {
     video.controls = false;
     nativeScreen.append(video);
     el.append(
-      h('div', { class: 'n-top' }, h('button', { class: 'round', 'aria-label': 'Retour', on: { click: close } }, icon('back'))),
+      h('div', { class: 'n-top' }, h('button', { class: 'round', 'aria-label': tr('Retour'), on: { click: close } }, icon('back'))),
       h('div', { class: 'n-stage' }, nativeScreen, title, nativeStatus, groupLine.el),
       message);
   } else {
     const controls = h('div', { class: 'controls layer' },
       h('div', { class: 'p-top' },
-        h('button', { class: 'round flat', 'aria-label': 'Retour', on: { click: close } }, icon('back')),
+        h('button', { class: 'round flat', 'aria-label': tr('Retour'), on: { click: close } }, icon('back')),
         title, airplay, pip, tracksButton, moreButton),
       h('div', { class: 'p-center' }, back10, playButton, fwd10),
       h('div', { class: 'p-bottom' },
@@ -174,18 +175,18 @@ export function create({ id, query }) {
   function showNative(state) {
     if (!native) return;
     clear(nativeStatus);
-    if (state === 'loading') nativeStatus.append(h('div', { class: 'spinner' }), h('p', {}, 'Préparation de la lecture…'));
-    if (state === 'lost') nativeStatus.append(h('div', { class: 'spinner' }), h('p', {}, 'Connexion au serveur perdue. La lecture reprend dès qu’il répond.'));
+    if (state === 'loading') nativeStatus.append(h('div', { class: 'spinner' }), h('p', {}, tr('Préparation de la lecture…')));
+    if (state === 'lost') nativeStatus.append(h('div', { class: 'spinner' }), h('p', {}, tr('Connexion au serveur perdue. La lecture reprend dès qu’il répond.')));
     if (state === 'tap') {
       nativeStatus.append(
-        h('button', { class: 'round big n-play', 'aria-label': 'Lecture', on: { click: () => { showNative('loading'); if (enterNative()) play(); else showNative('tap'); } } }, icon('play', { size: 36 })),
-        h('p', {}, 'Touche pour lancer la lecture en plein écran.'));
+        h('button', { class: 'round big n-play', 'aria-label': tr('Lecture'), on: { click: () => { showNative('loading'); if (enterNative()) play(); else showNative('tap'); } } }, icon('play', { size: 36 })),
+        h('p', {}, tr('Touche pour lancer la lecture en plein écran.')));
     }
     if (state === 'pip') {
-      nativeStatus.append(h('p', {}, 'Lecture en image dans l’image.'),
+      nativeStatus.append(h('p', {}, tr('Lecture en image dans l’image.')),
         h('div', { class: 'actions' },
-          h('button', { class: 'btn', on: { click: close } }, 'Arrêter'),
-          h('button', { class: 'btn primary', on: { click: () => { try { video.webkitSetPresentationMode('fullscreen'); } catch { enterNative(); } } } }, icon('fullscreen', { size: 20 }), 'Plein écran')));
+          h('button', { class: 'btn', on: { click: close } }, tr('Arrêter')),
+          h('button', { class: 'btn primary', on: { click: () => { try { video.webkitSetPresentationMode('fullscreen'); } catch { enterNative(); } } } }, icon('fullscreen', { size: 20 }), tr('Plein écran'))));
     }
   }
 
@@ -230,7 +231,7 @@ export function create({ id, query }) {
   let flashMark = null;
   function flash(side, amount = 10) {
     flashMark?.remove();
-    const mark = h('div', { class: ['p-flash', side] }, icon(side === 'left' ? 'back10' : 'forward10', { size: 28 }), `${amount} s`);
+    const mark = h('div', { class: ['p-flash', side] }, icon(side === 'left' ? 'back10' : 'forward10', { size: 28 }), tr('{s} s', { s: amount }));
     flashMark = mark;
     el.append(mark);
     setTimeout(() => mark.remove(), 600);
@@ -255,7 +256,7 @@ export function create({ id, query }) {
   function showTapToPlay() {
     if (native) { showNative('tap'); return; }
     showMessage(h('div', {},
-      h('button', { class: 'round big', style: { width: '84px', height: '84px', background: 'rgba(245,245,247,.95)', color: '#0b0b0c' }, 'aria-label': 'Lecture', on: { click: () => { hideMessage(); play(); } } }, icon('play', { size: 36 })),
+      h('button', { class: 'round big', style: { width: '84px', height: '84px', background: 'rgba(245,245,247,.95)', color: '#0b0b0c' }, 'aria-label': tr('Lecture'), on: { click: () => { hideMessage(); play(); } } }, icon('play', { size: 36 })),
       h('p', {}, item ? item.Name : '')));
   }
   function jump(delta) { seek(position() + delta); showControls(); }
@@ -298,14 +299,14 @@ export function create({ id, query }) {
 
   function updatePlayIcon() {
     clear(playButton).append(icon(video.paused ? 'play' : 'pause', { size: 36 }));
-    playButton.setAttribute('aria-label', video.paused ? 'Lecture' : 'Pause');
+    playButton.setAttribute('aria-label', video.paused ? tr('Lecture') : tr('Pause'));
   }
   function updateMute() { clear(muteButton).append(icon(video.muted ? 'mute' : 'volume')); }
 
   function updateTime() {
     if (scrubbing) return;
     // « Minuterie »: the minutes are over, the film pauses where it is (Apple's player too).
-    if (sleep.due(Date.now()) && !video.paused) { video.pause(); toast('Minuterie : lecture en pause.'); }
+    if (sleep.due(Date.now()) && !video.paused) { video.pause(); toast(tr('Minuterie : lecture en pause.')); }
     const end = total || video.duration || 0, at = position();
     markers(at, end);
     if (native) return;
@@ -316,7 +317,7 @@ export function create({ id, query }) {
     left.textContent = end ? `-${clock(Math.max(0, end - at))}` : '';
     timeline.setAttribute('aria-valuemax', String(Math.round(end)));
     timeline.setAttribute('aria-valuenow', String(Math.round(at)));
-    timeline.setAttribute('aria-valuetext', `${clock(at)} sur ${clock(end)}`);
+    timeline.setAttribute('aria-valuetext', tr('{at} sur {end}', { at: clock(at), end: clock(end) }));
     if (video.buffered.length && end) {
       let far = 0;
       for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= video.currentTime + 1) far = Math.max(far, video.buffered.end(i));
@@ -383,7 +384,7 @@ export function create({ id, query }) {
       currentSkip = segment;
       pillLayer.querySelector('.pill')?.remove();
       if (segment) {
-        pillLayer.append(h('button', { class: 'pill', on: { click: (e) => { e.stopPropagation(); seek(seconds(segment.EndTicks)); } } }, SKIP_LABELS[segment.Type], icon('next', { size: 20 })));
+        pillLayer.append(h('button', { class: 'pill', on: { click: (e) => { e.stopPropagation(); seek(seconds(segment.EndTicks)); } } }, skipLabel(segment.Type), icon('next', { size: 20 })));
       }
     }
     if (!next || nextDismissed || !autoNext() || !end) return;
@@ -410,18 +411,18 @@ export function create({ id, query }) {
   }
   function offerNext() {
     countdown = COUNTDOWN;
-    const counter = h('span', {}, `Dans ${countdown} s`);
-    const card = h('div', { class: 'up-next', role: 'dialog', 'aria-label': 'Épisode suivant' },
+    const counter = h('span', {}, tr('Dans {n} s', { n: countdown }));
+    const card = h('div', { class: 'up-next', role: 'dialog', 'aria-label': tr('Épisode suivant') },
       picture(artFor(next, 'still'), { kind: 'wide', width: 112 }),
-      h('div', {}, h('div', { class: 'label' }, 'Épisode suivant'), h('strong', { class: 'clamp-2' }, `${episodeCode(next)} · ${next.Name ?? ''}`), counter),
+      h('div', {}, h('div', { class: 'label' }, tr('Épisode suivant')), h('strong', { class: 'clamp-2' }, `${episodeCode(next)} · ${next.Name ?? ''}`), counter),
       h('div', { class: 'actions' },
-        h('button', { class: 'btn', on: { click: (e) => { e.stopPropagation(); cancelNext(); } } }, 'Annuler'),
-        h('button', { class: 'btn primary', on: { click: (e) => { e.stopPropagation(); playNext(); } } }, icon('play', { size: 18 }), 'Lire')));
+        h('button', { class: 'btn', on: { click: (e) => { e.stopPropagation(); cancelNext(); } } }, tr('Annuler')),
+        h('button', { class: 'btn primary', on: { click: (e) => { e.stopPropagation(); playNext(); } } }, icon('play', { size: 18 }), tr('Lire'))));
     pillLayer.append(card);
     countdownTimer = setInterval(() => {
       if (video.paused) return;
       countdown -= 1;
-      counter.textContent = `Dans ${countdown} s`;
+      counter.textContent = tr('Dans {n} s', { n: countdown });
       if (countdown <= 0) playNext();
     }, 1000);
   }
@@ -533,7 +534,7 @@ export function create({ id, query }) {
       if (info?.ErrorCode) throw new Error(playbackError(info.ErrorCode));
       const previousSession = playSessionId;
       source = info.MediaSources?.[0];
-      if (!source) throw new Error('Ce titre n’a aucun fichier lisible.');
+      if (!source) throw new Error(tr('Ce titre n’a aucun fichier lisible.'));
       playSessionId = info.PlaySessionId;
       if (previousSession && previousSession !== playSessionId && playMethod !== 'DirectPlay') api.stopEncoding(previousSession);
       audioIndex ??= source.DefaultAudioStreamIndex ?? null;
@@ -543,7 +544,7 @@ export function create({ id, query }) {
       // The file as it is, or Jellyfin's conversion (rewritten for Apple's player).
       inband = false;
       const stream = chooseStream(source, { itemId: item.Id, deviceId: device.id, stage: fallback, native, subtitleIndex });
-      if (!stream) throw new Error('Jellyfin ne propose aucun flux lisible pour cet appareil.');
+      if (!stream) throw new Error(tr('Jellyfin ne propose aucun flux lisible pour cet appareil.'));
       const url = signed(stream.address), hlsStream = stream.hlsStream;
       ({ playMethod, progressive, inband } = stream);
       tried.method = playMethod; tried.reasons = transcodeReasons(source.TranscodingUrl); current = tried;
@@ -560,7 +561,7 @@ export function create({ id, query }) {
       // Jellyfin did not answer (PC asleep, network changing): Mira waits for it rather than giving up.
       if (error?.unreachable && item) { waitForServer(startTicks); return; }
       tried.error ||= error.message || '';
-      fail(error.message || 'La lecture n’a pas pu démarrer.');
+      fail(error.message || tr('La lecture n’a pas pu démarrer.'));
     }
   }
 
@@ -699,11 +700,11 @@ export function create({ id, query }) {
     const audio = streams.filter((s) => s.Type === 'Audio');
     const subs = streams.filter((s) => s.Type === 'Subtitle');
     sheet({
-      title: 'Audio et sous-titres',
+      title: tr('Audio et sous-titres'),
       items: [
-        ...audio.map((s, i) => ({ label: trackText(s, i + 1).label, sub: describe('Audio', s, i + 1), selected: s.Index === audioIndex, run: () => switchTracks({ audio: s.Index }) })),
-        { label: 'Sans sous-titres', sub: 'Sous-titres', selected: subtitleIndex === -1 || subtitleIndex == null, run: () => switchTracks({ subtitle: -1 }) },
-        ...subs.map((s, i) => ({ label: trackText(s, i + 1).label, sub: describe('Sous-titres', s, i + 1), selected: s.Index === subtitleIndex, run: () => switchTracks({ subtitle: s.Index }) })),
+        ...audio.map((s, i) => ({ label: trackText(s, i + 1).label, sub: describe(tr('Audio'), s, i + 1), selected: s.Index === audioIndex, run: () => switchTracks({ audio: s.Index }) })),
+        { label: tr('Sans sous-titres'), sub: tr('Sous-titres'), selected: subtitleIndex === -1 || subtitleIndex == null, run: () => switchTracks({ subtitle: -1 }) },
+        ...subs.map((s, i) => ({ label: trackText(s, i + 1).label, sub: describe(tr('Sous-titres'), s, i + 1), selected: s.Index === subtitleIndex, run: () => switchTracks({ subtitle: s.Index }) })),
       ],
     });
   }
@@ -735,25 +736,25 @@ export function create({ id, query }) {
     const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
     const quality = settings.get('quality');
     sheet({
-      title: 'Vitesse, qualité et minuterie',
+      title: tr('Vitesse, qualité et minuterie'),
       items: [
         // The default rate too: a new stream (another track, quality or episode) keeps the speed chosen.
-        ...speeds.map((s) => ({ label: s === 1 ? 'Vitesse normale' : `Vitesse × ${String(s).replace('.', ',')}`, selected: video.defaultPlaybackRate === s, run: () => { video.defaultPlaybackRate = s; video.playbackRate = s; } })),
-        ...QUALITIES.map(([key, label, sub]) => ({ label: `Qualité : ${label}`, sub, selected: key === quality, run: () => {
+        ...speeds.map((s) => ({ label: s === 1 ? tr('Vitesse normale') : tr('Vitesse × {rate}', { rate: number(s) }), selected: video.defaultPlaybackRate === s, run: () => { video.defaultPlaybackRate = s; video.playbackRate = s; } })),
+        ...QUALITIES.map(([key, label, sub]) => ({ label: tr('Qualité : {label}', { label }), sub, selected: key === quality, run: () => {
           settings.set('quality', key);
           open(ticks(position()), { keepPaused: video.paused });
         } })),
-        { heading: 'Minuterie' },
+        { heading: tr('Minuterie') },
         ...sleepChoices(sleep, { episode: item?.Type === 'Episode', now: Date.now() }).map(({ label, sub, selected, minutes }) => ({ label, sub, selected, run: () => {
           sleep.choose(minutes, Date.now());
           // An offer of the next episode already counting stops, as « Annuler » does.
           if (sleep.atEnd && countdownTimer) cancelNext();
         } })),
         ...(together.group ? [
-          { heading: 'Regarder ensemble' },
-          { label: groupText(together.group), sub: 'Pause, lecture et déplacements pour tout le groupe.', selected: true },
-          { symbol: 'link', label: 'Inviter quelqu’un', run: () => inviteSheet(together.group) },
-          { label: 'Quitter le groupe', danger: true, run: () => together.leave() },
+          { heading: tr('Regarder ensemble') },
+          { label: groupText(together.group), sub: tr('Pause, lecture et déplacements pour tout le groupe.'), selected: true },
+          { symbol: 'link', label: tr('Inviter quelqu’un'), run: () => inviteSheet(together.group) },
+          { label: tr('Quitter le groupe'), danger: true, run: () => together.leave() },
         ] : []),
       ],
     });
@@ -769,7 +770,7 @@ export function create({ id, query }) {
         video.webkitSetPresentationMode(video.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture');
       } else if (document.pictureInPictureElement) await document.exitPictureInPicture();
       else await video.requestPictureInPicture();
-    } catch { toast('L’image dans l’image n’est pas disponible ici.'); }
+    } catch { toast(tr('L’image dans l’image n’est pas disponible ici.')); }
   }
   function fullscreen() {
     // iPhone: iOS's own player, with its controls, AirPlay and subtitles. Elsewhere: the whole player, turned to
@@ -785,7 +786,7 @@ export function create({ id, query }) {
   function fullscreenChanged() {
     const full = document.fullscreenElement === el;
     clear(fullButton).append(icon(full ? 'exit-fullscreen' : 'fullscreen'));
-    fullButton.setAttribute('aria-label', full ? 'Quitter le plein écran' : 'Plein écran');
+    fullButton.setAttribute('aria-label', full ? tr('Quitter le plein écran') : tr('Plein écran'));
     if (!full) { try { screen.orientation?.unlock?.(); } catch { /* not locked */ } }
   }
   function leaveFullscreen() {
@@ -813,27 +814,27 @@ export function create({ id, query }) {
       user: session.current?.userName, version: VERSION, browser: navigator.userAgent,
     }) : null;
     const sent = h('p', { class: 'detail', role: 'status' });
-    const send = report ? h('button', { class: 'btn quiet small', on: { click: () => sendReport(report, send, sent) } }, 'Envoyer le détail à Jellyfin') : null;
-    showMessage(h('div', {}, icon('warning', { size: 36 }), h('h2', { class: 'h3' }, 'Lecture impossible'), h('p', {}, text),
+    const send = report ? h('button', { class: 'btn quiet small', on: { click: () => sendReport(report, send, sent) } }, tr('Envoyer le détail à Jellyfin')) : null;
+    showMessage(h('div', {}, icon('warning', { size: 36 }), h('h2', { class: 'h3' }, tr('Lecture impossible')), h('p', {}, text),
       media ? h('p', { class: 'detail media' }, media) : null,
-      tried.length ? h('ol', { class: 'tried', 'aria-label': 'Essayé' }, tried.map((line) => h('li', {}, line))) : detail ? h('p', { class: 'detail' }, detail) : null,
+      tried.length ? h('ol', { class: 'tried', 'aria-label': tr('Essayé') }, tried.map((line) => h('li', {}, line))) : detail ? h('p', { class: 'detail' }, detail) : null,
       h('div', { class: 'actions' },
-        h('button', { class: 'btn', on: { click: close } }, 'Retour'),
-        h('button', { class: 'btn primary', on: { click: retry } }, 'Réessayer')),
+        h('button', { class: 'btn', on: { click: close } }, tr('Retour')),
+        h('button', { class: 'btn primary', on: { click: retry } }, tr('Réessayer'))),
       send, sent));
   }
   /** The report in Jellyfin's logs; said under the button, which goes once it is there. */
   async function sendReport(report, button, said) {
-    button.disabled = true; said.textContent = 'Envoi…';
+    button.disabled = true; said.textContent = tr('Envoi…');
     try {
       await api.sendLog(report);
       button.remove();
-      said.textContent = 'Envoyé à Jellyfin. Mira pour Windows le montre à son administrateur : Réglages → Jellyfin & synchronisation.';
+      said.textContent = tr('Envoyé à Jellyfin. Mira pour Windows le montre à son administrateur : Réglages → Jellyfin & synchronisation.');
     } catch (error) {
       button.disabled = false;
       said.textContent = error?.status === 403
-        ? 'Ton serveur Jellyfin refuse les rapports des appareils (son réglage AllowClientLogUpload est coupé). Ce qui est écrit ici reste valable.'
-        : error?.message || 'L’envoi n’a pas abouti.';
+        ? tr('Ton serveur Jellyfin refuse les rapports des appareils (son réglage AllowClientLogUpload est coupé). Ce qui est écrit ici reste valable.')
+        : error?.message || tr('L’envoi n’a pas abouti.');
     }
   }
   function retry() {
@@ -864,7 +865,7 @@ export function create({ id, query }) {
    * from where the title was. Null once nothing is left to try.
    */
   const nextFallback = () => (nextStage(fallback) == null ? null : (at = resumeAt(), paused = false) => { fallback++; open(at, { keepPaused: paused }); });
-  const REFUSED = 'Ce titre n’a pas pu être lu sur cet appareil, même entièrement converti par Jellyfin.';
+  const REFUSED = tr('Ce titre n’a pas pu être lu sur cet appareil, même entièrement converti par Jellyfin.');
   /**
    * Jellyfin does not answer: not this stream's fault. Apple's player stays open, Mira says so under it or over its
    * own controls, asks again every few seconds, and picks up where the title was, paused if it was.
@@ -877,8 +878,8 @@ export function create({ id, query }) {
     busy.hidden = false;
     showNative('lost');
     if (!native) {
-      showMessage(h('div', {}, h('div', { class: 'spinner' }), h('p', {}, 'Connexion au serveur perdue. La lecture reprend dès qu’il répond.'),
-        h('div', { class: 'actions' }, h('button', { class: 'btn', on: { click: close } }, 'Retour'))));
+      showMessage(h('div', {}, h('div', { class: 'spinner' }), h('p', {}, tr('Connexion au serveur perdue. La lecture reprend dès qu’il répond.')),
+        h('div', { class: 'actions' }, h('button', { class: 'btn', on: { click: close } }, tr('Retour')))));
     }
     const again = async () => {
       if (disposed || closing || mine !== waitToken) return;
@@ -1016,7 +1017,7 @@ export function create({ id, query }) {
   const remote = listen({
     playstate: (command) => {
       if (closing || disposed) return;
-      if (command === 'Stop') { toast('Lecture arrêtée depuis un autre appareil.'); close(); }
+      if (command === 'Stop') { toast(tr('Lecture arrêtée depuis un autre appareil.')); close(); }
       else if (command === 'Pause') video.pause();
       else if (command === 'Unpause') play();
       else if (command === 'PlayPause') togglePlay();
@@ -1032,7 +1033,7 @@ export function create({ id, query }) {
     prepare: (startTicks) => { clearTimeout(groupTimer); quietPause(); seekTo(seconds(startTicks)); readyPending = true; checkReady(); },
     switchTo: (id, startTicks) => groupSwitch(id, startTicks),
     command: groupCommand,
-    left: () => { clearTimeout(groupTimer); toast('Tu as quitté le groupe : la lecture continue ici seulement.'); },
+    left: () => { clearTimeout(groupTimer); toast(tr('Tu as quitté le groupe : la lecture continue ici seulement.')); },
   });
   /** Where the group is: a seek here that it does not take as the person's. */
   function seekTo(at) {
@@ -1043,7 +1044,7 @@ export function create({ id, query }) {
   function groupCommand(plan) {
     if (!plan || closing || disposed) return;
     clearTimeout(groupTimer);
-    if (plan.action === 'stop') { toast('Le groupe a arrêté la lecture.'); close(); return; }
+    if (plan.action === 'stop') { toast(tr('Le groupe a arrêté la lecture.')); close(); return; }
     if (plan.action === 'pause') { quietPause(); if (needsSeek(position(), plan.position)) seekTo(plan.position); return; }
     if (plan.action === 'seek') { quietPause(); seekTo(plan.position); readyPending = true; checkReady(); return; }
     // Play: there at the moment Jellyfin set, from where the others are.
@@ -1157,7 +1158,7 @@ export function create({ id, query }) {
       let found = await api.item(target.id);
       if (found.Type === 'Series') {
         const up = await api.seriesNext(found.Id);
-        if (!up) throw new Error('Cette série n’a aucun épisode à lire.');
+        if (!up) throw new Error(tr('Cette série n’a aucun épisode à lire.'));
         found = await api.item(up.Id);
       }
       if (disposed || closing || attempt !== beginning) return;
@@ -1206,8 +1207,8 @@ export function create({ id, query }) {
     stopWaiting();
     const mine = waitToken;
     showNative('lost');
-    if (!native) showMessage(h('div', {}, h('div', { class: 'spinner' }), h('p', {}, 'Le serveur ne répond pas. La lecture commence dès qu’il répond.'),
-      h('div', { class: 'actions' }, h('button', { class: 'btn', on: { click: close } }, 'Retour'))));
+    if (!native) showMessage(h('div', {}, h('div', { class: 'spinner' }), h('p', {}, tr('Le serveur ne répond pas. La lecture commence dès qu’il répond.')),
+      h('div', { class: 'actions' }, h('button', { class: 'btn', on: { click: close } }, tr('Retour')))));
     const again = async () => {
       if (disposed || closing || mine !== waitToken) return;
       const up = await ping();
@@ -1238,7 +1239,7 @@ export function create({ id, query }) {
   begin();
 
   return {
-    el, title: 'Lecture',
+    el, title: tr('Lecture'),
     leave() { if (started) stop(); },
     dispose() {
       disposed = true;

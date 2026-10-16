@@ -1,5 +1,6 @@
 // What Mira keeps on this phone: the Jellyfin session (never the password), this device's id and the settings.
 // A home screen app has its own storage, apart from Safari's: one sign-in there, once.
+import { tr } from './i18n.js';
 
 const SESSION = 'mira.session', DEVICE = 'mira.device', SETTINGS = 'mira.settings';
 
@@ -62,7 +63,7 @@ function deviceName() {
   if (/Edg\//.test(ua)) return 'Edge';
   if (/Chrome\//.test(ua)) return 'Chrome';
   if (/Safari\//.test(ua)) return 'Safari';
-  return 'Navigateur';
+  return tr('Navigateur');
 }
 
 function deviceId() {
@@ -96,6 +97,7 @@ const defaults = {
   homeRows: '',         // the home page's rows, in order, « - » before one put away (home-rows.js); empty: as Mira shows them
   textSize: 100,        // percent: Mira's text, for whoever finds it small (the bars' labels and the icons keep theirs)
   seenVersion: '',      // the last Mira web whose « Nouveau dans Mira » this device saw (whats-new.js); empty: none yet
+  language: '',         // '' (the browser's), 'en' or 'fr': read by i18n.js before anything, this device only
 };
 
 /** Told of each setting changed (« change », its key as detail): by Réglages, the player, or Jellyfin (account-choices.js). */

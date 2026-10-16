@@ -2,6 +2,7 @@
 // started, or a favourite), one line for each series, as Mira for Windows notifies them (NewEpisodes.cs, cases in
 // tests/fixtures/new-episodes.json). The mark is Jellyfin's own date of the newest episode seen, never this phone's
 // clock. Imported by Node too (tools/web/unit): nothing of the browser here.
+import { tr, trn } from './i18n.js';
 
 export const MAX_NOTICES = 3;
 
@@ -25,17 +26,17 @@ export function newestEpisode(episodes, seen) {
 }
 
 const label = (x) => (x.ParentIndexNumber != null
-  ? (x.IndexNumber != null ? `S${x.ParentIndexNumber} É${x.IndexNumber}` : `S${x.ParentIndexNumber}`)
-  : (x.IndexNumber != null ? `É${x.IndexNumber}` : ''));
+  ? (x.IndexNumber != null ? tr('S{s} É{e}', { s: x.ParentIndexNumber, e: x.IndexNumber }) : `S${x.ParentIndexNumber}`)
+  : (x.IndexNumber != null ? tr('É{n}', { n: x.IndexNumber }) : ''));
 
 /** « Nouvel épisode : S2 É5 · Le départ », « 3 nouveaux épisodes : S2 É5 à É7 », « 4 nouveaux épisodes, dès S1 É9 ». */
 export function newEpisodesText(episodes) {
   const first = episodes[0];
-  if (episodes.length === 1) return `Nouvel épisode : ${[label(first), first.Name ?? ''].filter(Boolean).join(' · ')}`;
+  if (episodes.length === 1) return tr('Nouvel épisode : {episode}', { episode: [label(first), first.Name ?? ''].filter(Boolean).join(' · ') });
   const last = episodes.at(-1);
   return first.ParentIndexNumber === last.ParentIndexNumber && last.IndexNumber != null && first.IndexNumber != null
-    ? `${episodes.length} nouveaux épisodes : ${label(first)} à É${last.IndexNumber}`
-    : `${episodes.length} nouveaux épisodes, dès ${label(first)}`;
+    ? tr('{n} nouveaux épisodes : {first} à É{last}', { n: episodes.length, first: label(first), last: last.IndexNumber })
+    : tr('{n} nouveaux épisodes, dès {first}', { n: episodes.length, first: label(first) });
 }
 
 /**
@@ -57,6 +58,6 @@ export function pickNewEpisodes(episodes, series, seen) {
     seriesId: group[0].SeriesId, title: series[group[0].SeriesId]?.Name || group[0].SeriesName || '', text: newEpisodesText(group), episode: group[0], count: group.length,
   }));
   const rest = sorted.length - notices.length;
-  const more = rest <= 0 ? null : rest === 1 ? 'Et une autre série que tu suis a un nouvel épisode.' : `Et ${rest} autres séries que tu suis ont de nouveaux épisodes.`;
+  const more = rest <= 0 ? null : trn(rest, 'Et une autre série que tu suis a un nouvel épisode.', 'Et {n} autres séries que tu suis ont de nouveaux épisodes.');
   return { notices, more, series: sorted.length };
 }

@@ -1,5 +1,6 @@
 // What the web player does when Apple's full screen player opens, closes or goes to Picture in Picture
 // (src/Mira.Web/js/player/presentation.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { presentationStep } from '../../../src/Mira.Web/js/player/presentation.js';

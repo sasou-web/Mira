@@ -28,8 +28,8 @@ with open(os.path.join(os.environ["OUT"], os.environ["ZIP"]), "rb") as archive:
 print(json.dumps([{
     "guid": "4ea89259-3350-45b0-8045-f1ab627214dd",
     "name": "Mira",
-    "description": "Mira sur iPhone, iPad et Android : ouvre http://<adresse du serveur>:8096/Mira dans le navigateur, puis ajoute la page à l’écran d’accueil.",
-    "overview": "Mira dans le navigateur du téléphone, comme une app.",
+    "description": "Mira on iPhone, iPad and Android: open http://<server address>:8096/Mira in the browser, then add the page to the Home Screen.",
+    "overview": "Mira in your phone’s browser, like an app.",
     "owner": "sasou-web",
     "category": "General",
     "versions": [{

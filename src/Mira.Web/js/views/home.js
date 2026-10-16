@@ -3,11 +3,12 @@
 // A « Regarder ensemble » group open on Jellyfin is a line under the banner, to join it, while this device is in none.
 import { api } from '../api.js';
 import { h, icon, clear, episodeCode, duration, seconds, progress, reducedMotion } from '../dom.js';
+import { tr, trn } from '../i18n.js';
 import { artFor, picture, logo } from '../images.js';
 import { session, settings, settingsChanged, isIOS, isStandalone } from '../session.js';
 import { homeRows, CONTINUE, LATEST, FAVORITES } from '../home-rows.js';
 import { together } from '../together.js';
-import { people } from '../player/sync.js';
+import { people, groupLabel } from '../player/sync.js';
 import {
   row, wideCard, posterCard, skeletonRow, emptyState, errorState, changes, titleHref, playHref, reconcile, cardSig,
 } from '../components.js';
@@ -51,7 +52,7 @@ function writeCache(data) { if (!session.current) return; try { localStorage.set
 function heroMeta(item) {
   const parts = [];
   if (item.ProductionYear) parts.push(String(item.ProductionYear));
-  if (item.Type === 'Series' && item.ChildCount) parts.push(`${item.ChildCount} saison${item.ChildCount > 1 ? 's' : ''}`);
+  if (item.Type === 'Series' && item.ChildCount) parts.push(trn(item.ChildCount, '{n} saison', '{n} saisons'));
   else if (item.RunTimeTicks) parts.push(duration(seconds(item.RunTimeTicks)));
   if (item.Genres?.length) parts.push(item.Genres.slice(0, 2).join(', '));
   return parts.join(' · ');
@@ -64,24 +65,26 @@ function slide(entry, index) {
   const art = picture(artFor(item, 'backdrop'), { kind: 'backdrop', width: innerWidth > 900 ? 1600 : 900, eager: index === 0, label: '' });
   const heading = logo(item) ?? h('h2', { class: 'slide-title' }, item.Name);
   if (heading.tagName === 'IMG') heading.addEventListener('error', () => heading.replaceWith(h('h2', { class: 'slide-title' }, item.Name)), { once: true });
-  const label = play?.Type === 'Episode' ? `${resume ? 'Reprendre' : 'Regarder'} ${episodeCode(play)}` : resume ? 'Reprendre' : 'Lecture';
-  return h('article', { class: 'slide', 'aria-roledescription': 'diapositive', 'aria-label': item.Name },
+  const label = play?.Type === 'Episode'
+    ? (resume ? tr('Reprendre {code}', { code: episodeCode(play) }) : tr('Regarder {code}', { code: episodeCode(play) }))
+    : resume ? tr('Reprendre') : tr('Lecture');
+  return h('article', { class: 'slide', 'aria-roledescription': tr('diapositive'), 'aria-label': item.Name },
     h('a', { href: titleHref(item), tabIndex: -1, 'aria-hidden': 'true' }, art),
     h('div', { class: 'slide-body' },
       heading,
       h('div', { class: 'slide-meta' }, heroMeta(item)),
       h('div', { class: 'slide-actions' },
         item.Type === 'Series' && !play
-          ? h('a', { class: 'btn primary', href: titleHref(item) }, icon('play', { size: 20 }), 'Regarder')
+          ? h('a', { class: 'btn primary', href: titleHref(item) }, icon('play', { size: 20 }), tr('Regarder'))
           : h('a', { class: 'btn primary', href: playHref(target) }, icon('play', { size: 20 }), label),
-        h('a', { class: 'round solid', href: titleHref(item), 'aria-label': `Plus d’infos sur ${item.Name}` }, icon('info')))));
+        h('a', { class: 'round solid', href: titleHref(item), 'aria-label': tr('Plus d’infos sur {name}', { name: item.Name }) }, icon('info')))));
 }
 
 function hero(entries) {
   if (!entries.length) return null;
   const track = h('div', { class: 'hero-track' }, entries.map(slide));
   const dots = h('div', { class: 'dots', 'aria-hidden': 'true' }, entries.map((_, i) => h('i', { class: i === 0 ? 'on' : '' })));
-  const box = h('section', { class: 'hero', 'aria-label': 'À la une' }, track, entries.length > 1 ? dots : null);
+  const box = h('section', { class: 'hero', 'aria-label': tr('À la une') }, track, entries.length > 1 ? dots : null);
   let touched = false, focused = false, timer = 0;
   const at = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
   const light = () => { const i = at(); dots.querySelectorAll('i').forEach((d, j) => d.classList.toggle('on', j === i)); };
@@ -110,8 +113,8 @@ function hero(entries) {
 function installBanner(onClose) {
   if (!isIOS() || isStandalone() || settings.get('installHintDismissed')) return null;
   const banner = h('div', { class: 'banner', role: 'note' }, icon('add-home'),
-    h('span', { class: 'grow' }, h('strong', {}, 'Mira comme une app : '), 'Partager, puis « Sur l’écran d’accueil ».'),
-    h('button', { class: 'round flat', 'aria-label': 'Masquer', on: { click: () => { settings.set('installHintDismissed', true); banner.remove(); onClose?.(); } } }, icon('close', { size: 20 })));
+    h('span', { class: 'grow' }, h('strong', {}, tr('Mira comme une app : ')), tr('Partager, puis « Sur l’écran d’accueil ».')),
+    h('button', { class: 'round flat', 'aria-label': tr('Masquer'), on: { click: () => { settings.set('installHintDismissed', true); banner.remove(); onClose?.(); } } }, icon('close', { size: 20 })));
   return banner;
 }
 
@@ -162,8 +165,8 @@ export function create() {
     const key = JSON.stringify([open.GroupId, open.GroupName, open.Participants?.length]);
     if (groupBox?.key !== key) {
       groupBox = h('a', { class: 'home-group', href: `#/ensemble/${open.GroupId}` }, icon('users', { size: 20 }),
-        h('span', { class: 'grow' }, h('b', {}, open.GroupName), ` · ${people(open.Participants?.length ?? 1)}`),
-        h('span', { class: 'chip' }, 'Rejoindre'));
+        h('span', { class: 'grow' }, h('b', {}, groupLabel(open.GroupName)), ` · ${people(open.Participants?.length ?? 1)}`),
+        h('span', { class: 'chip' }, tr('Rejoindre')));
       groupBox.key = key;
     }
     return groupBox;
@@ -203,7 +206,7 @@ export function create() {
     const sig = JSON.stringify(entries.map(({ item, play }) => [cardSig(item), play ? cardSig(play) : '']));
     if (sig !== heroSig) { heroBox?.stop?.(); heroBox = hero(entries); heroSig = sig; }
     if (banner === undefined) banner = installBanner(() => { banner = null; });
-    const top = heroBox ?? (titleBox ??= h('div', { class: 'page' }, h('h1', { class: 'page-title' }, 'Accueil')));
+    const top = heroBox ?? (titleBox ??= h('div', { class: 'page' }, h('h1', { class: 'page-title' }, tr('Accueil'))));
     const rows = homeRows(settings.get('homeRows'), data.libraries ?? []).filter((x) => x.shown).map((x) => {
       if (x.key === CONTINUE) return section(x.title, cont, (y) => wideCard(y), { wide: true });
       if (x.key === LATEST) return section(x.title, data.latest, (y) => posterCard(y), { more: '#/films' });
@@ -212,7 +215,7 @@ export function create() {
     });
     const parts = [top, banner, groupLine(), ...rows].filter(Boolean);
     if (!cont.length && !data.latest.length && !data.favorites.length && !Object.values(data.rows ?? {}).some((x) => x.length)) {
-      parts.push(emptyBox ??= emptyState({ symbol: 'films', title: 'Ta bibliothèque est vide', text: 'Les films et séries ajoutés à Jellyfin apparaîtront ici.' }));
+      parts.push(emptyBox ??= emptyState({ symbol: 'films', title: tr('Ta bibliothèque est vide'), text: tr('Les films et séries ajoutés à Jellyfin apparaîtront ici.') }));
     }
     parts.push(spacer);
     // Moved, a row loses its scroll: the screen is put together again only when its parts are not the same.
@@ -273,7 +276,7 @@ export function create() {
   // A screen taken out of the page loses the scroll of its rows: Home puts them back where they were.
   let kept = null;
   return {
-    el, title: 'Accueil', keep: true,
+    el, title: tr('Accueil'), keep: true,
     // Shown from what the phone kept, or once the server answered, with its first pictures (app.js waits for it).
     ready: (data ? Promise.resolve() : first).then(firstPictures),
     leave() { kept = positions(); },

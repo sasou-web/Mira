@@ -21,8 +21,11 @@ public sealed class TorLinkController : ControllerBase
     private static JsonSerializerOptions Json => RemoteProtocol.Json;
     private static TorLinkRelay Relay => TorLinkRelay.Shared;
 
+    /// <summary>Whether this request asks for French (see <see cref="RelayText"/>).</summary>
+    private bool French => RelayText.French(Request);
+
     [HttpGet("")]
-    public IActionResult Status() => Answer(Relay.Status());
+    public IActionResult Status() => Answer(RelayText.For(Relay.Status(), French));
 
     [HttpPost("search")]
     [RequestSizeLimit(16_384)]
@@ -34,7 +37,7 @@ public sealed class TorLinkController : ControllerBase
     }
 
     [HttpGet("search/{id}")]
-    public IActionResult SearchState(string id) => Relay.SearchState(id) is { } search ? Answer(search) : NotFound();
+    public IActionResult SearchState(string id) => Relay.SearchState(id) is { } search ? Answer(RelayText.For(search, French)) : NotFound();
 
     [HttpPost("requests")]
     [RequestSizeLimit(32_768)]
@@ -99,7 +102,7 @@ public sealed class TorLinkController : ControllerBase
 
     private ContentResult Refuse(string? error)
     {
-        var result = Answer(new { error });
+        var result = Answer(new { error = RelayText.For(error, French) });
         result.StatusCode = StatusCodes.Status400BadRequest;
         return result;
     }

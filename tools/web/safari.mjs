@@ -70,6 +70,10 @@ const started = (state) => `${state?.t?.toFixed(1)} s${state?.after != null ? `,
 try {
   await wd('POST', s('/window/rect'), { width: 430, height: 932, x: 0, y: 0 }).catch(() => {});
   await wd('POST', s('/url'), { url: `${base}#/connexion` });
+  await sleep(1000);
+  // Mira in French, as the checks below read it (Safari follows the Mac's language, English on GitHub's runners).
+  await run(`const s = JSON.parse(localStorage.getItem('mira.settings') || '{}'); s.language = 'fr'; localStorage.setItem('mira.settings', JSON.stringify(s));`);
+  await wd('POST', s('/url'), { url: `${base}#/connexion` });
   await sleep(2000);
   const signed = await runAsync(`const { api } = await import(document.querySelector('script[type=module]').src.replace('app.js', 'api.js'));
     await api.signIn(arguments[0], arguments[1]); return JSON.parse(localStorage.getItem('mira.session'));`, user, password);

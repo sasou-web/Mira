@@ -1,6 +1,8 @@
 // The web player's sleep timer (src/Mira.Web/js/player/sleep.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import { readFileSync } from 'node:fs';
 import { SLEEP_MINUTES, sleepDuration, sleepTimer, sleepChoices } from '../../../src/Mira.Web/js/player/sleep.js';
 
@@ -43,4 +45,17 @@ test('the choices of the sheet: the end of the episode only for an episode, the 
   assert.deepEqual(choices.filter((c) => c.selected).map((c) => [c.label, c.sub]), [['30 min', 'Pause dans 29 min']]);
   timer.clear();
   assert.deepEqual(sleepChoices(timer, { episode: true, now: 0 }).filter((c) => c.selected).map((c) => c.label), ['Désactivée']);
+});
+
+test('the sleep timer in English', () => {
+  try {
+    setLanguage('en');
+    assert.equal(sleepDuration(90), '1h 30m');
+    const timer = sleepTimer();
+    timer.choose(15, 0);
+    assert.equal(timer.status(61_000), 'Pauses in 14 min');
+    timer.choose(0, 0);
+    assert.equal(timer.status(0), 'Stops at the end of the episode');
+    assert.deepEqual(sleepChoices(timer, { episode: true, now: 0 }).map((c) => c.label), ['Off', '15 min', '30 min', '1h', 'End of episode']);
+  } finally { setLanguage('fr'); }
 });

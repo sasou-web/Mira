@@ -1,6 +1,7 @@
 // The pieces every screen shares: cards, rows, sheets, notices and the loading, empty and error states.
 import { api } from './api.js';
-import { h, icon, progress, remaining, episodeCode, plural, clear, duration, seconds, extraKind } from './dom.js';
+import { h, icon, progress, remaining, episodeCode, clear, duration, seconds, extraKind } from './dom.js';
+import { tr, trn, trc } from './i18n.js';
 import { artFor, picture } from './images.js';
 import { settings } from './session.js';
 import { qualityText } from './player/tracks.js';
@@ -29,17 +30,17 @@ export function subtitle(item) {
   if (item.Type === 'Episode') return [episodeCode(item), remaining(item)].filter(Boolean).join(' · ');
   if (item.Type === 'Series') {
     const seasons = item.ChildCount;
-    return seasons ? plural(seasons, 'saison', 'saisons') : (item.ProductionYear ? String(item.ProductionYear) : 'Série');
+    return seasons ? trn(seasons, '{n} saison', '{n} saisons') : (item.ProductionYear ? String(item.ProductionYear) : tr('Série'));
   }
-  if (item.Type === 'BoxSet') return item.ChildCount ? plural(item.ChildCount, 'titre', 'titres') : 'Saga';
+  if (item.Type === 'BoxSet') return item.ChildCount ? trn(item.ChildCount, '{n} titre', '{n} titres') : tr('Saga');
   return [item.ProductionYear, remaining(item)].filter(Boolean).join(' · ');
 }
 
 function marks(item, box) {
   const done = progress(item);
   if (done > 0) box.append(h('div', { class: 'progress' }, h('i', { style: { width: `${(done * 100).toFixed(1)}%` } })));
-  else if (item.UserData?.Played && item.Type !== 'Series') box.append(h('div', { class: 'badge-watched', title: 'Vu' }, icon('check')));
-  else if (item.Type === 'Series' && item.UserData?.Played) box.append(h('div', { class: 'badge-watched', title: 'Toute la série est vue' }, icon('check')));
+  else if (item.UserData?.Played && item.Type !== 'Series') box.append(h('div', { class: 'badge-watched', title: tr('Vu') }, icon('check')));
+  else if (item.Type === 'Series' && item.UserData?.Played) box.append(h('div', { class: 'badge-watched', title: tr('Toute la série est vue') }, icon('check')));
   else if (toWatch(item)) box.append(h('div', { class: 'badge-count', 'aria-hidden': 'true' }, toWatch(item) > 99 ? '99+' : String(toWatch(item))));
 }
 /**
@@ -70,7 +71,7 @@ export function posterCard(item, { width = posterWidth(), eager = false } = {}) 
   const name = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
   const art = picture(artFor(item, 'poster'), { kind: 'poster', width, label: name, eager });
   marks(item, art);
-  const card = h('a', { class: 'card', href: titleHref(item), 'aria-label': toWatch(item) ? `${name}, ${plural(toWatch(item), 'épisode à voir', 'épisodes à voir')}` : name },
+  const card = h('a', { class: 'card', href: titleHref(item), 'aria-label': toWatch(item) ? trn(toWatch(item), '{name}, {n} épisode à voir', '{name}, {n} épisodes à voir', { name }) : name },
     art, h('div', { class: 'card-title clamp-1' }, name), h('div', { class: 'card-sub clamp-1' }, subtitle(item)));
   card.dataset.sig = cardSig(item);
   // The item the card shows now (reconcile keeps a card and gives it the item as the server just sent it).
@@ -85,7 +86,7 @@ export function wideCard(item, { width = wideWidth(), play = true, eager = false
   const series = item.Type === 'Episode';
   const art = picture(artFor(item, 'wide'), { kind: 'wide', width, label: series ? item.SeriesName : item.Name, eager });
   marks(item, art);
-  const card = h('a', { class: 'card wide-card', href: play ? playHref(item) : titleHref(item), 'aria-label': `${play ? 'Lire ' : ''}${series ? item.SeriesName : item.Name}` },
+  const card = h('a', { class: 'card wide-card', href: play ? playHref(item) : titleHref(item), 'aria-label': play ? tr('Lire {name}', { name: series ? item.SeriesName : item.Name }) : (series ? item.SeriesName : item.Name) },
     art,
     h('div', { class: 'card-title clamp-1' }, series ? item.SeriesName : item.Name),
     h('div', { class: 'card-sub clamp-1' }, series ? [episodeCode(item), item.Name].filter(Boolean).join(' · ') : subtitle(item)));
@@ -99,7 +100,7 @@ export function wideCard(item, { width = wideWidth(), play = true, eager = false
 export function extraCard(item, { width = wideWidth() } = {}) {
   const art = picture(artFor(item, 'wide'), { kind: 'wide', width, label: item.Name });
   marks(item, art);
-  const card = h('a', { class: 'card wide-card', href: playHref(item), 'aria-label': `Lire ${item.Name}` },
+  const card = h('a', { class: 'card wide-card', href: playHref(item), 'aria-label': tr('Lire {name}', { name: item.Name }) },
     art,
     h('div', { class: 'card-title clamp-1' }, item.Name),
     h('div', { class: 'card-sub clamp-1' }, [extraKind(item.ExtraType), remaining(item) || (item.RunTimeTicks ? duration(seconds(item.RunTimeTicks)) : '')].filter(Boolean).join(' · ')));
@@ -144,7 +145,7 @@ export function row(title, items, card, { wide = false, more = '', people = fals
   if (!items?.length) return null;
   const first = wide ? 2 : 3;
   return h('section', { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, title), more ? h('a', { href: more }, 'Tout voir') : null),
+    h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, title), more ? h('a', { href: more }, tr('Tout voir')) : null),
     h('div', { class: ['row', wide && 'wide', people && 'people'] }, items.map((item, i) => {
       const el = card(item);
       if (i < first) { const img = el.querySelector('img'); if (img) { img.loading = 'eager'; img.fetchPriority = 'high'; } }
@@ -173,12 +174,12 @@ export function emptyState({ symbol = 'films', title, text = '', action = null }
 
 export function errorState(error, retry) {
   return h('div', { class: 'state', role: 'alert' }, icon(error?.unreachable ? 'offline' : 'warning'),
-    h('h2', {}, error?.unreachable ? 'Le serveur ne répond pas' : 'Ça n’a pas marché'),
-    h('p', {}, error?.message ?? 'Une erreur inattendue est survenue.'),
-    retry ? h('button', { class: 'btn small', on: { click: retry } }, icon('refresh', { size: 16 }), 'Réessayer') : null);
+    h('h2', {}, error?.unreachable ? tr('Le serveur ne répond pas') : tr('Ça n’a pas marché')),
+    h('p', {}, error?.message ?? tr('Une erreur inattendue est survenue.')),
+    retry ? h('button', { class: 'btn small', on: { click: retry } }, icon('refresh', { size: 16 }), tr('Réessayer')) : null);
 }
 
-export function spinner(label = 'Chargement') { return h('div', { class: 'state', role: 'status' }, h('div', { class: 'spinner' }), h('span', { class: 'sr' }, label)); }
+export function spinner(label = tr('Chargement')) { return h('div', { class: 'state', role: 'status' }, h('div', { class: 'spinner' }), h('span', { class: 'sr' }, label)); }
 
 /**
  * Where notices and sheets go: in the element shown full screen when there is one (Mira's player on Android or a
@@ -257,10 +258,10 @@ export function sheet({ title = '', items = [], body = null, held = false, focus
     if (item.heading) groups.push({ heading: item.heading, items: [] });
     else { if (!groups.length) groups.push({ heading: '', items: [] }); groups.at(-1).items.push(item); }
   }
-  const menu = items.length ? h('div', { role: 'menu', 'aria-label': title || 'Choix' }, groups.map((group) => (group.heading
+  const menu = items.length ? h('div', { role: 'menu', 'aria-label': title || tr('Choix') }, groups.map((group) => (group.heading
     ? h('div', { role: 'group', 'aria-label': group.heading }, h('div', { class: 'sheet-heading', 'aria-hidden': 'true' }, group.heading), group.items.map(choice))
     : group.items.map(choice)))) : null;
-  const panel = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Choix', tabIndex: -1 },
+  const panel = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || tr('Choix'), tabIndex: -1 },
     h('div', { class: 'sheet-grip' }),
     title ? h('div', { class: 'sheet-title', 'aria-hidden': 'true' }, title) : null,
     body,
@@ -347,14 +348,14 @@ export function itemMenu(item, { resumeRow = false, inTitle = false, held = fals
   const items = [];
   // A saga plays nothing by itself: its films do, from its page.
   const plays = item.Type !== 'Series' && item.Type !== 'BoxSet';
-  if (plays) items.push({ label: progress(item) > 0 ? 'Reprendre' : 'Lecture', symbol: 'play', run: () => openPlayer(playHref(item)) });
+  if (plays) items.push({ label: progress(item) > 0 ? tr('Reprendre') : tr('Lecture'), symbol: 'play', run: () => openPlayer(playHref(item)) });
   // A title under way starts again from its beginning, wherever its card is (Windows has it on a right click).
-  if (plays && progress(item) > 0) items.push({ label: 'Lire depuis le début', symbol: 'back10', run: () => openPlayer(playHref(item, true)) });
-  const see = { Episode: 'Voir la série', BoxSet: 'Voir la saga' }[item.Type] ?? 'Voir la fiche';
+  if (plays && progress(item) > 0) items.push({ label: tr('Lire depuis le début'), symbol: 'back10', run: () => openPlayer(playHref(item, true)) });
+  const see = { Episode: tr('Voir la série'), BoxSet: tr('Voir la saga') }[item.Type] ?? tr('Voir la fiche');
   if (!inTitle) items.push({ label: see, symbol: 'info', run: () => { location.hash = titleHref(item); } });
-  items.push({ label: played ? 'Marquer comme non vu' : 'Marquer comme vu', symbol: 'check', run: () => setPlayed(item, !played) });
-  items.push({ label: favorite ? 'Retirer des favoris' : 'Ajouter aux favoris', symbol: favorite ? 'heart-fill' : 'heart', run: () => setFavorite(item, !favorite) });
-  if (resumeRow) items.push({ label: 'Retirer de Continuer à regarder', symbol: 'close', run: () => hideFromResume(item) });
+  items.push({ label: played ? tr('Marquer comme non vu') : tr('Marquer comme vu'), symbol: 'check', run: () => setPlayed(item, !played) });
+  items.push({ label: favorite ? tr('Retirer des favoris') : tr('Ajouter aux favoris'), symbol: favorite ? 'heart-fill' : 'heart', run: () => setFavorite(item, !favorite) });
+  if (resumeRow) items.push({ label: tr('Retirer de Continuer à regarder'), symbol: 'close', run: () => hideFromResume(item) });
   sheet({ title: name, items, held, body: about(item) });
 }
 
@@ -397,7 +398,7 @@ export async function setPlayed(item, played, { quiet = false } = {}) {
   try {
     await api.setPlayed(item.Id, played);
     changed(item, { played });
-    if (!quiet) toast(played ? 'Marqué comme vu.' : 'Marqué comme non vu.');
+    if (!quiet) toast(played ? tr('Marqué comme vu.') : tr('Marqué comme non vu.'));
     return true;
   } catch (error) {
     // Only what this call changed goes back, and only if nothing changed it since.
@@ -413,7 +414,7 @@ export async function setFavorite(item, favorite, { quiet = false } = {}) {
   try {
     await api.setFavorite(item.Id, favorite);
     changed(item, { favorite });
-    if (!quiet) toast(favorite ? 'Ajouté à tes favoris.' : 'Retiré de tes favoris.');
+    if (!quiet) toast(favorite ? tr('Ajouté à tes favoris.') : tr('Retiré de tes favoris.'));
     return true;
   } catch (error) {
     if (item.UserData?.IsFavorite === favorite) item.UserData = { ...item.UserData, IsFavorite: before?.IsFavorite };
@@ -430,7 +431,7 @@ export function overview(text, className = 'overview') {
   if (!text) return null;
   const body = h('p', { class: [className, 'clamp-4'] }, text);
   const open = () => { if (!body.classList.contains('clamp-4')) return; body.classList.remove('clamp-4'); more.remove(); watcher?.disconnect(); };
-  const more = h('button', { class: 'more-link', hidden: true, on: { click: open } }, 'Plus');
+  const more = h('button', { class: 'more-link', hidden: true, on: { click: open } }, tr('Plus'));
   const fits = () => { more.hidden = body.scrollHeight <= body.clientHeight + 2; };
   const watcher = typeof ResizeObserver === 'function' ? new ResizeObserver(fits) : null;
   if (watcher) watcher.observe(body); else requestAnimationFrame(fits);
@@ -449,9 +450,9 @@ export async function hideFromResume(item) {
   settings.set('hiddenResume', Object.fromEntries(Object.entries(hidden).slice(-200)));
   if (position > 0) await api.setPosition(item.Id, 0).catch(() => {});
   changed(item, { hidden: true });
-  toast('Retiré de Continuer à regarder.', {
+  toast(tr('Retiré de Continuer à regarder.'), {
     action: {
-      label: 'Annuler',
+      label: trc('undo', 'Annuler'),
       run: async () => {
         const back = { ...settings.get('hiddenResume') }; delete back[group];
         settings.set('hiddenResume', back);

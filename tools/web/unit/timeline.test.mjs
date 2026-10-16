@@ -1,8 +1,10 @@
 // The web player's timeline (src/Mira.Web/js/player/timeline.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import { readFileSync } from 'node:fs';
-import { SKIP_LABELS, COUNTDOWN, skippable, skipsItself, nextFrom, creditsFrom, nativeNextAt, trickCell, chapterMarks, chapterKind, chapterPassages, withChapters, withoutFromStart } from '../../../src/Mira.Web/js/player/timeline.js';
+import { SKIP_LABELS, skipLabel, COUNTDOWN, skippable, skipsItself, nextFrom, creditsFrom, nativeNextAt, trickCell, chapterMarks, chapterKind, chapterPassages, withChapters, withoutFromStart } from '../../../src/Mira.Web/js/player/timeline.js';
 
 const s = (seconds) => seconds * 10_000_000;
 const intro = { Type: 'Intro', StartTicks: s(10), EndTicks: s(40) };
@@ -116,4 +118,13 @@ test('« from the start » leaves the address once the title plays', () => {
   assert.equal(withoutFromStart('#/lecture/abc?audio=2', 'abc'), null);
   assert.equal(withoutFromStart('#/lecture/def?debut=1', 'abc'), null);
   assert.equal(withoutFromStart('#/lecture/abc', 'abc'), null);
+});
+
+test('the skip buttons in English', () => {
+  try {
+    setLanguage('en');
+    assert.equal(skipLabel('Intro'), 'Skip intro');
+    assert.equal(skipLabel('Recap'), 'Skip recap');
+    assert.equal(skipLabel('Outro'), null);
+  } finally { setLanguage('fr'); }
 });

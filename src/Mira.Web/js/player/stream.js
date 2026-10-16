@@ -1,6 +1,7 @@
 // What the player asks Jellyfin for, and what it does when a stream fails: plain functions of their inputs, no page,
 // no video, no timer, so that Node can test them (tools/web/unit). player.js holds the state and does the rest.
 import { appleStream } from './tracks.js';
+import { tr } from '../i18n.js';
 
 // ---------- Bitrate ----------
 
@@ -50,15 +51,16 @@ export const stageRequest = (stage) => ({
 
 /** The stage in the message of a failed stream. */
 export function stageText(stage, playMethod = '') {
-  if (playMethod === 'DirectPlay') return 'fichier lu tel quel';
-  return stage === 0 ? 'conversion de Jellyfin' : stage === 1 ? 'vidéo convertie' : 'tout converti';
+  if (playMethod === 'DirectPlay') return tr('fichier lu tel quel');
+  return stage === 0 ? tr('conversion de Jellyfin') : stage === 1 ? tr('vidéo convertie') : tr('tout converti');
 }
 /** An error of the <video>: « Erreur 4 : … ». */
-export const videoError = ({ code, message }) => `Erreur ${code ?? '?'}${message ? ` : ${message}` : ''}`;
+export const videoError = ({ code, message }) =>
+  (message ? tr('Erreur {code} : {message}', { code: code ?? '?', message }) : tr('Erreur {code}', { code: code ?? '?' }));
 /** The detail under « Lecture impossible » for an error of the <video>, with the stage it came at. */
 export const videoErrorText = ({ code, message, playMethod, stage }) => `${videoError({ code, message })} (${stageText(stage, playMethod)}).`;
 /** The same for a fatal error of hls.js. */
-export const hlsError = ({ details, type }) => `Erreur ${details ?? type}`;
+export const hlsError = ({ details, type }) => tr('Erreur {code}', { code: details ?? type });
 export const hlsErrorText = ({ details, type, stage }) => `${hlsError({ details, type })} (${stageText(stage)}).`;
 
 /**
@@ -92,12 +94,12 @@ export const resumeTicks = ({ streamPlaying, progressive, positionTicks, current
 // ---------- The stream Jellyfin offers ----------
 
 const ERRORS = {
-  NotAllowed: 'Ton compte Jellyfin n’a pas le droit de lire ce titre.',
-  NoCompatibleStream: 'Jellyfin ne sait pas convertir ce fichier pour cet appareil.',
-  RateLimitExceeded: 'Le serveur a atteint sa limite de lectures simultanées.',
+  NotAllowed: () => tr('Ton compte Jellyfin n’a pas le droit de lire ce titre.'),
+  NoCompatibleStream: () => tr('Jellyfin ne sait pas convertir ce fichier pour cet appareil.'),
+  RateLimitExceeded: () => tr('Le serveur a atteint sa limite de lectures simultanées.'),
 };
 /** The message for PlaybackInfo's ErrorCode. */
-export const playbackError = (code) => ERRORS[code] ?? 'Jellyfin n’a pas pu préparer ce titre pour cet appareil.';
+export const playbackError = (code) => (Object.hasOwn(ERRORS, code) ? ERRORS[code]() : tr('Jellyfin n’a pas pu préparer ce titre pour cet appareil.'));
 
 /**
  * Why Jellyfin converts, as its address says (TranscodeReasons): none of these, and the video is copied as it is

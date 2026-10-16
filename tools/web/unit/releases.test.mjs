@@ -1,7 +1,9 @@
 // The release Mira puts forward on « Télécharger sur le PC serveur » (src/Mira.Web/js/releases.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import { parseRelease, qualityLine, episodeLabel, groupReleases, releaseScore, titleKey, warning } from '../../../src/Mira.Web/js/releases.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/releases.json', import.meta.url), 'utf8'));
@@ -35,4 +37,17 @@ test('seeders only break ties, and a source without them is not dead', () => {
   const [a, b] = groupReleases([hit('Film.2020.1080p.WEB-DL-A', 10), hit('Film.2020.1080p.WEB-DL-B', 90)]);
   assert.equal(a.best.hit.name, 'Film.2020.1080p.WEB-DL-B', 'equal releases: the most shared');
   assert.equal(b, undefined);
+});
+
+test('labels and warnings in English, the release\'s own tags as they are', () => {
+  try {
+    setLanguage('en');
+    assert.equal(episodeLabel(parseRelease('Show.S02.1080p.WEB-DL.x264-GRP')), 'Complete season 2');
+    assert.equal(episodeLabel(parseRelease('[Erai-raws] Show - 01 ~ 12 [1080p]')), 'Episodes 1–12');
+    assert.equal(episodeLabel(parseRelease('[SubsPlease] Show - 05 (1080p)')), 'Episode 5');
+    assert.equal(episodeLabel(parseRelease('Show.S06E05.1080p.WEB-DL')), 'S06E05');
+    assert.equal(qualityLine(parseRelease('Film.2020.HDCAM.x264')), 'Theater cam · H.264');
+    assert.equal(qualityLine(parseRelease('Film.2020.MULTI.VFF.1080p.BluRay.x265-GRP')), '1080p · BluRay · HEVC · MULTI · VFF · GRP');
+    assert.equal(warning({ release: parseRelease('Film.2020.1080p.BluRay'), hit: { seeders: 0, source: '1337x' } }), 'Nobody is sharing this file, so it probably won’t download.');
+  } finally { setLanguage('fr'); }
 });

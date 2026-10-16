@@ -1,20 +1,21 @@
 // Search films, series, people, episodes and sagas as you type; recent searches stay on this phone.
 import { api, GRID_FIELDS } from '../api.js';
-import { h, icon, clear, plural } from '../dom.js';
+import { h, icon, clear } from '../dom.js';
+import { tr, trn } from '../i18n.js';
 import { settings } from '../session.js';
 import { posterCard, personCard, wideCard, row, skeletonGrid, errorState, emptyState } from '../components.js';
 
 export function create({ query }) {
   const input = h('input', {
-    class: 'input', type: 'search', placeholder: 'Films, séries, acteurs…', autocomplete: 'off', autocorrect: 'off', autocapitalize: 'none',
-    spellcheck: false, enterkeyhint: 'search', 'aria-label': 'Rechercher', value: query.get('q') ?? '',
+    class: 'input', type: 'search', placeholder: tr('Films, séries, acteurs…'), autocomplete: 'off', autocorrect: 'off', autocapitalize: 'none',
+    spellcheck: false, enterkeyhint: 'search', 'aria-label': tr('Rechercher'), value: query.get('q') ?? '',
   });
-  const clearButton = h('button', { class: 'round flat clear', 'aria-label': 'Effacer', hidden: !input.value, on: { click: () => { input.value = ''; input.focus(); update(); } } }, icon('close', { size: 20 }));
+  const clearButton = h('button', { class: 'round flat clear', 'aria-label': tr('Effacer'), hidden: !input.value, on: { click: () => { input.value = ''; input.focus(); update(); } } }, icon('close', { size: 20 }));
   const results = h('div', {});
   // What a screen reader hears of a search: how many results, not the whole grid at each pause in the typing.
   const status = h('p', { class: 'sr', role: 'status' });
   const el = h('div', { class: 'view search' },
-    h('header', { class: 'search-head' }, h('h1', { class: 'page-title' }, 'Recherche')),
+    h('header', { class: 'search-head' }, h('h1', { class: 'page-title' }, tr('Recherche'))),
     h('div', { class: 'search-bar' },
       h('form', { class: 'search-box', role: 'search', on: { submit: (e) => { e.preventDefault(); remember(input.value); input.blur(); } } }, icon('search'), input, clearButton)),
     status, results);
@@ -31,9 +32,9 @@ export function create({ query }) {
 
   function recent() {
     const list = settings.get('recentSearches');
-    if (!list.length) return emptyState({ symbol: 'search', title: 'Que veux-tu regarder ?', text: 'Cherche un film, une série, un épisode, une saga ou un acteur de ta bibliothèque.' });
-    return h('div', {}, h('div', { class: 'section-head' }, h('h2', { class: 'label' }, 'Recherches récentes'),
-      h('button', { class: 'btn quiet small', on: { click: () => { settings.set('recentSearches', []); clear(results).append(recent()); } } }, 'Effacer')),
+    if (!list.length) return emptyState({ symbol: 'search', title: tr('Que veux-tu regarder ?'), text: tr('Cherche un film, une série, un épisode, une saga ou un acteur de ta bibliothèque.') });
+    return h('div', {}, h('div', { class: 'section-head' }, h('h2', { class: 'label' }, tr('Recherches récentes')),
+      h('button', { class: 'btn quiet small', on: { click: () => { settings.set('recentSearches', []); clear(results).append(recent()); } } }, tr('Effacer'))),
     h('div', { class: 'recent' }, list.map((text) => h('button', { on: { click: () => { input.value = text; update(); } } }, icon('history', { size: 20 }), text))));
   }
 
@@ -63,28 +64,28 @@ export function create({ query }) {
       shownSignature = signature;
       clear(results);
       const total = items.length + persons.length + episodes.length + sagas.length;
-      status.textContent = total ? plural(total, 'résultat', 'résultats') : 'Aucun résultat';
+      status.textContent = total ? trn(total, '{n} résultat', '{n} résultats') : tr('Aucun résultat');
       if (!total) {
         // An administrator can have it downloaded on the PC of Jellyfin (views/torlink.js).
         const own = controller;
         const admin = await administrator();
         if (own !== controller) return;
         results.append(emptyState({
-          symbol: 'search', title: 'Aucun résultat', text: `Rien ne correspond à « ${text} » dans ta bibliothèque.`,
-          action: admin ? { label: 'Le télécharger sur le PC serveur', href: `#/telecharger?q=${encodeURIComponent(text)}` } : null,
+          symbol: 'search', title: tr('Aucun résultat'), text: tr('Rien ne correspond à « {text} » dans ta bibliothèque.', { text }),
+          action: admin ? { label: tr('Le télécharger sur le PC serveur'), href: `#/telecharger?q=${encodeURIComponent(text)}` } : null,
         }));
         return;
       }
       // A result opened keeps the search among the recent ones.
       const kept = (card) => { card.addEventListener('click', () => remember(text)); return card; };
-      if (persons.length) results.append(row('Personnes', persons, (p) => personCard(p), { people: true }));
+      if (persons.length) results.append(row(tr('Personnes'), persons, (p) => personCard(p), { people: true }));
       if (items.length) {
-        results.append(h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, 'Films et séries')),
+        results.append(h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, tr('Films et séries'))),
           h('div', { class: 'grid', style: { padding: '0 var(--gutter) 24px' } }, items.map((x) => kept(posterCard(x))))));
       }
       // An episode opens its series at it; a saga, its own page with its films in order.
-      if (episodes.length) results.append(row('Épisodes', episodes, (x) => kept(wideCard(x, { play: false })), { wide: true }));
-      if (sagas.length) results.append(row('Sagas', sagas, (x) => kept(posterCard(x))));
+      if (episodes.length) results.append(row(tr('Épisodes'), episodes, (x) => kept(wideCard(x, { play: false })), { wide: true }));
+      if (sagas.length) results.append(row(tr('Sagas'), sagas, (x) => kept(posterCard(x))));
     } catch (error) {
       if (error.name === 'AbortError') return;
       results.classList.remove('pending');
@@ -108,7 +109,7 @@ export function create({ query }) {
   update();
 
   return {
-    el, title: 'Recherche', keep: true,
+    el, title: tr('Recherche'), keep: true,
     refresh() {
       const text = input.value.trim();
       if (text.length < 2) { results.classList.remove('pending'); clear(results).append(recent()); return undefined; }

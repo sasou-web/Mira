@@ -7,6 +7,7 @@ import { session, device } from '../session.js';
 import { toast } from '../components.js';
 import { markSvg, goBack } from '../app.js';
 import qrcode from '../../vendor/qrcode.mjs';
+import { tr } from '../i18n.js';
 
 const loopback = (host) => /^(localhost|127\.|\[?::1\]?$)/i.test(host);
 
@@ -34,7 +35,7 @@ function qr(text) {
   const code = qrcode(0, 'M');
   code.addData(text);
   code.make();
-  const box = h('div', { class: 'qr', role: 'img', 'aria-label': `QR code de ${text}` });
+  const box = h('div', { class: 'qr', role: 'img', 'aria-label': tr('QR code de {address}', { address: text }) });
   box.innerHTML = code.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
   return box;
 }
@@ -63,7 +64,7 @@ export function create({ query } = {}) {
   let mode = everywhere ? 'everywhere' : 'home';
 
   async function render() {
-    clear(el).append(h('div', { class: 'spinner', role: 'status', 'aria-label': 'Chargement' }));
+    clear(el).append(h('div', { class: 'spinner', role: 'status', 'aria-label': tr('Chargement') }));
     const home = await phoneAddress();
     const choice = everywhere && home !== everywhere;
     if (!choice) mode = everywhere ? 'everywhere' : 'home';
@@ -71,43 +72,42 @@ export function create({ query } = {}) {
     const sameMachine = loopback(new URL(address).hostname);
     const copyButton = h('button', {
       class: 'btn small',
-      on: { click: async () => toast(await copy(address) ? 'Adresse copiée.' : 'Copie impossible ici : touche longuement l’adresse pour la sélectionner.') },
-    }, icon('link', { size: 16 }), 'Copier l’adresse');
+      on: { click: async () => toast(await copy(address) ? tr('Adresse copiée.') : tr('Copie impossible ici : touche longuement l’adresse pour la sélectionner.')) },
+    }, icon('link', { size: 16 }), tr('Copier l’adresse'));
     const option = (key, label) => h('button', { class: 'chip', 'aria-pressed': String(mode === key), on: { click: () => { mode = key; render(); } } }, label);
-    const other = 'à un autre téléphone ou à une tablette';
     const lead = mode === 'everywhere'
       ? onPhone
-        ? `Montre ce code ${other}, avec Tailscale activé sur le même compte : son appareil photo ouvre Mira, chez toi comme ailleurs.`
-        : 'Scanne ce code avec l’appareil photo de ton téléphone. Tailscale doit y être activé, avec le même compte que ce PC : Mira marche alors chez toi comme ailleurs.'
+        ? tr('Montre ce code à un autre téléphone ou à une tablette, avec Tailscale activé sur le même compte : son appareil photo ouvre Mira, chez toi comme ailleurs.')
+        : tr('Scanne ce code avec l’appareil photo de ton téléphone. Tailscale doit y être activé, avec le même compte que ce PC : Mira marche alors chez toi comme ailleurs.')
       : onPhone
-        ? `Montre ce code ${other}, connecté au même Wi-Fi : son appareil photo ouvre Mira.`
-        : 'Scanne ce code avec l’appareil photo de ton iPhone ou de ton téléphone Android, connecté au même Wi-Fi que ce PC.';
+        ? tr('Montre ce code à un autre téléphone ou à une tablette, connecté au même Wi-Fi : son appareil photo ouvre Mira.')
+        : tr('Scanne ce code avec l’appareil photo de ton iPhone ou de ton téléphone Android, connecté au même Wi-Fi que ce PC.');
     clear(el).append(
-      session.current ? h('button', { class: 'round floating-back', 'aria-label': 'Retour', on: { click: () => goBack('#/reglages') } }, icon('back')) : '',
+      session.current ? h('button', { class: 'round floating-back', 'aria-label': tr('Retour'), on: { click: () => goBack('#/reglages') } }, icon('back')) : '',
       markSvg(56),
       h('div', { style: { display: 'grid', gap: '8px', justifyItems: 'center' } },
-        h('h1', {}, onPhone ? 'Mira sur un autre appareil' : 'Mira sur ton téléphone'),
+        h('h1', {}, onPhone ? tr('Mira sur un autre appareil') : tr('Mira sur ton téléphone')),
         h('p', { class: 'lead' }, lead)),
-      choice ? h('div', { class: 'chips', role: 'group', 'aria-label': 'Où ce code marche', style: { margin: '0', justifyContent: 'center' } },
-        option('everywhere', 'Partout, avec Tailscale'), option('home', 'Chez toi seulement')) : '',
+      choice ? h('div', { class: 'chips', role: 'group', 'aria-label': tr('Où ce code marche'), style: { margin: '0', justifyContent: 'center' } },
+        option('everywhere', tr('Partout, avec Tailscale')), option('home', tr('Chez toi seulement'))) : '',
       qr(address),
       h('p', { class: 'address' }, address),
       copyButton,
-      sameMachine ? h('p', { class: 'form-error' }, 'Jellyfin ne connaît pas encore son adresse sur le réseau : ouvre plutôt Mira depuis l’adresse IP du PC, par exemple http://192.168.1.20:8096/Mira/.') : '',
+      sameMachine ? h('p', { class: 'form-error' }, tr('Jellyfin ne connaît pas encore son adresse sur le réseau : ouvre plutôt Mira depuis l’adresse IP du PC, par exemple http://192.168.1.20:8096/Mira/.')) : '',
       h('div', { class: 'hint' },
         mode === 'everywhere'
-          ? h('div', { class: 'step' }, icon('phone'), h('span', {}, 'Pas encore Tailscale sur le téléphone ? Installe-le depuis l’App Store ou le Play Store, puis connecte-toi avec le même compte.'))
+          ? h('div', { class: 'step' }, icon('phone'), h('span', {}, tr('Pas encore Tailscale sur le téléphone ? Installe-le depuis l’App Store ou le Play Store, puis connecte-toi avec le même compte.')))
           : '',
-        h('div', { class: 'step' }, icon('qr'), h('span', {}, 'Ouvre le lien, puis connecte-toi avec ton compte Jellyfin.')),
-        h('div', { class: 'step' }, icon('share'), h('span', {}, 'Sur iPhone : ', h('b', {}, 'Partager'), ', puis ', h('b', {}, 'Sur l’écran d’accueil'), ' pour l’avoir comme une app.')),
+        h('div', { class: 'step' }, icon('qr'), h('span', {}, tr('Ouvre le lien, puis connecte-toi avec ton compte Jellyfin.'))),
+        h('div', { class: 'step' }, icon('share'), h('span', {}, tr('Sur iPhone : '), h('b', {}, tr('Partager')), tr(', puis '), h('b', {}, tr('Sur l’écran d’accueil')), tr(' pour l’avoir comme une app.'))),
         mode === 'home'
           ? h('div', { class: 'step' }, icon('offline'), h('span', {}, choice
-            ? 'Cette adresse ne marche que sur le Wi-Fi de la maison.'
-            : 'Hors de chez toi, cette adresse ne marche pas : installe Tailscale, puis ouvre le guide de Mira sur le PC.'))
+            ? tr('Cette adresse ne marche que sur le Wi-Fi de la maison.')
+            : tr('Hors de chez toi, cette adresse ne marche pas : installe Tailscale, puis ouvre le guide de Mira sur le PC.')))
           : ''),
-      session.current ? '' : h('a', { class: 'btn', href: '#/connexion' }, 'Se connecter sur cet appareil'));
+      session.current ? '' : h('a', { class: 'btn', href: '#/connexion' }, tr('Se connecter sur cet appareil')));
   }
 
   render();
-  return { el, title: 'Sur ton téléphone', refresh: render };
+  return { el, title: tr('Sur ton téléphone'), refresh: render };
 }
