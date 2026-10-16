@@ -34,7 +34,7 @@ public partial class MainWindow
     private string? _torlinkBlocker, _torlinkAction, _torlinkSecondary;
     // The copy "npx torlnk" left, used by Mira 0.7.4 and earlier: looked for once, only to explain why it is not used.
     private readonly Lazy<bool> _torlinkNpx = new(TorLinkInstallation.NpxCopyFound);
-    private const string TorLinkNpxHint = "Mira n’utilise plus la copie laissée par npx torlnk : installe celui de Mira ou choisis son dossier.";
+    private static string TorLinkNpxHint => L("Mira n’utilise plus la copie laissée par npx torlnk : installe celui de Mira ou choisis son dossier.", "Mira no longer uses the copy left by npx torlnk: install Mira’s or choose its folder.");
     private TorLinkSetup.Step? _torlinkStep;
 
     private void InitializeTorLink()
@@ -54,7 +54,7 @@ public partial class MainWindow
         {
             _torlinkStartWatch.Stop();
             if (_torlinkBlocker is null && _torlinkTerminal?.State is null or TerminalState.Idle or TerminalState.Starting)
-                ShowTorLinkPanel("info", "TorLink tarde à s’afficher", "Le terminal intégré ne répond pas encore. Réessayer recharge la page ; les téléchargements ne sont pas touchés.", "Réessayer", "reload");
+                ShowTorLinkPanel("info", L("TorLink tarde à s’afficher", "TorLink is taking a while to show"), L("Le terminal intégré ne répond pas encore. Réessayer recharge la page ; les téléchargements ne sont pas touchés.", "The built-in terminal isn’t answering yet. Trying again reloads the page; downloads aren’t touched."), L("Réessayer", "Try again"), "reload");
         };
         _torlink.Watch();
         StartTorLinkRemote();
@@ -189,9 +189,9 @@ public partial class MainWindow
         if (share is { } value) TorLinkSetupScale.ScaleX = Math.Clamp(value, 0, 1);
         var active = TorLinkActive(); var installation = _torlinkInstallation;
         TorLinkOpenButton.Visibility = active && !_torlinkInstalling ? Visibility.Visible : Visibility.Collapsed;
-        TorLinkSetupStatus.Text = progress ?? (installation is null ? "Désactivé." + (_torlinkNpx.Value ? " " + TorLinkNpxHint : "")
-            : (active ? "Activé" : "Désactivé") + $" · TorLink {installation.Version}" + (installation.Managed ? ", installé par Mira." : $" ({installation.Root}).")
-              + (installation.Managed && TorLinkSetup.IsPrepared(_profile.DirectoryPath) ? " Sa mise à jour est prête : elle sera utilisée à sa prochaine ouverture." : ""));
+        TorLinkSetupStatus.Text = progress ?? (installation is null ? L("Désactivé.", "Off.") + (_torlinkNpx.Value ? " " + TorLinkNpxHint : "")
+            : (active ? L("Activé", "On") : L("Désactivé", "Off")) + $" · TorLink {installation.Version}" + (installation.Managed ? L(", installé par Mira.", ", installed by Mira.") : $" ({installation.Root}).")
+              + (installation.Managed && TorLinkSetup.IsPrepared(_profile.DirectoryPath) ? L(" Sa mise à jour est prête : elle sera utilisée à sa prochaine ouverture.", " Its update is ready: it will be used the next time it opens.") : ""));
     }
 
     private void Downloaders_Click(object sender, RoutedEventArgs e) => ShowDownloaders(true);
@@ -313,7 +313,7 @@ public partial class MainWindow
     private void PrepareTorLinkStart()
     {
         if (_torlink?.PrepareStart() is { } folder)
-            SetNotice($"TorLink télécharge dans « {folder} », sur le disque de ta bibliothèque : chaque fichier terminé y est déplacé sans copie.");
+            SetNotice(L($"TorLink télécharge dans « {folder} », sur le disque de ta bibliothèque : chaque fichier terminé y est déplacé sans copie.", $"TorLink downloads to “{folder}”, on your library’s drive: each finished file is moved there without a copy."));
     }
 
     private TorLinkTerminal CreateTorLinkTerminal()
@@ -331,41 +331,42 @@ public partial class MainWindow
         if (_serverScreen) { DescribeServerAgent(DateTimeOffset.UtcNow); return; }
         var state = _torlinkTerminal?.State ?? TerminalState.Idle;
         if (_torlinkBlocker is not null || state is TerminalState.Running or TerminalState.Exited or TerminalState.Unavailable) _torlinkStartWatch.Stop();
-        var (status, dot) = _torlinkInstalling ? ("Installation…", "Warning") : !TorLinkActive() ? ("Désactivé", "Dim")
-            : _torlinkHeadless.Running && state != TerminalState.Running ? ("Sans fenêtre", "Success")
-            : _torlinkBlocker == "confirm" ? ("À confirmer", "Warning") : _torlinkBlocker is not null ? ("Indisponible", "Warning") : state switch
+        var (status, dot) = _torlinkInstalling ? (L("Installation…", "Installing…"), "Warning") : !TorLinkActive() ? (L("Désactivé", "Off"), "Dim")
+            : _torlinkHeadless.Running && state != TerminalState.Running ? (L("Sans fenêtre", "In the background"), "Success")
+            : _torlinkBlocker == "confirm" ? (L("À confirmer", "Needs confirming"), "Warning") : _torlinkBlocker is not null ? (L("Indisponible", "Unavailable"), "Warning") : state switch
             {
-                TerminalState.Running => ("En cours", "Success"),
-                TerminalState.Starting => ("Démarrage…", "Warning"),
-                _ => ("Fermé", "Dim")
+                TerminalState.Running => (L("En cours", "Running"), "Success"),
+                TerminalState.Starting => (L("Démarrage…", "Starting…"), "Warning"),
+                _ => (L("Fermé", "Closed"), "Dim")
             };
         TorLinkStatusText.Text = "TorLink · " + status; TorLinkStatusDot.Fill = Palette.Get(dot);
         switch (_torlinkBlocker)
         {
             case "missing" when _torlinkNpx.Value:
-                ShowTorLinkPanel("folder", "TorLink est introuvable", TorLinkNpxHint, "Installer celui de Mira", "install", "Choisir son dossier…", "browse"); return;
+                ShowTorLinkPanel("folder", L("TorLink est introuvable", "Can’t find TorLink"), TorLinkNpxHint, L("Installer celui de Mira", "Install Mira’s"), "install", L("Choisir son dossier…", "Choose its folder…"), "browse"); return;
             case "missing":
-                ShowTorLinkPanel("folder", "TorLink est introuvable", "Mira peut le réinstaller.", "Réinstaller", "install", "Choisir son dossier…", "browse"); return;
+                ShowTorLinkPanel("folder", L("TorLink est introuvable", "Can’t find TorLink"), L("Mira peut le réinstaller.", "Mira can reinstall it."), L("Réinstaller", "Reinstall"), "install", L("Choisir son dossier…", "Choose its folder…"), "browse"); return;
             case "runtime":
-                ShowTorLinkPanel("info", "Node.js est nécessaire", "TorLink a besoin de Node.js 22 ou plus récent. Mira peut l’installer, avec TorLink.", "Installer", "install"); return;
+                ShowTorLinkPanel("info", L("Node.js est nécessaire", "Node.js is needed"), L("TorLink a besoin de Node.js 22 ou plus récent. Mira peut l’installer, avec TorLink.", "TorLink needs Node.js 22 or later. Mira can install it, along with TorLink."), L("Installer", "Install"), "install"); return;
             case "elsewhere":
-                ShowTorLinkPanel("info", "TorLink est déjà ouvert", "Il tourne dans une autre fenêtre. Quitte-le (q ou Ctrl+C) puis réessaie : deux TorLink ne peuvent pas gérer les mêmes téléchargements.", "Réessayer", "retry"); return;
+                ShowTorLinkPanel("info", L("TorLink est déjà ouvert", "TorLink is already open"), L("Il tourne dans une autre fenêtre. Quitte-le (q ou Ctrl+C) puis réessaie : deux TorLink ne peuvent pas gérer les mêmes téléchargements.", "It’s running in another window. Quit it (q or Ctrl+C), then try again: two TorLinks can’t manage the same downloads."), L("Réessayer", "Try again"), "retry"); return;
             case "confirm" when _torlinkInstallation is { } found:
-                ShowTorLinkPanel("folder", "Utiliser ce TorLink ?", $"Mira a trouvé TorLink {found.Version ?? "(version inconnue)"} dans {found.Root}. Il n’a pas été installé par Mira : utilise-le seulement si c’est toi qui l’as installé. Mira s’en souviendra.",
-                    "Utiliser ce TorLink", "trust", "Installer celui de Mira", "install"); return;
+                ShowTorLinkPanel("folder", L("Utiliser ce TorLink ?", "Use this TorLink?"), L($"Mira a trouvé TorLink {found.Version ?? "(version inconnue)"} dans {found.Root}. Il n’a pas été installé par Mira : utilise-le seulement si c’est toi qui l’as installé. Mira s’en souviendra.",
+                    $"Mira found TorLink {found.Version ?? "(unknown version)"} in {found.Root}. It wasn’t installed by Mira: only use it if you installed it yourself. Mira will remember."),
+                    L("Utiliser ce TorLink", "Use this TorLink"), "trust", L("Installer celui de Mira", "Install Mira’s"), "install"); return;
             case "remote":
-                ShowTorLinkPanel("download", "TorLink télécharge pour un autre appareil", "Une demande est arrivée de Mira web : TorLink continue sans fenêtre. Le rouvrir ici reprend tout, sans rien perdre.", "Rouvrir TorLink ici", "retry"); return;
+                ShowTorLinkPanel("download", L("TorLink télécharge pour un autre appareil", "TorLink is downloading for another device"), L("Une demande est arrivée de Mira web : TorLink continue sans fenêtre. Le rouvrir ici reprend tout, sans rien perdre.", "A request came from Mira web: TorLink carries on without a window. Opening it here again picks everything up, with nothing lost."), L("Rouvrir TorLink ici", "Reopen TorLink here"), "retry"); return;
             case "webview":
-                ShowTorLinkPanel("info", "Terminal intégré indisponible", (_torlinkTerminal?.Problem ?? "") + " TorLink peut s’ouvrir dans sa propre fenêtre ; ses téléchargements terminés seront quand même rangés.", "Ouvrir dans une fenêtre", "window"); return;
+                ShowTorLinkPanel("info", L("Terminal intégré indisponible", "Built-in terminal unavailable"), (_torlinkTerminal?.Problem ?? "") + L(" TorLink peut s’ouvrir dans sa propre fenêtre ; ses téléchargements terminés seront quand même rangés.", " TorLink can open in its own window; its finished downloads will still be filed."), L("Ouvrir dans une fenêtre", "Open in a window"), "window"); return;
         }
         switch (state)
         {
             case TerminalState.Running: TorLinkStatePanel.Visibility = Visibility.Collapsed; break;
-            case TerminalState.Starting: ShowTorLinkPanel("download", "Ouverture de TorLink…", "Son interface apparaît ici dans un instant.", null, null); break;
+            case TerminalState.Starting: ShowTorLinkPanel("download", L("Ouverture de TorLink…", "Opening TorLink…"), L("Son interface apparaît ici dans un instant.", "Its interface appears here in a moment."), null, null); break;
             case TerminalState.Exited when _torlinkTerminal?.Problem is { } problem:
-                ShowTorLinkPanel("info", _torlinkTerminal.ExitCode is null ? "TorLink n’a pas démarré" : "TorLink s’est arrêté", problem, "Réessayer", "retry"); break;
-            case TerminalState.Exited: ShowTorLinkPanel("download", "TorLink est fermé", "Les téléchargements interrompus reprendront à la prochaine ouverture.", "Relancer TorLink", "retry"); break;
-            default: ShowTorLinkPanel("download", "Ouverture de TorLink…", "Son interface apparaît ici dans un instant.", null, null); break;
+                ShowTorLinkPanel("info", _torlinkTerminal.ExitCode is null ? L("TorLink n’a pas démarré", "TorLink didn’t start") : L("TorLink s’est arrêté", "TorLink stopped"), problem, L("Réessayer", "Try again"), "retry"); break;
+            case TerminalState.Exited: ShowTorLinkPanel("download", L("TorLink est fermé", "TorLink is closed"), L("Les téléchargements interrompus reprendront à la prochaine ouverture.", "Interrupted downloads will resume the next time it opens."), L("Relancer TorLink", "Start TorLink again"), "retry"); break;
+            default: ShowTorLinkPanel("download", L("Ouverture de TorLink…", "Opening TorLink…"), L("Son interface apparaît ici dans un instant.", "Its interface appears here in a moment."), null, null); break;
         }
     }
 
@@ -406,11 +407,11 @@ public partial class MainWindow
             case "window" when _torlinkInstallation is { } installation:
                 // Its own window is a TorLink like the one of its shortcut: still only one at a time.
                 await TakeBackFromHeadlessAsync();
-                if (await Task.Run(() => installation.RunningOutside(_torlinkHeadless.ProcessIds)) is not null) { SetNotice("TorLink est déjà ouvert dans une autre fenêtre."); break; }
+                if (await Task.Run(() => installation.RunningOutside(_torlinkHeadless.ProcessIds)) is not null) { SetNotice(L("TorLink est déjà ouvert dans une autre fenêtre.", "TorLink is already open in another window.")); break; }
                 installation = await TakePreparedTorLinkAsync(installation);
                 PrepareTorLinkStart();
-                try { installation.OpenInWindow(); SetNotice("TorLink s’ouvre dans sa propre fenêtre ; ses téléchargements terminés seront rangés."); _ = RefreshTorLinkAsync(installation); }
-                catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { SetNotice("TorLink n’a pas pu s’ouvrir dans une fenêtre."); }
+                try { installation.OpenInWindow(); SetNotice(L("TorLink s’ouvre dans sa propre fenêtre ; ses téléchargements terminés seront rangés.", "TorLink is opening in its own window; its finished downloads will be filed.")); _ = RefreshTorLinkAsync(installation); }
+                catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { SetNotice(L("TorLink n’a pas pu s’ouvrir dans une fenêtre.", "TorLink couldn’t open in a window.")); }
                 break;
         }
     }
@@ -418,10 +419,10 @@ public partial class MainWindow
     /// <summary>Folder picker that only accepts a real TorLink folder.</summary>
     private string? ChooseTorLinkFolder()
     {
-        var dialog = new OpenFolderDialog { Title = "Dossier de TorLink (celui qui contient torlink.bat)" };
+        var dialog = new OpenFolderDialog { Title = L("Dossier de TorLink (celui qui contient torlink.bat)", "TorLink’s folder (the one with torlink.bat)") };
         if (dialog.ShowDialog(this) != true) return null;
         if (TorLinkInstallation.Validate(dialog.FolderName, _profile.DirectoryPath) is { } found) return found.Root;
-        SetNotice("Ce dossier ne contient pas TorLink (package torlnk avec dist\\cli.cjs).");
+        SetNotice(L("Ce dossier ne contient pas TorLink (package torlnk avec dist\\cli.cjs).", "This folder doesn’t contain TorLink (the torlnk package with dist\\cli.cjs)."));
         return null;
     }
 
@@ -429,7 +430,7 @@ public partial class MainWindow
     {
         var folder = _torlinkState.DownloadDirectory();
         if (Directory.Exists(folder)) OpenInExplorer(folder, null);
-        else SetNotice("Le dossier de téléchargement de TorLink n’existe pas encore : il sera créé au premier téléchargement.");
+        else SetNotice(L("Le dossier de téléchargement de TorLink n’existe pas encore : il sera créé au premier téléchargement.", "TorLink’s download folder doesn’t exist yet: it will be created with the first download."));
     }
 
     private void TorLinkSettings_Click(object sender, RoutedEventArgs e)
@@ -479,25 +480,25 @@ public partial class MainWindow
             _ => ("info", "Danger")
         };
         var actions = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-        if (entry.JellyfinId is { } id && !_demo) actions.Children.Add(RowButton("Voir", "play", async () => await OpenTorLinkItemAsync(id)));
+        if (entry.JellyfinId is { } id && !_demo) actions.Children.Add(RowButton(L("Voir", "View"), "play", async () => await OpenTorLinkItemAsync(id)));
         // The folder is looked up on click only: a library on an offline network drive must not freeze this list.
         if (entry.Folders.Count > 0)
-            actions.Children.Add(RowButton("Dossier", "folder", async () =>
+            actions.Children.Add(RowButton(L("Dossier", "Folder"), "folder", async () =>
             {
                 var folders = entry.Folders; var video = entry.Files.FirstOrDefault(x => x.Role == "video")?.Destination;
                 if (await Task.Run(() => folders.FirstOrDefault(Directory.Exists)) is { } folder) OpenInExplorer(folder, video);
-                else SetNotice("Ce dossier n’existe plus dans la bibliothèque.");
+                else SetNotice(L("Ce dossier n’existe plus dans la bibliothèque.", "This folder is no longer in the library."));
             }));
         if (entry.State is TorLinkImportState.Waiting or TorLinkImportState.Blocked or TorLinkImportState.Conflict or TorLinkImportState.Failed or TorLinkImportState.Partial)
-            actions.Children.Add(RowButton("Réessayer", "refresh", () => { RequestTorLinkImport(entry.Id); return Task.CompletedTask; }));
+            actions.Children.Add(RowButton(L("Réessayer", "Try again"), "refresh", () => { RequestTorLinkImport(entry.Id); return Task.CompletedTask; }));
         ContextMenu? menu = null;
         // Only what Mira placed can be moved to another library; files found already there stay put.
         if (entry.State is TorLinkImportState.Imported or TorLinkImportState.Partial && entry.Files.Any(x => !x.Found))
         {
             menu = new ContextMenu();
-            foreach (var (kind, label, glyph) in new[] { (MediaKind.Movie, "Classer comme film", "film"), (MediaKind.Series, "Classer comme série", "series"), (MediaKind.Anime, "Classer comme anime", "series") })
+            foreach (var (kind, label, glyph) in new[] { (MediaKind.Movie, L("Classer comme film", "File as a movie"), "film"), (MediaKind.Series, L("Classer comme série", "File as a show"), "series"), (MediaKind.Anime, L("Classer comme anime", "File as anime"), "series") })
                 if (kind != entry.Kind) menu.Items.Add(MenuAction(label, glyph, () => ReclassifyTorLinkAsync(entry.Id, kind)));
-            var classify = RowButton("Classer", "sliders", () => Task.CompletedTask);
+            var classify = RowButton(L("Classer", "File as"), "sliders", () => Task.CompletedTask);
             classify.Click += (_, _) => { menu.PlacementTarget = classify; menu.Placement = PlacementMode.Bottom; menu.IsOpen = true; };
             actions.Children.Add(classify);
         }
@@ -512,12 +513,12 @@ public partial class MainWindow
     {
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = completion.Name, FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = completion.Name });
-        var when = completion.CompletedAt == DateTimeOffset.MinValue ? "" : $" le {completion.CompletedAt.ToLocalTime():d} à {completion.CompletedAt.ToLocalTime():HH:mm}";
-        text.Children.Add(new TextBlock { Text = $"Terminé{when} · pas encore rangé", FontSize = 11.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        var when = completion.CompletedAt == DateTimeOffset.MinValue ? "" : L($" le {completion.CompletedAt.ToLocalTime():d} à {completion.CompletedAt.ToLocalTime():HH:mm}", $" on {Date(completion.CompletedAt.ToLocalTime())} at {Time(completion.CompletedAt.ToLocalTime())}");
+        text.Children.Add(new TextBlock { Text = L($"Terminé{when} · pas encore rangé", $"Finished{when} · not filed yet"), FontSize = 11.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         var actions = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-        actions.Children.Add(RowButton("Importer", "download", () => { RequestTorLinkImport(completion.Id); return Task.CompletedTask; }));
+        actions.Children.Add(RowButton(L("Importer", "Import"), "download", () => { RequestTorLinkImport(completion.Id); return Task.CompletedTask; }));
         text.Children.Add(actions);
-        return Row("clock", "Faint", text, null, completion.Name + ", pas encore rangé");
+        return Row("clock", "Faint", text, null, completion.Name + L(", pas encore rangé", ", not filed yet"));
     }
 
     private static Border Row(string icon, string color, FrameworkElement content, ContextMenu? menu, string name)

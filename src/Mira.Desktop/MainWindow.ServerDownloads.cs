@@ -22,7 +22,7 @@ public partial class MainWindow
 {
     private readonly DispatcherTimer _serverTimer = new() { Interval = TimeSpan.FromSeconds(3) };
     private static readonly TimeSpan ServerSearchWait = TimeSpan.FromSeconds(90);
-    private const string TorLinkPageLine = "Chaque téléchargement terminé rejoint ta bibliothèque.";
+    private static string TorLinkPageLine => L("Chaque téléchargement terminé rejoint ta bibliothèque.", "Each finished download joins your library.");
     /// <summary>The page shows the PC of Jellyfin's screen, not TorLink.</summary>
     private bool _serverScreen, _serverFilled, _serverReady, _serverLoading, _serverAgain, _serverSearching;
     private int _serverVersion, _serverSearchVersion;
@@ -78,7 +78,7 @@ public partial class MainWindow
         ServerPlacedTitle.Visibility = ServerProblem.Visibility = Visibility.Collapsed;
         ServerQueueEmpty.Visibility = ServerResultsEmpty.Visibility = Visibility.Visible;
         ServerQueueSummary.Text = ServerSearchStatus.Text = "";
-        ServerSearchButton.Content = "Chercher"; ServerResults.Opacity = 1;
+        ServerSearchButton.Content = L("Chercher", "Search"); ServerResults.Opacity = 1;
         CloseServerMagnet();
     }
 
@@ -110,11 +110,11 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex))
         {
             if (mine != _serverVersion || !ReferenceEquals(client, _client) || !_serverScreen) return;
-            if (ex is RelayRefusedException { StatusCode: HttpStatusCode.Forbidden }) ShowServerProblem("users", "Réservé aux administrateurs de Jellyfin", ex.Message);
-            else if (ex is RelayRefusedException { StatusCode: HttpStatusCode.NotFound }) ShowServerProblem("refresh", "L’extension Mira est à mettre à jour", ex.Message);
+            if (ex is RelayRefusedException { StatusCode: HttpStatusCode.Forbidden }) ShowServerProblem("users", L("Réservé aux administrateurs de Jellyfin", "For Jellyfin administrators only"), ex.Message);
+            else if (ex is RelayRefusedException { StatusCode: HttpStatusCode.NotFound }) ShowServerProblem("refresh", L("L’extension Mira est à mettre à jour", "The Mira extension needs an update"), ex.Message);
             // A page already filled keeps what it shows (a hiccup on Tailscale); an empty one says why.
             else if (_serverFilled) TorLinkSubtitle.Text = ServerError(ex);
-            else ShowServerProblem("server", "Le PC serveur ne répond pas", ServerError(ex));
+            else ShowServerProblem("server", L("Le PC serveur ne répond pas", "The server PC isn’t answering"), ServerError(ex));
         }
         finally
         {
@@ -128,26 +128,26 @@ public partial class MainWindow
     private void ShowServerProblem(string icon, string title, string hint)
     {
         ServerProblemIcon.Kind = icon; ServerProblemTitle.Text = title; ServerProblemHint.Text = hint;
-        TorLinkStatusText.Text = "PC serveur · Indisponible"; TorLinkStatusDot.Fill = Palette.Get("Warning");
+        TorLinkStatusText.Text = L("PC serveur · Indisponible", "Server PC · Unavailable"); TorLinkStatusDot.Fill = Palette.Get("Warning");
         TorLinkSubtitle.Text = TorLinkPageLine;
         if (ServerProblem.Visibility != Visibility.Visible) Motion.Reveal(ServerProblem, 200, 0);
     }
 
     private async void ServerRetry_Click(object sender, RoutedEventArgs e)
     {
-        ServerProblemHint.Text = "Lecture du PC serveur…";
+        ServerProblemHint.Text = L("Lecture du PC serveur…", "Checking the server PC…");
         await LoadServerDownloadsAsync();
     }
 
     /// <summary>The header: where the PC stands, in Mira web's words, and its pill.</summary>
     private void DescribeServerAgent(DateTimeOffset now)
     {
-        var (text, ready) = _serverFilled ? RemoteLines.Agent(_serverAgent, now) : ("Lecture du PC serveur…", false);
+        var (text, ready) = _serverFilled ? RemoteLines.Agent(_serverAgent, now) : (L("Lecture du PC serveur…", "Checking the server PC…"), false);
         _serverReady = ready;
         TorLinkSubtitle.Text = text;
-        var (status, dot) = !_serverFilled ? ("Lecture…", "Dim") : _serverAgent is null ? ("Jamais ouvert", "Dim") : !_serverAgent.Online ? ("Mira fermé", "Dim")
-            : !string.IsNullOrEmpty(_serverAgent.Problem) ? ("Occupé", "Warning") : ("Prêt", "Success");
-        TorLinkStatusText.Text = "PC serveur · " + status; TorLinkStatusDot.Fill = Palette.Get(dot);
+        var (status, dot) = !_serverFilled ? (L("Lecture…", "Checking…"), "Dim") : _serverAgent is null ? (L("Jamais ouvert", "Never opened"), "Dim") : !_serverAgent.Online ? (L("Mira fermé", "Mira closed"), "Dim")
+            : !string.IsNullOrEmpty(_serverAgent.Problem) ? (L("Occupé", "Busy"), "Warning") : (L("Prêt", "Ready"), "Success");
+        TorLinkStatusText.Text = L("PC serveur · ", "Server PC · ") + status; TorLinkStatusDot.Fill = Palette.Get(dot);
         ServerSearchButton.IsEnabled = ready && !_serverSearching;
     }
 
@@ -172,8 +172,8 @@ public partial class MainWindow
         ServerQueueEmpty.Visibility = queue.Count + placed.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         var downloading = status.Downloads.Count(x => x.Status == "downloading");
         var waiting = queue.Count - downloading;
-        ServerQueueSummary.Text = queue.Count == 0 ? (placed.Count > 0 ? "Rien en cours. Les derniers titres rangés sont ci-dessous." : "")
-            : string.Join(" · ", new[] { downloading > 0 ? $"{downloading} en cours" : "", waiting > 0 ? $"{waiting} en attente" : "" }.Where(x => x.Length > 0));
+        ServerQueueSummary.Text = queue.Count == 0 ? (placed.Count > 0 ? L("Rien en cours. Les derniers titres rangés sont ci-dessous.", "Nothing under way. The latest titles filed are below.") : "")
+            : string.Join(" · ", new[] { downloading > 0 ? L($"{downloading} en cours", $"{downloading} downloading") : "", waiting > 0 ? L($"{waiting} en attente", $"{waiting} waiting") : "" }.Where(x => x.Length > 0));
     }
 
     private static string Sentence(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
@@ -225,9 +225,9 @@ public partial class MainWindow
         var actions = new StackPanel();
         if (request.State != "claimed")
         {
-            var label = request.State == "waiting" ? "Annuler" : "Retirer";
+            var label = request.State == "waiting" ? L("Annuler", "Cancel") : L("Retirer", "Remove");
             var buttons = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-            buttons.Children.Add(Named(RowButton(label, "close", () => CancelServerRequestAsync(request)), $"{label} « {request.Name} »"));
+            buttons.Children.Add(Named(RowButton(label, "close", () => CancelServerRequestAsync(request)), L($"{label} « {request.Name} »", $"{label} “{request.Name}”")));
             actions.Children.Add(buttons);
         }
         var failed = request.State == "failed";
@@ -242,9 +242,9 @@ public partial class MainWindow
             var buttons = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
             if (download.Status != "failed")
                 buttons.Children.Add(RemoteLines.Paused(download)
-                    ? Named(RowButton("Reprendre", "play", () => ControlServerAsync(download, "resume")), $"Reprendre « {download.Name} »")
-                    : Named(RowButton("Pause", "pause", () => ControlServerAsync(download, "pause")), $"Mettre en pause « {download.Name} »"));
-            buttons.Children.Add(Named(RowButton("Annuler", "close", () => { ConfirmServerCancel(actions, download); return Task.CompletedTask; }), $"Annuler « {download.Name} »"));
+                    ? Named(RowButton(L("Reprendre", "Resume"), "play", () => ControlServerAsync(download, "resume")), L($"Reprendre « {download.Name} »", $"Resume “{download.Name}”"))
+                    : Named(RowButton("Pause", "pause", () => ControlServerAsync(download, "pause")), L($"Mettre en pause « {download.Name} »", $"Pause “{download.Name}”")));
+            buttons.Children.Add(Named(RowButton(L("Annuler", "Cancel"), "close", () => { ConfirmServerCancel(actions, download); return Task.CompletedTask; }), L($"Annuler « {download.Name} »", $"Cancel “{download.Name}”")));
             actions.Children.Add(buttons);
         }
         var (icon, color) = download.Status switch { "failed" => ("warning", "Warning"), "completed" or "seeding" => ("check", "Success"), "downloading" => ("download", "TextBody"), _ => ("clock", "Faint") };
@@ -256,17 +256,17 @@ public partial class MainWindow
     {
         var kept = actions.Children.Cast<UIElement>().ToList();
         actions.Children.Clear();
-        actions.Children.Add(new TextBlock { Text = "TorLink l’arrête et supprime ce qu’il en a déjà reçu sur le PC serveur.", FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("WarningText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+        actions.Children.Add(new TextBlock { Text = L("TorLink l’arrête et supprime ce qu’il en a déjà reçu sur le PC serveur.", "TorLink stops it and deletes what it has already received on the server PC."), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("WarningText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
         var buttons = new WrapPanel { Margin = new Thickness(-6, 4, 0, 0) };
-        var confirm = Named(RowButton("Annuler le téléchargement", "close", () => ControlServerAsync(download, "delete")), $"Annuler le téléchargement de « {download.Name} »");
+        var confirm = Named(RowButton(L("Annuler le téléchargement", "Cancel the download"), "close", () => ControlServerAsync(download, "delete")), L($"Annuler le téléchargement de « {download.Name} »", $"Cancel the download of “{download.Name}”"));
         confirm.Foreground = Palette.Get("Danger");
         buttons.Children.Add(confirm);
-        buttons.Children.Add(Named(RowButton("Garder", "check", () =>
+        buttons.Children.Add(Named(RowButton(L("Garder", "Keep"), "check", () =>
         {
             actions.Children.Clear();
             foreach (var element in kept) actions.Children.Add(element);
             return Task.CompletedTask;
-        }), $"Garder « {download.Name} »"));
+        }), L($"Garder « {download.Name} »", $"Keep “{download.Name}”")));
         actions.Children.Add(buttons);
         _ = Dispatcher.BeginInvoke(() => confirm.Focus(), DispatcherPriority.Input);
     }
@@ -277,7 +277,7 @@ public partial class MainWindow
         if (placed.ItemId is { } id && !_demo)
         {
             var buttons = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-            buttons.Children.Add(Named(RowButton("Voir", "play", () => OpenTorLinkItemAsync(id)), $"Voir « {placed.Title} »"));
+            buttons.Children.Add(Named(RowButton(L("Voir", "View"), "play", () => OpenTorLinkItemAsync(id)), L($"Voir « {placed.Title} »", $"View “{placed.Title}”")));
             actions.Children.Add(buttons);
         }
         return ServerRowView(placed.Ok ? "check" : "warning", placed.Ok ? "Success" : "Warning", placed.Title, Sentence(placed.Status), null, false, actions);
@@ -292,9 +292,9 @@ public partial class MainWindow
         {
             SetNotice(await client.TorLinkCancelAsync(request.Id, _connectionLifetime.Token) switch
             {
-                true => request.State == "waiting" ? "Demande annulée." : "Retiré de la liste.",
-                false => "Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.",
-                null => "Cette demande n’est plus là."
+                true => request.State == "waiting" ? L("Demande annulée.", "Request canceled.") : L("Retiré de la liste.", "Removed from the list."),
+                false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC has already taken it: cancel it in its list as soon as it shows up there."),
+                null => L("Cette demande n’est plus là.", "This request is no longer there.")
             });
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); }
@@ -334,8 +334,8 @@ public partial class MainWindow
         var category = (ServerCategory.SelectedItem as ComboBoxItem)?.Tag as string ?? "movies";
         var label = RemoteLines.CategoryLabel(category);
         var mine = ++_serverSearchVersion; var ct = _connectionLifetime.Token;
-        _serverSearching = true; ServerSearchButton.IsEnabled = false; ServerSearchButton.Content = "Recherche…";
-        ServerSearchStatus.Text = $"Recherche de « {query} » en {label} sur le PC serveur…";
+        _serverSearching = true; ServerSearchButton.IsEnabled = false; ServerSearchButton.Content = L("Recherche…", "Searching…");
+        ServerSearchStatus.Text = L($"Recherche de « {query} » en {label} sur le PC serveur…", $"Searching for “{query}” in {label} on the server PC…");
         ServerResults.Opacity = 0.45;
         void End(string text) { ServerSearchStatus.Text = text; ServerResults.Children.Clear(); ServerResultsEmpty.Visibility = Visibility.Collapsed; }
         try
@@ -346,15 +346,15 @@ public partial class MainWindow
             {
                 await Task.Delay(1000, ct);
                 if (mine != _serverSearchVersion) return;
-                if (DateTime.UtcNow - started > ServerSearchWait) { End("Le PC serveur n’a pas répondu à temps. Vérifie que Mira y est ouvert, puis relance la recherche."); return; }
+                if (DateTime.UtcNow - started > ServerSearchWait) { End(L("Le PC serveur n’a pas répondu à temps. Vérifie que Mira y est ouvert, puis relance la recherche.", "The server PC didn’t answer in time. Check that Mira is open there, then search again.")); return; }
                 RelaySearch? state;
                 // A hiccup on the way: asked again a second later.
                 try { state = await client.TorLinkSearchStateAsync(id, ct); }
                 catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested && ex is not RelayRefusedException) { continue; }
                 if (mine != _serverSearchVersion) return;
                 // Forgotten (Jellyfin restarted meanwhile): it will not come back.
-                if (state is null) { End("Cette recherche a été perdue : relance-la."); return; }
-                if (state.State == "failed") { End(string.IsNullOrEmpty(state.Error) ? "La recherche n’a pas abouti." : state.Error); return; }
+                if (state is null) { End(L("Cette recherche a été perdue : relance-la.", "This search was lost: run it again.")); return; }
+                if (state.State == "failed") { End(string.IsNullOrEmpty(state.Error) ? L("La recherche n’a pas abouti.", "The search didn’t go through.") : state.Error); return; }
                 if (state.State == "done") { ShowServerHits(id, query, category, state.Results ?? []); return; }
             }
         }
@@ -364,7 +364,7 @@ public partial class MainWindow
         {
             if (mine == _serverSearchVersion)
             {
-                _serverSearching = false; ServerSearchButton.Content = "Chercher"; ServerSearchButton.IsEnabled = _serverReady; ServerResults.Opacity = 1;
+                _serverSearching = false; ServerSearchButton.Content = L("Chercher", "Search"); ServerSearchButton.IsEnabled = _serverReady; ServerResults.Opacity = 1;
             }
         }
     }
@@ -377,13 +377,12 @@ public partial class MainWindow
     {
         var label = RemoteLines.CategoryLabel(category);
         ServerResultsEmpty.Visibility = Visibility.Collapsed; ServerResults.Children.Clear(); SmoothScroll.Jump(ServerResultsScroll);
-        if (hits.Count == 0) { ServerSearchStatus.Text = $"Aucun résultat pour « {query} » en {label}. Essaie un autre titre, ou une autre catégorie."; return; }
+        if (hits.Count == 0) { ServerSearchStatus.Text = L($"Aucun résultat pour « {query} » en {label}. Essaie un autre titre, ou une autre catégorie.", $"No results for “{query}” in {label}. Try another title, or another category."); return; }
         var groups = ReleaseRanking.Group(hits, category);
-        ServerSearchStatus.Text = $"{Count(hits.Count, "version", "versions")} pour « {query} » en {label}, regroupées en {Count(groups.Count, "titre", "titres")}. La meilleure de chacun en premier.";
+        var (versions, titles) = (Count(hits.Count, "version", "versions", "version", "versions"), Count(groups.Count, "titre", "titres", "title", "titles"));
+        ServerSearchStatus.Text = L($"{versions} pour « {query} » en {label}, regroupées en {titles}. La meilleure de chacun en premier.", $"{versions} for “{query}” in {label}, grouped into {titles}. The best of each comes first.");
         foreach (var group in groups) ServerResults.Children.Add(ServerGroupView(searchId, group));
     }
-
-    private static string Count(int n, string one, string many) => $"{n} {(n == 1 ? one : many)}";
 
     private Border ServerGroupView(string searchId, ReleaseGroup group)
     {
@@ -401,18 +400,18 @@ public partial class MainWindow
         {
             var others = new StackPanel { Visibility = Visibility.Collapsed };
             foreach (var entry in group.Others) others.Children.Add(ServerReleaseView(searchId, entry, best: false));
-            var more = Count(group.Others.Count, "autre version", "autres versions");
+            var more = Count(group.Others.Count, "autre version", "autres versions", "other version", "other versions");
             var text = new TextBlock { Text = more, FontSize = 12, FontWeight = FontWeights.SemiBold };
             var chevron = new Icon { Kind = "down", Width = 14, Height = 14, Foreground = Palette.Get("TextBody"), Margin = new Thickness(6, 0, 0, 0) };
             var content = new StackPanel { Orientation = Orientation.Horizontal }; content.Children.Add(text); content.Children.Add(chevron);
             var toggle = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(8, 6, 9, 6), Margin = new Thickness(-8, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Content = content, Foreground = Palette.Get("TextBody") };
-            AutomationProperties.SetName(toggle, $"{more} de {group.Title}");
+            AutomationProperties.SetName(toggle, L($"{more} de {group.Title}", $"{more} of {group.Title}"));
             toggle.Click += (_, _) =>
             {
                 var open = others.Visibility != Visibility.Visible;
                 others.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-                text.Text = open ? "Masquer les autres versions" : more; chevron.Kind = open ? "up" : "down";
-                AutomationProperties.SetName(toggle, open ? "Masquer les autres versions" : $"{more} de {group.Title}");
+                text.Text = open ? L("Masquer les autres versions", "Hide the other versions") : more; chevron.Kind = open ? "up" : "down";
+                AutomationProperties.SetName(toggle, open ? L("Masquer les autres versions", "Hide the other versions") : L($"{more} de {group.Title}", $"{more} of {group.Title}"));
             };
             panel.Children.Add(toggle); panel.Children.Add(others);
         }
@@ -429,8 +428,8 @@ public partial class MainWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var text = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
         var quality = new WrapPanel();
-        quality.Children.Add(new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : "Qualité non précisée", FontSize = 13.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        if (best) quality.Children.Add(new Border { CornerRadius = new CornerRadius(4), Background = Palette.Get("Accent"), Padding = new Thickness(7, 2, 7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = "Meilleur choix", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("OnAccent") } });
+        quality.Children.Add(new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : L("Qualité non précisée", "Quality not given"), FontSize = 13.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        if (best) quality.Children.Add(new Border { CornerRadius = new CornerRadius(4), Background = Palette.Get("Accent"), Padding = new Thickness(7, 2, 7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = L("Meilleur choix", "Best pick"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("OnAccent") } });
         text.Children.Add(quality);
         text.Children.Add(new TextBlock { Text = RemoteLines.Hit(hit), FontSize = 12, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(0, 4, 0, 0) });
         text.Children.Add(new TextBlock { Text = hit.Name, FontSize = 11.5, LineHeight = 16, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, MaxHeight = 33, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0), ToolTip = hit.Name });
@@ -440,7 +439,7 @@ public partial class MainWindow
         var key = searchId + "/" + hit.Id;
         var button = new Button { Style = (Style)FindResource(best ? "Primary" : "Quiet"), Padding = new Thickness(16, 9, 16, 9), VerticalAlignment = VerticalAlignment.Center };
         ShowSendState(button, _serverSent.Contains(key), best);
-        AutomationProperties.SetName(button, $"Télécharger {hit.Name}");
+        AutomationProperties.SetName(button, L($"Télécharger {hit.Name}", $"Download {hit.Name}"));
         button.Click += async (_, _) => await SendServerHitAsync(searchId, hit, button, best);
         Grid.SetColumn(button, 1); grid.Children.Add(button);
         if (best) return grid;
@@ -452,7 +451,7 @@ public partial class MainWindow
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal };
         content.Children.Add(new Icon { Kind = sent ? "check" : "download", Width = 15, Height = 15, Margin = new Thickness(0, 0, 7, 0), Foreground = Palette.Get(best && !sent ? "OnAccent" : "TextBody") });
-        content.Children.Add(new TextBlock { Text = sent ? "Envoyé" : "Télécharger", FontSize = 13, FontWeight = FontWeights.SemiBold });
+        content.Children.Add(new TextBlock { Text = sent ? L("Envoyé", "Sent") : L("Télécharger", "Download"), FontSize = 13, FontWeight = FontWeights.SemiBold });
         button.Content = content; button.IsEnabled = !sent;
     }
 
@@ -472,7 +471,7 @@ public partial class MainWindow
     /// <summary>Its row, with its progress, is at the top of the right column.</summary>
     private async Task SentToServerAsync()
     {
-        SetNotice(_serverReady ? "Envoyé au PC serveur : sa progression s’affiche à droite." : "Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.");
+        SetNotice(_serverReady ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
         SmoothScroll.Jump(ServerQueueScroll);
         await LoadServerDownloadsAsync();
     }
@@ -506,7 +505,7 @@ public partial class MainWindow
     {
         if (_client is not { } client || !ServerMagnetSend.IsEnabled) return;
         var magnet = ServerMagnetBox.Text.Trim();
-        if (RemoteDownloads.InfoHash(magnet) is null) { ShowMagnetError("Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »)."); ServerMagnetBox.Focus(); return; }
+        if (RemoteDownloads.InfoHash(magnet) is null) { ShowMagnetError(L("Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).", "That’s not a magnet link (“magnet:?xt=urn:btih:…”).")); ServerMagnetBox.Focus(); return; }
         ServerMagnetSend.IsEnabled = false;
         try
         {
