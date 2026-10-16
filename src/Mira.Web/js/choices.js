@@ -3,13 +3,20 @@
 // in Jellyfin's display preferences. Each entry has its time; the newest wins. The same rules as Mira for Windows and
 // Mac (AccountChoices in Core), with their cases shared in tests/fixtures/choices.json. Nothing of the browser here:
 // Node imports this module.
+import { language } from './i18n.js';
 
 /** The custom preference that holds them, in Jellyfin's display preferences « mira » of the client « mira ». */
 export const PREFERENCE = 'mira.choices';
-/** The settings kept on Jellyfin, with Mira's defaults: a setting never changed anywhere is not written. */
+/** The orders of the tracks before any choice, in Mira's language (PlayerSettings.DefaultAudioLanguage in Core). */
+export const defaultAudioLanguages = () => (language() === 'fr' ? 'jpn,ja,fre,fra,fr,eng,en' : 'jpn,ja,eng,en,fre,fra,fr');
+export const defaultSubtitleLanguages = () => (language() === 'fr' ? 'fre,fra,fr,eng,en' : 'eng,en,fre,fra,fr');
+/**
+ * The settings kept on Jellyfin, with Mira's defaults: a setting never changed anywhere is not written. Those of the
+ * tracks follow Mira's language: a device that never chose does not impose its language's order on the others.
+ */
 export const SETTINGS = Object.freeze({
-  audioLanguages: 'jpn,ja,fre,fra,fr,eng,en',
-  subtitleLanguages: 'fre,fra,fr,eng,en',
+  get audioLanguages() { return defaultAudioLanguages(); },
+  get subtitleLanguages() { return defaultSubtitleLanguages(); },
   autoSkip: false,
   quality: 'auto',
 });

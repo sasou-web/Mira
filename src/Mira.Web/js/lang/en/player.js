@@ -98,6 +98,7 @@ export default {
   forcés: 'forced',
   'fichier externe': 'external file',
   'Japonais, puis français': 'Japanese, then French',
+  'Japonais, puis anglais': 'Japanese, then English',
   'Français, puis anglais': 'French, then English',
   'Anglais, puis français': 'English, then French',
   Anglais: 'English',

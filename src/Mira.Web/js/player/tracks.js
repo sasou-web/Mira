@@ -156,14 +156,19 @@ export function qualityText(source) {
   return [size, range].filter(Boolean).join(' · ');
 }
 
-/** The language orders of Mira on Windows and Mac (Mira.Core PlayerSettings), with the same defaults. */
+/**
+ * The language orders of Mira on Windows and Mac (Mira.Core PlayerSettings), with the same defaults, plus those an
+ * English Mira starts with (« Japonais, puis anglais », « Anglais, puis français »).
+ */
 export const AUDIO_LANGUAGES = [
   ['jpn,ja,fre,fra,fr,eng,en', tr('Japonais, puis français')],
+  ['jpn,ja,eng,en,fre,fra,fr', tr('Japonais, puis anglais')],
   ['fre,fra,fr,eng,en', tr('Français, puis anglais')],
   ['eng,en,fre,fra,fr', tr('Anglais, puis français')],
 ];
 export const SUBTITLE_LANGUAGES = [
   ['fre,fra,fr,eng,en', tr('Français, puis anglais')],
+  ['eng,en,fre,fra,fr', tr('Anglais, puis français')],
   ['eng,en', tr('Anglais')],
   ['jpn,ja', tr('Japonais')],
 ];

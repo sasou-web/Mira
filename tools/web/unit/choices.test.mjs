@@ -3,7 +3,8 @@ import './fr.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { capture, merge, differs, apply, same, fromWeb, toWeb, LIMITS } from '../../../src/Mira.Web/js/choices.js';
+import { capture, merge, differs, apply, same, fromWeb, toWeb, LIMITS, SETTINGS } from '../../../src/Mira.Web/js/choices.js';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/choices.json', import.meta.url), 'utf8'));
 
@@ -48,4 +49,18 @@ test('Mira web keeps the tracks of a series its own way', () => {
   for (const memory of [{ audio: 'jpn', subtitle: 'fre', forced: true, audioTitle: 'Japonais', subtitleTitle: 'Panneaux' }, { audio: 'fre', subtitle: null, forced: false, audioTitle: null, subtitleTitle: null }, { audio: 'jpn', subtitle: 'und', forced: false, audioTitle: null, subtitleTitle: null }]) {
     assert.deepEqual(toWeb(fromWeb(memory)), memory);
   }
+});
+
+test('the orders of the tracks before any choice follow Mira\'s language, as in Core', () => {
+  try {
+    setLanguage('en');
+    assert.equal(SETTINGS.audioLanguages, 'jpn,ja,eng,en,fre,fra,fr');
+    assert.equal(SETTINGS.subtitleLanguages, 'eng,en,fre,fra,fr');
+    // An English device left as it is writes nothing for the others; a French order chosen there is written.
+    assert.deepEqual(capture(null, { settings: { audioLanguages: 'jpn,ja,eng,en,fre,fra,fr', subtitleLanguages: 'eng,en,fre,fra,fr' } }, 5).settings, {});
+    assert.deepEqual(Object.keys(capture(null, { settings: { audioLanguages: 'jpn,ja,fre,fra,fr,eng,en' } }, 5).settings), ['audioLanguages']);
+    setLanguage('fr');
+    assert.equal(SETTINGS.audioLanguages, 'jpn,ja,fre,fra,fr,eng,en');
+    assert.equal(SETTINGS.subtitleLanguages, 'fre,fra,fr,eng,en');
+  } finally { setLanguage('fr'); }
 });
