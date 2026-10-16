@@ -78,13 +78,14 @@ public partial class MainWindow
         if (_images is not null && _hero is not null) await _heroReady;
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
     }
-    private async Task CaptureAsync(string directory, string name)
+    private async Task CaptureAsync(string directory, string name, double scale = 1)
     {
         if (!Motion.Reduced) await Task.Delay(440);
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); UpdateLayout();
         var visual = (FrameworkElement)Content;
         var dpi = VisualTreeHelper.GetDpi(visual);
-        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(visual.ActualWidth * dpi.DpiScaleX), (int)Math.Ceiling(visual.ActualHeight * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(visual.ActualWidth * dpi.DpiScaleX * scale), (int)Math.Ceiling(visual.ActualHeight * dpi.DpiScaleY * scale),
+            dpi.PixelsPerInchX * scale, dpi.PixelsPerInchY * scale, PixelFormats.Pbgra32);
         // The window's own background first: the content alone is see-through where the window shows (unreadable on a light page).
         var backdrop = new DrawingVisual();
         using (var context = backdrop.RenderOpen()) context.DrawRectangle(Background, null, new Rect(0, 0, visual.ActualWidth, visual.ActualHeight));

@@ -326,10 +326,12 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { }
     }
     /// <summary>Artwork decoded for the sharpest and widest of the screens connected now, and for the pages' zoom.</summary>
+    /// <summary>The least scale artwork is decoded for: 2 for the README's captures, drawn at twice the window's size.</summary>
+    private double _artworkScale = 1;
     private void FitArtwork(ImageCache cache)
     {
         var screens = Screens.All();
-        cache.Scale = screens.Select(x => x.Scale).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1).Max() * _zoom;
+        cache.Scale = screens.Select(x => x.Scale).Where(x => double.IsFinite(x) && x > 0).Append(_artworkScale).Max() * _zoom;
         cache.ScreenPixels = (int)Math.Round(screens.Select(x => x.WorkArea.Width).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1920).Max());
     }
     private async Task DisconnectServicesAsync()
