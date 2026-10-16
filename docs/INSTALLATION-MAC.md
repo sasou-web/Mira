@@ -67,7 +67,7 @@ shasum -a 256 -c Mira-x.y.z-mac-arm64.dmg.sha256
 
 ## Ce qui reste propre à Windows
 
-TorLink, l’installation de Jellyfin depuis Mira, le mini-lecteur et l’intégration à la barre des tâches n’existent que sur Windows.
+TorLink tourne sur le PC Windows de Jellyfin : depuis le Mac, la page **Téléchargements** (compte administrateur de Jellyfin) lui envoie tes recherches et tes téléchargements, et montre leur progression. L’installation de Jellyfin depuis Mira, le mini-lecteur et l’intégration à la barre des tâches n’existent que sur Windows.
 
 ## Si quelque chose ne fonctionne pas
 

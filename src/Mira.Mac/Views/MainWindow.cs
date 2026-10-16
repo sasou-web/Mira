@@ -107,11 +107,13 @@ public sealed class MainWindow : Window
     private Border BuildRail()
     {
         var brand = new Icon("brand", 34) { Foreground = Ui.Ink, Margin = new Thickness(0, 6, 0, 22) };
-        foreach (var (key, icon, tip) in new[] { ("home", "home", "Accueil"), ("search", "search", "Rechercher · ⌘F"), ("Movie", "film", "Films"), ("Series", "series", "Séries"), ("library", "library", "Toute la bibliothèque") })
+        foreach (var (key, icon, tip) in new[] { ("home", "home", "Accueil"), ("search", "search", "Rechercher · ⌘F"), ("Movie", "film", "Films"), ("Series", "series", "Séries"), ("library", "library", "Toute la bibliothèque"), ("downloads", "download", "Télécharger sur le PC serveur") })
         {
             var button = Ui.IconButton(icon, tip, () => NavigateRoot(key), "rail", 23);
             _railButtons[key] = button; _railItems.Children.Add(button);
         }
+        // Shown once Jellyfin says this account administers it, as its relay requires.
+        _railButtons["downloads"].IsVisible = false;
         var settings = Ui.IconButton("settings", "Réglages · ⌘,", () => NavigateRoot("settings"), "rail", 23);
         _railButtons["settings"] = settings;
         var avatar = new Border { Width = 38, Height = 38, CornerRadius = new CornerRadius(19), Background = Ui.Brush("#2A2A2E"), Child = _avatar, Margin = new Thickness(0, 6, 0, 0) };
@@ -206,6 +208,8 @@ public sealed class MainWindow : Window
         }
         _avatar.Text = connection.UserName.Length > 0 ? connection.UserName[..1].ToUpperInvariant() : "?";
         _overlay.Children.Clear(); _rail.IsVisible = true;
+        _railButtons["downloads"].IsVisible = false;
+        _ = OfferDownloadsAsync(Session);
         _history.Clear();
         await NavigateAsync(new HomePage(this));
         if (Session.Store.DamagedCopy is not null) Notice("Le cache local de ce compte était illisible : il a été recréé.");
@@ -213,6 +217,20 @@ public sealed class MainWindow : Window
         if (_invite is not null) _ = OfferInviteAsync();
         ChoicesChanged();
     }
+
+    /// <summary>
+    /// « Téléchargements »: searches and downloads sent to the PC of Jellyfin, where TorLink runs (Mira for Windows), by
+    /// its administrators only, as the relay of the extension.
+    /// </summary>
+    private async Task OfferDownloadsAsync(Session session)
+    {
+        bool? admin = null;
+        try { admin = await session.Client.IsAdministratorAsync(session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+        if (ReferenceEquals(session, Session)) _railButtons["downloads"].IsVisible = admin == true;
+    }
+    /// <summary>Whether the rail offers an entry now (the self-check).</summary>
+    public bool Offers(string key) => _railButtons.TryGetValue(key, out var button) && button.IsVisible;
 
     // —— « Tes choix gardés sur ton Jellyfin » ——
     // The languages, the intros, the tracks of each series and the titles removed from « Continuer à regarder » follow the
@@ -358,7 +376,7 @@ public sealed class MainWindow : Window
     // —— Navigation ——
     public Page? Current => _host.Content as Page;
     public LoginPage? Login => _overlay.Children.OfType<LoginPage>().FirstOrDefault();
-    /// <summary>The page behind a rail entry: "home", "search", "Movie", "Series", "library" or "settings".</summary>
+    /// <summary>The page behind a rail entry: "home", "search", "Movie", "Series", "library", "downloads" or "settings".</summary>
     public void Go(string key) => NavigateRoot(key);
     private void NavigateRoot(string key)
     {
@@ -373,6 +391,7 @@ public sealed class MainWindow : Window
             "Movie" => new BrowsePage(this, BrowseKind.Movies),
             "Series" => new BrowsePage(this, BrowseKind.Series),
             "library" => new BrowsePage(this, BrowseKind.All),
+            "downloads" => new DownloadsPage(this),
             _ => new SettingsPage(this)
         };
         _ = NavigateAsync(page);
