@@ -48,12 +48,14 @@ public static class WhatsNew
         if (seen is not null && Trim(seen) >= Trim(current)) return StartupScreen.None;
         return Since(seen, current, entries).Count > 0 ? StartupScreen.WhatsNew : StartupScreen.None;
     }
-    /// <summary>The release page's text on GitHub: the summary, the highlights, how to install on Windows, on a Mac and on a
-    /// phone, where the details are, and the "Code signing policy" line SignPath Foundation asks for on every download page,
-    /// with its credit only when the Windows files carry its signature (<paramref name="signed"/>).</summary>
+    /// <summary>The release page's text on GitHub: what Mira is (SignPath Foundation wants the download page to describe the
+    /// program), the summary, the highlights, how to install on Windows, on a Mac and on a phone, where the details are, and
+    /// the "Code signing policy" line it asks for on every download page, with its credit only when the Windows files carry
+    /// its signature (<paramref name="signed"/>).</summary>
     public static string ReleaseNotes(ReleaseHighlights release, bool signed = true)
     {
         var text = new StringBuilder();
+        text.Append("**Mira** est un client Jellyfin « cinéma » : une app Windows avec mpv intégré, sa version Mac, et Mira web pour iPhone, iPad et Android, servie par ton serveur Jellyfin.\n\n");
         text.Append(release.Summary).Append("\n\n");
         foreach (var item in release.Items) text.Append("- **").Append(item.Title).Append("** — ").Append(item.Text).Append('\n');
         text.Append("\n**Sur Windows** : `Mira-").Append(release.Version).Append("-win-x64-setup.exe`. Les copies déjà installées se mettent à jour toutes seules.\n\n");
