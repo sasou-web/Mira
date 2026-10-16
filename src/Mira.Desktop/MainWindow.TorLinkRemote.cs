@@ -78,7 +78,8 @@ public partial class MainWindow
         if (!_torlinkEnabled || _demo || _closing || _client is not { } client || _torlink is not { } torlink) { _remoteState = ""; return TimeSpan.FromSeconds(30); }
         if (!await JellyfinOnThisPcAsync(client))
         {
-            _remoteState = "Jellyfin tourne sur un autre PC : TorLink n’est proposé que là-bas, à côté de ta bibliothèque. La page Téléchargements de ce PC lui envoie tes recherches et tes téléchargements.";
+            _remoteState = L("Jellyfin tourne sur un autre PC : TorLink n’est proposé que là-bas, à côté de ta bibliothèque. La page Téléchargements de ce PC lui envoie tes recherches et tes téléchargements.",
+                "Jellyfin runs on another PC: TorLink is only offered there, next to your library. This PC’s Downloads page sends it your searches and downloads.");
             return TimeSpan.FromMinutes(5);
         }
         if (!_settings.TorLinkRemote) { _remoteState = ""; return TimeSpan.FromSeconds(30); }
@@ -96,15 +97,15 @@ public partial class MainWindow
         if (work is null)
         {
             _remoteState = status == HttpStatusCode.Forbidden
-                ? "Ton compte Jellyfin n’est pas administrateur : tes autres appareils ne peuvent pas envoyer de téléchargement ici."
-                : "L’extension Mira de ton serveur est plus ancienne que ce Mira : elle se met à jour avec lui, au prochain redémarrage de Jellyfin.";
+                ? L("Ton compte Jellyfin n’est pas administrateur : tes autres appareils ne peuvent pas envoyer de téléchargement ici.", "Your Jellyfin account isn’t an administrator: your other devices can’t send downloads here.")
+                : L("L’extension Mira de ton serveur est plus ancienne que ce Mira : elle se met à jour avec lui, au prochain redémarrage de Jellyfin.", "Your server’s Mira extension is older than this Mira: it updates along with it, the next time Jellyfin restarts.");
             return TimeSpan.FromMinutes(5);
         }
         // Delivered: what the relay has now is not sent again.
         _remoteSearchOutcomes.RemoveAll(searches.Contains); _remoteRequestOutcomes.RemoveAll(requests.Contains); _remoteControlOutcomes.RemoveAll(controls.Contains);
-        if (work.Busy is { } other) { _remoteState = $"Un autre Mira reçoit déjà les téléchargements de tes appareils : {other}."; return TimeSpan.FromSeconds(Math.Clamp(work.Next, 10, 120)); }
-        _remoteState = !active ? "Active TorLink dans la page Téléchargements : tes autres appareils pourront y lancer un téléchargement."
-            : problem ?? (_torlinkHeadless.Running ? "Prêt. TorLink travaille en ce moment sans fenêtre, pour un autre appareil." : "Prêt : tes autres appareils peuvent lancer un téléchargement ici.");
+        if (work.Busy is { } other) { _remoteState = L($"Un autre Mira reçoit déjà les téléchargements de tes appareils : {other}.", $"Another Mira already receives your devices’ downloads: {other}."); return TimeSpan.FromSeconds(Math.Clamp(work.Next, 10, 120)); }
+        _remoteState = !active ? L("Active TorLink dans la page Téléchargements : tes autres appareils pourront y lancer un téléchargement.", "Turn TorLink on in the Downloads page: your other devices will be able to start a download there.")
+            : problem ?? (_torlinkHeadless.Running ? L("Prêt. TorLink travaille en ce moment sans fenêtre, pour un autre appareil.", "Ready. TorLink is working without a window right now, for another device.") : L("Prêt : tes autres appareils peuvent lancer un téléchargement ici.", "Ready: your other devices can start a download here."));
 
         foreach (var search in work.Searches) _ = RunRemoteSearchAsync(installation, search);
         if (work.Requests.Count > 0 || work.Controls.Count > 0) { await RunRemoteDownloadsAsync(installation, work.Requests, work.Controls); _remoteAgain = true; }
@@ -132,8 +133,8 @@ public partial class MainWindow
         try
         {
             var query = RemoteDownloads.CleanQuery(search.Query);
-            var (hits, error) = query is null || !RemoteDownloads.IsCategory(search.Category) ? ([], "Recherche refusée.")
-                : installation is not { HasRuntime: true, Detected: false } ? ([], "TorLink n’est pas prêt sur le PC serveur.")
+            var (hits, error) = query is null || !RemoteDownloads.IsCategory(search.Category) ? ([], L("Recherche refusée.", "Search refused."))
+                : installation is not { HasRuntime: true, Detected: false } ? ([], L("TorLink n’est pas prêt sur le PC serveur.", "TorLink isn’t ready on the server PC."))
                 : await _torlinkHeadless.SearchAsync(installation, query, search.Category, _torlinkLifetime.Token);
             _remoteSearchOutcomes.Add(new(search.Id, error is null ? "done" : "failed", hits, error));
             VisitRelaySoon();
@@ -155,13 +156,13 @@ public partial class MainWindow
         var serve = _torlinkHeadless.Client!;
         foreach (var request in requests)
         {
-            if (RemoteDownloads.InfoHash(request.Magnet) is null) { _remoteRequestOutcomes.Add(new(request.Id, "failed", "Ce n’est pas un lien magnet.")); continue; }
+            if (RemoteDownloads.InfoHash(request.Magnet) is null) { _remoteRequestOutcomes.Add(new(request.Id, "failed", L("Ce n’est pas un lien magnet.", "That’s not a magnet link."))); continue; }
             try
             {
                 var (outcome, error) = await serve.AddAsync(request.Magnet, ct);
-                _remoteRequestOutcomes.Add(new(request.Id, outcome is null ? "failed" : "sent", outcome == "duplicate" ? "TorLink l’avait déjà." : error));
+                _remoteRequestOutcomes.Add(new(request.Id, outcome is null ? "failed" : "sent", outcome == "duplicate" ? L("TorLink l’avait déjà.", "TorLink already had it.") : error));
             }
-            catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested) { _remoteRequestOutcomes.Add(new(request.Id, "failed", "TorLink n’a pas répondu.")); }
+            catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested) { _remoteRequestOutcomes.Add(new(request.Id, "failed", L("TorLink n’a pas répondu.", "TorLink didn’t answer."))); }
         }
         if (controls.Count == 0) return;
         try
@@ -169,13 +170,13 @@ public partial class MainWindow
             // Only a download under way: a finished one is in the library, never deleted from here.
             var current = TorLinkRemote.ParseDownloads(await serve.DownloadsAsync(ct)).Select(x => x.Id).ToHashSet();
             foreach (var control in controls)
-                _remoteControlOutcomes.Add(!RemoteDownloads.IsInfoHash(control.Target) || !RemoteDownloads.IsAction(control.Action) ? new(control.Id, "failed", "Demande inconnue.")
-                    : !current.Contains(control.Target) ? new(control.Id, "failed", "Ce téléchargement n’est plus en cours.")
-                    : await serve.ControlAsync(control.Target, control.Action, ct) ? new(control.Id, "done", null) : new(control.Id, "failed", "TorLink n’a plus ce téléchargement."));
+                _remoteControlOutcomes.Add(!RemoteDownloads.IsInfoHash(control.Target) || !RemoteDownloads.IsAction(control.Action) ? new(control.Id, "failed", L("Demande inconnue.", "Unknown request."))
+                    : !current.Contains(control.Target) ? new(control.Id, "failed", L("Ce téléchargement n’est plus en cours.", "This download is no longer under way."))
+                    : await serve.ControlAsync(control.Target, control.Action, ct) ? new(control.Id, "done", null) : new(control.Id, "failed", L("TorLink n’a plus ce téléchargement.", "TorLink no longer has this download.")));
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested)
         {
-            _remoteControlOutcomes.AddRange(controls.Where(x => !_remoteControlOutcomes.Any(o => o.Id == x.Id)).Select(x => new AgentOutcome(x.Id, "failed", "TorLink n’a pas répondu.")));
+            _remoteControlOutcomes.AddRange(controls.Where(x => !_remoteControlOutcomes.Any(o => o.Id == x.Id)).Select(x => new AgentOutcome(x.Id, "failed", L("TorLink n’a pas répondu.", "TorLink didn’t answer."))));
         }
         _headlessIdleSince = null;
     }
@@ -202,7 +203,7 @@ public partial class MainWindow
         }
         installation = await TakePreparedTorLinkAsync(installation);
         PrepareTorLinkStart();
-        if (!await _torlinkHeadless.StartAsync(installation, _torlinkLifetime.Token)) { await HeadlessStoppedAsync(); return _torlinkHeadless.Problem ?? "TorLink n’a pas pu démarrer sur le PC serveur."; }
+        if (!await _torlinkHeadless.StartAsync(installation, _torlinkLifetime.Token)) { await HeadlessStoppedAsync(); return _torlinkHeadless.Problem ?? L("TorLink n’a pas pu démarrer sur le PC serveur.", "TorLink couldn’t start on the server PC."); }
         _headlessIdleSince = null; UpdateTorLinkState();
         _ = RefreshTorLinkAsync(installation);
         return null;

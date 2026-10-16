@@ -87,7 +87,7 @@ internal sealed class TorLinkTerminal : IDisposable
             var environment = await CoreWebView2Environment.CreateAsync(null, _userData, options);
             // Composition hosting: drawn by WPF, so the mini-player and notices can overlap it.
             var view = new WebView2CompositionControl { DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 14, 14, 16), Focusable = true };
-            AutomationProperties.SetName(view, "Terminal TorLink");
+            AutomationProperties.SetName(view, L("Terminal TorLink", "TorLink terminal"));
             host.Child = view;
             await view.EnsureCoreWebView2Async(environment);
             var core = view.CoreWebView2;
@@ -113,7 +113,7 @@ internal sealed class TorLinkTerminal : IDisposable
         catch (Exception ex) when (ex is WebView2RuntimeNotFoundException or COMException or IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
         {
             host.Child = null;
-            Problem = ex is WebView2RuntimeNotFoundException ? "Le moteur WebView2 de Microsoft Edge est absent de ce PC." : "Le terminal intégré n’a pas pu s’ouvrir.";
+            Problem = ex is WebView2RuntimeNotFoundException ? L("Le moteur WebView2 de Microsoft Edge est absent de ce PC.", "Microsoft Edge’s WebView2 engine is missing from this PC.") : L("Le terminal intégré n’a pas pu s’ouvrir.", "The built-in terminal couldn’t open.");
             SetState(TerminalState.Unavailable);
         }
     }
@@ -175,7 +175,7 @@ internal sealed class TorLinkTerminal : IDisposable
         }
         catch (Exception ex) when (ex is Win32Exception or IOException or UnauthorizedAccessException)
         {
-            Problem = "TorLink n’a pas pu démarrer : " + ex.Message;
+            Problem = L("TorLink n’a pas pu démarrer : ", "TorLink couldn’t start: ") + ex.Message;
             SetState(TerminalState.Exited);
         }
     }
@@ -186,7 +186,7 @@ internal sealed class TorLinkTerminal : IDisposable
         Flush();
         ExitCode = code; _console = null;
         // TorLink leaves with 0 when asked to (q, Ctrl+C, Échap); otherwise it printed the reason just before.
-        if (code != 0) Problem = $"TorLink s’est arrêté sur une erreur (code {code})" + (LastLine() is { } line ? " : « " + line + " »" : ".");
+        if (code != 0) Problem = L($"TorLink s’est arrêté sur une erreur (code {code})", $"TorLink stopped with an error (code {code})") + (LastLine() is { } line ? L(" : « " + line + " »", ": “" + line + "”") : ".");
         Post(new { type = "exit", code });
         console.Dispose();
         SetState(TerminalState.Exited);

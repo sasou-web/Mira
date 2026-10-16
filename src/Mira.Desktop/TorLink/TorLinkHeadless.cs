@@ -55,7 +55,7 @@ internal sealed class TorLinkHeadless : IDisposable
         }
         catch (Exception ex) when (ex is Win32Exception or IOException or UnauthorizedAccessException)
         {
-            Problem = "TorLink n’a pas pu démarrer : " + ex.Message;
+            Problem = L("TorLink n’a pas pu démarrer : ", "TorLink couldn’t start: ") + ex.Message;
             return false;
         }
         var client = _client = new TorLinkServeClient(port, token);
@@ -65,7 +65,7 @@ internal sealed class TorLinkHeadless : IDisposable
             if (await client.HealthyAsync(ct)) { Problem = null; return true; }
             await Task.Delay(500, ct);
         }
-        Problem = LastLine() is { } line ? $"TorLink ne répond pas : « {line} »." : "TorLink ne répond pas.";
+        Problem = LastLine() is { } line ? L($"TorLink ne répond pas : « {line} ».", $"TorLink isn’t answering: “{line}”.") : L("TorLink ne répond pas.", "TorLink isn’t answering.");
         await StopAsync();
         return false;
     }
@@ -96,7 +96,7 @@ internal sealed class TorLinkHeadless : IDisposable
         foreach (var (key, value) in TorLinkTerminal.ChildEnvironment(installation.Managed)) start.Environment[key] = value;
         using var process = new Process { StartInfo = start };
         try { process.Start(); }
-        catch (Exception ex) when (ex is Win32Exception or IOException or InvalidOperationException) { return ([], "TorLink n’a pas pu chercher : " + ex.Message); }
+        catch (Exception ex) when (ex is Win32Exception or IOException or InvalidOperationException) { return ([], L("TorLink n’a pas pu chercher : ", "TorLink couldn’t search: ") + ex.Message); }
         lock (_gate) _searches.Add(process.Id);
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
         limit.CancelAfter(TorLinkRemote.SearchTimeout);
@@ -104,15 +104,15 @@ internal sealed class TorLinkHeadless : IDisposable
         try
         {
             var output = await ReadAsync(process.StandardOutput, TorLinkRemote.MaxSearchOutput, limit.Token);
-            if (output is null) return ([], "TorLink a répondu trop longuement.");
+            if (output is null) return ([], L("TorLink a répondu trop longuement.", "TorLink’s answer was too long."));
             await process.WaitForExitAsync(limit.Token);
             var (hits, error) = TorLinkRemote.ParseSearch(output);
             // Nothing on its output: its error message is the last line of its error output.
             if (output.Trim().Length == 0 && process.ExitCode != 0 && (await errors)?.Split('\n').Select(x => x.Trim()).LastOrDefault(x => x.Length > 0) is { } line)
-                error = "TorLink n’a pas pu chercher : " + (line.Length > 160 ? line[..160] + "…" : line);
+                error = L("TorLink n’a pas pu chercher : ", "TorLink couldn’t search: ") + (line.Length > 160 ? line[..160] + "…" : line);
             return (hits, error);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return ([], "TorLink n’a pas répondu à temps."); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return ([], L("TorLink n’a pas répondu à temps.", "TorLink didn’t answer in time.")); }
         finally
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
