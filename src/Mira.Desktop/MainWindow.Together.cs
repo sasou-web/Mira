@@ -15,7 +15,8 @@ namespace Mira.Desktop;
 /// « Regarder ensemble »: Jellyfin's SyncPlay, as in Mira web (together.js). A group plays one title at the same moment
 /// on each of its devices: Lecture puts a title on for the group, and pause, play, seeks and the next episode go to
 /// Jellyfin, which tells each device what to do and when, on its clock (<see cref="Together"/>). One group at a time,
-/// joined or left from the title page, left from the player's ⋮ too. Its messages come through Jellyfin's WebSocket.
+/// joined or left from the title page, joined from Home too (<see cref="ShowHomeGroup"/>), left from the player's ⋮.
+/// Its messages come through Jellyfin's WebSocket.
 /// Jellyfin lets a device go with its socket (Wi-Fi lost, the PC asleep): back, this PC joins the group again, or makes
 /// it again under the same name when it made it and the group ended empty, so that the invitation sent still finds it.
 /// In the player, a pill says what the group is doing (<see cref="UpdateGroupPill"/>).
@@ -130,7 +131,9 @@ public partial class MainWindow
     }
     private void GroupChanged()
     {
-        ShowTogetherButton(); UpdateGroupPill();
+        ShowTogetherButton(); UpdateGroupPill(); ShowHomeGroup();
+        // Out of a group: Home's line comes back with the groups as they are now (the one left may be over).
+        if (_group?.GroupId != _homeGroupFor) { _homeGroupFor = _group?.GroupId; if (_group is null && _client is { } client) _ = LoadHomeGroupsAsync(client); }
         if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) ShowDetailPlayLabel(detail);
         if (PlayerOptionsPopup.IsOpen && MoreMenu.Visibility == Visibility.Visible) ShowGroupSection();
     }
@@ -566,6 +569,57 @@ public partial class MainWindow
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(link) { UseShellExecute = true })?.Dispose(); }
         catch (System.ComponentModel.Win32Exception) { SetNotice("Windows n’a pas pu ouvrir le navigateur : " + link); }
     }
+    /// <summary>Jellyfin's groups as Home last read them, for the account that read them.</summary>
+    private (JellyfinClient? Client, List<Together.Group> Groups) _homeGroups = (null, []);
+    /// <summary>The account Jellyfin does not let watch together (403 on its groups): Home asks no more.</summary>
+    private JellyfinClient? _homeGroupsRefused;
+    /// <summary>The group this PC was in when Home last showed its line.</summary>
+    private string? _homeGroupFor;
+    /// <summary>
+    /// Home's line, as in Mira web: Jellyfin's groups read at each refresh of Home (<see cref="RefreshAsync"/>) and when
+    /// this PC leaves a group; none for an account Jellyfin refuses, asked again only once signed in again.
+    /// </summary>
+    private async Task LoadHomeGroupsAsync(JellyfinClient client)
+    {
+        if (_demo || ReferenceEquals(client, _homeGroupsRefused)) return;
+        List<Together.Group> groups;
+        try { groups = await client.SyncGroupsAsync(_connectionLifetime.Token); }
+        catch (UnauthorizedAccessException) { _homeGroupsRefused = client; groups = []; }
+        catch (Exception ex) when (IsExpected(ex)) { return; }
+        if (!ReferenceEquals(client, _client)) return;
+        _homeGroups = (client, groups); ShowHomeGroup();
+    }
+    /// <summary>« Groupe de Marc · 2 personnes » with « Rejoindre », on Home while this PC is in no group.</summary>
+    private void ShowHomeGroup()
+    {
+        var home = _catalog.IsHome(SearchBox.Text.Trim()) && !_demo && _client is not null && ReferenceEquals(_homeGroups.Client, _client);
+        var open = home ? Together.HomeGroup(_homeGroups.Groups, _group?.GroupId) : null;
+        HomeGroup.Visibility = open is null ? Visibility.Collapsed : Visibility.Visible;
+        if (open is null) return;
+        HomeGroupName.Text = open.GroupName; HomeGroupPeople.Text = " · " + Together.People(Math.Max(1, open.Participants.Count));
+        HomeGroupJoin.Tag = open.GroupId;
+        System.Windows.Automation.AutomationProperties.SetName(HomeGroupJoin, $"Rejoindre « {open.GroupName} »");
+    }
+    /// <summary>The group joined, and its title put on here once it plays one (GroupQueueAsync).</summary>
+    private async void HomeGroupJoin_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client is not { } client || HomeGroupJoin.Tag is not string id) return;
+        HomeGroupJoin.IsEnabled = false;
+        try
+        {
+            // It may have ended since Home read it: Jellyfin would answer a join with nothing to say.
+            List<Together.Group> groups;
+            try { groups = await client.SyncGroupsAsync(_connectionLifetime.Token); }
+            catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); return; }
+            catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
+            if (!ReferenceEquals(client, _client)) return;
+            _homeGroups = (client, groups); ShowHomeGroup();
+            if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { SetNotice("Ce groupe n’existe plus."); return; }
+            await EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false);
+        }
+        finally { HomeGroupJoin.IsEnabled = true; }
+    }
+
     /// <summary>The player's ⋮: the group and « Quitter », while in one.</summary>
     private void ShowGroupSection()
     {

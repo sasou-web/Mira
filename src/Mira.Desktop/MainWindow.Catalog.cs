@@ -147,7 +147,7 @@ public partial class MainWindow
         var row = _catalog.ContinueRow();
         ResumeSection.Visibility = home && row.Count > 0 && HomeShows(HomeLayout.Continue) ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
-        RenderShelves(home);
+        RenderShelves(home); ShowHomeGroup();
         RenderPeople(search); RenderFound(search);
         // « Ajoutés récemment » put away (Réglages → Apparence): the home page ends with its rows. A search that found
         // only people, episodes or sagas shows them alone.
