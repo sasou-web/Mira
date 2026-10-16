@@ -62,7 +62,7 @@ public sealed record MediaItem
     [JsonIgnore]
     public string Subtitle => Type == "Episode"
         ? $"S{ParentIndexNumber ?? 1:00} · E{IndexNumber ?? 1:00}  —  {Name}"
-        : string.Join("  ·  ", new[] { ProductionYear?.ToString(), Type == "Series" ? "Série" : DurationLabel }.Where(s => !string.IsNullOrEmpty(s)));
+        : string.Join("  ·  ", new[] { ProductionYear?.ToString(), Type == "Series" ? L("Série", "Series") : DurationLabel }.Where(s => !string.IsNullOrEmpty(s)));
     /// <summary>
     /// Episodes left in a series already started: the count that shows new ones came out. None before its first episode
     /// is watched, where it would only repeat its length. Jellyfin 10.9 gives the share watched with RecursiveItemCount.
@@ -71,7 +71,7 @@ public sealed record MediaItem
     public int? EpisodesToWatch => Type == "Series" && !UserData.Played && UserData.PlayedPercentage > 0 && UserData.UnplayedItemCount is int count and > 0 ? count : null;
     /// <summary>The badge on the poster (« 3 », « 99+ ») and what a screen reader says of it.</summary>
     [JsonIgnore] public string? EpisodesToWatchBadge => EpisodesToWatch is { } count ? count > 99 ? "99+" : count.ToString(CultureInfo.InvariantCulture) : null;
-    [JsonIgnore] public string? EpisodesToWatchText => EpisodesToWatch is { } count ? count == 1 ? "1 épisode à voir" : $"{count} épisodes à voir" : null;
+    [JsonIgnore] public string? EpisodesToWatchText => EpisodesToWatch is { } count ? count == 1 ? L("1 épisode à voir", "1 episode to watch") : L($"{count} épisodes à voir", $"{count} episodes to watch") : null;
     [JsonIgnore] public string DurationLabel => RunTimeTicks is > 0 ? FormatDuration(TimeSpan.FromTicks(RunTimeTicks.Value)) : "";
     [JsonIgnore] public double Progress => RunTimeTicks is > 0 ? Math.Clamp((double)UserData.PlaybackPositionTicks / RunTimeTicks.Value, 0, 1) : 0;
     /// <summary>The leading actors, in the order Jellyfin credits them.</summary>
@@ -82,7 +82,7 @@ public sealed record MediaItem
     [JsonIgnore] public PersonInfo[] DirectorPeople => Credited("Director", 3);
     private PersonInfo[] Credited(string type, int count) => People.Where(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase))
         .Select(x => x with { Name = x.Name.Trim() }).Where(x => x.Name.Length > 0).DistinctBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Take(count).ToArray();
-    public static string FormatDuration(TimeSpan span) => span.TotalHours >= 1 ? $"{(int)span.TotalHours} h {span.Minutes:00}" : $"{Math.Max(1, span.Minutes)} min";
+    public static string FormatDuration(TimeSpan span) => span.TotalHours >= 1 ? L($"{(int)span.TotalHours} h {span.Minutes:00}", $"{(int)span.TotalHours} hr {span.Minutes} min") : $"{Math.Max(1, span.Minutes)} min";
 }
 
 public sealed record PersonInfo

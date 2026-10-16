@@ -49,11 +49,11 @@ public sealed class Catalog
     public string? Parent => Saga?.Id ?? ParentId;
     /// <summary>The order asked: a saga's titles in the order they came out, unless another one is chosen.</summary>
     public string Sort(string chosen) => Saga is not null && chosen is "" or "recent" ? "saga" : chosen;
-    public string PageTitle => View switch { "Movie" => "Films", "Series" => "Séries & animes", "library" => "Ta bibliothèque", "offline" => "Sur ce PC", _ => "Explorer" };
-    public string Description => Favorites ? "Les histoires que tu gardes à portée de main." : "Trouve ta prochaine séance dans ta bibliothèque.";
-    public string GridTitle(string search) => IsHome(search) ? "Ajoutés récemment" : View == "offline" ? "Prêts sans connexion" : search.Length > 0 ? $"Résultats pour « {search} »"
-        : Person is { } shown ? PersonText(shown.Name, shown.Directed) : Saga is { } saga ? saga.Name : Favorites ? "Tes favoris" : "Tous les titres";
-    public static string PersonText(string name, bool? directed) => directed switch { true => "Réalisés par ", false => "Avec ", null => "" } + name;
+    public string PageTitle => View switch { "Movie" => L("Films", "Movies"), "Series" => L("Séries & animes", "Shows & anime"), "library" => L("Ta bibliothèque", "Your library"), "offline" => L("Sur ce PC", "On this PC"), _ => L("Explorer", "Browse") };
+    public string Description => Favorites ? L("Les histoires que tu gardes à portée de main.", "The stories you keep close at hand.") : L("Trouve ta prochaine séance dans ta bibliothèque.", "Find your next show in your library.");
+    public string GridTitle(string search) => IsHome(search) ? L("Ajoutés récemment", "Recently added") : View == "offline" ? L("Prêts sans connexion", "Ready offline") : search.Length > 0 ? L($"Résultats pour « {search} »", $"Results for “{search}”")
+        : Person is { } shown ? PersonText(shown.Name, shown.Directed) : Saga is { } saga ? saga.Name : Favorites ? L("Tes favoris", "Your favorites") : L("Tous les titres", "All titles");
+    public static string PersonText(string name, bool? directed) => directed switch { true => L("Réalisés par ", "Directed by "), false => L("Avec ", "With "), null => "" } + name;
     /// <summary>
     /// A search of two letters or more looks for people, episodes and sagas too, as Mira web does; not in a person's or a
     /// saga's titles nor « Sur ce PC ».
@@ -67,7 +67,7 @@ public sealed class Catalog
         var letters = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0]));
         return string.Concat(letters) is { Length: > 0 } text ? text : "?";
     }
-    public static string CountText(int count) => $"{count:N0} titre{(count > 1 ? "s" : "")}";
+    public static string CountText(int count) => count.ToString("N0", Culture) + " " + Plural(count, "titre", "titres", "title", "titles");
 
     /// <summary>A new account or none: nothing of the previous one stays.</summary>
     public void Clear()
@@ -126,13 +126,13 @@ public sealed class Catalog
         var emptyLibrary = !demo && search.Length == 0 && !filtered && !Favorites && View is "home" or "library" && Resume.Count == 0;
         var (icon, title, hint) = (search.Length, filtered) switch
         {
-            ( > 0, _) => ("search", $"Aucun résultat pour « {search} »", "Vérifie l’orthographe ou essaie un autre titre."),
-            (_, true) => ("sliders", "Aucun titre ne correspond à ces filtres", "Élargis ta sélection pour retrouver tes titres."),
-            _ when View == "offline" => ("laptop", "Rien sur ce PC pour l’instant", "Sur la fiche d’un film ou d’une série, le bouton ⤓ garde le titre sur ce PC pour le regarder sans connexion."),
-            _ when Favorites => ("heart", "Aucun favori ici pour l’instant", "Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici."),
-            _ when emptyLibrary => ("folder", "Ta bibliothèque est vide", "Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici."),
-            _ when Saga is not null => ("film", "Aucun titre dans cette saga", "Ses films ne sont pas dans ta bibliothèque."),
-            _ => ("library", "Rien à afficher ici", "Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.")
+            ( > 0, _) => ("search", L($"Aucun résultat pour « {search} »", $"No results for “{search}”"), L("Vérifie l’orthographe ou essaie un autre titre.", "Check the spelling or try another title.")),
+            (_, true) => ("sliders", L("Aucun titre ne correspond à ces filtres", "No titles match these filters"), L("Élargis ta sélection pour retrouver tes titres.", "Widen your selection to find your titles.")),
+            _ when View == "offline" => ("laptop", L("Rien sur ce PC pour l’instant", "Nothing on this PC yet"), L("Sur la fiche d’un film ou d’une série, le bouton ⤓ garde le titre sur ce PC pour le regarder sans connexion.", "On a movie or show’s page, the ⤓ button keeps the title on this PC to watch offline.")),
+            _ when Favorites => ("heart", L("Aucun favori ici pour l’instant", "No favorites here yet"), L("Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici.", "On a title’s page, choose “Add to favorites” to find it here.")),
+            _ when emptyLibrary => ("folder", L("Ta bibliothèque est vide", "Your library is empty"), L("Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici.", "Put your movies and shows in Jellyfin’s folders: they’ll show up here.")),
+            _ when Saga is not null => ("film", L("Aucun titre dans cette saga", "No titles in this collection"), L("Ses films ne sont pas dans ta bibliothèque.", "Its movies aren’t in your library.")),
+            _ => ("library", L("Rien à afficher ici", "Nothing to show here"), L("Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.", "Titles added to your Jellyfin library will show up here."))
         };
         return new(icon, title, hint, Reset: filtered || search.Length > 0 || Favorites, Guide: emptyLibrary);
     }

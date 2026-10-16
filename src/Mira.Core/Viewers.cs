@@ -47,7 +47,7 @@ public static class Viewers
     /// <summary>« ogsas · iPhone · Tailscale », « ce PC ».</summary>
     public static string Who(Viewer viewer)
     {
-        if (viewer.Own) return "ce PC";
+        if (viewer.Own) return L("ce PC", "this PC");
         var parts = new List<string> { viewer.User, viewer.Device.Length > 0 ? viewer.Device : viewer.Client };
         if (Place(viewer.Address) is { } place) parts.Add(place);
         return string.Join(" · ", parts.Where(x => x.Length > 0));
@@ -60,7 +60,7 @@ public static class Viewers
         if (IPAddress.IsLoopback(ip)) return null;
         // Tailscale's IPv6 range too (fd7a:115c:a1e0::/48), before the private ranges it belongs to.
         if (LocalNetwork.IsTailnet(ip.ToString()) || ip.AddressFamily == AddressFamily.InterNetworkV6 && ip.GetAddressBytes() is [0xfd, 0x7a, 0x11, 0x5c, 0xa1, 0xe0, ..]) return "Tailscale";
-        return LocalNetwork.IsHome(ip) ? "réseau de la maison" : "Internet";
+        return LocalNetwork.IsHome(ip) ? L("réseau de la maison", "home network") : "Internet";
     }
     /// <summary>« Courte HLS · S1 É2 · Le départ — 12:34 / 40:00, en pause ».</summary>
     public static string What(Viewer viewer)
@@ -69,9 +69,9 @@ public static class Viewers
             ? string.Join(" · ", new[] { series, Code(viewer.Season, viewer.Episode), viewer.Name }.Where(x => x is { Length: > 0 }))
             : viewer.Name;
         var time = viewer.Duration > 0 ? $"{Clock(viewer.Position)} / {Clock(viewer.Duration)}" : Clock(viewer.Position);
-        return $"{title} — {time}{(viewer.Paused ? ", en pause" : "")}";
+        return $"{title} — {time}{(viewer.Paused ? L(", en pause", ", paused") : "")}";
     }
-    private static string? Code(int? season, int? episode) => episode is null ? null : season is null ? $"É{episode}" : $"S{season} É{episode}";
+    private static string? Code(int? season, int? episode) => episode is null ? null : season is null ? L($"É{episode}", $"E{episode}") : L($"S{season} É{episode}", $"S{season} E{episode}");
     /// <summary>« 1:02:03 », « 12:34 ».</summary>
     public static string Clock(double seconds)
     {
@@ -84,53 +84,53 @@ public static class Viewers
     /// </summary>
     public static (string How, string? Why) How(Viewer viewer)
     {
-        if (viewer.Method == "DirectPlay" || viewer.Method.Length == 0 && viewer.Conversion is null) return ("Lecture directe : le fichier tel quel", null);
+        if (viewer.Method == "DirectPlay" || viewer.Method.Length == 0 && viewer.Conversion is null) return (L("Lecture directe : le fichier tel quel", "Direct play: the file as it is"), null);
         var c = viewer.Conversion;
         if (viewer.Method == "DirectStream" || c is { VideoDirect: true, AudioDirect: true })
-            return ("Fichier remis dans un autre format, sans conversion", Why(c));
+            return (L("Fichier remis dans un autre format, sans conversion", "Repackaged in another format, without conversion"), Why(c));
         if (c is null) return ("Conversion", null);
         var parts = new List<string>
         {
-            c.VideoDirect ? "image copiée" : $"image en {PlayerText.Codec(c.VideoCodec) ?? "?"}",
-            c.AudioDirect ? "son copié" : $"son en {PlayerText.Codec(c.AudioCodec) ?? "?"}",
+            c.VideoDirect ? L("image copiée", "video copied") : L($"image en {PlayerText.Codec(c.VideoCodec) ?? "?"}", $"video to {PlayerText.Codec(c.VideoCodec) ?? "?"}"),
+            c.AudioDirect ? L("son copié", "audio copied") : L($"son en {PlayerText.Codec(c.AudioCodec) ?? "?"}", $"audio to {PlayerText.Codec(c.AudioCodec) ?? "?"}"),
         };
-        var on = c.VideoDirect ? "" : c.Hardware is { Length: > 0 } kind && kind != GpuEncoding.None ? $", par la carte graphique ({GpuEncoding.Maker(kind)})" : ", par le processeur";
-        var rate = c.Bitrate is > 0 ? $" · {(c.Bitrate.Value / 1e6).ToString("0.0", PlayerText.French)} Mb/s" : "";
-        return ($"Conversion : {string.Join(", ", parts)}{on}{rate}", Why(c));
+        var on = c.VideoDirect ? "" : c.Hardware is { Length: > 0 } kind && kind != GpuEncoding.None ? L($", par la carte graphique ({GpuEncoding.Maker(kind)})", $", on the graphics card ({GpuEncoding.Maker(kind)})") : L(", par le processeur", ", on the processor");
+        var rate = c.Bitrate is > 0 ? $" · {(c.Bitrate.Value / 1e6).ToString("0.0", Culture)} Mb/s" : "";
+        return (L("Conversion : ", "Conversion: ") + $"{string.Join(", ", parts)}{on}{rate}", Why(c));
     }
     private static string? Why(Conversion? c) => c is { Reasons.Length: > 0 }
-        ? "Pourquoi : " + string.Join(", ", c.Reasons.Select(Reason).Distinct())
+        ? L("Pourquoi : ", "Why: ") + string.Join(", ", c.Reasons.Select(Reason).Distinct())
         : null;
     /// <summary>Jellyfin's TranscodeReasons in words; the name itself for one Mira does not know.</summary>
     public static string Reason(string reason) => reason switch
     {
-        "ContainerNotSupported" => "format du fichier",
-        "VideoCodecNotSupported" => "codec vidéo",
-        "AudioCodecNotSupported" => "codec audio",
-        "SubtitleCodecNotSupported" => "sous-titres à incruster",
-        "AudioIsExternal" => "piste audio à part",
-        "SecondaryAudioNotSupported" => "piste audio secondaire",
-        "VideoProfileNotSupported" => "profil vidéo",
-        "VideoLevelNotSupported" => "niveau vidéo",
-        "VideoResolutionNotSupported" => "définition",
-        "VideoBitDepthNotSupported" => "vidéo 10 bits",
-        "VideoFramerateNotSupported" => "images par seconde",
-        "RefFramesNotSupported" => "images de référence",
-        "AnamorphicVideoNotSupported" => "image anamorphosée",
-        "InterlacedVideoNotSupported" => "image entrelacée",
-        "AudioChannelsNotSupported" => "canaux audio",
-        "AudioProfileNotSupported" => "profil audio",
-        "AudioSampleRateNotSupported" => "fréquence audio",
-        "AudioBitDepthNotSupported" => "audio haute résolution",
-        "ContainerBitrateExceedsLimit" => "débit au-dessus de la qualité choisie",
-        "VideoBitrateNotSupported" => "débit vidéo",
-        "AudioBitrateNotSupported" => "débit audio",
-        "UnknownVideoStreamInfo" => "vidéo mal décrite",
-        "UnknownAudioStreamInfo" => "audio mal décrit",
-        "DirectPlayError" => "lecture directe en échec",
+        "ContainerNotSupported" => L("format du fichier", "file format"),
+        "VideoCodecNotSupported" => L("codec vidéo", "video codec"),
+        "AudioCodecNotSupported" => L("codec audio", "audio codec"),
+        "SubtitleCodecNotSupported" => L("sous-titres à incruster", "subtitles to burn in"),
+        "AudioIsExternal" => L("piste audio à part", "separate audio track"),
+        "SecondaryAudioNotSupported" => L("piste audio secondaire", "secondary audio track"),
+        "VideoProfileNotSupported" => L("profil vidéo", "video profile"),
+        "VideoLevelNotSupported" => L("niveau vidéo", "video level"),
+        "VideoResolutionNotSupported" => L("définition", "resolution"),
+        "VideoBitDepthNotSupported" => L("vidéo 10 bits", "10-bit video"),
+        "VideoFramerateNotSupported" => L("images par seconde", "frame rate"),
+        "RefFramesNotSupported" => L("images de référence", "reference frames"),
+        "AnamorphicVideoNotSupported" => L("image anamorphosée", "anamorphic video"),
+        "InterlacedVideoNotSupported" => L("image entrelacée", "interlaced video"),
+        "AudioChannelsNotSupported" => L("canaux audio", "audio channels"),
+        "AudioProfileNotSupported" => L("profil audio", "audio profile"),
+        "AudioSampleRateNotSupported" => L("fréquence audio", "audio sample rate"),
+        "AudioBitDepthNotSupported" => L("audio haute résolution", "high-resolution audio"),
+        "ContainerBitrateExceedsLimit" => L("débit au-dessus de la qualité choisie", "bitrate above the chosen quality"),
+        "VideoBitrateNotSupported" => L("débit vidéo", "video bitrate"),
+        "AudioBitrateNotSupported" => L("débit audio", "audio bitrate"),
+        "UnknownVideoStreamInfo" => L("vidéo mal décrite", "video not fully described"),
+        "UnknownAudioStreamInfo" => L("audio mal décrit", "audio not fully described"),
+        "DirectPlayError" => L("lecture directe en échec", "direct play failed"),
         "VideoRangeTypeNotSupported" => "HDR",
-        "VideoCodecTagNotSupported" => "étiquette du codec vidéo",
-        "StreamCountExceedsLimit" => "trop de pistes",
+        "VideoCodecTagNotSupported" => L("étiquette du codec vidéo", "video codec tag"),
+        "StreamCountExceedsLimit" => L("trop de pistes", "too many tracks"),
         _ => reason,
     };
 }

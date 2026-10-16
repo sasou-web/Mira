@@ -68,13 +68,22 @@ public static class Together
     }
     public static Group? ParseGroup(JsonElement data) =>
         data.ValueKind == JsonValueKind.Object && Text(data, "GroupId") is { } id
-            ? new(id, Text(data, "GroupName") ?? "Groupe", data.TryGetProperty("Participants", out var p) && p.ValueKind == JsonValueKind.Array ? p.EnumerateArray().Select(x => x.GetString()).OfType<string>().ToList() : [], Text(data, "State") ?? "")
+            ? new(id, Text(data, "GroupName") ?? L("Groupe", "Group"), data.TryGetProperty("Participants", out var p) && p.ValueKind == JsonValueKind.Array ? p.EnumerateArray().Select(x => x.GetString()).OfType<string>().ToList() : [], Text(data, "State") ?? "")
             : null;
-    /// <summary>« Groupe de mira ».</summary>
-    public static string GroupName(string user) => "Groupe de " + user;
-    /// <summary>Who made a group of Mira, from its name (« Groupe de mira » → mira); null for a name Mira does not give.</summary>
-    public static string? GroupHost(string? name) =>
-        name is not null && name.StartsWith("Groupe de ", StringComparison.Ordinal) && name.Length > "Groupe de ".Length ? name["Groupe de ".Length..] : null;
+    /// <summary>« Groupe de mira », "mira's group".</summary>
+    public static string GroupName(string user) => L("Groupe de " + user, user + "'s group");
+    /// <summary>
+    /// Who made a group of Mira, from its name in either language (« Groupe de mira », "mira's group" → mira): devices
+    /// of both languages share one Jellyfin. Null for a name Mira does not give.
+    /// </summary>
+    public static string? GroupHost(string? name)
+    {
+        if (name is null) return null;
+        if (name.StartsWith("Groupe de ", StringComparison.Ordinal)) return name.Length > "Groupe de ".Length ? name["Groupe de ".Length..] : null;
+        foreach (var end in (string[])["'s group", "’s group"])
+            if (name.EndsWith(end, StringComparison.Ordinal) && name.Length > end.Length) return name[..^end.Length];
+        return null;
+    }
     /// <summary>
     /// The group an invitation means among Jellyfin's: the one of its id, else the one its host made again since under
     /// the same name (Jellyfin ends an empty group with its last device; Mira makes it again, <see cref="RejoinPlan"/>),
@@ -84,8 +93,7 @@ public static class Together
     {
         if (groups.FirstOrDefault(g => SameGroup(g.GroupId, groupId)) is { } same) return same;
         if (string.IsNullOrEmpty(host)) return null;
-        var name = GroupName(host);
-        return groups.Where(g => g.GroupName == name).OrderByDescending(g => g.Participants.Contains(host)).ThenByDescending(g => g.Participants.Count).FirstOrDefault();
+        return groups.Where(g => GroupHost(g.GroupName) == host).OrderByDescending(g => g.Participants.Contains(host)).ThenByDescending(g => g.Participants.Count).FirstOrDefault();
     }
     /// <summary>How to go back to a group: join the one of <see cref="Join"/>, or make it again under the name <see cref="Create"/>.</summary>
     public sealed record Rejoin(string? Join, string? Create);
@@ -100,11 +108,11 @@ public static class Together
         return made && lost.GroupName.Length > 0 ? new(null, lost.GroupName) : null;
     }
     /// <summary>What a friend reads when the host has no group open yet: « mira n’a pas encore lancé la soirée ».</summary>
-    public static string WaitingText(string host) => host + " n’a pas encore lancé la soirée";
+    public static string WaitingText(string host) => L(host + " n’a pas encore lancé la soirée", host + " hasn’t started movie night yet");
     /// <summary>What it says under it, while Mira waits for the group.</summary>
-    public const string WaitingLead = "Garde Mira ouvert : tu entres dans le groupe dès qu’il est ouvert.";
+    public static string WaitingLead => L("Garde Mira ouvert : tu entres dans le groupe dès qu’il est ouvert.", "Keep Mira open: you’ll join the group as soon as it opens.");
     /// <summary>« 1 personne », « 2 personnes ».</summary>
-    public static string People(int count) => count <= 1 ? "1 personne" : $"{count} personnes";
+    public static string People(int count) => count <= 1 ? L("1 personne", "1 person") : L($"{count} personnes", $"{count} people");
     /// <summary>« Groupe de mira · 2 personnes ».</summary>
     public static string GroupText(Group group) => $"{group.GroupName} · {People(Math.Max(1, group.Participants.Count))}";
     /// <summary>
@@ -116,8 +124,8 @@ public static class Together
     public static string NamesText(IReadOnlyList<string> names) => names.Count switch
     {
         <= 1 => string.Concat(names),
-        > 3 => $"{string.Join(", ", names.Take(2))} et {names.Count - 2} autres",
-        _ => $"{string.Join(", ", names.Take(names.Count - 1))} et {names[^1]}",
+        > 3 => L($"{string.Join(", ", names.Take(2))} et {names.Count - 2} autres", $"{string.Join(", ", names.Take(2))} and {names.Count - 2} others"),
+        _ => L($"{string.Join(", ", names.Take(names.Count - 1))} et {names[^1]}", $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}"),
     };
     /// <summary>What the group is doing, in a line, and whether it holds the picture (Alert).</summary>
     public sealed record Status(string Text, bool Alert);
@@ -132,14 +140,14 @@ public static class Together
         var others = group.Participants.Where(x => !string.Equals(x, me, StringComparison.OrdinalIgnoreCase)).ToList();
         return group.State switch
         {
-            "Waiting" when loading || others.Count == 0 => new("Chargement pour le groupe…", true),
-            "Waiting" => new(others.Count == 1 ? $"On attend {others[0]}…" : "On attend quelqu’un du groupe…", true),
-            "Paused" => new("En pause pour le groupe", true),
-            _ => new(others.Count > 0 ? $"Ensemble · {NamesText(group.Participants)}" : "Ensemble · personne d’autre pour l’instant", false),
+            "Waiting" when loading || others.Count == 0 => new(L("Chargement pour le groupe…", "Loading for the group…"), true),
+            "Waiting" => new(others.Count == 1 ? L($"On attend {others[0]}…", $"Waiting for {others[0]}…") : L("On attend quelqu’un du groupe…", "Waiting for someone in the group…"), true),
+            "Paused" => new(L("En pause pour le groupe", "Paused for the group"), true),
+            _ => new(others.Count > 0 ? L("Ensemble · ", "Together · ") + NamesText(group.Participants) : L("Ensemble · personne d’autre pour l’instant", "Together · no one else yet"), false),
         };
     }
     /// <summary>« Marc a rejoint le groupe », « Marc a quitté le groupe ».</summary>
-    public static string MemberText(string name, bool joined) => $"{name} {(joined ? "a rejoint" : "a quitté")} le groupe";
+    public static string MemberText(string name, bool joined) => joined ? L($"{name} a rejoint le groupe", $"{name} joined the group") : L($"{name} a quitté le groupe", $"{name} left the group");
     /// <summary>
     /// Lecture of <paramref name="itemId"/> while the group has another title on, not over (Idle): asked first, rather
     /// than changed for everyone unannounced. The same as Mira web's asksToReplace.
@@ -150,16 +158,17 @@ public static class Together
     public static string TitleName(MediaItem item)
     {
         if (item.Type != "Episode" || string.IsNullOrEmpty(item.SeriesName)) return item.Name;
-        var code = string.Join(" · ", new[] { item.ParentIndexNumber is { } s ? $"S{s}" : "", item.IndexNumber is { } e ? $"É{e}" : "" }.Where(x => x.Length > 0));
+        var code = string.Join(" · ", new[] { item.ParentIndexNumber is { } s ? $"S{s}" : "", item.IndexNumber is { } e ? L($"É{e}", $"E{e}") : "" }.Where(x => x.Length > 0));
         return code.Length > 0 ? $"{item.SeriesName} · {code}" : item.SeriesName;
     }
     /// <summary>« Remplacer « Dune » pour tout le groupe ? », or « Remplacer le titre du groupe ? » when its name is not known.</summary>
-    public static string ReplaceQuestion(string? current) => string.IsNullOrEmpty(current) ? "Remplacer le titre du groupe ?" : $"Remplacer « {current} » pour tout le groupe ?";
-    /// <summary>« à 42 min », « à 1 h 05 », « à 30 s »: where the group starts a title Lecture resumes.</summary>
+    public static string ReplaceQuestion(string? current) => string.IsNullOrEmpty(current)
+        ? L("Remplacer le titre du groupe ?", "Replace the group’s title?") : L($"Remplacer « {current} » pour tout le groupe ?", $"Replace “{current}” for the whole group?");
+    /// <summary>« à 42 min », « à 1 h 05 », « à 30 s » ("at 42 min", "at 1 hr 5 min"): where the group starts a title Lecture resumes.</summary>
     public static string AtText(double seconds)
     {
         var s = (long)Math.Floor(Math.Max(0, seconds)); var m = s / 60;
-        return m < 1 ? $"à {s} s" : m < 60 ? $"à {m} min" : $"à {m / 60} h {m % 60:00}";
+        return m < 1 ? L($"à {s} s", $"at {s} s") : m < 60 ? L($"à {m} min", $"at {m} min") : L($"à {m / 60} h {m % 60:00}", $"at {m / 60} hr {m % 60} min");
     }
     /// <summary>
     /// Lecture's label in a group, which starts the title for everyone: « Lancer pour le groupe », « Reprendre pour le
@@ -168,8 +177,8 @@ public static class Together
     /// </summary>
     public static string GroupPlayLabel(string code, double resumeAt, bool groupTitle)
     {
-        if (groupTitle) return "Regarder avec le groupe";
-        return string.Join(" ", new[] { resumeAt > 0 ? "Reprendre" : "Lancer", code, "pour le groupe", resumeAt > 0 && code.Length == 0 ? AtText(resumeAt) : "" }.Where(x => x.Length > 0));
+        if (groupTitle) return L("Regarder avec le groupe", "Watch with the group");
+        return string.Join(" ", new[] { resumeAt > 0 ? L("Reprendre", "Resume") : L("Lancer", "Start"), code, L("pour le groupe", "for the group"), resumeAt > 0 && code.Length == 0 ? AtText(resumeAt) : "" }.Where(x => x.Length > 0));
     }
     /// <summary>
     /// The address of Jellyfin to put in an invitation: a Jellyfin on this computer at its Tailscale address when
@@ -221,7 +230,7 @@ public static class Together
     public enum InviteKind { Join, Already, OtherServer, Gone, Waiting }
     /// <summary>What Mira says of an invitation opened in it: the group to join (« Rejoindre »), or why not.</summary>
     public sealed record InviteAnswer(InviteKind Kind, string Text, Group? Group = null);
-    public const string SignInToJoin = "Connecte-toi avec ton compte Jellyfin : Mira te proposera ensuite de rejoindre le groupe.";
+    public static string SignInToJoin => L("Connecte-toi avec ton compte Jellyfin : Mira te proposera ensuite de rejoindre le groupe.", "Sign in with your Jellyfin account: Mira will then offer to join the group.");
     /// <summary>
     /// An invitation, against the groups of the Jellyfin this app is signed in to (<paramref name="server"/>): a group id
     /// is unique, so finding it there is enough, whatever address each one reaches that Jellyfin at; its host's group
@@ -231,15 +240,15 @@ public static class Together
     {
         if (FindGroup(groups, invite.GroupId, invite.Host) is { } group)
         {
-            if (currentGroup is not null && SameGroup(currentGroup, group.GroupId)) return new(InviteKind.Already, $"Tu es déjà dans « {group.GroupName} ».", group);
-            var people = People(Math.Max(1, group.Participants.Count)) + (group.Participants.Count > 0 ? " : " + string.Join(", ", group.Participants) : "");
-            return new(InviteKind.Join, $"On t’invite à regarder ensemble dans « {group.GroupName} » ({people}).", group);
+            if (currentGroup is not null && SameGroup(currentGroup, group.GroupId)) return new(InviteKind.Already, L($"Tu es déjà dans « {group.GroupName} ».", $"You’re already in “{group.GroupName}”."), group);
+            var people = People(Math.Max(1, group.Participants.Count)) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : "");
+            return new(InviteKind.Join, L($"On t’invite à regarder ensemble dans « {group.GroupName} » ({people}).", $"You’re invited to watch together in “{group.GroupName}” ({people})."), group);
         }
         var host = Uri.TryCreate(invite.Server, UriKind.Absolute, out var a) ? a.Host : invite.Server;
         if (!Uri.TryCreate(server, UriKind.Absolute, out var b) || !b.Host.Equals(host, StringComparison.OrdinalIgnoreCase))
-            return new(InviteKind.OtherServer, $"Ce groupe est sur un autre serveur Jellyfin ({host}) que celui de Mira : ouvre-le dans ton navigateur.");
-        if (invite.Host is { Length: > 0 } who) return new(InviteKind.Waiting, WaitingText(who) + " : Mira peut t’y faire entrer dès que le groupe est ouvert.");
-        return new(InviteKind.Gone, "Ce groupe n’existe plus : demande un nouveau lien à la personne qui t’a invité.");
+            return new(InviteKind.OtherServer, L($"Ce groupe est sur un autre serveur Jellyfin ({host}) que celui de Mira : ouvre-le dans ton navigateur.", $"This group is on another Jellyfin server ({host}) than Mira’s: open it in your browser."));
+        if (invite.Host is { Length: > 0 } who) return new(InviteKind.Waiting, WaitingText(who) + L(" : Mira peut t’y faire entrer dès que le groupe est ouvert.", ": Mira can bring you in as soon as the group opens."));
+        return new(InviteKind.Gone, L("Ce groupe n’existe plus : demande un nouveau lien à la personne qui t’a invité.", "This group no longer exists: ask the person who invited you for a new link."));
     }
     /// <summary>
     /// The group of an invitation, once its host opens it: Jellyfin's groups read every <paramref name="every"/> until
@@ -261,13 +270,18 @@ public static class Together
         var host = Uri.TryCreate(link, UriKind.Absolute, out var uri) ? uri.Host : "";
         var steps = new List<string>
         {
-            "Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.",
-            "Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).",
+            L("Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.",
+                "Your friend opens this link on their phone or computer and signs in with their own Jellyfin account: they’re then in the group. If they have Mira on their computer, “Open in Mira” brings them in there."),
+            L("Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).",
+                "No account yet? Create one for them in Mira for Windows: Settings → Jellyfin → Add a friend, with only the libraries you choose (or in Jellyfin: Dashboard → Users → +)."),
         };
         var reach = Reach(host);
-        if (reach == "tailnet") steps.Add("Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.");
-        else if (reach == "home") steps.Add("Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).");
-        steps.Add("Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment.");
+        if (reach == "tailnet") steps.Add(L("Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.",
+            "Outside your home, they need Tailscale: share Jellyfin’s computer with them (login.tailscale.com → Machines → … → Share), and they accept with their free Tailscale account."));
+        else if (reach == "home") steps.Add(L("Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).",
+            "This link only works on your Wi-Fi. For a friend elsewhere, install Tailscale on Jellyfin’s computer (Mira for Windows: Guide → Mira on your phone)."));
+        steps.Add(L("Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment.",
+            "Once they’re in, the group counts one more person: start the title and it plays for both of you at the same moment."));
         return steps;
     }
     /// <summary>Where a host is reached from: Tailscale, the home network only, or the Internet.</summary>

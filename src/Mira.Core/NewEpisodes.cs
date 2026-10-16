@@ -33,18 +33,18 @@ public static class NewEpisodes
             .ToList();
         var notices = groups.Take(MaxNotices).Select(g => new Notice(g[0].SeriesId!, series[g[0].SeriesId!].Name is { Length: > 0 } name ? name : g[0].SeriesName ?? "", Text(g), g[0], g.Count)).ToList();
         var rest = groups.Count - notices.Count;
-        return (notices, rest switch { <= 0 => null, 1 => "Et une autre série que tu suis a un nouvel épisode.", _ => $"Et {rest} autres séries que tu suis ont de nouveaux épisodes." });
+        return (notices, rest switch { <= 0 => null, 1 => L("Et une autre série que tu suis a un nouvel épisode.", "And another show you follow has a new episode."), _ => L($"Et {rest} autres séries que tu suis ont de nouveaux épisodes.", $"And {rest} other shows you follow have new episodes.") });
     }
-    /// <summary>« Nouvel épisode : S2 É5 · Le départ », « 3 nouveaux épisodes : S2 É5 à É7 », « 4 nouveaux épisodes, dès S1 É9 ».</summary>
+    /// <summary>« Nouvel épisode : S2 É5 · Le départ », « 3 nouveaux épisodes : S2 É5 à É7 », « 4 nouveaux épisodes, dès S1 É9 »; "3 new episodes: S2 E5 to E7".</summary>
     public static string Text(IReadOnlyList<MediaItem> episodes)
     {
         var first = episodes[0];
-        if (episodes.Count == 1) return "Nouvel épisode : " + string.Join(" · ", new[] { Label(first), first.Name }.Where(x => x.Length > 0));
+        if (episodes.Count == 1) return L("Nouvel épisode : ", "New episode: ") + string.Join(" · ", new[] { Label(first), first.Name }.Where(x => x.Length > 0));
         var last = episodes[^1];
         return first.ParentIndexNumber == last.ParentIndexNumber && last.IndexNumber is { } end && first.IndexNumber is not null
-            ? $"{episodes.Count} nouveaux épisodes : {Label(first)} à É{end}"
-            : $"{episodes.Count} nouveaux épisodes, dès {Label(first)}";
+            ? L($"{episodes.Count} nouveaux épisodes : {Label(first)} à É{end}", $"{episodes.Count} new episodes: {Label(first)} to E{end}")
+            : L($"{episodes.Count} nouveaux épisodes, dès {Label(first)}", $"{episodes.Count} new episodes, from {Label(first)}");
     }
     private static string Label(MediaItem episode) =>
-        episode.ParentIndexNumber is { } season ? episode.IndexNumber is { } number ? $"S{season} É{number}" : $"S{season}" : episode.IndexNumber is { } n ? $"É{n}" : "";
+        episode.ParentIndexNumber is { } season ? episode.IndexNumber is { } number ? L($"S{season} É{number}", $"S{season} E{number}") : $"S{season}" : episode.IndexNumber is { } n ? L($"É{n}", $"E{n}") : "";
 }

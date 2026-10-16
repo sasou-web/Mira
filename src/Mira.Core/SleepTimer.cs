@@ -31,9 +31,9 @@ public sealed class SleepTimer
     }
     /// <summary>« Pause dans 23 min », « Arrêt à la fin de l’épisode »; null when off.</summary>
     public string? Status(DateTimeOffset now) =>
-        AtEnd ? "Arrêt à la fin de l’épisode"
-        : Until is { } until ? $"Pause dans {Duration(Math.Max(1, (int)Math.Ceiling((until - now).TotalMinutes)))}"
+        AtEnd ? L("Arrêt à la fin de l’épisode", "Stops at the end of the episode")
+        : Until is { } until ? L("Pause dans ", "Pauses in ") + Duration(Math.Max(1, (int)Math.Ceiling((until - now).TotalMinutes)))
         : null;
     /// <summary>« 15 min », « 1 h », « 1 h 30 ».</summary>
-    public static string Duration(int minutes) => minutes < 60 ? $"{minutes} min" : minutes % 60 == 0 ? $"{minutes / 60} h" : $"{minutes / 60} h {minutes % 60:00}";
+    public static string Duration(int minutes) => minutes < 60 ? $"{minutes} min" : minutes % 60 == 0 ? L($"{minutes / 60} h", $"{minutes / 60} hr") : L($"{minutes / 60} h {minutes % 60:00}", $"{minutes / 60} hr {minutes % 60} min");
 }

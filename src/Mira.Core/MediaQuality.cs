@@ -37,6 +37,6 @@ public static class MediaQuality
         var left = item.RunTimeTicks.Value - (resume ? Math.Max(0, item.UserData.PlaybackPositionTicks) : 0);
         if (left <= 0) return null;
         var end = now + TimeSpan.FromTicks(left);
-        return string.Create(CultureInfo.InvariantCulture, $"Fin à {end.Hour} h {end.Minute:00}");
+        return IsFrench ? string.Create(CultureInfo.InvariantCulture, $"Fin à {end.Hour} h {end.Minute:00}") : "Ends at " + Time(end);
     }
 }

@@ -39,10 +39,10 @@ public static class WatchReport
             .OrderByDescending(x => x.Minutes).ThenBy(x => x.Name, StringComparer.CurrentCulture).Take(3).ToList();
         return new(items.Sum(Minutes), items.Count(x => x.Type == "Movie"), items.Count(x => x.Type == "Episode"), finished,
             genres.OrderByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.CurrentCulture).Take(3).Select(x => x.Key).ToList(), most);
-        string Name(string id, IEnumerable<MediaItem> group) => shows.TryGetValue(id, out var show) && show.Name.Length > 0 ? show.Name : group.First().SeriesName ?? "Série";
+        string Name(string id, IEnumerable<MediaItem> group) => shows.TryGetValue(id, out var show) && show.Name.Length > 0 ? show.Name : group.First().SeriesName ?? L("Série", "Series");
     }
     /// <summary>« 45 min », « 3 h », « 12 h 05 ».</summary>
-    public static string Time(int minutes) => minutes < 60 ? $"{Math.Max(0, minutes)} min" : minutes % 60 == 0 ? $"{minutes / 60} h" : $"{minutes / 60} h {minutes % 60:00}";
-    /// <summary>« 1 film », « 3 épisodes ».</summary>
+    public static string Time(int minutes) => minutes < 60 ? $"{Math.Max(0, minutes)} min" : minutes % 60 == 0 ? L($"{minutes / 60} h", $"{minutes / 60} hr") : L($"{minutes / 60} h {minutes % 60:00}", $"{minutes / 60} hr {minutes % 60} min");
+    /// <summary>« 1 film », « 3 épisodes », "0 movies": 0 is plural, in French too, as Mira web says it.</summary>
     public static string Count(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
 }

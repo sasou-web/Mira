@@ -25,8 +25,8 @@ public sealed record ReleaseGroup(string Key, string Show, string Title, string 
 /// </summary>
 public static partial class ReleaseRanking
 {
-    private static readonly Dictionary<string, string> SourceLabels = new()
-    { ["remux"] = "Remux", ["bluray"] = "BluRay", ["webdl"] = "WEB-DL", ["webrip"] = "WEBRip", ["hdrip"] = "HDRip", ["hdtv"] = "HDTV", ["dvd"] = "DVD", ["cam"] = "Filmé en salle" };
+    private static Dictionary<string, string> SourceLabels => new()
+    { ["remux"] = "Remux", ["bluray"] = "BluRay", ["webdl"] = "WEB-DL", ["webrip"] = "WEBRip", ["hdrip"] = "HDRip", ["hdtv"] = "HDTV", ["dvd"] = "DVD", ["cam"] = L("Filmé en salle", "Cam") };
     private static readonly Dictionary<string, int> SourceScore = new()
     { ["remux"] = 14, ["bluray"] = 12, ["webdl"] = 10, ["webrip"] = 7, ["hdrip"] = 5, ["hdtv"] = 4, ["dvd"] = 2, ["cam"] = -100 };
     private static readonly Dictionary<int, int> ResolutionScore = new() { [2160] = 20, [1080] = 30, [720] = 16, [576] = 4, [480] = 4 };
@@ -254,21 +254,22 @@ public static partial class ReleaseRanking
         static string Two(int? n) => (n ?? 0).ToString("00", CultureInfo.InvariantCulture);
         if (release.Pack)
         {
-            if (release.Episode is { } from && release.LastEpisode is { } to) return $"{(release.Season is { } s ? $"Saison {s}, é" : "É")}pisodes {from} à {to}";
-            return release.Season is { } season ? $"Saison {season} complète" : "Toutes les saisons";
+            if (release.Episode is { } from && release.LastEpisode is { } to)
+                return L($"{(release.Season is { } s ? $"Saison {s}, é" : "É")}pisodes {from} à {to}", $"{(release.Season is { } t ? $"Season {t}, e" : "E")}pisodes {from} to {to}");
+            return release.Season is { } season ? L($"Saison {season} complète", $"Complete season {season}") : L("Toutes les saisons", "All seasons");
         }
         if (release.Episode is not { } episode) return "";
-        if (release.Absolute) return release.LastEpisode is { } last ? $"Épisodes {episode} à {last}" : $"Épisode {episode}";
+        if (release.Absolute) return release.LastEpisode is { } last ? L($"Épisodes {episode} à {last}", $"Episodes {episode} to {last}") : L($"Épisode {episode}", $"Episode {episode}");
         return $"S{Two(release.Season)}E{Two(episode)}{(release.LastEpisode > episode ? $"-E{Two(release.LastEpisode)}" : "")}";
     }
 
     /// <summary>What makes a release worth less, in a few words; empty when nothing does.</summary>
     public static string Warning(RankedRelease entry)
     {
-        if (entry.Release.Source == "cam") return "Filmé dans une salle de cinéma : image et son médiocres.";
+        if (entry.Release.Source == "cam") return L("Filmé dans une salle de cinéma : image et son médiocres.", "Filmed in a movie theater: poor picture and sound.");
         if (!ReportsHealth(entry.Hit.Source)) return "";
-        return entry.Hit.Seeders <= 0 ? "Personne ne partage ce fichier : il ne se téléchargera sans doute pas."
-            : entry.Hit.Seeders < 3 ? "Peu de sources : le téléchargement sera lent." : "";
+        return entry.Hit.Seeders <= 0 ? L("Personne ne partage ce fichier : il ne se téléchargera sans doute pas.", "No one is sharing this file: it probably won’t download.")
+            : entry.Hit.Seeders < 3 ? L("Peu de sources : le téléchargement sera lent.", "Few sources: the download will be slow.") : "";
     }
 
     /// <summary>

@@ -122,7 +122,7 @@ public sealed class TorLinkImporter
                 State = attempts >= MaxAttempts ? TorLinkImportState.Failed : TorLinkImportState.Waiting,
                 Attempts = attempts,
                 UpdatedAt = DateTimeOffset.UtcNow,
-                Message = Noted(attempts >= MaxAttempts ? "Les fichiers terminés sont introuvables dans le dossier de TorLink." : "Fichiers pas encore disponibles, nouvel essai bientôt.")
+                Message = Noted(attempts >= MaxAttempts ? L("Les fichiers terminés sont introuvables dans le dossier de TorLink.", "The finished files can’t be found in TorLink’s folder.") : L("Fichiers pas encore disponibles, nouvel essai bientôt.", "Files not available yet, trying again soon."))
             });
             return;
         }
@@ -133,7 +133,7 @@ public sealed class TorLinkImporter
         if (plan.Problem is not null || !Directory.Exists(plan.LibraryRoot))
         {
             _blockedWith = libraries;
-            Update(entry with { State = TorLinkImportState.Blocked, Kind = plan.Kind, Message = plan.Problem ?? $"Dossier de bibliothèque introuvable : {plan.LibraryRoot}", UpdatedAt = DateTimeOffset.UtcNow });
+            Update(entry with { State = TorLinkImportState.Blocked, Kind = plan.Kind, Message = plan.Problem ?? L($"Dossier de bibliothèque introuvable : {plan.LibraryRoot}", $"Library folder not found: {plan.LibraryRoot}"), UpdatedAt = DateTimeOffset.UtcNow });
             return;
         }
         var result = await MediaImporter.ExecuteAsync(plan, mode, ct);
@@ -144,7 +144,7 @@ public sealed class TorLinkImporter
         if (result.OtherDrive) outcome = outcome with { Message = string.Join(" · ", new[] { outcome.Message, OtherDriveHint }.OfType<string>()) };
         outcome = outcome with { Message = Noted(outcome.Message) };
         // Interrupted by closing Mira: what was placed is kept, the rest follows at the next start.
-        Update(result.Canceled ? outcome with { State = TorLinkImportState.Waiting, Message = "Rangement interrompu : il reprendra à la prochaine ouverture de Mira." } : outcome);
+        Update(result.Canceled ? outcome with { State = TorLinkImportState.Waiting, Message = L("Rangement interrompu : il reprendra à la prochaine ouverture de Mira.", "Sorting stopped: it’ll resume the next time Mira opens.") } : outcome);
         ct.ThrowIfCancellationRequested();
     }
 
@@ -162,7 +162,7 @@ public sealed class TorLinkImporter
             {
                 var gone = entry with
                 {
-                    Message = entry.Files.All(f => f.Found) ? "Ces fichiers étaient déjà dans la bibliothèque : Mira ne les déplace pas." : "Les fichiers importés ont été déplacés ou supprimés depuis.",
+                    Message = entry.Files.All(f => f.Found) ? L("Ces fichiers étaient déjà dans la bibliothèque : Mira ne les déplace pas.", "These files were already in the library: Mira doesn’t move them.") : L("Les fichiers importés ont été déplacés ou supprimés depuis.", "The imported files have been moved or deleted since."),
                     UpdatedAt = DateTimeOffset.UtcNow
                 };
                 Update(gone); return (gone, []);
@@ -172,7 +172,7 @@ public sealed class TorLinkImporter
             if (plan.Problem is not null || plan.Ignored is not null || !Directory.Exists(plan.LibraryRoot))
             {
                 // Ignored: the video was already in the library before Mira, so only side files would move.
-                var message = plan.Problem ?? (plan.Ignored is not null ? "La vidéo était déjà dans la bibliothèque : le classement reste tel quel." : $"Dossier de bibliothèque introuvable : {plan.LibraryRoot}");
+                var message = plan.Problem ?? (plan.Ignored is not null ? L("La vidéo était déjà dans la bibliothèque : le classement reste tel quel.", "The video was already in the library: its sorting stays as it is.") : L($"Dossier de bibliothèque introuvable : {plan.LibraryRoot}", $"Library folder not found: {plan.LibraryRoot}"));
                 var blocked = entry with { Message = message, UpdatedAt = DateTimeOffset.UtcNow };
                 Update(blocked); return (blocked, []);
             }
@@ -189,7 +189,7 @@ public sealed class TorLinkImporter
                     State = TorLinkImportState.Partial,
                     Folders = entry.Folders.Concat(plan.Folders).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                     Files = stayed.Concat(result.Placed.Select(x => new TorLinkImportedFile(x.RelativePath, x.Destination, x.Role))).ToList(),
-                    Message = "Classement interrompu : choisis à nouveau « Classer » pour le terminer.",
+                    Message = L("Classement interrompu : choisis à nouveau « Classer » pour le terminer.", "Sorting stopped: choose “Sort” again to finish it."),
                     Notified = false,
                     UpdatedAt = DateTimeOffset.UtcNow
                 }
@@ -274,9 +274,11 @@ public sealed class TorLinkImporter
     }
 
     /// <summary>Said when the download's .torrent was over <see cref="Bencode"/>'s limits: Mira did not read it.</summary>
-    public const string TorrentRefusedHint = "Son fichier .torrent est trop gros pour que Mira le lise : ses fichiers sont cherchés d’après le nom du téléchargement.";
+    public static string TorrentRefusedHint => L("Son fichier .torrent est trop gros pour que Mira le lise : ses fichiers sont cherchés d’après le nom du téléchargement.",
+        "Its .torrent file is too big for Mira to read: its files are looked for by the download’s name.");
     /// <summary>Said when files crossed from another drive: the way to make the next moves instant.</summary>
-    public const string OtherDriveHint = "TorLink télécharge sur un autre disque que la bibliothèque : chaque fichier a été copié puis supprimé. Pour un déplacement instantané, choisis dans TorLink (touche o) un dossier sur le disque de la bibliothèque.";
+    public static string OtherDriveHint => L("TorLink télécharge sur un autre disque que la bibliothèque : chaque fichier a été copié puis supprimé. Pour un déplacement instantané, choisis dans TorLink (touche o) un dossier sur le disque de la bibliothèque.",
+        "TorLink downloads to another drive than the library: each file was copied, then deleted. For an instant move, choose in TorLink (o key) a folder on the library’s drive.");
 
     private static TorLinkImportEntry Outcome(TorLinkImportEntry entry, ImportPlan plan, ImportResult result, IReadOnlyList<TorLinkImportedFile> kept)
     {
@@ -289,9 +291,10 @@ public sealed class TorLinkImporter
         var message = state switch
         {
             TorLinkImportState.Imported => plan.Notes.Count > 0 ? string.Join(" · ", plan.Notes) : null,
-            TorLinkImportState.Partial => $"{placed.Count} fichier{(placed.Count > 1 ? "s" : "")} placé{(placed.Count > 1 ? "s" : "")}, {problems} non placé{(problems > 1 ? "s" : "")} : " + (result.Conflicts.FirstOrDefault()?.Reason ?? result.Failures.FirstOrDefault()?.Reason),
-            TorLinkImportState.Conflict => "Déjà dans la bibliothèque avec un fichier différent : rien n’a été remplacé.",
-            _ => result.Failures.FirstOrDefault()?.Reason ?? "Aucun fichier n’a pu être placé."
+            TorLinkImportState.Partial => L($"{placed.Count} fichier{(placed.Count > 1 ? "s" : "")} placé{(placed.Count > 1 ? "s" : "")}, {problems} non placé{(problems > 1 ? "s" : "")} : ",
+                $"{placed.Count} {(placed.Count == 1 ? "file" : "files")} in place, {problems} not: ") + (result.Conflicts.FirstOrDefault()?.Reason ?? result.Failures.FirstOrDefault()?.Reason),
+            TorLinkImportState.Conflict => L("Déjà dans la bibliothèque avec un fichier différent : rien n’a été remplacé.", "Already in the library with a different file: nothing was replaced."),
+            _ => result.Failures.FirstOrDefault()?.Reason ?? L("Aucun fichier n’a pu être placé.", "No file could be put in place.")
         };
         // A same-size file already at its destination is Mira's own when it was tracked, when it is the source itself
         // (a file moved earlier) or a hard link of it; otherwise it was found there and Mira will never move it.
@@ -308,7 +311,7 @@ public sealed class TorLinkImporter
             LibraryRoot = plan.LibraryRoot,
             Folders = plan.Folders,
             Files = files,
-            Method = result.Method ?? entry.Method ?? (result.AlreadyThere.Count > 0 ? "déjà présent" : null),
+            Method = result.Method ?? entry.Method ?? (result.AlreadyThere.Count > 0 ? L("déjà présent", "already there") : null),
             Message = message,
             MovedOut = entry.MovedOut || result.Moved,
             Notified = false,

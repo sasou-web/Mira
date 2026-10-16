@@ -25,15 +25,15 @@ public static class MiraWebRelease
     public static async Task<string> VerifyAsync(UpdateClient github, Version version, CancellationToken ct = default)
     {
         var number = version.ToString(3);
-        UpdateException NotPublished() => new($"GitHub n’a pas de Mira web signé pour Mira {number} (c’est le cas d’une copie de développement) : rien n’est installé.");
-        UpdateException Altered() => new($"Mira web {number} ne correspond pas à la version signée par Mira : il n’est pas installé.");
+        UpdateException NotPublished() => new(L($"GitHub n’a pas de Mira web signé pour Mira {number} (c’est le cas d’une copie de développement) : rien n’est installé.", $"GitHub has no signed Mira web for Mira {number} (as with a development copy): nothing is installed."));
+        UpdateException Altered() => new(L($"Mira web {number} ne correspond pas à la version signée par Mira : il n’est pas installé.", $"Mira web {number} doesn’t match the version signed by Mira: it isn’t installed."));
         // What GitHub's answer means here. Only an unreachable GitHub is about this PC's Internet access; GitHub's own
         // refusals (a rate limit above all) say what they are; a release file larger than signed, or sent anywhere but
         // GitHub's file servers, is not the release Mira signed.
         UpdateException Failure(UpdateException ex, bool file) => ex switch
         {
             { Status: HttpStatusCode.NotFound } => NotPublished(),
-            { Network: true } => new("Mira n’a pas pu vérifier Mira web sur GitHub : vérifie que ce PC a accès à Internet, puis réessaie."),
+            { Network: true } => new(L("Mira n’a pas pu vérifier Mira web sur GitHub : vérifie que ce PC a accès à Internet, puis réessaie.", "Mira couldn’t check Mira web on GitHub: make sure this PC can reach the Internet, then try again.")),
             { Status: not null } => ex,
             _ => file ? Altered() : ex,
         };
@@ -48,11 +48,11 @@ public static class MiraWebRelease
         bool immutable;
         try { immutable = await github.ImmutableAsync(version, ct).ConfigureAwait(false); }
         catch (UpdateException ex) { throw Failure(ex, file: false); }
-        if (!immutable) throw new UpdateException($"La release {number} de Mira peut encore être modifiée sur GitHub : Mira web n’est pas installé depuis elle, car Jellyfin pourrait y trouver plus tard une autre extension que celle vérifiée.");
+        if (!immutable) throw new UpdateException(L($"La release {number} de Mira peut encore être modifiée sur GitHub : Mira web n’est pas installé depuis elle, car Jellyfin pourrait y trouver plus tard une autre extension que celle vérifiée.", $"Mira’s release {number} can still be changed on GitHub: Mira web isn’t installed from it, since Jellyfin could later find another plugin there than the one checked."));
 
         var manifestBytes = await Fetch(UpdateManifest.AssetName, 64 * 1024).ConfigureAwait(false);
         var signature = UpdateSignature.Decode(Encoding.ASCII.GetString(await Fetch(UpdateManifest.SignatureName, 4096).ConfigureAwait(false)));
-        if (!github.Signed(manifestBytes, signature)) throw new UpdateException($"Mira web {number} n’est pas signé par Mira : il n’est pas installé.");
+        if (!github.Signed(manifestBytes, signature)) throw new UpdateException(L($"Mira web {number} n’est pas signé par Mira : il n’est pas installé.", $"Mira web {number} isn’t signed by Mira: it isn’t installed."));
         UpdateManifest manifest;
         // Strict: this release's own manifest, written by this version's tooling, has nothing to skip.
         try { manifest = UpdateManifest.Parse(manifestBytes, strict: true); }

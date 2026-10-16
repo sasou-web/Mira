@@ -53,7 +53,7 @@ public partial class MainWindow
             {
                 var name = PlayerText.Language(code) ?? code;
                 var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "subtitle-language", Content = name, MinWidth = 96, IsChecked = code == _subtitleLanguage };
-                AutomationProperties.SetName(chip, "Sous-titres en " + name.ToLower(PlayerText.French));
+                AutomationProperties.SetName(chip, "Sous-titres en " + name.ToLower(Culture));
                 chip.Checked += (_, _) => { if (!_menuBuilding) _ = SearchSubtitlesAsync(code); };
                 SubtitleLanguageList.Children.Add(chip);
             }
@@ -81,7 +81,7 @@ public partial class MainWindow
             SubtitleSearchPrivacy.Text = JellyfinSubtitles.Privacy(await SubtitleProvidersAsync());
             var found = await client.SearchSubtitlesAsync(item.Id, language, _connectionLifetime.Token);
             if (search != _subtitleSearch) return;
-            SubtitleSearchStatus.Text = found.Count > 0 ? "" : $"Aucun sous-titre trouvé en {(PlayerText.Language(language) ?? language).ToLower(PlayerText.French)}.";
+            SubtitleSearchStatus.Text = found.Count > 0 ? "" : $"Aucun sous-titre trouvé en {(PlayerText.Language(language) ?? language).ToLower(Culture)}.";
             foreach (var subtitle in found.Take(40)) SubtitleResultList.Children.Add(SubtitleResultRow(subtitle));
         }
         catch (Exception e) when (IsExpected(e)) { if (search == _subtitleSearch) SubtitleSearchStatus.Text = SubtitleError(e); }

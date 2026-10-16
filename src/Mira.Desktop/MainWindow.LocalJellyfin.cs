@@ -45,7 +45,7 @@ public partial class MainWindow
         if (!ReferenceEquals(client, _client)) return;
         var cause = verdict == LocalJellyfin.Verdict.Failing ? await Task.Run(() => JellyfinLog.LastFatal(JellyfinLogFolder, DateTimeOffset.Now.AddDays(-1))) : null;
         if (LocalJellyfin.Says(verdict, service, cause) is not { } said) { SetNotice(otherwise); return; }
-        Action? act = said.Action switch { LocalJellyfin.Start => () => _ = StartJellyfinAsync(client), LocalJellyfin.OpenLog => OpenJellyfinLog, _ => null };
+        Action? act = said.Action == LocalJellyfin.Start ? () => _ = StartJellyfinAsync(client) : said.Action == LocalJellyfin.OpenLog ? OpenJellyfinLog : null;
         _localJellyfinNotice = said.Text;
         SetNotice(said.Text, said.Action, act);
     }

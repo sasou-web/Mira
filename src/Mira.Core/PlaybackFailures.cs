@@ -34,7 +34,7 @@ public static class PlaybackFailures
             if (Text(root, "at") is not { } at || !DateTimeOffset.TryParse(at, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var when)) return null;
             var attempts = root.TryGetProperty("attempts", out var list) && list.ValueKind == JsonValueKind.Array
                 ? list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).Where(x => x.Length > 0).ToArray() : [];
-            return new(when, Text(root, "title") ?? "Un titre", Text(root, "device") ?? "un appareil", Text(root, "user"), Text(root, "file"),
+            return new(when, Text(root, "title") ?? L("Un titre", "A title"), Text(root, "device") ?? L("un appareil", "a device"), Text(root, "user"), Text(root, "file"),
                 Text(root, "media"), Text(root, "message") ?? "", attempts, Text(root, "version"), Text(root, "browser"), text.Trim());
         }
         catch (JsonException) { return null; }
@@ -42,14 +42,22 @@ public static class PlaybackFailures
 
     /// <summary>« « Courte Web · S1 · É2 · Le départ » sur iPhone (mira) ».</summary>
     public static string Heading(PlaybackFailure failure) =>
-        $"« {failure.Title} » sur {failure.Device}{(failure.User is { } user ? $" ({user})" : "")}";
+        L($"« {failure.Title} » sur {failure.Device}", $"“{failure.Title}” on {failure.Device}") + (failure.User is { } user ? $" ({user})" : "");
 
     private static readonly string[] Months = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-    /// <summary>« aujourd’hui à 21 h 03 », « hier à 9 h 30 », « le 3 octobre à 21 h 03 »: both times in the same zone (local, on the PC).</summary>
+    /// <summary>
+    /// « aujourd’hui à 21 h 03 », « hier à 9 h 30 », « le 3 octobre à 21 h 03 » ("today at 9:03 PM", "on October 3 at
+    /// 9:03 PM"): both times in the same zone (local, on the PC).
+    /// </summary>
     public static string When(DateTimeOffset at, DateTimeOffset now)
     {
-        var hour = string.Create(CultureInfo.InvariantCulture, $"{at.Hour} h {at.Minute:00}");
         var days = (now.Date - at.Date).Days;
+        if (!IsFrench)
+        {
+            var time = Time(at);
+            return days == 0 ? $"today at {time}" : days == 1 ? $"yesterday at {time}" : $"on {(at.Year != now.Year ? Date(at) : Day(at))} at {time}";
+        }
+        var hour = string.Create(CultureInfo.InvariantCulture, $"{at.Hour} h {at.Minute:00}");
         return days == 0 ? $"aujourd’hui à {hour}" : days == 1 ? $"hier à {hour}"
             : string.Create(CultureInfo.InvariantCulture, $"le {at.Day} {Months[at.Month - 1]}{(at.Year != now.Year ? $" {at.Year}" : "")} à {hour}");
     }
@@ -58,13 +66,15 @@ public static class PlaybackFailures
     public static string Text(PlaybackFailure failure, DateTimeOffset at)
     {
         var text = new StringBuilder();
-        text.Append(CultureInfo.InvariantCulture, $"« {failure.Title} » n’a pas pu être lu sur {failure.Device}{(failure.User is { } user ? $" ({user})" : "")}, le {at.Day} {Months[at.Month - 1]} {at.Year} à {at.Hour} h {at.Minute:00}.\n");
-        if (failure.File is { } file) text.Append($"Fichier : {file}\n");
-        if (failure.Media is { } media) text.Append($"Média : {media}\n");
-        if (failure.Message.Length > 0) text.Append($"Message : {failure.Message}\n");
-        if (failure.Attempts.Length > 0) text.Append("Essayé :\n").Append(string.Concat(failure.Attempts.Select(x => $"- {x}\n")));
+        var who = failure.User is { } user ? $" ({user})" : "";
+        text.Append(IsFrench ? string.Create(CultureInfo.InvariantCulture, $"« {failure.Title} » n’a pas pu être lu sur {failure.Device}{who}, le {at.Day} {Months[at.Month - 1]} {at.Year} à {at.Hour} h {at.Minute:00}.\n")
+            : $"“{failure.Title}” couldn’t be played on {failure.Device}{who}, on {Date(at)} at {Time(at)}.\n");
+        if (failure.File is { } file) text.Append(L("Fichier : ", "File: ")).Append(file).Append('\n');
+        if (failure.Media is { } media) text.Append(L("Média : ", "Media: ")).Append(media).Append('\n');
+        if (failure.Message.Length > 0) text.Append(L("Message : ", "Message: ")).Append(failure.Message).Append('\n');
+        if (failure.Attempts.Length > 0) text.Append(L("Essayé :\n", "Tried:\n")).Append(string.Concat(failure.Attempts.Select(x => $"- {x}\n")));
         if (failure.Version is { } version) text.Append($"Mira web {version}{(failure.Browser is { } browser ? $" · {browser}" : "")}\n");
-        return text.Append("\nDétail technique :\n").Append(failure.Document).Append('\n').ToString();
+        return text.Append(L("\nDétail technique :\n", "\nTechnical details:\n")).Append(failure.Document).Append('\n').ToString();
     }
 
     private static string? Text(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } text ? text : null;

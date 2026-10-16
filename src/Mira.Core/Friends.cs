@@ -29,9 +29,9 @@ public static partial class Friends
     public static string? NameProblem(string? name, IEnumerable<string> taken)
     {
         var trimmed = CleanName(name);
-        if (trimmed.Length == 0) return "Écris son prénom.";
-        if (!NameRule().IsMatch(trimmed)) return "Son prénom ne peut contenir que des lettres, des chiffres, des espaces et ces signes : - _ ' . @ +";
-        return taken.Any(x => string.Equals(x, trimmed, StringComparison.OrdinalIgnoreCase)) ? $"Un compte « {trimmed} » existe déjà sur ton Jellyfin." : null;
+        if (trimmed.Length == 0) return L("Écris son prénom.", "Enter their first name.");
+        if (!NameRule().IsMatch(trimmed)) return L("Son prénom ne peut contenir que des lettres, des chiffres, des espaces et ces signes : - _ ' . @ +", "Their name can only contain letters, digits, spaces and these signs: - _ ' . @ +");
+        return taken.Any(x => string.Equals(x, trimmed, StringComparison.OrdinalIgnoreCase)) ? L($"Un compte « {trimmed} » existe déjà sur ton Jellyfin.", $"An account “{trimmed}” already exists on your Jellyfin.") : null;
     }
     /// <summary>The libraries a friend may be given, in the server's order: Collections and Playlists come with them.</summary>
     public static IReadOnlyList<VirtualFolder> Choices(IEnumerable<VirtualFolder> folders) =>
@@ -49,7 +49,7 @@ public static partial class Friends
     }
     /// <summary>Libraries named as a sentence says them: « Films », « Films et Séries », « Animes, Films et Séries ».</summary>
     public static string Joined(IReadOnlyList<string> names) =>
-        names.Count <= 1 ? string.Concat(names) : string.Join(", ", names.Take(names.Count - 1)) + " et " + names[^1];
+        names.Count <= 1 ? string.Concat(names) : string.Join(", ", names.Take(names.Count - 1)) + L(" et ", " and ") + names[^1];
     /// <summary>
     /// A new account's policy, made a friend's: these folders only, no download (nor its conversions), no
     /// administration. Everything else is kept as Jellyfin set it, hidden from its sign-in screen and SyncPlay allowed.

@@ -39,13 +39,13 @@ public static class SyncStatus
     /// <returns>The text, and whether it is a warning.</returns>
     public static (string Text, bool Warning) Describe(int pending, string? error, DateTimeOffset? lastSynced, DateTimeOffset? offlineSince)
     {
-        var waiting = pending > 0 ? $"{pending} envoi{(pending > 1 ? "s" : "")} en attente" : null;
+        var waiting = pending > 0 ? L($"{pending} envoi{(pending > 1 ? "s" : "")} en attente", $"{pending} {(pending > 1 ? "updates" : "update")} waiting") : null;
         // A report delivered after the failure proves Jellyfin answers again.
-        if (Offline(lastSynced, offlineSince)) return ("○  Hors connexion · " + (waiting ?? "cache local"), true);
+        if (Offline(lastSynced, offlineSince)) return (L("○  Hors connexion · ", "○  Offline · ") + (waiting ?? L("cache local", "local cache")), true);
         if (waiting is not null) return ("◌  " + waiting + (error is not null ? " · " + error : ""), true);
         // A local storage failure matters even with nothing waiting: the next reports will not be kept.
         if (error is not null) return ("◌  " + error, true);
-        return (lastSynced is { } t ? $"●  Synchronisé à {t.ToLocalTime():HH:mm:ss}" : "●  Connecté à Jellyfin", false);
+        return (lastSynced is { } t ? L($"●  Synchronisé à {t.ToLocalTime():HH:mm:ss}", "●  Synced at " + t.ToLocalTime().ToString("T", Culture)) : L("●  Connecté à Jellyfin", "●  Connected to Jellyfin"), false);
     }
     public static bool Offline(DateTimeOffset? lastSynced, DateTimeOffset? offlineSince) => offlineSince is { } since && !(lastSynced > since);
 }

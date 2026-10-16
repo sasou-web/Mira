@@ -22,14 +22,19 @@ public sealed record JellyfinServerPackage(string Version, Uri Url, string Sha25
     public string FileName => Path.GetFileName(Url.AbsolutePath);
 }
 
-/// <summary>Films, Séries and Animes under one root: the names Jellyfin's libraries, Mira and TorLink's placement share.</summary>
+/// <summary>
+/// Films, Séries and Animes (Movies, Shows and Anime in English) under one root: the names Jellyfin's libraries, Mira and
+/// TorLink's placement share. Folders already there keep their names, whatever Mira's language.
+/// </summary>
 public sealed record MediaFolders(string Root, string Movies, string Series, string Anime)
 {
     public static string DefaultRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Jellyfin");
     public static MediaFolders Under(string root)
     {
         var full = Path.GetFullPath(root.Trim());
-        return new(full, Path.Combine(full, "Films"), Path.Combine(full, "Séries"), Path.Combine(full, "Animes"));
+        string Folder(string french, string english) =>
+            Path.Combine(full, Directory.Exists(Path.Combine(full, french)) ? french : Directory.Exists(Path.Combine(full, english)) ? english : L(french, english));
+        return new(full, Folder("Films", "Movies"), Folder("Séries", "Shows"), Folder("Animes", "Anime"));
     }
     /// <summary>
     /// Why <paramref name="root"/> cannot hold the media folders, or null. Jellyfin's service is given read access to
@@ -40,10 +45,11 @@ public sealed record MediaFolders(string Root, string Movies, string Series, str
     public static string? Refusal(string root)
     {
         root = root.Trim();
-        if (!Path.IsPathFullyQualified(root)) return $"Indique un dossier complet, par exemple {DefaultRoot}.";
+        if (!Path.IsPathFullyQualified(root)) return L($"Indique un dossier complet, par exemple {DefaultRoot}.", $"Enter a full folder path, for example {DefaultRoot}.");
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         if (Path.TrimEndingDirectorySeparator(Path.GetPathRoot(full) ?? "").Equals(full, StringComparison.OrdinalIgnoreCase))
-            return $"Choisis un dossier plutôt que tout le disque, par exemple {Path.Combine(Path.GetPathRoot(full)!, "Vidéos")}.";
+            return L($"Choisis un dossier plutôt que tout le disque, par exemple {Path.Combine(Path.GetPathRoot(full)!, "Vidéos")}.",
+                $"Choose a folder rather than the whole drive, for example {Path.Combine(Path.GetPathRoot(full)!, "Videos")}.");
         var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var profiles = profile.Length > 0 ? Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(profile)) : null;
         var reserved = new[] { Environment.SpecialFolder.UserProfile, Environment.SpecialFolder.Windows, Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86,
@@ -55,7 +61,7 @@ public sealed record MediaFolders(string Root, string Movies, string Series, str
         var refused = reserved.Any(x => x.Equals(full, StringComparison.OrdinalIgnoreCase))
             // Another account's folder, or Public: a profile of this PC.
             || profiles is not null && string.Equals(Path.GetDirectoryName(full), profiles, StringComparison.OrdinalIgnoreCase);
-        return refused ? $"Choisis un dossier rien que pour tes vidéos, par exemple {DefaultRoot}." : null;
+        return refused ? L($"Choisis un dossier rien que pour tes vidéos, par exemple {DefaultRoot}.", $"Choose a folder just for your videos, for example {DefaultRoot}.") : null;
     }
     public void Create() { foreach (var folder in new[] { Movies, Series, Anime }) Directory.CreateDirectory(folder); }
     /// <summary>
@@ -179,7 +185,7 @@ public static partial class JellyfinSetup
         while (true)
         {
             if (await StateAsync(server, handler, ct).ConfigureAwait(false) is { } state) return state;
-            if (DateTime.UtcNow >= deadline) throw new InstallException("Jellyfin ne répond pas. Redémarre le PC, ou lance « Jellyfin Server » depuis le menu Démarrer, puis réessaie.");
+            if (DateTime.UtcNow >= deadline) throw new InstallException(L("Jellyfin ne répond pas. Redémarre le PC, ou lance « Jellyfin Server » depuis le menu Démarrer, puis réessaie.", "Jellyfin isn’t answering. Restart the PC, or start “Jellyfin Server” from the Start menu, then try again."));
             await Task.Delay(interval ?? TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
         }
     }
@@ -203,39 +209,39 @@ public static partial class JellyfinSetup
         }
     }
     /// <summary>
-    /// Completes the first-run wizard: French interface and metadata, the administrator account, the Films, Séries and
-    /// Animes libraries, access from the local network only, then the end of the wizard. Steps already done are kept,
+    /// Completes the first-run wizard: interface and metadata in Mira's language, the administrator account, the Films,
+    /// Séries and Animes libraries (named as their folders), access from the local network only, then the end of the wizard. Steps already done are kept,
     /// so an attempt cut off halfway can simply be run again with the same account.
     /// </summary>
     public static async Task ConfigureAsync(Uri server, string user, string password, MediaFolders folders, HttpMessageHandler? handler = null, CancellationToken ct = default)
     {
-        if (!IsValidUserName(user)) throw new UserInputException("Le nom d’utilisateur peut contenir des lettres, des chiffres, des espaces et - _ ' . @ +, sans espace au début ni à la fin.");
-        if (string.IsNullOrEmpty(password)) throw new UserInputException("Choisis un mot de passe pour ton compte Jellyfin.");
+        if (!IsValidUserName(user)) throw new UserInputException(L("Le nom d’utilisateur peut contenir des lettres, des chiffres, des espaces et - _ ' . @ +, sans espace au début ni à la fin.", "The username can contain letters, digits, spaces and - _ ' . @ +, with no space at the start or end."));
+        if (string.IsNullOrEmpty(password)) throw new UserInputException(L("Choisis un mot de passe pour ton compte Jellyfin.", "Choose a password for your Jellyfin account."));
         using var http = Client(server, handler, TimeSpan.FromSeconds(30));
-        await Send(http, HttpMethod.Post, "Startup/Configuration", new { ServerName = Environment.MachineName, UICulture = "fr", MetadataCountryCode = "FR", PreferredMetadataLanguage = "fr" }, "la langue", ct).ConfigureAwait(false);
+        await Send(http, HttpMethod.Post, "Startup/Configuration", new { ServerName = Environment.MachineName, UICulture = L("fr", "en-US"), MetadataCountryCode = L("FR", "US"), PreferredMetadataLanguage = Code }, L("la langue", "the language"), ct).ConfigureAwait(false);
         // Reading the first user creates it.
-        await Send(http, HttpMethod.Get, "Startup/User", null, "le compte", ct).ConfigureAwait(false);
+        await Send(http, HttpMethod.Get, "Startup/User", null, L("le compte", "the account"), ct).ConfigureAwait(false);
         using (var account = await http.PostAsJsonAsync("Startup/User", new { Name = user, Password = password }, ct).ConfigureAwait(false))
         {
             // Refused once a password is set: only an earlier run with this same account may go on.
             if (account.StatusCode == HttpStatusCode.Forbidden && !await SignsInAsync(server, user, password, handler, ct).ConfigureAwait(false))
-                throw new InstallException("Ce Jellyfin a déjà un compte administrateur, avec un autre nom ou mot de passe. Termine sa configuration sur http://127.0.0.1:8096, puis connecte-toi.");
-            if (!account.IsSuccessStatusCode && account.StatusCode != HttpStatusCode.Forbidden) throw Refused("le compte", account.StatusCode);
+                throw new InstallException(L("Ce Jellyfin a déjà un compte administrateur, avec un autre nom ou mot de passe. Termine sa configuration sur http://127.0.0.1:8096, puis connecte-toi.", "This Jellyfin already has an administrator account, with another name or password. Finish its setup at http://127.0.0.1:8096, then sign in."));
+            if (!account.IsSuccessStatusCode && account.StatusCode != HttpStatusCode.Forbidden) throw Refused(L("le compte", "the account"), account.StatusCode);
         }
         var existing = await GetLibraryNamesAsync(http, ct).ConfigureAwait(false);
-        foreach (var (name, type, path) in new[] { ("Films", "movies", folders.Movies), ("Séries", "tvshows", folders.Series), ("Animes", "tvshows", folders.Anime) })
+        foreach (var (name, type, path) in new[] { (Path.GetFileName(folders.Movies), "movies", folders.Movies), (Path.GetFileName(folders.Series), "tvshows", folders.Series), (Path.GetFileName(folders.Anime), "tvshows", folders.Anime) })
         {
             if (existing.Contains(name)) continue;
             // The path goes in the body: the query form splits paths on commas. Films are gathered into sagas (the saga
             // row of a film page) and the timeline's previews are made (trickplay), which Jellyfin leaves off by default.
             // Subtitles added from Mira go to Jellyfin's own data: its service only reads the media folders.
             await Send(http, HttpMethod.Post, $"Library/VirtualFolders?name={Uri.EscapeDataString(name)}&collectionType={type}&refreshLibrary=false",
-                new { LibraryOptions = new { PathInfos = new[] { new { Path = path } }, PreferredMetadataLanguage = "fr", MetadataCountryCode = "FR", EnableRealtimeMonitor = true, AutomaticallyAddToCollection = type == "movies", EnableTrickplayImageExtraction = true, SaveSubtitlesWithMedia = false } },
-                "la bibliothèque " + name, ct).ConfigureAwait(false);
+                new { LibraryOptions = new { PathInfos = new[] { new { Path = path } }, PreferredMetadataLanguage = Code, MetadataCountryCode = L("FR", "US"), EnableRealtimeMonitor = true, AutomaticallyAddToCollection = type == "movies", EnableTrickplayImageExtraction = true, SaveSubtitlesWithMedia = false } },
+                L("la bibliothèque ", "the library ") + name, ct).ConfigureAwait(false);
         }
         // Devices on the local network still connect; access from the Internet stays off until chosen in Jellyfin.
-        await Send(http, HttpMethod.Post, "Startup/RemoteAccess", new { EnableRemoteAccess = false }, "l’accès réseau", ct).ConfigureAwait(false);
-        await Send(http, HttpMethod.Post, "Startup/Complete", null, "la fin de l’assistant", ct).ConfigureAwait(false);
+        await Send(http, HttpMethod.Post, "Startup/RemoteAccess", new { EnableRemoteAccess = false }, L("l’accès réseau", "network access"), ct).ConfigureAwait(false);
+        await Send(http, HttpMethod.Post, "Startup/Complete", null, L("la fin de l’assistant", "the end of the wizard"), ct).ConfigureAwait(false);
     }
     private static async Task<bool> SignsInAsync(Uri server, string user, string password, HttpMessageHandler? handler, CancellationToken ct)
     {
@@ -246,7 +252,7 @@ public static partial class JellyfinSetup
     private static async Task<HashSet<string>> GetLibraryNamesAsync(HttpClient http, CancellationToken ct)
     {
         using var response = await http.GetAsync("Library/VirtualFolders", ct).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode) throw Refused("les bibliothèques", response.StatusCode);
+        if (!response.IsSuccessStatusCode) throw Refused(L("les bibliothèques", "the libraries"), response.StatusCode);
         using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false), default, ct).ConfigureAwait(false);
         return json.RootElement.ValueKind != JsonValueKind.Array ? new(StringComparer.OrdinalIgnoreCase)
             : json.RootElement.EnumerateArray().Select(x => x.TryGetProperty("Name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString()! : "")
@@ -258,7 +264,7 @@ public static partial class JellyfinSetup
         using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) throw Refused(step, response.StatusCode);
     }
-    private static InstallException Refused(string step, HttpStatusCode status) => new($"Jellyfin a refusé de configurer {step} (code {(int)status}).");
+    private static InstallException Refused(string step, HttpStatusCode status) => new(L($"Jellyfin a refusé de configurer {step} (code {(int)status}).", $"Jellyfin refused to set up {step} (code {(int)status})."));
     private static HttpClient Client(Uri server, HttpMessageHandler? handler, TimeSpan timeout)
     {
         var http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);

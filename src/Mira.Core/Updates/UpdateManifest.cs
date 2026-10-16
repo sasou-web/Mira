@@ -60,13 +60,13 @@ public sealed record UpdateManifest(string Product, Version Version, IReadOnlyLi
             var root = document.RootElement;
             string Text(JsonElement element, string name) => ReleaseFeed.Text(element, name);
             var product = Text(root, "product");
-            var version = ReleaseFeed.ParseVersion(Text(root, "version")) ?? throw new UpdateException("Le manifeste de mise à jour n’indique pas de version valide.");
-            if (product != ProductName) throw new UpdateException("Le manifeste de mise à jour ne concerne pas Mira.");
-            if (!root.TryGetProperty("files", out var list) || list.ValueKind != JsonValueKind.Array) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
+            var version = ReleaseFeed.ParseVersion(Text(root, "version")) ?? throw new UpdateException(L("Le manifeste de mise à jour n’indique pas de version valide.", "The update manifest doesn’t give a valid version."));
+            if (product != ProductName) throw new UpdateException(L("Le manifeste de mise à jour ne concerne pas Mira.", "The update manifest isn’t for Mira."));
+            if (!root.TryGetProperty("files", out var list) || list.ValueKind != JsonValueKind.Array) throw new UpdateException(L("Le manifeste de mise à jour ne liste aucun fichier.", "The update manifest lists no file."));
             var files = new List<UpdateFile>();
             foreach (var entry in list.EnumerateArray())
                 files.Add(Entry(entry, Kinds, files) ?? throw Invalid());
-            if (files.Count == 0) throw new UpdateException("Le manifeste de mise à jour ne liste aucun fichier.");
+            if (files.Count == 0) throw new UpdateException(L("Le manifeste de mise à jour ne liste aucun fichier.", "The update manifest lists no file."));
             var others = new List<UpdateFile>();
             if (root.TryGetProperty("others", out var more))
             {
@@ -84,9 +84,9 @@ public sealed record UpdateManifest(string Product, Version Version, IReadOnlyLi
             }
             return new UpdateManifest(product, version, files) { Others = others };
         }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { throw new UpdateException("Le manifeste de mise à jour est illisible."); }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { throw new UpdateException(L("Le manifeste de mise à jour est illisible.", "The update manifest can’t be read.")); }
     }
-    private static UpdateException Invalid() => new("Le manifeste de mise à jour contient un fichier invalide.");
+    private static UpdateException Invalid() => new(L("Le manifeste de mise à jour contient un fichier invalide.", "The update manifest contains an invalid file."));
     /// <summary>One entry, if it is a valid file of one of <paramref name="kinds"/> not already in <paramref name="files"/>.</summary>
     private static UpdateFile? Entry(JsonElement entry, string[] kinds, List<UpdateFile> files)
     {
@@ -103,11 +103,11 @@ public sealed record UpdateManifest(string Product, Version Version, IReadOnlyLi
         var files = new List<UpdateFile>();
         foreach (var (kind, name) in new[] { ("installer", $"Mira-{version}-win-x64-setup.exe"), ("portable", $"Mira-{version}-win-x64-portable.exe"), ("zip", $"Mira-{version}-win-x64.zip") })
             if (Describe(kind, Path.Combine(directory, name)) is { } file) files.Add(file);
-        if (files.Count == 0) throw new UpdateException($"Aucun fichier de la version {version} dans {directory}.");
+        if (files.Count == 0) throw new UpdateException(L($"Aucun fichier de la version {version} dans {directory}.", $"No file of version {version} in {directory}."));
         var more = new List<UpdateFile>();
         if (others is not null)
             foreach (var kind in OtherKinds)
-                more.Add(Describe(kind, Path.Combine(others, OtherName(kind, version))) ?? throw new UpdateException($"{OtherName(kind, version)} manque dans {others}."));
+                more.Add(Describe(kind, Path.Combine(others, OtherName(kind, version))) ?? throw new UpdateException(L($"{OtherName(kind, version)} manque dans {others}.", $"{OtherName(kind, version)} is missing from {others}.")));
         return new UpdateManifest(ProductName, version, files) { Others = more };
     }
     private static UpdateFile? Describe(string kind, string path)

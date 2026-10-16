@@ -26,7 +26,7 @@ public static partial class ServerAddress
     public static IReadOnlyList<string> Candidates(string input)
     {
         var text = input.Trim();
-        if (text.Length == 0) throw new UserInputException("Indique l’adresse de ton serveur Jellyfin, par exemple http://127.0.0.1:8096.");
+        if (text.Length == 0) throw new UserInputException(L("Indique l’adresse de ton serveur Jellyfin, par exemple http://127.0.0.1:8096.", "Enter your Jellyfin server’s address, for example http://127.0.0.1:8096."));
         if (text.Contains("://", StringComparison.Ordinal)) return [JellyfinClient.NormalizeServer(WithoutWebPage(text))];
         var authority = text.Split('/', 2)[0];
         var explicitPort = PortSuffix().IsMatch(authority);
@@ -89,17 +89,20 @@ public static partial class ServerAddress
         finally { stop.Cancel(); }
         // Every candidate is done, so one that answered was refused: typing its address is the way to choose it knowingly.
         if (First(i => probes[i].Result.Info is not null) is var plain and >= 0)
-            throw new ServerDiscoveryException($"Le certificat HTTPS de ce serveur n’est pas reconnu. Mira n’essaie pas http:// à la place : ton mot de passe y passerait en clair. Si ce serveur est chez toi, tape son adresse complète, {candidates[plain].TrimEnd('/')} ; sinon, il lui faut un certificat valide.");
+            throw new ServerDiscoveryException(L($"Le certificat HTTPS de ce serveur n’est pas reconnu. Mira n’essaie pas http:// à la place : ton mot de passe y passerait en clair. Si ce serveur est chez toi, tape son adresse complète, {candidates[plain].TrimEnd('/')} ; sinon, il lui faut un certificat valide.",
+                $"This server’s HTTPS certificate isn’t recognized. Mira doesn’t try http:// instead: your password would go in clear text. If this server is at your home, type its full address, {candidates[plain].TrimEnd('/')}; otherwise, it needs a valid certificate."));
         var failures = probes.Select(x => x.Result).ToList();
         throw new ServerDiscoveryException(
-            failures.Any(x => x.Failure == ProbeFailure.NotJellyfin) ? "Cette adresse répond, mais ce n’est pas un serveur Jellyfin. Vérifie le port (8096 par défaut)."
-            : failures.Any(x => x.Failure == ProbeFailure.Certificate) ? $"Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://{new Uri(candidates[0]).Host}:8096 ; sinon, il lui faut un certificat valide."
-            : failures.All(x => x.Failure == ProbeFailure.Timeout) ? "Le serveur ne répond pas. Vérifie l’adresse et que Jellyfin est bien lancé."
-            : "Aucun serveur Jellyfin trouvé à cette adresse. Vérifie qu’il est lancé et que l’adresse est correcte.");
+            failures.Any(x => x.Failure == ProbeFailure.NotJellyfin) ? L("Cette adresse répond, mais ce n’est pas un serveur Jellyfin. Vérifie le port (8096 par défaut).", "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).")
+            : failures.Any(x => x.Failure == ProbeFailure.Certificate) ? L($"Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://{new Uri(candidates[0]).Host}:8096 ; sinon, il lui faut un certificat valide.",
+                $"This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://{new Uri(candidates[0]).Host}:8096; otherwise, it needs a valid certificate.")
+            : failures.All(x => x.Failure == ProbeFailure.Timeout) ? L("Le serveur ne répond pas. Vérifie l’adresse et que Jellyfin est bien lancé.", "The server isn’t answering. Check the address and that Jellyfin is running.")
+            : L("Aucun serveur Jellyfin trouvé à cette adresse. Vérifie qu’il est lancé et que l’adresse est correcte.", "No Jellyfin server found at this address. Check that it’s running and that the address is right."));
     }
     public static readonly TimeSpan PreferenceGrace = TimeSpan.FromSeconds(1.5);
     /// <summary>Said on the login screen before the password goes in clear across the Internet; a second click sends it.</summary>
-    public const string PlainHttpWarning = "Cette adresse passe par Internet, en http:// : rien n’y est chiffré, et ton mot de passe y passerait lisible par n’importe qui sur le trajet. Utilise plutôt son adresse https:// ou Tailscale, ou clique sur « Se connecter quand même ».";
+    public static string PlainHttpWarning => L("Cette adresse passe par Internet, en http:// : rien n’y est chiffré, et ton mot de passe y passerait lisible par n’importe qui sur le trajet. Utilise plutôt son adresse https:// ou Tailscale, ou clique sur « Se connecter quand même ».",
+        "This address goes over the Internet with http://: nothing is encrypted, and anyone along the way could read your password. Use its https:// address or Tailscale instead, or click “Sign in anyway”.");
     /// <summary>
     /// Whether signing in at this address sends the password in clear across the Internet: plain http:// to a server
     /// that is neither this computer, nor on the home network, nor on Tailscale. A name of the Internet
@@ -139,7 +142,8 @@ public static partial class ServerAddress
     private static readonly string[] HomeSuffixes = [".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain", ".ts.net"];
     private static ServerInfo Supported(ServerInfo info) =>
         ParseVersion(info.Version) is { } version && version < MinimumVersion
-            ? throw new ServerDiscoveryException($"Mira a besoin de Jellyfin {MinimumVersion.Major}.{MinimumVersion.Minor} ou plus récent ; ce serveur est en {info.Version}. Mets Jellyfin à jour pour continuer.")
+            ? throw new ServerDiscoveryException(L($"Mira a besoin de Jellyfin {MinimumVersion.Major}.{MinimumVersion.Minor} ou plus récent ; ce serveur est en {info.Version}. Mets Jellyfin à jour pour continuer.",
+                $"Mira needs Jellyfin {MinimumVersion.Major}.{MinimumVersion.Minor} or later; this server runs {info.Version}. Update Jellyfin to continue."))
             : info;
     /// <summary>"10.10.7" or "10.11.0-rc2" → the version; null when the server says something else.</summary>
     public static Version? ParseVersion(string? text) =>

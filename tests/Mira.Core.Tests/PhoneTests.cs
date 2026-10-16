@@ -227,10 +227,10 @@ internal static class PhoneTests
             steps = PhoneSetup.Steps(silent);
             Assert(Marks(steps) == "web:Note firewall:ToDo tailscale:Note boot:Note" && steps[0].Title.Contains("ne répond pas"), "Jellyfin silent: " + Marks(steps));
             // Silent on this PC: stopped (its button starts it), starting, or stopping after each start (its log).
-            Assert(PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Stopped, Boot = service })[0] is { Mark: PhoneSetup.Mark.Yours, Action: LocalJellyfin.Start } stopped
+            Assert(PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Stopped, Boot = service })[0] is { Mark: PhoneSetup.Mark.Yours, Action: "Démarrer Jellyfin" } stopped
                 && stopped.Text.Contains("autorisation de Windows") && !PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Stopped })[0].Text.Contains("autorisation")
                 && PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Starting })[0] is { Mark: PhoneSetup.Mark.Note, Title: "Jellyfin démarre sur ce PC" }
-                && PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Failing })[0] is { Mark: PhoneSetup.Mark.Yours, Action: LocalJellyfin.OpenLog }
+                && PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Failing })[0] is { Mark: PhoneSetup.Mark.Yours, Action: "Ouvrir son journal" }
                 && PhoneSetup.Steps(new PhoneSetup.Facts("http://192.168.1.30:8096", false, Web: null, Home: "http://192.168.1.30:8096") with { Answering = false, Web = null, Down = LocalJellyfin.Verdict.Stopped })[0].Title.Contains("ne répond pas"), "Jellyfin stopped on this PC");
             Assert(PhoneSetup.Is(PhoneSetup.Steps(ready with { TailnetAllowed = null }), "tailscale", PhoneSetup.Mark.Note), "The administrator, Tailscale not read yet");
             // Unreadable firewall: Mira's rule decides, when it is as Mira writes it. The service: set up with the same consent when it lacks something.
@@ -278,10 +278,10 @@ internal static class PhoneTests
             // Two starts in a row it did not answer after: its log, never a third start; starting again meanwhile is still said.
             Assert(Judge(LocalJellyfin.Service.Stopped, failed: 1) == LocalJellyfin.Verdict.Stopped && Judge(LocalJellyfin.Service.Stopped, failed: 2) == LocalJellyfin.Verdict.Failing
                 && Judge(LocalJellyfin.Service.None, failed: 2) == LocalJellyfin.Verdict.Failing && Judge(LocalJellyfin.Service.Running, failed: 2) == LocalJellyfin.Verdict.Starting, "Failed starts");
-            Assert(LocalJellyfin.Says(LocalJellyfin.Verdict.Stopped, service: true) is { Action: LocalJellyfin.Start } stopped && stopped.Text.Contains("arrêté sur ce PC") && stopped.Text.Contains("autorisation")
+            Assert(LocalJellyfin.Says(LocalJellyfin.Verdict.Stopped, service: true) is { Action: "Démarrer Jellyfin" } stopped && stopped.Text.Contains("arrêté sur ce PC") && stopped.Text.Contains("autorisation")
                 && LocalJellyfin.Says(LocalJellyfin.Verdict.Stopped, service: false) is { } program && !program.Text.Contains("autorisation")
                 && LocalJellyfin.Says(LocalJellyfin.Verdict.Starting, service: true) is { Action: null } starting && starting.Text.Contains("démarre")
-                && LocalJellyfin.Says(LocalJellyfin.Verdict.Failing, service: true, "Error while starting server (address already in use)") is { Action: LocalJellyfin.OpenLog } failing && failing.Text.Contains("« Error while starting server")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Failing, service: true, "Error while starting server (address already in use)") is { Action: "Ouvrir son journal" } failing && failing.Text.Contains("« Error while starting server")
                 && LocalJellyfin.Says(LocalJellyfin.Verdict.Unknown, service: true) is null, "What is said");
             return Task.CompletedTask;
         });
@@ -318,10 +318,10 @@ internal static class PhoneTests
             var steps = PhoneSetup.Steps(ready with { Node = kept });
             Assert(Marks(steps) == "web:Done firewall:Done tailscale:Done unattended:Done boot:Done" && steps.Single(x => x.Key == "boot").Title == "Disponible dès l’allumage du PC", "Unattended: " + Marks(steps));
             steps = PhoneSetup.Steps(ready with { Node = never });
-            Assert(Step(ready with { Node = never }, "unattended") is { Mark: PhoneSetup.Mark.Yours, Action: TailscaleNode.KeepConnected } off && off.Text.Contains("Run unattended")
+            Assert(Step(ready with { Node = never }, "unattended") is { Mark: PhoneSetup.Mark.Yours, Action: "Garder Tailscale connecté" } off && off.Text.Contains("Run unattended")
                 && !PhoneSetup.CanPrepare(steps) && steps.Single(x => x.Key == "boot") is { Mark: PhoneSetup.Mark.Done } boot && !boot.Title.StartsWith("Disponible"), "Attended: " + Marks(steps));
             Assert(Step(ready with { Node = TailscaleNode.Unreadable }, "unattended") is { Mark: PhoneSetup.Mark.Note, Action: null } note && note.Text.Contains("Run unattended"), "Its command line missing");
-            Assert(Step(ready with { Node = soon }, "keyexpiry") is { Mark: PhoneSetup.Mark.Yours, Action: TailscaleNode.OpenMachines } expiring && expiring.Title.EndsWith("expire le 28 octobre")
+            Assert(Step(ready with { Node = soon }, "keyexpiry") is { Mark: PhoneSetup.Mark.Yours, Action: "Ouvrir la page de Tailscale" } expiring && expiring.Title.EndsWith("expire le 28 octobre")
                 && expiring.Text.Contains("« DESKTOP-INVEFQH »") && expiring.Text.Contains("Disable key expiry")
                 && Step(ready with { Node = expired }, "keyexpiry").Title.Contains("a expiré") && !PhoneSetup.CanPrepare(PhoneSetup.Steps(ready with { Node = soon })), "Expiring");
             // Without Tailscale's address (not installed, or not connected), or Jellyfin on another computer: nothing about it.
@@ -349,7 +349,7 @@ internal static class PhoneTests
             var ready = new PhoneSetup.Facts("http://127.0.0.1:8096", true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, Tailnet: "http://100.101.102.103:8096", TailnetAllowed: true,
                 Firewall: new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Private), Boot: new(true, true, false, true));
             var steps = PhoneSetup.Steps(ready with { Power = laptop });
-            Assert(steps[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Yours, Action: ServerSleep.NeverOnMains } && !PhoneSetup.CanPrepare(steps) && !PhoneSetup.NeedsWindows(steps), "Sleeping: the person's");
+            Assert(steps[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Yours, Action: "Pas de veille sur secteur" } && !PhoneSetup.CanPrepare(steps) && !PhoneSetup.NeedsWindows(steps), "Sleeping: the person's");
             Assert(PhoneSetup.Steps(ready with { Power = never })[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Done, Action: null } && PhoneSetup.Steps(ready).All(x => x.Key != "sleep")
                 && PhoneSetup.Steps(ready with { Local = false, Power = laptop }).All(x => x.Key != "sleep"), "Awake, not read, another computer's");
 
