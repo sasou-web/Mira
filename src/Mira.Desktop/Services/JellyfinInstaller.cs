@@ -65,13 +65,13 @@ internal static class JellyfinInstaller
             await using (var held = new FileStream(setup, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, useAsync: true))
             {
                 if (!VerifiedDownload.Matches(await SHA256.HashDataAsync(held, ct), package.Sha256))
-                    throw new InstallException("Le fichier téléchargé ne correspond pas à la version vérifiée par Mira : il n’est pas installé.");
+                    throw new InstallException(L("Le fichier téléchargé ne correspond pas à la version vérifiée par Mira : il n’est pas installé.", "The downloaded file doesn’t match the version Mira checked: it isn’t installed."));
                 progress?.Report(1);
                 try { process = Process.Start(new ProcessStartInfo(setup, "/S") { UseShellExecute = true, Verb = "runas" }); }
-                catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { throw new InstallException("Installation annulée : Windows n’a pas reçu l’autorisation d’installer Jellyfin."); }
-                catch (Win32Exception) { throw new InstallException("L’installateur de Jellyfin n’a pas pu démarrer."); }
+                catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { throw new InstallException(L("Installation annulée : Windows n’a pas reçu l’autorisation d’installer Jellyfin.", "Installation canceled: Windows didn’t get permission to install Jellyfin.")); }
+                catch (Win32Exception) { throw new InstallException(L("L’installateur de Jellyfin n’a pas pu démarrer.", "Jellyfin’s installer couldn’t start.")); }
             }
-            if (process is null) throw new InstallException("L’installateur de Jellyfin n’a pas pu démarrer.");
+            if (process is null) throw new InstallException(L("L’installateur de Jellyfin n’a pas pu démarrer.", "Jellyfin’s installer couldn’t start."));
             return new(process, EndAsync(process, partial, setup));
         }
         catch { TryDelete(partial); TryDelete(setup); throw; }

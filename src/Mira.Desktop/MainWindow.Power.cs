@@ -142,7 +142,7 @@ public partial class MainWindow
         catch (Exception ex) when (IsExpected(ex))
         {
             await StopPlaybackAsync(); ReturnToLibrary();
-            SetNotice("La lecture n’a pas pu reprendre après la mise en veille. Relance-la depuis « Continuer à regarder ».");
+            SetNotice(L("La lecture n’a pas pu reprendre après la mise en veille. Relance-la depuis « Continuer à regarder ».", "Playback couldn’t resume after sleep. Start it again from “Continue watching”."));
         }
     }
     private static bool IsStream(string? location) =>

@@ -56,7 +56,7 @@ public partial class MainWindow
     {
         _jellyfinFailedStarts = 0;
         if (Directory.Exists(JellyfinLogFolder)) OpenInExplorer(JellyfinLogFolder, null);
-        else SetNotice($"Le journal de Jellyfin n’est pas dans {JellyfinLogFolder}.");
+        else SetNotice(L($"Le journal de Jellyfin n’est pas dans {JellyfinLogFolder}.", $"Jellyfin’s log isn’t in {JellyfinLogFolder}."));
     }
 
     /// <summary>
@@ -70,13 +70,13 @@ public partial class MainWindow
         try
         {
             var service = await Task.Run(() => JellyfinAutostart.ServiceState()) is not LocalJellyfin.Service.None;
-            if (service) SetNotice("Accepte l’autorisation de Windows, pour Windows PowerShell…", null, null, sticky: true);
+            if (service) SetNotice(L("Accepte l’autorisation de Windows, pour Windows PowerShell…", "Accept Windows’ permission prompt for Windows PowerShell…"), null, null, sticky: true);
             var started = service ? await JellyfinAutostart.StartServiceAsync() : await Task.Run(JellyfinAutostart.StartProgram) ? AutostartResult.Done : AutostartResult.Failed;
             if (!ReferenceEquals(client, _client)) return;
             if (started == AutostartResult.Refused)
             {
                 _localJellyfinNotice = null;
-                SetNotice("Windows n’a pas reçu l’autorisation : Jellyfin reste arrêté.", LocalJellyfin.Start, () => _ = StartJellyfinAsync(client));
+                SetNotice(L("Windows n’a pas reçu l’autorisation : Jellyfin reste arrêté.", "Windows didn’t get permission: Jellyfin stays stopped."), LocalJellyfin.Start, () => _ = StartJellyfinAsync(client));
                 DescribeGuideAgain();
                 return;
             }
@@ -99,7 +99,7 @@ public partial class MainWindow
             }
             if (!ReferenceEquals(client, _client)) return;
             _jellyfinFailedStarts++;
-            await SayUnansweredAsync(client, null, "Jellyfin ne répond toujours pas. Mira réessaie tout seul et te le dira dès qu’il répond.");
+            await SayUnansweredAsync(client, null, L("Jellyfin ne répond toujours pas. Mira réessaie tout seul et te le dira dès qu’il répond.", "Jellyfin still isn’t answering. Mira keeps trying on its own and will tell you as soon as it answers."));
             DescribeGuideAgain();
         }
         finally { _startingJellyfin = false; }

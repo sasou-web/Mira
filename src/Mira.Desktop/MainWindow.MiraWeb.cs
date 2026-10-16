@@ -14,7 +14,7 @@ public partial class MainWindow
     /// <summary>The repository of Mira web for this Mira, checked on GitHub; an <see cref="UpdateException"/> says plainly why not.</summary>
     private static async Task<string> VerifiedMiraWebAsync()
     {
-        var version = ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) ?? throw new UpdateException("Cette copie de Mira n’a pas de numéro de version : Mira web ne peut pas être vérifié.");
+        var version = ReleaseFeed.ParseVersion(JellyfinClient.AppVersion) ?? throw new UpdateException(L("Cette copie de Mira n’a pas de numéro de version : Mira web ne peut pas être vérifié.", "This copy of Mira has no version number: Mira web can’t be checked."));
         using var github = new UpdateClient(version, UpdateKeys.Trusted);
         return await MiraWebRelease.VerifyAsync(github, version);
     }
@@ -66,8 +66,8 @@ public partial class MainWindow
             if (!ReferenceEquals(client, _client)) return;
         }
         if (!ReferenceEquals(client, _client)) return;
-        SetNotice($"Mira web {waiting.ToString(3)} est prêt sur Jellyfin : ton téléphone l’aura dès que Jellyfin redémarre, en quelques secondes. Personne ne regarde en ce moment.",
-            "Redémarrer Jellyfin", () => _ = RestartForMiraWebAsync(client, version, done));
+        SetNotice(L($"Mira web {waiting.ToString(3)} est prêt sur Jellyfin : ton téléphone l’aura dès que Jellyfin redémarre, en quelques secondes. Personne ne regarde en ce moment.", $"Mira web {waiting.ToString(3)} is ready on Jellyfin: your phone gets it as soon as Jellyfin restarts, in a few seconds. Nobody is watching right now."),
+            L("Redémarrer Jellyfin", "Restart Jellyfin"), () => _ = RestartForMiraWebAsync(client, version, done));
     }
 
     /// <summary>« Redémarrer Jellyfin », unless someone started watching since; then Jellyfin waited for until it serves the new version.</summary>
@@ -77,11 +77,11 @@ public partial class MainWindow
         {
             if ((await client.ViewersAsync()).Count > 0)
             {
-                SetNotice("Quelqu’un regarde sur Jellyfin en ce moment : Mira te proposera de le redémarrer quand ce sera fini.");
+                SetNotice(L("Quelqu’un regarde sur Jellyfin en ce moment : Mira te proposera de le redémarrer quand ce sera fini.", "Someone is watching on Jellyfin right now: Mira will offer to restart it once they’re done."));
                 await BringMiraWebNowAsync(client, version, done);
                 return;
             }
-            SetNotice("Jellyfin redémarre…", null, null, sticky: true);
+            SetNotice(L("Jellyfin redémarre…", "Jellyfin is restarting…"), null, null, sticky: true);
             await client.RestartAsync();
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
@@ -94,7 +94,7 @@ public partial class MainWindow
                 if (await client.WebAppVersionsAsync() is { Serving: { } serving } && serving >= version)
                 {
                     Served(done);
-                    SetNotice($"Jellyfin a redémarré : ton téléphone a Mira web {serving.ToString(3)} à sa prochaine ouverture.");
+                    SetNotice(L($"Jellyfin a redémarré : ton téléphone a Mira web {serving.ToString(3)} à sa prochaine ouverture.", $"Jellyfin restarted: your phone gets Mira web {serving.ToString(3)} the next time you open it."));
                     return;
                 }
             }
@@ -102,7 +102,7 @@ public partial class MainWindow
             catch (Exception ex) when (IsExpected(ex)) { }
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
-        if (ReferenceEquals(client, _client)) SetNotice("Jellyfin n’a pas encore fini de redémarrer : Mira web arrive sur ton téléphone dès qu’il répond.");
+        if (ReferenceEquals(client, _client)) SetNotice(L("Jellyfin n’a pas encore fini de redémarrer : Mira web arrive sur ton téléphone dès qu’il répond.", "Jellyfin hasn’t finished restarting yet: Mira web reaches your phone as soon as it answers."));
     }
 
     private void Served(string done) { _settings.MiraWebServed = done; _profile.SaveSettings(_settings); }
