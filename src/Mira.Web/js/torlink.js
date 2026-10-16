@@ -106,11 +106,15 @@ export function agentLine(agent, now = Date.now()) {
   return { text: `${agent.name} est prêt : TorLink y télécharge, puis Mira range le titre dans ta bibliothèque.`, ready: true };
 }
 
-/** A search result: « 1,4 Go · 120 sources · YTS ». */
+/** A search result: « 1,4 Go · 120 sources · YTS »; nothing of sources for a site that does not count them (SubsPlease). */
 export function hitLine(hit) {
   const seeders = Math.max(0, Number(hit?.seeders) || 0);
-  return [size(hit?.size), seeders === 0 ? 'aucune source' : seeders === 1 ? '1 source' : `${seeders} sources`, hit?.source].filter(Boolean).join(' · ');
+  const sources = !reportsHealth(hit?.source) && seeders === 0 ? '' : seeders === 0 ? 'aucune source' : seeders === 1 ? '1 source' : `${seeders} sources`;
+  return [size(hit?.size), sources, hit?.source].filter(Boolean).join(' · ');
 }
+
+/** Whether a site of TorLink counts who shares its results: SubsPlease never does. */
+export const reportsHealth = (source) => String(source ?? '').toLowerCase() !== 'subsplease';
 
 /** A request not yet in TorLink's list: waiting for the PC, on its way, or refused (and why). */
 export function requestLine(request) {

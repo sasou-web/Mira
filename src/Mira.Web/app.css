@@ -21,6 +21,7 @@
   --blur: saturate(160%) blur(20px);
   --on-accent: #0b0b0c;
   --danger: #ff6b5f;
+  --warning: #d5b787;   /* Warning of Mira for Windows (Themes/Cinema.xaml) */
   --scrim: rgba(7, 7, 8, 0.72);
 
   --r-s: 6px;
@@ -618,6 +619,20 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .torlink-confirm { font-size: calc(16px * var(--text)); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
 .torlink-note { margin-top: 0; }
 .torlink-page .group-title { scroll-margin-top: calc(var(--top) + 72px); }
+/* The results: a card per title or episode, its best release first, the others folded under it. */
+.torlink-head { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 2px; font-size: calc(17px * var(--text)); font-weight: 800; line-height: 1.3; }
+.torlink-head > .clamp-2 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.torlink-episode { flex: none; color: var(--muted); font-size: calc(14px * var(--text)); font-weight: 700; font-variant-numeric: tabular-nums; }
+.torlink-quality { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; overflow-wrap: anywhere; }
+.torlink-badge { padding: 2px 8px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: calc(12px * var(--text)); font-weight: 800; line-height: 1.4; white-space: nowrap; }
+.torlink-release .sub { margin-top: 3px; line-height: 1.4; }
+.torlink-full { overflow-wrap: anywhere; }
+.torlink-caution { color: var(--warning); }
+.torlink-best { border-bottom: 1px solid var(--line); }
+.torlink-others .torlink-release { font-size: calc(15px * var(--text)); }
+.torlink-more { min-height: 48px; color: var(--muted); font-size: calc(15px * var(--text)); }
+.torlink-more .icon { flex: none; transition: transform var(--fast) var(--ease); }
+.torlink-more[aria-expanded='true'] .icon { transform: rotate(180deg); }
 /* « Ton bilan »: the time in large, then the counts, the series and the genres. */
 .report-periods { display: flex; gap: 8px; }
 .report { display: grid; gap: 18px; min-height: 120px; align-content: start; }
