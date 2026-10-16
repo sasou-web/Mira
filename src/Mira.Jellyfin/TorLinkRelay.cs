@@ -224,11 +224,3 @@ public sealed class TorLinkRelay
         public DateTimeOffset? Done { get; set; }
     }
 }
-
-// What Mira web reads (GET /Mira/torlink, GET /Mira/torlink/search/{id}).
-public sealed record RelayStatus(RelayAgent? Agent, List<RelayRequest> Requests, List<RelayControl> Controls, List<RelayDownload> Downloads, List<RelayPlaced> Placed);
-public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem);
-public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created);
-public sealed record RelayControl(string Id, string Target, string Action, string State);
-public sealed record RelaySearch(string Id, string Query, string Category, string State, List<RelayHit> Results, string? Error);
-public sealed record RelayHit(string Id, string Name, long Size, int Seeders, int Leechers, string Source, long? Added);

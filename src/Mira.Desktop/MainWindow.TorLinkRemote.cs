@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -79,7 +78,7 @@ public partial class MainWindow
         if (!_torlinkEnabled || _demo || _closing || _client is not { } client || _torlink is not { } torlink) { _remoteState = ""; return TimeSpan.FromSeconds(30); }
         if (!await JellyfinOnThisPcAsync(client))
         {
-            _remoteState = "Jellyfin ne tourne pas sur ce PC : pour lancer un téléchargement sur le PC serveur, ouvre Mira web dans ton navigateur (bouton ci-dessous).";
+            _remoteState = "Jellyfin tourne sur un autre PC : TorLink n’est proposé que là-bas, à côté de ta bibliothèque. La page Téléchargements de ce PC lui envoie tes recherches et tes téléchargements.";
             return TimeSpan.FromMinutes(5);
         }
         if (!_settings.TorLinkRemote) { _remoteState = ""; return TimeSpan.FromSeconds(30); }
@@ -271,13 +270,8 @@ public partial class MainWindow
         TorLinkRemoteOpenButton.Visibility = elsewhere ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Mira web's « Télécharger sur le PC serveur », in the browser, from a PC that is not the server.</summary>
-    private void TorLinkRemoteOpen_Click(object sender, RoutedEventArgs e)
-    {
-        if (_client is not { } client) return;
-        try { Process.Start(new ProcessStartInfo(new Uri(new Uri(client.Connection.Server), "Mira/#/telecharger").AbsoluteUri) { UseShellExecute = true })?.Dispose(); }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or InvalidOperationException) { SetNotice("Le navigateur n’a pas pu s’ouvrir."); }
-    }
+    /// <summary>From a PC that is not the server: the Downloads page, which sends to it.</summary>
+    private async void TorLinkRemoteOpen_Click(object sender, RoutedEventArgs e) => await ShowTorLinkAsync();
 
     private static TimeSpan UserIdle()
     {

@@ -39,6 +39,56 @@ internal static class RemoteDownloadTests
             return Task.CompletedTask;
         });
 
+        await Test("Télécharger sur le PC serveur : la meilleure release par titre et épisode, comme Mira web (tests/fixtures/releases.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "releases.json")));
+            foreach (var row in fixture.RootElement.GetProperty("names").EnumerateArray())
+            {
+                var release = ReleaseRanking.Parse(row[0].GetString());
+                int? year = row[2].ValueKind == JsonValueKind.Null ? null : row[2].GetInt32();
+                var seen = (release.Title, release.Year, ReleaseRanking.EpisodeLabel(release), ReleaseRanking.QualityLine(release));
+                Assert(seen == (row[1].GetString()!, year, row[3].GetString()!, row[4].GetString()!), $"« {row[0]} » read as {seen}");
+            }
+            foreach (var search in fixture.RootElement.GetProperty("ranked").EnumerateArray())
+            {
+                var hits = search.GetProperty("hits").EnumerateArray().Select(x => new RelayHit(x[0].GetString()!, x[1].GetString()!, x[2].GetInt64(), x[3].GetInt32(), 0, x[4].GetString()!, null)).ToList();
+                var found = ReleaseRanking.Group(hits, search.GetProperty("category").GetString()).Select(g => $"{g.Title} | {g.Label} | {g.Best.Hit.Id} | {string.Join(",", g.Others.Select(x => x.Hit.Id))}");
+                var expected = search.GetProperty("groups").EnumerateArray().Select(g => $"{g[0].GetString()} | {g[1].GetString()} | {g[2].GetString()} | {string.Join(",", g[3].EnumerateArray().Select(x => x.GetString()))}");
+                Assert(found.SequenceEqual(expected), "Groups: " + string.Join(" ; ", found));
+            }
+            Assert(ReleaseRanking.Parse("[ToonsHub] JoJos Bizarre Adventure S06E04 1080p (JoJo no Kimyou na Bouken: Steel Ball Run - 2nd - 3rd STAGE, Dual-Audio)").Alternate == "JoJo no Kimyou na Bouken: Steel Ball Run"
+                && ReleaseRanking.Parse("Film.2020.1080p.WEB-DL.MultiSub.x264").Languages.Count == 0 && ReleaseRanking.TitleKey("JoJo’s Bizarre Adventure: Éclat & Co") == "jojos bizarre adventure eclat and co", "Other name, subtitles, key");
+            RelayHit Hit(string name, int seeders, string source = "1337x") => new("x", name, 3L << 30, seeders, 0, source, null);
+            Assert(ReleaseRanking.Score(Hit("Film.2020.1080p.BluRay.x264-A", 5), ReleaseRanking.Parse("Film.2020.1080p.BluRay.x264-A")) > ReleaseRanking.Score(Hit("Film.2020.1080p.WEBRip.x264-B", 5000), ReleaseRanking.Parse("Film.2020.1080p.WEBRip.x264-B"))
+                && ReleaseRanking.Warning(new(Hit("", 0, "subsplease"), ReleaseRanking.Parse("[SubsPlease] Show - 05 (1080p)"), 0, 0)) == "", "Seeders only break ties; SubsPlease has none");
+            return Task.CompletedTask;
+        });
+        await Test("Télécharger sur le PC serveur : l'écran des apps écrit le PC, un résultat, une demande et un téléchargement comme Mira web (tests/fixtures/torlink-lines.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "torlink-lines.json")));
+            var root = fixture.RootElement; var now = root.GetProperty("now").GetDateTimeOffset();
+            T Read<T>(JsonElement value) => value.Deserialize<T>(RemoteProtocol.Json)!;
+            foreach (var pair in root.GetProperty("sizes").EnumerateArray()) Assert(RemoteLines.Size(pair[0].GetInt64()) == pair[1].GetString(), $"Size {pair[0]}: {RemoteLines.Size(pair[0].GetInt64())}");
+            foreach (var pair in root.GetProperty("speeds").EnumerateArray()) Assert(RemoteLines.Speed(pair[0].GetInt64()) == pair[1].GetString(), $"Speed {pair[0]}: {RemoteLines.Speed(pair[0].GetInt64())}");
+            foreach (var row in root.GetProperty("agents").EnumerateArray())
+            {
+                var line = RemoteLines.Agent(row.GetProperty("agent").ValueKind == JsonValueKind.Null ? null : Read<RelayAgent>(row.GetProperty("agent")), now);
+                Assert(line == (row.GetProperty("text").GetString()!, row.GetProperty("ready").GetBoolean()), $"Agent {row.GetProperty("agent")}: {line}");
+            }
+            foreach (var pair in root.GetProperty("hits").EnumerateArray()) Assert(RemoteLines.Hit(Read<RelayHit>(pair[0])) == pair[1].GetString(), $"Hit {pair[0]}: {RemoteLines.Hit(Read<RelayHit>(pair[0]))}");
+            foreach (var pair in root.GetProperty("requests").EnumerateArray()) Assert(RemoteLines.Request(Read<RelayRequest>(pair[0])) == pair[1].GetString(), $"Request {pair[0]}: {RemoteLines.Request(Read<RelayRequest>(pair[0]))}");
+            foreach (var pair in root.GetProperty("downloads").EnumerateArray()) Assert(RemoteLines.Download(Read<RelayDownload>(pair[0])) == pair[1].GetString(), $"Download {pair[0]}: {RemoteLines.Download(Read<RelayDownload>(pair[0]))}");
+            foreach (var pair in root.GetProperty("remaining").EnumerateArray()) Assert(RemoteLines.Remaining(pair[0].GetDouble()) == pair[1].GetString(), $"Remaining {pair[0]}: {RemoteLines.Remaining(pair[0].GetDouble())}");
+            var download = new RelayDownload(Hash, "Dune", "paused", 10, 0, 0, Eta: 60);
+            Assert(RemoteLines.TimeLeft(download) is null && RemoteLines.TimeLeft(download with { Status = "downloading", Eta = null, Speed = 10 }) is null, "No time left while paused, nor without a size");
+            Assert(RemoteLines.Controllable(download with { Status = "queued" }) && RemoteLines.Paused(download) && !RemoteLines.Controllable(download with { Status = "completed" }), "Controllable");
+            var status = new RelayStatus(null, [new("1", "Dune", 0, Hash, "sent", null, now), new("2", "Alien", 0, Other, "sent", null, now)], [], [download], []);
+            Assert(RemoteLines.Pending(status).Select(x => x.Id).SequenceEqual(["2"]), "A request TorLink lists shows as its download");
+            Assert(RemoteLines.Refused(HttpStatusCode.Forbidden)!.Contains("administrateurs", StringComparison.Ordinal) && RemoteLines.Refused(HttpStatusCode.InternalServerError) is null, "Refusals");
+            return Task.CompletedTask;
+        });
         await Test("Télécharger sur le PC serveur : le relais de l'extension, de la recherche au téléchargement", () =>
         {
             var now = DateTimeOffset.Parse("2026-10-15T12:00:00Z");

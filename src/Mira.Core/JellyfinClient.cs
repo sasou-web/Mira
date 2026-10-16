@@ -650,6 +650,90 @@ public sealed class JellyfinClient : IDisposable
         return (await response.Content.ReadFromJsonAsync<AgentWork>(RemoteProtocol.Json, ct) ?? throw new IOException("Réponse Jellyfin vide."), response.StatusCode);
     }
     /// <summary>
+    /// « Télécharger sur le PC serveur » from another PC (an administrator): what the PC of Jellyfin has under way, as
+    /// Mira web reads it (GET Mira/torlink). The relay's refusals, in Mira's words: <see cref="RelayRefusedException"/>.
+    /// </summary>
+    public async Task<RelayStatus> TorLinkStatusAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Mira/torlink", ct);
+        await CheckRelayAsync(response, ct);
+        var status = await response.Content.ReadFromJsonAsync<RelayStatus>(RemoteProtocol.Json, ct) ?? throw new IOException("Réponse Jellyfin vide.");
+        return status with { Requests = status.Requests ?? [], Controls = status.Controls ?? [], Downloads = status.Downloads ?? [], Placed = status.Placed ?? [] };
+    }
+    /// <summary>A search the PC of Jellyfin runs with TorLink: its id, to follow with <see cref="TorLinkSearchStateAsync"/>.</summary>
+    public async Task<string> TorLinkSearchAsync(string query, string category, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/search", new { query, category }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
+    /// <summary>Where a search stands (waiting, running, done with its results, failed); null once the relay forgot it.</summary>
+    public async Task<RelaySearch?> TorLinkSearchStateAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Mira/torlink/search/{Uri.EscapeDataString(id)}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckRelayAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<RelaySearch>(RemoteProtocol.Json, ct);
+    }
+    /// <summary>A result of a search, sent to the PC of Jellyfin (its magnet link stays with the relay): the request's id.</summary>
+    public async Task<string> TorLinkRequestAsync(string search, RelayHit hit, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { search, result = hit.Id, name = hit.Name, size = hit.Size }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
+    /// <summary>A pasted magnet link, sent to the PC of Jellyfin: the request's id.</summary>
+    public async Task<string> TorLinkRequestAsync(string magnet, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { magnet }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
+    /// <summary>A request not yet taken by the PC, withdrawn: true; false when the PC has it already; null when it is gone.</summary>
+    public async Task<bool?> TorLinkCancelAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync($"Mira/torlink/requests/{Uri.EscapeDataString(id)}", ct);
+        if (response.StatusCode == HttpStatusCode.Conflict) return false;
+        if (response.StatusCode == HttpStatusCode.NotFound && await HasRelayAsync(ct)) return null;
+        await CheckRelayAsync(response, ct);
+        return true;
+    }
+    /// <summary>pause, resume or delete (its files with it) a download TorLink has on the PC of Jellyfin.</summary>
+    public async Task TorLinkControlAsync(string id, string action, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/control", new { id, action }, RemoteProtocol.Json, ct);
+        await RelayIdAsync(response, ct);
+    }
+    private async Task<string> RelayIdAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        await CheckRelayAsync(response, ct);
+        using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        return body.RootElement.TryGetProperty("id", out var id) && id.GetString() is { Length: > 0 } text ? text : throw new IOException("Réponse Jellyfin vide.");
+    }
+    /// <summary>A 404 of a request is the request gone, not the relay missing, when the relay itself answers.</summary>
+    private async Task<bool> HasRelayAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("Mira/torlink", ct);
+        return response.IsSuccessStatusCode;
+    }
+    /// <summary>
+    /// 403 (not an administrator: never « session expirée ») and 404 (an extension without the relay) in Mira's words;
+    /// 400 with the relay's own reason; the rest as any answer of Jellyfin.
+    /// </summary>
+    private static async Task CheckRelayAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (RemoteLines.Refused(response.StatusCode) is { } refused) throw new RelayRefusedException(refused, response.StatusCode);
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            string? error = null;
+            try
+            {
+                using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+                if (body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("error", out var value) && value.ValueKind == JsonValueKind.String) error = value.GetString();
+            }
+            catch (JsonException) { }
+            throw new RelayRefusedException(string.IsNullOrWhiteSpace(error) ? "Le PC serveur a refusé cette demande." : error, response.StatusCode);
+        }
+        await CheckAsync(response);
+    }
+    /// <summary>
     /// The « Lecture impossible » reports Mira web left in Jellyfin's logs (<see cref="PlaybackFailures"/>), the latest
     /// first; null when this account may not read the logs (an administrator only).
     /// </summary>

@@ -66,3 +66,15 @@ test('what the screen says of the PC, a result, a request and a download', () =>
     ['moins d’une minute', 'moins d’une minute', '1 min', '12 min', '1 h 00', '1 h 00', '1 h 05', '1 jour', '1 jour', '3 jours']);
   assert.ok(controllable({ status: 'queued' }) && controllable({ status: 'paused' }) && !controllable({ status: 'completed' }));
 });
+
+test('the lines Mira for Windows and Mac write too (tests/fixtures/torlink-lines.json)', () => {
+  const lines = JSON.parse(readFileSync(new URL('../../../tests/fixtures/torlink-lines.json', import.meta.url), 'utf8'));
+  const now = Date.parse(lines.now);
+  for (const [bytes, text] of lines.sizes) assert.equal(size(bytes), text, `size ${bytes}`);
+  for (const [rate, text] of lines.speeds) assert.equal(speed(rate), text, `speed ${rate}`);
+  for (const { agent, text, ready } of lines.agents) assert.deepEqual(agentLine(agent, now), { text, ready }, `agent ${JSON.stringify(agent)}`);
+  for (const [hit, text] of lines.hits) assert.equal(hitLine(hit), text, `hit ${JSON.stringify(hit)}`);
+  for (const [request, text] of lines.requests) assert.equal(requestLine(request), text, `request ${request.state}`);
+  for (const [download, text] of lines.downloads) assert.equal(downloadLine(download), text, `download ${JSON.stringify(download)}`);
+  for (const [seconds, text] of lines.remaining) assert.equal(remaining(seconds), text, `remaining ${seconds}`);
+});
