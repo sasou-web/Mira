@@ -41,7 +41,7 @@ public partial class MainWindow
             {
                 var (notices, more) = NewEpisodes.Pick(episodes, series, mark);
                 foreach (var notice in notices) await NotifyAsync(client, notice);
-                if (more is not null) Toasts.Show("Nouveaux épisodes", more, null, () => Dispatcher.BeginInvoke(RestoreFromWindows));
+                if (more is not null) Toasts.Show(L("Nouveaux épisodes", "New episodes"), more, null, () => Dispatcher.BeginInvoke(RestoreFromWindows));
             }
             // A library without an episode to watch yet: the next one is news.
             var newest = NewEpisodes.Newest(episodes, seen) ?? DateTimeOffset.MinValue;

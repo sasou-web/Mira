@@ -44,7 +44,7 @@ public partial class MainWindow
         var shown = string.Join("\n", lines.Select(x => $"{x.Viewer.SessionId}|{x.Who}|{x.What}|{x.How}|{x.Viewer.CanStop}"));
         if (shown == _viewersShown) return;
         _viewersShown = shown;
-        ViewersStatus.Text = lines.Count == 0 ? "Personne ne regarde rien pour l’instant." : lines.Count == 1 ? "1 lecture en cours." : $"{lines.Count} lectures en cours.";
+        ViewersStatus.Text = lines.Count == 0 ? L("Personne ne regarde rien pour l’instant.", "No one is watching anything right now.") : lines.Count == 1 ? L("1 lecture en cours.", "Playing on 1 device.") : L($"{lines.Count} lectures en cours.", $"Playing on {lines.Count} devices.");
         ViewersPanel.Children.Clear();
         foreach (var (viewer, who, what, (how, why)) in lines)
         {
@@ -56,8 +56,8 @@ public partial class MainWindow
             var row = new DockPanel { Margin = new Thickness(0, 16, 0, 0) };
             if (viewer.CanStop && !viewer.Own)
             {
-                var stop = new Button { Content = "Arrêter", Style = (Style)FindResource("Quiet"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(14, 0, 0, 0) };
-                System.Windows.Automation.AutomationProperties.SetName(stop, $"Arrêter la lecture sur {who}");
+                var stop = new Button { Content = L("Arrêter", "Stop"), Style = (Style)FindResource("Quiet"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(14, 0, 0, 0) };
+                System.Windows.Automation.AutomationProperties.SetName(stop, L($"Arrêter la lecture sur {who}", $"Stop playback on {who}"));
                 stop.Click += async (_, _) => await StopViewerAsync(viewer, who, stop);
                 DockPanel.SetDock(stop, Dock.Right); row.Children.Add(stop);
             }
@@ -72,7 +72,7 @@ public partial class MainWindow
         var ct = _connectionLifetime.Token;
         try
         {
-            ViewersStatus.Text = await client.StopViewerAsync(viewer.SessionId, ct) ? $"Arrêt demandé à {who}." : "Seul un administrateur de Jellyfin peut arrêter la lecture d’un autre compte.";
+            ViewersStatus.Text = await client.StopViewerAsync(viewer.SessionId, ct) ? L($"Arrêt demandé à {who}.", $"Stop sent to {who}.") : L("Seul un administrateur de Jellyfin peut arrêter la lecture d’un autre compte.", "Only a Jellyfin administrator can stop another account’s playback.");
             await Task.Delay(1500, ct); _viewersShown = ""; await ShowViewersAsync();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }

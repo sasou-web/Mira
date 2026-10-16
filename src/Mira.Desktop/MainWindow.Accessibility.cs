@@ -91,14 +91,14 @@ public partial class MainWindow
         // you; the one about Jellyfin on this PC (stopped, starting) is over, and replaced.
         if (_noticeSticky && NoticeText.Text != _localJellyfinNotice) AddNotice(JellyfinBack); else SetNotice(JellyfinBack);
     }
-    private const string JellyfinBack = "Jellyfin répond de nouveau.";
+    private static string JellyfinBack => L("Jellyfin répond de nouveau.", "Jellyfin is answering again.");
     private async void OfflineRetry_Click(object sender, RoutedEventArgs e)
     {
         OfflineRetry.IsEnabled = false;
         try { await RefreshAsync(); }
         finally { OfflineRetry.IsEnabled = true; }
         if (_client is { } client && _sync is { } sync && SyncStatus.Offline(sync.LastSynced, _offlineSince))
-            await SayUnansweredAsync(client, null, "Jellyfin ne répond toujours pas. Mira réessaie tout seul et te le dira dès qu’il répond.");
+            await SayUnansweredAsync(client, null, L("Jellyfin ne répond toujours pas. Mira réessaie tout seul et te le dira dès qu’il répond.", "Jellyfin still isn’t answering. Mira keeps trying on its own and will tell you as soon as it answers."));
     }
 
     private DateTime _lastUnexpected = DateTime.MinValue;
@@ -111,7 +111,7 @@ public partial class MainWindow
         var now = DateTime.UtcNow;
         if (now - _lastUnexpected < TimeSpan.FromMinutes(1)) return;
         _lastUnexpected = now;
-        SetNotice("Une opération n’a pas abouti : Mira a rencontré une erreur imprévue, notée dans son journal. Tu peux réessayer ; ta progression déjà enregistrée est conservée.", "Ouvrir le journal", OpenErrorLog, sticky: true);
+        SetNotice(L("Une opération n’a pas abouti : Mira a rencontré une erreur imprévue, notée dans son journal. Tu peux réessayer ; ta progression déjà enregistrée est conservée.", "Something didn’t go through: Mira ran into an unexpected error, noted in its log. You can try again; the progress already saved is kept."), L("Ouvrir le journal", "Open the log"), OpenErrorLog, sticky: true);
     }
     private void OpenErrorLog()
     {
@@ -121,7 +121,7 @@ public partial class MainWindow
         {
             // No program opens .log files on this PC: its folder, with the file selected.
             try { using var _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{log}\"")); }
-            catch (Win32Exception) { SetNotice("Le journal de Mira est ici : " + log, null, null, sticky: true); }
+            catch (Win32Exception) { SetNotice(L("Le journal de Mira est ici : ", "Mira’s log is here: ") + log, null, null, sticky: true); }
         }
     }
 

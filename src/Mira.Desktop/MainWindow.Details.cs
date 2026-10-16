@@ -53,7 +53,7 @@ public partial class MainWindow
         RenderDetailText(item); EpisodesPanel.Children.Clear();
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
         EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
-        if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = "Chargement des épisodes…", Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
+        if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
         Motion.Reveal(DetailOverlay, 300, 14); UpdateHeroClock();
         // Focus moves into the page: Enter plays, Tab stays inside, Escape goes back.
         _ = Dispatcher.BeginInvoke(() => { if (version == _detailVersion) DetailPlay.Focus(); }, System.Windows.Threading.DispatcherPriority.Input);
@@ -67,7 +67,7 @@ public partial class MainWindow
         }
         else if (_demo)
         {
-            if (item.Type == "Series") { EpisodesPanel.Children.Clear(); EpisodesPanel.Children.Add(new TextBlock { Text = "Les épisodes de ta bibliothèque apparaîtront ici après connexion à Jellyfin.", Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap }); SeasonSelector.Visibility = Visibility.Collapsed; }
+            if (item.Type == "Series") { EpisodesPanel.Children.Clear(); EpisodesPanel.Children.Add(new TextBlock { Text = L("Les épisodes de ta bibliothèque apparaîtront ici après connexion à Jellyfin.", "The episodes of your library will show here once you’re connected to Jellyfin."), Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap }); SeasonSelector.Visibility = Visibility.Collapsed; }
             _similar = (_demoItems ?? DemoLibrary.Items()).Where(x => x.Id != item.Id && x.Genres.Intersect(item.Genres).Any()).ToList(); RenderSimilar();
         }
         await Task.WhenAll(tasks);
@@ -164,7 +164,7 @@ public partial class MainWindow
             if (version != _detailVersion) return;
             EpisodesPanel.Children.Clear();
             EpisodesPanel.Children.Add(new TextBlock { Text = Friendly(ex), Foreground = Palette.Get("Danger"), TextWrapping = TextWrapping.Wrap });
-            var retry = new Button { Content = "Réessayer", Style = (Style)FindResource("Quiet"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+            var retry = new Button { Content = L("Réessayer", "Try again"), Style = (Style)FindResource("Quiet"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
             retry.Click += async (_, _) => { _metadata?.Clear(); EpisodesPanel.Children.Clear(); await LoadDetailEpisodesAsync(item, ++_detailVersion); };
             EpisodesPanel.Children.Add(retry);
         }
@@ -250,10 +250,10 @@ public partial class MainWindow
     {
         if (_detail?.Type != "Series") return;
         var target = _detailNext ?? _episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? _episodes.FirstOrDefault(x => !x.UserData.Played);
-        if (target is null) { DetailPlay.Content = ActionLabel("play", _episodes.Count > 0 ? "Revoir depuis le début" : "Regarder"); DetailRestart.Visibility = Visibility.Collapsed; return; }
+        if (target is null) { DetailPlay.Content = ActionLabel("play", _episodes.Count > 0 ? L("Revoir depuis le début", "Watch again from the beginning") : L("Regarder", "Watch")); DetailRestart.Visibility = Visibility.Collapsed; return; }
         var resume = target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
         var code = $"S{target.ParentIndexNumber ?? 1:00} E{target.IndexNumber ?? 1:00}";
-        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(target, code) ?? $"{(resume ? "Reprendre" : "Regarder")} · {code}");
+        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(target, code) ?? L($"{(resume ? "Reprendre" : "Regarder")} · {code}", $"{(resume ? "Resume" : "Watch")} · {code}"));
         DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
         _detailNext ??= target;
     }
@@ -262,7 +262,7 @@ public partial class MainWindow
     {
         if (item.Type == "Series") { UpdateDetailPlayLabel(); return; }
         var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
-        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(item, "") ?? (resume ? "Reprendre" : item.UserData.Played ? "Revoir" : "Regarder"));
+        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(item, "") ?? (resume ? L("Reprendre", "Resume") : item.UserData.Played ? L("Revoir", "Watch again") : L("Regarder", "Watch")));
         DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
     }
     /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>
@@ -271,16 +271,16 @@ public partial class MainWindow
     private void RenderDetailText(MediaItem item)
     {
         DetailTitle.Text = item.DisplayTitle;
-        var kind = item.Type switch { "Series" => "SÉRIE", "Episode" => "ÉPISODE", _ => "FILM" };
+        var kind = item.Type switch { "Series" => L("SÉRIE", "SERIES"), "Episode" => L("ÉPISODE", "EPISODE"), _ => L("FILM", "MOVIE") };
         DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
         RenderDetailMeta();
-        DetailOverview.Text = PlainText(item.Overview ?? "Aucun résumé disponible pour ce titre."); DetailGenres.Text = item.Genres.Length > 0 ? string.Join("  ·  ", item.Genres) : "Non renseignés";
+        DetailOverview.Text = PlainText(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title.")); DetailGenres.Text = item.Genres.Length > 0 ? string.Join("  ·  ", item.Genres) : L("Non renseignés", "Not listed");
         ShowPeople(DetailCast, item.CastPeople, false); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowDetailPlayLabel(item);
-        DetailRestart.Content ??= ActionLabel("refresh", "Depuis le début");
-        FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris");
-        WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? "Marquer comme non vu" : item.Type == "Series" ? "Marquer la série comme vue" : "Marquer comme vu");
+        DetailRestart.Content ??= ActionLabel("refresh", L("Depuis le début", "From the beginning"));
+        FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"));
+        WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"));
         ShowTogetherButton(); ShowOfflineButton();
     }
     /// <summary>Length and ratings, then the picture of the file Lecture plays and when it ends (the episode it picks up at, on a series).</summary>
@@ -290,7 +290,7 @@ public partial class MainWindow
         var target = item.Type == "Series" ? _detailNext : item;
         var file = item.Type != "Series" ? MediaQuality.Label(item) : _detailFile is { } known && known.Id == target?.Id ? MediaQuality.Label(known.Source) : null;
         var resume = target is not null && target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
-        DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is > 0 ? $"★ {item.CommunityRating:0.0}" : "", item.OfficialRating ?? "",
+        DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is { } rating and > 0 ? $"★ {Number(rating, "0.0")}" : "", item.OfficialRating ?? "",
             file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
     }
     private static StackPanel ActionLabel(string icon, string label)
@@ -302,8 +302,8 @@ public partial class MainWindow
         var page = (SeasonSelector.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
         // The whole season's count, also on a slice of a long one.
-        EpisodeHeading.Text = $"Épisodes  ·  {(page is null ? 0 : _episodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
-        if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = "Aucun épisode disponible dans cette bibliothèque.", Foreground = Palette.Get("Muted") }); return; }
+        EpisodeHeading.Text = $"{L("Épisodes", "Episodes")}  ·  {(page is null ? 0 : _episodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
+        if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Palette.Get("Muted") }); return; }
         foreach (var episode in episodes)
         {
             var isNext = _detailNext?.Id == episode.Id; var wanted = _detailEpisode?.Id == episode.Id;
@@ -322,11 +322,13 @@ public partial class MainWindow
             grid.Children.Add(copy);
             var status = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right }; Grid.SetColumn(status, 2);
             status.Children.Add(new TextBlock { Text = episode.DurationLabel, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Right });
-            var state = episode.UserData.Played ? "✓ Vu" : isNext ? episode.Progress > 0 ? "En cours" : "À suivre" : null;
+            var state = episode.UserData.Played ? L("✓ Vu", "✓ Watched") : isNext ? episode.Progress > 0 ? L("En cours", "In progress") : L("À suivre", "Up next") : null;
             if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 11, Foreground = Palette.Get(episode.UserData.Played ? "Success" : "TextBody"), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Right });
             if (CanKeep(episode)) status.Children.Add(EpisodeCopyLabel(episode));
             grid.Children.Add(status); button.Content = grid;
-            AutomationProperties.SetName(button, $"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}{(CopyState(episode.Id) is { } kept ? ", " + kept.ToLowerInvariant() : "")}");
+            var keptText = CopyState(episode.Id) is { } kept ? ", " + kept.ToLowerInvariant() : "";
+            AutomationProperties.SetName(button, L($"Épisode {episode.IndexNumber?.ToString() ?? ""} : {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}{keptText}",
+                $"Episode {episode.IndexNumber?.ToString() ?? ""}: {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", watched" : isNext ? ", up next" : "")}{keptText}"));
             button.Click += async (_, _) => await PlayAsync(episode, chosen: true);
             button.ContextMenu = EpisodeMenu(episode);
             EpisodesPanel.Children.Add(button);
@@ -343,9 +345,9 @@ public partial class MainWindow
     {
         var menu = new ContextMenu();
         var resume = episode.Progress > 0 && !episode.UserData.Played && _settings.RememberPosition;
-        menu.Items.Add(MenuAction(resume ? "Reprendre" : "Regarder", "play", async () => await PlayAsync(episode, chosen: true)));
-        if (resume) menu.Items.Add(MenuAction("Lire depuis le début", "refresh", async () => await PlayAsync(episode, fromStart: true, chosen: true)));
-        menu.Items.Add(MenuAction(episode.UserData.Played ? "Marquer comme non vu" : "Marquer comme vu", episode.UserData.Played ? "refresh" : "check", async () => { await SetPlayedAsync(episode, !episode.UserData.Played); await RefreshDetailAsync(); }));
+        menu.Items.Add(MenuAction(resume ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", async () => await PlayAsync(episode, chosen: true)));
+        if (resume) menu.Items.Add(MenuAction(L("Lire depuis le début", "Play from the beginning"), "refresh", async () => await PlayAsync(episode, fromStart: true, chosen: true)));
+        menu.Items.Add(MenuAction(episode.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), episode.UserData.Played ? "refresh" : "check", async () => { await SetPlayedAsync(episode, !episode.UserData.Played); await RefreshDetailAsync(); }));
         if (OfflineMenuItem(episode) is { } offline) menu.Items.Add(offline);
         return menu;
     }
@@ -373,7 +375,7 @@ public partial class MainWindow
             var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(person.Name))
             {
                 Foreground = target.Foreground, TextDecorations = null, Cursor = Cursors.Hand,
-                ToolTip = (directed ? "Les titres réalisés par " : "Les titres avec ") + person.Name + " dans ta bibliothèque"
+                ToolTip = L((directed ? "Les titres réalisés par " : "Les titres avec ") + person.Name + " dans ta bibliothèque", (directed ? "Titles directed by " : "Titles with ") + person.Name + " in your library")
             };
             // Underlined under the pointer and with the keyboard focus, ringed like the other controls (WPF's own ring is
             // a black dotted line, unseen on this page).

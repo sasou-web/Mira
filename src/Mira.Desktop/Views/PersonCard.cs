@@ -24,7 +24,7 @@ public sealed class PersonCard : Button
         Background = Brushes.Transparent; Padding = new Thickness(0); BorderThickness = new Thickness(0);
         Width = 112; Margin = new Thickness(0, 0, 18, 22); VerticalContentAlignment = VerticalAlignment.Top;
         System.Windows.Automation.AutomationProperties.SetName(this, person.Name);
-        ToolTip = $"Les titres avec {person.Name} dans ta bibliothèque";
+        ToolTip = L($"Les titres avec {person.Name} dans ta bibliothèque", $"Titles with {person.Name} in your library");
         _ring.Stroke = Palette.Get("Text");
         var circle = new Grid { Width = Size, Height = Size, HorizontalAlignment = HorizontalAlignment.Center };
         circle.Children.Add(new Ellipse { Fill = Palette.Get("Raised") });

@@ -36,7 +36,7 @@ public sealed class MediaCard : Button
         Background = Brushes.Transparent; Padding = new Thickness(0);
         BorderThickness = new Thickness(0); HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Top; Margin = new Thickness(0, 0, 22, wide ? 5 : 30);
-        System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Progress > 0 && !item.UserData.Played ? "Reprendre " : "Regarder " : "Ouvrir ") + item.DisplayTitle + (item.UserData.Played ? ", vu" : item.EpisodesToWatchText is { } toWatch ? ", " + toWatch : ""));
+        System.Windows.Automation.AutomationProperties.SetName(this, (wide ? item.Progress > 0 && !item.UserData.Played ? L("Reprendre ", "Resume ") : L("Regarder ", "Watch ") : L("Ouvrir ", "Open ")) + item.DisplayTitle + (item.UserData.Played ? L(", vu", ", watched") : item.EpisodesToWatchText is { } toWatch ? ", " + toWatch : ""));
         var root = new StackPanel();
         _visual = new Grid { Background = Palette.Get("Raised"), ClipToBounds = true };
         var placeholder = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20) };
@@ -90,10 +90,11 @@ public sealed class MediaCard : Button
         root.Children.Add(new TextBlock { Text = item.DisplayTitle, FontSize = 15, FontWeight = FontWeights.ExtraBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 21, Height = wide ? 23 : 42, Margin = new Thickness(0, 12, 3, 0), Foreground = Brushes.White });
         // Resume cards say how much is left, which is what matters when picking something to finish.
         var remaining = wide && item.Progress > 0 && !item.UserData.Played && item.RunTimeTicks is > 0
-            ? "Reste " + MediaItem.FormatDuration(TimeSpan.FromTicks(Math.Max(TimeSpan.TicksPerMinute, item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks))) : null;
+            ? TimeLeft(MediaItem.FormatDuration(TimeSpan.FromTicks(Math.Max(TimeSpan.TicksPerMinute, item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks)))) : null;
+        static string TimeLeft(string time) => L("Reste " + time, time + " left");
         var meta = wide && item.Type == "Episode"
             ? string.Join("  ·  ", new[] { $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00}", remaining, item.Name }.Where(x => !string.IsNullOrEmpty(x)))
-            : remaining ?? string.Join("   ·   ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.Type == "Series" ? "Série" : item.Type == "BoxSet" ? "Saga" : item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)));
+            : remaining ?? string.Join("   ·   ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.Type == "Series" ? L("Série", "Series") : item.Type == "BoxSet" ? L("Saga", "Collection") : item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)));
         root.Children.Add(new TextBlock { Text = meta, Foreground = Palette.Get("Muted"), FontSize = 12, FontWeight = FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 7, 0, 0) });
         Content = root; Resize(wide ? 290 : 185);
     }

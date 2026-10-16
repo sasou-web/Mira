@@ -23,7 +23,7 @@ namespace Mira.Desktop;
 /// </summary>
 public partial class MainWindow
 {
-    private const string NoSyncPlay = "Jellyfin ne permet pas à ce compte de regarder ensemble (tableau de bord → Utilisateurs → SyncPlay).";
+    private static string NoSyncPlay => L("Jellyfin ne permet pas à ce compte de regarder ensemble (tableau de bord → Utilisateurs → SyncPlay).", "Jellyfin doesn’t let this account watch together (Dashboard → Users → SyncPlay).");
     private Together.Group? _group;
     /// <summary>The group's title, as Jellyfin's last PlayQueue put it on.</summary>
     private Together.Entry? _groupQueue;
@@ -103,7 +103,7 @@ public partial class MainWindow
             case "NotInGroup" or "GroupDoesNotExist":
                 if (_group is null) GroupGone(); else RecoverGroup(client);
                 break;
-            case "LibraryAccessDenied": SetNotice("Un membre du groupe n’a pas accès à ce titre dans Jellyfin."); break;
+            case "LibraryAccessDenied": SetNotice(L("Un membre du groupe n’a pas accès à ce titre dans Jellyfin.", "Someone in the group can’t access this title in Jellyfin.")); break;
             case "PlayQueue": _ = GroupQueueAsync(client, body); break;
         }
     }
@@ -188,7 +188,7 @@ public partial class MainWindow
                 {
                     var plan = Together.RejoinPlan(await client.SyncGroupsAsync(ct), lost, _groupMade);
                     if (!ReferenceEquals(client, _client) || !ReferenceEquals(_group, lost)) return;
-                    if (plan is null) { GroupGone("Le groupe n’existe plus."); return; }
+                    if (plan is null) { GroupGone(L("Le groupe n’existe plus.", "The group no longer exists.")); return; }
                     await (plan.Join is { } id ? client.SyncJoinAsync(id, ct) : client.SyncNewAsync(plan.Create!, ct));
                     await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6), ct));
                 }
@@ -196,7 +196,7 @@ public partial class MainWindow
                 finally { if (ReferenceEquals(_groupJoined, joined)) _groupJoined = null; }
                 if (!ReferenceEquals(_group, lost)) return;
             }
-            GroupGone("Le groupe n’existe plus.");
+            GroupGone(L("Le groupe n’existe plus.", "The group no longer exists."));
         }
     }
 
@@ -312,7 +312,7 @@ public partial class MainWindow
         try { name = Together.TitleName(await client.ItemAsync(queue.ItemId, _connectionLifetime.Token)); }
         catch (Exception ex) when (IsExpected(ex)) { }
         if (!ReferenceEquals(client, _client) || !ReferenceEquals(queue, _groupQueue) || _group is null) return;
-        SetNotice(Together.ReplaceQuestion(name) + " Le groupe le regarde en ce moment.", "Remplacer", () => _ = PlayAsync(item, fromStart: fromStart));
+        SetNotice(Together.ReplaceQuestion(name) + L(" Le groupe le regarde en ce moment.", " The group is watching it right now."), L("Remplacer", "Replace"), () => _ = PlayAsync(item, fromStart: fromStart));
     }
     private async Task LeaveEmptyPlayerAsync()
     {
@@ -399,7 +399,7 @@ public partial class MainWindow
     private void ShowTogetherButton()
     {
         TogetherButton.Visibility = _demo ? Visibility.Collapsed : Visibility.Visible;
-        TogetherButton.Content = ActionLabel("users", _group is { } group ? "Ensemble · " + Together.People(Math.Max(1, group.Participants.Count)) : "Regarder ensemble");
+        TogetherButton.Content = ActionLabel("users", _group is { } group ? L("Ensemble · ", "Together · ") + Together.People(Math.Max(1, group.Participants.Count)) : L("Regarder ensemble", "Watch together"));
     }
     private async void Together_Click(object sender, RoutedEventArgs e)
     {
@@ -407,9 +407,9 @@ public partial class MainWindow
         var menu = new ContextMenu { PlacementTarget = TogetherButton, Placement = PlacementMode.Bottom };
         if (_group is { } group)
         {
-            menu.Items.Add(new MenuItem { Header = Together.GroupText(group) + (group.Participants.Count > 0 ? " : " + string.Join(", ", group.Participants) : ""), Tag = "users", IsEnabled = false });
-            menu.Items.Add(MenuAction("Inviter quelqu’un…", "link", () => { ShowInvite(); return Task.CompletedTask; }));
-            menu.Items.Add(MenuAction("Quitter le groupe", "close", LeaveGroupAsync));
+            menu.Items.Add(new MenuItem { Header = Together.GroupText(group) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : ""), Tag = "users", IsEnabled = false });
+            menu.Items.Add(MenuAction(L("Inviter quelqu’un…", "Invite someone…"), "link", () => { ShowInvite(); return Task.CompletedTask; }));
+            menu.Items.Add(MenuAction(L("Quitter le groupe", "Leave the group"), "close", LeaveGroupAsync));
         }
         else
         {
@@ -419,9 +419,9 @@ public partial class MainWindow
             catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
             if (!ReferenceEquals(client, _client) || DetailOverlay.Visibility != Visibility.Visible) return;
             foreach (var g in groups)
-                menu.Items.Add(MenuAction($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", "users", () => EnterGroupAsync(c => c.SyncJoinAsync(g.GroupId), invite: false)));
+                menu.Items.Add(MenuAction(L($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", $"Join “{g.GroupName}” · {Together.People(Math.Max(1, g.Participants.Count))}"), "users", () => EnterGroupAsync(c => c.SyncJoinAsync(g.GroupId), invite: false)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
-            menu.Items.Add(MenuAction("Créer un groupe et inviter…", "plus", () => EnterGroupAsync(c => c.SyncNewAsync(Together.GroupName(c.Connection.UserName)), invite: true, made: true)));
+            menu.Items.Add(MenuAction(L("Créer un groupe et inviter…", "Create a group and invite…"), "plus", () => EnterGroupAsync(c => c.SyncNewAsync(Together.GroupName(c.Connection.UserName)), invite: true, made: true)));
         }
         menu.IsOpen = true;
     }
@@ -439,9 +439,9 @@ public partial class MainWindow
         {
             await start(client);
             await Task.WhenAny(joined.Task, Task.Delay(TimeSpan.FromSeconds(6)));
-            if (_group is null && ReferenceEquals(client, _client)) SetNotice("Jellyfin n’a pas répondu. Réessaie dans un instant.");
+            if (_group is null && ReferenceEquals(client, _client)) SetNotice(L("Jellyfin n’a pas répondu. Réessaie dans un instant.", "Jellyfin didn’t answer. Try again in a moment."));
             else if (_group is { } group && invite) ShowInvite();
-            else if (_group is { } joinedGroup) SetNotice($"Tu es dans « {joinedGroup.GroupName} » : Regarder lance le titre pour tout le groupe, au même moment chez chacun.");
+            else if (_group is { } joinedGroup) SetNotice(L($"Tu es dans « {joinedGroup.GroupName} » : Regarder lance le titre pour tout le groupe, au même moment chez chacun.", $"You’re in “{joinedGroup.GroupName}”: Watch starts the title for the whole group, at the same moment for everyone."));
         }
         catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
@@ -464,13 +464,13 @@ public partial class MainWindow
     {
         if (_group is not { } group || _client is not { } client) return;
         var link = Together.InviteLink(ReachableServer(client), group.GroupId, Together.GroupHost(group.GroupName));
-        InviteLead.Text = $"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».";
+        InviteLead.Text = L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”.");
         InviteLink.Text = link;
         InviteSteps.Children.Clear();
         var steps = Together.InviteSteps(link);
         for (var i = 0; i < steps.Count; i++)
             InviteSteps.Children.Add(new TextBlock { Text = $"{i + 1}. {steps[i]}", FontSize = 13, LineHeight = 19, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
-        InviteCopy.Content = ActionLabel("link", "Copier le lien");
+        InviteCopy.Content = ActionLabel("link", L("Copier le lien", "Copy link"));
         Motion.Reveal(InviteOverlay, 260, 0); Motion.Reveal(InviteCard, 360, 16);
         _ = ShowInviteAddFriendAsync(client);
         _ = Dispatcher.BeginInvoke(() => InviteCopy.Focus(), DispatcherPriority.Input);
@@ -487,8 +487,8 @@ public partial class MainWindow
     }
     private void InviteCopy_Click(object sender, RoutedEventArgs e)
     {
-        try { Clipboard.SetText(InviteLink.Text); SetNotice("Lien copié : envoie-le à ton ami."); }
-        catch (System.Runtime.InteropServices.ExternalException) { SetNotice("Le presse-papiers est occupé : réessaie."); }
+        try { Clipboard.SetText(InviteLink.Text); SetNotice(L("Lien copié : envoie-le à ton ami.", "Link copied: send it to your friend.")); }
+        catch (System.Runtime.InteropServices.ExternalException) { SetNotice(L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again.")); }
     }
     private async void InviteClose_Click(object sender, RoutedEventArgs e) => await CloseInviteAsync();
     private async Task CloseInviteAsync() { await Motion.HideAsync(InviteOverlay); if (DetailOverlay.Visibility == Visibility.Visible) TogetherButton.Focus(); }
@@ -500,7 +500,7 @@ public partial class MainWindow
     /// </summary>
     internal void OpenLink(string text)
     {
-        if (Together.ParseAppLink(text) is not { } invite) { SetNotice("Mira ne sait pas ouvrir ce lien."); return; }
+        if (Together.ParseAppLink(text) is not { } invite) { SetNotice(L("Mira ne sait pas ouvrir ce lien.", "Mira can’t open this link.")); return; }
         _inviteWait?.Cancel(); _inviteWait = null;
         _invite = invite;
         _ = OfferInviteAsync();
@@ -527,11 +527,11 @@ public partial class MainWindow
         var answer = Together.Answer(invite, groups, client.Connection.Server, _group?.GroupId);
         RestoreFromWindows();
         if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
-            SetNotice(answer.Text, "Rejoindre", () => _ = EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false));
+            SetNotice(answer.Text, L("Rejoindre", "Join"), () => _ = EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false));
         else if (answer.Kind == Together.InviteKind.OtherServer)
-            SetNotice(answer.Text, "Ouvrir dans le navigateur", () => OpenInBrowser(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)));
+            SetNotice(answer.Text, L("Ouvrir dans le navigateur", "Open in browser"), () => OpenInBrowser(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)));
         else if (answer.Kind == Together.InviteKind.Waiting)
-            SetNotice(answer.Text, "Attendre", () => WaitForInvite(client, invite));
+            SetNotice(answer.Text, L("Attendre", "Wait"), () => WaitForInvite(client, invite));
         else SetNotice(answer.Text);
     }
     /// <summary>
@@ -544,7 +544,7 @@ public partial class MainWindow
         _inviteWait?.Cancel();
         var wait = _inviteWait = CancellationTokenSource.CreateLinkedTokenSource(_connectionLifetime.Token);
         wait.CancelAfter(TimeSpan.FromHours(3));
-        SetNotice(Together.WaitingLead, "Annuler", () => wait.Cancel(), sticky: false);
+        SetNotice(Together.WaitingLead, L("Annuler", "Cancel"), () => wait.Cancel(), sticky: false);
         _ = WaitAsync();
         async Task WaitAsync()
         {
@@ -567,7 +567,7 @@ public partial class MainWindow
     private void OpenInBrowser(string link)
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(link) { UseShellExecute = true })?.Dispose(); }
-        catch (System.ComponentModel.Win32Exception) { SetNotice("Windows n’a pas pu ouvrir le navigateur : " + link); }
+        catch (System.ComponentModel.Win32Exception) { SetNotice(L("Windows n’a pas pu ouvrir le navigateur : ", "Windows couldn’t open the browser: ") + link); }
     }
     /// <summary>Jellyfin's groups as Home last read them, for the account that read them.</summary>
     private (JellyfinClient? Client, List<Together.Group> Groups) _homeGroups = (null, []);
@@ -598,7 +598,7 @@ public partial class MainWindow
         if (open is null) return;
         HomeGroupName.Text = open.GroupName; HomeGroupPeople.Text = " · " + Together.People(Math.Max(1, open.Participants.Count));
         HomeGroupJoin.Tag = open.GroupId;
-        System.Windows.Automation.AutomationProperties.SetName(HomeGroupJoin, $"Rejoindre « {open.GroupName} »");
+        System.Windows.Automation.AutomationProperties.SetName(HomeGroupJoin, L($"Rejoindre « {open.GroupName} »", $"Join “{open.GroupName}”"));
     }
     /// <summary>The group joined, and its title put on here once it plays one (GroupQueueAsync).</summary>
     private async void HomeGroupJoin_Click(object sender, RoutedEventArgs e)
@@ -614,7 +614,7 @@ public partial class MainWindow
             catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
             if (!ReferenceEquals(client, _client)) return;
             _homeGroups = (client, groups); ShowHomeGroup();
-            if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { SetNotice("Ce groupe n’existe plus."); return; }
+            if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { SetNotice(L("Ce groupe n’existe plus.", "This group no longer exists.")); return; }
             await EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false);
         }
         finally { HomeGroupJoin.IsEnabled = true; }
