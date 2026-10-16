@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -42,7 +43,7 @@ public sealed class DetailPage : Page
         _header.Children.Add(_backdrop);
         _header.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F2070708", 0), ("#A0070708", 0.45), ("#20070708", 0.8)) });
         _header.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#00070708", 0.35), ("#FF070708", 1)) });
-        var back = Ui.IconButton("back", "Retour · Échap", () => Shell.Back(), "icon", 24);
+        var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => Shell.Back(), "icon", 24);
         back.HorizontalAlignment = HorizontalAlignment.Left; back.VerticalAlignment = VerticalAlignment.Top; back.Margin = new Thickness(40, 26 + shell.TitleBarInset, 0, 0);
         back.Width = back.Height = 46; back.Background = Ui.Brush("#66000000");
         _header.Children.Add(_top); _header.Children.Add(back);
@@ -51,7 +52,7 @@ public sealed class DetailPage : Page
         Content = new ScrollViewer { Content = page };
         SizeChanged += (_, e) => _header.Height = Math.Clamp(e.NewSize.Height * 0.66, 430, 720);
         _seasons.SelectionChanged += (_, _) => { if (!_filling) RenderEpisodes(); };
-        Avalonia.Automation.AutomationProperties.SetName(_seasons, "Saison");
+        Avalonia.Automation.AutomationProperties.SetName(_seasons, L("Saison", "Season"));
     }
     private static LinearGradientBrush Gradient(double x1, double y1, double x2, double y2, params (string Color, double Offset)[] stops)
     {
@@ -118,9 +119,9 @@ public sealed class DetailPage : Page
         _top.Children.Add(logo ?? new TextBlock { Text = _item.Name, FontSize = 54, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, LineHeight = 60 });
         var meta = new List<string>();
         if (_item.ProductionYear is { } year) meta.Add(year.ToString());
-        if (_item.Type == "Series") { if (_item.ChildCount is > 0) meta.Add(_item.ChildCount == 1 ? "1 saison" : $"{_item.ChildCount} saisons"); }
+        if (_item.Type == "Series") { if (_item.ChildCount is > 0) meta.Add(Count(_item.ChildCount.Value, "saison", "saisons", "season", "seasons")); }
         else if (_item.DurationLabel.Length > 0) meta.Add(_item.DurationLabel);
-        if (_item.CommunityRating is { } rating) meta.Add($"★ {rating:0.0}");
+        if (_item.CommunityRating is { } rating) meta.Add("★ " + Number(rating, "0.0"));
         if (!string.IsNullOrWhiteSpace(_item.OfficialRating)) meta.Add(_item.OfficialRating!);
         // The picture of the file Lecture plays and when it ends: the film's, or the episode's it picks up at.
         var played = _item.Type == "Series" ? SeriesTarget : _item;
@@ -132,21 +133,22 @@ public sealed class DetailPage : Page
         if (_item.Type == "Series")
         {
             var target = SeriesTarget;
-            var label = target is null ? "Lecture" : GroupPlayLabel(target, $"S{target.ParentIndexNumber ?? 1} É{target.IndexNumber ?? 1}")
-                ?? (target.Progress > 0 && !target.UserData.Played ? "Reprendre" : "Regarder") + $" · S{target.ParentIndexNumber ?? 1} É{target.IndexNumber ?? 1}";
+            var code = target is null ? "" : $"S{target.ParentIndexNumber ?? 1} {L("É", "E")}{target.IndexNumber ?? 1}";
+            var label = target is null ? L("Lecture", "Play") : GroupPlayLabel(target, code)
+                ?? (target.Progress > 0 && !target.UserData.Played ? L("Reprendre", "Resume") : L("Regarder", "Watch")) + " · " + code;
             actions.Children.Add(Ui.Action(label, "play", "primary", () => { if (SeriesTarget is { } episode) _ = Shell.PlayAsync(episode); else _ = Shell.PlayAsync(_item); }));
         }
         else
         {
             var resume = _item.Progress > 0 && !_item.UserData.Played;
-            actions.Children.Add(Ui.Action(GroupPlayLabel(_item, "") ?? (resume ? "Reprendre · " + Ui.Remaining(_item).ToLowerInvariant() : "Lecture"), "play", "primary", () => _ = Shell.PlayAsync(_item)));
-            if (resume) actions.Children.Add(Ui.Action("Depuis le début", "refresh", "", () => _ = Shell.PlayAsync(_item, fromStart: true)));
+            actions.Children.Add(Ui.Action(GroupPlayLabel(_item, "") ?? (resume ? L("Reprendre · ", "Resume · ") + Ui.Remaining(_item).ToLowerInvariant() : L("Lecture", "Play")), "play", "primary", () => _ = Shell.PlayAsync(_item)));
+            if (resume) actions.Children.Add(Ui.Action(L("Depuis le début", "From the beginning"), "refresh", "", () => _ = Shell.PlayAsync(_item, fromStart: true)));
         }
-        actions.Children.Add(Ui.Action(_item.UserData.IsFavorite ? "Dans tes favoris" : "Ajouter aux favoris", _item.UserData.IsFavorite ? "heart-filled" : "heart", "", () => _ = Shell.SetFavoriteAsync(_item, !_item.UserData.IsFavorite)));
-        actions.Children.Add(Ui.Action(_item.UserData.Played ? "Vu" : "Marquer comme vu", "check", _item.UserData.Played ? "chip on" : "", () => _ = Shell.SetPlayedAsync(_item, !_item.UserData.Played)));
+        actions.Children.Add(Ui.Action(_item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"), _item.UserData.IsFavorite ? "heart-filled" : "heart", "", () => _ = Shell.SetFavoriteAsync(_item, !_item.UserData.IsFavorite)));
+        actions.Children.Add(Ui.Action(_item.UserData.Played ? L("Vu", "Watched") : L("Marquer comme vu", "Mark as watched"), "check", _item.UserData.Played ? "chip on" : "", () => _ = Shell.SetPlayedAsync(_item, !_item.UserData.Played)));
         var group = Shell.Group.Active ? Shell.Group.Group : null;
         Button? together = null;
-        together = Ui.Action(group is null ? "Regarder ensemble" : "Ensemble · " + Together.People(Math.Max(1, group.Participants.Count)), "users", group is null ? "" : "chip on", () => _ = TogetherMenuAsync(together!));
+        together = Ui.Action(group is null ? L("Regarder ensemble", "Watch together") : L("Ensemble · ", "Together · ") + Together.People(Math.Max(1, group.Participants.Count)), "users", group is null ? "" : "chip on", () => _ = TogetherMenuAsync(together!));
         actions.Children.Add(together);
         _top.Children.Add(actions);
     }
@@ -169,9 +171,9 @@ public sealed class DetailPage : Page
         }
         if (watch.Active && watch.Group is { } group)
         {
-            Add(Together.GroupText(group) + (group.Participants.Count > 0 ? " : " + string.Join(", ", group.Participants) : ""), null);
-            Add("Inviter quelqu’un…", () => _ = watch.InviteAsync());
-            Add("Quitter le groupe", () => _ = watch.LeaveAsync());
+            Add(Together.GroupText(group) + (group.Participants.Count > 0 ? L(" : ", ": ") + string.Join(", ", group.Participants) : ""), null);
+            Add(L("Inviter quelqu’un…", "Invite someone…"), () => _ = watch.InviteAsync());
+            Add(L("Quitter le groupe", "Leave the group"), () => _ = watch.LeaveAsync());
         }
         else
         {
@@ -181,9 +183,9 @@ public sealed class DetailPage : Page
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
             if (!ReferenceEquals(session, Shell.Session) || Shell.Current != this) return;
             foreach (var g in groups)
-                Add($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
+                Add(L($"Rejoindre « {g.GroupName} »", $"Join “{g.GroupName}”") + $" · {Together.People(Math.Max(1, g.Participants.Count))}", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
-            Add("Créer un groupe et inviter…", () => _ = watch.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct), invite: true, made: true));
+            Add(L("Créer un groupe et inviter…", "Create a group and invite…"), () => _ = watch.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct), invite: true, made: true));
         }
         menu.Open(button);
     }
@@ -196,9 +198,9 @@ public sealed class DetailPage : Page
         if (!string.IsNullOrWhiteSpace(_item.Overview)) left.Children.Add(new TextBlock { Text = _item.Overview, FontSize = 16, LineHeight = 26, Foreground = Ui.Brush("#C9C9CF"), TextWrapping = TextWrapping.Wrap });
         columns.Children.Add(left);
         var side = new StackPanel { Spacing = 22 }; Grid.SetColumn(side, 2);
-        if (_item.Genres.Length > 0) side.Children.Add(Section("GENRES", new TextBlock { Text = string.Join("  ·  ", _item.Genres), FontSize = 15, TextWrapping = TextWrapping.Wrap }));
-        if (_item.CastPeople.Length > 0) side.Children.Add(Section("AVEC", People(_item.CastPeople, director: false)));
-        if (_item.DirectorPeople.Length > 0) side.Children.Add(Section(_item.DirectorPeople.Length > 1 ? "RÉALISATION" : "RÉALISATION", People(_item.DirectorPeople, director: true)));
+        if (_item.Genres.Length > 0) side.Children.Add(Section(L("GENRES", "GENRES"), new TextBlock { Text = string.Join("  ·  ", _item.Genres), FontSize = 15, TextWrapping = TextWrapping.Wrap }));
+        if (_item.CastPeople.Length > 0) side.Children.Add(Section(L("AVEC", "STARRING"), People(_item.CastPeople, director: false)));
+        if (_item.DirectorPeople.Length > 0) side.Children.Add(Section(L("RÉALISATION", _item.DirectorPeople.Length > 1 ? "DIRECTORS" : "DIRECTOR"), People(_item.DirectorPeople, director: true)));
         columns.Children.Add(side);
         _body.Children.Add(columns);
         if (_item.Type == "Series") _body.Children.Add(EpisodeSection());
@@ -216,7 +218,7 @@ public sealed class DetailPage : Page
             if (person.Id is { Length: > 0 })
             {
                 var link = new Button { Content = person.Name, Classes = { "link" } };
-                ToolTip.SetTip(link, director ? $"Les titres réalisés par {person.Name}" : $"Les titres avec {person.Name}");
+                ToolTip.SetTip(link, director ? L($"Les titres réalisés par {person.Name}", $"Titles directed by {person.Name}") : L($"Les titres avec {person.Name}", $"Titles with {person.Name}"));
                 link.Click += (_, _) => Shell.OpenPerson(person, director);
                 name = link;
             }
@@ -254,8 +256,8 @@ public sealed class DetailPage : Page
         if (Shell.Session is not { } session) return;
         var page = (_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage;
         var episodes = page is null ? [] : EpisodePages.Episodes(_allEpisodes, page);
-        _episodeHeading.Text = $"Épisodes  ·  {(page is null ? 0 : _allEpisodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
-        if (episodes.Count == 0) { _episodes.Children.Add(new TextBlock { Text = "Aucun épisode disponible dans cette bibliothèque.", Foreground = Ui.Muted }); return; }
+        _episodeHeading.Text = L("Épisodes", "Episodes") + $"  ·  {(page is null ? 0 : _allEpisodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
+        if (episodes.Count == 0) { _episodes.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Ui.Muted }); return; }
         foreach (var episode in episodes) _episodes.Children.Add(EpisodeRow(session, episode));
     }
     private Button EpisodeRow(Session session, MediaItem episode)
@@ -274,7 +276,7 @@ public sealed class DetailPage : Page
             new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             new TextBlock { Text = episode.Overview ?? "", FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19 });
         copy.VerticalAlignment = VerticalAlignment.Center; copy.Margin = new Thickness(20, 0);
-        var state = episode.UserData.Played ? "✓ Vu" : isNext ? episode.Progress > 0 ? "En cours" : "À suivre" : null;
+        var state = episode.UserData.Played ? L("✓ Vu", "✓ Watched") : isNext ? episode.Progress > 0 ? L("En cours", "In progress") : L("À suivre", "Up next") : null;
         var status = Ui.Column(8, new TextBlock { Text = episode.DurationLabel, FontSize = 12.5, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Right });
         if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 12, Foreground = Ui.Brush(episode.UserData.Played ? "#A0C7A8" : "#DADAE0"), HorizontalAlignment = HorizontalAlignment.Right });
         status.VerticalAlignment = VerticalAlignment.Center; status.Width = 90;
@@ -284,7 +286,7 @@ public sealed class DetailPage : Page
         if (isNext || _found?.Id == episode.Id) button.Background = Ui.Brush("#18181B");
         button.Click += (_, _) => _ = Shell.PlayAsync(episode);
         button.ContextMenu = Shell.Menu(episode);
-        Avalonia.Automation.AutomationProperties.SetName(button, $"Épisode {episode.IndexNumber}, {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? ", vu" : isNext ? ", à suivre" : "")}");
+        Avalonia.Automation.AutomationProperties.SetName(button, $"{L("Épisode", "Episode")} {episode.IndexNumber}, {episode.Name}, {episode.DurationLabel}{(episode.UserData.Played ? L(", vu", ", watched") : isNext ? L(", à suivre", ", up next") : "")}");
         Ui.LoadWhenVisible(button, image, () => session.Images.EpisodeAsync(episode, 352));
         return button;
     }
@@ -314,7 +316,7 @@ public sealed class DetailPage : Page
         foreach (var old in _body.Children.OfType<CardRow>().ToList()) _body.Children.Remove(old);
         CardRow Row(string title, List<MediaItem> items) => new(title, items.Select(x => { var card = Cards.Poster(x, session.Images, Shell.Open, Shell.Menu); card.Width = 168; return (Control)card; }), sidePadding: 0);
         if (saga is not null) _body.Children.Add(Row(saga.Name, saga.Items));
-        if (extras.Count > 0) _body.Children.Add(new CardRow("Bonus", extras.Select(x => (Control)Cards.Wide(x, session.Images, extra => _ = Shell.PlayAsync(extra))), sidePadding: 0));
-        if (similar.Count > 0) _body.Children.Add(Row("Titres similaires", similar));
+        if (extras.Count > 0) _body.Children.Add(new CardRow(L("Bonus", "Extras"), extras.Select(x => (Control)Cards.Wide(x, session.Images, extra => _ = Shell.PlayAsync(extra))), sidePadding: 0));
+        if (similar.Count > 0) _body.Children.Add(Row(L("Titres similaires", "More like this"), similar));
     }
 }

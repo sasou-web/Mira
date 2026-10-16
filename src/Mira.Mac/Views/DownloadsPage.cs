@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Mira.Core.TorLink;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -23,23 +24,23 @@ public sealed class DownloadsPage : Page
 {
     public override string Rail => "downloads";
     private static readonly TimeSpan SearchWait = TimeSpan.FromSeconds(90);
-    private const string PageLine = "Chaque téléchargement terminé rejoint ta bibliothèque.";
+    private static string PageLine => L("Chaque téléchargement terminé rejoint ta bibliothèque.", "Each finished download joins your library.");
     // The Windows app's states and secondary ink (Themes/Cinema.xaml).
     private static readonly IBrush Success = Ui.Brush("#86C6A2"), Warning = Ui.Brush("#D5B787"), WarningText = Ui.Brush("#E9DCC3"), Danger = Ui.Brush("#F3AD99"),
         Secondary = Ui.Brush("#C5C5CA"), Line = Ui.Brush("#26262A"), Surface = Ui.Brush("#111113"), Accent = Ui.Brush("#F5F5F7"), OnAccent = Ui.Brush("#0B0B0C");
     private readonly Session? _session;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(3) };
-    private readonly TextBlock _subtitle = new() { Text = "Lecture du PC serveur…", FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
+    private readonly TextBlock _subtitle = new() { Text = L("Lecture du PC serveur…", "Reading the server PC…"), FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBlock _pillText = new() { FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
     private readonly Ellipse _pillDot = new() { Width = 8, Height = 8, Fill = Ui.Faint, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBox _query = new() { Watermark = "Un film, une série, un anime…", MaxLength = 200 };
-    private readonly Button _search = new() { Content = "Chercher", Classes = { "primary" }, Padding = new Thickness(22, 11), Margin = new Thickness(10, 0, 0, 0), IsEnabled = false };
+    private readonly TextBox _query = new() { Watermark = L("Un film, une série, un anime…", "A movie, a show, an anime…"), MaxLength = 200 };
+    private readonly Button _search = new() { Content = L("Chercher", "Search"), Classes = { "primary" }, Padding = new Thickness(22, 11), Margin = new Thickness(10, 0, 0, 0), IsEnabled = false };
     private readonly List<(string Key, Button Chip)> _chips = [];
     private string _category = "movies";
     private readonly Button _magnetButton;
     private readonly Border _magnetPanel;
     private readonly TextBox _magnet = new() { Watermark = "magnet:?xt=urn:btih:…", FontSize = 14, Padding = new Thickness(12, 9) };
-    private readonly Button _magnetSend = new() { Content = "Envoyer au PC serveur", Classes = { "primary" }, Padding = new Thickness(18, 9), Margin = new Thickness(10, 0, 0, 0) };
+    private readonly Button _magnetSend = new() { Content = L("Envoyer au PC serveur", "Send to the server PC"), Classes = { "primary" }, Padding = new Thickness(18, 9), Margin = new Thickness(10, 0, 0, 0) };
     private readonly TextBlock _magnetError = new() { FontSize = 12.5, Foreground = WarningText, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), IsVisible = false };
     private readonly TextBlock _searchStatus = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _results = new() { Margin = new Thickness(0, 0, 0, 40) };
@@ -47,7 +48,7 @@ public sealed class DownloadsPage : Page
     private readonly Control _resultsEmpty;
     private readonly TextBlock _summary = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly StackPanel _queue = new(), _placed = new();
-    private readonly TextBlock _placedTitle = new() { Text = "Rangés dans ta bibliothèque", FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(2, 14, 0, 10), IsVisible = false };
+    private readonly TextBlock _placedTitle = new() { Text = L("Rangés dans ta bibliothèque", "Added to your library"), FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(2, 14, 0, 10), IsVisible = false };
     private readonly ScrollViewer _queueScroll;
     private readonly Control _queueEmpty;
     private readonly Grid _problem = new() { Background = Ui.Brush("#070708"), IsVisible = false };
@@ -86,17 +87,17 @@ public sealed class DownloadsPage : Page
         };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 26) };
         DockPanel.SetDock(pill, Dock.Right); header.Children.Add(pill);
-        header.Children.Add(Ui.Column(0, Ui.Text("Téléchargements", 34, FontWeight.ExtraBold), _subtitle));
+        header.Children.Add(Ui.Column(0, Ui.Text(L("Téléchargements", "Downloads"), 34, FontWeight.ExtraBold), _subtitle));
 
         // —— Left: the search, a magnet link, the results ——
         _query.InnerLeftContent = new Icon("search", 17) { Foreground = Ui.Faint, Margin = new Thickness(14, 0, 0, 0), IsHitTestVisible = false };
-        var clear = Ui.IconButton("close", "Effacer · Échap", () => { _query.Text = ""; _query.Focus(); }, "icon", 14);
+        var clear = Ui.IconButton("close", L("Effacer · Échap", "Clear · Esc"), () => { _query.Text = ""; _query.Focus(); }, "icon", 14);
         clear.Width = clear.Height = 30; clear.Margin = new Thickness(0, 0, 6, 0); clear.IsVisible = false;
-        AutomationProperties.SetName(clear, "Effacer la recherche");
+        AutomationProperties.SetName(clear, L("Effacer la recherche", "Clear the search"));
         _query.InnerRightContent = clear;
         _query.TextChanged += (_, _) => clear.IsVisible = !string.IsNullOrEmpty(_query.Text);
         _query.Padding = new Thickness(10, 11, 4, 11);
-        AutomationProperties.SetName(_query, "Que veux-tu télécharger ?");
+        AutomationProperties.SetName(_query, L("Que veux-tu télécharger ?", "What do you want to download?"));
         _query.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Enter) { e.Handled = true; _ = SearchAsync(); }
@@ -108,7 +109,7 @@ public sealed class DownloadsPage : Page
         bar.Children.Add(_query); Grid.SetColumn(_search, 1); bar.Children.Add(_search);
 
         var kinds = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        AutomationProperties.SetName(kinds, "Catégorie");
+        AutomationProperties.SetName(kinds, L("Catégorie", "Category"));
         foreach (var (key, label) in RemoteLines.Categories)
         {
             var chip = new Button { Content = label, Classes = { "chip" } };
@@ -116,11 +117,11 @@ public sealed class DownloadsPage : Page
             chip.Click += (_, _) => { _category = key; foreach (var (other, button) in _chips) button.Classes.Set("on", other == key); };
             _chips.Add((key, chip)); kinds.Children.Add(chip);
         }
-        _magnetButton = SmallButton("Coller un lien magnet", "link", OpenMagnet);
+        _magnetButton = SmallButton(L("Coller un lien magnet", "Paste a magnet link"), "link", OpenMagnet);
         var tools = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
         DockPanel.SetDock(_magnetButton, Dock.Right); tools.Children.Add(_magnetButton); tools.Children.Add(kinds);
 
-        AutomationProperties.SetName(_magnet, "Lien magnet");
+        AutomationProperties.SetName(_magnet, L("Lien magnet", "Magnet link"));
         _magnet.TextChanged += (_, _) => _magnetError.IsVisible = false;
         _magnet.KeyDown += (_, e) =>
         {
@@ -128,7 +129,7 @@ public sealed class DownloadsPage : Page
             else if (e.Key == Key.Escape) { e.Handled = true; CloseMagnet(); _magnetButton.Focus(); }
         };
         _magnetSend.Click += (_, _) => _ = SendMagnetAsync();
-        var close = new Button { Content = "Fermer", Classes = { "quiet" }, Padding = new Thickness(14, 9), Margin = new Thickness(6, 0, 0, 0) };
+        var close = new Button { Content = L("Fermer", "Close"), Classes = { "quiet" }, Padding = new Thickness(14, 9), Margin = new Thickness(6, 0, 0, 0) };
         close.Click += (_, _) => { CloseMagnet(); _magnetButton.Focus(); };
         var magnetRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(0, 12, 0, 0) };
         magnetRow.Children.Add(_magnet);
@@ -138,34 +139,35 @@ public sealed class DownloadsPage : Page
         {
             Background = Surface, CornerRadius = new CornerRadius(10), Padding = new Thickness(16, 14), Margin = new Thickness(0, 12, 0, 0), IsVisible = false,
             Child = Ui.Column(0,
-                new TextBlock { Text = "Coller un lien magnet", FontSize = 14, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = "Le lien d’un site que tu connais : TorLink le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque.", FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) },
+                new TextBlock { Text = L("Coller un lien magnet", "Paste a magnet link"), FontSize = 14, FontWeight = FontWeight.SemiBold },
+                new TextBlock { Text = L("Le lien d’un site que tu connais : TorLink le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque.", "A link from a site you know: TorLink downloads it on the server PC, then Mira adds it to your library."), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) },
                 magnetRow, _magnetError)
         };
         _searchStatus.Margin = new Thickness(0, 16, 0, 14);
         var top = Ui.Column(0, bar, tools, _magnetPanel, _searchStatus);
         _resultsScroll = new ScrollViewer { Content = _results };
-        _resultsEmpty = Empty("search", "Cherche un film, une série ou un anime",
-            "TorLink le cherche sur le PC serveur. Mira regroupe les versions par titre et par épisode, et met la meilleure en avant : la qualité de la source d’abord, le 1080p, puis MULTI ou VF.",
-            "Ne télécharge que ce que tu as le droit d’obtenir.");
+        _resultsEmpty = Empty("search", L("Cherche un film, une série ou un anime", "Search for a movie, a show or an anime"),
+            L("TorLink le cherche sur le PC serveur. Mira regroupe les versions par titre et par épisode, et met la meilleure en avant : la qualité de la source d’abord, le 1080p, puis MULTI ou VF.",
+                "TorLink searches for it on the server PC. Mira groups the versions by title and by episode, and puts the best one first: the quality of the source first, then 1080p, then MULTI or French audio."),
+            L("Ne télécharge que ce que tu as le droit d’obtenir.", "Only download what you have the right to get."));
         var found = new Grid(); found.Children.Add(_resultsScroll); found.Children.Add(_resultsEmpty);
         var left = new DockPanel();
         DockPanel.SetDock(top, Dock.Top); left.Children.Add(top); left.Children.Add(found);
 
         // —— Right: what the PC of Jellyfin has under way, then what it put in the library ——
-        var queueHead = Ui.Column(0, new TextBlock { Text = "Sur le PC serveur", FontSize = 19, FontWeight = FontWeight.Bold }, _summary);
+        var queueHead = Ui.Column(0, new TextBlock { Text = L("Sur le PC serveur", "On the server PC"), FontSize = 19, FontWeight = FontWeight.Bold }, _summary);
         queueHead.Margin = new Thickness(2, 0, 0, 16);
         var list = Ui.Column(0, _queue, _placedTitle, _placed);
         list.Margin = new Thickness(0, 0, 0, 40);
         _queueScroll = new ScrollViewer { Content = list };
-        _queueEmpty = Empty("download", "Rien en cours", "Ce que tu envoies apparaît ici avec sa progression et le temps restant, puis rejoint ta bibliothèque.", null);
+        _queueEmpty = Empty("download", L("Rien en cours", "Nothing under way"), L("Ce que tu envoies apparaît ici avec sa progression et le temps restant, puis rejoint ta bibliothèque.", "What you send shows up here with its progress and time left, then joins your library."), null);
         var queued = new Grid(); queued.Children.Add(_queueScroll); queued.Children.Add(_queueEmpty);
         var right = new DockPanel();
         DockPanel.SetDock(queueHead, Dock.Top); right.Children.Add(queueHead); right.Children.Add(queued);
 
         // —— Why the PC cannot be reached, over both columns ——
-        var retry = new Button { Content = "Réessayer", Classes = { "primary" }, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 0), Padding = new Thickness(20, 11) };
-        retry.Click += async (_, _) => { _problemHint.Text = "Lecture du PC serveur…"; await LoadStatusAsync(); };
+        var retry = new Button { Content = L("Réessayer", "Try again"), Classes = { "primary" }, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 0), Padding = new Thickness(20, 11) };
+        retry.Click += async (_, _) => { _problemHint.Text = L("Lecture du PC serveur…", "Reading the server PC…"); await LoadStatusAsync(); };
         _problemIcon.HorizontalAlignment = HorizontalAlignment.Center;
         _problem.Children.Add(new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 480, Margin = new Thickness(24, 24, 24, 80), Children = { _problemIcon, _problemTitle, _problemHint, retry } });
 
@@ -234,11 +236,11 @@ public sealed class DownloadsPage : Page
         catch (Exception ex) when (Errors.Expected(ex))
         {
             if (session.Lifetime.IsCancellationRequested) return;
-            if (ex is RelayRefusedException { StatusCode: HttpStatusCode.Forbidden }) ShowProblem("users", "Réservé aux administrateurs de Jellyfin", ex.Message);
-            else if (ex is RelayRefusedException { StatusCode: HttpStatusCode.NotFound }) ShowProblem("refresh", "L’extension Mira est à mettre à jour", ex.Message);
+            if (ex is RelayRefusedException { StatusCode: HttpStatusCode.Forbidden }) ShowProblem("users", L("Réservé aux administrateurs de Jellyfin", "For Jellyfin administrators only"), ex.Message);
+            else if (ex is RelayRefusedException { StatusCode: HttpStatusCode.NotFound }) ShowProblem("refresh", L("L’extension Mira est à mettre à jour", "The Mira extension needs an update"), ex.Message);
             // A page already filled keeps what it shows (a hiccup on Tailscale); an empty one says why.
             else if (_filled) _subtitle.Text = Errors.Friendly(ex);
-            else ShowProblem("server", "Le PC serveur ne répond pas", Errors.Friendly(ex));
+            else ShowProblem("server", L("Le PC serveur ne répond pas", "The server PC isn’t answering"), Errors.Friendly(ex));
         }
         finally
         {
@@ -250,7 +252,7 @@ public sealed class DownloadsPage : Page
     private void ShowProblem(string icon, string title, string hint)
     {
         _problemIcon.Kind = icon; _problemTitle.Text = title; _problemHint.Text = hint;
-        _pillText.Text = "PC serveur · Indisponible"; _pillDot.Fill = Warning;
+        _pillText.Text = L("PC serveur · Indisponible", "Server PC · Unavailable"); _pillDot.Fill = Warning;
         _subtitle.Text = PageLine;
         _problem.IsVisible = true;
     }
@@ -258,12 +260,12 @@ public sealed class DownloadsPage : Page
     /// <summary>The header: where the PC stands, in Mira web's words, and its pill.</summary>
     private void DescribeAgent(DateTimeOffset now)
     {
-        var (text, ready) = _filled ? RemoteLines.Agent(_agent, now) : ("Lecture du PC serveur…", false);
+        var (text, ready) = _filled ? RemoteLines.Agent(_agent, now) : (L("Lecture du PC serveur…", "Reading the server PC…"), false);
         _ready = ready;
         _subtitle.Text = text;
-        var (status, dot) = !_filled ? ("Lecture…", Ui.Faint) : _agent is null ? ("Jamais ouvert", Ui.Faint) : !_agent.Online ? ("Mira fermé", Ui.Faint)
-            : !string.IsNullOrEmpty(_agent.Problem) ? ("Occupé", Warning) : ("Prêt", Success);
-        _pillText.Text = "PC serveur · " + status; _pillDot.Fill = dot;
+        var (status, dot) = !_filled ? (L("Lecture…", "Reading…"), Ui.Faint) : _agent is null ? (L("Jamais ouvert", "Never opened"), Ui.Faint) : !_agent.Online ? (L("Mira fermé", "Mira closed"), Ui.Faint)
+            : !string.IsNullOrEmpty(_agent.Problem) ? (L("Occupé", "Busy"), Warning) : (L("Prêt", "Ready"), Success);
+        _pillText.Text = L("PC serveur · ", "Server PC · ") + status; _pillDot.Fill = dot;
         _search.IsEnabled = ready && !_searching;
     }
 
@@ -288,8 +290,8 @@ public sealed class DownloadsPage : Page
         _queueEmpty.IsVisible = queue.Count + placed.Count == 0;
         var downloading = status.Downloads.Count(x => x.Status == "downloading");
         var waiting = queue.Count - downloading;
-        _summary.Text = queue.Count == 0 ? (placed.Count > 0 ? "Rien en cours. Les derniers titres rangés sont ci-dessous." : "")
-            : string.Join(" · ", new[] { downloading > 0 ? $"{downloading} en cours" : "", waiting > 0 ? $"{waiting} en attente" : "" }.Where(x => x.Length > 0));
+        _summary.Text = queue.Count == 0 ? (placed.Count > 0 ? L("Rien en cours. Les derniers titres rangés sont ci-dessous.", "Nothing under way. The latest titles added are below.") : "")
+            : string.Join(" · ", new[] { downloading > 0 ? L($"{downloading} en cours", $"{downloading} downloading") : "", waiting > 0 ? L($"{waiting} en attente", $"{waiting} waiting") : "" }.Where(x => x.Length > 0));
         _summary.IsVisible = _summary.Text.Length > 0;
     }
 
@@ -347,9 +349,9 @@ public sealed class DownloadsPage : Page
         var actions = new StackPanel();
         if (request.State != "claimed")
         {
-            var label = request.State == "waiting" ? "Annuler" : "Retirer";
+            var label = request.State == "waiting" ? L("Annuler", "Cancel") : L("Retirer", "Remove");
             var buttons = RowButtons();
-            buttons.Children.Add(SmallButton(label, "close", () => _ = CancelRequestAsync(request), $"{label} « {request.Name} »"));
+            buttons.Children.Add(SmallButton(label, "close", () => _ = CancelRequestAsync(request), label + L($" « {request.Name} »", $" “{request.Name}”")));
             actions.Children.Add(buttons);
         }
         var failed = request.State == "failed";
@@ -364,9 +366,9 @@ public sealed class DownloadsPage : Page
             var buttons = RowButtons();
             if (download.Status != "failed")
                 buttons.Children.Add(RemoteLines.Paused(download)
-                    ? SmallButton("Reprendre", "play", () => _ = ControlAsync(download, "resume"), $"Reprendre « {download.Name} »")
-                    : SmallButton("Pause", "pause", () => _ = ControlAsync(download, "pause"), $"Mettre en pause « {download.Name} »"));
-            buttons.Children.Add(SmallButton("Annuler", "close", () => ConfirmCancel(actions, download), $"Annuler « {download.Name} »"));
+                    ? SmallButton(L("Reprendre", "Resume"), "play", () => _ = ControlAsync(download, "resume"), L($"Reprendre « {download.Name} »", $"Resume “{download.Name}”"))
+                    : SmallButton(L("Pause", "Pause"), "pause", () => _ = ControlAsync(download, "pause"), L($"Mettre en pause « {download.Name} »", $"Pause “{download.Name}”")));
+            buttons.Children.Add(SmallButton(L("Annuler", "Cancel"), "close", () => ConfirmCancel(actions, download), L($"Annuler « {download.Name} »", $"Cancel “{download.Name}”")));
             actions.Children.Add(buttons);
         }
         var (icon, color) = download.Status switch { "failed" => ("warning", Warning), "completed" or "seeding" => ("check", Success), "downloading" => ("download", Ui.Ink), _ => ("clock", Ui.Faint) };
@@ -378,13 +380,13 @@ public sealed class DownloadsPage : Page
     {
         var kept = actions.Children.ToList();
         actions.Children.Clear();
-        actions.Children.Add(new TextBlock { Text = "TorLink l’arrête et supprime ce qu’il en a déjà reçu sur le PC serveur.", FontSize = 12.5, Foreground = WarningText, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+        actions.Children.Add(new TextBlock { Text = L("TorLink l’arrête et supprime ce qu’il en a déjà reçu sur le PC serveur.", "TorLink stops it and deletes what it already received on the server PC."), FontSize = 12.5, Foreground = WarningText, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
         var buttons = RowButtons();
         buttons.Margin = new Thickness(-10, 4, 0, 0);
-        var confirm = SmallButton("Annuler le téléchargement", "close", () => _ = ControlAsync(download, "delete"), $"Annuler le téléchargement de « {download.Name} »");
+        var confirm = SmallButton(L("Annuler le téléchargement", "Cancel the download"), "close", () => _ = ControlAsync(download, "delete"), L($"Annuler le téléchargement de « {download.Name} »", $"Cancel the download of “{download.Name}”"));
         confirm.Foreground = Danger;
         buttons.Children.Add(confirm);
-        buttons.Children.Add(SmallButton("Garder", "check", () => { actions.Children.Clear(); actions.Children.AddRange(kept); }, $"Garder « {download.Name} »"));
+        buttons.Children.Add(SmallButton(L("Garder", "Keep"), "check", () => { actions.Children.Clear(); actions.Children.AddRange(kept); }, L($"Garder « {download.Name} »", $"Keep “{download.Name}”")));
         actions.Children.Add(buttons);
         Dispatcher.UIThread.Post(() => confirm.Focus(), DispatcherPriority.Input);
     }
@@ -395,7 +397,7 @@ public sealed class DownloadsPage : Page
         if (placed.ItemId is { } id)
         {
             var buttons = RowButtons();
-            buttons.Children.Add(SmallButton("Voir", "play", () => _ = OpenAsync(id), $"Voir « {placed.Title} »"));
+            buttons.Children.Add(SmallButton(L("Voir", "View"), "play", () => _ = OpenAsync(id), L($"Voir « {placed.Title} »", $"View “{placed.Title}”")));
             actions.Children.Add(buttons);
         }
         return RowView(placed.Ok ? "check" : "warning", placed.Ok ? Success : Warning, placed.Title, Sentence(placed.Status), null, false, actions);
@@ -416,9 +418,9 @@ public sealed class DownloadsPage : Page
         {
             Shell.Notice(await session.Client.TorLinkCancelAsync(request.Id, session.Lifetime) switch
             {
-                true => request.State == "waiting" ? "Demande annulée." : "Retiré de la liste.",
-                false => "Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.",
-                null => "Cette demande n’est plus là."
+                true => request.State == "waiting" ? L("Demande annulée.", "Request canceled.") : L("Retiré de la liste.", "Removed from the list."),
+                false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC already took it: cancel it in its list as soon as it shows up there."),
+                null => L("Cette demande n’est plus là.", "This request is no longer there.")
             });
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
@@ -447,8 +449,8 @@ public sealed class DownloadsPage : Page
         if (!_ready) { _searchStatus.Text = RemoteLines.Agent(_agent, DateTimeOffset.UtcNow).Text; return; }
         var category = _category; var label = RemoteLines.CategoryLabel(category);
         var mine = ++_searchVersion; var ct = session.Lifetime;
-        _searching = true; _search.IsEnabled = false; _search.Content = "Recherche…";
-        _searchStatus.Text = $"Recherche de « {query} » en {label} sur le PC serveur…";
+        _searching = true; _search.IsEnabled = false; _search.Content = L("Recherche…", "Searching…");
+        _searchStatus.Text = L($"Recherche de « {query} » en {label} sur le PC serveur…", $"Searching for “{query}” in {label} on the server PC…");
         _results.Opacity = 0.45;
         void End(string text) { _searchStatus.Text = text; _results.Children.Clear(); _resultsEmpty.IsVisible = false; }
         try
@@ -459,15 +461,15 @@ public sealed class DownloadsPage : Page
             {
                 await Task.Delay(1000, ct);
                 if (mine != _searchVersion) return;
-                if (DateTime.UtcNow - started > SearchWait) { End("Le PC serveur n’a pas répondu à temps. Vérifie que Mira y est ouvert, puis relance la recherche."); return; }
+                if (DateTime.UtcNow - started > SearchWait) { End(L("Le PC serveur n’a pas répondu à temps. Vérifie que Mira y est ouvert, puis relance la recherche.", "The server PC didn’t answer in time. Check that Mira is open there, then search again.")); return; }
                 RelaySearch? state;
                 // A hiccup on the way: asked again a second later.
                 try { state = await session.Client.TorLinkSearchStateAsync(id, ct); }
                 catch (Exception ex) when (Errors.Expected(ex) && !ct.IsCancellationRequested && ex is not RelayRefusedException) { continue; }
                 if (mine != _searchVersion) return;
                 // Forgotten (Jellyfin restarted meanwhile): it will not come back.
-                if (state is null) { End("Cette recherche a été perdue : relance-la."); return; }
-                if (state.State == "failed") { End(string.IsNullOrEmpty(state.Error) ? "La recherche n’a pas abouti." : state.Error); return; }
+                if (state is null) { End(L("Cette recherche a été perdue : relance-la.", "This search was lost: run it again.")); return; }
+                if (state.State == "failed") { End(string.IsNullOrEmpty(state.Error) ? L("La recherche n’a pas abouti.", "The search didn’t work.") : state.Error); return; }
                 if (state.State == "done") { ShowHits(id, query, category, state.Results ?? []); return; }
             }
         }
@@ -475,7 +477,7 @@ public sealed class DownloadsPage : Page
         catch (Exception ex) when (Errors.Expected(ex)) { if (mine == _searchVersion) End(Errors.Friendly(ex)); }
         finally
         {
-            if (mine == _searchVersion) { _searching = false; _search.Content = "Chercher"; _search.IsEnabled = _ready; _results.Opacity = 1; }
+            if (mine == _searchVersion) { _searching = false; _search.Content = L("Chercher", "Search"); _search.IsEnabled = _ready; _results.Opacity = 1; }
         }
     }
 
@@ -487,13 +489,12 @@ public sealed class DownloadsPage : Page
     {
         var label = RemoteLines.CategoryLabel(category);
         _resultsEmpty.IsVisible = false; _results.Children.Clear(); _resultsScroll.Offset = default; _firstBest = null;
-        if (hits.Count == 0) { _searchStatus.Text = $"Aucun résultat pour « {query} » en {label}. Essaie un autre titre, ou une autre catégorie."; return; }
+        if (hits.Count == 0) { _searchStatus.Text = L($"Aucun résultat pour « {query} » en {label}. Essaie un autre titre, ou une autre catégorie.", $"No results for “{query}” in {label}. Try another title, or another category."); return; }
         var groups = ReleaseRanking.Group(hits, category);
-        _searchStatus.Text = $"{Count(hits.Count, "version", "versions")} pour « {query} » en {label}, regroupées en {Count(groups.Count, "titre", "titres")}. La meilleure de chacun en premier.";
+        var versions = Count(hits.Count, "version", "versions", "version", "versions"); var titles = Count(groups.Count, "titre", "titres", "title", "titles");
+        _searchStatus.Text = L($"{versions} pour « {query} » en {label}, regroupées en {titles}. La meilleure de chacun en premier.", $"{versions} for “{query}” in {label}, grouped into {titles}. The best of each first.");
         foreach (var group in groups) _results.Children.Add(GroupView(searchId, group));
     }
-
-    private static string Count(int n, string one, string many) => $"{n} {(n == 1 ? one : many)}";
 
     private Border GroupView(string searchId, ReleaseGroup group)
     {
@@ -517,16 +518,16 @@ public sealed class DownloadsPage : Page
         {
             var others = new StackPanel { IsVisible = false };
             foreach (var entry in group.Others) others.Children.Add(ReleaseView(searchId, entry, best: false));
-            var more = Count(group.Others.Count, "autre version", "autres versions");
+            var more = Count(group.Others.Count, "autre version", "autres versions", "other version", "other versions");
             var text = new TextBlock { Text = more, FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
             var chevron = new Icon("down", 14) { VerticalAlignment = VerticalAlignment.Center };
             var toggle = new Button { Classes = { "quiet" }, Padding = new Thickness(10, 6), Margin = new Thickness(-10, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Foreground = Secondary, Content = Ui.Row(6, text, chevron) };
-            AutomationProperties.SetName(toggle, $"{more} de {group.Title}");
+            AutomationProperties.SetName(toggle, L($"{more} de {group.Title}", $"{more} of {group.Title}"));
             toggle.Click += (_, _) =>
             {
                 others.IsVisible = !others.IsVisible;
-                text.Text = others.IsVisible ? "Masquer les autres versions" : more; chevron.Kind = others.IsVisible ? "up" : "down";
-                AutomationProperties.SetName(toggle, others.IsVisible ? "Masquer les autres versions" : $"{more} de {group.Title}");
+                text.Text = others.IsVisible ? L("Masquer les autres versions", "Hide the other versions") : more; chevron.Kind = others.IsVisible ? "up" : "down";
+                AutomationProperties.SetName(toggle, others.IsVisible ? L("Masquer les autres versions", "Hide the other versions") : L($"{more} de {group.Title}", $"{more} of {group.Title}"));
             };
             panel.Children.Add(toggle); panel.Children.Add(others);
         }
@@ -541,12 +542,12 @@ public sealed class DownloadsPage : Page
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
         var text = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
         var quality = new WrapPanel();
-        quality.Children.Add(new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : "Qualité non précisée", FontSize = 14, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        quality.Children.Add(new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : L("Qualité non précisée", "Quality not given"), FontSize = 14, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
         if (best)
             quality.Children.Add(new Border
             {
                 CornerRadius = new CornerRadius(5), Background = Accent, Padding = new Thickness(7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock { Text = "Meilleur choix", FontSize = 11.5, FontWeight = FontWeight.SemiBold, Foreground = OnAccent }
+                Child = new TextBlock { Text = L("Meilleur choix", "Best pick"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Foreground = OnAccent }
             });
         text.Children.Add(quality);
         text.Children.Add(new TextBlock { Text = RemoteLines.Hit(hit), FontSize = 12.5, Foreground = Secondary, Margin = new Thickness(0, 4, 0, 0) });
@@ -561,7 +562,7 @@ public sealed class DownloadsPage : Page
         if (best) _firstBest ??= (searchId, hit, button);
         if (best) button.Classes.Add("primary");
         ShowSendState(button, _sent.Contains(key));
-        AutomationProperties.SetName(button, $"Télécharger {hit.Name}");
+        AutomationProperties.SetName(button, L($"Télécharger {hit.Name}", $"Download {hit.Name}"));
         button.Click += async (_, _) => await SendHitAsync(searchId, hit, button);
         Grid.SetColumn(button, 1); grid.Children.Add(button);
         if (best) return grid;
@@ -571,7 +572,7 @@ public sealed class DownloadsPage : Page
 
     private static void ShowSendState(Button button, bool sent)
     {
-        button.Content = Ui.Row(7, new Icon(sent ? "check" : "download", 15) { VerticalAlignment = VerticalAlignment.Center }, new TextBlock { Text = sent ? "Envoyé" : "Télécharger", FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
+        button.Content = Ui.Row(7, new Icon(sent ? "check" : "download", 15) { VerticalAlignment = VerticalAlignment.Center }, new TextBlock { Text = sent ? L("Envoyé", "Sent") : L("Télécharger", "Download"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         button.IsEnabled = !sent;
     }
 
@@ -591,7 +592,7 @@ public sealed class DownloadsPage : Page
     /// <summary>Its row, with its progress, is at the top of the right column.</summary>
     private async Task SentAsync()
     {
-        Shell.Notice(_ready ? "Envoyé au PC serveur : sa progression s’affiche à droite." : "Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.");
+        Shell.Notice(_ready ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
         _queueScroll.Offset = default;
         await LoadStatusAsync();
     }
@@ -613,7 +614,7 @@ public sealed class DownloadsPage : Page
     {
         if (_session is not { } session || !_magnetSend.IsEnabled) return;
         var magnet = (_magnet.Text ?? "").Trim();
-        if (RemoteDownloads.InfoHash(magnet) is null) { ShowMagnetError("Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »)."); _magnet.Focus(); return; }
+        if (RemoteDownloads.InfoHash(magnet) is null) { ShowMagnetError(L("Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).", "That’s not a magnet link (“magnet:?xt=urn:btih:…”).")); _magnet.Focus(); return; }
         _magnetSend.IsEnabled = false;
         try
         {

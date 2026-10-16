@@ -27,7 +27,7 @@ public static partial class SleepGuard
         {
             if (!awake) { IOPMAssertionRelease(_assertion); _assertion = 0; return; }
             var type = CFStringCreateWithCString(IntPtr.Zero, "PreventUserIdleDisplaySleep", Encoding);
-            var name = CFStringCreateWithCString(IntPtr.Zero, "Mira lit une vidéo", Encoding);
+            var name = CFStringCreateWithCString(IntPtr.Zero, Mira.Core.Lang.L("Mira lit une vidéo", "Mira is playing a video"), Encoding);
             try { if (IOPMAssertionCreateWithName(type, LevelOn, name, out var id) == 0) _assertion = id; }
             finally { CFRelease(type); CFRelease(name); }
         }

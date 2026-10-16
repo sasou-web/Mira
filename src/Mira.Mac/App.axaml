@@ -16,7 +16,7 @@
     <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#0B0B0C"/>
     <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#0B0B0C"/>
   </Application.Resources>
-  <!-- The Mira menu of the menu bar (macOS adds Hide and Quit itself). -->
+  <!-- The Mira menu of the menu bar (macOS adds Hide and Quit itself), its headers in Mira's language by App.NameMenu. -->
   <NativeMenu.Menu>
     <NativeMenu>
       <NativeMenuItem Header="À propos de Mira" Click="About_Click"/>

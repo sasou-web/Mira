@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using Mira.Core;
 using Mira.Mac.Playback;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -89,7 +90,7 @@ public sealed class PlayerPage : UserControl
         _root.Children.Add(_videoHost);
         _root.Children.Add(_spinner);
 
-        var back = Ui.IconButton("back", "Retour · Échap", () => _ = _shell.StopPlaybackAsync(), "player", 24);
+        var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => _ = _shell.StopPlaybackAsync(), "player", 24);
         var heading = Ui.Column(0, _title, _subtitle); heading.VerticalAlignment = VerticalAlignment.Center; heading.Margin = new Thickness(10, 0, 0, 0);
         var topRow = Ui.Row(0, back, heading);
         _top = new Border
@@ -98,31 +99,31 @@ public sealed class PlayerPage : UserControl
             Background = Fade(true)
         };
 
-        _next = Ui.IconButton("next-episode", "Épisode suivant · N", () => { if (_skips.Next is { } next) _ = PlayNextAsync(next); }, "player", 24);
-        _tracks = Ui.IconButton("subtitles", "Audio et sous-titres", () => { }, "player", 23);
-        _more = Ui.IconButton("more", "Vitesse, sous-titres et minuterie", () => { }, "player", 24);
+        _next = Ui.IconButton("next-episode", L("Épisode suivant · N", "Next episode · N"), () => { if (_skips.Next is { } next) _ = PlayNextAsync(next); }, "player", 24);
+        _tracks = Ui.IconButton("subtitles", L("Audio et sous-titres", "Audio and subtitles"), () => { }, "player", 23);
+        _more = Ui.IconButton("more", L("Vitesse, sous-titres et minuterie", "Speed, subtitles and sleep timer"), () => { }, "player", 24);
         _tracks.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         _more.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         ((Flyout)_tracks.Flyout).Opening += (_, _) => ((Flyout)_tracks.Flyout).Content = TracksMenu();
         ((Flyout)_more.Flyout).Opening += (_, _) => ((Flyout)_more.Flyout).Content = MoreMenu();
         var play = new Button { Content = _pauseIcon, Classes = { "player" } }; play.Click += (_, _) => TogglePause();
-        ToolTip.SetTip(play, "Lecture / pause · Espace");
+        ToolTip.SetTip(play, L("Lecture / pause · Espace", "Play / pause · Space"));
         var rewind = Ui.IconButton("rewind", "−10 s · ←", () => SeekBy(-10), "player", 23);
         var forward = Ui.IconButton("forward", "+10 s · →", () => SeekBy(10), "player", 23);
         var mute = new Button { Content = _volumeIcon, Classes = { "player" } }; mute.Click += (_, _) => ToggleMute();
-        ToolTip.SetTip(mute, "Couper le son · M");
+        ToolTip.SetTip(mute, L("Couper le son · M", "Mute · M"));
         // 100 % sits at the middle, marked under the track; to the right, the sound is raised without clipping.
         var volumeTrack = new Grid { Width = 112, Margin = new Thickness(4, 0, 0, 0) };
         volumeTrack.Children.Add(new Border { Width = 2, Height = 10, CornerRadius = new CornerRadius(1), Background = Ui.Brush("#77777D"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false });
         volumeTrack.Children.Add(_volume);
-        ToolTip.SetTip(_volume, "Au-delà de 100 %, le son est amplifié sans saturer");
-        Avalonia.Automation.AutomationProperties.SetName(_volume, "Volume");
+        ToolTip.SetTip(_volume, L("Au-delà de 100 %, le son est amplifié sans saturer", "Above 100%, the sound is boosted without clipping"));
+        Avalonia.Automation.AutomationProperties.SetName(_volume, L("Volume", "Volume"));
         var volumeGroup = Ui.Row(0, mute, volumeTrack, _volumeText);
         volumeGroup.Background = Brushes.Transparent;
         volumeGroup.PointerWheelChanged += (_, e) => { ChangeVolume(e.Delta.Y > 0 ? 5 : -5); e.Handled = true; };
         _volume.ValueChanged += (_, e) => VolumeChanged(e.NewValue);
         var fullscreen = new Button { Content = _fullscreenIcon, Classes = { "player" } }; fullscreen.Click += (_, _) => ToggleFullscreen();
-        ToolTip.SetTip(fullscreen, "Plein écran · F");
+        ToolTip.SetTip(fullscreen, L("Plein écran · F", "Full screen · F"));
 
         var left = Ui.Row(4, play, rewind, forward, _next, volumeGroup);
         var right = Ui.Row(4, _tracks, _more, fullscreen);
@@ -140,9 +141,9 @@ public sealed class PlayerPage : UserControl
 
         _skip = new Button { Classes = { "pill" }, Content = Ui.Row(10, _skipText, new Icon("skip", 16) { VerticalAlignment = VerticalAlignment.Center }), IsVisible = false };
         _skip.Click += (_, _) => Skip();
-        _skipCancel = new Button { Classes = { "pill" }, Content = "Annuler", IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
+        _skipCancel = new Button { Classes = { "pill" }, Content = L("Annuler", "Cancel"), IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
         _skipCancel.Click += (_, _) => { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; };
-        ToolTip.SetTip(_skipCancel, "Rester sur cet épisode");
+        ToolTip.SetTip(_skipCancel, L("Rester sur cet épisode", "Stay on this episode"));
         var skipHost = Ui.Row(0, _skipCancel, _skip);
         skipHost.HorizontalAlignment = HorizontalAlignment.Right; skipHost.VerticalAlignment = VerticalAlignment.Bottom; skipHost.Margin = new Thickness(0, 0, 36, 150);
         _root.Children.Add(skipHost);
@@ -195,7 +196,7 @@ public sealed class PlayerPage : UserControl
         {
             if (item.Type == "Series") item = await EpisodeOfAsync(session, item);
             var playback = await session.Client.PlaybackAsync(item.Id);
-            var source = playback.MediaSources.FirstOrDefault() ?? throw new IOException("Aucune source lisible disponible.");
+            var source = playback.MediaSources.FirstOrDefault() ?? throw new IOException(L("Aucune source lisible disponible.", "No playable source available."));
             string location; string? authorization = null;
             // Jellyfin on this same Mac: its file directly; otherwise the original stream, never transcoded.
             if (new Uri(session.Connection.Server).IsLoopback && string.Equals(source.Protocol, "File", StringComparison.OrdinalIgnoreCase) && source.Path is { } path && File.Exists(path)) location = path;
@@ -221,7 +222,7 @@ public sealed class PlayerPage : UserControl
         {
             await StopAsync();
             _shell.Notice(ex is IOException or FileNotFoundException ? ex.Message : ex is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException
-                ? "La lecture n’a pas pu démarrer : le moteur mpv de Mira.app ne s’est pas chargé." : Errors.Friendly(ex));
+                ? L("La lecture n’a pas pu démarrer : le moteur mpv de Mira.app ne s’est pas chargé.", "Playback couldn’t start: Mira.app’s mpv engine didn’t load.") : Errors.Friendly(ex));
             return false;
         }
     }
@@ -235,7 +236,7 @@ public sealed class PlayerPage : UserControl
             await Task.Run(() => session.Store.ApplyLocalProgress(episodes));
             next = episodes.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? episodes.FirstOrDefault(x => !x.UserData.Played) ?? episodes.FirstOrDefault();
         }
-        return next ?? throw new IOException("Aucun épisode disponible.");
+        return next ?? throw new IOException(L("Aucun épisode disponible.", "No episode available."));
     }
     /// <summary>mpv and the view it draws into: OpenGL, else (no OpenGL, or MIRA_SOFTWARE_VIDEO set) in software.</summary>
     private async Task OpenEngineAsync()
@@ -251,11 +252,11 @@ public sealed class PlayerPage : UserControl
         IVideoSurface surface = Environment.GetEnvironmentVariable("MIRA_SOFTWARE_VIDEO") is { Length: > 0 } ? new SoftwareVideoView() : new VideoView();
         if (!await AttachAsync(surface, player) && surface is VideoView gl)
         {
-            VideoFallback = gl.Problem ?? (gl.Initialized ? "contexte de rendu mpv non créé" : "OpenGL indisponible dans cette fenêtre");
+            VideoFallback = gl.Problem ?? (gl.Initialized ? L("contexte de rendu mpv non créé", "mpv render context not created") : L("OpenGL indisponible dans cette fenêtre", "OpenGL unavailable in this window"));
             // This window has no OpenGL: the software view always works.
             await DetachAsync(surface);
             surface = new SoftwareVideoView();
-            if (!await AttachAsync(surface, player)) throw new InvalidOperationException("Aucun rendu vidéo disponible.");
+            if (!await AttachAsync(surface, player)) throw new InvalidOperationException(L("Aucun rendu vidéo disponible.", "No video rendering available."));
         }
         player.SetLevel(_volume.Value);
     }
@@ -404,7 +405,7 @@ public sealed class PlayerPage : UserControl
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
             // « Minuterie »: the minutes are over, the film pauses where it is.
-            if (_sleep.Due(DateTimeOffset.Now)) { if (!paused) { mpv.Set("pause", "yes"); _shell.Notice("Minuterie : lecture en pause."); } RefreshMenus(); }
+            if (_sleep.Due(DateTimeOffset.Now)) { if (!paused) { mpv.Set("pause", "yes"); _shell.Notice(L("Minuterie : lecture en pause.", "Sleep timer: playback paused.")); } RefreshMenus(); }
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
             // Every 10 s while it plays, once when it pauses or resumes (MinValue above), never while it stays paused.
             if (_session.Reported && _shell.Session is { } session && Cadence.ProgressDue(false, paused, _session.LastReport, DateTimeOffset.Now))
@@ -531,13 +532,13 @@ public sealed class PlayerPage : UserControl
         {
             var list = new StackPanel { Spacing = 2, MinWidth = 240 };
             list.Children.Add(new TextBlock { Text = title, Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
-            if (off) list.Children.Add(Entry("Désactivés", null, selected is "no" or null, () => ChooseTrack("sid", "no")));
+            if (off) list.Children.Add(Entry(L("Désactivés", "Off"), null, selected is "no" or null, () => ChooseTrack("sid", "no")));
             foreach (var track in tracks.Where(x => x.Type == type))
                 list.Children.Add(Entry(track.Label, track.Details, selected == track.Id, () => ChooseTrack(type == "audio" ? "aid" : "sid", track.Id)));
-            if (type == "sub") list.Children.Add(Entry("Charger un fichier…", null, false, () => _ = LoadSubtitleAsync()));
+            if (type == "sub") list.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync()));
             return list;
         }
-        return Ui.Row(18, Column("AUDIO", "audio", current.Audio, false), Column("SOUS-TITRES", "sub", current.Sub, true));
+        return Ui.Row(18, Column(L("AUDIO", "AUDIO"), "audio", current.Audio, false), Column(L("SOUS-TITRES", "SUBTITLES"), "sub", current.Sub, true));
     }
     /// <summary>A track chosen in the menu, kept for the next episodes of this series (<see cref="SeriesTracks"/>).</summary>
     private void ChooseTrack(string property, string id)
@@ -555,7 +556,7 @@ public sealed class PlayerPage : UserControl
     {
         var speed = _mpv?.Number("speed", 1) ?? 1; var delay = _mpv?.Number("sub-delay", 0) ?? 0;
         var speeds = new StackPanel { Spacing = 2, MinWidth = 180 };
-        speeds.Children.Add(new TextBlock { Text = "VITESSE", Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
+        speeds.Children.Add(new TextBlock { Text = L("VITESSE", "SPEED"), Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
         foreach (var value in new[] { 0.75, 1, 1.25, 1.5, 2 })
             speeds.Children.Add(Entry(PlayerText.Speed(value), null, Math.Abs(speed - value) < .01, () => _mpv?.Set("speed", value.ToString(CultureInfo.InvariantCulture))));
         var label = new TextBlock { Text = PlayerText.Delay(delay), Width = 64, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -565,27 +566,27 @@ public sealed class PlayerPage : UserControl
             var value = change == 0 ? 0 : Math.Round(_mpv.Number("sub-delay", 0) + change, 1);
             _mpv.Set("sub-delay", value.ToString(CultureInfo.InvariantCulture)); label.Text = PlayerText.Delay(value);
         }
-        var shift = Ui.Row(6, Ui.IconButton("minus", "Sous-titres plus tôt", () => Shift(-0.5), "icon", 18), label, Ui.IconButton("plus", "Sous-titres plus tard", () => Shift(0.5), "icon", 18), Ui.IconButton("refresh", "Remettre à zéro", () => Shift(0), "icon", 18));
-        var delays = Ui.Column(8, new TextBlock { Text = "DÉCALAGE DES SOUS-TITRES", Classes = { "label" }, Margin = new Thickness(10, 0, 0, 0) }, shift);
+        var shift = Ui.Row(6, Ui.IconButton("minus", L("Sous-titres plus tôt", "Subtitles earlier"), () => Shift(-0.5), "icon", 18), label, Ui.IconButton("plus", L("Sous-titres plus tard", "Subtitles later"), () => Shift(0.5), "icon", 18), Ui.IconButton("refresh", L("Remettre à zéro", "Reset"), () => Shift(0), "icon", 18));
+        var delays = Ui.Column(8, new TextBlock { Text = L("DÉCALAGE DES SOUS-TITRES", "SUBTITLE DELAY"), Classes = { "label" }, Margin = new Thickness(10, 0, 0, 0) }, shift);
         var sleep = new StackPanel { Spacing = 2, MinWidth = 180 };
-        sleep.Children.Add(new TextBlock { Text = "MINUTERIE", Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
+        sleep.Children.Add(new TextBlock { Text = L("MINUTERIE", "SLEEP TIMER"), Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
         void Sleep(int? minutes)
         {
             _sleep.Choose(minutes, DateTimeOffset.Now);
             // A countdown to the next episode already running stops, as « Annuler » does.
             if (_sleep.AtEnd && _skips.Counting) { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; }
         }
-        sleep.Children.Add(Entry("Désactivée", null, _sleep.Chosen is null, () => Sleep(null)));
+        sleep.Children.Add(Entry(L("Désactivée", "Off"), null, _sleep.Chosen is null, () => Sleep(null)));
         foreach (var minutes in SleepTimer.Choices)
             sleep.Children.Add(Entry(SleepTimer.Duration(minutes), _sleep.Chosen == minutes ? _sleep.Status(DateTimeOffset.Now) : null, _sleep.Chosen == minutes, () => Sleep(minutes)));
-        if (_session.Item?.Type == "Episode") sleep.Children.Add(Entry("Fin de l’épisode", null, _sleep.AtEnd, () => Sleep(0)));
+        if (_session.Item?.Type == "Episode") sleep.Children.Add(Entry(L("Fin de l’épisode", "End of episode"), null, _sleep.AtEnd, () => Sleep(0)));
         var menu = Ui.Row(22, speeds, delays, sleep);
         if (Group.Active && Group.Group is { } group)
         {
             var people = new TextBlock { Text = Together.GroupText(group), FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 220 };
             if (group.Participants.Count > 0) ToolTip.SetTip(people, string.Join(", ", group.Participants));
-            var leave = Ui.Action("Quitter le groupe", "close", "", () => { (_more.Flyout as Flyout)?.Hide(); _ = Group.LeaveAsync(); });
-            menu.Children.Add(Ui.Column(10, new TextBlock { Text = "ENSEMBLE", Classes = { "label" }, Margin = new Thickness(10, 0, 0, 0) }, people, leave));
+            var leave = Ui.Action(L("Quitter le groupe", "Leave the group"), "close", "", () => { (_more.Flyout as Flyout)?.Hide(); _ = Group.LeaveAsync(); });
+            menu.Children.Add(Ui.Column(10, new TextBlock { Text = L("ENSEMBLE", "TOGETHER"), Classes = { "label" }, Margin = new Thickness(10, 0, 0, 0) }, people, leave));
         }
         return menu;
     }
@@ -611,11 +612,11 @@ public sealed class PlayerPage : UserControl
         (_tracks.Flyout as Flyout)?.Hide();
         var files = await _shell.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Choisir un fichier de sous-titres", AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("Sous-titres") { Patterns = ["*.srt", "*.ass", "*.ssa", "*.vtt", "*.sub"] }]
+            Title = L("Choisir un fichier de sous-titres", "Choose a subtitle file"), AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType(L("Sous-titres", "Subtitles")) { Patterns = ["*.srt", "*.ass", "*.ssa", "*.vtt", "*.sub"] }]
         });
         if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
-        if (_mpv?.TryCommand("sub-add", path, "select") != true) { _shell.Notice("Ce fichier de sous-titres n’a pas pu être chargé."); return; }
+        if (_mpv?.TryCommand("sub-add", path, "select") != true) { _shell.Notice(L("Ce fichier de sous-titres n’a pas pu être chargé.", "This subtitle file couldn’t be loaded.")); return; }
         await OfferToKeepSubtitleAsync(path);
     }
     /// <summary>
@@ -631,7 +632,7 @@ public sealed class PlayerPage : UserControl
         try { allowed = await session.Client.CanManageSubtitlesAsync(); }
         catch (Exception ex) when (Errors.Expected(ex)) { return; }
         if (allowed == false || generation != _generation) return;
-        _shell.Notice(JellyfinSubtitles.LoadedText, "Garder sur Jellyfin", () => _ = KeepLoadedSubtitleAsync(session.Client, item.Id, file, guess));
+        _shell.Notice(JellyfinSubtitles.LoadedText, L("Garder sur Jellyfin", "Keep on Jellyfin"), () => _ = KeepLoadedSubtitleAsync(session.Client, item.Id, file, guess));
     }
     private async Task KeepLoadedSubtitleAsync(JellyfinClient client, string itemId, string file, (string Format, string Language, bool Forced, bool HearingImpaired) guess)
     {
@@ -639,9 +640,9 @@ public sealed class PlayerPage : UserControl
         try { upload = await JellyfinSubtitles.ReadAsync(file, guess); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { _shell.Notice(JellyfinSubtitles.UnreadableText); return; }
         if (upload is null) { _shell.Notice(JellyfinSubtitles.TooBigText); return; }
-        _shell.Notice("Envoi des sous-titres à Jellyfin…");
+        _shell.Notice(L("Envoi des sous-titres à Jellyfin…", "Sending the subtitles to Jellyfin…"));
         try { _shell.Notice(JellyfinSubtitles.KeptText(await client.KeepSubtitleAsync(itemId, upload), guess.Language)); }
-        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice("Jellyfin n’a pas gardé ces sous-titres. " + Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(L("Jellyfin n’a pas gardé ces sous-titres. ", "Jellyfin didn’t keep these subtitles. ") + Errors.Friendly(ex)); }
     }
 
     // —— Chapters, skippable passages and the next episode ——
@@ -675,7 +676,7 @@ public sealed class PlayerPage : UserControl
         }
         if (generation != _generation) return;
         _next.IsEnabled = _skips.Next is not null;
-        ToolTip.SetTip(_next, _skips.Next is not { } next ? "Dernier épisode disponible" : "Épisode suivant · " + PlayerText.Subtitle(next, _episodes));
+        ToolTip.SetTip(_next, _skips.Next is not { } next ? L("Dernier épisode disponible", "Last episode available") : L("Épisode suivant · ", "Next episode · ") + PlayerText.Subtitle(next, _episodes));
         Rebuild();
     }
     private TrickplayTiles<Avalonia.Media.Imaging.Bitmap>? _trickplay;

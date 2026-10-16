@@ -9,6 +9,7 @@ using Microsoft.Data.Sqlite;
 using Mira.Core;
 using Mira.Mac.Playback;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -59,6 +60,8 @@ public sealed class MainWindow : Window
     public MainWindow(string[] args, Profile profile)
     {
         Args = args; Profile = profile; Settings = profile.LoadSettings();
+        // Before anything shows: each text is written in Mira's language as it is built.
+        SystemLanguage.Apply(Settings);
         Group = new WatchGroup(this);
         Group.Changed += () => { Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); };
         Group.Member += said => { if (Player is { } player) player.ShowMember(said); else Notice(said + "."); };
@@ -107,17 +110,17 @@ public sealed class MainWindow : Window
     private Border BuildRail()
     {
         var brand = new Icon("brand", 34) { Foreground = Ui.Ink, Margin = new Thickness(0, 6, 0, 22) };
-        foreach (var (key, icon, tip) in new[] { ("home", "home", "Accueil"), ("search", "search", "Rechercher · ⌘F"), ("Movie", "film", "Films"), ("Series", "series", "Séries"), ("library", "library", "Toute la bibliothèque"), ("downloads", "download", "Télécharger sur le PC serveur") })
+        foreach (var (key, icon, tip) in new[] { ("home", "home", L("Accueil", "Home")), ("search", "search", L("Rechercher · ⌘F", "Search · ⌘F")), ("Movie", "film", L("Films", "Movies")), ("Series", "series", L("Séries", "Shows")), ("library", "library", L("Toute la bibliothèque", "Whole library")), ("downloads", "download", L("Télécharger sur le PC serveur", "Download to the server PC")) })
         {
             var button = Ui.IconButton(icon, tip, () => NavigateRoot(key), "rail", 23);
             _railButtons[key] = button; _railItems.Children.Add(button);
         }
         // Shown once Jellyfin says this account administers it, as its relay requires.
         _railButtons["downloads"].IsVisible = false;
-        var settings = Ui.IconButton("settings", "Réglages · ⌘,", () => NavigateRoot("settings"), "rail", 23);
+        var settings = Ui.IconButton("settings", L("Réglages · ⌘,", "Settings · ⌘,"), () => NavigateRoot("settings"), "rail", 23);
         _railButtons["settings"] = settings;
         var avatar = new Border { Width = 38, Height = 38, CornerRadius = new CornerRadius(19), Background = Ui.Brush("#2A2A2E"), Child = _avatar, Margin = new Thickness(0, 6, 0, 0) };
-        ToolTip.SetTip(avatar, "Compte Jellyfin");
+        ToolTip.SetTip(avatar, L("Compte Jellyfin", "Jellyfin account"));
         var bottom = Ui.Column(8, settings, avatar); bottom.HorizontalAlignment = HorizontalAlignment.Center;
         var dock = new DockPanel { Margin = new Thickness(0, 18 + TitleBarInset, 0, 22) };
         DockPanel.SetDock(brand, Dock.Top); DockPanel.SetDock(bottom, Dock.Bottom);
@@ -162,7 +165,8 @@ public sealed class MainWindow : Window
         // Once, beside what the opening already said (a cache recreated) rather than in its place.
         if (Profile.SettingsUnreadable)
         {
-            var said = "Tes réglages étaient illisibles : Mira est reparti des réglages par défaut." + (Profile.SettingsCopy is { } copy ? $" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}." : "");
+            var said = L("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut.", "Your settings couldn’t be read: Mira went back to the default settings.")
+                + (Profile.SettingsCopy is { } copy ? L($" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}.", $" The old file is kept as {Path.GetFileName(copy)}.") : "");
             Notice(NoticeText is { } shown ? shown + "\n" + said : said);
         }
         _ = Updates.CheckAsync(this);
@@ -188,7 +192,8 @@ public sealed class MainWindow : Window
         // is replaced by LibraryStore itself.
         catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
         {
-            ShowLogin("Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier sans droits d’écriture ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.");
+            ShowLogin(L("Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier sans droits d’écriture ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.",
+                "Mira can’t open this account’s cache in its data folder: the disk is full, the folder can’t be written to, or another program is using the file. Free up some space if needed, then open Mira again: it will reopen this account without asking for your password."));
             if (Login is { } login) login.Server = connection.Server;
             return;
         }
@@ -212,7 +217,7 @@ public sealed class MainWindow : Window
         _ = OfferDownloadsAsync(Session);
         _history.Clear();
         await NavigateAsync(new HomePage(this));
-        if (Session.Store.DamagedCopy is not null) Notice("Le cache local de ce compte était illisible : il a été recréé.");
+        if (Session.Store.DamagedCopy is not null) Notice(L("Le cache local de ce compte était illisible : il a été recréé.", "This account’s local cache couldn’t be read: it was created again."));
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
         ChoicesChanged();
@@ -284,7 +289,7 @@ public sealed class MainWindow : Window
     /// </summary>
     public void OpenLink(string text)
     {
-        if (Together.ParseAppLink(text) is not { } invite) { Notice("Mira ne sait pas ouvrir ce lien."); return; }
+        if (Together.ParseAppLink(text) is not { } invite) { Notice(L("Mira ne sait pas ouvrir ce lien.", "Mira can’t open this link.")); return; }
         _inviteWait?.Cancel(); _inviteWait = null;
         _invite = invite;
         _ = OfferInviteAsync();
@@ -309,11 +314,11 @@ public sealed class MainWindow : Window
         var answer = Together.Answer(invite, groups, session.Connection.Server, Group.Active ? Group.Group?.GroupId : null);
         Activate();
         if (answer is { Kind: Together.InviteKind.Join, Group: { } group })
-            Notice(answer.Text, "Rejoindre", () => _ = Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct)), sticky: true);
+            Notice(answer.Text, L("Rejoindre", "Join"), () => _ = Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct)), sticky: true);
         else if (answer.Kind == Together.InviteKind.OtherServer)
-            Notice(answer.Text, "Ouvrir dans le navigateur", () => Updates.Open(new Uri(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)), plainHttp: true), sticky: true);
+            Notice(answer.Text, L("Ouvrir dans le navigateur", "Open in the browser"), () => Updates.Open(new Uri(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)), plainHttp: true), sticky: true);
         else if (answer.Kind == Together.InviteKind.Waiting)
-            Notice(answer.Text, "Attendre", () => WaitForInvite(session, invite), sticky: true);
+            Notice(answer.Text, L("Attendre", "Wait"), () => WaitForInvite(session, invite), sticky: true);
         else Notice(answer.Text);
     }
     /// <summary>An invitation waited for (« Attendre »): its group joined once its host opens it.</summary>
@@ -328,7 +333,7 @@ public sealed class MainWindow : Window
         _inviteWait?.Cancel();
         var wait = _inviteWait = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime);
         wait.CancelAfter(TimeSpan.FromHours(3));
-        Notice(Together.WaitingLead, "Annuler", () => wait.Cancel());
+        Notice(Together.WaitingLead, L("Annuler", "Cancel"), () => wait.Cancel());
         _ = WaitAsync();
         async Task WaitAsync()
         {
@@ -360,7 +365,7 @@ public sealed class MainWindow : Window
         // Then Jellyfin, a few seconds at most: an unreachable server never holds the sign-out.
         var closed = session is not null && await session.SignOutAsync();
         var erased = erase && session is not null ? await AccountData.EraseAsync(Profile.DirectoryPath, session.Connection) : (bool?)null;
-        var message = session is null ? null : AccountData.SignedOut("ce Mac", closed, erased);
+        var message = session is null ? null : AccountData.SignedOut(L("ce Mac", "this Mac"), closed, erased);
         // What is left to do on Jellyfin stays on the sign-in page; a toast would leave after a few seconds.
         ShowLogin(closed ? null : message);
         if (session is null) return;
@@ -437,7 +442,7 @@ public sealed class MainWindow : Window
     public async Task PlayAsync(MediaItem item, bool fromStart = false, long? groupStart = null)
     {
         if (Session is not { } session) return;
-        if (MpvPlayer.FindLibrary(Settings.MpvPath) is null) { Notice("Le moteur de lecture mpv est introuvable. Réinstalle Mira depuis son image disque."); return; }
+        if (MpvPlayer.FindLibrary(Settings.MpvPath) is null) { Notice(L("Le moteur de lecture mpv est introuvable. Réinstalle Mira depuis son image disque.", "The mpv video engine is missing. Reinstall Mira from its disk image.")); return; }
         // In a group, Lecture puts the title on for everyone, this Mac included, at the moment Jellyfin says.
         if (Group.Active && groupStart is null)
         {
@@ -493,7 +498,7 @@ public sealed class MainWindow : Window
             await session.Client.SetPlayedAsync(item.Id, played);
             await Task.Run(() => session.Store.ForgetProgress(item.Id));
             item.UserData.Played = played; item.UserData.PlaybackPositionTicks = 0;
-            Notice($"« {item.DisplayTitle} » {(played ? "marqué comme vu" : "marqué comme non vu")}.");
+            Notice(played ? L($"« {item.DisplayTitle} » marqué comme vu.", $"“{item.DisplayTitle}” marked as watched.") : L($"« {item.DisplayTitle} » marqué comme non vu.", $"“{item.DisplayTitle}” marked as unwatched."));
             await RefreshPagesAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
@@ -505,7 +510,7 @@ public sealed class MainWindow : Window
         {
             await session.Client.SetFavoriteAsync(item.Id, favorite);
             item.UserData.IsFavorite = favorite;
-            Notice(favorite ? $"« {item.DisplayTitle} » est dans tes favoris." : $"« {item.DisplayTitle} » n’est plus dans tes favoris.");
+            Notice(favorite ? L($"« {item.DisplayTitle} » est dans tes favoris.", $"“{item.DisplayTitle}” is in your favorites.") : L($"« {item.DisplayTitle} » n’est plus dans tes favoris.", $"“{item.DisplayTitle}” is no longer in your favorites."));
             await RefreshPagesAsync();
         }
         catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
@@ -518,15 +523,15 @@ public sealed class MainWindow : Window
         // A saga plays nothing by itself: its films do, from their page.
         if (item.Type == "BoxSet")
         {
-            Add("Voir la saga", () => Open(item));
-            Add(item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
+            Add(L("Voir la saga", "See the collection"), () => Open(item));
+            Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
             return menu;
         }
-        Add(item.Progress > 0 && !item.UserData.Played ? "Reprendre" : "Lecture", () => _ = PlayAsync(item));
-        if (item.Progress > 0 && !item.UserData.Played) Add("Lire depuis le début", () => _ = PlayAsync(item, fromStart: true));
-        Add("Plus d’infos", () => Open(item));
-        Add(item.UserData.Played ? "Marquer comme non vu" : "Marquer comme vu", () => _ = SetPlayedAsync(item, !item.UserData.Played));
-        Add(item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
+        Add(item.Progress > 0 && !item.UserData.Played ? L("Reprendre", "Resume") : L("Lecture", "Play"), () => _ = PlayAsync(item));
+        if (item.Progress > 0 && !item.UserData.Played) Add(L("Lire depuis le début", "Play from the beginning"), () => _ = PlayAsync(item, fromStart: true));
+        Add(L("Plus d’infos", "More info"), () => Open(item));
+        Add(item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), () => _ = SetPlayedAsync(item, !item.UserData.Played));
+        Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
         return menu;
     }
 
