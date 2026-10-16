@@ -1,6 +1,7 @@
 // What Mira keeps on this phone: the Jellyfin session (never the password), this device's id and the settings.
 // A home screen app has its own storage, apart from Safari's: one sign-in there, once.
 import { tr } from './i18n.js';
+import { defaultAudioLanguages, defaultSubtitleLanguages } from './choices.js';
 
 const SESSION = 'mira.session', DEVICE = 'mira.device', SETTINGS = 'mira.settings';
 
@@ -85,8 +86,8 @@ const defaults = {
   resume: true,         // a title resumes where it was left
   resumeBack: 5,        // seconds it resumes before that point (« Reprendre un peu avant »), as Mira on Windows and Mac
   subtitleSize: 100,    // percent, for subtitles drawn by Mira (Apple's player follows iOS's own settings)
-  audioLanguages: 'jpn,ja,fre,fra,fr,eng,en', // as Mira on Windows and Mac
-  subtitleLanguages: 'fre,fra,fr,eng,en',
+  audioLanguages: defaultAudioLanguages(), // as Mira on Windows and Mac: in Mira's language until one is chosen
+  subtitleLanguages: defaultSubtitleLanguages(),
   autoSkip: false,      // openings and recaps skipped without a tap (Apple's player has no room for the button)
   seriesTracks: {},     // series id → { audio, subtitle, forced }: the languages last chosen for it
   nativePlayer: null,   // null: Apple's player on iPhone and iPad; true or false forces it (Safari's check)
