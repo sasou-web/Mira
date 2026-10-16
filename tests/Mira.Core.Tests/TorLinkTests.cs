@@ -176,8 +176,9 @@ internal static class TorLinkTests
             File.WriteAllText(state.ConfigFile, JsonSerializer.Serialize(new { downloadDir = downloads }));
             var importer = new TorLinkImporter(Path.Combine(dir, "profile"));
             var at = importer.Baseline.AddSeconds(5).ToUnixTimeMilliseconds();
-            const string English = "[ToonsHub] JoJos Bizarre Adventure S06E04 1080p NF WEB-DL DUAL AAC2.0 H.264 (JoJo no Kimyou na Bouken: Steel Ball Run - 2nd - 3rd STAGE, Dual-Audio, Multi-Subs).mkv";
-            const string Romaji = "[Erai-raws] JoJo no Kimyou na Bouken: Steel Ball Run - 05 [1080p NF WEB-DL AVC AAC][MultiSub][9867D87D].mkv";
+            // Real names, without the colon Windows refuses in a file name.
+            const string English = "[ToonsHub] JoJos Bizarre Adventure S06E04 1080p NF WEB-DL DUAL AAC2.0 H.264 (JoJo no Kimyou na Bouken Steel Ball Run - 2nd - 3rd STAGE, Dual-Audio, Multi-Subs).mkv";
+            const string Romaji = "[Erai-raws] JoJo no Kimyou na Bouken Steel Ball Run - 05 [1080p NF WEB-DL AVC AAC][MultiSub][9867D87D].mkv";
             object Item(char id, string name, long completed) => new { id = new string(id, 40), name, source = "nyaa", sizeBytes = 10, dir = downloads, completedAt = completed };
             var libraries = new MediaLibraries(null, null, anime);
             File.WriteAllBytes(Path.Combine(downloads, English), new byte[10]);
@@ -191,7 +192,7 @@ internal static class TorLinkTests
                 "The romaji release made its own show: " + string.Join(", ", Directory.GetFileSystemEntries(anime, "*", SearchOption.AllDirectories).Select(x => Path.GetRelativePath(anime, x))));
 
             // The same name placed in two folders: the one with the most episodes under it wins, whatever came last.
-            var stray = Path.Combine(anime, "JoJo no Kimyou na Bouken - Steel Ball Run", "Season 01"); Directory.CreateDirectory(stray);
+            var stray = Path.Combine(anime, "JoJo no Kimyou na Bouken Steel Ball Run", "Season 01"); Directory.CreateDirectory(stray);
             TorLinkImportEntry Placed(char id, string name, string destination, int minutes) => new()
             {
                 Id = new string(id, 40), Name = name, Kind = MediaKind.Anime, LibraryRoot = anime, CompletedAt = DateTimeOffset.UnixEpoch.AddMinutes(minutes),
@@ -200,7 +201,7 @@ internal static class TorLinkTests
             var known = MediaPlanner.KnownShows([
                 Placed('1', English.Replace("S06E04", "S06E03"), Path.Combine(show, "Season 06", "a.mkv"), 1), Placed('2', English, Path.Combine(show, "Season 06", "b.mkv"), 2),
                 Placed('3', Romaji, Path.Combine(stray, "c.mkv"), 3)]);
-            Assert(known.Single(x => x.Key == ReleaseName.Key("JoJo no Kimyou na Bouken: Steel Ball Run")) is { Folder: "JoJo's Bizarre Adventure (2012)", Season: 6 }, "The stray folder won: " + string.Join(" | ", known));
+            Assert(known.Single(x => x.Key == ReleaseName.Key("JoJo no Kimyou na Bouken Steel Ball Run")) is { Folder: "JoJo's Bizarre Adventure (2012)", Season: 6 }, "The stray folder won: " + string.Join(" | ", known));
         });
         await Test("TorLink : dossier de téléchargement sur le disque de la bibliothèque, choisi seulement si TorLink n’en a pas", () =>
         {
