@@ -35,7 +35,9 @@ SetupIconFile=..\src\Mira.Desktop\Assets\mira.ico
 UninstallDisplayIcon={app}\Mira.exe
 UninstallDisplayName=Mira
 WizardStyle=modern
-ShowLanguageDialog=auto
+; The language asked first, English or French (the one of Windows chosen by default): Mira then speaks it, until its
+; settings say otherwise. An update run silently keeps the previous one (UsePreviousLanguage).
+ShowLanguageDialog=yes
 Compression=lzma2/max
 SolidCompression=yes
 ; A running Mira is closed before its files are replaced (Restart Manager: Mira's SessionEnding saves the window,
@@ -51,8 +53,8 @@ VersionInfoProductTextVersion={#AppVersion}
 VersionInfoDescription=Mira {#AppVersion} setup
 
 [Languages]
-Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [CustomMessages]
 french.MiraRegister=Ajout de Mira au menu Démarrer…
@@ -64,7 +66,7 @@ english.MiraLeftBehind=Mira is uninstalled. This stays on this PC, to remove if 
 french.MiraLeftRule=• La règle « Mira - Jellyfin » du pare-feu de Windows, qui laisse tes appareils joindre Jellyfin : Pare-feu Windows Defender avec fonctions avancées → Règles de trafic entrant → « Mira - Jellyfin » → Supprimer.
 english.MiraLeftRule=• The "Mira - Jellyfin" rule of Windows' firewall, which lets your devices reach Jellyfin: Windows Defender Firewall with Advanced Security → Inbound Rules → "Mira - Jellyfin" → Delete.
 french.MiraLeftJellyfin=• Jellyfin Server, avec tes bibliothèques : Paramètres → Applications → Jellyfin Server. Si Mira a réglé son démarrage avec Windows et ses relances, ils se changent dans services.msc → Jellyfin Server. Le droit de lecture donné à Jellyfin sur Films, Séries et Animes se retire avec : icacls "<dossier>" /remove:g *S-1-5-20 /t
-english.MiraLeftJellyfin=• Jellyfin Server, with your libraries: Settings → Apps → Jellyfin Server. If Mira set it to start with Windows and to restart, change that in services.msc → Jellyfin Server. The read access given to Jellyfin on Films, Séries and Animes is removed with: icacls "<folder>" /remove:g *S-1-5-20 /t
+english.MiraLeftJellyfin=• Jellyfin Server, with your libraries: Settings → Apps → Jellyfin Server. If Mira set it to start with Windows and to restart, change that in services.msc → Jellyfin Server. The read access given to Jellyfin on your Movies, Shows and Anime folders is removed with: icacls "<folder>" /remove:g *S-1-5-20 /t
 french.MiraLeftTorLink=• Les réglages, la file et les téléchargements de TorLink : %APPDATA%\torlink, %LOCALAPPDATA%\torlink et Téléchargements\torlink.
 english.MiraLeftTorLink=• TorLink's settings, queue and downloads: %APPDATA%\torlink, %LOCALAPPDATA%\torlink and Downloads\torlink.
 french.MiraLeftPortable=• Les bibliothèques de Mira portable, extraites par .NET : %1 (à supprimer quand Mira portable est fermé).
@@ -75,11 +77,19 @@ french.MiraEngineTask=Télécharger le moteur vidéo mpv (31 Mo), nécessaire à
 english.MiraEngineTask=Download the mpv video engine (31 MB), needed for playback
 french.MiraEngineStatus=Téléchargement et vérification du moteur vidéo mpv…
 english.MiraEngineStatus=Downloading and checking the mpv video engine…
+french.MiraSizeGB=%1,%2 Go
+english.MiraSizeGB=%1.%2 GB
+french.MiraSizeMB=%1 Mo
+english.MiraSizeMB=%1 MB
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 ; Mira fetches the pinned libmpv build itself (checked by SHA-256) into data\mpv; an engine already on the PC is kept.
 Name: "mpvengine"; Description: "{cm:MiraEngineTask}"; GroupDescription: "{cm:MiraEngineGroup}"
+
+[Registry]
+; Read by Mira at startup (App.UseLanguage) while its settings name no language.
+Root: HKCU; Subkey: "Software\Mira"; ValueType: string; ValueName: "Language"; ValueData: "{language}"; Flags: uninsdeletevalue uninsdeletekeyifempty
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "\data,\data\*"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -150,11 +160,11 @@ end;
 function SizeText(const KB: Integer): String;
 begin
   if KB >= 1048576 then
-    Result := IntToStr(KB div 1048576) + ',' + IntToStr((KB mod 1048576) * 10 div 1048576) + ' Go'
+    Result := FmtMessage(CustomMessage('MiraSizeGB'), [IntToStr(KB div 1048576), IntToStr((KB mod 1048576) * 10 div 1048576)])
   else if KB >= 1024 then
-    Result := IntToStr(KB div 1024) + ' Mo'
+    Result := FmtMessage(CustomMessage('MiraSizeMB'), [IntToStr(KB div 1024)])
   else
-    Result := '1 Mo';
+    Result := FmtMessage(CustomMessage('MiraSizeMB'), ['1']);
 end;
 
 { What Mira set up outside its folder, or what it used, and that this uninstaller cannot remove: said, with the way. }

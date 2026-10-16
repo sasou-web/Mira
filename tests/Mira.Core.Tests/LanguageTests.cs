@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using Mira.Core;
 using static TestSupport;
 
@@ -117,6 +118,20 @@ internal static class LanguageTests
             // A friend's Mira in French opens the link of a host whose Mira is in English, after the group was made again.
             Together.Group english = new("new-id", "Marc's group", ["Marc"], "Idle"), other = new("x", "Groupe de Léa", ["Léa", "Sam"], "Idle");
             Assert(Together.FindGroup([other, english], "old-id", "Marc") == english, "Found by its host across languages");
+            return Task.CompletedTask;
+        });
+        await Test("Langue : l’installateur demande l’anglais ou le français, a chaque texte dans les deux et garde le choix pour Mira", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            var script = File.ReadAllLines(Path.Combine(repository, "installer", "Mira.iss"));
+            var messages = script.Select(x => System.Text.RegularExpressions.Regex.Match(x, @"^(french|english)\.(\w+)=")).Where(m => m.Success).GroupBy(m => m.Groups[2].Value).ToList();
+            var unpaired = messages.Where(g => g.Select(m => m.Groups[1].Value).Distinct().Count() != 2).Select(g => g.Key).ToList();
+            Assert(messages.Count > 5 && unpaired.Count == 0, "Messages without both languages: " + string.Join(", ", unpaired));
+            var languages = script.Where(x => x.StartsWith("Name: \"", StringComparison.Ordinal) && x.Contains("MessagesFile", StringComparison.Ordinal)).ToList();
+            Assert(languages is [var first, _] && first.Contains("\"english\"", StringComparison.Ordinal), "English first, the default when Windows' language is neither: " + string.Join(" | ", languages));
+            Assert(script.Contains("ShowLanguageDialog=yes")
+                && script.Contains(@"Root: HKCU; Subkey: ""Software\Mira""; ValueType: string; ValueName: ""Language""; ValueData: ""{language}""; Flags: uninsdeletevalue uninsdeletekeyifempty"), "Asked, then kept for Mira");
+            Assert(Lang.Known("english") == "en" && Lang.Known("french") == "fr", "Inno Setup's names, read by Mira");
             return Task.CompletedTask;
         });
         await Test("Langue : les réglages gardent le choix, vide tant qu’il n’est pas fait", () =>
