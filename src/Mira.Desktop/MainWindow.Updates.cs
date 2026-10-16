@@ -115,10 +115,11 @@ public partial class MainWindow
     /// <summary>Called last when Mira closes, once playback, TorLink and the synchronisation are stopped.</summary>
     private async Task ApplyUpdateAtCloseAsync()
     {
-        if (_updater is not { } updater) return;
-        var started = !_sessionEnding && updater.State == UpdateState.Ready && (_settings.AutoUpdate || _restartForUpdate) && await updater.ApplyAsync(_restartForUpdate);
+        // Restarted for a new language (RestartMira): a ready update is installed on the way only when Mira installs them by itself.
+        var restart = _restartForUpdate || _restartAtClose;
+        var started = _updater is { } updater && !_sessionEnding && updater.State == UpdateState.Ready && (_settings.AutoUpdate || _restartForUpdate) && await updater.ApplyAsync(restart);
         // A restart was asked for and nothing will reopen Mira: start it again once this process has ended.
-        if (_restartForUpdate && !started)
+        if (restart && !started)
         {
             var again = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
             again.ArgumentList.Add("--after"); again.ArgumentList.Add(Environment.ProcessId.ToString());
@@ -126,7 +127,7 @@ public partial class MainWindow
             if (data >= 0 && data + 1 < _args.Length) { again.ArgumentList.Add("--data"); again.ArgumentList.Add(_args[data + 1]); }
             try { using var _ = Process.Start(again); } catch (System.ComponentModel.Win32Exception) { }
         }
-        updater.Dispose();
+        _updater?.Dispose();
     }
     private void CheckUpdates_Click(object sender, RoutedEventArgs e) { _ = _updater?.CheckAsync(); ShowUpdateState(); }
     private void RestartToUpdate_Click(object sender, RoutedEventArgs e) => RestartForUpdate();

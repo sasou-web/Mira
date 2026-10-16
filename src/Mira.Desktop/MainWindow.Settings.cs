@@ -18,8 +18,17 @@ public partial class MainWindow
     private void AutoSaveSettings()
     {
         if (SettingsOverlay.Visibility != Visibility.Visible || _settingsBusy || !SettingsChanged()) return;
-        SetNotice(ApplySettings() ? L("Réglages enregistrés.", "Settings saved.") : SettingsNotSaved);
+        var language = _settings.Language; var saved = ApplySettings();
+        // A new language says so itself (ApplySettings), with its button.
+        if (_settings.Language == language || !saved) SetNotice(saved ? L("Réglages enregistrés.", "Settings saved.") : SettingsNotSaved);
     }
+    /// <summary>Mira's language as the settings show it: the one chosen, else the one Mira speaks (Windows' or the installer's).</summary>
+    private string ShownLanguage => Lang.Known(_settings.Language) ?? Lang.Code;
+    /// <summary>Said in the language chosen, which Mira reads only when it starts (App.UseLanguage).</summary>
+    private void SayLanguage(string language) => SetNotice(language == Lang.French ? "Mira sera en français à sa prochaine ouverture." : "Mira will be in English the next time it opens.",
+        language == Lang.French ? "Relancer maintenant" : "Restart now", RestartMira, sticky: false);
+    private bool _restartAtClose;
+    private void RestartMira() { _restartAtClose = true; Close(); }
     /// <summary>
     /// Writes the settings. A file that cannot be written (full disk, held by another program) is no reason to stop what
     /// Mira was doing: the settings stay applied for this session, and closing Mira writes them again.
@@ -41,7 +50,8 @@ public partial class MainWindow
         || _settings.TorLinkRemote != (TorLinkRemoteCheck.IsChecked == true)
         || _settings.TorLinkPath != TorLinkPathBox.Text.Trim() || _settings.TorLinkMoviesFolder != TorLinkMoviesBox.Text.Trim()
         || _settings.TorLinkSeriesFolder != TorLinkSeriesBox.Text.Trim() || _settings.TorLinkAnimeFolder != TorLinkAnimeBox.Text.Trim()
-        || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true) || _settings.EpisodeNotices != (EpisodeNoticesCheck.IsChecked == true);
+        || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true) || _settings.EpisodeNotices != (EpisodeNoticesCheck.IsChecked == true)
+        || Choice(MiraLanguageChoice) is { Length: > 0 } language && language != ShownLanguage;
     private bool _settingsBusy;
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
@@ -52,7 +62,7 @@ public partial class MainWindow
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip; RememberCheck.IsChecked = _settings.RememberPosition;
         SelectChoice(ResumeBackChoice, _settings.ResumeBack.ToString(CultureInfo.InvariantCulture));
         ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion;
-        HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting();
+        HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting(); SelectChoice(MiraLanguageChoice, ShownLanguage);
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
         SelectChoice(AudioLanguageChoice, _settings.AudioLanguage); SelectChoice(SubtitleLanguageChoice, _settings.SubtitleLanguage); SelectChoice(DensityChoice, _settings.PosterDensity);
         SubtitleSizeSlider.Value = _settings.SubtitleSize; ShowSubtitleStyle(); MpvPathBox.Text = MpvEngine.FindLibrary(_settings.MpvPath) ?? _settings.MpvPath;
@@ -173,7 +183,10 @@ public partial class MainWindow
         // Switched back on: look for a new version now rather than at the next scheduled check.
         var updatesAgain = !_settings.AutoUpdate && AutoUpdateCheck.IsChecked == true;
         _settings.AutoUpdate = AutoUpdateCheck.IsChecked == true;
+        var language = Choice(MiraLanguageChoice) is { Length: > 0 } picked && picked != ShownLanguage ? picked : null;
+        if (language is not null) _settings.Language = language;
         var saved = TrySaveSettings();
+        if (language is not null && saved) SayLanguage(language);
         ChoicesChanged();
         if (updatesAgain) _ = _updater?.CheckAsync();
         if (automaticAgain) _torlinkImporter?.RestartBaseline();
