@@ -3,11 +3,11 @@
     "version": "0.7.9",
     "summary": "Regarder ensemble plus simple, lecture plus fiable, PC serveur joignable et recherche enrichie.",
     "items": [
-      { "icon": "users", "title": "Regarder ensemble, plus simple", "text": "Le lien d’invitation reste valable, Lecture lance le titre pour tout le groupe, et le groupe en cours s’affiche sur l’accueil.", "web": true },
-      { "icon": "play", "title": "Une lecture plus fiable", "text": "Pleine qualité quand ta connexion la tient, reprise quelques secondes avant, épisode suivant dès le générique, et « Lecture impossible » dit pourquoi.", "web": true },
-      { "icon": "sliders", "title": "Trouver plus vite, à ta main", "text": "Épisodes, sagas et acteurs dans la recherche, saut à une lettre, rangées de l’accueil à ton goût, choix gardés sur ton Jellyfin.", "web": true },
-      { "icon": "server", "title": "PC serveur toujours joignable", "text": "Sous Windows, Mira relance Jellyfin arrêté, garde le PC éveillé pendant que tu regardes ailleurs et Tailscale connecté sans ta session." },
-      { "icon": "download", "title": "Garder sur ce PC", "text": "Sous Windows, garde un film ou des épisodes pour les regarder sans Jellyfin, et lance un téléchargement TorLink depuis ton téléphone." }
+      { "icon": "users", "title": "Regarder ensemble, plus simple", "text": "Le lien d’invitation reste valable, Lecture lance le titre pour tout le groupe, le groupe s’affiche sur l’accueil.", "web": true },
+      { "icon": "play", "title": "Une lecture plus fiable", "text": "Pleine qualité si ta connexion la tient, épisode suivant dès le générique, « Lecture impossible » dit pourquoi.", "web": true },
+      { "icon": "sliders", "title": "Trouver plus vite, à ta main", "text": "Épisodes, sagas et acteurs dans la recherche, saut à une lettre, accueil à ton goût, choix gardés sur Jellyfin.", "web": true },
+      { "icon": "server", "title": "PC serveur toujours joignable", "text": "Sous Windows, Mira relance Jellyfin arrêté et garde le PC éveillé pendant que tu regardes ailleurs." },
+      { "icon": "download", "title": "Garder sur ce PC", "text": "Sous Windows, garde un film ou des épisodes pour les regarder sans Jellyfin." }
     ]
   },
   {
