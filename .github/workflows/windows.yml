@@ -72,7 +72,7 @@ jobs:
       # Only Mira's own files go to SignPath. The rest of the folder (the .NET runtime, third-party libraries) is
       # Microsoft's or theirs, and stays as it is. SignPath Foundation signs a file only if its product name is Mira
       # and its product version is the release's (installer/signpath/app.xml): checked here first, after an approval
-      # it would be too late.
+      # it would be too late. Trimmed: Inno Setup pads the installer's version strings with spaces.
       - name: Files to sign
         shell: pwsh
         env:
@@ -81,7 +81,7 @@ jobs:
           foreach ($file in 'Mira/Mira.exe', 'Mira/Mira.dll', 'Mira/Mira.Core.dll', 'Portable/Mira.exe') {
             $source = Join-Path .artifacts/app $file
             $info = (Get-Item -LiteralPath $source).VersionInfo
-            if ($info.ProductName -ne 'Mira' -or $info.ProductVersion -ne $env:VERSION) { throw "${file}: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
+            if ($info.ProductName.Trim() -ne 'Mira' -or $info.ProductVersion.Trim() -ne $env:VERSION) { throw "${file}: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
             $target = Join-Path .artifacts/to-sign $file
             New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
             Copy-Item -LiteralPath $source -Destination $target
@@ -143,7 +143,7 @@ jobs:
         run: |
           $setup = ".artifacts/packages/Mira-$env:VERSION-win-x64-setup.exe"
           $info = (Get-Item -LiteralPath $setup).VersionInfo
-          if ($info.ProductName -ne 'Mira' -or $info.ProductVersion -ne $env:VERSION) { throw "installer: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
+          if ($info.ProductName.Trim() -ne 'Mira' -or $info.ProductVersion.Trim() -ne $env:VERSION) { throw "installer: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
           New-Item -ItemType Directory -Path .artifacts/setup -Force | Out-Null
           Move-Item -LiteralPath $setup -Destination .artifacts/setup/Mira-setup.exe
           Remove-Item -LiteralPath ".artifacts/packages/Mira-$env:VERSION-win-x64-setup.exe.sha256"
