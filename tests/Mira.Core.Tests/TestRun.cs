@@ -31,6 +31,8 @@ internal sealed class TestRun
     {
         if (_filters.Count > 0 && !_filters.Any(f => name.Contains(f, StringComparison.OrdinalIgnoreCase))) { _skipped++; return; }
         if (_list) { _passed++; Console.WriteLine(name); return; }
+        // Every check starts in French, the language its expected texts are written in; one about English sets it itself.
+        Mira.Core.Lang.Use(Mira.Core.Lang.French, System.Globalization.CultureInfo.GetCultureInfo("fr-FR"));
         try
         {
             await body();

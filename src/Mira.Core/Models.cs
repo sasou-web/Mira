@@ -190,6 +190,9 @@ public sealed record PendingReport(long Id, string Kind, PlaybackReport Report);
 public sealed record LibraryScan(bool Running, double? Progress, DateTimeOffset? LastEnded);
 public sealed class PlayerSettings
 {
+    /// <summary>Language of Mira chosen in its settings, "en" or "fr" (<see cref="Lang"/>); empty until chosen: the one chosen at
+    /// installation, else the system's.</summary>
+    public string Language { get; set; } = "";
     public string MpvPath { get; set; } = "";
     public double Volume { get; set; } = 80;
     public string AudioLanguage { get; set; } = "jpn,ja,fre,fra,fr,eng,en";
