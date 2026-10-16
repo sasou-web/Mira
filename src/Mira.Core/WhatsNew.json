@@ -1,5 +1,18 @@
 [
   {
+    "version": "0.8.0",
+    "summary": "Mira en anglais par défaut, téléchargements du PC serveur partout et meilleure version d’abord.",
+    "en": { "summary": "Mira in English by default, server PC downloads everywhere, and the best release first." },
+    "items": [
+      { "icon": "sliders", "title": "Mira en anglais ou en français", "text": "Anglais par défaut ; français si ton système ou ton navigateur l’est. Réglages → Langue pour choisir.", "web": true,
+        "en": { "title": "Mira in English or French", "text": "English by default; French when your system or browser is French. Settings → Language to choose." } },
+      { "icon": "download", "title": "La meilleure version d’abord", "text": "Les résultats de téléchargement se regroupent par film, épisode ou saison, avec la meilleure version en avant.", "web": true,
+        "en": { "title": "The best release first", "text": "Download results are grouped by movie, episode or season, with the best release up front." } },
+      { "icon": "server", "title": "Téléchargements du PC serveur", "text": "Sur Windows et Mac, hors du PC de Jellyfin, la page Téléchargements pilote celui du serveur.",
+        "en": { "title": "Server PC downloads", "text": "On Windows and Mac, away from the Jellyfin PC, the Downloads page drives the server's." } }
+    ]
+  },
+  {
     "version": "0.7.9",
     "summary": "Regarder ensemble plus simple, lecture plus fiable, PC serveur joignable et recherche enrichie.",
     "en": { "summary": "Easier Watch together, more reliable playback, a server PC within reach, and richer search." },

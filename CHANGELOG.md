@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.8.0 — 2026-10-16
+
+Mira en anglais par défaut, Téléchargements du PC serveur depuis Mira pour Windows et Mac, et résultats TorLink regroupés.
 
 - **Mira pour Windows en anglais** : sur un Windows réglé en anglais (ou dans une autre langue que le français), Mira s’affiche maintenant en anglais ; en français sur un Windows en français, comme avant. L’installateur s’ouvre sur le choix de la langue, que Mira garde ensuite. **Réglages → Apparence → Langue** la change ; **Relancer maintenant** rouvre Mira dans la nouvelle langue. Les nouveautés montrées après une mise à jour sont écrites dans les deux langues, pour chaque version. Tant que tu n’as rien choisi, l’anglais passe avant le français pour l’audio et les sous-titres quand Mira est en anglais (le japonais reste en tête pour l’audio) ; tes choix déjà faits ne changent pas.
 - **Mira web en anglais** : sur un téléphone ou un navigateur réglé en anglais (ou dans une autre langue que le français), Mira web s’affiche maintenant en anglais ; en français s’il est réglé en français, comme avant. **Réglages → Langue** choisit l’une ou l’autre pour cet appareil. Les messages de l’extension (Télécharger sur le PC serveur) suivent la langue de Mira web. Le menu « Lettre » de Films et Séries n’affiche plus « null » à côté du tri.
