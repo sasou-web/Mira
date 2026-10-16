@@ -53,7 +53,7 @@ public partial class MainWindow
         if (item.Type == "Episode")
         {
             NextButton.IsEnabled = following is not null;
-            NextButton.ToolTip = following is null ? "Dernier épisode disponible" : "Épisode suivant · " + PlayerText.Subtitle(following, episodes);
+            NextButton.ToolTip = following is null ? L("Dernier épisode disponible", "Last available episode") : L("Épisode suivant · ", "Next episode · ") + PlayerText.Subtitle(following, episodes);
             SetPlayerEpisodes(item, episodes);
             if (episodes.Count > 0) PlayingSubtitle.Text = PlayerText.Subtitle(item, episodes);
         }

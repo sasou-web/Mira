@@ -53,7 +53,7 @@ public partial class MainWindow
             {
                 var name = PlayerText.Language(code) ?? code;
                 var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "subtitle-language", Content = name, MinWidth = 96, IsChecked = code == _subtitleLanguage };
-                AutomationProperties.SetName(chip, "Sous-titres en " + name.ToLower(Culture));
+                AutomationProperties.SetName(chip, L("Sous-titres en " + name.ToLower(Culture), "Subtitles in " + name));
                 chip.Checked += (_, _) => { if (!_menuBuilding) _ = SearchSubtitlesAsync(code); };
                 SubtitleLanguageList.Children.Add(chip);
             }
@@ -75,13 +75,13 @@ public partial class MainWindow
         _subtitleLanguage = language;
         var search = ++_subtitleSearch;
         SubtitleResultList.Children.Clear();
-        SubtitleSearchStatus.Text = "Recherche…";
+        SubtitleSearchStatus.Text = L("Recherche…", "Searching…");
         try
         {
             SubtitleSearchPrivacy.Text = JellyfinSubtitles.Privacy(await SubtitleProvidersAsync());
             var found = await client.SearchSubtitlesAsync(item.Id, language, _connectionLifetime.Token);
             if (search != _subtitleSearch) return;
-            SubtitleSearchStatus.Text = found.Count > 0 ? "" : $"Aucun sous-titre trouvé en {(PlayerText.Language(language) ?? language).ToLower(Culture)}.";
+            SubtitleSearchStatus.Text = found.Count > 0 ? "" : L($"Aucun sous-titre trouvé en {(PlayerText.Language(language) ?? language).ToLower(Culture)}.", $"No subtitles found in {PlayerText.Language(language) ?? language}.");
             foreach (var subtitle in found.Take(40)) SubtitleResultList.Children.Add(SubtitleResultRow(subtitle));
         }
         catch (Exception e) when (IsExpected(e)) { if (search == _subtitleSearch) SubtitleSearchStatus.Text = SubtitleError(e); }
@@ -99,7 +99,7 @@ public partial class MainWindow
         var icon = new Icon { Kind = "subtitles", Width = 15, Height = 15, Margin = new Thickness(1, 0, 11, 0), Foreground = Palette.Get("TextBody") };
         DockPanel.SetDock(icon, Dock.Left); content.Children.Add(icon); content.Children.Add(text);
         var row = new Button { Style = (Style)FindResource("PlayerMenuItem"), Content = content, ToolTip = label.Length > 40 ? label : null };
-        AutomationProperties.SetName(row, $"Garder sur Jellyfin : {label}, {details}");
+        AutomationProperties.SetName(row, L($"Garder sur Jellyfin : {label}, {details}", $"Keep on Jellyfin: {label}, {details}"));
         row.Click += (_, _) => _ = KeepFoundSubtitleAsync(subtitle);
         return row;
     }
@@ -112,19 +112,19 @@ public partial class MainWindow
         if (_keepingSubtitle || _client is not { } client || _session.Item is not { } item) return;
         var sourceId = _session.Source?.Id; var generation = _playGeneration; var ct = _connectionLifetime.Token;
         _keepingSubtitle = true; SubtitleResultList.IsEnabled = SubtitleLanguageList.IsEnabled = false;
-        SubtitleSearchStatus.Text = "Ajout sur Jellyfin…"; SubtitleSearchStatus.Visibility = Visibility.Visible;
+        SubtitleSearchStatus.Text = L("Ajout sur Jellyfin…", "Adding to Jellyfin…"); SubtitleSearchStatus.Visibility = Visibility.Visible;
         try
         {
             var before = await client.StreamsAsync(item.Id, sourceId, ct);
             var kept = await client.KeepRemoteSubtitleAsync(item.Id, subtitle, ct);
             var said = JellyfinSubtitles.KeptText(kept, subtitle.Language);
             if (kept is SubtitleKept.Refused or SubtitleKept.NotWritten) { SubtitleSearchStatus.Text = said; return; }
-            SubtitleSearchStatus.Text = "Jellyfin lit le nouveau fichier…";
+            SubtitleSearchStatus.Text = L("Jellyfin lit le nouveau fichier…", "Jellyfin is reading the new file…");
             var arrived = await client.KeptSubtitleAsync(item.Id, sourceId, before, TimeSpan.FromSeconds(30), ct);
             if (generation != _playGeneration) return;
             PlayerOptionsPopup.IsOpen = false;
             if (arrived is not null && sourceId is not null && PlayKeptSubtitle(client, item.Id, sourceId, arrived)) SetNotice(said);
-            else SetNotice(arrived is null ? said + " Jellyfin ne le montre pas encore : il sera proposé à la prochaine lecture." : said + " Choisis-le à la prochaine lecture.");
+            else SetNotice(arrived is null ? said + L(" Jellyfin ne le montre pas encore : il sera proposé à la prochaine lecture.", " Jellyfin doesn’t list them yet: they’ll be offered the next time you play this.") : said + L(" Choisis-le à la prochaine lecture.", " Choose them the next time you play this."));
         }
         catch (Exception e) when (IsExpected(e)) { if (generation == _playGeneration) SubtitleSearchStatus.Text = SubtitleError(e); }
         finally { _keepingSubtitle = false; SubtitleResultList.IsEnabled = SubtitleLanguageList.IsEnabled = true; }
@@ -153,7 +153,7 @@ public partial class MainWindow
         try { allowed = await client.CanManageSubtitlesAsync(_connectionLifetime.Token); }
         catch (Exception e) when (IsExpected(e)) { return; }
         if (allowed == false || generation != _playGeneration || client != _client) return;
-        SetNotice(JellyfinSubtitles.LoadedText, "Garder sur Jellyfin",
+        SetNotice(JellyfinSubtitles.LoadedText, L("Garder sur Jellyfin", "Keep on Jellyfin"),
             () => _ = KeepLoadedSubtitleAsync(client, item.Id, file, guess), sticky: false);
     }
     private async Task KeepLoadedSubtitleAsync(JellyfinClient client, string itemId, string file, (string Format, string Language, bool Forced, bool HearingImpaired) guess)
@@ -162,12 +162,12 @@ public partial class MainWindow
         try { upload = await JellyfinSubtitles.ReadAsync(file, guess); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { SetNotice(JellyfinSubtitles.UnreadableText); return; }
         if (upload is null) { SetNotice(JellyfinSubtitles.TooBigText); return; }
-        SetNotice("Envoi des sous-titres à Jellyfin…");
+        SetNotice(L("Envoi des sous-titres à Jellyfin…", "Sending the subtitles to Jellyfin…"));
         try
         {
             var kept = await client.KeepSubtitleAsync(itemId, upload, _connectionLifetime.Token);
             SetNotice(JellyfinSubtitles.KeptText(kept, guess.Language));
         }
-        catch (Exception e) when (IsExpected(e)) { SetNotice("Jellyfin n’a pas gardé ces sous-titres. " + Friendly(e)); }
+        catch (Exception e) when (IsExpected(e)) { SetNotice(L("Jellyfin n’a pas gardé ces sous-titres. ", "Jellyfin didn’t keep these subtitles. ") + Friendly(e)); }
     }
 }

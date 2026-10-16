@@ -57,7 +57,7 @@ internal static class WindowsIdentity
         {
             var link = (IShellLinkW)instance;
             link.SetPath(executable); link.SetWorkingDirectory(Path.GetDirectoryName(executable)!);
-            link.SetDescription("Mira — Ta bibliothèque Jellyfin avec mpv intégré");
+            link.SetDescription(L("Mira — Ta bibliothèque Jellyfin avec mpv intégré", "Mira — Your Jellyfin library with mpv built in"));
             link.SetIconLocation(IconPath, 0);
             SetString((IPropertyStore)instance, 5, AppId);
             ((IPropertyStore)instance).Commit();
