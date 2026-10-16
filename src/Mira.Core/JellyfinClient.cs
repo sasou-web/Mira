@@ -36,6 +36,9 @@ public sealed class JellyfinClient : IDisposable
     private void SetAuthorization()
     {
         _http.DefaultRequestHeaders.Remove("Authorization");
+        // Mira's own language, so that the TorLink relay of the extension answers in it.
+        _http.DefaultRequestHeaders.AcceptLanguage.Clear();
+        _http.DefaultRequestHeaders.AcceptLanguage.Add(new(Code));
         var token = Connection.Token.Replace("\"", "").Replace("\r", "").Replace("\n", "");
         _http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization",
             $"MediaBrowser Client=\"Mira\", Device=\"{DeviceName}\", DeviceId=\"{Connection.DeviceId}\", Version=\"{AppVersion}\"" +

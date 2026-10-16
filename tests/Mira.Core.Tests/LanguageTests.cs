@@ -154,5 +154,19 @@ internal static class LanguageTests
             Assert(old.Language == "", "A profile from before keeps no choice");
             return Task.CompletedTask;
         });
+        await Test("Langue : Mira dit la sienne à Jellyfin, pour que le relais de TorLink réponde dans celle-ci", async () =>
+        {
+            var said = new List<string>();
+            var handler = new Handler(request =>
+            {
+                said.Add(string.Join(",", request.Headers.AcceptLanguage));
+                return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK));
+            });
+            Lang.Use("en", Us);
+            using (var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), handler)) await client.PingAsync();
+            Lang.Use("fr", France);
+            using (var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), handler)) await client.PingAsync();
+            Assert(said.SequenceEqual(["en", "fr"]), "Accept-Language: " + string.Join(" | ", said));
+        });
     }
 }
