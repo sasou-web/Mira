@@ -2,166 +2,246 @@
   {
     "version": "0.7.9",
     "summary": "Regarder ensemble plus simple, lecture plus fiable, PC serveur joignable et recherche enrichie.",
+    "en": { "summary": "Easier Watch together, more reliable playback, a server PC within reach, and richer search." },
     "items": [
-      { "icon": "users", "title": "Regarder ensemble, plus simple", "text": "Le lien d’invitation reste valable, Lecture lance le titre pour tout le groupe, le groupe s’affiche sur l’accueil.", "web": true },
-      { "icon": "play", "title": "Une lecture plus fiable", "text": "Pleine qualité si ta connexion la tient, épisode suivant dès le générique, « Lecture impossible » dit pourquoi.", "web": true },
-      { "icon": "sliders", "title": "Trouver plus vite, à ta main", "text": "Épisodes, sagas et acteurs dans la recherche, saut à une lettre, accueil à ton goût, choix gardés sur Jellyfin.", "web": true },
-      { "icon": "server", "title": "PC serveur toujours joignable", "text": "Sous Windows, Mira relance Jellyfin arrêté et garde le PC éveillé pendant que tu regardes ailleurs." },
-      { "icon": "download", "title": "Garder sur ce PC", "text": "Sous Windows, garde un film ou des épisodes pour les regarder sans Jellyfin." }
+      { "icon": "users", "title": "Regarder ensemble, plus simple", "text": "Le lien d’invitation reste valable, Lecture lance le titre pour tout le groupe, le groupe s’affiche sur l’accueil.", "web": true,
+        "en": { "title": "Watch together, made easier", "text": "The invite link keeps working, Play starts the title for the whole group, and the group shows on Home." } },
+      { "icon": "play", "title": "Une lecture plus fiable", "text": "Pleine qualité si ta connexion la tient, épisode suivant dès le générique, « Lecture impossible » dit pourquoi.", "web": true,
+        "en": { "title": "More reliable playback", "text": "Full quality when your connection can take it, next episode as soon as the credits roll, and “Can’t play this” says why." } },
+      { "icon": "sliders", "title": "Trouver plus vite, à ta main", "text": "Épisodes, sagas et acteurs dans la recherche, saut à une lettre, accueil à ton goût, choix gardés sur Jellyfin.", "web": true,
+        "en": { "title": "Find things faster, your way", "text": "Episodes, collections and actors in search, jump to a letter, Home the way you like it, choices kept on Jellyfin." } },
+      { "icon": "server", "title": "PC serveur toujours joignable", "text": "Sous Windows, Mira relance Jellyfin arrêté et garde le PC éveillé pendant que tu regardes ailleurs.",
+        "en": { "title": "A server PC always within reach", "text": "On Windows, Mira restarts Jellyfin when it has stopped and keeps the PC awake while you watch elsewhere." } },
+      { "icon": "download", "title": "Garder sur ce PC", "text": "Sous Windows, garde un film ou des épisodes pour les regarder sans Jellyfin.",
+        "en": { "title": "Keep on this PC", "text": "On Windows, keep a movie or episodes to watch them without Jellyfin." } }
     ]
   },
   {
     "version": "0.7.8",
     "summary": "Regarder ensemble, minuterie, carte graphique pour les conversions et nouveaux épisodes notifiés.",
+    "en": { "summary": "Watch together, sleep timer, the graphics card for conversions, and new episode notifications." },
     "items": [
-      { "icon": "users", "title": "Regarder ensemble", "text": "Sur la fiche, crée un groupe : tes amis le rejoignent depuis leur téléphone ou leur PC, et tout le monde lit au même moment.", "web": true },
-      { "icon": "clock", "title": "Minuterie", "text": "Pause au bout de 15 min, 30 min ou 1 h, ou à la fin de l’épisode. Sur iPhone, choisis-la sur la fiche.", "web": true },
-      { "icon": "server", "title": "Conversions par la carte graphique", "text": "Réglages → Jellyfin & synchronisation → Utiliser la carte graphique : gardée seulement si l’essai réussit." },
-      { "icon": "series", "title": "Nouveaux épisodes notifiés", "text": "Sous Windows, un nouvel épisode d’une série que tu suis s’annonce dans une notification." },
-      { "icon": "user", "title": "En ce moment sur Jellyfin", "text": "Sous Windows, dans les Réglages : qui regarde quoi, converti ou non, et Arrêter." }
+      { "icon": "users", "title": "Regarder ensemble", "text": "Sur la fiche, crée un groupe : tes amis le rejoignent depuis leur téléphone ou leur PC, et tout le monde lit au même moment.", "web": true,
+        "en": { "title": "Watch together", "text": "On a title page, create a group: your friends join from their phone or PC, and everyone plays at the same moment." } },
+      { "icon": "clock", "title": "Minuterie", "text": "Pause au bout de 15 min, 30 min ou 1 h, ou à la fin de l’épisode. Sur iPhone, choisis-la sur la fiche.", "web": true,
+        "en": { "title": "Sleep timer", "text": "Pause after 15 min, 30 min or 1 hr, or at the end of the episode. On iPhone, choose it on the title page." } },
+      { "icon": "server", "title": "Conversions par la carte graphique", "text": "Réglages → Jellyfin & synchronisation → Utiliser la carte graphique : gardée seulement si l’essai réussit.",
+        "en": { "title": "Convert with the graphics card", "text": "Settings → Jellyfin & sync → Use the graphics card: kept only if the test works." } },
+      { "icon": "series", "title": "Nouveaux épisodes notifiés", "text": "Sous Windows, un nouvel épisode d’une série que tu suis s’annonce dans une notification.",
+        "en": { "title": "New episode notifications", "text": "On Windows, a new episode of a show you follow shows up in a notification." } },
+      { "icon": "user", "title": "En ce moment sur Jellyfin", "text": "Sous Windows, dans les Réglages : qui regarde quoi, converti ou non, et Arrêter.",
+        "en": { "title": "Now on Jellyfin", "text": "On Windows, in Settings: who’s watching what, converted or not, and Stop." } }
     ]
   },
   {
     "version": "0.7.7",
     "summary": "Connexion par code, sagas, intros passées toutes seules et une fiche plus complète.",
+    "en": { "summary": "Sign in with a code, collections, intros skipped for you, and a fuller title page." },
     "items": [
-      { "icon": "phone", "title": "Connexion par code", "text": "Le téléphone affiche 6 chiffres : saisis-les dans Réglages → Autoriser un appareil, sans taper ton mot de passe." },
-      { "icon": "film", "title": "Sagas sur la fiche d’un film", "text": "Pour les remplir : Réglages → Jellyfin & synchronisation → Ranger mes films en sagas." },
-      { "icon": "skip", "title": "Intros et récaps passés tout seuls", "text": "D’après les chapitres, aussi sur iPhone : active « Passer les intros et les récaps »." },
-      { "icon": "series", "title": "Séries mieux suivies", "text": "Épisodes à voir sur l’affiche, animés à part, pistes retenues pour chaque série." },
-      { "icon": "sparkle", "title": "Une fiche plus complète", "text": "Qualité du fichier, heure de fin, rangée Bonus et, sur PC, Depuis le début." }
+      { "icon": "phone", "title": "Connexion par code", "text": "Le téléphone affiche 6 chiffres : saisis-les dans Réglages → Autoriser un appareil, sans taper ton mot de passe.",
+        "en": { "title": "Sign in with a code", "text": "The phone shows 6 digits: enter them in Settings → Allow a device, without typing your password." } },
+      { "icon": "film", "title": "Sagas sur la fiche d’un film", "text": "Pour les remplir : Réglages → Jellyfin & synchronisation → Ranger mes films en sagas.",
+        "en": { "title": "Collections on a movie’s page", "text": "To fill them: Settings → Jellyfin & sync → Group my movies into collections." } },
+      { "icon": "skip", "title": "Intros et récaps passés tout seuls", "text": "D’après les chapitres, aussi sur iPhone : active « Passer les intros et les récaps ».",
+        "en": { "title": "Intros and recaps skipped for you", "text": "From the chapters, on iPhone too: turn on “Skip intros and recaps”." } },
+      { "icon": "series", "title": "Séries mieux suivies", "text": "Épisodes à voir sur l’affiche, animés à part, pistes retenues pour chaque série.",
+        "en": { "title": "Shows, better followed", "text": "Episodes left to watch on the poster, anime on its own, tracks remembered for each show." } },
+      { "icon": "sparkle", "title": "Une fiche plus complète", "text": "Qualité du fichier, heure de fin, rangée Bonus et, sur PC, Depuis le début.",
+        "en": { "title": "A fuller title page", "text": "File quality, end time, an Extras row and, on PC, From the beginning." } }
     ]
   },
   {
     "version": "0.7.6",
     "summary": "Icône lisible en mode sombre sur iPhone, et un vrai écran quand un titre ne peut pas être lu.",
+    "en": { "summary": "An iPhone icon that reads in dark mode, and a real screen when a title can’t play." },
     "items": [
-      { "icon": "phone", "title": "Icône lisible en mode sombre", "text": "Pour la voir : supprime Mira de l’écran d’accueil et rajoute-le depuis Safari." },
-      { "icon": "play", "title": "Lecture impossible, expliquée", "text": "Le lecteur dit pourquoi, avec Retour et Réessayer, comme Mira web." },
-      { "icon": "sparkle", "title": "Couleurs harmonisées", "text": "Toute la fenêtre suit la palette de Mira web, sans perte de contraste." }
+      { "icon": "phone", "title": "Icône lisible en mode sombre", "text": "Pour la voir : supprime Mira de l’écran d’accueil et rajoute-le depuis Safari.",
+        "en": { "title": "An icon that reads in dark mode", "text": "To see it: remove Mira from the Home Screen and add it again from Safari." } },
+      { "icon": "play", "title": "Lecture impossible, expliquée", "text": "Le lecteur dit pourquoi, avec Retour et Réessayer, comme Mira web.",
+        "en": { "title": "Can’t play this, explained", "text": "The player says why, with Back and Try again, like Mira web." } },
+      { "icon": "sparkle", "title": "Couleurs harmonisées", "text": "Toute la fenêtre suit la palette de Mira web, sans perte de contraste.",
+        "en": { "title": "Matching colors", "text": "The whole window follows Mira web’s palette, with no loss of contrast." } }
     ]
   },
   {
     "version": "0.7.5",
     "summary": "Plus sûr et plus léger : pare-feu limité à la maison, mises à jour vérifiées, Narrateur et clavier.",
+    "en": { "summary": "Safer and lighter: firewall limited to home, verified updates, Narrator and keyboard." },
     "items": [
-      { "icon": "server", "title": "Pare-feu fermé aux réseaux publics", "text": "Box vue comme publique : Guide → Mira sur ton téléphone → Passer en privé." },
-      { "icon": "check", "title": "Tout est vérifié avant d’être installé", "text": "Mira web, l’app Mac, TorLink et le moteur vidéo, par signature ou empreinte." },
-      { "icon": "refresh", "title": "Mira ne reste plus bloqué", "text": "Cache abîmé, disque plein, serveur muet, veille : Mira le dit et repart." },
-      { "icon": "user", "title": "Narrateur, clavier, plus léger", "text": "Boutons nommés, réglages de Windows suivis, images à la taille de l’écran." }
+      { "icon": "server", "title": "Pare-feu fermé aux réseaux publics", "text": "Box vue comme publique : Guide → Mira sur ton téléphone → Passer en privé.",
+        "en": { "title": "Firewall closed to public networks", "text": "Home network seen as public: Guide → Mira on your phone → Make it private." } },
+      { "icon": "check", "title": "Tout est vérifié avant d’être installé", "text": "Mira web, l’app Mac, TorLink et le moteur vidéo, par signature ou empreinte.",
+        "en": { "title": "Everything checked before it’s installed", "text": "Mira web, the Mac app, TorLink and the video engine, by signature or fingerprint." } },
+      { "icon": "refresh", "title": "Mira ne reste plus bloqué", "text": "Cache abîmé, disque plein, serveur muet, veille : Mira le dit et repart.",
+        "en": { "title": "Mira no longer gets stuck", "text": "Damaged cache, full disk, silent server, sleep: Mira says so and carries on." } },
+      { "icon": "user", "title": "Narrateur, clavier, plus léger", "text": "Boutons nommés, réglages de Windows suivis, images à la taille de l’écran.",
+        "en": { "title": "Narrator, keyboard, lighter", "text": "Named buttons, Windows settings followed, images at the size of your screen." } }
     ]
   },
   {
     "version": "0.7.4",
     "summary": "Mira sur ton téléphone en un clic : le guide prépare tout, et le QR code marche aussi ailleurs.",
+    "en": { "summary": "Mira on your phone in one click: the guide sets it all up, and the QR code works away from home." },
     "items": [
-      { "icon": "phone", "title": "Une seule carte pour le téléphone", "text": "Guide → Mira sur ton téléphone : chaque étape est cochée quand elle est prête, numérotée sinon, et dit où agir si c’est à toi." },
-      { "icon": "sparkle", "title": "Tout préparer", "text": "Pare-feu, Tailscale dans Jellyfin et Mira web en un clic, avec une seule autorisation de Windows, puis le QR code." },
-      { "icon": "check", "title": "Fini la page blanche", "text": "Le pare-feu de Windows est lu et ouvert pour le Wi-Fi de la maison et pour Tailscale, que Jellyfin ait son service ou non." },
-      { "icon": "server", "title": "Un QR code qui marche partout", "text": "Avec Tailscale, le QR code donne l’adresse du PC qui marche chez toi comme ailleurs ; « Chez toi seulement » reste au choix." }
+      { "icon": "phone", "title": "Une seule carte pour le téléphone", "text": "Guide → Mira sur ton téléphone : chaque étape est cochée quand elle est prête, numérotée sinon, et dit où agir si c’est à toi.",
+        "en": { "title": "One card for the phone", "text": "Guide → Mira on your phone: each step is ticked when it’s ready, numbered otherwise, and says where to act when it’s up to you." } },
+      { "icon": "sparkle", "title": "Tout préparer", "text": "Pare-feu, Tailscale dans Jellyfin et Mira web en un clic, avec une seule autorisation de Windows, puis le QR code.",
+        "en": { "title": "Set everything up", "text": "Firewall, Tailscale in Jellyfin and Mira web in one click, with a single Windows permission, then the QR code." } },
+      { "icon": "check", "title": "Fini la page blanche", "text": "Le pare-feu de Windows est lu et ouvert pour le Wi-Fi de la maison et pour Tailscale, que Jellyfin ait son service ou non.",
+        "en": { "title": "No more blank page", "text": "Windows’ firewall is read and opened for your home Wi-Fi and for Tailscale, whether Jellyfin runs as a service or not." } },
+      { "icon": "server", "title": "Un QR code qui marche partout", "text": "Avec Tailscale, le QR code donne l’adresse du PC qui marche chez toi comme ailleurs ; « Chez toi seulement » reste au choix.",
+        "en": { "title": "A QR code that works everywhere", "text": "With Tailscale, the QR code gives the PC’s address that works at home and away; “At home only” stays an option." } }
     ]
   },
   {
     "version": "0.7.3",
     "summary": "Sur iPhone, un titre refusé est redemandé converti, et les onglets passent en fondu.",
+    "en": { "summary": "On iPhone, a refused title is asked for again, converted, and tabs fade in." },
     "items": [
-      { "icon": "play", "title": "Des titres qui jouent", "text": "Un titre que le lecteur d’Apple refuse est redemandé à Jellyfin, la vidéo puis tout converti, là où il en était." },
-      { "icon": "sparkle", "title": "Des onglets fluides", "text": "Chaque onglet arrive entier, en fondu, sans cases vides ni saut, et ce qui n’a pas changé reste à l’écran." },
-      { "icon": "sliders", "title": "Masquer la Dynamic Island", "text": "Le réglage dit son prix : iPhone en mode silencieux, film sans son. iOS ne laisse pas une app web avoir les deux." }
+      { "icon": "play", "title": "Des titres qui jouent", "text": "Un titre que le lecteur d’Apple refuse est redemandé à Jellyfin, la vidéo puis tout converti, là où il en était.",
+        "en": { "title": "Titles that play", "text": "A title Apple’s player refuses is asked of Jellyfin again, the video then everything converted, right where it was." } },
+      { "icon": "sparkle", "title": "Des onglets fluides", "text": "Chaque onglet arrive entier, en fondu, sans cases vides ni saut, et ce qui n’a pas changé reste à l’écran.",
+        "en": { "title": "Smooth tabs", "text": "Each tab arrives whole, fading in, with no empty boxes or jumps, and what hasn’t changed stays on screen." } },
+      { "icon": "sliders", "title": "Masquer la Dynamic Island", "text": "Le réglage dit son prix : iPhone en mode silencieux, film sans son. iOS ne laisse pas une app web avoir les deux.",
+        "en": { "title": "Hide the Dynamic Island", "text": "The setting says what it costs: iPhone on silent, movie without sound. iOS doesn’t let a web app have both." } }
     ]
   },
   {
     "version": "0.7.2",
     "summary": "Sur iPhone, les sous-titres des animés arrivent dans le menu d’Apple, et Mira se comporte en app.",
+    "en": { "summary": "On iPhone, anime subtitles reach Apple’s menu, and Mira behaves like an app." },
     "items": [
-      { "icon": "subtitles", "title": "Sous-titres des animés", "text": "Les ASS arrivent en texte dans le menu du lecteur d’Apple, à l’heure, même avec « Aucun » choisi sur la fiche, sans plus réencoder la vidéo pour eux." },
-      { "icon": "play", "title": "Un lecteur plus fiable", "text": "Fermé pendant l’épisode suivant, il ne se rouvre plus. Une longue pause ou une coupure réseau ne coupe plus la lecture : elle reprend là où elle était." },
-      { "icon": "phone", "title": "Comme une app sur iPhone", "text": "Le retour par glissement d’iOS, des appuis comme sur iPhone, Favori et Vu instantanés, une fiche qui ne remonte plus en haut." },
-      { "icon": "sliders", "title": "Lecture discrète", "text": "Réglages → Lecture discrète tente de garder la vidéo hors de la Dynamic Island ; le son suit alors le mode silencieux." }
+      { "icon": "subtitles", "title": "Sous-titres des animés", "text": "Les ASS arrivent en texte dans le menu du lecteur d’Apple, à l’heure, même avec « Aucun » choisi sur la fiche, sans plus réencoder la vidéo pour eux.",
+        "en": { "title": "Anime subtitles", "text": "ASS subtitles arrive as text in the menu of Apple’s player, on time, even with “None” chosen on the title page, without re-encoding the video for them." } },
+      { "icon": "play", "title": "Un lecteur plus fiable", "text": "Fermé pendant l’épisode suivant, il ne se rouvre plus. Une longue pause ou une coupure réseau ne coupe plus la lecture : elle reprend là où elle était.",
+        "en": { "title": "A more reliable player", "text": "Closed during the next episode, it no longer reopens. A long pause or a network drop no longer stops playback: it picks up where it was." } },
+      { "icon": "phone", "title": "Comme une app sur iPhone", "text": "Le retour par glissement d’iOS, des appuis comme sur iPhone, Favori et Vu instantanés, une fiche qui ne remonte plus en haut.",
+        "en": { "title": "Like an app on iPhone", "text": "iOS’s swipe back, taps that feel like iPhone, instant Favorite and Watched, and a title page that no longer jumps to the top." } },
+      { "icon": "sliders", "title": "Lecture discrète", "text": "Réglages → Lecture discrète tente de garder la vidéo hors de la Dynamic Island ; le son suit alors le mode silencieux.",
+        "en": { "title": "Discreet playback", "text": "Settings → Discreet playback tries to keep the video out of the Dynamic Island; the sound then follows silent mode." } }
     ]
   },
   {
     "version": "0.7.1",
     "summary": "Sur iPhone, la lecture passe par le lecteur d’Apple, et Mira attend ton PC quand il démarre.",
+    "en": { "summary": "On iPhone, playback goes through Apple’s player, and Mira waits for your PC while it starts." },
     "items": [
-      { "icon": "fullscreen", "title": "Le lecteur d’Apple sur iPhone", "text": "Les vidéos s’ouvrent en plein écran avec ses commandes et ses sous-titres. L’épisode suivant suit, et plus rien dans la Dynamic Island." },
-      { "icon": "subtitles", "title": "Audio et sous-titres sur la fiche", "text": "Choisis-les sous Lecture : Mira part de tes langues préférées et retient celles de chaque série." },
-      { "icon": "server", "title": "Prêt dès l’allumage du PC", "text": "Guide → Disponible dès l’allumage du PC : Jellyfin démarre avec Windows et ton téléphone le trouve tout de suite." },
-      { "icon": "refresh", "title": "Mira attend ton serveur", "text": "Ouverte pendant que le PC démarre, Mira web patiente, puis reprend toute seule." }
+      { "icon": "fullscreen", "title": "Le lecteur d’Apple sur iPhone", "text": "Les vidéos s’ouvrent en plein écran avec ses commandes et ses sous-titres. L’épisode suivant suit, et plus rien dans la Dynamic Island.",
+        "en": { "title": "Apple’s player on iPhone", "text": "Videos open full screen with its controls and subtitles. The next episode follows, and nothing in the Dynamic Island any more." } },
+      { "icon": "subtitles", "title": "Audio et sous-titres sur la fiche", "text": "Choisis-les sous Lecture : Mira part de tes langues préférées et retient celles de chaque série.",
+        "en": { "title": "Audio and subtitles on the title page", "text": "Choose them under Play: Mira starts from your preferred languages and remembers those of each show." } },
+      { "icon": "server", "title": "Prêt dès l’allumage du PC", "text": "Guide → Disponible dès l’allumage du PC : Jellyfin démarre avec Windows et ton téléphone le trouve tout de suite.",
+        "en": { "title": "Ready as soon as the PC is on", "text": "Guide → Available as soon as the PC turns on: Jellyfin starts with Windows and your phone finds it right away." } },
+      { "icon": "refresh", "title": "Mira attend ton serveur", "text": "Ouverte pendant que le PC démarre, Mira web patiente, puis reprend toute seule.",
+        "en": { "title": "Mira waits for your server", "text": "Opened while the PC is starting, Mira web waits, then carries on by itself." } }
     ]
   },
   {
     "version": "0.7.0",
     "summary": "Mira arrive sur iPhone, iPad et Android, servie par ton serveur Jellyfin.",
+    "en": { "summary": "Mira comes to iPhone, iPad and Android, served by your Jellyfin server." },
     "items": [
-      { "icon": "phone", "title": "Mira sur ton téléphone", "text": "Ajoute-la à l’écran d’accueil de l’iPhone : elle s’ouvre comme une app, sans App Store." },
-      { "icon": "sparkle", "title": "Installée en un clic", "text": "Guide → Sur tes autres appareils → Installer Mira web, puis scanne le QR code." },
-      { "icon": "refresh", "title": "Reprise partagée", "text": "Commence un film sur le PC, finis-le sur le téléphone, au même endroit." }
+      { "icon": "phone", "title": "Mira sur ton téléphone", "text": "Ajoute-la à l’écran d’accueil de l’iPhone : elle s’ouvre comme une app, sans App Store.",
+        "en": { "title": "Mira on your phone", "text": "Add it to the iPhone’s Home Screen: it opens like an app, without the App Store." } },
+      { "icon": "sparkle", "title": "Installée en un clic", "text": "Guide → Sur tes autres appareils → Installer Mira web, puis scanne le QR code.",
+        "en": { "title": "Installed in one click", "text": "Guide → On your other devices → Install Mira web, then scan the QR code." } },
+      { "icon": "refresh", "title": "Reprise partagée", "text": "Commence un film sur le PC, finis-le sur le téléphone, au même endroit.",
+        "en": { "title": "Shared resume", "text": "Start a movie on the PC, finish it on your phone, at the same spot." } }
     ]
   },
   {
     "version": "0.6.0",
     "summary": "Mira arrive sur Mac, le volume monte jusqu’à 200 %, et les très longues séries sont complètes.",
+    "en": { "summary": "Mira comes to the Mac, the volume goes up to 200%, and very long shows are complete." },
     "items": [
-      { "icon": "sparkle", "title": "Mira sur Mac", "text": "Une app pour les Mac à puce Apple : ta bibliothèque, le même lecteur et ta reprise partagée." },
-      { "icon": "volume", "title": "Jusqu’à 200 %", "text": "Un film enregistré trop bas ? Monte le volume au-delà de 100 %, sans saturer." },
-      { "icon": "series", "title": "Séries complètes", "text": "Plus de 500 épisodes : tout s’affiche, les longues saisons par tranches de 100." },
-      { "icon": "user", "title": "Acteurs et réalisateurs", "text": "Sur une fiche, clique sur un nom pour voir ses titres dans ta bibliothèque." }
+      { "icon": "sparkle", "title": "Mira sur Mac", "text": "Une app pour les Mac à puce Apple : ta bibliothèque, le même lecteur et ta reprise partagée.",
+        "en": { "title": "Mira on the Mac", "text": "An app for Macs with Apple silicon: your library, the same player and your shared resume." } },
+      { "icon": "volume", "title": "Jusqu’à 200 %", "text": "Un film enregistré trop bas ? Monte le volume au-delà de 100 %, sans saturer.",
+        "en": { "title": "Up to 200%", "text": "A movie recorded too quietly? Turn the volume past 100%, without distortion." } },
+      { "icon": "series", "title": "Séries complètes", "text": "Plus de 500 épisodes : tout s’affiche, les longues saisons par tranches de 100.",
+        "en": { "title": "Complete shows", "text": "Over 500 episodes: everything shows, long seasons in batches of 100." } },
+      { "icon": "user", "title": "Acteurs et réalisateurs", "text": "Sur une fiche, clique sur un nom pour voir ses titres dans ta bibliothèque.",
+        "en": { "title": "Actors and directors", "text": "On a title page, click a name to see their titles in your library." } }
     ]
   },
   {
     "version": "0.5.9",
     "summary": "Une fenêtre qui tient dans l’écran, et Continuer à regarder que tu ranges toi-même.",
+    "en": { "summary": "A window that fits your screen, and a Continue watching row you tidy yourself." },
     "items": [
-      { "icon": "fullscreen", "title": "La bonne taille", "text": "Mira tient dans ton écran et se rouvre comme tu l’as laissée." },
-      { "icon": "close", "title": "Ta rangée, à ton goût", "text": "Clic droit sur une carte de Continuer à regarder : Retirer. Annuler reste possible." }
+      { "icon": "fullscreen", "title": "La bonne taille", "text": "Mira tient dans ton écran et se rouvre comme tu l’as laissée.",
+        "en": { "title": "The right size", "text": "Mira fits your screen and reopens the way you left it." } },
+      { "icon": "close", "title": "Ta rangée, à ton goût", "text": "Clic droit sur une carte de Continuer à regarder : Retirer. Annuler reste possible.",
+        "en": { "title": "Your row, your way", "text": "Right-click a card in Continue watching: Remove. You can still undo it." } }
     ]
   },
   {
     "version": "0.5.8",
     "summary": "Une fenêtre à la taille de ton écran, et ta bibliothèque hors de chez toi.",
+    "en": { "summary": "A window the size of your screen, and your library away from home." },
     "items": [
-      { "icon": "fullscreen", "title": "Fenêtre normale", "text": "Mira s’ouvre en fenêtre, à la taille de ton écran." },
-      { "icon": "phone", "title": "Hors de chez toi", "text": "Avec Tailscale, regarde ta bibliothèque partout : le guide t’explique tout." },
-      { "icon": "check", "title": "Plus net", "text": "La barre de gauche garde le même aspect sur toutes les pages." }
+      { "icon": "fullscreen", "title": "Fenêtre normale", "text": "Mira s’ouvre en fenêtre, à la taille de ton écran.",
+        "en": { "title": "A normal window", "text": "Mira opens in a window, sized to your screen." } },
+      { "icon": "phone", "title": "Hors de chez toi", "text": "Avec Tailscale, regarde ta bibliothèque partout : le guide t’explique tout.",
+        "en": { "title": "Away from home", "text": "With Tailscale, watch your library anywhere: the guide explains everything." } },
+      { "icon": "check", "title": "Plus net", "text": "La barre de gauche garde le même aspect sur toutes les pages.",
+        "en": { "title": "Sharper", "text": "The left bar looks the same on every page." } }
     ]
   },
   {
     "version": "0.5.7",
     "summary": "Les téléchargements se déplacent sans doublon, et Actualiser trouve tes nouveaux fichiers.",
+    "en": { "summary": "Downloads move without duplicates, and Refresh finds your new files." },
     "items": [
-      { "icon": "download", "title": "Jamais en double", "text": "Chaque téléchargement TorLink est déplacé dans ta bibliothèque, sans copie." },
-      { "icon": "refresh", "title": "Actualiser, pour de vrai", "text": "Jellyfin analyse tes dossiers et Mira montre l’avancement, puis les nouveaux titres." },
-      { "icon": "heart", "title": "Favoris en un clic", "text": "Un filtre qui s’allume, et que Réinitialiser éteint." }
+      { "icon": "download", "title": "Jamais en double", "text": "Chaque téléchargement TorLink est déplacé dans ta bibliothèque, sans copie.",
+        "en": { "title": "Never twice", "text": "Each TorLink download is moved into your library, without a copy." } },
+      { "icon": "refresh", "title": "Actualiser, pour de vrai", "text": "Jellyfin analyse tes dossiers et Mira montre l’avancement, puis les nouveaux titres.",
+        "en": { "title": "Refresh, for real", "text": "Jellyfin scans your folders and Mira shows the progress, then the new titles." } },
+      { "icon": "heart", "title": "Favoris en un clic", "text": "Un filtre qui s’allume, et que Réinitialiser éteint.",
+        "en": { "title": "Favorites in one click", "text": "A filter that lights up, and that Reset turns off." } }
     ]
   },
   {
     "version": "0.5.6",
     "summary": "TorLink s’installe d’un clic, et tout tient à l’écran.",
+    "en": { "summary": "TorLink installs in one click, and everything fits on screen." },
     "items": [
-      { "icon": "download", "title": "TorLink en un clic", "text": "Page Téléchargements : active TorLink, Mira installe Node.js et TorLink pour toi." },
-      { "icon": "series", "title": "La bonne saison", "text": "« Continuer à regarder » montre la saison de l’épisode, et non plus l’image de la série." },
-      { "icon": "fullscreen", "title": "Adapté à ton écran", "text": "Accueil, connexion et installation tiennent sur un écran 1080p, même à 150 %." },
-      { "icon": "check", "title": "Plus simple", "text": "Des textes plus courts, à l’essentiel." }
+      { "icon": "download", "title": "TorLink en un clic", "text": "Page Téléchargements : active TorLink, Mira installe Node.js et TorLink pour toi.",
+        "en": { "title": "TorLink in one click", "text": "Downloads page: turn TorLink on, Mira installs Node.js and TorLink for you." } },
+      { "icon": "series", "title": "La bonne saison", "text": "« Continuer à regarder » montre la saison de l’épisode, et non plus l’image de la série.",
+        "en": { "title": "The right season", "text": "“Continue watching” shows the episode’s season, no longer the show’s picture." } },
+      { "icon": "fullscreen", "title": "Adapté à ton écran", "text": "Accueil, connexion et installation tiennent sur un écran 1080p, même à 150 %.",
+        "en": { "title": "Made for your screen", "text": "Home, sign-in and setup fit on a 1080p screen, even at 150%." } },
+      { "icon": "check", "title": "Plus simple", "text": "Des textes plus courts, à l’essentiel.",
+        "en": { "title": "Simpler", "text": "Shorter texts, down to the essentials." } }
     ]
   },
   {
     "version": "0.5.5",
     "summary": "Un guide pour bien démarrer, et Jellyfin plus fiable.",
+    "en": { "summary": "A guide to get started, and a more reliable Jellyfin." },
     "items": [
-      { "icon": "help", "title": "Un guide pour bien démarrer", "text": "Où mettre tes vidéos, comment gérer Jellyfin, comment regarder sur tes autres appareils : tout est expliqué. Bouton ? à gauche, ou F1." },
-      { "icon": "sparkle", "title": "Les nouveautés en un coup d’œil", "text": "Après chaque mise à jour, cet écran résume ce qui change." },
-      { "icon": "refresh", "title": "Ta bibliothèque à jour en direct", "text": "Avec les versions récentes de Jellyfin, les ajouts et les épisodes vus ailleurs apparaissent sans actualiser." },
-      { "icon": "server", "title": "Installation de Jellyfin plus fiable", "text": "Mira reconnaît un Jellyfin déjà installé, passe outre la fausse alerte de son installateur et explique pourquoi s’il ne démarre pas." }
+      { "icon": "help", "title": "Un guide pour bien démarrer", "text": "Où mettre tes vidéos, comment gérer Jellyfin, comment regarder sur tes autres appareils : tout est expliqué. Bouton ? à gauche, ou F1.",
+        "en": { "title": "A guide to get started", "text": "Where to put your videos, how to manage Jellyfin, how to watch on your other devices: it’s all explained. The ? button on the left, or F1." } },
+      { "icon": "sparkle", "title": "Les nouveautés en un coup d’œil", "text": "Après chaque mise à jour, cet écran résume ce qui change.",
+        "en": { "title": "What’s new at a glance", "text": "After each update, this screen sums up what changes." } },
+      { "icon": "refresh", "title": "Ta bibliothèque à jour en direct", "text": "Avec les versions récentes de Jellyfin, les ajouts et les épisodes vus ailleurs apparaissent sans actualiser.",
+        "en": { "title": "Your library, updated live", "text": "With recent versions of Jellyfin, new titles and episodes watched elsewhere appear without refreshing." } },
+      { "icon": "server", "title": "Installation de Jellyfin plus fiable", "text": "Mira reconnaît un Jellyfin déjà installé, passe outre la fausse alerte de son installateur et explique pourquoi s’il ne démarre pas.",
+        "en": { "title": "A more reliable Jellyfin setup", "text": "Mira recognizes a Jellyfin already installed, gets past its installer’s false alarm, and explains why if it doesn’t start." } }
     ]
   },
   {
     "version": "0.5.4",
     "summary": "Jellyfin et le moteur vidéo s’installent depuis Mira.",
+    "en": { "summary": "Jellyfin and the video engine install from Mira." },
     "items": [
-      { "icon": "server", "title": "Jellyfin installé pour toi", "text": "Pas encore de serveur ? Mira l’installe sur ce PC, crée tes dossiers Films, Séries et Animes et le configure en français." },
-      { "icon": "download", "title": "Le moteur vidéo s’installe tout seul", "text": "Avec l’installateur de Mira, ou en un clic à la première lecture." },
-      { "icon": "check", "title": "Plus stable", "text": "Un disque plein ou un cache abîmé ne bloquent plus Mira." }
+      { "icon": "server", "title": "Jellyfin installé pour toi", "text": "Pas encore de serveur ? Mira l’installe sur ce PC, crée tes dossiers Films, Séries et Animes et le configure en français.",
+        "en": { "title": "Jellyfin installed for you", "text": "No server yet? Mira installs it on this PC, creates your folders for movies, shows and anime, and sets it up for you." } },
+      { "icon": "download", "title": "Le moteur vidéo s’installe tout seul", "text": "Avec l’installateur de Mira, ou en un clic à la première lecture.",
+        "en": { "title": "The video engine installs itself", "text": "With Mira’s installer, or in one click the first time you play something." } },
+      { "icon": "check", "title": "Plus stable", "text": "Un disque plein ou un cache abîmé ne bloquent plus Mira.",
+        "en": { "title": "More stable", "text": "A full disk or a damaged cache no longer blocks Mira." } }
     ]
   }
 ]

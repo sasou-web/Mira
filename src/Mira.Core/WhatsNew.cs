@@ -4,13 +4,19 @@ using System.Text.Json;
 namespace Mira.Core;
 
 /// <summary>
-/// One point of a version, as the "what's new" screen and the release page show it. <paramref name="Web"/>: Mira web
-/// shows it too, once, on the phone (« Nouveau dans Mira », js/whats-new.js); Windows and the Mac show every point.
+/// One point of a version, as the "what's new" screen and the release page show it, in French and in English
+/// (<see cref="Title"/> and <see cref="Text"/>: in Mira's language). <paramref name="Web"/>: Mira web shows it too,
+/// once, on the phone (« Nouveau dans Mira », js/whats-new.js); Windows and the Mac show every point.
 /// </summary>
-public sealed record Highlight(string Icon, string Title, string Text, bool Web = false);
-/// <summary>A version's main points: a one-line summary and a few highlights, never the full changelog.</summary>
-public sealed record ReleaseHighlights(string Version, string Summary, IReadOnlyList<Highlight> Items)
+public sealed record Highlight(string Icon, string FrenchTitle, string FrenchText, string EnglishTitle, string EnglishText, bool Web = false)
 {
+    public string Title => L(FrenchTitle, EnglishTitle);
+    public string Text => L(FrenchText, EnglishText);
+}
+/// <summary>A version's main points: a one-line summary and a few highlights, never the full changelog.</summary>
+public sealed record ReleaseHighlights(string Version, string FrenchSummary, string EnglishSummary, IReadOnlyList<Highlight> Items)
+{
+    public string Summary => L(FrenchSummary, EnglishSummary);
     public Version Number => Mira.Core.Updates.ReleaseFeed.ParseVersion(Version) ?? new(0, 0, 0);
 }
 
@@ -25,11 +31,17 @@ public static class WhatsNew
 {
     public static IReadOnlyList<ReleaseHighlights> All { get; } = Parse(Embedded());
 
+    /// <summary>The entries of WhatsNew.json: French in "summary", "title", "text", English in their "en" (French without it).</summary>
     public static IReadOnlyList<ReleaseHighlights> Parse(string json)
     {
-        var entries = JsonSerializer.Deserialize<List<ReleaseHighlights>>(json, Json.Options) ?? [];
-        return entries.OrderByDescending(x => x.Number).ToList();
+        var entries = JsonSerializer.Deserialize<List<Entry>>(json, Json.Options) ?? [];
+        return entries.Select(x => new ReleaseHighlights(x.Version ?? "", x.Summary ?? "", x.En?.Summary ?? x.Summary ?? "",
+                (x.Items ?? []).Select(i => new Highlight(i.Icon ?? "", i.Title ?? "", i.Text ?? "", i.En?.Title ?? i.Title ?? "", i.En?.Text ?? i.Text ?? "", i.Web)).ToList()))
+            .OrderByDescending(x => x.Number).ToList();
     }
+    private sealed record Entry(string? Version, string? Summary, English? En, List<Point>? Items);
+    private sealed record Point(string? Icon, string? Title, string? Text, bool Web, English? En);
+    private sealed record English(string? Summary, string? Title, string? Text);
     /// <summary>
     /// The versions after <paramref name="seen"/> up to <paramref name="current"/>, newest first. Without a known
     /// <paramref name="seen"/> version, only <paramref name="current"/>'s.
@@ -48,7 +60,7 @@ public static class WhatsNew
         if (seen is not null && Trim(seen) >= Trim(current)) return StartupScreen.None;
         return Since(seen, current, entries).Count > 0 ? StartupScreen.WhatsNew : StartupScreen.None;
     }
-    /// <summary>The release page's text on GitHub: what Mira is (SignPath Foundation wants the download page to describe the
+    /// <summary>The release page's text on GitHub, in French like the README: what Mira is (SignPath Foundation wants the download page to describe the
     /// program), the summary, the highlights, how to install on Windows, on a Mac and on a phone, where the details are, and
     /// the "Code signing policy" line it asks for on every download page, with its credit only when the Windows files carry
     /// its signature (<paramref name="signed"/>).</summary>
@@ -56,8 +68,8 @@ public static class WhatsNew
     {
         var text = new StringBuilder();
         text.Append("**Mira** est un client Jellyfin « cinéma » : une app Windows avec mpv intégré, sa version Mac, et Mira web pour iPhone, iPad et Android, servie par ton serveur Jellyfin.\n\n");
-        text.Append(release.Summary).Append("\n\n");
-        foreach (var item in release.Items) text.Append("- **").Append(item.Title).Append("** — ").Append(item.Text).Append('\n');
+        text.Append(release.FrenchSummary).Append("\n\n");
+        foreach (var item in release.Items) text.Append("- **").Append(item.FrenchTitle).Append("** — ").Append(item.FrenchText).Append('\n');
         text.Append("\n**Sur Windows** : `Mira-").Append(release.Version).Append("-win-x64-setup.exe`. Les copies déjà installées se mettent à jour toutes seules.\n\n");
         text.Append("**Sur Mac** (puce Apple, macOS 15 ou plus) : `Mira-").Append(release.Version).Append("-mac-arm64.dmg`. La première ouverture demande une autorisation : [installer Mira sur Mac](https://github.com/sasou-web/Mira/blob/v")
             .Append(release.Version).Append("/docs/INSTALLATION-MAC.md).\n\n");
