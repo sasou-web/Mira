@@ -51,6 +51,10 @@ jobs:
           Start-Process -FilePath dotnet -ArgumentList @('.artifacts/jf/jellyfin.dll', '--datadir', "$j/data", '--cachedir', "$j/cache", '--configdir', "$j/config", '--logdir', "$j/log", '--nowebclient', '--ffmpeg', $ffmpeg) -WindowStyle Hidden
           node tools/gallery/setup.mjs http://127.0.0.1:8096 (Join-Path $PWD '.artifacts/media') $env:GALLERY_USER $env:GALLERY_PASSWORD
           if ($LASTEXITCODE -ne 0) { throw 'Jellyfin setup failed.' }
+      # The runner's screen is 1024 × 768, smaller than the window captured: Windows would shrink it to fit.
+      - name: Screen of 1920 × 1080
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
       - name: Build Mira for Windows
         run: |
           dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config

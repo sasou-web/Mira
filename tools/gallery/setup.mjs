@@ -77,15 +77,14 @@ if (artwork) {
 const { Items: items } = await call('GET', `${query}&fields=ProviderIds,Path`, { token });
 for (const item of items.filter((x) => x.Type !== 'Episode')) console.log(`${item.Type} « ${item.Name} »${item.ProductionYear ? ` (${item.ProductionYear})` : ''}${item.ImageTags?.Primary ? '' : ' — no poster'}`);
 
-// A viewer's traces, by file name: started (« Continuer à regarder »), seen, favourites.
+// A viewer's traces, by file name: started (« Continuer à regarder »), seen, favourites. Films only: the series'
+// episodes have no TMDb still, and a black card would open « Continuer à regarder ».
 const byFile = (name) => items.find((x) => x.Path?.replace(/\\/g, '/').split('/').pop()?.startsWith(name));
 const series = items.find((x) => x.Type === 'Series');
 const ticks = (item, share) => Math.round((item.RunTimeTicks ?? 0) * share);
 const hour = 3_600_000;
 const traces = [
   ['Sintel (2010)', { share: 0.42, ago: 1 }],
-  ['Pioneer One S01E01', { played: true, ago: 30 }],
-  ['Pioneer One S01E02', { share: 0.35, ago: 3 }],
   ['Metropolis (1927)', { share: 0.61, ago: 26 }],
   ['Tears of Steel (2012)', { share: 0.18, ago: 50 }],
   ['Big Buck Bunny (2008)', { played: true, ago: 80 }],
