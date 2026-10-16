@@ -15,6 +15,8 @@ public static partial class RemoteDownloads
     /// <summary>What can be asked of a download already in TorLink: cancelled (its partial files deleted), paused, resumed.</summary>
     public static readonly IReadOnlyList<string> Actions = ["delete", "pause", "resume"];
     public const int MaxQuery = 120, MaxMagnet = 8192, MaxName = 300;
+    /// <summary>A month: TorLink's guess beyond that (a few bytes a second) is no time to show.</summary>
+    public const long MaxEta = 30L * 24 * 3600;
 
     /// <summary>
     /// A search as TorLink takes it: spaces gathered, no dash in front (TorLink would read « --x » or « -x » as one of its options),

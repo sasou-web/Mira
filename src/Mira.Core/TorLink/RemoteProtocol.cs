@@ -18,8 +18,12 @@ public static class RemoteProtocol
 /// </summary>
 public sealed record AgentReport(string? Name, bool Accepting, string? Problem, List<RelayDownload>? Downloads, List<RelayPlaced>? Placed,
     List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls);
-/// <summary>A download in TorLink: its info hash, TorLink's status (downloading, queued, paused, failed), percent, bytes per second.</summary>
-public sealed record RelayDownload(string Id, string Name, string Status, int Progress, long Speed, int Peers);
+/// <summary>
+/// A download in TorLink: its info hash, TorLink's status (downloading, queued, paused, failed), percent, bytes per second,
+/// its size and what it has of it (0 when unknown), and the seconds TorLink still expects (null when it cannot tell).
+/// The last three came after 0.7.9: an older agent leaves them out.
+/// </summary>
+public sealed record RelayDownload(string Id, string Name, string Status, int Progress, long Speed, int Peers, long Size = 0, long Downloaded = 0, long? Eta = null);
 /// <summary>A finished download as Mira placed it, in Mira's words (TorLinkPlacement.StatusOf); its title in Jellyfin once indexed.</summary>
 public sealed record RelayPlaced(string Id, string Title, string Status, string? ItemId, bool Ok);
 /// <summary><paramref name="State"/>: done (its results) or failed (why).</summary>

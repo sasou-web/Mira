@@ -152,7 +152,7 @@ public sealed class TorLinkRelay
             if (_agent is { } current && current.Device != device && now - current.Seen < Online) return new([], [], [], Busy, current.Name);
             _agent = new Agent(device, Text(report.Name) ?? "PC serveur", now, report.Accepting, Text(report.Problem),
                 (report.Downloads ?? []).Where(x => RemoteDownloads.IsInfoHash(x.Id)).Take(MaxDownloads)
-                    .Select(x => x with { Name = Text(x.Name) ?? x.Id, Status = Text(x.Status) ?? "", Progress = Math.Clamp(x.Progress, 0, 100), Speed = Math.Max(0, x.Speed), Peers = Math.Max(0, x.Peers) }).ToList(),
+                    .Select(x => x with { Name = Text(x.Name) ?? x.Id, Status = Text(x.Status) ?? "", Progress = Math.Clamp(x.Progress, 0, 100), Speed = Math.Max(0, x.Speed), Peers = Math.Max(0, x.Peers), Size = Math.Max(0, x.Size), Downloaded = Math.Clamp(x.Downloaded, 0, x.Size > 0 ? x.Size : long.MaxValue), Eta = x.Eta is > 0 and <= RemoteDownloads.MaxEta ? x.Eta : null }).ToList(),
                 (report.Placed ?? []).Where(x => RemoteDownloads.IsInfoHash(x.Id)).Take(MaxPlaced)
                     .Select(x => x with { Title = Text(x.Title) ?? x.Id, Status = Text(x.Status) ?? "", ItemId = x.ItemId is { Length: 32 } item && item.All(Uri.IsHexDigit) ? item : null }).ToList());
 

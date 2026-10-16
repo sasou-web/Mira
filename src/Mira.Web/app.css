@@ -617,6 +617,7 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .torlink-bar i { display: block; height: 100%; background: var(--accent); transition: width var(--slow) linear; }
 .torlink-confirm { font-size: calc(16px * var(--text)); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
 .torlink-note { margin-top: 0; }
+.torlink-page .group-title { scroll-margin-top: calc(var(--top) + 72px); }
 /* « Ton bilan »: the time in large, then the counts, the series and the genres. */
 .report-periods { display: flex; gap: 8px; }
 .report { display: grid; gap: 18px; min-height: 120px; align-content: start; }

@@ -103,11 +103,11 @@ internal static class RemoteDownloadTests
             Assert(relay.Control("not-a-hash", "delete").Error == "Demande inconnue." && relay.Control(Hash, "stop-seed").Error == "Demande inconnue.", "Unknown controls");
             var (order, _) = relay.Control(Hash, "pause");
             Assert(relay.Control(Hash, "pause").Id == order && relay.Status().Controls.Single() is { Action: "pause", State: "waiting" }, "One control per download and action");
-            work = relay.Exchange("pc-2", Report(downloads: [new(Hash, "Dune\u0007", "downloading", 140, -5, 3), new("bad", "x", "", 0, 0, 0)],
+            work = relay.Exchange("pc-2", Report(downloads: [new(Hash, "Dune\u0007", "downloading", 140, -5, 3, 1000, 5000, -1), new("bad", "x", "", 0, 0, 0)],
                 placed: [new(Other, "Dune (2021)", "Rangé", "0123456789ABCDEF0123456789abcdef", true), new(Hash, "Autre", "Rangé", "../Users", true)]));
             Assert(work.Controls.Single() is { Target: Hash, Action: "pause" }, "The control goes to the agent");
             var status = relay.Status();
-            Assert(status.Downloads.Single() is { Name: "Dune", Progress: 100, Speed: 0 } && status.Placed[0].ItemId == "0123456789ABCDEF0123456789abcdef" && status.Placed[1].ItemId is null, "Reports sanitized");
+            Assert(status.Downloads.Single() is { Name: "Dune", Progress: 100, Speed: 0, Size: 1000, Downloaded: 1000, Eta: null } && status.Placed[0].ItemId == "0123456789ABCDEF0123456789abcdef" && status.Placed[1].ItemId is null, "Reports sanitized");
             relay.Exchange("pc-2", Report(controls: [new(order!, "done", null)]));
             Assert(relay.Status().Controls.Count == 0, "A control done is no longer listed");
 
@@ -145,17 +145,17 @@ internal static class RemoteDownloadTests
             Assert(refused is null && found.Count == 1 && found[0] is { Id: Hash, Name: "Dune Part Two", Size: 2147483648, Seeders: 120, Leechers: 4, Source: "yts", Added: 1700000000 }, "Results: " + string.Join(" | ", found));
 
             using var downloads = JsonDocument.Parse($$"""
-                {"downloads":[{"id":"{{Hash.ToUpperInvariant()}}","name":"Dune","status":"downloading","progress":42,"speed":1048576.5,"peers":7},{"id":"x","name":"?"}],
+                {"downloads":[{"id":"{{Hash.ToUpperInvariant()}}","name":"Dune","status":"downloading","progress":42,"speed":1048576.5,"peers":7,"totalBytes":3000000000,"downloadedBytes":1260000000,"eta":1662.4},{"id":"x","name":"?"}],
                  "seeds":[{"id":"{{Other}}","name":"Autre","status":"seeding"}]}
                 """);
-            Assert(TorLinkRemote.ParseDownloads(downloads.RootElement).Single() is { Id: Hash, Status: "downloading", Progress: 42, Speed: 1048576, Peers: 7 }, "Downloads");
+            Assert(TorLinkRemote.ParseDownloads(downloads.RootElement).Single() is { Id: Hash, Status: "downloading", Progress: 42, Speed: 1048576, Peers: 7, Size: 3000000000, Downloaded: 1260000000, Eta: 1662 }, "Downloads");
             Assert(TorLinkRemote.Working(downloads.RootElement), "Working while downloading");
             using var seeding = JsonDocument.Parse($$"""{"downloads":[{"id":"{{Hash}}","status":"paused"}],"seeds":[{"id":"{{Other}}","status":"seeding"}]}""");
             using var idle = JsonDocument.Parse($$"""{"downloads":[{"id":"{{Hash}}","status":"paused"},{"id":"{{Other}}","status":"failed"}],"seeds":[{"id":"{{Other}}","status":"missing"}]}""");
             Assert(TorLinkRemote.Working(seeding.RootElement) && !TorLinkRemote.Working(idle.RootElement), "Sharing keeps it running, paused or failed do not");
-            var queue = $$"""[{"id":"{{Hash}}","name":"Dune","status":"downloading","progress":42,"speed":900,"peers":3},{"id":"{{Other}}","name":"Autre","status":"paused","progress":7}]""";
-            Assert(TorLinkRemote.ParseQueue(queue, running: false) is [{ Status: "stopped", Speed: 0, Peers: 0, Progress: 42 }, { Status: "paused" }], "Saved queue while TorLink is closed");
-            Assert(TorLinkRemote.ParseQueue(queue, running: true)[0].Status == "downloading" && TorLinkRemote.ParseQueue("{", true).Count == 0, "Saved queue while it runs");
+            var queue = $$"""[{"id":"{{Hash}}","name":"Dune","status":"downloading","progress":42,"speed":900,"peers":3,"totalBytes":1000,"downloadedBytes":420,"eta":9e9},{"id":"{{Other}}","name":"Autre","status":"paused","progress":7}]""";
+            Assert(TorLinkRemote.ParseQueue(queue, running: false) is [{ Status: "stopped", Speed: 0, Peers: 0, Progress: 42, Size: 1000, Downloaded: 420, Eta: null }, { Status: "paused", Eta: null }], "Saved queue while TorLink is closed");
+            Assert(TorLinkRemote.ParseQueue(queue, running: true)[0] is { Status: "downloading", Eta: RemoteDownloads.MaxEta } && TorLinkRemote.ParseQueue("{", true).Count == 0, "Saved queue while it runs");
 
             Assert(TorLinkRemote.Problem(false, false, false, false) == "TorLink n’est pas activé dans Mira sur le PC serveur." && TorLinkRemote.Problem(true, false, false, false)!.Contains("confirme", StringComparison.Ordinal)
                 && TorLinkRemote.Problem(true, true, true, false)!.Contains("autre fenêtre", StringComparison.Ordinal) && TorLinkRemote.Problem(true, true, false, true)!.Contains("à l’écran", StringComparison.Ordinal)
