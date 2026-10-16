@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using Mira.Core;
+using Mira.Core.TorLink;
 using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
@@ -91,6 +92,11 @@ public partial class MainWindow
             // The downloads page before TorLink is turned on: the list of downloaders.
             TorLinkOverlay.Visibility = Visibility.Visible; TorLinkOverlay.Opacity = 1; ShowDownloaders(true);
             foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20-downloads", null, DownloadersPanel);
+            // Away from the PC of Jellyfin, the same page sends to it: what it has under way, and a search with the best
+            // release of each episode first (fictional names; no relay is asked).
+            ShowServerDownloadsSample();
+            foreach (var size in new[] { sizes[0], sizes[2] }) await At(size, "20-downloads-server", null, ServerDownloadsPanel);
+            HideServerDownloads(); ShowDownloaders(false);
             TorLinkOverlay.Visibility = Visibility.Collapsed;
             _demo = false; _catalog.Items = []; _catalog.Resume = []; _catalog.NextUp = []; _catalog.TotalCount = 0; _catalog.Loading = false; _catalog.View = "home"; RenderLibrary();
             await At(sizes[2], "21-empty-library", null, EmptyState);
@@ -115,5 +121,31 @@ public partial class MainWindow
             Environment.ExitCode = 1;
         }
         finally { Close(); }
+    }
+
+    private void ShowServerDownloadsSample()
+    {
+        _serverScreen = true;
+        DownloadersPanel.Visibility = TorLinkTerminalHost.Visibility = Visibility.Collapsed;
+        DownloadersButton.Visibility = TorLinkFolderButton.Visibility = TorLinkSettingsButton.Visibility = TorLinkKeysHint.Visibility = Visibility.Collapsed;
+        ServerDownloadsPanel.Visibility = Visibility.Visible; ServerDownloadsPanel.Opacity = 1;
+        const long GiB = 1L << 30, MiB = 1L << 20;
+        var now = DateTimeOffset.UtcNow;
+        static string Hash(char c) => new(c, 40);
+        RenderServerStatus(new RelayStatus(new("SALON-PC", true, now, true, null),
+            [new("r1", "Les.Etoiles.du.Nord.S01E05.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, Hash('b'), "waiting", null, now)], [],
+            [new(Hash('a'), "Les.Etoiles.du.Nord.S01E04.MULTI.1080p.WEB-DL.H264-NOTAG", "downloading", 41, 2 * MiB, 12, 29 * GiB / 10, 12 * GiB / 10, 750),
+             new(Hash('c'), "La.Maison.du.Lac.2023.1080p.BluRay.x265.10bit-NOTAG", "paused", 63, 0, 0, 4 * GiB, 5 * GiB / 2)],
+            [new(Hash('d'), "Le Dernier Phare (2022)", "disponible dans Jellyfin", null, true)]), now);
+        ServerQueryBox.Text = "Les Étoiles du Nord"; ServerCategory.SelectedIndex = 1;
+        ShowServerHits("sample", "Les Étoiles du Nord", "tv",
+        [
+            new("1", "Les.Etoiles.du.Nord.S01E05.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, 85, 4, "1337x", null),
+            new("2", "Les Etoiles du Nord S01E05 1080p WEBRip x265-PLUME", 9 * GiB / 10, 240, 9, "tpb", null),
+            new("3", "Les.Etoiles.du.Nord.S01E05.2160p.WEB-DL.DV.HEVC-NOTAG", 6 * GiB, 30, 2, "1337x", null),
+            new("4", "Les.Etoiles.du.Nord.S01E04.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, 60, 3, "1337x", null),
+            new("5", "Les.Etoiles.du.Nord.S01E04.VOSTFR.720p.HDTV.x264-NOTAG", 7 * GiB / 10, 12, 1, "tpb", null),
+            new("6", "Les.Etoiles.du.Nord.S01.COMPLETE.MULTI.1080p.WEB-DL.x264-NOTAG", 9 * GiB, 20, 5, "1337x", null),
+        ]);
     }
 }

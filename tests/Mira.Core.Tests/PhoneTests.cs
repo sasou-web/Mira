@@ -262,7 +262,8 @@ internal static class PhoneTests
             Assert(PhoneSetup.Steps(fresh with { Home = null })[1] is { Key: "network", Mark: PhoneSetup.Mark.Yours }, "No network");
             // A Jellyfin here reached at this PC's own address is this PC's.
             Assert(LocalNetwork.IsThisPc("127.0.0.1") && LocalNetwork.IsThisPc("localhost") && LocalNetwork.IsThisPc("[::1]") && !LocalNetwork.IsThisPc("192.0.2.1")
-                && (LocalNetwork.ThisPc() is not { } own || LocalNetwork.IsThisPc(own)), "This PC's own addresses");
+                && (LocalNetwork.ThisPc() is not { } own || LocalNetwork.IsThisPc(own))
+                && LocalNetwork.IsThisPc(System.Net.Dns.GetHostName() + ".tail1234.ts.net") && !LocalNetwork.IsThisPc("autre-pc-" + System.Net.Dns.GetHostName() + ".tail1234.ts.net"), "This PC's own addresses and names");
             return Task.CompletedTask;
         });
         await Test("Jellyfin arrêté sur ce PC : dit tel quel, démarré d’un clic, son journal après deux démarrages ratés", () =>

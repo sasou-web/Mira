@@ -37,3 +37,11 @@ public sealed record AgentWork(List<WorkSearch> Searches, List<WorkRequest> Requ
 public sealed record WorkSearch(string Id, string Query, string Category);
 public sealed record WorkRequest(string Id, string Magnet, string Name);
 public sealed record WorkControl(string Id, string Target, string Action);
+
+// What Mira web (and Mira for Windows or Mac away from the PC of Jellyfin) reads (GET /Mira/torlink, GET /Mira/torlink/search/{id}).
+public sealed record RelayStatus(RelayAgent? Agent, List<RelayRequest> Requests, List<RelayControl> Controls, List<RelayDownload> Downloads, List<RelayPlaced> Placed);
+public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem);
+public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created);
+public sealed record RelayControl(string Id, string Target, string Action, string State);
+public sealed record RelaySearch(string Id, string Query, string Category, string State, List<RelayHit> Results, string? Error);
+public sealed record RelayHit(string Id, string Name, long Size, int Seeders, int Leechers, string Source, long? Added);

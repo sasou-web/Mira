@@ -1,0 +1,63 @@
+{
+ "about": "« Télécharger sur le PC serveur »: what Mira web (js/torlink.js) and Mira for Windows or Mac (Mira.Core RemoteLines) write of the PC, a result, a request and a download. Sizes in bytes, speeds in bytes per second, now and seen in UTC.",
+ "now": "2026-10-15T12:00:00Z",
+ "sizes": [
+  [0, "1 Mo"],
+  [891289600, "850 Mo"],
+  [4509715660, "4,2 Go"],
+  [13314398617, "12 Go"]
+ ],
+ "speeds": [
+  [0, ""],
+  [358400, "350 Ko/s"],
+  [2558525, "2,4 Mo/s"],
+  [12582912, "12 Mo/s"]
+ ],
+ "agents": [
+  {"agent": null, "text": "Mira n’a pas encore été ouvert sur le PC serveur : c’est lui qui cherche et télécharge, avec TorLink. Ouvre-le là-bas, connecté avec un compte administrateur.", "ready": false},
+  {"agent": {"name": "DESKTOP-INVEFQH", "online": false, "seen": "2026-10-15T09:00:00Z", "accepting": false}, "text": "Mira n’est pas ouvert sur DESKTOP-INVEFQH (vu il y a 3 h) : tes demandes l’attendent, il les fera à son retour.", "ready": false},
+  {"agent": {"name": "DESKTOP-INVEFQH", "online": false, "seen": "2026-10-15T11:59:30Z", "accepting": false}, "text": "Mira n’est pas ouvert sur DESKTOP-INVEFQH (vu à l’instant) : tes demandes l’attendent, il les fera à son retour.", "ready": false},
+  {"agent": {"name": "PC", "online": true, "seen": "2026-10-15T12:00:00Z", "accepting": false, "problem": "TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page."}, "text": "TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page.", "ready": true},
+  {"agent": {"name": "PC", "online": true, "seen": "2026-10-15T12:00:00Z", "accepting": true}, "text": "PC est prêt : TorLink y télécharge, puis Mira range le titre dans ta bibliothèque.", "ready": true}
+ ],
+ "hits": [
+  [{"id": "1", "name": "x", "size": 1503238553, "seeders": 120, "leechers": 3, "source": "YTS"}, "1,4 Go · 120 sources · YTS"],
+  [{"id": "2", "name": "x", "size": 734003200, "seeders": 0, "leechers": 0, "source": ""}, "700 Mo · aucune source"],
+  [{"id": "3", "name": "x", "size": 734003200, "seeders": 0, "leechers": 0, "source": "subsplease"}, "700 Mo · subsplease"],
+  [{"id": "4", "name": "x", "size": 734003200, "seeders": 1, "leechers": 0, "source": "nyaa"}, "700 Mo · 1 source · nyaa"]
+ ],
+ "requests": [
+  [{"state": "waiting", "id": "r1", "name": "Dune", "size": 0, "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "created": "2026-10-15T12:00:00Z"}, "En attente du PC serveur"],
+  [{"state": "claimed", "id": "r1", "name": "Dune", "size": 0, "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "created": "2026-10-15T12:00:00Z"}, "Envoi à TorLink…"],
+  [{"state": "sent", "id": "r1", "name": "Dune", "size": 0, "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "created": "2026-10-15T12:00:00Z"}, "Envoyé à TorLink"],
+  [{"state": "sent", "error": "TorLink l’avait déjà.", "id": "r1", "name": "Dune", "size": 0, "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "created": "2026-10-15T12:00:00Z"}, "Envoyé à TorLink : TorLink l’avait déjà."],
+  [{"state": "failed", "error": "Ce n’est pas un lien magnet.", "id": "r1", "name": "Dune", "size": 0, "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "created": "2026-10-15T12:00:00Z"}, "Ce n’est pas un lien magnet."],
+  [{"state": "failed", "id": "r1", "name": "Dune", "size": 0, "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "created": "2026-10-15T12:00:00Z"}, "TorLink a refusé ce téléchargement."]
+ ],
+ "downloads": [
+  [{"status": "downloading", "progress": 42, "speed": 2558525, "peers": 12, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "42 % · 2,4 Mo/s · 12 pairs"],
+  [{"status": "downloading", "progress": 0, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "0 % · recherche de pairs…"],
+  [{"status": "downloading", "progress": 0, "speed": 0, "peers": 1, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "0 % · 1 pair, en attente de données"],
+  [{"status": "downloading", "progress": 0, "speed": 0, "peers": 3, "size": 3113851289, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "0 % · 2,9 Go · 3 pairs, en attente de données"],
+  [{"status": "downloading", "progress": 41, "speed": 2097152, "peers": 12, "size": 3113851289, "downloaded": 1288490188, "eta": 750, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "41 % · 1,2 Go sur 2,9 Go · 2,0 Mo/s · reste 13 min · 12 pairs"],
+  [{"status": "downloading", "progress": 50, "speed": 1048576, "peers": 1, "size": 2147483648, "downloaded": 1073741824, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "50 % · 1,0 Go sur 2,0 Go · 1,0 Mo/s · reste 17 min · 1 pair"],
+  [{"status": "queued", "progress": 0, "speed": 0, "peers": 0, "size": 891289600, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "En file d’attente · 0 % · 850 Mo"],
+  [{"status": "paused", "progress": 10, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "En pause · 10 %"],
+  [{"status": "paused", "progress": 10, "speed": 0, "peers": 0, "size": 891289600, "downloaded": 89128960, "eta": 99, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "En pause · 10 % · 85 Mo sur 850 Mo"],
+  [{"status": "stopped", "progress": 10, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "Arrêté · 10 % · reprend quand TorLink rouvre sur le PC serveur"],
+  [{"status": "failed", "progress": 3, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "Échec · 3 %"],
+  [{"status": "completed", "progress": 100, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "Terminé · rangement dans ta bibliothèque…"]
+ ],
+ "remaining": [
+  [30, "moins d’une minute"],
+  [59.9, "moins d’une minute"],
+  [60, "1 min"],
+  [720, "12 min"],
+  [3599, "1 h 00"],
+  [3600, "1 h 00"],
+  [3900, "1 h 05"],
+  [86399, "1 jour"],
+  [86400, "1 jour"],
+  [259200, "3 jours"]
+ ]
+}

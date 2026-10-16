@@ -58,6 +58,7 @@ public partial class MainWindow
         };
         _torlink.Watch();
         StartTorLinkRemote();
+        InitializeServerDownloads();
     }
     /// <summary>The TorLink check only works inside its output folder: demo mode, and both --data and TORLINK_STATE_DIR in it.</summary>
     private bool TorLinkCheckIsolated()
@@ -136,11 +137,17 @@ public partial class MainWindow
     private async Task ShowTorLinkAsync()
     {
         if (!_torlinkEnabled) return;
+        // Away from the PC of Jellyfin, TorLink is not offered: it would download next to the wrong library. The page
+        // sends searches and downloads to that PC instead, as Mira web does (MainWindow.ServerDownloads.cs).
+        var elsewhere = await JellyfinElsewhereAsync();
         if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); }
         ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay);
         if (TorLinkOverlay.Visibility != Visibility.Visible || !TorLinkOverlay.IsHitTestVisible) Motion.Reveal(TorLinkOverlay, 260, 10);
         TorLinkBadge.Visibility = Visibility.Collapsed;
-        UpdateNavigation(); UpdateHeroClock(); RenderTorLinkImports(); UpdateTorLinkState();
+        UpdateNavigation(); UpdateHeroClock();
+        if (elsewhere) { await ShowServerDownloadsAsync(); return; }
+        HideServerDownloads();
+        RenderTorLinkImports(); UpdateTorLinkState();
         _ = RefreshTorLinkLibrariesAsync();
         // Not turned on yet: the list of downloaders, where it is.
         if (!TorLinkActive()) { ShowDownloaders(true); return; }
@@ -321,6 +328,7 @@ public partial class MainWindow
 
     private void UpdateTorLinkState()
     {
+        if (_serverScreen) { DescribeServerAgent(DateTimeOffset.UtcNow); return; }
         var state = _torlinkTerminal?.State ?? TerminalState.Idle;
         if (_torlinkBlocker is not null || state is TerminalState.Running or TerminalState.Exited or TerminalState.Unavailable) _torlinkStartWatch.Stop();
         var (status, dot) = _torlinkInstalling ? ("Installation…", "Warning") : !TorLinkActive() ? ("Désactivé", "Dim")
