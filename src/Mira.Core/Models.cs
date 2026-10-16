@@ -195,8 +195,14 @@ public sealed class PlayerSettings
     public string Language { get; set; } = "";
     public string MpvPath { get; set; } = "";
     public double Volume { get; set; } = 80;
-    public string AudioLanguage { get; set; } = "jpn,ja,fre,fra,fr,eng,en";
-    public string SubtitleLanguage { get; set; } = "fre,fra,fr,eng,en";
+    public string AudioLanguage { get; set; } = DefaultAudioLanguage;
+    public string SubtitleLanguage { get; set; } = DefaultSubtitleLanguage;
+    /// <summary>
+    /// The tracks preferred before any choice: an anime's original Japanese first, then Mira's language, then the other one.
+    /// A profile keeps what it saved: only a new one, or a device that never chose, takes the order of its language.
+    /// </summary>
+    public static string DefaultAudioLanguage => L("jpn,ja,fre,fra,fr,eng,en", "jpn,ja,eng,en,fre,fra,fr");
+    public static string DefaultSubtitleLanguage => L("fre,fra,fr,eng,en", "eng,en,fre,fra,fr");
     public bool HardwareDecoding { get; set; } = true;
     public bool AutoNext { get; set; } = true;
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
