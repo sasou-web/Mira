@@ -16,11 +16,15 @@ public static class AccountChoices
     public const string DisplayPreferences = "mira";
     /// <summary>The series whose tracks are kept, and the titles removed or put back, newest first.</summary>
     public const int TrackLimit = 100, HiddenLimit = 200;
-    /// <summary>The settings kept on Jellyfin, with Mira's defaults: a setting never changed anywhere is not written.</summary>
-    public static readonly IReadOnlyDictionary<string, JsonNode> Settings = new Dictionary<string, JsonNode>
+    /// <summary>
+    /// The settings kept on Jellyfin, with Mira's defaults: a setting never changed anywhere is not written. Those of the
+    /// tracks follow Mira's language (<see cref="PlayerSettings.DefaultAudioLanguage"/>): a device that never chose does not
+    /// impose its language's order on the others.
+    /// </summary>
+    public static IReadOnlyDictionary<string, JsonNode> Settings => new Dictionary<string, JsonNode>
     {
-        ["audioLanguages"] = JsonValue.Create("jpn,ja,fre,fra,fr,eng,en"),
-        ["subtitleLanguages"] = JsonValue.Create("fre,fra,fr,eng,en"),
+        ["audioLanguages"] = JsonValue.Create(PlayerSettings.DefaultAudioLanguage),
+        ["subtitleLanguages"] = JsonValue.Create(PlayerSettings.DefaultSubtitleLanguage),
         ["autoSkip"] = JsonValue.Create(false),
         ["quality"] = JsonValue.Create("auto"),
     };

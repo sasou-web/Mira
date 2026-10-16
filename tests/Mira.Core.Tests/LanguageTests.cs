@@ -121,6 +121,15 @@ internal static class LanguageTests
         });
         await Test("Langue : les réglages gardent le choix, vide tant qu’il n’est pas fait", () =>
         {
+            // Tracks before any choice: Mira's language first, after an anime's Japanese; a saved order is kept.
+            Lang.Use("en", Us);
+            Assert(new PlayerSettings() is { AudioLanguage: "jpn,ja,eng,en,fre,fra,fr", SubtitleLanguage: "eng,en,fre,fra,fr" }, "English defaults");
+            var kept = System.Text.Json.JsonSerializer.Deserialize<PlayerSettings>("{\"AudioLanguage\":\"jpn,ja,fre,fra,fr,eng,en\"}", Json.Options)!;
+            Assert(kept.AudioLanguage == "jpn,ja,fre,fra,fr,eng,en", "A saved order is kept: " + kept.AudioLanguage);
+            var english = AccountChoices.Capture(null, new System.Text.Json.Nodes.JsonObject { ["settings"] = new System.Text.Json.Nodes.JsonObject { ["audioLanguages"] = "jpn,ja,eng,en,fre,fra,fr" } }, 5);
+            Assert(english["settings"] is System.Text.Json.Nodes.JsonObject { Count: 0 }, "An English device left as it is writes nothing: " + english.ToJsonString());
+            Lang.Use("fr", France);
+            Assert(new PlayerSettings() is { AudioLanguage: "jpn,ja,fre,fra,fr,eng,en", SubtitleLanguage: "fre,fra,fr,eng,en" }, "French defaults");
             var settings = new PlayerSettings();
             Assert(settings.Language == "", "Not chosen by default");
             settings.Language = "fr";
