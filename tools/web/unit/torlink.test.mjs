@@ -43,6 +43,7 @@ test('what the screen says of the PC, a result, a request and a download', () =>
 
   assert.equal(hitLine({ size: 1.4 * 2 ** 30, seeders: 120, source: 'YTS' }), '1,4 Go · 120 sources · YTS');
   assert.equal(hitLine({ size: 700 * 2 ** 20, seeders: 0, source: '' }), '700 Mo · aucune source');
+  assert.equal(hitLine({ size: 700 * 2 ** 20, seeders: 0, source: 'subsplease' }), '700 Mo · subsplease', 'SubsPlease counts no source');
 
   assert.equal(requestLine({ state: 'waiting' }), 'En attente du PC serveur');
   assert.equal(requestLine({ state: 'failed', error: 'Ce n’est pas un lien magnet.' }), 'Ce n’est pas un lien magnet.');

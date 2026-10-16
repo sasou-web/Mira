@@ -7,6 +7,7 @@ import { h, icon, clear, plural } from '../dom.js';
 import { sheet, toast, errorState } from '../components.js';
 import { goBack } from '../app.js';
 import { CATEGORIES, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable } from '../torlink.js';
+import { groupReleases, parseRelease, qualityLine, warning } from '../releases.js';
 
 const EVERY = 3000, SEARCH_EVERY = 1000, SEARCH_WAIT = 90_000;
 const ACTIONS = { pause: 'Pause demandée au PC serveur…', resume: 'Reprise demandée au PC serveur…', delete: 'Annulation demandée au PC serveur…' };
@@ -237,6 +238,10 @@ export function create({ query }) {
   }
   function stopLooking() { if (looking) clearTimeout(looking.timer); looking = null; }
 
+  /**
+   * The results by title and episode (or season, or film), the best release of each first (releases.js): its
+   * picture and source, its size and sources, its full name; the other releases folded under it.
+   */
   function showHits(current, hits) {
     lastHits = { search: current.id, hits };
     const label = CATEGORIES.find(([key]) => key === current.category)?.[1] ?? '';
@@ -244,11 +249,31 @@ export function create({ query }) {
       clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, `Aucun résultat pour « ${current.query} » en ${label}. Essaie un autre titre, ou une autre catégorie.`));
       return;
     }
+    const groups = groupReleases(hits, current.category);
     clear(found).append(
-      h('h2', { class: 'label group-title' }, `${plural(hits.length, 'résultat', 'résultats')} pour « ${current.query} »`),
-      h('div', { class: 'group torlink-list' }, hits.map((hit) => h('button', { class: 'item torlink-item', on: { click: () => confirm(current.id, hit) } },
-        h('span', { class: 'grow' }, h('span', { class: 'torlink-name clamp-2' }, hit.name), h('span', { class: 'sub torlink-line' }, hitLine(hit))),
-        icon('download', { size: 20 })))));
+      h('h2', { class: 'label group-title' }, `${plural(hits.length, 'version', 'versions')} pour « ${current.query} »`),
+      ...groups.map((group) => {
+        const others = h('div', { class: 'torlink-others', hidden: true }, group.others.map((entry) => release(current.id, entry, false)));
+        const more = group.others.length ? h('button', {
+          class: 'item torlink-more', type: 'button', 'aria-expanded': 'false',
+          on: { click: () => { const open = others.hidden; others.hidden = !open; more.setAttribute('aria-expanded', String(open)); more.querySelector('.grow').textContent = open ? 'Masquer les autres versions' : `${plural(group.others.length, 'autre version', 'autres versions')}`; } },
+        }, h('span', { class: 'grow' }, plural(group.others.length, 'autre version', 'autres versions')), icon('down', { size: 18 })) : null;
+        return h('section', { class: 'group torlink-title', 'aria-label': [group.title, group.label].filter(Boolean).join(' · ') },
+          h('h3', { class: 'torlink-head' }, h('span', { class: 'clamp-2' }, group.title), group.label ? h('span', { class: 'torlink-episode' }, group.label) : null),
+          release(current.id, group.best, true), more, others);
+      }));
+  }
+
+  function release(searchId, entry, best) {
+    const { hit, release: parsed } = entry;
+    const caution = warning(entry);
+    return h('button', { class: ['item torlink-item torlink-release', best && 'torlink-best'], type: 'button', on: { click: () => confirm(searchId, hit) } },
+      h('span', { class: 'grow' },
+        h('span', { class: 'torlink-quality' }, qualityLine(parsed) || 'Qualité non précisée', best ? h('span', { class: 'torlink-badge' }, 'Meilleur choix') : null),
+        h('span', { class: 'sub torlink-line' }, hitLine(hit)),
+        h('span', { class: 'sub torlink-full clamp-2' }, hit.name),
+        caution ? h('span', { class: 'sub torlink-caution' }, caution) : null),
+      icon('download', { size: 20 }));
   }
 
   function confirm(searchId, hit) {
@@ -256,7 +281,7 @@ export function create({ query }) {
     sheet({
       title: 'Télécharger sur le PC serveur ?',
       body: h('div', { class: 'sheet-form' }, h('p', { class: 'torlink-confirm' }, hit.name),
-        h('p', { class: 'group-note' }, `${hitLine(hit)}. TorLink le télécharge ${where}, puis Mira le range dans ta bibliothèque. Tu peux l’annuler ici tant qu’il n’est pas terminé.`)),
+        h('p', { class: 'group-note' }, `${[qualityLine(parseRelease(hit.name)), hitLine(hit)].filter(Boolean).join(' · ')}. TorLink le télécharge ${where}, puis Mira le range dans ta bibliothèque. Tu peux l’annuler ici tant qu’il n’est pas terminé.`)),
       items: [{ label: 'Télécharger', symbol: 'download', run: () => send({ search: searchId, result: hit.id, name: hit.name, size: hit.size }) }],
     });
   }
