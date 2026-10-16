@@ -1,11 +1,10 @@
 name: README captures
 # The captures of the README (docs/screenshots/readme/): Mira for Windows, the real window, and Mira web at an iPhone's
 # size, each signed in to a real Jellyfin 12.1 whose library holds free films (tools/gallery/media.sh) with their TMDb
-# artwork. On a pull request that changes how they are made, they are committed to its branch; on request (Run
-# workflow), they are only kept as an artifact.
+# artwork. Run on request (Run workflow) from a branch other than main: the captures are committed to that branch, to
+# go to main through its pull request; from main, they are only kept as an artifact. Never on a push or a pull
+# request: its own commit would start it again.
 on:
-  pull_request:
-    paths: ["tools/gallery/**", "src/Mira.Desktop/Checks/MainWindow.ReadmeGallery.cs", ".github/workflows/gallery.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -124,8 +123,8 @@ jobs:
           retention-days: 7
 
   commit:
-    # Only on a pull request's own branch: main takes them through that pull request.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # Only on another branch than main: main takes them through a pull request.
+    if: github.ref_name != 'main'
     needs: [windows, web]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -133,8 +132,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.head_ref }}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: gallery-*
@@ -150,7 +147,7 @@ jobs:
           ls -la docs/screenshots/readme
       - name: Commit
         env:
-          BRANCH: ${{ github.head_ref }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           git add docs/screenshots/readme
           if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
