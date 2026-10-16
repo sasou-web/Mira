@@ -70,14 +70,21 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: ./tools/package.ps1 -Publish .artifacts/app -Version $env:VERSION
       # Only Mira's own files go to SignPath. The rest of the folder (the .NET runtime, third-party libraries) is
-      # Microsoft's or theirs, and stays as it is.
+      # Microsoft's or theirs, and stays as it is. SignPath Foundation signs a file only if its product name is Mira
+      # and its product version is the release's (installer/signpath/app.xml): checked here first, after an approval
+      # it would be too late.
       - name: Files to sign
         shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           foreach ($file in 'Mira/Mira.exe', 'Mira/Mira.dll', 'Mira/Mira.Core.dll', 'Portable/Mira.exe') {
+            $source = Join-Path .artifacts/app $file
+            $info = (Get-Item -LiteralPath $source).VersionInfo
+            if ($info.ProductName -ne 'Mira' -or $info.ProductVersion -ne $env:VERSION) { throw "${file}: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
             $target = Join-Path .artifacts/to-sign $file
             New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
-            Copy-Item -LiteralPath (Join-Path .artifacts/app $file) -Destination $target
+            Copy-Item -LiteralPath $source -Destination $target
           }
           Get-ChildItem -Recurse -File .artifacts/to-sign | ForEach-Object { '{0,12}  {1}' -f $_.Length, $_.FullName.Substring($PWD.Path.Length + 1) }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -97,6 +104,9 @@ jobs:
           project-slug: mira
           signing-policy-slug: release-signing
           artifact-configuration-slug: app
+          # The "version" parameter of the artifact configuration: the product version each file must carry.
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
           github-artifact-id: ${{ steps.app.outputs.artifact-id }}
           wait-for-completion: "true"
           wait-for-completion-timeout-in-seconds: "3600"
@@ -131,8 +141,11 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          $setup = ".artifacts/packages/Mira-$env:VERSION-win-x64-setup.exe"
+          $info = (Get-Item -LiteralPath $setup).VersionInfo
+          if ($info.ProductName -ne 'Mira' -or $info.ProductVersion -ne $env:VERSION) { throw "installer: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
           New-Item -ItemType Directory -Path .artifacts/setup -Force | Out-Null
-          Move-Item -LiteralPath ".artifacts/packages/Mira-$env:VERSION-win-x64-setup.exe" -Destination .artifacts/setup/Mira-setup.exe
+          Move-Item -LiteralPath $setup -Destination .artifacts/setup/Mira-setup.exe
           Remove-Item -LiteralPath ".artifacts/packages/Mira-$env:VERSION-win-x64-setup.exe.sha256"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         id: setup
@@ -150,6 +163,8 @@ jobs:
           project-slug: mira
           signing-policy-slug: release-signing
           artifact-configuration-slug: installer
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
           github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
           wait-for-completion: "true"
           wait-for-completion-timeout-in-seconds: "3600"

@@ -17,7 +17,8 @@ using Mira.Core.Updates;
 //   verify --packages <dir> [--others <dir>] [--version x.y.z]
 //                                                         checks mira-update.json.sig against UpdateKeys.Trusted, then every
 //                                                         file it lists (size, SHA-256, .sha256); needs no key
-//   notes --version x.y.z --out <file>                    the release page's text, from the version's entry in WhatsNew.json
+//   notes --version x.y.z --out <file> [--unsigned]       the release page's text, from the version's entry in WhatsNew.json;
+//                                                         --unsigned: Windows files without SignPath's signature, said so
 //   export-backup --out <file> [--key <file>]             copy protected by a passphrase (PKCS#8, AES-256, PBKDF2)
 //   import-backup --in <file> [--key <file>]              makes such a copy, or the backup key, the signing key of the
 //                                                         current Windows account
@@ -160,7 +161,7 @@ try
             var release = WhatsNew.All.FirstOrDefault(x => x.Version == version)
                 ?? throw new InvalidOperationException($"src/Mira.Core/WhatsNew.json n’a pas d’entrée pour {version} : écris ses points forts avant de publier.");
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-            File.WriteAllText(output, WhatsNew.ReleaseNotes(release), new UTF8Encoding(false));
+            File.WriteAllText(output, WhatsNew.ReleaseNotes(release, signed: !args.Contains("--unsigned")), new UTF8Encoding(false));
             Console.WriteLine(output);
             return 0;
         }
@@ -199,7 +200,7 @@ try
             return 0;
         }
         default:
-            Console.Error.WriteLine("Commandes : keygen, public-key, check-key, manifest --version x.y.z --packages <dossier> [--others <dossier>], verify --packages <dossier> [--others <dossier>] [--version x.y.z], notes --version x.y.z --out <fichier>, export-backup --out <fichier>, import-backup --in <fichier>, keygen-backup --out <fichier> ; option --key <fichier>.");
+            Console.Error.WriteLine("Commandes : keygen, public-key, check-key, manifest --version x.y.z --packages <dossier> [--others <dossier>], verify --packages <dossier> [--others <dossier>] [--version x.y.z], notes --version x.y.z --out <fichier> [--unsigned], export-backup --out <fichier>, import-backup --in <fichier>, keygen-backup --out <fichier> ; option --key <fichier>.");
             return 2;
     }
 }

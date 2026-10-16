@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
+    <!-- ProductVersion = the version alone, no "+commit": SignPath checks it against the release's version before signing
+         (installer/signpath/*.xml, product-version), and the installer carries the same one. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <!-- A warning stops the build: the code stays at zero, the CI keeps it there. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Known vulnerabilities in every package, the ones pulled in by another included (SQLite came that way). A high or

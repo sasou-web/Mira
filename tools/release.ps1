@@ -162,10 +162,12 @@ try {
     # The key opens on this Windows account and installed copies trust it: checked in seconds, not after the workflows.
     $tool = Join-Path $workspace 'tools/Mira.Release/Mira.Release.csproj'
     Invoke-Native 'Mira.Release check-key' { dotnet run --project $tool -c Release -- check-key }
-    # The release page's text, from the version's entry in WhatsNew.json (Mira.Release stops without one).
+    # The release page's text, from the version's entry in WhatsNew.json (Mira.Release stops without one); its "Code
+    # signing policy" line credits SignPath only when the Windows files will carry its signature.
     $notes = Join-Path $workspace ".artifacts/release-notes-$version.md"
     Remove-Item -LiteralPath $notes -ErrorAction SilentlyContinue
-    Invoke-Native 'Mira.Release notes' { dotnet run --project $tool -c Release -- notes --version $version --out $notes }
+    $notesOptions = @(); if ($Unsigned) { $notesOptions += '--unsigned' }
+    Invoke-Native 'Mira.Release notes' { dotnet run --project $tool -c Release -- notes --version $version --out $notes @notesOptions }
 
     # A run still going from an earlier attempt would attach its own files to the new draft.
     foreach ($workflow in $workflows) {
