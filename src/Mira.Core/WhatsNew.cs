@@ -66,7 +66,7 @@ public static class WhatsNew
         text.Append("Tous les détails : [CHANGELOG](https://github.com/sasou-web/Mira/blob/v").Append(release.Version).Append("/CHANGELOG.md)\n\n");
         text.Append("**Code signing policy** : ").Append(signed
             ? "Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org). Les fichiers Windows de cette version sont signés ; "
-            : "les fichiers Windows de cette version ne sont pas signés (demande à SignPath Foundation en cours) ; ");
+            : "les fichiers Windows de cette version ne sont pas signés (demande à SignPath Foundation pas encore déposée) ; ");
         text.Append("le détail est dans la [politique de signature du code](https://github.com/sasou-web/Mira#politique-de-signature-du-code).\n");
         return text.ToString();
     }
