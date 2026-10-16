@@ -1,5 +1,6 @@
 // « Regarder ensemble » (Jellyfin's SyncPlay), the part that needs no browser: the server's clock, where and when a
 // command of the group puts the player, the group's words. tests/fixtures/syncplay.json holds the cases.
+import { tr, trn } from '../i18n.js';
 
 /** Jellyfin's dates carry seven decimals; Safari reads three at most (NaN otherwise). Milliseconds since 1970. */
 export function serverTime(iso) {
@@ -50,13 +51,21 @@ export function queueItem(data) {
   return { itemId: entry.ItemId, playlistItemId: entry.PlaylistItemId ?? '', startTicks: Number(data.StartPositionTicks) || 0 };
 }
 
-/** The name a new group takes: « Groupe de mira ». */
-export const groupName = (user) => `Groupe de ${user}`;
+/**
+ * The name a new group takes, in the language shown: « Groupe de mira », « mira’s group », as Mira for Windows and Mac
+ * name it. groupHost reads the host back from either, on every device, whatever its language.
+ */
+export const groupName = (user) => tr('Groupe de {name}', { name: user });
 
-/** Who made a group of Mira, from its name (« Groupe de mira » → mira); null for a name Mira does not give. */
+/** Who made a group of Mira, from its name (« Groupe de mira », « mira’s group » → mira); null for another name. */
 export function groupHost(name) {
-  const m = /^Groupe de (.+)$/.exec(name ?? '');
+  const m = /^Groupe de (.+)$/.exec(name ?? '') ?? /^(.+)['’]s group$/.exec(name ?? '');
   return m ? m[1] : null;
+}
+/** A group's name in the language of the page: « Groupe de mira » is « mira’s group » in English, and back; another as it is. */
+export function groupLabel(name) {
+  const host = groupHost(name);
+  return host != null ? tr('Groupe de {name}', { name: host }) : (name ?? '');
 }
 
 /** Jellyfin writes a group's id with or without dashes. */
@@ -72,7 +81,8 @@ export function findGroup(groups, id, host) {
   const same = list.find((g) => sameGroup(g.GroupId, id));
   if (same || !host) return same ?? null;
   const there = (g) => (g.Participants ?? []).includes(host);
-  const named = list.filter((g) => g.GroupName === groupName(host));
+  // Made again by a device in the other language: the same host, under its other name.
+  const named = list.filter((g) => groupHost(g.GroupName) === host);
   named.sort((a, b) => Number(there(b)) - Number(there(a)) || (b.Participants?.length ?? 0) - (a.Participants?.length ?? 0));
   return named[0] ?? null;
 }
@@ -89,22 +99,22 @@ export function rejoinPlan(groups, lost, made) {
 }
 
 /** What a friend reads when the host has no group open yet: « mira n’a pas encore lancé la soirée ». */
-export const waitingText = (host) => `${host} n’a pas encore lancé la soirée`;
+export const waitingText = (host) => tr('{name} n’a pas encore lancé la soirée', { name: host });
 /** What it says under it, while Mira waits for the group. */
-export const WAITING_LEAD = 'Garde Mira ouvert : tu entres dans le groupe dès qu’il est ouvert.';
+export const WAITING_LEAD = tr('Garde Mira ouvert : tu entres dans le groupe dès qu’il est ouvert.');
 
 /** « 2 personnes » (Jellyfin names each account of the group once, whatever its devices). */
-export const people = (count) => (count <= 1 ? '1 personne' : `${count} personnes`);
+export const people = (count) => trn(count <= 1 ? 1 : count, '{n} personne', '{n} personnes');
 
 /** « Groupe de mira · 2 personnes ». */
-export const groupText = (group) => `${group?.GroupName ?? 'Groupe'} · ${people(group?.Participants?.length ?? 1)}`;
+export const groupText = (group) => `${group?.GroupName == null ? tr('Groupe') : groupLabel(group.GroupName)} · ${people(group?.Participants?.length ?? 1)}`;
 
 /** Who is in a group, as a line says it: « mira et Marc », « mira, Marc et Léa », « mira, Marc et 3 autres ». */
 export function namesText(names) {
   const list = [...(names ?? [])];
   if (list.length <= 1) return list.join('');
-  if (list.length > 3) return `${list.slice(0, 2).join(', ')} et ${list.length - 2} autres`;
-  return `${list.slice(0, -1).join(', ')} et ${list.at(-1)}`;
+  if (list.length > 3) return tr('{names} et {n} autres', { names: list.slice(0, 2).join(', '), n: list.length - 2 });
+  return tr('{names} et {last}', { names: list.slice(0, -1).join(', '), last: list.at(-1) });
 }
 /**
  * What the group is doing, in a line (the player's pill, the title page), and whether it holds the picture (`alert`).
@@ -117,14 +127,14 @@ export function groupStatus(group, me, loading = false) {
   const mine = String(me ?? '').toLowerCase();
   const others = (group.Participants ?? []).filter((x) => String(x).toLowerCase() !== mine);
   if (group.State === 'Waiting') {
-    if (loading || !others.length) return { text: 'Chargement pour le groupe…', alert: true };
-    return { text: others.length === 1 ? `On attend ${others[0]}…` : 'On attend quelqu’un du groupe…', alert: true };
+    if (loading || !others.length) return { text: tr('Chargement pour le groupe…'), alert: true };
+    return { text: others.length === 1 ? tr('On attend {name}…', { name: others[0] }) : tr('On attend quelqu’un du groupe…'), alert: true };
   }
-  if (group.State === 'Paused') return { text: 'En pause pour le groupe', alert: true };
-  return { text: others.length ? `Ensemble · ${namesText(group.Participants)}` : 'Ensemble · personne d’autre pour l’instant', alert: false };
+  if (group.State === 'Paused') return { text: tr('En pause pour le groupe'), alert: true };
+  return { text: others.length ? tr('Ensemble · {names}', { names: namesText(group.Participants) }) : tr('Ensemble · personne d’autre pour l’instant'), alert: false };
 }
 /** « Marc a rejoint le groupe », « Marc a quitté le groupe ». */
-export const memberText = (name, joined) => `${name} ${joined ? 'a rejoint' : 'a quitté'} le groupe`;
+export const memberText = (name, joined) => (joined ? tr('{name} a rejoint le groupe', { name }) : tr('{name} a quitté le groupe', { name }));
 
 /**
  * Lecture of `itemId` while the group has another title on, not over (Idle): asked first, rather than changed for
@@ -135,16 +145,16 @@ export const asksToReplace = (group, queue, itemId) => !!group && !!queue?.itemI
 export function titleName(item) {
   if (!item) return '';
   if (item.Type !== 'Episode' || !item.SeriesName) return item.Name ?? '';
-  const code = [item.ParentIndexNumber != null ? `S${item.ParentIndexNumber}` : '', item.IndexNumber != null ? `É${item.IndexNumber}` : ''].filter(Boolean).join(' · ');
+  const code = [item.ParentIndexNumber != null ? `S${item.ParentIndexNumber}` : '', item.IndexNumber != null ? tr('É{n}', { n: item.IndexNumber }) : ''].filter(Boolean).join(' · ');
   return code ? `${item.SeriesName} · ${code}` : item.SeriesName;
 }
 /** « Remplacer « Dune » pour tout le groupe ? », or « Remplacer le titre du groupe ? » when its name is not known. */
-export const replaceQuestion = (current) => (current ? `Remplacer « ${current} » pour tout le groupe ?` : 'Remplacer le titre du groupe ?');
-/** « à 42 min », « à 1 h 05 », « à 30 s »: where the group starts a title Lecture resumes. */
+export const replaceQuestion = (current) => (current ? tr('Remplacer « {title} » pour tout le groupe ?', { title: current }) : tr('Remplacer le titre du groupe ?'));
+/** « 42 min », « 1 h 05 », « 30 s »: where the group starts a title Lecture resumes. */
 export function atText(seconds) {
   const s = Math.max(0, Math.floor(seconds)), m = Math.floor(s / 60);
-  if (m < 1) return `à ${s} s`;
-  return m < 60 ? `à ${m} min` : `à ${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+  if (m < 1) return tr('{s} s', { s });
+  return m < 60 ? tr('{m} min', { m }) : tr('{h} h {mm}', { h: Math.floor(m / 60), mm: String(m % 60).padStart(2, '0') });
 }
 /**
  * Lecture's label in a group, which starts the title for everyone: « Lancer pour le groupe », « Reprendre pour le
@@ -152,8 +162,9 @@ export function atText(seconds) {
  * page writes it), « Regarder avec le groupe » on the group's own title (joined where it is). Together.GroupPlayLabel.
  */
 export function groupPlayLabel({ code = '', resumeAt = 0, groupTitle = false } = {}) {
-  if (groupTitle) return 'Regarder avec le groupe';
-  return [resumeAt > 0 ? 'Reprendre' : 'Lancer', code, 'pour le groupe', resumeAt > 0 && !code ? atText(resumeAt) : ''].filter(Boolean).join(' ');
+  if (groupTitle) return tr('Regarder avec le groupe');
+  if (code) return resumeAt > 0 ? tr('Reprendre {code} pour le groupe', { code }) : tr('Lancer {code} pour le groupe', { code });
+  return resumeAt > 0 ? tr('Reprendre pour le groupe à {time}', { time: atText(resumeAt) }) : tr('Lancer pour le groupe');
 }
 
 /**
@@ -184,12 +195,12 @@ export function inviteSteps(link) {
   let host = '';
   try { host = new URL(link).hostname; } catch { /* not an address */ }
   const steps = [
-    'Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.',
-    'Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).',
+    tr('Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.'),
+    tr('Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).'),
   ];
   const where = reach(host);
-  if (where === 'tailnet') steps.push('Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.');
-  else if (where === 'home') steps.push('Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).');
-  steps.push('Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment.');
+  if (where === 'tailnet') steps.push(tr('Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.'));
+  else if (where === 'home') steps.push(tr('Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).'));
+  steps.push(tr('Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment.'));
   return steps;
 }

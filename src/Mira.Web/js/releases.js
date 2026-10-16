@@ -2,8 +2,10 @@
 // languages, group), the release Mira puts forward for each title or episode, and the order of the others. Cases
 // shared in tests/fixtures/releases.json. Nothing of the browser at load: Node imports it as it is.
 import { reportsHealth } from './torlink.js';
+import { tr } from './i18n.js';
 
-const SOURCE_LABELS = { remux: 'Remux', bluray: 'BluRay', webdl: 'WEB-DL', webrip: 'WEBRip', hdrip: 'HDRip', hdtv: 'HDTV', dvd: 'DVD', cam: 'Filmé en salle' };
+// The release's own tags, as they are; a version filmed in a theatre gets words of the page (asked when shown).
+const SOURCE_LABELS = { remux: 'Remux', bluray: 'BluRay', webdl: 'WEB-DL', webrip: 'WEBRip', hdrip: 'HDRip', hdtv: 'HDTV', dvd: 'DVD' };
 // The source first: a 1080p WEB-DL beats a 720p BluRay, a 1080p BluRay beats a 2160p WEB-DL (heavy to convert on a
 // small server, and no better on a phone). A version filmed in a theatre is always last.
 const SOURCE_SCORE = { remux: 14, bluray: 12, webdl: 10, webrip: 7, hdrip: 5, hdtv: 4, dvd: 2, cam: -100 };
@@ -143,7 +145,7 @@ export function parseRelease(name) {
 export function qualityLine(release) {
   return [
     release.resolution === 2160 ? '4K' : release.resolution ? `${release.resolution}p` : '',
-    SOURCE_LABELS[release.source] ?? '', release.codec ?? '', release.hdr ?? '', ...release.languages, release.group ?? '',
+    release.source === 'cam' ? tr('Filmé en salle') : SOURCE_LABELS[release.source] ?? '', release.codec ?? '', release.hdr ?? '', ...release.languages, release.group ?? '',
   ].filter(Boolean).join(' · ');
 }
 
@@ -175,11 +177,12 @@ export function releaseScore(hit, release = parseRelease(hit?.name), category = 
 export function episodeLabel(release) {
   const two = (n) => String(n).padStart(2, '0');
   if (release.pack) {
-    if (release.episode !== null && release.lastEpisode !== null) return `${release.season !== null ? `Saison ${release.season}, é` : 'É'}pisodes ${release.episode} à ${release.lastEpisode}`;
-    return release.season !== null ? `Saison ${release.season} complète` : 'Toutes les saisons';
+    const { season, episode: first, lastEpisode: last } = release;
+    if (first !== null && last !== null) return season !== null ? tr('Saison {season}, épisodes {first} à {last}', { season, first, last }) : tr('Épisodes {first} à {last}', { first, last });
+    return season !== null ? tr('Saison {season} complète', { season }) : tr('Toutes les saisons');
   }
   if (release.episode === null) return '';
-  if (release.absolute) return release.lastEpisode ? `Épisodes ${release.episode} à ${release.lastEpisode}` : `Épisode ${release.episode}`;
+  if (release.absolute) return release.lastEpisode ? tr('Épisodes {first} à {last}', { first: release.episode, last: release.lastEpisode }) : tr('Épisode {n}', { n: release.episode });
   return `S${two(release.season)}E${two(release.episode)}${release.lastEpisode > release.episode ? `-E${two(release.lastEpisode)}` : ''}`;
 }
 
@@ -241,11 +244,11 @@ export function groupReleases(hits, category = null) {
 /** Under the best release: what makes it worth less, in a few words; empty when nothing does. */
 export function warning(entry) {
   const { release, hit } = entry;
-  if (release.source === 'cam') return 'Filmé dans une salle de cinéma : image et son médiocres.';
+  if (release.source === 'cam') return tr('Filmé dans une salle de cinéma : image et son médiocres.');
   const seeders = Math.max(0, Number(hit?.seeders) || 0);
   if (reportsHealth(hit?.source)) {
-    if (seeders === 0) return 'Personne ne partage ce fichier : il ne se téléchargera sans doute pas.';
-    if (seeders < 3) return 'Peu de sources : le téléchargement sera lent.';
+    if (seeders === 0) return tr('Personne ne partage ce fichier : il ne se téléchargera sans doute pas.');
+    if (seeders < 3) return tr('Peu de sources : le téléchargement sera lent.');
   }
   return '';
 }

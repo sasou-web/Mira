@@ -1,7 +1,8 @@
 // A saga (a Jellyfin collection, « Harry Potter - Saga »): its titles in the order they came out, from the search or
 // from the page of one of its films. It plays nothing by itself: its films do, from their page.
 import { api } from '../api.js';
-import { h, icon, clear, plural } from '../dom.js';
+import { h, icon, clear } from '../dom.js';
+import { tr, trn } from '../i18n.js';
 import { posterCard, skeletonGrid, errorState, emptyState, changes, overview, toast } from '../components.js';
 import { goBack } from '../app.js';
 
@@ -9,13 +10,13 @@ import { goBack } from '../app.js';
 function about(items) {
   const years = items.map((x) => x.ProductionYear).filter(Boolean);
   const first = Math.min(...years), last = Math.max(...years);
-  const count = items.every((x) => x.Type === 'Movie') ? plural(items.length, 'film', 'films') : plural(items.length, 'titre', 'titres');
+  const count = items.every((x) => x.Type === 'Movie') ? trn(items.length, '{n} film', '{n} films') : trn(items.length, '{n} titre', '{n} titres');
   return [count, years.length ? (first === last ? String(first) : `${first} – ${last}`) : ''].filter(Boolean).join(' · ');
 }
 
 export function create({ id }) {
   const el = h('div', { class: 'view saga-page' });
-  const back = h('button', { class: 'round floating-back', 'aria-label': 'Retour', on: { click: () => goBack('#/') } }, icon('back'));
+  const back = h('button', { class: 'round floating-back', 'aria-label': tr('Retour'), on: { click: () => goBack('#/') } }, icon('back'));
   let grid = null, count = null, stale = false, shown = new Set([id]);
 
   /** quiet: the page stays as it is while Jellyfin answers, and only its titles change (a refresh, a title marked). */
@@ -36,7 +37,7 @@ export function create({ id }) {
       clear(el).append(back, h('div', { class: 'page', style: { paddingTop: 'calc(var(--top) + 64px)' } },
         h('header', { style: { paddingBottom: '16px' } }, h('h1', { class: 'page-title' }, saga.Name), count),
         saga.Overview ? h('div', { style: { paddingBottom: '20px' } }, overview(saga.Overview)) : null,
-        grid ?? emptyState({ symbol: 'films', title: 'Aucun titre', text: 'Cette saga n’a aucun film de ta bibliothèque.' })));
+        grid ?? emptyState({ symbol: 'films', title: tr('Aucun titre'), text: tr('Cette saga n’a aucun film de ta bibliothèque.') })));
     } catch (error) {
       if (quiet && grid?.isConnected) toast(error.message);
       else clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, () => load())));
@@ -52,7 +53,7 @@ export function create({ id }) {
   changes.addEventListener('item', onChange);
   load();
   return {
-    el, title: 'Saga', keep: true,
+    el, title: tr('Saga'), keep: true,
     enter() { if (stale) load(true); },
     refresh: () => load(true),
     dispose() { changes.removeEventListener('item', onChange); },

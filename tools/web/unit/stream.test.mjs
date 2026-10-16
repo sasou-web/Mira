@@ -1,7 +1,9 @@
 // What the web player asks Jellyfin for and what it does when a stream fails (src/Mira.Web/js/player/stream.js),
 // without a browser: node --test tools/web/unit/*.test.mjs
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import { readFileSync } from 'node:fs';
 import {
   FULL_BITRATE, FULL_MARGIN, UNMEASURED_BITRATE, MEASURE_KEPT, knownBitrate, measuredBitrate, autoBitrate, LAST_STAGE, nextStage, stageRequest,
@@ -259,4 +261,14 @@ test('« Reprendre un peu avant »: the cases Mira for Windows and Mac read', ()
   assert.deepEqual(RESUME_BACK, fixture.choices);
   assert.equal(RESUME_BACK_FROM, fixture.from);
   for (const [position, back, at] of fixture.cases) assert.ok(Math.abs(resumeBack(position, back) - at) < 1e-9, `${position} s, ${back} s back`);
+});
+
+test('the messages of a failed stream in English', () => {
+  try {
+    setLanguage('en');
+    assert.equal(videoErrorText({ code: 4, message: 'MEDIA_ERR_SRC_NOT_SUPPORTED', playMethod: 'DirectPlay', stage: 0 }), 'Error 4: MEDIA_ERR_SRC_NOT_SUPPORTED (file played as is).');
+    assert.equal(hlsErrorText({ details: 'fragParsingError', type: 'mediaError', stage: 1 }), 'Error fragParsingError (video converted).');
+    assert.equal(playbackError('NotAllowed'), 'Your Jellyfin account isn’t allowed to play this title.');
+    assert.equal(playbackError('Other'), 'Jellyfin couldn’t prepare this title for this device.');
+  } finally { setLanguage('fr'); }
 });

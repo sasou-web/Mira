@@ -1,10 +1,11 @@
 // « Ton bilan »: what this account finished watching since a date, from Jellyfin's own record (each title's last play),
 // as Mira on Windows and Mac (WatchReport.cs, cases in tests/fixtures/report.json). A title watched twice counts once.
 // Imported by Node too (tools/web/unit): nothing of the browser here.
+import { tr, compareText } from './i18n.js';
 
 const minutesOf = (x) => Math.round(Math.max(0, x.RunTimeTicks ?? 0) / 600_000_000);
 const playedAt = (x) => Date.parse(x.UserData?.LastPlayedDate ?? '') || 0;
-const byName = (a, b) => a.localeCompare(b, 'fr');
+const byName = compareText;
 
 /** « Ce mois-ci » starts on the 1st at midnight here, « Cette année » on 1 January. */
 export function reportStart(now, year) {
@@ -23,7 +24,7 @@ export function watchReport(played, series, from) {
   }
   const groups = new Map();
   for (const item of items) if (item.Type === 'Episode' && item.SeriesId) groups.set(item.SeriesId, [...(groups.get(item.SeriesId) ?? []), item]);
-  const name = (id, group) => shows.get(id)?.Name || group[0].SeriesName || 'Série';
+  const name = (id, group) => shows.get(id)?.Name || group[0].SeriesName || tr('Série');
   const latest = (group) => Math.max(...group.map(playedAt));
   const finished = [...groups].filter(([id]) => shows.get(id)?.UserData?.Played).sort((a, b) => latest(b[1]) - latest(a[1])).map(([id, group]) => name(id, group));
   const most = [...groups].map(([id, group]) => ({ name: name(id, group), episodes: group.length, minutes: group.reduce((s, x) => s + minutesOf(x), 0) }))
@@ -39,6 +40,5 @@ export function watchReport(played, series, from) {
 }
 
 /** « 45 min », « 3 h », « 12 h 05 ». */
-export const reportTime = (m) => (m < 60 ? `${Math.max(0, m)} min` : m % 60 === 0 ? `${Math.floor(m / 60)} h` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`);
-/** « 1 film », « 3 épisodes ». */
-export const reportCount = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+export const reportTime = (m) => (m < 60 ? tr('{m} min', { m: Math.max(0, m) }) : m % 60 === 0 ? tr('{h} h', { h: Math.floor(m / 60) })
+  : tr('{h} h {mm}', { h: Math.floor(m / 60), mm: String(m % 60).padStart(2, '0') }));

@@ -1,8 +1,19 @@
 // The title's timeline: passages to skip, when the next episode is offered, trickplay previews, chapter marks. Plain
 // functions of their inputs (times in seconds, Jellyfin's in ticks), tested by Node (tools/web/unit).
 import { seconds } from '../dom.js';
+import { tr } from '../i18n.js';
 
-export const SKIP_LABELS = { Intro: 'Passer l’intro', Recap: 'Passer le récap', Preview: 'Passer l’aperçu', Commercial: 'Passer la pub' };
+/** The button over a passage that can be skipped, by its kind (Jellyfin's segment Type); null for another kind. */
+export function skipLabel(type) {
+  switch (type) {
+    case 'Intro': return tr('Passer l’intro');
+    case 'Recap': return tr('Passer le récap');
+    case 'Preview': return tr('Passer l’aperçu');
+    case 'Commercial': return tr('Passer la pub');
+    default: return null;
+  }
+}
+export const SKIP_LABELS = Object.fromEntries(['Intro', 'Recap', 'Preview', 'Commercial'].map((type) => [type, skipLabel(type)]));
 /** Skipped by themselves when the settings say so. */
 const AUTO_SKIP = ['Intro', 'Recap'];
 /** Seconds the next episode is offered before it starts by itself. */

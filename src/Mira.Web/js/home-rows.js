@@ -2,6 +2,7 @@
 // cases in tests/fixtures/home.json). Saved as one line, « continue,favorites,-latest,library:id »: the order, a « - »
 // before a row put away. Rows not in it yet (a new library) come after: the built-in rows shown, a library's own row put away.
 // Imported by Node too (tools/web/unit): nothing of the browser here.
+import { tr } from './i18n.js';
 
 export const CONTINUE = 'continue', LATEST = 'latest', FAVORITES = 'favorites', LIBRARY = 'library:';
 
@@ -11,10 +12,10 @@ export const offered = (library) => [undefined, null, 'movies', 'tvshows', 'mixe
 /** Every row, in order: { key, title, shown, library } (library: the id of « Nouveau dans … »). */
 export function homeRows(saved, libraries = []) {
   const all = [
-    { key: CONTINUE, title: 'Continuer à regarder', shown: true, library: null },
-    { key: LATEST, title: 'Ajouts récents', shown: true, library: null },
-    { key: FAVORITES, title: 'Tes favoris', shown: true, library: null },
-    ...libraries.filter(offered).map((x) => ({ key: LIBRARY + x.Id, title: `Nouveau dans ${x.Name}`, shown: false, library: x.Id })),
+    { key: CONTINUE, title: tr('Continuer à regarder'), shown: true, library: null },
+    { key: LATEST, title: tr('Ajouts récents'), shown: true, library: null },
+    { key: FAVORITES, title: tr('Tes favoris'), shown: true, library: null },
+    ...libraries.filter(offered).map((x) => ({ key: LIBRARY + x.Id, title: tr('Nouveau dans {name}', { name: x.Name }), shown: false, library: x.Id })),
   ];
   const rows = [];
   for (const part of String(saved ?? '').split(',').map((x) => x.trim()).filter(Boolean)) {

@@ -1,7 +1,9 @@
 // « Nouveau dans Mira »: once Jellyfin serves a new Mira web, the phone shows that version's main points once, from
 // WhatsNew.json (src/Mira.Core), the text of Mira for Windows' « Nouveautés ». Only the points marked "web": the others
 // are Windows' or the Mac's. Which versions: as WhatsNew.Since (cases in tests/fixtures/whats-new.json).
+// In English, each point's "en" (title, text) when WhatsNew.json has it, else its French.
 // Imported by Node too (tools/web/unit): nothing of the browser here.
+import { language } from './i18n.js';
 
 /** [major, minor, patch] of « 0.7.9 », null for anything else (the « 0.0.0 » of a copy that Jellyfin did not serve). */
 export function parseVersion(text) {
@@ -28,10 +30,13 @@ export function since(entries, seen, current) {
     .map(({ entry }) => entry);
 }
 
+/** A point in the language shown: English from its "en" where WhatsNew.json gives one. */
+const inLanguage = (item) => (language() === 'en' && item.en ? { ...item, title: item.en.title ?? item.title, text: item.en.text ?? item.text } : item);
+
 /** What the phone shows: each of those versions with its points for Mira web, none without any. */
 export function phoneNotes(entries, seen, current) {
   return since(entries, seen, current)
-    .map((entry) => ({ version: entry.version, items: (entry.items ?? []).filter((item) => item.web === true) }))
+    .map((entry) => ({ version: entry.version, items: (entry.items ?? []).filter((item) => item.web === true).map(inLanguage) }))
     .filter((entry) => entry.items.length > 0);
 }
 

@@ -1,6 +1,7 @@
 // Jellyfin's API, from the same address as Mira web: no server to type, no cross-site request.
 import { session, device, settings } from './session.js';
 import { SUBTITLE_FORMATS } from './subtitles.js';
+import { tr, language } from './i18n.js';
 
 export const VERSION = document.querySelector('meta[name="mira-version"]')?.content.replace('{{version}}', '0.0.0') || '0.0.0';
 
@@ -42,16 +43,16 @@ export const exposed = () => location.protocol === 'http:' && !isLocalHost(locat
  */
 const where = isTailnet(location.hostname) ? 'tailnet' : isHomeNetwork(location.hostname) ? 'home' : '';
 export const UNREACHABLE = {
-  tailnet: 'Serveur injoignable : vérifie que Tailscale est activé sur ce téléphone et que le PC est allumé. Mira réessaie toute seule.',
-  home: 'Serveur injoignable : le PC est éteint, ou ce téléphone n’est pas sur le Wi-Fi de la maison. Mira réessaie toute seule.',
-}[where] ?? 'Serveur injoignable : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.';
-export const UNREACHABLE_SHORT = { tailnet: 'Serveur injoignable. Tailscale est-il activé ?', home: 'Serveur injoignable. Hors du Wi-Fi de la maison ?' }[where]
-  ?? 'Serveur injoignable. Mira réessaie toute seule.';
+  tailnet: tr('Serveur injoignable : vérifie que Tailscale est activé sur ce téléphone et que le PC est allumé. Mira réessaie toute seule.'),
+  home: tr('Serveur injoignable : le PC est éteint, ou ce téléphone n’est pas sur le Wi-Fi de la maison. Mira réessaie toute seule.'),
+}[where] ?? tr('Serveur injoignable : le PC est peut-être éteint ou en train de démarrer. Mira réessaie toute seule.');
+export const UNREACHABLE_SHORT = { tailnet: tr('Serveur injoignable. Tailscale est-il activé ?'), home: tr('Serveur injoignable. Hors du Wi-Fi de la maison ?') }[where]
+  ?? tr('Serveur injoignable. Mira réessaie toute seule.');
 /** What to check when another server answers at this address (see checkServer). */
 export const FOREIGN = {
-  tailnet: 'Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie que Tailscale est activé sur ce téléphone, avec ton compte.',
-  home: 'Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie que ce téléphone est bien sur le Wi-Fi de ta maison.',
-}[where] ?? 'Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie l’adresse de Mira.';
+  tailnet: tr('Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie que Tailscale est activé sur ce téléphone, avec ton compte.'),
+  home: tr('Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie que ce téléphone est bien sur le Wi-Fi de ta maison.'),
+}[where] ?? tr('Un autre serveur répond à cette adresse, alors Mira ne lui envoie pas ta session. Vérifie l’adresse de Mira.');
 
 export class ApiError extends Error {
   constructor(status, message, { foreign = false } = {}) { super(message); this.status = status; this.foreign = foreign; }
@@ -70,9 +71,9 @@ const strangers = new Set();
  */
 export const onForeignServer = (fn) => { strangers.add(fn); return () => strangers.delete(fn); };
 
-const STARTING = 'Jellyfin ne répond pas encore : il est sans doute en train de démarrer. Mira réessaie toute seule.';
+const STARTING = tr('Jellyfin ne répond pas encore : il est sans doute en train de démarrer. Mira réessaie toute seule.');
 // A page where Jellyfin's answer should be: a Wi-Fi's sign-in page (hotel, train), or a proxy's error page.
-const NOT_JELLYFIN = 'Une page web a répondu à la place de Jellyfin : ce Wi-Fi demande peut-être d’accepter ses conditions. Accepte-les dans le navigateur, ou change de réseau, puis réessaie.';
+const NOT_JELLYFIN = tr('Une page web a répondu à la place de Jellyfin : ce Wi-Fi demande peut-être d’accepter ses conditions. Accepte-les dans le navigateur, ou change de réseau, puis réessaie.');
 const watchers = new Set();
 let reachable = true;
 /**
@@ -100,7 +101,7 @@ let identity = null;   // { expected, promise, at }: the check of the server ans
 let foreign = false;   // the last check concluded: another server
 const FRESH = 60_000;
 // 421, « Misdirected Request »: the request would go to a server that is not the one it is meant for.
-const notYours = () => new ApiError(421, `Ce n’est pas ton serveur. ${FOREIGN}`, { foreign: true });
+const notYours = () => new ApiError(421, tr('Ce n’est pas ton serveur. {why}', { why: FOREIGN }), { foreign: true });
 const sameId = (a, b) => String(a ?? '').replace(/-/g, '').toLowerCase() === String(b ?? '').replace(/-/g, '').toLowerCase();
 
 /** The next request that carries the token checks the server first. */
@@ -200,6 +201,8 @@ export async function request(method, path, { params, body, plain, signal, timeo
       signal: controller.signal,
       headers: {
         Authorization: authorization(token), Accept: 'application/json',
+        // Mira's own routes answer their errors in Mira's language.
+        ...(path.startsWith('Mira/') ? { 'Accept-Language': language() } : {}),
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : plain !== undefined ? { 'Content-Type': 'text/plain' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : plain,
@@ -208,7 +211,7 @@ export async function request(method, path, { params, body, plain, signal, timeo
     if (signal?.aborted) throw error;
     setReachable(false, 'offline');
     throw new ApiError(0, controller.signal.aborted
-      ? 'Le serveur met trop de temps à répondre. Mira réessaie dès qu’il répond.'
+      ? tr('Le serveur met trop de temps à répondre. Mira réessaie dès qu’il répond.')
       : UNREACHABLE);
   } finally { clearTimeout(timer); }
 
@@ -220,15 +223,15 @@ export async function request(method, path, { params, body, plain, signal, timeo
   if (response.status === 401) {
     // Only the session in use ends: a sign-out still on its way with an older token leaves a new sign-in alone.
     if (token && session.current && token === session.current.token) { session.clear(); listeners.forEach((fn) => fn()); }
-    throw new ApiError(401, 'Ta session a pris fin. Reconnecte-toi.');
+    throw new ApiError(401, tr('Ta session a pris fin. Reconnecte-toi.'));
   }
   if (!response.ok) {
-    // Mira's own routes (the extension's) say why in French: { error }.
+    // Mira's own routes (the extension's) say why, in the language asked for (Accept-Language): { error }.
     const said = path.startsWith('Mira/') ? await response.json().then((x) => (typeof x?.error === 'string' && x.error ? x.error : null), () => null) : null;
     if (said) throw new ApiError(response.status, said);
     throw new ApiError(response.status, response.status === 403
-      ? 'Ton compte Jellyfin n’a pas accès à ceci.'
-      : response.status === 404 ? 'Ce titre n’existe plus sur le serveur.' : `Jellyfin a répondu avec une erreur (${response.status}).`);
+      ? tr('Ton compte Jellyfin n’a pas accès à ceci.')
+      : response.status === 404 ? tr('Ce titre n’existe plus sur le serveur.') : tr('Jellyfin a répondu avec une erreur ({status}).', { status: response.status }));
   }
   let text;
   try { text = await response.text(); } catch (error) {
@@ -238,7 +241,7 @@ export async function request(method, path, { params, body, plain, signal, timeo
     throw new ApiError(0, UNREACHABLE);
   }
   if (!text) return null;
-  // Not Jellyfin's JSON: said in French, never the parser's English. Its status stays the page's (a 200 from
+  // Not Jellyfin's JSON: said in Mira's words, never the parser's. Its status stays the page's (a 200 from
   // System/Info/Public is then « not your server », see checkServer).
   try { return JSON.parse(text); } catch { throw new ApiError(response.status, NOT_JELLYFIN); }
 }
@@ -350,7 +353,7 @@ export const api = {
    * first whether Quick Connect is on: turned off, Jellyfin answers 401, which would end this session (request).
    */
   async approveCode(code) {
-    if (!await this.quickConnectEnabled()) throw new ApiError(403, 'Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).');
+    if (!await this.quickConnectEnabled()) throw new ApiError(403, tr('Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).'));
     return post('QuickConnect/Authorize', undefined, { code, userId: user() });
   },
   /**
@@ -418,7 +421,7 @@ export const api = {
       response = await fetch(url(`Providers/Subtitles/Subtitles/${encodeURIComponent(found.Id)}`), { headers: { Authorization: authorization() }, cache: 'no-store' });
     } catch { throw new ApiError(0, UNREACHABLE); }
     if (response.status === 403) return 'Refused';
-    if (!response.ok) throw new ApiError(response.status, `Jellyfin a répondu avec une erreur (${response.status}).`);
+    if (!response.ok) throw new ApiError(response.status, tr('Jellyfin a répondu avec une erreur ({status}).', { status: response.status }));
     const format = String(found.Format ?? '').toLowerCase();
     return this.keepSubtitle(itemId, {
       Format: SUBTITLE_FORMATS.includes(format) ? format : 'srt', Language: found.ThreeLetterISOLanguageName || 'und',
@@ -587,7 +590,7 @@ export const api = {
     let started = performance.now(), bytes = 0;
     try {
       const response = await fetch(url('Playback/BitrateTest', { size }), { headers: { Authorization: authorization() }, cache: 'no-store', signal: controller.signal });
-      if (!response.ok) throw new ApiError(response.status, `Jellyfin a répondu avec une erreur (${response.status}).`);
+      if (!response.ok) throw new ApiError(response.status, tr('Jellyfin a répondu avec une erreur ({status}).', { status: response.status }));
       clearTimeout(timer);
       started = performance.now();
       timer = setTimeout(() => controller.abort(), limit);

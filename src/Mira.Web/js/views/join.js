@@ -3,11 +3,12 @@
 // group starts a title (together.js). The group of the link gone, its host's group made again since is joined
 // (findGroup); none open yet, the page says so and joins it as soon as it opens.
 import { h, icon, clear } from '../dom.js';
+import { tr } from '../i18n.js';
 import { markSvg, replaceRoute } from '../app.js';
 import { together } from '../together.js';
-import { findGroup, groupText, waitingText, WAITING_LEAD } from '../player/sync.js';
+import { findGroup, groupText, waitingText, WAITING_LEAD, groupLabel } from '../player/sync.js';
 
-const NO_SYNCPLAY = 'Jellyfin ne permet pas à ton compte de regarder ensemble. Demande à la personne qui t’invite de l’autoriser : tableau de bord → Utilisateurs → ton compte → SyncPlay.';
+const NO_SYNCPLAY = tr('Jellyfin ne permet pas à ton compte de regarder ensemble. Demande à la personne qui t’invite de l’autoriser : tableau de bord → Utilisateurs → ton compte → SyncPlay.');
 // How often Jellyfin's groups are read while the host has none open, the page in sight.
 const EVERY = 4000;
 
@@ -21,27 +22,27 @@ export function create({ id, query }) {
 
   const page = (title, lead, ...rest) => clear(el).append(markSvg(56),
     h('div', { class: 'gate-text' }, h('h1', {}, title), lead ? h('p', { class: 'lead' }, lead) : ''), ...rest);
-  const home = () => h('button', { class: 'btn primary', on: { click: () => replaceRoute('#/') } }, 'Aller à l’accueil');
+  const home = () => h('button', { class: 'btn primary', on: { click: () => replaceRoute('#/') } }, tr('Aller à l’accueil'));
   const spinner = (label) => h('div', { class: 'spinner', role: 'status', 'aria-label': label });
 
   function joined() {
     const group = together.group;
-    if (!group || !findGroup([group], target, host)) { failed('Tu n’es plus dans ce groupe.'); return; }
-    page(`Tu es dans « ${group.GroupName} »`,
-      'Le titre démarre ici dès qu’il est lancé pour le groupe, au même moment chez chacun. Tu peux parcourir Mira en attendant.',
+    if (!group || !findGroup([group], target, host)) { failed(tr('Tu n’es plus dans ce groupe.')); return; }
+    page(tr('Tu es dans « {name} »', { name: groupLabel(group.GroupName) }),
+      tr('Le titre démarre ici dès qu’il est lancé pour le groupe, au même moment chez chacun. Tu peux parcourir Mira en attendant.'),
       h('div', { class: 'hint' },
-        h('div', { class: 'step' }, icon('users'), h('span', {}, h('b', {}, groupText(group)), group.Participants.length ? ` : ${group.Participants.join(', ')}` : ''))),
+        h('div', { class: 'step' }, icon('users'), h('span', {}, h('b', {}, groupText(group)), group.Participants.length ? tr(' : {names}', { names: group.Participants.join(', ') }) : ''))),
       home(),
-      h('button', { class: 'btn quiet small', on: { click: async () => { await together.leave(); replaceRoute('#/'); } } }, 'Quitter le groupe'));
+      h('button', { class: 'btn quiet small', on: { click: async () => { await together.leave(); replaceRoute('#/'); } } }, tr('Quitter le groupe')));
   }
   function failed(text) {
     stopWaiting();
     unwatch(); unwatch = () => {};
-    page('Le groupe n’a pas pu être rejoint', text, home());
+    page(tr('Le groupe n’a pas pu être rejoint'), text, home());
   }
 
   async function enterGroup(found) {
-    page('Tu rejoins le groupe…', '', spinner('Chargement'));
+    page(tr('Tu rejoins le groupe…'), '', spinner(tr('Chargement')));
     try { await together.join(found.GroupId); } catch (error) { if (!disposed) failed(error?.status === 403 ? NO_SYNCPLAY : error.message); return; }
     if (disposed) return;
     target = together.group?.GroupId ?? found.GroupId;
@@ -53,7 +54,7 @@ export function create({ id, query }) {
   function waiting() {
     if (!waited) {
       waited = true;
-      page(waitingText(host), WAITING_LEAD, spinner('En attente du groupe'), home());
+      page(waitingText(host), WAITING_LEAD, spinner(tr('En attente du groupe')), home());
       document.addEventListener('visibilitychange', look);
     }
     clearTimeout(timer);
@@ -82,7 +83,7 @@ export function create({ id, query }) {
   }
 
   async function join() {
-    page('Tu rejoins le groupe…', '', spinner('Chargement'));
+    page(tr('Tu rejoins le groupe…'), '', spinner(tr('Chargement')));
     const current = together.group;
     if (current && !findGroup([current], id, host)) await together.leave();
     if (together.group) {
@@ -97,9 +98,9 @@ export function create({ id, query }) {
     const found = findGroup(groups, id, host);
     if (found) enterGroup(found);
     else if (host) waiting();
-    else failed('Ce groupe n’existe plus : demande un nouveau lien à la personne qui t’a invité.');
+    else failed(tr('Ce groupe n’existe plus : demande un nouveau lien à la personne qui t’a invité.'));
   }
 
   join();
-  return { el, title: 'Regarder ensemble', dispose: () => { disposed = true; stopWaiting(); unwatch(); } };
+  return { el, title: tr('Regarder ensemble'), dispose: () => { disposed = true; stopWaiting(); unwatch(); } };
 }

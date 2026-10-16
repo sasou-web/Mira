@@ -1,4 +1,5 @@
 // « Tes choix gardés sur ton Jellyfin »: the rules Mira for Windows and Mac follow too (tests/fixtures/choices.json).
+import './fr.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

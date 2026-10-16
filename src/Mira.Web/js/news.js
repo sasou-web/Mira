@@ -6,6 +6,7 @@ import { api } from './api.js';
 import { session, storageBlocked } from './session.js';
 import { toast, sheet, titleHref } from './components.js';
 import { pickNewEpisodes, newestEpisode } from './new-episodes.js';
+import { tr } from './i18n.js';
 
 const markKey = (userId) => `mira.home.${userId}.episodes`;
 // Not over the player, an invitation, the sign-in or the QR code: the news waits for the next opening there.
@@ -21,13 +22,13 @@ function show({ notices, more, series }) {
   if (!notices.length) return;
   if (notices.length === 1 && !more) {
     const [notice] = notices;
-    toast(`${notice.title} · ${notice.text}`, { action: { label: 'Voir', run: () => open(notice) }, duration: 8000 });
+    toast(`${notice.title} · ${notice.text}`, { action: { label: tr('Voir'), run: () => open(notice) }, duration: 8000 });
     return;
   }
   // Several series: the three latest in a sheet (the others show their count of episodes to watch on their card).
   const items = notices.map((notice) => ({ label: notice.title, sub: notice.text, symbol: 'series', run: () => open(notice) }));
-  toast(`${series} séries que tu suis ont de nouveaux épisodes.`, {
-    duration: 8000, action: { label: 'Voir', run: () => sheet({ title: 'Nouveaux épisodes', items }) },
+  toast(tr('{n} séries que tu suis ont de nouveaux épisodes.', { n: series }), {
+    duration: 8000, action: { label: tr('Voir'), run: () => sheet({ title: tr('Nouveaux épisodes'), items }) },
   });
 }
 

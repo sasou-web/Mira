@@ -2,8 +2,10 @@
 // on the server (ClientLog/Document: a file upload_Mira_….log among Jellyfin's logs), which Mira for Windows lists for
 // its administrator (Mira.Core PlaybackFailures, the same cases in tests/fixtures/failure.json). Nothing of the browser
 // at load: Node tests it (tools/web/unit).
-import { codecName } from './tracks.js';
+import { codecName, channelText } from './tracks.js';
 import { episodeCode } from '../dom.js';
+import { reason } from '../viewers.js';
+import { tr } from '../i18n.js';
 
 /** What the report says it is, for whoever reads Jellyfin's logs. */
 export const REPORT_KIND = 'lecture-impossible';
@@ -11,7 +13,6 @@ export const REPORT_KIND = 'lecture-impossible';
 const CONTAINERS = { matroska: 'MKV', mkv: 'MKV', webm: 'WebM', mp4: 'MP4', mov: 'MP4', m4v: 'MP4', avi: 'AVI', mpegts: 'TS', ts: 'TS', m2ts: 'M2TS', wmv: 'WMV', asf: 'WMV', flv: 'FLV', ogg: 'OGG' };
 const VIDEO_CODECS = { h264: 'H.264', avc: 'H.264', hevc: 'HEVC', h265: 'HEVC', av1: 'AV1', vp9: 'VP9', vp8: 'VP8', mpeg2video: 'MPEG-2', mpeg4: 'MPEG-4', msmpeg4v3: 'DivX', vc1: 'VC-1', wmv3: 'WMV' };
 const RANGES = { HDR10: 'HDR10', HDR10Plus: 'HDR10+', HLG: 'HLG' };
-const CHANNELS = { 1: 'mono', 2: 'stéréo', 6: '5.1', 8: '7.1' };
 
 /**
  * The file's container. Jellyfin may list a family (« mkv,webm », « mov,mp4,m4a,3gp,3g2,mj2 »): the one of the file's
@@ -31,12 +32,12 @@ function videoText(video) {
     : width >= 1800 || height >= 1000 ? '1080p' : width >= 1200 || height >= 700 ? '720p' : width > 0 || height > 0 ? 'SD' : '';
   const type = video.VideoRangeType ?? '';
   const range = RANGES[type] ?? (type.startsWith('DOVI') && type !== 'DOVIInvalid' ? 'Dolby Vision' : video.VideoRange === 'HDR' ? 'HDR' : '');
-  return [key ? VIDEO_CODECS[key] ?? key.toUpperCase() : 'Vidéo', size, video.BitDepth > 8 ? `${video.BitDepth} bits` : '', range,
-    video.IsInterlaced ? 'entrelacée' : ''].filter(Boolean).join(' ');
+  return [key ? VIDEO_CODECS[key] ?? key.toUpperCase() : tr('Vidéo'), size, video.BitDepth > 8 ? tr('{n} bits', { n: video.BitDepth }) : '', range,
+    video.IsInterlaced ? tr('entrelacée') : ''].filter(Boolean).join(' ');
 }
 function audioText(audio) {
   if (!audio) return null;
-  return [codecName(audio.Codec) ?? 'Audio', audio.Channels > 0 ? CHANNELS[audio.Channels] ?? `${audio.Channels} canaux` : ''].filter(Boolean).join(' ');
+  return [codecName(audio.Codec) ?? tr('Audio'), audio.Channels > 0 ? channelText(audio.Channels) : ''].filter(Boolean).join(' ');
 }
 
 /**
@@ -50,36 +51,33 @@ export function mediaLine(source, { audioIndex = null, subtitleIndex = null } = 
   const audio = audios.find((s) => s.Index === audioIndex) ?? audios.find((s) => s.Index === source.DefaultAudioStreamIndex) ?? audios[0];
   const subtitle = subtitleIndex >= 0 ? streams.find((s) => s.Type === 'Subtitle' && s.Index === subtitleIndex) : null;
   return [containerName(source.Container, source.Path), videoText(streams.find((s) => s.Type === 'Video')), audioText(audio),
-    subtitle ? `sous-titres ${codecName(subtitle.Codec) ?? '?'}` : null].filter(Boolean).join(' · ');
+    subtitle ? tr('sous-titres {format}', { format: codecName(subtitle.Codec) ?? '?' }) : null].filter(Boolean).join(' · ');
 }
 
-/** Jellyfin's TranscodeReasons in words, as « En ce moment sur Jellyfin » says them (Mira.Core Viewers.Reason). */
-const REASONS = {
-  ContainerNotSupported: 'format du fichier', VideoCodecNotSupported: 'codec vidéo', AudioCodecNotSupported: 'codec audio',
-  SubtitleCodecNotSupported: 'sous-titres à incruster', AudioIsExternal: 'piste audio à part', SecondaryAudioNotSupported: 'piste audio secondaire',
-  VideoProfileNotSupported: 'profil vidéo', VideoLevelNotSupported: 'niveau vidéo', VideoResolutionNotSupported: 'définition',
-  VideoBitDepthNotSupported: 'vidéo 10 bits', VideoFramerateNotSupported: 'images par seconde', RefFramesNotSupported: 'images de référence',
-  AnamorphicVideoNotSupported: 'image anamorphosée', InterlacedVideoNotSupported: 'image entrelacée', AudioChannelsNotSupported: 'canaux audio',
-  AudioProfileNotSupported: 'profil audio', AudioSampleRateNotSupported: 'fréquence audio', AudioBitDepthNotSupported: 'audio haute résolution',
-  ContainerBitrateExceedsLimit: 'débit au-dessus de la qualité choisie', VideoBitrateNotSupported: 'débit vidéo', AudioBitrateNotSupported: 'débit audio',
-  UnknownVideoStreamInfo: 'vidéo mal décrite', UnknownAudioStreamInfo: 'audio mal décrit', DirectPlayError: 'lecture directe en échec',
-  VideoRangeTypeNotSupported: 'HDR', VideoCodecTagNotSupported: 'étiquette du codec vidéo', StreamCountExceedsLimit: 'trop de pistes',
-};
-export const reasonText = (reason) => REASONS[reason] ?? reason;
+/** Jellyfin's TranscodeReasons in words, as « En ce moment sur Jellyfin » says them (viewers.js, Mira.Core Viewers.Reason). */
+export const reasonText = (name) => reason(name);
 /** The reasons in a conversion's address (TranscodeReasons=A,B), never the address itself: it carries the token. */
 export const transcodeReasons = (address) =>
   (new URLSearchParams(String(address ?? '').split('?')[1] ?? '').get('TranscodeReasons') ?? '').split(',').filter(Boolean);
 
-const STEPS = { DirectPlay: 'Fichier lu tel quel', DirectStream: 'Vidéo copiée par Jellyfin', Transcode: 'Vidéo convertie par Jellyfin' };
+function stepText(method) {
+  switch (method) {
+    case 'DirectPlay': return tr('Fichier lu tel quel');
+    case 'DirectStream': return tr('Vidéo copiée par Jellyfin');
+    case 'Transcode': return tr('Vidéo convertie par Jellyfin');
+    default: return tr('Demandé à Jellyfin');
+  }
+}
 /**
  * One stream Mira tried, in words: « Vidéo convertie par Jellyfin (codec vidéo, vidéo 10 bits) : Erreur 4 : … ». attempt:
  * { stage, method, reasons, error }; stage 2 converts everything, whatever Jellyfin copies. From stage 1, Mira itself
  * turns direct play off: Jellyfin's « DirectPlayError » then says nothing of the file.
  */
 export function attemptText({ stage = 0, method = '', reasons = [], error = '' }) {
-  const step = stage >= 2 ? 'Tout converti par Jellyfin en H.264 et AAC stéréo' : STEPS[method] ?? 'Demandé à Jellyfin';
+  const step = stage >= 2 ? tr('Tout converti par Jellyfin en H.264 et AAC stéréo') : stepText(method);
   const why = [...new Set(reasons.filter((r) => stage === 0 || r !== 'DirectPlayError').map(reasonText))].join(', ');
-  return `${step}${why ? ` (${why})` : ''}${error ? ` : ${error}` : ''}`;
+  const tried = why ? `${step} (${why})` : step;
+  return error ? tr('{step} : {error}', { step: tried, error }) : tried;
 }
 
 /** The title as the report names it: « Série · S1 · É2 · Titre », or the film's name. */

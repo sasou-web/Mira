@@ -6,14 +6,15 @@ import { toast, sheet } from './components.js';
 import { icons } from './icons.js';
 import { phoneNotes, worthAsking, webIcon } from './whats-new.js';
 import { setupPress } from './press.js';
+import { tr, language } from './i18n.js';
 import './player/video.js';
 
 const TABS = [
-  { key: 'home', href: '#/', label: 'Accueil', symbol: 'home' },
-  { key: 'films', href: '#/films', label: 'Films', symbol: 'films' },
-  { key: 'series', href: '#/series', label: 'Séries', symbol: 'series' },
-  { key: 'search', href: '#/recherche', label: 'Recherche', symbol: 'search' },
-  { key: 'settings', href: '#/reglages', label: 'Réglages', symbol: 'settings' },
+  { key: 'home', href: '#/', label: tr('Accueil'), symbol: 'home' },
+  { key: 'films', href: '#/films', label: tr('Films'), symbol: 'films' },
+  { key: 'series', href: '#/series', label: tr('Séries'), symbol: 'series' },
+  { key: 'search', href: '#/recherche', label: tr('Recherche'), symbol: 'search' },
+  { key: 'settings', href: '#/reglages', label: tr('Réglages'), symbol: 'settings' },
 ];
 
 // Each screen is loaded the first time it opens, so the first one shows sooner.
@@ -40,7 +41,7 @@ const ROUTES = [
 
 const app = document.getElementById('app');
 const viewHost = h('main', { id: 'view' });
-const tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Navigation' },
+const tabbar = h('nav', { class: 'tabbar', 'aria-label': tr('Navigation') },
   h('div', { class: 'rail-mark', 'aria-hidden': 'true' }, markSvg(40)),
   TABS.map((tab) => h('a', {
     href: tab.href, dataset: { tab: tab.key },
@@ -313,9 +314,9 @@ function trimCache() {
 function showLoadFailure() {
   loadFailed = true;
   endBoot();
-  clear(viewHost).append(h('div', { class: 'state' }, icon('offline'), h('h2', {}, 'Mira n’a pas pu se charger'),
+  clear(viewHost).append(h('div', { class: 'state' }, icon('offline'), h('h2', {}, tr('Mira n’a pas pu se charger')),
     h('p', {}, UNREACHABLE),
-    h('button', { class: 'btn small', on: { click: async () => { if (await yours()) location.reload(); } } }, 'Réessayer')));
+    h('button', { class: 'btn small', on: { click: async () => { if (await yours()) location.reload(); } } }, tr('Réessayer'))));
   serverDown('offline');
 }
 
@@ -326,7 +327,7 @@ const openedAt = performance.now();
 function serverDown(reason) {
   wasDown = true;
   netText.textContent = reason === 'starting'
-    ? 'Jellyfin démarre… Mira reprend dès qu’il répond.'
+    ? tr('Jellyfin démarre… Mira reprend dès qu’il répond.')
     : UNREACHABLE_SHORT;
   if (netbar.hidden && !netTimer) {
     const wait = loadFailed || performance.now() - openedAt < 15_000 ? 0 : 1500;
@@ -360,7 +361,7 @@ function serverUp() {
   // Even a short silence, never shown, may have left a screen on its error: every screen is asked again.
   if (!wasDown) return;
   wasDown = false;
-  if (!unseen && Date.now() - netShownAt > 3000) toast('Connexion au serveur rétablie.');
+  if (!unseen && Date.now() - netShownAt > 3000) toast(tr('Connexion au serveur rétablie.'));
   current?.refresh?.();
   checkForUpdate();
 }
@@ -369,13 +370,13 @@ function serverUp() {
 // The server answering is not the one you signed in on (another network, or Jellyfin reinstalled): Mira says so over
 // every screen and sends it nothing of your session (api.js). Asked again from here, and when Mira comes back.
 const foreign = h('div', { class: 'foreign', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'foreign-title', hidden: true });
-const again = h('button', { class: 'btn primary', on: { click: () => { recheckServer(); retryServer(); } } }, icon('refresh', { size: 20 }), 'Réessayer');
+const again = h('button', { class: 'btn primary', on: { click: () => { recheckServer(); retryServer(); } } }, icon('refresh', { size: 20 }), tr('Réessayer'));
 foreign.append(h('div', { class: 'gate' }, icon('warning'),
-  h('div', { class: 'gate-text' }, h('h1', { id: 'foreign-title' }, 'Ce n’est pas ton serveur'), h('p', { class: 'lead' }, FOREIGN)),
+  h('div', { class: 'gate-text' }, h('h1', { id: 'foreign-title' }, tr('Ce n’est pas ton serveur')), h('p', { class: 'lead' }, FOREIGN)),
   again,
   // Jellyfin reinstalled: a new server, where this session never existed. Forgotten here only, never sent to it.
   h('button', { class: 'btn quiet', on: { click: () => { session.clear(); hideForeign(false); resetScreens(); replaceRoute('#/connexion'); } } },
-    'J’ai réinstallé Jellyfin : me reconnecter')));
+    tr('J’ai réinstallé Jellyfin : me reconnecter'))));
 function showForeign() {
   endBoot();
   if (!foreign.hidden) return;
@@ -465,9 +466,9 @@ async function offerNews() {
       h('span', { class: 'news-badge' }, icon(webIcon(item.icon, known))),
       h('div', {}, h('div', { class: 'news-name' }, item.title), h('p', { class: 'news-text' }, item.text))))),
     // Versions skipped by this update: one line each, as Mira for Windows says them.
-    older.slice(0, 2).map((entry) => h('p', { class: 'news-also' }, `Aussi en ${entry.version} : ${entry.items.map((x) => x.title).join(', ')}.`)),
-    h('button', { class: 'btn primary block', on: { click: () => close() } }, 'C’est parti'));
-  close = sheet({ title: 'Nouveau dans Mira', body });
+    older.slice(0, 2).map((entry) => h('p', { class: 'news-also' }, tr('Aussi en {version} : {titles}.', { version: entry.version, titles: entry.items.map((x) => x.title).join(', ') }))),
+    h('button', { class: 'btn primary block', on: { click: () => close() } }, tr('C’est parti')));
+  close = sheet({ title: tr('Nouveau dans Mira'), body });
 }
 
 let fadedTitle = null;
@@ -564,6 +565,8 @@ function watchEdgeSwipes() {
 }
 
 function start() {
+  // index.html says English; the language shown (i18n.js) is the page's, for screen readers and hyphenation.
+  document.documentElement.lang = language();
   history.scrollRestoration = 'manual';
   applyTextSize();
   setupPress();
@@ -602,13 +605,13 @@ function start() {
       if (Date.now() - hiddenAt > 15 * 60_000) lookForNews();
     }
   });
-  addEventListener('offline', () => { if (netbar.hidden) toast('Plus de connexion : Mira reprendra dès le retour du réseau.'); });
+  addEventListener('offline', () => { if (netbar.hidden) toast(tr('Plus de connexion : Mira reprendra dès le retour du réseau.')); });
   addEventListener('online', () => { if (probeTimer) { clearTimeout(probeTimer); probeDelay = 500; probe(); } else current?.refresh?.(); });
   onReachable((up, reason) => (up ? serverUp() : serverDown(reason)));
   onForeignServer((yes) => (yes ? showForeign() : hideForeign()));
   onUnauthorized(() => {
     resetScreens();
-    temp.set('mira.notice', 'Ta session a pris fin. Reconnecte-toi.');
+    temp.set('mira.notice', tr('Ta session a pris fin. Reconnecte-toi.'));
     replaceRoute('#/connexion');
   });
   // Signed in when Mira opened: only then is a new version news here (a sign-in shows nothing, see offerNews).

@@ -1,7 +1,9 @@
 // « Lecture impossible » (src/Mira.Web/js/player/failure.js): what the file holds, what Mira tried, and the report
 // Jellyfin keeps. The same cases as Mira for Windows (tests/Mira.Core.Tests, PlaybackFailures): both read them.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import { readFileSync } from 'node:fs';
 import { mediaLine, reasonText, transcodeReasons, attemptText, reportTitle, fileName, failureReport, REPORT_KIND } from '../../../src/Mira.Web/js/player/failure.js';
 
@@ -37,4 +39,15 @@ test('the report sent to Jellyfin: what the screen says, without token, address 
   assert.equal(bare.media, '');
   assert.deepEqual(bare.attempts, []);
   assert.deepEqual(bare.streams, []);
+});
+
+test('« Lecture impossible » in English', () => {
+  try {
+    setLanguage('en');
+    assert.equal(mediaLine(fixture.media[0].source, fixture.media[0]), 'MKV · HEVC 4K 10-bit HDR10 · DTS 5.1 · PGS subtitles');
+    assert.equal(mediaLine({ Container: 'mp4', MediaStreams: [{ Type: 'Audio', Index: 1, Codec: 'aac', Channels: 2 }] }), 'MP4 · AAC stereo');
+    assert.equal(attemptText({ stage: 0, method: 'DirectPlay', error: 'Error 4' }), 'File played as is: Error 4');
+    assert.equal(attemptText({ stage: 2, method: 'Transcode' }), 'Everything converted by Jellyfin to H.264 and AAC stereo');
+    assert.equal(attemptText({ stage: 0, method: '' }), 'Asked of Jellyfin');
+  } finally { setLanguage('fr'); }
 });

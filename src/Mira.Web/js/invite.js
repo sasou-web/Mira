@@ -3,8 +3,9 @@
 // It names the group's host, so that it still finds the group once made again (together.js), or waits for it.
 import { base, isTailnet } from './api.js';
 import { h, icon } from './dom.js';
+import { tr } from './i18n.js';
 import { sheet, toast } from './components.js';
-import { inviteLink, inviteSteps, groupHost } from './player/sync.js';
+import { inviteLink, inviteSteps, groupHost, groupLabel } from './player/sync.js';
 import { phoneAddress, copy } from './views/share.js';
 
 /** This Jellyfin at an address a friend can open: this page's on Tailscale, else the home network's (never localhost). */
@@ -16,20 +17,21 @@ async function friendServer() {
 export async function inviteSheet(group) {
   if (!group) return;
   const link = inviteLink(await friendServer(), group.GroupId, groupHost(group.GroupName));
+  const name = groupLabel(group.GroupName);
   const share = typeof navigator.share === 'function'
-    ? h('button', { class: 'btn small', on: { click: () => navigator.share({ title: group.GroupName, text: `Regarde avec moi sur Mira : ${group.GroupName}`, url: link }).catch(() => {}) } },
-      icon('share', { size: 16 }), 'Partager')
+    ? h('button', { class: 'btn small', on: { click: () => navigator.share({ title: name, text: tr('Regarde avec moi sur Mira : {name}', { name }), url: link }).catch(() => {}) } },
+      icon('share', { size: 16 }), tr('Partager'))
     : null;
   sheet({
-    title: 'Inviter quelqu’un',
+    title: tr('Inviter quelqu’un'),
     body: h('div', { class: 'invite' },
-      h('p', { class: 'invite-lead' }, `Envoie ce lien à ton ami pour qu’il rejoigne « ${group.GroupName} ».`),
+      h('p', { class: 'invite-lead' }, tr('Envoie ce lien à ton ami pour qu’il rejoigne « {name} ».', { name })),
       h('p', { class: 'invite-link' }, link),
       h('div', { class: 'invite-actions' },
         h('button', {
           class: 'btn small primary',
-          on: { click: async () => toast(await copy(link) ? 'Lien copié : envoie-le à ton ami.' : 'Copie impossible ici : touche longuement le lien pour le sélectionner.') },
-        }, icon('link', { size: 16 }), 'Copier le lien'),
+          on: { click: async () => toast(await copy(link) ? tr('Lien copié : envoie-le à ton ami.') : tr('Copie impossible ici : touche longuement le lien pour le sélectionner.')) },
+        }, icon('link', { size: 16 }), tr('Copier le lien')),
         share),
       h('ol', { class: 'invite-steps' }, inviteSteps(link).map((step) => h('li', {}, step)))),
   });

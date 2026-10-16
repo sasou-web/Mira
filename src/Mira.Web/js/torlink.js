@@ -2,9 +2,10 @@
 // the extension (Mira.Jellyfin/TorLinkRelay), as Mira.Core's RemoteDownloads checks it again there (cases shared in
 // tests/fixtures/torlink-remote.json), and the lines the screen writes (views/torlink.js). Nothing of the browser at
 // load: Node imports it as it is.
+import { tr, trn, language } from './i18n.js';
 
 /** TorLink's search categories Mira offers, in its words: never « games », Jellyfin has no use for them. */
-export const CATEGORIES = [['movies', 'Films'], ['tv', 'Séries'], ['anime', 'Animes']];
+export const CATEGORIES = [['movies', tr('Films')], ['tv', tr('Séries')], ['anime', tr('Animes')]];
 export const MAX_QUERY = 120, MAX_MAGNET = 8192, MAX_NAME = 300;
 
 // .NET's char.IsControl: C0, DEL and C1.
@@ -72,44 +73,50 @@ export function cleanName(name) {
   return clean || null;
 }
 
-const french = (value, digits) => value.toFixed(digits).replace('.', ',');
+// « 4,2 » in French, « 4.2 » in English (no grouping either way: Mira.Core writes « 1500 Go »).
+const decimal = (value, digits) => { const text = value.toFixed(digits); return language() === 'fr' ? text.replace('.', ',') : text; };
 
-/** « 850 Mo », « 4,2 Go », « 12 Go », as Mira for Windows writes a size (OfflineCopies.SizeText). */
+/** « 850 Mo », « 4,2 Go », « 12 Go », as Mira for Windows writes a size (OfflineCopies.SizeText); « 4.2 GB » in English. */
 export function size(bytes) {
   const n = Number(bytes) || 0;
-  if (n >= 2 ** 30) return `${french(n / 2 ** 30, n >= 10 * 2 ** 30 ? 0 : 1)} Go`;
-  return `${Math.max(1, Math.round(n / 2 ** 20))} Mo`;
+  if (n >= 2 ** 30) return tr('{n} Go', { n: decimal(n / 2 ** 30, n >= 10 * 2 ** 30 ? 0 : 1) });
+  return tr('{n} Mo', { n: Math.max(1, Math.round(n / 2 ** 20)) });
 }
 
 /** « 2,4 Mo/s », « 350 Ko/s »; empty when nothing comes. */
 export function speed(bytesPerSecond) {
   const n = Number(bytesPerSecond) || 0;
   if (n <= 0) return '';
-  if (n >= 2 ** 20) return `${french(n / 2 ** 20, n >= 10 * 2 ** 20 ? 0 : 1)} Mo/s`;
-  return `${Math.max(1, Math.round(n / 2 ** 10))} Ko/s`;
+  if (n >= 2 ** 20) return tr('{n} Mo/s', { n: decimal(n / 2 ** 20, n >= 10 * 2 ** 20 ? 0 : 1) });
+  return tr('{n} Ko/s', { n: Math.max(1, Math.round(n / 2 ** 10)) });
 }
 
-const ago = (seconds) => seconds < 90 ? 'à l’instant' : seconds < 5400 ? `il y a ${Math.round(seconds / 60)} min`
-  : seconds < 129600 ? `il y a ${Math.round(seconds / 3600)} h` : `il y a ${Math.round(seconds / 86400)} jours`;
+const ago = (seconds) => seconds < 90 ? tr('à l’instant') : seconds < 5400 ? tr('il y a {n} min', { n: Math.round(seconds / 60) })
+  : seconds < 129600 ? tr('il y a {n} h', { n: Math.round(seconds / 3600) }) : tr('il y a {n} jours', { n: Math.round(seconds / 86400) });
 
 /**
  * Where the PC of Jellyfin stands, from the relay's agent ({ name, online, seen, accepting, problem }) at `now`
  * (milliseconds): { text, ready } — ready when it takes searches (online), even while its downloads must wait.
  */
 export function agentLine(agent, now = Date.now()) {
-  if (!agent) return { text: 'Mira n’a pas encore été ouvert sur le PC serveur : c’est lui qui cherche et télécharge, avec TorLink. Ouvre-le là-bas, connecté avec un compte administrateur.', ready: false };
+  if (!agent) return { text: tr('Mira n’a pas encore été ouvert sur le PC serveur : c’est lui qui cherche et télécharge, avec TorLink. Ouvre-le là-bas, connecté avec un compte administrateur.'), ready: false };
   if (!agent.online) {
-    const seen = Date.parse(agent.seen);
-    return { text: `Mira n’est pas ouvert sur ${agent.name}${Number.isFinite(seen) ? ` (vu ${ago(Math.max(0, (now - seen) / 1000))})` : ''} : tes demandes l’attendent, il les fera à son retour.`, ready: false };
+    const seen = Date.parse(agent.seen), name = agent.name;
+    return {
+      text: Number.isFinite(seen)
+        ? tr('Mira n’est pas ouvert sur {name} (vu {ago}) : tes demandes l’attendent, il les fera à son retour.', { name, ago: ago(Math.max(0, (now - seen) / 1000)) })
+        : tr('Mira n’est pas ouvert sur {name} : tes demandes l’attendent, il les fera à son retour.', { name }),
+      ready: false,
+    };
   }
   if (agent.problem) return { text: agent.problem, ready: true };
-  return { text: `${agent.name} est prêt : TorLink y télécharge, puis Mira range le titre dans ta bibliothèque.`, ready: true };
+  return { text: tr('{name} est prêt : TorLink y télécharge, puis Mira range le titre dans ta bibliothèque.', { name: agent.name }), ready: true };
 }
 
 /** A search result: « 1,4 Go · 120 sources · YTS »; nothing of sources for a site that does not count them (SubsPlease). */
 export function hitLine(hit) {
   const seeders = Math.max(0, Number(hit?.seeders) || 0);
-  const sources = !reportsHealth(hit?.source) && seeders === 0 ? '' : seeders === 0 ? 'aucune source' : seeders === 1 ? '1 source' : `${seeders} sources`;
+  const sources = !reportsHealth(hit?.source) && seeders === 0 ? '' : seeders === 0 ? tr('aucune source') : trn(seeders, '{n} source', '{n} sources');
   return [size(hit?.size), sources, hit?.source].filter(Boolean).join(' · ');
 }
 
@@ -119,22 +126,21 @@ export const reportsHealth = (source) => String(source ?? '').toLowerCase() !== 
 /** A request not yet in TorLink's list: waiting for the PC, on its way, or refused (and why). */
 export function requestLine(request) {
   switch (request?.state) {
-    case 'waiting': return 'En attente du PC serveur';
-    case 'claimed': return 'Envoi à TorLink…';
-    case 'sent': return request.error ? `Envoyé à TorLink : ${request.error}` : 'Envoyé à TorLink';
-    default: return request?.error || 'TorLink a refusé ce téléchargement.';
+    case 'waiting': return tr('En attente du PC serveur');
+    case 'claimed': return tr('Envoi à TorLink…');
+    case 'sent': return request.error ? tr('Envoyé à TorLink : {error}', { error: request.error }) : tr('Envoyé à TorLink');
+    default: return request?.error || tr('TorLink a refusé ce téléchargement.');
   }
 }
 
 /** « moins d’une minute », « 12 min », « 1 h 05 », « 3 jours »: what is left, in seconds. */
 export function remaining(seconds) {
   const n = Math.max(0, Number(seconds) || 0);
-  if (n < 60) return 'moins d’une minute';
+  if (n < 60) return tr('moins d’une minute');
   const minutes = Math.round(n / 60);
-  if (minutes < 60) return `${minutes} min`;
-  if (minutes < 1440) return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
-  const days = Math.round(n / 86400);
-  return days === 1 ? '1 jour' : `${days} jours`;
+  if (minutes < 60) return tr('{m} min', { m: minutes });
+  if (minutes < 1440) return tr('{h} h {mm}', { h: Math.floor(minutes / 60), mm: String(minutes % 60).padStart(2, '0') });
+  return trn(Math.round(n / 86400), '{n} jour', '{n} jours');
 }
 
 /**
@@ -155,7 +161,7 @@ export function amountLine(download) {
   const total = Number(download?.size) || 0;
   if (total <= 0) return '';
   const done = Math.min(total, Math.max(0, Number(download.downloaded) || 0));
-  return done > 0 && done < total ? `${size(done)} sur ${size(total)}` : size(total);
+  return done > 0 && done < total ? tr('{done} sur {total}', { done: size(done), total: size(total) }) : size(total);
 }
 
 /**
@@ -163,19 +169,19 @@ export function amountLine(download) {
  * « Arrêté · 42 % ».
  */
 export function downloadLine(download) {
-  const progress = `${Math.max(0, Math.min(100, Math.round(Number(download?.progress) || 0)))} %`;
+  const progress = tr('{n} %', { n: Math.max(0, Math.min(100, Math.round(Number(download?.progress) || 0))) });
   const peers = Math.max(0, Number(download?.peers) || 0);
   switch (download?.status) {
     case 'downloading': {
       const rate = speed(download.speed), left = timeLeft(download);
-      if (!rate) return [progress, amountLine(download), peers === 1 ? '1 pair, en attente de données' : peers > 1 ? `${peers} pairs, en attente de données` : 'recherche de pairs…'].filter(Boolean).join(' · ');
-      return [progress, amountLine(download), rate, left !== null && `reste ${remaining(left)}`, peers === 1 ? '1 pair' : peers > 1 ? `${peers} pairs` : ''].filter(Boolean).join(' · ');
+      if (!rate) return [progress, amountLine(download), peers > 0 ? trn(peers, '{n} pair, en attente de données', '{n} pairs, en attente de données') : tr('recherche de pairs…')].filter(Boolean).join(' · ');
+      return [progress, amountLine(download), rate, left !== null && tr('reste {time}', { time: remaining(left) }), peers > 0 ? trn(peers, '{n} pair', '{n} pairs') : ''].filter(Boolean).join(' · ');
     }
-    case 'queued': return [`En file d’attente · ${progress}`, amountLine(download)].filter(Boolean).join(' · ');
-    case 'paused': return [`En pause · ${progress}`, amountLine(download)].filter(Boolean).join(' · ');
-    case 'stopped': return `Arrêté · ${progress} · reprend quand TorLink rouvre sur le PC serveur`;
-    case 'failed': return `Échec · ${progress}`;
-    case 'completed': case 'seeding': return 'Terminé · rangement dans ta bibliothèque…';
+    case 'queued': return [tr('En file d’attente · {progress}', { progress }), amountLine(download)].filter(Boolean).join(' · ');
+    case 'paused': return [tr('En pause · {progress}', { progress }), amountLine(download)].filter(Boolean).join(' · ');
+    case 'stopped': return tr('Arrêté · {progress} · reprend quand TorLink rouvre sur le PC serveur', { progress });
+    case 'failed': return tr('Échec · {progress}', { progress });
+    case 'completed': case 'seeding': return tr('Terminé · rangement dans ta bibliothèque…');
     default: return progress;
   }
 }

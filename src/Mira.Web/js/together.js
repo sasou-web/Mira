@@ -10,6 +10,7 @@ import { api } from './api.js';
 import { listen } from './remote.js';
 import { session, temp, signedOut } from './session.js';
 import { h } from './dom.js';
+import { tr } from './i18n.js';
 import { toast, sheet } from './components.js';
 import { clockOffset, commandPlan, queueItem, groupName, serverTime, rejoinPlan, sameGroup, memberText, asksToReplace, titleName, replaceQuestion } from './player/sync.js';
 
@@ -116,7 +117,7 @@ function groupUpdate({ Type: type, Data: data }) {
     // Jellyfin let this device go (its session ended): back in the group, or out of it when there is none to go back to.
     case 'NotInGroup': case 'GroupDoesNotExist': if (group) recover(); else gone(); break;
     case 'StateUpdate': if (group) { group.State = data?.State ?? group.State; changed(); } break;
-    case 'LibraryAccessDenied': toast('Un membre du groupe n’a pas accès à ce titre dans Jellyfin.'); break;
+    case 'LibraryAccessDenied': toast(tr('Un membre du groupe n’a pas accès à ce titre dans Jellyfin.')); break;
     case 'PlayQueue': playQueue(data); break;
     default: break;
   }
@@ -169,13 +170,13 @@ function recover() {
       let plan;
       try { plan = rejoinPlan(await api.syncGroups(), lost, made); } catch { return; }
       if (group !== lost) return;
-      if (!plan) { gone('Le groupe n’existe plus.'); return; }
+      if (!plan) { gone(tr('Le groupe n’existe plus.')); return; }
       const answer = new Promise((resolve) => { joined = resolve; setTimeout(resolve, 6000); });
       try { await (plan.join ? api.syncJoin(plan.join) : api.syncNew(plan.create)); } catch { joined = null; return; }
       await answer;
       if (group !== lost) return;
     }
-    gone('Le groupe n’existe plus.');
+    gone(tr('Le groupe n’existe plus.'));
   })().finally(() => { recovering = null; });
 }
 async function enter(start) {
@@ -183,7 +184,7 @@ async function enter(start) {
   const wait = new Promise((resolve) => { joined = resolve; setTimeout(resolve, 6000); });
   try { await start(); } catch (error) { joined = null; if (!group) gone(); throw error; }
   await wait;
-  if (!group) { gone(); throw new Error('Jellyfin n’a pas répondu. Réessaie dans un instant.'); }
+  if (!group) { gone(); throw new Error(tr('Jellyfin n’a pas répondu. Réessaie dans un instant.')); }
 }
 
 // Signed out: the group is the account's (Jellyfin drops the session from it).
@@ -204,12 +205,12 @@ function askFirst(href) {
     // The group moved on meanwhile (another title, or none): asked again on what it has now.
     if (queue !== current) { if (!askFirst(href)) location.hash = href; return; }
     sheet({
-      title: 'Regarder ensemble',
+      title: tr('Regarder ensemble'),
       body: h('div', {}, h('p', { class: 'sheet-question' }, replaceQuestion(name)),
-        h('p', { class: 'sheet-note' }, 'Le groupe le regarde en ce moment. Lecture le remplace chez chacun, au même moment.')),
+        h('p', { class: 'sheet-note' }, tr('Le groupe le regarde en ce moment. Lecture le remplace chez chacun, au même moment.'))),
       items: [
-        { symbol: 'play', label: 'Remplacer pour le groupe', run: () => { location.hash = href; } },
-        { symbol: 'users', label: 'Regarder avec le groupe', sub: name ? `« ${name} », là où il en est.` : 'Là où il en est.', run: () => { location.hash = `#/lecture/${encodeURIComponent(current.itemId)}`; } },
+        { symbol: 'play', label: tr('Remplacer pour le groupe'), run: () => { location.hash = href; } },
+        { symbol: 'users', label: tr('Regarder avec le groupe'), sub: name ? tr('« {title} », là où il en est.', { title: name }) : tr('Là où il en est.'), run: () => { location.hash = `#/lecture/${encodeURIComponent(current.itemId)}`; } },
       ],
     });
   });
@@ -249,7 +250,7 @@ export const together = {
     made = !!kept.made;
     enter(async () => {
       const plan = rejoinPlan(await api.syncGroups(), { GroupId: kept.id, GroupName: kept.name ?? '' }, made);
-      if (!plan) throw new Error('Le groupe n’existe plus.');
+      if (!plan) throw new Error(tr('Le groupe n’existe plus.'));
       await (plan.join ? api.syncJoin(plan.join) : api.syncNew(plan.create));
     }).catch(() => temp.remove(KEY));
   },
