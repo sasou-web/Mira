@@ -46,6 +46,8 @@ SetupMutex=MiraSetup
 RestartApplications=no
 VersionInfoVersion={#AppVersion}.0
 VersionInfoProductName=Mira
+; ProductVersion = the version alone, as in Mira's own files: SignPath checks it before signing (installer/signpath/installer.xml).
+VersionInfoProductTextVersion={#AppVersion}
 VersionInfoDescription=Mira {#AppVersion} setup
 
 [Languages]

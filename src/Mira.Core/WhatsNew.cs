@@ -49,8 +49,9 @@ public static class WhatsNew
         return Since(seen, current, entries).Count > 0 ? StartupScreen.WhatsNew : StartupScreen.None;
     }
     /// <summary>The release page's text on GitHub: the summary, the highlights, how to install on Windows, on a Mac and on a
-    /// phone, and where the details are.</summary>
-    public static string ReleaseNotes(ReleaseHighlights release)
+    /// phone, where the details are, and the "Code signing policy" line SignPath Foundation asks for on every download page,
+    /// with its credit only when the Windows files carry its signature (<paramref name="signed"/>).</summary>
+    public static string ReleaseNotes(ReleaseHighlights release, bool signed = true)
     {
         var text = new StringBuilder();
         text.Append(release.Summary).Append("\n\n");
@@ -60,7 +61,11 @@ public static class WhatsNew
             .Append(release.Version).Append("/docs/INSTALLATION-MAC.md).\n\n");
         text.Append("**Sur iPhone, iPad et Android** : Mira web, servie par Jellyfin. Dans Mira pour Windows, **Guide → Mira sur ton téléphone → Tout préparer** : [Mira sur iPhone, iPad et Android](https://github.com/sasou-web/Mira/blob/v")
             .Append(release.Version).Append("/docs/INSTALLATION-WEB.md).\n\n");
-        text.Append("Tous les détails : [CHANGELOG](https://github.com/sasou-web/Mira/blob/v").Append(release.Version).Append("/CHANGELOG.md) · [Politique de signature du code](https://github.com/sasou-web/Mira#politique-de-signature-du-code)\n");
+        text.Append("Tous les détails : [CHANGELOG](https://github.com/sasou-web/Mira/blob/v").Append(release.Version).Append("/CHANGELOG.md)\n\n");
+        text.Append("**Code signing policy** : ").Append(signed
+            ? "Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org). Les fichiers Windows de cette version sont signés ; "
+            : "les fichiers Windows de cette version ne sont pas signés (demande à SignPath Foundation en cours) ; ");
+        text.Append("le détail est dans la [politique de signature du code](https://github.com/sasou-web/Mira#politique-de-signature-du-code).\n");
         return text.ToString();
     }
     private static Version Trim(Version version) => new(version.Major, version.Minor, Math.Max(0, version.Build));

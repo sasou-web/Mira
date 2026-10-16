@@ -155,9 +155,10 @@ internal static class UpdateTests
                 Assert(string.Join(" ", shown.Select(x => x.Version)) == Names(row.GetProperty("since")), $"Since {seen} up to {current}: " + string.Join(" ", shown.Select(x => x.Version)));
                 Assert(string.Join(" ", shown.Where(x => x.Items.Any(i => i.Web)).Select(x => x.Version)) == Names(row.GetProperty("phone")), $"Mira web, since {seen} up to {current}");
             }
-            var notes = WhatsNew.ReleaseNotes(all[0]);
+            var notes = WhatsNew.ReleaseNotes(all[0]); var unsigned = WhatsNew.ReleaseNotes(all[0], signed: false);
             Assert(notes.StartsWith(all[0].Summary) && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains("/docs/INSTALLATION-WEB.md")
-                && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Contains("#politique-de-signature-du-code") && notes.Length < 1600, "Release notes:\n" + notes);
+                && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Contains("**Code signing policy**") && notes.Contains("certificate by [SignPath Foundation]") && notes.Contains("#politique-de-signature-du-code") && notes.Length < 1800, "Release notes:\n" + notes);
+            Assert(unsigned.Contains("**Code signing policy**") && unsigned.Contains("ne sont pas signés") && !unsigned.Contains("certificate by") && unsigned.Contains("#politique-de-signature-du-code"), "Release notes, unsigned:\n" + unsigned);
             return Task.CompletedTask;
         });
         await Test("Mises à jour : manifeste signé accepté ; modifié, mal formé ou d’une autre clé, refusé", () =>
