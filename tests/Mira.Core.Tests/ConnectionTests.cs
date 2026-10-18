@@ -96,7 +96,7 @@ internal static class ConnectionTests
                 asked.Add(uri.AbsoluteUri);
                 return uri.Scheme == "https" ? throw new HttpRequestException("refusé") : uri.Port == 8096 ? Info() : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>routeur</html>") };
             }));
-            Assert(found == new ServerInfo("http://nas:8096/", "Salon", "10.10.3"), "Wrong server: " + found);
+            Assert(found == new ServerInfo("http://nas:8096/", "Salon", "10.10.3", "server-1"), "Wrong server: " + found);
             Assert(asked.All(x => x.EndsWith("/System/Info/Public")), "Something other than the public information was requested");
             // Both answer: HTTPS wins.
             Assert((await ServerAddress.DiscoverAsync("nas", Serve(_ => Info()))).Address == "https://nas/", "HTTPS not preferred");
@@ -122,6 +122,82 @@ internal static class ConnectionTests
             await Refused("http://nas:8096", Serve(_ => Info("10.8.13")), "10.8.13");
             await Refused("https://nas", Serve(_ => throw new HttpRequestException("TLS", new System.Security.Authentication.AuthenticationException())), "certificat");
             await Refused("nas", Serve(_ => throw new HttpRequestException("refusé")), "Aucun serveur Jellyfin");
+        });
+        await Test("Serveur trouvé sans le taper : réponse de Jellyfin sur le réseau, appareils Tailscale, ordre et adresse gardée", () =>
+        {
+            var lan = IPAddress.Parse("192.168.1.198");
+            byte[] Bytes(string json) => Encoding.UTF8.GetBytes(json);
+            // Jellyfin 12.1's answer, as read in its container: the address it is reached at from that network.
+            var reply = ServerSearch.Reply(Bytes("""{"Address":"http://192.168.1.198:8096","Id":"0d07f480c3c54c588da1d5ba7c7a1662","Name":"DESKTOP-INVEFQH","EndpointAddress":null}"""), lan);
+            Assert(reply == new ServerSearch.Found("http://192.168.1.198:8096/", "DESKTOP-INVEFQH", "0d07f480c3c54c588da1d5ba7c7a1662", ServerSearch.Place.Home), "Answer: " + reply);
+            // An address on no network is the one the answer came from; a published one is kept.
+            Assert(ServerSearch.Reply(Bytes("""{"Address":"http://127.0.0.1:8096","Id":"a","Name":"nas"}"""), lan)?.Address == "http://192.168.1.198:8096/"
+                && ServerSearch.Reply(Bytes("""{"Address":"http://0.0.0.0:8096/jellyfin","Id":"a"}"""), lan) is { Address: "http://192.168.1.198:8096/jellyfin/", Name: "Jellyfin" }
+                && ServerSearch.Reply(Bytes("""{"Address":"https://jellyfin.example.test","Id":"a","Name":"nas"}"""), lan)?.Address == "https://jellyfin.example.test/", "Address of the answer");
+            foreach (var bad in new[] { "", "Who is JellyfinServer?", "[]", """{"Address":"http://192.168.1.198:8096"}""", """{"Address":"ftp://nas","Id":"a"}""", """{"Address":"nas:8096","Id":"a"}""", """{"Address":"http://u:p@nas","Id":"a"}""", """{"Address":7,"Id":"a"}""" })
+                Assert(ServerSearch.Reply(Bytes(bad), lan) is null, "Accepted: " + bad);
+
+            // Each server once, at the address that serves best: Tailscale's also works at home, and wherever either goes.
+            ServerSearch.Found At(string id, string name, string address, ServerSearch.Place where) => new(address, name, id, where);
+            var ranked = ServerSearch.Ranked([
+                At("far", "Chez Léa", "http://100.70.0.9:8096/", ServerSearch.Place.Tailnet),
+                At("nas", "Salon", "http://192.168.1.20:8096/", ServerSearch.Place.Home),
+                At("pc", "PC", "http://192.168.1.198:8096/", ServerSearch.Place.Home), At("PC", "PC", "http://100.114.247.13:8096/", ServerSearch.Place.Tailnet),
+                At("here", "Ici", "http://192.168.1.10:8096/", ServerSearch.Place.Home), At("here", "Ici", "http://127.0.0.1:8096/", ServerSearch.Place.ThisComputer),
+            ]);
+            Assert(ranked.Select(x => x.Address).SequenceEqual(["http://127.0.0.1:8096/", "http://100.114.247.13:8096/", "http://192.168.1.20:8096/", "http://100.70.0.9:8096/"]), "Ranked: " + string.Join(" ; ", ranked));
+
+            // Tailscale: the devices that may run Jellyfin, online, never a VPN's exit nodes.
+            const string status = """
+                {"BackendState":"Running","Self":{"HostName":"nouveau-pc","TailscaleIPs":["100.80.0.2"]},"Peer":{
+                 "k1":{"HostName":"DESKTOP-INVEFQH","DNSName":"desktop-invefqh.tail1234.ts.net.","OS":"windows","TailscaleIPs":["fd7a:115c:a1e0::1","100.114.247.13"],"Online":true},
+                 "k2":{"HostName":"iPhone","OS":"iOS","TailscaleIPs":["100.80.0.3"],"Online":true},
+                 "k3":{"HostName":"vieux-pc","OS":"windows","TailscaleIPs":["100.80.0.4"],"Online":false},
+                 "k4":{"HostName":"se-got-wg-001","DNSName":"se-got-wg-001.mullvad.ts.net.","OS":"linux","TailscaleIPs":["100.90.0.1"],"Online":true,"Location":{"Country":"Sweden"}},
+                 "k5":{"HostName":"nas","OS":"linux","TailscaleIPs":["100.80.0.5"],"Online":true},
+                 "k6":{"HostName":"ip6","OS":"linux","TailscaleIPs":["fd7a:115c:a1e0::6"],"Online":true}}}
+                """;
+            Assert(ServerSearch.TailnetDevices(status).SequenceEqual(["100.114.247.13", "100.80.0.5"]), "Devices: " + string.Join(", ", ServerSearch.TailnetDevices(status)));
+            Assert(ServerSearch.TailnetDevices(null).Count == 0 && ServerSearch.TailnetDevices("not json").Count == 0 && ServerSearch.TailnetDevices("""{"BackendState":"Stopped"}""").Count == 0, "No Tailscale");
+            var many = "{\"Peer\":{" + string.Join(",", Enumerable.Range(1, 50).Select(i => $"\"k{i}\":{{\"OS\":\"linux\",\"TailscaleIPs\":[\"100.80.1.{i}\"],\"Online\":true}}")) + "}}";
+            Assert(ServerSearch.TailnetDevices(many).Count == ServerSearch.MaxDevices, "A large tailnet asked device by device");
+
+            // Where the question is broadcast: each network's own broadcast address, none for Tailscale or a single address.
+            IPAddress? Broadcast(string address, string mask) => ServerSearch.Broadcast(IPAddress.Parse(address), IPAddress.Parse(mask));
+            Assert(Broadcast("192.168.1.20", "255.255.255.0")?.ToString() == "192.168.1.255" && Broadcast("10.0.5.3", "255.255.0.0")?.ToString() == "10.0.255.255"
+                && Broadcast("100.114.247.13", "255.192.0.0") is null && Broadcast("192.168.1.20", "255.255.255.255") is null && Broadcast("169.254.3.4", "255.255.0.0") is null
+                && ServerSearch.Broadcast(IPAddress.Parse("fe80::1"), IPAddress.Parse("255.255.255.0")) is null && ServerSearch.Broadcast(IPAddress.Parse("192.168.1.20"), null) is null, "Broadcast addresses");
+
+            // What the login screen says.
+            Assert(ServerSearch.Said(ranked[0], "ce PC") == "Jellyfin trouvé sur ce PC." && ServerSearch.Said(ranked[2], "ce PC") == "Trouvé sur ton réseau : Salon."
+                && ServerSearch.Said(ranked[1], "ce PC").StartsWith("Trouvé par Tailscale : PC.") && ServerSearch.Choice(ranked[2]) == "Salon · 192.168.1.20", "Texts");
+            return Task.CompletedTask;
+        });
+        await Test("Serveur trouvé sans le taper : ce PC, le réseau et Tailscale demandés ensemble, un appareil muet n’attend pas plus que la recherche", async () =>
+        {
+            HttpResponseMessage Info(string id, string name) => JsonResponse(new { ServerName = name, Version = "12.1.0", ProductName = "Jellyfin Server", Id = id });
+            var asked = new System.Collections.Concurrent.ConcurrentBag<string>();
+            var handler = new Handler(async request =>
+            {
+                asked.Add(request.RequestUri!.GetLeftPart(UriPartial.Path));
+                return request.RequestUri.Host switch
+                {
+                    "100.114.247.13" => Info("pc", "DESKTOP-INVEFQH"),
+                    "100.80.0.5" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>routeur</html>") },
+                    "100.80.0.6" => await Task.Delay(Timeout.Infinite, CancellationToken.None).ContinueWith(_ => Info("x", "x")),
+                    _ => throw new HttpRequestException("refusé"),
+                };
+            });
+            var home = (CancellationToken _) => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([
+                new("http://192.168.1.198:8096/", "DESKTOP-INVEFQH", "pc", ServerSearch.Place.Home), new("http://192.168.1.20:8096/", "Salon", "nas", ServerSearch.Place.Home)]);
+            var clock = Stopwatch.StartNew();
+            var found = await ServerSearch.FindAsync(["100.114.247.13", "100.80.0.5", "100.80.0.6"], handler, home);
+            Assert(clock.Elapsed < ServerSearch.Wait + TimeSpan.FromSeconds(2), $"Waited {clock.Elapsed}");
+            Assert(found.Select(x => (x.Address, x.Where)).SequenceEqual([("http://100.114.247.13:8096/", ServerSearch.Place.Tailnet), ("http://192.168.1.20:8096/", ServerSearch.Place.Home)]), "Found: " + string.Join(" ; ", found));
+            Assert(asked.All(x => x.EndsWith("/System/Info/Public")) && asked.Contains("http://127.0.0.1:8096/System/Info/Public") && asked.Count == 4, "Asked: " + string.Join(", ", asked));
+            // Jellyfin on this PC comes first, at 127.0.0.1.
+            var here = await ServerSearch.FindAsync([], new Handler(request => Task.FromResult(request.RequestUri!.IsLoopback ? Info("pc", "DESKTOP-INVEFQH") : throw new HttpRequestException("refusé"))), home);
+            Assert(here.Select(x => x.Address).SequenceEqual(["http://127.0.0.1:8096/", "http://192.168.1.20:8096/"]) && here[0].Where == ServerSearch.Place.ThisComputer, "This PC: " + string.Join(" ; ", here));
         });
         await Test("Certificat HTTPS refusé : pas de repli en http:// pour un nom d’Internet, et la raison est dite", async () =>
         {

@@ -17,7 +17,7 @@ public static class JellyfinFirewall
 {
     /// <summary>Windows' network profiles (NET_FW_PROFILE_TYPE2); a rule for all of them carries every bit.</summary>
     public const int Domain = 1, Private = 2, Public = 4, AllProfiles = Domain | Private | Public;
-    public const int Tcp = 6, AnyProtocol = 256;
+    public const int Tcp = 6, Udp = 17, AnyProtocol = 256;
 
     /// <summary>
     /// A firewall rule as Windows describes it (INetFwRule); null or empty ports or addresses mean any. A rule naming no
@@ -60,21 +60,24 @@ public static class JellyfinFirewall
 
     /// <summary>
     /// Mira's rule judged by its content, from the rules bearing its name (<paramref name="named"/>, whatever their
-    /// program or direction): ready when each one is an enabled incoming TCP allow rule for <paramref name="program"/>,
-    /// on <paramref name="port"/> alone, on Mira's profiles, for every interface, from the home network or from
-    /// Tailscale, and both are there. A rule left on another port or for another program is not, nor one opened wider.
-    /// Without <paramref name="program"/> (Mira does not find Jellyfin's), the rest is judged.
+    /// program or direction): ready when each one is an enabled incoming allow rule for <paramref name="program"/>, on
+    /// Mira's profiles, for every interface, either TCP on <paramref name="port"/> alone from the home network or from
+    /// Tailscale, or UDP on Jellyfin's discovery port alone from the home network, and all three are there. A rule left
+    /// on another port or for another program is not, nor one opened wider, nor an older version's without the
+    /// discovery. Without <paramref name="program"/> (Mira does not find Jellyfin's), the rest is judged.
     /// </summary>
     public static RuleState MiraRule(IEnumerable<Rule> named, string? program, int port)
     {
         var rules = named.ToList();
         if (rules.Count == 0) return RuleState.Missing;
-        bool AsWritten(Rule x) => x.Enabled && x.Inbound && x.Allow && x.Protocol == Tcp && (x.Profiles & AllProfiles) == JellyfinStartup.RuleProfiles
+        bool AsWritten(Rule x) => x.Enabled && x.Inbound && x.Allow && (x.Profiles & AllProfiles) == JellyfinStartup.RuleProfiles
             && !string.IsNullOrWhiteSpace(x.Program) && (program is null || SameProgram(x.Program, program)) && string.IsNullOrWhiteSpace(x.Service)
-            && int.TryParse(x.LocalPorts, out var only) && only == port
-            && x.Interfaces is not { Count: > 0 } && (string.IsNullOrWhiteSpace(x.InterfaceTypes) || x.InterfaceTypes.Equals("All", StringComparison.OrdinalIgnoreCase))
-            && (IsLocalSubnet(x.RemoteAddresses) || IsTailnetRange(x.RemoteAddresses));
-        return rules.All(AsWritten) && rules.Any(x => IsLocalSubnet(x.RemoteAddresses)) && rules.Any(x => IsTailnetRange(x.RemoteAddresses))
+            && x.Interfaces is not { Count: > 0 } && (string.IsNullOrWhiteSpace(x.InterfaceTypes) || x.InterfaceTypes.Equals("All", StringComparison.OrdinalIgnoreCase));
+        bool Only(Rule x, int on) => int.TryParse(x.LocalPorts, out var only) && only == on;
+        bool Serves(Rule x) => AsWritten(x) && x.Protocol == Tcp && Only(x, port) && (IsLocalSubnet(x.RemoteAddresses) || IsTailnetRange(x.RemoteAddresses));
+        bool Discovery(Rule x) => AsWritten(x) && x.Protocol == Udp && Only(x, ServerSearch.Port) && IsLocalSubnet(x.RemoteAddresses);
+        return rules.All(x => Serves(x) || Discovery(x)) && rules.Any(x => Serves(x) && IsLocalSubnet(x.RemoteAddresses))
+            && rules.Any(x => Serves(x) && IsTailnetRange(x.RemoteAddresses)) && rules.Any(Discovery)
             ? RuleState.Ready : RuleState.Stale;
     }
     private static bool IsLocalSubnet(string? addresses) => string.Equals(addresses?.Trim(), "LocalSubnet", StringComparison.OrdinalIgnoreCase);

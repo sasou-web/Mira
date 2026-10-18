@@ -175,7 +175,7 @@ public partial class MainWindow
         var stale = await Task.Run(() => (uri.IsLoopback || LocalNetwork.IsThisPc(uri.Host)) && JellyfinAutostart.Program() is { } program
             && JellyfinAutostart.MiraRule(program, uri.Port) == JellyfinFirewall.RuleState.Stale);
         if (stale && Notice.Visibility != Visibility.Visible && GuideOverlay.Visibility != Visibility.Visible)
-            SetNotice(L("Pour ton téléphone, la règle de Mira dans le pare-feu de Windows est à mettre à jour : le guide s’en charge.", "For your phone, Mira’s rule in Windows’ firewall needs an update: the guide takes care of it."), L("Ouvrir le guide", "Open the guide"), () => OpenGuide());
+            SetNotice(L("Pour ton téléphone et tes autres ordinateurs, la règle de Mira dans le pare-feu de Windows est à mettre à jour : le guide s’en charge.", "For your phone and your other computers, Mira’s rule in Windows’ firewall needs an update: the guide takes care of it."), L("Ouvrir le guide", "Open the guide"), () => OpenGuide());
     }
     /// <summary>
     /// At start, for a Jellyfin on this PC: this PC's connection to Tailscale expiring within two weeks, or expired, is

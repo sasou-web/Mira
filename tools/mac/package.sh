@@ -41,6 +41,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>$MINIMUM</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.entertainment</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSLocalNetworkUsageDescription</key><string>Mira finds your Jellyfin server on your network and plays your library from it.</string>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
   <key>CFBundleURLTypes</key>
   <array><dict>
@@ -51,6 +52,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+# The text of macOS's local network prompt (the login screen looks for Jellyfin on the network), in Mira's two languages.
+mkdir -p "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/fr.lproj"
+printf '"NSLocalNetworkUsageDescription" = "%s";\n' "Mira finds your Jellyfin server on your network and plays your library from it." > "$APP/Contents/Resources/en.lproj/InfoPlist.strings"
+printf '"NSLocalNetworkUsageDescription" = "%s";\n' "Mira trouve ton serveur Jellyfin sur ton réseau et y lit ta bibliothèque." > "$APP/Contents/Resources/fr.lproj/InfoPlist.strings"
 
 # 3. The icon, from the 1024 px mark.
 ICONSET="$OUT/Mira.iconset"; mkdir -p "$ICONSET"

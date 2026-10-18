@@ -162,7 +162,7 @@ public partial class MainWindow : Window
     {
         if (_args.Contains("--demo")) await ShowDemoAsync();
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
-        else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); if (_invite is not null) _ = OfferInviteAsync(); }
+        else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); if (_invite is not null) _ = OfferInviteAsync(); else FindServer(); }
         await RevealStartupAsync();
 #if MIRA_VALIDATION
         if (await RunRequestedCheckAsync()) return;
@@ -217,6 +217,7 @@ public partial class MainWindow : Window
     private string? _warnedPlainHttp;
     private void ServerBox_TextChanged(object sender, TextChangedEventArgs e)
     {
+        ServerTyped();
         // Another address is another question: the warning given for the previous one no longer answers it.
         if (_warnedPlainHttp is null || !ConnectButton.IsEnabled || ServerBox.Text == _warnedPlainHttp) return;
         _warnedPlainHttp = null; ConnectText.Text = L("Se connecter", "Sign in"); LoginError.Text = "";
@@ -230,6 +231,8 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(UsernameBox.Text)) throw new UserInputException(L("Indique ton nom d’utilisateur Jellyfin.", "Enter your Jellyfin username."));
             // "192.168.1.20", "nas:8096" or the address of Jellyfin's web page: find the server before sending the password.
             ConnectText.Text = L("Recherche du serveur…", "Looking for the server…");
+            // No address yet: the one the search is finding.
+            if (ServerBox.Text.Trim().Length == 0) await _loginSearch;
             var server = await ServerAddress.DiscoverAsync(ServerBox.Text);
             ServerBox.Text = server.Address;
             if (server.Address != _warnedPlainHttp && await ServerAddress.ExposesPasswordAsync(server.Address)) { _warnedPlainHttp = server.Address; LoginError.Text = ServerAddress.PlainHttpWarning; return; }
@@ -579,7 +582,8 @@ public partial class MainWindow : Window
     private static bool IsCacheFailure(Exception ex) => ex is SqliteException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException;
     private void Account_Click(object sender, RoutedEventArgs e)
     {
-        ClosePreview(); ServerBox.Text = _client?.Connection.Server ?? "http://127.0.0.1:8096"; UsernameBox.Text = _client?.Connection.UserName ?? "";
+        ClosePreview(); UsernameBox.Text = _client?.Connection.UserName ?? "";
+        if (_client is not null) ServerBox.Text = _client.Connection.Server; else if (ServerBox.Text.Trim().Length == 0) FindServer();
         LoginArt.Source = _demo ? null : HeroImage.Source;
         LogoutButton.Visibility = _profile.LoadConnection() is null ? Visibility.Collapsed : Visibility.Visible; EraseAccountData.IsChecked = false;
         BackToLibrary.Visibility = _client is not null || _demo ? Visibility.Visible : Visibility.Collapsed;

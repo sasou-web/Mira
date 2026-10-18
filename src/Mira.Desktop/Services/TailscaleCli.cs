@@ -28,6 +28,12 @@ internal static class TailscaleCli
     }
 
     /// <summary>
+    /// <c>tailscale status --json</c>, whose devices the login screen asks for a Jellyfin (<see cref="ServerSearch.TailnetDevices"/>);
+    /// null without its command line, or when Tailscale does not answer it.
+    /// </summary>
+    public static string? Status() => Program() is { } program ? Run(program, "status --json") : null;
+
+    /// <summary>
     /// « Garder Tailscale connecté »: « Run unattended » turned on, as its menu does (<c>tailscale set</c> changes that
     /// preference only); true once read back on.
     /// </summary>
