@@ -45,7 +45,8 @@ public partial class MainWindow
             Width = 1024; Height = 720; await CaptureAsync(output, "13-compact-window");
             Width = 1440; Height = 960;
             LoginArt.Source = null; UsernameBox.Text = ""; PasswordBox.Clear(); LoginError.Text = "";
-            ServerBox.Text = "http://127.0.0.1:8096";
+            // The server the login screen found on the home network (fictional, like the rest).
+            _loginServers = []; UseServer(new("http://192.168.1.20:8096/", "MEDIA-PC", "demo", ServerSearch.Place.Home));
             BackToLibrary.Visibility = LogoutButton.Visibility = Visibility.Collapsed;
             LoginOverlay.Visibility = Visibility.Visible; LoginOverlay.Opacity = 1;
             await CaptureAsync(output, "14-login");

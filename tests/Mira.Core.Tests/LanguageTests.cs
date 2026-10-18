@@ -103,6 +103,8 @@ internal static class LanguageTests
             Add(AccountData.SignedOut("this PC", false, true), AccountData.SignedOut("this PC", true, false), Friends.NameProblem("", []), Friends.NameProblem("<b>", []), Friends.NameProblem("marc", ["Marc"]));
             Add(SyncStatus.Describe(2, null, null, now).Text, SyncStatus.Describe(0, null, now, null).Text, SyncStatus.Describe(0, null, null, null).Text);
             Add(PlaybackFailures.When(now.AddDays(-1), now), PlaybackFailures.When(now.AddDays(-40), now));
+            Add(ServerSearch.Searching, ServerSearch.Others, ServerSearch.NoneFound("this PC"), ServerSearch.SearchAgain);
+            foreach (var where in Enum.GetValues<ServerSearch.Place>()) Add(ServerSearch.Said(new("http://192.168.1.20:8096/", "Living room", "nas", where), "this PC"));
             var french = texts.Where(x => x.IndexOfAny("àâçéèêëîïôûùüœ«»".ToCharArray()) >= 0 && !x.Contains("Léa") || x.Contains(" : ") || x.Contains(" ; ")).ToList();
             Assert(texts.Count > 80 && french.Count == 0, $"{texts.Count} texts; in French: " + string.Join(" | ", french));
             return Task.CompletedTask;

@@ -272,8 +272,10 @@ await Test("Démarrage avec Windows : service, relance après une erreur et pare
     Assert(!new JellyfinStartup.State(false, true, false, true).StartsAtBoot, "Without a service, nothing starts with Windows");
     var commands = JellyfinStartup.Commands(@"C:\Program Files\Jellyfin\Server\jellyfin.exe", 8096);
     var rules = commands.Where(c => c.Arguments.Contains("add rule")).Select(c => c.Arguments).ToList();
-    Assert(rules.Count == 2 && rules.All(r => r.Contains("localport=8096") && r.Contains("program=\"C:\\Program Files\\Jellyfin\\Server\\jellyfin.exe\"") && r.Contains("dir=in") && r.Contains("protocol=TCP")), "Rules for Jellyfin's program and port only");
+    Assert(rules.Count == 3 && rules.All(r => r.Contains("program=\"C:\\Program Files\\Jellyfin\\Server\\jellyfin.exe\"") && r.Contains("dir=in"))
+        && rules.Take(2).All(r => r.Contains("localport=8096") && r.Contains("protocol=TCP")), "Rules for Jellyfin's program and port only");
     Assert(rules[0].Contains("remoteip=localsubnet") && rules[1].Contains("remoteip=" + LocalNetwork.TailnetRange), "Home network and Tailscale only");
+    Assert(rules[2].Contains("protocol=UDP") && rules[2].Contains($"localport={ServerSearch.Port} ") && rules[2].Contains("remoteip=localsubnet"), "Jellyfin's discovery, from the home network only");
     Assert(rules.All(r => r.Contains(" profile=domain,private ")) && JellyfinStartup.Profiles(JellyfinFirewall.AllProfiles) == "any"
         && JellyfinStartup.Profiles(JellyfinFirewall.Public) == "public", "Private and domain networks only, as netsh writes them");
     Assert(commands[0].Arguments == "config JellyfinServer start= auto" && commands.Any(c => c.Arguments == $"failure JellyfinServer reset= 86400 actions= {JellyfinStartup.RestartActions}")
@@ -415,12 +417,13 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
         && JellyfinFirewall.TailnetProfile(0) == priv, "Tailscale's profile");
     // The same rule with the service (« Disponible dès l'allumage du PC ») and without it.
     var firewall = JellyfinStartup.FirewallCommands(jellyfin, 8096);
-    Assert(firewall.Count == 3 && firewall[0].Optional && JellyfinStartup.Commands(jellyfin, 8096).Where(c => c.File == "netsh.exe").SequenceEqual(firewall), "Mira's rule differs without the service");
+    Assert(firewall.Count == 4 && firewall[0].Optional && JellyfinStartup.Commands(jellyfin, 8096).Where(c => c.File == "netsh.exe").SequenceEqual(firewall), "Mira's rule differs without the service");
     // Mira's rule judged by its content, as the firewall reads back what netsh wrote: ready, missing, or not as Mira
     // writes it (« Tout préparer » replaces it). Without Jellyfin's program, the rest is judged.
     const JellyfinFirewall.RuleState ready = JellyfinFirewall.RuleState.Ready, stale = JellyfinFirewall.RuleState.Stale;
     var written = new[] { Rule("Mira - Jellyfin", true, JellyfinStartup.RuleProfiles, ports: "8096", remote: "LocalSubnet"),
-        Rule("Mira - Jellyfin", true, JellyfinStartup.RuleProfiles, ports: "8096", remote: "100.64.0.0/255.192.0.0") };
+        Rule("Mira - Jellyfin", true, JellyfinStartup.RuleProfiles, ports: "8096", remote: "100.64.0.0/255.192.0.0"),
+        Rule("Mira - Jellyfin", true, JellyfinStartup.RuleProfiles, protocol: JellyfinFirewall.Udp, ports: "7359", remote: "LocalSubnet") };
     Assert(JellyfinFirewall.MiraRule(written, jellyfin, 8096) == ready && JellyfinFirewall.MiraRule(written, null, 8096) == ready
         && JellyfinFirewall.MiraRule([], jellyfin, 8096) == JellyfinFirewall.RuleState.Missing, "Mira's rule as written");
     Assert(JellyfinFirewall.MiraRule(written, @"C:\Other\jellyfin.exe", 8096) == stale && JellyfinFirewall.MiraRule(written, jellyfin, 8097) == stale
@@ -434,7 +437,18 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
         ("public too", x => x with { Profiles = all }),
     };
     foreach (var (name, change) in changes)
-        Assert(JellyfinFirewall.MiraRule([change(written[0]), written[1]], jellyfin, 8096) == stale, "Seen as ready: " + name);
+        Assert(JellyfinFirewall.MiraRule([change(written[0]), written[1], written[2]], jellyfin, 8096) == stale, "Seen as ready: " + name);
+    // The discovery: UDP, its own port alone, from the home network alone (Tailscale carries no broadcast). An older
+    // version's rule, without it, is replaced by one « Tout préparer ».
+    var discovery = new (string Name, Func<JellyfinFirewall.Rule, JellyfinFirewall.Rule> Change)[]
+    {
+        ("tcp", x => x with { Protocol = JellyfinFirewall.Tcp }), ("any protocol", x => x with { Protocol = JellyfinFirewall.AnyProtocol }), ("Jellyfin's port", x => x with { LocalPorts = "8096" }),
+        ("any port", x => x with { LocalPorts = "*" }), ("Tailscale", x => x with { RemoteAddresses = "100.64.0.0/255.192.0.0" }), ("anywhere", x => x with { RemoteAddresses = "*" }),
+        ("public too", x => x with { Profiles = all }), ("other program", x => x with { Program = @"C:\Other\jellyfin.exe" }),
+    };
+    foreach (var (name, change) in discovery)
+        Assert(JellyfinFirewall.MiraRule([written[0], written[1], change(written[2])], jellyfin, 8096) == stale, "Discovery seen as ready: " + name);
+    Assert(JellyfinFirewall.MiraRule(written.Take(2), jellyfin, 8096) == stale && JellyfinFirewall.MiraRule(written.Take(2), null, 8096) == stale, "An older version's rule, without the discovery, seen as ready");
     Assert(JellyfinFirewall.MiraRule([written[0]], jellyfin, 8096) == stale && JellyfinFirewall.MiraRule(written.Append(written[0] with { LocalPorts = "8920" }), jellyfin, 8096) == stale,
         "One range only, or a rule left behind on another port");
     // An older version's rule, on every network (netsh's profile=any): not ready, so one « Tout préparer » narrows it.

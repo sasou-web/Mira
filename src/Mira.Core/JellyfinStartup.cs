@@ -74,21 +74,25 @@ public static class JellyfinStartup
 
     /// <summary>
     /// Mira's firewall rule, replaced whole: the home network and Tailscale may reach <paramref name="program"/> on
-    /// <paramref name="port"/>, on private and domain networks, and nothing else. Also what « Tout préparer » writes
-    /// (OpenFirewall), with or without Jellyfin's service. Tailscale's range is not bound to Tailscale's adapter: netsh
-    /// cannot name one, and the rule is written before Tailscale may be installed.
+    /// <paramref name="port"/>, and the home network may ask it Jellyfin's discovery question (UDP 7359, how Mira on
+    /// another computer finds it: <see cref="ServerSearch"/>), on private and domain networks, and nothing else. Also what
+    /// « Tout préparer » writes (OpenFirewall), with or without Jellyfin's service. Tailscale's range is not bound to
+    /// Tailscale's adapter: netsh cannot name one, and the rule is written before Tailscale may be installed; Tailscale
+    /// carries no broadcast, so the discovery is for the home network alone.
     /// </summary>
     public static IReadOnlyList<StartupCommand> FirewallCommands(string program, int port, string rule = RuleName)
     {
         if (port is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
         if (!Path.IsPathFullyQualified(program) || program.Contains('"')) throw new ArgumentException("A full path to jellyfin.exe is expected.", nameof(program));
-        string Allow(string from) => $"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol=TCP localport={port} " +
-            $"remoteip={from} profile={Profiles(RuleProfiles)} program=\"{program}\" enable=yes description=\"Mira web : Jellyfin pour tes appareils, chez toi et sur Tailscale.\"";
+        string Allow(string protocol, int on, string from, string description) => $"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol={protocol} localport={on} " +
+            $"remoteip={from} profile={Profiles(RuleProfiles)} program=\"{program}\" enable=yes description=\"{description}\"";
+        const string devices = "Mira web : Jellyfin pour tes appareils, chez toi et sur Tailscale.";
         return
         [
             RemoveRule(rule),
-            new("netsh.exe", Allow("localsubnet")),
-            new("netsh.exe", Allow(LocalNetwork.TailnetRange)),
+            new("netsh.exe", Allow("TCP", port, "localsubnet", devices)),
+            new("netsh.exe", Allow("TCP", port, LocalNetwork.TailnetRange, devices)),
+            new("netsh.exe", Allow("UDP", ServerSearch.Port, "localsubnet", "Mira : tes autres ordinateurs trouvent Jellyfin sur le réseau de la maison.")),
         ];
     }
     /// <summary>Removes Mira's firewall rule (« Ne plus ouvrir Jellyfin au réseau »): optional, as there may be none.</summary>

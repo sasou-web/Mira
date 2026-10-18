@@ -73,7 +73,7 @@ public static class PhoneSetup
         steps.Add(Firewall(facts) switch
         {
             JellyfinFirewall.Verdict.Open when facts.MiraRule != JellyfinFirewall.RuleState.Stale =>
-                new("firewall", Mark.Done, L("Le pare-feu laisse passer ton téléphone", "The firewall lets your phone through"), L("Sur le port de Jellyfin seulement, depuis ton Wi-Fi et Tailscale.", "On Jellyfin’s port only, from your Wi-Fi and Tailscale.")),
+                new("firewall", Mark.Done, L("Le pare-feu laisse passer ton téléphone", "The firewall lets your phone through"), L("Vers Jellyfin seulement, depuis ton Wi-Fi et Tailscale.", "To Jellyfin only, from your Wi-Fi and Tailscale.")),
             // Named only when the rest is open: Mira's rule is not what is missing.
             _ when counted is { Known: false } => new("firewall", Mark.Yours, L("Vérifier le type de ton réseau", "Check your network’s type"),
                 L($"Windows ne dit pas à Mira si {shown} est un réseau privé ou public ; s’il est public, ton téléphone n’y entre pas. Si c’est le réseau de ta maison, {where}.", $"Windows doesn’t tell Mira whether {shown} is a private or public network; if it’s public, your phone can’t get in. If it’s your home network, {where}.")),
@@ -94,10 +94,10 @@ public static class PhoneSetup
                 "Mira can’t find Jellyfin’s program on this PC: allow it in Windows’ firewall for private networks, "
                 + "and check that Windows counts your Wi-Fi as a private network.")),
             JellyfinFirewall.Verdict.Open => new("firewall", Mark.ToDo, L("Mettre à jour la règle du pare-feu", "Update the firewall rule"),
-                L("La règle de Mira, d’une version précédente, laisse aussi entrer les réseaux publics, ou ne correspond plus au port ou au programme de Jellyfin : "
-                + "Mira la remplace par une règle pour tes réseaux privés seulement.",
-                "Mira’s rule, from an earlier version, also lets public networks in, or no longer matches Jellyfin’s port or program: "
-                + "Mira replaces it with a rule for your private networks only.")),
+                L("La règle de Mira, d’une version précédente, laisse aussi entrer les réseaux publics, ne correspond plus au port ou au programme de Jellyfin, "
+                + "ou ne laisse pas tes autres ordinateurs le trouver : Mira la remplace par une règle pour tes réseaux privés seulement.",
+                "Mira’s rule, from an earlier version, also lets public networks in, no longer matches Jellyfin’s port or program, "
+                + "or doesn’t let your other computers find it: Mira replaces it with a rule for your private networks only.")),
             _ => new("firewall", Mark.ToDo, L("Laisser passer ton téléphone", "Let your phone through"), L("Le pare-feu de Windows bloque Jellyfin : sur le téléphone, la page reste blanche.", "Windows’ firewall blocks Jellyfin: on the phone, the page stays blank.")),
         });
         steps.Add((facts.Tailnet, facts.TailnetAllowed) switch

@@ -6,8 +6,8 @@ using System.Text.RegularExpressions;
 
 namespace Mira.Core;
 
-/// <summary>A Jellyfin server found at an address, as its public information describes it.</summary>
-public sealed record ServerInfo(string Address, string Name, string Version);
+/// <summary>A Jellyfin server found at an address, as its public information describes it (<paramref name="Id"/>: the same at every address).</summary>
+public sealed record ServerInfo(string Address, string Name, string Version, string Id = "");
 
 /// <summary>An address that leads to no usable Jellyfin server; the message is written for the login screen.</summary>
 public sealed class ServerDiscoveryException(string message) : IOException(message);
@@ -26,7 +26,7 @@ public static partial class ServerAddress
     public static IReadOnlyList<string> Candidates(string input)
     {
         var text = input.Trim();
-        if (text.Length == 0) throw new UserInputException(L("Indique l’adresse de ton serveur Jellyfin, par exemple http://127.0.0.1:8096.", "Enter your Jellyfin server’s address, for example http://127.0.0.1:8096."));
+        if (text.Length == 0) throw new UserInputException(L("Indique l’adresse de ton serveur Jellyfin, par exemple 192.168.1.20.", "Enter your Jellyfin server’s address, for example 192.168.1.20."));
         if (text.Contains("://", StringComparison.Ordinal)) return [JellyfinClient.NormalizeServer(WithoutWebPage(text))];
         var authority = text.Split('/', 2)[0];
         var explicitPort = PortSuffix().IsMatch(authority);
@@ -158,12 +158,13 @@ public static partial class ServerAddress
         var web = path < 0 ? Match.Empty : WebPage().Match(url, path);
         return web.Success ? url[..web.Index] : url;
     }
-    private enum ProbeFailure { None, Unreachable, Timeout, Certificate, NotJellyfin }
-    private sealed record Probe(ServerInfo? Info, ProbeFailure Failure);
-    private static async Task<Probe> ProbeAsync(HttpClient http, string address, CancellationToken ct)
+    internal enum ProbeFailure { None, Unreachable, Timeout, Certificate, NotJellyfin }
+    internal sealed record Probe(ServerInfo? Info, ProbeFailure Failure);
+    /// <summary>Jellyfin's public information at <paramref name="address"/>, within <paramref name="wait"/> (<see cref="ProbeTimeout"/> by default).</summary>
+    internal static async Task<Probe> ProbeAsync(HttpClient http, string address, CancellationToken ct, TimeSpan? wait = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(ProbeTimeout);
+        timeout.CancelAfter(wait ?? ProbeTimeout);
         try
         {
             using var response = await http.GetAsync(new Uri(new Uri(address), "System/Info/Public"), HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
@@ -177,7 +178,7 @@ public static partial class ServerAddress
             // A proxy may redirect http:// to https://: keep the address that actually answered.
             var final = response.RequestMessage?.RequestUri?.AbsoluteUri is { } answered && answered.EndsWith("System/Info/Public", StringComparison.OrdinalIgnoreCase)
                 ? JellyfinClient.NormalizeServer(answered[..^"System/Info/Public".Length]) : address;
-            return new(new ServerInfo(final, Text("ServerName") ?? "Jellyfin", Text("Version") ?? ""), ProbeFailure.None);
+            return new(new ServerInfo(final, Text("ServerName") ?? "Jellyfin", Text("Version") ?? "", Text("Id")!), ProbeFailure.None);
         }
         // Never throws: the caller reads every probe's result. Stopped because another address won, it simply lost.
         catch (OperationCanceledException) { return new(null, ct.IsCancellationRequested ? ProbeFailure.Unreachable : ProbeFailure.Timeout); }

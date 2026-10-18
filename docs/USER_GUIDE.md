@@ -4,7 +4,7 @@ Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vi
 
 ## Démarrer
 
-Ouvrir **`dist/Mira/Mira.exe`**. L’adresse proposée est `http://127.0.0.1:8096` : Jellyfin reste lancé en arrière-plan sur le PC. Se connecter avec son compte Jellyfin.
+Ouvrir **`dist/Mira/Mira.exe`**. Mira cherche Jellyfin sur ce PC, sur le réseau de la maison et sur Tailscale, et propose son adresse (`http://127.0.0.1:8096` pour Jellyfin sur ce PC). Se connecter avec son compte Jellyfin.
 
 Au tout premier lancement, un écran de bienvenue explique ce que font Jellyfin (le serveur qui garde tes vidéos) et Mira (le lecteur), puis propose d’installer Jellyfin sur ce PC ou de se connecter à un serveur.
 
