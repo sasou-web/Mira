@@ -504,7 +504,7 @@ await Test("Mira sur ton téléphone : le pare-feu de Windows laisse passer la m
                 && after.Any(x => x.Name == rule && x.RemoteAddresses != "*" && JellyfinFirewall.CoversTailnet(x.RemoteAddresses))
                 && JellyfinAutostart.MiraRule(program, 18097, rule) == JellyfinFirewall.RuleState.Ready, "Mira's rule: " + Seen());
             Assert(JellyfinAutostart.Phones(program, 18097, rule) is { Verdict: open, Public: null }, "Still blocked: " + Seen());
-            Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule) == AutostartResult.Done && Own().Count(x => x.Name == rule) == 2, "Not opened again over itself: " + Seen());
+            Assert(JellyfinAutostart.OpenFirewall(program, 18097, rule) == AutostartResult.Done && Own().Count(x => x.Name == rule) == 3, "Not opened again over itself: " + Seen());
             // An older version's rule, on every network, Windows' prompt rule gone and the runner's network public again:
             // phones get through by that rule alone, yet it is not ready, and the network is still named to make private
             // when the public profile keeps them out without it (Windows' default). « Tout préparer » narrows the rule and
