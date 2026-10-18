@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.8.1",
+    "summary": "Mira trouve ton serveur Jellyfin toute seule à la connexion, sur ce PC, la maison ou Tailscale.",
+    "en": { "summary": "Mira finds your Jellyfin server by itself at sign-in: on this PC, at home or over Tailscale." },
+    "items": [
+      { "icon": "server", "title": "Ton serveur trouvé à la connexion", "text": "Sous Windows et Mac, Mira cherche Jellyfin sur ce PC, sur ton réseau et sur Tailscale, et remplit l’adresse.",
+        "en": { "title": "Your server found at sign-in", "text": "On Windows and Mac, Mira looks for Jellyfin on this PC, your network and Tailscale, and fills in the address." } },
+      { "icon": "refresh", "title": "Pare-feu : Tout préparer à refaire", "text": "Sur le PC serveur, ouvre le guide puis Tout préparer pour que Jellyfin soit trouvé sur ton réseau.",
+        "en": { "title": "Firewall: run Set everything up again", "text": "On the server PC, open the guide then Set everything up so Jellyfin can be found on your network." } }
+    ]
+  },
+  {
     "version": "0.8.0",
     "summary": "Mira en anglais par défaut, téléchargements du PC serveur partout et meilleure version d’abord.",
     "en": { "summary": "Mira in English by default, server PC downloads everywhere, and the best release first." },
