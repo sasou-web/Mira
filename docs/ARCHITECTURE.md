@@ -1,4 +1,4 @@
-# Architecture de Mira 0.8.0
+# Architecture de Mira 0.8.1
 
 ## Découpage
 

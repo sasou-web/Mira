@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.8.1 — 2026-10-18
+
+Mira trouve tout seul le serveur Jellyfin à l’écran de connexion.
 
 - **Le bon serveur proposé à la connexion** (Windows et Mac) : l’écran de connexion ne propose plus `http://127.0.0.1:8096` sur un PC où Jellyfin ne tourne pas (« No Jellyfin server found »). Mira cherche Jellyfin et remplit l’adresse tout seul : sur ce PC, sur le réseau de la maison (la découverte intégrée à Jellyfin) et sur tes appareils Tailscale. Une ligne sous l’adresse dit où il l’a trouvé ; s’il y a plusieurs serveurs, les autres sont proposés à côté. Le même serveur trouvé à la maison et par Tailscale est proposé à son adresse Tailscale, qui marche partout. Rien trouvé : le champ reste vide, avec ce qu’il faut taper et **Chercher à nouveau**. Une adresse tapée n’est jamais remplacée. Pour qu’un Jellyfin sur un PC Windows soit trouvé sur le réseau de la maison, la règle « Mira - Jellyfin » du pare-feu laisse aussi passer la question de découverte de Jellyfin (UDP 7359, réseau local et réseaux privés seulement) : Mira le signale à l’ouverture sur ce PC, et **Tout préparer** met la règle à jour.
 
