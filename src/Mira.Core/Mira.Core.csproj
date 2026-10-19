@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- libmpv's functions are called through function pointers (MpvClient). Product "Mira": SignPath signs only files whose
+       product name is Mira (installer/signpath/app.xml); the default would be the assembly's name. -->
+  <PropertyGroup><AllowUnsafeBlocks>true</AllowUnsafeBlocks><Product>Mira</Product></PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <!-- Reads the .7z archive of the libmpv build Mira can install on request (LZMA2 + BCJ2). -->

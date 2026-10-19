@@ -1,0 +1,28 @@
+{
+  "about": "« Accueil à ta main »: the rows of the home page. Read by tests/Mira.Core.Tests (HomeLayout) and tools/web/unit (home-rows.js): both must agree. libraries: Jellyfin's UserViews; rows: [saved line, rows as « key », « -key » when put away]; moves: [saved line, key, step, saved line after]; shows: [saved line, key, shown, saved line after]",
+  "libraries": [
+    { "Id": "f1", "Name": "Films", "CollectionType": "movies" },
+    { "Id": "s1", "Name": "Séries", "CollectionType": "tvshows" },
+    { "Id": "a1", "Name": "Animes", "CollectionType": "tvshows" },
+    { "Id": "c1", "Name": "Collections", "CollectionType": "boxsets" },
+    { "Id": "m1", "Name": "Musique", "CollectionType": "music" }
+  ],
+  "titles": [["continue", "Continuer à regarder"], ["latest", "Ajouts récents"], ["favorites", "Tes favoris"], ["library:a1", "Nouveau dans Animes"]],
+  "rows": [
+    ["", ["continue", "latest", "favorites", "-library:f1", "-library:s1", "-library:a1"]],
+    ["favorites,-latest,library:a1", ["favorites", "-latest", "library:a1", "continue", "-library:f1", "-library:s1"]],
+    ["library:gone,continue,continue,later-row, latest", ["continue", "latest", "favorites", "-library:f1", "-library:s1", "-library:a1"]],
+    ["-continue,-latest,-favorites", ["-continue", "-latest", "-favorites", "-library:f1", "-library:s1", "-library:a1"]]
+  ],
+  "moves": [
+    ["", "favorites", -1, "continue,favorites,latest,-library:f1,-library:s1,-library:a1"],
+    ["", "continue", -1, "continue,latest,favorites,-library:f1,-library:s1,-library:a1"],
+    ["", "library:a1", 1, "continue,latest,favorites,-library:f1,-library:s1,-library:a1"],
+    ["favorites,-latest", "continue", -1, "favorites,continue,-latest,-library:f1,-library:s1,-library:a1"],
+    ["", "unknown", 1, "continue,latest,favorites,-library:f1,-library:s1,-library:a1"]
+  ],
+  "shows": [
+    ["", "library:a1", true, "continue,latest,favorites,-library:f1,-library:s1,library:a1"],
+    ["", "latest", false, "continue,-latest,favorites,-library:f1,-library:s1,-library:a1"]
+  ]
+}

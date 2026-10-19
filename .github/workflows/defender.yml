@@ -1,0 +1,105 @@
+name: Defender scan
+# Builds Mira for Windows as tools/package.ps1 does, on a clean runner from the public source, then has the runner's
+# own Microsoft Defender (signatures updated, cloud protection on) scan the result without removing anything, and
+# keeps Mira's assemblies as an artifact. With a release tag, also compares them with the published zip's, part by
+# part (tools/compare-assemblies.mjs): a build made on a PC is shown to be the code of its commit, or not.
+# Run on another commit (the input) to find the change a detection started with.
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit or tag to build and scan (empty: the chosen branch)"
+        required: false
+        default: ""
+      release:
+        description: "Release tag (vX.Y.Z) whose published zip to compare with this build"
+        required: false
+        default: ""
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Commit under test
+        shell: pwsh
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          # The comparison tool of this workflow's branch, kept aside: the commit under test may predate it.
+          Copy-Item -LiteralPath tools/compare-assemblies.mjs -Destination (Join-Path $env:RUNNER_TEMP 'compare-assemblies.mjs')
+          if ($env:COMMIT) { git checkout --detach $env:COMMIT; if ($LASTEXITCODE -ne 0) { throw "Unknown commit: $env:COMMIT" } }
+          git log -1 --format='%H %s'
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config -r win-x64
+      - name: Publish (as tools/package.ps1)
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content -LiteralPath src/Mira.Desktop/Mira.Desktop.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          dotnet publish src/Mira.Desktop/Mira.Desktop.csproj --no-restore -c Release -r win-x64 --self-contained true -o .artifacts/scan/Mira -p:DebugType=None -p:DebugSymbols=false "-p:Version=$version" -p:MiraValidation=false
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+      - name: Defender signatures
+        shell: pwsh
+        run: |
+          $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+          # The runner's Defender has cloud protection off; a « !ml » verdict comes from it. Turned on as a PC has
+          # it (file metadata sent to Microsoft, never the files themselves: NeverSend).
+          Set-MpPreference -MAPSReporting Advanced -SubmitSamplesConsent NeverSend -CloudBlockLevel Default
+          & $mp -SignatureUpdate
+          Write-Output "Signature update exit code: $LASTEXITCODE"
+          Get-MpComputerStatus | Select-Object AMProductVersion, AMEngineVersion, AntivirusSignatureVersion, AntivirusSignatureLastUpdated, AntivirusEnabled, RealTimeProtectionEnabled, IsTamperProtected | Format-List
+          Get-MpPreference | Select-Object MAPSReporting, SubmitSamplesConsent, CloudBlockLevel, DisableRealtimeMonitoring, DisableBehaviorMonitoring, DisableScriptScanning | Format-List
+      - name: Scan the published folder
+        shell: pwsh
+        run: |
+          $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+          $folder = Join-Path $PWD '.artifacts\scan\Mira'
+          Write-Output "SDK $(dotnet --version)"
+          Get-ChildItem -LiteralPath $folder -Filter 'Mira*.dll' | ForEach-Object { "{0}  {1}  {2} bytes" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name, $_.Length }
+          & $mp -Scan -ScanType 3 -File $folder -DisableRemediation
+          $code = $LASTEXITCODE
+          Write-Output "MpCmdRun exit code: $code (0 = nothing found, 2 = a threat found)"
+          Get-MpThreatDetection | Format-List
+          Get-MpThreat | Format-List
+          if ($code -eq 2) { Write-Output '::warning::Microsoft Defender flags this build.' }
+          elseif ($code -ne 0) { throw "The scan did not run (exit code $code)." }
+      # Mira's own assemblies, to compare with a build made elsewhere (the published zip, a PC).
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: Mira-scan-assemblies
+          path: |
+            .artifacts/scan/Mira/Mira.dll
+            .artifacts/scan/Mira/Mira.Core.dll
+            .artifacts/scan/Mira/Mira.exe
+          retention-days: 7
+      - name: Compare with the published release
+        if: ${{ inputs.release != '' }}
+        shell: pwsh
+        env:
+          RELEASE: ${{ inputs.release }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if ($env:RELEASE -notmatch '^v(\d+\.\d+\.\d+)$') { throw "Release tag vX.Y.Z expected, got '$env:RELEASE'." }
+          $version = $Matches[1]
+          $zip = Join-Path $PWD '.artifacts\scan\release.zip'
+          Invoke-WebRequest -Uri "https://github.com/$env:REPOSITORY/releases/download/$env:RELEASE/Mira-$version-win-x64.zip" -OutFile $zip
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $PWD '.artifacts\scan\release') -Force
+          $published = Join-Path $PWD '.artifacts\scan\release\Mira'
+          $failed = $false
+          foreach ($name in @('Mira.dll', 'Mira.Core.dll')) {
+            Write-Output "=== ${name}: this build (A) and the published $env:RELEASE (B)"
+            node (Join-Path $env:RUNNER_TEMP 'compare-assemblies.mjs') (Join-Path $PWD ".artifacts\scan\Mira\$name") (Join-Path $published $name)
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { Write-Output "::warning::The published $env:RELEASE is not the code of this commit."; exit 1 }
+          exit 0

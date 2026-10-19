@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Artifact configuration "installer" of the SignPath project "mira": signing request 2 of windows.yml, on the
+     artifact Mira-win-x64-setup-to-sign (the Inno Setup installer, built around the files signed by request 1, under
+     a fixed name). SignPath applies the copy kept in its own web application: paste this one there, and change both
+     together. Metadata restrictions SignPath Foundation requires: product name Mira and the release's version
+     (VersionInfoProductName and VersionInfoProductTextVersion of installer/Mira.iss), given as the "version"
+     parameter by windows.yml, which checks both before uploading. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="Mira-setup.exe" product-name="Mira" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

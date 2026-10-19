@@ -1,5 +1,10 @@
-// Names of audio and subtitle tracks, in French, as Mira for Windows and Mac write them (Mira.Core/PlayerText.cs):
-// Jellyfin's own names are in English ("French - SUBRIP - External").
+// Names of audio and subtitle tracks, as Mira for Windows and Mac write them in French (Mira.Core/PlayerText.cs), or in
+// the language of the page: Jellyfin's own names are in English ("French - SUBRIP - External").
+import { tr, language, locale } from '../i18n.js';
+
+// The languages Mira knows by their codes, under their French names: the key of a language whatever its code (« fre »,
+// « fra » and « fr » are all French), and the name shown in French; in English, Intl names them (first code of two
+// letters).
 const LANGUAGES = {
   Japonais: 'jpn ja', Français: 'fra fre fr', Anglais: 'eng en', Allemand: 'deu ger de', Espagnol: 'spa es', Italien: 'ita it',
   Portugais: 'por pt', Russe: 'rus ru', Coréen: 'kor ko', Chinois: 'zho chi zh', Arabe: 'ara ar', Hindi: 'hin hi', Polonais: 'pol pl',
@@ -8,20 +13,42 @@ const LANGUAGES = {
   Hongrois: 'hun hu', Grec: 'ell gre el', Roumain: 'ron rum ro', Catalan: 'cat ca', Malais: 'msa may ms', Filipino: 'fil', Tagalog: 'tgl',
 };
 const byCode = new Map(Object.entries(LANGUAGES).flatMap(([name, codes]) => codes.split(' ').map((code) => [code, name])));
-const names = (() => { try { return new Intl.DisplayNames(['fr'], { type: 'language' }); } catch { return null; } })();
+const shortCode = new Map(Object.entries(LANGUAGES).map(([name, codes]) => {
+  const list = codes.split(' ');
+  return [name, list.find((code) => code.length === 2) ?? list[0]];
+}));
+const displayNames = new Map();
+/** Intl's names of languages, in the language of the page; null where Intl has none. */
+function names() {
+  const tag = locale();
+  if (!displayNames.has(tag)) {
+    let made = null;
+    try { made = new Intl.DisplayNames([tag], { type: 'language' }); } catch { /* no Intl names here */ }
+    displayNames.set(tag, made);
+  }
+  return displayNames.get(tag);
+}
+/** Intl's name of a code, capitalized; null when it has none (it gives the code back). */
+function intlName(code) {
+  try { const name = names()?.of(code); return name && name.toLowerCase() !== code ? capitalize(name) : null; } catch { return null; }
+}
 
-/** French name of an ISO 639 code ("jpn", "fre", "pt-BR"); null when unknown or undetermined. */
+/** The name of an ISO 639 code ("jpn", "fre", "pt-BR") in the language of the page; null when unknown or undetermined. */
 export function languageName(code) {
   const main = String(code ?? '').trim().split(/[-_]/)[0].toLowerCase();
   if (!main || ['und', 'zxx', 'mis', 'mul'].includes(main)) return null;
-  if (byCode.has(main)) return byCode.get(main);
-  try { const name = names?.of(main); return name && name.toLowerCase() !== main ? capitalize(name) : null; } catch { return null; }
+  if (byCode.has(main)) {
+    const french = byCode.get(main);
+    return language() === 'fr' ? french : intlName(shortCode.get(french)) ?? french;
+  }
+  return intlName(main);
 }
 
 const CODECS = {
   aac: 'AAC', ac3: 'Dolby Digital', eac3: 'Dolby Digital Plus', truehd: 'Dolby TrueHD', dts: 'DTS', flac: 'FLAC', opus: 'Opus',
   vorbis: 'Vorbis', mp3: 'MP3', subrip: 'SRT', srt: 'SRT', ass: 'ASS', ssa: 'ASS', hdmv_pgs_subtitle: 'PGS', pgs: 'PGS', pgssub: 'PGS',
-  dvd_subtitle: 'VobSub', vobsub: 'VobSub', dvdsub: 'VobSub', webvtt: 'WebVTT', vtt: 'WebVTT', mov_text: 'Texte',
+  dvd_subtitle: 'VobSub', vobsub: 'VobSub', dvdsub: 'VobSub', webvtt: 'WebVTT', vtt: 'WebVTT', mov_text: tr('Texte'),
+  h264: 'H.264', hevc: 'HEVC', h265: 'HEVC', av1: 'AV1', vp9: 'VP9', vp8: 'VP8', mpeg2video: 'MPEG-2', mpeg4: 'MPEG-4',
 };
 export function codecName(codec) {
   const key = String(codec ?? '').trim().toLowerCase();
@@ -29,8 +56,17 @@ export function codecName(codec) {
   return CODECS[key] ?? (key.startsWith('pcm') ? 'PCM' : key.toUpperCase());
 }
 
-const channelText = (n) => ({ 1: 'mono', 2: 'stéréo', 6: '5.1', 8: '7.1' })[n] ?? `${n} canaux`;
-const capitalize = (text) => (text ? text[0].toLocaleUpperCase('fr') + text.slice(1) : text);
+/** « stéréo », « 5.1 », « 3 canaux ». */
+export function channelText(n) {
+  switch (n) {
+    case 1: return tr('mono');
+    case 2: return tr('stéréo');
+    case 6: return '5.1';
+    case 8: return '7.1';
+    default: return tr('{n} canaux', { n });
+  }
+}
+const capitalize = (text) => (text ? text[0].toLocaleUpperCase(locale()) + text.slice(1) : text);
 
 /**
  * Menu text of a Jellyfin stream: its title, else its language ("Japonais"), else "Piste 2", numbered among the tracks
@@ -40,14 +76,17 @@ const capitalize = (text) => (text ? text[0].toLocaleUpperCase('fr') + text.slic
 export function trackText(stream, number = stream.Index) {
   const name = languageName(stream.Language);
   const title = String(stream.Title ?? '').trim();
-  const label = title || name || `Piste ${number}`;
+  const label = title || name || tr('Piste {n}', { n: number });
   const details = [];
-  if (title && name && !title.toLowerCase().includes(name.toLowerCase())) details.push(name);
+  // A title that names the language already, in the words of the page or in French (« French », « Français »): not twice.
+  const french = byCode.get(String(stream.Language ?? '').trim().split(/[-_]/)[0].toLowerCase());
+  const named = (word) => !!word && title.toLowerCase().includes(word.toLowerCase());
+  if (title && name && !named(name) && !named(french)) details.push(name);
   const format = codecName(stream.Codec);
   if (format) details.push(format);
   if (stream.Type === 'Audio' && stream.Channels > 0) details.push(channelText(stream.Channels));
-  if (stream.IsForced) details.push('forcés');
-  if (stream.IsExternal) details.push('fichier externe');
+  if (stream.IsForced) details.push(tr('forcés'));
+  if (stream.IsExternal) details.push(tr('fichier externe'));
   return { label: capitalize(label), details: details.join(' · ') };
 }
 
@@ -98,16 +137,40 @@ export function appleStream(address, source, subtitleIndex) {
 
 // ---------- Which tracks a title starts with ----------
 
-/** The language orders of Mira on Windows and Mac (Mira.Core PlayerSettings), with the same defaults. */
+/**
+ * « 4K · HDR10 », « 1080p », « SD », « 720p · Dolby Vision »: the picture of a file, from its first video stream, by width
+ * or height (a film cropped to 3840 × 1600 is still 4K); '' when unknown. As Mira.Core MediaQuality.Label (tests/fixtures/quality.json).
+ */
+export function qualityText(source) {
+  const video = (source?.MediaStreams ?? []).find((s) => s.Type === 'Video');
+  if (!video) return '';
+  const width = video.Width ?? 0, height = video.Height ?? 0;
+  const size = width >= 3800 || height >= 2000 ? '4K'
+    : width >= 2500 || height >= 1400 ? '1440p'
+      : width >= 1800 || height >= 1000 ? '1080p'
+        : width >= 1200 || height >= 700 ? '720p'
+          : width > 0 || height > 0 ? 'SD' : '';
+  const type = video.VideoRangeType ?? '';
+  const range = { HDR10: 'HDR10', HDR10Plus: 'HDR10+', HLG: 'HLG' }[type]
+    ?? (type.startsWith('DOVI') && type !== 'DOVIInvalid' ? 'Dolby Vision' : video.VideoRange === 'HDR' ? 'HDR' : '');
+  return [size, range].filter(Boolean).join(' · ');
+}
+
+/**
+ * The language orders of Mira on Windows and Mac (Mira.Core PlayerSettings), with the same defaults, plus those an
+ * English Mira starts with (« Japonais, puis anglais », « Anglais, puis français »).
+ */
 export const AUDIO_LANGUAGES = [
-  ['jpn,ja,fre,fra,fr,eng,en', 'Japonais, puis français'],
-  ['fre,fra,fr,eng,en', 'Français, puis anglais'],
-  ['eng,en,fre,fra,fr', 'Anglais, puis français'],
+  ['jpn,ja,fre,fra,fr,eng,en', tr('Japonais, puis français')],
+  ['jpn,ja,eng,en,fre,fra,fr', tr('Japonais, puis anglais')],
+  ['fre,fra,fr,eng,en', tr('Français, puis anglais')],
+  ['eng,en,fre,fra,fr', tr('Anglais, puis français')],
 ];
 export const SUBTITLE_LANGUAGES = [
-  ['fre,fra,fr,eng,en', 'Français, puis anglais'],
-  ['eng,en', 'Anglais'],
-  ['jpn,ja', 'Japonais'],
+  ['fre,fra,fr,eng,en', tr('Français, puis anglais')],
+  ['eng,en,fre,fra,fr', tr('Anglais, puis français')],
+  ['eng,en', tr('Anglais')],
+  ['jpn,ja', tr('Japonais')],
 ];
 
 /** One key per language, whatever its code: « fre », « fra » and « fr » are all French. */
@@ -171,7 +234,11 @@ export function trackMemory(source, audioIndex, subtitleIndex) {
   const streams = source?.MediaStreams ?? [];
   const audio = streams.find((s) => s.Type === 'Audio' && s.Index === audioIndex);
   const subtitle = streams.find((s) => s.Type === 'Subtitle' && s.Index === subtitleIndex);
-  return { audio: audio?.Language ?? null, subtitle: subtitle ? subtitle.Language ?? 'und' : null, forced: !!subtitle?.IsForced };
+  // Their names too, as Windows and Mac keep them (« Complet », « Panneaux »): the choice goes to them (choices.js).
+  return {
+    audio: audio?.Language ?? null, subtitle: subtitle ? subtitle.Language ?? 'und' : null, forced: !!subtitle?.IsForced,
+    audioTitle: audio?.Title || null, subtitleTitle: subtitle?.Title || null,
+  };
 }
 
 /** Tracks chosen on the title page, from the player's address (« ?audio=2&sous-titres=-1 »); null when none. */

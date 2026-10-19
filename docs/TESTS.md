@@ -23,7 +23,7 @@ dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release -- 
 dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release -- --list             # leurs noms, sans les lancer
 ```
 
-**`tests/Mira.Core.Tests`** (`net10.0`) : un fichier par thème (`ConnectionTests`, `LibraryTests`, `SyncTests`, `PlayerTests`, `UpdateTests`, `SupplyChainTests`, `TorLinkTests`, `PhoneTests`, `AccessibilityTests`), réunis par `PortableTests`. Il référence Mira.Core et compile aussi, par lien, les fichiers des autres projets qui ne dépendent ni de WPF ni de Jellyfin : `UpdateApplier`, `UpdateLock`, `Updater`, `MetadataCache` et `ShellRegistration` de l’app Windows, `HlsPlaylists`, `ContentPolicy` et `WebFiles` de l’extension, `Profile` de l’app Mac (le trousseau y est remplacé par un substitut). Sous Linux et macOS, un fichier « retenu » par `FileShare.None` ne se teste pas : ce n’y est qu’un verrou consultatif.
+**`tests/Mira.Core.Tests`** (`net10.0`) : un fichier par thème (`ConnectionTests`, `LibraryTests`, `SyncTests`, `PlayerTests`, `UpdateTests`, `SupplyChainTests`, `TorLinkTests`, `RemoteDownloadTests`, `PhoneTests`, `AccessibilityTests`), réunis par `PortableTests`. Il référence Mira.Core et compile aussi, par lien, les fichiers des autres projets qui ne dépendent ni de WPF ni de Jellyfin : `UpdateApplier`, `UpdateLock`, `Updater`, `MetadataCache` et `ShellRegistration` de l’app Windows, `HlsPlaylists`, `ContentPolicy`, `WebFiles` et `TorLinkRelay` de l’extension, `Profile` de l’app Mac (le trousseau y est remplacé par un substitut). Sous Linux et macOS, un fichier « retenu » par `FileShare.None` ne se teste pas : ce n’y est qu’un verrou consultatif.
 
 **`tests/Mira.Tests`** (`net10.0-windows`, WPF) compile tous les fichiers de `tests/Mira.Core.Tests` sauf son `Program.cs`, les lance d’abord, puis ceux qui ne passent que sous Windows : chemins, liens physiques, DPAPI, pare-feu et script élevé (sans élévation : le runner de la CI est administrateur), contrôles WPF (`Program.cs`, `DesktopSupplyChainTests.cs`). Options :
 
@@ -39,7 +39,7 @@ dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release -- 
 
 ## Mira web
 
-**Tests Node** (`tools/web/unit/*.test.mjs`, `node:test`, sans dépendance) : cascade de secours et adresses des flux (`stream.js`), passages, épisode suivant et trickplay (`timeline.js`), plein écran d’Apple (`presentation.js`), noms et choix des pistes (`tracks.js`).
+**Tests Node** (`tools/web/unit/*.test.mjs`, `node:test`, sans dépendance) : cascade de secours et adresses des flux (`stream.js`), passages (chapitres compris, mêmes cas que Mira.Core dans `tests/fixtures/chapters.json`), épisode suivant et trickplay (`timeline.js`), plein écran d’Apple (`presentation.js`), noms et choix des pistes (`tracks.js`), « En ce moment sur Jellyfin » (`viewers.js`, mêmes cas que Mira.Core dans `tests/fixtures/viewers.json`), versions et points de « Nouveau dans Mira » (`whats-new.js`, mêmes cas que `WhatsNew.Since` dans `tests/fixtures/whats-new.json`), recherches et liens magnet de « Télécharger sur le PC serveur » (`torlink.js`, mêmes cas que `RemoteDownloads` dans `tests/fixtures/torlink-remote.json`).
 
 ```bash
 node --test tools/web/unit/*.test.mjs
@@ -57,15 +57,22 @@ PLAYWRIGHT=<.../playwright/index.mjs> node tools/web/check.mjs <url /Mira/> <use
 safaridriver -p 4444 &  node tools/web/safari.mjs <url /Mira/> <user> <mdp> <dossier>   # Mac ; MIRA_FORMATS=1 pour les formats
 ```
 
-`check.mjs` parcourt Mira web dans Chromium à la taille d’un iPhone (connexion, chaque écran, lecture en WebM, reprise, pistes, déconnexion, sécurité, robustesse) et simule le lecteur d’Apple ; avec `MIRA_STOP` et `MIRA_START` (commandes qui arrêtent et relancent Jellyfin), il ouvre aussi Mira serveur éteint. `safari.mjs` vérifie la lecture HLS et le vrai lecteur d’Apple dans Safari. Pour servir Mira web depuis le disque sans recompiler l’extension, lance Jellyfin avec `MIRA_WEB_DIR=<chemin de src/Mira.Web>` (la page n’est alors pas gardée : « serveur éteint » se teste avec l’extension compilée).
+`check.mjs` parcourt Mira web dans Chromium à la taille d’un iPhone (connexion, chaque écran, lecture en WebM, reprise, épisodes à voir sur l’affiche, bibliothèque d’animés à part, qualité et heure de fin sur la fiche, saga faite par Jellyfin, rangée Bonus, pistes, intro d’après les chapitres, choix gardés sur Jellyfin et retrouvés sur un autre téléphone, téléchargement sur le PC serveur avec un faux Mira pour Windows au relais de l’extension, déconnexion, sécurité, robustesse) et simule le lecteur d’Apple (épisode suivant dans le même plein écran, et dès le générique de fin d’après les chapitres) ; avec `MIRA_STOP` et `MIRA_START` (commandes qui arrêtent et relancent Jellyfin), il ouvre aussi Mira serveur éteint. `safari.mjs` vérifie la lecture HLS et le vrai lecteur d’Apple dans Safari. Pour servir Mira web depuis le disque sans recompiler l’extension, lance Jellyfin avec `MIRA_WEB_DIR=<chemin de src/Mira.Web>` (la page n’est alors pas gardée : « serveur éteint » se teste avec l’extension compilée).
+
+« Lecture impossible » : `check.mjs` coupe chaque flux d’un titre ; l’écran doit dire ce que contient le fichier et chaque essai, et le rapport « Envoyer le détail à Jellyfin » est relu dans les journaux de Jellyfin (`System/Logs`), sans jeton ni dossier.
+
+Reprise un peu avant : `check.mjs` arrête un titre à 34 s ; il doit reprendre 5 s avant, puis pile au point d’arrêt une fois « Non » choisi dans **Reprendre un peu avant**.
+
+Sous-titres gardés sur Jellyfin : `check.mjs` simule l’extension de sous-titres de Jellyfin (`Items/{id}/RemoteSearch/Subtitles`) ; la feuille doit lister ses résultats par langue, garder le fichier choisi sur Jellyfin et le proposer à la lecture.
 
 ## Harnais des applications
 
-Ils sont compilés dans l’application et ne tournent qu’avec un profil isolé (`--data`), le plus souvent avec la démo (`--demo`). Chacun écrit son résultat dans son dossier de sortie.
+Ils sont dans `src/Mira.Desktop/Checks` et ne tournent qu’avec un profil isolé (`--data`), le plus souvent avec la démo (`--demo`). Chacun écrit son résultat dans son dossier de sortie. `dotnet build` les compile (propriété `MiraValidation`, vraie par défaut) ; les paquets (`tools/package.ps1`) et `dist/Mira` (`tools/publish.ps1`) sont construits avec `-p:MiraValidation=false` : ces options y ferment Mira aussitôt (code 2), et `package.ps1` refuse un `Mira.dll` qui contient encore les harnais.
 
 | Commande | Ce qu’elle vérifie |
 | --- | --- |
 | `Mira.exe --demo --data <profil> --public-gallery <dossier>` | les 14 captures de la galerie (`gallery-result.txt`) ; `tools/capture-gallery.ps1` les copie dans `docs/screenshots` |
+| `Mira.exe --data <profil> --readme-gallery <dossier>` | les captures du README, la vraie fenêtre connectée au Jellyfin de `MIRA_GALLERY_SERVER` (`_USER`, `_PASSWORD`), au double de sa taille ; lancé par `gallery.yml` après `tools/gallery/media.sh` et `setup.mjs` (films libres, affiches de TMDb), avec `tools/gallery/web.mjs` pour Mira web |
 | `Mira.exe --demo --data <profil> --visual-check <dossier>` | rendus, disposition et mouvements (`result.txt`, `layout.txt`, `motion-checks.txt`) |
 | `Mira.exe --demo --data <profil> --test-media <vidéo> --player-check <dossier>` | le vrai lecteur : modes, plein écran, menus, raccourcis (`--perf-probe` mesure en plus les images par seconde) |
 | `Mira.exe … --windows-check <dossier>` | session multimédia de Windows et vrai mpv (`failure.txt` si la fenêtre ne se crée pas) |

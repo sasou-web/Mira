@@ -1,5 +1,7 @@
 // What Mira keeps on this phone: the Jellyfin session (never the password), this device's id and the settings.
 // A home screen app has its own storage, apart from Safari's: one sign-in there, once.
+import { tr } from './i18n.js';
+import { defaultAudioLanguages, defaultSubtitleLanguages } from './choices.js';
 
 const SESSION = 'mira.session', DEVICE = 'mira.device', SETTINGS = 'mira.settings';
 
@@ -35,13 +37,22 @@ export const temp = {
   remove(key) { notes.delete(key); try { sessionStorage.removeItem(key); } catch { /* blocked: only in memory */ } },
 };
 
+/** Told when the session ends (« out »): what lives on in the page for the account (a group, together.js) goes too. */
+export const signedOut = new EventTarget();
 /** { userId, userName, token, serverId, serverName } once signed in. */
 export const session = {
   current: read(SESSION, null),
   set(value) { this.current = value; write(SESSION, value); },
   /** Signed out (here, or by Jellyfin): nothing of the account stays on this phone, see forgetAccount. */
-  clear() { this.current = null; write(SESSION, null); forgetAccount(); },
+  clear() { this.current = null; write(SESSION, null); forgetAccount(); signedOut.dispatchEvent(new Event('out')); },
 };
+
+/** « Windows » or « Mac » on a computer, where Mira has an app that opens mira:// links (« Ouvrir dans Mira »); else null. */
+export function computerApp() {
+  const ua = navigator.userAgent;
+  if (/Windows NT/.test(ua)) return 'Windows';
+  return /Macintosh/.test(ua) && navigator.maxTouchPoints <= 1 ? 'Mac' : null;
+}
 
 /** iPhone, iPad, Android or the browser's name: how Jellyfin's dashboard lists this device. */
 function deviceName() {
@@ -53,7 +64,7 @@ function deviceName() {
   if (/Edg\//.test(ua)) return 'Edge';
   if (/Chrome\//.test(ua)) return 'Chrome';
   if (/Safari\//.test(ua)) return 'Safari';
-  return 'Navigateur';
+  return tr('Navigateur');
 }
 
 function deviceId() {
@@ -73,9 +84,10 @@ const defaults = {
   quality: 'auto',      // 'auto', 'max' or a bitrate in bits per second
   autoNext: true,       // the next episode starts by itself
   resume: true,         // a title resumes where it was left
+  resumeBack: 5,        // seconds it resumes before that point (« Reprendre un peu avant »), as Mira on Windows and Mac
   subtitleSize: 100,    // percent, for subtitles drawn by Mira (Apple's player follows iOS's own settings)
-  audioLanguages: 'jpn,ja,fre,fra,fr,eng,en', // as Mira on Windows and Mac
-  subtitleLanguages: 'fre,fra,fr,eng,en',
+  audioLanguages: defaultAudioLanguages(), // as Mira on Windows and Mac: in Mira's language until one is chosen
+  subtitleLanguages: defaultSubtitleLanguages(),
   autoSkip: false,      // openings and recaps skipped without a tap (Apple's player has no room for the button)
   seriesTracks: {},     // series id → { audio, subtitle, forced }: the languages last chosen for it
   nativePlayer: null,   // null: Apple's player on iPhone and iPad; true or false forces it (Safari's check)
@@ -83,18 +95,23 @@ const defaults = {
   recentSearches: [],
   hiddenResume: {},     // id → time removed from Continuer à regarder
   installHintDismissed: false,
+  homeRows: '',         // the home page's rows, in order, « - » before one put away (home-rows.js); empty: as Mira shows them
   textSize: 100,        // percent: Mira's text, for whoever finds it small (the bars' labels and the icons keep theirs)
+  seenVersion: '',      // the last Mira web whose « Nouveau dans Mira » this device saw (whats-new.js); empty: none yet
+  language: '',         // '' (the browser's), 'en' or 'fr': read by i18n.js before anything, this device only
 };
 
+/** Told of each setting changed (« change », its key as detail): by Réglages, the player, or Jellyfin (account-choices.js). */
+export const settingsChanged = new EventTarget();
 export const settings = {
   values: { ...defaults, ...read(SETTINGS, {}) },
   get(key) { return this.values[key]; },
-  set(key, value) { this.values[key] = value; write(SETTINGS, this.values); },
+  set(key, value) { this.values[key] = value; write(SETTINGS, this.values); settingsChanged.dispatchEvent(new CustomEvent('change', { detail: key })); },
 };
 
 // What Mira keeps of the account signed in, beside its session: its screens as last shown (home, Films and Séries,
-// by user) and, in the settings, what it did with its titles. This device's id and its settings stay.
-const ACCOUNT_KEYS = /^mira\.(home|library)\./;
+// by user), the times of its choices kept on Jellyfin (account-choices.js) and, in the settings, what it did with its titles. This device's id and its settings stay.
+const ACCOUNT_KEYS = /^mira\.(home|library|choices)\./;
 const ACCOUNT_SETTINGS = ['recentSearches', 'hiddenResume', 'seriesTracks'];
 function forgetAccount() {
   try {

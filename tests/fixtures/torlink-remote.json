@@ -1,0 +1,41 @@
+{
+ "about": "« Télécharger sur le PC serveur »: what a search or a magnet link sent from Mira web may be. Read by tests/Mira.Core.Tests (RemoteDownloads, which the extension's relay and Mira for Windows use) and tools/web/unit (js/torlink.js): both must agree. magnets: [link, info hash or null]. queries: [typed, sent to TorLink or null]. names: [link, its name or null].",
+ "magnets": [
+  ["magnet:?xt=urn:btih:C12FE1C06BBA254A9DC9F519B335AA7C1367A88A&dn=Dune", "c12fe1c06bba254a9dc9f519b335aa7c1367a88a"],
+  ["  magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a  ", "c12fe1c06bba254a9dc9f519b335aa7c1367a88a"],
+  ["MAGNET:?XT=URN:BTIH:c12fe1c06bba254a9dc9f519b335aa7c1367a88a", "c12fe1c06bba254a9dc9f519b335aa7c1367a88a"],
+  ["magnet:?dn=Dune&tr=udp%3A%2F%2Ftracker.example%3A1337&xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a", "c12fe1c06bba254a9dc9f519b335aa7c1367a88a"],
+  ["magnet:?xt=urn:btih:YEX6DQDLXISUVHOJ6UM3GNNKPQJWPKEK&dn=Dune", "c12fe1c06bba254a9dc9f519b335aa7c1367a88a"],
+  ["magnet:?xt=urn:btih:yex6dqdlxisuvhoj6um3gnnkpqjwpkek", "c12fe1c06bba254a9dc9f519b335aa7c1367a88a"],
+  ["magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a0", null],
+  ["magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88", null],
+  ["magnet:?xt=urn:btmh:1220c12fe1c06bba254a9dc9f519b335aa7c1367a88ac12fe1c06bba254a9dc9f519", null],
+  ["magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=a\nb", null],
+  ["https://example.test/?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a", null],
+  ["magnet:xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a", null],
+  ["magnet:?axt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a", null],
+  ["magnet:?xt=urn:btih:", null],
+  ["", null]
+ ],
+ "queries": [
+  ["  dune   part two ", "dune part two"],
+  ["--dune part two", "dune part two"],
+  ["- -x", "x"],
+  [" -- --help", "help"],
+  ["\tfilm\u0000suite\n", "film suite"],
+  ["Amélie (2001)", "Amélie (2001)"],
+  ["Spider-Man: No Way Home", "Spider-Man: No Way Home"],
+  ["---", null],
+  ["   ", null],
+  ["", null],
+  ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+  ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa b", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+ ],
+ "names": [
+  ["magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=Dune+Part+Two+2024", "Dune Part Two 2024"],
+  ["magnet:?dn=Am%C3%A9lie%20(2001)&xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a", "Amélie (2001)"],
+  ["magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=a%0Ab", "a b"],
+  ["magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&DN=%20%20", null],
+  ["magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a", null]
+ ]
+}

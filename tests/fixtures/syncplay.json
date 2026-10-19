@@ -1,0 +1,122 @@
+{
+  "about": "« Regarder ensemble » (Jellyfin's SyncPlay), as Jellyfin 12.1 sends it. Read by tools/web/unit (src/Mira.Web/js/player/sync.js) and tests/Mira.Core.Tests (Together.cs). times: [Jellyfin's date, milliseconds since 1970]; clock: [answers of GetUtcTime as {sent, received, serverIn, serverOut} (milliseconds), offset, round trip]; commands: [offset, now, SyncPlayCommand, plan]; queue: [PlayQueue update, item]; groups: [group, words]; invites: [address of Jellyfin for the friend, group, its host (who made it) or null, link of the invitation, what it says under the link]; appLinks: [address, group, host or null, link for Mira on a computer (Together.ParseAppLink reads it back)]; badAppLinks: links Mira for Windows and Mac refuse; hosts: [group name, who made it]; finds: [Jellyfin's groups, group of the invitation, its host, the group it means or null]; rejoins: [Jellyfin's groups, the group this device was in, made here, what it does to go back] names: [participants, line]; statuses: [group, this account's name, loading here, what the player's pill and the title page say] (Jellyfin never says who a wait or a pause is for); replaces: [group, its title (queue), the title Lecture starts, asked first]; titles: [item, as a question names it]; playLabels: [episode code, resumed at (seconds), the group's own title, Lecture's label in a group]; questions: [the group's title, the question].",
+  "times": [
+    ["2026-10-14T14:48:08.5712105Z", 1791989288571],
+    ["2026-10-14T14:48:08Z", 1791989288000],
+    ["2026-10-14T14:48:08.5Z", 1791989288500]
+  ],
+  "clock": [
+    [[{"sent": 1000, "received": 1100, "serverIn": 5040, "serverOut": 5050}, {"sent": 2000, "received": 2030, "serverIn": 6010, "serverOut": 6020}], 4000, 20],
+    [[{"sent": 1000, "received": 1000, "serverIn": 900, "serverOut": 900}], -100, 0],
+    [[{"sent": 1000, "received": 990, "serverIn": 0, "serverOut": 0}], null, null]
+  ],
+  "commands": [
+    [0, 1791989287571, {"Command": "Unpause", "When": "2026-10-14T14:48:08.5712105Z", "PositionTicks": 100000000, "PlaylistItemId": "0a93a15fa6364646a5c9b858aa636ae4"}, {"action": "play", "wait": 1000, "position": 10}],
+    [0, 1791989290571, {"Command": "Unpause", "When": "2026-10-14T14:48:08.5712105Z", "PositionTicks": 100000000}, {"action": "play", "wait": 0, "position": 12}],
+    [4000, 1791989283571, {"Command": "Unpause", "When": "2026-10-14T14:48:08.5712105Z", "PositionTicks": 0}, {"action": "play", "wait": 1000, "position": 0}],
+    [0, 1791989287571, {"Command": "Pause", "When": "2026-10-14T14:48:11.4726549Z", "PositionTicks": 10695987}, {"action": "pause", "wait": 0, "position": 1.0695987}],
+    [0, 1791989287571, {"Command": "Seek", "When": "2026-10-14T14:48:12.2997867Z", "PositionTicks": 100000000}, {"action": "seek", "wait": 0, "position": 10}],
+    [0, 1791989287571, {"Command": "Stop", "When": "2026-10-14T14:47:38.9709653Z", "PositionTicks": 0, "PlaylistItemId": "00000000000000000000000000000000"}, {"action": "stop", "wait": 0, "position": 0}],
+    [0, 1791989287571, {"Command": "Rewind", "PositionTicks": 0}, null]
+  ],
+  "queue": [
+    [{"Reason": "NewPlaylist", "LastUpdate": "2026-10-14T14:48:06.6748072Z", "Playlist": [{"ItemId": "90892981f28a0ccb86a6e55a3a0039c6", "PlaylistItemId": "0a93a15fa6364646a5c9b858aa636ae4"}], "PlayingItemIndex": 0, "StartPositionTicks": 37230000, "IsPlaying": false, "ShuffleMode": "Sorted", "RepeatMode": "RepeatNone"},
+     {"itemId": "90892981f28a0ccb86a6e55a3a0039c6", "playlistItemId": "0a93a15fa6364646a5c9b858aa636ae4", "startTicks": 37230000}],
+    [{"Reason": "RemoveItems", "Playlist": [], "PlayingItemIndex": -1, "StartPositionTicks": 0}, null]
+  ],
+  "groups": [
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Idle", "Participants": ["mira"]}, "Groupe de mira · 1 personne"],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Soirée", "State": "Playing", "Participants": ["mira", "léa", "sam"]}, "Soirée · 3 personnes"]
+  ],
+  "appLinks": [
+    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", null, "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096"],
+    ["https://films.example.org/jellyfin/", "74644121-30f5-4334-a8a1-4638f0060cd6", null, "mira://ensemble/74644121-30f5-4334-a8a1-4638f0060cd6?server=https%3A%2F%2Ffilms.example.org%2Fjellyfin"],
+    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", "léa", "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096&hote=l%C3%A9a"],
+    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", "Marc D", "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096&hote=Marc%20D"]
+  ],
+  "badAppLinks": [
+    "http://100.101.102.103:8096/Mira/#/ensemble/7464412130f54334a8a14638f0060cd6",
+    "mira://autre/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096",
+    "mira://ensemble/pas-un-groupe?server=http%3A%2F%2F100.101.102.103%3A8096",
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6",
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=javascript%3Aalert(1)",
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=file%3A%2F%2F%2FC%3A%2FWindows",
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2Fmoi%3Asecret%40films.example.org",
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096&hote=",
+    "mira://ensemble/7464412130f54334a8a14638f0060cd6?server=http%3A%2F%2F100.101.102.103%3A8096&hote=l%C3%A9a%0A"
+  ],
+  "invites": [
+    ["http://100.101.102.103:8096", "7464412130f54334a8a14638f0060cd6", "mira", "http://100.101.102.103:8096/Mira/#/ensemble/7464412130f54334a8a14638f0060cd6?hote=mira", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).", "Hors de chez toi, il lui faut Tailscale : partage-lui l’ordinateur de Jellyfin (login.tailscale.com → Machines → … → Share), il accepte avec son compte Tailscale gratuit.", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]],
+    ["http://192.168.1.20:8096/", "7464412130f54334a8a14638f0060cd6", "léa", "http://192.168.1.20:8096/Mira/#/ensemble/7464412130f54334a8a14638f0060cd6?hote=l%C3%A9a", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).", "Ce lien ne marche que sur ton Wi-Fi. Pour un ami ailleurs, installe Tailscale sur l’ordinateur de Jellyfin (Mira pour Windows : Guide → Mira sur ton téléphone).", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]],
+    ["https://films.example.org/jellyfin", "74644121-30f5-4334-a8a1-4638f0060cd6", null, "https://films.example.org/jellyfin/Mira/#/ensemble/74644121-30f5-4334-a8a1-4638f0060cd6", ["Ton ami ouvre ce lien sur son téléphone ou son ordinateur et se connecte avec son propre compte Jellyfin : il est alors dans le groupe. S’il a Mira sur son ordinateur, « Ouvrir dans Mira » l’y fait rejoindre.", "Pas encore de compte ? Crée-le-lui dans Mira pour Windows : Réglages → Jellyfin → Ajouter un ami, avec seulement les bibliothèques que tu choisis (ou dans Jellyfin : tableau de bord → Utilisateurs → +).", "Quand il est là, le groupe compte une personne de plus : lance le titre, il démarre chez vous deux au même moment."]]
+  ],
+  "hosts": [
+    ["Groupe de mira", "mira"],
+    ["Groupe de Marc D", "Marc D"],
+    ["Soirée", null],
+    ["Groupe de ", null]
+  ],
+  "finds": [
+    [[{"GroupId": "74644121-30f5-4334-a8a1-4638f0060cd6", "GroupName": "Groupe de mira", "Participants": ["mira"]}], "7464412130f54334a8a14638f0060cd6", "mira", "74644121-30f5-4334-a8a1-4638f0060cd6"],
+    [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de mira", "Participants": ["mira"]}], "7464412130f54334a8a14638f0060cd6", "mira", "b61818a0ff7c4c6eb39e2b73b85f3bcc"],
+    [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de mira", "Participants": ["mira"]}], "7464412130f54334a8a14638f0060cd6", null, null],
+    [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de léa", "Participants": ["léa"]}], "7464412130f54334a8a14638f0060cd6", "mira", null],
+    [[{"GroupId": "11111111111111111111111111111111", "GroupName": "Groupe de mira", "Participants": ["léa", "sam"]}, {"GroupId": "22222222222222222222222222222222", "GroupName": "Groupe de mira", "Participants": ["mira"]}], "7464412130f54334a8a14638f0060cd6", "mira", "22222222222222222222222222222222"],
+    [[{"GroupId": "11111111111111111111111111111111", "GroupName": "Groupe de mira", "Participants": ["léa"]}, {"GroupId": "22222222222222222222222222222222", "GroupName": "Groupe de mira", "Participants": ["léa", "sam"]}], "7464412130f54334a8a14638f0060cd6", "mira", "22222222222222222222222222222222"],
+    [[], "7464412130f54334a8a14638f0060cd6", "mira", null]
+  ],
+  "rejoins": [
+    [[{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "Participants": ["léa"]}], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, false, {"join": "7464412130f54334a8a14638f0060cd6"}],
+    [[], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, true, {"create": "Groupe de mira"}],
+    [[], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, false, null],
+    [[{"GroupId": "b61818a0ff7c4c6eb39e2b73b85f3bcc", "GroupName": "Groupe de mira", "Participants": ["mira"]}], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira"}, true, {"join": "b61818a0ff7c4c6eb39e2b73b85f3bcc"}],
+    [[], {"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Soirée"}, true, {"create": "Soirée"}]
+  ],
+  "names": [
+    [[], ""],
+    [["mira"], "mira"],
+    [["mira", "Marc"], "mira et Marc"],
+    [["mira", "Marc", "Léa"], "mira, Marc et Léa"],
+    [["mira", "Marc", "Léa", "sam", "Zoé"], "mira, Marc et 3 autres"]
+  ],
+  "statuses": [
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Idle", "Participants": ["mira"]}, "mira", false, {"text": "Ensemble · personne d’autre pour l’instant", "alert": false}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, "mira", false, {"text": "Ensemble · mira et Marc", "alert": false}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc", "Léa"]}, "MIRA", false, {"text": "Ensemble · mira, Marc et Léa", "alert": false}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, "mira", false, {"text": "On attend Marc…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, "Marc", false, {"text": "On attend mira…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc", "Léa"]}, "mira", false, {"text": "On attend quelqu’un du groupe…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, "mira", true, {"text": "Chargement pour le groupe…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira"]}, "mira", false, {"text": "Chargement pour le groupe…", "alert": true}],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Paused", "Participants": ["mira", "Marc"]}, "mira", false, {"text": "En pause pour le groupe", "alert": true}]
+  ],
+  "replaces": [
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "matrix", true],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Paused", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "matrix", true],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Waiting", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "matrix", true],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Idle", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "matrix", false],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, {"itemId": "dune", "playlistItemId": "p1", "startTicks": 0}, "dune", false],
+    [{"GroupId": "7464412130f54334a8a14638f0060cd6", "GroupName": "Groupe de mira", "State": "Playing", "Participants": ["mira", "Marc"]}, null, "matrix", false],
+    [null, null, "matrix", false]
+  ],
+  "titles": [
+    [{"Type": "Movie", "Name": "Dune"}, "Dune"],
+    [{"Type": "Episode", "Name": "Secrets", "SeriesName": "Dark", "ParentIndexNumber": 1, "IndexNumber": 3}, "Dark · S1 · É3"],
+    [{"Type": "Episode", "Name": "Pilote", "SeriesName": "Dark"}, "Dark"],
+    [{"Type": "Episode", "Name": "Pilote"}, "Pilote"]
+  ],
+  "playLabels": [
+    [{"code": "", "resumeAt": 0, "groupTitle": false}, "Lancer pour le groupe"],
+    [{"code": "", "resumeAt": 2520, "groupTitle": false}, "Reprendre pour le groupe à 42 min"],
+    [{"code": "", "resumeAt": 3930, "groupTitle": false}, "Reprendre pour le groupe à 1 h 05"],
+    [{"code": "", "resumeAt": 30.6, "groupTitle": false}, "Reprendre pour le groupe à 30 s"],
+    [{"code": "S1 · É3", "resumeAt": 0, "groupTitle": false}, "Lancer S1 · É3 pour le groupe"],
+    [{"code": "S1 · É3", "resumeAt": 600, "groupTitle": false}, "Reprendre S1 · É3 pour le groupe"],
+    [{"code": "", "resumeAt": 600, "groupTitle": true}, "Regarder avec le groupe"]
+  ],
+  "questions": [
+    ["Dune", "Remplacer « Dune » pour tout le groupe ?"],
+    ["", "Remplacer le titre du groupe ?"],
+    [null, "Remplacer le titre du groupe ?"]
+  ]
+}

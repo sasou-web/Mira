@@ -1,6 +1,7 @@
 // What the player asks Jellyfin for, and what it does when a stream fails: plain functions of their inputs, no page,
 // no video, no timer, so that Node can test them (tools/web/unit). player.js holds the state and does the rest.
 import { appleStream } from './tracks.js';
+import { tr } from '../i18n.js';
 
 // ---------- Bitrate ----------
 
@@ -11,18 +12,27 @@ export const UNMEASURED_BITRATE = 8_000_000;
 /** How long a measure of the connection is kept. */
 export const MEASURE_KEPT = 60 * 60_000;
 
+/** A connection that holds this many times the file's bitrate plays the file as it is. */
+export const FULL_MARGIN = 1.5;
+
 /**
  * The bitrate known without measuring: the one chosen in the settings, full quality (« Maximale », or at home on
- * « Automatique »), or a measure still fresh; null when the connection must be measured.
+ * « Automatique »), or what a measure still fresh allows for this file (autoBitrate); null when the connection must
+ * be measured. measure: { at, speed } (bits per second).
  */
-export function knownBitrate(choice, { atHome = false, measure = null, now = Date.now() } = {}) {
+export function knownBitrate(choice, { atHome = false, measure = null, now = Date.now(), fileBitrate = 0 } = {}) {
   if (typeof choice === 'number') return choice;
   if (choice === 'max' || atHome) return FULL_BITRATE;
-  if (measure && now - measure.at < MEASURE_KEPT) return measure.value;
+  if (measure && now - measure.at < MEASURE_KEPT) return autoBitrate(measure.speed, fileBitrate);
   return null;
 }
-/** What a measured speed (bits per second) allows: 70 % of it, between 1.5 and 40 Mb/s. */
+/** What a measured speed (bits per second) allows for a conversion: 70 % of it, between 1.5 and 40 Mb/s. */
 export const measuredBitrate = (measured) => Math.max(1_500_000, Math.min(40_000_000, Math.round(measured * 0.7)));
+/**
+ * « Automatique » with a measure: full quality, the file as it is (a 4K film or a remux above 40 Mb/s too), when the
+ * connection holds about one and a half times its bitrate; else what the measure allows (measuredBitrate), converted.
+ */
+export const autoBitrate = (speed, fileBitrate) => (fileBitrate > 0 && speed >= fileBitrate * FULL_MARGIN ? FULL_BITRATE : measuredBitrate(speed));
 
 // ---------- The cascade: a stream the player refused, asked again with more of it converted ----------
 // Stage 0: as Jellyfin decides (the file as it is when it can, its video or audio copied into HLS); 1: its video
@@ -41,14 +51,17 @@ export const stageRequest = (stage) => ({
 
 /** The stage in the message of a failed stream. */
 export function stageText(stage, playMethod = '') {
-  if (playMethod === 'DirectPlay') return 'fichier lu tel quel';
-  return stage === 0 ? 'conversion de Jellyfin' : stage === 1 ? 'vidéo convertie' : 'tout converti';
+  if (playMethod === 'DirectPlay') return tr('fichier lu tel quel');
+  return stage === 0 ? tr('conversion de Jellyfin') : stage === 1 ? tr('vidéo convertie') : tr('tout converti');
 }
-/** The detail under « Lecture impossible » for an error of the <video>. */
-export const videoErrorText = ({ code, message, playMethod, stage }) =>
-  `Erreur ${code ?? '?'}${message ? ` : ${message}` : ''} (${stageText(stage, playMethod)}).`;
+/** An error of the <video>: « Erreur 4 : … ». */
+export const videoError = ({ code, message }) =>
+  (message ? tr('Erreur {code} : {message}', { code: code ?? '?', message }) : tr('Erreur {code}', { code: code ?? '?' }));
+/** The detail under « Lecture impossible » for an error of the <video>, with the stage it came at. */
+export const videoErrorText = ({ code, message, playMethod, stage }) => `${videoError({ code, message })} (${stageText(stage, playMethod)}).`;
 /** The same for a fatal error of hls.js. */
-export const hlsErrorText = ({ details, type, stage }) => `Erreur ${details ?? type} (${stageText(stage)}).`;
+export const hlsError = ({ details, type }) => tr('Erreur {code}', { code: details ?? type });
+export const hlsErrorText = ({ details, type, stage }) => `${hlsError({ details, type })} (${stageText(stage)}).`;
 
 /**
  * An error of the <video>. A file Safari was thought to play directly but cannot (3: decode, 4: format): converted
@@ -81,12 +94,12 @@ export const resumeTicks = ({ streamPlaying, progressive, positionTicks, current
 // ---------- The stream Jellyfin offers ----------
 
 const ERRORS = {
-  NotAllowed: 'Ton compte Jellyfin n’a pas le droit de lire ce titre.',
-  NoCompatibleStream: 'Jellyfin ne sait pas convertir ce fichier pour cet appareil.',
-  RateLimitExceeded: 'Le serveur a atteint sa limite de lectures simultanées.',
+  NotAllowed: () => tr('Ton compte Jellyfin n’a pas le droit de lire ce titre.'),
+  NoCompatibleStream: () => tr('Jellyfin ne sait pas convertir ce fichier pour cet appareil.'),
+  RateLimitExceeded: () => tr('Le serveur a atteint sa limite de lectures simultanées.'),
 };
 /** The message for PlaybackInfo's ErrorCode. */
-export const playbackError = (code) => ERRORS[code] ?? 'Jellyfin n’a pas pu préparer ce titre pour cet appareil.';
+export const playbackError = (code) => (Object.hasOwn(ERRORS, code) ? ERRORS[code]() : tr('Jellyfin n’a pas pu préparer ce titre pour cet appareil.'));
 
 /**
  * Why Jellyfin converts, as its address says (TranscodeReasons): none of these, and the video is copied as it is
@@ -139,8 +152,23 @@ export const webVttAddress = (deliveryUrl) => deliveryUrl.replace(/\/Stream\.(as
 
 /** How far a title was watched, 0 to 1. */
 export const progressFraction = (x) => (x.RunTimeTicks ? (x.UserData?.PlaybackPositionTicks ?? 0) / x.RunTimeTicks : 0);
-/** Where a title starts (ticks): where it was left, unless asked from the start, resuming is off, or it was nearly done. */
-export function startPosition(item, { fromStart, resume }) {
+/** The choices of « Reprendre un peu avant », in seconds; 0 resumes exactly where the title was left. */
+export const RESUME_BACK = [0, 5, 10, 15];
+/** Under this much watched (seconds), a title resumes exactly where it was left. */
+export const RESUME_BACK_FROM = 30;
+/**
+ * « Reprendre un peu avant » (seconds): `back` seconds before where the title was left, to pick up the thread rather
+ * than land mid-sentence; exactly there under RESUME_BACK_FROM. As Mira.Core PlaybackSession.ResumeBack
+ * (tests/fixtures/resume.json).
+ */
+export const resumeBack = (position, back) => (!(back > 0) || position < RESUME_BACK_FROM ? position : Math.max(0, position - back));
+/**
+ * Where a title starts (ticks): where it was left, `back` seconds before (resumeBack), unless asked from the start,
+ * resuming is off, or it was nearly done.
+ */
+export function startPosition(item, { fromStart, resume, back = 0 }) {
   const fraction = progressFraction(item);
-  return !fromStart && resume && fraction > 0 && fraction < 0.95 ? item.UserData.PlaybackPositionTicks : 0;
+  if (fromStart || !resume || fraction <= 0 || fraction >= 0.95) return 0;
+  const position = item.UserData.PlaybackPositionTicks, at = resumeBack(position / 10_000_000, back);
+  return at === position / 10_000_000 ? position : Math.round(at * 10_000_000);
 }

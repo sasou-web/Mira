@@ -24,6 +24,8 @@ public sealed class MockJellyfin : HttpMessageHandler
     /// <summary>Every request, « GET Items/… ».</summary>
     public List<string> Calls { get; } = [];
     public List<(string Kind, JsonElement Body)> Reports { get; } = [];
+    /// <summary>What « Téléchargements » sent to the PC of Jellyfin: the names of its requests.</summary>
+    public List<string> Requests { get; } = [];
 
     public MockJellyfin(string media, string shortMedia)
     {
@@ -78,12 +80,16 @@ public sealed class MockJellyfin : HttpMessageHandler
             lock (Reports) Reports.Add((path switch { "Sessions/Playing" => "start", "Sessions/Playing/Progress" => "progress", _ => "stop" }, body));
             return new HttpResponseMessage(HttpStatusCode.NoContent);
         }
+        // An administrator, whose PC of Jellyfin runs Mira for Windows: « Téléchargements » through the relay of the extension.
+        if (path == "Users/Me") return Json(new { Id = UserId, Name = "Contrôle", Policy = new { IsAdministrator = true } });
+        if (path.StartsWith("Mira/torlink")) return await RelayAsync(request, path, cancellationToken);
         if (path.StartsWith("UserPlayedItems/") || path.StartsWith("UserFavoriteItems/")) return Json(new { });
         if (request.Method == HttpMethod.Post && path == "Sessions/Logout") return new HttpResponseMessage(HttpStatusCode.NoContent);
         if (path.Contains("/Images/")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(await ImageAsync(path)) };
         if (path == "UserItems/Resume") return Items(_movies.Where(x => Id(x) == "movie-1"));
         if (path == "Shows/NextUp") return Items(query["seriesId"] is { } series ? _episodes.GetValueOrDefault(series)?.Take(1) ?? [] : _episodes["series-1"].Take(1));
         if (path == "Items/Filters2") return Json(new { Genres = new[] { new { Name = "Aventure" }, new { Name = "Animation" }, new { Name = "Comédie" } } });
+        if (path == "UserViews") return Items(new object[] { new { Id = "view-movies", Name = "Films", CollectionType = "movies" }, new { Id = "view-series", Name = "Séries", CollectionType = "tvshows" } });
         if (path == "Years") return Items(new object[] { new { Id = "y1", Name = "2025" }, new { Id = "y2", Name = "2024" } });
         if (path.StartsWith("Shows/") && path.EndsWith("/Episodes")) return Items(_episodes.GetValueOrDefault(path.Split('/')[1]) ?? []);
         if (path.EndsWith("/Similar")) return Items(_movies.Where(x => !path.Contains(Id(x))));
@@ -94,6 +100,12 @@ public sealed class MockJellyfin : HttpMessageHandler
             return Json(new { PlaySessionId = "session-" + id, MediaSources = new[] { new { Id = "source-" + id, Protocol = "File", Path = file, MediaStreams = Array.Empty<object>() } } });
         }
         if (path.StartsWith("MediaSegments/")) return Json(new { Items = Array.Empty<object>() });
+        if (path == "Persons")
+        {
+            var people = new[] { ("actor-1", "Jeanne Essai"), ("actor-2", "Paul Témoin"), ("director-1", "Réa Lisatrice") };
+            return Items(people.Where(x => x.Item2.Contains(query["searchTerm"] ?? "", StringComparison.CurrentCultureIgnoreCase))
+                .Select(x => (object)new { Id = x.Item1, Name = x.Item2, Type = "Person", ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + x.Item1 } }));
+        }
         if (path.StartsWith("Items/") && path.Split('/').Length == 2) return Find(path.Split('/')[1]) is { } item ? Json(item) : new HttpResponseMessage(HttpStatusCode.NotFound);
         if (path == "Items")
         {
@@ -106,6 +118,42 @@ public sealed class MockJellyfin : HttpMessageHandler
             return Items(items);
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
+    }
+    private async Task<HttpResponseMessage> RelayAsync(HttpRequestMessage request, string path, CancellationToken ct)
+    {
+        const long GiB = 1L << 30, MiB = 1L << 20;
+        if (request.Method == HttpMethod.Post && path == "Mira/torlink/search") return Json(new { id = "search-1" });
+        if (path == "Mira/torlink/search/search-1")
+        {
+            object Hit(string id, string name, double gib, int seeders, string source) => new { id, name, size = (long)(gib * GiB), seeders, leechers = seeders / 10, source, added = (long?)null };
+            return Json(new
+            {
+                id = "search-1", query = "Brume basse", category = "movies", state = "done", error = (string?)null,
+                results = new[]
+                {
+                    Hit("h1", "Brume.Basse.2024.720p.WEBRip.x264-YTS", 1.1, 900, "YTS"),
+                    Hit("h2", "Brume.Basse.2024.MULTI.1080p.BluRay.x264-NOTAG", 8.9, 140, "1337x"),
+                    Hit("h3", "Brume.Basse.2024.FRENCH.1080p.WEB-DL.H264-GRP", 3.1, 320, "1337x"),
+                    Hit("h4", "Brume.Basse.2024.2160p.WEB-DL.HDR.HEVC-GRP", 15.2, 80, "1337x")
+                }
+            });
+        }
+        if (request.Method == HttpMethod.Post && path == "Mira/torlink/requests")
+        {
+            var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct)).RootElement;
+            lock (Requests) Requests.Add(body.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "magnet");
+            return Json(new { id = "request-" + Requests.Count });
+        }
+        if (request.Method != HttpMethod.Get || path != "Mira/torlink") return new HttpResponseMessage(HttpStatusCode.NotFound);
+        List<string> sent; lock (Requests) sent = [.. Requests];
+        return Json(new
+        {
+            agent = new { name = "SALON-PC", online = true, seen = DateTimeOffset.UtcNow, accepting = true, problem = (string?)null },
+            requests = sent.Select((name, i) => new { id = $"request-{i + 1}", name, size = 3 * GiB, infoHash = "", state = "waiting", error = (string?)null, created = DateTimeOffset.UtcNow }),
+            controls = Array.Empty<object>(),
+            downloads = new[] { new { id = "download-1", name = "Ciel.Ouvert.2023.MULTI.1080p.WEB-DL.x264-GRP", status = "downloading", progress = 41, speed = 2 * MiB, peers = 12, size = 29 * GiB / 10, downloaded = 12 * GiB / 10, eta = 750L } },
+            placed = new[] { new { id = "placed-1", title = "Les heures bleues", status = "rangé dans Films", itemId = "movie-1", ok = true } }
+        });
     }
     private static HttpResponseMessage Items(IEnumerable<object> items) { var list = items.ToList(); return Json(new { Items = list, TotalRecordCount = list.Count }); }
     private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };

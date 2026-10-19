@@ -1,8 +1,19 @@
 // The title's timeline: passages to skip, when the next episode is offered, trickplay previews, chapter marks. Plain
 // functions of their inputs (times in seconds, Jellyfin's in ticks), tested by Node (tools/web/unit).
 import { seconds } from '../dom.js';
+import { tr } from '../i18n.js';
 
-export const SKIP_LABELS = { Intro: 'Passer l’intro', Recap: 'Passer le récap', Preview: 'Passer l’aperçu', Commercial: 'Passer la pub' };
+/** The button over a passage that can be skipped, by its kind (Jellyfin's segment Type); null for another kind. */
+export function skipLabel(type) {
+  switch (type) {
+    case 'Intro': return tr('Passer l’intro');
+    case 'Recap': return tr('Passer le récap');
+    case 'Preview': return tr('Passer l’aperçu');
+    case 'Commercial': return tr('Passer la pub');
+    default: return null;
+  }
+}
+export const SKIP_LABELS = Object.fromEntries(['Intro', 'Recap', 'Preview', 'Commercial'].map((type) => [type, skipLabel(type)]));
 /** Skipped by themselves when the settings say so. */
 const AUTO_SKIP = ['Intro', 'Recap'];
 /** Seconds the next episode is offered before it starts by itself. */
@@ -11,16 +22,97 @@ export const COUNTDOWN = 10;
 /** The passage that can be skipped at this point (until its last second), if any. */
 export const skippable = (segments, at) =>
   segments.find((s) => SKIP_LABELS[s.Type] && at >= seconds(s.StartTicks) && at < seconds(s.EndTicks) - 1);
-/** A passage skipped by itself (intro, recap) when the settings say so, once: going back into it plays it. */
-export const skipsItself = (segment, { autoSkip, skipped }) => !!segment && !!autoSkip && AUTO_SKIP.includes(segment.Type) && !skipped.has(segment);
+/**
+ * A passage skipped by itself (intro, recap) when the settings say so, once: going back into it plays it. One of the
+ * same kind over a passage already skipped is that passage (PlaybackMarkers.AutoSkip).
+ */
+export const skipsItself = (segment, { autoSkip, skipped }) => !!segment && !!autoSkip && AUTO_SKIP.includes(segment.Type)
+  && ![...skipped].some((s) => s.Type === segment.Type && s.StartTicks < segment.EndTicks && segment.StartTicks < s.EndTicks);
 
 /**
- * Where the next episode is offered: from the end credits when Jellyfin has them marked, else over the last seconds,
- * so that nothing of the end is cut.
+ * Where the next episode is offered: from the end credits when they are marked and only credits or a preview follow
+ * them, else over the last seconds, so that nothing of the end is cut (a scene after the credits stays).
  */
-export function nextFrom(segments, end) {
-  const outro = segments.find((s) => s.Type === 'Outro');
-  return outro ? seconds(outro.StartTicks) : end - COUNTDOWN;
+export const nextFrom = (segments, end) => creditsFrom(segments, end) ?? end - COUNTDOWN;
+/** Where end credits that only credits or a preview follow begin (a segment, or a chapter's passage); null without them. */
+export function creditsFrom(segments, end) {
+  const outro = segments.find((s) => s.Type === 'Outro' && endsPlayback(segments, s, end));
+  return outro ? seconds(outro.StartTicks) : null;
+}
+/**
+ * Apple's player, which has no room for Mira's countdown: when the next episode starts by itself, COUNTDOWN seconds
+ * into such credits, the moment Mira's countdown ends elsewhere. Null when it waits for the end of the title (no such
+ * credits, or too short for it), and for a title started in its credits (resumed there: the person came back to them).
+ */
+export function nativeNextAt(segments, end, { startedAt = 0 } = {}) {
+  const from = creditsFrom(segments, end);
+  if (from == null || startedAt >= from - 1 || from + COUNTDOWN >= end - 1) return null;
+  return from + COUNTDOWN;
+}
+/** True when skipping the credits would only leave further credits, a preview or a few seconds (PlaybackMarkers.EndsPlayback). */
+function endsPlayback(segments, segment, end) {
+  const from = seconds(segment.StartTicks);
+  let last = seconds(segment.EndTicks);
+  for (const s of [...segments].sort((a, b) => a.StartTicks - b.StartTicks)) {
+    if (seconds(s.StartTicks) >= from && seconds(s.StartTicks) <= last + 2 && (s.Type === 'Outro' || s.Type === 'Preview')) last = Math.max(last, seconds(s.EndTicks));
+  }
+  return end - last < 5;
+}
+
+// Passages named by the file's chapters ("Opening", "ED", "Générique de fin"…), as Mira for Windows and Mac reads them
+// (PlaybackMarkers in Mira.Core): the same expressions and limits, kept in step by tests/fixtures/chapters.json.
+/** Shorter passages are noise; a chapter longer than the second is no opening, recap or preview, whatever its title. */
+const MIN_PASSAGE = 3, MAX_SHORT_PASSAGE = 360;
+// .NET's \b and \d know every alphabet and digit: so do these, with the joiners .NET's \b counts as letters, and its
+// '.' (anything but a line feed). Only characters outside the BMP (an emoji, a math digit) are read differently: .NET
+// sees their two halves.
+const WORD = '[\\p{L}\\p{Nd}\\p{Pc}\\u200C\\u200D]';
+const words = (alternatives) => new RegExp(`(?<!${WORD})(?:${alternatives})(?!${WORD})`, 'u');
+const RECAP = words('recap|recapitulatif|previously|precedemment|resume de l[^\\n]episode precedent');
+const PREVIEW = words('preview|next episode|prochain episode|apercu|bande annonce|yokoku');
+const INTRO = words('opening|intro|introduction|ouverture|theme song|op\\s?\\p{Nd}{0,2}|generique (?:de )?(?:debut|d[^\\n]ouverture)');
+const OUTRO = words('ending|outro|credits|end credits|ed\\s?\\p{Nd}{0,2}|generique (?:de )?fin');
+const GENERIC = words('generique');
+const plain = (text) => text.normalize('NFD').replace(/\p{Mn}/gu, '').replace(/[_\-’]/g, ' ').toLowerCase();
+
+/** The kind of passage a chapter title names, if any; a bare « Générique » is the opening before the middle, the credits after. */
+export function chapterKind(title, start = 0, duration = 0) {
+  if (!title || !title.trim()) return null;
+  const text = plain(title);
+  if (RECAP.test(text)) return 'Recap';
+  if (PREVIEW.test(text)) return 'Preview';
+  if (INTRO.test(text)) return 'Intro';
+  if (OUTRO.test(text)) return 'Outro';
+  // « Avant-générique » is the cold open: part of the story, never skipped.
+  if (GENERIC.test(text) && !text.includes('avant generique')) return duration > 0 && start > duration / 2 ? 'Outro' : 'Intro';
+  return null;
+}
+
+/** Jellyfin's chapters (Name, StartPositionTicks) as passages shaped like its segments ({ Type, StartTicks, EndTicks }). */
+export function chapterPassages(chapters, totalTicks) {
+  const ordered = (chapters ?? []).filter((c) => Number.isFinite(c.StartPositionTicks) && c.StartPositionTicks >= 0)
+    .sort((a, b) => a.StartPositionTicks - b.StartPositionTicks);
+  const duration = seconds(totalTicks), passages = [];
+  ordered.forEach((chapter, i) => {
+    const start = seconds(chapter.StartPositionTicks);
+    const endTicks = i + 1 < ordered.length ? ordered[i + 1].StartPositionTicks : totalTicks;
+    const end = seconds(endTicks);
+    if (!Number.isFinite(end) || end - start < MIN_PASSAGE) return;
+    const kind = chapterKind(chapter.Name, start, duration);
+    if (!kind || (kind !== 'Outro' && end - start > MAX_SHORT_PASSAGE)) return;
+    passages.push({ Type: kind, StartTicks: chapter.StartPositionTicks, EndTicks: endTicks });
+  });
+  return passages;
+}
+
+/**
+ * Jellyfin's segments are authoritative, those of 3 s or more as Mira for Windows and Mac keeps them
+ * (PlaybackMarkers.FromJellyfin): a chapter's passage only fills a kind and a time they leave empty.
+ */
+export function withChapters(server, fromChapters) {
+  const kept = server.filter((s) => s.StartTicks >= 0 && seconds(s.EndTicks) - seconds(s.StartTicks) >= MIN_PASSAGE);
+  return [...kept, ...fromChapters.filter((c) => kept.every((s) => s.Type !== c.Type && (c.EndTicks <= s.StartTicks || c.StartTicks >= s.EndTicks)))]
+    .sort((a, b) => a.StartTicks - b.StartTicks);
 }
 
 /**

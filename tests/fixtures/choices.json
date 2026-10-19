@@ -1,0 +1,166 @@
+{
+  "note": "« Tes choix gardés sur ton Jellyfin » : les mêmes cas pour Mira web (tools/web/unit/choices.test.mjs) et pour Windows et Mac (AccountChoices, tests/Mira.Core.Tests). Heures en millisecondes.",
+  "capture": [
+    {
+      "name": "la première fois : un réglage changé est le plus ancien des choix, un réglage par défaut n'est pas écrit, un titre retiré garde son heure",
+      "doc": {},
+      "local": {
+        "settings": { "audioLanguages": "fre,fra,fr", "subtitleLanguages": "fre,fra,fr,eng,en", "autoSkip": false },
+        "tracks": { "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": "Complet", "forced": false } },
+        "hidden": { "m1": 1760000000000 }
+      },
+      "now": 1760000100000,
+      "expected": {
+        "settings": { "audioLanguages": { "value": "fre,fra,fr", "at": 0 } },
+        "tracks": { "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": "Complet", "forced": false, "at": 0 } },
+        "hidden": { "m1": { "hidden": true, "at": 1760000000000 } },
+        "seen": true
+      }
+    },
+    {
+      "name": "ensuite : ce qui change ici prend son heure, le reste ne bouge pas, un titre remis l'est partout",
+      "doc": {
+        "settings": { "audioLanguages": { "value": "fre,fra,fr", "at": 0 } },
+        "tracks": { "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": "Complet", "forced": false, "at": 0 } },
+        "hidden": { "m1": { "hidden": true, "at": 1760000000000 } },
+        "seen": true
+      },
+      "local": {
+        "settings": { "audioLanguages": "fre,fra,fr", "subtitleLanguages": "fre,fra,fr,eng,en", "autoSkip": true },
+        "tracks": {
+          "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": "Complet", "forced": false },
+          "s2": { "audio": "fre", "audioTitle": null, "subtitles": false, "subtitle": null, "subtitleTitle": null, "forced": false }
+        },
+        "hidden": { "m2": 1760000150000 }
+      },
+      "now": 1760000200000,
+      "expected": {
+        "settings": { "audioLanguages": { "value": "fre,fra,fr", "at": 0 }, "autoSkip": { "value": true, "at": 1760000200000 } },
+        "tracks": {
+          "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": "Complet", "forced": false, "at": 0 },
+          "s2": { "audio": "fre", "audioTitle": null, "subtitles": false, "subtitle": null, "subtitleTitle": null, "forced": false, "at": 1760000200000 }
+        },
+        "hidden": { "m1": { "hidden": false, "at": 1760000200000 }, "m2": { "hidden": true, "at": 1760000150000 } },
+        "seen": true
+      }
+    },
+    {
+      "name": "un réglage remis comme Mira le propose est écrit, et des pistes changées aussi",
+      "doc": {
+        "settings": { "autoSkip": { "value": true, "at": 5 } },
+        "tracks": { "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": "Complet", "forced": false, "at": 5 } },
+        "hidden": {},
+        "seen": true
+      },
+      "local": {
+        "settings": { "autoSkip": false },
+        "tracks": { "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": "Panneaux", "forced": true } },
+        "hidden": {}
+      },
+      "now": 90,
+      "expected": {
+        "settings": { "autoSkip": { "value": false, "at": 90 } },
+        "tracks": { "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": "Panneaux", "forced": true, "at": 90 } },
+        "hidden": {},
+        "seen": true
+      }
+    }
+  ],
+  "merge": [
+    {
+      "name": "le plus récent l'emporte, celui de Jellyfin à égalité, ce que Mira ne connaît pas reste",
+      "doc": {
+        "settings": { "audioLanguages": { "value": "fre", "at": 10 }, "autoSkip": { "value": true, "at": 30 } },
+        "tracks": { "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": null, "forced": false, "at": 5 } },
+        "hidden": { "m1": { "hidden": true, "at": 20 } },
+        "seen": true
+      },
+      "remote": {
+        "settings": { "audioLanguages": { "value": "eng", "at": 10 }, "quality": { "value": "max", "at": 1 } },
+        "tracks": {
+          "s1": { "audio": "fre", "audioTitle": null, "subtitles": false, "subtitle": null, "subtitleTitle": null, "forced": false, "at": 7 },
+          "s2": { "audio": "jpn", "audioTitle": "Japonais", "subtitles": true, "subtitle": "fre", "subtitleTitle": "Complet", "forced": false, "at": 3 }
+        },
+        "hidden": { "m1": { "hidden": false, "at": 15 } },
+        "future": { "x": 1 }
+      },
+      "expected": {
+        "settings": { "audioLanguages": { "value": "eng", "at": 10 }, "autoSkip": { "value": true, "at": 30 }, "quality": { "value": "max", "at": 1 } },
+        "tracks": {
+          "s1": { "audio": "fre", "audioTitle": null, "subtitles": false, "subtitle": null, "subtitleTitle": null, "forced": false, "at": 7 },
+          "s2": { "audio": "jpn", "audioTitle": "Japonais", "subtitles": true, "subtitle": "fre", "subtitleTitle": "Complet", "forced": false, "at": 3 }
+        },
+        "hidden": { "m1": { "hidden": true, "at": 20 } },
+        "future": { "x": 1 },
+        "seen": true
+      },
+      "differs": true
+    },
+    {
+      "name": "rien de neuf ici : Jellyfin n'est pas prévenu",
+      "doc": {
+        "settings": { "autoSkip": { "value": true, "at": 30 } },
+        "tracks": {},
+        "hidden": { "m1": { "hidden": true, "at": 20 } },
+        "seen": true
+      },
+      "remote": {
+        "settings": { "autoSkip": { "value": true, "at": 30 } },
+        "tracks": {},
+        "hidden": { "m1": { "hidden": true, "at": 20 } }
+      },
+      "expected": {
+        "settings": { "autoSkip": { "value": true, "at": 30 } },
+        "tracks": {},
+        "hidden": { "m1": { "hidden": true, "at": 20 } },
+        "seen": true
+      },
+      "differs": false
+    },
+    {
+      "name": "rien sur Jellyfin (ou illisible) : tout ce qui est ici part",
+      "doc": {
+        "settings": { "audioLanguages": { "value": "fre", "at": 0 } },
+        "tracks": {},
+        "hidden": {},
+        "seen": true
+      },
+      "remote": "pas du JSON",
+      "expected": {
+        "settings": { "audioLanguages": { "value": "fre", "at": 0 } },
+        "tracks": {},
+        "hidden": {},
+        "seen": true
+      },
+      "differs": true
+    }
+  ],
+  "apply": [
+    {
+      "name": "les réglages lisibles par cette version, les pistes de la plus ancienne à la plus récente, les titres retirés avec leur heure",
+      "doc": {
+        "settings": {
+          "audioLanguages": { "value": "eng,en", "at": 3 },
+          "subtitleLanguages": { "value": 5, "at": 3 },
+          "autoSkip": { "value": true, "at": 4 },
+          "quality": { "value": 8000000, "at": 2 },
+          "bientot": { "value": "x", "at": 1 }
+        },
+        "tracks": {
+          "s2": { "audio": "fre", "subtitles": false, "at": 9 },
+          "s1": { "audio": "jpn", "subtitles": true, "subtitle": "fre", "forced": true, "at": 4 }
+        },
+        "hidden": { "m1": { "hidden": true, "at": 20 }, "m2": { "hidden": false, "at": 25 } }
+      },
+      "expected": {
+        "settings": { "audioLanguages": "eng,en", "autoSkip": true, "quality": 8000000 },
+        "tracks": {
+          "s1": { "audio": "jpn", "audioTitle": null, "subtitles": true, "subtitle": "fre", "subtitleTitle": null, "forced": true },
+          "s2": { "audio": "fre", "audioTitle": null, "subtitles": false, "subtitle": null, "subtitleTitle": null, "forced": false }
+        },
+        "order": ["s1", "s2"],
+        "hidden": { "m1": 20 }
+      }
+    }
+  ]
+}

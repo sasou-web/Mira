@@ -1,11 +1,14 @@
 // What the web player asks Jellyfin for and what it does when a stream fails (src/Mira.Web/js/player/stream.js),
 // without a browser: node --test tools/web/unit/*.test.mjs
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
+import { readFileSync } from 'node:fs';
 import {
-  FULL_BITRATE, UNMEASURED_BITRATE, MEASURE_KEPT, knownBitrate, measuredBitrate, LAST_STAGE, nextStage, stageRequest,
+  FULL_BITRATE, FULL_MARGIN, UNMEASURED_BITRATE, MEASURE_KEPT, knownBitrate, measuredBitrate, autoBitrate, LAST_STAGE, nextStage, stageRequest,
   stageText, videoErrorText, hlsErrorText, videoErrorStep, hlsErrorStep, afterCheck, resumeTicks, playbackError,
-  copiesVideo, chooseStream, burnedIn, subtitleSwitch, webVttAddress, progressFraction, startPosition,
+  copiesVideo, chooseStream, burnedIn, subtitleSwitch, webVttAddress, progressFraction, startPosition, RESUME_BACK, RESUME_BACK_FROM, resumeBack,
 } from '../../../src/Mira.Web/js/player/stream.js';
 
 test('bitrate: chosen, full quality, or a fresh measure; null when a measure is needed', () => {
@@ -13,8 +16,10 @@ test('bitrate: chosen, full quality, or a fresh measure; null when a measure is 
   assert.equal(knownBitrate(6_000_000, { atHome: true, now }), 6_000_000);
   assert.equal(knownBitrate('max', { now }), FULL_BITRATE);
   assert.equal(knownBitrate('auto', { atHome: true, now }), FULL_BITRATE);
-  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT + 1, value: 7_000_000 }, now }), 7_000_000);
-  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT, value: 7_000_000 }, now }), null);
+  // A fresh measure: what it allows for this file (autoBitrate).
+  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT + 1, speed: 10_000_000 }, now }), 7_000_000);
+  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT + 1, speed: 10_000_000 }, now, fileBitrate: 5_000_000 }), FULL_BITRATE);
+  assert.equal(knownBitrate('auto', { measure: { at: now - MEASURE_KEPT, speed: 10_000_000 }, now }), null);
   assert.equal(knownBitrate('auto', { now }), null);
   assert.equal(knownBitrate(undefined, { now }), null);
   assert.equal(UNMEASURED_BITRATE, 8_000_000);
@@ -25,6 +30,20 @@ test('bitrate: 70 % of the measure, between 1.5 and 40 Mb/s', () => {
   assert.equal(measuredBitrate(10_000_000), 7_000_000);
   assert.equal(measuredBitrate(100_000_000), 40_000_000);
   assert.equal(measuredBitrate(3_333_333), 2_333_333);
+});
+
+test('bitrate: the file as it is when the connection holds one and a half times its bitrate, above 40 Mb/s too', () => {
+  assert.equal(FULL_MARGIN, 1.5);
+  // A 4K remux at 60 Mb/s on a line of 95 Mb/s: as it is. At 85 Mb/s: converted, under what the line allows.
+  assert.equal(autoBitrate(95_000_000, 60_000_000), FULL_BITRATE);
+  assert.equal(autoBitrate(90_000_000, 60_000_000), FULL_BITRATE);
+  assert.equal(autoBitrate(85_000_000, 60_000_000), 40_000_000);
+  // A 1080p file at 8 Mb/s on a 4G line of 15 Mb/s: as it is; on 10 Mb/s, converted at 7 Mb/s.
+  assert.equal(autoBitrate(15_000_000, 8_000_000), FULL_BITRATE);
+  assert.equal(autoBitrate(10_000_000, 8_000_000), 7_000_000);
+  // A file whose bitrate Jellyfin does not know: what the measure allows.
+  assert.equal(autoBitrate(200_000_000, 0), 40_000_000);
+  assert.equal(autoBitrate(200_000_000, undefined), 40_000_000);
 });
 
 test('cascade: three stages, each converting more', () => {
@@ -228,4 +247,28 @@ test('where a title starts', () => {
   assert.equal(startPosition({ RunTimeTicks: 1000, UserData: { PlaybackPositionTicks: 950 } }, { fromStart: false, resume: true }), 0);
   assert.equal(startPosition({ RunTimeTicks: 1000, UserData: { PlaybackPositionTicks: 949 } }, { fromStart: false, resume: true }), 949);
   assert.equal(startPosition({ RunTimeTicks: 1000 }, { fromStart: false, resume: true }), 0);
+  // « Reprendre un peu avant »: 5 s before, from 30 s watched.
+  const twentyMinutes = { RunTimeTicks: 36_000_000_000, UserData: { PlaybackPositionTicks: 12_000_000_000 } };
+  assert.equal(startPosition(twentyMinutes, { fromStart: false, resume: true, back: 5 }), 11_950_000_000);
+  assert.equal(startPosition(twentyMinutes, { fromStart: true, resume: true, back: 5 }), 0);
+  assert.equal(startPosition(twentyMinutes, { fromStart: false, resume: true, back: 0 }), 12_000_000_000);
+  assert.equal(startPosition({ RunTimeTicks: 36_000_000_000, UserData: { PlaybackPositionTicks: 200_000_000 } }, { fromStart: false, resume: true, back: 5 }), 200_000_000);
+});
+
+// The same cases as Mira for Windows and Mac (tests/Mira.Core.Tests, PlaybackSession.ResumeBack).
+test('« Reprendre un peu avant »: the cases Mira for Windows and Mac read', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/resume.json', import.meta.url), 'utf8'));
+  assert.deepEqual(RESUME_BACK, fixture.choices);
+  assert.equal(RESUME_BACK_FROM, fixture.from);
+  for (const [position, back, at] of fixture.cases) assert.ok(Math.abs(resumeBack(position, back) - at) < 1e-9, `${position} s, ${back} s back`);
+});
+
+test('the messages of a failed stream in English', () => {
+  try {
+    setLanguage('en');
+    assert.equal(videoErrorText({ code: 4, message: 'MEDIA_ERR_SRC_NOT_SUPPORTED', playMethod: 'DirectPlay', stage: 0 }), 'Error 4: MEDIA_ERR_SRC_NOT_SUPPORTED (file played as is).');
+    assert.equal(hlsErrorText({ details: 'fragParsingError', type: 'mediaError', stage: 1 }), 'Error fragParsingError (video converted).');
+    assert.equal(playbackError('NotAllowed'), 'Your Jellyfin account isn’t allowed to play this title.');
+    assert.equal(playbackError('Other'), 'Jellyfin couldn’t prepare this title for this device.');
+  } finally { setLanguage('fr'); }
 });

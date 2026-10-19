@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Mira.Core.TorLink;
 
 namespace Mira.Core;
 
@@ -29,12 +30,15 @@ public sealed class JellyfinClient : IDisposable
         if (!Uri.TryCreate(server.Trim(), UriKind.Absolute, out var uri) ||
             (uri.Scheme != "http" && uri.Scheme != "https") || !string.IsNullOrEmpty(uri.UserInfo) ||
             !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
-            throw new UserInputException("Saisis une adresse http:// ou https://, sans identifiants dans l’adresse.");
+            throw new UserInputException(L("Saisis une adresse http:// ou https://, sans identifiants dans l’adresse.", "Enter an http:// or https:// address, without credentials in it."));
         return uri.AbsoluteUri.TrimEnd('/') + "/";
     }
     private void SetAuthorization()
     {
         _http.DefaultRequestHeaders.Remove("Authorization");
+        // Mira's own language, so that the TorLink relay of the extension answers in it.
+        _http.DefaultRequestHeaders.AcceptLanguage.Clear();
+        _http.DefaultRequestHeaders.AcceptLanguage.Add(new(Code));
         var token = Connection.Token.Replace("\"", "").Replace("\r", "").Replace("\n", "");
         _http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization",
             $"MediaBrowser Client=\"Mira\", Device=\"{DeviceName}\", DeviceId=\"{Connection.DeviceId}\", Version=\"{AppVersion}\"" +
@@ -44,13 +48,40 @@ public sealed class JellyfinClient : IDisposable
     {
         using var response = await _http.PostAsJsonAsync("Users/AuthenticateByName", new { Username = username, Pw = password }, ct);
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new UnauthorizedAccessException("Nom d’utilisateur ou mot de passe incorrect.");
+            throw new UnauthorizedAccessException(L("Nom d’utilisateur ou mot de passe incorrect.", "Wrong username or password."));
         await CheckAsync(response);
         var result = await response.Content.ReadFromJsonAsync<AuthenticationResult>(Json.Options, ct)
-            ?? throw new IOException("Réponse de connexion vide.");
+            ?? throw new IOException(L("Réponse de connexion vide.", "Empty sign-in answer."));
         Connection = Connection with { Token = result.AccessToken, UserId = result.User.Id, UserName = result.User.Name };
         SetAuthorization();
         return Connection;
+    }
+    // Quick Connect, Jellyfin's sign-in by a code: a device that is not signed in (Mira web on a phone) shows six
+    // digits, and a device signed in approves them for its account, so no password is typed on the first one.
+    /// <summary>Whether Jellyfin lets devices in by a code: false when its dashboard turned it off, or on any other answer.</summary>
+    public async Task<bool> QuickConnectEnabledAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("QuickConnect/Enabled", ct);
+        return response.IsSuccessStatusCode && (await response.Content.ReadAsStringAsync(ct)).Trim() == "true";
+    }
+    /// <summary>
+    /// Approves another device's code for this account, or for another one (<paramref name="userId"/>, which an
+    /// administrator may: a friend's phone). Asks first whether Quick Connect is on: turned off, Jellyfin answers 401,
+    /// which Mira would take for an ended session.
+    /// </summary>
+    public async Task<CodeApproval> ApproveCodeAsync(string code, string? userId = null, CancellationToken ct = default)
+    {
+        if (!await QuickConnectEnabledAsync(ct)) return CodeApproval.Disabled;
+        using var response = await _http.PostAsync($"QuickConnect/Authorize?code={Uri.EscapeDataString(code)}&userId={Uri.EscapeDataString(userId ?? Connection.UserId)}", null, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return CodeApproval.Unknown;
+        await CheckAsync(response);
+        return CodeApproval.Approved;
+    }
+    /// <summary>The six digits of a code as typed (« 458 128 », « 458-128 »); null when it is not six digits.</summary>
+    public static string? QuickConnectCode(string? text)
+    {
+        var digits = new string((text ?? "").Where(char.IsAsciiDigit).ToArray());
+        return digits.Length == 6 && (text ?? "").All(c => char.IsAsciiDigit(c) || c is ' ' or '-' or '\u00a0' or '\u202f') ? digits : null;
     }
     /// <summary>The longest « Déconnecter » waits for Jellyfin: a server that is off must not hold the sign-out.</summary>
     public static readonly TimeSpan LogoutTimeout = TimeSpan.FromSeconds(3);
@@ -75,7 +106,7 @@ public sealed class JellyfinClient : IDisposable
     {
         using var response = await _http.GetAsync(path, ct);
         await CheckAsync(response);
-        return await response.Content.ReadFromJsonAsync<T>(Json.Options, ct) ?? throw new IOException("Réponse Jellyfin vide.");
+        return await response.Content.ReadFromJsonAsync<T>(Json.Options, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
     }
     public Task<ItemsResult> ResumeAsync(CancellationToken ct = default) => GetAsync<ItemsResult>(
         $"UserItems/Resume?userId={Connection.UserId}&limit=16&mediaTypes=Video&fields=Overview,Genres&enableImageTypes=Primary,Backdrop,Thumb", ct);
@@ -84,10 +115,45 @@ public sealed class JellyfinClient : IDisposable
     public const int PageSize = 60;
     public Task<ItemsResult> BrowseAsync(string types = "Movie,Series", string? parentId = null, string? search = null, int start = 0, bool favorites = false, CancellationToken ct = default, CatalogQuery? filters = null, int limit = PageSize) =>
         GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={types}&limit={Math.Clamp(limit, 1, 600)}&startIndex={start}" +
-            "&fields=Overview,Genres,ChildCount&enableImages=true" + (filters ?? new CatalogQuery()).Parameters +
+            "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (filters ?? new CatalogQuery()).Parameters +
             (parentId is null ? "" : $"&parentId={Uri.EscapeDataString(parentId)}") +
             (string.IsNullOrWhiteSpace(search) ? "" : $"&searchTerm={Uri.EscapeDataString(search)}") +
             (favorites ? "&isFavorite=true" : ""), ct);
+    /// <summary>
+    /// « Ton bilan »: the films and episodes played to the end since <paramref name="from"/> (by their last play), newest
+    /// first, a few pages at most, and the series of those episodes (their genres, whether all is watched).
+    /// </summary>
+    public async Task<(List<MediaItem> Played, List<MediaItem> Series)> PlayedSinceAsync(DateTimeOffset from, CancellationToken ct = default)
+    {
+        const int page = 300, most = 3000;
+        var played = new List<MediaItem>();
+        while (played.Count < most)
+        {
+            var result = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Episode&isPlayed=true&sortBy=DatePlayed&sortOrder=Descending" +
+                $"&fields=Genres&enableImages=false&enableUserData=true&enableTotalRecordCount=false&startIndex={played.Count}&limit={page}", ct);
+            played.AddRange(result.Items);
+            if (result.Items.Count < page || result.Items[^1].UserData.LastPlayedDate is not { } last || last < from) break;
+        }
+        played.RemoveAll(x => x.UserData.LastPlayedDate is not { } at || at < from);
+        var ids = played.Where(x => x.Type == "Episode").Select(x => x.SeriesId).OfType<string>().Distinct().ToList();
+        var series = new List<MediaItem>();
+        foreach (var chunk in ids.Chunk(100))
+            series.AddRange((await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&ids={string.Join(',', chunk.Select(Uri.EscapeDataString))}&fields=Genres&enableImages=false&enableUserData=true", ct)).Items);
+        return (played, series);
+    }
+    /// <summary>
+    /// The actors, directors and other people whose name matches a search, a dozen at most, with their photo when
+    /// Jellyfin has one (Mira web asks the same). A title's search (Items) never finds a name.
+    /// </summary>
+    public async Task<List<MediaItem>> PersonsAsync(string search, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Persons?userId={Connection.UserId}&searchTerm={Uri.EscapeDataString(search)}&limit=12&enableImageTypes=Primary", ct)).Items;
+    /// <summary>
+    /// What a search finds beside films and series (Mira web asks the same): episodes by their own name, those Jellyfin
+    /// lists as missing left out (<paramref name="type"/> « Episode »), or sagas, its collections (« BoxSet »); a dozen at most.
+    /// </summary>
+    public async Task<List<MediaItem>> SearchOthersAsync(string type, string search, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={type}&searchTerm={Uri.EscapeDataString(search)}&limit=12" +
+            "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (type == "Episode" ? "&isMissing=false" : ""), ct)).Items;
     public async Task<CatalogFilters> FiltersAsync(CancellationToken ct = default)
     {
         // The legacy Filters endpoint only examines immediate children of the user root.
@@ -114,20 +180,188 @@ public sealed class JellyfinClient : IDisposable
         GetAsync<MediaItem>($"Items/{Uri.EscapeDataString(id)}?userId={Connection.UserId}", ct);
     /// <summary>Titles Jellyfin finds close to this one (shared genres, people, studios).</summary>
     public Task<ItemsResult> SimilarAsync(string id, int limit = 12, CancellationToken ct = default) =>
-        GetAsync<ItemsResult>($"Items/{Uri.EscapeDataString(id)}/Similar?userId={Connection.UserId}&limit={limit}&fields=Overview,Genres,ChildCount", ct);
+        GetAsync<ItemsResult>($"Items/{Uri.EscapeDataString(id)}/Similar?userId={Connection.UserId}&limit={limit}&fields=Overview,Genres,ChildCount,RecursiveItemCount", ct);
+    /// <summary>A film's or a series' bonus videos: making-of, deleted scenes, textless credits of its Extras folders (Jellyfin 10.9+).</summary>
+    public Task<List<MediaItem>> ExtrasAsync(string id, CancellationToken ct = default) =>
+        GetAsync<List<MediaItem>>($"Items/{Uri.EscapeDataString(id)}/SpecialFeatures?userId={Connection.UserId}", ct);
+    /// <summary>
+    /// The saga a film belongs to (its first Jellyfin collection), with its other titles in the order they came out.
+    /// Null when it belongs to none, or when Jellyfin cannot say which collections hold a title (404: older than 12.1, where it was checked).
+    /// </summary>
+    public async Task<Saga?> SagaAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Items/{Uri.EscapeDataString(id)}/Collections?userId={Connection.UserId}&limit=1", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        var found = await response.Content.ReadFromJsonAsync<ItemsResult>(Json.Options, ct);
+        if (found?.Items.FirstOrDefault(x => x.Type == "BoxSet") is not { } box) return null;
+        var titles = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&parentId={Uri.EscapeDataString(box.Id)}&sortBy=ProductionYear,PremiereDate,SortName&fields=Overview,Genres,ChildCount", ct);
+        var others = titles.Items.Where(x => x.Id != id).ToList();
+        return others.Count == 0 ? null : new Saga(box.Name, others);
+    }
     public Task<PlaybackInfo> PlaybackAsync(string id, CancellationToken ct = default) =>
         GetAsync<PlaybackInfo>($"Items/{Uri.EscapeDataString(id)}/PlaybackInfo?userId={Connection.UserId}", ct);
     /// <summary>Typed intro/credits markers (Jellyfin 10.10+, filled by the server or a plugin such as Intro Skipper).</summary>
     public async Task<List<MediaSegment>> SegmentsAsync(string itemId, CancellationToken ct = default) =>
         (await GetAsync<MediaSegmentsResult>($"MediaSegments/{Uri.EscapeDataString(itemId)}" +
             "?includeSegmentTypes=Intro&includeSegmentTypes=Outro&includeSegmentTypes=Recap&includeSegmentTypes=Preview&includeSegmentTypes=Commercial", ct)).Items;
-    /// <summary>Chapters known to Jellyfin; the single-item endpoint returns them without extra fields.</summary>
-    public async Task<List<ChapterInfo>> ChaptersAsync(string itemId, CancellationToken ct = default) =>
-        (await GetAsync<ChapterHolder>($"Items/{Uri.EscapeDataString(itemId)}?userId={Connection.UserId}", ct)).Chapters ?? [];
-    private sealed record ChapterHolder { public List<ChapterInfo>? Chapters { get; init; } }
+    /// <summary>
+    /// What the player draws on its timeline: the chapters known to Jellyfin and its trickplay pictures, both returned by
+    /// the single-item endpoint without extra fields.
+    /// </summary>
+    public async Task<TitleTimeline> TimelineAsync(string itemId, string? sourceId = null, CancellationToken ct = default)
+    {
+        var item = await GetAsync<TimelineHolder>($"Items/{Uri.EscapeDataString(itemId)}?userId={Connection.UserId}", ct);
+        return new(item.Chapters ?? [], TrickplaySet.Pick(itemId, item.Trickplay, sourceId));
+    }
+    private sealed record TimelineHolder { public List<ChapterInfo>? Chapters { get; init; } public Dictionary<string, Dictionary<string, TrickplayInfo>>? Trickplay { get; init; } }
+    /// <summary>One tile image of a title's trickplay pictures.</summary>
+    public async Task<byte[]> TrickplayTileAsync(TrickplaySet set, int tile, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync(set.TilePath(tile), ct);
+        await CheckAsync(response);
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
     public Uri StreamUri(string itemId, string sourceId) => new(_http.BaseAddress!,
         $"Videos/{Uri.EscapeDataString(itemId)}/stream?static=true&mediaSourceId={Uri.EscapeDataString(sourceId)}");
     public string AuthorizationHeader => _http.DefaultRequestHeaders.GetValues("Authorization").Single();
+    /// <summary>
+    /// Jellyfin's file of a title as it is (« Garder sur ce PC »), from <paramref name="from"/> bytes on when a previous
+    /// try stopped there: 206 then, or 200 with the whole file when Jellyfin ignores the range. The caller reads and
+    /// disposes the answer; HttpClient's time limit ends once its headers are in.
+    /// </summary>
+    public async Task<HttpResponseMessage> DownloadAsync(string itemId, long from, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"Items/{Uri.EscapeDataString(itemId)}/Download");
+        if (from > 0) request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(from, null);
+        var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        // 403 with a valid session: this account's policy forbids downloads (a session gone answers 401).
+        if (response.StatusCode == HttpStatusCode.Forbidden) { response.Dispose(); throw new OfflineRefusedException(); }
+        if (from > 0 && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable) return response;
+        try { await CheckAsync(response); } catch { response.Dispose(); throw; }
+        return response;
+    }
+    /// <summary>An external subtitle file of a title, in <paramref name="extension"/> (« srt », « ass »), converted by Jellyfin if needed.</summary>
+    public async Task<byte[]> SubtitleFileAsync(string itemId, string sourceId, int index, string extension, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Videos/{Uri.EscapeDataString(itemId)}/{Uri.EscapeDataString(sourceId)}/Subtitles/{index}/0/Stream.{extension}", ct);
+        await CheckAsync(response);
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+    // —— Subtitles kept on Jellyfin (JellyfinSubtitles) ——
+    /// <summary>Whether this account may add subtitles to Jellyfin: an administrator, or allowed to manage them. Null when Jellyfin does not say.</summary>
+    public async Task<bool?> CanManageSubtitlesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Users/Me", ct);
+        if (!response.IsSuccessStatusCode) return null;
+        if (JsonNode.Parse(await response.Content.ReadAsStringAsync(ct))?["Policy"] is not JsonObject policy) return null;
+        return Flag(policy, "IsAdministrator") || Flag(policy, "EnableSubtitleManagement");
+    }
+    /// <summary>The subtitle extensions installed on Jellyfin (« Open Subtitles »); empty without one, or for an account that may not use them.</summary>
+    public async Task<IReadOnlyList<string>> SubtitleProvidersAsync(CancellationToken ct = default)
+    {
+        if (await CanManageSubtitlesAsync(ct) != true) return [];
+        using var response = await _http.GetAsync("Libraries/AvailableOptions?libraryContentType=movies", ct);
+        if (!response.IsSuccessStatusCode) return [];
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct))?["SubtitleFetchers"] is JsonArray fetchers
+            ? fetchers.OfType<JsonObject>().Select(x => Field(x, "Name")).OfType<string>().ToList() : [];
+    }
+    /// <summary>What Jellyfin's subtitle extensions find for a title in a language (« fre »), sorted (<see cref="JellyfinSubtitles.Sort"/>).</summary>
+    public async Task<IReadOnlyList<RemoteSubtitle>> SearchSubtitlesAsync(string itemId, string language, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Items/{Uri.EscapeDataString(itemId)}/RemoteSearch/Subtitles/{Uri.EscapeDataString(language)}", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new HttpRequestException(JellyfinSubtitles.KeptText(SubtitleKept.Refused, null), null, response.StatusCode);
+        await CheckAsync(response);
+        var found = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+        return JellyfinSubtitles.Sort(found.OfType<JsonObject>().Select(x => JellyfinSubtitles.FromJellyfin(x, language)).OfType<RemoteSubtitle>());
+    }
+    /// <summary>
+    /// Keeps a subtitle found by the search: fetched through Jellyfin, then sent back to it as a file
+    /// (<see cref="KeepSubtitleAsync"/>). Jellyfin's own download (POST RemoteSearch/Subtitles/{id}) answers 204 even
+    /// when it could not write the file.
+    /// </summary>
+    public async Task<SubtitleKept> KeepRemoteSubtitleAsync(string itemId, RemoteSubtitle subtitle, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Providers/Subtitles/Subtitles/{Uri.EscapeDataString(subtitle.Id)}", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return SubtitleKept.Refused;
+        await CheckAsync(response);
+        var data = await response.Content.ReadAsByteArrayAsync(ct);
+        var format = subtitle.Format.ToLowerInvariant() is var named && JellyfinSubtitles.Formats.Contains(named) ? named : "srt";
+        return await KeepSubtitleAsync(itemId, new SubtitleUpload(format, subtitle.Language.Length > 0 ? subtitle.Language : "und", subtitle.Forced, subtitle.HearingImpaired, data), ct);
+    }
+    /// <summary>
+    /// Sends a subtitle file to Jellyfin, which keeps it for every device. Jellyfin writes it beside the video unless
+    /// its library says otherwise (SaveSubtitlesWithMedia). When it cannot (500: a media folder it only reads, as a
+    /// Mira install leaves them), the library of an administrator is switched to Jellyfin's own data and the file sent
+    /// again: the next ones go there too.
+    /// </summary>
+    public async Task<SubtitleKept> KeepSubtitleAsync(string itemId, SubtitleUpload subtitle, CancellationToken ct = default)
+    {
+        var sent = await SendSubtitleAsync(itemId, subtitle, ct);
+        if (sent is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return SubtitleKept.Refused;
+        if (sent != HttpStatusCode.InternalServerError) return SubtitleKept.Kept;
+        if (!await KeepSubtitlesInJellyfinDataAsync(itemId, ct)) return SubtitleKept.NotWritten;
+        return await SendSubtitleAsync(itemId, subtitle, ct) switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => SubtitleKept.Refused,
+            HttpStatusCode.InternalServerError => SubtitleKept.NotWritten,
+            _ => SubtitleKept.KeptInJellyfinData,
+        };
+    }
+    private async Task<HttpStatusCode> SendSubtitleAsync(string itemId, SubtitleUpload subtitle, CancellationToken ct)
+    {
+        var body = new JsonObject { ["Language"] = subtitle.Language, ["Format"] = subtitle.Format, ["IsForced"] = subtitle.Forced, ["IsHearingImpaired"] = subtitle.HearingImpaired, ["Data"] = Convert.ToBase64String(subtitle.Data) };
+        using var response = await _http.PostAsJsonAsync($"Videos/{Uri.EscapeDataString(itemId)}/Subtitles", body, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.InternalServerError) return response.StatusCode;
+        await CheckAsync(response);
+        return response.StatusCode;
+    }
+    /// <summary>
+    /// The library holding this title keeps the subtitles Jellyfin is given in its own data (SaveSubtitlesWithMedia off),
+    /// its other options sent back as they were. False when it already does, or the account may not change it.
+    /// </summary>
+    private async Task<bool> KeepSubtitlesInJellyfinDataAsync(string itemId, CancellationToken ct)
+    {
+        var ancestors = await GetAsync<List<MediaItem>>($"Items/{Uri.EscapeDataString(itemId)}/Ancestors?userId={Connection.UserId}", ct);
+        using var response = await _http.GetAsync("Library/VirtualFolders", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(response);
+        var folders = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+        var library = folders.OfType<JsonObject>().FirstOrDefault(x => Field(x, "ItemId") is { } id && ancestors.Any(a => a.Id == id));
+        if (library?["LibraryOptions"] is not JsonObject options || !Flag(options, "SaveSubtitlesWithMedia")) return false;
+        var changed = (JsonObject)options.DeepClone();
+        changed["SaveSubtitlesWithMedia"] = false;
+        using var saved = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = Field(library, "ItemId"), ["LibraryOptions"] = changed }, ct);
+        if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(saved);
+        return true;
+    }
+    /// <summary>The address mpv reads a title's subtitle file from (with <see cref="AuthorizationHeader"/>), in its own format.</summary>
+    public Uri SubtitleUri(string itemId, string sourceId, MediaStream subtitle) => new(_http.BaseAddress!,
+        $"Videos/{Uri.EscapeDataString(itemId)}/{Uri.EscapeDataString(sourceId)}/Subtitles/{subtitle.Index}/0/Stream.{JellyfinSubtitles.Extension(subtitle.Codec)}");
+    /// <summary>A title's streams as Jellyfin lists them now: those of <paramref name="sourceId"/>, else of its first file.</summary>
+    public async Task<IReadOnlyList<MediaStream>> StreamsAsync(string itemId, string? sourceId, CancellationToken ct = default)
+    {
+        var sources = (await ItemAsync(itemId, ct)).MediaSources ?? [];
+        return (sources.FirstOrDefault(x => x.Id == sourceId) ?? sources.FirstOrDefault())?.MediaStreams ?? [];
+    }
+    /// <summary>
+    /// The subtitle file just kept on a title, once Jellyfin lists it (it reads the file about a second later): looked
+    /// for every 1.5 s, null after <paramref name="timeout"/>.
+    /// </summary>
+    public async Task<MediaStream?> KeptSubtitleAsync(string itemId, string? sourceId, IReadOnlyList<MediaStream> before, TimeSpan timeout, CancellationToken ct = default)
+    {
+        var until = DateTimeOffset.UtcNow + timeout;
+        while (true)
+        {
+            if (JellyfinSubtitles.Arrived(before, await StreamsAsync(itemId, sourceId, ct)) is { } arrived) return arrived;
+            if (DateTimeOffset.UtcNow >= until) return null;
+            await Task.Delay(1500, ct);
+        }
+    }
+    private static string? Field(JsonObject node, string name) => node[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+    private static bool Flag(JsonObject node, string name) => node[name] is JsonValue value && value.TryGetValue<bool>(out var on) && on;
     public async Task ReportAsync(string kind, PlaybackReport report, CancellationToken ct = default)
     {
         if (kind == "watched") { await SetPlayedAsync(report.ItemId, true, ct); return; }
@@ -221,6 +455,373 @@ public sealed class JellyfinClient : IDisposable
         return true;
     }
     /// <summary>
+    /// Whether Jellyfin gathers the films of a saga into a collection by itself at each library scan (« Ajouter
+    /// automatiquement à une collection » of every film library, Jellyfin 10.9 and later, off by default): what the
+    /// saga row of a film page needs. Null when Mira can neither tell nor change it: not an administrator, no film
+    /// library, or a Jellyfin without the option.
+    /// </summary>
+    public async Task<bool?> SagasAsync(CancellationToken ct = default) =>
+        await LibraryOptionsAsync(["movies"], ct) is { Count: > 0 } films && films.All(x => AutoCollections(x.Options) is not null)
+            ? films.All(x => AutoCollections(x.Options) == true) : null;
+    /// <summary>
+    /// Turns that option on in every film library, sending back their other options as Jellyfin gave them. Jellyfin
+    /// makes the sagas at its next scan. False when refused (only an administrator may).
+    /// </summary>
+    public async Task<bool> EnableSagasAsync(CancellationToken ct = default)
+    {
+        if (await LibraryOptionsAsync(["movies"], ct) is not { } films) return false;
+        foreach (var (id, options) in films)
+        {
+            if (AutoCollections(options) != false) continue;
+            var changed = (JsonObject)options!.DeepClone();
+            changed["AutomaticallyAddToCollection"] = true;
+            using var response = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = id, ["LibraryOptions"] = changed }, ct);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(response);
+        }
+        return true;
+    }
+    /// <summary>How many sagas (Jellyfin collections) this account sees.</summary>
+    public async Task<int> SagaCountAsync(CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&includeItemTypes=BoxSet&recursive=true&limit=0", ct)).TotalRecordCount;
+    private static bool? AutoCollections(JsonObject? options) =>
+        options?["AutomaticallyAddToCollection"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
+    /// <summary>
+    /// Whether Jellyfin makes the trickplay pictures (the timeline's previews) of every film and series library: their
+    /// option « EnableTrickplayImageExtraction », off by default. Null as for <see cref="SagasAsync"/>.
+    /// </summary>
+    public async Task<bool?> TrickplayEnabledAsync(CancellationToken ct = default) =>
+        await LibraryOptionsAsync(["movies", "tvshows"], ct) is { Count: > 0 } libraries && libraries.All(x => Trickplay(x.Options) is not null)
+            ? libraries.All(x => Trickplay(x.Options) == true) : null;
+    /// <summary>
+    /// Turns that option on in every film and series library, their other options kept, then starts Jellyfin's task that
+    /// makes the pictures (« Generate Trickplay Images », run every night afterwards). False when refused.
+    /// </summary>
+    public async Task<bool> EnableTrickplayAsync(CancellationToken ct = default)
+    {
+        if (await LibraryOptionsAsync(["movies", "tvshows"], ct) is not { } libraries) return false;
+        foreach (var (id, options) in libraries)
+        {
+            if (Trickplay(options) != false) continue;
+            var changed = (JsonObject)options!.DeepClone();
+            changed["EnableTrickplayImageExtraction"] = true;
+            using var response = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = id, ["LibraryOptions"] = changed }, ct);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(response);
+        }
+        if (await ScheduledTaskAsync("RefreshTrickplayImages", ct) is { Id: { } task, Running: false })
+        {
+            using var started = await _http.PostAsync($"ScheduledTasks/Running/{Uri.EscapeDataString(task)}", null, ct);
+            await CheckAsync(started);
+        }
+        return true;
+    }
+    /// <summary>How far Jellyfin's trickplay task is (0 to 1, null before it says), or null when it is not running.</summary>
+    public async Task<double?> TrickplayProgressAsync(CancellationToken ct = default) =>
+        await ScheduledTaskAsync("RefreshTrickplayImages", ct) is { Running: true } task ? task.Progress ?? 0 : null;
+    /// <summary>One of Jellyfin's scheduled tasks by its key: its id, whether it runs, how far, and when it last ended; null when refused or missing.</summary>
+    private async Task<(string? Id, bool Running, double? Progress, string? Ended)?> ScheduledTaskAsync(string key, CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("ScheduledTasks?isHidden=false", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        if (JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) is not JsonArray tasks) return null;
+        var task = tasks.OfType<JsonObject>().FirstOrDefault(x => x["Key"] is JsonValue found && found.TryGetValue<string>(out var name) && name == key);
+        if (task is null) return null;
+        var running = task["State"] is JsonValue state && state.TryGetValue<string>(out var value) && value == "Running";
+        var progress = task["CurrentProgressPercentage"] is JsonValue percent && percent.TryGetValue<double>(out var share) ? Math.Clamp(share / 100, 0, 1) : (double?)null;
+        var ended = task["LastExecutionResult"] is JsonObject last && last["EndTimeUtc"] is JsonValue end && end.TryGetValue<string>(out var at) ? at : null;
+        return (task["Id"] is JsonValue id && id.TryGetValue<string>(out var text) ? text : null, running, progress, ended);
+    }
+    private static bool? Trickplay(JsonObject? options) =>
+        options?["EnableTrickplayImageExtraction"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
+    /// <summary>The libraries of these kinds with their options, as Jellyfin's dashboard reads them; null when refused (not an administrator).</summary>
+    private async Task<List<(string Id, JsonObject? Options)>?> LibraryOptionsAsync(string[] kinds, CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("Library/VirtualFolders", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        var folders = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+        return folders.OfType<JsonObject>().Where(x => x["CollectionType"] is JsonValue type && type.TryGetValue<string>(out var kind) && kinds.Contains(kind) && x["ItemId"] is JsonValue)
+            .Select(x => ((string)x["ItemId"]!, x["LibraryOptions"] as JsonObject)).ToList();
+    }
+    /// <summary>
+    /// The kind of hardware Jellyfin converts with (HardwareAccelerationType: none, nvenc, qsv, amf…). Null when
+    /// unreadable: not an administrator, or a Jellyfin without the setting.
+    /// </summary>
+    public async Task<string?> HardwareAccelerationAsync(CancellationToken ct = default) =>
+        await EncodingSettingsAsync(ct) is { } encoding && encoding["HardwareAccelerationType"] is JsonValue value && value.TryGetValue<string>(out var kind) ? kind : null;
+    /// <summary>
+    /// Has Jellyfin convert with that kind of hardware, its encoder included, every other setting kept as it was
+    /// (which codecs it decodes there among them: H.264 and VC-1 by default). False when refused.
+    /// </summary>
+    public async Task<bool> SetHardwareAccelerationAsync(string kind, CancellationToken ct = default)
+    {
+        if (await EncodingSettingsAsync(ct) is not { } encoding) return false;
+        encoding["HardwareAccelerationType"] = kind;
+        if (kind != GpuEncoding.None) encoding["EnableHardwareEncoding"] = true;
+        using var content = new StringContent(encoding.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync("System/Configuration/encoding", content, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+        await CheckAsync(response);
+        return true;
+    }
+    /// <summary>
+    /// Whether Jellyfin converts a title with its settings as they are: the start of a film or an episode, made again
+    /// in H.264 360p (never copied), read until <paramref name="enough"/> bytes, then stopped. A hardware it cannot open
+    /// answers 500 at once (checked on 12.1 with nvenc and no card); one that gives up midway ends the stream short.
+    /// Null when there is nothing to convert. An H.264 file is taken first: the card then decodes it too.
+    /// </summary>
+    public async Task<bool?> ConversionWorksAsync(TimeSpan limit, int enough = 256 * 1024, CancellationToken ct = default)
+    {
+        var result = await GetAsync<JsonElement>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Episode&mediaTypes=Video&sortBy=DateCreated&sortOrder=Descending&limit=20&fields=MediaStreams&enableImages=false&enableUserData=false", ct);
+        if (!result.TryGetProperty("Items", out var items) || items.ValueKind != JsonValueKind.Array) return null;
+        var titles = items.EnumerateArray().Where(x => x.TryGetProperty("Id", out var id) && id.ValueKind == JsonValueKind.String).ToList();
+        if (titles.Count == 0) return null;
+        static bool H264(JsonElement item) => item.TryGetProperty("MediaStreams", out var streams) && streams.ValueKind == JsonValueKind.Array
+            && streams.EnumerateArray().Any(s => s.TryGetProperty("Type", out var type) && type.ValueEquals("Video") && s.TryGetProperty("Codec", out var codec) && codec.ValueEquals("h264"));
+        var title = titles.FirstOrDefault(H264) is { ValueKind: JsonValueKind.Object } h264 ? h264 : titles[0];
+        var session = Guid.NewGuid().ToString("N");
+        var stop = $"Videos/ActiveEncodings?deviceId={Uri.EscapeDataString(Connection.DeviceId)}&playSessionId={session}";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(limit);
+        var answered = false;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"Videos/{title.GetProperty("Id").GetString()}/stream.ts?static=false&videoCodec=h264&audioCodec=aac&maxHeight=360&videoBitRate=1000000&audioBitRate=128000&maxAudioChannels=2&allowVideoStreamCopy=false&allowAudioStreamCopy=false&deviceId={Uri.EscapeDataString(Connection.DeviceId)}&playSessionId={session}");
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            // FFmpeg failed to start. Anything else (starting, refused, session ended) is not the hardware's doing.
+            if (response.StatusCode == HttpStatusCode.InternalServerError) return false;
+            await CheckAsync(response);
+            answered = true;
+            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+            var buffer = new byte[81920]; var read = 0;
+            while (read < enough)
+            {
+                var count = await stream.ReadAsync(buffer, timeout.Token);
+                if (count == 0) return false;
+                read += count;
+            }
+            return true;
+        }
+        // Too slow to give its first bytes: not worth keeping. HttpClient's own limit lands here as well.
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return false; }
+        // The stream cut once begun: FFmpeg stopped. Jellyfin out of reach before answering is not the card's doing.
+        catch (Exception ex) when (answered && ex is HttpRequestException or IOException) { return false; }
+        finally
+        {
+            try { using var stopped = await _http.DeleteAsync(stop, CancellationToken.None); }
+            catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException) { }
+        }
+    }
+    /// <summary>
+    /// Jellyfin's version (« 12.1.0 »), from its public information (camelCase while it starts); null when it does not say.
+    /// </summary>
+    public async Task<string?> ServerVersionAsync(CancellationToken ct = default)
+    {
+        var info = await GetAsync<JsonElement>("System/Info/Public", ct);
+        return info.ValueKind == JsonValueKind.Object && (info.TryGetProperty("Version", out var version) || info.TryGetProperty("version", out version))
+            && version.ValueKind == JsonValueKind.String && version.GetString() is { Length: > 0 } text ? text : null;
+    }
+    /// <summary>
+    /// Who plays what on Jellyfin right now (<see cref="Viewers"/>): every session for an administrator, this account's
+    /// own otherwise.
+    /// </summary>
+    public async Task<List<Viewer>> ViewersAsync(CancellationToken ct = default) =>
+        Viewers.Parse(await GetAsync<JsonElement>("Sessions?activeWithinSeconds=960", ct), Connection.DeviceId);
+    /// <summary>
+    /// Asks a session to stop (Jellyfin's Playstate Stop): only one whose WebSocket takes commands (CanStop) does,
+    /// Mira web among them while it plays. False when refused.
+    /// </summary>
+    public async Task<bool> StopViewerAsync(string sessionId, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync($"Sessions/{Uri.EscapeDataString(sessionId)}/Playing/Stop", null, ct);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return false;
+        await CheckAsync(response);
+        return true;
+    }
+    /// <summary>
+    /// « Télécharger sur le PC serveur »: Mira for Windows' visit to the relay of the extension (POST Mira/torlink/agent),
+    /// its report sent, its work back. No work with the status when the relay refuses: 403 (not an administrator) or
+    /// 404 (an extension older than this Mira).
+    /// </summary>
+    public async Task<(AgentWork? Work, HttpStatusCode Status)> TorLinkExchangeAsync(AgentReport report, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/agent", report, RemoteProtocol.Json, ct);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return (null, response.StatusCode);
+        await CheckAsync(response);
+        return (await response.Content.ReadFromJsonAsync<AgentWork>(RemoteProtocol.Json, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin.")), response.StatusCode);
+    }
+    /// <summary>
+    /// « Télécharger sur le PC serveur » from another PC (an administrator): what the PC of Jellyfin has under way, as
+    /// Mira web reads it (GET Mira/torlink). The relay's refusals, in Mira's words: <see cref="RelayRefusedException"/>.
+    /// </summary>
+    public async Task<RelayStatus> TorLinkStatusAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Mira/torlink", ct);
+        await CheckRelayAsync(response, ct);
+        var status = await response.Content.ReadFromJsonAsync<RelayStatus>(RemoteProtocol.Json, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+        return status with { Requests = status.Requests ?? [], Controls = status.Controls ?? [], Downloads = status.Downloads ?? [], Placed = status.Placed ?? [] };
+    }
+    /// <summary>A search the PC of Jellyfin runs with TorLink: its id, to follow with <see cref="TorLinkSearchStateAsync"/>.</summary>
+    public async Task<string> TorLinkSearchAsync(string query, string category, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/search", new { query, category }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
+    /// <summary>Where a search stands (waiting, running, done with its results, failed); null once the relay forgot it.</summary>
+    public async Task<RelaySearch?> TorLinkSearchStateAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Mira/torlink/search/{Uri.EscapeDataString(id)}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckRelayAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<RelaySearch>(RemoteProtocol.Json, ct);
+    }
+    /// <summary>A result of a search, sent to the PC of Jellyfin (its magnet link stays with the relay): the request's id.</summary>
+    public async Task<string> TorLinkRequestAsync(string search, RelayHit hit, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { search, result = hit.Id, name = hit.Name, size = hit.Size }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
+    /// <summary>A pasted magnet link, sent to the PC of Jellyfin: the request's id.</summary>
+    public async Task<string> TorLinkRequestAsync(string magnet, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { magnet }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
+    /// <summary>A request not yet taken by the PC, withdrawn: true; false when the PC has it already; null when it is gone.</summary>
+    public async Task<bool?> TorLinkCancelAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync($"Mira/torlink/requests/{Uri.EscapeDataString(id)}", ct);
+        if (response.StatusCode == HttpStatusCode.Conflict) return false;
+        if (response.StatusCode == HttpStatusCode.NotFound && await HasRelayAsync(ct)) return null;
+        await CheckRelayAsync(response, ct);
+        return true;
+    }
+    /// <summary>pause, resume or delete (its files with it) a download TorLink has on the PC of Jellyfin.</summary>
+    public async Task TorLinkControlAsync(string id, string action, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/control", new { id, action }, RemoteProtocol.Json, ct);
+        await RelayIdAsync(response, ct);
+    }
+    private async Task<string> RelayIdAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        await CheckRelayAsync(response, ct);
+        using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        return body.RootElement.TryGetProperty("id", out var id) && id.GetString() is { Length: > 0 } text ? text : throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    /// <summary>A 404 of a request is the request gone, not the relay missing, when the relay itself answers.</summary>
+    private async Task<bool> HasRelayAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("Mira/torlink", ct);
+        return response.IsSuccessStatusCode;
+    }
+    /// <summary>
+    /// 403 (not an administrator: never « session expirée ») and 404 (an extension without the relay) in Mira's words;
+    /// 400 with the relay's own reason; the rest as any answer of Jellyfin.
+    /// </summary>
+    private static async Task CheckRelayAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (RemoteLines.Refused(response.StatusCode) is { } refused) throw new RelayRefusedException(refused, response.StatusCode);
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            string? error = null;
+            try
+            {
+                using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+                if (body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("error", out var value) && value.ValueKind == JsonValueKind.String) error = value.GetString();
+            }
+            catch (JsonException) { }
+            throw new RelayRefusedException(string.IsNullOrWhiteSpace(error) ? L("Le PC serveur a refusé cette demande.", "The server PC refused this request.") : error, response.StatusCode);
+        }
+        await CheckAsync(response);
+    }
+    /// <summary>
+    /// The « Lecture impossible » reports Mira web left in Jellyfin's logs (<see cref="PlaybackFailures"/>), the latest
+    /// first; null when this account may not read the logs (an administrator only).
+    /// </summary>
+    public async Task<List<PlaybackFailure>?> PlaybackFailuresAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("System/Logs", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        var files = await response.Content.ReadFromJsonAsync<List<LogFile>>(Json.Options, ct) ?? [];
+        var found = new List<PlaybackFailure>();
+        foreach (var file in files.Where(x => PlaybackFailures.IsMira(x.Name) && x.Size <= PlaybackFailures.MaxSize).OrderByDescending(x => x.DateModified).Take(PlaybackFailures.Shown))
+        {
+            using var log = await _http.GetAsync($"System/Logs/Log?name={Uri.EscapeDataString(file.Name)}", ct);
+            // Gone meanwhile (Jellyfin deletes its old logs): the others still show.
+            if (log.StatusCode == HttpStatusCode.NotFound) continue;
+            await CheckAsync(log);
+            if (PlaybackFailures.Parse(await log.Content.ReadAsStringAsync(ct)) is { } failure) found.Add(failure);
+        }
+        return found;
+    }
+    private async Task<JsonObject?> EncodingSettingsAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("System/Configuration/encoding", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject;
+    }
+    /// <summary>Jellyfin's accounts, the hidden ones too, as an administrator sees them; null when this account may not.</summary>
+    public async Task<List<AuthUser>?> UsersAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Users", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        return await response.Content.ReadFromJsonAsync<List<AuthUser>>(Json.Options, ct) ?? [];
+    }
+    /// <summary>
+    /// « Ajouter un ami »: a new account with its own password, which sees only <paramref name="folders"/> and
+    /// downloads nothing (Friends.Policy). Never left as Jellyfin makes it (every library, downloads): removed again
+    /// when its policy cannot be set. A name Jellyfin refuses (taken, or a sign it does not take) is said in words.
+    /// </summary>
+    public async Task<AuthUser> CreateFriendAsync(string name, string password, IReadOnlyCollection<string> folders, CancellationToken ct = default)
+    {
+        if (folders.Count == 0) throw new UserInputException(L("Choisis au moins une bibliothèque à partager.", "Choose at least one library to share."));
+        using var created = await _http.PostAsJsonAsync("Users/New", new { Name = name, Password = password }, ct);
+        if (created.StatusCode == HttpStatusCode.BadRequest)
+            throw new UserInputException(L($"Jellyfin refuse le nom « {name} » : il est déjà pris, ou contient un signe qu’il n’accepte pas.", $"Jellyfin refuses the name “{name}”: it’s already taken, or has a character it doesn’t accept."));
+        await CheckAsync(created);
+        var user = await created.Content.ReadFromJsonAsync<AuthUser>(Json.Options, ct) ?? throw new IOException(L("Jellyfin n’a pas donné le compte créé.", "Jellyfin didn’t return the account it made."));
+        try
+        {
+            using var read = await _http.GetAsync($"Users/{Uri.EscapeDataString(user.Id)}", ct);
+            await CheckAsync(read);
+            var policy = (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) as JsonObject)?["Policy"] as JsonObject
+                ?? throw new IOException(L("Jellyfin n’a pas donné les droits du compte créé.", "Jellyfin didn’t return the new account’s permissions."));
+            using var content = new StringContent(Friends.Policy(policy, folders).ToJsonString(), Encoding.UTF8, "application/json");
+            using var set = await _http.PostAsync($"Users/{Uri.EscapeDataString(user.Id)}/Policy", content, ct);
+            await CheckAsync(set);
+        }
+        catch
+        {
+            // Even when Mira is closing: an account that sees everything must not stay behind.
+            try { using var removed = await _http.DeleteAsync($"Users/{Uri.EscapeDataString(user.Id)}", CancellationToken.None); }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException) { }
+            throw;
+        }
+        return user;
+    }
+    /// <summary>
+    /// Mira's display preferences of this account, where « Tes choix gardés sur ton Jellyfin » are kept
+    /// (<see cref="AccountChoices"/>): Jellyfin's whole answer, sent back whole with the change (it keeps only what it is sent).
+    /// </summary>
+    public async Task<JsonObject> ChoicesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync(ChoicesPath, ct);
+        await CheckAsync(response);
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    public async Task SaveChoicesAsync(JsonObject preferences, CancellationToken ct = default)
+    {
+        using var content = new StringContent(preferences.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync(ChoicesPath, content, ct);
+        await CheckAsync(response);
+    }
+    private string ChoicesPath => $"DisplayPreferences/{AccountChoices.DisplayPreferences}?userId={Uri.EscapeDataString(Connection.UserId)}&client={AccountChoices.DisplayPreferences}";
+    /// <summary>
     /// Whether this account administers Jellyfin (its policy): only an administrator installs Mira web or lets
     /// Tailscale in. Null when Jellyfin does not say.
     /// </summary>
@@ -288,7 +889,7 @@ public sealed class JellyfinClient : IDisposable
     public async Task<WebAppInstall> InstallWebAppAsync(string repository, TimeSpan? restartLimit = null, CancellationToken ct = default)
     {
         if (await InstallFromAsync(repository, ct) is { } refused) return refused;
-        using (var restart = await _http.PostAsync("System/Restart", null, ct)) await CheckAsync(restart);
+        await RestartAsync(ct);
         // Jellyfin stops answering while it restarts, then serves the plugin's pages.
         var limit = DateTime.UtcNow + (restartLimit ?? TimeSpan.FromSeconds(90));
         await Task.Delay(TimeSpan.FromSeconds(2), ct);
@@ -317,6 +918,43 @@ public sealed class JellyfinClient : IDisposable
         if (mira.Any(url => MiraWeb.PinnedVersion(url) is { } pinned && pinned >= version)) return true;
         if (await WebAppVersionAsync(ct) is { } installed && installed >= version) return true;
         return await PinAsync(repositories, await verified(), ct) is null;
+    }
+    /// <summary>Jellyfin restarted, as its dashboard does (administrator): it stops answering for a few seconds.</summary>
+    public async Task RestartAsync(CancellationToken ct = default)
+    {
+        using var restart = await _http.PostAsync("System/Restart", null, ct);
+        await CheckAsync(restart);
+    }
+    /// <summary>Mira web as Jellyfin serves it and as it waits for a restart (<see cref="MiraWeb.Installed"/>); null when this account may not read the plugins.</summary>
+    public async Task<MiraWeb.Versions?> WebAppVersionsAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Plugins", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        return MiraWeb.Installed(JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? []);
+    }
+    /// <summary>
+    /// Jellyfin's « Update Plugins » task (PluginUpdates, which it runs at its start and every 24 hours) run now, as its
+    /// dashboard does, then waited for until it ends (a few seconds on 12.1). It updates every plugin under its own
+    /// rules: one kept from updating stays as it is. False when refused, missing, or not over within <paramref name="limit"/>.
+    /// </summary>
+    public async Task<bool> UpdatePluginsNowAsync(TimeSpan? limit = null, CancellationToken ct = default)
+    {
+        if (await ScheduledTaskAsync("PluginUpdates", ct) is not { Id: { } id } before) return false;
+        if (!before.Running)
+        {
+            using var started = await _http.PostAsync($"ScheduledTasks/Running/{Uri.EscapeDataString(id)}", null, ct);
+            if (started.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(started);
+        }
+        // Over once it no longer runs and its last run is another one than before.
+        var deadline = DateTime.UtcNow + (limit ?? TimeSpan.FromMinutes(3));
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            if (await ScheduledTaskAsync("PluginUpdates", ct) is { Running: false, Ended: { } ended } && ended != before.Ended) return true;
+        }
+        return false;
     }
     /// <summary>The newest version of Mira's plugin Jellyfin lists (one waiting for a restart included); null without one.</summary>
     private async Task<Version?> WebAppVersionAsync(CancellationToken ct)
@@ -411,6 +1049,19 @@ public sealed class JellyfinClient : IDisposable
         }
         return found;
     }
+    /// <summary>
+    /// The 50 episodes Jellyfin added last, not watched yet, and their series with what this account watched of them
+    /// (RecursiveItemCount gives the share watched): what <see cref="NewEpisodes"/> picks from.
+    /// </summary>
+    public async Task<(List<MediaItem> Episodes, Dictionary<string, MediaItem> Series)> RecentEpisodesAsync(CancellationToken ct = default)
+    {
+        var episodes = (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Episode&isMissing=false&isPlayed=false" +
+            "&sortBy=DateCreated&sortOrder=Descending&limit=50&fields=DateCreated&enableImageTypes=Primary&imageTypeLimit=1", ct)).Items;
+        var ids = episodes.Select(x => x.SeriesId).OfType<string>().Distinct().ToList();
+        if (ids.Count == 0) return (episodes, []);
+        var series = await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&ids={string.Join(',', ids.Select(Uri.EscapeDataString))}&fields=RecursiveItemCount&enableImages=false", ct);
+        return (episodes, series.Items.Where(x => x.Type == "Series").GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First()));
+    }
     /// <summary>The episode Jellyfin would play next for one series (resumable first, then the following one).</summary>
     public async Task<MediaItem?> NextEpisodeAsync(string seriesId, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Shows/NextUp?userId={Connection.UserId}&seriesId={Uri.EscapeDataString(seriesId)}&limit=1&enableResumable=true&fields=Overview", ct)).Items.FirstOrDefault();
@@ -437,9 +1088,35 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
+    // « Regarder ensemble », Jellyfin's SyncPlay (Together): Unauthorized when Jellyfin does not let this account use it.
+    public async Task<(long Sent, long Received, long ServerIn, long ServerOut)?> UtcTimeAsync(CancellationToken ct = default)
+    {
+        var sent = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var answer = await GetAsync<JsonElement>("GetUtcTime", ct);
+        var received = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return Together.ServerTime(answer.TryGetProperty("RequestReceptionTime", out var a) ? a.GetString() : null) is { } serverIn
+            && Together.ServerTime(answer.TryGetProperty("ResponseTransmissionTime", out var b) ? b.GetString() : null) is { } serverOut ? (sent, received, serverIn, serverOut) : null;
+    }
+    public async Task<List<Together.Group>> SyncGroupsAsync(CancellationToken ct = default) =>
+        (await GetAsync<JsonElement>("SyncPlay/List", ct)) is { ValueKind: JsonValueKind.Array } list ? list.EnumerateArray().Select(Together.ParseGroup).OfType<Together.Group>().ToList() : [];
+    public async Task<Together.Group?> SyncGroupAsync(string groupId, CancellationToken ct = default) =>
+        Together.ParseGroup(await GetAsync<JsonElement>("SyncPlay/" + Uri.EscapeDataString(groupId), ct));
+    public Task SyncNewAsync(string name, CancellationToken ct = default) => SyncSendAsync("New", new JsonObject { ["GroupName"] = name }, ct);
+    public Task SyncJoinAsync(string groupId, CancellationToken ct = default) => SyncSendAsync("Join", new JsonObject { ["GroupId"] = groupId }, ct);
+    public Task SyncLeaveAsync(CancellationToken ct = default) => SyncSendAsync("Leave", null, ct);
+    public Task SyncQueueAsync(string itemId, long startTicks, CancellationToken ct = default) =>
+        SyncSendAsync("SetNewQueue", new JsonObject { ["PlayingQueue"] = new JsonArray(itemId), ["PlayingItemPosition"] = 0, ["StartPositionTicks"] = Math.Max(0, startTicks) }, ct);
+    /// <summary>Pause, Unpause, Seek ({ PositionTicks }), Buffering and Ready ({ When, PositionTicks, IsPlaying, PlaylistItemId }), Ping.</summary>
+    public async Task SyncSendAsync(string what, JsonObject? body, CancellationToken ct = default)
+    {
+        using var content = new StringContent(body?.ToJsonString() ?? "{}", Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync("SyncPlay/" + what, content, ct);
+        await CheckAsync(response);
+    }
     /// <param name="listening">Told true once the WebSocket is open, false when it closes: while it is closed, library
     /// changes go unheard and the page needs refreshing more often.</param>
-    public async Task ListenAsync(Action changed, CancellationToken ct, Action<bool>? listening = null)
+    /// <param name="syncPlay">« Regarder ensemble »: Jellyfin's SyncPlayGroupUpdate and SyncPlayCommand, with their Data.</param>
+    public async Task ListenAsync(Action changed, CancellationToken ct, Action<bool>? listening = null, Action<string, JsonElement>? syncPlay = null)
     {
         var delay = 2;
         while (!ct.IsCancellationRequested)
@@ -467,15 +1144,17 @@ public sealed class JellyfinClient : IDisposable
                             part = await socket.ReceiveAsync(buffer, ct);
                             if (part.MessageType == WebSocketMessageType.Close) break;
                             message.Write(buffer, 0, part.Count);
-                            if (message.Length > 1_000_000) throw new IOException("Message trop volumineux.");
+                            if (message.Length > 1_000_000) throw new IOException(L("Message trop volumineux.", "Message too large."));
                         } while (!part.EndOfMessage);
                         if (part.MessageType == WebSocketMessageType.Close) break;
                         // Only a socket that actually talks resets the back-off: one closed right after opening keeps waiting longer.
                         delay = 2;
                         using var doc = JsonDocument.Parse(message.ToArray());
                         // Any other shape is ignored: an exception here would end the listening for the whole session.
-                        if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("MessageType", out var type) &&
-                            type.ValueKind == JsonValueKind.String && type.GetString() is "LibraryChanged" or "UserDataChanged") changed();
+                        if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("MessageType", out var type) || type.ValueKind != JsonValueKind.String) continue;
+                        if (type.GetString() is "LibraryChanged" or "UserDataChanged") changed();
+                        else if (type.GetString() is "SyncPlayGroupUpdate" or "SyncPlayCommand" && syncPlay is not null && doc.RootElement.TryGetProperty("Data", out var data))
+                            syncPlay(type.GetString()!, data.Clone());
                     }
                 }
                 finally
@@ -502,7 +1181,7 @@ public sealed class JellyfinClient : IDisposable
     private static Task CheckAsync(HttpResponseMessage response)
     {
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new UnauthorizedAccessException("Connexion refusée ou session expirée. Reconnecte ton compte Jellyfin.");
+            throw new UnauthorizedAccessException(L("Connexion refusée ou session expirée. Reconnecte ton compte Jellyfin.", "Sign-in refused or session expired. Sign in to your Jellyfin account again."));
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(StatusMessage(response.StatusCode), null, response.StatusCode);
         return Task.CompletedTask;
@@ -511,10 +1190,12 @@ public sealed class JellyfinClient : IDisposable
     public static string StatusMessage(HttpStatusCode status) => (int)status switch
     {
         // Jellyfin answers 503 to everything but its public information until it has started.
-        503 => "Jellyfin démarre : réessaie dans un instant.",
-        404 => "Jellyfin ne trouve pas ce qui est demandé : le titre a peut-être été retiré de la bibliothèque.",
-        >= 500 => $"Jellyfin a rencontré une erreur (code {(int)status}). Réessaie dans un instant ; si ça continue, son journal en dit plus (Tableau de bord → Journaux).",
-        _ => $"Jellyfin a refusé la demande (code {(int)status})."
+        503 => L("Jellyfin démarre : réessaie dans un instant.", "Jellyfin is starting: try again in a moment."),
+        404 => L("Jellyfin ne trouve pas ce qui est demandé : le titre a peut-être été retiré de la bibliothèque.", "Jellyfin can’t find what was asked for: the title may have been removed from the library."),
+        >= 500 => L($"Jellyfin a rencontré une erreur (code {(int)status}). Réessaie dans un instant ; si ça continue, son journal en dit plus (Tableau de bord → Journaux).", $"Jellyfin ran into an error (code {(int)status}). Try again in a moment; if it keeps happening, its log says more (Dashboard → Logs)."),
+        _ => L($"Jellyfin a refusé la demande (code {(int)status}).", $"Jellyfin refused the request (code {(int)status}).")
     };
     public void Dispose() => _http.Dispose();
 }
+/// <summary>What Jellyfin said of a code approved for another device (Quick Connect).</summary>
+public enum CodeApproval { Approved, Unknown, Disabled }

@@ -1,10 +1,12 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Mira.Core;
 using Mira.Mac.Services;
 using Mira.Mac.Views;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac;
 
@@ -29,10 +31,24 @@ public partial class App : Application
             // The session's token goes to the login keychain. The self-check keeps it in its profile's file, so that no keychain
             // question can hold its sign-in on a Mac nobody watches (GitHub's); it checks the keychain apart, with a time limit.
             var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") ? new Keychain() : null;
-            desktop.MainWindow = new MainWindow(args, new Profile(data, tokens));
+            var window = new MainWindow(args, new Profile(data, tokens));
+            desktop.MainWindow = window;
+            NameMenu();
+            // mira:// links (« Ouvrir dans Mira » of Mira web, CFBundleURLTypes in tools/mac/package.sh), given by macOS
+            // to the Mira already open, or to the one it starts for them.
+            if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime activation)
+                activation.Activated += (_, e) => { if (e is ProtocolActivatedEventArgs { Kind: ActivationKind.OpenUri } link) Dispatcher.UIThread.Post(() => window.OpenLink(link.Uri.OriginalString)); };
             Dispatcher.UIThread.UnhandledException += (_, e) => Unhandled(desktop, e);
         }
         base.OnFrameworkInitializationCompleted();
+    }
+    /// <summary>The Mira menu of the menu bar (App.axaml), in Mira's language: set by the window as it opens.</summary>
+    private void NameMenu()
+    {
+        if (NativeMenu.GetMenu(this)?.Items.OfType<NativeMenuItem>().ToList() is not [var about, var settings, var updates]) return;
+        about.Header = L("À propos de Mira", "About Mira");
+        settings.Header = L("Réglages…", "Settings…");
+        updates.Header = L("Rechercher une mise à jour…", "Check for updates…");
     }
     /// <summary>As on Windows: an unexpected error is logged (errors.log) and said, rather than closing Mira without a word.</summary>
     private static void Unhandled(IClassicDesktopStyleApplicationLifetime desktop, DispatcherUnhandledExceptionEventArgs e)
@@ -44,6 +60,6 @@ public partial class App : Application
         e.Handled = true;
         // Closing, or not open yet: nothing is left to retry from, and a hidden window would keep Mira running. It ends.
         if (window.IsClosing || !window.IsVisible) { desktop.Shutdown(1); return; }
-        window.Notice("Une opération n’a pas abouti. Tu peux réessayer ; la progression déjà enregistrée reste conservée.");
+        window.Notice(L("Une opération n’a pas abouti. Tu peux réessayer ; la progression déjà enregistrée reste conservée.", "Something didn’t work. You can try again; the progress already saved is kept."));
     }
 }

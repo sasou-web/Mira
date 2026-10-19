@@ -11,8 +11,9 @@ public static class IconPaths
     public const string BrandM = "M6.3 16.5V10.6C6.3 6.3 12 6.3 12 10.6V15.6M12 10.6C12 6.3 17.7 6.3 17.7 10.6V16.5";
     /// <summary>The player's speaker, solid, under the waves of "volume" and "volume-low" or the cross of "mute".</summary>
     public const string Speaker = "M10.3 4.9Q12 3.8 12 5.8V18.2Q12 20.2 10.3 19.1L6.5 16.2H4.6Q2.6 16.2 2.6 14.2V9.8Q2.6 7.8 4.6 7.8H6.5Z";
-    /// <summary>Solid parts: the next episode's triangle, the three dots of a menu, a favourite's filled heart.</summary>
+    /// <summary>Solid parts: the next and previous episodes' triangles, the three dots of a menu, a favourite's filled heart.</summary>
     public const string NextEpisode = "M6.3 5.3Q4.2 4.1 4.2 6.5V17.5Q4.2 19.9 6.3 18.7L15.2 13.3Q17.3 12 15.2 10.7Z";
+    public const string PreviousEpisode = "M17.7 5.3Q19.8 4.1 19.8 6.5V17.5Q19.8 19.9 17.7 18.7L8.8 13.3Q6.7 12 8.8 10.7Z";
     public const string More = "M13.55 5A1.55 1.55 0 1 1 10.45 5A1.55 1.55 0 1 1 13.55 5Z M13.55 12A1.55 1.55 0 1 1 10.45 12A1.55 1.55 0 1 1 13.55 12Z M13.55 19A1.55 1.55 0 1 1 10.45 19A1.55 1.55 0 1 1 13.55 19Z";
     public const string Heart = "M12 20C10 19 3 14 3 8.7C3 2.8 10 1.8 12 6C14 1.8 21 2.8 21 8.7C21 14 14 19 12 20Z";
     /// <summary>Outlines, by kind (play and pause are filled).</summary>
@@ -26,6 +27,8 @@ public static class IconPaths
         ["settings"] = "M9 4C9 1 15 1 15 4C18 2.5 22 7 19.5 9C23 10 23 14 19.5 15C22 17 18 21.5 15 20C15 23 9 23 9 20C6 21.5 2 17 4.5 15C1 14 1 10 4.5 9C2 7 6 2.5 9 4Z M15.3 12A3.3 3.3 0 1 1 8.7 12A3.3 3.3 0 1 1 15.3 12",
         ["heart"] = "M12 20C10 19 3 14 3 8.7C3 2.8 10 1.8 12 6C14 1.8 21 2.8 21 8.7C21 14 14 19 12 20Z",
         ["user"] = "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M15 9A3 3 0 1 1 9 9A3 3 0 1 1 15 9 M6 18Q7 14 12 14Q17 14 18 18",
+        ["users"] = "M12.5 8.5A3.5 3.5 0 1 1 5.5 8.5A3.5 3.5 0 1 1 12.5 8.5 M2.5 19Q3 14.5 9 14.5Q15 14.5 15.5 19 M15.5 5.2A3.5 3.5 0 0 1 15.5 11.8 M18 14.8Q21 15.5 21.5 19",
+        ["link"] = "M10 13A5 5 0 0 0 17.54 13.54L20.54 10.54A5 5 0 0 0 13.47 3.47L11.75 5.18 M14 11A5 5 0 0 0 6.46 10.46L3.46 13.46A5 5 0 0 0 10.53 20.53L12.24 18.82",
         ["play"] = "M7 4.5Q5 3.4 5 5.8V18.2Q5 20.6 7 19.5L19 13.4Q21.2 12 19 10.6Z",
         ["pause"] = "M6 4H8Q9 4 9 5V19Q9 20 8 20H6Q5 20 5 19V5Q5 4 6 4Z M16 4H18Q19 4 19 5V19Q19 20 18 20H16Q15 20 15 19V5Q15 4 16 4Z",
         ["warning"] = "M10.3 4.6Q12 1.8 13.7 4.6L21.2 17.4Q22.9 20.5 19.4 20.5H4.6Q1.1 20.5 2.8 17.4Z M12 9.5V13.5 M12 16.9V17.05",
@@ -33,6 +36,7 @@ public static class IconPaths
         ["back"] = "M14.5 5L7.5 12L14.5 19",
         ["next"] = "M9.5 5L16.5 12L9.5 19",
         ["down"] = "M5 9L12 16L19 9",
+        ["up"] = "M5 15L12 8L19 15",
         ["close"] = "M6 6L18 18M18 6L6 18",
         ["refresh"] = "M19.5 8A8 8 0 1 0 20 14M19.5 3V8.5H14",
         ["check"] = "M4.5 12.5L9.5 17.5L19.5 6.5",
@@ -40,6 +44,9 @@ public static class IconPaths
         ["volume-low"] = "M15.6 8.4Q18.3 12 15.6 15.6",
         ["mute"] = "M16.2 9.4L21.4 14.6M21.4 9.4L16.2 14.6",
         ["next-episode"] = "M19.6 5.2V18.8",
+        ["previous-episode"] = "M4.4 5.2V18.8",
+        // The episodes of a season, in a list.
+        ["episodes"] = "M9 6H20M9 12H20M9 18H20M4.5 6H4.6M4.5 12H4.6M4.5 18H4.6",
         ["subtitles"] = "M7 4H17Q21 4 21 8V16Q21 20 17 20H7Q3 20 3 16V8Q3 4 7 4Z M6 11H9M13 11H18M6 15H13M17 15H18",
         ["fullscreen"] = "M3 8V6Q3 3 6 3H8M16 3H18Q21 3 21 6V8M21 16V18Q21 21 18 21H16M8 21H6Q3 21 3 18V16",
         ["collapse"] = "M3 8H6Q8 8 8 6V3M16 3V6Q16 8 18 8H21M21 16H18Q16 16 16 18V21M8 21V18Q8 16 6 16H3",
@@ -52,6 +59,7 @@ public static class IconPaths
         ["rewind"] = "M4 8A8.5 8.5 0 1 1 3.5 14M3 3V8H8",
         ["forward"] = "M20 8A8.5 8.5 0 1 0 20.5 14M21 3V8H16",
         ["skip"] = "M5 5Q3 4 3 6V18Q3 20 5 19L15 13Q17 12 15 11Z M20 5V19",
+        ["laptop"] = "M6 5H18Q19.5 5 19.5 6.5V15.5H4.5V6.5Q4.5 5 6 5Z M2.5 15.5H21.5Q21.5 19 18.5 19H5.5Q2.5 19 2.5 15.5Z",
         ["download"] = "M12 3.5V14.5 M7.5 10.5L12 15L16.5 10.5 M4 16V17Q4 20.5 7.5 20.5H16.5Q20 20.5 20 17V16",
         ["sparkle"] = "M12 3Q12.9 10.2 20 12Q12.9 13.8 12 21Q11.1 13.8 4 12Q11.1 10.2 12 3Z M19 3V6M17.5 4.5H20.5",
         ["globe"] = "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M3.5 12H20.5 M12 3Q8 7 8 12Q8 17 12 21 M12 3Q16 7 16 12Q16 17 12 21"

@@ -1,9 +1,13 @@
 // Audio and subtitle tracks of the web player (src/Mira.Web/js/player/tracks.js), without a browser.
+import './fr.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
+import { readFileSync } from 'node:fs';
 import {
-  trackText, menuNames, chooseTracks, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex,
+  trackText, menuNames, chooseTracks, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex, qualityText,
 } from '../../../src/Mira.Web/js/player/tracks.js';
+import { endsAt, extraKind } from '../../../src/Mira.Web/js/dom.js';
 
 const source = {
   DefaultAudioStreamIndex: 1,
@@ -35,7 +39,9 @@ test('tracks a title starts with', () => {
   assert.deepEqual(chooseTracks(source, { audioOrder: 'fre,fra,fr', subtitleOrder: 'fre,fra,fr,eng,en' }), { audio: 2, subtitle: 4 });
   // The series' last choice: none.
   assert.deepEqual(chooseTracks(source, { memory: { audio: 'jpn', subtitle: null } }), { audio: 1, subtitle: -1 });
-  assert.deepEqual(trackMemory(source, 1, 4), { audio: 'jpn', subtitle: 'fre', forced: true });
+  assert.deepEqual(trackMemory(source, 1, 4), { audio: 'jpn', subtitle: 'fre', forced: true, audioTitle: null, subtitleTitle: null });
+  assert.deepEqual(trackMemory({ MediaStreams: [{ Type: 'Audio', Index: 0, Language: 'jpn', Title: 'Japonais' }, { Type: 'Subtitle', Index: 1, Language: 'fre', Title: 'Complet' }] }, 0, 1),
+    { audio: 'jpn', subtitle: 'fre', forced: false, audioTitle: 'Japonais', subtitleTitle: 'Complet' });
 });
 
 test('tracks chosen on the title page, from the player’s address', () => {
@@ -83,4 +89,47 @@ test('Jellyfin’s index of a subtitle track found in the video', () => {
   assert.equal(carriedIndex({ at: 0, count: 3, label: 'French - ASS - Forced', inband: true, own: null, source }), 4);
   assert.equal(carriedIndex({ at: 1, count: 3, label: 'Sous-titres', inband: true, own: null, source }), 4);
   assert.equal(carriedIndex({ at: 1, count: 2, label: 'Sous-titres', inband: true, own: null, source }), null);
+});
+
+// The same cases as Mira for Windows and Mac (tests/Mira.Core.Tests, MediaQuality): both read them.
+const quality = JSON.parse(readFileSync(new URL('../../../tests/fixtures/quality.json', import.meta.url), 'utf8'));
+
+test('a file\'s picture is named as on Windows and Mac', () => {
+  for (const [Width, Height, VideoRangeType, VideoRange, label] of quality.videos) {
+    const video = { Type: 'Video', Index: 0, Width, Height, VideoRangeType, VideoRange };
+    assert.equal(qualityText({ MediaStreams: [{ Type: 'Audio', Index: 1 }, video] }), label, `${Width} × ${Height} ${VideoRangeType}`);
+  }
+  assert.equal(qualityText({ MediaStreams: [{ Type: 'Audio', Index: 0 }] }), '');
+  assert.equal(qualityText(null), '');
+});
+
+test('the end of a title started now, from where it resumes', () => {
+  const now = new Date(2026, 9, 13, 22, 50, 30);
+  const minutes = (n) => n * 60 * 10_000_000;
+  assert.equal(endsAt({ RunTimeTicks: minutes(82) }, now), 'Fin à 0 h 12');
+  assert.equal(endsAt({ RunTimeTicks: minutes(82), UserData: { PlaybackPositionTicks: minutes(60) } }, now), 'Fin à 23 h 12');
+  // Watched to the end: it starts again from the beginning.
+  assert.equal(endsAt({ RunTimeTicks: minutes(82), UserData: { PlaybackPositionTicks: minutes(60), Played: true } }, now), 'Fin à 0 h 12');
+  assert.equal(endsAt({ RunTimeTicks: 0 }, now), '');
+  assert.equal(endsAt(null, now), '');
+});
+
+// A bonus video's kind, named as on Windows and Mac (tests/Mira.Core.Tests, PlayerText.ExtraKind): both read these cases.
+const extras = JSON.parse(readFileSync(new URL('../../../tests/fixtures/extras.json', import.meta.url), 'utf8'));
+
+test('a bonus video\'s kind is named as on Windows and Mac', () => {
+  for (const [type, kind] of extras.kinds) assert.equal(extraKind(type), kind, String(type));
+});
+
+test('track names in English: Intl names the language, a French title that names it already is not repeated', () => {
+  try {
+    setLanguage('en');
+    assert.deepEqual(trackText(source.MediaStreams[2], 2), { label: 'French', details: 'Dolby Digital Plus · 5.1' });
+    assert.deepEqual(trackText(source.MediaStreams[4], 2), { label: 'French', details: 'ASS · forced' });
+    assert.deepEqual(trackText(source.MediaStreams[5], 3), { label: 'English', details: 'SRT · external file' });
+    assert.deepEqual(trackText({ Type: 'Audio', Index: 9 }, 3), { label: 'Track 3', details: '' });
+    assert.deepEqual(trackText({ Type: 'Audio', Index: 1, Language: 'fre', Title: 'Français', Codec: 'aac', Channels: 2 }), { label: 'Français', details: 'AAC · stereo' });
+    assert.deepEqual(trackText({ Type: 'Audio', Index: 1, Language: 'jpn', Title: 'Complet', Codec: 'aac', Channels: 8 }), { label: 'Complet', details: 'Japanese · AAC · 7.1' });
+    assert.deepEqual([...menuNames(source)], [[3, 'French (ASS)'], [4, 'French (ASS · forced)'], [5, 'English']]);
+  } finally { setLanguage('fr'); }
 });

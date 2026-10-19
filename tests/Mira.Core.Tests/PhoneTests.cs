@@ -226,6 +226,12 @@ internal static class PhoneTests
             var silent = fresh with { Web = null, Admin = null, TailnetAllowed = null, Answering = false };
             steps = PhoneSetup.Steps(silent);
             Assert(Marks(steps) == "web:Note firewall:ToDo tailscale:Note boot:Note" && steps[0].Title.Contains("ne répond pas"), "Jellyfin silent: " + Marks(steps));
+            // Silent on this PC: stopped (its button starts it), starting, or stopping after each start (its log).
+            Assert(PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Stopped, Boot = service })[0] is { Mark: PhoneSetup.Mark.Yours, Action: "Démarrer Jellyfin" } stopped
+                && stopped.Text.Contains("autorisation de Windows") && !PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Stopped })[0].Text.Contains("autorisation")
+                && PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Starting })[0] is { Mark: PhoneSetup.Mark.Note, Title: "Jellyfin démarre sur ce PC" }
+                && PhoneSetup.Steps(silent with { Down = LocalJellyfin.Verdict.Failing })[0] is { Mark: PhoneSetup.Mark.Yours, Action: "Ouvrir son journal" }
+                && PhoneSetup.Steps(new PhoneSetup.Facts("http://192.168.1.30:8096", false, Web: null, Home: "http://192.168.1.30:8096") with { Answering = false, Web = null, Down = LocalJellyfin.Verdict.Stopped })[0].Title.Contains("ne répond pas"), "Jellyfin stopped on this PC");
             Assert(PhoneSetup.Is(PhoneSetup.Steps(ready with { TailnetAllowed = null }), "tailscale", PhoneSetup.Mark.Note), "The administrator, Tailscale not read yet");
             // Unreadable firewall: Mira's rule decides, when it is as Mira writes it. The service: set up with the same consent when it lacks something.
             Assert(PhoneSetup.Is(PhoneSetup.Steps(ready with { Firewall = null, MiraRule = JellyfinFirewall.RuleState.Ready }), "firewall", PhoneSetup.Mark.Done)
@@ -256,7 +262,103 @@ internal static class PhoneTests
             Assert(PhoneSetup.Steps(fresh with { Home = null })[1] is { Key: "network", Mark: PhoneSetup.Mark.Yours }, "No network");
             // A Jellyfin here reached at this PC's own address is this PC's.
             Assert(LocalNetwork.IsThisPc("127.0.0.1") && LocalNetwork.IsThisPc("localhost") && LocalNetwork.IsThisPc("[::1]") && !LocalNetwork.IsThisPc("192.0.2.1")
-                && (LocalNetwork.ThisPc() is not { } own || LocalNetwork.IsThisPc(own)), "This PC's own addresses");
+                && (LocalNetwork.ThisPc() is not { } own || LocalNetwork.IsThisPc(own))
+                && LocalNetwork.IsThisPc(System.Net.Dns.GetHostName() + ".tail1234.ts.net") && !LocalNetwork.IsThisPc("autre-pc-" + System.Net.Dns.GetHostName() + ".tail1234.ts.net"), "This PC's own addresses and names");
+            return Task.CompletedTask;
+        });
+        await Test("Jellyfin arrêté sur ce PC : dit tel quel, démarré d’un clic, son journal après deux démarrages ratés", () =>
+        {
+            LocalJellyfin.Verdict Judge(LocalJellyfin.Service service, bool running = false, bool canStart = true, int failed = 0) => LocalJellyfin.Judge(service, running, canStart, failed);
+            // Its service: stopped (also after Windows' three restarts, or a stop from its dashboard), starting or running without answering yet.
+            Assert(Judge(LocalJellyfin.Service.Stopped) == LocalJellyfin.Verdict.Stopped && Judge(LocalJellyfin.Service.Stopping) == LocalJellyfin.Verdict.Stopped
+                && Judge(LocalJellyfin.Service.Starting) == LocalJellyfin.Verdict.Starting && Judge(LocalJellyfin.Service.Running) == LocalJellyfin.Verdict.Starting, "Service states");
+            // Without a service: its program, running or not; nothing to start it with is Mira's usual message.
+            Assert(Judge(LocalJellyfin.Service.None, running: true) == LocalJellyfin.Verdict.Starting && Judge(LocalJellyfin.Service.None) == LocalJellyfin.Verdict.Stopped
+                && Judge(LocalJellyfin.Service.None, canStart: false) == LocalJellyfin.Verdict.Unknown && Judge(LocalJellyfin.Service.Unknown) == LocalJellyfin.Verdict.Unknown, "Without a service");
+            // Two starts in a row it did not answer after: its log, never a third start; starting again meanwhile is still said.
+            Assert(Judge(LocalJellyfin.Service.Stopped, failed: 1) == LocalJellyfin.Verdict.Stopped && Judge(LocalJellyfin.Service.Stopped, failed: 2) == LocalJellyfin.Verdict.Failing
+                && Judge(LocalJellyfin.Service.None, failed: 2) == LocalJellyfin.Verdict.Failing && Judge(LocalJellyfin.Service.Running, failed: 2) == LocalJellyfin.Verdict.Starting, "Failed starts");
+            Assert(LocalJellyfin.Says(LocalJellyfin.Verdict.Stopped, service: true) is { Action: "Démarrer Jellyfin" } stopped && stopped.Text.Contains("arrêté sur ce PC") && stopped.Text.Contains("autorisation")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Stopped, service: false) is { } program && !program.Text.Contains("autorisation")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Starting, service: true) is { Action: null } starting && starting.Text.Contains("démarre")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Failing, service: true, "Error while starting server (address already in use)") is { Action: "Ouvrir son journal" } failing && failing.Text.Contains("« Error while starting server")
+                && LocalJellyfin.Says(LocalJellyfin.Verdict.Unknown, service: true) is null, "What is said");
+            return Task.CompletedTask;
+        });
+        await Test("Tailscale sur ce PC : connecté sans ta session, et sa connexion qui expire dite deux semaines avant", () =>
+        {
+            var now = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
+            static string Status(string self) => """{"Version":"1.90.4","BackendState":"Running","Self":{"ID":"n1","HostName":"DESKTOP-INVEFQH","TailscaleIPs":["100.101.102.103"]""" + self + "}}";
+            const string unattended = """{"ControlURL":"https://controlplane.tailscale.com","WantRunning":true,"ForceDaemon":true}""", attended = """{"ControlURL":"https://controlplane.tailscale.com","WantRunning":true}""";
+            // Its command line: « Run unattended » (ForceDaemon, left out when false), and its key's expiry (left out when disabled).
+            var kept = TailscaleNode.Parse(Status(""","KeyExpiry":"2027-03-20T08:30:00Z" """), unattended, now);
+            Assert(kept is { Readable: true, Unattended: true, Expired: false, Name: "DESKTOP-INVEFQH" } && kept.KeyExpiry == new DateTimeOffset(2027, 3, 20, 8, 30, 0, TimeSpan.Zero)
+                && !TailscaleNode.ExpiresSoon(kept) && TailscaleNode.Warning(kept) is null, "Unattended, expiring in five months");
+            var never = TailscaleNode.Parse(Status(""), attended, now);
+            Assert(never is { Readable: true, Unattended: false, KeyExpiry: null } && !TailscaleNode.ExpiresSoon(never), "Attended, never expiring");
+            var soon = TailscaleNode.Parse(Status(""","KeyExpiry":"2026-10-28T12:00:00Z" """), unattended, now);
+            Assert(TailscaleNode.ExpiresSoon(soon) && TailscaleNode.Warning(soon) is { } warning && warning.Contains("expire le 28 octobre")
+                && !TailscaleNode.ExpiresSoon(TailscaleNode.Parse(Status(""","KeyExpiry":"2026-10-30T12:00:00Z" """), unattended, now)), "Expiring within two weeks, and just after");
+            var expired = TailscaleNode.Parse(Status(""","KeyExpiry":"2026-10-01T12:00:00Z","Expired":true """), unattended, now);
+            Assert(expired is { Expired: true } && TailscaleNode.Warning(expired) is { } gone && gone.Contains("a expiré")
+                && TailscaleNode.Parse(Status(""","KeyExpiry":"2026-10-14T12:00:00Z" """), unattended, now).Expired, "Expired, said or past");
+            // Not answering (its service stopped), an error instead of JSON, preferences unreadable.
+            Assert(TailscaleNode.Parse(null, null, now) == TailscaleNode.Unreadable && TailscaleNode.Parse("failed to connect to local tailscaled", null, now) == TailscaleNode.Unreadable
+                && TailscaleNode.Parse("""{"Health":[]}""", null, now) == TailscaleNode.Unreadable
+                && TailscaleNode.Parse(Status(""), null, now) is { Readable: true, Unattended: null } && TailscaleNode.Parse(Status(""), "Access denied", now).Unattended is null
+                && TailscaleNode.Parse(Status(""), """{"ForceDaemon":true}""", now).Unattended is null, "Unreadable");
+
+            // The card: its own step once Tailscale has its address; never « Tout préparer »'s, which never changes Tailscale.
+            const string server = "http://127.0.0.1:8096", tailnet = "http://100.101.102.103:8096";
+            var ready = new PhoneSetup.Facts(server, true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, Tailnet: tailnet, TailnetAllowed: true,
+                Firewall: new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Private), Boot: new(true, true, false, true));
+            static string Marks(IReadOnlyList<PhoneSetup.Step> steps) => string.Join(" ", steps.Select(x => $"{x.Key}:{x.Mark}"));
+            PhoneSetup.Step Step(PhoneSetup.Facts facts, string key) => PhoneSetup.Steps(facts).Single(x => x.Key == key);
+            Assert(Marks(PhoneSetup.Steps(ready)) == "web:Done firewall:Done tailscale:Done boot:Done", "Not read: as before");
+            var steps = PhoneSetup.Steps(ready with { Node = kept });
+            Assert(Marks(steps) == "web:Done firewall:Done tailscale:Done unattended:Done boot:Done" && steps.Single(x => x.Key == "boot").Title == "Disponible dès l’allumage du PC", "Unattended: " + Marks(steps));
+            steps = PhoneSetup.Steps(ready with { Node = never });
+            Assert(Step(ready with { Node = never }, "unattended") is { Mark: PhoneSetup.Mark.Yours, Action: "Garder Tailscale connecté" } off && off.Text.Contains("Run unattended")
+                && !PhoneSetup.CanPrepare(steps) && steps.Single(x => x.Key == "boot") is { Mark: PhoneSetup.Mark.Done } boot && !boot.Title.StartsWith("Disponible"), "Attended: " + Marks(steps));
+            Assert(Step(ready with { Node = TailscaleNode.Unreadable }, "unattended") is { Mark: PhoneSetup.Mark.Note, Action: null } note && note.Text.Contains("Run unattended"), "Its command line missing");
+            Assert(Step(ready with { Node = soon }, "keyexpiry") is { Mark: PhoneSetup.Mark.Yours, Action: "Ouvrir la page de Tailscale" } expiring && expiring.Title.EndsWith("expire le 28 octobre")
+                && expiring.Text.Contains("« DESKTOP-INVEFQH »") && expiring.Text.Contains("Disable key expiry")
+                && Step(ready with { Node = expired }, "keyexpiry").Title.Contains("a expiré") && !PhoneSetup.CanPrepare(PhoneSetup.Steps(ready with { Node = soon })), "Expiring");
+            // Without Tailscale's address (not installed, or not connected), or Jellyfin on another computer: nothing about it.
+            Assert(Marks(PhoneSetup.Steps(ready with { Tailnet = null, TailnetAllowed = null, Node = never })) == "web:Done firewall:Done tailscale:Yours boot:Done"
+                && Marks(PhoneSetup.Steps(ready with { Local = false, Node = never })) == "web:Done elsewhere:Note", "Without Tailscale here");
+            return Task.CompletedTask;
+        });
+        await Test("Veille du PC serveur : dite sur la carte, « Pas de veille sur secteur » au choix, PC gardé éveillé pendant une lecture ailleurs", () =>
+        {
+            // Windows' defaults on a laptop: sleep after 30 min, hibernation after it, the lid sleeps it; a desktop has neither lid nor battery.
+            ServerSleep.Plan laptop = new(1800, 10800, 1, true), desktop = new(3600, 0, null, false), never = new(0, 0, 0, true);
+            Assert(ServerSleep.Duration(1800) == "30 min" && ServerSleep.Duration(3600) == "1 h" && ServerSleep.Duration(5400) == "1 h 30" && ServerSleep.Duration(45) == "45 s"
+                && ServerSleep.Duration(18000) == "5 h", "Durations");
+            var (title, text) = ServerSleep.Says(laptop);
+            Assert(ServerSleep.Sleeps(laptop) && title == "Ce PC se met en veille après 30 min" && text.Contains("Tailscale ne sait pas le réveiller") && text.Contains("l’endort aussi")
+                && text.Contains("écran fermé compris") && text.EndsWith("jamais sur batterie."), "A laptop: " + title + " / " + text);
+            (title, text) = ServerSleep.Says(desktop);
+            Assert(title == "Ce PC se met en veille après 1 h" && !text.Contains("écran") && !text.Contains("batterie"), "A desktop: " + text);
+            Assert(ServerSleep.Says(new(0, 7200, null, false)).Title == "Ce PC se met en veille prolongée après 2 h" && ServerSleep.Says(new(0, 0, 1, true)).Title == "Fermer son écran met ce PC en veille"
+                && ServerSleep.Says(new(0, 0, 3, true)).Title == "Fermer son écran éteint ce PC" && ServerSleep.Says(new(1800, 0, 3, true)).Text.Contains("l’éteint aussi"), "Hibernation and the lid alone");
+            Assert(!ServerSleep.Sleeps(never) && ServerSleep.Says(never) is ("Ce PC reste éveillé sur secteur", var awake) && awake.Contains("branché")
+                && !ServerSleep.Says(new(0, 0, null, false)).Text.Contains("branché"), "Never on mains power");
+
+            // The card: the person's own button, never « Tout préparer »'s; nothing without the plan read.
+            var ready = new PhoneSetup.Facts("http://127.0.0.1:8096", true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, Tailnet: "http://100.101.102.103:8096", TailnetAllowed: true,
+                Firewall: new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Private), Boot: new(true, true, false, true));
+            var steps = PhoneSetup.Steps(ready with { Power = laptop });
+            Assert(steps[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Yours, Action: "Pas de veille sur secteur" } && !PhoneSetup.CanPrepare(steps) && !PhoneSetup.NeedsWindows(steps), "Sleeping: the person's");
+            Assert(PhoneSetup.Steps(ready with { Power = never })[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Done, Action: null } && PhoneSetup.Steps(ready).All(x => x.Key != "sleep")
+                && PhoneSetup.Steps(ready with { Local = false, Power = laptop }).All(x => x.Key != "sleep"), "Awake, not read, another computer's");
+
+            // Kept awake while another device plays, paused or not; this PC's own playback (mpv keeps it awake) and nothing playing do not.
+            static List<Viewer> Sessions(string json) => Viewers.Parse(JsonDocument.Parse(json).RootElement, "mira-pc");
+            const string phone = """{"Id":"s1","DeviceId":"iphone","UserName":"ogsas","DeviceName":"iPhone","NowPlayingItem":{"Type":"Movie","Name":"Dune"},"PlayState":{"IsPaused":true}}""";
+            const string own = """{"Id":"s2","DeviceId":"mira-pc","UserName":"ogsas","DeviceName":"PC","NowPlayingItem":{"Type":"Movie","Name":"Dune"}}""";
+            const string idle = """{"Id":"s3","DeviceId":"ipad","UserName":"ogsas","DeviceName":"iPad"}""";
+            Assert(ServerSleep.KeepAwake(Sessions($"[{phone},{own}]")) && !ServerSleep.KeepAwake(Sessions($"[{own},{idle}]")) && !ServerSleep.KeepAwake(Sessions("[]")), "Kept awake");
             return Task.CompletedTask;
         });
         await Test("Autres appareils : l’adresse du PC sur le réseau de la maison, pas celle d’un adaptateur virtuel", () =>
@@ -356,6 +458,48 @@ internal static class PhoneTests
                 Assert(MiraWeb.IsRepository(url), "Mira's repository not recognised: " + url);
             foreach (var url in new[] { "https://repo.jellyfin.org/files/plugin/manifest.json", "https://github.com/someone/Mira/releases/latest/download/jellyfin-manifest.json", "https://github.com.evil.example/sasou-web/Mira/releases/x", "file:///sasou-web/Mira/releases/", "", null })
                 Assert(!MiraWeb.IsRepository(url), "Another repository taken for Mira's: " + url);
+        });
+        await Test("Mira web le jour même : la mise à jour des extensions lancée tout de suite, la version qui attend le redémarrage repérée", async () =>
+        {
+            // Jellyfin 12.1, Mira web 0.7.8 served, 0.7.9 offered by its repository: its « Update Plugins » task installs 0.7.9
+            // beside it, which waits for a restart while 0.7.8 turns Superseded (checked on 12.1 with two versions of Mira's).
+            string Plugins(params (string Version, string Status)[] mira) => "[" + string.Join(",", mira.Select(p => $$"""{"Name":"Mira","Version":"{{p.Version}}","Id":"{{MiraWeb.PluginId:N}}","CanUninstall":true,"Status":"{{p.Status}}"}""")
+                .Append("""{"Name":"TMDb","Version":"12.1.0.0","Id":"b8715ed16c4745289ad3f72deb539cd4","Status":"Active"}""")) + "]";
+            MiraWeb.Versions Installed(string json) => MiraWeb.Installed((System.Text.Json.Nodes.JsonArray)System.Text.Json.Nodes.JsonNode.Parse(json)!);
+            Assert(Installed(Plugins(("0.7.8.0", "Active"))) == new MiraWeb.Versions(new(0, 7, 8), null)
+                && Installed(Plugins(("0.7.8.0", "Superseded"), ("0.7.9.0", "Restart"))) == new MiraWeb.Versions(null, new(0, 7, 9))
+                && Installed(Plugins(("0.7.8.0", "Disabled"))) == new MiraWeb.Versions(null, null) && Installed(Plugins()) == new MiraWeb.Versions(null, null), "Versions read wrong");
+
+            string plugins = Plugins(("0.7.8.0", "Active")), ended = "2026-10-15T03:00:00.0000000Z"; var state = "Idle"; var admin = true; var runs = 0; var calls = new List<string>();
+            string Tasks() => $$$"""[{"Name":"Rafraîchir","Key":"RefreshLibrary","Id":"aaa","State":"Idle"},{"Name":"Mettre à jour les extensions","Key":"PluginUpdates","Id":"f9b057c054e9e6daee4a88ffd146a403","State":"{{{state}}}","LastExecutionResult":{"EndTimeUtc":"{{{ended}}}","Status":"Completed"}}]""";
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.AbsolutePath.TrimStart('/');
+                calls.Add($"{request.Method} {path}");
+                HttpResponseMessage Json(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                if (!admin) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+                if (path == "Plugins") return Task.FromResult(Json(plugins));
+                if (path == "ScheduledTasks") return Task.FromResult(Json(Tasks()));
+                if (path == "ScheduledTasks/Running/f9b057c054e9e6daee4a88ffd146a403" && request.Method == HttpMethod.Post)
+                {
+                    // Over in a few seconds: 0.7.9 installed, waiting for the restart.
+                    runs++; ended = "2026-10-15T13:04:03.1883347Z"; plugins = Plugins(("0.7.8.0", "Superseded"), ("0.7.9.0", "Restart"));
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+                }
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            Assert(await client.WebAppVersionsAsync() == new MiraWeb.Versions(new(0, 7, 8), null), "Before");
+            Assert(await client.UpdatePluginsNowAsync(TimeSpan.FromSeconds(10)) && runs == 1 && await client.WebAppVersionsAsync() == new MiraWeb.Versions(null, new(0, 7, 9)), "Task not run, or not waited for");
+            // Already running (its own 24-hour run): waited for, not started twice; still running past the limit: false.
+            state = "Running"; runs = 0; var before = ended;
+            var waited = client.UpdatePluginsNowAsync(TimeSpan.FromSeconds(10));
+            await Task.Delay(1500); state = "Idle"; ended = "2026-10-15T13:10:00.0000000Z";
+            Assert(await waited && runs == 0, "A running task started again");
+            state = "Running";
+            Assert(!await client.UpdatePluginsNowAsync(TimeSpan.FromSeconds(1.5)) && runs == 0, "A task still running taken for over");
+            // A guest: nothing read, nothing run.
+            state = "Idle"; admin = false; calls.Clear();
+            Assert(await client.WebAppVersionsAsync() is null && !await client.UpdatePluginsNowAsync() && !calls.Any(c => c.StartsWith("POST")), "A guest ran Jellyfin's task");
         });
         await Test("Mira web : au démarrage, le dépôt de Mira avance jusqu’à cette version vérifiée, jamais en arrière, sans rien installer", async () =>
         {

@@ -5,37 +5,8 @@ using Mira.Core;
 
 namespace Mira.Desktop.Playback;
 
-public sealed class MpvEngine : IDisposable
+public sealed class MpvEngine : MpvClient
 {
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate IntPtr CreateFn();
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int InitializeFn(IntPtr handle);
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int SetFn(IntPtr handle, [MarshalAs(UnmanagedType.LPUTF8Str)] string name, [MarshalAs(UnmanagedType.LPUTF8Str)] string value);
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate IntPtr GetFn(IntPtr handle, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int CommandFn(IntPtr handle, IntPtr args);
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate void FreeFn(IntPtr pointer);
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate IntPtr WaitFn(IntPtr handle, double timeout);
-    [StructLayout(LayoutKind.Sequential)] private struct MpvEvent { public int Id; public int Error; public ulong Reply; public IntPtr Data; }
-    [StructLayout(LayoutKind.Sequential)] private struct EndFile { public int Reason; public int Error; }
-    [StructLayout(LayoutKind.Sequential)] private struct ClientMessage { public int Count; public IntPtr Args; }
-    private IntPtr _library, _handle;
-    private readonly SetFn _setOption, _setProperty;
-    private readonly GetFn _get;
-    private readonly CommandFn _command;
-    private readonly FreeFn _free, _destroy;
-    private readonly WaitFn _wait;
-    /// <summary>The volume from 0 to 200, and where the part above 100 stands (see <see cref="SetLevel"/>).</summary>
-    private double _level;
-    private Boost _boost;
-    private enum Boost { None, Installed, Unavailable }
-    /// <summary>A file is open, so mpv checks a new audio filter before using it.</summary>
-    private bool _open;
-    public event Action? FileLoaded;
-    public event Action? PlaybackRestarted;
-    public event Action<bool>? Ended;
-    public event Action<string>? Message;
-    public event Action<string>? Error;
-    public string LibraryPath { get; }
-
     /// <summary>
     /// The library chosen in Réglages (<paramref name="custom"/>), as it is: loading it says what is wrong; otherwise the
     /// first one found in the known places that is built for x64 (<see cref="PortableExecutable.IsX64"/>): another
@@ -56,134 +27,34 @@ public sealed class MpvEngine : IDisposable
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "mpv.net", "libmpv-2.dll") };
         return candidates.FirstOrDefault(p => File.Exists(p) && PortableExecutable.IsX64(p));
     }
-    public MpvEngine(IntPtr window, PlayerSettings settings, bool headless = false)
+    public MpvEngine(IntPtr window, PlayerSettings settings, bool headless = false) : this(window, settings, headless, FindLibrary(settings.MpvPath)) { }
+    private MpvEngine(IntPtr window, PlayerSettings settings, bool headless, string? path) : base(path ?? "", Load(path), unload: true)
     {
-        LibraryPath = FindLibrary(settings.MpvPath) ?? throw new FileNotFoundException("Moteur mpv introuvable. Indique le fichier mpv-2.dll dans les réglages.");
-        // LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR + DEFAULT_DIRS also resolves dependencies beside the chosen DLL.
-        _library = LoadLibraryEx(LibraryPath, IntPtr.Zero, 0x100 | 0x1000);
-        if (_library == IntPtr.Zero) throw new IOException("Impossible de charger mpv. Vérifie que la bibliothèque est en 64 bits et que ses dépendances sont présentes.");
         try
         {
-            var create = Export<CreateFn>("mpv_create"); var initialize = Export<InitializeFn>("mpv_initialize");
-            _setOption = Export<SetFn>("mpv_set_option_string"); _setProperty = Export<SetFn>("mpv_set_property_string");
-            _get = Export<GetFn>("mpv_get_property_string"); _command = Export<CommandFn>("mpv_command");
-            _free = Export<FreeFn>("mpv_free"); _destroy = Export<FreeFn>("mpv_terminate_destroy"); _wait = Export<WaitFn>("mpv_wait_event");
-            _handle = create(); if (_handle == IntPtr.Zero) throw new IOException("mpv n’a pas pu démarrer.");
-            Option("config", "no"); Option("terminal", "no"); Option("osc", "no"); Option("idle", "yes");
             if (!headless) Option("wid", window.ToInt64().ToString(CultureInfo.InvariantCulture));
-            Option("keep-open", "no");
             // Keeps the screen on and the PC awake while a video plays (mpv's default, made explicit); paused, it may sleep.
             if (!headless) Option("stop-screensaver", "yes");
-            Option("input-default-bindings", "no"); Option("input-vo-keyboard", "yes");
+            Option("input-vo-keyboard", "yes");
             Option("input-conf", Services.AppFiles.InputConf);
             Option("vo", headless ? "null" : "gpu-next,gpu");
             if (headless) Option("ao", "null");
             Option("hwdec", !headless && settings.HardwareDecoding ? "auto" : "no");
-            _level = VolumeBoost.Clamp(settings.Volume);
-            // Room for mpv's own volume above 100, used only by an mpv without the boost filter.
-            Option("volume-max", Format(VolumeBoost.Maximum));
-            Option("volume", Format(VolumeBoost.Split(_level).Volume));
-            Option("alang", settings.AudioLanguage); Option("slang", settings.SubtitleLanguage);
-            Option("sub-font-size", settings.SubtitleSize.ToString(CultureInfo.InvariantCulture));
-            if (initialize(_handle) < 0) throw new IOException("Échec de l’initialisation du rendu mpv.");
+            PlayerOptions(settings);
+            Initialize(L("Échec de l’initialisation du rendu mpv.", "mpv’s video rendering couldn’t start."));
         }
         catch { Dispose(); throw; }
     }
-    private T Export<T>(string name) where T : Delegate => Marshal.GetDelegateForFunctionPointer<T>(NativeLibrary.GetExport(_library, name));
-    private void Option(string name, string value) { if (_setOption(_handle, name, value) < 0) throw new IOException($"Option mpv indisponible : {name}."); }
-    public bool Set(string name, string value) => _handle != IntPtr.Zero && _setProperty(_handle, name, value) >= 0;
-    public string? Get(string name)
-    {
-        if (_handle == IntPtr.Zero) return null;
-        var result = _get(_handle, name); if (result == IntPtr.Zero) return null;
-        try { return Marshal.PtrToStringUTF8(result); } finally { _free(result); }
-    }
-    public double Number(string name, double fallback = 0) => double.TryParse(Get(name), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
-    public bool Flag(string name) => Get(name) == "yes";
-    public void Command(params string[] arguments)
-    {
-        // A native call on a destroyed handle would end the whole process, not just this playback.
-        if (_handle == IntPtr.Zero) throw new IOException("La lecture est arrêtée.");
-        if (!Run(arguments)) throw new IOException("La commande de lecture a échoué.");
-    }
-    private bool TryCommand(params string[] arguments) => _handle != IntPtr.Zero && Run(arguments);
-    private bool Run(string[] arguments)
-    {
-        var pointers = arguments.Select(Marshal.StringToCoTaskMemUTF8).ToArray();
-        var array = Marshal.AllocHGlobal((pointers.Length + 1) * IntPtr.Size);
-        try
-        {
-            for (var i = 0; i < pointers.Length; i++) Marshal.WriteIntPtr(array, i * IntPtr.Size, pointers[i]);
-            Marshal.WriteIntPtr(array, pointers.Length * IntPtr.Size, IntPtr.Zero);
-            return _command(_handle, array) >= 0;
-        }
-        finally { foreach (var p in pointers) Marshal.FreeCoTaskMem(p); Marshal.FreeHGlobal(array); }
-    }
-    public void Load(string location, double startSeconds, string? authorization = null)
-    {
-        // Tokens are sent as request headers, never in media URLs, logs or shell commands.
-        Set("http-header-fields", authorization is null ? "" : "Authorization: " + authorization.Replace(",", "\\,"));
-        Set("start", startSeconds.ToString(CultureInfo.InvariantCulture)); Set("pause", "no");
-        _open = false;
-        Command("loadfile", location, "replace");
-    }
-    /// <summary>The volume as the slider shows it, from 0 to <see cref="VolumeBoost.Maximum"/>.</summary>
-    public double Level => _level;
     /// <summary>
-    /// Sets the volume from 0 to 200. Above 100, mpv stays at 100 and the boost filter adds the rest, limited so that
-    /// nothing clips. The filter is added while a file is open, when mpv checks it: an mpv without it refuses it and
-    /// keeps playing, and Mira then falls back on mpv's own volume above 100.
+    /// LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR + DEFAULT_DIRS: dependencies beside the chosen DLL, never the current folder or
+    /// the PATH.
     /// </summary>
-    public void SetLevel(double level) { _level = VolumeBoost.Clamp(level); ApplyLevel(); }
-    private void ApplyLevel(bool loading = false)
+    private static IntPtr Load(string? path)
     {
-        if (_handle == IntPtr.Zero) return;
-        var (volume, gain) = VolumeBoost.Split(_level);
-        if (_boost == Boost.Unavailable) { Set("volume", Format(_level)); return; }
-        Set("volume", Format(volume));
-        // Back to 100 or less: a new file starts without the filter; the open one keeps it at gain 1, without a gap.
-        if (_boost == Boost.Installed && gain <= 1 && (loading || !_open))
-        { if (TryCommand("af", "remove", "@" + VolumeBoost.Label)) _boost = Boost.None; }
-        // Live while the audio plays; otherwise the filter's own settings are what the next file starts with.
-        else if (_boost == Boost.Installed)
-        { if (!TryCommand("af-command", VolumeBoost.Label, "volume", VolumeBoost.Gain(gain), VolumeBoost.Target)) TryCommand("af", "set", VolumeBoost.Filter(gain)); }
-        else if (gain > 1 && _open)
-        {
-            if (TryCommand("af", "set", VolumeBoost.Filter(gain))) _boost = Boost.Installed;
-            else { _boost = Boost.Unavailable; Set("volume", Format(_level)); }
-        }
+        if (path is null) throw new FileNotFoundException(L("Moteur mpv introuvable. Indique le fichier mpv-2.dll dans les réglages.", "mpv engine not found. Choose the mpv-2.dll file in Settings."));
+        var library = LoadLibraryEx(path, IntPtr.Zero, 0x100 | 0x1000);
+        return library != IntPtr.Zero ? library : throw new IOException(L("Impossible de charger mpv. Vérifie que la bibliothèque est en 64 bits et que ses dépendances sont présentes.", "Couldn’t load mpv. Check that the library is 64-bit and that its dependencies are there."));
     }
-    private static string Format(double value) => value.ToString(CultureInfo.InvariantCulture);
-    public void Poll()
-    {
-        if (_handle == IntPtr.Zero) return;
-        for (var i = 0; i < 40 && _handle != IntPtr.Zero; i++)
-        {
-            var p = _wait(_handle, 0); if (p == IntPtr.Zero) break;
-            var ev = Marshal.PtrToStructure<MpvEvent>(p); if (ev.Id == 0) break;
-            if (ev.Id == 8) { _open = true; ApplyLevel(loading: true); FileLoaded?.Invoke(); }
-            else if (ev.Id == 21) PlaybackRestarted?.Invoke();
-            else if (ev.Id == 7 && ev.Data != IntPtr.Zero)
-            {
-                var end = Marshal.PtrToStructure<EndFile>(ev.Data); _open = false;
-                if (end.Reason == 4) Error?.Invoke("mpv n’a pas pu lire ce média. Vérifie l’accès au fichier et la connexion Jellyfin.");
-                Ended?.Invoke(end.Reason == 0);
-            }
-            else if (ev.Id == 16 && ev.Data != IntPtr.Zero)
-            {
-                var message = Marshal.PtrToStructure<ClientMessage>(ev.Data);
-                if (message.Count > 0) Message?.Invoke(Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(message.Args)) ?? "");
-            }
-        }
-    }
-    /// <summary>Audio and subtitle tracks, named for the menu: title or language first, then codec and channels.</summary>
-    public List<MpvTrack> Tracks() => MpvLists.Tracks(Get("track-list"));
-    /// <summary>Chapters stored in the media file itself (Matroska/MP4 chapter titles and times).</summary>
-    public List<ChapterMark> Chapters() => MpvLists.Chapters(Get("chapter-list"));
-    public void Dispose()
-    {
-        if (_handle != IntPtr.Zero) { _destroy?.Invoke(_handle); _handle = IntPtr.Zero; }
-        if (_library != IntPtr.Zero) { NativeLibrary.Free(_library); _library = IntPtr.Zero; }
-    }
+    protected override string PlaybackFailure => L("mpv n’a pas pu lire ce média. Vérifie l’accès au fichier et la connexion Jellyfin.", "mpv couldn’t play this media. Check access to the file and the connection to Jellyfin.");
     [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr LoadLibraryEx(string file, IntPtr fileHandle, uint flags);
 }

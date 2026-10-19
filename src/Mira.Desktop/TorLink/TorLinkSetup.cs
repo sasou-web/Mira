@@ -31,13 +31,13 @@ internal static class TorLinkSetup
     {
         var package = TorLinkPackage.Current;
         if (IsCurrent(profile) && TorLinkInstallation.Validate(TorLinkPackage.PackageRoot(profile), profile) is { HasRuntime: true } ready)
-        { progress.Report(new("TorLink est prêt.", 1)); return ready; }
+        { progress.Report(new(L("TorLink est prêt.", "TorLink is ready."), 1)); return ready; }
         await PrepareCoreAsync(profile, progress, ct).ConfigureAwait(false);
-        if (!Activate(profile)) throw new InstallException("TorLink ou Node.js est en cours d’utilisation : ferme TorLink, puis réessaie.");
+        if (!Activate(profile)) throw new InstallException(L("TorLink ou Node.js est en cours d’utilisation : ferme TorLink, puis réessaie.", "TorLink or Node.js is in use: close TorLink, then try again."));
         var installed = TorLinkInstallation.Validate(TorLinkPackage.PackageRoot(profile), profile);
         if (installed is not { HasRuntime: true } || installed.Version != package.Version)
-            throw new InstallException("TorLink s’est installé de façon incomplète. Réessaie ; si cela persiste, vérifie la connexion à registry.npmjs.org.");
-        progress.Report(new("TorLink est prêt.", 1));
+            throw new InstallException(L("TorLink s’est installé de façon incomplète. Réessaie ; si cela persiste, vérifie la connexion à registry.npmjs.org.", "TorLink didn’t install completely. Try again; if it keeps happening, check the connection to registry.npmjs.org."));
+        progress.Report(new(L("TorLink est prêt.", "TorLink is ready."), 1));
         return installed;
     }, ct);
 
@@ -49,11 +49,11 @@ internal static class TorLinkSetup
     private static async Task PrepareCoreAsync(string profile, IProgress<Step>? progress, CancellationToken ct)
     {
         var node = NodePackage.Current; var package = TorLinkPackage.Current;
-        progress?.Report(new($"Téléchargement de Node.js {node.Version}…", 0));
-        var runtime = await NodeInstaller.PrepareAsync(profile, node, progress: progress is null ? null : new Percent((percent, p) => progress.Report(new($"Téléchargement de Node.js {node.Version}… {percent} %", p * .6))), ct: ct).ConfigureAwait(false);
+        progress?.Report(new(L($"Téléchargement de Node.js {node.Version}…", $"Downloading Node.js {node.Version}…"), 0));
+        var runtime = await NodeInstaller.PrepareAsync(profile, node, progress: progress is null ? null : new Percent((percent, p) => progress.Report(new(L($"Téléchargement de Node.js {node.Version}… {percent} %", $"Downloading Node.js {node.Version}… {percent}%"), p * .6))), ct: ct).ConfigureAwait(false);
         var next = TorLinkPackage.NextFolder(profile);
         if (package.IsInstalledIn(TorLinkPackage.Folder(profile)) || package.IsInstalledIn(next)) return;
-        progress?.Report(new($"Installation de TorLink {package.Version}…", .65));
+        progress?.Report(new(L($"Installation de TorLink {package.Version}…", $"Installing TorLink {package.Version}…"), .65));
         var staging = next + ".partial";
         try
         {
@@ -62,7 +62,7 @@ internal static class TorLinkSetup
             await File.WriteAllBytesAsync(Path.Combine(staging, "package-lock.json"), TorLinkPackage.Lock, ct).ConfigureAwait(false);
             await RunNpmAsync(runtime, staging, ct).ConfigureAwait(false);
             if (TorLinkInstallation.Validate(TorLinkPackage.PackageIn(staging)) is not { } built || built.Version != package.Version)
-                throw new InstallException("TorLink s’est installé de façon incomplète. Réessaie ; si cela persiste, vérifie la connexion à registry.npmjs.org.");
+                throw new InstallException(L("TorLink s’est installé de façon incomplète. Réessaie ; si cela persiste, vérifie la connexion à registry.npmjs.org.", "TorLink didn’t install completely. Try again; if it keeps happening, check the connection to registry.npmjs.org."));
             await File.WriteAllTextAsync(Path.Combine(staging, "SOURCE.txt"),
                 $"TorLink ({TorLinkPackage.Name} {package.Version}), installé par Mira depuis registry.npmjs.org avec Node.js {node.Version}.\n" +
                 "Ses dépendances sont celles du fichier package-lock.json fourni par Mira, chacune vérifiée par son empreinte sha512.\n" +
@@ -74,7 +74,7 @@ internal static class TorLinkSetup
             Directory.Move(staging, next);
         }
         catch (Exception ex) when (ex is not InstallException && ex is IOException or UnauthorizedAccessException)
-        { throw new InstallException("TorLink n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie."); }
+        { throw new InstallException(L("TorLink n’a pas pu être enregistré dans le dossier de Mira : vérifie l’espace libre, puis réessaie.", "TorLink couldn’t be saved in Mira’s folder: check the free space, then try again.")); }
         finally { PreparedFolder.Delete(staging); }
     }
 
@@ -118,8 +118,8 @@ internal static class TorLinkSetup
         // npm finds node through PATH for its own child steps: Mira's Node.js comes first.
         start.Environment["PATH"] = runtime + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
         Process process;
-        try { process = Process.Start(start) ?? throw new InstallException("npm n’a pas pu démarrer."); }
-        catch (Win32Exception ex) { throw new InstallException("npm n’a pas pu démarrer : " + ex.Message); }
+        try { process = Process.Start(start) ?? throw new InstallException(L("npm n’a pas pu démarrer.", "npm couldn’t start.")); }
+        catch (Win32Exception ex) { throw new InstallException(L("npm n’a pas pu démarrer : ", "npm couldn’t start: ") + ex.Message); }
         using (process)
         {
             var output = new StringBuilder();
@@ -131,16 +131,16 @@ internal static class TorLinkSetup
             {
                 try { process.Kill(entireProcessTree: true); } catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { }
                 if (ct.IsCancellationRequested) throw;
-                throw new InstallException("L’installation de TorLink a pris plus de 10 minutes : vérifie la connexion, puis réessaie.");
+                throw new InstallException(L("L’installation de TorLink a pris plus de 10 minutes : vérifie la connexion, puis réessaie.", "Installing TorLink took more than 10 minutes: check the connection, then try again."));
             }
             if (process.ExitCode != 0)
             {
                 string text; lock (output) text = output.ToString();
                 // A package that is not byte for byte the one of the lock: nothing of it is installed.
                 if (text.Contains("EINTEGRITY", StringComparison.OrdinalIgnoreCase))
-                    throw new InstallException("Un paquet téléchargé pour TorLink ne correspond pas à la version vérifiée par Mira : TorLink n’est pas installé. Réessaie plus tard.");
-                throw new InstallException("TorLink n’a pas pu s’installer" + (TorLinkPackage.NpmProblem(text) is { } problem ? " : " + problem : $" (code {process.ExitCode}).")
-                    + (text.Contains("ENOTFOUND", StringComparison.OrdinalIgnoreCase) || text.Contains("ETIMEDOUT", StringComparison.OrdinalIgnoreCase) ? " Vérifie la connexion à Internet." : ""));
+                    throw new InstallException(L("Un paquet téléchargé pour TorLink ne correspond pas à la version vérifiée par Mira : TorLink n’est pas installé. Réessaie plus tard.", "A package downloaded for TorLink doesn’t match the version Mira checked: TorLink isn’t installed. Try again later."));
+                throw new InstallException(L("TorLink n’a pas pu s’installer", "TorLink couldn’t install") + (TorLinkPackage.NpmProblem(text) is { } problem ? L(" : ", ": ") + problem : $" (code {process.ExitCode}).")
+                    + (text.Contains("ENOTFOUND", StringComparison.OrdinalIgnoreCase) || text.Contains("ETIMEDOUT", StringComparison.OrdinalIgnoreCase) ? L(" Vérifie la connexion à Internet.", " Check your internet connection.") : ""));
             }
         }
     }

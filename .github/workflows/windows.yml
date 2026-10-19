@@ -1,0 +1,230 @@
+name: Windows release
+# Mira for Windows as tools/release.ps1 publishes it: built by tools/package.ps1 on a clean runner from the draft's
+# commit (never on a PC), signed by SignPath Foundation (Authenticode; two signing requests the maintainer approves in
+# SignPath: Mira's own files, then the installer built around them), then attached with their SHA-256 to the draft of
+# the release, which tools/release.ps1 publishes once every platform is there. Code signing policy: README.md.
+on:
+  # No "release: published": GitHub runs nothing for a draft, and an immutable release takes no file once published.
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Draft release to attach the Windows files to (vX.Y.Z); set by tools/release.ps1"
+        required: false
+        type: string
+      commit:
+        description: "Commit that draft targets (40 hexadecimal characters); set by tools/release.ps1"
+        required: false
+        type: string
+      sign:
+        description: "Sign with SignPath Foundation (off: unsigned files, to try this workflow, or before SignPath accepts the project)"
+        required: false
+        type: boolean
+        default: true
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+jobs:
+  build:
+    runs-on: windows-latest
+    # Each signing request waits for the maintainer's approval in SignPath, an hour at most.
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      # SignPath reads this run and downloads its artifacts with the job's token: that is how it knows the files were
+      # built here, from this commit, before it signs them (origin verification).
+      actions: read
+    steps:
+      # A release's draft and commit, checked before anything uses them; they reach scripts through env only.
+      - name: Release inputs
+        if: inputs.release != '' || inputs.commit != ''
+        shell: pwsh
+        env:
+          RELEASE: ${{ inputs.release }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          if ($env:RELEASE -notmatch '^v\d+\.\d+\.\d+$') { throw "release: vX.Y.Z expected, got '$env:RELEASE'" }
+          if ($env:COMMIT -notmatch '^[0-9a-f]{40}$') { throw "commit: 40 hexadecimal characters expected, got '$env:COMMIT'" }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The draft's commit for a release; otherwise the event's own.
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Version
+        id: version
+        shell: pwsh
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          if ($env:RELEASE) { $version = $env:RELEASE.Substring(1) }
+          else { [xml]$project = Get-Content -LiteralPath src/Mira.Desktop/Mira.Desktop.csproj; $version = [string]$project.Project.PropertyGroup.Version }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "Mira $version"
+      # The application folder and the one-file portable Mira, published as for every release; nothing packaged yet.
+      - name: Publish
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./tools/package.ps1 -Publish .artifacts/app -Version $env:VERSION
+      # Only Mira's own files go to SignPath. The rest of the folder (the .NET runtime, third-party libraries) is
+      # Microsoft's or theirs, and stays as it is. SignPath Foundation signs a file only if its product name is Mira
+      # and its product version is the release's (installer/signpath/app.xml): checked here first, after an approval
+      # it would be too late. Trimmed: Inno Setup pads the installer's version strings with spaces.
+      - name: Files to sign
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          foreach ($file in 'Mira/Mira.exe', 'Mira/Mira.dll', 'Mira/Mira.Core.dll', 'Portable/Mira.exe') {
+            $source = Join-Path .artifacts/app $file
+            $info = (Get-Item -LiteralPath $source).VersionInfo
+            if ($info.ProductName.Trim() -ne 'Mira' -or $info.ProductVersion.Trim() -ne $env:VERSION) { throw "${file}: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
+            $target = Join-Path .artifacts/to-sign $file
+            New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+            Copy-Item -LiteralPath $source -Destination $target
+          }
+          Get-ChildItem -Recurse -File .artifacts/to-sign | ForEach-Object { '{0,12}  {1}' -f $_.Length, $_.FullName.Substring($PWD.Path.Length + 1) }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: app
+        with:
+          name: Mira-win-x64-to-sign
+          path: .artifacts/to-sign
+          retention-days: 1
+      # Signing request 1, artifact configuration "app" (installer/signpath/app.xml): approved by the maintainer in
+      # SignPath, which then signs each file and gives them back.
+      - name: Sign the application (SignPath)
+        if: inputs.sign
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: mira
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: app
+          # The "version" parameter of the artifact configuration: the product version each file must carry.
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
+          github-artifact-id: ${{ steps.app.outputs.artifact-id }}
+          wait-for-completion: "true"
+          wait-for-completion-timeout-in-seconds: "3600"
+          output-artifact-directory: .artifacts/signed
+      - name: Not signed, kept as they are
+        if: ${{ !inputs.sign }}
+        shell: pwsh
+        run: |
+          Copy-Item -LiteralPath .artifacts/to-sign -Destination .artifacts/signed -Recurse
+          Write-Output "::warning::Not signed (sign = false): these files carry no Authenticode signature."
+      # The signed files take their place in the application folder, which the packages are made from.
+      - name: Signed files into the application
+        shell: pwsh
+        env:
+          SIGNED: ${{ inputs.sign }}
+        run: |
+          foreach ($file in 'Mira/Mira.exe', 'Mira/Mira.dll', 'Mira/Mira.Core.dll', 'Portable/Mira.exe') {
+            $signed = Join-Path .artifacts/signed $file
+            if (-not (Test-Path -LiteralPath $signed)) { throw "$file is missing from the signed files." }
+            Copy-Item -LiteralPath $signed -Destination (Join-Path .artifacts/app $file) -Force
+          }
+          if ($env:SIGNED -eq 'true') { ./tools/check-signed.ps1 -Files .artifacts/app/Mira/Mira.exe, .artifacts/app/Mira/Mira.dll, .artifacts/app/Mira/Mira.Core.dll, .artifacts/app/Portable/Mira.exe }
+      # The archive, the portable Mira and the installer, from the folder whose files are signed, each with its SHA-256.
+      - name: Package
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./tools/package.ps1 -From .artifacts/app -Output .artifacts/packages -Version $env:VERSION
+      # The installer holds the signed files; it is signed in turn, under a fixed name (installer/signpath/installer.xml).
+      - name: Installer to sign
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $setup = ".artifacts/packages/Mira-$env:VERSION-win-x64-setup.exe"
+          $info = (Get-Item -LiteralPath $setup).VersionInfo
+          if ($info.ProductName.Trim() -ne 'Mira' -or $info.ProductVersion.Trim() -ne $env:VERSION) { throw "installer: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
+          New-Item -ItemType Directory -Path .artifacts/setup -Force | Out-Null
+          Move-Item -LiteralPath $setup -Destination .artifacts/setup/Mira-setup.exe
+          Remove-Item -LiteralPath ".artifacts/packages/Mira-$env:VERSION-win-x64-setup.exe.sha256"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: setup
+        with:
+          name: Mira-win-x64-setup-to-sign
+          path: .artifacts/setup
+          retention-days: 1
+      # Signing request 2, artifact configuration "installer", approved by the maintainer too.
+      - name: Sign the installer (SignPath)
+        if: inputs.sign
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: mira
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
+          github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
+          wait-for-completion: "true"
+          wait-for-completion-timeout-in-seconds: "3600"
+          output-artifact-directory: .artifacts/setup-signed
+      - name: Installer not signed, kept as it is
+        if: ${{ !inputs.sign }}
+        shell: pwsh
+        run: Copy-Item -LiteralPath .artifacts/setup -Destination .artifacts/setup-signed -Recurse
+      - name: Signed installer into the packages
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SIGNED: ${{ inputs.sign }}
+        run: |
+          $setup = ".artifacts/packages/Mira-$env:VERSION-win-x64-setup.exe"
+          Move-Item -LiteralPath .artifacts/setup-signed/Mira-setup.exe -Destination $setup
+          if ($env:SIGNED -eq 'true') { ./tools/check-signed.ps1 -Files $setup, ".artifacts/packages/Mira-$env:VERSION-win-x64-portable.exe" }
+          ./tools/package.ps1 -Hash $setup
+          # Exactly the six files, each .sha256 against its file, once more before they go out together.
+          $files = Get-ChildItem -LiteralPath .artifacts/packages -File
+          $files | ForEach-Object { '{0,12}  {1}' -f $_.Length, $_.Name }
+          if ($files.Count -ne 6) { throw "6 files expected in the packages, found $($files.Count)." }
+          foreach ($hash in $files | Where-Object Extension -eq '.sha256') {
+            $file = $hash.FullName.Substring(0, $hash.FullName.Length - 7)
+            $expected = ([string](Get-Content -LiteralPath $hash.FullName)).Trim().Split(' ')[0]
+            if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw "$($hash.Name) does not match its file." }
+          }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Mira-win-x64-release
+          path: .artifacts/packages/*
+          retention-days: 7
+  release:
+    # The draft tools/release.ps1 made gets its Windows files here, built and signed above from the draft's commit.
+    if: inputs.release != ''
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Mira-win-x64-release
+          path: windows
+      - name: Attach to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ inputs.release }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$RELEASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "release or commit invalid" >&2; exit 1; }
+          version="${RELEASE#v}"
+          # The three files and their SHA-256, checked against each other once more before they go out together.
+          cd windows
+          [ "$(ls | wc -l)" -eq 6 ] || { echo "6 files expected, found: $(ls | tr '\n' ' ')" >&2; exit 1; }
+          for file in "Mira-$version-win-x64-setup.exe" "Mira-$version-win-x64-portable.exe" "Mira-$version-win-x64.zip"; do sha256sum --strict -c -- "$file.sha256"; done
+          cd ..
+          # Only the draft made for this very commit: never a published release, nor a draft made since for another.
+          state=$(gh release view "$RELEASE" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish --jq '[(.isDraft | tostring), .targetCommitish] | join(" ")')
+          [ "$state" = "true $COMMIT" ] || { echo "$RELEASE is not a draft for $COMMIT (found: $state)" >&2; exit 1; }
+          # Never --clobber: a fresh draft holds none of these files, and one already there must stop the upload.
+          gh release upload "$RELEASE" windows/* --repo "$GITHUB_REPOSITORY"

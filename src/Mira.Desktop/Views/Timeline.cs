@@ -25,6 +25,10 @@ public sealed class Timeline : RangeBase
     public const double Gap = 3, Thickness = 3;
     private readonly Border _bubble;
     private readonly TextBlock _bubbleTime, _bubbleTitle;
+    private readonly Border _preview;
+    private readonly Image _previewImage;
+    private Func<double, ImageSource?>? _previewAt;
+    private double _hoverSeconds;
     private IReadOnlyList<ChapterMark> _chapters = [];
     private double _sample, _speed = 1, _buffered, _hoverX, _emphasis, _renderedX = double.NaN, _holdTarget;
     private long _sampleTime, _lastFrame, _holdUntil;
@@ -48,7 +52,11 @@ public sealed class Timeline : RangeBase
         MinHeight = 24; Cursor = Cursors.Hand;
         _bubbleTitle = new TextBlock { FontSize = 11, Foreground = Palette.Get("TextBody"), TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 240, Margin = new Thickness(0, 0, 0, 1), Visibility = Visibility.Collapsed };
         _bubbleTime = new TextBlock { FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center };
-        var text = new StackPanel(); text.Children.Add(_bubbleTitle); text.Children.Add(_bubbleTime);
+        // Jellyfin's trickplay picture of the moment pointed at, when it made them (SetPreview).
+        _previewImage = new Image { Stretch = Stretch.UniformToFill };
+        RenderOptions.SetBitmapScalingMode(_previewImage, BitmapScalingMode.HighQuality);
+        _preview = new Border { Child = _previewImage, Background = Palette.Get("Raised"), CornerRadius = new CornerRadius(4), Margin = new Thickness(-6, 2, -6, 5), ClipToBounds = true, Visibility = Visibility.Collapsed };
+        var text = new StackPanel(); text.Children.Add(_preview); text.Children.Add(_bubbleTitle); text.Children.Add(_bubbleTime);
         _bubble = new Border
         {
             Child = text, Background = Palette.Get("Menu"), BorderBrush = Palette.Get("Hairline"),
@@ -109,8 +117,22 @@ public sealed class Timeline : RangeBase
         for (var i = 0; i + 1 < edges.Count; i++) result.Add((edges[i] + (i > 0 ? Gap / 2 : 0), edges[i + 1] - (i + 2 < edges.Count ? Gap / 2 : 0)));
         return result;
     }
+    /// <summary>
+    /// A picture above the time while pointing (Jellyfin's trickplay), <paramref name="aspect"/> wide for 1 high; null:
+    /// the time alone. <paramref name="at"/> gives it, or null while it comes (<see cref="RefreshPreview"/> then).
+    /// </summary>
+    public void SetPreview(double? aspect, Func<double, ImageSource?>? at)
+    {
+        _previewAt = aspect is > 0 ? at : null; _previewImage.Source = null;
+        _preview.Width = 168; _preview.Height = aspect is > 0 ? Math.Round(168 / aspect.Value) : 0;
+        _preview.Visibility = _previewAt is null ? Visibility.Collapsed : Visibility.Visible;
+        InvalidateMeasure();
+    }
+    /// <summary>A picture came: the one under the pointer shows if it was waiting for it.</summary>
+    public void RefreshPreview() { if (_bubbleShown && _previewAt?.Invoke(_hoverSeconds) is { } picture) _previewImage.Source = picture; }
     public void Reset()
     {
+        SetPreview(null, null);
         _sample = _buffered = 0; _playing = _dragging = false; _holdUntil = 0; _chapters = [];
         SetCurrentValue(ValueProperty, 0d); HideBubble(); InvalidateVisual();
     }
@@ -268,7 +290,9 @@ public sealed class Timeline : RangeBase
     {
         _hoverX = Math.Clamp(x, 0, ActualWidth);
         var seconds = _dragging ? Value : SecondsAt(x);
-        _bubbleTime.Text = Label(seconds);
+        _bubbleTime.Text = Label(seconds); _hoverSeconds = seconds;
+        // While the next picture comes, the last one stays rather than a blank.
+        if (_previewAt?.Invoke(seconds) is { } picture) _previewImage.Source = picture;
         var title = _chapters.LastOrDefault(c => c.Start <= seconds + .01).Title;
         _bubbleTitle.Text = title ?? "";
         _bubbleTitle.Visibility = string.IsNullOrWhiteSpace(title) ? Visibility.Collapsed : Visibility.Visible;

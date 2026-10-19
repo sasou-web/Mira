@@ -22,27 +22,27 @@ public static class ReleaseChecks
     {
         string? problem;
         try { problem = JellyfinManifestProblem(json, version, zip); }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { problem = "illisible"; }
-        if (problem is not null) throw new UpdateException($"{JellyfinManifestName} de la version {version.ToString(3)} : {problem}.");
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { problem = L("illisible", "unreadable"); }
+        if (problem is not null) throw new UpdateException(L($"{JellyfinManifestName} de la version {version.ToString(3)} : {problem}.", $"{JellyfinManifestName} of version {version.ToString(3)}: {problem}."));
     }
     private static string? JellyfinManifestProblem(byte[] json, Version version, byte[] zip)
     {
         using var document = JsonDocument.Parse(json);
         var packages = document.RootElement;
-        if (packages.ValueKind != JsonValueKind.Array || packages.GetArrayLength() != 1) return "une seule extension attendue";
+        if (packages.ValueKind != JsonValueKind.Array || packages.GetArrayLength() != 1) return L("une seule extension attendue", "a single plugin expected");
         var package = packages[0];
         if (!Guid.TryParse(ReleaseFeed.Text(package, "guid"), out var guid) || guid != MiraWeb.PluginId || ReleaseFeed.Text(package, "name") != MiraWeb.PluginName)
-            return "ce n’est pas l’extension Mira";
+            return L("ce n’est pas l’extension Mira", "it isn’t the Mira plugin");
         if (package.ValueKind != JsonValueKind.Object || !package.TryGetProperty("versions", out var versions) || versions.ValueKind != JsonValueKind.Array || versions.GetArrayLength() != 1)
-            return "une seule version attendue";
+            return L("une seule version attendue", "a single version expected");
         var entry = versions[0];
         var expected = version.ToString(3) + ".0";
-        if (ReleaseFeed.Text(entry, "version") is var listed && listed != expected) return $"version « {listed} » au lieu de {expected}";
+        if (ReleaseFeed.Text(entry, "version") is var listed && listed != expected) return L($"version « {listed} » au lieu de {expected}", $"version “{listed}” instead of {expected}");
         var source = UpdateClient.ReleaseFile(version, UpdateManifest.OtherName("jellyfin", version)).AbsoluteUri;
-        if (ReleaseFeed.Text(entry, "sourceUrl") is var url && url != source) return $"adresse « {url} » au lieu de {source}";
+        if (ReleaseFeed.Text(entry, "sourceUrl") is var url && url != source) return L($"adresse « {url} » au lieu de {source}", $"address “{url}” instead of {source}");
         // Jellyfin's own check of the download, before it installs the plugin.
         if (!string.Equals(ReleaseFeed.Text(entry, "checksum"), Convert.ToHexString(MD5.HashData(zip)), StringComparison.OrdinalIgnoreCase))
-            return "le checksum n’est pas le MD5 de l’extension";
+            return L("le checksum n’est pas le MD5 de l’extension", "the checksum isn’t the plugin’s MD5");
         return null;
     }
 
@@ -55,13 +55,13 @@ public static class ReleaseChecks
         var name = Path.GetFileName(path);
         string[] line;
         try { line = File.ReadAllText(path + ".sha256", Encoding.ASCII).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { throw new UpdateException($"{name}.sha256 est introuvable ou illisible."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { throw new UpdateException(L($"{name}.sha256 est introuvable ou illisible.", $"{name}.sha256 is missing or unreadable.")); }
         string hash;
         try { using var stream = File.OpenRead(path); hash = Convert.ToHexString(SHA256.HashData(stream)); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { throw new UpdateException($"{name} est introuvable ou illisible."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { throw new UpdateException(L($"{name} est introuvable ou illisible.", $"{name} is missing or unreadable.")); }
         // In binary mode, shasum marks the name with a star.
         if (line.Length != 2 || line[1].TrimStart('*') != name || !string.Equals(line[0], hash, StringComparison.OrdinalIgnoreCase))
-            throw new UpdateException($"{name}.sha256 ne correspond pas à {name}.");
+            throw new UpdateException(L($"{name}.sha256 ne correspond pas à {name}.", $"{name}.sha256 doesn’t match {name}."));
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ public static class ReleaseChecks
         var zip = Path.Combine(directory, UpdateManifest.OtherName("jellyfin", version));
         var manifest = Path.Combine(directory, JellyfinManifestName);
         foreach (var path in new[] { zip, manifest })
-            if (!File.Exists(path)) throw new UpdateException($"{Path.GetFileName(path)} manque dans {directory}.");
+            if (!File.Exists(path)) throw new UpdateException(L($"{Path.GetFileName(path)} manque dans {directory}.", $"{Path.GetFileName(path)} is missing from {directory}."));
         CheckJellyfinManifest(File.ReadAllBytes(manifest), version, File.ReadAllBytes(zip));
     }
 }

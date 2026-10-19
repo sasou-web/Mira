@@ -27,7 +27,7 @@ internal static class AccessibilityTests
             Assert(Legibility.Contrast("#696972", "#070708") < 4.5, "The old faint grey is not caught");
             // Every opaque, light text colour written in the windows' markup and code: the text of a dark ink (a light
             // button) and the translucent ones (over artwork) are judged where they are drawn, not here.
-            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            var repository = TestSupport.Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
             var sources = new[] { "src/Mira.Desktop/MainWindow.xaml", "src/Mira.Desktop/Themes/Cinema.xaml", "src/Mira.Mac/App.axaml" }.Select(x => Path.Combine(repository, x))
                 .Concat(Directory.EnumerateFiles(Path.Combine(repository, "src", "Mira.Desktop"), "*.cs", SearchOption.AllDirectories))
                 .Concat(Directory.EnumerateFiles(Path.Combine(repository, "src", "Mira.Mac"), "*.cs", SearchOption.AllDirectories))
@@ -95,13 +95,5 @@ internal static class AccessibilityTests
                 Assert(!JellyfinClient.StatusMessage(status).Contains("status code", StringComparison.OrdinalIgnoreCase), "English status text");
             return Task.CompletedTask;
         });
-    }
-
-    private static string? Repository()
-    {
-        foreach (var start in new[] { AppContext.BaseDirectory, Environment.CurrentDirectory })
-            for (var folder = new DirectoryInfo(start); folder is not null; folder = folder.Parent)
-                if (File.Exists(Path.Combine(folder.FullName, "Mira.sln"))) return folder.FullName;
-        return null;
     }
 }

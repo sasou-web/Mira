@@ -1,7 +1,8 @@
 param([string]$Configuration = 'Release', [string]$Executable = '')
 # End-to-end TorLink check: real TorLink in the Mira page, synthetic finished downloads, isolated library.
 # Nothing touches the real TorLink state (TORLINK_STATE_DIR) or Jellyfin (demo mode).
-# -Executable checks another build of Mira, for example the published dist\Mira\Mira.exe.
+# -Executable checks another build of Mira that has the harnesses (MiraValidation, the default of dotnet build): the
+# packages and dist\Mira (tools/publish.ps1) leave them out.
 $ErrorActionPreference = 'Stop'
 # The .NET SDK sends usage data unless told not to; the scripts tell it, on this PC as in the CI.
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'

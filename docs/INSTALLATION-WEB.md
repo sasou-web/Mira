@@ -27,7 +27,7 @@ Il faut être connecté avec le compte administrateur de Jellyfin, ce qui est le
 
 Avant d’installer Mira web, Mira vérifie sur GitHub qu’il est bien celui de sa version, signé comme ses propres mises à jour, dans une release que plus personne ne peut modifier ; sinon, il n’installe rien et le guide dit pourquoi. Le dépôt qu’il ajoute à Jellyfin ne propose que cette version vérifiée (et remplace un dépôt de Mira ajouté à la main).
 
-Ensuite, Mira web suit la version de Mira pour Windows. Quand Mira se met à jour, ouvre-le une fois avec le compte administrateur de Jellyfin : il vérifie la nouvelle version de Mira web et fait passer le dépôt de Jellyfin à celle-ci, sans rien installer lui-même. Jellyfin la télécharge à sa prochaine recherche de mises à jour (à son démarrage, puis toutes les 24 h) et la prend à son redémarrage suivant. Si tu as désinstallé ou désactivé l’extension dans Jellyfin, ou coupé ses mises à jour automatiques, Jellyfin la laisse telle quelle. Un Mira pour Windows plus ancien, sur un autre PC, ne la fait jamais revenir en arrière.
+Ensuite, Mira web suit la version de Mira pour Windows. Quand Mira se met à jour, ouvre-le une fois avec le compte administrateur de Jellyfin : il vérifie la nouvelle version de Mira web, fait passer le dépôt de Jellyfin à celle-ci et demande à Jellyfin de mettre ses extensions à jour tout de suite. Quand personne ne regarde rien sur Jellyfin, Mira propose **Redémarrer Jellyfin** (quelques secondes) : ton téléphone a la nouvelle version à sa prochaine ouverture. Sans ce redémarrage, Jellyfin la prend à son redémarrage suivant. À sa première ouverture, la nouvelle version montre une fois **Nouveau dans Mira** : ce qu’elle apporte au téléphone. Si tu as désinstallé ou désactivé l’extension dans Jellyfin, ou coupé ses mises à jour automatiques, Jellyfin la laisse telle quelle. Un Mira pour Windows plus ancien, sur un autre PC, ne la fait jamais revenir en arrière.
 
 ### Sur iPhone et iPad : l’avoir comme une app
 
@@ -35,7 +35,7 @@ Dans Safari, touche **Partager**, puis **Sur l’écran d’accueil**, et laisse
 
 ### Sur Android
 
-Dans Chrome, menu **⋮ → Ajouter à l’écran d’accueil** (ou **Installer l’application**).
+Dans Chrome, menu **⋮ → Ajouter à l’écran d’accueil**. Chrome n’installe une app que depuis une adresse en `https://` : avec l’adresse en `http://` de Mira, il pose un raccourci qui ouvre Mira dans un onglet de Chrome, avec sa barre d’adresse.
 
 ### Garder la même adresse
 
@@ -59,11 +59,11 @@ Jellyfin met ensuite l’extension à jour tout seul à chaque nouvelle version 
 
 **Hors de chez toi** : installe Tailscale sur le serveur et sur le téléphone, avec le même compte. Dans Jellyfin, **Tableau de bord → Réseau → LAN networks**, ajoute `100.64.0.0/10` (avec, si la liste était vide, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12` et `192.168.0.0/16`), puis ouvre `http://100.x.y.z:8096/Mira` avec l’adresse Tailscale du serveur. Sous Windows, le pare-feu doit laisser entrer `jellyfin.exe` sur son port depuis `100.64.0.0/10`.
 
-Hors de chez toi, la qualité **Automatique** mesure la connexion et demande à Jellyfin une vidéo adaptée. Tu peux la fixer dans **Réglages → Qualité** ou dans le lecteur.
+Hors de chez toi, la qualité **Automatique** mesure la connexion pendant que le titre charge : si elle tient une fois et demie le débit du fichier, il est lu tel quel, en pleine qualité ; sinon Jellyfin envoie une vidéo adaptée. Tu peux la fixer dans **Réglages → Qualité** ou dans le lecteur.
 
 ## Ce qui change par rapport à Mira sur Windows et Mac
 
-- **Sur iPhone et iPad, c’est le lecteur d’Apple.** La vidéo s’ouvre en plein écran, avec ses commandes : lecture, barre de progression, ±10 s, vitesse, AirPlay, image dans l’image, et le menu des sous-titres et de l’audio. L’épisode suivant démarre dans le même lecteur. **Terminé** (ou glisser vers le bas) ramène à la fiche, à l’endroit où tu t’es arrêté.
+- **Sur iPhone et iPad, c’est le lecteur d’Apple.** La vidéo s’ouvre en plein écran, avec ses commandes : lecture, barre de progression, ±10 s, vitesse, AirPlay, image dans l’image, et le menu des sous-titres et de l’audio. L’épisode suivant démarre dans le même lecteur, 10 secondes après le début du générique de fin quand Jellyfin ou les chapitres du fichier l’ont repéré et qu’aucune scène ne le suit (un aperçu n’en est pas une), sinon à la fin ; si tu avances ou recules toi-même dans le générique, il va jusqu’au bout. **Terminé** (ou glisser vers le bas) ramène à la fiche, à l’endroit où tu t’es arrêté.
 - **L’audio et les sous-titres se choisissent sur la fiche**, sous **Lecture**. Mira part des langues de **Réglages** (les mêmes que sur Windows et Mac) et retient celles choisies pour une série. Dans le lecteur d’Apple, le menu change les sous-titres texte. Il ne change l’audio que pour un fichier lu tel quel : pour un fichier converti par Jellyfin, choisis l’audio sur la fiche.
 - **Le lecteur lit directement les fichiers MP4 et MOV** en H.264 ou HEVC. Les autres, par exemple les MKV, sont convertis à la volée par Jellyfin. Le plus souvent, c’est une simple remise en forme, sans réencodage, donc légère pour le PC. Les fichiers en H.264 10 bits ou avec des sous-titres en image (PGS, DVD) demandent un vrai réencodage : le PC doit être assez puissant.
 - **Un titre que le lecteur refuse** est redemandé à Jellyfin, la vidéo convertie, puis tout converti, là où il en était. Si rien ne passe, Mira le dit, avec l’erreur du lecteur en petit : note-la avec les codecs du fichier (fiche du titre dans Jellyfin → Infos sur le média), c’est ce qu’il faut pour trouver pourquoi.

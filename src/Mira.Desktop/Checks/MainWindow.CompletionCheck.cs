@@ -23,19 +23,19 @@ public partial class MainWindow
         }
         var originalAuto = _settings.AutoNext; _settings.AutoNext = false;
         var partial = Episode("qa-partial"); await At(partial, 3);
-        _segments = []; _activeSkip = null; _skipToNext = false; _nextItem = Episode("qa-after-partial");
+        _skips.Segments = []; _skips.Active = null; _skips.ToNext = false; _skips.Next = Episode("qa-after-partial");
         Next_Click(this, new()); await Until(() => _session.Item?.Id == "qa-after-partial" && _loaded);
         require(!partial.UserData.Played && partial.Progress > 0, "manual next in the middle keeps the episode unwatched and resumable");
 
         var credits = Episode("qa-credits"); await At(credits, 13);
-        _segments = [new SkipSegment(SkipKind.Outro, 12, 18)]; _activeSkip = null; _nextItem = Episode("qa-after-credits");
-        UpdateSkip(); require(_skipToNext, "outro shortcut identifies the next-episode action below 90 percent");
+        _skips.Segments = [new SkipSegment(SkipKind.Outro, 12, 18)]; _skips.Active = null; _skips.Next = Episode("qa-after-credits");
+        UpdateSkip(); require(_skips.ToNext, "outro shortcut identifies the next-episode action below 90 percent");
         Skip_Click(this, new()); await Until(() => _session.Item?.Id == "qa-after-credits" && _loaded);
         require(credits.UserData.Played && credits.Progress == 0, "next-episode pill marks the previous episode watched below 90 percent");
 
         var automatic = Episode("qa-countdown"); await At(automatic, 13); _settings.AutoNext = true;
-        _segments = [new SkipSegment(SkipKind.Outro, 12, 18)]; _activeSkip = null; _nextItem = Episode("qa-after-countdown");
-        UpdateSkip(); _countdownEnd = _session.Position; UpdateSkip();
+        _skips.Segments = [new SkipSegment(SkipKind.Outro, 12, 18)]; _skips.Active = null; _skips.Next = Episode("qa-after-countdown");
+        UpdateSkip(); _skips.CountdownEnd = _session.Position; UpdateSkip();
         await Until(() => _session.Item?.Id == "qa-after-countdown" && _loaded);
         require(automatic.UserData.Played && automatic.Progress == 0, "automatic countdown marks the previous episode watched and clears its progress");
 
@@ -45,7 +45,7 @@ public partial class MainWindow
 
         // Use the real stop/mini paths and rendered row, with synthetic entries in the demo profile.
         var films = new[] { Episode("qa-recent-a") with { Type = "Movie", SeriesId = null }, Episode("qa-recent-b") with { Type = "Movie", SeriesId = null } };
-        _demoItems!.AddRange(films); _view = "home";
+        _demoItems!.AddRange(films); _catalog.View = "home";
         await At(films[0], 3); await StopPlaybackAsync(); ReturnToLibrary();
         await At(films[1], 4); await StopPlaybackAsync(); ReturnToLibrary();
         require(ResumeCards.Children.OfType<Views.MediaCard>().First().Item.Id == films[1].Id, "returning after playback puts the last watched film first in the rendered resume row");

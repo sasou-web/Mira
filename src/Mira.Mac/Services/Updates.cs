@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Mira.Core.Updates;
 using Mira.Mac.Views;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Services;
 
@@ -39,17 +40,20 @@ public static class Updates
         if (!asked && !window.Settings.AutoUpdate) return;
         try
         {
-            if (await FindAsync() is { } update) window.Notice($"Mira {update.Version} est disponible.", "Télécharger", () => Open(update.Page));
-            else if (asked) window.Notice($"Mira {Current} est à jour.");
+            if (await FindAsync() is { } update) window.Notice(L($"Mira {update.Version} est disponible.", $"Mira {update.Version} is available."), L("Télécharger", "Download"), () => Open(update.Page));
+            else if (asked) window.Notice(L($"Mira {Current} est à jour.", $"Mira {Current} is up to date."));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or NotSupportedException)
-        { if (asked) window.Notice("Impossible de vérifier les mises à jour pour le moment."); }
+        { if (asked) window.Notice(L("Impossible de vérifier les mises à jour pour le moment.", "Can’t check for updates right now.")); }
     }
 
-    /// <summary>Opens a web page in the default browser: an HTTPS address only, given to macOS' open as a single argument.</summary>
-    public static void Open(Uri page)
+    /// <summary>
+    /// Opens a web page in the default browser: an HTTPS address only, or HTTP with <paramref name="plainHttp"/> (a
+    /// Jellyfin at home or on Tailscale), given to macOS' open as a single argument.
+    /// </summary>
+    public static void Open(Uri page, bool plainHttp = false)
     {
-        if (!page.IsAbsoluteUri || page.Scheme != Uri.UriSchemeHttps) return;
+        if (!page.IsAbsoluteUri || page.Scheme != Uri.UriSchemeHttps && !(plainHttp && page.Scheme == Uri.UriSchemeHttp)) return;
         try
         {
             // By its full path, so that no other « open » found on the PATH runs; Linux is where Mira's checks run.

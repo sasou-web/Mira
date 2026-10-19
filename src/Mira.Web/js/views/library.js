@@ -1,6 +1,7 @@
 // Films or Séries: the whole library in a grid, loaded as you scroll, with Mira's filters and sorts.
 import { api, GRID_FIELDS } from '../api.js';
-import { h, icon, clear, plural } from '../dom.js';
+import { h, icon, clear, append } from '../dom.js';
+import { tr, trn } from '../i18n.js';
 import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast, reconcile, cardSig } from '../components.js';
 import { session } from '../session.js';
 
@@ -12,26 +13,38 @@ const slim = (x) => ({
   ChildCount: x.ChildCount, ImageTags: x.ImageTags, BackdropImageTags: x.BackdropImageTags,
   ParentBackdropImageTags: x.ParentBackdropImageTags, ParentThumbImageTag: x.ParentThumbImageTag,
   ImageBlurHashes: x.ImageBlurHashes?.Primary ? { Primary: x.ImageBlurHashes.Primary } : undefined,
-  UserData: x.UserData ? { Played: x.UserData.Played, PlaybackPositionTicks: x.UserData.PlaybackPositionTicks, IsFavorite: x.UserData.IsFavorite } : undefined,
+  UserData: x.UserData ? {
+    Played: x.UserData.Played, PlaybackPositionTicks: x.UserData.PlaybackPositionTicks, IsFavorite: x.UserData.IsFavorite,
+    PlayedPercentage: x.UserData.PlayedPercentage, UnplayedItemCount: x.UserData.UnplayedItemCount,
+  } : undefined,
 });
 /** The cards of a first screenful: their pictures load at once (and the tab waits for them), the others as it scrolls. */
 const firstScreen = () => (innerWidth < 600 ? 3 : Math.max(3, Math.floor((innerWidth - 120) / 156))) * Math.ceil(innerHeight / 210);
 
 const SORTS = [
-  ['recent', 'Ajouts récents'], ['title', 'Titre'], ['year', 'Année'], ['rating', 'Note'], ['played', 'Vus récemment'],
+  ['recent', tr('Ajouts récents')], ['title', tr('Titre')], ['year', tr('Année')], ['rating', tr('Note')], ['played', tr('Vus récemment')],
 ];
 const PAGE = 60;
+/** « Lettre »: « # » for the titles before A (a number first, « 2001 »), then A to Z. */
+const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+/** The kind of Jellyfin library that holds each tab's titles. */
+const KINDS = { Movie: 'movies', Series: 'tvshows' };
 
 export function create({ type, query }) {
   const movies = type === 'Movie';
-  const noun = movies ? ['film', 'films'] : ['série', 'séries'];
-  const state = { sort: 'recent', genre: query.get('genre') ?? '', year: '', unplayed: false, favorite: query.get('favoris') === '1' };
+  const counted = (n) => (movies ? trn(n, '{n} film', '{n} films') : trn(n, '{n} série', '{n} séries'));
+  // library: one of several libraries of this kind (Séries or Animes), '' for all of them.
+  const state = { sort: 'recent', genre: query.get('genre') ?? '', year: '', unplayed: false, favorite: query.get('favoris') === '1', library: '', letter: '' };
   let total = null, start = 0, done = false, busy = false, controller = null, loadedAt = 0, options = null, stale = false;
   let generation = 0, refreshing = null;   // a reset starts a new generation: the answers of an older one are dropped
   // Resolved once the first page shows, its first screenful of pictures decoded: the tab waits for it (app.js).
   let markReady = () => {};
   const ready = new Promise((resolve) => { markReady = resolve; });
-  const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite].join('|')}`;
+  const storeKey = () => `mira.library.${session.current?.userId}.${type}.${[state.sort, state.genre, state.year, state.unplayed, state.favorite, state.library, state.letter].join('|')}`;
+  // The account's libraries, kept on the phone so that the choice between them shows at once, without moving the grid.
+  const viewsKey = () => `mira.library.${session.current?.userId}.views`;
+  const ofKind = (views) => views.filter((v) => v.type === KINDS[type]);
+  let libraries = (() => { try { return ofKind(JSON.parse(localStorage.getItem(viewsKey()) ?? '[]')); } catch { return []; } })();
   function readStore() { try { return JSON.parse(localStorage.getItem(storeKey()) ?? 'null'); } catch { return null; } }
   // Kept for each sort, unfiltered only: a few keys per account, never one per genre or year; never once signed out.
   function writeStore(items, all) {
@@ -43,16 +56,18 @@ export function create({ type, query }) {
   // Only the pictures loading at once: a lazy one in a screen not shown yet never loads, its decode() never ends.
   const decoded = () => Promise.all([...grid.querySelectorAll('img[loading="eager"]')].map((img) => img.decode?.().catch(() => {})));
 
-  const chips = h('div', { class: 'chips', role: 'toolbar', 'aria-label': 'Filtres' });
+  const shelves = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': tr('Bibliothèque') });
+  const chips = h('div', { class: 'chips', role: 'toolbar', 'aria-label': tr('Filtres') });
   const count = h('div', { class: 'library-count', 'aria-live': 'polite' });
   const grid = h('div', { class: 'grid' });
   const sentinel = h('div', { class: 'sentinel' });
   const body = h('div', { class: 'library-grid' }, grid, sentinel);
   const el = h('div', { class: 'view library' },
-    h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? 'Films' : 'Séries')),
+    h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? tr('Films') : tr('Séries')), shelves),
     h('div', { class: 'library-filters' }, chips), count, body);
 
-  const filtered = () => state.genre || state.year || state.unplayed || state.favorite;
+  const filtered = () => state.genre || state.year || state.unplayed || state.favorite || state.letter;
+  const noFilters = { genre: '', year: '', unplayed: false, favorite: false, letter: '' };
 
   function chip(label, { on = false, menu = false, run }) {
     return h('button', { class: ['chip', on && 'on'], 'aria-pressed': menu ? null : String(on), 'aria-haspopup': menu ? 'dialog' : null, on: { click: run } },
@@ -60,16 +75,36 @@ export function create({ type, query }) {
   }
 
   function renderChips() {
-    clear(chips).append(
-      chip(`Trier : ${SORTS.find(([k]) => k === state.sort)[1]}`, { menu: true, run: () => sheet({
-        title: 'Trier par', items: SORTS.map(([key, label]) => ({ label, selected: state.sort === key, run: () => apply({ sort: key }) })),
+    // append of dom.js skips the chips not shown (Element.append would write « null »).
+    append(clear(chips), [
+      chip(tr('Trier : {sort}', { sort: SORTS.find(([k]) => k === state.sort)[1] }), { menu: true, run: () => sheet({
+        // A letter goes with the sort by title only.
+        title: tr('Trier par'), items: SORTS.map(([key, label]) => ({ label, selected: state.sort === key, run: () => apply({ sort: key, letter: key === 'title' ? state.letter : '' }) })),
       }) }),
-      chip(state.genre || 'Genre', { on: !!state.genre, menu: true, run: pickGenre }),
-      chip(state.year || 'Année', { on: !!state.year, menu: true, run: pickYear }),
-      chip('Non vus', { on: state.unplayed, run: () => apply({ unplayed: !state.unplayed }) }),
-      chip('Favoris', { on: state.favorite, run: () => apply({ favorite: !state.favorite }) }),
-      filtered() ? h('button', { class: 'chip', on: { click: () => apply({ genre: '', year: '', unplayed: false, favorite: false }) } }, icon('close', { size: 16 }), 'Réinitialiser') : null,
-    );
+      state.sort === 'title' ? chip(state.letter ? tr('Lettre : {letter}', { letter: state.letter }) : tr('Lettre'), { on: !!state.letter, menu: true, run: pickLetter }) : null,
+      chip(state.genre || tr('Genre'), { on: !!state.genre, menu: true, run: pickGenre }),
+      chip(state.year || tr('Année'), { on: !!state.year, menu: true, run: pickYear }),
+      chip(tr('Non vus'), { on: state.unplayed, run: () => apply({ unplayed: !state.unplayed }) }),
+      chip(tr('Favoris'), { on: state.favorite, run: () => apply({ favorite: !state.favorite }) }),
+      filtered() ? h('button', { class: 'chip', on: { click: () => apply(noFilters) } }, icon('close', { size: 16 }), tr('Réinitialiser')) : null,
+    ]);
+  }
+
+  /** « Tout | Séries | Animes »: only with several libraries of this kind. A view rather than a filter: kept by Réinitialiser. */
+  function renderShelves() {
+    shelves.hidden = libraries.length < 2;
+    clear(shelves).append(...(shelves.hidden ? [] : [{ id: '', name: tr('Tout') }, ...libraries].map(({ id, name }) =>
+      h('button', { role: 'radio', 'aria-checked': String(state.library === id), on: { click: () => { if (state.library !== id) apply({ library: id }); } } }, name))));
+  }
+  function loadShelves() {
+    api.libraries().then((views) => {
+      const all = views.filter((v) => Object.values(KINDS).includes(v.CollectionType)).map((v) => ({ id: v.Id, name: v.Name, type: v.CollectionType }));
+      try { localStorage.setItem(viewsKey(), JSON.stringify(all)); } catch { /* full or blocked: asked again next time */ }
+      if (JSON.stringify(ofKind(all)) === JSON.stringify(libraries)) return;
+      libraries = ofKind(all);
+      // A library gone (removed from Jellyfin, or no longer shared with this account): all of them again.
+      if (state.library && !libraries.some((v) => v.id === state.library)) apply({ library: '' }); else renderShelves();
+    }, () => {});
   }
 
   // Asked for once, and again after a failure (the server away would otherwise leave the lists empty for good).
@@ -82,19 +117,33 @@ export function create({ type, query }) {
   async function pickGenre() {
     const { genres } = await loadOptions() ?? {};
     if (!genres) return;
-    sheet({ title: 'Genre', items: [{ label: 'Tous les genres', selected: !state.genre, run: () => apply({ genre: '' }) },
+    sheet({ title: tr('Genre'), items: [{ label: tr('Tous les genres'), selected: !state.genre, run: () => apply({ genre: '' }) },
       ...genres.map((g) => ({ label: g, selected: state.genre === g, run: () => apply({ genre: g }) }))] });
   }
   async function pickYear() {
     const { years } = await loadOptions() ?? {};
     if (!years) return;
-    sheet({ title: 'Année', items: [{ label: 'Toutes les années', selected: !state.year, run: () => apply({ year: '' }) },
+    sheet({ title: tr('Année'), items: [{ label: tr('Toutes les années'), selected: !state.year, run: () => apply({ year: '' }) },
       ...years.map((y) => ({ label: y, selected: state.year === y, run: () => apply({ year: y }) }))] });
+  }
+
+  /**
+   * « Lettre », with the sort by title: only the titles under one letter, as Jellyfin sorts them, by their sort name
+   * (« The Batman » under B). Rather than a column of letters on the right edge, where iOS's swipe back starts.
+   */
+  function pickLetter() {
+    let close = () => {};
+    const pick = (letter) => { close(); if (letter !== state.letter) apply({ letter }); };
+    const letters = h('div', { class: 'letters', role: 'group', 'aria-label': tr('Lettres') }, LETTERS.map((letter) => h('button', {
+      class: ['letter', state.letter === letter && 'on'], 'aria-pressed': String(state.letter === letter),
+      'aria-label': letter === '#' ? tr('Chiffres et symboles') : letter, on: { click: () => pick(letter) },
+    }, letter)));
+    close = sheet({ title: tr('Lettre'), body: letters, items: [{ label: tr('Toutes les lettres'), selected: !state.letter, run: () => pick('') }] });
   }
 
   function apply(change) {
     Object.assign(state, change);
-    renderChips();
+    renderShelves(); renderChips();
     reset();
     scrollTo({ top: 0 });
   }
@@ -107,7 +156,7 @@ export function create({ type, query }) {
     const stored = readStore();
     if (stored?.items?.length) {
       reconcile(grid, stored.items, firstCards(stored.items));
-      count.textContent = stored.total ? plural(stored.total, noun[0], noun[1]) : '';
+      count.textContent = stored.total ? counted(stored.total) : '';
       decoded().then(markReady);
     } else {
       clear(grid).append(...skeletonGrid(Math.min(18, firstScreen())).children);
@@ -118,7 +167,8 @@ export function create({ type, query }) {
 
   const fetchPage = (from, limit, signal) => api.browse({
     types: type, start: from, limit, sort: state.sort, genre: state.genre || undefined, year: state.year || undefined,
-    played: state.unplayed ? false : undefined, favorite: state.favorite, fields: GRID_FIELDS, signal,
+    played: state.unplayed ? false : undefined, favorite: state.favorite, library: state.library || undefined, fields: GRID_FIELDS, signal,
+    startsWith: state.letter !== '#' ? state.letter || undefined : undefined, before: state.letter === '#' ? 'A' : undefined,
   });
 
   /**
@@ -164,7 +214,7 @@ export function create({ type, query }) {
       }
       total = result?.TotalRecordCount ?? items.length;
       done = start >= total; loadedAt = Date.now(); stale = false;
-      count.textContent = total ? plural(total, noun[0], noun[1]) : '';
+      count.textContent = total ? counted(total) : '';
       if (total === 0) showEmpty();
     } catch (error) {
       if (error.name !== 'AbortError' && mine === generation) loadedAt = Date.now();
@@ -175,9 +225,12 @@ export function create({ type, query }) {
 
   /** Nothing to show: why, and what to do. */
   function showEmpty() {
-    grid.append(filtered()
-      ? emptyState({ symbol: 'filter', title: 'Aucun titre ne correspond', text: 'Essaie un autre genre ou une autre année.', action: { label: 'Réinitialiser les filtres', run: () => apply({ genre: '', year: '', unplayed: false, favorite: false }) } })
-      : emptyState({ symbol: movies ? 'films' : 'series', title: movies ? 'Aucun film pour l’instant' : 'Aucune série pour l’instant', text: 'Ajoute-en dans les dossiers de Jellyfin : ils apparaîtront ici après l’analyse.' }));
+    const onlyLetter = state.letter && !state.genre && !state.year && !state.unplayed && !state.favorite;
+    grid.append(onlyLetter
+      ? emptyState({ symbol: 'filter', title: state.letter === '#' ? tr('Aucun titre avant A') : tr('Aucun titre en {letter}', { letter: state.letter }), text: tr('Choisis une autre lettre.'), action: { label: tr('Toutes les lettres'), run: () => apply({ letter: '' }) } })
+      : filtered()
+      ? emptyState({ symbol: 'filter', title: tr('Aucun titre ne correspond'), text: tr('Essaie un autre genre ou une autre année.'), action: { label: tr('Réinitialiser les filtres'), run: () => apply(noFilters) } })
+      : emptyState({ symbol: movies ? 'films' : 'series', title: movies ? tr('Aucun film pour l’instant') : tr('Aucune série pour l’instant'), text: tr('Ajoute-en dans les dossiers de Jellyfin : ils apparaîtront ici après l’analyse.') }));
     grid.lastChild.style.gridColumn = '1 / -1';
   }
 
@@ -206,7 +259,7 @@ export function create({ type, query }) {
       start += items.length;
       done = items.length < PAGE || start >= total;
       loadedAt = Date.now();
-      count.textContent = total ? plural(total, noun[0], noun[1]) : '';
+      count.textContent = total ? counted(total) : '';
       if (total === 0) showEmpty();
     } catch (error) {
       if (error.name === 'AbortError' || mine !== generation) return;
@@ -242,10 +295,11 @@ export function create({ type, query }) {
   };
   changes.addEventListener('item', onChange);
 
-  renderChips();
+  renderShelves(); renderChips();
+  loadShelves();
   reset();
   return {
-    el, title: movies ? 'Films' : 'Séries', keep: true, ready,
+    el, title: movies ? tr('Films') : tr('Séries'), keep: true, ready,
     enter() {
       if (stale || Date.now() - loadedAt > 10 * 60_000) refresh();
       else requestAnimationFrame(keepLoading);

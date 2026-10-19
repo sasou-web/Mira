@@ -126,6 +126,20 @@ public sealed class Profile
     public string? SettingsCopy { get; private set; }
     /// <summary>The unreadable file is still there and not copied yet: the next save copies it first.</summary>
     private bool _keepBeforeSave;
+    /// <summary>
+    /// The language chosen in settings.json (<see cref="PlayerSettings.Language"/>), read alone before the settings
+    /// themselves, whose defaults depend on it; null when none is chosen or the file cannot be read (LoadSettings says so).
+    /// </summary>
+    public string? ChosenLanguage()
+    {
+        try
+        {
+            using var settings = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(DirectoryPath, "settings.json")));
+            return settings.RootElement.ValueKind == JsonValueKind.Object && settings.RootElement.EnumerateObject()
+                .FirstOrDefault(x => x.Name.Equals(nameof(PlayerSettings.Language), StringComparison.OrdinalIgnoreCase)).Value is { ValueKind: JsonValueKind.String } language ? language.GetString() : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
     public PlayerSettings LoadSettings()
     {
         var path = Path.Combine(DirectoryPath, "settings.json");

@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mira.Core;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Services;
 
@@ -25,13 +27,19 @@ public sealed class Session : IAsyncDisposable
         Client = new JellyfinClient(connection, handler);
         Sync = new SyncService(Client, Store);
         Images = new Images(Client, profile.DirectoryPath);
+        Lifetime = _lifetime.Token;
     }
 
-    /// <summary>Calls <paramref name="changed"/> (on a worker thread) when the library changes on the server.</summary>
-    public void Listen(Action changed) => _ = ListenSafelyAsync(changed);
-    private async Task ListenSafelyAsync(Action changed)
+    /// <summary>Ends with the session: what is sent for it stops when it closes.</summary>
+    public CancellationToken Lifetime { get; }
+    /// <summary>
+    /// Calls <paramref name="changed"/> (on a worker thread) when the library changes on the server, <paramref name="listening"/>
+    /// when the connection opens or closes, and <paramref name="syncPlay"/> with each message of « Regarder ensemble ».
+    /// </summary>
+    public void Listen(Action changed, Action<bool>? listening = null, Action<string, JsonElement>? syncPlay = null) => _ = ListenSafelyAsync(changed, listening, syncPlay);
+    private async Task ListenSafelyAsync(Action changed, Action<bool>? listening, Action<string, JsonElement>? syncPlay)
     {
-        try { await Client.ListenAsync(changed, _lifetime.Token); }
+        try { await Client.ListenAsync(changed, Lifetime, listening, syncPlay); }
         catch (OperationCanceledException) { }
     }
 
@@ -39,6 +47,7 @@ public sealed class Session : IAsyncDisposable
     public Task<MediaItem> ItemAsync(string id) => Shared("item:" + id, () => Client.ItemAsync(id));
     public Task<ItemsResult> EpisodesAsync(string id) => Shared("episodes:" + id, () => Client.EpisodesAsync(id));
     public Task<ItemsResult> SimilarAsync(string id) => Shared("similar:" + id, () => Client.SimilarAsync(id));
+    public Task<Saga?> SagaAsync(string id) => Shared("saga:" + id, () => Client.SagaAsync(id));
     public void Forget() => _requests.Clear();
     private Task<T> Shared<T>(string key, Func<Task<T>> load)
     {
@@ -85,11 +94,11 @@ public static class Errors
         UnauthorizedAccessException => ex.Message,
         UserInputException => ex.Message,
         ServerDiscoveryException => ex.Message,
-        OperationCanceledException or TimeoutException => "Jellyfin met trop de temps à répondre.",
+        OperationCanceledException or TimeoutException => L("Jellyfin met trop de temps à répondre.", "Jellyfin is taking too long to answer."),
         HttpRequestException h when h.StatusCode is not null => h.Message,
-        HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.",
-        SqliteException => "Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.",
-        _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie."
+        HttpRequestException => L("Le serveur Jellyfin est momentanément inaccessible.", "Can’t reach the Jellyfin server right now."),
+        SqliteException => L("Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.", "Mira’s local storage is unavailable (full disk or file in use): free up some disk space, or open Mira again."),
+        _ => L("L’opération n’a pas abouti. Vérifie la connexion et réessaie.", "That didn’t work. Check the connection and try again.")
     };
     /// <summary>The local cache is a bonus: a full disk, a locked or damaged database leaves Jellyfin's answer, or nothing, on screen.</summary>
     public static T? TryCache<T>(Func<T> read) { try { return read(); } catch (Exception ex) when (CacheFailure(ex)) { return default; } }

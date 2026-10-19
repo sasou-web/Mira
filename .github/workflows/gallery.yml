@@ -1,0 +1,156 @@
+name: README captures
+# The captures of the README (docs/screenshots/readme/): Mira for Windows, the real window, and Mira web at an iPhone's
+# size, each signed in to a real Jellyfin 12.1 whose library holds free films (tools/gallery/media.sh) with their TMDb
+# artwork. Run on request (Run workflow) from a branch other than main: the captures are committed to that branch, to
+# go to main through its pull request; from main, they are only kept as an artifact. Never on a push or a pull
+# request: its own commit would start it again.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gallery-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  JELLYFIN_IMAGE: jellyfin/jellyfin:12.1.20260915-010956
+  GALLERY_USER: Camille
+  GALLERY_PASSWORD: mira-gallery
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: jellyfin/jellyfin
+          ref: v12.1
+          path: .artifacts/jellyfin-src
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+      - name: ffmpeg
+        run: choco install ffmpeg -y --no-progress
+      - name: Jellyfin 12.1 from its sources
+        working-directory: .artifacts/jellyfin-src
+        run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
+      - name: Free films
+        shell: bash
+        run: tools/gallery/media.sh "$PWD/.artifacts/media"
+      - name: Jellyfin, its library and a viewer's traces
+        shell: pwsh
+        run: |
+          $j = Join-Path $PWD '.artifacts/jf-data'
+          foreach ($d in 'data', 'cache', 'config', 'log') { New-Item -ItemType Directory -Force -Path (Join-Path $j $d) | Out-Null }
+          $ffmpeg = (Get-Command ffmpeg).Source
+          Start-Process -FilePath dotnet -ArgumentList @('.artifacts/jf/jellyfin.dll', '--datadir', "$j/data", '--cachedir', "$j/cache", '--configdir', "$j/config", '--logdir', "$j/log", '--nowebclient', '--ffmpeg', $ffmpeg) -WindowStyle Hidden
+          node tools/gallery/setup.mjs http://127.0.0.1:8096 (Join-Path $PWD '.artifacts/media') $env:GALLERY_USER $env:GALLERY_PASSWORD
+          if ($LASTEXITCODE -ne 0) { throw 'Jellyfin setup failed.' }
+      # The runner's screen is 1024 × 768, smaller than the window captured: Windows would shrink it to fit.
+      - name: Screen of 1920 × 1080
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+      - name: Build Mira for Windows
+        run: |
+          dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
+          dotnet build src/Mira.Desktop/Mira.Desktop.csproj -c Release --no-restore
+      - name: Capture the window
+        shell: pwsh
+        env:
+          MIRA_GALLERY_SERVER: http://127.0.0.1:8096
+        run: |
+          $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
+          $output = Join-Path $PWD '.artifacts/gallery'
+          $profile = Join-Path $PWD '.artifacts/gallery-profile'
+          $env:MIRA_GALLERY_USER = $env:GALLERY_USER; $env:MIRA_GALLERY_PASSWORD = $env:GALLERY_PASSWORD
+          # In French, as the README's text: the runner's Windows is in English, which Mira would follow.
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', 'fr', '--readme-gallery', "`"$output`"") -PassThru
+          if (-not $run.WaitForExit(300000)) { $run.Kill(); throw 'The captures did not finish within 5 minutes.' }
+          $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
+          Write-Output $result
+          if ($run.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'The captures failed.' }
+      - name: Jellyfin log
+        if: failure()
+        shell: pwsh
+        run: Get-ChildItem .artifacts/jf-data/log -Filter *.log | ForEach-Object { Get-Content $_.FullName -Tail 60 }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: gallery-windows
+          path: .artifacts/gallery/*.png
+          retention-days: 7
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Package the plugin and a local repository
+        run: |
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
+          tools/web/package.sh "$version" http://127.0.0.1:8765
+      - name: Free films
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          tools/gallery/media.sh "$PWD/.artifacts/media"
+      - name: Jellyfin 12.1, its library, Mira web installed from the repository
+        run: |
+          (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          mkdir -p .artifacts/jf-config .artifacts/jf-cache
+          docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
+          node tools/gallery/setup.mjs http://127.0.0.1:8096 /media "$GALLERY_USER" "$GALLERY_PASSWORD" http://127.0.0.1:8765/jellyfin-manifest.json
+      - name: Capture Mira web
+        run: |
+          npm install --silent --no-audit --no-fund --prefix .artifacts/pw playwright@1.56.1
+          npx --prefix .artifacts/pw playwright install --with-deps chromium >/dev/null
+          PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs" node tools/gallery/web.mjs http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/gallery
+      - name: Jellyfin log
+        if: failure()
+        run: docker logs jellyfin 2>&1 | tail -80
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: gallery-web
+          path: .artifacts/gallery/*.png
+          retention-days: 7
+
+  commit:
+    # Only on another branch than main: main takes them through a pull request.
+    if: github.ref_name != 'main'
+    needs: [windows, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: gallery-*
+          merge-multiple: true
+          path: .artifacts/gallery
+      - name: JPEG copies in docs/screenshots/readme
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          mkdir -p docs/screenshots/readme
+          for file in .artifacts/gallery/*.png; do
+            ffmpeg -loglevel error -y -i "$file" -q:v 3 "docs/screenshots/readme/$(basename "$file" .png).jpg"
+          done
+          ls -la docs/screenshots/readme
+      - name: Commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git add docs/screenshots/readme
+          if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Refresh the README's captures"
+          git push origin "HEAD:$BRANCH"

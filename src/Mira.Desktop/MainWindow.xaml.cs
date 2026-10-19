@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,7 +21,7 @@ public partial class MainWindow : Window
     private SyncService? _sync;
     private ImageCache? _images;
     private MetadataCache? _metadata;
-    private bool _catalogLoading, _keyboardNavigation;
+    private bool _keyboardNavigation;
     private CancellationTokenSource _connectionLifetime = new();
     private CancellationTokenSource? _browseCancellation;
     private readonly DispatcherTimer _searchTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
@@ -33,13 +34,10 @@ public partial class MainWindow : Window
     private DateTimeOffset _lastRefresh = DateTimeOffset.MinValue;
     /// <summary>When a refresh last failed to reach Jellyfin; null once one reaches it again (see SyncStatus).</summary>
     private DateTimeOffset? _offlineSince;
-    private List<MediaItem> _items = [], _resume = [], _nextUp = [], _episodes = [];
+    /// <summary>The list shown and what Jellyfin gave for it, « Continuer à regarder » included.</summary>
+    private readonly Catalog _catalog = new();
+    private List<MediaItem> _episodes = [];
     private MediaItem? _hero, _detail;
-    private string _view = "home";
-    /// <summary>Only the favourites of the current view (films, series, library, search): a filter like the others.</summary>
-    private bool _favorites;
-    private string? _parentId;
-    private int _totalCount;
     private bool _demo, _initializing = true;
     private bool _startupComplete;
     private int _viewVersion, _detailVersion;
@@ -62,7 +60,9 @@ public partial class MainWindow : Window
         InitializeFilters();
         InitializePreview();
         InitializePlayerControls();
+#if MIRA_VALIDATION
         InitializePlayerProbe();
+#endif
         InitializeWindowsIntegration();
         InitializeTorLink();
         InitializeUpdates();
@@ -99,6 +99,7 @@ public partial class MainWindow : Window
             _externalRefresh.Stop();
             // A library change may be a title TorLink just brought in.
             _ = CheckTorLinkAvailabilityAsync();
+            EpisodesMayHaveArrived();
             if (!_playing && !_demo) { _metadata?.Clear(); _heroSeries.Clear(); await RefreshAsync(quiet: true); }
         };
         _fallbackRefresh.Tick += async (_, _) =>
@@ -106,12 +107,15 @@ public partial class MainWindow : Window
             if (!_demo && !_playing && _client is not null && IsActive && Cadence.RefreshDue(_listening, _lastRefresh, DateTimeOffset.UtcNow)) await RefreshAsync(quiet: true);
         };
         _playerTimer.Tick += PlayerTick;
+        InitializeEpisodeNotices(); InitializeTogether(); InitializeChoices();
         VolumeSlider.Value = VolumeBoost.Clamp(_settings.Volume); ShowVolumeLevel();
         var testArg = Array.IndexOf(args, "--test-media");
         if (testArg >= 0 && testArg + 1 < args.Length) _testMedia = args[testArg + 1];
         Loaded += OnLoaded;
         _initializing = false;
     }
+    /// <summary>Validation runs set their own sizes, off screen: nothing is remembered from them.</summary>
+    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--offscreen");
     /// <summary>
     /// The size the window had when Mira last closed, or the default one (1480 × 930), kept within the screen it opens
     /// on, with that screen's scale: a 1080p screen at 125 % has about 1536 × 826 usable, at 150 % about 1280 × 688 (see
@@ -158,17 +162,22 @@ public partial class MainWindow : Window
     {
         if (_args.Contains("--demo")) await ShowDemoAsync();
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
-        else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); }
+        else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); if (_invite is not null) _ = OfferInviteAsync(); else FindServer(); }
         await RevealStartupAsync();
+#if MIRA_VALIDATION
         if (await RunRequestedCheckAsync()) return;
+#endif
         _fallbackRefresh.Start();
+        StartKeepingAwake();
+        StartGpuRecheck();
         _ = RefreshEngineAsync();
         ShowStartupScreen();
         _ = NoticeStaleRuleAsync();
+        _ = NoticeTailscaleExpiryAsync();
         _ = KeepMiraWebCurrentAsync();
         // Once, after the first refresh, which would otherwise hide it at once, and beside what the start already said
         // (a cache recreated, an update that failed, Jellyfin offline) rather than in its place.
-        if (_profile.SettingsUnreadable) AddNotice("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut." + (_profile.SettingsCopy is { } copy ? $" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}." : ""));
+        if (_profile.SettingsUnreadable) AddNotice(L("Tes réglages étaient illisibles : Mira est reparti des réglages par défaut.", "Your settings couldn’t be read: Mira started over from the default settings.") + (_profile.SettingsCopy is { } copy ? L($" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}.", $" The old file is kept as {Path.GetFileName(copy)}.") : ""));
         if (_testMedia is not null && _args.Contains("--autoplay")) await PlayAsync(DemoLibrary.Items()[0]);
     }
     private Task? _startupRevealTask;
@@ -185,14 +194,15 @@ public partial class MainWindow : Window
         await Motion.HideAsync(StartupVeil, 220);
         _startupComplete = true;
     }
+    // The fictional catalogue of the checks and of the gallery (--demo): the app itself offers no demo.
     private async Task ShowDemoAsync()
     {
         await DisconnectServicesAsync();
         _demo = true; LoginOverlay.Visibility = Visibility.Collapsed; DemoBadge.Visibility = Visibility.Visible;
-        ServerLabel.Text = "Mode démonstration"; SyncLabel.Text = "○  Données fictives · rien n’est envoyé";
+        ServerLabel.Text = L("Mode démonstration", "Demo mode"); SyncLabel.Text = L("○  Données fictives · rien n’est envoyé", "○  Made-up data · nothing is sent");
         AvatarLetter.Text = "M";
-        LibrariesPanel.Children.Clear(); AddLibraryButton("Films & séries", null);
-        _view = "home"; _parentId = null; SearchBox.Text = "";
+        LibrariesPanel.Children.Clear(); AddLibraryButton(L("Films & séries", "Movies & shows"), null);
+        _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
         PopulateFilters(new CatalogFilters { Genres = DemoLibrary.Items().SelectMany(x => x.Genres).Distinct().ToArray(), Years = DemoLibrary.Items().Select(x => x.ProductionYear ?? 0).Where(x => x > 0).Distinct().ToArray() });
         RenderDemo();
         // Without Jellyfin, only folders chosen in Réglages → TorLink receive downloads.
@@ -207,23 +217,26 @@ public partial class MainWindow : Window
     private string? _warnedPlainHttp;
     private void ServerBox_TextChanged(object sender, TextChangedEventArgs e)
     {
+        ServerTyped();
         // Another address is another question: the warning given for the previous one no longer answers it.
         if (_warnedPlainHttp is null || !ConnectButton.IsEnabled || ServerBox.Text == _warnedPlainHttp) return;
-        _warnedPlainHttp = null; ConnectText.Text = "Se connecter"; LoginError.Text = "";
+        _warnedPlainHttp = null; ConnectText.Text = L("Se connecter", "Sign in"); LoginError.Text = "";
     }
     private async void Connect_Click(object sender, RoutedEventArgs e)
     {
-        ConnectButton.IsEnabled = false; ConnectText.Text = "Connexion…"; LoginError.Text = "";
+        ConnectButton.IsEnabled = false; ConnectText.Text = L("Connexion…", "Signing in…"); LoginError.Text = "";
         JellyfinClient? client = null;
         try
         {
-            if (string.IsNullOrWhiteSpace(UsernameBox.Text)) throw new UserInputException("Indique ton nom d’utilisateur Jellyfin.");
+            if (string.IsNullOrWhiteSpace(UsernameBox.Text)) throw new UserInputException(L("Indique ton nom d’utilisateur Jellyfin.", "Enter your Jellyfin username."));
             // "192.168.1.20", "nas:8096" or the address of Jellyfin's web page: find the server before sending the password.
-            ConnectText.Text = "Recherche du serveur…";
+            ConnectText.Text = L("Recherche du serveur…", "Looking for the server…");
+            // No address yet: the one the search is finding.
+            if (ServerBox.Text.Trim().Length == 0) await _loginSearch;
             var server = await ServerAddress.DiscoverAsync(ServerBox.Text);
             ServerBox.Text = server.Address;
             if (server.Address != _warnedPlainHttp && await ServerAddress.ExposesPasswordAsync(server.Address)) { _warnedPlainHttp = server.Address; LoginError.Text = ServerAddress.PlainHttpWarning; return; }
-            ConnectText.Text = "Connexion…";
+            ConnectText.Text = L("Connexion…", "Signing in…");
             client = new JellyfinClient(new(server.Address, "", UsernameBox.Text.Trim(), "", _profile.DeviceId));
             var connection = await client.LoginAsync(UsernameBox.Text.Trim(), PasswordBox.Password);
             // Another account or server replaces the saved session: the old one ends on its Jellyfin too, since nothing
@@ -231,17 +244,17 @@ public partial class MainWindow : Window
             var previous = _profile.LoadConnection();
             _profile.SaveConnection(connection); PasswordBox.Clear(); _warnedPlainHttp = null;
             await ActivateConnectionAsync(connection);
-            OfferGuide("Connecté. Voici l’essentiel.");
+            OfferGuide(L("Connecté. Voici l’essentiel.", "Signed in. Here are the essentials."));
             if (previous is not null && (previous.Server != connection.Server || previous.UserId != connection.UserId)) _ = EndReplacedSessionAsync(previous);
         }
         catch (Exception ex) when (IsExpected(ex)) { LoginError.Text = Friendly(ex); }
-        finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = _warnedPlainHttp == ServerBox.Text ? "Se connecter quand même" : "Se connecter"; }
+        finally { client?.Dispose(); ConnectButton.IsEnabled = true; ConnectText.Text = _warnedPlainHttp == ServerBox.Text ? L("Se connecter quand même", "Sign in anyway") : L("Se connecter", "Sign in"); }
     }
     private async Task EndReplacedSessionAsync(Connection previous)
     {
         bool closed;
         using (var old = new JellyfinClient(previous)) closed = await old.LogoutAsync();
-        if (!closed) AddNotice($"Ton ancienne session ({previous.UserName}) n’a pas pu être fermée sur son serveur Jellyfin : retire ce PC de ses appareils (Tableau de bord, Appareils).");
+        if (!closed) AddNotice(L($"Ton ancienne session ({previous.UserName}) n’a pas pu être fermée sur son serveur Jellyfin : retire ce PC de ses appareils (Tableau de bord, Appareils).", $"Your previous session ({previous.UserName}) couldn’t be closed on its Jellyfin server: remove this PC from its devices (Dashboard, Devices)."));
     }
     private async Task ActivateConnectionAsync(Connection connection)
     {
@@ -266,35 +279,39 @@ public partial class MainWindow : Window
         if (!ReferenceEquals(_client, client)) { await sync.DisposeAsync(); client.Dispose(); return; }
         _store = store;
         var damaged = _store.DamagedCopy is not null;
-        _items = []; _resume = []; _nextUp = []; _recentPlayback = []; _hiddenResume = []; _episodes = []; _detail = null; _hero = null; _totalCount = 0; _returnToDetail = null; _seasonThumbs.Clear();
+        _catalog.Clear(); _episodes = []; _detail = null; _hero = null; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
         // Never leave the previous account's posters on screen while this one loads.
-        _catalogLoading = true; RenderLibrary();
+        _catalog.Loading = true; RenderLibrary();
         _images = new ImageCache(_client, _profile.DirectoryPath); FitArtwork(_images); _sync = sync;
         _metadata = new MetadataCache(_client); ++_heroVersion;
         _sync.Changed += SyncChanged;
         _connectionLifetime = new(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         if (!_args.Contains("--visual-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
+        if (!_args.Contains("--visual-check")) { StartEpisodeNotices(); ChoicesChanged(); }
+        // Opened from a mira:// link before this account was: asked now.
+        if (_invite is not null) _ = OfferInviteAsync();
+        _ = LoadOfflineAsync(client);
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant();
         SettingsServerAddress.Text = connection.Server;
-        LoginOverlay.Visibility = Visibility.Collapsed; _view = "home"; _parentId = null; SearchBox.Text = "";
+        LoginOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
         try
         {
             var (cached, cachedResume, history, hidden) = await Task.Run(() => TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume"), store.RecentPlayback(), store.HiddenFromResume())));
             // All null when the cache could not be read.
-            if (ReferenceEquals(store, _store)) { _recentPlayback = history ?? []; _hiddenResume = hidden ?? []; }
-            if (cached is not null && ReferenceEquals(store, _store)) { _items = cached.Items; _totalCount = cached.TotalRecordCount; _resume = cachedResume ?? []; _catalogLoading = false; RenderLibrary(); }
+            if (ReferenceEquals(store, _store)) { _catalog.RecentPlayback = history ?? []; _catalog.HiddenResume = hidden ?? []; }
+            if (cached is not null && ReferenceEquals(store, _store)) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; _catalog.Resume = cachedResume ?? []; _catalog.Loading = false; RenderLibrary(); }
             await RefreshAsync();
-            var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear();
-            _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = "Toutes les bibliothèques", Tag = "" }); LibraryFilter.SelectedIndex = 0;
-            foreach (var library in libraries) AddLibraryButton(library.Name, library.Id);
+            var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
+            _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
+            foreach (var library in libraries.Where(x => !LibrarySection.Groups(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
             _filterBusy = false;
             PopulateFilters(await _client.FiltersAsync());
         }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
         SyncChanged();
         // Said once the first refresh is done, which would otherwise hide it at once.
-        if (damaged) SetNotice("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.", null, null, sticky: true);
+        if (damaged) SetNotice(L("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.", "This account’s local cache couldn’t be read: it was rebuilt. Progress reports that hadn’t been sent yet are lost."), null, null, sticky: true);
         _ = RefreshTorLinkLibrariesAsync();
     }
     private async Task ListenSafelyAsync(JellyfinClient client, CancellationToken ct)
@@ -305,16 +322,19 @@ public partial class MainWindow : Window
         {
             if (ct.IsCancellationRequested) return;
             var reopened = open && !_listening && _lastRefresh != DateTimeOffset.MinValue; _listening = open;
-            if (reopened) Changed();
+            if (reopened) { Changed(); RejoinGroup(client); }
         });
-        try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening); }
+        void SyncPlay(string type, JsonElement data) => Dispatcher.BeginInvoke(() => { if (!ct.IsCancellationRequested) GroupMessage(client, type, data); });
+        try { await client.ListenAsync(() => Dispatcher.BeginInvoke(Changed), ct, Listening, SyncPlay); }
         catch (OperationCanceledException) { }
     }
     /// <summary>Artwork decoded for the sharpest and widest of the screens connected now, and for the pages' zoom.</summary>
+    /// <summary>The least scale artwork is decoded for: 2 for the README's captures, drawn at twice the window's size.</summary>
+    private double _artworkScale = 1;
     private void FitArtwork(ImageCache cache)
     {
         var screens = Screens.All();
-        cache.Scale = screens.Select(x => x.Scale).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1).Max() * _zoom;
+        cache.Scale = screens.Select(x => x.Scale).Where(x => double.IsFinite(x) && x > 0).Append(_artworkScale).Max() * _zoom;
         cache.ScreenPixels = (int)Math.Round(screens.Select(x => x.WorkArea.Width).Where(x => double.IsFinite(x) && x > 0).DefaultIfEmpty(1920).Max());
     }
     private async Task DisconnectServicesAsync()
@@ -323,23 +343,23 @@ public partial class MainWindow : Window
         _heroClock.Stop(); _heroClockAttached = false; _heroCandidates = [];
         _heroSeries.Clear();
         _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
-        _connectionLifetime.Cancel(); _browseCancellation?.Cancel();
+        _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); _choicesSoon.Stop(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
-        _recentPlayback = []; _hiddenResume = [];
+        _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _homeLibraries = [];
         // Another account, the demo or none: this one's offline state is not theirs.
         _offlineShown = false; OfflineBadge.Visibility = Visibility.Collapsed;
     }
     private void AddLibraryButton(string name, string? id)
     {
         var button = new Button { Content = name, Style = (Style)FindResource("NavButton"), ToolTip = name };
-        button.Click += async (_, _) => { _view = "library"; ResetFilters(); _filterBusy = true; _parentId = id; LibraryFilter.SelectedItem = LibraryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == (id ?? "")); _filterBusy = false; await NavigateLibraryAsync(); };
+        button.Click += async (_, _) => { _catalog.View = "library"; ResetFilters(); _filterBusy = true; _catalog.ParentId = id; LibraryFilter.SelectedItem = LibraryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == (id ?? "")); _filterBusy = false; await NavigateLibraryAsync(); };
         LibrariesPanel.Children.Add(button);
         if (id is not null) LibraryFilter.Items.Add(new ComboBoxItem { Content = name, Tag = id });
     }
     private async void Navigate_Click(object sender, RoutedEventArgs e)
     {
-        _view = (string)((Button)sender).Tag; ResetFilters();
+        _catalog.View = (string)((Button)sender).Tag; ResetFilters();
         await NavigateLibraryAsync();
     }
     private void Search_Changed(object sender, TextChangedEventArgs e)
@@ -357,78 +377,95 @@ public partial class MainWindow : Window
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         if (_scanning) return;
-        _scanning = true; var before = _totalCount; var view = (_view, _favorites, _parentId, SearchBox.Text); var shown = Task.Delay(700);
+        _scanning = true; var before = _catalog.TotalCount; var view = (_catalog.View, _catalog.Favorites, _catalog.ParentId, SearchBox.Text); var shown = Task.Delay(700);
         var ct = _connectionLifetime.Token;
-        SpinRefresh(true); RefreshLabel.Text = "Analyse…";
+        SpinRefresh(true); RefreshLabel.Text = L("Analyse…", "Scanning…");
         try
         {
             var scanned = false;
             if (!_demo && _client is { } client)
             {
-                var progress = new Progress<double?>(p => RefreshLabel.Text = p is { } share ? $"Analyse… {share * 100:0} %" : "Analyse…");
+                var progress = new Progress<double?>(p => RefreshLabel.Text = p is { } share ? L($"Analyse… {share * 100:0} %", $"Scanning… {share * 100:0}%") : L("Analyse…", "Scanning…"));
                 scanned = await client.ScanAndWaitAsync(progress, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), ct);
-                RefreshLabel.Text = "Chargement…";
+                RefreshLabel.Text = L("Chargement…", "Loading…");
             }
             await RefreshAsync(quiet: true); await shown;
             // Counted only on the list it started from: another view has another total.
-            var added = view == (_view, _favorites, _parentId, SearchBox.Text) ? _totalCount - before : 0;
-            SetNotice(_demo ? "Démo à jour."
-                : !scanned ? "Liste rechargée. Seul un administrateur de Jellyfin peut lui faire analyser les dossiers : un nouveau fichier apparaît après sa prochaine analyse."
-                : added > 0 ? $"Bibliothèque à jour : {added} nouveau{(added > 1 ? "x" : "")} titre{(added > 1 ? "s" : "")}."
-                : "Bibliothèque à jour : Jellyfin a vérifié tous tes dossiers.");
+            var added = view == (_catalog.View, _catalog.Favorites, _catalog.ParentId, SearchBox.Text) ? _catalog.TotalCount - before : 0;
+            SetNotice(_demo ? L("Démo à jour.", "Demo up to date.")
+                : !scanned ? L("Liste rechargée. Seul un administrateur de Jellyfin peut lui faire analyser les dossiers : un nouveau fichier apparaît après sa prochaine analyse.", "List reloaded. Only a Jellyfin administrator can have it scan the folders: a new file shows up after its next scan.")
+                : added > 0 ? L($"Bibliothèque à jour : {added} nouveau{(added > 1 ? "x" : "")} titre{(added > 1 ? "s" : "")}.", $"Library up to date: {added} new {(added == 1 ? "title" : "titles")}.")
+                : L("Bibliothèque à jour : Jellyfin a vérifié tous tes dossiers.", "Library up to date: Jellyfin checked all your folders."));
         }
         // Only Mira's own cancellation (another account, closing): HttpClient's 12 s limit is one too, and must be said.
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
-        finally { _scanning = false; SpinRefresh(false); RefreshLabel.Text = "Actualiser"; }
+        finally { _scanning = false; SpinRefresh(false); RefreshLabel.Text = L("Actualiser", "Refresh"); }
     }
     private async void LoadMore_Click(object sender, RoutedEventArgs e) => await RefreshAsync(more: true);
     private async Task RefreshAsync(bool more = false, bool quiet = false)
     {
         _searchTimer.Stop();
         if (_demo) { RenderDemo(); return; }
+        // « Sur ce PC » asks Jellyfin nothing; a copy waiting for it is tried again.
+        if (_catalog.View == "offline") { await ShowOfflinePageAsync(); PumpOffline(); return; }
         if (_client is null || _store is null) return;
         _browseCancellation?.Cancel(); _browseCancellation = new CancellationTokenSource();
         var ct = _browseCancellation.Token; var version = ++_viewVersion;
-        var search = SearchBox.Text.Trim(); var home = _view == "home" && search.Length == 0;
+        var search = SearchBox.Text.Trim(); var home = _catalog.IsHome(search);
         var filters = home ? new CatalogQuery() : CurrentQuery();
-        var key = CatalogKey(search, filters);
+        var key = _catalog.Key(search, filters);
         var client = _client; var store = _store;
+        // « Regarder ensemble »: a group open on Jellyfin, a line of Home's to join it.
+        if (home && !more) _ = LoadHomeGroupsAsync(client);
         LoadMore.IsEnabled = false; var startOffset = LibraryScroll.VerticalOffset; var started = DateTimeOffset.UtcNow;
-        if (!quiet && !more) { SyncLabel.Text = "↻  Actualisation…"; SpinRefresh(true); }
+        if (!quiet && !more) { SyncLabel.Text = L("↻  Actualisation…", "↻  Refreshing…"); SpinRefresh(true); }
         try
         {
             // A background refresh keeps every page already loaded instead of shrinking the grid back to one page.
-            var limit = quiet && !more ? Math.Max(JellyfinClient.PageSize, _items.Count) : JellyfinClient.PageSize;
-            var browse = client.BrowseAsync(_view is "Movie" or "Series" ? _view : "Movie,Series", _parentId, search, more ? _items.Count : 0, !home && _favorites, ct, filters, limit);
+            var limit = quiet && !more ? Math.Max(JellyfinClient.PageSize, _catalog.Items.Count) : JellyfinClient.PageSize;
+            var browse = client.BrowseAsync(_catalog.Types, _catalog.Parent, search, more ? _catalog.Items.Count : 0, !home && _catalog.Favorites, ct, filters, limit);
+            var people = !more && _catalog.SearchesPeople(search) ? client.PersonsAsync(search, ct) : null;
+            var episodes = !more && _catalog.SearchesPeople(search) ? client.SearchOthersAsync("Episode", search, ct) : null;
+            var sagas = !more && _catalog.SearchesPeople(search) ? client.SearchOthersAsync("BoxSet", search, ct) : null;
             Task<ItemsResult>? resume = home ? client.ResumeAsync(ct) : null;
             Task<ItemsResult>? next = home ? client.NextUpAsync(ct) : null;
+            var shelving = home ? LoadShelvesAsync(client, ct) : null;
             var result = await browse;
-            if (home) { await Task.WhenAll(resume!, next!); await _seasonThumbs.LoadAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
+            // The people, episodes and sagas are a bonus: the titles show even if Jellyfin does not answer for them.
+            async Task<List<MediaItem>> Bonus(Task<List<MediaItem>>? asked)
+            {
+                if (asked is not null) try { return await asked; } catch (Exception ex) when (!ct.IsCancellationRequested && IsExpected(ex)) { }
+                return [];
+            }
+            var found = await Bonus(people); var foundEpisodes = await Bonus(episodes); var foundSagas = await Bonus(sagas);
+            if (home) { await Task.WhenAll(resume!, next!, shelving!); await _seasonThumbs.LoadAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
             var resumeItems = home ? resume!.Result.Items : null;
+            var shelves = home ? shelving!.Result : null;
             List<MediaItem>? recent = null; var seasonThumbs = _seasonThumbs.Snapshot();
             // SQLite work stays off the UI thread; the page only redraws when it is done.
             await Task.Run(() => TryCache(() =>
             {
                 store.ApplyLocalProgress(result.Items);
-                if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); _seasonThumbs.Apply(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); store.Save("home", result); store.Save("resume", resumeItems); }
+                if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); _seasonThumbs.Apply(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); foreach (var shelf in shelves!.Values) store.ApplyLocalProgress(shelf); store.Save("home", result); store.Save("resume", resumeItems); }
                 else if (!more && search.Length == 0) store.Save(key, result);
             }), CancellationToken.None);
             ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
-            if (more) _items.AddRange(result.Items.Where(x => _items.All(old => old.Id != x.Id))); else _items = result.Items;
-            _totalCount = result.TotalRecordCount;
-            if (home) { _resume = resumeItems!; _nextUp = next!.Result.Items; _recentPlayback = ContinueWatching.History(_recentPlayback.Concat(recent ?? [])); }
-            _catalogLoading = false; _lastRefresh = started; _offlineSince = null; RenderLibrary();
+            _catalog.Receive(result, more);
+            if (!more) (_catalog.People, _catalog.Episodes, _catalog.Sagas) = (found, foundEpisodes, foundSagas);
+            if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? [])); }
+            _catalog.Loading = false; _lastRefresh = started; _offlineSince = null; RenderLibrary();
             // Jellyfin answers: the reports a failure left waiting go now rather than at their next try.
             if (_sync is { PendingCount: > 0 } sync) sync.Wake();
+            PumpOffline();
             // Back to the top for a new list, unless the reader has already started scrolling it.
             if (!quiet && !more && Math.Abs(LibraryScroll.VerticalOffset - startOffset) < 1) SmoothScroll.Jump(LibraryScroll, 0);
             if (!quiet) HideNotice(transientOnly: true); SyncChanged();
         }
         // Only a refresh Mira cancelled: a server silent for 12 s ends the same way, and gets the offline notice below.
         // A background refresh keeps the page on screen instead: Jellyfin is often just slow then (a library scan).
-        catch (OperationCanceledException) when (ct.IsCancellationRequested || quiet && !_catalogLoading) { }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested || quiet && !_catalog.Loading) { }
         catch (Exception ex) when (IsExpected(ex))
         {
             if (version != _viewVersion) return;
@@ -443,16 +480,16 @@ public partial class MainWindow : Window
             {
                 var cached = more ? null : await Task.Run(() => TryCache(() => { var page = store.Load<ItemsResult>(home ? "home" : key); if (page is not null) TryCache(() => store.ApplyLocalProgress(page.Items)); return page; }));
                 if (version != _viewVersion) return;
-                if (cached is not null) { _items = cached.Items; _totalCount = cached.TotalRecordCount; }
+                if (cached is not null) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; }
                 // Kept until a refresh, or a report delivered after this failure, reaches Jellyfin again: the sync
                 // status no longer replaces it.
                 var wasOffline = _sync is { } current && SyncStatus.Offline(current.LastSynced, _offlineSince);
                 _offlineSince = DateTimeOffset.Now;
                 // Said once as Jellyfin stops answering, not at each try (every 45 s): « Hors connexion » then stays in
                 // the title bar until it answers again.
-                if (!wasOffline) SetNotice(Friendly(ex) + " Les informations déjà chargées restent disponibles.");
+                if (!wasOffline) _ = SayUnansweredAsync(client, ex, Friendly(ex) + L(" Les informations déjà chargées restent disponibles.", " What’s already loaded stays available."));
                 SyncChanged();
-                _catalogLoading = false; RenderLibrary();
+                _catalog.Loading = false; RenderLibrary();
             }
         }
         finally { if (version == _viewVersion) { LoadMore.IsEnabled = true; SpinRefresh(false); } }
@@ -468,23 +505,8 @@ public partial class MainWindow : Window
     }
     private void RenderDemo()
     {
-        var all = _demoItems ??= DemoLibrary.Items(); _resume = all.Where(x => x.Progress > 0).ToList(); _nextUp = [];
-        _items = all.Where(x => (_view is not ("Movie" or "Series") || x.Type == _view) && (!_favorites || x.UserData.IsFavorite) &&
-            (SearchBox.Text.Length == 0 || x.Name.Contains(SearchBox.Text, StringComparison.CurrentCultureIgnoreCase))).ToList();
-        if (_view != "home")
-        {
-            var query = CurrentQuery();
-            _items = _items.Where(x => (query.Genre is null || x.Genres.Contains(query.Genre)) && (query.Year is null || x.ProductionYear == query.Year) && (query.Played is null || x.UserData.Played == query.Played)).ToList();
-            _items = query.Sort switch
-            {
-                "title" => _items.OrderBy(x => x.Name).ToList(),
-                "year" => _items.OrderByDescending(x => x.ProductionYear).ToList(),
-                "rating" => _items.OrderByDescending(x => x.CommunityRating).ToList(),
-                "played" => _items.OrderByDescending(x => x.UserData.LastPlayedDate ?? DateTimeOffset.MinValue).ThenByDescending(x => x.Progress).ToList(),
-                _ => _items
-            };
-        }
-        _totalCount = _items.Count; RenderLibrary();
+        _catalog.ShowDemo(_demoItems ??= DemoLibrary.Items(), SearchBox.Text, CurrentQuery());
+        RenderLibrary();
     }
     private List<MediaItem>? _demoItems;
     private static readonly Brush SyncWarning = Palette.Get("Warning"), SyncFine = Palette.Get("Success");
@@ -540,28 +562,28 @@ public partial class MainWindow : Window
     private static bool IsExpected(Exception e) => ExpectedErrors.Are(e);
     private static string Friendly(Exception ex) => ex switch
     {
-        // Mira's own messages are written for you; .NET's (a file refused, a wrong argument) are not, nor in French.
-        UnauthorizedAccessException => FromMira(ex) ? ex.Message : "Windows refuse à Mira l’accès à l’un de ses fichiers : vérifie que son dossier de données n’est pas en lecture seule.",
+        // Mira's own messages are written for you; .NET's (a file refused, a wrong argument) are not, nor in Mira's language.
+        UnauthorizedAccessException => FromMira(ex) ? ex.Message : L("Windows refuse à Mira l’accès à l’un de ses fichiers : vérifie que son dossier de données n’est pas en lecture seule.", "Windows denies Mira access to one of its files: check that its data folder isn’t read-only."),
         UserInputException => ex.Message,
         ServerDiscoveryException => ex.Message,
-        OperationCanceledException => "Jellyfin met trop de temps à répondre.",
+        OperationCanceledException => L("Jellyfin met trop de temps à répondre.", "Jellyfin is taking too long to answer."),
         HttpRequestException { StatusCode: { } status } => JellyfinClient.StatusMessage(status),
-        HttpRequestException => "Le serveur Jellyfin est momentanément inaccessible.",
+        HttpRequestException => L("Le serveur Jellyfin est momentanément inaccessible.", "The Jellyfin server can’t be reached right now."),
         SqliteException => StorageUnavailable,
-        _ => "L’opération n’a pas abouti. Vérifie la connexion et réessaie."
+        _ => L("L’opération n’a pas abouti. Vérifie la connexion et réessaie.", "That didn’t work. Check the connection and try again.")
     };
     /// <summary>Thrown by Mira's own code, with a message written for the person using it.</summary>
     private static bool FromMira(Exception ex) => ex.TargetSite?.DeclaringType?.Assembly is { } assembly && (assembly == typeof(JellyfinClient).Assembly || assembly == typeof(MainWindow).Assembly);
-    private const string CacheUnavailable = "Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier en lecture seule ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.";
-    private const string StorageUnavailable = "Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.";
+    private static string CacheUnavailable => L("Mira ne peut pas ouvrir le cache de ce compte dans son dossier de données : disque plein, dossier en lecture seule ou fichier utilisé par un autre programme. Libère de la place si besoin, puis relance Mira : il rouvrira ce compte sans te redemander ton mot de passe.", "Mira can’t open this account’s cache in its data folder: the disk is full, the folder is read-only or a file is in use by another program. Free up some space if needed, then restart Mira: it’ll reopen this account without asking for your password again.");
+    private static string StorageUnavailable => L("Le stockage local de Mira est indisponible (disque plein ou fichier occupé) : libère de la place sur le disque, ou relance Mira.", "Mira’s local storage is unavailable (full disk or busy file): free up some space on the disk, or restart Mira.");
     /// <summary>The local cache is a bonus: a full disk, a locked or damaged database leaves Jellyfin's answer, or nothing, on screen.</summary>
     private static T? TryCache<T>(Func<T> read) { try { return read(); } catch (Exception ex) when (IsCacheFailure(ex)) { return default; } }
     private static void TryCache(Action write) { try { write(); } catch (Exception ex) when (IsCacheFailure(ex)) { } }
     private static bool IsCacheFailure(Exception ex) => ex is SqliteException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException;
-    private async void Demo_Click(object sender, RoutedEventArgs e) => await ShowDemoAsync();
     private void Account_Click(object sender, RoutedEventArgs e)
     {
-        ClosePreview(); ServerBox.Text = _client?.Connection.Server ?? "http://127.0.0.1:8096"; UsernameBox.Text = _client?.Connection.UserName ?? "";
+        ClosePreview(); UsernameBox.Text = _client?.Connection.UserName ?? "";
+        if (_client is not null) ServerBox.Text = _client.Connection.Server; else if (ServerBox.Text.Trim().Length == 0) FindServer();
         LoginArt.Source = _demo ? null : HeroImage.Source;
         LogoutButton.Visibility = _profile.LoadConnection() is null ? Visibility.Collapsed : Visibility.Visible; EraseAccountData.IsChecked = false;
         BackToLibrary.Visibility = _client is not null || _demo ? Visibility.Visible : Visibility.Collapsed;
@@ -583,7 +605,7 @@ public partial class MainWindow : Window
         // The saved session: also when the library could not open (no client then), or in the demo.
         var connection = _profile.LoadConnection(); var erase = EraseAccountData.IsChecked == true;
         // Nothing else on this screen until it is done: a sign-in meanwhile would be undone by what follows.
-        _signingOut = true; LoginOverlay.IsEnabled = false; LogoutButton.Content = "Déconnexion…";
+        _signingOut = true; LoginOverlay.IsEnabled = false; LogoutButton.Content = L("Déconnexion…", "Signing out…");
         try
         {
             // Off this PC first, so that closing Mira while Jellyfin is asked leaves no session saved.
@@ -592,14 +614,16 @@ public partial class MainWindow : Window
             // After the last progress reports, which still need the session; a few seconds at most, answered or not.
             var closed = false;
             if (connection is not null) using (var client = new JellyfinClient(connection)) closed = await client.LogoutAsync();
-            PasswordBox.Clear(); _items = []; _resume = []; _nextUp = []; _hero = null; _totalCount = 0;
+            PasswordBox.Clear(); _catalog.Items = []; _catalog.Resume = []; _catalog.NextUp = []; _hero = null; _catalog.TotalCount = 0;
             var erased = erase && connection is not null ? await AccountData.EraseAsync(_profile.DirectoryPath, connection) : (bool?)null;
+            // Its titles kept on this PC too, wherever they were put.
+            if (erased is not null && connection is not null) { var roots = OfflineRoots; erased &= await Task.Run(() => OfflineCopies.Erase(roots, connection)); }
             RenderLibrary(); _ = RefreshTorLinkLibrariesAsync();
             LoginArt.Source = null;
             LogoutButton.Visibility = BackToLibrary.Visibility = Visibility.Collapsed;
-            LoginError.Text = connection is null ? "Session déconnectée sur ce PC." : AccountData.SignedOut("ce PC", closed, erased); FocusLogin();
+            LoginError.Text = connection is null ? L("Session déconnectée sur ce PC.", "Signed out on this PC.") : AccountData.SignedOut(L("ce PC", "this PC"), closed, erased); FocusLogin();
         }
-        finally { _signingOut = false; LoginOverlay.IsEnabled = true; LogoutButton.Content = "Déconnecter ce compte"; EraseAccountData.IsChecked = false; FocusLogin(); }
+        finally { _signingOut = false; LoginOverlay.IsEnabled = true; LogoutButton.Content = L("Déconnecter ce compte", "Sign out of this account"); EraseAccountData.IsChecked = false; FocusLogin(); }
     }
     private bool _signingOut;
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -611,7 +635,7 @@ public partial class MainWindow : Window
         foreach (var (button, icon) in new[] { (MaximizeButton, MaximizeIcon), (PlayerMaximizeButton, PlayerMaximizeIcon) })
         {
             icon.Kind = maximized ? "restore" : "maximize";
-            var label = maximized ? "Restaurer la fenêtre" : "Agrandir la fenêtre";
+            var label = maximized ? L("Restaurer la fenêtre", "Restore the window") : L("Agrandir la fenêtre", "Maximize the window");
             button.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(button, label);
         }
     }

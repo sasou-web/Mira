@@ -160,6 +160,69 @@ internal static class TorLinkTests
             Assert(reopened.Entries.Count == 3 && reopened.Baseline == importer.Baseline && reopened.Find(Id('b'))!.Files.Count == 1, "The import log was not kept");
             Assert(!File.ReadAllText(Path.Combine(profile, "torlink-imports.json")).Contains("magnet:"), "Mira stored a magnet link");
         });
+        await Test("TorLink : rangement automatique, dossiers choisis puis trouvés, tour redemandé et messages", async () =>
+        {
+            var dir = Path.Combine(testRoot, "torlink-placement"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+            var downloads = Path.Combine(dir, "downloads"); var films = Path.Combine(dir, "FILMS");
+            foreach (var folder in new[] { state.ConfigDirectory, state.DataDirectory, downloads, films }) Directory.CreateDirectory(folder);
+            File.WriteAllText(state.ConfigFile, JsonSerializer.Serialize(new { downloadDir = downloads }));
+            using var torlink = new TorLinkPlacement(state, new TorLinkImporter(Path.Combine(dir, "profile")));
+            var id = new string('d', 40); var at = torlink.Importer.Baseline.AddSeconds(5).ToUnixTimeMilliseconds();
+            File.WriteAllText(state.HistoryFile, JsonSerializer.Serialize(new[] { new { id, name = "Placed.Film.2004.mkv", source = "yts", sizeBytes = 10, dir = downloads, completedAt = at } }));
+            File.WriteAllBytes(Path.Combine(downloads, "Placed.Film.2004.mkv"), new byte[10]);
+            var rounds = 0;
+            await torlink.PlaceAsync(() => (true, ImportMode.KeepSeeding), () => { rounds++; return Task.CompletedTask; }, CancellationToken.None);
+            Assert(rounds == 0 && torlink.Importer.Entries.Count == 0, "Placed before Jellyfin's folders were looked for");
+            await torlink.DetectLibrariesAsync(null, CancellationToken.None);
+            Assert(torlink.Ready && torlink.Choose("", " ", "") == false && torlink.Summary(true).StartsWith("Choisis", StringComparison.Ordinal), "No folder found nor chosen");
+            Assert(torlink.Choose(" " + films + " ", "", "") && torlink.Libraries == new MediaLibraries(films, null, null) && !torlink.Choose(films, "", ""), "Chosen folder, trimmed, changes once");
+            Assert(torlink.Summary(true) == "Rangement automatique. Dossier Séries à choisir dans Réglages → TorLink." && torlink.Summary(false).StartsWith("Rangement automatique désactivé", StringComparison.Ordinal), "Summary line");
+            Assert(torlink.PlacementDue(), "A new history is not due");
+            await torlink.PlaceAsync(() => (true, ImportMode.KeepSeeding), async () => { if (rounds++ == 0) await torlink.PlaceAsync(() => (true, ImportMode.KeepSeeding), () => Task.CompletedTask, CancellationToken.None); }, CancellationToken.None);
+            Assert(rounds == 2, "A round asked for during another one runs after it, not at the same time: " + rounds);
+            var entry = torlink.Importer.Find(id);
+            Assert(entry is { State: TorLinkImportState.Imported } && File.Exists(Path.Combine(films, "Placed Film (2004)", "Placed Film (2004).mkv")) && !torlink.PlacementDue(), "The download was not placed");
+            Assert(torlink.FirstOutcome(entry!) && !torlink.FirstOutcome(entry!) && !torlink.FirstOutcome(entry! with { State = TorLinkImportState.Waiting }), "One message per outcome");
+            Assert(TorLinkPlacement.Outcome(entry!) == "« Placed Film (2004) » rejoint Films. Jellyfin l’ajoute à la bibliothèque." && TorLinkPlacement.DetailOf(entry!).StartsWith("Films · rangé", StringComparison.Ordinal), "Outcome: " + TorLinkPlacement.Outcome(entry!));
+            Assert(TorLinkPlacement.Outcome(entry! with { JellyfinId = "j" }) == "« Placed Film (2004) » est disponible dans ta bibliothèque." && TorLinkPlacement.Outcome(entry! with { State = TorLinkImportState.Ignored }) is null, "Available or ignored");
+        });
+        await Test("TorLink : un épisode au nom japonais rejoint la série rangée sous son nom anglais", async () =>
+        {
+            Assert(ReleaseName.AlternateTitles("[ToonsHub] JoJos Bizarre Adventure S06E04 1080p NF WEB-DL DUAL AAC2.0 H.264 (JoJo no Kimyou na Bouken: Steel Ball Run - 2nd - 3rd STAGE, Dual-Audio, Multi-Subs)") is ["JoJo no Kimyou na Bouken: Steel Ball Run"]
+                && ReleaseName.AlternateTitles("Dune (2021) [1080p] [BluRay]").Count == 0 && ReleaseName.AlternateTitles("[SubsPlease] Frieren - 05 (1080p) [ABCD1234].mkv").Count == 0, "Other names of a release");
+            var dir = Path.Combine(testRoot, "torlink-aliases"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));
+            var downloads = Path.Combine(dir, "downloads"); var anime = Path.Combine(dir, "ANIME"); var show = Path.Combine(anime, "JoJo's Bizarre Adventure (2012)");
+            foreach (var folder in new[] { state.ConfigDirectory, state.DataDirectory, downloads, Path.Combine(show, "Season 05") }) Directory.CreateDirectory(folder);
+            File.WriteAllText(state.ConfigFile, JsonSerializer.Serialize(new { downloadDir = downloads }));
+            var importer = new TorLinkImporter(Path.Combine(dir, "profile"));
+            var at = importer.Baseline.AddSeconds(5).ToUnixTimeMilliseconds();
+            // Real names, without the colon Windows refuses in a file name.
+            const string English = "[ToonsHub] JoJos Bizarre Adventure S06E04 1080p NF WEB-DL DUAL AAC2.0 H.264 (JoJo no Kimyou na Bouken Steel Ball Run - 2nd - 3rd STAGE, Dual-Audio, Multi-Subs).mkv";
+            const string Romaji = "[Erai-raws] JoJo no Kimyou na Bouken Steel Ball Run - 05 [1080p NF WEB-DL AVC AAC][MultiSub][9867D87D].mkv";
+            object Item(char id, string name, long completed) => new { id = new string(id, 40), name, source = "nyaa", sizeBytes = 10, dir = downloads, completedAt = completed };
+            var libraries = new MediaLibraries(null, null, anime);
+            File.WriteAllBytes(Path.Combine(downloads, English), new byte[10]);
+            File.WriteAllText(state.HistoryFile, JsonSerializer.Serialize(new[] { Item('e', English, at) }));
+            await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true);
+            Assert(File.Exists(Path.Combine(show, "Season 06", "JoJo's Bizarre Adventure (2012) - S06E04.mkv")), "The English release did not join the show: " + string.Join(", ", importer.Entries.SelectMany(x => x.Files).Select(x => x.Destination)));
+            File.WriteAllBytes(Path.Combine(downloads, Romaji), new byte[10]);
+            File.WriteAllText(state.HistoryFile, JsonSerializer.Serialize(new[] { Item('e', English, at), Item('f', Romaji, at + 1000) }));
+            await importer.ProcessAsync(state, libraries, ImportMode.KeepSeeding, automatic: true);
+            Assert(File.Exists(Path.Combine(show, "Season 06", "JoJo's Bizarre Adventure (2012) - S06E05.mkv")) && Directory.GetDirectories(anime).Length == 1,
+                "The romaji release made its own show: " + string.Join(", ", Directory.GetFileSystemEntries(anime, "*", SearchOption.AllDirectories).Select(x => Path.GetRelativePath(anime, x))));
+
+            // The same name placed in two folders: the one with the most episodes under it wins, whatever came last.
+            var stray = Path.Combine(anime, "JoJo no Kimyou na Bouken Steel Ball Run", "Season 01"); Directory.CreateDirectory(stray);
+            TorLinkImportEntry Placed(char id, string name, string destination, int minutes) => new()
+            {
+                Id = new string(id, 40), Name = name, Kind = MediaKind.Anime, LibraryRoot = anime, CompletedAt = DateTimeOffset.UnixEpoch.AddMinutes(minutes),
+                Files = [new TorLinkImportedFile(name, destination, "video")]
+            };
+            var known = MediaPlanner.KnownShows([
+                Placed('1', English.Replace("S06E04", "S06E03"), Path.Combine(show, "Season 06", "a.mkv"), 1), Placed('2', English, Path.Combine(show, "Season 06", "b.mkv"), 2),
+                Placed('3', Romaji, Path.Combine(stray, "c.mkv"), 3)]);
+            Assert(known.Single(x => x.Key == ReleaseName.Key("JoJo no Kimyou na Bouken Steel Ball Run")) is { Folder: "JoJo's Bizarre Adventure (2012)", Season: 6 }, "The stray folder won: " + string.Join(" | ", known));
+        });
         await Test("TorLink : dossier de téléchargement sur le disque de la bibliothèque, choisi seulement si TorLink n’en a pas", () =>
         {
             var dir = Path.Combine(testRoot, "torlink-drive"); var state = new TorLinkState(Path.Combine(dir, "config"), Path.Combine(dir, "data"));

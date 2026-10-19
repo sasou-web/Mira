@@ -1,0 +1,78 @@
+{
+  "about": "Chapter titles and the passages Mira finds in them. Read by tests/Mira.Core.Tests (PlaybackMarkers) and tools/web/unit (timeline.js): both must agree.",
+  "titles": [
+    ["Opening", "Intro"],
+    ["OP", "Intro"],
+    ["OP2", "Intro"],
+    ["Op 1", "Intro"],
+    ["Opening Credits", "Intro"],
+    ["Introduction", "Intro"],
+    ["Intro", "Intro"],
+    ["Theme Song", "Intro"],
+    ["Ouverture", "Intro"],
+    ["Générique de début", "Intro"],
+    ["Générique d’ouverture", "Intro"],
+    ["GENERIQUE_DEBUT", "Intro"],
+    ["Ending", "Outro"],
+    ["ED", "Outro"],
+    ["ED1", "Outro"],
+    ["Ed 2", "Outro"],
+    ["Credits", "Outro"],
+    ["End Credits", "Outro"],
+    ["Outro", "Outro"],
+    ["Générique de fin", "Outro"],
+    ["Récapitulatif", "Recap"],
+    ["Recap", "Recap"],
+    ["Previously on", "Recap"],
+    ["Précédemment", "Recap"],
+    ["Résumé de l’épisode précédent", "Recap"],
+    ["Preview", "Preview"],
+    ["Next Episode Preview", "Preview"],
+    ["Prochain épisode", "Preview"],
+    ["Aperçu", "Preview"],
+    ["Bande-annonce", "Preview"],
+    ["Yokoku", "Preview"],
+    ["Avant-générique", null],
+    ["Partie A", null],
+    ["Part B", null],
+    ["Chapitre 4", null],
+    ["Chapter 01", null],
+    ["Top Gun", null],
+    ["Épilogue", null],
+    ["Opération", null],
+    ["Edition", null],
+    ["Opera", null],
+    ["OPテーマ", null],
+    ["OP\u200D", null],
+    ["Résumé de l\répisode précédent", "Recap"],
+    ["  ", null],
+    [null, null]
+  ],
+  "positions": [
+    ["Générique", 30, 1400, "Intro"],
+    ["Générique", 1300, 1400, "Outro"],
+    ["Générique", 30, 0, "Intro"]
+  ],
+  "episodes": [
+    {
+      "duration": 1420,
+      "chapters": [[0, "Récapitulatif"], [45, "OP"], [135, "Partie A"], [700, "Chapitre 4"], [1290, "Ending"], [1380, "Next Episode Preview"], [1410, null]],
+      "passages": [["Recap", 0, 45], ["Intro", 45, 135], ["Outro", 1290, 1380], ["Preview", 1380, 1410]]
+    },
+    {
+      "duration": 1400,
+      "chapters": [[0, "Opening"], [600, "Épisode"]],
+      "passages": []
+    },
+    {
+      "duration": 1440,
+      "chapters": [[0, "Avant-générique"], [120, "Opening"], [121.5, "Partie A"], [1300, "Ending"]],
+      "passages": [["Outro", 1300, 1440]]
+    },
+    {
+      "duration": 5400,
+      "chapters": [[600, "Générique"], [0, "Prologue"], [690, "Acte 1"], [5100, "Générique"]],
+      "passages": [["Intro", 600, 690], ["Outro", 5100, 5400]]
+    }
+  ]
+}

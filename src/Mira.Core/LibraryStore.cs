@@ -82,7 +82,7 @@ public sealed class LibraryStore
     public static readonly TimeSpan CacheLifetime = TimeSpan.FromDays(30);
     /// <summary>
     /// Forgets cached pages, and local positions already delivered, not updated since <paramref name="before"/>.
-    /// The home page, the resume row, the playback history and anything still waiting to be sent stay.
+    /// The home page, the resume row, the playback history, the tracks chosen in each series and anything still waiting to be sent stay.
     /// </summary>
     public int Prune(DateTimeOffset before)
     {
@@ -90,7 +90,7 @@ public sealed class LibraryStore
         {
             using var db = Open(); using var cmd = db.CreateCommand();
             cmd.CommandText = """
-                DELETE FROM cache WHERE updated < $before AND key NOT IN ('home', 'resume', 'recent-playback', 'resume-hidden');
+                DELETE FROM cache WHERE updated < $before AND key NOT IN ('home', 'resume', 'recent-playback', 'resume-hidden', 'series-tracks');
                 DELETE FROM progress WHERE updated < $before AND item NOT IN (SELECT item FROM outbox);
                 DELETE FROM completed WHERE updated < $before AND item NOT IN (SELECT item FROM outbox);
                 """;
@@ -204,6 +204,31 @@ public sealed class LibraryStore
             if (at is { } when) hidden[group] = when; else hidden.Remove(group);
             Save("resume-hidden", hidden.OrderByDescending(x => x.Value).Take(200).ToDictionary());
         }
+    }
+    /// <summary>The audio and subtitles last chosen in a series (<see cref="SeriesTracks"/>); null before any choice.</summary>
+    public TrackMemory? TracksOf(string series) => Load<List<RememberedTracks>>("series-tracks")?.LastOrDefault(x => x.Series == series)?.Tracks;
+    /// <summary>Keeps the tracks chosen in a series; the 100 series chosen in last are kept.</summary>
+    public void RememberTracks(string series, TrackMemory tracks)
+    {
+        lock (_gate)
+        {
+            var all = Load<List<RememberedTracks>>("series-tracks") ?? [];
+            all.RemoveAll(x => x.Series == series); all.Add(new(series, tracks));
+            Save("series-tracks", all.TakeLast(100).ToList());
+        }
+    }
+    private sealed record RememberedTracks(string Series, TrackMemory Tracks);
+    /// <summary>Every series' tracks, the oldest choice first.</summary>
+    public List<(string Series, TrackMemory Tracks)> AllTracks() => (Load<List<RememberedTracks>>("series-tracks") ?? []).Select(x => (x.Series, x.Tracks)).ToList();
+    /// <summary>The tracks of every series at once, as Jellyfin brought them (<see cref="AccountChoices"/>); the 100 last are kept.</summary>
+    public void ReplaceTracks(IEnumerable<(string Series, TrackMemory Tracks)> all)
+    {
+        lock (_gate) Save("series-tracks", all.Select(x => new RememberedTracks(x.Series, x.Tracks)).TakeLast(100).ToList());
+    }
+    /// <summary>The titles removed from « Continuer à regarder » at once, as Jellyfin brought them; the 200 latest are kept.</summary>
+    public void ReplaceHidden(IReadOnlyDictionary<string, DateTimeOffset> hidden)
+    {
+        lock (_gate) Save("resume-hidden", hidden.OrderByDescending(x => x.Value).Take(200).ToDictionary());
     }
     public void RememberPlayback(MediaItem item)
     {

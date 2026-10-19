@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Mira.Core;
 using Mira.Core.Updates;
 using Mira.Desktop.Services;
@@ -16,6 +17,170 @@ internal static class PlayerTests
     public static async Task RunAsync(TestRun run)
     {
         var Test = run.Test;
+        await Test("Regarder ensemble : horloge du serveur, commandes du groupe, titre et mots, comme Mira web (tests/fixtures/syncplay.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "syncplay.json")));
+            var root = fixture.RootElement;
+            foreach (var row in root.GetProperty("times").EnumerateArray())
+                Assert(Together.ServerTime(row[0].GetString()) == row[1].GetInt64(), $"{row[0]}: {Together.ServerTime(row[0].GetString())}");
+            Assert(Together.ServerTime(null) is null && Together.ServerTime("x") is null, "Not a date");
+            foreach (var row in root.GetProperty("clock").EnumerateArray())
+            {
+                var found = Together.ClockOffset(row[0].EnumerateArray().Select(x => new Together.ClockSample(x.GetProperty("sent").GetInt64(), x.GetProperty("received").GetInt64(), x.GetProperty("serverIn").GetInt64(), x.GetProperty("serverOut").GetInt64())));
+                Assert(row[1].ValueKind == JsonValueKind.Null ? found is null : found == (row[1].GetInt64(), row[2].GetInt64()), $"Clock: {found}");
+            }
+            foreach (var row in root.GetProperty("commands").EnumerateArray())
+            {
+                var plan = Together.CommandPlan(row[2], row[0].GetInt64(), row[1].GetInt64());
+                if (row[3].ValueKind == JsonValueKind.Null) { Assert(plan is null, "Unknown command: " + plan); continue; }
+                Assert(plan is not null && plan.Action == row[3].GetProperty("action").GetString() && plan.Wait == row[3].GetProperty("wait").GetInt64()
+                    && Math.Abs(plan.Position - row[3].GetProperty("position").GetDouble()) < 1e-6, $"{row[2]}: {plan}");
+            }
+            foreach (var row in root.GetProperty("queue").EnumerateArray())
+            {
+                var entry = Together.QueueItem(row[0]);
+                Assert(row[1].ValueKind == JsonValueKind.Null ? entry is null
+                    : entry == new Together.Entry(row[1].GetProperty("itemId").GetString()!, row[1].GetProperty("playlistItemId").GetString()!, row[1].GetProperty("startTicks").GetInt64()), $"Queue: {entry}");
+            }
+            foreach (var row in root.GetProperty("groups").EnumerateArray())
+                Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupText(group) == row[1].GetString(), $"Group: {row[1]}");
+            foreach (var row in root.GetProperty("names").EnumerateArray())
+                Assert(Together.NamesText([.. row[0].EnumerateArray().Select(x => x.GetString()!)]) == row[1].GetString(), $"Names: {row[1]}");
+            foreach (var row in root.GetProperty("statuses").EnumerateArray())
+                Assert(Together.ParseGroup(row[0]) is { } group && Together.GroupStatus(group, row[1].GetString(), row[2].GetBoolean()) is var status
+                    && status.Text == row[3].GetProperty("text").GetString() && status.Alert == row[3].GetProperty("alert").GetBoolean(), $"Status: {row[3]} ≠ {(Together.ParseGroup(row[0]) is { } g ? Together.GroupStatus(g, row[1].GetString(), row[2].GetBoolean()) : null)}");
+            Assert(Together.MemberText("Marc", true) == "Marc a rejoint le groupe" && Together.MemberText("Marc", false) == "Marc a quitté le groupe", "Member");
+            // Lecture in a group: its label, and the question before it replaces the title the group has on.
+            foreach (var row in root.GetProperty("replaces").EnumerateArray())
+            {
+                var queue = row[1].ValueKind == JsonValueKind.Null ? null : new Together.Entry(row[1].GetProperty("itemId").GetString()!, row[1].GetProperty("playlistItemId").GetString()!, row[1].GetProperty("startTicks").GetInt64());
+                var group = row[0].ValueKind == JsonValueKind.Null ? null : Together.ParseGroup(row[0]);
+                Assert(Together.AsksToReplace(group, queue, row[2].GetString()!) == row[3].GetBoolean(), $"Replace: {group?.State} {queue?.ItemId} → {row[2]}");
+            }
+            foreach (var row in root.GetProperty("titles").EnumerateArray())
+                Assert(Together.TitleName(JsonSerializer.Deserialize<MediaItem>(row[0].GetRawText())!) == row[1].GetString(), $"Title: {row[1]}");
+            foreach (var row in root.GetProperty("playLabels").EnumerateArray())
+            {
+                var label = Together.GroupPlayLabel(row[0].GetProperty("code").GetString()!, row[0].GetProperty("resumeAt").GetDouble(), row[0].GetProperty("groupTitle").GetBoolean());
+                Assert(label == row[1].GetString(), $"Label: {label}");
+            }
+            foreach (var row in root.GetProperty("questions").EnumerateArray())
+                Assert(Together.ReplaceQuestion(row[0].GetString()) == row[1].GetString(), $"Question: {row[1]}");
+            Assert(Together.GroupName("mira") == "Groupe de mira" && Together.NeedsSeek(10, 10.6) && !Together.NeedsSeek(10, 10.4), "Words, drift");
+            // Home's line: the first group open on Jellyfin, none while this device is in one.
+            List<Together.Group> open = [new("a", "Groupe de Marc", ["Marc"], "Playing"), new("b", "Groupe de Léa", [], "Idle")];
+            Assert(Together.HomeGroup(open, null)?.GroupId == "a" && Together.HomeGroup(open, "b") is null && Together.HomeGroup([], null) is null, "Home group");
+            foreach (var row in root.GetProperty("invites").EnumerateArray())
+            {
+                var link = Together.InviteLink(row[0].GetString()!, row[1].GetString()!, row[2].GetString());
+                Assert(link == row[3].GetString() && Together.InviteSteps(link).SequenceEqual(row[4].EnumerateArray().Select(x => x.GetString())), $"Invite: {link}");
+            }
+            // « Ouvrir dans Mira »: built by Mira web, read back by Mira for Windows and Mac, which refuse anything else.
+            foreach (var row in root.GetProperty("appLinks").EnumerateArray())
+            {
+                var link = Together.AppLink(row[0].GetString()!, row[1].GetString()!, row[2].GetString());
+                Assert(link == row[3].GetString() && Together.ParseAppLink(link) == new Together.Invitation(row[1].GetString()!, row[0].GetString()!.TrimEnd('/'), row[2].GetString()), $"App link: {link}");
+            }
+            foreach (var bad in root.GetProperty("badAppLinks").EnumerateArray())
+                Assert(Together.ParseAppLink(bad.GetString()) is null, $"Refused: {bad.GetString()}");
+            Assert(Together.ParseAppLink(null) is null, "No link");
+            // Found among the groups of this Jellyfin, whatever address it is reached at; else another Jellyfin, or gone.
+            var invite = new Together.Invitation("7464412130f54334a8a14638f0060cd6", "http://100.101.102.103:8096");
+            List<Together.Group> groups = [new("74644121-30f5-4334-a8a1-4638f0060cd6", "Groupe de mira", ["mira"], "Idle")];
+            var answer = Together.Answer(invite, groups, "http://192.168.1.20:8096", null);
+            Assert(answer.Kind == Together.InviteKind.Join && answer.Group == groups[0] && answer.Text == "On t’invite à regarder ensemble dans « Groupe de mira » (1 personne : mira).", answer.Text);
+            Assert(Together.Answer(invite, groups, "http://192.168.1.20:8096", "7464412130f54334a8a14638f0060cd6").Kind == Together.InviteKind.Already, "Already in it");
+            Assert(Together.Answer(invite, [], "http://192.168.1.20:8096", null).Kind == Together.InviteKind.OtherServer, "Another Jellyfin");
+            Assert(Together.Answer(invite, [], "http://100.101.102.103:8096/", null).Kind == Together.InviteKind.Gone, "Gone");
+            // A Jellyfin here: its Tailscale address first, else the home network's for localhost; any other keeps its own.
+            Assert(Together.InviteServer("http://localhost:8096", true, "100.101.102.103", "192.168.1.20") == "http://100.101.102.103:8096", "Here, Tailscale");
+            Assert(Together.InviteServer("http://127.0.0.1:8096/", true, null, "192.168.1.20") == "http://192.168.1.20:8096", "Here, home network");
+            Assert(Together.InviteServer("http://192.168.1.20:8096", true, null, "192.168.1.20") == "http://192.168.1.20:8096", "Here, at its address");
+            Assert(Together.InviteServer("https://films.example.org/jellyfin/", false, "100.101.102.103", null) == "https://films.example.org/jellyfin", "Elsewhere");
+            return Task.CompletedTask;
+        });
+        await Test("Regarder ensemble : un lien qui reste valable, groupe refait sous le même nom ou attendu, comme Mira web (tests/fixtures/syncplay.json)", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "syncplay.json")));
+            var root = fixture.RootElement;
+            static List<Together.Group> Groups(JsonElement list) => list.EnumerateArray().Select(Together.ParseGroup).OfType<Together.Group>().ToList();
+            foreach (var row in root.GetProperty("hosts").EnumerateArray())
+                Assert(Together.GroupHost(row[0].GetString()) == row[1].GetString(), $"Host of {row[0]}: {Together.GroupHost(row[0].GetString())}");
+            foreach (var row in root.GetProperty("finds").EnumerateArray())
+            {
+                var found = Together.FindGroup(Groups(row[0]), row[1].GetString()!, row[2].GetString());
+                Assert(found?.GroupId == row[3].GetString(), $"Find {row[1]} · {row[2]}: {found?.GroupId}");
+            }
+            foreach (var row in root.GetProperty("rejoins").EnumerateArray())
+            {
+                var lost = Together.ParseGroup(row[1])!;
+                var plan = Together.RejoinPlan(Groups(row[0]), lost, row[2].GetBoolean());
+                var expected = row[3].ValueKind == JsonValueKind.Null ? null
+                    : new Together.Rejoin(row[3].TryGetProperty("join", out var j) ? j.GetString() : null, row[3].TryGetProperty("create", out var c) ? c.GetString() : null);
+                Assert(plan == expected, $"Rejoin {lost.GroupName} · {row[2]}: {plan}");
+            }
+            Assert(Together.WaitingText("mira") == "mira n’a pas encore lancé la soirée", "Waiting words");
+            // An invitation with its host: the group made again since is the one to join; none yet, Mira can wait for it.
+            var invite = new Together.Invitation("7464412130f54334a8a14638f0060cd6", "http://100.101.102.103:8096", "mira");
+            List<Together.Group> again = [new("b61818a0ff7c4c6eb39e2b73b85f3bcc", "Groupe de mira", ["mira"], "Idle")];
+            var answer = Together.Answer(invite, again, "http://100.101.102.103:8096", null);
+            Assert(answer.Kind == Together.InviteKind.Join && answer.Group == again[0], answer.Text);
+            answer = Together.Answer(invite, [], "http://100.101.102.103:8096", null);
+            Assert(answer.Kind == Together.InviteKind.Waiting && answer.Text == "mira n’a pas encore lancé la soirée : Mira peut t’y faire entrer dès que le groupe est ouvert.", answer.Text);
+            Assert(Together.Answer(invite, [], "http://192.168.1.20:8096", null).Kind == Together.InviteKind.OtherServer, "Waiting is for this Jellyfin only");
+            // Waited for: Jellyfin read again until the group opens; a time it does not answer changes nothing.
+            var reads = 0;
+            List<IReadOnlyList<Together.Group>?> answers = [[], null, [new Together.Group("11111111111111111111111111111111", "Groupe de léa", ["léa"], "Idle")], again];
+            var waited = await Together.WaitForGroupAsync(_ => Task.FromResult(answers[Math.Min(reads++, answers.Count - 1)]), invite, TimeSpan.FromMilliseconds(5), CancellationToken.None);
+            Assert(waited == again[0] && reads == 4, $"Waited: {waited.GroupId} after {reads} reads");
+            using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(60));
+            var stopped = false;
+            try { await Together.WaitForGroupAsync(_ => Task.FromResult<IReadOnlyList<Together.Group>?>([]), invite, TimeSpan.FromMilliseconds(5), stop.Token); }
+            catch (OperationCanceledException) { stopped = true; }
+            Assert(stopped, "Waiting stops when canceled");
+        });
+        await Test("Minuterie : pause au bout des minutes, une seule fois, ou arrêt à la fin de l’épisode, comme Mira web (tests/fixtures/sleep.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "sleep.json")));
+            foreach (var row in fixture.RootElement.GetProperty("durations").EnumerateArray())
+                Assert(SleepTimer.Duration(row[0].GetInt32()) == row[1].GetString(), $"{row[0]}: {SleepTimer.Duration(row[0].GetInt32())}");
+            var start = new DateTimeOffset(2026, 10, 14, 23, 0, 0, TimeSpan.FromHours(2));
+            foreach (var row in fixture.RootElement.GetProperty("status").EnumerateArray())
+            {
+                var timer = new SleepTimer(); int? choice = row[0].ValueKind == JsonValueKind.Null ? null : row[0].GetInt32();
+                timer.Choose(choice, start);
+                var now = start.AddSeconds(row[1].GetInt32());
+                var due = timer.Due(now); var status = timer.Status(now);
+                Assert(due == row[3].GetBoolean() && status == (row[2].ValueKind == JsonValueKind.Null ? null : row[2].GetString()), $"{choice} after {row[1]} s: {due} « {status} »");
+                if (due) Assert(timer.Chosen is null && !timer.AtEnd, "Off once due");
+            }
+            var end = new SleepTimer(); end.Choose(0, start);
+            Assert(end.AtEnd && end.Chosen == 0 && !end.Due(start.AddHours(5)), "At the end: no pause");
+            end.Clear();
+            Assert(!end.AtEnd && end.Chosen is null && end.Status(start) is null && string.Join(",", SleepTimer.Choices) == "15,30,60", "Cleared");
+            return Task.CompletedTask;
+        });
+        await Test("Reprise un peu avant l’arrêt, sauf sous 30 s de visionnage, comme Mira web (tests/fixtures/resume.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "resume.json")));
+            Assert(string.Join(",", PlaybackSession.ResumeBackChoices) == string.Join(",", fixture.RootElement.GetProperty("choices").EnumerateArray().Select(x => x.GetInt32())), "The same choices");
+            Assert(PlaybackSession.ResumeBackFrom == fixture.RootElement.GetProperty("from").GetDouble() && new PlayerSettings().ResumeBack == 5, "From 30 s watched, 5 s by default");
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var at = PlaybackSession.ResumeBack(row[0].GetDouble(), row[1].GetInt32());
+                Assert(Math.Abs(at - row[2].GetDouble()) < 1e-9, $"{row[0]} s, {row[1]} s back: {at}");
+            }
+            var hour = TimeSpan.FromHours(1).Ticks;
+            MediaItem Film(long position, bool played = false) => new() { Id = "a", RunTimeTicks = hour, UserData = new() { PlaybackPositionTicks = position, Played = played } };
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(20).Ticks), remember: true, back: 5) == 1195, "Resumes 5 s before");
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(20).Ticks), remember: false, back: 5) == 0, "Not remembered: from the start");
+            Assert(PlaybackSession.StartAt(Film(TimeSpan.FromMinutes(56).Ticks), remember: true, back: 5) == 0, "Nearly finished: starts over");
+            return Task.CompletedTask;
+        });
         await Test("Volume : au-delà de 100 %, mpv reste à 100 et le filtre amplifie sans saturer", () =>
         {
             Assert(VolumeBoost.Split(80) == (80, 1) && VolumeBoost.Split(100) == (100, 1), "Up to 100, mpv's own volume and no gain");
@@ -28,6 +193,115 @@ internal static class PlayerTests
             Assert(VolumeBoost.Reported(150) == 100 && VolumeBoost.Reported(42.4) == 42, "Jellyfin's scale stops at 100");
             Assert(VolumeBoost.Text(135.2) == "135 %" && VolumeBoost.Text(0) == "0 %", "The level beside the slider");
             return Task.CompletedTask;
+        });
+        await Test("Sous-titres : taille, fond sombre, couleur, gras et hauteur donnés à mpv, ses défauts sinon (Windows et Mac)", () =>
+        {
+            var plain = SubtitleStyle.Options(new PlayerSettings());
+            Assert(plain.Count(x => x.Value is not null) == 1 && plain[0] == ("sub-font-size", "40"), "Default style: " + string.Join(", ", plain));
+            var options = SubtitleStyle.Options(new PlayerSettings { SubtitleSize = 52, SubtitleBackground = true, SubtitleColor = SubtitleStyle.Yellow, SubtitleBold = true, SubtitleHeight = 88 });
+            var styled = options.ToDictionary(x => x.Name, x => x.Value);
+            Assert(styled["sub-font-size"] == "52" && styled["sub-color"] == "#FFE14D" && styled["sub-bold"] == "yes" && styled["sub-pos"] == "88", "Text: " + string.Join(", ", options));
+            Assert(styled["sub-border-style"] == "background-box" && styled["sub-back-color"] == SubtitleStyle.Box && styled["sub-shadow-offset"] == "4" && styled["sub-outline-size"] == "0", "Box: " + string.Join(", ", options));
+            // The same options either way: turned off, what Mira set goes back to mpv's default. ASS keep their own styles.
+            Assert(plain.Select(x => x.Name).SequenceEqual(options.Select(x => x.Name)) && options.All(x => !x.Name.StartsWith("sub-ass", StringComparison.Ordinal)), "Options: " + string.Join(", ", options));
+            Assert(SubtitleStyle.Height(150) == 100 && SubtitleStyle.Height(95) == 94 && SubtitleStyle.Height(0) == 82 && SubtitleStyle.Heights[0] == (100, "En bas"), "Heights");
+            Assert(SubtitleStyle.Color("White") == "#FFFFFF" && SubtitleStyle.Color("Rouge") == "#FFFFFF", "Colour");
+            return Task.CompletedTask;
+        });
+        await Test("Sous-titres gardés sur Jellyfin : langues, résultats, messages et nouvelle piste, comme Mira web (tests/fixtures/subtitles.json)", () =>
+        {
+            var repository = TestSupport.Repository() ?? throw new Exception("Repository not found");
+            var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "subtitles.json")))!.AsObject();
+            foreach (var x in fixture["searchLanguages"]!.AsArray())
+                Assert(JellyfinSubtitles.SearchLanguages((string)x!["preferences"]!).SequenceEqual(x["languages"]!.AsArray().Select(l => (string)l!)), "Languages of " + x["preferences"]);
+            Assert(JellyfinSubtitles.SearchCode("fr-FR") == "fre" && JellyfinSubtitles.SearchCode("deu") == "ger" && JellyfinSubtitles.SearchCode("und") is null, "Search codes");
+            foreach (var x in fixture["remote"]!.AsArray())
+            {
+                var found = JellyfinSubtitles.FromJellyfin(x!["found"]!.AsObject(), "fre")!;
+                Assert(JellyfinSubtitles.Describe(found) == ((string)x["label"]!, (string)x["details"]!), "Row: " + JellyfinSubtitles.Describe(found));
+            }
+            var sorted = JellyfinSubtitles.Sort(fixture["sort"]!["found"]!.AsArray().Select(x => JellyfinSubtitles.FromJellyfin(x!.AsObject(), "fre")).OfType<RemoteSubtitle>());
+            Assert(sorted.Select(x => x.Id).SequenceEqual(fixture["sort"]!["order"]!.AsArray().Select(x => (string)x!)), "Order: " + string.Join(", ", sorted.Select(x => x.Id)));
+            foreach (var x in fixture["privacy"]!.AsArray())
+                Assert(JellyfinSubtitles.Privacy([.. x!["providers"]!.AsArray().Select(p => (string)p!)]) == (string)x["text"]!, "Privacy");
+            foreach (var x in fixture["kept"]!.AsArray())
+                Assert(JellyfinSubtitles.KeptText(Enum.Parse<SubtitleKept>((string)x!["kept"]!), (string)x["language"]!) == (string)x["text"]!, "Kept: " + x["kept"]);
+            List<MediaStream> Streams(string key) => [.. fixture["arrived"]![key]!.AsArray().Select(s => new MediaStream { Type = (string)s!["Type"]!, Index = (int)s["Index"]!, IsExternal = s["IsExternal"] is { } e && (bool)e!, Path = (string?)s["Path"] })];
+            Assert(JellyfinSubtitles.Arrived(Streams("before"), Streams("now"))?.Index == (int)fixture["arrived"]!["index"]! && JellyfinSubtitles.Arrived(Streams("now"), Streams("now")) is null, "New track");
+            foreach (var x in fixture["guess"]!.AsArray())
+            {
+                var guess = JellyfinSubtitles.Guess((string)x!["file"]!, (string)x["preferences"]!);
+                var expected = x["format"] is null ? null : ((string)x["format"]!, (string)x["language"]!, (bool)x["forced"]!, (bool)x["hearingImpaired"]!) as (string, string, bool, bool)?;
+                Assert(guess == expected, $"Guess of {x["file"]}: {guess}");
+            }
+            return Task.CompletedTask;
+        });
+        await Test("Sous-titres gardés sur Jellyfin : envoi, dossier du film en lecture seule, droit refusé et recherche", async () =>
+        {
+            // Jellyfin 12.1 with a media folder it only reads: 500, then the film library keeps them in its own data.
+            var calls = new List<string>(); JsonObject? options = null; var sent = new List<JsonObject>(); var uploads = 0; var policy = "IsAdministrator";
+            HttpResponseMessage Answer(HttpRequestMessage request)
+            {
+                var path = request.RequestUri!.PathAndQuery; calls.Add(request.Method + " " + path);
+                var body = request.Content?.ReadAsStringAsync().Result;
+                if (path == "/Videos/film/Subtitles") { sent.Add(JsonNode.Parse(body!)!.AsObject()); return new(++uploads == 1 ? HttpStatusCode.InternalServerError : HttpStatusCode.NoContent); }
+                if (path.StartsWith("/Items/film/Ancestors", StringComparison.Ordinal)) return JsonResponse(new object[] { new { Id = "lib-films", Type = "CollectionFolder" }, new { Id = "root", Type = "UserRootFolder" } });
+                if (path == "/Library/VirtualFolders") return JsonResponse(new object[] { new { Name = "Séries", ItemId = "lib-series", LibraryOptions = new { SaveSubtitlesWithMedia = true } }, new { Name = "Films", ItemId = "lib-films", LibraryOptions = new { SaveSubtitlesWithMedia = true, EnableRealtimeMonitor = true } } });
+                if (path == "/Library/VirtualFolders/LibraryOptions") { options = JsonNode.Parse(body!)!.AsObject(); return new(HttpStatusCode.NoContent); }
+                if (path == "/Providers/Subtitles/Subtitles/os%2F1") return new(HttpStatusCode.OK) { Content = new ByteArrayContent(Encoding.UTF8.GetBytes("1\n00:00:01,000 --> 00:00:02,000\nÇa va ?\n")) };
+                if (path == "/Users/Me") return JsonResponse(new { Policy = new Dictionary<string, bool> { [policy] = true } });
+                if (path == "/Libraries/AvailableOptions?libraryContentType=movies") return JsonResponse(new { SubtitleFetchers = new[] { new { Name = "Open Subtitles", DefaultEnabled = true } } });
+                if (path == "/Items/film/RemoteSearch/Subtitles/fre") return JsonResponse(new object[] { new { Id = "os/2", Name = "Vieux", ProviderName = "Open Subtitles", Format = "srt", DownloadCount = 900 }, new { Id = "os/1", Name = "Exact", ProviderName = "Open Subtitles", Format = "SRT", ThreeLetterISOLanguageName = "fre", IsHashMatch = true, DownloadCount = 3 } });
+                return new(HttpStatusCode.NotFound);
+            }
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => Task.FromResult(Answer(request))));
+            Assert((await client.SubtitleProvidersAsync()).SequenceEqual(["Open Subtitles"]), "Providers for an administrator");
+            var found = await client.SearchSubtitlesAsync("film", "fre");
+            Assert(found.Select(x => x.Id).SequenceEqual(["os/1", "os/2"]), "Found: " + string.Join(", ", found.Select(x => x.Id)));
+            Assert(await client.KeepRemoteSubtitleAsync("film", found[0]) == SubtitleKept.KeptInJellyfinData, "Kept in Jellyfin's data");
+            Assert(options?["Id"]?.GetValue<string>() == "lib-films" && options["LibraryOptions"]?["SaveSubtitlesWithMedia"]?.GetValue<bool>() == false
+                && options["LibraryOptions"]?["EnableRealtimeMonitor"]?.GetValue<bool>() == true, "Library options: " + options?.ToJsonString());
+            Assert(sent.Count == 2 && sent[1]["Language"]!.GetValue<string>() == "fre" && sent[1]["Format"]!.GetValue<string>() == "srt" && !sent[1]["IsForced"]!.GetValue<bool>()
+                && Encoding.UTF8.GetString(Convert.FromBase64String(sent[1]["Data"]!.GetValue<string>())).Contains("Ça va ?"), "Sent: " + sent.LastOrDefault()?.ToJsonString());
+            // Already in Jellyfin's data, and still refused to write: nothing more to change.
+            uploads = 0; options = null;
+            var upload = new SubtitleUpload("srt", "eng", true, false, [1, 2, 3]);
+            using var data = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request => Task.FromResult(request.RequestUri!.AbsolutePath switch
+            {
+                "/Videos/film/Subtitles" => new HttpResponseMessage(HttpStatusCode.InternalServerError),
+                "/Library/VirtualFolders" => JsonResponse(new object[] { new { ItemId = "lib-films", LibraryOptions = new { SaveSubtitlesWithMedia = false } } }),
+                _ => request.RequestUri.AbsolutePath.StartsWith("/Items/film/Ancestors", StringComparison.Ordinal) ? JsonResponse(new object[] { new { Id = "lib-films" } }) : new HttpResponseMessage(HttpStatusCode.NotFound),
+            })));
+            Assert(await data.KeepSubtitleAsync("film", upload) == SubtitleKept.NotWritten && options is null, "Not written");
+            using var refused = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden))));
+            Assert(await refused.KeepSubtitleAsync("film", upload) == SubtitleKept.Refused, "Refused");
+            policy = "EnableSubtitleManagement"; Assert(await client.CanManageSubtitlesAsync() == true, "Allowed to manage subtitles");
+            policy = "EnableMediaPlayback"; Assert(await client.CanManageSubtitlesAsync() == false && (await client.SubtitleProvidersAsync()).Count == 0, "No search without the right");
+            // The file just kept, once Jellyfin lists it (by its path: it moved the index of the other one), and the
+            // address mpv reads it from; nothing when Jellyfin never lists it.
+            var looks = 0;
+            using var listing = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(_ => Task.FromResult(JsonResponse(new
+            {
+                Id = "film", MediaSources = new[] { new { Id = "src", MediaStreams = ++looks < 2
+                    ? new object[] { new { Index = 2, Type = "Subtitle", Codec = "subrip", IsExternal = true, Path = "/media/Film.en.srt" } }
+                    : [new { Index = 2, Type = "Subtitle", Codec = "subrip", IsExternal = true, Path = "/config/metadata/Film.fre.srt" }, new { Index = 3, Type = "Subtitle", Codec = "subrip", IsExternal = true, Path = "/media/Film.en.srt" }] } },
+            }))));
+            var known = await listing.StreamsAsync("film", "src");
+            var arrived = await listing.KeptSubtitleAsync("film", "src", known, TimeSpan.FromSeconds(5));
+            Assert(arrived?.Path == "/config/metadata/Film.fre.srt" && listing.SubtitleUri("film", "src", arrived).AbsoluteUri == "http://localhost/Videos/film/src/Subtitles/2/0/Stream.srt",
+                "Arrived: " + arrived?.Path);
+            Assert(await listing.KeptSubtitleAsync("film", "src", await listing.StreamsAsync("film", "src"), TimeSpan.Zero) is null, "Never listed");
+            // A file loaded during playback: read to be sent, unless it is too big to be subtitles.
+            var file = Path.Combine(Path.GetTempPath(), $"mira-{Guid.NewGuid():N}.fr.srt");
+            try
+            {
+                await File.WriteAllTextAsync(file, "1\n00:00:01,000 --> 00:00:02,000\nSalut\n");
+                var guess = JellyfinSubtitles.Guess(Path.GetFileName(file), null)!.Value;
+                Assert((await JellyfinSubtitles.ReadAsync(file, guess)) is { Language: "fre", Format: "srt", Data.Length: > 0 }, "Read");
+                using (var stream = File.OpenWrite(file)) stream.SetLength(JellyfinSubtitles.MaxSize + 1);
+                Assert(await JellyfinSubtitles.ReadAsync(file, guess) is null, "Too big");
+            }
+            finally { File.Delete(file); }
         });
         await Test("Progression bornée et libellés d’épisodes", () =>
         {
@@ -109,6 +383,45 @@ internal static class PlayerTests
             Assert(PlaybackMarkers.Label(SkipKind.Intro, true, false) == "Passer l’opening" && PlaybackMarkers.Label(SkipKind.Outro, false, false) == "Passer le générique" && PlaybackMarkers.Label(SkipKind.Outro, true, true) == "Épisode suivant", "Skip labels changed");
             return Task.CompletedTask;
         });
+        await Test("Chapitres : le même classement que Mira web (tests/fixtures/chapters.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "chapters.json")));
+            static string? Text(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+            foreach (var row in fixture.RootElement.GetProperty("titles").EnumerateArray())
+            {
+                var kind = PlaybackMarkers.Classify(Text(row[0]))?.ToString();
+                Assert(kind == Text(row[1]), $"« {Text(row[0])} » : {kind ?? "rien"} au lieu de {Text(row[1]) ?? "rien"}");
+            }
+            foreach (var row in fixture.RootElement.GetProperty("positions").EnumerateArray())
+            {
+                var kind = PlaybackMarkers.Classify(Text(row[0]), row[1].GetDouble(), row[2].GetDouble())?.ToString();
+                Assert(kind == Text(row[3]), $"« {Text(row[0])} » à {row[1]} s sur {row[2]} s : {kind ?? "rien"}");
+            }
+            foreach (var episode in fixture.RootElement.GetProperty("episodes").EnumerateArray())
+            {
+                var chapters = episode.GetProperty("chapters").EnumerateArray().Select(c => new ChapterMark(c[0].GetDouble(), Text(c[1]))).ToList();
+                var found = PlaybackMarkers.FromChapters(chapters, episode.GetProperty("duration").GetDouble());
+                var expected = episode.GetProperty("passages").EnumerateArray().Select(p => new SkipSegment(Enum.Parse<SkipKind>(Text(p[0])!), p[1].GetDouble(), p[2].GetDouble()));
+                Assert(found.SequenceEqual(expected), "Passages : " + string.Join(", ", found));
+            }
+            return Task.CompletedTask;
+        });
+        await Test("Passer les intros et les récaps : une fois chacun, jamais les endings ni les aperçus", () =>
+        {
+            var segments = new List<SkipSegment> { new(SkipKind.Recap, 0, 45), new(SkipKind.Intro, 45, 135), new(SkipKind.Outro, 1290, 1380), new(SkipKind.Preview, 1380, 1410) };
+            var skipped = new HashSet<SkipSegment>();
+            Assert(PlaybackMarkers.AutoSkip(segments, 50, enabled: false, skipped) is null && !new PlayerSettings().AutoSkip, "Skipped without the setting, or on by default");
+            Assert(PlaybackMarkers.AutoSkip(segments, 10, enabled: true, skipped) == segments[0] && PlaybackMarkers.AutoSkip(segments, 50, enabled: true, skipped) == segments[1], "Recap or opening not skipped");
+            Assert(PlaybackMarkers.AutoSkip(segments, 1300, enabled: true, skipped) is null && PlaybackMarkers.AutoSkip(segments, 1390, enabled: true, skipped) is null, "Credits or preview skipped by themselves");
+            Assert(PlaybackMarkers.AutoSkip(segments, 300, enabled: true, skipped) is null && PlaybackMarkers.AutoSkip(segments, 134.5, enabled: true, skipped) is null, "Skipped outside a passage, or in its last second");
+            skipped.Add(segments[1]);
+            Assert(PlaybackMarkers.AutoSkip(segments, 50, enabled: true, skipped) is null, "Going back into a skipped opening skips it again");
+            // The opening of the chapters skipped, then Jellyfin's segments replace it: going back still plays it.
+            List<SkipSegment> rebuilt = [new(SkipKind.Recap, 0, 45), new(SkipKind.Intro, 46.2, 134.1)];
+            Assert(PlaybackMarkers.AutoSkip(rebuilt, 50, enabled: true, skipped) is null && PlaybackMarkers.AutoSkip(rebuilt, 10, enabled: true, skipped) == rebuilt[0], "A rebuilt opening is skipped again");
+            return Task.CompletedTask;
+        });
         await Test("Lecteur : « Épisode 3 / 12 », pistes nommées en français, vitesse et décalage", () =>
         {
             MediaItem Episode(string id, int season, int number, string name = "") => new() { Id = id, Type = "Episode", SeriesName = "Sword Art Online", Name = name, ParentIndexNumber = season, IndexNumber = number };
@@ -141,6 +454,43 @@ internal static class PlayerTests
             Assert(MpvLists.Chapters(null).Count == 0 && MpvLists.Chapters("{").Count == 0, "Unreadable chapter list");
             return Task.CompletedTask;
         });
+        await Test("Lecteur : l’audio et les sous-titres choisis dans une série reviennent aux épisodes suivants (Windows et Mac)", () =>
+        {
+            // Episode 1: Japanese and the French dub; French subtitles « Panneaux » (forced) and « Complet ».
+            const string first = """
+                [{"id":1,"type":"video"},{"id":1,"type":"audio","lang":"jpn"},{"id":2,"type":"audio","lang":"fre","title":"VF"},
+                 {"id":1,"type":"sub","lang":"fre","title":"Panneaux","forced":true},{"id":2,"type":"sub","lang":"fre","title":"Complet"},{"id":3,"type":"sub","lang":"eng"}]
+                """;
+            // Episode 2: another order, other codes for the same languages.
+            const string second = """
+                [{"id":1,"type":"audio","lang":"fra","title":"VF"},{"id":2,"type":"audio","lang":"ja"},
+                 {"id":1,"type":"sub","lang":"fr","title":"Complet"},{"id":2,"type":"sub","lang":"fr","title":"Panneaux","forced":true}]
+                """;
+            var full = SeriesTracks.Remember(first, "1", "2");
+            Assert(full == new TrackMemory("jpn", null, true, "fre", "Complet", false), "Memory: " + full);
+            Assert(SeriesTracks.Choose(second, full!) == ("2", "1"), "« Complet » in Japanese not found again: " + SeriesTracks.Choose(second, full!));
+            var signs = SeriesTracks.Remember(first, "1", "1")!;
+            Assert(SeriesTracks.Choose(second, signs) == ("2", "2"), "« Panneaux » not found again: " + SeriesTracks.Choose(second, signs));
+            var dub = SeriesTracks.Remember(first, "2", "no")!;
+            Assert(!dub.Subtitles && SeriesTracks.Choose(second, dub) == ("1", "no"), "The French dub without subtitles: " + SeriesTracks.Choose(second, dub));
+            // Names that change between releases: the same language, forced or not alike.
+            const string renamed = """[{"id":1,"type":"audio","lang":"jpn"},{"id":1,"type":"sub","lang":"fre","title":"Signs","forced":true},{"id":2,"type":"sub","lang":"fre","title":"Full"}]""";
+            Assert(SeriesTracks.Choose(renamed, full!) == ("1", "2") && SeriesTracks.Choose(renamed, signs) == ("1", "1"), "Renamed tracks: " + SeriesTracks.Choose(renamed, full!));
+            // Nothing alike: mpv keeps its own choice (the languages of the settings).
+            const string english = """[{"id":1,"type":"audio","lang":"eng"},{"id":1,"type":"sub","lang":"eng"}]""";
+            Assert(SeriesTracks.Choose(english, full!) == (null, null) && SeriesTracks.Choose(null, full!) == (null, null), "A track chosen without its language");
+            Assert(SeriesTracks.Remember(first, "no", "2") is null && SeriesTracks.Remember("{", "1", "2") is null, "Remembered without an audio track");
+
+            // Kept per account, the 100 series chosen in last, beyond the 30 days of the cache.
+            var store = new LibraryStore(run.Root, "series-tracks");
+            store.RememberTracks("show", full!); store.RememberTracks("other", dub); store.RememberTracks("show", signs);
+            Assert(store.TracksOf("show") == signs && store.TracksOf("other") == dub && store.TracksOf("unknown") is null, "Tracks of each series: " + store.TracksOf("show"));
+            for (var i = 0; i < 99; i++) store.RememberTracks($"series-{i}", full!);
+            Assert(store.TracksOf("other") is null && store.TracksOf("show") == signs && store.TracksOf("series-98") == full, "The oldest choice was not the one forgotten");
+            store.Prune(DateTimeOffset.UtcNow.AddDays(31));
+            Assert(store.TracksOf("show") == signs, "Forgotten with the cache");
+            return Task.CompletedTask;
+        });
         await Test("Passages : l’épisode suivant proposé dans les 20 dernières secondes sans générique, compte à rebours en temps de lecture", () =>
         {
             SkipSegment intro = new(SkipKind.Intro, 0, 90), credits = new(SkipKind.Outro, 1380, 1500);
@@ -150,6 +500,39 @@ internal static class PlayerTests
                 && PlaybackMarkers.Offer([], 95, 100, hasNext: true) is null && PlaybackMarkers.Offer([], 0, 10, hasNext: true) is null, "Offered without a next episode, too early, or on a short clip");
             Assert(PlaybackMarkers.Offer([credits], 1400, 1500, hasNext: true) == credits, "The credits marker was not offered");
             Assert(PlaybackMarkers.CountdownEnd(1400, credits) == 1410 && PlaybackMarkers.CountdownEnd(1370, credits) == 1390, "Countdown counted from the wrong time");
+            return Task.CompletedTask;
+        });
+        await Test("Passages : l’offre, le compte à rebours et les intros sautées, communs à Windows et Mac", () =>
+        {
+            var skips = new SkipPlanner { Next = new MediaItem { Id = "next", Type = "Episode" } };
+            skips.ServerSegments = [new(SkipKind.Intro, 45, 135)];
+            skips.ServerChapters = [new(0, "Récap"), new(45, "Opening"), new(135, "Partie A"), new(1290, "Ending"), new(1380, "Preview")];
+            skips.Rebuild(1410);
+            Assert(skips.Segments.Select(s => s.Kind).SequenceEqual([SkipKind.Recap, SkipKind.Intro, SkipKind.Outro, SkipKind.Preview]), "Passages: " + string.Join(", ", skips.Segments));
+            skips.FileChapters = [new(0, "Opening"), new(90, "Partie A")];
+            Assert(skips.Chapters == skips.FileChapters, "The file's chapters come first");
+            skips.Rebuild(1410);
+            Assert(skips.Segments.Count == 1 && skips.Segments[0] == new SkipSegment(SkipKind.Intro, 45, 135), "A chapter guess over a server segment: " + string.Join(", ", skips.Segments));
+            Assert(skips.AutoSkip(50, enabled: false) is null && skips.AutoSkip(50, enabled: true) == skips.Segments[0] && skips.AutoSkip(50, enabled: true) is null, "An opening is jumped over once, and only with the setting");
+            Assert(skips.Offer(50, 1410, offering: true, autoNext: true) && skips.Label(episode: true) == "Passer l’opening" && !skips.Counting, "The opening is offered without a countdown");
+            Assert(!skips.Offer(60, 1410, offering: true, autoNext: true), "The same passage is not offered again");
+            Assert(skips.Offer(60, 1410, offering: false, autoNext: true) && skips.Active is null && skips.Label(episode: true) == "", "Nothing offered in the mini player");
+            skips.Segments = [new(SkipKind.Outro, 1290, 1380), new(SkipKind.Preview, 1380, 1410)];
+            Assert(skips.Offer(1300, 1410, offering: true, autoNext: true) && skips.ToNext && skips.Label(episode: true) == "Épisode suivant" && skips.CountdownEnd == 1310, "Credits then a preview lead to the next episode, with a countdown");
+            Assert(skips.CountdownText(1302.5) == "Épisode suivant dans 8 s" && skips.Due(1309.5) is null && skips.Due(1310) == skips.Next && skips.CountdownEnd is null, "Countdown text or end");
+            skips.Active = null; skips.Offer(1300, 1410, offering: true, autoNext: true);
+            Assert(skips.Cancel() == "Épisode suivant" && skips.Stay && !skips.Counting, "Cancelling stops the countdown");
+            skips.Active = null; skips.Offer(1300, 1410, offering: true, autoNext: true);
+            Assert(!skips.Counting && skips.CountdownText(1300) is null, "No countdown once the viewer stays on the episode");
+            skips.Reset();
+            Assert(skips.Next is null && !skips.Stay && skips.Segments.Count == 0 && skips.AutoSkipped.Count == 0 && skips.Active is null, "A new title starts clean");
+            return Task.CompletedTask;
+        });
+        await Test("mpv : fin de fichier, échec, et fin sans sortie son sur Mac", () =>
+        {
+            Assert(MpvClient.Ending(0, 0, false) == (true, false) && MpvClient.Ending(2, 0, false) == (false, false), "End of file, or stopped");
+            Assert(MpvClient.Ending(4, -13, true) == (false, true) && MpvClient.Ending(4, -14, false) == (false, true), "An error is a failure");
+            Assert(MpvClient.Ending(4, -14, true) == (true, false), "Without a sound output, the picture played to its end (Mac)");
             return Task.CompletedTask;
         });
         await Test("Lecture : départ, saut en attente, rapport à Jellyfin, fin et titre vu partout", () =>
@@ -181,6 +564,36 @@ internal static class PlayerTests
             PlaybackSession.MarkWatched(finished, resume.Concat(next).ToList(), resume, next);
             Assert(finished.UserData is { Played: true, PlaybackPositionTicks: 0 } && resume.Count == 1 && resume[0].Id == "b" && next.Count == 0, "Watched in every list, out of « Continuer à regarder » and « À suivre »");
             return Task.CompletedTask;
+        });
+        await Test("Aperçus de la barre : images trickplay de Jellyfin, case du moment visé, tuiles chargées une fois et peu gardées", async () =>
+        {
+            // As Jellyfin 12.1 answers for a film whose library extracts trickplay images.
+            const string answer = """{"Id":"film","Chapters":[{"StartPositionTicks":0,"Name":"Début"}],"Trickplay":{"other":{"320":{"Width":320,"Height":180,"TileWidth":10,"TileHeight":10,"ThumbnailCount":4,"Interval":10000}},"src":{"160":{"Width":160,"Height":90,"TileWidth":10,"TileHeight":10,"ThumbnailCount":250,"Interval":10000},"320":{"Width":320,"Height":180,"TileWidth":10,"TileHeight":10,"ThumbnailCount":1000,"Interval":10000},"0":{"Width":0}}}}""";
+            var fetched = new List<string>();
+            using var client = new JellyfinClient(new Connection("http://nas:8096/", "user-1", "Alice", "token", "device-1"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Items/film?userId=user-1") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(answer) });
+                fetched.Add(path);
+                return Task.FromResult(path.Contains("/9.jpg") ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([(byte)path[^"?mediaSourceId=src".Length..][0]]) });
+            }));
+            var timeline = await client.TimelineAsync("film", "src");
+            var set = timeline.Trickplay!;
+            Assert(timeline.Chapters.Count == 1 && set.SourceId == "src" && set.Info.Width == 320 && set.TilePixelWidth == 3200, "The file played, the size above 240: " + set);
+            Assert(set.TilePath(2) == "Videos/film/Trickplay/320/2.jpg?mediaSourceId=src", set.TilePath(2));
+            Assert((await client.TimelineAsync("film")).Trickplay?.SourceId == "other" && TrickplaySet.Pick("x", null, null) is null && TrickplaySet.Pick("x", new Dictionary<string, Dictionary<string, TrickplayInfo>> { ["s"] = new() { ["0"] = new() } }, "s") is null, "First file without the one played; none without pictures");
+            Assert(set.Cell(0) == new TrickplayCell(0, 0, 0, 320, 180) && set.Cell(125) == new TrickplayCell(0, 2 * 320, 1 * 180, 320, 180), "Cells: " + set.Cell(125));
+            Assert(set.Cell(1005).Tile == 1 && set.Cell(1005) is { X: 0, Y: 0 } && set.Cell(99_999).Tile == 9 && set.Cell(99_999) is { X: 9 * 320, Y: 9 * 180 } && set.Cell(-3).Tile == 0 && set.Cell(double.NaN).Tile == 0, "Next tiles, the last thumbnail at most");
+
+            var decoded = 0; var loaded = 0;
+            using var tiles = new TrickplayTiles<byte[]>(set, (tile, ct) => client.TrickplayTileAsync(set, tile, ct), bytes => { Interlocked.Increment(ref decoded); return bytes; }, keep: 2);
+            tiles.Loaded += () => Interlocked.Increment(ref loaded);
+            async Task<(byte[] Picture, TrickplayCell Cell)?> Wait(double seconds) { for (var i = 0; i < 100; i++) { if (tiles.At(seconds) is { } hit) return hit; await Task.Delay(10); } return null; }
+            Assert(tiles.At(5) is null && tiles.At(6) is null, "Asked for, not there yet");
+            Assert(await Wait(5) is { } first && first.Cell.Tile == 0 && fetched.Count(x => x.Contains("/0.jpg")) == 1, "One request for a tile pointed at twice");
+            await Wait(1005); await Wait(2005);
+            Assert(await Wait(5) is not null && fetched.Count(x => x.Contains("/0.jpg")) == 2 && decoded == 4 && loaded == 4, "Two tiles kept: the oldest fetched again: " + string.Join(",", fetched));
+            Assert(await Wait(9 * 1000 + 5) is null && fetched.Count(x => x.Contains("/9.jpg")) == 1, "A missing tile is asked for once: " + string.Join(",", fetched));
         });
     }
 }

@@ -22,7 +22,7 @@ public partial class MainWindow
             Require(_windows is { MediaAvailable: true, TrayVisible: true }, "Windows media broker and notification-area icon initialize");
             Require(TaskbarItemInfo.ThumbButtonInfos.Count == 4 && TaskbarItemInfo.ThumbButtonInfos.All(x => x.Visibility == Visibility.Collapsed), "taskbar buttons remain absent outside playback");
             Require(File.Exists(WindowsIdentity.IconPath) && Icon is not null, "Windows logo is present both as a multi-size ICO and a window resource");
-            _settings.Volume = 0; _settings.AutoNext = false; VolumeSlider.Value = 0;
+            _settings.Volume = 0; _settings.AutoNext = false; _settings.AutoSkip = false; VolumeSlider.Value = 0;
             await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded); _mpv!.Set("loop-file", "inf");
             var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
             await Until(() => manager.GetSessions().Any(x => x.SourceAppUserModelId == App.ShellAppId));
@@ -56,7 +56,7 @@ public partial class MainWindow
             WindowsCommand(DesktopCommand.Back, 0); await Until(() => _mpv.Number("time-pos") < .5);
             WindowsCommand(DesktopCommand.Forward, 0); await Until(() => Math.Abs(_mpv.Number("time-pos") - 10) < .6);
             Require(Math.Abs(_mpv.Number("time-pos") - 10) < .6, "shared taskbar/tray commands seek by ten seconds and clamp at zero");
-            var next = DemoLibrary.Items()[1]; _nextItem = next; UpdateWindowsPlayback();
+            var next = DemoLibrary.Items()[1]; _skips.Next = next; UpdateWindowsPlayback();
             await Until(() => session.GetPlaybackInfo().Controls.IsNextEnabled);
             Require(TaskbarItemInfo.ThumbButtonInfos[3].IsEnabled, "next becomes available only when the episode has been resolved");
             Require(await session.TrySkipNextAsync(), "Windows accepts next episode");

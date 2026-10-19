@@ -65,6 +65,13 @@ public static class SelfCheck
             ((BrowsePage)window.Current!).Search(word);
             Check(await Until(() => window.Current is BrowsePage search && search.Items.Any(x => x.Id == movie.Id), 15), "recherche", $"« {word} »");
             await Task.Delay(800); Capture(window, output, "04-search");
+            if (mock is not null)
+            {
+                ((BrowsePage)window.Current!).Search("Jeanne");
+                Check(await Until(() => window.Current is BrowsePage { People.Count: > 0 } found && found.People[0].Id == "actor-1", 15), "recherche : une personne",
+                    string.Join(", ", (window.Current as BrowsePage)?.People.Select(x => x.Name) ?? []));
+                await Task.Delay(800); Capture(window, output, "04-search-people");
+            }
 
             // —— Title pages ——
             window.Open(movie);
@@ -80,6 +87,23 @@ public static class SelfCheck
             await Task.Delay(1200); Capture(window, output, "06-series");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
+
+            // —— Téléchargements: sent to the PC of Jellyfin ——
+            if (mock is not null)
+            {
+                Check(await Until(() => window.Offers("downloads"), 5), "téléchargements : proposés à un administrateur");
+                window.Go("downloads");
+                Check(await Until(() => window.Current is DownloadsPage { Ready: true, QueueCount: > 1 }, 10), "téléchargements : le PC serveur et sa file", $"{(window.Current as DownloadsPage)?.QueueCount} lignes");
+                if (window.Current is DownloadsPage downloads)
+                {
+                    await downloads.SearchAsync("Brume basse");
+                    Check(downloads.ResultGroups == 1, "téléchargements : versions regroupées par titre", $"{downloads.ResultGroups} groupes");
+                    await downloads.SendBestAsync();
+                    bool sent; lock (mock.Requests) sent = mock.Requests.Contains("Brume.Basse.2024.MULTI.1080p.BluRay.x264-NOTAG");
+                    Check(sent && await Until(() => downloads.QueueCount > 2, 6), "téléchargements : la meilleure version envoyée", string.Join(", ", mock.Requests));
+                    await Task.Delay(800); Capture(window, output, "07-downloads");
+                }
+            }
 
             // —— Playback, OpenGL then software ——
             foreach (var software in new[] { false, true })

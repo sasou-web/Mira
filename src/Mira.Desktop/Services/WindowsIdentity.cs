@@ -35,6 +35,15 @@ internal static class WindowsIdentity
                 key.SetValue("IconUri", IconPath);
                 key.SetValue("IconBackgroundColor", "0");
             }
+            // mira:// links (« Ouvrir dans Mira » of Mira web) open this copy, the one of the Start menu; App reads nothing
+            // else from such a launch.
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\mira"))
+            {
+                key.SetValue("", "URL:Mira");
+                key.SetValue("URL Protocol", "");
+                using (var icon = key.CreateSubKey("DefaultIcon")) icon.SetValue("", IconPath);
+                using (var command = key.CreateSubKey(@"shell\open\command")) command.SetValue("", $"\"{executable}\" --open \"%1\"");
+            }
             WriteShortcut(StartMenuShortcut, executable);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or COMException or System.Security.SecurityException)
@@ -48,7 +57,7 @@ internal static class WindowsIdentity
         {
             var link = (IShellLinkW)instance;
             link.SetPath(executable); link.SetWorkingDirectory(Path.GetDirectoryName(executable)!);
-            link.SetDescription("Mira — Ta bibliothèque Jellyfin avec mpv intégré");
+            link.SetDescription(L("Mira — Ta bibliothèque Jellyfin avec mpv intégré", "Mira — Your Jellyfin library with mpv built in"));
             link.SetIconLocation(IconPath, 0);
             SetString((IPropertyStore)instance, 5, AppId);
             ((IPropertyStore)instance).Commit();

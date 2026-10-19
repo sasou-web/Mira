@@ -85,6 +85,14 @@ public static class PlaybackMarkers
         foreach (var segment in segments) if (position >= segment.Start - .25 && position < segment.End - 1) return segment;
         return null;
     }
+    /// <summary>
+    /// The opening or recap to jump over without a press at <paramref name="position"/>, with « Passer les intros et les
+    /// récaps »: once each, so that going back into one plays it (as Mira web, timeline.js). A passage of the same kind
+    /// over one already jumped (the opening of the chapters, then Jellyfin's) is the same passage.
+    /// </summary>
+    public static SkipSegment? AutoSkip(IReadOnlyList<SkipSegment> segments, double position, bool enabled, IEnumerable<SkipSegment> skipped) =>
+        enabled && Active(segments, position) is { Kind: SkipKind.Intro or SkipKind.Recap } segment
+        && !skipped.Any(s => s.Kind == segment.Kind && s.Start < segment.End && segment.Start < s.End) ? segment : null;
     /// <summary>Without a credits marker, the next episode is offered over this many last seconds.</summary>
     public const double NextEpisodeLead = 20;
     /// <summary>With "Enchaîner les épisodes", the next-episode button counts down over this much playback, as on streaming services.</summary>
@@ -111,13 +119,13 @@ public static class PlaybackMarkers
             if (next.Start >= segment.Start && next.Start <= end + 2 && next.Kind is SkipKind.Outro or SkipKind.Preview) end = Math.Max(end, next.End);
         return duration - end < 5;
     }
-    public static string Label(SkipKind kind, bool episode, bool nextEpisode) => nextEpisode ? "Épisode suivant" : kind switch
+    public static string Label(SkipKind kind, bool episode, bool nextEpisode) => nextEpisode ? L("Épisode suivant", "Next episode") : kind switch
     {
-        SkipKind.Intro => episode ? "Passer l’opening" : "Passer l’intro",
-        SkipKind.Outro => episode ? "Passer l’ending" : "Passer le générique",
-        SkipKind.Recap => "Passer le récap",
-        SkipKind.Preview => "Passer l’aperçu",
-        _ => "Passer la pub"
+        SkipKind.Intro => episode ? L("Passer l’opening", "Skip intro") : L("Passer l’intro", "Skip intro"),
+        SkipKind.Outro => episode ? L("Passer l’ending", "Skip credits") : L("Passer le générique", "Skip credits"),
+        SkipKind.Recap => L("Passer le récap", "Skip recap"),
+        SkipKind.Preview => L("Passer l’aperçu", "Skip preview"),
+        _ => L("Passer la pub", "Skip ad")
     };
     private static SkipKind? Parse(string? type) => type switch
     {

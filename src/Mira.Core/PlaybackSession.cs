@@ -30,11 +30,23 @@ public sealed class PlaybackSession
     private DateTimeOffset _pendingUntil;
 
     /// <summary>
-    /// Where a title starts: where it was left, unless positions are not remembered or it was watched to the end (or
-    /// nearly, <see cref="LibraryStore.WatchedThreshold"/>), which starts over instead of on its last seconds.
+    /// Where a title starts: where it was left (<paramref name="back"/> seconds before, see <see cref="ResumeBack"/>),
+    /// unless positions are not remembered or it was watched to the end (or nearly, <see cref="LibraryStore.WatchedThreshold"/>),
+    /// which starts over instead of on its last seconds.
     /// </summary>
-    public static double StartAt(MediaItem item, bool remember) =>
-        !remember || item.UserData.Played || item.Progress >= LibraryStore.WatchedThreshold ? 0 : TimeSpan.FromTicks(item.UserData.PlaybackPositionTicks).TotalSeconds;
+    public static double StartAt(MediaItem item, bool remember, int back = 0) =>
+        !remember || item.UserData.Played || item.Progress >= LibraryStore.WatchedThreshold ? 0 : ResumeBack(TimeSpan.FromTicks(item.UserData.PlaybackPositionTicks).TotalSeconds, back);
+
+    /// <summary>The choices of « Reprendre un peu avant », in seconds; 0 resumes exactly where the title was left.</summary>
+    public static readonly int[] ResumeBackChoices = [0, 5, 10, 15];
+    /// <summary>Under this much watched (seconds), a title resumes exactly where it was left.</summary>
+    public const double ResumeBackFrom = 30;
+    /// <summary>
+    /// « Reprendre un peu avant »: <paramref name="back"/> seconds before where the title was left, to pick up the thread
+    /// rather than land mid-sentence; exactly there under <see cref="ResumeBackFrom"/> seconds watched. A title joined in
+    /// « Regarder ensemble » starts where the group is. As Mira web (resumeBack, tests/fixtures/resume.json).
+    /// </summary>
+    public static double ResumeBack(double position, int back) => back <= 0 || position < ResumeBackFrom ? position : Math.Max(0, position - back);
 
     /// <summary>A new playback: nothing told to Jellyfin yet, no failure, no seek waiting; its length from Jellyfin until mpv knows it.</summary>
     public void Begin(MediaItem item, MediaSource? source, string playSessionId, double position)

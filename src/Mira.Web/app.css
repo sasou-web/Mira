@@ -21,6 +21,7 @@
   --blur: saturate(160%) blur(20px);
   --on-accent: #0b0b0c;
   --danger: #ff6b5f;
+  --warning: #d5b787;   /* Warning of Mira for Windows (Themes/Cinema.xaml) */
   --scrim: rgba(7, 7, 8, 0.72);
 
   --r-s: 6px;
@@ -49,6 +50,9 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+/* No scrollbar anywhere: the wheel, the touchpad, the keys and the finger scroll, and the bar only took room. */
+* { scrollbar-width: none; }
+::-webkit-scrollbar { display: none; }
 html {
   background: var(--bg);
   color: var(--ink);
@@ -229,8 +233,7 @@ html:not(.touch) .round:active, .round.pressed { transform: scale(0.92); }
 .round.solid { background: var(--raised); }
 @media (hover: hover) { .round:hover { background: var(--raised-2); } }
 
-.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px var(--gutter); margin: 0 calc(-1 * var(--gutter)); }
-.chips::-webkit-scrollbar { display: none; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px var(--gutter); margin: 0 calc(-1 * var(--gutter)); }
 .chip {
   flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: var(--r-full);
   background: var(--raised); color: var(--ink); font-size: calc(14px * var(--text)); font-weight: 700; white-space: nowrap;
@@ -270,6 +273,12 @@ img.fade.ready { opacity: 1; }
   display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
 }
 .badge-watched .icon { width: 14px; height: 14px; }
+/* Episodes left in a series under way: the same place and colours as the check, a number in it. */
+.badge-count {
+  position: absolute; top: 6px; right: 6px; min-width: 1.85em; height: 1.85em; padding: 0 0.55em; border-radius: var(--r-full);
+  display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
+  font-size: calc(12px * var(--text)); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+}
 
 /* ---------- Cards, rows and grids ---------- */
 .card { display: block; min-width: 0; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
@@ -290,9 +299,8 @@ html:not(.touch) .section-head a:active, .section-head a.pressed { opacity: 0.55
 .row {
   display: grid; grid-auto-flow: column; grid-auto-columns: var(--poster-w); gap: 12px;
   overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding: 0 var(--gutter);
-  padding: 0 var(--gutter) 4px; scrollbar-width: none;
+  padding: 0 var(--gutter) 4px;
 }
-.row::-webkit-scrollbar { display: none; }
 .row > * { scroll-snap-align: start; }
 .row.wide { grid-auto-columns: var(--wide-w); }
 .row.people { grid-auto-columns: 84px; scroll-snap-type: x proximity; }
@@ -324,9 +332,9 @@ html:not(.touch) .section-head a:active, .section-head a.pressed { opacity: 0.55
 /* ---------- Sheets and toasts ---------- */
 .sheet-layer { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-layer { overscroll-behavior: contain; }
-/* While a sheet is open the page under it stays where it is, whatever the finger does on a short sheet (touch screens:
-   on a computer, hiding the scrollbar would reflow the page). */
-html.touch:has(.sheet-layer) { overflow: hidden; }
+/* While a sheet is open the page under it stays where it is, whatever the finger or the wheel does on a short sheet
+   (no scrollbar to take away, so nothing reflows). */
+html:has(.sheet-layer) { overflow: hidden; }
 /* The page behind a sheet does not scroll under the finger. */
 .sheet-backdrop { position: absolute; inset: 0; background: var(--scrim); animation: fade var(--fast) linear; touch-action: none; }
 .sheet {
@@ -360,6 +368,34 @@ html:not(.touch) .sheet-item:active, .sheet-item.pressed { background: var(--rai
 .sheet-item .tick { color: var(--accent); }
 .sheet-item.danger { color: var(--danger); }
 .sheet-heading { padding: 14px 20px 4px; font-size: calc(12px * var(--text)); font-weight: 800; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
+.sheet-question { margin: 0; padding: 2px 20px 6px; font-size: calc(17px * var(--text)); font-weight: 700; line-height: 1.3; color: var(--ink); }
+.sheet-note { margin: 0; padding: 0 20px 12px; font-size: calc(14px * var(--text)); line-height: 1.45; color: var(--muted); }
+/* A film's or an episode's long-press menu: what it is and its whole summary, above the actions. */
+.sheet-about { display: grid; gap: 4px; padding: 0 20px 14px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.sheet-about-name { font-size: calc(17px * var(--text)); font-weight: 800; line-height: 1.3; }
+.sheet-about-meta { font-size: calc(13px * var(--text)); font-weight: 700; color: var(--faint); }
+.sheet-about-meta:empty { display: none; }
+.sheet-about-text { margin: 6px 0 0; display: grid; gap: 8px; font-size: calc(15px * var(--text)); line-height: 1.5; color: var(--muted); }
+/* « Nouveau dans Mira »: a new version's points for the phone, once (whats-new.js), as Mira for Windows shows them. */
+.news { display: grid; gap: 16px; padding: 0 20px 4px; }
+.news-version { margin: 0; font-size: calc(22px * var(--text)); font-weight: 800; line-height: 1.2; }
+.news-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.news-item { display: flex; align-items: flex-start; gap: 14px; }
+.news-badge { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--raised-2); color: var(--ink); }
+.news-badge .icon { width: 20px; height: 20px; }
+.news-name { font-size: calc(16px * var(--text)); font-weight: 700; line-height: 1.3; }
+.news-text { margin: 4px 0 0; font-size: calc(14px * var(--text)); line-height: 1.45; color: var(--muted); }
+.news-also { margin: 0; font-size: calc(13px * var(--text)); line-height: 1.4; color: var(--faint); }
+.news .btn { margin-top: 4px; }
+/* « Lettre » (Films and Séries): seven to a line, each a finger wide. */
+.letters { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 2px 20px 12px; }
+.letter {
+  height: 44px; border-radius: var(--r-m); background: var(--raised); color: var(--ink); font-size: calc(17px * var(--text)); font-weight: 800;
+  transition: transform var(--fast) var(--ease), background var(--fast) linear;
+}
+.letter.on { background: var(--accent); color: var(--on-accent); }
+html:not(.touch) .letter:active, .letter.pressed { transform: scale(0.94); }
+@media (hover: hover) { .letter:not(.on):hover { background: var(--raised-2); } }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { to { opacity: 0; } }
@@ -394,9 +430,18 @@ body:has(.sheet-layer) .toast-layer { z-index: 89; }
 .banner .grow { flex: 1; }
 
 /* ---------- Home ---------- */
+/* « Regarder ensemble »: a group open on Jellyfin, a tap away (views/home.js). */
+.home-group {
+  display: flex; align-items: center; gap: 12px; margin: 16px var(--gutter) 0; padding: 8px 8px 8px 14px; border-radius: var(--r-m);
+  background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: calc(14px * var(--text)); transition: background var(--fast) linear;
+}
+.home-group .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-group b { color: var(--ink); font-weight: 700; }
+.home-group .chip { height: 34px; background: var(--accent); color: var(--on-accent); }
+html:not(.touch) .home-group:active, .home-group.pressed { background: var(--raised); }
+@media (hover: hover) { .home-group:hover { background: var(--raised); } }
 .hero { position: relative; height: clamp(440px, 128vw, 74dvh); overflow: hidden; background: var(--surface); }
-.hero-track { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
-.hero-track::-webkit-scrollbar { display: none; }
+.hero-track { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; }
 .slide { position: relative; flex: 0 0 100%; height: 100%; scroll-snap-align: start; }
 .slide .art { position: absolute; inset: 0; height: 100%; aspect-ratio: auto; border-radius: 0; background-position: center top; }
 .slide .art > img { object-position: center top; }
@@ -448,15 +493,18 @@ body:has(.sheet-layer) .toast-layer { z-index: 89; }
 .detail-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .detail-actions .progress-line { height: 4px; border-radius: var(--r-full); background: var(--raised); overflow: hidden; }
 .detail-actions .progress-line i { display: block; height: 100%; background: var(--accent); }
-.tracks-line {
+/* A line under Lecture that opens a sheet: the tracks, the sleep timer (.tracks-line), « Regarder ensemble » (.group-line). */
+.tracks-line, .group-line {
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 12px 8px 14px; border-radius: var(--r-m);
   background: var(--surface); color: var(--muted); font-size: calc(14px * var(--text)); text-align: left; transition: background var(--fast) linear;
 }
-html:not(.touch) .tracks-line:active, .tracks-line.pressed { background: var(--raised); }
-.tracks-line .grow { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
-.tracks-line .grow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tracks-line b { color: var(--ink); font-weight: 700; }
-@media (hover: hover) { .tracks-line:hover { background: var(--raised); } }
+html:not(.touch) :is(.tracks-line, .group-line):active, :is(.tracks-line, .group-line).pressed { background: var(--raised); }
+:is(.tracks-line, .group-line) .grow { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
+:is(.tracks-line, .group-line) .grow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.tracks-line, .group-line) b { color: var(--ink); font-weight: 700; }
+.group-line .group-state { font-size: calc(13px * var(--text)); color: var(--muted); }
+.group-line .group-state.alert { color: var(--ink); }
+@media (hover: hover) { :is(.tracks-line, .group-line):hover { background: var(--raised); } }
 .detail-secondary { display: flex; gap: 6px; }
 .detail-secondary .tool { flex: 1; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: var(--r-m); color: var(--muted); font-size: calc(12px * var(--text)); font-weight: 700; }
 .detail-secondary .tool.on { color: var(--ink); }
@@ -489,6 +537,17 @@ html:not(.touch) .episode:active, .episode.pressed { background: var(--surface);
 /* The large title scrolls away under the top bar; the filters stay, just below it. */
 /* As tall as the top bar: at rest, the filters already sit where they stay once the title has gone under it. */
 .library-head { min-height: var(--bar); padding: calc(var(--top) + 12px) var(--gutter) 0; }
+/* « Tout | Séries | Animes »: which library of this kind, as iOS's segmented controls. */
+.segmented {
+  display: flex; gap: 2px; width: fit-content; max-width: 100%; margin-top: 12px; padding: 2px; overflow-x: auto;
+  border-radius: var(--r-full); background: var(--raised);
+}
+.segmented[hidden] { display: none; }
+.segmented button {
+  flex: none; height: 32px; padding: 0 16px; border-radius: var(--r-full); color: var(--muted); white-space: nowrap;
+  font-size: calc(14px * var(--text)); font-weight: 700; transition: background var(--fast) linear, color var(--fast) linear;
+}
+.segmented button[aria-checked='true'] { background: var(--accent); color: var(--on-accent); }
 .library-filters { position: sticky; top: var(--bar); z-index: 30; background: var(--bg); padding: 8px var(--gutter) 12px; }
 .library-count { color: var(--faint); font-size: calc(13px * var(--text)); padding: 0 var(--gutter) 12px; min-height: calc(13px * 1.47 + 12px); }
 .library-grid { padding: 0 var(--gutter) 24px; }
@@ -532,6 +591,65 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--ink); transition: transform var(--fast) var(--ease); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
 [aria-checked='true'] .switch { background: var(--accent); }
 [aria-checked='true'] .switch::after { transform: translateX(20px); background: var(--on-accent); }
+/* « En ce moment sur Jellyfin »: a session per row, who then what, how it plays below, « Arrêter » at the top right. */
+.now-item { align-items: flex-start; padding-top: 12px; padding-bottom: 12px; }
+.now-who { display: block; }
+.now-what { display: block; margin-top: 3px; font-size: calc(15px * var(--text)); font-weight: 400; line-height: 1.35; color: var(--muted); }
+.now-item .btn { flex: none; }
+.now-confirm { padding: 0 20px 10px; font-size: calc(15px * var(--text)); line-height: 1.45; color: var(--muted); }
+/* « Télécharger sur le PC serveur »: the search and its category, then what the PC has under way, one row each. */
+.torlink-tools { padding: 4px var(--gutter) 20px; display: grid; gap: 12px; justify-items: start; }
+.torlink-search { width: 100%; display: grid; gap: 10px; }
+.torlink-kinds { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.torlink-kinds .segmented { margin-top: 0; }
+.torlink-paste { margin-left: -12px; }
+.torlink-paste .icon { width: 16px; height: 16px; }
+.torlink-results { min-height: 8px; }
+.torlink-results.pending .torlink-list { opacity: 0.55; transition: opacity var(--fast) linear 120ms; }
+.torlink-searching { display: flex; align-items: center; gap: 12px; margin: 0 calc(var(--gutter) + 4px) 24px; color: var(--muted); font-size: calc(15px * var(--text)); line-height: 1.45; }
+.torlink-searching .spinner { flex: none; width: 18px; height: 18px; border-width: 2px; }
+.torlink-failed { color: var(--danger); }
+.torlink-item { align-items: flex-start; padding-top: 12px; padding-bottom: 12px; }
+.torlink-item > .icon { flex: none; margin-top: 2px; color: var(--faint); }
+.torlink-item > .round { margin: -8px -8px -8px 0; }
+.torlink-name { display: block; overflow-wrap: anywhere; }
+.torlink-line { overflow-wrap: anywhere; }
+.torlink-bar { display: block; height: 4px; margin-top: 8px; border-radius: var(--r-full); background: var(--raised-2); overflow: hidden; }
+.torlink-bar i { display: block; height: 100%; background: var(--accent); transition: width var(--slow) linear; }
+.torlink-confirm { font-size: calc(16px * var(--text)); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.torlink-note { margin-top: 0; }
+.torlink-page .group-title { scroll-margin-top: calc(var(--top) + 72px); }
+/* The results: a card per title or episode, its best release first, the others folded under it. */
+.torlink-head { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 2px; font-size: calc(17px * var(--text)); font-weight: 800; line-height: 1.3; }
+.torlink-head > .clamp-2 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.torlink-episode { flex: none; color: var(--muted); font-size: calc(14px * var(--text)); font-weight: 700; font-variant-numeric: tabular-nums; }
+.torlink-quality { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; overflow-wrap: anywhere; }
+.torlink-badge { padding: 2px 8px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: calc(12px * var(--text)); font-weight: 800; line-height: 1.4; white-space: nowrap; }
+.torlink-release .sub { margin-top: 3px; line-height: 1.4; }
+.torlink-full { overflow-wrap: anywhere; }
+.torlink-caution { color: var(--warning); }
+.torlink-best { border-bottom: 1px solid var(--line); }
+.torlink-others .torlink-release { font-size: calc(15px * var(--text)); }
+.torlink-more { min-height: 48px; color: var(--muted); font-size: calc(15px * var(--text)); }
+.torlink-more .icon { flex: none; transition: transform var(--fast) var(--ease); }
+.torlink-more[aria-expanded='true'] .icon { transform: rotate(180deg); }
+/* « Ton bilan »: the time in large, then the counts, the series and the genres. */
+.report-periods { display: flex; gap: 8px; }
+.report { display: grid; gap: 18px; min-height: 120px; align-content: start; }
+.report-time { display: grid; gap: 2px; }
+.report-time strong { font-size: calc(40px * var(--text)); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.report-time span, .report-counts { color: var(--muted); font-size: calc(15px * var(--text)); }
+.report-counts { margin-top: -10px; font-weight: 700; }
+.report-part { display: grid; gap: 8px; }
+.report-part ul { list-style: none; margin: 0; display: grid; gap: 2px; border-radius: var(--r-m); background: var(--raised); padding: 4px 0; }
+.report-part li { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 16px; font-weight: 600; }
+.report-part li .grow { flex: 1; min-width: 0; }
+.report-genres { font-weight: 700; }
+/* « Accueil à ta main »: a row's switch over its name, its two arrows beside it. */
+.home-rows { margin: 0; background: var(--raised); }
+.home-row { gap: 4px; padding: 6px 8px 6px 0; }
+.home-switch { display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 0 8px 0 16px; text-align: left; font: inherit; }
+.home-row .round[disabled] { opacity: 0.3; pointer-events: none; }
 .about { text-align: center; color: var(--faint); font-size: calc(13px * var(--text)); padding: 8px 24px; }
 
 /* ---------- Sign in and sharing ---------- */
@@ -548,11 +666,18 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .login-form.shake { animation: shake 360ms var(--ease); }
 @keyframes shake { 20% { transform: translateX(-10px); } 40% { transform: translateX(9px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(3px); } }
 .form-error { color: var(--danger); font-size: calc(14px * var(--text)); font-weight: 600; }
+/* Sign-in by code: six digits read across the room, from the phone to the PC where they are typed. */
+.code { font-size: calc(44px * var(--text)); font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; color: var(--ink); padding: 14px 26px; border-radius: var(--r-m); background: var(--surface); user-select: all; -webkit-user-select: all; }
+.sheet-form { display: grid; gap: 14px; padding: 4px 20px 20px; }
+.sheet-form .group-note { padding: 0; margin: 0; }
+.code-input { font-size: calc(24px * var(--text)); font-weight: 800; letter-spacing: 0.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.code-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .hint { width: 100%; max-width: 420px; display: grid; gap: 10px; padding: 16px; border-radius: var(--r-m); background: var(--surface); text-align: left; font-size: calc(14px * var(--text)); color: var(--muted); }
 .hint b { color: var(--ink); }
 .hint .step { display: flex; gap: 12px; align-items: center; }
 .hint .step .icon { color: var(--ink); width: 22px; height: 22px; }
 .hint.warn .step { align-items: flex-start; }
+.hint.open-app .btn { justify-self: start; }
 .hint.warn .step .icon { color: var(--danger); }
 /* Another server at this address (app.js): over every screen and the player, under sheets and notices. */
 .foreign { position: fixed; inset: 0; z-index: 85; overflow-y: auto; background: var(--bg); }
@@ -562,6 +687,12 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .qr { width: 232px; height: 232px; padding: 14px; border-radius: var(--r-m); background: #fff; }
 .qr svg { width: 100%; height: 100%; display: block; }
 .address { font-size: calc(18px * var(--text)); font-weight: 800; word-break: break-all; user-select: all; -webkit-user-select: all; }
+/* « Inviter quelqu'un » (invite.js): the link to send, its buttons, what the friend needs. */
+.invite { display: grid; gap: 14px; padding: 0 20px 18px; }
+.invite-lead { margin: 0; font-size: calc(15px * var(--text)); line-height: 1.45; }
+.invite-link { margin: 0; padding: 12px 14px; border-radius: var(--r-m); background: var(--surface); font-size: calc(14px * var(--text)); font-weight: 700; word-break: break-all; user-select: all; -webkit-user-select: all; }
+.invite-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.invite-steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: calc(14px * var(--text)); line-height: 1.45; color: var(--muted); }
 
 /* ---------- Player ---------- */
 .player { position: fixed; inset: 0; z-index: 70; background: #000; color: #fff; overflow: hidden; touch-action: pan-x pan-y; user-select: none; -webkit-user-select: none; }
@@ -622,6 +753,17 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
   background: rgba(245, 245, 247, 0.96); color: var(--on-accent); font-weight: 800; font-size: calc(15px * var(--text)); box-shadow: var(--shadow);
   animation: rise var(--slow) var(--ease);
 }
+/* « Regarder ensemble »: what the group is doing, under the top bar. A wait or a pause for the group stays when the controls go. */
+.group-pill {
+  position: absolute; z-index: 3; top: calc(var(--top) + 62px); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.62); color: rgba(255, 255, 255, 0.9); font-size: calc(13px * var(--text)); font-weight: 700;
+  white-space: nowrap; pointer-events: none; transition: opacity var(--slow) linear;
+}
+.group-pill span { overflow: hidden; text-overflow: ellipsis; }
+.group-pill.alert { background: rgba(17, 17, 18, 0.92); color: #fff; box-shadow: var(--shadow); }
+.player.idle .group-pill:not(.alert) { opacity: 0; }
+.n-stage .group-pill { position: static; transform: none; background: var(--raised); color: var(--ink); box-shadow: none; }
 .up-next {
   position: absolute; z-index: 3; right: calc(var(--right) + 16px); bottom: calc(var(--bottom) + 96px); width: min(340px, calc(100% - 32px));
   display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding: 10px; border-radius: var(--r-m);
@@ -631,13 +773,16 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .up-next strong { display: block; font-size: calc(14px * var(--text)); line-height: 1.3; }
 .up-next .actions { grid-column: 1 / -1; display: flex; gap: 8px; }
 .up-next .actions .btn { flex: 1; height: 40px; font-size: calc(14px * var(--text)); }
-.p-message { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 32px; background: rgba(0, 0, 0, 0.82); text-align: center; }
-.p-message > div { display: grid; justify-items: center; gap: 12px; max-width: 360px; }
+.p-message { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 32px; overflow-y: auto; overscroll-behavior: contain; background: rgba(0, 0, 0, 0.82); text-align: center; }
+/* Taller than the screen (a phone on its side, « Lecture impossible » and what Mira tried): from its top, scrolled. */
+.p-message > div { display: grid; justify-items: center; gap: 12px; max-width: 360px; margin: auto; }
 .p-message p { color: rgba(255, 255, 255, 0.75); }
 /* A message over the picture: the play controls under it go, only the top bar (Retour, title) stays. */
 .player:has(.p-message:not([hidden])) :is(.p-center, .p-bottom) { visibility: hidden; }
 .p-message p.detail { font-size: calc(12px * var(--text)); color: rgba(255, 255, 255, 0.5); overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
 .p-message .actions { display: flex; gap: 10px; margin-top: 6px; }
+.p-message p.media { color: rgba(255, 255, 255, 0.75); font-weight: 600; }
+.p-message ol.tried { display: grid; gap: 4px; margin: 0; padding-left: 18px; text-align: left; font-size: calc(12px * var(--text)); color: rgba(255, 255, 255, 0.5); overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
 /* Apple's player (iPhone, iPad) plays in full screen: under it, the title and what Mira is doing, seen as it opens and closes. */
 .player.native { display: grid; grid-template-rows: auto 1fr; background: var(--bg); }
 .n-top { padding: calc(var(--top) + 8px) calc(var(--right) + 12px) 0 calc(var(--left) + 12px); }

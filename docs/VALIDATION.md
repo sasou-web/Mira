@@ -9,6 +9,69 @@ Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validat
 - **Pas de régression sur ~45 noms réels** (films, séries, animes, packs) : résultats identiques avant et après, sauf les deux cas corrigés.
 - **Non vérifié ici** : l’interface de Mira n’a pas été lancée ; les tests Windows (`tests/Mira.Tests`, dont les plans d’import aux chemins Windows) ne tournent que dans la CI Windows de la PR.
 
+## Télécharger sur le PC serveur depuis un autre appareil (non publié)
+
+- **Besoin** : lancer un téléchargement TorLink depuis le téléphone ou un autre PC pour qu’il se fasse sur le PC de Jellyfin, sans bureau à distance ; TorLink ne téléchargeait que sur le PC où Mira est ouvert.
+- **Fait** : Mira web d’un administrateur (**Réglages → Télécharger sur le PC serveur**, ou depuis une recherche sans résultat) cherche, envoie un résultat ou un lien magnet collé, suit, met en pause, reprend et annule ; l’extension relaie (`/Mira/torlink`, en mémoire) ; Mira pour Windows ouvert sur le PC de Jellyfin vient au relais, cherche par `torlnk search` et télécharge par `torlnk serve` (TorLink sans fenêtre, même file que la page Téléchargements, qui passe la main quand personne ne s’en sert et la reprend à l’affichage) ; le rangement est celui de toujours. Option « Télécharger depuis tes autres appareils » (Réglages → TorLink), active ; sur un autre PC, elle ouvre Mira web.
+- **Vérifié sur Jellyfin 12.1 (conteneur, Chromium à la taille d’un iPhone, faux Mira pour Windows au relais)** : recherche « --mira check » en Séries nettoyée en « mira check » côté PC, résultat « 1,4 Go · 42 sources », téléchargement suivi à 37 %, pause puis annulation reçues par le PC, lien qui n’est pas un magnet refusé, lien magnet collé envoyé ; un compte non administrateur reçoit 403 ; aucune erreur JavaScript ni refus de la politique de sécurité.
+- **Vérifié avec le vrai TorLink 1.9.0 (Linux)** : `TorLinkServeClient` contre `torlnk serve` lancé par `TorLinkRemote.ServeArguments` : mauvais jeton refusé (401), ajout puis doublon (`duplicate`), lien invalide refusé avec la raison de TorLink, pause, reprise, annulation, `stop-seed` d’un partage absent (404, « pas ce téléchargement ») ; file enregistrée sur Ctrl+C (SIGINT) et retrouvée au démarrage suivant, comme quand la page reprend la main.
+- **Tests** : cas communs à Mira.Core et Mira web (`tests/fixtures/torlink-remote.json` : liens magnet hexadécimaux et base32, recherches, noms) ; relais (comptes, plafonds, un seul agent, demandes reprises après 2 min, annulation avant le PC) ; sortie de `torlnk search`, file de TorLink, raisons affichées (Core, partout) ; `check.mjs` avec un faux agent.
+- **Non vérifié** : sur un vrai PC Windows, le passage de la page TorLink à TorLink sans fenêtre et retour, une vraie recherche (le conteneur n’atteint pas les sources de TorLink), un vrai téléchargement rangé.
+
+## « En ce moment sur Jellyfin » dans Mira web (non publié)
+
+- **Besoin** : voir depuis le téléphone qui regarde quoi sur le serveur, et pourquoi un titre est converti, sans allumer Mira pour Windows ; jusqu’ici seul Windows le montrait.
+- **Fait** : pour un administrateur de Jellyfin (`Users/Me`, `Policy.IsAdministrator`), **Réglages → En ce moment sur Jellyfin** ouvre `#/en-ce-moment` : `Sessions?activeWithinSeconds=960` relu toutes les 5 s tant que l’écran est affiché et le téléphone devant, lignes mises à jour sur place ; textes de `viewers.js`, identiques à ceux de `Viewers` (Mira.Core) ; **Arrêter**, confirmé par une feuille, envoie `Sessions/{id}/Playing/Stop`.
+- **Vérifié sur Jellyfin 12.1 (conteneur, Chromium à la taille d’un iPhone)** : un téléphone lit un film (converti en VP9 et Opus, 1,4 Mb/s, « format du fichier, codec vidéo, codec audio ») et une télé déclare une lecture directe par l’API ; l’administrateur voit les deux, **Arrêter** seulement pour le téléphone ; la ligne suit le temps sans être refaite ; écran quitté, plus aucune lecture des sessions ; **Arrêter** confirmé ferme le lecteur du téléphone et la liste n’a plus que la télé ; un autre compte n’a pas l’entrée. Aucune erreur JavaScript ni refus de la politique de sécurité.
+- **Tests** : cas communs à Mira.Core et Mira web (`tests/fixtures/viewers.json` : sessions, lieux en IPv4 et IPv6, Tailscale en IPv6 compris, durées) ; `check.mjs` arrête la lecture du téléphone depuis cet écran, sur un autre appareil.
+
+## Carte graphique revérifiée après une mise à jour (non publié)
+
+- **Besoin** : une mise à jour du pilote de la carte ou de Jellyfin peut casser les conversions qui marchaient quand « Utiliser la carte graphique » a gardé la carte ; le téléphone n’a plus alors que « Lecture impossible » pour tout titre à convertir, et rien ne le disait sur le PC.
+- **Correctif** : pour un administrateur d’un Jellyfin sur ce PC qui convertit avec une carte, Mira compare la version de Jellyfin et les pilotes des cartes à ceux du dernier essai réussi, deux minutes après son démarrage puis toutes les demi-heures ; s’ils ont changé et que personne ne regarde, il refait l’essai de conversion ; deux échecs de suite remettent le processeur, avec un avis.
+- **Vérifié sur Jellyfin 12.1 (conteneur, sans carte graphique)** : par `JellyfinClient` et `GpuRecheck` eux-mêmes, `nvenc` réglé : premier essai `False` (500 de Jellyfin), `TryAgain` ; second `False`, `Processor`, `HardwareAccelerationType` relu `none` ; essai suivant avec le processeur `True`.
+- **Tests** : empreinte (ordre, doublons, version ou cartes inconnues), décision (processeur, réglage illisible, rien de changé, quelqu’un regarde), verdicts après un essai, avis, version lue dans `System/Info/Public` (Core, partout).
+- **Non vérifié** : sur un vrai PC, les pilotes lus par WMI, une vraie mise à jour de pilote, l’avis dans Mira pour Windows.
+
+## Mira web à jour le jour même (non publié)
+
+- **Besoin** : après une mise à jour de Mira, Jellyfin ne prenait la nouvelle version de Mira web qu’à sa recherche de mises à jour (à son démarrage, puis toutes les 24 h), puis à son redémarrage suivant : parfois des jours plus tard.
+- **Correctif** : une fois le dépôt avancé, Mira pour Windows lance la tâche `PluginUpdates` de Jellyfin et attend sa fin, puis propose « Redémarrer Jellyfin » quand aucune session n’a de titre en cours, relu toutes les 5 min.
+- **Vérifié sur Jellyfin 12.1 (conteneur)** : extension 0.7.8 installée depuis un dépôt local, dépôt passé à 0.7.9, tâche lancée par l’API : finie en 1 s, `/Plugins` donne 0.7.8 `Superseded` et 0.7.9 `Restart` ; après `System/Restart`, 0.7.9 `Active`. Puis par `JellyfinClient` lui-même (0.7.9 → 0.7.10) : `UpdatePluginsNowAsync` vrai en 1,1 s, 0.7.10 en attente, servie 4 s après le redémarrage. La tâche tourne aussi au démarrage de Jellyfin et toutes les 24 h (`StartupTrigger`, `IntervalTrigger`).
+- **Tests** : versions lues de `/Plugins` (servie, en attente, désactivée, absente), tâche lancée et attendue, tâche déjà en cours attendue sans la relancer, tâche trop longue, compte invité (Core, partout).
+- **Non vérifié** : l’avis « Redémarrer Jellyfin » dans Mira pour Windows sur un vrai PC.
+- **Nouveau dans Mira, sur le téléphone** : connecté sur une extension 0.7.7, Jellyfin passé à 0.7.8 par sa tâche puis redémarré, Mira web rouvert montre « Mira 0.7.8 » avec ses seuls points pour le téléphone (Regarder ensemble, Minuterie), une seule fois ; rien à la connexion, ni sur une invitation (la feuille attend l’accueil), ni pour une connexion faite pendant l’ouverture ; une session antérieure (version vue inconnue) voit la version actuelle (Chromium, Jellyfin 12.1 en conteneur, aucune erreur ni refus de la politique de sécurité). Pas encore vu sur un vrai iPhone.
+
+## Le PC serveur ne s’endort pas pendant une lecture ailleurs (non publié)
+
+- **Besoin** : un PC endormi est injoignable, et Tailscale ne sait pas le réveiller ; ni Mira ni Jellyfin 12.1 ne le gardaient éveillé pendant une lecture sur un autre appareil.
+- **Correctif** : pour un Jellyfin sur ce PC, Mira lit ses sessions chaque minute (`Sessions?activeWithinSeconds=960`) et, tant qu’un autre appareil a un titre en cours, en pause comprise, garde le PC éveillé (`SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)` depuis le fil de l’interface ; fermer l’écran ou demander la veille endort toujours). La carte lit le plan d’alimentation actif sur secteur (powrprof : veille, veille prolongée, écran fermé si le PC en a un) ; **Pas de veille sur secteur** passe par `powercfg` dans les droits de la personne, puis relit.
+- **Tests** : textes et étapes de `ServerSleep` (portable, fixe, veille prolongée seule, écran fermé seul, jamais), PC gardé éveillé ou non selon les sessions (Core, partout).
+- **Non vérifié** : sur un vrai PC, les valeurs lues par powrprof, `powercfg /change` sans droits d’administrateur, la veille réellement retenue pendant une lecture.
+
+## Tailscale sans session et expiration de sa connexion (non publié)
+
+- **Besoin** : après un redémarrage sans session (Windows Update la nuit), Tailscale sans « Run unattended » reste coupé : Jellyfin tourne, mais le téléphone ne le trouve plus, même à la maison (le QR code donne l’adresse Tailscale), et la carte disait « Disponible dès l’allumage du PC ». Même chose le jour où la clé de ce PC expire (180 jours par défaut).
+- **Correctif** : pour un Jellyfin sur ce PC et Tailscale connecté, Mira lance `tailscale status --json` puis `tailscale debug prefs` (le `tailscale.exe` de Program Files, dans les droits de la personne) ; `TailscaleNode` (Core) lit `ForceDaemon` et `Self.KeyExpiry`/`Expired`. Étape « Tailscale se coupe sans ta session » avec **Garder Tailscale connecté** (`tailscale set --unattended=true`, relu), étape et avis au démarrage deux semaines avant l’expiration, avec la page Machines de Tailscale.
+- **Sources lues** (tailscale/tailscale, `main`) : `ForceDaemon` en `omitempty` dans `ipn/prefs.go` ; `--unattended` dans `tailscale set` (Windows) ; `KeyExpiry` de `Self` absent quand l’expiration est coupée (`peerStatusFromNode`) ; sous Windows, la LocalAPI donne lecture et écriture à qui peut s’y connecter (`actor.Permissions`).
+- **Tests** : `TailscaleNode.Parse` (sans session ou non, expiration lointaine, proche, passée, coupée ; Tailscale muet, erreur, préférences illisibles), étapes de la carte (Core, partout).
+- **Non vérifié** : sur un vrai PC, les sorties de `tailscale.exe`, `tailscale set --unattended` sans droits d’administrateur, la politique `TS_UNATTENDEDMODE` d’un PC géré.
+
+## Jellyfin arrêté sur ce PC (non publié)
+
+- **Besoin** : un Jellyfin arrêté sur le PC serveur (trois relances de Windows ratées, arrêt depuis son tableau de bord) ne se remarquait qu’au téléphone, par « Serveur injoignable » ; Mira pour Windows disait « momentanément inaccessible », comme pour un serveur lointain.
+- **Correctif** : pour un Jellyfin sur ce PC qui ne répond pas (aucune réponse ou 503), Mira lit l’état de son service (`QueryServiceStatus`, sans droits) ou, sans service, si `jellyfin.exe` tourne ; `LocalJellyfin.Judge` (Core) en fait arrêté, démarre ou s’arrête après chaque démarrage (deux démarrages ratés de suite). **Démarrer Jellyfin** : `sc start` par le script élevé de **Tout préparer**, ou son programme avec `--datadir`, comme son application de la zone de notification ; Mira attend sa réponse trois minutes au plus et compte un démarrage raté s’il s’arrête de nouveau.
+- **Tests** : les cas de `LocalJellyfin.Judge` et `Says`, et l’étape « web » de `PhoneSetup` pour chacun (Core, partout).
+- **Non vérifié** : sur un vrai PC, l’état du service lu sans droits, `sc start` élevé, le programme démarré sans service, la cause lue dans le journal.
+
+## Installation de Jellyfin qui restait bloquée (non publié)
+
+- **Défaut signalé** (2026-10-14, puis au déménagement de Jellyfin sur un autre PC) : la première installation depuis l’accueil affiche une erreur et reste bloquée ; relancer Mira et recommencer termine la configuration sans retélécharger. Même tableau qu’au premier essai de la 0.5.5 (plus bas).
+- **Cause, lue dans `jellyfin.nsi` (jellyfin-server-windows)** : le dernier pas de l’installateur silencieux est `nssm start JellyfinServer` ; quand il rend la main avant que le service tourne, `ShowError` ouvre « Could not start the Jellyfin Server service » en `MB_ABORTRETRYIGNORE`, même en silencieux, et l’installateur attend. Mira attendait sa fin, sans bouton Retour. Réessayer refait `nssm start` sur un service qui tourne : nouvel échec, même fenêtre. Le correctif de la 0.5.5 ne jugeait que le code de sortie, qui n’arrive qu’après la réponse.
+- **Correctif** : `JellyfinSetup.AwaitInstallerAsync` rend la main dès que Jellyfin est prêt, même si l’installateur attend encore ; sa fenêtre est mise devant Mira, avec « choisis Ignorer », rappelé par un avis jusqu’à sa fermeture.
+- **Tests** : Jellyfin qui répond pendant que l’installateur attend, installateur qui finit avant Jellyfin, installateur déjà fini (Core, partout). Le parcours entier (`WaitAsync`, assistant, connexion, bibliothèques, filtres) refait sur un Jellyfin 12.1 neuf en conteneur, lancé dès son démarrage : prêt en 11 s, configuré en 16 s.
+- **Non vérifié** : l’installateur et sa fenêtre sur un vrai PC ; `SetForegroundWindow` vers une fenêtre d’un programme administrateur.
+
 ## Mira 0.7.4 : Mira sur ton téléphone, en un clic
 
 - **Défaut signalé** (2026-10-10, PC d’un ami de l’utilisateur) : Tailscale ouvert sur le PC et le téléphone, `http://100.x.y.z:8096/Mira` n’affiche rien, ni même `http://100.x.y.z:8096`.

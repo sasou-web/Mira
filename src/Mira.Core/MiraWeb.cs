@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Mira.Core.Updates;
 
 namespace Mira.Core;
@@ -33,6 +34,28 @@ public static class MiraWeb
         var path = new Uri(url!).AbsolutePath.Split('/');
         // /sasou-web/Mira/releases/download/vX.Y.Z/jellyfin-manifest.json
         return path is [_, _, _, _, "download", var tag, ReleaseChecks.JellyfinManifestName] ? ReleaseFeed.ParseVersion(tag) : null;
+    }
+
+    /// <summary>
+    /// The version Jellyfin serves (Active), and a newer one its update task installed beside it, waiting for a restart
+    /// (Restart; the one it replaces turns Superseded): Jellyfin 12.1's plugin list, checked with two versions of Mira's.
+    /// Null where there is none: a disabled plugin is served by no one.
+    /// </summary>
+    public sealed record Versions(Version? Serving, Version? Waiting);
+    public static Versions Installed(JsonArray plugins)
+    {
+        Version? serving = null, waiting = null;
+        foreach (var plugin in plugins.OfType<JsonObject>())
+        {
+            if (plugin["Id"] is not JsonValue id || !id.TryGetValue<string>(out var text) || !Guid.TryParse(text, out var guid) || guid != PluginId) continue;
+            if (plugin["Version"] is not JsonValue listed || !listed.TryGetValue<string>(out var number) || !Version.TryParse(number, out var found)) continue;
+            // Jellyfin writes four numbers (0.7.5.0), Mira three.
+            var three = new Version(found.Major, found.Minor, Math.Max(found.Build, 0));
+            var status = plugin["Status"] is JsonValue value && value.TryGetValue<string>(out var state) ? state : null;
+            if (status == "Active" && (serving is null || three > serving)) serving = three;
+            if (status == "Restart" && (waiting is null || three > waiting)) waiting = three;
+        }
+        return new(serving, waiting);
     }
 
     /// <summary>

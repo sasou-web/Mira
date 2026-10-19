@@ -18,6 +18,90 @@ internal static class LibraryTests
         var Test = run.Test;
         var testRoot = run.Root;
         LibraryStore Store(string name) => new(testRoot, name);
+        await Test("Catalogue : titres de la page, pages ajoutées sans doublon, vu et favori partout, page vide et démo", () =>
+        {
+            MediaItem Film(string id, bool favorite = false, long position = 0) => new() { Id = id, Name = id, Type = "Movie", RunTimeTicks = 1000, UserData = new() { IsFavorite = favorite, PlaybackPositionTicks = position } };
+            var catalog = new Catalog();
+            Assert(catalog.IsHome("") && !catalog.IsHome("x") && catalog.Types == "Movie,Series" && catalog.PageTitle == "Explorer", "Accueil par défaut.");
+            catalog.Receive(new ItemsResult { Items = [Film("a"), Film("b")], TotalRecordCount = 3 }, more: false);
+            catalog.Receive(new ItemsResult { Items = [Film("b"), Film("c")], TotalRecordCount = 3 }, more: true);
+            Assert(string.Join(",", catalog.Items.Select(x => x.Id)) == "a,b,c" && Catalog.CountText(catalog.TotalCount) == "3 titres" && Catalog.CountText(1) == "1 titre", "Afficher plus : sans doublon.");
+            catalog.View = "Movie"; catalog.Favorites = true; catalog.ParentId = "lib";
+            Assert(catalog.Types == "Movie" && catalog.PageTitle == "Films" && catalog.GridTitle("") == "Tes favoris" && catalog.GridTitle("Alien") == "Résultats pour « Alien »", "Titres d’une page filtrée.");
+            Assert(catalog.Key("x", new CatalogQuery()) == "Movie:favorites:lib:x:" + new CatalogQuery().CacheKey, "Clé du cache.");
+            catalog.Person = ("p", "Ridley Scott", true);
+            Assert(catalog.GridTitle("") == "Réalisés par Ridley Scott" && Catalog.PersonText("Sigourney Weaver", false) == "Avec Sigourney Weaver", "Titres d’une personne.");
+
+            var resumed = Film("b", position: 500); catalog.Resume = [resumed];
+            var similar = Film("b");
+            Assert(catalog.MarkFavorite(Film("b"), false, [similar]) && catalog.Items.All(x => x.Id != "b") && catalog.TotalCount == 2 && !resumed.UserData.IsFavorite, "Favori retiré : hors de la liste des favoris.");
+            catalog.Favorites = false;
+            Assert(!catalog.MarkFavorite(Film("a"), true, []) && catalog.Items[0].UserData.IsFavorite, "Favori ajouté partout, la liste reste.");
+            catalog.MarkPlayed(Film("b"), true, [], [similar]);
+            Assert(resumed.UserData.Played && resumed.UserData.PlaybackPositionTicks == 0 && similar.UserData.Played, "Vu : reprise remise à zéro dans chaque liste.");
+
+            var playing = Film("d", position: 300);
+            catalog.Remember(playing);
+            Assert(catalog.Resume[0] == playing && catalog.RecentPlayback[0] == playing && catalog.ContinueRow().Any(x => x.Id == "d"), "Lecture : en tête de « Continuer à regarder ».");
+            Assert(catalog.HeroCandidates(catalog.ContinueRow())[0].Id == "d", "Bandeau : la rangée d’abord.");
+
+            var empty = catalog.Empty("", new CatalogQuery(), demo: false);
+            Assert(empty.Icon == "sliders" && empty.Reset && !empty.Guide, "Bibliothèque choisie : un filtre.");
+            catalog.View = "home"; catalog.ParentId = null; catalog.Person = null; catalog.Clear();
+            empty = catalog.Empty("", new CatalogQuery(), demo: false);
+            Assert(empty.Icon == "folder" && empty.Guide && !empty.Reset && catalog.Items.Count == 0 && catalog.RecentPlayback.Count == 0, "Bibliothèque vide : le guide.");
+            Assert(!catalog.Empty("", new CatalogQuery(), demo: true).Guide && catalog.Empty("zz", new CatalogQuery(), false).Title == "Aucun résultat pour « zz »", "Démo et recherche.");
+
+            catalog.View = "Movie";
+            catalog.ShowDemo([Film("b2", position: 500) with { Name = "Bravo" }, Film("a2") with { Name = "Alpha" }, new MediaItem { Id = "s", Name = "Série", Type = "Series" }], "", new CatalogQuery(Sort: "title"));
+            Assert(string.Join(",", catalog.Items.Select(x => x.Name)) == "Alpha,Bravo" && catalog.TotalCount == 2 && catalog.Resume.Count == 1, "Démo : films triés par titre.");
+            return Task.CompletedTask;
+        });
+        await Test("Recherche : les personnes dès 2 lettres, avec leur photo, ni dans les titres d’une personne ni « Sur ce PC »", async () =>
+        {
+            var catalog = new Catalog { View = "search" };
+            Assert(!catalog.SearchesPeople("k") && catalog.SearchesPeople("ke"), "Deux lettres.");
+            catalog.View = "Movie"; Assert(catalog.SearchesPeople("Keanu"), "Une recherche dans Films cherche aussi les personnes.");
+            catalog.View = "offline"; Assert(!catalog.SearchesPeople("Keanu"), "« Sur ce PC » ne demande rien à Jellyfin.");
+            catalog.View = "library"; catalog.Person = ("p1", "Keanu Reeves", null);
+            Assert(!catalog.SearchesPeople("Keanu") && catalog.GridTitle("") == "Keanu Reeves", "Titres d’une personne trouvée par une recherche : son nom seul.");
+            catalog.People = [new() { Id = "p1", Name = "Keanu Reeves" }]; catalog.Clear();
+            Assert(catalog.People.Count == 0, "Un autre compte : plus de personnes.");
+            Assert(Catalog.Initials("Keanu Reeves") == "KR" && Catalog.Initials("hayao  miyazaki jr") == "HM" && Catalog.Initials(" ") == "?", "Initiales.");
+            Uri? requested = null;
+            using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                requested = request.RequestUri;
+                return Task.FromResult(JsonResponse(new { Items = new object[] { new { Id = "p1", Name = "Keanu Reeves", Type = "Person", ImageTags = new { Primary = "t" } } }, TotalRecordCount = 1 }));
+            }));
+            var people = await client.PersonsAsync("Keanu & co");
+            Assert(people.Single() is { Id: "p1", Name: "Keanu Reeves" } person && person.ImageTags["Primary"] == "t", "Personne lue.");
+            Assert(requested!.PathAndQuery == "/jellyfin/Persons?userId=user-1&searchTerm=Keanu%20%26%20co&limit=12&enableImageTypes=Primary", "Requête : " + requested);
+        });
+        await Test("Recherche : épisodes et sagas, une saga dans l’ordre de sortie, sans recherche dans ses titres", async () =>
+        {
+            var catalog = new Catalog { View = "search", ParentId = "lib" };
+            catalog.Episodes = [new() { Id = "e1", Type = "Episode" }];
+            Assert(catalog.FoundBeside("Courte") && !catalog.FoundBeside("C"), "Un épisode trouvé, dès deux lettres.");
+            Assert(catalog.Sort("recent") == "recent" && catalog.Parent == "lib", "Sans saga : le tri et la bibliothèque choisis.");
+            catalog.Saga = ("b1", "Harry Potter - Saga");
+            Assert(!catalog.SearchesPeople("Harry") && !catalog.FoundBeside("Harry"), "Dans une saga, ni personnes, ni épisodes, ni sagas.");
+            Assert(catalog.Parent == "b1" && catalog.Sort("recent") == "saga" && catalog.Sort("") == "saga" && catalog.Sort("title") == "title", "Saga : ses titres, dans l’ordre de sortie sauf autre tri.");
+            Assert(catalog.GridTitle("") == "Harry Potter - Saga" && catalog.Key("", new CatalogQuery()).Contains(":b1:"), "Saga : son nom, sa clé de cache.");
+            Assert(catalog.Empty("", new CatalogQuery(Sort: "saga"), demo: false).Title == "Aucun titre dans cette saga", "Saga vide.");
+            Assert(new CatalogQuery(Sort: "saga").Parameters.EndsWith("&sortBy=ProductionYear,PremiereDate,SortName&sortOrder=Ascending"), "Ordre de sortie.");
+            catalog.Clear(); Assert(catalog.Episodes.Count == 0 && catalog.Sagas.Count == 0, "Un autre compte : plus rien de trouvé.");
+            var requested = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/jellyfin/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                requested.Add(request.RequestUri!.PathAndQuery);
+                return Task.FromResult(JsonResponse(new { Items = new object[] { new { Id = "x", Name = "X", Type = "Episode" } }, TotalRecordCount = 1 }));
+            }));
+            Assert((await client.SearchOthersAsync("Episode", "Courte & co")).Single().Id == "x", "Épisode lu.");
+            await client.SearchOthersAsync("BoxSet", "Harry");
+            Assert(requested[0] == "/jellyfin/Items?userId=user-1&recursive=true&includeItemTypes=Episode&searchTerm=Courte%20%26%20co&limit=12&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true&isMissing=false"
+                && requested[1].Contains("includeItemTypes=BoxSet&searchTerm=Harry&limit=12") && !requested[1].Contains("isMissing"), "Requêtes : " + string.Join(" ; ", requested));
+        });
         await Test("Reprise : la date Jellyfin est conservée et les titres sont classés par dernière lecture", () =>
         {
             var recent = DateTimeOffset.UtcNow;
@@ -61,6 +145,60 @@ internal static class LibraryTests
             store.Acknowledge(store.Peek()!.Id); Assert(store.MergeResume([], store.RecentPlayback()).Count == 0, "Acknowledged old history overrode the server");
             return Task.CompletedTask;
         });
+        await Test("Ton bilan : temps, films, épisodes, séries finies, genres et séries préférés, comme Mira web (tests/fixtures/report.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "report.json")));
+            var root = fixture.RootElement;
+            var played = root.GetProperty("played").Deserialize<List<MediaItem>>(Json.Options)!;
+            var series = root.GetProperty("series").Deserialize<List<MediaItem>>(Json.Options)!;
+            var report = WatchReport.Build(played, series, DateTimeOffset.Parse(root.GetProperty("from").GetString()!, System.Globalization.CultureInfo.InvariantCulture));
+            var expected = root.GetProperty("expected");
+            Assert(report.Minutes == expected.GetProperty("minutes").GetInt32() && report.Films == expected.GetProperty("films").GetInt32() && report.Episodes == expected.GetProperty("episodes").GetInt32(),
+                $"{report.Minutes} min, {report.Films} films, {report.Episodes} épisodes");
+            static string Names(JsonElement list) => string.Join(" | ", list.EnumerateArray().Select(x => x.GetString()));
+            Assert(string.Join(" | ", report.Finished) == Names(expected.GetProperty("finished")), "Finished: " + string.Join(" | ", report.Finished));
+            Assert(string.Join(" | ", report.Genres) == Names(expected.GetProperty("genres")), "Genres: " + string.Join(" | ", report.Genres));
+            var most = string.Join(" | ", report.Series.Select(x => $"{x.Name} {x.Episodes} {x.Minutes}"));
+            Assert(most == string.Join(" | ", expected.GetProperty("series").EnumerateArray().Select(x => $"{x.GetProperty("name").GetString()} {x.GetProperty("episodes").GetInt32()} {x.GetProperty("minutes").GetInt32()}")), "Series: " + most);
+            foreach (var row in root.GetProperty("times").EnumerateArray())
+                Assert(WatchReport.Time(row[0].GetInt32()) == row[1].GetString(), $"{row[0]}: {WatchReport.Time(row[0].GetInt32())}");
+            Assert(WatchReport.Count(1, "film", "films") == "1 film" && WatchReport.Count(0, "film", "films") == "0 films", "Count");
+            var now = new DateTimeOffset(2026, 10, 14, 18, 30, 0, TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 10, 14, 18, 30, 0)));
+            var month = WatchReport.Start(now, year: false).ToLocalTime(); var year = WatchReport.Start(now, year: true).ToLocalTime();
+            Assert(month.DateTime == new DateTime(2026, 10, 1) && year.DateTime == new DateTime(2026, 1, 1), $"{month} {year}");
+            Assert(WatchReport.Build([], [], now).Empty, "Nothing watched");
+            return Task.CompletedTask;
+        });
+        await Test("Accueil à ta main : rangées dans l’ordre choisi, masquées, nouvelles bibliothèques à la suite, comme Mira web (tests/fixtures/home.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "home.json")));
+            var libraries = fixture.RootElement.GetProperty("libraries").EnumerateArray()
+                .Select(x => new LibrarySection(x.GetProperty("Id").GetString()!, x.GetProperty("Name").GetString()!, x.GetProperty("CollectionType").GetString())).ToList();
+            static string Line(IEnumerable<HomeLayout.Row> rows) => string.Join(" ", rows.Select(x => (x.Shown ? "" : "-") + x.Key));
+            foreach (var row in fixture.RootElement.GetProperty("rows").EnumerateArray())
+            {
+                var expected = string.Join(" ", row[1].EnumerateArray().Select(x => x.GetString()));
+                var actual = Line(HomeLayout.Rows(row[0].GetString(), libraries));
+                Assert(actual == expected, $"« {row[0]} »: {actual}");
+            }
+            var all = HomeLayout.Rows("", libraries);
+            foreach (var row in fixture.RootElement.GetProperty("titles").EnumerateArray())
+                Assert(all.FirstOrDefault(x => x.Key == row[0].GetString())?.Title == row[1].GetString(), $"Title of {row[0]}");
+            Assert(all.First(x => x.Key == "library:a1").LibraryId == "a1", "Library id");
+            foreach (var row in fixture.RootElement.GetProperty("moves").EnumerateArray())
+            {
+                var moved = HomeLayout.Move(row[0].GetString(), libraries, row[1].GetString()!, row[2].GetInt32());
+                Assert(moved == row[3].GetString(), $"« {row[0]} » {row[1]} {row[2]}: {moved}");
+            }
+            foreach (var row in fixture.RootElement.GetProperty("shows").EnumerateArray())
+            {
+                var shown = HomeLayout.Show(row[0].GetString(), libraries, row[1].GetString()!, row[2].GetBoolean());
+                Assert(shown == row[3].GetString(), $"« {row[0]} » {row[1]} {row[2]}: {shown}");
+            }
+            return Task.CompletedTask;
+        });
         await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro", async () =>
         {
             var removed = DateTimeOffset.UtcNow.AddHours(-1);
@@ -91,6 +229,59 @@ internal static class LibraryTests
             }));
             await client.SetPlaybackPositionAsync("film 1", -5);
             Assert(sent == "POST /UserItems/film%201/UserData?userId=user-1 {\"PlaybackPositionTicks\":0}", "Request: " + sent);
+        });
+        await Test("Fiche : l’image du fichier (« 4K · HDR10 ») comme Mira web, et l’heure de fin (tests/fixtures/quality.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "quality.json")));
+            static int? Number(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetInt32();
+            static string? Text(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+            foreach (var row in fixture.RootElement.GetProperty("videos").EnumerateArray())
+            {
+                var video = new MediaStream { Type = "Video", Width = Number(row[0]), Height = Number(row[1]), VideoRangeType = Text(row[2]), VideoRange = Text(row[3]) };
+                var label = MediaQuality.Label(new MediaSource { MediaStreams = [new() { Type = "Audio", Index = 1 }, video] })?.Replace("  ·  ", " · ") ?? "";
+                Assert(label == Text(row[4]), $"{row[0]} × {row[1]} {row[2]} : « {label} » au lieu de « {Text(row[4])} »");
+            }
+            // As Jellyfin sends a film alone (Items/{id}); a card without its files keeps them out of the caches.
+            var film = JsonSerializer.Deserialize<MediaItem>("""
+                {"Id":"f","Type":"Movie","RunTimeTicks":49200000000,"MediaSources":[{"Id":"s","MediaStreams":[{"Type":"Audio","Index":1},
+                 {"Type":"Video","Index":0,"Width":3840,"Height":1600,"VideoRange":"HDR","VideoRangeType":"DOVIWithHDR10"}]}]}
+                """, Json.Options)!;
+            Assert(MediaQuality.Label(film) == "4K  ·  Dolby Vision" && MediaQuality.Label(new MediaItem()) is null, "Film: " + MediaQuality.Label(film));
+            Assert(!JsonSerializer.Serialize(new MediaItem(), Json.Options).Contains("MediaSources"), "A card without files wrote MediaSources");
+
+            var now = new DateTime(2026, 10, 13, 22, 50, 30);
+            var resumed = film with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromMinutes(60).Ticks } };
+            Assert(MediaQuality.EndsAt(film, now, resume: false) == "Fin à 0 h 12" && MediaQuality.EndsAt(resumed, now, resume: true) == "Fin à 23 h 12"
+                && MediaQuality.EndsAt(resumed, now, resume: false) == "Fin à 0 h 12", "End: " + MediaQuality.EndsAt(resumed, now, resume: true));
+            Assert(MediaQuality.EndsAt(new MediaItem(), now, false) is null && MediaQuality.EndsAt(null, now, false) is null
+                && MediaQuality.EndsAt(film with { UserData = new() { PlaybackPositionTicks = film.RunTimeTicks!.Value } }, now, true) is null, "An end without a length, or past it");
+            return Task.CompletedTask;
+        });
+        await Test("Fiche : la rangée « Bonus » lit les vidéos des dossiers Extras, nommées comme sur Mira web (tests/fixtures/extras.json)", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "extras.json")));
+            foreach (var row in fixture.RootElement.GetProperty("kinds").EnumerateArray())
+            {
+                var type = row[0].ValueKind == JsonValueKind.Null ? null : row[0].GetString();
+                Assert((PlayerText.ExtraKind(type) ?? "") == row[1].GetString(), $"{type} : « {PlayerText.ExtraKind(type)} »");
+            }
+            // As Jellyfin 12.1 answers: a plain list, not { Items }, each video with its kind and its own picture.
+            string? asked = null;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                asked = request.RequestUri!.PathAndQuery;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""
+                    [{"Id":"e1","Name":"Tournage","Type":"Video","ExtraType":"BehindTheScenes","RunTimeTicks":50080000,"ImageTags":{"Primary":"t"}},
+                     {"Id":"e2","Name":"Bêtisier","Type":"Video","ExtraType":"Unknown","RunTimeTicks":50080000}]
+                    """, System.Text.Encoding.UTF8, "application/json") });
+            }));
+            var extras = await client.ExtrasAsync("film 1");
+            Assert(asked == "/Items/film%201/SpecialFeatures?userId=user-1", "Request: " + asked);
+            Assert(extras.Select(x => (x.Id, x.ExtraType)).SequenceEqual([("e1", "BehindTheScenes"), ("e2", "Unknown")]) && Artwork.Landscape(extras[0]) == new ImageRef("e1", "Primary", "t"), "Extras: " + string.Join(", ", extras.Select(x => x.Id)));
+            var film = JsonSerializer.Deserialize<MediaItem>("""{"Id":"f","Type":"Movie","SpecialFeatureCount":2}""", Json.Options)!;
+            Assert(film.SpecialFeatureCount == 2 && new MediaItem().SpecialFeatureCount is null, "SpecialFeatureCount");
         });
         await Test("Fiche : un acteur ou un réalisateur mène à ses titres de la bibliothèque, avec les autres filtres", async () =>
         {
@@ -179,9 +370,24 @@ internal static class LibraryTests
             await client.BrowseAsync("Series", "library-1", "été", 60, true, filters: new CatalogQuery("Action & aventure", 2024, false, "title"));
             var query = requestUri!.Query;
             Assert(query.Contains("genres=Action%20%26%20aventure"), "Genre not encoded");
-            foreach (var part in new[] { "years=2024", "isPlayed=false", "sortBy=SortName", "sortOrder=Ascending", "startIndex=60", "parentId=library-1", "isFavorite=true", "includeItemTypes=Series" }) Assert(query.Contains(part), "Missing query component: " + part);
+            foreach (var part in new[] { "years=2024", "isPlayed=false", "sortBy=SortName", "sortOrder=Ascending", "startIndex=60", "parentId=library-1", "isFavorite=true", "includeItemTypes=Series", "RecursiveItemCount" }) Assert(query.Contains(part), "Missing query component: " + part);
             Assert(new CatalogQuery(Played: false).CacheKey != new CatalogQuery(Played: true).CacheKey, "Watched filters share a cache key");
             Assert(new CatalogQuery().Parameters.Contains("DateCreated"), "Default sort changed");
+        });
+        await Test("Séries : épisodes à voir sur l’affiche d’une série commencée, rien avant ni une fois toute vue", () =>
+        {
+            MediaItem Item(string json) => JsonSerializer.Deserialize<MediaItem>(json, Json.Options)!;
+            var started = Item("""{"Id":"s1","Type":"Series","UserData":{"PlayedPercentage":33.3,"UnplayedItemCount":2,"Played":false}}""");
+            Assert(started.EpisodesToWatch == 2 && started.EpisodesToWatchBadge == "2" && started.EpisodesToWatchText == "2 épisodes à voir", "Episodes left: " + started.EpisodesToWatchText);
+            var one = Item("""{"Id":"s2","Type":"Series","UserData":{"PlayedPercentage":95,"UnplayedItemCount":1}}""");
+            var long_ = Item("""{"Id":"s3","Type":"Series","UserData":{"PlayedPercentage":1,"UnplayedItemCount":1040}}""");
+            Assert(one.EpisodesToWatchText == "1 épisode à voir" && long_.EpisodesToWatchBadge == "99+", "Singular or long series: " + one.EpisodesToWatchText + " " + long_.EpisodesToWatchBadge);
+            var unseen = Item("""{"Id":"s4","Type":"Series","UserData":{"PlayedPercentage":0,"UnplayedItemCount":12}}""");
+            var older = Item("""{"Id":"s5","Type":"Series","UserData":{"UnplayedItemCount":12}}""");
+            var done = Item("""{"Id":"s6","Type":"Series","UserData":{"PlayedPercentage":100,"UnplayedItemCount":0,"Played":true}}""");
+            var film = Item("""{"Id":"m1","Type":"Movie","UserData":{"PlayedPercentage":40,"UnplayedItemCount":1}}""");
+            Assert(new[] { unseen, older, done, film }.All(x => x.EpisodesToWatch is null && x.EpisodesToWatchBadge is null), "A badge on a series never started, one fully watched, or a film");
+            return Task.CompletedTask;
         });
         await Test("Fiche : distribution, réalisation, titres similaires et tri par dernière lecture", async () =>
         {
@@ -479,6 +685,421 @@ internal static class LibraryTests
                 && MediaLibraries.FromJellyfin([Tv("Séries", @"D:\TV"), Tv("Japon", @"D:\Médias\Animés")]) is { Anime: @"D:\Médias\Animés", Series: @"D:\TV" }, "Anime library matched on a partial word");
             refuse = true;
             Assert(await client.VirtualFoldersAsync() is null && !await client.ReportMediaChangedAsync([@"C:\Media\FILMS\x"]), "A refused optional call must not end the session");
+        });
+        await Test("Sagas : l’option de Jellyfin cochée dans chaque bibliothèque de films, ses autres réglages renvoyés tels quels", async () =>
+        {
+            // As Jellyfin 12.1 lists its libraries (Library/VirtualFolders), options cut down; the second film library already has it.
+            var folders = System.Text.Json.Nodes.JsonNode.Parse("""
+                [{"Name":"Films","CollectionType":"movies","ItemId":"f1","Locations":["C:\\Films"],"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,
+                  "AutomaticallyAddToCollection":false,"PathInfos":[{"Path":"C:\\Films"}],"TypeOptions":[{"Type":"Movie","MetadataFetchers":["TheMovieDb"]}],"PreferredMetadataLanguage":"fr"}},
+                 {"Name":"Séries","CollectionType":"tvshows","ItemId":"s1","LibraryOptions":{"AutomaticallyAddToCollection":false}},
+                 {"Name":"Films 4K","CollectionType":"movies","ItemId":"f2","LibraryOptions":{"AutomaticallyAddToCollection":true}},
+                 {"Name":"Collections","CollectionType":"boxsets","ItemId":"b1","LibraryOptions":{}}]
+                """)!.AsArray();
+            var posted = new List<System.Text.Json.Nodes.JsonNode>(); var refuse = false;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                if (refuse) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Library/VirtualFolders") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(folders.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/Library/VirtualFolders/LibraryOptions" && request.Method == HttpMethod.Post)
+                {
+                    var body = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync())!;
+                    posted.Add(body);
+                    folders.First(x => (string?)x!["ItemId"] == (string?)body["Id"])!["LibraryOptions"] = body["LibraryOptions"]!.DeepClone();
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                if (path == "/Items?userId=user-1&includeItemTypes=BoxSet&recursive=true&limit=0") return JsonResponse(new { Items = Array.Empty<object>(), TotalRecordCount = 3 });
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }));
+            var original = folders[0]!["LibraryOptions"]!.DeepClone();
+            Assert(await client.SagasAsync() == false, "Off in Films");
+            Assert(await client.EnableSagasAsync() && posted.Count == 1 && (string?)posted[0]["Id"] == "f1", "Posted: " + string.Join(" ", posted.Select(x => x.ToJsonString())));
+            var expected = original.DeepClone(); expected["AutomaticallyAddToCollection"] = true;
+            Assert(System.Text.Json.Nodes.JsonNode.DeepEquals(posted[0]["LibraryOptions"], expected), "Other options changed: " + posted[0]["LibraryOptions"]!.ToJsonString());
+            Assert(await client.SagasAsync() == true && await client.EnableSagasAsync() && posted.Count == 1 && await client.SagaCountAsync() == 3, "On everywhere: nothing more to send");
+            // A Jellyfin older than the option, no film library, an account that is not an administrator: Mira cannot tell.
+            folders[0]!["LibraryOptions"]!.AsObject().Remove("AutomaticallyAddToCollection");
+            Assert(await client.SagasAsync() is null && await client.EnableSagasAsync() && posted.Count == 1, "Without the option");
+            folders.RemoveAt(2); folders.RemoveAt(0);
+            Assert(await client.SagasAsync() is null, "Without a film library");
+            refuse = true;
+            Assert(await client.SagasAsync() is null && !await client.EnableSagasAsync(), "Refused");
+        });
+        await Test("Aperçus de la barre : l’option trickplay cochée dans les films et les séries, puis la tâche de Jellyfin lancée", async () =>
+        {
+            var folders = System.Text.Json.Nodes.JsonNode.Parse("""
+                [{"Name":"Films","CollectionType":"movies","ItemId":"f1","LibraryOptions":{"EnableTrickplayImageExtraction":false,"AutomaticallyAddToCollection":true,"PathInfos":[{"Path":"C:\\Films"}]}},
+                 {"Name":"Séries","CollectionType":"tvshows","ItemId":"s1","LibraryOptions":{"EnableTrickplayImageExtraction":true}},
+                 {"Name":"Musique","CollectionType":"music","ItemId":"m1","LibraryOptions":{"EnableTrickplayImageExtraction":false}}]
+                """)!.AsArray();
+            var posted = new List<System.Text.Json.Nodes.JsonNode>(); var started = new List<string>(); var state = "Idle";
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Library/VirtualFolders") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(folders.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/Library/VirtualFolders/LibraryOptions" && request.Method == HttpMethod.Post)
+                {
+                    var body = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync())!;
+                    posted.Add(body);
+                    folders.First(x => (string?)x!["ItemId"] == (string?)body["Id"])!["LibraryOptions"] = body["LibraryOptions"]!.DeepClone();
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                // As Jellyfin 12.1 lists its tasks, cut down.
+                if (path == "/ScheduledTasks?isHidden=false") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($$"""[{"Name":"Scan Media Library","Key":"RefreshLibrary","Id":"a1","State":"Idle"},{"Name":"Generate Trickplay Images","Key":"RefreshTrickplayImages","Id":"t1","State":"{{state}}"{{(state == "Running" ? ",\"CurrentProgressPercentage\":42.5" : "")}}}]""") };
+                if (path.StartsWith("/ScheduledTasks/Running/", StringComparison.Ordinal) && request.Method == HttpMethod.Post) { started.Add(path); state = "Running"; return new HttpResponseMessage(HttpStatusCode.NoContent); }
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }));
+            Assert(await client.TrickplayEnabledAsync() == false && await client.TrickplayProgressAsync() is null, "Off in Films, the task idle");
+            Assert(await client.EnableTrickplayAsync() && posted.Count == 1 && (string?)posted[0]["Id"] == "f1" && (bool?)posted[0]["LibraryOptions"]!["EnableTrickplayImageExtraction"] == true
+                && (bool?)posted[0]["LibraryOptions"]!["AutomaticallyAddToCollection"] == true && started.SequenceEqual(["/ScheduledTasks/Running/t1"]), "Films only, then the task: " + string.Join(" ", started));
+            Assert(await client.TrickplayEnabledAsync() == true && await client.TrickplayProgressAsync() == .425, "On, the task running");
+            Assert(await client.EnableTrickplayAsync() && posted.Count == 1 && started.Count == 1, "Running: not started twice");
+        });
+        await Test("Nouveaux épisodes : séries suivies seulement, une notice par série, marque = date de Jellyfin", async () =>
+        {
+            // As Jellyfin 12.1 answers (cut down): Courte Web is started (a third watched), Courte HLS never, Courte Anime
+            // is a favourite; one more episode of Courte Web came after the mark, and two of the other ones.
+            var episodes = """
+                {"Items":[
+                 {"Id":"a1","Name":"Courte Anime S01E01","Type":"Episode","SeriesId":"anime","SeriesName":"Courte Anime","DateCreated":"2026-10-14T14:07:20.2982336Z","ParentIndexNumber":1,"IndexNumber":1,"UserData":{"Played":false}},
+                 {"Id":"h2","Name":"Courte HLS S01E02","Type":"Episode","SeriesId":"hls","SeriesName":"Courte HLS","DateCreated":"2026-10-14T14:07:17.7782335Z","ParentIndexNumber":1,"IndexNumber":2,"UserData":{"Played":false}},
+                 {"Id":"w4","Name":"Le retour","Type":"Episode","SeriesId":"web","SeriesName":"Courte Web","DateCreated":"2026-10-14T14:07:17.1Z","ParentIndexNumber":1,"IndexNumber":4,"UserData":{"Played":false}},
+                 {"Id":"w3","Name":"Le départ","Type":"Episode","SeriesId":"web","SeriesName":"Courte Web","DateCreated":"2026-10-14T14:07:16.6582334Z","ParentIndexNumber":1,"IndexNumber":3,"UserData":{"Played":false}},
+                 {"Id":"w2","Name":"Courte Web S01E02","Type":"Episode","SeriesId":"web","SeriesName":"Courte Web","DateCreated":"2026-10-14T14:07:15.6582334Z","ParentIndexNumber":1,"IndexNumber":2,"UserData":{"PlayedPercentage":50.2,"Played":false}}],"TotalRecordCount":5}
+                """;
+            var series = """
+                {"Items":[
+                 {"Id":"anime","Name":"Courte Anime","Type":"Series","RecursiveItemCount":1,"UserData":{"PlayedPercentage":0,"UnplayedItemCount":1,"IsFavorite":true,"Played":false}},
+                 {"Id":"hls","Name":"Courte HLS","Type":"Series","RecursiveItemCount":2,"UserData":{"PlayedPercentage":0,"UnplayedItemCount":2,"IsFavorite":false,"Played":false}},
+                 {"Id":"web","Name":"Courte Web","Type":"Series","RecursiveItemCount":3,"UserData":{"PlayedPercentage":33.33333333333333,"UnplayedItemCount":2,"IsFavorite":false,"Played":false}}],"TotalRecordCount":3}
+                """;
+            var asked = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery; asked.Add(path);
+                var body = path.Contains("includeItemTypes=Episode", StringComparison.Ordinal) ? episodes : path.Contains("ids=", StringComparison.Ordinal) ? series : null;
+                return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+            }));
+            var (recent, shows) = await client.RecentEpisodesAsync();
+            Assert(asked.Count == 2 && asked[0].Contains("isPlayed=false", StringComparison.Ordinal) && asked[0].Contains("sortBy=DateCreated&sortOrder=Descending", StringComparison.Ordinal) && asked[0].Contains("fields=DateCreated", StringComparison.Ordinal)
+                && asked[1].Contains("ids=anime,hls,web", StringComparison.Ordinal) && asked[1].Contains("fields=RecursiveItemCount", StringComparison.Ordinal), string.Join(" | ", asked));
+            Assert(NewEpisodes.Newest(recent, null) == DateTimeOffset.Parse("2026-10-14T14:07:20.2982336Z", System.Globalization.CultureInfo.InvariantCulture), "Newest");
+            var seen = DateTimeOffset.Parse("2026-10-14T14:07:16Z", System.Globalization.CultureInfo.InvariantCulture);
+            var (notices, more) = NewEpisodes.Pick(recent, shows, seen);
+            Assert(notices.Count == 2 && more is null, string.Join(" | ", notices.Select(x => x.Title)));
+            Assert(notices[0] is { SeriesId: "anime", Title: "Courte Anime", Text: "Nouvel épisode : S1 É1 · Courte Anime S01E01", Count: 1 }, notices[0].ToString());
+            Assert(notices[1] is { SeriesId: "web", Text: "2 nouveaux épisodes : S1 É3 à É4", Count: 2 } && notices[1].Episode.Id == "w3", notices[1].ToString());
+            Assert(NewEpisodes.Pick(recent, shows, NewEpisodes.Newest(recent, seen)!.Value).Notices.Count == 0, "Nothing past the mark");
+            Assert(NewEpisodes.Text([recent[3] with { ParentIndexNumber = 1, IndexNumber = 9 }, recent[1] with { ParentIndexNumber = 2, IndexNumber = 1 }]) == "2 nouveaux épisodes, dès S1 É9", "Across seasons");
+            var many = Enumerable.Range(0, 5).Select(i => new MediaItem { Id = "e" + i, Type = "Episode", SeriesId = "s" + i, Name = "x", DateCreated = seen.AddMinutes(i + 1) }).ToList();
+            var followed = many.ToDictionary(x => x.SeriesId!, x => new MediaItem { Id = x.SeriesId!, Type = "Series", Name = "Série " + x.SeriesId, UserData = new() { IsFavorite = true } });
+            var picked = NewEpisodes.Pick(many, followed, seen);
+            Assert(picked.Notices.Select(x => x.SeriesId).SequenceEqual(["s4", "s3", "s2"]) && picked.More == "Et 2 autres séries que tu suis ont de nouveaux épisodes.", $"{string.Join(",", picked.Notices.Select(x => x.SeriesId))} {picked.More}");
+        });
+        await Test("Nouveaux épisodes : séries suivies, marque, lignes et « Et 2 autres séries », comme Mira web (tests/fixtures/new-episodes.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "new-episodes.json")));
+            var root = fixture.RootElement;
+            static DateTimeOffset Date(JsonElement x) => DateTimeOffset.Parse(x.GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            var episodes = root.GetProperty("episodes").Deserialize<List<MediaItem>>(Json.Options)!;
+            var series = root.GetProperty("series").Deserialize<List<MediaItem>>(Json.Options)!.ToDictionary(x => x.Id);
+            Assert(NewEpisodes.Newest(episodes, null) == Date(root.GetProperty("newest")), "Newest: " + NewEpisodes.Newest(episodes, null));
+            Assert(series.Values.Select(NewEpisodes.Follows).SequenceEqual([true, false, true]), "Follows");
+            foreach (var row in root.GetProperty("cases").EnumerateArray())
+            {
+                var (notices, more) = NewEpisodes.Pick(episodes, series, Date(row.GetProperty("seen")));
+                var got = string.Join(" | ", notices.Select(x => $"{x.SeriesId} {x.Title} {x.Text} {x.Episode.Id} {x.Count}"));
+                var wanted = string.Join(" | ", row.GetProperty("notices").EnumerateArray().Select(x =>
+                    $"{x.GetProperty("seriesId").GetString()} {x.GetProperty("title").GetString()} {x.GetProperty("text").GetString()} {x.GetProperty("episode").GetString()} {x.GetProperty("count").GetInt32()}"));
+                Assert(got == wanted && more == row.GetProperty("more").GetString(), $"{row.GetProperty("seen")}: {got} ; {more}");
+            }
+            foreach (var row in root.GetProperty("texts").EnumerateArray())
+            {
+                var text = NewEpisodes.Text(row.GetProperty("episodes").Deserialize<List<MediaItem>>(Json.Options)!);
+                Assert(text == row.GetProperty("text").GetString(), text);
+            }
+            var seen = DateTimeOffset.Parse("2026-10-14T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
+            (List<NewEpisodes.Notice> Notices, string? More) Make(int count)
+            {
+                var many = Enumerable.Range(0, count).Select(i => new MediaItem { Id = "e" + i, Type = "Episode", SeriesId = "s" + i, Name = "x", DateCreated = seen.AddMinutes(i + 1) }).ToList();
+                return NewEpisodes.Pick(many, many.ToDictionary(x => x.SeriesId!, x => new MediaItem { Id = x.SeriesId!, Type = "Series", Name = "Série " + x.SeriesId, UserData = new() { IsFavorite = true } }), seen);
+            }
+            var five = Make(root.GetProperty("many").GetProperty("series").GetInt32());
+            Assert(five.Notices.Select(x => x.SeriesId).SequenceEqual(root.GetProperty("many").GetProperty("notices").EnumerateArray().Select(x => x.GetString()))
+                && five.More == root.GetProperty("many").GetProperty("more").GetString(), $"{string.Join(",", five.Notices.Select(x => x.SeriesId))} {five.More}");
+            Assert(Make(4).More == root.GetProperty("four").GetProperty("more").GetString() && Make(3).More is null, "Four, three");
+            return Task.CompletedTask;
+        });
+        await Test("En ce moment sur Jellyfin : qui regarde quoi, tel quel ou converti, sur quel matériel et pourquoi ; « Arrêter »", async () =>
+        {
+            // As Jellyfin 12.1 lists its sessions (Mira web converting a WebM, cut down), plus a friend on Tailscale playing
+            // the file as it is, this PC, and a session that plays nothing.
+            var sessions = """
+                [{"Id":"s-phone","UserName":"mira","Client":"Mira","DeviceName":"iPhone","DeviceId":"phone-1","RemoteEndPoint":"192.168.1.20","SupportsRemoteControl":true,
+                  "PlayState":{"PositionTicks":30058340,"IsPaused":false,"PlayMethod":"Transcode"},
+                  "TranscodingInfo":{"AudioCodec":"opus","VideoCodec":"vp9","IsVideoDirect":false,"IsAudioDirect":false,"Bitrate":1552384,"HardwareAccelerationType":"none","TranscodeReasons":["ContainerNotSupported","VideoCodecNotSupported","AudioCodecNotSupported"]},
+                  "NowPlayingItem":{"Name":"Signes Test (2022)","Type":"Movie","RunTimeTicks":450230000}},
+                 {"Id":"s-friend","UserName":"Léa","Client":"Jellyfin Web","DeviceName":"Firefox","DeviceId":"friend","RemoteEndPoint":"100.101.5.7","SupportsRemoteControl":false,
+                  "PlayState":{"PositionTicks":37230000000,"IsPaused":true,"PlayMethod":"DirectPlay"},
+                  "NowPlayingItem":{"Name":"Le départ","Type":"Episode","SeriesName":"Courte HLS","ParentIndexNumber":1,"IndexNumber":2,"RunTimeTicks":48000000000}},
+                 {"Id":"s-pc","UserName":"mira","Client":"Mira","DeviceName":"Windows","DeviceId":"device-1","RemoteEndPoint":"127.0.0.1","SupportsRemoteControl":true,
+                  "PlayState":{"PositionTicks":0,"PlayMethod":"Transcode"},
+                  "TranscodingInfo":{"AudioCodec":"aac","VideoCodec":"h264","IsVideoDirect":true,"IsAudioDirect":false,"HardwareAccelerationType":"nvenc","TranscodeReasons":["AudioCodecNotSupported","Bogus"]},
+                  "NowPlayingItem":{"Name":"Aube Test (2021)","Type":"Movie","RunTimeTicks":400230000}},
+                 {"Id":"s-idle","UserName":"mira","Client":"Mira","DeviceName":"iPad","DeviceId":"ipad"}]
+                """;
+            string? stopped = null; var refuse = false;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Sessions?activeWithinSeconds=960") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sessions, Encoding.UTF8, "application/json") });
+                if (path.StartsWith("/Sessions/", StringComparison.Ordinal) && path.EndsWith("/Playing/Stop", StringComparison.Ordinal) && request.Method == HttpMethod.Post)
+                { if (refuse) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)); stopped = path; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent)); }
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            var viewers = await client.ViewersAsync();
+            Assert(viewers.Count == 3 && viewers.Select(x => x.SessionId).SequenceEqual(["s-phone", "s-friend", "s-pc"]), "Playing only: " + string.Join(",", viewers.Select(x => x.SessionId)));
+            var (phone, friend, pc) = (viewers[0], viewers[1], viewers[2]);
+            Assert(Viewers.Who(phone) == "mira · iPhone · réseau de la maison" && Viewers.Who(friend) == "Léa · Firefox · Tailscale" && Viewers.Who(pc) == "ce PC", $"{Viewers.Who(phone)} | {Viewers.Who(friend)} | {Viewers.Who(pc)}");
+            Assert(Viewers.What(phone) == "Signes Test (2022) — 0:03 / 0:45" && Viewers.What(friend) == "Courte HLS · S1 É2 · Le départ — 1:02:03 / 1:20:00, en pause", $"{Viewers.What(phone)} | {Viewers.What(friend)}");
+            Assert(Viewers.How(phone) == ("Conversion : image en VP9, son en Opus, par le processeur · 1,6 Mb/s", "Pourquoi : format du fichier, codec vidéo, codec audio"), Viewers.How(phone).ToString());
+            Assert(Viewers.How(friend) == ("Lecture directe : le fichier tel quel", null) && Viewers.How(pc) == ("Conversion : image copiée, son en AAC", "Pourquoi : codec audio, Bogus"), $"{Viewers.How(friend)} | {Viewers.How(pc)}");
+            Assert(Viewers.How(phone with { Conversion = phone.Conversion! with { Hardware = "qsv" } }).How.EndsWith("par la carte graphique (Intel) · 1,6 Mb/s", StringComparison.Ordinal), "On the card");
+            Assert(phone.CanStop && !friend.CanStop && await client.StopViewerAsync("s-phone") && stopped == "/Sessions/s-phone/Playing/Stop", "Stop: " + stopped);
+            refuse = true;
+            Assert(!await client.StopViewerAsync("s-friend"), "Refused");
+        });
+        await Test("En ce moment sur Jellyfin : écrit comme Mira web (tests/fixtures/viewers.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "viewers.json")));
+            var root = fixture.RootElement;
+            var viewers = Viewers.Parse(root.GetProperty("sessions"), root.GetProperty("ownDevice").GetString()!);
+            var expected = root.GetProperty("viewers").EnumerateArray().ToList();
+            Assert(viewers.Select(x => x.SessionId).SequenceEqual(expected.Select(x => x.GetProperty("id").GetString())), "Sessions: " + string.Join(",", viewers.Select(x => x.SessionId)));
+            static string? Text(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+            foreach (var (viewer, e) in viewers.Zip(expected))
+            {
+                var (how, why) = Viewers.How(viewer);
+                Assert(Viewers.Who(viewer) == Text(e.GetProperty("who")), $"{viewer.SessionId}: « {Viewers.Who(viewer)} »");
+                Assert(Viewers.What(viewer) == Text(e.GetProperty("what")), $"{viewer.SessionId}: « {Viewers.What(viewer)} »");
+                Assert(how == Text(e.GetProperty("how")) && why == Text(e.GetProperty("why")), $"{viewer.SessionId}: « {how} », « {why} »");
+                Assert(viewer.CanStop == e.GetProperty("canStop").GetBoolean(), $"{viewer.SessionId}: CanStop");
+            }
+            foreach (var row in root.GetProperty("places").EnumerateArray())
+                Assert(Viewers.Place(Text(row[0])) == Text(row[1]), $"Place of {row[0]}: « {Viewers.Place(Text(row[0]))} »");
+            foreach (var row in root.GetProperty("clocks").EnumerateArray())
+                Assert(Viewers.Clock(row[0].GetDouble()) == row[1].GetString(), $"Clock of {row[0]}: {Viewers.Clock(row[0].GetDouble())}");
+            return Task.CompletedTask;
+        });
+        await Test("Lecture impossible : les rapports de Mira web lus dans les journaux de Jellyfin, comme Mira web les écrit (tests/fixtures/failure.json)", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "failure.json")));
+            var root = fixture.RootElement;
+            foreach (var row in root.GetProperty("reasons").EnumerateArray())
+                Assert(Viewers.Reason(row[0].GetString()!) == row[1].GetString(), $"{row[0]}: {Viewers.Reason(row[0].GetString()!)}");
+            foreach (var row in root.GetProperty("files").EnumerateArray())
+                Assert(PlaybackFailures.IsMira(row[0].GetString()) == row[1].GetBoolean(), "File: " + row[0].GetString());
+            var report = root.GetProperty("report");
+            var document = JsonSerializer.Serialize(report.GetProperty("document"), new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var failure = PlaybackFailures.Parse(document) ?? throw new Exception("Not read: " + document);
+            Assert(PlaybackFailures.Heading(failure) == report.GetProperty("heading").GetString(), PlaybackFailures.Heading(failure));
+            var at = failure.At.ToOffset(TimeSpan.Parse(report.GetProperty("offset").GetString()!.TrimStart('+'), System.Globalization.CultureInfo.InvariantCulture));
+            var copy = PlaybackFailures.Text(failure, at);
+            Assert(copy == report.GetProperty("copy").GetString() + "\nDétail technique :\n" + document + "\n", copy);
+            static DateTimeOffset Time(JsonElement e) => DateTimeOffset.Parse(e.GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            foreach (var row in root.GetProperty("when").EnumerateArray())
+            {
+                var when = PlaybackFailures.When(Time(row[0]), Time(row[1]));
+                Assert(when == row[2].GetString(), $"{row[0]}: {when}");
+            }
+            Assert(PlaybackFailures.Parse("""{"mira":"autre","at":"2026-10-15T19:03:00Z"}""") is null && PlaybackFailures.Parse("pas du JSON") is null
+                && PlaybackFailures.Parse("""{"mira":"lecture-impossible"}""") is null && PlaybackFailures.Parse("[1]") is null, "Not a report");
+            // From Jellyfin (12.1's System/Logs): Mira's reports only, the latest first, one deleted meanwhile or too large
+            // skipped; none for an account that may not read the logs.
+            var refuse = false; var read = new List<string>();
+            var logs = """
+                [{"DateCreated":"2026-10-15T12:46:41Z","DateModified":"2026-10-15T12:46:41Z","Size":2100,"Name":"upload_Mira_0.7.8_20261015124641_a1.log"},
+                 {"DateCreated":"2026-10-15T00:00:00Z","DateModified":"2026-10-15T12:59:00Z","Size":90000,"Name":"log_20261015.log"},
+                 {"DateCreated":"2026-10-15T12:56:46Z","DateModified":"2026-10-15T12:56:46Z","Size":2100,"Name":"upload_Mira_0.7.8_20261015125646_b2.log"},
+                 {"DateCreated":"2026-10-15T12:50:00Z","DateModified":"2026-10-15T12:50:00Z","Size":2100,"Name":"upload_Mira_0.7.8_20261015125000_gone.log"},
+                 {"DateCreated":"2026-10-15T12:40:00Z","DateModified":"2026-10-15T12:40:00Z","Size":900000,"Name":"upload_Mira_0.7.8_20261015124000_big.log"},
+                 {"DateCreated":"2026-10-15T12:30:00Z","DateModified":"2026-10-15T12:30:00Z","Size":40,"Name":"upload_Mira_0.7.8_20261015123000_c3.log"}]
+                """;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (refuse) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+                if (path == "/System/Logs") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(logs, Encoding.UTF8, "application/json") });
+                if (!path.StartsWith("/System/Logs/Log?name=", StringComparison.Ordinal)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+                var name = Uri.UnescapeDataString(path["/System/Logs/Log?name=".Length..]); read.Add(name);
+                if (name.Contains("gone", StringComparison.Ordinal)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+                var text = name.Contains("_b2", StringComparison.Ordinal) ? document.Replace("Le départ", "Le retour", StringComparison.Ordinal)
+                    : name.Contains("_a1", StringComparison.Ordinal) ? document : """{"autre":true}""";
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(text, Encoding.UTF8, "text/plain") });
+            }));
+            var found = await client.PlaybackFailuresAsync() ?? throw new Exception("No reports");
+            Assert(string.Join(" | ", found.Select(x => x.Title)) == "Courte Web · S1 · É2 · Le retour | Courte Web · S1 · É2 · Le départ", string.Join(" | ", found.Select(x => x.Title)));
+            Assert(string.Join(",", read) == "upload_Mira_0.7.8_20261015125646_b2.log,upload_Mira_0.7.8_20261015125000_gone.log,upload_Mira_0.7.8_20261015124641_a1.log,upload_Mira_0.7.8_20261015123000_c3.log", "Read: " + string.Join(",", read));
+            refuse = true;
+            Assert(await client.PlaybackFailuresAsync() is null, "Not an administrator");
+        });
+        await Test("Carte graphique : NVIDIA, puis Intel, puis AMD ; un adaptateur sans fabricant connu n’en propose aucune", () =>
+        {
+            var cards = GpuEncoding.Candidates(["Microsoft Basic Display Adapter", "AMD Radeon RX 6600", "Intel(R) UHD Graphics 770", null, " ", "NVIDIA GeForce RTX 3060", "NVIDIA GeForce GT 710", "Parsec Virtual Display Adapter"]);
+            Assert(string.Join(" | ", cards.Select(x => $"{x.Kind}={x.Name}")) == "nvenc=NVIDIA GeForce RTX 3060 | qsv=Intel(R) UHD Graphics 770 | amf=AMD Radeon RX 6600", string.Join(" | ", cards));
+            Assert(GpuEncoding.Candidates(["Advanced Micro Devices, Inc. Radeon"]).Single().Kind == "amf" && GpuEncoding.Candidates(["Microsoft Remote Display Adapter"]).Count == 0, "Makers");
+            Assert(GpuEncoding.Maker("qsv") == "Intel" && GpuEncoding.Maker("vaapi") == "vaapi", "Maker");
+            return Task.CompletedTask;
+        });
+        await Test("Carte graphique : chaque carte essayée sur une conversion, la première qui marche gardée, sinon le réglage de Jellyfin remis", async () =>
+        {
+            // As Jellyfin 12.1 gives its encoding settings (System/Configuration/encoding), cut down.
+            var encoding = System.Text.Json.Nodes.JsonNode.Parse("""{"HardwareAccelerationType":"none","EnableHardwareEncoding":false,"HardwareDecodingCodecs":["h264","vc1"],"H264Crf":23}""")!.AsObject();
+            var original = encoding.DeepClone();
+            var working = new HashSet<string>(); var tried = new List<string>(); var stopped = 0; var titles = true; var refuse = false;
+            string? streamed = null;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(async request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/System/Configuration/encoding")
+                {
+                    if (refuse) return new HttpResponseMessage(HttpStatusCode.Forbidden);
+                    if (request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(encoding.ToJsonString(), Encoding.UTF8, "application/json") };
+                    encoding = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync())!.AsObject();
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                if (path.StartsWith("/Items?userId=user-1&recursive=true&includeItemTypes=Movie,Episode", StringComparison.Ordinal))
+                    return JsonResponse(new { Items = titles ? new object[] { new { Id = "vp9", MediaStreams = new[] { new { Type = "Video", Codec = "vp9" } } }, new { Id = "h264", MediaStreams = new[] { new { Type = "Audio", Codec = "aac" }, new { Type = "Video", Codec = "h264" } } } } : [] });
+                if (path.StartsWith("/Videos/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
+                {
+                    streamed = path; var kind = (string)encoding["HardwareAccelerationType"]!; tried.Add(kind);
+                    if (!working.Contains(kind)) return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[300 * 1024]) };
+                }
+                if (path.StartsWith("/Videos/ActiveEncodings?deviceId=device-1&playSessionId=", StringComparison.Ordinal) && request.Method == HttpMethod.Delete) { stopped++; return new HttpResponseMessage(HttpStatusCode.NoContent); }
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }));
+            var cards = GpuEncoding.Candidates(["Intel(R) UHD Graphics", "NVIDIA GeForce GTX 1050"]);
+            Assert(await client.HardwareAccelerationAsync() == "none", "Read");
+            working.Add("qsv");
+            var (outcome, card) = await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5));
+            Assert(outcome == GpuOutcome.Done && card?.Kind == "qsv" && string.Join(",", tried) == "nvenc,qsv" && stopped == 2, $"{outcome} {card} {string.Join(",", tried)} {stopped}");
+            Assert(streamed!.StartsWith("/Videos/h264/stream.ts?static=false&videoCodec=h264&", StringComparison.Ordinal) && streamed.Contains("allowVideoStreamCopy=false") && streamed.Contains("deviceId=device-1"), "H.264 title, converted: " + streamed);
+            var expected = original.DeepClone(); expected["HardwareAccelerationType"] = "qsv"; expected["EnableHardwareEncoding"] = true;
+            Assert(System.Text.Json.Nodes.JsonNode.DeepEquals(encoding, expected), "Other settings changed: " + encoding.ToJsonString());
+            // No card converts: Jellyfin is put back as it was, its other settings untouched.
+            Assert(await client.SetHardwareAccelerationAsync("none") && (string?)encoding["HardwareAccelerationType"] == "none", "Back to the processor");
+            working.Clear(); tried.Clear(); encoding["EnableHardwareEncoding"] = false;
+            Assert(await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5)) is (GpuOutcome.Failed, null) && tried.Count == 2, "Failed: " + string.Join(",", tried));
+            Assert(System.Text.Json.Nodes.JsonNode.DeepEquals(encoding["HardwareAccelerationType"], "none"), "Put back: " + encoding.ToJsonString());
+            titles = false;
+            Assert(await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5)) is (GpuOutcome.NothingToTry, null) && (string?)encoding["HardwareAccelerationType"] == "none", "Nothing to try");
+            refuse = true;
+            Assert(await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(5)) is (GpuOutcome.Refused, null) && await client.HardwareAccelerationAsync() is null, "Refused");
+        });
+        await Test("Carte graphique revérifiée : essayée après une mise à jour de Jellyfin ou d’un pilote, jamais pendant une lecture, processeur après deux échecs", async () =>
+        {
+            const string nvidia = "NVIDIA GeForce RTX 3060 32.0.15.6094", intel = "Intel(R) UHD Graphics 770 31.0.101.4502";
+            var before = GpuRecheck.Fingerprint("12.1.0", [nvidia, intel, " ", nvidia]) ?? "";
+            Assert(before == $"12.1.0 | {intel} | {nvidia}" && GpuRecheck.Fingerprint("12.1.0", [intel, nvidia]) == before, "Fingerprint: " + before);
+            Assert(GpuRecheck.Fingerprint(null, [nvidia]) is null && GpuRecheck.Fingerprint(" ", [nvidia]) is null && GpuRecheck.Fingerprint("12.1.0", []) is null, "Unknown: nothing judged");
+            var newDriver = GpuRecheck.Fingerprint("12.1.0", ["NVIDIA GeForce RTX 3060 32.0.15.7000", intel]); var newJellyfin = GpuRecheck.Fingerprint("12.2.0", [nvidia, intel]);
+            Assert(newDriver != before && newJellyfin != before, "A driver or Jellyfin changed");
+            var steps = new[]
+            {
+                GpuRecheck.Decide("nvenc", before, before, false), GpuRecheck.Decide("nvenc", newDriver, before, false), GpuRecheck.Decide("nvenc", newJellyfin, before, true),
+                GpuRecheck.Decide("none", newDriver, before, false), GpuRecheck.Decide(null, newDriver, before, false), GpuRecheck.Decide("qsv", null, before, false),
+                GpuRecheck.Decide("amf", before, "", false),
+            };
+            Assert(steps.SequenceEqual([GpuRecheck.Step.Nothing, GpuRecheck.Step.Try, GpuRecheck.Step.Wait, GpuRecheck.Step.Nothing, GpuRecheck.Step.Nothing, GpuRecheck.Step.Nothing, GpuRecheck.Step.Try]),
+                "Steps: " + string.Join(", ", steps));
+            // A first failure is tried again at the next look; the second puts Jellyfin back on the processor. Nothing to
+            // convert judges nothing: the card stays.
+            Assert(GpuRecheck.After(false, 0) == (GpuRecheck.Verdict.TryAgain, 1) && GpuRecheck.After(false, 1) == (GpuRecheck.Verdict.Processor, 0)
+                && GpuRecheck.After(true, 1) == (GpuRecheck.Verdict.Kept, 0) && GpuRecheck.After(null, 1) == (GpuRecheck.Verdict.Kept, 0), "After a try");
+            var notice = GpuRecheck.Notice("nvenc");
+            Assert(notice.Contains("(NVIDIA)", StringComparison.Ordinal) && notice.Contains("processeur", StringComparison.Ordinal) && notice.Contains("Utiliser la carte graphique", StringComparison.Ordinal), notice);
+            Assert(GpuRecheck.FirstLook < GpuRecheck.Retry && GpuRecheck.FailuresBeforeProcessor == 2, "Timing");
+            // Jellyfin's version, as 12.1 gives it, camelCase while it starts.
+            var info = """{"LocalAddress":"http://127.0.0.1:8096","ServerName":"vm","Version":"12.1.0","Id":"5c63"}""";
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>
+                Task.FromResult(request.RequestUri!.PathAndQuery == "/System/Info/Public" ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(info, Encoding.UTF8, "application/json") } : new HttpResponseMessage(HttpStatusCode.NotFound))));
+            Assert(await client.ServerVersionAsync() == "12.1.0", "Version");
+            info = """{"serverName":"vm","version":"12.1.1"}""";
+            Assert(await client.ServerVersionAsync() == "12.1.1", "camelCase");
+            info = """{"ServerName":"vm"}""";
+            Assert(await client.ServerVersionAsync() is null, "Unsaid");
+        });
+        await Test("Sur ce PC : un film gardé, repris là où il s’est coupé, avec ses sous-titres ; par compte, dans l’ordre, épisode suivant sans Jellyfin", async () =>
+        {
+            var root = Path.Combine(testRoot, "offline"); var other = Path.Combine(testRoot, "offline-usb");
+            var connection = new Connection("http://nas:8096/", "user-1", "Alice", "token", "device-1");
+            var video = Enumerable.Range(0, 300_000).Select(x => (byte)(x % 251)).ToArray();
+            var ranges = new List<string>(); var cut = true; var ignoreRange = false; var refuse = false;
+            using var client = new JellyfinClient(connection, new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                if (path == "/Items/film/Download")
+                {
+                    if (refuse) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+                    var from = ignoreRange ? 0 : request.Headers.Range?.Ranges.Single().From ?? 0; ranges.Add(request.Headers.Range?.ToString() ?? "");
+                    // The first answer stops halfway: the connection was cut.
+                    var body = video[(int)from..(cut ? 150_000 : video.Length)];
+                    var response = new HttpResponseMessage(from > 0 ? HttpStatusCode.PartialContent : HttpStatusCode.OK) { Content = new ByteArrayContent(body) };
+                    response.Content.Headers.ContentLength = video.Length - from;
+                    if (from > 0) response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(from, video.Length - 1, video.Length);
+                    return Task.FromResult(response);
+                }
+                if (path == "/Videos/film/src/Subtitles/2/0/Stream.srt") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("1\n00:00:01,000 --> 00:00:02,000\nBonjour\n") });
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }));
+            var source = new MediaSource { Id = "src", Container = "mkv", Path = @"D:\Films\Dune (2021)\Dune.MKV", Size = video.Length, MediaStreams = [new() { Index = 2, Type = "Subtitle", Codec = "subrip", IsExternal = true, Language = "fre", DisplayTitle = "Français" }, new() { Index = 3, Type = "Subtitle", Codec = "ass", IsExternal = false }] };
+            var film = new MediaItem { Id = "film", Name = "Dune", Type = "Movie", MediaSources = [source] };
+            var copy = OfflineCopies.Plan(root, connection, film, source, DateTimeOffset.UnixEpoch);
+            Assert(copy.File == "video.mkv" && copy.Item.MediaSources is null && OfflineCopies.List([root], connection).Single() is { Complete: false, Size: 300_000 }, "Planned, listed before it comes");
+            var seen = new List<long>();
+            try { await OfflineCopies.FetchAsync(client, copy, new SyncProgress<(long Done, long Total)>(x => seen.Add(x.Done)), CancellationToken.None); Assert(false, "Cut, not complete"); }
+            catch (HttpRequestException ex) { Assert(ex.StatusCode is null && new FileInfo(copy.PartPath).Length == 150_000 && !File.Exists(copy.VideoPath), "Part kept: " + ex.Message); }
+            cut = false;
+            copy = await OfflineCopies.FetchAsync(client, OfflineCopies.Read(copy.Folder)!, null, CancellationToken.None);
+            Assert(ranges.SequenceEqual(["", "bytes=150000-"]) && File.ReadAllBytes(copy.VideoPath).SequenceEqual(video) && !File.Exists(copy.PartPath), "Resumed: " + string.Join(" | ", ranges));
+            Assert(copy.Complete && copy.Subtitles.Single() is { File: "subtitle-2.srt", Language: "fre", Title: "Français" } && File.ReadAllText(Path.Combine(copy.Folder, "subtitle-2.srt")).Contains("Bonjour"), "External subtitle only");
+            Assert(OfflineCopies.Read(copy.Folder) is { Complete: true } read && read.BytesOnDisk > 300_000 && (await OfflineCopies.FetchAsync(client, read, null, CancellationToken.None)) == read with { } && ranges.Count == 2, "Complete: not fetched again");
+            // A server that ignores the range: from the start again, never a file with its beginning twice.
+            ignoreRange = true; ranges.Clear();
+            var again = OfflineCopies.Plan(root, connection, film with { Id = "film" }, source, DateTimeOffset.UnixEpoch);
+            File.Delete(again.VideoPath); File.WriteAllBytes(again.PartPath, new byte[1000]);
+            again = await OfflineCopies.FetchAsync(client, again, null, CancellationToken.None);
+            Assert(ranges.SequenceEqual(["bytes=1000-"]) && File.ReadAllBytes(again.VideoPath).SequenceEqual(video), "Range ignored: from the start");
+            refuse = true;
+            var refused = OfflineCopies.Plan(other, connection, film, source, DateTimeOffset.UnixEpoch);
+            try { await OfflineCopies.FetchAsync(client, refused, null, CancellationToken.None); Assert(false, "Refused"); }
+            catch (OfflineRefusedException ex) { Assert(ex.Message.Contains("autorise le téléchargement"), ex.Message); }
+
+            // Another account sees none of them; a folder that is not one of a copy is left out.
+            var bob = connection with { UserId = "user-2" };
+            Assert(OfflineCopies.List([root, other], bob).Count == 0 && OfflineCopies.AccountFolder(root, connection) != OfflineCopies.AccountFolder(root, bob), "Per account");
+            Directory.CreateDirectory(Path.Combine(OfflineCopies.AccountFolder(root, connection), "junk"));
+            File.WriteAllText(Path.Combine(OfflineCopies.AccountFolder(root, connection), "junk", OfflineCopies.Manifest), "{ not json");
+            var listed = OfflineCopies.List([root, other, root], connection);
+            Assert(listed.Count == 1 && listed[0].Complete && listed[0].Folder.StartsWith(root), "One per title, the complete one: " + listed.Count);
+            // A manifest naming a file outside its folder is not a copy.
+            File.WriteAllText(Path.Combine(copy.Folder, OfflineCopies.Manifest), File.ReadAllText(Path.Combine(copy.Folder, OfflineCopies.Manifest)).Replace("\"video.mkv\"", "\"..\\\\x.mkv\""));
+            Assert(OfflineCopies.Read(copy.Folder) is null, "Name outside its folder");
+
+            MediaItem Episode(string id, int season, int number) => new() { Id = id, Type = "Episode", SeriesId = "s", SeriesName = "Série", ParentIndexNumber = season, IndexNumber = number };
+            OfflineCopy Kept(MediaItem item, int day, bool complete = true) => new() { Item = item, Complete = complete, Added = DateTimeOffset.UnixEpoch.AddDays(day) };
+            var copies = new[] { Kept(Episode("e3", 1, 3), 1), Kept(Episode("e1", 1, 1), 2), Kept(Episode("s2e1", 2, 1), 3, complete: false), Kept(new MediaItem { Id = "m", Type = "Movie" }, 1) };
+            Assert(OfflineCopies.NextEpisode(copies, Episode("e1", 1, 1))?.Item.Id == "e3" && OfflineCopies.NextEpisode(copies, Episode("e3", 1, 3)) is null && OfflineCopies.NextEpisode(copies, new MediaItem { Id = "m" }) is null, "Next kept episode, complete only");
+            Assert(string.Join(",", OfflineCopies.Ordered(copies).Select(x => x.Item.Id)) == "e1,e3,s2e1,m", "Series together, in order, newest first: " + string.Join(",", OfflineCopies.Ordered(copies).Select(x => x.Item.Id)));
+            Assert(OfflineCopies.SizeText(850L << 20) == "850 Mo" && OfflineCopies.SizeText((long)(4.2 * (1L << 30))) == "4,2 Go" && OfflineCopies.SizeText(12L << 30) == "12 Go", "Sizes");
+            Assert(OfflineCopies.Extension(new MediaSource { Container = "mov,mp4,m4a" }) == "mov" && OfflineCopies.Extension(new MediaSource { Path = "/x/a.WEBM" }) == "webm" && OfflineCopies.Extension(new MediaSource { Path = "/x/a.b/c", Container = "../x" }) == "mkv", "Extension");
+            Assert(OfflineCopies.SubtitleExtension("ass") == "ass" && OfflineCopies.SubtitleExtension("PGSSUB") == "srt" && OfflineCopies.SubtitleExtension("webvtt") == "vtt", "Subtitle formats");
+            Assert(OfflineCopies.Erase([root, other], connection) && OfflineCopies.List([root, other], connection).Count == 0, "Erased with the account");
         });
     }
 }

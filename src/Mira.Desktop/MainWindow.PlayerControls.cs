@@ -187,6 +187,8 @@ public partial class MainWindow
             case Key.F: if (!e.IsRepeat) ToggleFullscreen(); break;
             case Key.S: if (!SkipAvailable) return; if (!e.IsRepeat) Skip_Click(this, new()); e.Handled = true; return;
             case Key.N: if (!NextButton.IsEnabled) return; if (!e.IsRepeat) Next_Click(this, new()); e.Handled = true; return;
+            case Key.P: if (!PreviousButton.IsEnabled || PreviousButton.Visibility != Visibility.Visible) return; if (!e.IsRepeat) Previous_Click(this, new()); e.Handled = true; return;
+            case Key.E: if (!PlayerEpisodesButton.IsEnabled || PlayerEpisodesButton.Visibility != Visibility.Visible || _miniPlayer) return; if (!e.IsRepeat) Episodes_Click(this, new()); e.Handled = true; return;
             default: return;
         }
         ShowPlayerControls(); e.Handled = true;
@@ -220,6 +222,8 @@ public partial class MainWindow
             case "mira-mute": Mute_Click(this, new()); break;
             case "mira-skip": if (SkipAvailable) Skip_Click(this, new()); break;
             case "mira-next": if (NextButton.IsEnabled) Next_Click(this, new()); break;
+            case "mira-previous": if (PreviousButton.IsEnabled && PreviousButton.Visibility == Visibility.Visible) Previous_Click(this, new()); break;
+            case "mira-episodes": if (PlayerEpisodesButton.IsEnabled && PlayerEpisodesButton.Visibility == Visibility.Visible && !_miniPlayer) Episodes_Click(this, new()); break;
         }
     }
     private void Scrub(double seconds)
@@ -274,7 +278,7 @@ public partial class MainWindow
         PlayerTransport.Height = mini ? 36 : 44; PlayerTransport.Margin = new Thickness(-8, mini ? 0 : 2, -8, 0);
         Grid.SetColumnSpan(PlayerLeftGroup, mini ? 3 : 1); PlayerLeftGroup.HorizontalAlignment = mini ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         foreach (var control in new FrameworkElement[] { PlayerBackButton, PlayerVolumeGroup, PlayerRightGroup }) control.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
-        NextButton.Visibility = !mini && !_demo && _session.Item?.Type == "Episode" ? Visibility.Visible : Visibility.Collapsed;
+        NextButton.Visibility = PreviousButton.Visibility = PlayerEpisodesButton.Visibility = !mini && !_demo && _session.Item?.Type == "Episode" ? Visibility.Visible : Visibility.Collapsed;
         PauseButton.Width = PauseButton.Height = mini ? 34 : 40; Motion.SetRadius(PauseButton, new CornerRadius(mini ? 17 : 20));
         PauseIcon.Width = PauseIcon.Height = mini ? 19 : 24;
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls(); UpdateSkip();
@@ -298,8 +302,8 @@ public partial class MainWindow
     {
         var muted = _mpv?.Flag("mute") == true || VolumeSlider.Value <= 0;
         Motion.Swap(VolumeIcon, muted ? "mute" : VolumeSlider.Value < 50 ? "volume-low" : "volume");
-        var label = muted ? "Réactiver le son · M" : "Couper le son · M";
-        if (!Equals(MuteButton.ToolTip, label)) { MuteButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(MuteButton, muted ? "Réactiver le son" : "Couper le son"); }
+        var label = muted ? L("Réactiver le son · M", "Unmute · M") : L("Couper le son · M", "Mute · M");
+        if (!Equals(MuteButton.ToolTip, label)) { MuteButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(MuteButton, muted ? L("Réactiver le son", "Unmute") : L("Couper le son", "Mute")); }
     }
 
     // Volume slider beside the speaker: out while the pointer is on the group, while dragging, or with keyboard focus.
@@ -331,24 +335,28 @@ public partial class MainWindow
 
     private void Tracks_Click(object sender, RoutedEventArgs e) => TogglePlayerMenu(PlayerTracksButton);
     private void More_Click(object sender, RoutedEventArgs e) => TogglePlayerMenu(PlayerMoreButton);
-    /// <summary>Opens the audio and subtitles menu, or the ⋮ menu, above its button; the same button closes it.</summary>
+    /// <summary>Opens the audio and subtitles menu, the episodes, or the ⋮ menu, above its button; the same button closes it.</summary>
     private void TogglePlayerMenu(Button anchor)
     {
         if (_mpv is null) return;
         if (PlayerOptionsPopup.IsOpen) { var same = ReferenceEquals(_menuAnchor, anchor); PlayerOptionsPopup.IsOpen = false; if (same) return; }
         _menuAnchor = anchor;
-        var tracks = ReferenceEquals(anchor, PlayerTracksButton);
+        var tracks = ReferenceEquals(anchor, PlayerTracksButton); var episodes = ReferenceEquals(anchor, PlayerEpisodesButton);
         TracksMenu.Visibility = tracks ? Visibility.Visible : Visibility.Collapsed;
-        MoreMenu.Visibility = tracks ? Visibility.Collapsed : Visibility.Visible;
+        EpisodesMenu.Visibility = episodes ? Visibility.Visible : Visibility.Collapsed;
+        SubtitleSearchMenu.Visibility = Visibility.Collapsed;
+        MoreMenu.Visibility = tracks || episodes ? Visibility.Collapsed : Visibility.Visible;
         _menuBuilding = true;
-        try { if (tracks) BuildTrackMenu(); else BuildMoreMenu(); } finally { _menuBuilding = false; }
+        try { if (tracks) BuildTrackMenu(); else if (episodes) BuildEpisodesMenu(); else BuildMoreMenu(); } finally { _menuBuilding = false; }
         ShowPlayerControls(); PlayerOptionsPopup.IsOpen = true;
+        if (episodes) ShowCurrentEpisodeRow();
         // The current choice takes focus: arrows and Enter work at once, and a mouse opening shows no focus ring.
         Dispatcher.BeginInvoke(() => { if (PlayerOptionsPopup.IsOpen) CurrentMenuChoice()?.Focus(); }, DispatcherPriority.Input);
     }
     private bool _menuBuilding;
-    private RadioButton? CurrentMenuChoice() => TracksMenu.Visibility == Visibility.Visible
+    private Control? CurrentMenuChoice() => TracksMenu.Visibility == Visibility.Visible
         ? AudioTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen) ?? SubtitleTrackList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen)
+        : EpisodesMenu.Visibility == Visibility.Visible ? CurrentEpisodeRow()
         : SpeedList.Children.OfType<RadioButton>().FirstOrDefault(IsChosen);
     private static bool IsChosen(RadioButton choice) => choice.IsChecked == true;
     private void BuildTrackMenu()
@@ -358,13 +366,32 @@ public partial class MainWindow
         var tracks = _mpv.Tracks(); var audio = _mpv.Get("aid") ?? ""; var subtitle = _mpv.Get("sid") ?? "no";
         foreach (var track in tracks.Where(t => t.Type == "audio"))
             AudioTrackList.Children.Add(MenuChoice("audio", track.Label, track.Details, track.Id == audio, () => ChooseTrack("aid", track.Id)));
-        if (AudioTrackList.Children.Count == 0) AudioTrackList.Children.Add(new TextBlock { Text = "Aucune piste audio", Foreground = Palette.Get("Faint"), FontSize = 13, Margin = new Thickness(10, 8, 10, 8) });
-        SubtitleTrackList.Children.Add(MenuChoice("subtitles", "Désactivés", "", subtitle is "no" or "" or "false", () => ChooseTrack("sid", "no")));
+        if (AudioTrackList.Children.Count == 0) AudioTrackList.Children.Add(new TextBlock { Text = L("Aucune piste audio", "No audio track"), Foreground = Palette.Get("Faint"), FontSize = 13, Margin = new Thickness(10, 8, 10, 8) });
+        SubtitleTrackList.Children.Add(MenuChoice("subtitles", L("Désactivés", "Off"), "", subtitle is "no" or "" or "false", () => ChooseTrack("sid", "no")));
         foreach (var track in tracks.Where(t => t.Type == "sub"))
             SubtitleTrackList.Children.Add(MenuChoice("subtitles", track.Label, track.Details, track.Id == subtitle, () => ChooseTrack("sid", track.Id)));
+        _ = ShowSubtitleSearchAsync();
     }
-    /// <summary>The menu stays open, so that the other kind of track can be picked too.</summary>
-    private void ChooseTrack(string property, string id) { _mpv?.Set(property, id); ShowPlayerControls(); }
+    /// <summary>The menu stays open, so that the other kind of track can be picked too. The next episodes start with the same.</summary>
+    private void ChooseTrack(string property, string id) { _mpv?.Set(property, id); ShowPlayerControls(); RememberTracks(); }
+    /// <summary>Keeps the audio and subtitles playing for the next episodes of this series (<see cref="SeriesTracks"/>).</summary>
+    private void RememberTracks()
+    {
+        if (_mpv is null || _store is not { } store || _session.Item?.SeriesId is not { Length: > 0 } series) return;
+        if (SeriesTracks.Remember(_mpv.Get("track-list"), _mpv.Get("aid"), _mpv.Get("sid")) is not { } tracks) return;
+        _ = Task.Run(() => TryCache(() => store.RememberTracks(series, tracks)));
+        ChoicesChanged();
+    }
+    /// <summary>An episode starts with the audio and subtitles last chosen in its series, where it has them.</summary>
+    private async Task ChooseSeriesTracksAsync(int generation)
+    {
+        if (_store is not { } store || _session.Item?.SeriesId is not { Length: > 0 } series) return;
+        var tracks = await Task.Run(() => TryCache(() => store.TracksOf(series)));
+        if (tracks is null || generation != _playGeneration || _mpv is null) return;
+        var (audio, subtitle) = SeriesTracks.Choose(_mpv.Get("track-list"), tracks);
+        if (audio is not null) _mpv.Set("aid", audio);
+        if (subtitle is not null) _mpv.Set("sid", subtitle);
+    }
     private void BuildMoreMenu()
     {
         if (_mpv is null) return;
@@ -373,16 +400,52 @@ public partial class MainWindow
         foreach (var speed in Speeds)
         {
             var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "speed", Content = PlayerText.Speed(speed), Tag = speed, IsChecked = Math.Abs(current - speed) < .001 };
-            System.Windows.Automation.AutomationProperties.SetName(chip, "Vitesse " + PlayerText.Speed(speed));
+            System.Windows.Automation.AutomationProperties.SetName(chip, L("Vitesse ", "Speed ") + PlayerText.Speed(speed));
             chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSpeed(speed); };
             SpeedList.Children.Add(chip);
         }
+        BuildSleepChoices(); ShowGroupSection();
         SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay"));
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");
         var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null }.Where(x => x is not null));
-        var decoding = _mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? $"matériel ({hwdec})" : "logiciel";
-        PlaybackInfo.Text = $"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nAudio  {PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"}\nImages perdues  {_mpv.Get("frame-drop-count") ?? "0"}";
+        var decoding = _mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? L($"matériel ({hwdec})", $"hardware ({hwdec})") : L("logiciel", "software");
+        var shown = video.Length > 0 ? video : "—"; var audio = PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"; var dropped = _mpv.Get("frame-drop-count") ?? "0";
+        PlaybackInfo.Text = L($"Vidéo  {shown}\nDécodage  {decoding}\nAudio  {audio}\nImages perdues  {dropped}", $"Video  {shown}\nDecoding  {decoding}\nAudio  {audio}\nDropped frames  {dropped}");
+    }
+    /// <summary>« Minuterie »: off, 15 min, 30 min, 1 h, or the end of an episode (<see cref="SleepTimer"/>).</summary>
+    private void BuildSleepChoices()
+    {
+        SleepList.Children.Clear();
+        var choices = new List<(int? Minutes, string Label, string Name)> { (null, L("Non", "Off"), L("Pas de minuterie", "No sleep timer")) };
+        choices.AddRange(SleepTimer.Choices.Select(m => ((int?)m, SleepTimer.Duration(m), L("Pause dans ", "Pause in ") + SleepTimer.Duration(m))));
+        if (_session.Item?.Type == "Episode") choices.Add((0, L("Fin", "End"), L("Arrêter à la fin de l’épisode", "Stop at the end of the episode")));
+        foreach (var (minutes, label, name) in choices)
+        {
+            var chip = new RadioButton { Style = (Style)FindResource("PlayerSpeedChoice"), GroupName = "sleep", Content = label, ToolTip = name, IsChecked = _sleep.Chosen == minutes };
+            System.Windows.Automation.AutomationProperties.SetName(chip, name);
+            chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSleep(minutes); };
+            SleepList.Children.Add(chip);
+        }
+        ShowSleepStatus();
+    }
+    private void ChooseSleep(int? minutes)
+    {
+        _sleep.Choose(minutes, DateTimeOffset.Now); ShowSleepStatus(); ShowPlayerControls();
+        // A countdown to the next episode already running stops, as « Annuler » does.
+        if (_sleep.AtEnd && _skips.Counting) SkipCancel_Click(this, new RoutedEventArgs());
+    }
+    private void ShowSleepStatus()
+    {
+        var status = _sleep.Status(DateTimeOffset.Now);
+        SleepStatus.Text = status ?? ""; SleepStatus.Visibility = status is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+    /// <summary>The minutes are over: the film pauses where it is, and says why.</summary>
+    private void CheckSleepTimer()
+    {
+        if (!_sleep.Due(DateTimeOffset.Now)) return;
+        if (_mpv is not null && !_mpv.Flag("pause")) { _mpv.Set("pause", "yes"); SetNotice(L("Minuterie : lecture en pause.", "Sleep timer: playback paused.")); }
+        if (PlayerOptionsPopup.IsOpen && MoreMenu.Visibility == Visibility.Visible) BuildSleepChoices();
     }
     private void ChooseSpeed(double speed)
     {
@@ -429,8 +492,12 @@ public partial class MainWindow
     private void LoadSubtitle_Click(object sender, RoutedEventArgs e)
     {
         PlayerOptionsPopup.IsOpen = false;
-        var dialog = new OpenFileDialog { Filter = "Sous-titres|*.srt;*.ass;*.ssa;*.vtt;*.sub|Tous les fichiers|*.*" };
-        if (dialog.ShowDialog(this) == true && !TryCommand("sub-add", dialog.FileName, "select")) SetNotice("Ce fichier de sous-titres n’a pas pu être chargé.");
+        var dialog = new OpenFileDialog { Filter = L("Sous-titres|*.srt;*.ass;*.ssa;*.vtt;*.sub|Tous les fichiers|*.*", "Subtitles|*.srt;*.ass;*.ssa;*.vtt;*.sub|All files|*.*") };
+        if (dialog.ShowDialog(this) == true)
+        {
+            if (!TryCommand("sub-add", dialog.FileName, "select")) SetNotice(L("Ce fichier de sous-titres n’a pas pu être chargé.", "This subtitle file couldn’t be loaded."));
+            else _ = OfferToKeepSubtitleAsync(dialog.FileName);
+        }
         ShowPlayerControls();
     }
     private void SubtitleDelay_Click(object sender, RoutedEventArgs e)

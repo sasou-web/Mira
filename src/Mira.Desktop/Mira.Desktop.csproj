@@ -8,13 +8,20 @@
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>Mira</AssemblyName>
-    <Version>0.7.5</Version>
+    <Version>0.8.1</Version>
     <Product>Mira</Product>
     <Title>Mira</Title>
     <Description>Ta bibliothèque Jellyfin avec mpv intégré</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/mira.ico</ApplicationIcon>
+    <!-- The validation harnesses of Checks/ (captures, the real player, Windows integration, TorLink): built for the
+         checks, never in the packages (tools/package.ps1 and tools/publish.ps1 build with -p:MiraValidation=false). -->
+    <MiraValidation Condition="'$(MiraValidation)' == ''">true</MiraValidation>
+    <DefineConstants Condition="'$(MiraValidation)' == 'true'">$(DefineConstants);MIRA_VALIDATION</DefineConstants>
   </PropertyGroup>
+  <ItemGroup Condition="'$(MiraValidation)' != 'true'">
+    <Compile Remove="Checks/**" />
+  </ItemGroup>
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />

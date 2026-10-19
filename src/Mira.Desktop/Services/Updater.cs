@@ -141,7 +141,7 @@ internal sealed class Updater : IDisposable
             var progress = new Progress<double>(value => { var shown = Math.Floor(value * 100) != Math.Floor(Progress * 100); Progress = value; if (shown) Changed?.Invoke(); });
             var file = await _client.DownloadAsync(offer, directory, progress, token);
             ReadyPath = Kind == InstallKind.Folder ? await Task.Run(() => Unpack(file, offer, directory), token) : file;
-            if (!IsVersion(ReadyPath, offer.Version)) throw new UpdateException("Le fichier téléchargé n’est pas la version annoncée.");
+            if (!IsVersion(ReadyPath, offer.Version)) throw new UpdateException(L("Le fichier téléchargé n’est pas la version annoncée.", "The downloaded file isn’t the announced version."));
             Log($"prête : {offer.Version.ToString(3)} ({offer.File.Name})");
             Set(UpdateState.Ready);
         }
@@ -150,7 +150,7 @@ internal sealed class Updater : IDisposable
         {
             // Whatever went wrong, the page shows it and the next check comes: an update must never stop Mira.
             LastCheck = DateTimeOffset.Now; ReadyPath = null;
-            Error = ex is UpdateException ? ex.Message : "La mise à jour n’a pas pu être préparée sur ce PC.";
+            Error = ex is UpdateException ? ex.Message : L("La mise à jour n’a pas pu être préparée sur ce PC.", "The update couldn’t be prepared on this PC.");
             Log("échec : " + (ex is UpdateException ? ex.Message : ex.GetType().Name));
             Set(UpdateState.Failed);
         }
@@ -164,7 +164,7 @@ internal sealed class Updater : IDisposable
         if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         // ExtractToDirectory refuses entries that would land outside the destination.
         ZipFile.ExtractToDirectory(zip, root);
-        if (!File.Exists(exe) || Directory.Exists(Path.Combine(root, "Mira", "data"))) throw new UpdateException("L’archive de mise à jour n’a pas la forme attendue.");
+        if (!File.Exists(exe) || Directory.Exists(Path.Combine(root, "Mira", "data"))) throw new UpdateException(L("L’archive de mise à jour n’a pas la forme attendue.", "The update archive isn’t laid out as expected."));
         File.WriteAllText(marker, offer.File.Sha256);
         return exe;
     }

@@ -25,19 +25,16 @@ public partial class MainWindow
     // A terminal still not drawn after this delay gets a way out instead of an endless « Ouverture de TorLink… ».
     private readonly DispatcherTimer _torlinkStartWatch = new() { Interval = TimeSpan.FromSeconds(20) };
     private readonly CancellationTokenSource _torlinkLifetime = new();
-    private readonly HashSet<string> _torlinkRequested = [], _torlinkAnnounced = [];
-    private TorLinkImporter? _torlinkImporter;
+    /// <summary>Finished downloads placed in the libraries and followed until Jellyfin has them; null while TorLink is off.</summary>
+    private TorLinkPlacement? _torlink;
+    private TorLinkImporter? _torlinkImporter => _torlink?.Importer;
     private TorLinkTerminal? _torlinkTerminal;
     private TorLinkInstallation? _torlinkInstallation;
-    private FileSystemWatcher? _torlinkWatcher;
-    private MediaLibraries _torlinkLibraries = new(null, null, null), _torlinkDetected = new(null, null, null);
-    private List<TorLinkCompletion> _torlinkEarlier = [];
-    private (DateTime Stamp, long Length) _torlinkHistoryStamp;
-    private bool _torlinkEnabled, _torlinkReady, _torlinkBusy, _torlinkAgain, _torlinkChecking, _torlinkInstalling, _torlinkLooked, _torlinkRefreshTried;
+    private bool _torlinkEnabled, _torlinkInstalling, _torlinkLooked, _torlinkRefreshTried;
     private string? _torlinkBlocker, _torlinkAction, _torlinkSecondary;
     // The copy "npx torlnk" left, used by Mira 0.7.4 and earlier: looked for once, only to explain why it is not used.
     private readonly Lazy<bool> _torlinkNpx = new(TorLinkInstallation.NpxCopyFound);
-    private const string TorLinkNpxHint = "Mira n’utilise plus la copie laissée par npx torlnk : installe celui de Mira ou choisis son dossier.";
+    private static string TorLinkNpxHint => L("Mira n’utilise plus la copie laissée par npx torlnk : installe celui de Mira ou choisis son dossier.", "Mira no longer uses the copy left by npx torlnk: install Mira’s or choose its folder.");
     private TorLinkSetup.Step? _torlinkStep;
 
     private void InitializeTorLink()
@@ -47,8 +44,9 @@ public partial class MainWindow
             && (!_args.Contains("--torlink-check") || TorLinkCheckIsolated());
         TorLinkNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
         if (!_torlinkEnabled) return;
-        _torlinkImporter = new TorLinkImporter(_profile.DirectoryPath);
-        _torlinkImporter.Changed += entry => Dispatcher.BeginInvoke(() => TorLinkEntryChanged(entry));
+        _torlink = new TorLinkPlacement(_torlinkState, new TorLinkImporter(_profile.DirectoryPath));
+        _torlink.Importer.Changed += entry => Dispatcher.BeginInvoke(() => TorLinkEntryChanged(entry));
+        _torlink.HistoryChanged += () => Dispatcher.BeginInvoke(QueueTorLinkImport);
         _torlinkDebounce.Tick += async (_, _) => { _torlinkDebounce.Stop(); await ProcessTorLinkAsync(); };
         _torlinkPoll.Tick += (_, _) => TorLinkPoll();
         _torlinkPoll.Start();
@@ -56,169 +54,80 @@ public partial class MainWindow
         {
             _torlinkStartWatch.Stop();
             if (_torlinkBlocker is null && _torlinkTerminal?.State is null or TerminalState.Idle or TerminalState.Starting)
-                ShowTorLinkPanel("info", "TorLink tarde à s’afficher", "Le terminal intégré ne répond pas encore. Réessayer recharge la page ; les téléchargements ne sont pas touchés.", "Réessayer", "reload");
+                ShowTorLinkPanel("info", L("TorLink tarde à s’afficher", "TorLink is taking a while to show"), L("Le terminal intégré ne répond pas encore. Réessayer recharge la page ; les téléchargements ne sont pas touchés.", "The built-in terminal isn’t answering yet. Trying again reloads the page; downloads aren’t touched."), L("Réessayer", "Try again"), "reload");
         };
-        WatchTorLinkHistory();
+        _torlink.Watch();
+        StartTorLinkRemote();
+        InitializeServerDownloads();
+    }
+    /// <summary>The TorLink check only works inside its output folder: demo mode, and both --data and TORLINK_STATE_DIR in it.</summary>
+    private bool TorLinkCheckIsolated()
+    {
+        var index = Array.IndexOf(_args, "--torlink-check");
+        if (index < 0 || index + 1 >= _args.Length || !_args.Contains("--demo") || !_args.Contains("--data")) return false;
+        try
+        {
+            var output = Path.GetFullPath(_args[index + 1]).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+            var state = Environment.GetEnvironmentVariable("TORLINK_STATE_DIR");
+            return !string.IsNullOrWhiteSpace(state) && Path.GetFullPath(state).StartsWith(output, StringComparison.OrdinalIgnoreCase)
+                && Path.GetFullPath(_profile.DirectoryPath).StartsWith(output, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
     }
 
     // ---- Automatic placement ------------------------------------------------------------------
-
-    /// <summary>TorLink rewrites history.json each time a download finishes: that is the signal to import.</summary>
-    private void WatchTorLinkHistory()
-    {
-        if (_torlinkWatcher is not null || !Directory.Exists(_torlinkState.DataDirectory)) return;
-        try
-        {
-            var watcher = new FileSystemWatcher(_torlinkState.DataDirectory) { NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size };
-            void Changed(string? name) { if (string.Equals(name, "history.json", StringComparison.OrdinalIgnoreCase)) Dispatcher.BeginInvoke(QueueTorLinkImport); }
-            watcher.Changed += (_, e) => Changed(e.Name); watcher.Created += (_, e) => Changed(e.Name); watcher.Renamed += (_, e) => Changed(e.Name);
-            watcher.EnableRaisingEvents = true;
-            _torlinkWatcher = watcher;
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException) { }
-    }
 
     private void QueueTorLinkImport() { if (!_torlinkEnabled) return; _torlinkDebounce.Stop(); _torlinkDebounce.Start(); }
 
     /// <summary>Safety net for missed file events, retries of downloads still waiting, and Jellyfin availability.</summary>
     private void TorLinkPoll()
     {
-        WatchTorLinkHistory();
-        if (HistoryStamp() != _torlinkHistoryStamp || _torlinkImporter?.Entries.Any(x => x.State == TorLinkImportState.Waiting) == true) QueueTorLinkImport();
+        _torlink?.Watch();
+        if (_torlink?.PlacementDue() == true) QueueTorLinkImport();
         _ = CheckTorLinkAvailabilityAsync();
-    }
-
-    private (DateTime, long) HistoryStamp()
-    {
-        try { var file = new FileInfo(_torlinkState.HistoryFile); return file.Exists ? (file.LastWriteTimeUtc, file.Length) : default; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return default; }
     }
 
     /// <summary>Library folders: manual choices first, otherwise the Jellyfin libraries this PC can reach.</summary>
     private async Task RefreshTorLinkLibrariesAsync()
     {
-        if (!_torlinkEnabled) return;
-        List<VirtualFolder>? folders = null;
-        if (_client is { } client && !_demo)
-        {
-            try { folders = await client.VirtualFoldersAsync(_torlinkLifetime.Token); }
-            catch (Exception ex) when (IsExpected(ex)) { }
-        }
-        // A remote or containerised server may describe paths this PC does not have: those are not used.
-        var detected = MediaLibraries.FromJellyfin(folders);
-        _torlinkDetected = await Task.Run(() => new MediaLibraries(Reachable(detected.Movies), Reachable(detected.Series), Reachable(detected.Anime)));
-        _torlinkReady = true;
+        if (!_torlinkEnabled || _torlink is not { } torlink) return;
+        await torlink.DetectLibrariesAsync(_demo ? null : _client, _torlinkLifetime.Token);
         ApplyTorLinkLibraries(force: true);
     }
 
     private void ApplyTorLinkLibraries(bool force = false)
     {
-        var previous = _torlinkLibraries;
-        _torlinkLibraries = new(Manual(_settings.TorLinkMoviesFolder) ?? _torlinkDetected.Movies, Manual(_settings.TorLinkSeriesFolder) ?? _torlinkDetected.Series, Manual(_settings.TorLinkAnimeFolder) ?? _torlinkDetected.Anime);
+        if (_torlink is not { } torlink) return;
+        var changed = torlink.Choose(_settings.TorLinkMoviesFolder, _settings.TorLinkSeriesFolder, _settings.TorLinkAnimeFolder);
         RenderTorLinkImports();
-        if (force || _torlinkLibraries != previous) QueueTorLinkImport();
-    }
-
-    private static string? Manual(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static string? Reachable(string? path)
-    {
-        try { return path is not null && Directory.Exists(path) ? path : null; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return null; }
+        if (force || changed) QueueTorLinkImport();
     }
 
     private async Task ProcessTorLinkAsync()
     {
-        if (_torlinkImporter is not { } importer || !_torlinkReady || _torlinkLifetime.IsCancellationRequested) return;
-        if (_torlinkBusy) { _torlinkAgain = true; return; }
-        _torlinkBusy = true;
-        try
-        {
-            do
-            {
-                _torlinkAgain = false;
-                _torlinkHistoryStamp = HistoryStamp();
-                var libraries = _torlinkLibraries; var automatic = _settings.TorLinkAutoImport; var token = _torlinkLifetime.Token;
-                var mode = _settings.TorLinkKeepShared ? ImportMode.KeepSeeding : ImportMode.Move;
-                var requested = _torlinkRequested.ToList(); _torlinkRequested.Clear();
-                var state = _torlinkState;
-                // File work stays on the thread pool: a copy never slows the interface or the video.
-                _torlinkEarlier = await Task.Run(async () =>
-                {
-                    await importer.ProcessAsync(state, libraries, mode, automatic, requested, token);
-                    var known = importer.Entries.Select(x => x.Id).ToHashSet();
-                    return (state.ReadHistory() ?? []).Where(x => !known.Contains(x.Id)).Take(5).ToList();
-                }, token);
-                RenderTorLinkImports();
-                await NotifyTorLinkAsync();
-            } while (_torlinkAgain && !_torlinkLifetime.IsCancellationRequested);
-        }
-        catch (OperationCanceledException) { }
-        finally { _torlinkBusy = false; }
+        if (_torlink is not { } torlink) return;
+        await torlink.PlaceAsync(() => (_settings.TorLinkAutoImport, _settings.TorLinkKeepShared ? ImportMode.KeepSeeding : ImportMode.Move),
+            async () => { RenderTorLinkImports(); if (_client is { } client && !_demo) await torlink.NotifyAsync(client, _torlinkLifetime.Token); }, _torlinkLifetime.Token);
     }
 
-    private void RequestTorLinkImport(string id) { _torlinkRequested.Add(id); _ = ProcessTorLinkAsync(); }
+    private void RequestTorLinkImport(string id) { _torlink?.Request(id); _ = ProcessTorLinkAsync(); }
 
-    /// <summary>Tells Jellyfin where new titles arrived; its own folder monitor would find them too, a little later.</summary>
-    private async Task NotifyTorLinkAsync()
-    {
-        if (_client is not { } client || _demo || _torlinkImporter is not { } importer) return;
-        foreach (var entry in importer.Entries.Where(x => !x.Notified && x.State is TorLinkImportState.Imported or TorLinkImportState.Partial && x.Folders.Count > 0).Take(10).ToList())
-        {
-            try { if (await client.ReportMediaChangedAsync(entry.Folders, ct: _torlinkLifetime.Token)) importer.MarkNotified(entry.Id); }
-            catch (OperationCanceledException) { return; }
-        }
-    }
-
-    /// <summary>Finds the imported titles Jellyfin has indexed, by their exact file paths: one request for all of them.</summary>
     private async Task CheckTorLinkAvailabilityAsync()
     {
-        if (_torlinkChecking || _client is not { } client || _demo || _torlinkImporter is not { } importer) return;
-        var pending = importer.Entries.Where(x => x.JellyfinId is null && x.State is TorLinkImportState.Imported or TorLinkImportState.Partial
-            && DateTimeOffset.UtcNow - x.UpdatedAt < TimeSpan.FromHours(6) && x.Files.Any(f => f.Role == "video")).Take(20).ToList();
-        if (pending.Count == 0) return;
-        _torlinkChecking = true;
-        try
-        {
-            var found = await client.FindIndexedAsync(pending.SelectMany(x => x.Files.Where(f => f.Role == "video").Select(f => f.Destination)).ToList(), _torlinkLifetime.Token);
-            foreach (var entry in pending)
-                if (entry.Files.Where(f => f.Role == "video").Select(f => found.GetValueOrDefault(f.Destination)).FirstOrDefault(x => x is not null) is { } id)
-                    importer.MarkAvailable(entry.Id, id);
-        }
-        catch (Exception ex) when (IsExpected(ex)) { }
-        finally { _torlinkChecking = false; }
+        if (_client is { } client && !_demo && _torlink is { } torlink) await torlink.FindIndexedAsync(client, _torlinkLifetime.Token);
     }
 
     private void TorLinkEntryChanged(TorLinkImportEntry entry)
     {
         RenderTorLinkImports();
-        if (entry.State is TorLinkImportState.Importing or TorLinkImportState.Waiting) return;
-        // One message per outcome, not one per step.
-        if (!_torlinkAnnounced.Add($"{entry.Id}:{entry.State}:{entry.JellyfinId is not null}")) return;
+        if (_torlink?.FirstOutcome(entry) != true) return;
         if (TorLinkOverlay.Visibility != Visibility.Visible && entry.State is TorLinkImportState.Imported or TorLinkImportState.Partial) TorLinkBadge.Visibility = Visibility.Visible;
-        var text = entry.State switch
-        {
-            TorLinkImportState.Imported when entry.JellyfinId is not null => $"« {TitleOf(entry)} » est disponible dans ta bibliothèque.",
-            TorLinkImportState.Imported => $"« {TitleOf(entry)} » rejoint {KindName(entry.Kind)}. Jellyfin l’ajoute à la bibliothèque.",
-            TorLinkImportState.Partial => $"« {TitleOf(entry)} » : une partie des fichiers est rangée. Détails dans TorLink.",
-            TorLinkImportState.Conflict => $"« {TitleOf(entry)} » est déjà dans la bibliothèque : rien n’a été remplacé.",
-            TorLinkImportState.Failed => $"« {TitleOf(entry)} » n’a pas pu être rangé. Détails dans TorLink.",
-            TorLinkImportState.Blocked => "TorLink : choisis les dossiers de ta bibliothèque dans Réglages → TorLink.",
-            _ => null
-        };
-        if (text is not null && !_playing) SetNotice(text);
+        if (TorLinkPlacement.Outcome(entry) is { } text && !_playing) SetNotice(text);
     }
 
     private async Task ReclassifyTorLinkAsync(string id, MediaKind kind)
     {
-        if (_torlinkImporter is not { } importer) return;
-        var libraries = _torlinkLibraries; var token = _torlinkLifetime.Token;
-        try
-        {
-            var (entry, left) = await Task.Run(() => importer.ReclassifyAsync(id, kind, libraries, token), token);
-            if (entry is { State: TorLinkImportState.Imported or TorLinkImportState.Partial } && _client is { } client && !_demo
-                && await client.ReportMediaChangedAsync(entry.Folders, left, token)) importer.MarkNotified(entry.Id);
-        }
-        catch (OperationCanceledException) { }
+        if (_torlink is { } torlink) await torlink.ReclassifyAsync(id, kind, _demo ? null : _client, _torlinkLifetime.Token);
     }
 
     // ---- Page -----------------------------------------------------------------------------------
@@ -228,11 +137,17 @@ public partial class MainWindow
     private async Task ShowTorLinkAsync()
     {
         if (!_torlinkEnabled) return;
+        // Away from the PC of Jellyfin, TorLink is not offered: it would download next to the wrong library. The page
+        // sends searches and downloads to that PC instead, as Mira web does (MainWindow.ServerDownloads.cs).
+        var elsewhere = await JellyfinElsewhereAsync();
         if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); }
         ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay);
         if (TorLinkOverlay.Visibility != Visibility.Visible || !TorLinkOverlay.IsHitTestVisible) Motion.Reveal(TorLinkOverlay, 260, 10);
         TorLinkBadge.Visibility = Visibility.Collapsed;
-        UpdateNavigation(); UpdateHeroClock(); RenderTorLinkImports(); UpdateTorLinkState();
+        UpdateNavigation(); UpdateHeroClock();
+        if (elsewhere) { await ShowServerDownloadsAsync(); return; }
+        HideServerDownloads();
+        RenderTorLinkImports(); UpdateTorLinkState();
         _ = RefreshTorLinkLibrariesAsync();
         // Not turned on yet: the list of downloaders, where it is.
         if (!TorLinkActive()) { ShowDownloaders(true); return; }
@@ -274,9 +189,9 @@ public partial class MainWindow
         if (share is { } value) TorLinkSetupScale.ScaleX = Math.Clamp(value, 0, 1);
         var active = TorLinkActive(); var installation = _torlinkInstallation;
         TorLinkOpenButton.Visibility = active && !_torlinkInstalling ? Visibility.Visible : Visibility.Collapsed;
-        TorLinkSetupStatus.Text = progress ?? (installation is null ? "Désactivé." + (_torlinkNpx.Value ? " " + TorLinkNpxHint : "")
-            : (active ? "Activé" : "Désactivé") + $" · TorLink {installation.Version}" + (installation.Managed ? ", installé par Mira." : $" ({installation.Root}).")
-              + (installation.Managed && TorLinkSetup.IsPrepared(_profile.DirectoryPath) ? " Sa mise à jour est prête : elle sera utilisée à sa prochaine ouverture." : ""));
+        TorLinkSetupStatus.Text = progress ?? (installation is null ? L("Désactivé.", "Off.") + (_torlinkNpx.Value ? " " + TorLinkNpxHint : "")
+            : (active ? L("Activé", "On") : L("Désactivé", "Off")) + $" · TorLink {installation.Version}" + (installation.Managed ? L(", installé par Mira.", ", installed by Mira.") : $" ({installation.Root}).")
+              + (installation.Managed && TorLinkSetup.IsPrepared(_profile.DirectoryPath) ? L(" Sa mise à jour est prête : elle sera utilisée à sa prochaine ouverture.", " Its update is ready: it will be used the next time it opens.") : ""));
     }
 
     private void Downloaders_Click(object sender, RoutedEventArgs e) => ShowDownloaders(true);
@@ -326,6 +241,7 @@ public partial class MainWindow
         _settings.TorLinkActive = false; _profile.SaveSettings(_settings);
         _torlinkStartWatch.Stop(); SetTorLinkBlocker(null);
         if (_torlinkTerminal is { } terminal) await terminal.StopAsync();
+        await TakeBackFromHeadlessAsync();
         ShowDownloaders(true); UpdateTorLinkState();
     }
 
@@ -348,9 +264,10 @@ public partial class MainWindow
         if (_torlinkTerminal.State == TerminalState.Unavailable) { SetTorLinkBlocker("webview"); return; }
         if (_torlinkTerminal.Running) { SetTorLinkBlocker(null); if (TorLinkOverlay.IsVisible) _torlinkTerminal.Focus(); return; }
         if (_torlinkTerminal.State is TerminalState.Exited or TerminalState.Starting && !restart) { SetTorLinkBlocker(null); return; }
-        // Two TorLink would share the same queue and write the same files.
+        // Two TorLink would share the same queue and write the same files: the one without a window hands it back first.
         var installation = _torlinkInstallation;
-        if (await Task.Run(() => installation.RunningElsewhere(null)) is not null) { SetTorLinkBlocker("elsewhere"); return; }
+        await TakeBackFromHeadlessAsync();
+        if (await Task.Run(() => installation.RunningOutside(_torlinkHeadless.ProcessIds)) is not null) { SetTorLinkBlocker("elsewhere"); return; }
         // Found by searching this PC, neither installed by Mira nor chosen: it runs only once the person says it is theirs.
         if (installation.Detected) { SetTorLinkBlocker("confirm"); return; }
         installation = await TakePreparedTorLinkAsync(installation);
@@ -395,9 +312,8 @@ public partial class MainWindow
     /// </summary>
     private void PrepareTorLinkStart()
     {
-        if (_torlinkImporter is { } importer && importer.MovedSeeds() is { Count: > 0 } moved) importer.MarkSeedPaused(_torlinkState.PauseSeeds(moved));
-        if (_torlinkReady && TorLinkState.DownloadFolderBeside(_torlinkLibraries, _torlinkState.DownloadDirectory()) is { } folder && _torlinkState.ChooseDownloadDirectory(folder))
-            SetNotice($"TorLink télécharge dans « {folder} », sur le disque de ta bibliothèque : chaque fichier terminé y est déplacé sans copie.");
+        if (_torlink?.PrepareStart() is { } folder)
+            SetNotice(L($"TorLink télécharge dans « {folder} », sur le disque de ta bibliothèque : chaque fichier terminé y est déplacé sans copie.", $"TorLink downloads to “{folder}”, on your library’s drive: each finished file is moved there without a copy."));
     }
 
     private TorLinkTerminal CreateTorLinkTerminal()
@@ -412,40 +328,45 @@ public partial class MainWindow
 
     private void UpdateTorLinkState()
     {
+        if (_serverScreen) { DescribeServerAgent(DateTimeOffset.UtcNow); return; }
         var state = _torlinkTerminal?.State ?? TerminalState.Idle;
         if (_torlinkBlocker is not null || state is TerminalState.Running or TerminalState.Exited or TerminalState.Unavailable) _torlinkStartWatch.Stop();
-        var (status, dot) = _torlinkInstalling ? ("Installation…", "Warning") : !TorLinkActive() ? ("Désactivé", "Dim")
-            : _torlinkBlocker == "confirm" ? ("À confirmer", "Warning") : _torlinkBlocker is not null ? ("Indisponible", "Warning") : state switch
+        var (status, dot) = _torlinkInstalling ? (L("Installation…", "Installing…"), "Warning") : !TorLinkActive() ? (L("Désactivé", "Off"), "Dim")
+            : _torlinkHeadless.Running && state != TerminalState.Running ? (L("Sans fenêtre", "In the background"), "Success")
+            : _torlinkBlocker == "confirm" ? (L("À confirmer", "Needs confirming"), "Warning") : _torlinkBlocker is not null ? (L("Indisponible", "Unavailable"), "Warning") : state switch
             {
-                TerminalState.Running => ("En cours", "Success"),
-                TerminalState.Starting => ("Démarrage…", "Warning"),
-                _ => ("Fermé", "Dim")
+                TerminalState.Running => (L("En cours", "Running"), "Success"),
+                TerminalState.Starting => (L("Démarrage…", "Starting…"), "Warning"),
+                _ => (L("Fermé", "Closed"), "Dim")
             };
         TorLinkStatusText.Text = "TorLink · " + status; TorLinkStatusDot.Fill = Palette.Get(dot);
         switch (_torlinkBlocker)
         {
             case "missing" when _torlinkNpx.Value:
-                ShowTorLinkPanel("folder", "TorLink est introuvable", TorLinkNpxHint, "Installer celui de Mira", "install", "Choisir son dossier…", "browse"); return;
+                ShowTorLinkPanel("folder", L("TorLink est introuvable", "Can’t find TorLink"), TorLinkNpxHint, L("Installer celui de Mira", "Install Mira’s"), "install", L("Choisir son dossier…", "Choose its folder…"), "browse"); return;
             case "missing":
-                ShowTorLinkPanel("folder", "TorLink est introuvable", "Mira peut le réinstaller.", "Réinstaller", "install", "Choisir son dossier…", "browse"); return;
+                ShowTorLinkPanel("folder", L("TorLink est introuvable", "Can’t find TorLink"), L("Mira peut le réinstaller.", "Mira can reinstall it."), L("Réinstaller", "Reinstall"), "install", L("Choisir son dossier…", "Choose its folder…"), "browse"); return;
             case "runtime":
-                ShowTorLinkPanel("info", "Node.js est nécessaire", "TorLink a besoin de Node.js 22 ou plus récent. Mira peut l’installer, avec TorLink.", "Installer", "install"); return;
+                ShowTorLinkPanel("info", L("Node.js est nécessaire", "Node.js is needed"), L("TorLink a besoin de Node.js 22 ou plus récent. Mira peut l’installer, avec TorLink.", "TorLink needs Node.js 22 or later. Mira can install it, along with TorLink."), L("Installer", "Install"), "install"); return;
             case "elsewhere":
-                ShowTorLinkPanel("info", "TorLink est déjà ouvert", "Il tourne dans une autre fenêtre. Quitte-le (q ou Ctrl+C) puis réessaie : deux TorLink ne peuvent pas gérer les mêmes téléchargements.", "Réessayer", "retry"); return;
+                ShowTorLinkPanel("info", L("TorLink est déjà ouvert", "TorLink is already open"), L("Il tourne dans une autre fenêtre. Quitte-le (q ou Ctrl+C) puis réessaie : deux TorLink ne peuvent pas gérer les mêmes téléchargements.", "It’s running in another window. Quit it (q or Ctrl+C), then try again: two TorLinks can’t manage the same downloads."), L("Réessayer", "Try again"), "retry"); return;
             case "confirm" when _torlinkInstallation is { } found:
-                ShowTorLinkPanel("folder", "Utiliser ce TorLink ?", $"Mira a trouvé TorLink {found.Version ?? "(version inconnue)"} dans {found.Root}. Il n’a pas été installé par Mira : utilise-le seulement si c’est toi qui l’as installé. Mira s’en souviendra.",
-                    "Utiliser ce TorLink", "trust", "Installer celui de Mira", "install"); return;
+                ShowTorLinkPanel("folder", L("Utiliser ce TorLink ?", "Use this TorLink?"), L($"Mira a trouvé TorLink {found.Version ?? "(version inconnue)"} dans {found.Root}. Il n’a pas été installé par Mira : utilise-le seulement si c’est toi qui l’as installé. Mira s’en souviendra.",
+                    $"Mira found TorLink {found.Version ?? "(unknown version)"} in {found.Root}. It wasn’t installed by Mira: only use it if you installed it yourself. Mira will remember."),
+                    L("Utiliser ce TorLink", "Use this TorLink"), "trust", L("Installer celui de Mira", "Install Mira’s"), "install"); return;
+            case "remote":
+                ShowTorLinkPanel("download", L("TorLink télécharge pour un autre appareil", "TorLink is downloading for another device"), L("Une demande est arrivée de Mira web : TorLink continue sans fenêtre. Le rouvrir ici reprend tout, sans rien perdre.", "A request came from Mira web: TorLink carries on without a window. Opening it here again picks everything up, with nothing lost."), L("Rouvrir TorLink ici", "Reopen TorLink here"), "retry"); return;
             case "webview":
-                ShowTorLinkPanel("info", "Terminal intégré indisponible", (_torlinkTerminal?.Problem ?? "") + " TorLink peut s’ouvrir dans sa propre fenêtre ; ses téléchargements terminés seront quand même rangés.", "Ouvrir dans une fenêtre", "window"); return;
+                ShowTorLinkPanel("info", L("Terminal intégré indisponible", "Built-in terminal unavailable"), (_torlinkTerminal?.Problem ?? "") + L(" TorLink peut s’ouvrir dans sa propre fenêtre ; ses téléchargements terminés seront quand même rangés.", " TorLink can open in its own window; its finished downloads will still be filed."), L("Ouvrir dans une fenêtre", "Open in a window"), "window"); return;
         }
         switch (state)
         {
             case TerminalState.Running: TorLinkStatePanel.Visibility = Visibility.Collapsed; break;
-            case TerminalState.Starting: ShowTorLinkPanel("download", "Ouverture de TorLink…", "Son interface apparaît ici dans un instant.", null, null); break;
+            case TerminalState.Starting: ShowTorLinkPanel("download", L("Ouverture de TorLink…", "Opening TorLink…"), L("Son interface apparaît ici dans un instant.", "Its interface appears here in a moment."), null, null); break;
             case TerminalState.Exited when _torlinkTerminal?.Problem is { } problem:
-                ShowTorLinkPanel("info", _torlinkTerminal.ExitCode is null ? "TorLink n’a pas démarré" : "TorLink s’est arrêté", problem, "Réessayer", "retry"); break;
-            case TerminalState.Exited: ShowTorLinkPanel("download", "TorLink est fermé", "Les téléchargements interrompus reprendront à la prochaine ouverture.", "Relancer TorLink", "retry"); break;
-            default: ShowTorLinkPanel("download", "Ouverture de TorLink…", "Son interface apparaît ici dans un instant.", null, null); break;
+                ShowTorLinkPanel("info", _torlinkTerminal.ExitCode is null ? L("TorLink n’a pas démarré", "TorLink didn’t start") : L("TorLink s’est arrêté", "TorLink stopped"), problem, L("Réessayer", "Try again"), "retry"); break;
+            case TerminalState.Exited: ShowTorLinkPanel("download", L("TorLink est fermé", "TorLink is closed"), L("Les téléchargements interrompus reprendront à la prochaine ouverture.", "Interrupted downloads will resume the next time it opens."), L("Relancer TorLink", "Start TorLink again"), "retry"); break;
+            default: ShowTorLinkPanel("download", L("Ouverture de TorLink…", "Opening TorLink…"), L("Son interface apparaît ici dans un instant.", "Its interface appears here in a moment."), null, null); break;
         }
     }
 
@@ -485,11 +406,12 @@ public partial class MainWindow
                 break;
             case "window" when _torlinkInstallation is { } installation:
                 // Its own window is a TorLink like the one of its shortcut: still only one at a time.
-                if (await Task.Run(() => installation.RunningElsewhere(null)) is not null) { SetNotice("TorLink est déjà ouvert dans une autre fenêtre."); break; }
+                await TakeBackFromHeadlessAsync();
+                if (await Task.Run(() => installation.RunningOutside(_torlinkHeadless.ProcessIds)) is not null) { SetNotice(L("TorLink est déjà ouvert dans une autre fenêtre.", "TorLink is already open in another window.")); break; }
                 installation = await TakePreparedTorLinkAsync(installation);
                 PrepareTorLinkStart();
-                try { installation.OpenInWindow(); SetNotice("TorLink s’ouvre dans sa propre fenêtre ; ses téléchargements terminés seront rangés."); _ = RefreshTorLinkAsync(installation); }
-                catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { SetNotice("TorLink n’a pas pu s’ouvrir dans une fenêtre."); }
+                try { installation.OpenInWindow(); SetNotice(L("TorLink s’ouvre dans sa propre fenêtre ; ses téléchargements terminés seront rangés.", "TorLink is opening in its own window; its finished downloads will be filed.")); _ = RefreshTorLinkAsync(installation); }
+                catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { SetNotice(L("TorLink n’a pas pu s’ouvrir dans une fenêtre.", "TorLink couldn’t open in a window.")); }
                 break;
         }
     }
@@ -497,10 +419,10 @@ public partial class MainWindow
     /// <summary>Folder picker that only accepts a real TorLink folder.</summary>
     private string? ChooseTorLinkFolder()
     {
-        var dialog = new OpenFolderDialog { Title = "Dossier de TorLink (celui qui contient torlink.bat)" };
+        var dialog = new OpenFolderDialog { Title = L("Dossier de TorLink (celui qui contient torlink.bat)", "TorLink’s folder (the one with torlink.bat)") };
         if (dialog.ShowDialog(this) != true) return null;
         if (TorLinkInstallation.Validate(dialog.FolderName, _profile.DirectoryPath) is { } found) return found.Root;
-        SetNotice("Ce dossier ne contient pas TorLink (package torlnk avec dist\\cli.cjs).");
+        SetNotice(L("Ce dossier ne contient pas TorLink (package torlnk avec dist\\cli.cjs).", "This folder doesn’t contain TorLink (the torlnk package with dist\\cli.cjs)."));
         return null;
     }
 
@@ -508,7 +430,7 @@ public partial class MainWindow
     {
         var folder = _torlinkState.DownloadDirectory();
         if (Directory.Exists(folder)) OpenInExplorer(folder, null);
-        else SetNotice("Le dossier de téléchargement de TorLink n’existe pas encore : il sera créé au premier téléchargement.");
+        else SetNotice(L("Le dossier de téléchargement de TorLink n’existe pas encore : il sera créé au premier téléchargement.", "TorLink’s download folder doesn’t exist yet: it will be created with the first download."));
     }
 
     private void TorLinkSettings_Click(object sender, RoutedEventArgs e)
@@ -523,8 +445,9 @@ public partial class MainWindow
 
     private async Task StopTorLinkAsync()
     {
-        _torlinkLifetime.Cancel(); _torlinkPoll.Stop(); _torlinkDebounce.Stop(); _torlinkStartWatch.Stop();
-        _torlinkWatcher?.Dispose(); _torlinkWatcher = null;
+        _torlinkLifetime.Cancel(); _torlinkPoll.Stop(); _torlinkDebounce.Stop(); _torlinkStartWatch.Stop(); _remoteTimer.Stop();
+        _torlink?.Dispose();
+        await _torlinkHeadless.StopAsync(); _torlinkHeadless.Dispose();
         if (_torlinkTerminal is { } terminal)
         {
             _torlinkTerminal = null;
@@ -537,22 +460,12 @@ public partial class MainWindow
 
     private void RenderTorLinkImports()
     {
-        if (_torlinkImporter is not { } importer || TorLinkImports is null) return;
-        TorLinkImportSummary.Text = ImportSummary();
+        if (_torlink is not { } torlink || TorLinkImports is null) return;
+        TorLinkImportSummary.Text = torlink.Summary(_settings.TorLinkAutoImport);
         TorLinkImports.Children.Clear();
-        foreach (var entry in importer.Entries.Take(40)) TorLinkImports.Children.Add(ImportRow(entry));
-        foreach (var earlier in _torlinkEarlier) TorLinkImports.Children.Add(EarlierRow(earlier));
+        foreach (var entry in torlink.Importer.Entries.Take(40)) TorLinkImports.Children.Add(ImportRow(entry));
+        foreach (var earlier in torlink.Earlier) TorLinkImports.Children.Add(EarlierRow(earlier));
         TorLinkImportsEmpty.Visibility = TorLinkImports.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private string ImportSummary()
-    {
-        var libraries = _torlinkLibraries;
-        var missing = new[] { ("Films", libraries.RootFor(MediaKind.Movie)), ("Séries", libraries.RootFor(MediaKind.Series)) }.Where(x => x.Item2 is null).Select(x => x.Item1).ToList();
-        if (!_settings.TorLinkAutoImport) return "Rangement automatique désactivé : « Importer » range un téléchargement à la demande.";
-        if (missing.Count == 2) return "Choisis les dossiers de ta bibliothèque dans Réglages → TorLink pour ranger les téléchargements.";
-        if (missing.Count == 1) return $"Rangement automatique. Dossier {missing[0]} à choisir dans Réglages → TorLink.";
-        return libraries.Anime is null ? "Rangement automatique dans Films et Séries (les animes rejoignent les séries)." : "Rangement automatique dans Films, Séries et Animes.";
     }
 
     private FrameworkElement ImportRow(TorLinkImportEntry entry)
@@ -567,45 +480,45 @@ public partial class MainWindow
             _ => ("info", "Danger")
         };
         var actions = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-        if (entry.JellyfinId is { } id && !_demo) actions.Children.Add(RowButton("Voir", "play", async () => await OpenTorLinkItemAsync(id)));
+        if (entry.JellyfinId is { } id && !_demo) actions.Children.Add(RowButton(L("Voir", "View"), "play", async () => await OpenTorLinkItemAsync(id)));
         // The folder is looked up on click only: a library on an offline network drive must not freeze this list.
         if (entry.Folders.Count > 0)
-            actions.Children.Add(RowButton("Dossier", "folder", async () =>
+            actions.Children.Add(RowButton(L("Dossier", "Folder"), "folder", async () =>
             {
                 var folders = entry.Folders; var video = entry.Files.FirstOrDefault(x => x.Role == "video")?.Destination;
                 if (await Task.Run(() => folders.FirstOrDefault(Directory.Exists)) is { } folder) OpenInExplorer(folder, video);
-                else SetNotice("Ce dossier n’existe plus dans la bibliothèque.");
+                else SetNotice(L("Ce dossier n’existe plus dans la bibliothèque.", "This folder is no longer in the library."));
             }));
         if (entry.State is TorLinkImportState.Waiting or TorLinkImportState.Blocked or TorLinkImportState.Conflict or TorLinkImportState.Failed or TorLinkImportState.Partial)
-            actions.Children.Add(RowButton("Réessayer", "refresh", () => { RequestTorLinkImport(entry.Id); return Task.CompletedTask; }));
+            actions.Children.Add(RowButton(L("Réessayer", "Try again"), "refresh", () => { RequestTorLinkImport(entry.Id); return Task.CompletedTask; }));
         ContextMenu? menu = null;
         // Only what Mira placed can be moved to another library; files found already there stay put.
         if (entry.State is TorLinkImportState.Imported or TorLinkImportState.Partial && entry.Files.Any(x => !x.Found))
         {
             menu = new ContextMenu();
-            foreach (var (kind, label, glyph) in new[] { (MediaKind.Movie, "Classer comme film", "film"), (MediaKind.Series, "Classer comme série", "series"), (MediaKind.Anime, "Classer comme anime", "series") })
+            foreach (var (kind, label, glyph) in new[] { (MediaKind.Movie, L("Classer comme film", "File as a movie"), "film"), (MediaKind.Series, L("Classer comme série", "File as a show"), "series"), (MediaKind.Anime, L("Classer comme anime", "File as anime"), "series") })
                 if (kind != entry.Kind) menu.Items.Add(MenuAction(label, glyph, () => ReclassifyTorLinkAsync(entry.Id, kind)));
-            var classify = RowButton("Classer", "sliders", () => Task.CompletedTask);
+            var classify = RowButton(L("Classer", "File as"), "sliders", () => Task.CompletedTask);
             classify.Click += (_, _) => { menu.PlacementTarget = classify; menu.Placement = PlacementMode.Bottom; menu.IsOpen = true; };
             actions.Children.Add(classify);
         }
         var text = new StackPanel();
-        text.Children.Add(new TextBlock { Text = TitleOf(entry), FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Name });
-        text.Children.Add(new TextBlock { Text = DetailOf(entry), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        text.Children.Add(new TextBlock { Text = TorLinkPlacement.TitleOf(entry), FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Name });
+        text.Children.Add(new TextBlock { Text = TorLinkPlacement.DetailOf(entry), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         if (actions.Children.Count > 0) text.Children.Add(actions);
-        return Row(icon, color, text, menu, TitleOf(entry) + ", " + StatusOf(entry));
+        return Row(icon, color, text, menu, TorLinkPlacement.TitleOf(entry) + ", " + TorLinkPlacement.StatusOf(entry));
     }
 
     private FrameworkElement EarlierRow(TorLinkCompletion completion)
     {
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = completion.Name, FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = completion.Name });
-        var when = completion.CompletedAt == DateTimeOffset.MinValue ? "" : $" le {completion.CompletedAt.ToLocalTime():d} à {completion.CompletedAt.ToLocalTime():HH:mm}";
-        text.Children.Add(new TextBlock { Text = $"Terminé{when} · pas encore rangé", FontSize = 11.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        var when = completion.CompletedAt == DateTimeOffset.MinValue ? "" : L($" le {completion.CompletedAt.ToLocalTime():d} à {completion.CompletedAt.ToLocalTime():HH:mm}", $" on {Date(completion.CompletedAt.ToLocalTime())} at {Time(completion.CompletedAt.ToLocalTime())}");
+        text.Children.Add(new TextBlock { Text = L($"Terminé{when} · pas encore rangé", $"Finished{when} · not filed yet"), FontSize = 11.5, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         var actions = new WrapPanel { Margin = new Thickness(-6, 6, 0, 0) };
-        actions.Children.Add(RowButton("Importer", "download", () => { RequestTorLinkImport(completion.Id); return Task.CompletedTask; }));
+        actions.Children.Add(RowButton(L("Importer", "Import"), "download", () => { RequestTorLinkImport(completion.Id); return Task.CompletedTask; }));
         text.Children.Add(actions);
-        return Row("clock", "Faint", text, null, completion.Name + ", pas encore rangé");
+        return Row("clock", "Faint", text, null, completion.Name + L(", pas encore rangé", ", not filed yet"));
     }
 
     private static Border Row(string icon, string color, FrameworkElement content, ContextMenu? menu, string name)
@@ -646,26 +559,5 @@ public partial class MainWindow
             Process.Start(new ProcessStartInfo("explorer.exe", arguments) { UseShellExecute = true })?.Dispose();
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException) { }
-    }
-
-    private static string TitleOf(TorLinkImportEntry entry) => entry.Title.Length > 0 ? entry.Title : entry.Name;
-    private static string KindName(MediaKind? kind) => kind switch { MediaKind.Movie => "Films", MediaKind.Series => "Séries", MediaKind.Anime => "Animes", _ => "la bibliothèque" };
-    private static string StatusOf(TorLinkImportEntry entry) => entry.State switch
-    {
-        TorLinkImportState.Waiting => "en attente des fichiers",
-        TorLinkImportState.Blocked => "dossier de bibliothèque à choisir",
-        TorLinkImportState.Importing => "rangement en cours…",
-        TorLinkImportState.Imported => entry.JellyfinId is not null ? "disponible dans Jellyfin" : entry.Notified ? "Jellyfin l’ajoute" : "rangé",
-        TorLinkImportState.Partial => "rangé en partie",
-        TorLinkImportState.Conflict => "déjà dans la bibliothèque",
-        TorLinkImportState.Failed => "échec",
-        _ => "ignoré"
-    };
-    private static string DetailOf(TorLinkImportEntry entry)
-    {
-        var status = StatusOf(entry);
-        var line = entry.Kind is { } kind && entry.State is not (TorLinkImportState.Ignored or TorLinkImportState.Waiting) ? $"{KindName(kind)} · {status}" : char.ToUpperInvariant(status[0]) + status[1..];
-        if (entry.Method is { } method && entry.State is TorLinkImportState.Imported or TorLinkImportState.Partial) line += " · " + method;
-        return entry.Message is { Length: > 0 } message ? line + "\n" + message : line;
     }
 }

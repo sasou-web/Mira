@@ -44,12 +44,13 @@ public static class AccountData
     /// <param name="computer">« ce PC » or « ce Mac ».</param>
     /// <param name="erased">Null when erasing was not asked.</param>
     public static string SignedOut(string computer, bool closedOnServer, bool? erased) =>
-        (closedOnServer ? $"Session fermée sur {computer} et sur Jellyfin."
-            : $"Session fermée sur {computer}. Jellyfin n’a pas répondu : elle y reste ouverte tant que tu ne retires pas {computer} de ses appareils (Tableau de bord, Appareils).")
+        (closedOnServer ? L($"Session fermée sur {computer} et sur Jellyfin.", $"Signed out on {computer} and on Jellyfin.")
+            : L($"Session fermée sur {computer}. Jellyfin n’a pas répondu : elle y reste ouverte tant que tu ne retires pas {computer} de ses appareils (Tableau de bord, Appareils).",
+                $"Signed out on {computer}. Jellyfin didn’t answer: the session stays open there until you remove {computer} from its devices (Dashboard, Devices)."))
         + erased switch
         {
-            true => $" Les données de ce compte ont été effacées de {computer}.",
-            false => $" Certains fichiers de ce compte, encore utilisés, sont restés sur {computer}.",
+            true => L($" Les données de ce compte ont été effacées de {computer}.", $" This account’s data was erased from {computer}."),
+            false => L($" Certains fichiers de ce compte, encore utilisés, sont restés sur {computer}.", $" Some of this account’s files, still in use, stayed on {computer}."),
             null => ""
         };
 }

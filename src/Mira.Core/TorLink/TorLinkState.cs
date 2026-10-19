@@ -118,7 +118,7 @@ public sealed partial class TorLinkState
             var drives = full.Select(Path.GetPathRoot).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (drives is not [{ Length: > 0 } drive] || string.Equals(drive, Path.GetPathRoot(Path.GetFullPath(downloads)), StringComparison.OrdinalIgnoreCase)) return null;
             var roots = full.Select(x => x.TrimEnd('\\', '/')).ToList();
-            const string name = "Téléchargements TorLink";
+            var name = L("Téléchargements TorLink", "TorLink downloads");
             bool InsideLibrary(string folder) => roots.Any(root => folder.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || string.Equals(folder, root, StringComparison.OrdinalIgnoreCase));
             // Beside the first library folder, otherwise at the root of its drive; a library at the root of a drive leaves no room.
             return new[] { Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent ? Path.Combine(parent, name) : null, Path.Combine(drive, name) }
@@ -164,6 +164,13 @@ public sealed partial class TorLinkState
                 ? doc.RootElement.EnumerateArray().Count(x => x.ValueKind == JsonValueKind.Object && Text(x, "status") == "downloading") : 0;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return 0; }
+    }
+
+    /// <summary>queue.json as TorLink last wrote it (at each change), for « Télécharger sur le PC serveur »; null when unreadable.</summary>
+    public string? ReadQueue()
+    {
+        try { return ReadShared(QueueFile); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>The file list TorLink saved for a torrent (its .torrent metadata), laid out as WebTorrent writes it.</summary>

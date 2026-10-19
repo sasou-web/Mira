@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Artifact configuration "app" of the SignPath project "mira": signing request 1 of windows.yml, on the artifact
+     Mira-win-x64-to-sign (Mira's own files of the application folder, and the one-file portable Mira). SignPath
+     applies the copy kept in its own web application: paste this one there, and change both together.
+     Metadata restrictions SignPath Foundation requires: each file's product name is Mira and its product version is
+     the release's version, given as the "version" parameter by windows.yml, which checks both before uploading. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <directory path="Mira">
+      <pe-file path="Mira.exe" product-name="Mira" product-version="${version}">
+        <authenticode-sign />
+      </pe-file>
+      <pe-file path="Mira.dll" product-name="Mira" product-version="${version}">
+        <authenticode-sign />
+      </pe-file>
+      <pe-file path="Mira.Core.dll" product-name="Mira" product-version="${version}">
+        <authenticode-sign />
+      </pe-file>
+    </directory>
+    <directory path="Portable">
+      <pe-file path="Mira.exe" product-name="Mira" product-version="${version}">
+        <authenticode-sign />
+      </pe-file>
+    </directory>
+  </zip-file>
+</artifact-configuration>

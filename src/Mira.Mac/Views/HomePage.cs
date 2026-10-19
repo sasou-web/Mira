@@ -7,10 +7,15 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
-/// <summary>Accueil: a banner of titles to (re)start, then Continuer à regarder, the latest additions and the favourites.</summary>
+/// <summary>
+/// Accueil: a banner of titles to (re)start, then Continuer à regarder, the latest additions, the favourites and the
+/// latest titles of a library, in the order chosen in the settings (« Accueil à ta main », <see cref="HomeLayout"/>).
+/// A « Regarder ensemble » group open on Jellyfin is a line under the banner, to join it, while this Mac is in none.
+/// </summary>
 public sealed class HomePage : Page
 {
     public override string Rail => "home";
@@ -23,6 +28,13 @@ public sealed class HomePage : Page
     private readonly DispatcherTimer _rotate = new() { Interval = TimeSpan.FromSeconds(9) };
     private readonly ScrollViewer _scroll;
     private List<MediaItem> _heroItems = [];
+    // Jellyfin's groups, read at each refresh of Home and when this Mac leaves a group, and the line of the one shown.
+    private readonly Border _groupLine;
+    private readonly TextBlock _groupName = new() { FontSize = 14.5, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _groupPeople = new() { FontSize = 14.5, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Button _groupJoin;
+    private List<Together.Group> _groups = [];
+    private string? _groupFor, _groupShown;
     private int _heroIndex, _heroVersion;
     /// <summary>Titles shown, for the self-check.</summary>
     public IReadOnlyList<MediaItem> Continue { get; private set; } = [];
@@ -39,8 +51,20 @@ public sealed class HomePage : Page
         _hero.PointerEntered += (_, _) => _rotate.Stop();
         _hero.PointerExited += (_, _) => { if (_heroItems.Count > 1) _rotate.Start(); };
         _rotate.Tick += (_, _) => ShowHero(_heroIndex + 1);
+        _groupJoin = Ui.Action(L("Rejoindre", "Join"), null, "primary", () => _ = JoinGroupAsync());
+        _groupJoin.Margin = new Thickness(18, 0, 0, 0);
+        DockPanel.SetDock(_groupJoin, Dock.Right);
+        var groupText = Ui.Row(14, new Icon("users", 20) { Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center }, Ui.Row(0, _groupName, _groupPeople));
+        groupText.VerticalAlignment = VerticalAlignment.Center;
+        _groupLine = new Border
+        {
+            IsVisible = false, HorizontalAlignment = HorizontalAlignment.Left, MaxWidth = 760, Margin = new Thickness(56, 0, 56, 30), Padding = new Thickness(18, 10, 10, 10),
+            CornerRadius = new CornerRadius(12), Background = Ui.Brush("#111112"), BorderBrush = Ui.Brush("#26262A"), BorderThickness = new Thickness(1),
+            Child = new DockPanel { Children = { _groupJoin, groupText } }
+        };
+        _groupFor = Shell.Group.Active ? Shell.Group.Group?.GroupId : null;
         var page = new StackPanel { Spacing = 8 };
-        page.Children.Add(_hero); page.Children.Add(_rows);
+        page.Children.Add(_hero); page.Children.Add(_groupLine); page.Children.Add(_rows);
         _scroll = new ScrollViewer { Content = page };
         Content = _scroll;
         SizeChanged += (_, e) => _hero.Height = Math.Clamp(e.NewSize.Height * 0.7, 440, 760);
@@ -58,15 +82,22 @@ public sealed class HomePage : Page
     public override async Task RefreshAsync()
     {
         if (Shell.Session is not { } session) return;
+        _ = LoadGroupsAsync(session);
         var store = session.Store;
         // The last known home first, so the page never opens empty; then Jellyfin's answer.
         if (_heroItems.Count == 0 && await Task.Run(() => Errors.TryCache(() => (store.Load<ItemsResult>("home"), store.Load<List<MediaItem>>("resume")))) is ({ } cachedHome, var cachedResume))
-            Render(session, cachedResume ?? [], cachedHome.Items, []);
+            Render(session, cachedResume ?? [], cachedHome.Items, [], [], []);
         var client = session.Client;
         var resume = client.ResumeAsync(); var next = client.NextUpAsync();
         var latest = client.BrowseAsync(limit: 30);
         var favorites = client.BrowseAsync(favorites: true, limit: 30);
-        await Task.WhenAll(resume, next, latest, favorites);
+        var libraries = TryAsync(() => client.LibrariesAsync());
+        await Task.WhenAll(resume, next, latest, favorites, libraries);
+        // « Nouveau dans Animes »: only the libraries whose row is shown are asked.
+        var views = libraries.Result ?? [];
+        var wanted = HomeLayout.Rows(Shell.Settings.HomeRows, views).Where(x => x.Shown && x.LibraryId is not null).Select(x => x.LibraryId!).ToList();
+        var lists = await Task.WhenAll(wanted.Select(id => TryAsync(() => client.BrowseAsync(parentId: id, limit: 30))));
+        var shelves = wanted.Zip(lists).ToDictionary(x => x.First, x => x.Second?.Items ?? []);
         var seasons = Artwork.Seasons(resume.Result.Items.Concat(next.Result.Items)).ToList();
         var thumbs = seasons.Count > 0 ? await TryAsync(() => client.SeasonThumbsAsync(seasons)) ?? [] : [];
         var (merged, history, hidden) = await Task.Run(() =>
@@ -79,27 +110,38 @@ public sealed class HomePage : Page
             Errors.TryCache(() =>
             {
                 store.ApplyLocalProgress(merged); store.ApplyLocalProgress(next.Result.Items); store.ApplyLocalProgress(latest.Result.Items); store.ApplyLocalProgress(favorites.Result.Items);
+                foreach (var shelf in shelves.Values) store.ApplyLocalProgress(shelf);
                 store.Save("home", latest.Result); store.Save("resume", merged);
             });
             return (merged, history, Errors.TryCache(store.HiddenFromResume) ?? []);
         });
         var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(merged, next.Result.Items, history), hidden, history);
-        Render(session, row, latest.Result.Items, favorites.Result.Items);
+        Render(session, row, latest.Result.Items, favorites.Result.Items, views, shelves);
     }
     private static async Task<T?> TryAsync<T>(Func<Task<T>> load) where T : class
     {
         try { return await load(); } catch (Exception ex) when (Errors.Expected(ex)) { return null; }
     }
 
-    private void Render(Session session, List<MediaItem> resume, List<MediaItem> latest, List<MediaItem> favorites)
+    private void Render(Session session, List<MediaItem> resume, List<MediaItem> latest, List<MediaItem> favorites, List<LibrarySection> libraries, Dictionary<string, List<MediaItem>> shelves)
     {
         Continue = resume; Latest = latest;
         _rows.Children.Clear();
-        if (resume.Count > 0) _rows.Children.Add(new CardRow("Continuer à regarder", resume.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu))));
-        if (latest.Count > 0) _rows.Children.Add(new CardRow("Ajouts récents", latest.Select(x => (Control)Sized(Cards.Poster(x, session.Images, Shell.Open, Shell.Menu)))));
-        if (favorites.Count > 0) _rows.Children.Add(new CardRow("Tes favoris", favorites.Select(x => (Control)Sized(Cards.Poster(x, session.Images, Shell.Open, Shell.Menu)))));
-        if (resume.Count == 0 && latest.Count == 0)
-            _rows.Children.Add(new Border { Margin = new Thickness(56, 0), Child = Ui.Column(8, Ui.Text("Ta bibliothèque est vide pour l’instant", 20, FontWeight.Bold), Ui.Text("Ajoute des films ou des séries dans les dossiers de Jellyfin : ils apparaîtront ici.", 14.5, color: Ui.Muted)) });
+        Control Poster(MediaItem x) => Sized(Cards.Poster(x, session.Images, Shell.Open, Shell.Menu));
+        foreach (var row in HomeLayout.Rows(Shell.Settings.HomeRows, libraries).Where(x => x.Shown))
+        {
+            var items = row.Key switch
+            {
+                HomeLayout.Continue => resume,
+                HomeLayout.Latest => latest,
+                HomeLayout.Favorites => favorites,
+                _ => shelves.GetValueOrDefault(row.LibraryId ?? "") ?? []
+            };
+            if (items.Count == 0) continue;
+            _rows.Children.Add(new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu)) : items.Select(Poster)));
+        }
+        if (resume.Count == 0 && latest.Count == 0 && favorites.Count == 0 && shelves.Values.All(x => x.Count == 0))
+            _rows.Children.Add(new Border { Margin = new Thickness(56, 0), Child = Ui.Column(8, Ui.Text(L("Ta bibliothèque est vide pour l’instant", "Your library is empty for now"), 20, FontWeight.Bold), Ui.Text(L("Ajoute des films ou des séries dans les dossiers de Jellyfin : ils apparaîtront ici.", "Add movies or shows to Jellyfin’s folders: they’ll show up here."), 14.5, color: Ui.Muted)) });
         // The banner: what is being watched first, then the latest titles with a backdrop.
         var heroes = resume.Take(2).Concat(latest.Where(x => x.BackdropImageTags.Length > 0)).DistinctBy(x => ContinueWatching.Group(x)).Take(5).ToList();
         if (heroes.Select(x => x.Id).SequenceEqual(_heroItems.Select(x => x.Id)) && heroes.Count > 0) { _heroItems = heroes; ShowHero(_heroIndex, animate: false); return; }
@@ -107,6 +149,50 @@ public sealed class HomePage : Page
         _rotate.Stop(); if (heroes.Count > 1 && IsAttachedToVisualTree()) _rotate.Start();
     }
     private bool IsAttachedToVisualTree() => this.GetVisualRoot() is not null;
+
+    private async Task LoadGroupsAsync(Session session)
+    {
+        if (await Shell.Group.OpenGroupsAsync(session) is not { } groups || !ReferenceEquals(session, Shell.Session)) return;
+        _groups = groups; ShowGroupLine();
+    }
+    /// <summary>Joined or left a group (<see cref="WatchGroup.Changed"/>): the line goes, or comes back with the groups as they are now.</summary>
+    public void GroupChanged()
+    {
+        var current = Shell.Group.Active ? Shell.Group.Group?.GroupId : null;
+        ShowGroupLine();
+        if (current == _groupFor) return;
+        _groupFor = current;
+        if (current is null && Shell.Session is { } session) _ = LoadGroupsAsync(session);
+    }
+    /// <summary>« Groupe de Marc · 2 personnes » with « Rejoindre »: the first group open on Jellyfin, none while in one.</summary>
+    private void ShowGroupLine()
+    {
+        var open = Shell.Session is null ? null : Together.HomeGroup(_groups, Shell.Group.Active ? Shell.Group.Group?.GroupId : null);
+        _groupLine.IsVisible = open is not null;
+        _groupShown = open?.GroupId;
+        if (open is null) return;
+        _groupName.Text = open.GroupName; _groupPeople.Text = " · " + Together.People(Math.Max(1, open.Participants.Count));
+        Avalonia.Automation.AutomationProperties.SetName(_groupJoin, L($"Rejoindre « {open.GroupName} »", $"Join “{open.GroupName}”"));
+    }
+    /// <summary>The group joined, and its title put on here once it plays one (<see cref="WatchGroup"/>).</summary>
+    private async Task JoinGroupAsync()
+    {
+        if (Shell.Session is not { } session || _groupShown is not { } id) return;
+        _groupJoin.IsEnabled = false;
+        try
+        {
+            // It may have ended since Home read it: Jellyfin would answer a join with nothing to say.
+            List<Together.Group> groups;
+            try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
+            catch (UnauthorizedAccessException) { Shell.Notice(WatchGroup.NoSyncPlay); return; }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
+            if (!ReferenceEquals(session, Shell.Session)) return;
+            _groups = groups; ShowGroupLine();
+            if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { Shell.Notice(L("Ce groupe n’existe plus.", "This group no longer exists.")); return; }
+            await Shell.Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct));
+        }
+        finally { _groupJoin.IsEnabled = true; }
+    }
     private static Control Sized(Control card) { card.Width = 176; return card; }
 
     private void ShowHero(int index, bool animate = true)
@@ -123,18 +209,18 @@ public sealed class HomePage : Page
         var title = new TextBlock { Text = item.DisplayTitle, FontSize = 58, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, LineHeight = 64 };
         _heroText.Children.Add(title);
         var tags = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        if (item.Type == "Episode") tags.Children.Add(Ui.Tag($"S{item.ParentIndexNumber ?? 1} · É{item.IndexNumber ?? 1}"));
+        if (item.Type == "Episode") tags.Children.Add(Ui.Tag(Cards.EpisodeCode(item)));
         if (item.ProductionYear is { } year) tags.Children.Add(Ui.Tag(year.ToString()));
         tags.Children.Add(Ui.Tag(Ui.Kind(item)));
         if (item.Type != "Series" && item.DurationLabel.Length > 0) tags.Children.Add(Ui.Tag(item.Progress > 0 ? Ui.Remaining(item) : item.DurationLabel));
-        if (item.CommunityRating is { } rating) tags.Children.Add(Ui.Tag($"★ {rating:0.0}"));
+        if (item.CommunityRating is { } rating) tags.Children.Add(Ui.Tag("★ " + Number(rating, "0.0")));
         _heroText.Children.Add(tags);
         var resume = item.Progress > 0 && !item.UserData.Played;
-        var heart = Ui.IconButton(item.UserData.IsFavorite ? "heart-filled" : "heart", item.UserData.IsFavorite ? "Retirer des favoris" : "Ajouter aux favoris", () => _ = Shell.SetFavoriteAsync(item, !item.UserData.IsFavorite), "icon", 24);
+        var heart = Ui.IconButton(item.UserData.IsFavorite ? "heart-filled" : "heart", item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = Shell.SetFavoriteAsync(item, !item.UserData.IsFavorite), "icon", 24);
         heart.Width = heart.Height = 46;
         _heroText.Children.Add(Ui.Row(12,
-            Ui.Action(resume ? "Reprendre" : "Lecture", "play", "primary", () => _ = Shell.PlayAsync(item)),
-            Ui.Action("Plus d’infos", "info", "", () => Shell.Open(item)), heart));
+            Ui.Action(resume ? L("Reprendre", "Resume") : L("Lecture", "Play"), "play", "primary", () => _ = Shell.PlayAsync(item)),
+            Ui.Action(L("Plus d’infos", "More info"), "info", "", () => Shell.Open(item)), heart));
         if (!string.IsNullOrWhiteSpace(item.Overview))
             _heroSide.Children.Add(new TextBlock { Text = item.Overview, FontSize = 14.5, LineHeight = 22, Foreground = Ui.Brush("#D8D8DD"), TextWrapping = TextWrapping.Wrap, MaxLines = 4, TextTrimming = TextTrimming.WordEllipsis });
         if (item.Genres.Length > 0)

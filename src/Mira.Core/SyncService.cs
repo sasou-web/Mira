@@ -35,7 +35,7 @@ public sealed class SyncService : IAsyncDisposable
         return AfterWriteAsync(write);
     }
     /// <summary>Shown when the local database cannot be written (full disk, file locked or damaged).</summary>
-    public const string StorageError = "Stockage local indisponible : la progression n’est pas enregistrée";
+    public static string StorageError => L("Stockage local indisponible : la progression n’est pas enregistrée", "Local storage unavailable: progress isn’t being saved");
     /// <summary>The player records every few seconds: a storage failure must reach the status line, never the player.</summary>
     private void Store(string kind, PlaybackReport report)
     {
@@ -78,7 +78,7 @@ public sealed class SyncService : IAsyncDisposable
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UnauthorizedAccessException)
                 {
-                    Error = ex is UnauthorizedAccessException ? "Reconnecte ton compte" : "En attente de Jellyfin";
+                    Error = ex is UnauthorizedAccessException ? L("Reconnecte ton compte", "Sign in to your account again") : L("En attente de Jellyfin", "Waiting for Jellyfin");
                     break;
                 }
             }
@@ -115,7 +115,7 @@ public sealed class SyncService : IAsyncDisposable
                 try { await FlushAsync(_lifetime.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { throw; }
                 // A storage hiccup must not end retries for the rest of the session.
-                catch (Exception) { Error = "Synchronisation interrompue, nouvel essai dans un instant"; Changed?.Invoke(); }
+                catch (Exception) { Error = L("Synchronisation interrompue, nouvel essai dans un instant", "Sync interrupted, trying again in a moment"); Changed?.Invoke(); }
                 if (PendingCount == 0) failures = 0;
             }
         }

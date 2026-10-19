@@ -1,0 +1,17 @@
+{
+  "about": "« Reprendre un peu avant »: where a title resumes, a few seconds before where it was left. Read by tests/Mira.Core.Tests (PlaybackSession.ResumeBack) and tools/web/unit (resumeBack of stream.js): both must agree. choices: the seconds offered (0: exactly where it was left); cases: [position left (seconds), seconds back, where it resumes]",
+  "choices": [0, 5, 10, 15],
+  "from": 30,
+  "cases": [
+    [1200, 5, 1195],
+    [1200, 10, 1190],
+    [1200, 15, 1185],
+    [1200, 0, 1200],
+    [30, 5, 25],
+    [30, 15, 15],
+    [29.9, 5, 29.9],
+    [12, 10, 12],
+    [0, 5, 0],
+    [45.5, 5, 40.5]
+  ]
+}

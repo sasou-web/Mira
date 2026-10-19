@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Mira.Core;
 using Mira.Core.Updates;
 using Mira.Desktop.Services;
@@ -59,6 +60,31 @@ internal static class ConnectionTests
                 Assert(ExpectedErrors.Are(expected), expected.GetType().Name + " not counted as expected");
             static Action[] Inputs() => [() => ServerAddress.Candidates("  "), () => JellyfinClient.NormalizeServer("http://user:secret@localhost")];
         });
+        await Test("Installation de Jellyfin : la suite part dès que Jellyfin répond, même si son installateur attend une réponse", async () =>
+        {
+            var server = new Uri("http://127.0.0.1:8096/");
+            var ready = false; var probes = 0;
+            var handler = new Handler(request =>
+            {
+                probes++;
+                if (!ready) throw new HttpRequestException("Connection refused");
+                return Task.FromResult(request.RequestUri!.AbsolutePath == "/System/Ping" ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("\"Jellyfin Server\"") }
+                    : JsonResponse(new { Id = "a", Version = "12.1.0", StartupWizardCompleted = false }));
+            });
+            // « Could not start the Jellyfin Server service » left unanswered: the installer never ends, Jellyfin starts.
+            var asking = new TaskCompletionSource<int>(); var waited = new List<int>();
+            var wait = JellyfinSetup.AwaitInstallerAsync(asking.Task, server, new SyncProgress<int>(n => { waited.Add(n); if (n == 3) ready = true; }), handler, TimeSpan.FromMilliseconds(5));
+            var answered = await wait.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert(answered is { ExitCode: null, State: { Version: "12.1.0", WizardCompleted: false } } && waited.SequenceEqual([1, 2, 3]), $"Jellyfin answering while the installer asks: {answered}, {string.Join(",", waited)}");
+            // The installer ends first, Jellyfin not yet started: its exit code, for the wait that follows.
+            ready = false; probes = 0;
+            var ended = new TaskCompletionSource<int>();
+            var exit = JellyfinSetup.AwaitInstallerAsync(ended.Task, server, new SyncProgress<int>(n => { if (n == 1) ended.SetResult(2); }), handler, TimeSpan.FromSeconds(30));
+            Assert(await exit.WaitAsync(TimeSpan.FromSeconds(5)) == new InstallerWait(2, null) && probes == 1, "Installer ending before Jellyfin answers");
+            // Already ended: nothing asked of Jellyfin.
+            probes = 0;
+            Assert(await JellyfinSetup.AwaitInstallerAsync(Task.FromResult(0), server, null, handler) == new InstallerWait(0, null) && probes == 0, "Ended installer");
+        });
         await Test("Recherche du serveur : première adresse Jellyfin dans l’ordre, autres serveurs et versions anciennes refusés", async () =>
         {
             HttpResponseMessage Info(string version = "10.10.3", string product = "Jellyfin Server") => JsonResponse(new { ServerName = "Salon", Version = version, ProductName = product, Id = "server-1" });
@@ -70,7 +96,7 @@ internal static class ConnectionTests
                 asked.Add(uri.AbsoluteUri);
                 return uri.Scheme == "https" ? throw new HttpRequestException("refusé") : uri.Port == 8096 ? Info() : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>routeur</html>") };
             }));
-            Assert(found == new ServerInfo("http://nas:8096/", "Salon", "10.10.3"), "Wrong server: " + found);
+            Assert(found == new ServerInfo("http://nas:8096/", "Salon", "10.10.3", "server-1"), "Wrong server: " + found);
             Assert(asked.All(x => x.EndsWith("/System/Info/Public")), "Something other than the public information was requested");
             // Both answer: HTTPS wins.
             Assert((await ServerAddress.DiscoverAsync("nas", Serve(_ => Info()))).Address == "https://nas/", "HTTPS not preferred");
@@ -96,6 +122,82 @@ internal static class ConnectionTests
             await Refused("http://nas:8096", Serve(_ => Info("10.8.13")), "10.8.13");
             await Refused("https://nas", Serve(_ => throw new HttpRequestException("TLS", new System.Security.Authentication.AuthenticationException())), "certificat");
             await Refused("nas", Serve(_ => throw new HttpRequestException("refusé")), "Aucun serveur Jellyfin");
+        });
+        await Test("Serveur trouvé sans le taper : réponse de Jellyfin sur le réseau, appareils Tailscale, ordre et adresse gardée", () =>
+        {
+            var lan = IPAddress.Parse("192.168.1.198");
+            byte[] Bytes(string json) => Encoding.UTF8.GetBytes(json);
+            // Jellyfin 12.1's answer, as read in its container: the address it is reached at from that network.
+            var reply = ServerSearch.Reply(Bytes("""{"Address":"http://192.168.1.198:8096","Id":"0d07f480c3c54c588da1d5ba7c7a1662","Name":"DESKTOP-INVEFQH","EndpointAddress":null}"""), lan);
+            Assert(reply == new ServerSearch.Found("http://192.168.1.198:8096/", "DESKTOP-INVEFQH", "0d07f480c3c54c588da1d5ba7c7a1662", ServerSearch.Place.Home), "Answer: " + reply);
+            // An address on no network is the one the answer came from; a published one is kept.
+            Assert(ServerSearch.Reply(Bytes("""{"Address":"http://127.0.0.1:8096","Id":"a","Name":"nas"}"""), lan)?.Address == "http://192.168.1.198:8096/"
+                && ServerSearch.Reply(Bytes("""{"Address":"http://0.0.0.0:8096/jellyfin","Id":"a"}"""), lan) is { Address: "http://192.168.1.198:8096/jellyfin/", Name: "Jellyfin" }
+                && ServerSearch.Reply(Bytes("""{"Address":"https://jellyfin.example.test","Id":"a","Name":"nas"}"""), lan)?.Address == "https://jellyfin.example.test/", "Address of the answer");
+            foreach (var bad in new[] { "", "Who is JellyfinServer?", "[]", """{"Address":"http://192.168.1.198:8096"}""", """{"Address":"ftp://nas","Id":"a"}""", """{"Address":"nas:8096","Id":"a"}""", """{"Address":"http://u:p@nas","Id":"a"}""", """{"Address":7,"Id":"a"}""" })
+                Assert(ServerSearch.Reply(Bytes(bad), lan) is null, "Accepted: " + bad);
+
+            // Each server once, at the address that serves best: Tailscale's also works at home, and wherever either goes.
+            ServerSearch.Found At(string id, string name, string address, ServerSearch.Place where) => new(address, name, id, where);
+            var ranked = ServerSearch.Ranked([
+                At("far", "Chez Léa", "http://100.70.0.9:8096/", ServerSearch.Place.Tailnet),
+                At("nas", "Salon", "http://192.168.1.20:8096/", ServerSearch.Place.Home),
+                At("pc", "PC", "http://192.168.1.198:8096/", ServerSearch.Place.Home), At("PC", "PC", "http://100.114.247.13:8096/", ServerSearch.Place.Tailnet),
+                At("here", "Ici", "http://192.168.1.10:8096/", ServerSearch.Place.Home), At("here", "Ici", "http://127.0.0.1:8096/", ServerSearch.Place.ThisComputer),
+            ]);
+            Assert(ranked.Select(x => x.Address).SequenceEqual(["http://127.0.0.1:8096/", "http://100.114.247.13:8096/", "http://192.168.1.20:8096/", "http://100.70.0.9:8096/"]), "Ranked: " + string.Join(" ; ", ranked));
+
+            // Tailscale: the devices that may run Jellyfin, online, never a VPN's exit nodes.
+            const string status = """
+                {"BackendState":"Running","Self":{"HostName":"nouveau-pc","TailscaleIPs":["100.80.0.2"]},"Peer":{
+                 "k1":{"HostName":"DESKTOP-INVEFQH","DNSName":"desktop-invefqh.tail1234.ts.net.","OS":"windows","TailscaleIPs":["fd7a:115c:a1e0::1","100.114.247.13"],"Online":true},
+                 "k2":{"HostName":"iPhone","OS":"iOS","TailscaleIPs":["100.80.0.3"],"Online":true},
+                 "k3":{"HostName":"vieux-pc","OS":"windows","TailscaleIPs":["100.80.0.4"],"Online":false},
+                 "k4":{"HostName":"se-got-wg-001","DNSName":"se-got-wg-001.mullvad.ts.net.","OS":"linux","TailscaleIPs":["100.90.0.1"],"Online":true,"Location":{"Country":"Sweden"}},
+                 "k5":{"HostName":"nas","OS":"linux","TailscaleIPs":["100.80.0.5"],"Online":true},
+                 "k6":{"HostName":"ip6","OS":"linux","TailscaleIPs":["fd7a:115c:a1e0::6"],"Online":true}}}
+                """;
+            Assert(ServerSearch.TailnetDevices(status).SequenceEqual(["100.114.247.13", "100.80.0.5"]), "Devices: " + string.Join(", ", ServerSearch.TailnetDevices(status)));
+            Assert(ServerSearch.TailnetDevices(null).Count == 0 && ServerSearch.TailnetDevices("not json").Count == 0 && ServerSearch.TailnetDevices("""{"BackendState":"Stopped"}""").Count == 0, "No Tailscale");
+            var many = "{\"Peer\":{" + string.Join(",", Enumerable.Range(1, 50).Select(i => $"\"k{i}\":{{\"OS\":\"linux\",\"TailscaleIPs\":[\"100.80.1.{i}\"],\"Online\":true}}")) + "}}";
+            Assert(ServerSearch.TailnetDevices(many).Count == ServerSearch.MaxDevices, "A large tailnet asked device by device");
+
+            // Where the question is broadcast: each network's own broadcast address, none for Tailscale or a single address.
+            IPAddress? Broadcast(string address, string mask) => ServerSearch.Broadcast(IPAddress.Parse(address), IPAddress.Parse(mask));
+            Assert(Broadcast("192.168.1.20", "255.255.255.0")?.ToString() == "192.168.1.255" && Broadcast("10.0.5.3", "255.255.0.0")?.ToString() == "10.0.255.255"
+                && Broadcast("100.114.247.13", "255.192.0.0") is null && Broadcast("192.168.1.20", "255.255.255.255") is null && Broadcast("169.254.3.4", "255.255.0.0") is null
+                && ServerSearch.Broadcast(IPAddress.Parse("fe80::1"), IPAddress.Parse("255.255.255.0")) is null && ServerSearch.Broadcast(IPAddress.Parse("192.168.1.20"), null) is null, "Broadcast addresses");
+
+            // What the login screen says.
+            Assert(ServerSearch.Said(ranked[0], "ce PC") == "Jellyfin trouvé sur ce PC." && ServerSearch.Said(ranked[2], "ce PC") == "Trouvé sur ton réseau : Salon."
+                && ServerSearch.Said(ranked[1], "ce PC").StartsWith("Trouvé par Tailscale : PC.") && ServerSearch.Choice(ranked[2]) == "Salon · 192.168.1.20", "Texts");
+            return Task.CompletedTask;
+        });
+        await Test("Serveur trouvé sans le taper : ce PC, le réseau et Tailscale demandés ensemble, un appareil muet n’attend pas plus que la recherche", async () =>
+        {
+            HttpResponseMessage Info(string id, string name) => JsonResponse(new { ServerName = name, Version = "12.1.0", ProductName = "Jellyfin Server", Id = id });
+            var asked = new System.Collections.Concurrent.ConcurrentBag<string>();
+            var handler = new Handler(async request =>
+            {
+                asked.Add(request.RequestUri!.GetLeftPart(UriPartial.Path));
+                return request.RequestUri.Host switch
+                {
+                    "100.114.247.13" => Info("pc", "DESKTOP-INVEFQH"),
+                    "100.80.0.5" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>routeur</html>") },
+                    "100.80.0.6" => await Task.Delay(Timeout.Infinite, CancellationToken.None).ContinueWith(_ => Info("x", "x")),
+                    _ => throw new HttpRequestException("refusé"),
+                };
+            });
+            var home = (CancellationToken _) => Task.FromResult<IReadOnlyList<ServerSearch.Found>>([
+                new("http://192.168.1.198:8096/", "DESKTOP-INVEFQH", "pc", ServerSearch.Place.Home), new("http://192.168.1.20:8096/", "Salon", "nas", ServerSearch.Place.Home)]);
+            var clock = Stopwatch.StartNew();
+            var found = await ServerSearch.FindAsync(["100.114.247.13", "100.80.0.5", "100.80.0.6"], handler, home);
+            Assert(clock.Elapsed < ServerSearch.Wait + TimeSpan.FromSeconds(2), $"Waited {clock.Elapsed}");
+            Assert(found.Select(x => (x.Address, x.Where)).SequenceEqual([("http://100.114.247.13:8096/", ServerSearch.Place.Tailnet), ("http://192.168.1.20:8096/", ServerSearch.Place.Home)]), "Found: " + string.Join(" ; ", found));
+            Assert(asked.All(x => x.EndsWith("/System/Info/Public")) && asked.Contains("http://127.0.0.1:8096/System/Info/Public") && asked.Count == 4, "Asked: " + string.Join(", ", asked));
+            // Jellyfin on this PC comes first, at 127.0.0.1.
+            var here = await ServerSearch.FindAsync([], new Handler(request => Task.FromResult(request.RequestUri!.IsLoopback ? Info("pc", "DESKTOP-INVEFQH") : throw new HttpRequestException("refusé"))), home);
+            Assert(here.Select(x => x.Address).SequenceEqual(["http://127.0.0.1:8096/", "http://192.168.1.20:8096/"]) && here[0].Where == ServerSearch.Place.ThisComputer, "This PC: " + string.Join(" ; ", here));
         });
         await Test("Certificat HTTPS refusé : pas de repli en http:// pour un nom d’Internet, et la raison est dite", async () =>
         {
@@ -276,6 +378,108 @@ internal static class ConnectionTests
                 Assert(!await client.LogoutAsync() && !requested, "Logout sent without a session");
             Assert(AccountData.SignedOut("ce PC", true, null) == "Session fermée sur ce PC et sur Jellyfin.", "Sign-out message");
             Assert(AccountData.SignedOut("ce Mac", false, true) is var message && message.Contains("Appareils") && message.EndsWith("effacées de ce Mac."), "Sign-out message: " + message);
+        });
+        await Test("Autoriser un appareil (Quick Connect) : code à 6 chiffres, inconnu, désactivé sans fin de session", async () =>
+        {
+            foreach (var (typed, code) in new[] { ("458128", "458128"), (" 458 128 ", "458128"), ("458-128", "458128"), ("458\u202f128", "458128"), ("45812", null), ("4581289", null), ("458a28", null), ("", null), (null, null) })
+                Assert(JellyfinClient.QuickConnectCode(typed) == code, $"Code « {typed} » → {JellyfinClient.QuickConnectCode(typed)}");
+            var asked = new List<string>();
+            JellyfinClient Server(bool enabled, HttpStatusCode authorize) => new(new("http://localhost/jellyfin/", "u1", "Alice", "jeton", "device"), new Handler(request =>
+            {
+                asked.Add($"{request.Method} {request.RequestUri!.PathAndQuery}");
+                return Task.FromResult(request.RequestUri.AbsolutePath.EndsWith("/QuickConnect/Enabled")
+                    ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(enabled ? "true" : "false") }
+                    : new HttpResponseMessage(authorize) { Content = new StringContent(authorize == HttpStatusCode.OK ? "true" : "") });
+            }));
+            using (var client = Server(true, HttpStatusCode.OK)) Assert(await client.ApproveCodeAsync("458128") == CodeApproval.Approved, "Code not approved");
+            Assert(asked.SequenceEqual(["GET /jellyfin/QuickConnect/Enabled", "POST /jellyfin/QuickConnect/Authorize?code=458128&userId=u1"]), string.Join(" | ", asked));
+            using (var client = Server(true, HttpStatusCode.NotFound)) Assert(await client.ApproveCodeAsync("000000") == CodeApproval.Unknown, "Unknown code");
+            // Turned off, Jellyfin answers 401 to Authorize: never asked, so that the session is not taken for ended.
+            asked.Clear();
+            using (var client = Server(false, HttpStatusCode.Unauthorized)) Assert(await client.ApproveCodeAsync("458128") == CodeApproval.Disabled && asked.Count == 1, "Disabled: " + string.Join(" | ", asked));
+            using (var client = Server(true, HttpStatusCode.Unauthorized))
+            { try { await client.ApproveCodeAsync("458128"); throw new Exception("A refused session went unnoticed"); } catch (UnauthorizedAccessException) { } }
+            // An administrator approves a friend's phone for the friend's account.
+            asked.Clear();
+            using (var client = Server(true, HttpStatusCode.OK)) Assert(await client.ApproveCodeAsync("458128", "ami 2") == CodeApproval.Approved && asked[^1] == "POST /jellyfin/QuickConnect/Authorize?code=458128&userId=ami%202", string.Join(" | ", asked));
+        });
+        await Test("Ajouter un ami : son compte ne voit que les bibliothèques choisies, ne télécharge rien, retiré si ses droits ne passent pas", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            var made = File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "jellyfin-new-user.json"));
+            var policy = (JsonNode.Parse(made)!["policy"] as JsonObject)!;
+            VirtualFolder[] folders = [new("Animes", "tvshows", [], "a1"), new("Films", "movies", [], "f1"), new("Séries", "tvshows", [], "s1"), new("Collections", "boxsets", [], "c1"), new("Sans id", "movies", [])];
+            Assert(string.Join(",", Friends.Choices(folders).Select(x => x.Name)) == "Animes,Films,Séries", "Choices");
+            Assert(string.Join(",", Friends.Folders(folders, ["f1", "S1"])) == "f1,s1,c1" && Friends.Folders(folders, []).Count == 0 && Friends.Folders(folders, ["c1"]).Count == 0, "Folders");
+            var friend = Friends.Policy(policy, ["f1", "c1"]);
+            Assert(friend["EnableAllFolders"]!.GetValue<bool>() == false && string.Join(",", friend["EnabledFolders"]!.AsArray().Select(x => x!.GetValue<string>())) == "f1,c1"
+                && friend["EnableContentDownloading"]!.GetValue<bool>() == false && friend["EnableSyncTranscoding"]!.GetValue<bool>() == false && friend["EnableMediaConversion"]!.GetValue<bool>() == false
+                && friend["IsAdministrator"]!.GetValue<bool>() == false, "Friend policy: " + friend.ToJsonString());
+            // Everything else as Jellyfin set it (sent back whole), and the policy read left as it was.
+            Assert(friend.Count == policy.Count && friend["IsHidden"]!.GetValue<bool>() && friend["SyncPlayAccess"]!.GetValue<string>() == "CreateAndJoinGroups"
+                && friend["AuthenticationProviderId"]!.GetValue<string>() == policy["AuthenticationProviderId"]!.GetValue<string>() && policy["EnableAllFolders"]!.GetValue<bool>(), "Rest of the policy");
+            foreach (var (name, problem) in new[] { ("Léa", null), ("  Marc-André ", null), ("o’neil", null), ("名前", null), ("", "Écris son prénom."), ("a/b", "ces signes"), ("a,b", "ces signes"), ("ami mira", "existe déjà"), ("Ami Mira ", "existe déjà") })
+                Assert(Friends.NameProblem(name, ["Ami Mira", "mira"]) is var found && (problem is null ? found is null : found?.Contains(problem) == true), $"Name « {name} » → {Friends.NameProblem(name, ["Ami Mira", "mira"])}");
+            Assert(Friends.CleanName("  o’neil ") == "o'neil", "Clean name");
+            Assert(Friends.Joined(["Films"]) == "Films" && Friends.Joined(["Films", "Séries"]) == "Films et Séries" && Friends.Joined(["Animes", "Films", "Séries"]) == "Animes, Films et Séries", "Joined");
+            var passwords = Enumerable.Range(0, 50).Select(_ => Friends.NewPassword()).ToList();
+            Assert(passwords.Distinct().Count() == 50 && passwords.All(x => x.Length == 19 && x.Split('-') is { Length: 4 } parts && parts.All(p => p.Length == 4 && p.All(Friends.Alphabet.Contains))), "Passwords: " + passwords[0]);
+            // Created, its policy read and sent back; refused, the account is removed again; a refused name in words.
+            var asked = new List<string>();
+            JellyfinClient Server(HttpStatusCode create, HttpStatusCode setPolicy) => new(new("http://localhost/", "u1", "Alice", "jeton", "device"), new Handler(async request =>
+            {
+                var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync();
+                asked.Add($"{request.Method} {request.RequestUri!.PathAndQuery}");
+                var path = request.RequestUri.AbsolutePath;
+                if (path == "/Users/New") return new HttpResponseMessage(create) { Content = new StringContent(create == HttpStatusCode.OK ? "{\"Name\":\"Léa\",\"Id\":\"ami1\"}" : "Error processing request.") };
+                if (path == "/Users/ami1" && request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($"{{\"Name\":\"Léa\",\"Id\":\"ami1\",\"Policy\":{policy.ToJsonString()}}}") };
+                if (path == "/Users/ami1/Policy")
+                {
+                    var sent = JsonNode.Parse(body)!.AsObject();
+                    asked[^1] += sent["EnableAllFolders"]!.GetValue<bool>() ? " all" : " " + string.Join(",", sent["EnabledFolders"]!.AsArray().Select(x => x!.GetValue<string>()));
+                    return new HttpResponseMessage(setPolicy);
+                }
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }));
+            using (var client = Server(HttpStatusCode.OK, HttpStatusCode.NoContent))
+                Assert((await client.CreateFriendAsync("Léa", "k7mq-t3vx-9hcw-p2ra", ["f1", "c1"])).Id == "ami1" && asked.SequenceEqual(["POST /Users/New", "GET /Users/ami1", "POST /Users/ami1/Policy f1,c1"]), string.Join(" | ", asked));
+            asked.Clear();
+            using (var client = Server(HttpStatusCode.OK, HttpStatusCode.InternalServerError))
+            {
+                try { await client.CreateFriendAsync("Léa", "k7mq-t3vx-9hcw-p2ra", ["f1"]); throw new Exception("A policy refused went unnoticed"); }
+                catch (HttpRequestException) { }
+                Assert(asked.SequenceEqual(["POST /Users/New", "GET /Users/ami1", "POST /Users/ami1/Policy f1", "DELETE /Users/ami1"]), "Removed again: " + string.Join(" | ", asked));
+            }
+            using (var client = Server(HttpStatusCode.BadRequest, HttpStatusCode.NoContent))
+            {
+                try { await client.CreateFriendAsync("Léa", "k7mq-t3vx-9hcw-p2ra", ["f1"]); throw new Exception("A refused name went unnoticed"); }
+                catch (UserInputException ex) { Assert(ex.Message.Contains("« Léa »"), ex.Message); }
+            }
+            asked.Clear();
+            using (var client = Server(HttpStatusCode.OK, HttpStatusCode.NoContent))
+            {
+                try { await client.CreateFriendAsync("Léa", "k7mq-t3vx-9hcw-p2ra", []); throw new Exception("An account without library made"); }
+                catch (UserInputException) { Assert(asked.Count == 0, "Asked: " + string.Join(" | ", asked)); }
+            }
+        });
+        await Test("Saga d’un film : ses autres films dans l’ordre, rien sans collection ni d’un Jellyfin qui ne sait pas le dire", async () =>
+        {
+            var asked = new List<string>();
+            JellyfinClient Server(HttpStatusCode collections, string boxes) => new(new("http://localhost/", "u1", "Alice", "jeton", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery; asked.Add(path);
+                if (path.StartsWith("/Items/f2/Collections")) return Task.FromResult(new HttpResponseMessage(collections) { Content = new StringContent(boxes) });
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"Items":[{"Id":"f1","Name":"Un","Type":"Movie"},{"Id":"f2","Name":"Deux","Type":"Movie"},{"Id":"f3","Name":"Trois","Type":"Movie"}]}""") });
+            }));
+            using (var client = Server(HttpStatusCode.OK, """{"Items":[{"Id":"b1","Name":"Trilogie - Saga","Type":"BoxSet"}]}"""))
+            {
+                var saga = await client.SagaAsync("f2");
+                Assert(saga is { Name: "Trilogie - Saga" } && saga.Items.Select(x => x.Id).SequenceEqual(["f1", "f3"]), $"Saga: {saga?.Name} {string.Join(",", saga?.Items.Select(x => x.Id) ?? [])}");
+                Assert(asked.SequenceEqual(["/Items/f2/Collections?userId=u1&limit=1", "/Items?userId=u1&parentId=b1&sortBy=ProductionYear,PremiereDate,SortName&fields=Overview,Genres,ChildCount"]), string.Join(" | ", asked));
+            }
+            using (var client = Server(HttpStatusCode.OK, """{"Items":[]}""")) Assert(await client.SagaAsync("f2") is null, "A saga without a collection");
+            using (var client = Server(HttpStatusCode.OK, """{"Items":[{"Id":"p1","Name":"Liste","Type":"Playlist"}]}""")) Assert(await client.SagaAsync("f2") is null, "A playlist taken for a saga");
+            using (var client = Server(HttpStatusCode.NotFound, "")) Assert(await client.SagaAsync("f2") is null, "An older Jellyfin (404): no saga");
         });
         await Test("Effacer les données d’un compte : son cache et ses affiches seulement, ni les autres comptes ni les réglages", async () =>
         {

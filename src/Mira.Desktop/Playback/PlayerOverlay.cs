@@ -35,7 +35,7 @@ public sealed class PlayerOverlay : FrameworkElement
             if (!value) { if (_source is { } source) { _source = null; source.RootVisual = null; source.Dispose(); } return; }
             if (Child is null || PresentationSource.FromVisual(PlacementTarget) is not HwndSource owner) return;
             var rect = Bounds(); _placed = Rect.Empty;
-            var parameters = new HwndSourceParameters("Mira · commandes de lecture")
+            var parameters = new HwndSourceParameters(L("Mira · commandes de lecture", "Mira · playback controls"))
             {
                 ParentWindow = owner.Handle, WindowStyle = unchecked((int)0x80000000),
                 ExtendedWindowStyle = 0x08000080, UsesPerPixelOpacity = true,

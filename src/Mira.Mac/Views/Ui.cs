@@ -8,6 +8,7 @@ using Avalonia.Animation;
 using Avalonia.Threading;
 using Mira.Core;
 using Mira.Mac.Services;
+using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
 
@@ -81,14 +82,14 @@ public static class Ui
         host.EffectiveViewportChanged += (_, e) => { if (e.EffectiveViewport.Width > 0 && e.EffectiveViewport.Height > 0 && e.EffectiveViewport.Intersects(new Rect(host.Bounds.Size))) Start(); };
     }
 
-    /// <summary>The time left, « Reste 1 h 22 ».</summary>
+    /// <summary>The time left, « Reste 1 h 22 », “1 h 22 left”.</summary>
     public static string Remaining(MediaItem item)
     {
         if (item.RunTimeTicks is not > 0) return "";
         var left = TimeSpan.FromTicks(Math.Max(0, item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks));
-        return "Reste " + MediaItem.FormatDuration(left);
+        return L("Reste ", "") + MediaItem.FormatDuration(left) + L("", " left");
     }
-    public static string Kind(MediaItem item) => item.Type switch { "Series" => "Série", "Episode" => "Épisode", _ => "Film" };
+    public static string Kind(MediaItem item) => item.Type switch { "Series" => L("Série", "Series"), "Episode" => L("Épisode", "Episode"), _ => L("Film", "Movie") };
 }
 
 /// <summary>Columns of equal width that fill the page, as many as fit: the library grid.</summary>
@@ -138,6 +139,7 @@ public static class Cards
         frame.Children.Add(image);
         if (item.Progress > 0 && !item.UserData.Played) frame.Children.Add(Progress(item.Progress));
         if (item.UserData.Played) frame.Children.Add(Watched());
+        else if (item.EpisodesToWatchBadge is { } count) frame.Children.Add(ToWatch(count));
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
         var aspect = new AspectBox(2.0 / 3) { Child = art };
         var caption = Ui.Column(2,
@@ -149,7 +151,7 @@ public static class Cards
         Hover(button, art);
         button.Click += (_, _) => open(item);
         if (menu?.Invoke(item) is { } context) button.ContextMenu = context;
-        Avalonia.Automation.AutomationProperties.SetName(button, $"{item.DisplayTitle}, {Caption(item)}");
+        Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { item.DisplayTitle, Caption(item), item.EpisodesToWatchText }.Where(x => !string.IsNullOrEmpty(x))));
         if (images is not null) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(item));
         return button;
     }
@@ -162,7 +164,7 @@ public static class Cards
         frame.Children.Add(new Border { Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0.55, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#00000000"), 0), new GradientStop(Color.Parse("#A0000000"), 1) } } });
         if (item.Progress > 0 && !item.UserData.Played) frame.Children.Add(Progress(item.Progress));
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
-        var line = item.Type == "Episode" ? $"S{item.ParentIndexNumber ?? 1} · É{item.IndexNumber ?? 1} — {item.Name}" : item.Progress > 0 ? Ui.Remaining(item) : Caption(item);
+        var line = item.Type == "Episode" ? $"{EpisodeCode(item)} — {item.Name}" : item.Progress > 0 ? Ui.Remaining(item) : Caption(item);
         var caption = Ui.Column(2,
             new TextBlock { Text = item.DisplayTitle, FontSize = 14.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
             new TextBlock { Text = line, FontSize = 12.5, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });
@@ -178,10 +180,37 @@ public static class Cards
     }
     private static string Caption(MediaItem item) => item.Type switch
     {
-        "Series" => string.Join(" · ", new[] { item.ProductionYear?.ToString(), "Série" }.Where(x => x is not null)),
-        "Episode" => $"S{item.ParentIndexNumber ?? 1} · É{item.IndexNumber ?? 1}",
-        _ => string.Join(" · ", new[] { item.ProductionYear?.ToString(), item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)))
+        "Series" => string.Join(" · ", new[] { item.ProductionYear?.ToString(), L("Série", "Series") }.Where(x => x is not null)),
+        "Episode" => EpisodeCode(item),
+        "BoxSet" => L("Saga", "Collection"),
+        _ => string.Join(" · ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)))
     };
+    /// <summary>« S1 · É3 », “S1 · E3”.</summary>
+    public static string EpisodeCode(MediaItem item) => $"S{item.ParentIndexNumber ?? 1} · {L("É", "E")}{item.IndexNumber ?? 1}";
+    /// <summary>
+    /// An actor or director found by a search: their photo in a circle (their initials without one) and their name;
+    /// a click shows their titles.
+    /// </summary>
+    public static Button Person(MediaItem person, Images? images, Action<MediaItem> open)
+    {
+        const double size = 88;
+        var image = new Image { Stretch = Stretch.UniformToFill, Width = size, Height = size };
+        var circle = new Border
+        {
+            Width = size, Height = size, CornerRadius = new CornerRadius(size / 2), ClipToBounds = true, Background = Ui.Raised, HorizontalAlignment = HorizontalAlignment.Center,
+            Child = new Grid { Children = { new TextBlock { Text = Catalog.Initials(person.Name), FontSize = 26, FontWeight = FontWeight.SemiBold, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }, image } }
+        };
+        var body = new StackPanel { Spacing = 10, Width = 112 };
+        body.Children.Add(circle);
+        body.Children.Add(new TextBlock { Text = person.Name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis });
+        var button = new Button { Content = body, Classes = { "card" } };
+        Hover(button, circle);
+        button.Click += (_, _) => open(person);
+        Avalonia.Automation.AutomationProperties.SetName(button, person.Name);
+        if (images is not null && person.ImageTags.ContainsKey("Primary")) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(person, 200));
+        return button;
+    }
+
     /// <summary>Behind the artwork while it loads, or when there is none: the initials on a quiet tone.</summary>
     private static Control Placeholder(MediaItem item)
     {
@@ -199,6 +228,13 @@ public static class Cards
         Background = Ui.Brush("#E0F5F5F7"), CornerRadius = new CornerRadius(12), Width = 24, Height = 24, Margin = new Thickness(8),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
         Child = new Icon("check", 14) { Foreground = Ui.Brush("#0B0B0C") }
+    };
+    /// <summary>Episodes left in a series under way: new ones show from the library.</summary>
+    private static Control ToWatch(string count) => new Border
+    {
+        Background = Ui.Brush("#E0F5F5F7"), CornerRadius = new CornerRadius(12), MinWidth = 24, Height = 24, Padding = new Thickness(7, 0), Margin = new Thickness(8),
+        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+        Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0C"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
     };
     /// <summary>A slight lift under the pointer.</summary>
     private static void Hover(Button button, Control art)
@@ -252,7 +288,7 @@ public sealed class CardRow : StackPanel
         _items.Margin = new Thickness(sidePadding, 4, sidePadding, 8);
         _scroll = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _items };
         var header = new DockPanel { Margin = new Thickness(sidePadding, 0, sidePadding - 8, 0) };
-        var arrows = Ui.Row(4, Ui.IconButton("back", "Précédents", () => Page(-1), "icon", 18), Ui.IconButton("next", "Suivants", () => Page(1), "icon", 18));
+        var arrows = Ui.Row(4, Ui.IconButton("back", L("Précédents", "Previous"), () => Page(-1), "icon", 18), Ui.IconButton("next", L("Suivants", "Next"), () => Page(1), "icon", 18));
         DockPanel.SetDock(arrows, Dock.Right); header.Children.Add(arrows);
         header.Children.Add(new TextBlock { Text = title, FontSize = 21, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center });
         Children.Add(header); Children.Add(_scroll);

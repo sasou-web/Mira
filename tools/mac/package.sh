@@ -19,7 +19,8 @@ rm -rf "$OUT" && mkdir -p "$OUT"
 dotnet publish "$ROOT/src/Mira.Mac/Mira.Mac.csproj" -c Release -r osx-arm64 --self-contained true \
   -p:Version="$VERSION" -p:UseAppHost=true -p:DebugType=none -p:DebugSymbols=false -o "$OUT/publish"
 
-# 2. The bundle.
+# 2. The bundle. English and French (CFBundleLocalizations): macOS's own panels (open file…) follow the Mac's language,
+# as Mira's texts do (SystemLanguage).
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp -R "$OUT/publish/." "$APP/Contents/MacOS/"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -35,15 +36,26 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
-  <key>CFBundleDevelopmentRegion</key><string>fr</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleLocalizations</key><array><string>en</string><string>fr</string></array>
   <key>LSMinimumSystemVersion</key><string>$MINIMUM</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.entertainment</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSLocalNetworkUsageDescription</key><string>Mira finds your Jellyfin server on your network and plays your library from it.</string>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>CFBundleURLTypes</key>
+  <array><dict>
+    <key>CFBundleURLName</key><string>io.github.sasou-web.mira.ensemble</string>
+    <key>CFBundleURLSchemes</key><array><string>mira</string></array>
+  </dict></array>
   <key>NSHumanReadableCopyright</key><string>Mira — client Jellyfin libre</string>
 </dict>
 </plist>
 PLIST
+# The text of macOS's local network prompt (the login screen looks for Jellyfin on the network), in Mira's two languages.
+mkdir -p "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/fr.lproj"
+printf '"NSLocalNetworkUsageDescription" = "%s";\n' "Mira finds your Jellyfin server on your network and plays your library from it." > "$APP/Contents/Resources/en.lproj/InfoPlist.strings"
+printf '"NSLocalNetworkUsageDescription" = "%s";\n' "Mira trouve ton serveur Jellyfin sur ton réseau et y lit ta bibliothèque." > "$APP/Contents/Resources/fr.lproj/InfoPlist.strings"
 
 # 3. The icon, from the 1024 px mark.
 ICONSET="$OUT/Mira.iconset"; mkdir -p "$ICONSET"

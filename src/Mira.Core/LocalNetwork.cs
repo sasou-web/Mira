@@ -27,8 +27,9 @@ public static partial class LocalNetwork
         return thisPc is null ? null : new UriBuilder(uri) { Host = thisPc }.Uri.GetLeftPart(UriPartial.Authority);
     }
     /// <summary>
-    /// Whether a server's host is this PC: loopback, its name, or one of its own addresses (a Jellyfin here that Mira
-    /// reaches at this PC's network address).
+    /// Whether a server's host is this PC: loopback, its name (also as the first label of a longer one, such as its name
+    /// on Tailscale « pc.tail1234.ts.net » or « pc.local »), or one of its own addresses (a Jellyfin here that Mira
+    /// reaches at this PC's network address). Nothing is resolved: it answers at once, on any thread.
     /// </summary>
     public static bool IsThisPc(string host)
     {
@@ -36,7 +37,7 @@ public static partial class LocalNetwork
         if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
         try
         {
-            if (!IPAddress.TryParse(host, out var ip)) return host.Equals(Dns.GetHostName(), StringComparison.OrdinalIgnoreCase);
+            if (!IPAddress.TryParse(host, out var ip)) return host.Split('.')[0].Equals(Dns.GetHostName(), StringComparison.OrdinalIgnoreCase);
             return IPAddress.IsLoopback(ip) || NetworkInterface.GetAllNetworkInterfaces().SelectMany(nic => nic.GetIPProperties().UnicastAddresses).Any(x => x.Address.Equals(ip));
         }
         catch (Exception ex) when (ex is NetworkInformationException or SocketException) { return false; }

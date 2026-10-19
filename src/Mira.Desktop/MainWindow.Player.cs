@@ -27,7 +27,9 @@ public partial class MainWindow
     private int _playGeneration;
     private bool _tickBusy;
 
-    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false)
+    /// <param name="groupStart">Put on by « Regarder ensemble » (MainWindow.Together.cs): opened paused there, until the group plays.</param>
+    /// <param name="chosen">Picked on a page (a title, a card, a menu), not by the player: in a group that has another title on, asked first.</param>
+    private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null, bool chosen = false)
     {
         ClosePreview(); var asked = item;
         if (_playBusy) return; _playBusy = true;
@@ -39,7 +41,7 @@ public partial class MainWindow
             // Without an engine nothing can play: say so before any request, with the one click that fixes it.
             if (MpvEngine.FindLibrary(_settings.MpvPath) is null)
             {
-                SetNotice("Pour lire tes vidéos, Mira a besoin du moteur mpv (31 Mo).", "Installer", () => _ = InstallEngineThenPlayAsync(item, keepMini));
+                SetNotice(L("Pour lire tes vidéos, Mira a besoin du moteur mpv (31 Mo).", "To play your videos, Mira needs the mpv video engine (31 MB)."), L("Installer", "Install"), () => _ = InstallEngineThenPlayAsync(item, keepMini, fromStart));
                 return;
             }
             if (item.Type == "Series" && !_demo && _client is not null)
@@ -52,34 +54,42 @@ public partial class MainWindow
                     if (_store is { } store) await Task.Run(() => store.ApplyLocalProgress(episodes.Items));
                     next = episodes.Items.FirstOrDefault(x => x.Progress > 0 && !x.UserData.Played) ?? episodes.Items.FirstOrDefault(x => !x.UserData.Played) ?? episodes.Items.FirstOrDefault();
                 }
-                item = next ?? throw new IOException("Aucun épisode disponible.");
+                item = next ?? throw new IOException(L("Aucun épisode disponible.", "No episodes available."));
             }
-            string location; string? authorization = null; MediaSource? source = null; string session = "";
+            if (InGroup && groupStart is null)
+            {
+                if (await AskGroupAsync(item, fromStart, completePrevious, chosen)) return;
+                groupStart = _groupQueue?.StartTicks ?? 0;
+            }
+            string location; string? authorization = null; MediaSource? source = null; string session = ""; OfflineCopy? kept = null;
             if (_demo)
             {
                 if (_testMedia is null)
                 {
-                    var dialog = new OpenFileDialog { Title = "Choisir une vidéo locale pour essayer le lecteur", Filter = "Vidéos|*.mkv;*.mp4;*.avi;*.webm;*.mov;*.m4v;*.ts|Tous les fichiers|*.*" };
+                    var dialog = new OpenFileDialog { Title = L("Choisir une vidéo locale pour essayer le lecteur", "Choose a local video to try the player"), Filter = L("Vidéos|*.mkv;*.mp4;*.avi;*.webm;*.mov;*.m4v;*.ts|Tous les fichiers|*.*", "Videos|*.mkv;*.mp4;*.avi;*.webm;*.mov;*.m4v;*.ts|All files|*.*") };
                     if (dialog.ShowDialog(this) != true) return;
                     location = dialog.FileName;
                 }
                 else location = _testMedia;
             }
+            // Kept on this PC (« Garder sur ce PC »): its file, with or without Jellyfin; the progress goes as usual.
+            else if (KeptCopy(item.Id) is { } copy) { kept = copy; location = copy.VideoPath; source = copy.Source; session = Guid.NewGuid().ToString("N"); }
             else
             {
                 if (_client is null) return;
                 var info = await _client.PlaybackAsync(item.Id);
-                source = info.MediaSources.FirstOrDefault() ?? throw new IOException("Aucune source lisible disponible.");
+                source = info.MediaSources.FirstOrDefault() ?? throw new IOException(L("Aucune source lisible disponible.", "No playable source available."));
                 session = string.IsNullOrEmpty(info.PlaySessionId) ? Guid.NewGuid().ToString("N") : info.PlaySessionId;
                 var isLocalServer = new Uri(_client.Connection.Server).IsLoopback;
                 if (isLocalServer && string.Equals(source.Protocol, "File", StringComparison.OrdinalIgnoreCase) && source.Path is { } path && await ReachableFileAsync(path)) location = path;
                 else { location = _client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = _client.AuthorizationHeader; }
             }
             await StopPlaybackAsync(completePrevious);
-            // A finished title starts over instead of resuming on its last seconds.
-            _session.Begin(item, source, session, PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition)); _loaded = false;
+            _playingCopy = kept;
+            // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
+            _session.Begin(item, source, session, groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack)); _loaded = false;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
-            PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? "Vidéo locale · mode démonstration" : PlayerText.Subtitle(item);
+            PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : PlayerText.Subtitle(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
             AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
             HidePlayerError(); LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
@@ -87,6 +97,8 @@ public partial class MainWindow
             // The player's keys must reach Mira, not the TorLink terminal left open underneath.
             if (TorLinkOverlay.IsKeyboardFocusWithin) Focus();
             NextButton.IsEnabled = !_demo && item.Type == "Episode";
+            // The episodes around this one follow with the series (LoadServerMarkersAsync).
+            _playerEpisodes = []; PreviousButton.IsEnabled = PlayerEpisodesButton.IsEnabled = false;
             if (_videoHost is null)
             {
                 var ready = new TaskCompletionSource<IntPtr>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -100,7 +112,7 @@ public partial class MainWindow
             _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
             PublishWindowsTrack(item);
             _mpv.FileLoaded += FileLoaded;
-            _mpv.PlaybackRestarted += () => _session.LastReport = DateTimeOffset.MinValue;
+            _mpv.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
             var generation = ++_playGeneration;
             _ = LoadServerMarkersAsync(item, generation);
             _mpv.Ended += eof =>
@@ -113,21 +125,25 @@ public partial class MainWindow
             };
             _mpv.Error += message => { _session.Failure = message; };
             _mpv.Message += message => Dispatcher.BeginInvoke(() => { if (generation == _playGeneration) HandlePlayerMessage(message); });
-            _playing = true; UpdateHeroClock(); _session.LastReport = DateTimeOffset.Now; SetPlayerLoading(true); _fileOpen = true; _mpv.Load(location, _session.Position, authorization);
+            _playing = true; UpdateHeroClock(); _session.LastReport = DateTimeOffset.Now; SetPlayerLoading(true); _fileOpen = true;
+            // In a group: loaded paused, « ready » once there (GroupRestarted), played when Jellyfin says.
+            _groupReadyPending = groupStart is not null; _groupStallSince = null; _groupStalled = false;
+            if (groupStart is not null) { SetGroupAway(false); GroupReport("Buffering", _session.Position, false); }
+            _mpv.Load(location, _session.Position, authorization, paused: groupStart is not null);
             if (_demo && _testMedia is not null && _args.Contains("--loop-test-media")) _mpv.Set("loop-file", "inf");
             SetMiniPlayer(keepMini, preserveFullscreen: true); _playerTimer.Start();
         }
         catch (Exception ex) when (IsExpected(ex) || ex is TimeoutException)
         {
             await StopPlaybackAsync();
-            var reason = ex is IOException && FromMira(ex) ? ex.Message : ex is TimeoutException ? "Le lecteur vidéo n’a pas pu s’ouvrir à temps." : Friendly(ex);
-            PlaybackFailed("La lecture n’a pas pu démarrer. " + reason, asked, keepMini, "Réessayer", () => PlayAsync(asked, keepMini));
+            var reason = ex is IOException && FromMira(ex) ? ex.Message : ex is TimeoutException ? L("Le lecteur vidéo n’a pas pu s’ouvrir à temps.", "The video player couldn’t open in time.") : Friendly(ex);
+            PlaybackFailed(L("La lecture n’a pas pu démarrer. ", "Playback couldn’t start. ") + reason, asked, keepMini, RetryText, () => PlayAsync(asked, keepMini));
         }
         catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException or BadImageFormatException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             // An incompatible engine DLL must not leave a black screen with no way back.
             await StopPlaybackAsync();
-            PlaybackFailed("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.", asked, keepMini, "Ouvrir les réglages", () => { Settings_Click(this, new()); return Task.CompletedTask; });
+            PlaybackFailed(L("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.", "The chosen mpv engine seems incompatible. Check its location in Settings → Playback."), asked, keepMini, L("Ouvrir les réglages", "Open settings"), () => { Settings_Click(this, new()); return Task.CompletedTask; });
         }
         finally { _playBusy = false; Mouse.OverrideCursor = null; }
     }
@@ -166,7 +182,15 @@ public partial class MainWindow
                 try { _mpv.Command("sub-add", uri.AbsoluteUri, "auto", stream.DisplayTitle ?? "", stream.Language ?? ""); } catch (IOException) { }
             }
         }
-        if (reopened) RestoreTracks();
+        // The subtitle files kept beside a copy.
+        if (_playingCopy is { } kept && kept.Item.Id == _session.Item.Id)
+            foreach (var subtitle in kept.Subtitles)
+            {
+                try { _mpv.Command("sub-add", Path.Combine(kept.Folder, subtitle.File), "auto", subtitle.Title ?? "", subtitle.Language ?? ""); } catch (IOException) { }
+            }
+        // Whether « Chercher des sous-titres… » shows, known before the menu opens.
+        _ = ShowSubtitleSearchAsync();
+        if (reopened) RestoreTracks(); else await ChooseSeriesTracksAsync(generation);
     }
     private async void PlayerTick(object? sender, EventArgs e)
     {
@@ -176,15 +200,17 @@ public partial class MainWindow
         if (_tickBusy) return; _tickBusy = true;
         try
         {
-            UpdatePlayerControls(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
+            UpdatePlayerControls(); UpdateGroupPill(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
             _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position)); _session.Duration = _mpv.Number("duration", _session.Duration);
             var paused = _mpv.Flag("pause"); ShowPauseState(paused);
             // The timeline interpolates between these polls on every frame.
             if (!_seeking) { SeekBar.SetPlayback(_session.Position, _session.Duration, !paused, _mpv.Number("speed", 1)); PositionText.Text = TimeLabel(_session.Position); UpdateChapterText(_session.Position); }
             SeekBar.SetBuffered(_mpv.Number("demuxer-cache-time", 0)); DurationText.Text = TimeLabel(_session.Duration);
             var changed = paused != _session.Paused; _session.Paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
+            if (changed) GroupPauseChanged(paused);
+            WatchGroupStall();
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
-            UpdateSkip();
+            UpdateSkip(); CheckSleepTimer();
             UpdateWindowsPlayback();
             var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
@@ -205,19 +231,22 @@ public partial class MainWindow
         {
             if (!_playing || generation != _playGeneration) return;
             if (interrupted) { _loaded = false; _session.Failure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
-            var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _autoNextCancelled; var following = _nextItem;
+            var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _skips.Stay; var following = _skips.Next;
             if (eof && _session.Duration > 0) _session.Position = _session.Duration;
             await StopPlaybackAsync(eof);
             // Watched to the end: shown as seen right away, and the next play starts from the beginning.
             if (eof && previous is not null) { previous.UserData.Played = true; previous.UserData.PlaybackPositionTicks = 0; }
             var stoppedGeneration = _playGeneration;
-            if (eof && _settings.AutoNext && !_demo && !stay && previous?.Type == "Episode")
+            // « Arrêter à la fin de l’épisode »: this one was the last.
+            var last = eof && _sleep.AtEnd;
+            if (last) _sleep.Clear();
+            if (eof && _settings.AutoNext && !last && !_demo && !stay && previous?.Type == "Episode")
             {
                 var next = following ?? await GetNextAsync(previous);
                 if (stoppedGeneration != _playGeneration || _playing) return;
                 if (next is not null) { await PlayAsync(next, keepMini); return; }
             }
-            if (error is not null) { PlaybackFailed(error, previous, keepMini, "Réessayer", previous is null ? null : () => PlayAsync(previous, keepMini)); return; }
+            if (error is not null) { PlaybackFailed(error, previous, keepMini, RetryText, previous is null ? null : () => PlayAsync(previous, keepMini)); return; }
             ReturnToLibrary();
             if (!_demo) await RefreshAsync(quiet: true);
             else RenderAfterUserDataChange();
@@ -249,6 +278,7 @@ public partial class MainWindow
     }
     private Func<Task>? _playerErrorAction;
     private string _playerErrorMessage = "";
+    private static string RetryText => L("Réessayer", "Try again");
     private bool PlayerErrorShown => PlayerError.Visibility == Visibility.Visible;
     private void HidePlayerError()
     {
@@ -264,8 +294,8 @@ public partial class MainWindow
     {
         if (_playerErrorAction is not { } action) return;
         // Another try keeps the screen until the player opens or fails again (which says why once more); settings leave it.
-        if (PlayerErrorAction.Content is not "Réessayer") { HidePlayerError(); ReturnToLibrary(); await action(); return; }
-        PlayerErrorAction.IsEnabled = false; PlayerErrorText.Text = "Nouvel essai…"; Accessible.Say(PlayerErrorText);
+        if (!Equals(PlayerErrorAction.Content, RetryText)) { HidePlayerError(); ReturnToLibrary(); await action(); return; }
+        PlayerErrorAction.IsEnabled = false; PlayerErrorText.Text = L("Nouvel essai…", "Trying again…"); Accessible.Say(PlayerErrorText);
         await action();
         // Neither (no account any more, a file choice cancelled in the demo): the screen comes back as it was.
         if (PlayerErrorShown && !PlayerErrorAction.IsEnabled) { PlayerErrorAction.IsEnabled = true; PlayerErrorText.Text = _playerErrorMessage; }
@@ -288,14 +318,14 @@ public partial class MainWindow
         ++_playGeneration; ClosePlayerPopups(); _playerTimer.Stop(); SeekBar.IsEnabled = false; SetPlayerLoading(false);
         if (_playing && _loaded && _mpv is not null && !completed) _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position));
         completed = _session.Completes(_loaded, completed);
-        _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null;
+        _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null; UpdateGroupPill();
         try
         {
             _windows?.Clear();
             if (_session.Reported && _sync is not null) { _session.Reported = false; await _sync.RecordAsync(completed ? "complete" : "stop", Report()); }
             if (completed && _session.Item is { } finished)
             {
-                PlaybackSession.MarkWatched(finished, _items.Concat(_resume).Concat(_nextUp).Concat(_episodes), _resume, _nextUp);
+                PlaybackSession.MarkWatched(finished, _catalog.Items.Concat(_catalog.Resume).Concat(_catalog.NextUp).Concat(_episodes), _catalog.Resume, _catalog.NextUp);
                 _metadata?.Clear(); _heroSeries.Clear();
             }
             if (_loaded && _session.Item is { } stopped)
@@ -318,18 +348,26 @@ public partial class MainWindow
             var episodes = await _client.EpisodesAsync(current.SeriesId); var index = episodes.Items.FindIndex(x => x.Id == current.Id);
             return (index >= 0 ? episodes.Items.ElementAtOrDefault(index + 1) : null, episodes.Items);
         }
-        catch (Exception ex) when (IsExpected(ex)) { if (!quiet) SetNotice(Friendly(ex)); return (null, []); }
+        catch (Exception ex) when (IsExpected(ex))
+        {
+            // Without Jellyfin, the next episode kept on this PC.
+            if (OfflineCopies.NextEpisode(_offline, current) is { } kept) return (kept.Item, []);
+            if (!quiet) SetNotice(Friendly(ex));
+            return (null, []);
+        }
     }
     private async void Next_Click(object sender, RoutedEventArgs e)
     {
-        if (_session.Item is null) return; var next = _nextItem ?? await GetNextAsync(_session.Item);
-        if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skipToNext && _activeSkip is not null); else PlayingSubtitle.Text = "Aucun épisode suivant disponible.";
+        if (_session.Item is null) return; var next = _skips.Next ?? await GetNextAsync(_session.Item);
+        if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skips.ToNext && _skips.Active is not null); else PlayingSubtitle.Text = L("Aucun épisode suivant disponible.", "No next episode available.");
     }
     private void BackFromPlayer_Click(object sender, RoutedEventArgs e)
     { if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayer(true); }
     private void ReturnToLibrary()
     {
-        if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement();
+        if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); _sleep.Clear();
+        // The group plays on without this PC.
+        SetGroupAway(true);
         PlayerShell.Visibility = Visibility.Collapsed; LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Visible;
         TitleBar.Visibility = Visibility.Visible;
         Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
@@ -346,6 +384,8 @@ public partial class MainWindow
     {
         if (_mpv is null) return;
         var pause = !_mpv.Flag("pause");
+        // In a group, play waits for Jellyfin, which starts every device at the same moment.
+        if (PlayingForGroup && _loaded) { if (pause) QuietPause(true); SendGroup(pause ? "Pause" : "Unpause"); ShowPlayerControls(); return; }
         _mpv.Set("pause", pause ? "yes" : "no");
         // Swap the glyph now rather than at the next poll, so the press and the new icon are one movement.
         ShowPauseState(pause);
@@ -357,8 +397,8 @@ public partial class MainWindow
     private void ShowPauseState(bool paused)
     {
         Motion.Swap(PauseIcon, paused ? "play" : "pause");
-        var label = paused ? "Lecture · Espace" : "Pause · Espace";
-        if (!Equals(PauseButton.ToolTip, label)) { PauseButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(PauseButton, paused ? "Lecture" : "Pause"); }
+        var label = paused ? L("Lecture · Espace", "Play · Space") : L("Pause · Espace", "Pause · Space");
+        if (!Equals(PauseButton.ToolTip, label)) { PauseButton.ToolTip = label; System.Windows.Automation.AutomationProperties.SetName(PauseButton, paused ? L("Lecture", "Play") : "Pause"); }
     }
     private void SeekRelative(double seconds)
     {
@@ -395,7 +435,7 @@ public partial class MainWindow
         PlayerWindowChrome.Visibility = _fullscreen ? Visibility.Collapsed : Visibility.Visible;
         PlayerHeaderBody.Margin = new Thickness(24, _fullscreen ? 22 : 42, 24, 22);
         Motion.Swap(FullscreenIcon, _fullscreen ? "collapse" : "fullscreen");
-        FullscreenButton.ToolTip = _fullscreen ? "Quitter le plein écran · Échap" : "Plein écran · F";
+        FullscreenButton.ToolTip = _fullscreen ? L("Quitter le plein écran · Échap", "Exit full screen · Esc") : L("Plein écran · F", "Full screen · F");
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls();
     }
     private void Window_KeyDown(object sender, KeyEventArgs e)
@@ -428,6 +468,7 @@ public partial class MainWindow
         if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.IsOpen = false; return true; }
         if (PlayerErrorShown) { PlayerErrorBack_Click(this, new()); return true; }
         if (WhatsNewOverlay.Visibility == Visibility.Visible && WhatsNewOverlay.IsHitTestVisible) { _ = CloseWhatsNewAsync(); return true; }
+        if (InviteOverlay.Visibility == Visibility.Visible && InviteOverlay.IsHitTestVisible) { _ = CloseInviteAsync(); return true; }
         // From the welcome, one step back is the sign-in form it leads to.
         if (WelcomeOverlay.Visibility == Visibility.Visible && WelcomeOverlay.IsHitTestVisible) { WelcomeConnect_Click(this, new()); return true; }
         if (GuideOverlay.Visibility == Visibility.Visible && GuideOverlay.IsHitTestVisible) { _ = CloseGuideAsync(); return true; }
@@ -441,8 +482,8 @@ public partial class MainWindow
         if (DetailOverlay.Visibility == Visibility.Visible && (!_playing || _miniPlayer)) { _ = CloseDetailsAsync(); return true; }
         if (TorLinkOverlay.Visibility == Visibility.Visible && TorLinkOverlay.IsHitTestVisible && (!_playing || _miniPlayer)) { _ = CloseTorLinkAsync(); return true; }
         if (_playing && !_miniPlayer) { BackFromPlayer_Click(this, new()); return true; }
-        // A person's titles, opened from a title page: back to that page.
-        if (_person is not null && _personFrom is not null) { _ = BackFromPersonAsync(); return true; }
+        // A person's titles, opened from a title page or a search: back to it.
+        if ((_catalog.Person is not null || _catalog.Saga is not null) && (_personFrom is not null || _personSearch is not null)) { _ = BackFromPersonAsync(); return true; }
         return false;
     }
     private async void Window_Closing(object? sender, CancelEventArgs e)

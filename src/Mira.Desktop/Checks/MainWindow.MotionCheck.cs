@@ -14,10 +14,10 @@ public partial class MainWindow
         void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
         var checks = new List<string>();
         SettingsOverlay.Visibility = DetailOverlay.Visibility = Visibility.Collapsed;
-        Width = 1440; Height = 900; _view = "home"; ResetFilters(); await RefreshAsync(); await SettleVisualAsync(); await Task.Delay(500);
+        Width = 1440; Height = 900; _catalog.View = "home"; ResetFilters(); await RefreshAsync(); await SettleVisualAsync(); await Task.Delay(500);
         var originalCards = PosterCards.Children.Cast<MediaCard>().ToArray(); RenderLibrary();
         Require(PosterCards.Children.Cast<MediaCard>().SequenceEqual(originalCards), "Unchanged refresh recreated cards."); checks.Add("PASS unchanged cards retain their instances across refresh");
-        if (_resume.Count + _nextUp.Count > 0)
+        if (_catalog.Resume.Count + _catalog.NextUp.Count > 0)
         {
             SmoothScroll.Jump(LibraryScroll); await Task.Delay(50);
             var card = (MediaCard)ResumeCards.Children[0];
@@ -34,7 +34,7 @@ public partial class MainWindow
         _carouselTime.Advance(_carouselTime.Duration / 2, false); UpdateHeroSegments();
         Require(_heroSegments.Any(x => x.Progress is > .45 and < .55), "Carousel progress bar did not represent elapsed time.");
         await CaptureAsync(output, "14-carousel-progress"); checks.Add("PASS carousel advances and progress segment reaches 50 percent");
-        _view = "library"; await RefreshAsync(); await SettleVisualAsync();
+        _catalog.View = "library"; await RefreshAsync(); await SettleVisualAsync();
         var poster = (MediaCard)PosterCards.Children[0];
         await Task.Delay(180);
         CardHoverEntered(poster);
