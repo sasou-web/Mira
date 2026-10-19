@@ -2,6 +2,13 @@
 
 Les chemins `.artifacts/...` cités ci-dessous désignent les preuves de validation locales, exclues du dépôt. La galerie publique utilise uniquement le mode démonstration. Les derniers résultats des tests lancés à la main, datés et sans données personnelles, sont dans [testing/latest-results.txt](testing/latest-results.txt) ; les tests, contrôles et paquets tournent aussi dans GitHub Actions ([TESTS.md](TESTS.md)).
 
+## Noms de sortie de TorLink (non publié)
+
+- **Défaut trouvé** (revue du code, 2026-10-12) : `ReleaseName.Show("Show (2019) - S01E02 - Titre.mkv")` donnait `("Show 2019", null)`. L’année n’était lue qu’en toute fin du titre, et le tiret qui précède `S01E02` la cachait. `MediaPlanner.FindFolder` ne retrouvait donc pas le dossier « Show (2019) » (clés « show 2019 » et « show ») : il en créait un second, « Show 2019 », et nommait les épisodes « Show 2019 - S01E02 ». C’est le nommage de Sonarr et de Plex. Dans le même analyseur, `S01E05-720p` donnait `S01E05-E720`.
+- **Tests (conteneur Linux, `tests/Mira.Core.Tests`)** : noms Sonarr avec tiret et tiret demi-cadratin, titre sans année, `S01E05-720p`, `S01E05-1080i`, `S01E05-06.720p`, `Spider-Man 2099`, et un import planifié de bout en bout vers un dossier « Doctor Who (2005) » déjà présent. Les deux tests échouent sans le correctif et passent avec ; 104/104 tests portables réussis.
+- **Pas de régression sur ~45 noms réels** (films, séries, animes, packs) : résultats identiques avant et après, sauf les deux cas corrigés.
+- **Non vérifié ici** : l’interface de Mira n’a pas été lancée ; les tests Windows (`tests/Mira.Tests`, dont les plans d’import aux chemins Windows) ne tournent que dans la CI Windows de la PR.
+
 ## Télécharger sur le PC serveur depuis un autre appareil (non publié)
 
 - **Besoin** : lancer un téléchargement TorLink depuis le téléphone ou un autre PC pour qu’il se fasse sur le PC de Jellyfin, sans bureau à distance ; TorLink ne téléchargeait que sur le PC où Mira est ouvert.

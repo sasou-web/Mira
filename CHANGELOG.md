@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Épisodes nommés comme Sonarr ou Plex** (TorLink, Windows) : un épisode nommé « Série (2019) - S01E02 - Titre.mkv » était rangé dans un nouveau dossier « Série 2019 », à côté du dossier « Série (2019) » déjà dans ta bibliothèque, et Jellyfin y voyait deux séries. L’année est maintenant reconnue devant le tiret : l’épisode rejoint le dossier de sa série. Un épisode suivi de sa résolution (« S01E05-720p ») n’est plus pris pour les épisodes 5 à 720, et une année encore à venir reste dans le titre d’une série (« Spider-Man 2099 »), comme pour les films.
+
 ## 0.8.1 — 2026-10-18
 
 Mira trouve tout seul le serveur Jellyfin à l’écran de connexion.

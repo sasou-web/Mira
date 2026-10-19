@@ -72,7 +72,8 @@ public static partial class ReleaseName
     [GeneratedRegex(@"^(?:\d{3,4}[pi]|[hx]\.?26[45]|(?:dd|ddp|eac3|ac3|aac|dts)[\d.+]*|\d{1,2}-?bit)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TagPattern();
     [GeneratedRegex(@"^[0-9A-Fa-f]{8}$")] private static partial Regex Checksum();
-    [GeneratedRegex(@"(?<![a-z0-9])S(?<s>\d{1,2})[\s._-]*E(?<e>\d{1,4})(?:[\s._-]*E(?<e2>\d{1,4})|-(?<e2>\d{1,4})(?![0-9]))?(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // "S01E05-06" is a double episode; "S01E05-720p" is episode 5 followed by its resolution.
+    [GeneratedRegex(@"(?<![a-z0-9])S(?<s>\d{1,2})[\s._-]*E(?<e>\d{1,4})(?:[\s._-]*E(?<e2>\d{1,4})|-(?<e2>\d{1,4})(?![0-9pi]))?(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SeasonEpisode();
     [GeneratedRegex(@"(?<![a-z0-9])(?<s>\d{1,2})x(?<e>\d{2,3})(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CrossEpisode();
@@ -147,9 +148,13 @@ public static partial class ReleaseName
             var m = marker.Match(text);
             if (m.Success && m.Index < cut) cut = m.Index;
         }
-        var head = CutAtTags(text[..cut]);
+        // "Show (2019) - S01E02 - Title", as Sonarr and Plex name episodes: the dash before the marker is not part of the
+        // title, and the year before it is the series' year.
+        // A year still to come is part of the title ("Spider-Man 2099"), as for films.
+        var head = CutAtTags(text[..cut]).TrimEnd(' ', '-', '–', '—', ':', '|', '~', ',');
         var year = TrailingYear().Match(head);
-        if (year.Success && year.Index > 0 && Tidy(head[..year.Index]) is { Length: > 0 } title)
+        if (year.Success && year.Index > 0 && int.Parse(year.Groups["y"].Value, CultureInfo.InvariantCulture) <= DateTime.UtcNow.Year + 1
+            && Tidy(head[..year.Index]) is { Length: > 0 } title)
             return (title, int.Parse(year.Groups["y"].Value, CultureInfo.InvariantCulture));
         return (Tidy(head), null);
     }
