@@ -52,9 +52,9 @@ internal static class RemoteDownloadTests
             }
             foreach (var search in fixture.RootElement.GetProperty("ranked").EnumerateArray())
             {
-                var hits = search.GetProperty("hits").EnumerateArray().Select(x => new RelayHit(x[0].GetString()!, x[1].GetString()!, x[2].GetInt64(), x[3].GetInt32(), 0, x[4].GetString()!, null)).ToList();
-                var found = ReleaseRanking.Group(hits, search.GetProperty("category").GetString()).Select(g => $"{g.Title} | {g.Label} | {g.Best.Hit.Id} | {string.Join(",", g.Others.Select(x => x.Hit.Id))}");
-                var expected = search.GetProperty("groups").EnumerateArray().Select(g => $"{g[0].GetString()} | {g[1].GetString()} | {g[2].GetString()} | {string.Join(",", g[3].EnumerateArray().Select(x => x.GetString()))}");
+                var hits = search.GetProperty("hits").EnumerateArray().Select(x => new RelayHit(x[0].GetString()!, x[1].GetString()!, x[2].GetInt64(), x[3].GetInt32(), 0, x[4].GetString()!, null, x.GetArrayLength() > 5 ? x[5].GetString() : null)).ToList();
+                var found = ReleaseRanking.Group(hits, search.GetProperty("category").GetString()).Select(g => $"{g.Title} | {g.Label} | {g.Best.Hit.Id} | {string.Join(",", g.Others.Select(x => x.Hit.Id))}{(g.Category is { } kind ? " | " + kind : "")}");
+                var expected = search.GetProperty("groups").EnumerateArray().Select(g => $"{g[0].GetString()} | {g[1].GetString()} | {g[2].GetString()} | {string.Join(",", g[3].EnumerateArray().Select(x => x.GetString()))}{(g.GetArrayLength() > 4 ? " | " + g[4].GetString() : "")}");
                 Assert(found.SequenceEqual(expected), "Groups: " + string.Join(" ; ", found));
             }
             Assert(ReleaseRanking.Parse("[ToonsHub] JoJos Bizarre Adventure S06E04 1080p (JoJo no Kimyou na Bouken: Steel Ball Run - 2nd - 3rd STAGE, Dual-Audio)").Alternate == "JoJo no Kimyou na Bouken: Steel Ball Run"
@@ -112,12 +112,12 @@ internal static class RemoteDownloadTests
             relay.Exchange("pc-1", Report(downloads: [new(Hash, "Dune", "downloading", 1, 0, 0)]));
             Assert(relay.Status() is { Requests: [], Downloads: [{ Id: Hash }] }, "Sent, then listed by TorLink: no longer a request");
 
-            // A search: cleaned and checked, handed out two at a time, its results checked against their magnet links.
+            // A search: cleaned and checked, handed out three at a time, its results checked against their magnet links.
             Assert(relay.Search("   ", "movies").Error == "Écris ce que tu cherches." && relay.Search("dune", "games").Error == "Choisis Films, Séries ou Animes.", "Refused searches");
             var (search, _) = relay.Search("--dune  part two", "movies");
             relay.Search("a", "tv"); relay.Search("b", "anime");
             work = relay.Exchange("pc-1", Report());
-            Assert(work.Searches.Count == 2 && work.Searches[0] is { Query: "dune part two", Category: "movies" } && relay.SearchState(search!)!.State == "running", "Two searches at a time");
+            Assert(work.Searches.Count == 3 && work.Searches[0] is { Query: "dune part two", Category: "movies" } && relay.SearchState(search!)!.State == "running", "Three searches at a time");
             List<AgentHit> hits = [new(Hash, "Dune Part Two 2024 1080p", 2L << 30, 120, 5, "yts", Magnet(Hash), null), new(Other, "Faux", 1, 1, 1, "x", Magnet(Hash), null)];
             relay.Exchange("pc-2", Report(searches: [new(search!, "done", hits, null)]));
             Assert(relay.SearchState(search!)!.State == "running", "Another device reports a search it was not given");
@@ -171,6 +171,38 @@ internal static class RemoteDownloadTests
             var fresh = new TorLinkRelay(() => now);
             for (var i = 0; i < TorLinkRelay.MaxWaiting; i++) Assert(fresh.Request(Magnet(i.ToString("x40")), null, null, null, null).Id is not null, "Request " + i);
             Assert(fresh.Request(Magnet(Other), null, null, null, null).Error == "Trop de demandes attendent déjà le PC serveur.", "More than thirty");
+            return Task.CompletedTask;
+        });
+
+        await Test("Télécharger sur le PC serveur : une recherche dans les films, les séries et les animes à la fois", () =>
+        {
+            var now = DateTimeOffset.Parse("2026-10-22T12:00:00Z");
+            var relay = new TorLinkRelay(() => now);
+            AgentReport Report(List<AgentSearchOutcome>? searches = null) => new("PC-SALON", true, null, null, null, searches, null, null);
+            const string Episode = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+            relay.Exchange("pc-1", Report());
+            var (id, error) = relay.Search("one piece", RemoteDownloads.All);
+            Assert(id is not null && error is null && relay.SearchState(id)! is { State: "waiting", Category: "all" }, "Asked for in every category");
+            // An agent before 0.8.3 knows only the three categories: it gets one search of each, in one visit.
+            var work = relay.Exchange("pc-1", Report());
+            Assert(work.Searches.Select(x => x.Category).SequenceEqual(RemoteDownloads.Categories) && work.Searches.All(x => x.Query == "one piece" && x.Id != id), "One search of TorLink by category");
+            AgentHit Hit(string hash, string name, int seeders) => new(hash, name, 1L << 30, seeders, 0, "x", Magnet(hash), null);
+            var (movies, tv, anime) = (work.Searches[0].Id, work.Searches[1].Id, work.Searches[2].Id);
+            relay.Exchange("pc-1", Report([new(movies, "done", [Hit(Hash, "One Piece Film Red 2022 1080p", 300), Hit(Other, "One Piece Stampede 2019 1080p", 90)], null), new(anime, "failed", null, "Nyaa ne répond pas.")]));
+            Assert(relay.SearchState(id!)! is { State: "running", Results: [] }, "Not done while a category still runs");
+            relay.Exchange("pc-1", Report([new(tv, "done", [Hit(Episode, "One.Piece.2023.S01E01.1080p", 500), Hit(Hash, "One Piece Film Red 2022 1080p", 300)], null)]));
+            var state = relay.SearchState(id!)!;
+            Assert(state.State == "done" && state.Error is null && string.Join(",", state.Results.Select(x => $"{x.Category}:{x.Id[0]}")) == "movies:c,tv:e,movies:0",
+                "Mixed, the first of each category first; found twice, kept once; a category that failed leaves the others: " + string.Join(",", state.Results.Select(x => $"{x.Category}:{x.Id[0]}")));
+            var (picked, _) = relay.Request(null, id!, Episode, null, null);
+            Assert(relay.Status().Requests.Single(x => x.Id == picked) is { Name: "One.Piece.2023.S01E01.1080p", InfoHash: Episode }, "A result of one category, asked for by the search");
+
+            var (lost, _) = relay.Search("rien", RemoteDownloads.All);
+            work = relay.Exchange("pc-1", Report());
+            relay.Exchange("pc-1", Report([.. work.Searches.Select(x => new AgentSearchOutcome(x.Id, "failed", null, "TorLink n’est pas prêt."))]));
+            Assert(relay.SearchState(lost!)! is { State: "failed", Error: "TorLink n’est pas prêt.", Results: [] }, "Failed in every category");
+            var (none, failed) = RemoteDownloads.Combine<string>([], x => x);
+            Assert(none.Count == 0 && failed is null, "Nothing to combine");
             return Task.CompletedTask;
         });
 

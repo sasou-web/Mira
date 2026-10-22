@@ -5,7 +5,8 @@
 import { tr, trn, language } from './i18n.js';
 
 /** TorLink's search categories Mira offers, in its words: never « games », Jellyfin has no use for them. */
-export const CATEGORIES = [['movies', tr('Films')], ['tv', tr('Séries')], ['anime', tr('Animes')]];
+/** What a title found in a category of TorLink is, on its card (RemoteLines.KindLabel); empty when the relay does not say. */
+export const kindLabel = (category) => ({ movies: tr('Film'), tv: tr('Série'), anime: tr('Anime') })[category] ?? '';
 export const MAX_QUERY = 120, MAX_MAGNET = 8192, MAX_NAME = 300;
 
 // .NET's char.IsControl: C0, DEL and C1.

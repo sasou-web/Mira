@@ -8,9 +8,8 @@ namespace Mira.Core.TorLink;
 /// </summary>
 public static class RemoteLines
 {
-    /// <summary>The categories of a search, in Mira's words, in the order offered.</summary>
-    public static IReadOnlyList<(string Key, string Label)> Categories => [("movies", L("Films", "Movies")), ("tv", L("Séries", "Shows")), ("anime", L("Animes", "Anime"))];
-    public static string CategoryLabel(string? key) => Categories.FirstOrDefault(x => x.Key == key).Label ?? "";
+    /// <summary>What a title found in a category is, on its card: « Film », « Série », « Anime »; empty when unknown.</summary>
+    public static string KindLabel(string? key) => key switch { "movies" => L("Film", "Movie"), "tv" => L("Série", "Show"), "anime" => L("Anime", "Anime"), _ => "" };
 
     /// <summary>What a pause, a resume or a cancel shows until TorLink did it.</summary>
     public static string? ActionLine(string? action) => action switch

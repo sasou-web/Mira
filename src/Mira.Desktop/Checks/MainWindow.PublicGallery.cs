@@ -141,15 +141,15 @@ public partial class MainWindow
             [new(Hash('a'), "Les.Etoiles.du.Nord.S01E04.MULTI.1080p.WEB-DL.H264-NOTAG", "downloading", 41, 2 * MiB, 12, 29 * GiB / 10, 12 * GiB / 10, 750),
              new(Hash('c'), "La.Maison.du.Lac.2023.1080p.BluRay.x265.10bit-NOTAG", "paused", 63, 0, 0, 4 * GiB, 5 * GiB / 2)],
             [new(Hash('d'), "Le Dernier Phare (2022)", L("disponible dans Jellyfin", "available in Jellyfin"), null, true)]), now);
-        ServerQueryBox.Text = "Les Étoiles du Nord"; ServerCategory.SelectedIndex = 1;
-        ShowServerHits("sample", "Les Étoiles du Nord", "tv",
+        ServerQueryBox.Text = "Les Étoiles du Nord";
+        ShowServerHits("sample", "Les Étoiles du Nord",
         [
-            new("1", "Les.Etoiles.du.Nord.S01E05.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, 85, 4, "1337x", null),
-            new("2", "Les Etoiles du Nord S01E05 1080p WEBRip x265-PLUME", 9 * GiB / 10, 240, 9, "tpb", null),
-            new("3", "Les.Etoiles.du.Nord.S01E05.2160p.WEB-DL.DV.HEVC-NOTAG", 6 * GiB, 30, 2, "1337x", null),
-            new("4", "Les.Etoiles.du.Nord.S01E04.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, 60, 3, "1337x", null),
-            new("5", "Les.Etoiles.du.Nord.S01E04.VOSTFR.720p.HDTV.x264-NOTAG", 7 * GiB / 10, 12, 1, "tpb", null),
-            new("6", "Les.Etoiles.du.Nord.S01.COMPLETE.MULTI.1080p.WEB-DL.x264-NOTAG", 9 * GiB, 20, 5, "1337x", null),
+            new("1", "Les.Etoiles.du.Nord.S01E05.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, 85, 4, "1337x", null, "tv"),
+            new("2", "Les Etoiles du Nord S01E05 1080p WEBRip x265-PLUME", 9 * GiB / 10, 240, 9, "tpb", null, "tv"),
+            new("3", "Les.Etoiles.du.Nord.S01E05.2160p.WEB-DL.DV.HEVC-NOTAG", 6 * GiB, 30, 2, "1337x", null, "tv"),
+            new("4", "Les.Etoiles.du.Nord.S01E04.MULTI.1080p.WEB-DL.H264-NOTAG", 3 * GiB / 2, 60, 3, "1337x", null, "tv"),
+            new("5", "Les.Etoiles.du.Nord.S01E04.VOSTFR.720p.HDTV.x264-NOTAG", 7 * GiB / 10, 12, 1, "tpb", null, "tv"),
+            new("6", "Les.Etoiles.du.Nord.S01.COMPLETE.MULTI.1080p.WEB-DL.x264-NOTAG", 9 * GiB, 20, 5, "1337x", null, "tv"),
         ]);
     }
 }

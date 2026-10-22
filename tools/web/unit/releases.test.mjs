@@ -22,8 +22,8 @@ test('what a release name says (tests/fixtures/releases.json)', () => {
 
 test('the best release first, by title and episode (tests/fixtures/releases.json)', () => {
   for (const { category, hits, groups } of fixture.ranked) {
-    const found = groupReleases(hits.map(([id, name, size, seeders, source]) => ({ id, name, size, seeders, source })), category);
-    assert.deepEqual(found.map((g) => [g.title, g.label, g.best.hit.id, g.others.map((x) => x.hit.id)]), groups, category);
+    const found = groupReleases(hits.map(([id, name, size, seeders, source, kind]) => ({ id, name, size, seeders, source, ...(kind ? { category: kind } : {}) })), category);
+    assert.deepEqual(found.map((g, i) => [g.title, g.label, g.best.hit.id, g.others.map((x) => x.hit.id), ...(groups[i]?.length > 4 ? [g.category] : [])]), groups, category);
   }
 });
 

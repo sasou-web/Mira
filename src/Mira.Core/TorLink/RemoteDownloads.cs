@@ -12,6 +12,8 @@ public static partial class RemoteDownloads
 {
     /// <summary>TorLink's search categories Mira offers: never « games », Jellyfin has no use for them.</summary>
     public static readonly IReadOnlyList<string> Categories = ["movies", "tv", "anime"];
+    /// <summary>A search in the three <see cref="Categories"/> at once: three searches of TorLink, their results mixed (<see cref="Combine{T}"/>).</summary>
+    public const string All = "all";
     /// <summary>What can be asked of a download already in TorLink: cancelled (its partial files deleted), paused, resumed.</summary>
     public static readonly IReadOnlyList<string> Actions = ["delete", "pause", "resume"];
     public const int MaxQuery = 120, MaxMagnet = 8192, MaxName = 300;
@@ -33,6 +35,26 @@ public static partial class RemoteDownloads
     }
 
     public static bool IsCategory(string? category) => category is not null && Categories.Contains(category);
+    /// <summary>What Mira web or Mira for Windows or Mac may ask for: one category, or <see cref="All"/>.</summary>
+    public static bool IsSearchCategory(string? category) => category == All || IsCategory(category);
+    /// <summary>The searches of TorLink a search asks for.</summary>
+    public static IReadOnlyList<string> SearchesOf(string category) => category == All ? Categories : [category];
+
+    /// <summary>
+    /// The results of the searches of each category, mixed: the first of each, then the second of each, and so on, so
+    /// that the best of a category is not put after all of another; a result found twice is kept where it came first.
+    /// Fails only when every search failed (the first reason given), otherwise keeps what came.
+    /// </summary>
+    public static (List<(string Category, T Hit)> Hits, string? Error) Combine<T>(IReadOnlyList<(string Category, IReadOnlyList<T> Hits, string? Error)> parts, Func<T, string> id)
+    {
+        var found = parts.Where(x => x.Error is null).ToList();
+        if (found.Count == 0 && parts.Count > 0) return ([], parts[0].Error);
+        var hits = new List<(string, T)>(); var seen = new HashSet<string>();
+        for (var rank = 0; found.Any(x => rank < x.Hits.Count); rank++)
+            foreach (var part in found)
+                if (rank < part.Hits.Count && seen.Add(id(part.Hits[rank]))) hits.Add((part.Category, part.Hits[rank]));
+        return (hits, null);
+    }
     public static bool IsAction(string? action) => action is not null && Actions.Contains(action);
 
     /// <summary>

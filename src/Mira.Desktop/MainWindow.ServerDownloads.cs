@@ -457,36 +457,44 @@ public partial class MainWindow
     private void ServerQueryClear_Click(object sender, RoutedEventArgs e) { ServerQueryBox.Clear(); ServerQueryBox.Focus(); }
     private async void ServerSearch_Click(object sender, RoutedEventArgs e) => await SearchServerAsync();
 
-    /// <summary>A search TorLink runs on the PC of Jellyfin, followed every second until it answers (90 s at most).</summary>
+    /// <summary>
+    /// A search TorLink runs on the PC of Jellyfin, in films, shows and anime at once, followed every second until it
+    /// answers (90 s at most).
+    /// </summary>
     private async Task SearchServerAsync()
     {
         var client = _client;
         if (client is null && !_serverLocal) return;
         if (RemoteDownloads.CleanQuery(ServerQueryBox.Text) is not { } query) { ServerQueryBox.Focus(); return; }
         if (!_serverReady) { ServerSearchStatus.Text = _serverLocal ? L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC.") : RemoteLines.Agent(_serverAgent, DateTimeOffset.UtcNow).Text; return; }
-        var category = (ServerCategory.SelectedItem as ComboBoxItem)?.Tag as string ?? "movies";
-        var label = RemoteLines.CategoryLabel(category);
         var mine = ++_serverSearchVersion; var ct = _connectionLifetime.Token;
         _serverSearching = true; ServerSearchButton.IsEnabled = false; ServerSearchButton.Content = L("Recherche…", "Searching…");
-        ServerSearchStatus.Text = _serverLocal ? L($"Recherche de « {query} » en {label}…", $"Searching for “{query}” in {label}…") : L($"Recherche de « {query} » en {label} sur le PC serveur…", $"Searching for “{query}” in {label} on the server PC…");
+        ServerSearchStatus.Text = _serverLocal ? L($"Recherche de « {query} » dans les films, les séries et les animes…", $"Searching for “{query}” in movies, shows and anime…")
+            : L($"Recherche de « {query} » dans les films, les séries et les animes sur le PC serveur…", $"Searching for “{query}” in movies, shows and anime on the server PC…");
         ServerResults.Opacity = 0.45;
         void End(string text) { ServerSearchStatus.Text = text; ServerResults.Children.Clear(); ServerResultsEmpty.Visibility = Visibility.Collapsed; }
         try
         {
             if (_serverLocal)
             {
-                var (found, error) = _torlinkInstallation is { Headless: true } installation
-                    ? await _torlinkHeadless.SearchAsync(installation, query, category, ct) : ([], L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC."));
+                if (_torlinkInstallation is not { Headless: true } installation) { End(L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC.")); return; }
+                // One search of TorLink in each category, side by side, mixed as the relay does.
+                var parts = await Task.WhenAll(RemoteDownloads.Categories.Select(async kind =>
+                {
+                    var (hits, error) = await _torlinkHeadless.SearchAsync(installation, query, kind, ct);
+                    return (kind, (IReadOnlyList<AgentHit>)hits, error);
+                }));
                 if (mine != _serverSearchVersion) return;
-                if (error is not null) { End(error); return; }
+                var (found, failed) = RemoteDownloads.Combine(parts, x => x.Id);
+                if (failed is not null) { End(failed); return; }
                 var local = $"here-{++_localSearches}";
                 // The magnets stay here, as the relay keeps them: the buttons only name a result.
                 _localMagnets.Clear();
-                foreach (var hit in found) _localMagnets[local + "/" + hit.Id] = hit.Magnet;
-                ShowServerHits(local, query, category, [.. found.Select(x => new RelayHit(x.Id, x.Name, x.Size, x.Seeders, x.Leechers, x.Source, x.Added))]);
+                foreach (var (_, hit) in found) _localMagnets[local + "/" + hit.Id] = hit.Magnet;
+                ShowServerHits(local, query, [.. found.Select(x => new RelayHit(x.Hit.Id, x.Hit.Name, x.Hit.Size, x.Hit.Seeders, x.Hit.Leechers, x.Hit.Source, x.Hit.Added, x.Category))]);
                 return;
             }
-            var id = await client!.TorLinkSearchAsync(query, category, ct);
+            var id = await client!.TorLinkSearchAsync(query, RemoteDownloads.All, ct);
             var started = DateTime.UtcNow;
             while (true)
             {
@@ -501,7 +509,7 @@ public partial class MainWindow
                 // Forgotten (Jellyfin restarted meanwhile): it will not come back.
                 if (state is null) { End(L("Cette recherche a été perdue : relance-la.", "This search was lost: run it again.")); return; }
                 if (state.State == "failed") { End(string.IsNullOrEmpty(state.Error) ? L("La recherche n’a pas abouti.", "The search didn’t go through.") : state.Error); return; }
-                if (state.State == "done") { ShowServerHits(id, query, category, state.Results ?? []); return; }
+                if (state.State == "done") { ShowServerHits(id, query, state.Results ?? []); return; }
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
@@ -519,14 +527,13 @@ public partial class MainWindow
     /// The results by title and episode (or season, or film), the best release of each first: its quality and source,
     /// its size and sources, its full name; the other releases folded under it.
     /// </summary>
-    private void ShowServerHits(string searchId, string query, string category, IReadOnlyList<RelayHit> hits)
+    private void ShowServerHits(string searchId, string query, IReadOnlyList<RelayHit> hits)
     {
-        var label = RemoteLines.CategoryLabel(category);
         ServerResultsEmpty.Visibility = Visibility.Collapsed; ServerResults.Children.Clear(); SmoothScroll.Jump(ServerResultsScroll);
-        if (hits.Count == 0) { ServerSearchStatus.Text = L($"Aucun résultat pour « {query} » en {label}. Essaie un autre titre, ou une autre catégorie.", $"No results for “{query}” in {label}. Try another title, or another category."); return; }
-        var groups = ReleaseRanking.Group(hits, category);
+        if (hits.Count == 0) { ServerSearchStatus.Text = L($"Aucun résultat pour « {query} » dans les films, les séries et les animes. Essaie un autre titre.", $"No results for “{query}” in movies, shows and anime. Try another title."); return; }
+        var groups = ReleaseRanking.Group(hits);
         var (versions, titles) = (Count(hits.Count, "version", "versions", "version", "versions"), Count(groups.Count, "titre", "titres", "title", "titles"));
-        ServerSearchStatus.Text = L($"{versions} pour « {query} » en {label}, regroupées en {titles}. La meilleure de chacun en premier.", $"{versions} for “{query}” in {label}, grouped into {titles}. The best of each comes first.");
+        ServerSearchStatus.Text = L($"{versions} pour « {query} », regroupées en {titles}. La meilleure de chacun en premier.", $"{versions} for “{query}”, grouped into {titles}. The best of each comes first.");
         foreach (var group in groups) ServerResults.Children.Add(ServerGroupView(searchId, group));
     }
 
@@ -538,6 +545,11 @@ public partial class MainWindow
         {
             var episode = new Border { CornerRadius = new CornerRadius(4), Background = Palette.Get("Raised"), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = group.Label, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextBody") } };
             DockPanel.SetDock(episode, Dock.Right); head.Children.Add(episode);
+        }
+        if (RemoteLines.KindLabel(group.Category) is { Length: > 0 } kind)
+        {
+            var tag = new TextBlock { Text = kind, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(tag, Dock.Right); head.Children.Add(tag);
         }
         head.Children.Add(new TextBlock { Text = group.Title, FontSize = 16, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, ToolTip = group.Title });
         panel.Children.Add(head);
@@ -562,7 +574,7 @@ public partial class MainWindow
             panel.Children.Add(toggle); panel.Children.Add(others);
         }
         var card = new Border { Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(12), Padding = new Thickness(18, 16, 18, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel };
-        AutomationProperties.SetName(card, group.Label.Length > 0 ? $"{group.Title} · {group.Label}" : group.Title);
+        AutomationProperties.SetName(card, string.Join(" · ", new[] { group.Title, group.Label, RemoteLines.KindLabel(group.Category) }.Where(x => x.Length > 0)));
         return card;
     }
 

@@ -44,4 +44,5 @@ public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, b
 public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created);
 public sealed record RelayControl(string Id, string Target, string Action, string State);
 public sealed record RelaySearch(string Id, string Query, string Category, string State, List<RelayHit> Results, string? Error);
-public sealed record RelayHit(string Id, string Name, long Size, int Seeders, int Leechers, string Source, long? Added);
+/// <summary><paramref name="Category"/>: the search of TorLink that found it (movies, tv, anime); an extension before 0.8.3 leaves it out.</summary>
+public sealed record RelayHit(string Id, string Name, long Size, int Seeders, int Leechers, string Source, long? Added, string? Category = null);
