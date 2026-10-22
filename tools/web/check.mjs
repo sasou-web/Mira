@@ -1701,9 +1701,11 @@ try {
   dl.ready = (await screen.locator('.page-sub').innerText()).trim();
   await screen.locator('input[type=search]').fill('  --mira   check ');
   await screen.getByRole('button', { name: 'Chercher' }).click();
-  const hit = screen.locator('.torlink-results .torlink-item').first();
+  // The film, among the results of every category (the episode of the show of the same name comes first).
+  const film = screen.locator('.torlink-results .torlink-title[aria-label^="Mira Check (2026)"]');
+  const hit = film.locator('.torlink-item').first();
   await hit.waitFor({ timeout: 15000 });
-  dl.hit = `${(await screen.locator('.torlink-results .torlink-head').first().innerText()).trim()} | ${(await hit.innerText()).trim()} | ${await screen.locator('.torlink-results .torlink-more').count()}`.replace(/\s*\n\s*/g, ' | ');
+  dl.hit = `${(await film.locator('.torlink-head').innerText()).trim()} | ${(await hit.innerText()).trim()} | ${await screen.locator('.torlink-results .torlink-more').count()}`.replace(/\s*\n\s*/g, ' | ');
   dl.kinds = (await screen.locator('.torlink-results .torlink-title').evaluateAll((all) => all.map((x) => x.getAttribute('aria-label')))).join(' / ');
   await dp.screenshot({ path: `${out}/25-download-search.png` });
   await hit.click();
@@ -1742,7 +1744,7 @@ fake.stop = true; await agentLoop;
 await dlContext.close();
 check('télécharger sur le PC serveur (administrateur) : recherche faite par le PC dans les films, les séries et les animes à la fois, téléchargement suivi, pause, annulation, lien magnet collé',
   /PC-CHECK est prêt/.test(dl.ready) && ['movies', 'tv', 'anime'].every((kind) => fake.seen.includes(`search ${kind} mira check`))
-    && dl.hit === 'Mira Check (2026) | FILM | 1080p · WEB-DL | Meilleur choix | 1,4 Go · 42 sources · check | Mira Check 2026 1080p WEB-DL | 1' && dl.kinds === 'Mira Check (2026) · Film / Mira Check · S01E02 · Série'
+    && dl.hit === 'Mira Check (2026) | FILM | 1080p · WEB-DL | Meilleur choix | 1,4 Go · 42 sources · check | Mira Check 2026 1080p WEB-DL | 1' && dl.kinds === 'Mira Check · S01E02 · Série / Mira Check (2026) · Film'
     && /37 % · 530 Mo sur 1,4 Go · 2,5 Mo\/s · reste 6 min · 4 pairs/.test(dl.row) && /^En pause/.test(dl.paused) && dl.cancelled && fake.seen.includes(`delete ${picked}`)
     && /pas un lien magnet/.test(dl.refused) && /Collé Check/.test(dl.pasted) && !dlErrors.length,
   dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.kinds} » ; « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
