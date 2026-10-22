@@ -63,7 +63,8 @@ public sealed record MediaFolders(string Root, string Movies, string Series, str
             || profiles is not null && string.Equals(Path.GetDirectoryName(full), profiles, StringComparison.OrdinalIgnoreCase);
         return refused ? L($"Choisis un dossier rien que pour tes vidéos, par exemple {DefaultRoot}.", $"Choose a folder just for your videos, for example {DefaultRoot}.") : null;
     }
-    public void Create() { foreach (var folder in new[] { Movies, Series, Anime }) Directory.CreateDirectory(folder); }
+    /// <summary>Creates the three folders, each with <see cref="LibraryMarker"/>'s file: emptied later, Jellyfin still cleans them.</summary>
+    public void Create() { foreach (var folder in new[] { Movies, Series, Anime }) { Directory.CreateDirectory(folder); LibraryMarker.Ensure(folder); } }
     /// <summary>
     /// Jellyfin's service runs as Network Service, which may not read a user's own folders: without this, its libraries
     /// would stay empty. Only Films, Séries and Animes, and what is put in them, are shared, not the rest of the root

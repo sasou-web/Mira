@@ -1101,5 +1101,18 @@ internal static class LibraryTests
             Assert(OfflineCopies.SubtitleExtension("ass") == "ass" && OfflineCopies.SubtitleExtension("PGSSUB") == "srt" && OfflineCopies.SubtitleExtension("webvtt") == "vtt", "Subtitle formats");
             Assert(OfflineCopies.Erase([root, other], connection) && OfflineCopies.List([root, other], connection).Count == 0, "Erased with the account");
         });
+        await Test("Dossiers des bibliothèques : un fichier caché les garde non vides pour Jellyfin, scan demandé seulement pour un dossier déjà vidé", () =>
+        {
+            var folders = Path.Combine(testRoot, "library-marker"); var empty = Path.Combine(folders, "Séries"); var full = Path.Combine(folders, "Films");
+            Directory.CreateDirectory(empty); Directory.CreateDirectory(Path.Combine(full, "Alien (1979)"));
+            Assert(!LibraryMarker.Ensure(Path.Combine(folders, "Animes")) && !Directory.Exists(Path.Combine(folders, "Animes")), "Absent folder (unplugged drive, another computer's path): nothing written");
+            Assert(LibraryMarker.Ensure(empty) && File.Exists(Path.Combine(empty, LibraryMarker.FileName)), "Emptied folder: marked, and a scan asked");
+            Assert(!LibraryMarker.Ensure(empty), "Already marked: nothing more");
+            Assert(!LibraryMarker.Ensure(full) && File.ReadAllText(Path.Combine(full, LibraryMarker.FileName)).Contains("Jellyfin"), "Folder with titles: marked, no scan");
+            if (OperatingSystem.IsWindows()) Assert(File.GetAttributes(Path.Combine(full, LibraryMarker.FileName)).HasFlag(FileAttributes.Hidden), "Hidden");
+            var created = MediaFolders.Under(Path.Combine(folders, "Jellyfin")); created.Create();
+            Assert(new[] { created.Movies, created.Series, created.Anime }.All(x => File.Exists(Path.Combine(x, LibraryMarker.FileName))), "Folders made by the setup are marked");
+            return Task.CompletedTask;
+        });
     }
 }
