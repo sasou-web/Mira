@@ -17,12 +17,13 @@
   <meta property="og:title" content="Mira: your Jellyfin library, like at the movies">
   <meta property="og:description" content="A free Jellyfin client for Windows, Mac, iPhone and Android. No account, no ads, and nothing leaves your server.">
   <meta property="og:url" content="https://miracinema.app/en/">
-  <meta property="og:image" content="https://miracinema.app/img/share.jpg">
+  <meta property="og:image" content="https://miracinema.app/img/share-en.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="../img/mark.svg" type="image/svg+xml">
+  <link rel="icon" href="../img/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
   <link rel="preload" href="../fonts/nunito-sans-800.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="../css/site.css">
@@ -55,8 +56,12 @@
           <h1 class="display" id="titre">Your Jellyfin library, like at the movies.</h1>
           <p class="lede">Mira turns your films and series into a real cinema: big artwork, picking up at the right minute, the next episode rolling on its own. On your PC, your Mac and your phone.</p>
           <div class="actions">
-            <a class="button primary" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#download"/></svg>Download for Windows</a>
-            <a class="button quiet" href="#telecharger">Mac, iPhone and Android</a>
+            <a class="button primary" data-for="windows" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#download"/></svg>Download for Windows</a>
+            <a class="button quiet" data-for="windows" href="#telecharger">Mac, iPhone and Android</a>
+            <a class="button primary" data-for="mac" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg" hidden><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#download"/></svg>Download for Mac</a>
+            <a class="button quiet" data-for="mac" href="#telecharger" hidden>Windows, iPhone and Android</a>
+            <a class="button primary" data-for="phone" href="#telephone" hidden><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#phone"/></svg>Mira on your phone</a>
+            <a class="button quiet" data-for="phone" href="#telecharger" hidden>Windows and Mac</a>
           </div>
           <p class="fine"><span>Free</span><span>Open source</span><span>No account</span></p>
         </div>
@@ -153,10 +158,10 @@
           <article class="panel reveal">
             <h3>Watch together</h3>
             <p>Make a group, send the link. Your friend opens it, and you watch at the same moment. A pause on one side pauses the other.</p>
-            <div class="art sync" aria-hidden="true">
-              <div class="lane">You<div class="track"><i></i><b></b></div></div>
-              <div class="lane">Your friend<div class="track"><i></i><b></b></div></div>
-              <p class="sync-state"><svg class="icon"><use href="../img/icons.svg#users"/></svg>Together · playing in sync</p>
+            <div class="art sync" role="group" aria-label="Demo: two playbacks in sync" data-playing="Together · playing in sync" data-by-you="You paused it for both of you" data-by-friend="Your friend paused it for both of you">
+              <div class="lane"><span>You</span><div class="track"><i></i><b></b></div><button class="lane-toggle" type="button" aria-label="Pause on your side" data-pause="Pause on your side" data-play="Resume on your side" hidden><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#pause"/></svg></button></div>
+              <div class="lane"><span>Your friend</span><div class="track"><i></i><b></b></div><button class="lane-toggle" type="button" aria-label="Pause on your friend’s side" data-pause="Pause on your friend’s side" data-play="Resume on your friend’s side" hidden><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#pause"/></svg></button></div>
+              <p class="sync-state"><svg class="icon" aria-hidden="true"><use href="../img/icons.svg#users"/></svg><span>Together · playing in sync</span></p>
             </div>
           </article>
           <article class="panel reveal">
@@ -197,8 +202,8 @@
           <p class="lede">Mira __VERSION__, free and open source. You need a Jellyfin 10.9 server or newer, or let Mira for Windows install it.</p>
         </div>
         <div class="downloads">
-          <article class="download reveal">
-            <h3>Windows</h3>
+          <article class="download reveal" data-for="windows">
+            <h3>Windows<span class="yours" hidden>Your device</span></h3>
             <p class="needs">Windows 10 or 11, x64</p>
             <p>The installer, then Mira keeps itself up to date.</p>
             <div>
@@ -206,8 +211,8 @@
               <p class="more"><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-portable.exe">Portable</a><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64.zip">Zip</a><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION.md">Guide (French)</a></p>
             </div>
           </article>
-          <article class="download reveal">
-            <h3>Mac</h3>
+          <article class="download reveal" data-for="mac">
+            <h3>Mac<span class="yours" hidden>Your device</span></h3>
             <p class="needs">Apple silicon, macOS 15 or later</p>
             <p>Drag Mira to Applications, then allow it once: it isn’t signed by Apple.</p>
             <div>
@@ -215,8 +220,8 @@
               <p class="more"><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-MAC.md">Install guide (French)</a></p>
             </div>
           </article>
-          <article class="download reveal">
-            <h3>iPhone, iPad, Android</h3>
+          <article class="download reveal" data-for="phone">
+            <h3>iPhone, iPad, Android<span class="yours" hidden>Your device</span></h3>
             <p class="needs">Nothing to download</p>
             <p>Mira web comes from your server: in Mira for Windows, Guide, then Mira on your phone, and scan the QR code.</p>
             <div>

@@ -23,6 +23,7 @@
   <meta property="og:locale" content="fr_FR">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="img/mark.svg" type="image/svg+xml">
+  <link rel="icon" href="img/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
   <link rel="preload" href="fonts/nunito-sans-800.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/site.css">
@@ -55,8 +56,12 @@
           <h1 class="display" id="titre">Ta bibliothèque Jellyfin, comme au cinéma.</h1>
           <p class="lede">Mira transforme tes films et tes séries en une vraie salle : grandes affiches, reprise à la bonne minute, épisode suivant qui s’enchaîne. Sur ton PC, ton Mac et ton téléphone.</p>
           <div class="actions">
-            <a class="button primary" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Windows</a>
-            <a class="button quiet" href="#telecharger">Mac, iPhone et Android</a>
+            <a class="button primary" data-for="windows" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Windows</a>
+            <a class="button quiet" data-for="windows" href="#telecharger">Mac, iPhone et Android</a>
+            <a class="button primary" data-for="mac" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Mac</a>
+            <a class="button quiet" data-for="mac" href="#telecharger" hidden>Windows, iPhone et Android</a>
+            <a class="button primary" data-for="phone" href="#telephone" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Mira sur ton téléphone</a>
+            <a class="button quiet" data-for="phone" href="#telecharger" hidden>Windows et Mac</a>
           </div>
           <p class="fine"><span>Gratuit</span><span>Open source</span><span>Sans compte</span></p>
         </div>
@@ -153,10 +158,10 @@
           <article class="panel reveal">
             <h3>Regarder ensemble</h3>
             <p>Crée un groupe, envoie le lien. Ton ami l’ouvre, et vous regardez au même instant. Une pause chez l’un met en pause chez l’autre.</p>
-            <div class="art sync" aria-hidden="true">
-              <div class="lane">Toi<div class="track"><i></i><b></b></div></div>
-              <div class="lane">Ton ami<div class="track"><i></i><b></b></div></div>
-              <p class="sync-state"><svg class="icon"><use href="img/icons.svg#users"/></svg>Ensemble · lecture synchronisée</p>
+            <div class="art sync" role="group" aria-label="Démonstration : deux lectures synchronisées" data-playing="Ensemble · lecture synchronisée" data-by-you="Tu as mis en pause pour vous deux" data-by-friend="Ton ami a mis en pause pour vous deux">
+              <div class="lane"><span>Toi</span><div class="track"><i></i><b></b></div><button class="lane-toggle" type="button" aria-label="Mettre en pause chez toi" data-pause="Mettre en pause chez toi" data-play="Reprendre chez toi" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#pause"/></svg></button></div>
+              <div class="lane"><span>Ton ami</span><div class="track"><i></i><b></b></div><button class="lane-toggle" type="button" aria-label="Mettre en pause chez ton ami" data-pause="Mettre en pause chez ton ami" data-play="Reprendre chez ton ami" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#pause"/></svg></button></div>
+              <p class="sync-state"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#users"/></svg><span>Ensemble · lecture synchronisée</span></p>
             </div>
           </article>
           <article class="panel reveal">
@@ -197,8 +202,8 @@
           <p class="lede">Mira __VERSION__, gratuite et open source. Il te faut un serveur Jellyfin 10.9 ou plus, ou laisse Mira pour Windows l’installer.</p>
         </div>
         <div class="downloads">
-          <article class="download reveal">
-            <h3>Windows</h3>
+          <article class="download reveal" data-for="windows">
+            <h3>Windows<span class="yours" hidden>Ton appareil</span></h3>
             <p class="needs">Windows 10 ou 11, x64</p>
             <p>L’installateur, et Mira se met ensuite à jour toute seule.</p>
             <div>
@@ -206,8 +211,8 @@
               <p class="more"><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-portable.exe">Portable</a><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64.zip">Zip</a><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION.md">Guide</a></p>
             </div>
           </article>
-          <article class="download reveal">
-            <h3>Mac</h3>
+          <article class="download reveal" data-for="mac">
+            <h3>Mac<span class="yours" hidden>Ton appareil</span></h3>
             <p class="needs">Puce Apple, macOS 15 ou plus</p>
             <p>Glisse Mira dans Applications, puis autorise-la une fois : elle n’est pas signée par Apple.</p>
             <div>
@@ -215,8 +220,8 @@
               <p class="more"><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-MAC.md">Guide d’installation</a></p>
             </div>
           </article>
-          <article class="download reveal">
-            <h3>iPhone, iPad, Android</h3>
+          <article class="download reveal" data-for="phone">
+            <h3>iPhone, iPad, Android<span class="yours" hidden>Ton appareil</span></h3>
             <p class="needs">Rien à télécharger</p>
             <p>Mira web arrive par ton serveur : dans Mira pour Windows, Guide, puis Mira sur ton téléphone, et scanne le QR code.</p>
             <div>
