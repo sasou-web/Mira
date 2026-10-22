@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.8.2",
+    "summary": "Téléchargements sur le PC serveur, Corbeille depuis la fiche, titres supprimés et clé de secours.",
+    "en": { "summary": "Downloads on the server PC, Recycle Bin from a title page, deleted titles, and a backup key." },
+    "items": [
+      { "icon": "download", "title": "Téléchargements sur le PC serveur", "text": "Sur le PC de Jellyfin aussi, Téléchargements cherche et classe les versions comme Mira web.",
+        "en": { "title": "Downloads on the server PC", "text": "On the Jellyfin PC too, Downloads searches and ranks releases like Mira web." } },
+      { "icon": "film", "title": "Explorateur et Corbeille", "text": "Sur la fiche d’un titre, Afficher dans l’explorateur ou Mettre à la Corbeille (PC de Jellyfin, administrateur).",
+        "en": { "title": "File Explorer and Recycle Bin", "text": "On a title page, show it in File Explorer or move it to the Recycle Bin (Jellyfin PC, administrator)." } },
+      { "icon": "refresh", "title": "Un titre supprimé disparaît", "text": "Le dernier titre supprimé d’un dossier de bibliothèque ne reste plus affiché dans Mira.",
+        "en": { "title": "A deleted title disappears", "text": "The last title deleted from a library folder no longer stays listed in Mira." } },
+      { "icon": "check", "title": "Mises à jour plus sûres", "text": "Une clé de secours protège les mises à jour si la clé principale est perdue. Rien à faire.",
+        "en": { "title": "Safer updates", "text": "A backup key protects updates if the main key is lost. Nothing to do." } }
+    ]
+  },
+  {
     "version": "0.8.1",
     "summary": "Mira trouve ton serveur Jellyfin toute seule à la connexion, sur ce PC, la maison ou Tailscale.",
     "en": { "summary": "Mira finds your Jellyfin server by itself at sign-in: on this PC, at home or over Tailscale." },
