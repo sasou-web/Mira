@@ -20,7 +20,7 @@ jobs:
           for t in "Dune (2021)" "Dune Part Two (2024)"; do
             mkdir -p ".artifacts/media/Films/$t"
             timeout 60 docker run --rm --entrypoint /usr/lib/jellyfin-ffmpeg/ffmpeg -v "$PWD/.artifacts/media:/media" jellyfin/jellyfin:12.1.20260915-010956 \
-              -nostdin -loglevel error -y -f lavfi -t 5 -i color=c=black:s=640x360:r=1 "/media/Films/$t/$t.mkv"
+              -nostdin -loglevel error -y -f lavfi -t 60 -i color=c=black:s=1920x1080:r=1 -f lavfi -t 60 -i anullsrc=r=48000:cl=stereo -c:v libx264 -c:a aac -shortest "/media/Films/$t/$t.mkv"
           done
           ls -lR .artifacts/media
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" jellyfin/jellyfin:12.1.20260915-010956
@@ -46,8 +46,10 @@ jobs:
           await call('POST', 'Library/VirtualFolders?name=Films&collectionType=movies&paths=%2Fmedia%2FFilms&refreshLibrary=true', token, { LibraryOptions: {} });
           let films = [];
           for (let i = 0; i < 100 && films.filter((f) => f.ProviderIds?.Tmdb).length < 2; i++) {
+            if (i % 10 === 0) await call('POST', 'Library/Refresh', token);
             await sleep(3000);
             films = (await call('GET', `Items?userId=${user}&recursive=true&includeItemTypes=Movie&fields=ProviderIds`, token)).Items ?? [];
+            console.log(i, films.map((f) => `${f.Name} ${JSON.stringify(f.ProviderIds)}`).join(' | '));
           }
           mkdirSync('stills/dune', { recursive: true });
           const list = [];
@@ -65,6 +67,9 @@ jobs:
           writeFileSync('stills/dune/list.txt', list.join('\n') + '\n');
           JS
           timeout 900 node .artifacts/stills.mjs
+      - name: Jellyfin's log
+        if: always()
+        run: docker logs jellyfin 2>&1 | grep -iv 'debug' | tail -60
       - name: Commit
         run: |
           git add stills
