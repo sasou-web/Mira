@@ -1,4 +1,4 @@
-// The README's captures of Mira web, at an iPhone's size in Chromium, on the library of tools/gallery/setup.mjs:
+// The README's captures of Mira web, a whole iPhone screen in Chromium, on the library of tools/gallery/setup.mjs:
 // Home, a film's page, the films and a series' page.
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/gallery/web.mjs <url of /Mira/> <user> <password> <folder>
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -7,10 +7,18 @@ if (!out) { console.error('usage: web.mjs <url /Mira/> <user> <password> <folder
 mkdirSync(out, { recursive: true });
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
 const browser = await chromium.launch();
-const context = await browser.newContext({ ...devices['iPhone 15 Pro'], locale: 'fr-FR' });
+// The whole screen of an iPhone 17 Pro (402 × 874 points, ×3), as opened from its home screen: no Safari bars, the page
+// under the status bar and the home indicator (black-translucent), kept clear by the safe areas iOS gives it. Still
+// images: the Home's banner does not turn between two captures.
+const context = await browser.newContext({
+  ...devices['iPhone 15 Pro'], viewport: { width: 402, height: 874 }, screen: { width: 402, height: 874 }, deviceScaleFactor: 3,
+  locale: 'fr-FR', reducedMotion: 'reduce',
+});
 // As opened from the iPhone's home screen, the way Mira web is meant to be used: no invitation to add it there.
 await context.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
 const page = await context.newPage();
+const cdp = await context.newCDPSession(page);
+await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 62, bottom: 34, left: 0, right: 0 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 const wait = (ms) => page.waitForTimeout(ms);

@@ -319,24 +319,47 @@ body::after {
 /* Three iPhones, fanned out a little more at each line. */
 .phones { position: relative; width: 100%; height: clamp(380px, 110vw, 560px); transition: --spread 900ms var(--ease); }
 .stage[data-cue="2"] .phones { --spread: 1; }
+/* A recent iPhone drawn around a whole screen of Mira web (402 × 874 points, captured by tools/gallery/web.mjs): a thin
+   titanium band, a 2-point black border, the screen's rounded corners; status bar, Dynamic Island and home indicator
+   over the screenshot as iOS draws them. Sizes in cqw, a hundredth of the phone's width: 1.2 band + 2 border on each
+   side leave a screen of 93.6 wide and 203.5 high (corners 14.4), a phone of 209.9 high. */
 .phone {
-  position: absolute; top: 50%; left: 50%; width: clamp(150px, 40vw, 240px);
-  padding: 3%; border-radius: 16% / 8%; background: linear-gradient(145deg, #3a3a3e, #121214 40%, #2a2a2d);
-  box-shadow: 0 0 0 1px #000, 0 40px 80px rgba(0, 0, 0, 0.7);
+  position: absolute; top: 50%; left: 50%; width: clamp(150px, 40vw, 240px); container-type: inline-size;
+  border-radius: 17.6% / 8.39%;
+  background: linear-gradient(145deg, #75777d, #2e2f33 16%, #1c1d20 50%, #2e2f33 84%, #66686e);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.35), 0 0 0 0.5px #000, 0 40px 80px rgba(0, 0, 0, 0.7);
 }
-/* The screenshots start under the status bar: the glass gives it back, black as in Mira, with the Dynamic Island. */
-.phone .glass { position: relative; padding-top: 14%; border-radius: 13.5% / 6.6%; overflow: hidden; background: #000; }
-.phone img { width: 100%; }
+/* Side buttons: Action and volume on the left, side button and Camera Control on the right. */
+.phone::before, .phone::after { content: ''; position: absolute; width: 0.8%; border-radius: 1px; }
+.phone::before {
+  left: -0.6%; top: 19%; height: 23.5%;
+  background: linear-gradient(#45464b 0 19%, transparent 19% 34%, #45464b 34% 62%, transparent 62% 72%, #45464b 72%);
+}
+.phone::after {
+  right: -0.6%; top: 29%; height: 32%;
+  background: linear-gradient(#45464b 0 30%, transparent 30% 81%, #2a2b30 81%);
+}
+.phone .glass { position: relative; margin: 1.2cqw; border: 2cqw solid #000; border-radius: 16.4cqw; overflow: hidden; background: #000; }
+.phone img { display: block; width: 100%; height: auto; }
+.phone .glass::before, .phone .glass::after { content: ''; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
+/* Status bar: 9:41, the Dynamic Island (with its camera), signal, Wi-Fi and battery. */
 .phone .glass::before {
-  content: ''; position: absolute; top: 3.2%; left: 50%; width: 32%; height: 3.4%; transform: translateX(-50%);
-  border-radius: var(--r-full); background: #111113; box-shadow: inset 0 0 0 1px #1d1d20;
+  top: 0; aspect-ratio: 402 / 54;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 402 54'%3E%3Ctext x='78' y='35.5' text-anchor='middle' font-family='-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif' font-size='17' font-weight='600' fill='%23fff'%3E9:41%3C/text%3E%3Crect x='138.5' y='11' width='125' height='37' rx='18.5' fill='%23000'/%3E%3Ccircle cx='245' cy='29.5' r='5.5' fill='%230d0f17'/%3E%3Ccircle cx='245' cy='29.5' r='2.4' fill='%23151a2b'/%3E%3Cg fill='%23fff'%3E%3Crect x='289' y='31' width='3.4' height='4.5' rx='1'/%3E%3Crect x='294.2' y='28.5' width='3.4' height='7' rx='1'/%3E%3Crect x='299.4' y='26' width='3.4' height='9.5' rx='1'/%3E%3Crect x='304.6' y='23.5' width='3.4' height='12' rx='1'/%3E%3Cpath d='M322.5 35.5l-3.4-3.6a4.9 4.9 0 0 1 6.8 0z'/%3E%3C/g%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M316.6 29.4a8.4 8.4 0 0 1 11.8 0'/%3E%3Cpath d='M313.3 26a13.1 13.1 0 0 1 18.4 0'/%3E%3C/g%3E%3Crect x='339.5' y='23.5' width='25.5' height='12' rx='3.8' fill='none' stroke='%23fff' stroke-opacity='.4'/%3E%3Crect x='341.5' y='25.5' width='19' height='8' rx='2.2' fill='%23fff'/%3E%3Crect x='366' y='27.5' width='1.6' height='4' rx='.8' fill='%23fff' fill-opacity='.4'/%3E%3C/svg%3E") top / 100% auto no-repeat;
+}
+/* Home indicator, and a faint reflection on the glass. */
+.phone .glass::after {
+  top: 0; bottom: 0;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 402 21'%3E%3Crect x='134' y='8' width='134' height='5' rx='2.5' fill='%23fff' fill-opacity='.9'/%3E%3C/svg%3E") bottom / 100% auto no-repeat,
+    linear-gradient(115deg, rgba(255, 255, 255, 0.07), transparent 32%);
 }
 .phone:nth-child(1) { z-index: 1; transform: translate(calc(-50% - 60% - var(--spread) * 22%), -50%) rotate(calc(-6deg - var(--spread) * 4deg)) scale(0.88); }
 .phone:nth-child(2) { z-index: 3; transform: translate(-50%, calc(-50% - var(--spread) * 3%)); }
 .phone:nth-child(3) { z-index: 2; transform: translate(calc(-50% + 60% + var(--spread) * 22%), -50%) rotate(calc(6deg + var(--spread) * 4deg)) scale(0.88); }
 @media (min-width: 901px) and (scripting: enabled) {
   .phones { height: 100%; }
-  .phone { width: min(17vw, calc((100svh - var(--top-h) - var(--player-h) - 190px) / 2.05)); }
+  .phone { width: min(17vw, calc((100svh - var(--top-h) - var(--player-h) - 190px) / 2.1)); }
 }
 
 /* ---------- Together: two screens, one film ---------- */
