@@ -8,11 +8,14 @@ from PIL import Image
 
 SOURCE = Path("docs/screenshots/readme")
 OUT = Path("site/img")
-WIDTHS = {"windows": (960, 1600, 2400), "web": (390, 720, 1080), "film": (640, 1280, 1920)}
+WIDTHS = {"windows": (960, 1600, 2400), "web": (390, 720, 1080), "film": (640, 1280, 2000)}
+# The still fills the screen: its largest copy keeps its own width (2000, never resampled) and less compression.
+QUALITY = {"film": 90}
 
 OUT.mkdir(parents=True, exist_ok=True)
 for path in sorted(SOURCE.glob("*.jpg")):
     image = Image.open(path).convert("RGB")
-    for width in WIDTHS[path.stem.split("-")[0]]:
+    kind = path.stem.split("-")[0]
+    for width in WIDTHS[kind]:
         copy = image.resize((width, round(image.height * width / image.width)), Image.LANCZOS)
-        copy.save(OUT / f"{path.stem}-{width}.webp", "WEBP", quality=80, method=6)
+        copy.save(OUT / f"{path.stem}-{width}.webp", "WEBP", quality=QUALITY.get(kind, 80), method=6)
