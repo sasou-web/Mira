@@ -7,16 +7,19 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Mira.Core;
 using Mira.Core.TorLink;
+using Mira.Desktop.TorLink;
 using Mira.Desktop.Views;
 
 namespace Mira.Desktop;
 
 /// <summary>
-/// The Downloads page away from the PC of Jellyfin. TorLink runs on that PC only, where its downloads land next to the
-/// library; this page sends it searches and downloads through the relay of the extension (<c>Mira/torlink</c>), as Mira
-/// web's « Télécharger sur le PC serveur » does: the best release of each title or episode first
-/// (<see cref="ReleaseRanking"/>), what the PC has under way with its progress and time left (<see cref="RemoteLines"/>),
-/// read every 3 s while the page shows, and only then.
+/// The Downloads page as Mira web's « Télécharger sur le PC serveur » shows it: the best release of each title or episode
+/// first (<see cref="ReleaseRanking"/>), what TorLink has under way with its progress and time left
+/// (<see cref="RemoteLines"/>), read every 3 s while the page shows, and only then. Away from the PC of Jellyfin, where
+/// TorLink runs only (its downloads land next to the library), the page sends it searches and downloads through the relay
+/// of the extension (<c>Mira/torlink</c>). On that PC (<see cref="_serverLocal"/>), the same screen runs them with this
+/// PC's TorLink: « torlnk search », and TorLink without a window for the downloads (MainWindow.TorLinkRemote.cs); TorLink's
+/// own terminal stays one button away (<see cref="PlayerSettings.TorLinkTerminal"/>).
 /// </summary>
 public partial class MainWindow
 {
@@ -35,35 +38,52 @@ public partial class MainWindow
     private readonly Dictionary<string, ServerRow> _serverRows = [];
     private sealed record ServerRow(string Shape, Border View, TextBlock Name, TextBlock Line, ScaleTransform? Bar);
     private sealed record ServerRowData(string Key, string Shape, string Name, string Line, int? Progress, Func<ServerRow> Make);
+    /// <summary>The screen runs searches and downloads with this PC's TorLink (the PC of Jellyfin), not through the relay.</summary>
+    private bool _serverLocal;
+    /// <summary>Why this PC's TorLink cannot download now, in words; null when it can.</summary>
+    private string? _localProblem;
+    /// <summary>Shown again: what TorLink had under way goes on without a window, as it would have in its terminal.</summary>
+    private bool _localResume;
+    /// <summary>The magnets of the last search on this PC, by search id / result id: never shown.</summary>
+    private readonly Dictionary<string, string> _localMagnets = [];
+    private int _localSearches, _serverQueued;
 
     private void InitializeServerDownloads() => _serverTimer.Tick += async (_, _) => await ServerTickAsync();
 
     /// <summary>Jellyfin runs on another PC than this one (an account, not the demo): TorLink is not offered here.</summary>
     private async Task<bool> JellyfinElsewhereAsync() => !_demo && _client is { } client && !await JellyfinOnThisPcAsync(client);
 
-    private async Task ShowServerDownloadsAsync()
+    /// <param name="local">On the PC of Jellyfin: this PC's TorLink, not the relay.</param>
+    private async Task ShowServerDownloadsAsync(bool local)
     {
-        if (!ReferenceEquals(_serverClient, _client)) { ResetServerDownloads(); _serverClient = _client; }
+        if (!ReferenceEquals(_serverClient, _client) || local != _serverLocal) { ResetServerDownloads(); _serverClient = _client; _serverLocal = local; DescribeServerPlace(); }
         if (!_serverScreen)
         {
             _serverScreen = true;
             // Opened for another account, on this PC's Jellyfin: it would go on downloading here, out of sight.
-            if (_torlinkTerminal?.Running == true) await _torlinkTerminal.StopAsync();
+            if (!local && _torlinkTerminal?.Running == true) await _torlinkTerminal.StopAsync();
         }
-        DownloadersPanel.Visibility = TorLinkTerminalHost.Visibility = Visibility.Collapsed;
-        DownloadersButton.Visibility = TorLinkFolderButton.Visibility = TorLinkSettingsButton.Visibility = TorLinkKeysHint.Visibility = Visibility.Collapsed;
+        // Looked at again: TorLink may have been closed elsewhere meanwhile.
+        _localResume = local; _localProblem = null;
+        if (local) _torlinkStartWatch.Stop();
+        // TorLink's terminal and the list of downloaders stay out of the way, and out of the keyboard's reach.
+        DownloadersPanel.Visibility = TorLinkTerminalHost.Visibility = TorLinkKeysHint.Visibility = Visibility.Collapsed;
+        // On this PC, TorLink's folder, its settings and its terminal stay at hand.
+        DownloadersButton.Visibility = TorLinkFolderButton.Visibility = TorLinkSettingsButton.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
+        DescribeTorLinkView();
         if (ServerDownloadsPanel.Visibility != Visibility.Visible) Motion.Reveal(ServerDownloadsPanel, 200, 6);
+        if (local) RenderTorLinkImports();
         DescribeServerAgent(DateTimeOffset.UtcNow);
         _serverTimer.Stop(); _serverTimer.Start();
         if (!ServerDownloadsPanel.IsKeyboardFocusWithin) _ = Dispatcher.BeginInvoke(() => ServerQueryBox.Focus(), DispatcherPriority.Input);
         await LoadServerDownloadsAsync();
     }
 
-    /// <summary>TorLink's own page again: an account of this PC's Jellyfin.</summary>
+    /// <summary>TorLink's own page again (its terminal, or the list of downloaders): an account of this PC's Jellyfin.</summary>
     private void HideServerDownloads()
     {
         if (!_serverScreen) return;
-        _serverScreen = false; _serverTimer.Stop();
+        _serverScreen = _serverLocal = false; _serverTimer.Stop();
         ServerDownloadsPanel.Visibility = Visibility.Collapsed; TorLinkTerminalHost.Visibility = TorLinkSettingsButton.Visibility = Visibility.Visible;
         TorLinkSubtitle.Text = TorLinkPageLine;
         ResetServerDownloads();
@@ -73,13 +93,28 @@ public partial class MainWindow
     {
         ++_serverVersion; ++_serverSearchVersion;
         _serverFilled = _serverReady = _serverSearching = false; _serverAgent = null; _serverClient = null;
-        _serverSent.Clear(); _serverRows.Clear();
+        _serverSent.Clear(); _serverRows.Clear(); _localMagnets.Clear(); _localProblem = null; _serverQueued = 0;
         ServerQueue.Children.Clear(); ServerPlaced.Children.Clear(); ServerResults.Children.Clear();
         ServerPlacedTitle.Visibility = ServerProblem.Visibility = Visibility.Collapsed;
         ServerQueueEmpty.Visibility = ServerResultsEmpty.Visibility = Visibility.Visible;
         ServerQueueSummary.Text = ServerSearchStatus.Text = "";
         ServerSearchButton.Content = L("Chercher", "Search"); ServerResults.Opacity = 1;
         CloseServerMagnet();
+    }
+
+    /// <summary>The words of the screen: the server PC, or this PC's TorLink.</summary>
+    private void DescribeServerPlace()
+    {
+        var here = _serverLocal;
+        ServerQueueTitle.Text = here ? L("Dans TorLink", "In TorLink") : L("Sur le PC serveur", "On the server PC");
+        ServerQueueHint.Text = here ? L("Ce que tu télécharges apparaît ici avec sa progression et le temps restant, puis rejoint ta bibliothèque.", "What you download shows up here with its progress and the time left, then joins your library.")
+            : L("Ce que tu envoies apparaît ici avec sa progression et le temps restant, puis rejoint ta bibliothèque.", "What you send shows up here with its progress and the time left, then joins your library.");
+        ServerResultsHint.Text = here ? L("TorLink le cherche depuis ce PC. Mira regroupe les versions par titre et par épisode, et met la meilleure en avant : la qualité de la source d’abord, le 1080p, puis MULTI ou VF.", "TorLink searches for it from this PC. Mira groups the versions by title and by episode, and puts the best one first: the source’s quality first, 1080p, then MULTI or French audio.")
+            : L("TorLink le cherche sur le PC serveur. Mira regroupe les versions par titre et par épisode, et met la meilleure en avant : la qualité de la source d’abord, le 1080p, puis MULTI ou VF.", "TorLink searches for it on the server PC. Mira groups the versions by title and by episode, and puts the best one first: the source’s quality first, 1080p, then MULTI or French audio.");
+        ServerMagnetHint.Text = here ? L("Le lien d’un site que tu connais : TorLink le télécharge sur ce PC, puis Mira le range dans ta bibliothèque.", "A link from a site you know: TorLink downloads it on this PC, then Mira sorts it into your library.")
+            : L("Le lien d’un site que tu connais : TorLink le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque.", "A link from a site you know: TorLink downloads it on the server PC, then Mira sorts it into your library.");
+        ServerMagnetSend.Content = here ? L("Télécharger", "Download") : L("Envoyer au PC serveur", "Send to the server PC");
+        ServerPlacedTitle.Text = here ? L("Vers Jellyfin", "To Jellyfin") : L("Rangés dans ta bibliothèque", "Sorted into your library");
     }
 
     private async Task ServerTickAsync()
@@ -96,13 +131,15 @@ public partial class MainWindow
 
     private async Task LoadServerDownloadsAsync()
     {
-        if (_client is not { } client) return;
+        var client = _client;
+        if (client is null && !_serverLocal) return;
         if (_serverLoading) { _serverAgain = true; return; }
         _serverLoading = true; _serverAgain = false;
         var mine = ++_serverVersion;
         try
         {
-            var status = await client.TorLinkStatusAsync(_connectionLifetime.Token);
+            if (_serverLocal) { await LoadLocalDownloadsAsync(mine); return; }
+            var status = await client!.TorLinkStatusAsync(_connectionLifetime.Token);
             if (mine != _serverVersion || !ReferenceEquals(client, _client) || !_serverScreen) return;
             ServerProblem.Visibility = Visibility.Collapsed;
             RenderServerStatus(status, DateTimeOffset.UtcNow);
@@ -121,6 +158,66 @@ public partial class MainWindow
             _serverLoading = false;
             if (_serverAgain && _serverScreen) _ = LoadServerDownloadsAsync();
         }
+    }
+
+    /// <summary>On the PC of Jellyfin: TorLink's downloads, live from TorLink without a window, otherwise from the queue it last saved.</summary>
+    private async Task LoadLocalDownloadsAsync(int mine)
+    {
+        List<RelayDownload> downloads;
+        try { downloads = await RemoteDownloadsAsync(_torlinkLifetime.Token); }
+        catch (OperationCanceledException) { return; }
+        if (mine != _serverVersion || !_serverScreen || !_serverLocal) return;
+        if (_localResume)
+        {
+            _localResume = false;
+            // The page's TorLink running, or a queue left under way: it goes on without a window, as it would have in its terminal.
+            if (_torlinkHeadless.Client is null && (_torlinkTerminal?.Running == true || downloads.Any(x => x.Status == "stopped"))) _ = ResumeHereAsync();
+        }
+        RenderServerStatus(new RelayStatus(null, [], [], downloads, []), DateTimeOffset.UtcNow);
+    }
+
+    private async Task ResumeHereAsync()
+    {
+        await StartLocalTorLinkAsync();
+        if (_serverScreen && _serverLocal) await LoadServerDownloadsAsync();
+    }
+
+    /// <summary>TorLink without a window on this PC, for this screen: null once it runs, otherwise why not, in this PC's words.</summary>
+    private async Task<string?> StartLocalTorLinkAsync()
+    {
+        var installation = _torlinkInstallation = TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath);
+        var problem = await StartHeadlessAsync(installation);
+        if (problem is not null && DateTime.UtcNow - _remoteElsewhereAt < TimeSpan.FromSeconds(10))
+            problem = L("TorLink est déjà ouvert dans une autre fenêtre. Quitte-le (q ou Ctrl+C), puis réessaie : deux TorLink ne peuvent pas gérer les mêmes téléchargements.", "TorLink is already open in another window. Quit it (q or Ctrl+C), then try again: two TorLinks can’t manage the same downloads.");
+        _localProblem = problem;
+        if (_serverScreen && _serverLocal) DescribeServerAgent(DateTimeOffset.UtcNow);
+        return problem;
+    }
+
+    /// <summary>A magnet into this PC's TorLink, without a window: null once TorLink has it (new or already there), otherwise why not.</summary>
+    private async Task<string?> DownloadHereAsync(string magnet)
+    {
+        if (await StartLocalTorLinkAsync() is { } refused) return refused;
+        if (_torlinkHeadless.Client is not { } serve) return L("TorLink n’a pas répondu.", "TorLink didn’t answer.");
+        var ct = _torlinkLifetime.Token;
+        try
+        {
+            var (outcome, error) = await serve.AddAsync(magnet, ct);
+            if (outcome is null) return string.IsNullOrEmpty(error) ? L("TorLink a refusé ce téléchargement.", "TorLink refused this download.") : error;
+            _headlessIdleSince = null;
+            return null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested) { return L("TorLink n’a pas répondu.", "TorLink didn’t answer."); }
+    }
+
+    /// <summary>A pause, a resume or a cancel by this PC's TorLink: null once done, otherwise why not.</summary>
+    private async Task<string?> ControlHereAsync(string id, string action)
+    {
+        if (await StartLocalTorLinkAsync() is { } refused) return refused;
+        if (_torlinkHeadless.Client is not { } serve) return L("TorLink n’a pas répondu.", "TorLink didn’t answer.");
+        var ct = _torlinkLifetime.Token;
+        try { return await serve.ControlAsync(id, action, ct) ? null : L("TorLink n’a plus ce téléchargement.", "TorLink no longer has this download."); }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested) { return L("TorLink n’a pas répondu.", "TorLink didn’t answer."); }
     }
 
     private static string ServerError(Exception ex) => ex is RelayRefusedException ? ex.Message : Friendly(ex);
@@ -142,6 +239,16 @@ public partial class MainWindow
     /// <summary>The header: where the PC stands, in Mira web's words, and its pill.</summary>
     private void DescribeServerAgent(DateTimeOffset now)
     {
+        if (_serverLocal)
+        {
+            // Searches run on their own (« torlnk search »): only downloads wait for TorLink without a window.
+            _serverReady = _torlinkInstallation is { HasRuntime: true, Detected: false };
+            TorLinkSubtitle.Text = _localProblem ?? TorLinkPageLine;
+            var (local, color) = _localProblem is not null ? (L("Indisponible", "Unavailable"), "Warning") : _torlinkHeadless.Running ? (L("En cours", "Running"), "Success") : (L("Prêt", "Ready"), "Success");
+            TorLinkStatusText.Text = "TorLink · " + local; TorLinkStatusDot.Fill = Palette.Get(color);
+            ServerSearchButton.IsEnabled = _serverReady && !_serverSearching;
+            return;
+        }
         var (text, ready) = _serverFilled ? RemoteLines.Agent(_serverAgent, now) : (L("Lecture du PC serveur…", "Checking the server PC…"), false);
         _serverReady = ready;
         TorLinkSubtitle.Text = text;
@@ -165,15 +272,29 @@ public partial class MainWindow
             var line = pending is not null && RemoteLines.ActionLine(pending.Action) is { } asked ? asked : RemoteLines.Download(download);
             queue.Add(new($"d:{download.Id}", $"d|{download.Status}|{pending is null}", download.Name, line, download.Progress, () => ServerDownloadRow(download, pending is null)));
         }
-        var placed = status.Placed.Select(x => new ServerRowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(x.Status), null, () => ServerPlacedRow(x))).ToList();
-        UpdateServerRows(ServerQueue, queue); UpdateServerRows(ServerPlaced, placed);
+        // On this PC, « Vers Jellyfin » is TorLink's page's own list (RenderLocalPlaced): its folder, a retry, another library.
+        var placed = _serverLocal ? new List<ServerRowData>() : status.Placed.Select(x => new ServerRowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(x.Status), null, () => ServerPlacedRow(x))).ToList();
+        UpdateServerRows(ServerQueue, queue);
+        if (!_serverLocal) UpdateServerRows(ServerPlaced, placed);
         foreach (var key in _serverRows.Keys.Except(queue.Concat(placed).Select(x => x.Key)).ToList()) _serverRows.Remove(key);
-        ServerPlacedTitle.Visibility = placed.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ServerQueueEmpty.Visibility = queue.Count + placed.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _serverQueued = queue.Count;
+        var filed = _serverLocal ? ServerPlaced.Children.Count : placed.Count;
+        ServerPlacedTitle.Visibility = filed > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ServerQueueEmpty.Visibility = queue.Count + filed == 0 ? Visibility.Visible : Visibility.Collapsed;
         var downloading = status.Downloads.Count(x => x.Status == "downloading");
         var waiting = queue.Count - downloading;
-        ServerQueueSummary.Text = queue.Count == 0 ? (placed.Count > 0 ? L("Rien en cours. Les derniers titres rangés sont ci-dessous.", "Nothing under way. The latest titles filed are below.") : "")
+        ServerQueueSummary.Text = queue.Count == 0 ? (filed > 0 ? L("Rien en cours. Les derniers titres rangés sont ci-dessous.", "Nothing under way. The latest titles filed are below.") : "")
             : string.Join(" · ", new[] { downloading > 0 ? L($"{downloading} en cours", $"{downloading} downloading") : "", waiting > 0 ? L($"{waiting} en attente", $"{waiting} waiting") : "" }.Where(x => x.Length > 0));
+    }
+
+    /// <summary>On the PC of Jellyfin, the right column ends with « Vers Jellyfin » as TorLink's page shows it.</summary>
+    private void RenderLocalPlaced(TorLinkPlacement torlink)
+    {
+        ServerPlaced.Children.Clear();
+        foreach (var entry in torlink.Importer.Entries.Take(40)) ServerPlaced.Children.Add(ImportRow(entry));
+        foreach (var earlier in torlink.Earlier) ServerPlaced.Children.Add(EarlierRow(earlier));
+        ServerPlacedTitle.Visibility = ServerPlaced.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ServerQueueEmpty.Visibility = _serverQueued + ServerPlaced.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string Sentence(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
@@ -256,7 +377,7 @@ public partial class MainWindow
     {
         var kept = actions.Children.Cast<UIElement>().ToList();
         actions.Children.Clear();
-        actions.Children.Add(new TextBlock { Text = L("TorLink l’arrête et supprime ce qu’il en a déjà reçu sur le PC serveur.", "TorLink stops it and deletes what it has already received on the server PC."), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("WarningText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+        actions.Children.Add(new TextBlock { Text = _serverLocal ? L("TorLink l’arrête et supprime ce qu’il en a déjà reçu.", "TorLink stops it and deletes what it has already received.") : L("TorLink l’arrête et supprime ce qu’il en a déjà reçu sur le PC serveur.", "TorLink stops it and deletes what it has already received on the server PC."), FontSize = 11.5, LineHeight = 17, Foreground = Palette.Get("WarningText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
         var buttons = new WrapPanel { Margin = new Thickness(-6, 4, 0, 0) };
         var confirm = Named(RowButton(L("Annuler le téléchargement", "Cancel the download"), "close", () => ControlServerAsync(download, "delete")), L($"Annuler le téléchargement de « {download.Name} »", $"Cancel the download of “{download.Name}”"));
         confirm.Foreground = Palette.Get("Danger");
@@ -303,6 +424,17 @@ public partial class MainWindow
 
     private async Task ControlServerAsync(RelayDownload download, string action)
     {
+        if (_serverLocal)
+        {
+            SetNotice(await ControlHereAsync(download.Id, action) ?? action switch
+            {
+                "pause" => L("Téléchargement mis en pause.", "Download paused."),
+                "resume" => L("Téléchargement repris.", "Download resumed."),
+                _ => L("Téléchargement annulé.", "Download canceled.")
+            });
+            await LoadServerDownloadsAsync();
+            return;
+        }
         if (_client is not { } client) return;
         try { await client.TorLinkControlAsync(download.Id, action, _connectionLifetime.Token); SetNotice(RemoteLines.ActionLine(action) ?? ""); }
         catch (Exception ex) when (IsExpected(ex)) { SetNotice(ServerError(ex)); }
@@ -328,19 +460,33 @@ public partial class MainWindow
     /// <summary>A search TorLink runs on the PC of Jellyfin, followed every second until it answers (90 s at most).</summary>
     private async Task SearchServerAsync()
     {
-        if (_client is not { } client) return;
+        var client = _client;
+        if (client is null && !_serverLocal) return;
         if (RemoteDownloads.CleanQuery(ServerQueryBox.Text) is not { } query) { ServerQueryBox.Focus(); return; }
-        if (!_serverReady) { ServerSearchStatus.Text = RemoteLines.Agent(_serverAgent, DateTimeOffset.UtcNow).Text; return; }
+        if (!_serverReady) { ServerSearchStatus.Text = _serverLocal ? L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC.") : RemoteLines.Agent(_serverAgent, DateTimeOffset.UtcNow).Text; return; }
         var category = (ServerCategory.SelectedItem as ComboBoxItem)?.Tag as string ?? "movies";
         var label = RemoteLines.CategoryLabel(category);
         var mine = ++_serverSearchVersion; var ct = _connectionLifetime.Token;
         _serverSearching = true; ServerSearchButton.IsEnabled = false; ServerSearchButton.Content = L("Recherche…", "Searching…");
-        ServerSearchStatus.Text = L($"Recherche de « {query} » en {label} sur le PC serveur…", $"Searching for “{query}” in {label} on the server PC…");
+        ServerSearchStatus.Text = _serverLocal ? L($"Recherche de « {query} » en {label}…", $"Searching for “{query}” in {label}…") : L($"Recherche de « {query} » en {label} sur le PC serveur…", $"Searching for “{query}” in {label} on the server PC…");
         ServerResults.Opacity = 0.45;
         void End(string text) { ServerSearchStatus.Text = text; ServerResults.Children.Clear(); ServerResultsEmpty.Visibility = Visibility.Collapsed; }
         try
         {
-            var id = await client.TorLinkSearchAsync(query, category, ct);
+            if (_serverLocal)
+            {
+                var (found, error) = _torlinkInstallation is { HasRuntime: true, Detected: false } installation
+                    ? await _torlinkHeadless.SearchAsync(installation, query, category, ct) : ([], L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC."));
+                if (mine != _serverSearchVersion) return;
+                if (error is not null) { End(error); return; }
+                var local = $"here-{++_localSearches}";
+                // The magnets stay here, as the relay keeps them: the buttons only name a result.
+                _localMagnets.Clear();
+                foreach (var hit in found) _localMagnets[local + "/" + hit.Id] = hit.Magnet;
+                ShowServerHits(local, query, category, [.. found.Select(x => new RelayHit(x.Id, x.Name, x.Size, x.Seeders, x.Leechers, x.Source, x.Added))]);
+                return;
+            }
+            var id = await client!.TorLinkSearchAsync(query, category, ct);
             var started = DateTime.UtcNow;
             while (true)
             {
@@ -457,11 +603,14 @@ public partial class MainWindow
 
     private async Task SendServerHitAsync(string searchId, RelayHit hit, Button button, bool best)
     {
-        if (_client is not { } client) return;
+        var client = _client;
+        if (client is null && !_serverLocal) return;
         button.IsEnabled = false;
         try
         {
-            await client.TorLinkRequestAsync(searchId, hit, _connectionLifetime.Token);
+            if (!_serverLocal) await client!.TorLinkRequestAsync(searchId, hit, _connectionLifetime.Token);
+            else if (!_localMagnets.TryGetValue(searchId + "/" + hit.Id, out var magnet)) { button.IsEnabled = true; SetNotice(L("Ce résultat n’est plus là : relance la recherche.", "This result is gone: search again.")); return; }
+            else if (await DownloadHereAsync(magnet) is { } refused) { button.IsEnabled = true; SetNotice(refused); return; }
             _serverSent.Add(searchId + "/" + hit.Id); ShowSendState(button, sent: true, best);
             await SentToServerAsync();
         }
@@ -471,7 +620,8 @@ public partial class MainWindow
     /// <summary>Its row, with its progress, is at the top of the right column.</summary>
     private async Task SentToServerAsync()
     {
-        SetNotice(_serverReady ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
+        SetNotice(_serverLocal ? L("TorLink le télécharge : sa progression s’affiche à droite.", "TorLink is downloading it: its progress shows on the right.")
+            : _serverReady ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
         SmoothScroll.Jump(ServerQueueScroll);
         await LoadServerDownloadsAsync();
     }
@@ -503,13 +653,15 @@ public partial class MainWindow
 
     private async Task SendServerMagnetAsync()
     {
-        if (_client is not { } client || !ServerMagnetSend.IsEnabled) return;
+        var client = _client;
+        if ((client is null && !_serverLocal) || !ServerMagnetSend.IsEnabled) return;
         var magnet = ServerMagnetBox.Text.Trim();
         if (RemoteDownloads.InfoHash(magnet) is null) { ShowMagnetError(L("Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).", "That’s not a magnet link (“magnet:?xt=urn:btih:…”).")); ServerMagnetBox.Focus(); return; }
         ServerMagnetSend.IsEnabled = false;
         try
         {
-            await client.TorLinkRequestAsync(magnet, _connectionLifetime.Token);
+            if (!_serverLocal) await client!.TorLinkRequestAsync(magnet, _connectionLifetime.Token);
+            else if (await DownloadHereAsync(magnet) is { } refused) { ShowMagnetError(refused); return; }
             CloseServerMagnet(); ServerMagnetButton.Focus();
             await SentToServerAsync();
         }

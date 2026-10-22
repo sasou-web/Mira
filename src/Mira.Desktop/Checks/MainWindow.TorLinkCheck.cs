@@ -36,6 +36,8 @@ public partial class MainWindow
             if (!_demo || !_torlinkEnabled || !TorLinkCheckIsolated() || Environment.GetEnvironmentVariable("TORLINK_STATE_DIR") is not { } state)
                 throw new InvalidOperationException("The TorLink check requires --demo, an isolated --data profile and TORLINK_STATE_DIR inside the output folder.");
             Width = 1440; Height = 900;
+            // This check drives TorLink's own terminal: otherwise the page opens on Mira's screen.
+            _settings.TorLinkTerminal = true;
             // Another TorLink on this PC (a Mira in use, its shortcut): Mira rightly refuses a second one. The page itself is
             // still checked (served from Mira's resources and drawn by xterm.js with its style sheet), then the check stops.
             if (TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath) is { } found && await Task.Run(() => found.RunningElsewhere(null)) is { } other)

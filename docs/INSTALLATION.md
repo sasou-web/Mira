@@ -78,7 +78,7 @@ La zone de notification permet de masquer puis de retrouver Mira sans arrêter l
 
 ## TorLink
 
-TorLink est un client de téléchargement en terminal ([projet indépendant](https://github.com/baairon/torlink), licence MIT), publié sur npm (`npx torlnk`). Mira affiche son interface dans la page **Téléchargements** du rail.
+TorLink est un client de téléchargement en terminal ([projet indépendant](https://github.com/baairon/torlink), licence MIT), publié sur npm (`npx torlnk`). Sur le PC de Jellyfin, la page **Téléchargements** du rail s’en sert avec l’écran de Mira web : cherche un titre, Mira met en avant la meilleure version de chaque film ou épisode, **Télécharger** le confie à TorLink, et la colonne de droite montre la progression, le débit et le temps restant (**Pause**, **Reprendre**, **Annuler**), puis ce qui part vers Jellyfin (**Dossier**, **Réessayer**, **Classer**). Le bouton **Terminal** affiche l’interface de TorLink elle-même (et **Écran de Mira** y revient) ; Mira se souvient du choix.
 
 1. Ouvrir **Téléchargements** (flèche du rail), puis activer **TorLink** dans la liste des téléchargeurs.
 2. Si TorLink est déjà sur ce PC (installation npm globale, raccourci), Mira te montre son dossier et sa version, et ne le lance qu’une fois que tu as confirmé que c’est le tien ; il s’en souvient ensuite. Sinon, il l’installe pour ce compte Windows, sans droits administrateur et sans modifier le PATH :
@@ -91,7 +91,7 @@ Désactiver TorLink le ferme ; il reste installé. Le TorLink installé par Mira
 
 Chaque téléchargement terminé est **déplacé** dans la bibliothèque, sous les noms attendus par Jellyfin, par exemple `Titre (Année)\Titre (Année).mkv` ou `Série\Season 01\Série - S01E02.mkv`. Il n’existe jamais en double :
 - sur le même disque, le déplacement est instantané : le fichier change seulement de dossier ;
-- sur un autre disque, chaque fichier est copié puis aussitôt supprimé du dossier de TorLink. Pour éviter ce cas, Mira fait télécharger TorLink sur le disque de la bibliothèque, dans « Téléchargements TorLink », quand TorLink n’a pas encore de dossier. Sinon, choisir ce dossier dans TorLink avec la touche **o**.
+- sur un autre disque, chaque fichier est copié puis aussitôt supprimé du dossier de TorLink. Pour éviter ce cas, Mira fait télécharger TorLink sur le disque de la bibliothèque, dans « Téléchargements TorLink », quand TorLink n’a pas encore de dossier. Sinon, choisir ce dossier dans le terminal de TorLink avec la touche **o**.
 
 TorLink arrête de partager un téléchargement déplacé. Pour qu’il continue, activer **Réglages → TorLink → Continuer à partager** : sur le même disque, un lien physique met aussi le fichier dans la bibliothèque, sans prendre plus de place. Il apparaît alors dans les deux dossiers. Jellyfin est prévenu, puis le titre apparaît dans Mira.
 

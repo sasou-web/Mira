@@ -131,7 +131,7 @@ public partial class MainWindow
     {
         _serverScreen = true;
         DownloadersPanel.Visibility = TorLinkTerminalHost.Visibility = Visibility.Collapsed;
-        DownloadersButton.Visibility = TorLinkFolderButton.Visibility = TorLinkSettingsButton.Visibility = TorLinkKeysHint.Visibility = Visibility.Collapsed;
+        DownloadersButton.Visibility = TorLinkFolderButton.Visibility = TorLinkSettingsButton.Visibility = TorLinkKeysHint.Visibility = TorLinkViewButton.Visibility = Visibility.Collapsed;
         ServerDownloadsPanel.Visibility = Visibility.Visible; ServerDownloadsPanel.Opacity = 1;
         const long GiB = 1L << 30, MiB = 1L << 20;
         var now = DateTimeOffset.UtcNow;

@@ -112,8 +112,8 @@ public partial class MainWindow
         return TimeSpan.FromSeconds(Math.Clamp(work.Next, 1, 60));
     }
 
-    /// <summary>TorLink's page is in front, and someone used this PC lately: it may be in use, it is not taken away.</summary>
-    private bool TorLinkInUse() => TorLinkOverlay.Visibility == Visibility.Visible && WindowState != WindowState.Minimized && IsActive && UserIdle() < NobodyAtScreen;
+    /// <summary>TorLink's terminal is in front, and someone used this PC lately: it may be in use, it is not taken away. Mira's screen runs on TorLink without a window.</summary>
+    private bool TorLinkInUse() => TorLinkOverlay.Visibility == Visibility.Visible && !_serverScreen && WindowState != WindowState.Minimized && IsActive && UserIdle() < NobodyAtScreen;
 
     /// <summary>TorLink's downloads: live from TorLink without a window, otherwise from the queue it last saved.</summary>
     private async Task<List<RelayDownload>> RemoteDownloadsAsync(CancellationToken ct)
@@ -194,7 +194,7 @@ public partial class MainWindow
         {
             await _torlinkTerminal.StopAsync(idle: true);
             _torlinkHandedOff = true;
-            if (TorLinkOverlay.Visibility == Visibility.Visible) SetTorLinkBlocker("remote");
+            if (TorLinkOverlay.Visibility == Visibility.Visible && !_serverScreen) SetTorLinkBlocker("remote");
         }
         if (await Task.Run(() => installation.RunningOutside(_torlinkHeadless.ProcessIds)) is not null)
         {
@@ -259,7 +259,7 @@ public partial class MainWindow
         _headlessIdleSince = null;
         var handedOff = _torlinkHandedOff; _torlinkHandedOff = false;
         if (_closing) return;
-        if (handedOff && TorLinkOverlay.Visibility == Visibility.Visible && TorLinkActive()) await StartTorLinkAsync(restart: true);
+        if (handedOff && TorLinkOverlay.Visibility == Visibility.Visible && !_serverScreen && TorLinkActive()) await StartTorLinkAsync(restart: true);
         else { if (_torlinkBlocker == "remote") _torlinkBlocker = null; UpdateTorLinkState(); }
     }
 

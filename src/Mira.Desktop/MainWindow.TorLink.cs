@@ -14,8 +14,9 @@ using Mira.Desktop.Views;
 namespace Mira.Desktop;
 
 /// <summary>
-/// TorLink inside Mira: its own terminal interface on a page of the rail, and finished downloads placed in the
-/// Jellyfin libraries, reported to Jellyfin, then followed until the title appears in the library.
+/// TorLink inside Mira: a page of the rail, with Mira web's screen (MainWindow.ServerDownloads.cs) or TorLink's own
+/// terminal interface, and finished downloads placed in the Jellyfin libraries, reported to Jellyfin, then followed until
+/// the title appears in the library.
 /// </summary>
 public partial class MainWindow
 {
@@ -145,14 +146,49 @@ public partial class MainWindow
         if (TorLinkOverlay.Visibility != Visibility.Visible || !TorLinkOverlay.IsHitTestVisible) Motion.Reveal(TorLinkOverlay, 260, 10);
         TorLinkBadge.Visibility = Visibility.Collapsed;
         UpdateNavigation(); UpdateHeroClock();
-        if (elsewhere) { await ShowServerDownloadsAsync(); return; }
-        HideServerDownloads();
+        if (elsewhere) { await ShowServerDownloadsAsync(local: false); return; }
+        if (_serverScreen && !_serverLocal) HideServerDownloads();
         RenderTorLinkImports(); UpdateTorLinkState();
         _ = RefreshTorLinkLibrariesAsync();
         // Not turned on yet: the list of downloaders, where it is.
         if (!TorLinkActive()) { ShowDownloaders(true); return; }
+        await OpenTorLinkViewAsync(restart: false);
+    }
+
+    /// <summary>
+    /// TorLink on this PC, as chosen: Mira web's screen (searches by « torlnk search », downloads by TorLink without a
+    /// window), or TorLink's own terminal. A TorLink to find, to install or to confirm shows its panel over the terminal.
+    /// </summary>
+    private async Task OpenTorLinkViewAsync(bool restart)
+    {
+        if (!_settings.TorLinkTerminal && (_torlinkInstallation = TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath)) is { HasRuntime: true, Detected: false })
+        {
+            ShowDownloaders(false);
+            await ShowServerDownloadsAsync(local: true);
+            return;
+        }
+        HideServerDownloads();
+        RenderTorLinkImports();
         ShowDownloaders(false);
-        await StartTorLinkAsync(restart: false);
+        await StartTorLinkAsync(restart);
+    }
+
+    /// <summary>From one face of TorLink to the other, remembered for the next time.</summary>
+    private async void TorLinkView_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.TorLinkTerminal = _serverScreen && _serverLocal; _profile.SaveSettings(_settings);
+        await OpenTorLinkViewAsync(restart: true);
+    }
+
+    /// <summary>The header's way between Mira's screen and TorLink's terminal; not over the list of downloaders, nor away from the PC of Jellyfin.</summary>
+    private void DescribeTorLinkView()
+    {
+        var screen = _serverScreen && _serverLocal;
+        TorLinkViewButton.Visibility = (_serverScreen && !_serverLocal) || DownloadersPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        TorLinkViewIcon.Kind = screen ? "laptop" : "search";
+        TorLinkViewText.Text = screen ? L("Terminal", "Terminal") : L("Écran de Mira", "Mira’s screen");
+        var hint = screen ? L("Ouvrir TorLink dans son propre terminal", "Open TorLink in its own terminal") : L("Revenir à l’écran de recherche de Mira", "Back to Mira’s search screen");
+        TorLinkViewButton.ToolTip = hint; AutomationProperties.SetName(TorLinkViewButton, hint);
     }
 
     // ---- Downloaders ------------------------------------------------------------------------------
@@ -171,13 +207,15 @@ public partial class MainWindow
     /// <summary>The list of downloaders, over the terminal: where TorLink is turned on or off.</summary>
     private void ShowDownloaders(bool show)
     {
+        // Mira's screen is drawn over the list: it goes first.
+        if (show) HideServerDownloads();
         var active = TorLinkActive(); UpdateTorLinkState();
         if (show && DownloadersPanel.Visibility != Visibility.Visible) Motion.Reveal(DownloadersPanel, 200, 6);
         else if (!show) DownloadersPanel.Visibility = Visibility.Collapsed;
         // Over the list, its card opens TorLink: the header only serves the terminal.
         TorLinkKeysHint.Visibility = TorLinkFolderButton.Visibility = DownloadersButton.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
         TorLinkToggle.IsChecked = active || _torlinkInstalling; TorLinkToggle.IsEnabled = !_torlinkInstalling;
-        DescribeTorLinkSetup();
+        DescribeTorLinkSetup(); DescribeTorLinkView();
         if (show) _ = Dispatcher.BeginInvoke(() => TorLinkToggle.Focus(), DispatcherPriority.Input);
     }
 
@@ -195,7 +233,7 @@ public partial class MainWindow
     }
 
     private void Downloaders_Click(object sender, RoutedEventArgs e) => ShowDownloaders(true);
-    private async void TorLinkOpen_Click(object sender, RoutedEventArgs e) { ShowDownloaders(false); await StartTorLinkAsync(restart: false); }
+    private async void TorLinkOpen_Click(object sender, RoutedEventArgs e) => await OpenTorLinkViewAsync(restart: false);
     private async void TorLinkToggle_Click(object sender, RoutedEventArgs e)
     {
         if (_torlinkInstalling) return;
@@ -231,8 +269,7 @@ public partial class MainWindow
             finally { _torlinkInstalling = false; }
         }
         _settings.TorLinkActive = true; _profile.SaveSettings(_settings);
-        ShowDownloaders(false);
-        await StartTorLinkAsync(restart: true);
+        await OpenTorLinkViewAsync(restart: true);
     }
 
     /// <summary>TorLink off: it quits (its downloads resume when it is turned on again) and stays installed.</summary>
@@ -394,12 +431,12 @@ public partial class MainWindow
                 await StartTorLinkAsync(restart: true);
                 break;
             case "browse":
-                if (ChooseTorLinkFolder() is { } root) { _settings.TorLinkPath = root; _profile.SaveSettings(_settings); await StartTorLinkAsync(restart: true); }
+                if (ChooseTorLinkFolder() is { } root) { _settings.TorLinkPath = root; _profile.SaveSettings(_settings); await OpenTorLinkViewAsync(restart: true); }
                 break;
             // Confirmed: this folder is the chosen one from now on, asked about no more.
             case "trust" when _torlinkInstallation is { Detected: true } found:
                 _settings.TorLinkPath = found.Root; _profile.SaveSettings(_settings);
-                await StartTorLinkAsync(restart: true);
+                await OpenTorLinkViewAsync(restart: true);
                 break;
             case "window" when _torlinkInstallation is { Detected: true }:
                 SetTorLinkBlocker("confirm");
@@ -466,6 +503,7 @@ public partial class MainWindow
         foreach (var entry in torlink.Importer.Entries.Take(40)) TorLinkImports.Children.Add(ImportRow(entry));
         foreach (var earlier in torlink.Earlier) TorLinkImports.Children.Add(EarlierRow(earlier));
         TorLinkImportsEmpty.Visibility = TorLinkImports.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (_serverScreen && _serverLocal) RenderLocalPlaced(torlink);
     }
 
     private FrameworkElement ImportRow(TorLinkImportEntry entry)

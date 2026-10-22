@@ -241,6 +241,11 @@ public sealed class PlayerSettings
     /// (« Télécharger sur le PC serveur ») are run here, by TorLink without a window.
     /// </summary>
     public bool TorLinkRemote { get; set; } = true;
+    /// <summary>
+    /// The Downloads page on the PC of Jellyfin: false (default) Mira's own screen, the one of Mira web (search, best
+    /// release of each title, progress); true TorLink's own interface, in its terminal.
+    /// </summary>
+    public bool TorLinkTerminal { get; set; }
     /// <summary>Manual library folders; empty: the folders of the Jellyfin libraries.</summary>
     public string TorLinkMoviesFolder { get; set; } = "";
     public string TorLinkSeriesFolder { get; set; } = "";
