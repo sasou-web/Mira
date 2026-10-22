@@ -52,7 +52,7 @@ Mira web is served by your own Jellyfin server: nothing to get from the App Stor
   <tr><td align="center">All your films</td><td align="center">Languages and subtitles</td></tr>
 </table>
 
-<sub>Captures of the real application, connected to a Jellyfin server filled with free films: the <a href="https://studio.blender.org/films/">Blender Foundation</a>'s open movies (CC BY), <i>Pioneer One</i> (CC BY-NC-SA) and public domain classics. Posters and summaries from TMDb.</sub>
+<sub>Captures of the real application, connected to a demo Jellyfin server (placeholder videos; posters and summaries from TMDb). <i>Arcane</i> © Riot Games, Fortiche; <i>Spider-Man: Across the Spider-Verse</i> © Sony Pictures Animation; the other titles belong to their rights holders.</sub>
 
 ## Install
 

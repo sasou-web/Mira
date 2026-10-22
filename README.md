@@ -61,7 +61,7 @@ Mira web est servie par ton propre serveur Jellyfin : rien à télécharger sur 
   <tr><td align="center">Tous tes films</td><td align="center">Langues et sous-titres</td></tr>
 </table>
 
-<sub>Captures de la vraie application, connectée à un serveur Jellyfin rempli de films libres : les films ouverts de la <a href="https://studio.blender.org/films/">Blender Foundation</a> (CC BY), <i>Pioneer One</i> (CC BY-NC-SA) et des classiques du domaine public. Affiches et résumés fournis par TMDb.</sub>
+<sub>Captures de la vraie application, connectée à un serveur Jellyfin de démonstration (vidéos factices ; affiches et résumés fournis par TMDb). <i>Arcane</i> © Riot Games, Fortiche ; <i>Spider-Man : Across the Spider-Verse</i> © Sony Pictures Animation ; les autres titres appartiennent à leurs ayants droit.</sub>
 
 ## Installer
 

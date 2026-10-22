@@ -8,7 +8,7 @@ from PIL import Image
 
 SOURCE = Path("docs/screenshots/readme")
 OUT = Path("site/img")
-WIDTHS = {"windows": (960, 1600, 2400), "web": (390, 720, 1080), "film": (640, 1280)}
+WIDTHS = {"windows": (960, 1600, 2400), "web": (390, 720, 1080), "film": (640, 1280, 1920)}
 
 OUT.mkdir(parents=True, exist_ok=True)
 for path in sorted(SOURCE.glob("*.jpg")):
