@@ -1,6 +1,6 @@
 # Mira
 
-Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vidéos avec **mpv intégré**. Version de développement : **0.8.1**.
+Application Windows pour parcourir une bibliothèque Jellyfin et regarder ses vidéos avec **mpv intégré**. Version de développement : **0.8.2**.
 
 ## Démarrer
 
