@@ -44,7 +44,7 @@ try {
   const session = await page.evaluate(() => JSON.parse(localStorage.getItem('mira.session')));
   const { Items: titles } = await api(`Items?userId=${session.userId}&recursive=true&includeItemTypes=Movie,Series&fields=Path`);
   const find = (name) => titles.find((x) => (x.Path ?? '').replace(/\\/g, '/').includes(name));
-  const film = find('Sintel (2010)'), series = find('Pioneer One');
+  const film = find('Spring (2019)'), series = find('Pioneer One');
   await page.locator('.tabbar a[data-tab="films"]').click(); await wait(2500);
   await shot('web-films');
   if (film) { await page.goto(`${base}#/titre/${film.Id}`); await wait(2500); await shot('web-film'); }
