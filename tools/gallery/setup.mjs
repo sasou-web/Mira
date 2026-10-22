@@ -84,11 +84,11 @@ const series = items.find((x) => x.Type === 'Series');
 const ticks = (item, share) => Math.round((item.RunTimeTicks ?? 0) * share);
 const hour = 3_600_000;
 const traces = [
-  ['Sintel (2010)', { share: 0.42, ago: 1 }],
+  ['Spring (2019)', { share: 0.42, favorite: true, ago: 1 }],
   ['Metropolis (1927)', { share: 0.61, ago: 26 }],
   ['Tears of Steel (2012)', { share: 0.18, ago: 50 }],
   ['Big Buck Bunny (2008)', { played: true, ago: 80 }],
-  ['Spring (2019)', { played: true, favorite: true, ago: 100 }],
+  ['Sintel (2010)', { played: true, ago: 100 }],
   ['Nosferatu (1922)', { played: true, ago: 140 }],
   ['Charade (1963)', { favorite: true }],
   ['Sprite Fright (2021)', { favorite: true }],

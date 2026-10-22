@@ -1,7 +1,7 @@
 // The README's captures of Mira web, at an iPhone's size in Chromium, on the library of tools/gallery/setup.mjs:
 // Home, a film's page, the films and a series' page.
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/gallery/web.mjs <url of /Mira/> <user> <password> <folder>
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 const [base, user, password, out] = process.argv.slice(2);
 if (!out) { console.error('usage: web.mjs <url /Mira/> <user> <password> <folder>'); process.exit(2); }
 mkdirSync(out, { recursive: true });
@@ -44,10 +44,17 @@ try {
   const session = await page.evaluate(() => JSON.parse(localStorage.getItem('mira.session')));
   const { Items: titles } = await api(`Items?userId=${session.userId}&recursive=true&includeItemTypes=Movie,Series&fields=Path`);
   const find = (name) => titles.find((x) => (x.Path ?? '').replace(/\\/g, '/').includes(name));
-  const film = find('Sintel (2010)'), series = find('Pioneer One');
+  const film = find('Spring (2019)'), series = find('Pioneer One');
   await page.locator('.tabbar a[data-tab="films"]').click(); await wait(2500);
   await shot('web-films');
   if (film) { await page.goto(`${base}#/titre/${film.Id}`); await wait(2500); await shot('web-film'); }
   if (series) { await page.goto(`${base}#/titre/${series.Id}`); await wait(2500); await shot('web-series'); }
+  // The featured film's backdrop, as Jellyfin serves it (anonymous, a download rather than a page): the still of the
+  // showcase site, in PNG like the captures.
+  if (film) {
+    const still = await page.request.get(new URL(`../Items/${film.Id}/Images/Backdrop?maxWidth=1920&quality=95&format=Png`, base).href);
+    if (!still.ok()) throw new Error(`backdrop: ${still.status()}`);
+    writeFileSync(`${out}/film-still.png`, await still.body()); console.log('film-still.png');
+  }
   if (errors.length) console.log(`::warning::page errors: ${errors.join(' | ')}`);
 } finally { await browser.close(); }
