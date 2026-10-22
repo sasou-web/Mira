@@ -1,7 +1,7 @@
 // The README's captures of Mira web, at an iPhone's size in Chromium, on the library of tools/gallery/setup.mjs:
 // Home, a film's page, the films and a series' page.
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/gallery/web.mjs <url of /Mira/> <user> <password> <folder>
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 const [base, user, password, out] = process.argv.slice(2);
 if (!out) { console.error('usage: web.mjs <url /Mira/> <user> <password> <folder>'); process.exit(2); }
 mkdirSync(out, { recursive: true });
@@ -49,12 +49,12 @@ try {
   await shot('web-films');
   if (film) { await page.goto(`${base}#/titre/${film.Id}`); await wait(2500); await shot('web-film'); }
   if (series) { await page.goto(`${base}#/titre/${series.Id}`); await wait(2500); await shot('web-series'); }
-  // The featured film's backdrop, as Jellyfin serves it (anonymous, its own pixels): the still of the showcase site.
+  // The featured film's backdrop, as Jellyfin serves it (anonymous, a download rather than a page): the still of the
+  // showcase site, in PNG like the captures.
   if (film) {
-    const still = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
-    await still.goto(new URL(`../Items/${film.Id}/Images/Backdrop?maxWidth=1920&quality=95`, base).href);
-    await still.locator('img').screenshot({ path: `${out}/film-still.png` }); console.log('film-still.png');
-    await still.close();
+    const still = await page.request.get(new URL(`../Items/${film.Id}/Images/Backdrop?maxWidth=1920&quality=95&format=Png`, base).href);
+    if (!still.ok()) throw new Error(`backdrop: ${still.status()}`);
+    writeFileSync(`${out}/film-still.png`, await still.body()); console.log('film-still.png');
   }
   if (errors.length) console.log(`::warning::page errors: ${errors.join(' | ')}`);
 } finally { await browser.close(); }
