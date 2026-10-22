@@ -46,6 +46,8 @@ public sealed record MediaItem
     public string? SeasonThumbImageTag { get; set; }
     public int? ChildCount { get; init; }
     public string? OfficialRating { get; init; }
+    /// <summary>Its file (a film) or folder (a series) as Jellyfin sees it, returned by the single-item request (<see cref="TitleFiles"/>).</summary>
+    public string? Path { get; init; }
     /// <summary>When Jellyfin added it (« Ajouts récents »), asked for with Fields=DateCreated.</summary>
     public DateTimeOffset? DateCreated { get; init; }
     /// <summary>A bonus video's kind (« BehindTheScenes », « DeletedScene »…, « Unknown » in an Extras folder); null for a title.</summary>

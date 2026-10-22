@@ -1114,5 +1114,34 @@ internal static class LibraryTests
             Assert(new[] { created.Movies, created.Series, created.Anime }.All(x => File.Exists(Path.Combine(x, LibraryMarker.FileName))), "Folders made by the setup are marked");
             return Task.CompletedTask;
         });
+        await Test("Fichiers d’un titre : un dossier de série, le dossier d’un film seul, sinon son fichier ; jamais une bibliothèque ni hors d’elles", () =>
+        {
+            var root = Path.Combine(testRoot, "title-files"); var films = Path.Combine(root, "Films"); var series = Path.Combine(root, "Séries");
+            string Touch(params string[] parts) { var file = Path.Combine([root, .. parts]); Directory.CreateDirectory(Path.GetDirectoryName(file)!); File.WriteAllText(file, "x"); return file; }
+            var alien = Touch("Films", "Alien (1979)", "Alien (1979).mkv"); Touch("Films", "Alien (1979)", "Alien (1979).fr.srt"); Touch("Films", "Alien (1979)", "Extras", "Making of.mkv");
+            var flat = Touch("Films", "Heat (1995).mkv"); Touch("Films", "Ronin (1998).mkv");
+            var saga = Touch("Films", "Matrix", "The Matrix (1999).mkv"); Touch("Films", "Matrix", "The Matrix Reloaded (2003).mkv");
+            var nested = Touch("Films", "Collection", "Seul.mkv"); Touch("Films", "Collection", "Autre (2001)", "Autre (2001).mkv");
+            Touch("Séries", "Regular Show (2010)", "Season 01", "Regular Show S01E01.mkv");
+            MediaItem Film(string? path) => new() { Id = "f", Name = "f", Type = "Movie", Path = path };
+            var libraries = new[] { films + Path.DirectorySeparatorChar, series, "" };
+            Assert(TitleFiles.ToRemove(Film(alien), libraries) == Path.Combine(films, "Alien (1979)"), "Own folder, bonus videos with it");
+            Assert(TitleFiles.ToRemove(Film(flat), libraries) == flat, "Film right in the library folder: its file alone");
+            Touch("Films", "Disc (2000)", "VIDEO_TS", "VTS_01_1.VOB");
+            Assert(TitleFiles.ToRemove(Film(Path.Combine(films, "Disc (2000)")), libraries) == Path.Combine(films, "Disc (2000)"), "Film kept as a disc's folder: that folder");
+            Assert(TitleFiles.ToRemove(Film(saga), libraries) == saga && TitleFiles.ToRemove(Film(nested), libraries) == nested, "Other films beside or below: the file alone");
+            var show = new MediaItem { Id = "s", Name = "Regular Show", Type = "Series", Path = Path.Combine(series, "Regular Show (2010)") };
+            Assert(TitleFiles.ToRemove(show, libraries) == show.Path && TitleFiles.Location(show) == show.Path, "Series: its folder");
+            Assert(TitleFiles.ToRemove(show with { Path = series }, libraries) is null && TitleFiles.ToRemove(show with { Path = root }, libraries) is null, "Never a library folder or above");
+            Assert(TitleFiles.ToRemove(Film(Touch("Ailleurs", "x.mkv")), libraries) is null && TitleFiles.ToRemove(Film(alien), [Path.Combine(root, "Fil")]) is null, "Outside the libraries (a name that only starts like one)");
+            Assert(TitleFiles.ToRemove(Film(Path.Combine(films, "Gone.mkv")), libraries) is null && TitleFiles.ToRemove(show with { Path = Path.Combine(series, "Gone") }, libraries) is null, "No longer there");
+            Assert(TitleFiles.Location(Film("Films/x.mkv")) is null && TitleFiles.Location(Film(null)) is null && TitleFiles.Location(new MediaItem { Type = "Episode", Path = alien }) is null, "Complete paths of films and series only");
+            Assert(TitleFiles.Size(Path.Combine(films, "Alien (1979)")) == 3 && TitleFiles.Size(flat) == 1 && TitleFiles.Size(Path.Combine(root, "none")) == 0, "Sizes");
+
+            var catalog = new Catalog { Items = [new() { Id = "s" }, new() { Id = "m" }], TotalCount = 2, Resume = [new() { Id = "e", SeriesId = "s" }], NextUp = [new() { Id = "e2", SeriesId = "s" }], Shelves = new() { ["new"] = [new() { Id = "s" }, new() { Id = "m" }] } };
+            catalog.Forget("s");
+            Assert(catalog.Items.Single().Id == "m" && catalog.TotalCount == 1 && catalog.Resume.Count == 0 && catalog.NextUp.Count == 0 && catalog.Shelves["new"].Single().Id == "m", "Forgotten everywhere, its episodes with it");
+            return Task.CompletedTask;
+        });
     }
 }

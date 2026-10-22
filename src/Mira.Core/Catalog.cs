@@ -109,6 +109,14 @@ public sealed class Catalog
         { known.UserData.Played = played; known.UserData.PlaybackPositionTicks = 0; }
         if (item.Type == "Series") foreach (var episode in episodes.Concat(Resume).Where(x => x.SeriesId == item.Id)) { episode.UserData.Played = played; episode.UserData.PlaybackPositionTicks = 0; }
     }
+    /// <summary>A film or series gone from Jellyfin (sent to the Recycle Bin from Mira): out of every list, its episodes with it.</summary>
+    public void Forget(string id)
+    {
+        bool Of(MediaItem x) => x.Id == id || x.SeriesId == id;
+        TotalCount -= Items.RemoveAll(Of);
+        Resume.RemoveAll(Of); NextUp.RemoveAll(Of); RecentPlayback.RemoveAll(Of); Episodes.RemoveAll(Of);
+        foreach (var shelf in Shelves.Values) shelf.RemoveAll(Of);
+    }
     /// <summary>A favourite or not, in every list holding a copy; out of the list when only favourites show. True when it left the list.</summary>
     public bool MarkFavorite(MediaItem item, bool favorite, IEnumerable<MediaItem> others)
     {
