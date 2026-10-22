@@ -209,7 +209,10 @@ internal static class RemoteDownloadTests
 
             Assert(TorLinkRemote.Problem(false, false, false, false) == "TorLink n’est pas activé dans Mira sur le PC serveur." && TorLinkRemote.Problem(true, false, false, false)!.Contains("confirme", StringComparison.Ordinal)
                 && TorLinkRemote.Problem(true, true, true, false)!.Contains("autre fenêtre", StringComparison.Ordinal) && TorLinkRemote.Problem(true, true, false, true)!.Contains("à l’écran", StringComparison.Ordinal)
-                && TorLinkRemote.Problem(true, true, false, false) is null, "Problems");
+                && TorLinkRemote.Problem(true, true, false, false) is null && TorLinkRemote.Problem(true, true, true, false, recent: false)!.Contains("trop ancien", StringComparison.Ordinal), "Problems");
+            // Before 1.4 « torlnk search » printed TorLink's usage, whose last line read as its error (« tip: quote magnet links… »).
+            Assert(TorLinkRemote.Supports("1.9.0") && TorLinkRemote.Supports("1.10.0") && TorLinkRemote.Supports(" 2.0.0-beta.1 ") && TorLinkRemote.Supports("1.9.1+build")
+                && !TorLinkRemote.Supports("1.8.0") && !TorLinkRemote.Supports("1.3.1") && !TorLinkRemote.Supports("1.0.0") && !TorLinkRemote.Supports(null) && !TorLinkRemote.Supports("") && !TorLinkRemote.Supports("next"), "TorLink versions for Mira's screen");
             var placed = TorLinkRemote.Placed([new TorLinkImportEntry { Id = Hash, Name = "Dune.2021.1080p", State = TorLinkImportState.Imported, Kind = MediaKind.Movie, Title = "Dune (2021)", JellyfinId = "01234567-89ab-cdef-0123-456789abcdef" },
                 new TorLinkImportEntry { Id = Other, Name = "x", State = TorLinkImportState.Waiting }]);
             Assert(placed.Single() is { Id: Hash, Ok: true, ItemId: "0123456789abcdef0123456789abcdef" }, "Placed: " + string.Join(" | ", placed));

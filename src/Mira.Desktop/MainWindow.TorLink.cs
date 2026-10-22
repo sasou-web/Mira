@@ -157,12 +157,19 @@ public partial class MainWindow
 
     /// <summary>
     /// TorLink on this PC, as chosen: Mira web's screen (searches by « torlnk search », downloads by TorLink without a
-    /// window), or TorLink's own terminal. A TorLink to find, to install or to confirm shows its panel over the terminal.
+    /// window), or TorLink's own terminal. A TorLink to find, to install, to confirm or too old for the screen shows its
+    /// panel over the terminal.
     /// </summary>
     private async Task OpenTorLinkViewAsync(bool restart)
     {
-        if (!_settings.TorLinkTerminal && (_torlinkInstallation = TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath)) is { HasRuntime: true, Detected: false })
+        if (!_settings.TorLinkTerminal && (_torlinkInstallation = TorLinkInstallation.Locate(_settings.TorLinkPath, _profile.DirectoryPath)) is { HasRuntime: true, Detected: false } found)
         {
+            if (found.Outdated)
+            {
+                HideServerDownloads(); RenderTorLinkImports(); ShowDownloaders(false);
+                SetTorLinkBlocker("outdated");
+                return;
+            }
             ShowDownloaders(false);
             await ShowServerDownloadsAsync(local: true);
             return;
@@ -255,8 +262,8 @@ public partial class MainWindow
             {
                 _torlinkStep = null;
                 _torlinkInstallation = await TorLinkSetup.InstallAsync(_profile.DirectoryPath, new Progress<TorLinkSetup.Step>(step => { _torlinkStep = step; DescribeTorLinkSetup(step.Text, step.Progress); }), _torlinkLifetime.Token);
-                // Mira's own TorLink from now on, not a folder chosen earlier that no longer works.
-                if (TorLinkInstallation.Validate(_settings.TorLinkPath, _profile.DirectoryPath) is null) _settings.TorLinkPath = "";
+                // Mira's own TorLink from now on, not a folder chosen earlier that no longer works or is too old for its screen.
+                if (TorLinkInstallation.Validate(_settings.TorLinkPath, _profile.DirectoryPath) is not { Outdated: false }) _settings.TorLinkPath = "";
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex) when (ex is InstallException || IsExpected(ex))
@@ -391,6 +398,14 @@ public partial class MainWindow
                 ShowTorLinkPanel("folder", L("Utiliser ce TorLink ?", "Use this TorLink?"), L($"Mira a trouvé TorLink {found.Version ?? "(version inconnue)"} dans {found.Root}. Il n’a pas été installé par Mira : utilise-le seulement si c’est toi qui l’as installé. Mira s’en souviendra.",
                     $"Mira found TorLink {found.Version ?? "(unknown version)"} in {found.Root}. It wasn’t installed by Mira: only use it if you installed it yourself. Mira will remember."),
                     L("Utiliser ce TorLink", "Use this TorLink"), "trust", L("Installer celui de Mira", "Install Mira’s"), "install"); return;
+            // « torlnk search » and « torlnk serve » came later: such a TorLink prints its usage and quits.
+            case "outdated" when _torlinkInstallation is { } old:
+                ShowTorLinkPanel("download", L("Ce TorLink est trop ancien", "This TorLink is too old"),
+                    L($"TorLink {old.Version ?? "(version inconnue)"} ({old.Root}) ne sait ni chercher ni télécharger pour l’écran de Mira et pour Mira web : il faut TorLink {TorLinkRemote.MinimumVersion} ou plus récent. "
+                      + (old.Managed ? "Mira peut le mettre à jour" : "Mira peut installer le sien") + " ; ta file de téléchargements et tes réglages de TorLink sont repris.",
+                      $"TorLink {old.Version ?? "(unknown version)"} ({old.Root}) can’t search or download for Mira’s screen and Mira web: TorLink {TorLinkRemote.MinimumVersion} or later is needed. "
+                      + (old.Managed ? "Mira can update it" : "Mira can install its own") + "; your download queue and TorLink settings carry over."),
+                    old.Managed ? L("Mettre à jour", "Update") : L("Installer celui de Mira", "Install Mira’s"), "install", L("Ouvrir son terminal", "Open its terminal"), "terminal"); return;
             case "remote":
                 ShowTorLinkPanel("download", L("TorLink télécharge pour un autre appareil", "TorLink is downloading for another device"), L("Une demande est arrivée de Mira web : TorLink continue sans fenêtre. Le rouvrir ici reprend tout, sans rien perdre.", "A request came from Mira web: TorLink carries on without a window. Opening it here again picks everything up, with nothing lost."), L("Rouvrir TorLink ici", "Reopen TorLink here"), "retry"); return;
             case "webview":
@@ -425,6 +440,11 @@ public partial class MainWindow
         {
             case "retry": await StartTorLinkAsync(restart: true); break;
             case "install": await ActivateTorLinkAsync(reinstall: true); break;
+            // A TorLink too old for Mira's screen still has its own terminal, remembered as the chosen face.
+            case "terminal":
+                _settings.TorLinkTerminal = true; _profile.SaveSettings(_settings);
+                await OpenTorLinkViewAsync(restart: true);
+                break;
             case "reload":
                 _torlinkTerminal?.Reload();
                 UpdateTorLinkState();

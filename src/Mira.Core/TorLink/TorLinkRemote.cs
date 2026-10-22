@@ -35,6 +35,19 @@ public static class TorLinkRemote
     public const string TokenVariable = "TORLINK_API_TOKEN";
 
     /// <summary>
+    /// The oldest TorLink these commands and its HTTP API work with (the version Mira pins). Before 1.4 TorLink knows neither
+    /// « search » nor « serve »: it prints its usage and quits, and the last line of it (« tip: quote magnet links… ») looked
+    /// like its error.
+    /// </summary>
+    public static readonly Version MinimumVersion = new(1, 9, 0);
+    /// <summary>A TorLink version (package.json, « 1.10.0 », « 2.0.0-beta.1 ») at least <see cref="MinimumVersion"/>; an unknown one is not.</summary>
+    public static bool Supports(string? version)
+    {
+        var plain = version?.Trim().Split('-', '+')[0];
+        return Version.TryParse(plain, out var parsed) && parsed >= MinimumVersion;
+    }
+
+    /// <summary>
     /// The results of « torlnk search » ({query, category, count, sources, results}), best shared first as TorLink sorts
     /// them, or why there are none. A result without a valid magnet link for its own info hash is left out.
     /// </summary>
@@ -109,11 +122,13 @@ public static class TorLinkRemote
 
     /// <summary>
     /// What the agent says when it cannot take downloads now (Mira web shows it); null when it can.
-    /// <paramref name="onScreen"/>: TorLink's page is in front on this PC, where someone may be using it.
+    /// <paramref name="onScreen"/>: TorLink's page is in front on this PC, where someone may be using it. <paramref name="recent"/>:
+    /// its version is at least <see cref="MinimumVersion"/>.
     /// </summary>
-    public static string? Problem(bool installed, bool confirmed, bool elsewhere, bool onScreen) =>
+    public static string? Problem(bool installed, bool confirmed, bool elsewhere, bool onScreen, bool recent = true) =>
         !installed ? L("TorLink n’est pas activé dans Mira sur le PC serveur.", "TorLink isn’t turned on in Mira on the server PC.")
         : !confirmed ? L("Sur le PC serveur, confirme d’abord dans Mira que ce TorLink est le tien.", "On the server PC, first confirm in Mira that this TorLink is yours.")
+        : !recent ? L($"Le TorLink du PC serveur est trop ancien (il faut la {MinimumVersion} ou plus) : installe celui de Mira dans sa page Téléchargements.", $"The server PC’s TorLink is too old (version {MinimumVersion} or later is needed): install Mira’s from its Downloads page.")
         : elsewhere ? L("TorLink est ouvert dans une autre fenêtre du PC serveur : tes demandes partent quand il est fermé.", "TorLink is open in another window of the server PC: your requests go once it’s closed.")
         : onScreen ? L("TorLink est à l’écran sur le PC serveur : tes demandes partent dès qu’on quitte sa page.", "TorLink is on screen on the server PC: your requests go as soon as someone leaves its page.")
         : null;

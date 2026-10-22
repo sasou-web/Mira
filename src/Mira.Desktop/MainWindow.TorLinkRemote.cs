@@ -89,7 +89,7 @@ public partial class MainWindow
         var ct = _connectionLifetime.Token;
 
         var problem = TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false },
-            DateTime.UtcNow - _remoteElsewhereAt < TimeSpan.FromMinutes(1), !_torlinkHeadless.Running && TorLinkInUse());
+            DateTime.UtcNow - _remoteElsewhereAt < TimeSpan.FromMinutes(1), !_torlinkHeadless.Running && TorLinkInUse(), installation is { Outdated: false });
         var (searches, requests, controls) = (_remoteSearchOutcomes.ToList(), _remoteRequestOutcomes.ToList(), _remoteControlOutcomes.ToList());
         var report = new AgentReport(Environment.MachineName, problem is null, problem, await RemoteDownloadsAsync(ct), TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls);
         var (work, status) = await client.TorLinkExchangeAsync(report, ct);
@@ -134,7 +134,7 @@ public partial class MainWindow
         {
             var query = RemoteDownloads.CleanQuery(search.Query);
             var (hits, error) = query is null || !RemoteDownloads.IsCategory(search.Category) ? ([], L("Recherche refusée.", "Search refused."))
-                : installation is not { HasRuntime: true, Detected: false } ? ([], L("TorLink n’est pas prêt sur le PC serveur.", "TorLink isn’t ready on the server PC."))
+                : installation is not { Headless: true } ? ([], TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false }, false, false, installation is { Outdated: false }) ?? L("TorLink n’est pas prêt sur le PC serveur.", "TorLink isn’t ready on the server PC."))
                 : await _torlinkHeadless.SearchAsync(installation, query, search.Category, _torlinkLifetime.Token);
             _remoteSearchOutcomes.Add(new(search.Id, error is null ? "done" : "failed", hits, error));
             VisitRelaySoon();
@@ -188,7 +188,7 @@ public partial class MainWindow
     private async Task<string?> StartHeadlessAsync(TorLinkInstallation? installation)
     {
         if (_torlinkHeadless.Client is not null) return null;
-        if (installation is not { HasRuntime: true, Detected: false }) return TorLinkRemote.Problem(installation is { HasRuntime: true }, false, false, false);
+        if (installation is not { Headless: true }) return TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false }, false, false, installation is { Outdated: false });
         if (TorLinkInUse()) return TorLinkRemote.Problem(true, true, false, true);
         if (_torlinkTerminal?.Running == true)
         {
