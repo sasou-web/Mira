@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Un TorLink trop ancien est signalé** (Windows) : un TorLink installé avant Mira et antérieur à la 1.9.0 ne sait ni chercher ni télécharger pour l’écran de Mira et pour Mira web ; la recherche échouait avec « tip: quote magnet links (they contain & characters) », la dernière ligne de l’aide qu’il affiche. La page **Téléchargements** dit maintenant qu’il est trop ancien et propose **Installer celui de Mira** (sa file et ses réglages sont repris) ou **Ouvrir son terminal** ; Mira web dit pourquoi le PC serveur ne répond pas.
+
 ## 0.8.2 — 2026-10-22
 
 Téléchargements sur le PC serveur, Corbeille depuis la fiche d’un titre, titres supprimés et clé de secours des mises à jour.

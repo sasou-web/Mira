@@ -242,7 +242,7 @@ public partial class MainWindow
         if (_serverLocal)
         {
             // Searches run on their own (« torlnk search »): only downloads wait for TorLink without a window.
-            _serverReady = _torlinkInstallation is { HasRuntime: true, Detected: false };
+            _serverReady = _torlinkInstallation is { Headless: true };
             TorLinkSubtitle.Text = _localProblem ?? TorLinkPageLine;
             var (local, color) = _localProblem is not null ? (L("Indisponible", "Unavailable"), "Warning") : _torlinkHeadless.Running ? (L("En cours", "Running"), "Success") : (L("Prêt", "Ready"), "Success");
             TorLinkStatusText.Text = "TorLink · " + local; TorLinkStatusDot.Fill = Palette.Get(color);
@@ -475,7 +475,7 @@ public partial class MainWindow
         {
             if (_serverLocal)
             {
-                var (found, error) = _torlinkInstallation is { HasRuntime: true, Detected: false } installation
+                var (found, error) = _torlinkInstallation is { Headless: true } installation
                     ? await _torlinkHeadless.SearchAsync(installation, query, category, ct) : ([], L("TorLink n’est pas prêt sur ce PC.", "TorLink isn’t ready on this PC."));
                 if (mine != _serverSearchVersion) return;
                 if (error is not null) { End(error); return; }

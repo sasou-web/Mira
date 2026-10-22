@@ -18,6 +18,10 @@ public sealed record TorLinkInstallation(string Root, string Node, string Entry,
 {
     public bool HasRuntime => Node.Length > 0;
     public string? Version => ReadVersion(Root);
+    /// <summary>Older than what Mira's screen and Mira web need (« torlnk search », « torlnk serve »): its own terminal still opens.</summary>
+    public bool Outdated => !TorLinkRemote.Supports(Version);
+    /// <summary>Runs for Mira's screen and Mira web: a runtime, confirmed (or Mira's), recent enough.</summary>
+    public bool Headless => HasRuntime && !Detected && !Outdated;
 
     /// <summary>
     /// The configured folder when valid, then Mira's own TorLink, then, <see cref="Detected"/>, the targets of TorLink's
