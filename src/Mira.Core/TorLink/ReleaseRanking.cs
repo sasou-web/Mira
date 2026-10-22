@@ -15,8 +15,11 @@ public sealed record ReleaseInfo(string Title, int? Year, string? Alternate, int
 /// <summary>A result of a search, what its name says and how good it is for us (<see cref="ReleaseRanking.Score"/>).</summary>
 public sealed record RankedRelease(RelayHit Hit, ReleaseInfo Release, int Order, int Score);
 
-/// <summary>A film, an episode or a season pack: its name, « S06E05 » or « Saison 3 complète », the best release, the others.</summary>
-public sealed record ReleaseGroup(string Key, string Show, string Title, string Label, RankedRelease Best, IReadOnlyList<RankedRelease> Others, bool Pack, ReleaseInfo Release);
+/// <summary>
+/// A film, an episode or a season pack: its name, « S06E05 » or « Saison 3 complète », the best release, the others;
+/// <paramref name="Category"/>: the search of TorLink that found them (movies, tv, anime), null when the hits do not say.
+/// </summary>
+public sealed record ReleaseGroup(string Key, string Show, string Title, string Label, RankedRelease Best, IReadOnlyList<RankedRelease> Others, bool Pack, ReleaseInfo Release, string? Category = null);
 
 /// <summary>
 /// « Télécharger sur le PC serveur »: the release Mira puts forward for each title or episode, as Mira web does
@@ -238,7 +241,7 @@ public static partial class ReleaseRanking
         if (release.TenBit && release.Codec == "H.264") score -= 4;
         if (release.Hdr == "DV") score -= 3;
         const double Gib = 1L << 30;
-        var episodic = release.Episode is not null || release.Pack || category is "tv" or "anime";
+        var episodic = release.Episode is not null || release.Pack || (hit.Category ?? category) is "tv" or "anime";
         if (hit.Size > 0 && !release.Pack && release.Resolution >= 1080 && hit.Size < (episodic ? 0.25 : 1.2) * Gib) score -= 4;
         if (ReportsHealth(hit.Source))
         {
@@ -275,7 +278,8 @@ public static partial class ReleaseRanking
     /// <summary>
     /// The results gathered by title and episode (or season, or film and year), the best release of each first; a
     /// release giving another name in parentheses meets the releases under that name. Titles keep the order of their
-    /// best-shared result; inside a title, whole seasons first, then the latest episodes.
+    /// best-shared result; inside a title, whole seasons first, then the latest episodes. Hits of a search in every
+    /// category (<see cref="RelayHit.Category"/>) meet only those of the same category: an anime and its live-action series stay apart.
     /// </summary>
     public static List<ReleaseGroup> Group(IEnumerable<RelayHit> hits, string? category = null)
     {
@@ -288,13 +292,13 @@ public static partial class ReleaseRanking
         }
         string ShowOf(ReleaseInfo release) => names.GetValueOrDefault(TitleKey(release.Title)) ?? TitleKey(release.Title);
         static bool FilmLike(ReleaseInfo release) => release.Episode is null && !release.Pack;
-        var groups = new Dictionary<string, (string Show, List<RankedRelease> Entries)>();
+        var groups = new Dictionary<string, (string Show, string? Category, List<RankedRelease> Entries)>();
         var keys = new List<string>();
         foreach (var entry in entries)
         {
-            var r = entry.Release; var show = ShowOf(r);
-            var key = FilmLike(r) ? $"{show}|{r.Year}" : r.Pack ? $"{show}|pack|{r.Season}|{r.Episode}-{r.LastEpisode}" : $"{show}|e|{(r.Absolute ? "" : r.Season)}|{r.Episode}";
-            if (!groups.TryGetValue(key, out var group)) { groups[key] = group = (show, []); keys.Add(key); }
+            var r = entry.Release; var show = ShowOf(r); var kind = entry.Hit.Category;
+            var key = (kind is null ? "" : kind + "|") + (FilmLike(r) ? $"{show}|{r.Year}" : r.Pack ? $"{show}|pack|{r.Season}|{r.Episode}-{r.LastEpisode}" : $"{show}|e|{(r.Absolute ? "" : r.Season)}|{r.Episode}");
+            if (!groups.TryGetValue(key, out var group)) { groups[key] = group = (show, kind, []); keys.Add(key); }
             group.Entries.Add(entry);
         }
         // An episode numbered without a season meets the same number of the same show with one, when only one season has it.
@@ -304,7 +308,7 @@ public static partial class ReleaseRanking
             var first = group.Entries[0].Release;
             if (!first.Absolute || first.Pack) continue;
             var matches = keys.Where(k => k != key && groups.ContainsKey(k)).Select(k => (Key: k, Group: groups[k]))
-                .Where(g => g.Group.Show == group.Show && g.Group.Entries[0].Release is { Absolute: false, Pack: false } o && o.Episode == first.Episode).ToList();
+                .Where(g => g.Group.Show == group.Show && g.Group.Category == group.Category && g.Group.Entries[0].Release is { Absolute: false, Pack: false } o && o.Episode == first.Episode).ToList();
             if (matches.Count != 1) continue;
             matches[0].Group.Entries.AddRange(group.Entries); groups.Remove(key); keys.Remove(key);
         }
@@ -312,12 +316,12 @@ public static partial class ReleaseRanking
         foreach (var entry in entries) showOrder.TryAdd(ShowOf(entry.Release), entry.Order);
         return keys.Select(key =>
         {
-            var (show, list) = groups[key];
+            var (show, kind, list) = groups[key];
             var sorted = list.OrderByDescending(x => x.Score).ThenByDescending(x => x.Hit.Seeders).ThenBy(x => x.Order).ToList();
             var named = sorted.FirstOrDefault(x => !x.Release.Absolute && TitleKey(x.Release.Title) == show) ?? sorted[0];
             var shown = sorted.FirstOrDefault(x => x.Release is { Absolute: false, Pack: false, Episode: not null }) ?? sorted[0];
             var year = FilmLike(named.Release) && named.Release.Year is { } y ? $" ({y})" : "";
-            return new ReleaseGroup(key, show, named.Release.Title + year, EpisodeLabel(shown.Release), sorted[0], sorted.Skip(1).ToList(), shown.Release.Pack, shown.Release);
+            return new ReleaseGroup(key, show, named.Release.Title + year, EpisodeLabel(shown.Release), sorted[0], sorted.Skip(1).ToList(), shown.Release.Pack, shown.Release, kind);
         })
         .OrderBy(g => showOrder[g.Show]).ThenBy(g => g.Show, StringComparer.Ordinal).ThenBy(g => g.Pack ? 0 : 1)
         .ThenByDescending(g => g.Release.Season ?? 0).ThenByDescending(g => g.Release.Episode ?? 0).ThenBy(g => g.Best.Order).ToList();

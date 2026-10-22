@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import {
-  CATEGORIES, cleanQuery, infoHash, displayName, cleanName, size, speed, agentLine, hitLine, requestLine, downloadLine, controllable, remaining, timeLeft,
+  kindLabel, cleanQuery, infoHash, displayName, cleanName, size, speed, agentLine, hitLine, requestLine, downloadLine, controllable, remaining, timeLeft,
 } from '../../../src/Mira.Web/js/torlink.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/torlink-remote.json', import.meta.url), 'utf8'));
@@ -18,7 +18,7 @@ test('magnet links, searches and names checked as Mira.Core checks them (tests/f
   assert.equal(infoHash(null), null);
   assert.equal(cleanQuery(42), null);
   assert.equal(cleanName('x'.repeat(301)), `${'x'.repeat(300)}…`);
-  assert.deepEqual(CATEGORIES.map(([key]) => key), ['movies', 'tv', 'anime'], 'never games');
+  assert.deepEqual(['movies', 'tv', 'anime', 'games', undefined].map(kindLabel), ['Film', 'Série', 'Anime', '', ''], 'never games');
 });
 
 test('sizes and speeds as Mira for Windows writes them', () => {

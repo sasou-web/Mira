@@ -3,6 +3,7 @@
 ## Non publié
 
 - **Un TorLink trop ancien est signalé** (Windows) : un TorLink installé avant Mira et antérieur à la 1.9.0 ne sait ni chercher ni télécharger pour l’écran de Mira et pour Mira web ; la recherche échouait avec « tip: quote magnet links (they contain & characters) », la dernière ligne de l’aide qu’il affiche. La page **Téléchargements** dit maintenant qu’il est trop ancien et propose **Installer celui de Mira** (sa file et ses réglages sont repris) ou **Ouvrir son terminal** ; Mira web dit pourquoi le PC serveur ne répond pas.
+- **Une recherche dans les films, les séries et les animes à la fois** (Téléchargements, Mira web, Windows, Mac) : plus de menu Films / Séries / Animes à choisir avant de chercher. TorLink cherche dans les trois catégories en même temps, les résultats arrivent mêlés (le meilleur de chaque catégorie vers le haut) et chaque titre dit s’il est un film, une série ou un anime. Un anime et sa série en prises de vue réelles restent séparés. Si une catégorie ne répond pas, les autres s’affichent quand même.
 
 ## 0.8.2 — 2026-10-22
 

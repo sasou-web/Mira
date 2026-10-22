@@ -52,6 +52,22 @@
     ["Dune Part Two (2024)", "", "multi", ["yts", "webrip", "uhd", "cam", "dead"]],
     ["Dune (2021)", "", "old", []]
    ]
+  },
+  {
+   "category": "all",
+   "note": "One search in every category: each hit says which (6th column); an anime and its live-action series stay apart",
+   "hits": [
+    ["film", "One.Piece.Film.Red.2022.1080p.BluRay.x264-GRP", 2147483648, 300, "1337x", "movies"],
+    ["live1", "One.Piece.2023.S01E01.1080p.WEB.h264-GRP", 1073741824, 500, "eztv", "tv"],
+    ["sp1100", "[SubsPlease] One Piece - 1100 (1080p) [ABCD1234].mkv", 1468006400, 0, "subsplease", "anime"],
+    ["erai1", "[Erai-raws] One Piece - 01 [1080p][Multiple Subtitle][0A1B2C3D]", 524288000, 50, "nyaa", "anime"]
+   ],
+   "groups": [
+    ["One Piece Film Red (2022)", "", "film", [], "movies"],
+    ["One Piece", "S01E01", "live1", [], "tv"],
+    ["One Piece", "Épisode 1100", "sp1100", [], "anime"],
+    ["One Piece", "Épisode 1", "erai1", [], "anime"]
+   ]
   }
  ]
 }

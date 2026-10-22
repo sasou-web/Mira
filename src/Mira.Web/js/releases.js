@@ -163,7 +163,8 @@ export function releaseScore(hit, release = parseRelease(hit?.name), category = 
   if (release.tenBit && release.codec === 'H.264') score -= 4;
   if (release.hdr === 'DV') score -= 3;
   const bytes = Number(hit?.size) || 0, gib = 2 ** 30;
-  const episodic = release.episode !== null || release.pack || category === 'tv' || category === 'anime';
+  const kind = hit?.category ?? category;
+  const episodic = release.episode !== null || release.pack || kind === 'tv' || kind === 'anime';
   if (bytes > 0 && !release.pack && release.resolution >= 1080 && bytes < (episodic ? 0.25 : 1.2) * gib) score -= 4;
   const seeders = Math.max(0, Number(hit?.seeders) || 0);
   if (reportsHealth(hit?.source)) {
@@ -188,10 +189,11 @@ export function episodeLabel(release) {
 
 /**
  * The results of a search gathered by title and episode (or season, or film and year), the best release of each put
- * forward: [{ key, title, label, best, others }], each entry { hit, release, score }. A release giving another name in
+ * forward: [{ key, title, label, best, others, category }], each entry { hit, release, score }. A release giving another name in
  * parentheses meets the releases under that name (« JoJos Bizarre Adventure S06E05 (JoJo no Kimyou na Bouken: Steel
  * Ball Run) » and « [Erai-raws] JoJo no Kimyou na Bouken: Steel Ball Run - 05 »). Titles keep the order of their
- * best-shared result; inside a title, whole seasons first, then the latest episodes.
+ * best-shared result; inside a title, whole seasons first, then the latest episodes. Hits of a search in every
+ * category (hit.category) meet only those of the same category: an anime and its live-action series stay apart.
  */
 export function groupReleases(hits, category = null) {
   const entries = (hits ?? []).map((hit, order) => {
@@ -210,17 +212,18 @@ export function groupReleases(hits, category = null) {
   for (const entry of entries) {
     const { release } = entry;
     const show = showOf(release);
-    const key = filmLike(release) ? `${show}|${release.year ?? ''}`
+    const kind = entry.hit?.category ?? null;
+    const key = (kind ? `${kind}|` : '') + (filmLike(release) ? `${show}|${release.year ?? ''}`
       : release.pack ? `${show}|pack|${release.season ?? ''}|${release.episode ?? ''}-${release.lastEpisode ?? ''}`
-        : `${show}|e|${release.absolute ? '' : release.season}|${release.episode}`;
-    if (!groups.has(key)) groups.set(key, { key, show, entries: [] });
+        : `${show}|e|${release.absolute ? '' : release.season}|${release.episode}`);
+    if (!groups.has(key)) groups.set(key, { key, show, category: kind, entries: [] });
     groups.get(key).entries.push(entry);
   }
   // An episode numbered without a season meets the same number of the same show with one, when only one season has it.
   for (const group of [...groups.values()]) {
     const [first] = group.entries;
     if (!first.release.absolute || first.release.pack) continue;
-    const matches = [...groups.values()].filter((g) => g !== group && g.show === group.show && !g.entries[0].release.absolute && !g.entries[0].release.pack && g.entries[0].release.episode === first.release.episode);
+    const matches = [...groups.values()].filter((g) => g !== group && g.show === group.show && g.category === group.category && !g.entries[0].release.absolute && !g.entries[0].release.pack && g.entries[0].release.episode === first.release.episode);
     if (matches.length === 1) { matches[0].entries.push(...group.entries); groups.delete(group.key); }
   }
   const rank = (a, b) => b.score - a.score || (Number(b.hit?.seeders) || 0) - (Number(a.hit?.seeders) || 0) || a.order - b.order;
@@ -233,7 +236,7 @@ export function groupReleases(hits, category = null) {
     const shown = sorted.find((x) => !x.release.absolute && !x.release.pack && x.release.episode !== null) ?? sorted[0];
     const label = episodeLabel(shown.release);
     const year = filmLike(named.release) && named.release.year ? ` (${named.release.year})` : '';
-    return { key: group.key, show: group.show, title: `${named.release.title}${year}`, label, best: sorted[0], others: sorted.slice(1), pack: shown.release.pack, release: shown.release };
+    return { key: group.key, show: group.show, title: `${named.release.title}${year}`, label, best: sorted[0], others: sorted.slice(1), pack: shown.release.pack, release: shown.release, category: group.category };
   }).sort((a, b) => {
     if (a.show !== b.show) return showOrder.get(a.show) - showOrder.get(b.show);
     if (a.pack !== b.pack) return a.pack ? -1 : 1;

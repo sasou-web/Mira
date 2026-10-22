@@ -54,18 +54,23 @@ public sealed class TorLinkRelay
         }
     }
 
-    /// <summary>A search for the agent; refused without an agent online, who alone can run it.</summary>
+    /// <summary>
+    /// A search for the agent; refused without an agent online, who alone can run it. In every category
+    /// (<see cref="RemoteDownloads.All"/>): one search of TorLink for each, handed to the agent as three (an agent
+    /// before 0.8.3 knows only those), their results mixed here.
+    /// </summary>
     public (string? Id, string? Error) Search(string? query, string? category)
     {
         var clean = RemoteDownloads.CleanQuery(query);
         if (clean is null) return (null, "Écris ce que tu cherches.");
-        if (!RemoteDownloads.IsCategory(category)) return (null, "Choisis Films, Séries ou Animes.");
+        if (!RemoteDownloads.IsSearchCategory(category)) return (null, "Choisis Films, Séries ou Animes.");
         lock (_gate)
         {
             var now = _now();
             _watched = now;
             if (_agent is not { } agent || now - agent.Seen >= Online) return (null, "Mira n’est pas ouvert sur le PC serveur : c’est lui qui cherche, avec TorLink.");
             var search = new Lookup(NewId(), clean, category!, now);
+            if (category == RemoteDownloads.All) search.Parts.AddRange(RemoteDownloads.Categories.Select(x => new Lookup(NewId(), clean, x, now)));
             _searches.Add(search);
             if (_searches.Count > MaxSearches) _searches.RemoveAt(0);
             return (search.Id, null);
@@ -78,9 +83,9 @@ public sealed class TorLinkRelay
         lock (_gate)
         {
             _watched = _now();
-            return _searches.FirstOrDefault(x => x.Id == id) is { } s
-                ? new RelaySearch(s.Id, s.Query, s.Category, s.State, s.Results.Select(x => new RelayHit(x.Id, x.Name, x.Size, x.Seeders, x.Leechers, x.Source, x.Added)).ToList(), s.Error)
-                : null;
+            if (_searches.FirstOrDefault(x => x.Id == id) is not { } s) return null;
+            var (state, hits, error) = Outcome(s);
+            return new RelaySearch(s.Id, s.Query, s.Category, state, hits.Select(x => new RelayHit(x.Hit.Id, x.Hit.Name, x.Hit.Size, x.Hit.Seeders, x.Hit.Leechers, x.Hit.Source, x.Hit.Added, x.Category)).ToList(), error);
         }
     }
 
@@ -96,7 +101,7 @@ public sealed class TorLinkRelay
             _watched = now;
             if (searchId is not null || hitId is not null)
             {
-                if (_searches.FirstOrDefault(x => x.Id == searchId)?.Results.FirstOrDefault(x => x.Id == hitId) is not { } hit)
+                if (_searches.FirstOrDefault(x => x.Id == searchId) is not { } search || Units(search).SelectMany(x => x.Results).FirstOrDefault(x => x.Id == hitId) is not { } hit)
                     return (null, "Ce résultat n’est plus là : cherche de nouveau.");
                 (magnet, name, size) = (hit.Magnet, hit.Name, hit.Size);
             }
@@ -157,7 +162,7 @@ public sealed class TorLinkRelay
                     .Select(x => x with { Title = Text(x.Title) ?? x.Id, Status = Text(x.Status) ?? "", ItemId = x.ItemId is { Length: 32 } item && item.All(Uri.IsHexDigit) ? item : null }).ToList());
 
             foreach (var outcome in report.Searches ?? [])
-                if (_searches.FirstOrDefault(x => x.Id == outcome.Id && x.Device == device && x.State == "running") is { } search)
+                if (_searches.SelectMany(Units).FirstOrDefault(x => x.Id == outcome.Id && x.Device == device && x.State == "running") is { } search)
                 {
                     search.State = outcome.State == "done" ? "done" : "failed";
                     search.Error = search.State == "failed" ? Text(outcome.Error) ?? "La recherche n’a pas abouti." : null;
@@ -176,13 +181,14 @@ public sealed class TorLinkRelay
             Prune(now);
 
             bool Free(string state, string? owner, DateTimeOffset? claimed) => state == "waiting" || state is "claimed" or "running" && (owner != device || now - claimed >= Claim);
-            var searches = _searches.Where(x => Free(x.State, x.Device, x.Claimed)).Take(2).ToList();
+            // Three: a search in every category goes in one visit.
+            var searches = _searches.SelectMany(Units).Where(x => Free(x.State, x.Device, x.Claimed)).Take(3).ToList();
             var requests = report.Accepting ? _requests.Where(x => Free(x.State, x.Device, x.Claimed)).Take(5).ToList() : [];
             var controls = report.Accepting ? _controls.Where(x => Free(x.State, x.Device, x.Claimed)).Take(10).ToList() : [];
             foreach (var s in searches) (s.State, s.Device, s.Claimed) = ("running", device, now);
             foreach (var r in requests) (r.State, r.Device, r.Claimed) = ("claimed", device, now);
             foreach (var c in controls) (c.State, c.Device, c.Claimed) = ("claimed", device, now);
-            var hurry = now - _watched < Watched || _searches.Any(x => x.State == "waiting") || report.Accepting && (_requests.Any(x => x.State == "waiting") || _controls.Any(x => x.State == "waiting"));
+            var hurry = now - _watched < Watched || _searches.SelectMany(Units).Any(x => x.State == "waiting") || report.Accepting && (_requests.Any(x => x.State == "waiting") || _controls.Any(x => x.State == "waiting"));
             return new(searches.Select(x => new WorkSearch(x.Id, x.Query, x.Category)).ToList(),
                 requests.Select(x => new WorkRequest(x.Id, x.Magnet, x.Name)).ToList(),
                 controls.Select(x => new WorkControl(x.Id, x.Target, x.Action)).ToList(), hurry ? Hurry : Idle, null);
@@ -196,6 +202,21 @@ public sealed class TorLinkRelay
         _controls.RemoveAll(x => x.Done is { } done && now - done > Kept);
     }
 
+    /// <summary>What the agent runs of a search: itself, or its search in each category.</summary>
+    private static IEnumerable<Lookup> Units(Lookup search) => search.Parts.Count > 0 ? search.Parts : [search];
+
+    /// <summary>
+    /// Where a search is for Mira web: one in every category is done once each of its searches is (with the results of
+    /// those that went through, mixed by <see cref="RemoteDownloads.Combine{T}"/>), failed when all of them failed.
+    /// </summary>
+    private static (string State, List<(string Category, AgentHit Hit)> Hits, string? Error) Outcome(Lookup search)
+    {
+        var units = Units(search).ToList();
+        if (units.Any(x => x.State is "waiting" or "running")) return (units.Any(x => x.State == "running") ? "running" : "waiting", [], null);
+        var (hits, error) = RemoteDownloads.Combine<AgentHit>(units.Select(x => (x.Category, (IReadOnlyList<AgentHit>)x.Results, x.State == "failed" ? x.Error ?? "La recherche n’a pas abouti." : null)).ToList(), x => x.Id);
+        return error is null ? ("done", hits, null) : ("failed", [], error);
+    }
+
     private static string? Text(string? value) => RemoteDownloads.CleanName(value);
     private static string NewId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
 
@@ -206,6 +227,8 @@ public sealed class TorLinkRelay
         public string State { get; set; } = "waiting"; public string? Device { get; set; }
         public DateTimeOffset? Claimed { get; set; }
         public List<AgentHit> Results { get; set; } = []; public string? Error { get; set; }
+        /// <summary>A search in every category: its search in each, which the agent runs; empty otherwise.</summary>
+        public List<Lookup> Parts { get; } = [];
     }
     private sealed class Ask(string id, string magnet, string name, long size, string infoHash, DateTimeOffset created)
     {

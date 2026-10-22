@@ -7,7 +7,7 @@ import { h, icon, clear } from '../dom.js';
 import { tr, trn } from '../i18n.js';
 import { sheet, toast, errorState } from '../components.js';
 import { goBack } from '../app.js';
-import { CATEGORIES, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable } from '../torlink.js';
+import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable } from '../torlink.js';
 import { groupReleases, parseRelease, qualityLine, warning } from '../releases.js';
 
 const EVERY = 3000, SEARCH_EVERY = 1000, SEARCH_WAIT = 90_000;
@@ -25,22 +25,16 @@ export function create({ query }) {
   const back = h('button', { class: 'round floating-back', 'aria-label': tr('Retour'), on: { click: () => goBack('#/reglages') } }, icon('back'));
   const status = h('p', { class: 'page-sub', role: 'status' }, tr('Lecture du PC serveur…'));
 
-  let category = CATEGORIES.some(([key]) => key === query?.get('type')) ? query.get('type') : 'movies';
   const input = h('input', {
     class: 'input', type: 'search', placeholder: tr('Un film, une série, un anime…'), autocomplete: 'off', autocorrect: 'off', autocapitalize: 'none',
     spellcheck: false, enterkeyhint: 'search', maxlength: 200, 'aria-label': tr('Que veux-tu télécharger ?'), value: query?.get('q') ?? '',
   });
   const clearButton = h('button', { class: 'round flat clear', type: 'button', 'aria-label': tr('Effacer'), hidden: !input.value, on: { click: () => { input.value = ''; clearButton.hidden = true; input.focus(); } } }, icon('close', { size: 20 }));
   input.addEventListener('input', () => { clearButton.hidden = !input.value; });
-  const kinds = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': tr('Catégorie') },
-    CATEGORIES.map(([key, label]) => h('button', {
-      type: 'button', role: 'radio', 'aria-checked': String(key === category), dataset: { key },
-      on: { click: () => { category = key; for (const b of kinds.children) b.setAttribute('aria-checked', String(b.dataset.key === key)); } },
-    }, label)));
   const go = h('button', { class: 'btn primary small', type: 'submit' }, tr('Chercher'));
+  // Films, shows and anime at once: the relay runs a search of TorLink in each, and says which found each result.
   const form = h('form', { class: 'torlink-search', role: 'search', on: { submit: (e) => { e.preventDefault(); input.blur(); search(); } } },
-    h('div', { class: 'search-box' }, icon('search'), input, clearButton),
-    h('div', { class: 'torlink-kinds' }, kinds, go));
+    h('div', { class: 'search-box' }, icon('search'), input, clearButton), go);
   const paste = h('button', { class: 'btn quiet small torlink-paste', type: 'button', on: { click: () => askMagnet() } }, icon('link', { size: 16 }), tr('Coller un lien magnet'));
   const found = h('div', { class: 'torlink-results', 'aria-live': 'polite' });
   const listTitle = h('h2', { class: 'label group-title', hidden: true }, tr('Sur le PC serveur'));
@@ -56,7 +50,7 @@ export function create({ query }) {
     body);
 
   let timer = 0, version = 0, failed = false, active = false, agent = null, ready = false, filled = false;
-  let looking = null; // the search under way: { id, query, category, started, timer }
+  let looking = null; // the search under way: { id, query, started, timer }
   let lastHits = null; // the last results shown, with their search
   let latest = { requests: [], downloads: [], placed: [], controls: [] };
 
@@ -190,14 +184,12 @@ export function create({ query }) {
     if (!text) { input.focus(); return; }
     if (!ready) { say(agentLine(agent).text); return; }
     stopLooking();
-    const kind = category;
-    const label = CATEGORIES.find(([key]) => key === kind)?.[1] ?? '';
-    looking = { id: null, query: text, category: kind, started: Date.now(), timer: 0 };
+    looking = { id: null, query: text, started: Date.now(), timer: 0 };
     go.disabled = true;
     found.classList.add('pending');
-    if (!found.firstChild || !lastHits) clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), tr('Recherche de « {query} » en {category} sur le PC serveur…', { query: text, category: label })));
+    if (!found.firstChild || !lastHits) clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), tr('Recherche de « {query} » dans les films, les séries et les animes sur le PC serveur…', { query: text })));
     try {
-      const { id } = await api.torlinkSearch(text, kind);
+      const { id } = await api.torlinkSearch(text, 'all');
       if (!looking || looking.query !== text) return;
       looking.id = id;
       follow();
@@ -245,12 +237,11 @@ export function create({ query }) {
    */
   function showHits(current, hits) {
     lastHits = { search: current.id, hits };
-    const label = CATEGORIES.find(([key]) => key === current.category)?.[1] ?? '';
     if (!hits.length) {
-      clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, tr('Aucun résultat pour « {query} » en {category}. Essaie un autre titre, ou une autre catégorie.', { query: current.query, category: label })));
+      clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, tr('Aucun résultat pour « {query} » dans les films, les séries et les animes. Essaie un autre titre.', { query: current.query })));
       return;
     }
-    const groups = groupReleases(hits, current.category);
+    const groups = groupReleases(hits);
     clear(found).append(
       h('h2', { class: 'label group-title' }, trn(hits.length, '{n} version pour « {query} »', '{n} versions pour « {query} »', { query: current.query })),
       ...groups.map((group) => {
@@ -259,8 +250,9 @@ export function create({ query }) {
           class: 'item torlink-more', type: 'button', 'aria-expanded': 'false',
           on: { click: () => { const open = others.hidden; others.hidden = !open; more.setAttribute('aria-expanded', String(open)); more.querySelector('.grow').textContent = open ? tr('Masquer les autres versions') : trn(group.others.length, '{n} autre version', '{n} autres versions'); } },
         }, h('span', { class: 'grow' }, trn(group.others.length, '{n} autre version', '{n} autres versions')), icon('down', { size: 18 })) : null;
-        return h('section', { class: 'group torlink-title', 'aria-label': [group.title, group.label].filter(Boolean).join(' · ') },
-          h('h3', { class: 'torlink-head' }, h('span', { class: 'clamp-2' }, group.title), group.label ? h('span', { class: 'torlink-episode' }, group.label) : null),
+        const kind = kindLabel(group.category);
+        return h('section', { class: 'group torlink-title', 'aria-label': [group.title, group.label, kind].filter(Boolean).join(' · ') },
+          h('h3', { class: 'torlink-head' }, h('span', { class: 'clamp-2' }, group.title), group.label ? h('span', { class: 'torlink-episode' }, group.label) : null, kind ? h('span', { class: 'torlink-kind' }, kind) : null),
           release(current.id, group.best, true), more, others);
       }));
   }

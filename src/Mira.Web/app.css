@@ -599,9 +599,7 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .now-confirm { padding: 0 20px 10px; font-size: calc(15px * var(--text)); line-height: 1.45; color: var(--muted); }
 /* « Télécharger sur le PC serveur »: the search and its category, then what the PC has under way, one row each. */
 .torlink-tools { padding: 4px var(--gutter) 20px; display: grid; gap: 12px; justify-items: start; }
-.torlink-search { width: 100%; display: grid; gap: 10px; }
-.torlink-kinds { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.torlink-kinds .segmented { margin-top: 0; }
+.torlink-search { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .torlink-paste { margin-left: -12px; }
 .torlink-paste .icon { width: 16px; height: 16px; }
 .torlink-results { min-height: 8px; }
@@ -622,6 +620,7 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 /* The results: a card per title or episode, its best release first, the others folded under it. */
 .torlink-head { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 2px; font-size: calc(17px * var(--text)); font-weight: 800; line-height: 1.3; }
 .torlink-head > .clamp-2 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.torlink-kind { flex: none; color: var(--muted); font-size: calc(12px * var(--text)); font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
 .torlink-episode { flex: none; color: var(--muted); font-size: calc(14px * var(--text)); font-weight: 700; font-variant-numeric: tabular-nums; }
 .torlink-quality { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; overflow-wrap: anywhere; }
 .torlink-badge { padding: 2px 8px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: calc(12px * var(--text)); font-weight: 800; line-height: 1.4; white-space: nowrap; }

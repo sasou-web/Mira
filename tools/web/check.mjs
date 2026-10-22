@@ -1647,14 +1647,15 @@ try {
 await togetherA.close(); await togetherB.close();
 
 // « Télécharger sur le PC serveur » (an administrator): Mira for Windows on the PC of Jellyfin is played here by a fake
-// agent, which visits the extension's relay as it does (Mira/torlink/agent): it answers a search with a result, takes
+// agent, which visits the extension's relay as it does (Mira/torlink/agent): it answers the search of each category
+// (films, shows, anime: one search of the page asks for the three; a result found twice is shown once), takes
 // the download and reports it under way, pauses and cancels it as asked. Another account is refused.
 const relayServer = base.replace(/\/Mira\/?.*$/i, '');
 const relayAuth = (id, token) => `MediaBrowser Client="check", Device="check", DeviceId="${id}", Version="1"${token ? `, Token="${token}"` : ''}`;
 const tokenFor = async (id, name, pw) => (await (await fetch(`${relayServer}/Users/AuthenticateByName`, {
   method: 'POST', headers: { Authorization: relayAuth(id), 'Content-Type': 'application/json' }, body: JSON.stringify({ Username: name, Pw: pw }),
 })).json()).AccessToken;
-const picked = 'c12fe1c06bba254a9dc9f519b335aa7c1367a88a', pasted = '0123456789abcdef0123456789abcdef01234567', weaker = 'fedcba9876543210fedcba9876543210fedcba98';
+const picked = 'c12fe1c06bba254a9dc9f519b335aa7c1367a88a', pasted = '0123456789abcdef0123456789abcdef01234567', weaker = 'fedcba9876543210fedcba9876543210fedcba98', episode = 'abcdefabcdefabcdefabcdefabcdefabcdefabcd';
 const magnetOf = (hash, name) => `magnet:?xt=urn:btih:${hash}&dn=${encodeURIComponent(name)}`;
 const fake = { searches: [], requests: [], controls: [], downloads: [], seen: [], stop: false };
 const agentToken = await tokenFor('check-agent', user, password).catch(() => null);
@@ -1665,11 +1666,12 @@ const agentLoop = (async () => {
     const work = answer?.ok ? await answer.json() : null;
     for (const s of work?.searches ?? []) {
       fake.seen.push(`search ${s.category} ${s.query}`);
-      fake.searches.push({ id: s.id, state: 'done', results: [
+      const film = { id: picked, name: 'Mira Check 2026 1080p WEB-DL', size: Math.round(1.4 * 2 ** 30), seeders: 42, leechers: 3, source: 'check', magnet: magnetOf(picked, 'Mira Check 2026 1080p WEB-DL'), added: null };
+      fake.searches.push({ id: s.id, state: 'done', results: {
         // Better shared but worse: the 1080p WEB-DL is put forward all the same, the HDTV folded under it.
-        { id: weaker, name: 'Mira.Check.2026.720p.HDTV.x264-GRP', size: 2 ** 30, seeders: 900, leechers: 3, source: 'check', magnet: magnetOf(weaker, 'Mira.Check.2026.720p.HDTV.x264-GRP'), added: null },
-        { id: picked, name: 'Mira Check 2026 1080p WEB-DL', size: Math.round(1.4 * 2 ** 30), seeders: 42, leechers: 3, source: 'check', magnet: magnetOf(picked, 'Mira Check 2026 1080p WEB-DL'), added: null },
-      ], error: null });
+        movies: [{ id: weaker, name: 'Mira.Check.2026.720p.HDTV.x264-GRP', size: 2 ** 30, seeders: 900, leechers: 3, source: 'check', magnet: magnetOf(weaker, 'Mira.Check.2026.720p.HDTV.x264-GRP'), added: null }, film],
+        tv: [{ id: episode, name: 'Mira.Check.S01E02.1080p.WEB-DL.H264-GRP', size: 2 ** 30, seeders: 30, leechers: 1, source: 'check', magnet: magnetOf(episode, 'Mira.Check.S01E02.1080p.WEB-DL.H264-GRP'), added: null }, film],
+      }[s.category] ?? [], error: null });
     }
     for (const r of work?.requests ?? []) {
       fake.seen.push(`add ${r.name}`);
@@ -1689,7 +1691,7 @@ const dlContext = await newContext('télécharger');
 const dp = await dlContext.newPage();
 const dlErrors = [];
 dp.on('pageerror', (e) => dlErrors.push(e.message));
-const dl = { ready: '', hit: '', row: '', paused: '', cancelled: false, refused: '', pasted: '', other: 0, entry: false, failure: '' };
+const dl = { ready: '', hit: '', kinds: '', row: '', paused: '', cancelled: false, refused: '', pasted: '', other: 0, entry: false, failure: '' };
 try {
   await signIn(dp);
   await dp.locator('.tabbar a[data-tab="settings"]').click();
@@ -1698,11 +1700,11 @@ try {
   await dp.waitForFunction(() => /PC-CHECK est prêt/.test(document.querySelector('.torlink-page .page-sub')?.textContent ?? ''), null, { timeout: 15000 });
   dl.ready = (await screen.locator('.page-sub').innerText()).trim();
   await screen.locator('input[type=search]').fill('  --mira   check ');
-  await screen.getByRole('radio', { name: 'Séries' }).click();
   await screen.getByRole('button', { name: 'Chercher' }).click();
   const hit = screen.locator('.torlink-results .torlink-item').first();
   await hit.waitFor({ timeout: 15000 });
   dl.hit = `${(await screen.locator('.torlink-results .torlink-head').first().innerText()).trim()} | ${(await hit.innerText()).trim()} | ${await screen.locator('.torlink-results .torlink-more').count()}`.replace(/\s*\n\s*/g, ' | ');
+  dl.kinds = (await screen.locator('.torlink-results .torlink-title').evaluateAll((all) => all.map((x) => x.getAttribute('aria-label')))).join(' / ');
   await dp.screenshot({ path: `${out}/25-download-search.png` });
   await hit.click();
   await dp.getByRole('menuitem', { name: 'Télécharger', exact: true }).click();
@@ -1738,11 +1740,12 @@ if (!friendToken && agentToken) {
 dl.other = friendToken ? (await fetch(`${relayServer}/Mira/torlink`, { headers: { Authorization: relayAuth('check-friend', friendToken) } })).status : 0;
 fake.stop = true; await agentLoop;
 await dlContext.close();
-check('télécharger sur le PC serveur (administrateur) : recherche faite par le PC, téléchargement suivi, pause, annulation, lien magnet collé',
-  /PC-CHECK est prêt/.test(dl.ready) && fake.seen.includes('search tv mira check') && dl.hit === 'Mira Check (2026) | 1080p · WEB-DL | Meilleur choix | 1,4 Go · 42 sources · check | Mira Check 2026 1080p WEB-DL | 1'
+check('télécharger sur le PC serveur (administrateur) : recherche faite par le PC dans les films, les séries et les animes à la fois, téléchargement suivi, pause, annulation, lien magnet collé',
+  /PC-CHECK est prêt/.test(dl.ready) && ['movies', 'tv', 'anime'].every((kind) => fake.seen.includes(`search ${kind} mira check`))
+    && dl.hit === 'Mira Check (2026) | FILM | 1080p · WEB-DL | Meilleur choix | 1,4 Go · 42 sources · check | Mira Check 2026 1080p WEB-DL | 1' && dl.kinds === 'Mira Check (2026) · Film / Mira Check · S01E02 · Série'
     && /37 % · 530 Mo sur 1,4 Go · 2,5 Mo\/s · reste 6 min · 4 pairs/.test(dl.row) && /^En pause/.test(dl.paused) && dl.cancelled && fake.seen.includes(`delete ${picked}`)
     && /pas un lien magnet/.test(dl.refused) && /Collé Check/.test(dl.pasted) && !dlErrors.length,
-  dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
+  dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.kinds} » ; « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
 check('télécharger sur le PC serveur : refusé à un compte qui n’est pas administrateur', dl.other === 403, String(dl.other));
 // « Reprendre un peu avant »: a film left at 34 s starts 5 s before (the default), and exactly there once « Non » is
 // chosen in Réglages. Its position is put back to nothing for the rest of the run.

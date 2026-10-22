@@ -35,8 +35,6 @@ public sealed class DownloadsPage : Page
     private readonly Ellipse _pillDot = new() { Width = 8, Height = 8, Fill = Ui.Faint, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox _query = new() { Watermark = L("Un film, une série, un anime…", "A movie, a show, an anime…"), MaxLength = 200 };
     private readonly Button _search = new() { Content = L("Chercher", "Search"), Classes = { "primary" }, Padding = new Thickness(22, 11), Margin = new Thickness(10, 0, 0, 0), IsEnabled = false };
-    private readonly List<(string Key, Button Chip)> _chips = [];
-    private string _category = "movies";
     private readonly Button _magnetButton;
     private readonly Border _magnetPanel;
     private readonly TextBox _magnet = new() { Watermark = "magnet:?xt=urn:btih:…", FontSize = 14, Padding = new Thickness(12, 9) };
@@ -108,18 +106,9 @@ public sealed class DownloadsPage : Page
         var bar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
         bar.Children.Add(_query); Grid.SetColumn(_search, 1); bar.Children.Add(_search);
 
-        var kinds = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        AutomationProperties.SetName(kinds, L("Catégorie", "Category"));
-        foreach (var (key, label) in RemoteLines.Categories)
-        {
-            var chip = new Button { Content = label, Classes = { "chip" } };
-            chip.Classes.Set("on", key == _category);
-            chip.Click += (_, _) => { _category = key; foreach (var (other, button) in _chips) button.Classes.Set("on", other == key); };
-            _chips.Add((key, chip)); kinds.Children.Add(chip);
-        }
         _magnetButton = SmallButton(L("Coller un lien magnet", "Paste a magnet link"), "link", OpenMagnet);
-        var tools = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
-        DockPanel.SetDock(_magnetButton, Dock.Right); tools.Children.Add(_magnetButton); tools.Children.Add(kinds);
+        _magnetButton.HorizontalAlignment = HorizontalAlignment.Right;
+        var tools = new Panel { Margin = new Thickness(0, 12, 0, 0), Children = { _magnetButton } };
 
         AutomationProperties.SetName(_magnet, L("Lien magnet", "Magnet link"));
         _magnet.TextChanged += (_, _) => _magnetError.IsVisible = false;
@@ -441,21 +430,23 @@ public sealed class DownloadsPage : Page
 
     // —— Searching ——
 
-    /// <summary>A search TorLink runs on the PC of Jellyfin, followed every second until it answers (90 s at most).</summary>
+    /// <summary>
+    /// A search TorLink runs on the PC of Jellyfin, in films, shows and anime at once, followed every second until it
+    /// answers (90 s at most).
+    /// </summary>
     private async Task SearchAsync()
     {
         if (_session is not { } session) return;
         if (RemoteDownloads.CleanQuery(_query.Text) is not { } query) { _query.Focus(); return; }
         if (!_ready) { _searchStatus.Text = RemoteLines.Agent(_agent, DateTimeOffset.UtcNow).Text; return; }
-        var category = _category; var label = RemoteLines.CategoryLabel(category);
         var mine = ++_searchVersion; var ct = session.Lifetime;
         _searching = true; _search.IsEnabled = false; _search.Content = L("Recherche…", "Searching…");
-        _searchStatus.Text = L($"Recherche de « {query} » en {label} sur le PC serveur…", $"Searching for “{query}” in {label} on the server PC…");
+        _searchStatus.Text = L($"Recherche de « {query} » dans les films, les séries et les animes sur le PC serveur…", $"Searching for “{query}” in movies, shows and anime on the server PC…");
         _results.Opacity = 0.45;
         void End(string text) { _searchStatus.Text = text; _results.Children.Clear(); _resultsEmpty.IsVisible = false; }
         try
         {
-            var id = await session.Client.TorLinkSearchAsync(query, category, ct);
+            var id = await session.Client.TorLinkSearchAsync(query, RemoteDownloads.All, ct);
             var started = DateTime.UtcNow;
             while (true)
             {
@@ -470,7 +461,7 @@ public sealed class DownloadsPage : Page
                 // Forgotten (Jellyfin restarted meanwhile): it will not come back.
                 if (state is null) { End(L("Cette recherche a été perdue : relance-la.", "This search was lost: run it again.")); return; }
                 if (state.State == "failed") { End(string.IsNullOrEmpty(state.Error) ? L("La recherche n’a pas abouti.", "The search didn’t work.") : state.Error); return; }
-                if (state.State == "done") { ShowHits(id, query, category, state.Results ?? []); return; }
+                if (state.State == "done") { ShowHits(id, query, state.Results ?? []); return; }
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
@@ -485,14 +476,13 @@ public sealed class DownloadsPage : Page
     /// The results by title and episode (or season, or film), the best release of each first: its quality and source,
     /// its size and sources, its full name; the other releases folded under it.
     /// </summary>
-    private void ShowHits(string searchId, string query, string category, IReadOnlyList<RelayHit> hits)
+    private void ShowHits(string searchId, string query, IReadOnlyList<RelayHit> hits)
     {
-        var label = RemoteLines.CategoryLabel(category);
         _resultsEmpty.IsVisible = false; _results.Children.Clear(); _resultsScroll.Offset = default; _firstBest = null;
-        if (hits.Count == 0) { _searchStatus.Text = L($"Aucun résultat pour « {query} » en {label}. Essaie un autre titre, ou une autre catégorie.", $"No results for “{query}” in {label}. Try another title, or another category."); return; }
-        var groups = ReleaseRanking.Group(hits, category);
+        if (hits.Count == 0) { _searchStatus.Text = L($"Aucun résultat pour « {query} » dans les films, les séries et les animes. Essaie un autre titre.", $"No results for “{query}” in movies, shows and anime. Try another title."); return; }
+        var groups = ReleaseRanking.Group(hits);
         var versions = Count(hits.Count, "version", "versions", "version", "versions"); var titles = Count(groups.Count, "titre", "titres", "title", "titles");
-        _searchStatus.Text = L($"{versions} pour « {query} » en {label}, regroupées en {titles}. La meilleure de chacun en premier.", $"{versions} for “{query}” in {label}, grouped into {titles}. The best of each first.");
+        _searchStatus.Text = L($"{versions} pour « {query} », regroupées en {titles}. La meilleure de chacun en premier.", $"{versions} for “{query}”, grouped into {titles}. The best of each first.");
         foreach (var group in groups) _results.Children.Add(GroupView(searchId, group));
     }
 
@@ -508,6 +498,11 @@ public sealed class DownloadsPage : Page
                 Child = new TextBlock { Text = group.Label, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Secondary }
             };
             DockPanel.SetDock(episode, Dock.Right); head.Children.Add(episode);
+        }
+        if (RemoteLines.KindLabel(group.Category) is { Length: > 0 } kind)
+        {
+            var tag = new TextBlock { Text = kind, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Secondary, Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(tag, Dock.Right); head.Children.Add(tag);
         }
         var title = new TextBlock { Text = group.Title, FontSize = 17, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         ToolTip.SetTip(title, group.Title);
@@ -532,7 +527,7 @@ public sealed class DownloadsPage : Page
             panel.Children.Add(toggle); panel.Children.Add(others);
         }
         var card = new Border { Background = Surface, CornerRadius = new CornerRadius(12), Padding = new Thickness(20, 16, 20, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel };
-        AutomationProperties.SetName(card, group.Label.Length > 0 ? $"{group.Title} · {group.Label}" : group.Title);
+        AutomationProperties.SetName(card, string.Join(" · ", new[] { group.Title, group.Label, RemoteLines.KindLabel(group.Category) }.Where(x => x.Length > 0)));
         return card;
     }
 
