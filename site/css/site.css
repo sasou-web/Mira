@@ -7,7 +7,7 @@
 @font-face { font-family: 'Nunito Sans'; font-weight: 700; font-display: swap; src: url('../fonts/nunito-sans-700.woff2') format('woff2'); }
 @font-face { font-family: 'Nunito Sans'; font-weight: 800; font-display: swap; src: url('../fonts/nunito-sans-800.woff2') format('woff2'); }
 
-/* Animated by transitions: the phones' fan, the light of a room. */
+/* Animated by transitions: the phones' fan. */
 @property --spread { syntax: '<number>'; inherits: true; initial-value: 0; }
 
 :root {
@@ -103,7 +103,6 @@ body::after {
   display: inline-flex; align-items: center; justify-content: center; gap: 16px; color: var(--muted);
   font-size: 13px; font-weight: 800; letter-spacing: 0.32em; text-transform: uppercase;
 }
-.number::before, .number::after { content: ''; width: 36px; height: 1px; background: currentColor; opacity: 0.6; }
 .lede { color: var(--muted); font-size: clamp(17px, 1.5vw, 20px); line-height: 1.55; text-wrap: pretty; }
 
 /* ---------- The two bars: the letterbox, and Mira's player in it ---------- */
@@ -375,58 +374,49 @@ body::after {
 .try { text-align: center; color: var(--faint); font-size: 15px; }
 @media (max-width: 700px) { .screens { grid-template-columns: 1fr; } }
 
-/* ---------- Privacy: the card shown before the film ---------- */
-.carton {
-  width: min(100% - 2 * var(--gutter), 1000px); margin: 0 auto clamp(96px, 12vw, 160px); padding: clamp(28px, 5vw, 64px);
-  border: 2px solid rgba(245, 245, 247, 0.7); outline: 1px solid rgba(245, 245, 247, 0.3); outline-offset: 7px;
-  border-radius: 4px; text-align: center; display: grid; gap: clamp(28px, 4vw, 44px);
-  background: radial-gradient(ellipse at 50% 0%, rgba(245, 245, 247, 0.07), transparent 70%);
-}
-.carton-head { font-size: clamp(20px, 2.8vw, 34px); font-weight: 800; letter-spacing: 0.24em; text-transform: uppercase; text-wrap: balance; }
-.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(24px, 3vw, 40px) clamp(24px, 5vw, 64px); text-align: center; }
-.facts li { display: grid; gap: 6px; align-content: start; }
-.facts strong { font-size: 19px; }
-.facts span { color: var(--muted); font-size: 15px; text-wrap: pretty; }
-.carton-foot { color: var(--faint); font-size: 12px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; }
-@media (max-width: 640px) { .facts { grid-template-columns: 1fr; } }
+/* ---------- Privacy: the promises, said plainly ---------- */
+.carton { width: min(100% - 2 * var(--gutter), 1100px); margin: 0 auto clamp(96px, 12vw, 160px); display: grid; gap: clamp(20px, 3vw, 36px); }
+.carton-head { color: var(--faint); font-size: 13px; font-weight: 800; letter-spacing: 0.32em; text-transform: uppercase; }
+.facts { display: grid; gap: clamp(28px, 4vw, 48px); }
+.facts li { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px clamp(24px, 5vw, 72px); align-items: baseline; }
+.facts strong { font-size: clamp(28px, 3.6vw, 48px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; text-wrap: balance; }
+.facts span { color: var(--muted); font-size: clamp(16px, 1.4vw, 19px); text-wrap: pretty; }
+.carton-foot { color: var(--faint); font-size: 15px; }
+@media (max-width: 760px) { .facts li { grid-template-columns: 1fr; } }
 
-/* ---------- Download: one room each ---------- */
-.rooms {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;
-  width: min(100% - 2 * var(--gutter), 1200px); margin: 0 auto;
-}
-/* One set of rows for the three rooms: their buttons line up whatever the length of their text. */
+/* ---------- Download: a door for each room, yours lit ---------- */
+.rooms { display: grid; gap: 12px; width: min(100% - 2 * var(--gutter), 1200px); margin: 0 auto; }
 .room {
-  position: relative; display: grid; grid-row: span 5; grid-template-rows: subgrid; row-gap: 10px; padding: 30px;
-  border-radius: var(--r-l); background: linear-gradient(var(--surface), #0a0a0b); border: 1px solid var(--line); overflow: hidden;
-  transition: border-color 300ms var(--ease), transform 300ms var(--ease);
+  display: grid; grid-template-columns: 112px minmax(0, 1fr) minmax(0, 1.25fr) 260px; grid-template-areas: 'door name text go' 'door needs text go';
+  gap: 4px clamp(20px, 3vw, 44px); align-items: center; padding: clamp(22px, 3vw, 32px) clamp(22px, 3vw, 36px);
+  border-radius: var(--r-l); background: #0b0b0c; transition: background-color 300ms var(--ease);
 }
-/* The screen of the room lights up when you come in. */
-.room::before {
-  content: ''; position: absolute; left: 15%; right: 15%; top: 0; height: 2px; border-radius: 2px; background: var(--accent);
-  box-shadow: 0 0 40px 10px rgba(245, 245, 247, 0.22); opacity: 0.25; transition: opacity 400ms var(--ease);
-}
-.room:hover, .room.mine { border-color: #45454b; }
-.room:hover { transform: translateY(-4px); }
-.room:hover::before, .room.mine::before { opacity: 1; }
-.room-number {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; color: var(--faint);
-  font-size: 12px; font-weight: 800; letter-spacing: 0.24em; text-transform: uppercase;
-}
+.room:hover, .room.mine { background: var(--surface); }
+.room-number { grid-area: door; display: grid; justify-items: start; gap: 6px; color: var(--faint); font-size: 12px; font-weight: 800; letter-spacing: 0.24em; text-transform: uppercase; }
+.room-number b { color: var(--soft); font-size: clamp(56px, 6vw, 80px); letter-spacing: -0.04em; line-height: 0.85; }
+.room.mine .room-number b { color: var(--ink); }
 .yours {
   padding: 3px 9px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent);
-  font-size: 11px; font-weight: 800; letter-spacing: 0.06em;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: none;
 }
-.room h3 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
-.room p { color: var(--muted); font-size: 16px; }
-.room .needs { color: var(--faint); font-size: 14px; font-weight: 600; }
-.room .button { width: 100%; margin-top: 12px; }
-.room .more { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; color: var(--faint); }
+.room h3 { grid-area: name; align-self: end; font-size: clamp(24px, 2.4vw, 30px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.room .needs { grid-area: needs; align-self: start; color: var(--faint); font-size: 14px; font-weight: 600; }
+.room > p:not([class]) { grid-area: text; color: var(--muted); font-size: 16px; text-wrap: pretty; }
+.room > div { grid-area: go; }
+.room .button { width: 100%; }
+/* Your room keeps the bright button; the others step back. */
+.rooms:has(.mine) .room:not(.mine) .button.primary { background: var(--raised-2); color: var(--ink); box-shadow: none; }
+.room .more { margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; font-size: 14px; color: var(--faint); }
 .room .more a { color: var(--muted); text-underline-offset: 3px; }
 .room .more a:hover { color: var(--ink); }
 .note { width: min(100% - 2 * var(--gutter), 1200px); margin: 28px auto clamp(96px, 12vw, 160px); color: var(--faint); font-size: 15px; }
 .note a { color: var(--muted); text-underline-offset: 3px; }
-@media (max-width: 1000px) { .rooms { grid-template-columns: 1fr; max-width: 560px; } .room { grid-row: auto; grid-template-rows: none; } .note { max-width: 560px; } }
+@media (max-width: 1000px) {
+  .room { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'door name' 'door needs' 'text text' 'go go'; row-gap: 6px; }
+  .room-number b { font-size: 56px; }
+  .room > p:not([class]) { margin-top: 12px; }
+  .room > div { margin-top: 12px; }
+}
 
 /* ---------- End credits ---------- */
 .credits { display: grid; justify-items: center; padding: clamp(64px, 10vw, 120px) var(--gutter) 56px; text-align: center; border-top: 1px solid var(--line); }
