@@ -10,15 +10,19 @@ permissions:
 jobs:
   stills:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Jellyfin with Dune
         run: |
-          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          docker pull -q jellyfin/jellyfin:12.1.20260915-010956
+          echo pulled
           for t in "Dune (2021)" "Dune Part Two (2024)"; do
             mkdir -p ".artifacts/media/Films/$t"
-            ffmpeg -loglevel error -y -f lavfi -i color=c=black:s=640x360:r=1 -t 5 "$PWD/.artifacts/media/Films/$t/$t.mkv"
+            timeout 60 docker run --rm --entrypoint /usr/lib/jellyfin-ffmpeg/ffmpeg -v "$PWD/.artifacts/media:/media" jellyfin/jellyfin:12.1.20260915-010956 \
+              -nostdin -loglevel error -y -f lavfi -t 5 -i color=c=black:s=640x360:r=1 "/media/Films/$t/$t.mkv"
           done
+          ls -lR .artifacts/media
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" jellyfin/jellyfin:12.1.20260915-010956
       - name: Backdrops
         run: |
@@ -60,7 +64,7 @@ jobs:
           }
           writeFileSync('stills/dune/list.txt', list.join('\n') + '\n');
           JS
-          node .artifacts/stills.mjs
+          timeout 900 node .artifacts/stills.mjs
       - name: Commit
         run: |
           git add stills
