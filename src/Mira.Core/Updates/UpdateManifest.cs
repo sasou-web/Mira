@@ -161,6 +161,9 @@ public static class UpdateKeys
     public static readonly IReadOnlyList<string> Trusted =
     [
         // Maintainer key created on 2026-09-29 (ECDSA P-256).
-        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEkpHZt5DB4HdJvMnTsKOToLGllJljEJtRD4UPU7adK3Yt+InD+Bp9O+jwDbS+cq3TBweNNWmb6360lZDjestyCw=="
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEkpHZt5DB4HdJvMnTsKOToLGllJljEJtRD4UPU7adK3Yt+InD+Bp9O+jwDbS+cq3TBweNNWmb6360lZDjestyCw==",
+        // Backup key created on 2026-10-22 (ECDSA P-256), kept off the PC behind its passphrase;
+        // it takes over through "import-backup" if the maintainer key is lost.
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEyXVVYgL63h8U3bSso+1w/N05nmyJy5b1+FhR6FAg9jsvp5Bic1MwLLekxZxGHTBwUsFIXUziilHDroZiT7TDZQ=="
     ];
 }
