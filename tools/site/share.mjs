@@ -36,7 +36,7 @@ for (const [file, [title, kicker]] of Object.entries(cards)) {
     <img class="still" src="${site}/img/film-still-1280.webp"><div class="shade"></div>
     <div class="brand"><img src="${site}/img/mark.svg">Mira</div>
     <div class="copy"><div class="kicker">${kicker}</div><h1>Mira</h1></div>
-    <p class="line"><span>— ${title}</span></p>
+    <p class="line"><span>${title}</span></p>
     <div class="bar"><i></i></div>
   </body></html>`);
   await page.goto(pathToFileURL(join(scratch, 'card.html')).href, { waitUntil: 'load' });
