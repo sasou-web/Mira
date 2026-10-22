@@ -292,6 +292,7 @@ public partial class MainWindow : Window
         // Opened from a mira:// link before this account was: asked now.
         if (_invite is not null) _ = OfferInviteAsync();
         _ = LoadOfflineAsync(client);
+        if (!_args.Contains("--visual-check")) _ = MarkLibraryFoldersAsync(client, _connectionLifetime.Token);
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant();
         SettingsServerAddress.Text = connection.Server;
         LoginOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";

@@ -19,6 +19,23 @@ public partial class MainWindow
     /// <summary>The notice about Jellyfin on this PC, replaced (not added to) once it answers again.</summary>
     private string? _localJellyfinNotice;
 
+    /// <summary>
+    /// Jellyfin on this PC, an administrator's account: each library folder gets <see cref="LibraryMarker"/>'s file, so
+    /// that Jellyfin removes the last title deleted from it. A folder already emptied may still show deleted titles: a
+    /// scan removes them then, and Jellyfin's change notice brings the pages up to date.
+    /// </summary>
+    private async Task MarkLibraryFoldersAsync(JellyfinClient client, CancellationToken ct)
+    {
+        try
+        {
+            if (!await JellyfinOnThisPcAsync(client) || await client.IsAdministratorAsync(ct) != true || await client.VirtualFoldersAsync(ct) is not { } libraries) return;
+            var folders = libraries.Where(x => !LibrarySection.Groups(x.CollectionType)).SelectMany(x => x.Locations).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (await Task.Run(() => folders.Count(LibraryMarker.Ensure), ct) > 0) await client.ScanLibrariesAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (IsExpected(ex)) { }
+    }
+
     /// <summary>No answer at all, or Jellyfin's own « loading » (503): what a stopped or starting Jellyfin gives.</summary>
     private static bool Unanswered(Exception ex) => ex is OperationCanceledException or HttpRequestException { StatusCode: null or HttpStatusCode.ServiceUnavailable };
 
