@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **L’écran de Mira web aussi sur le PC serveur** (Windows) : sur le PC de Jellyfin, la page **Téléchargements** s’ouvre maintenant sur le même écran que Mira web et que les autres PC, au lieu du terminal de TorLink. Cherche un titre : Mira regroupe les versions par film, épisode ou saison et met la meilleure en avant ; **Télécharger** (ou un lien magnet collé) le confie à TorLink sur ce PC, sans fenêtre. À droite, la progression, la taille reçue, le débit et le temps restant, avec **Pause**, **Reprendre** et **Annuler**, puis ce qui part vers Jellyfin avec **Voir**, **Dossier** (l’Explorateur, sur le fichier), **Réessayer** et **Classer**. Pas besoin du relais ni d’un compte administrateur sur ce PC. Le bouton **Terminal** rouvre l’interface de TorLink (ses touches, son dossier de téléchargement), **Écran de Mira** y revient, et Mira se souvient du choix.
+
 ## 0.8.1 — 2026-10-18
 
 Mira trouve tout seul le serveur Jellyfin à l’écran de connexion.
