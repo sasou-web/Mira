@@ -425,7 +425,7 @@ public partial class MainWindow
         if (!_fullscreen)
         {
             _windowFrame!.SetFullscreen(true);
-            _fullscreenWindow!.Enter(_args.Contains("--player-check") ? new Rect(-30000, -30000, 1600, 900) : null); _fullscreen = true;
+            _fullscreenWindow!.Enter(_args.Contains("--player-check") ? CheckScreen() : null); _fullscreen = true;
         }
         else
         {
@@ -437,6 +437,12 @@ public partial class MainWindow
         Motion.Swap(FullscreenIcon, _fullscreen ? "collapse" : "fullscreen");
         FullscreenButton.ToolTip = _fullscreen ? L("Quitter le plein écran · Échap", "Exit full screen · Esc") : L("Plein écran · F", "Full screen · F");
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls();
+    }
+    /// <summary>The player check's screen, off view: 1600 × 900, or the monitor when smaller (Windows caps a window to it).</summary>
+    private Rect CheckScreen()
+    {
+        var monitor = FullscreenWindow.ScreenBounds(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        return new Rect(-30000, -30000, Math.Min(1600, monitor.Width), Math.Min(900, monitor.Height));
     }
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {

@@ -80,7 +80,7 @@
     <AdornerDecorator>
     <Grid x:Name="PlayerSurface" Background="#01000000" Focusable="True" FocusVisualStyle="{x:Null}" ClipToBounds="True" Cursor="Arrow" TextElement.FontFamily="{StaticResource AppFont}" MouseMove="PlayerSurface_MouseMove" MouseLeave="PlayerSurface_MouseLeave" MouseLeftButtonDown="PlayerSurface_MouseDown" MouseLeftButtonUp="PlayerSurface_MouseUp" PreviewKeyDown="Player_PreviewKeyDown" KeyDown="Window_KeyDown">
     <!-- Top: back to the library, or the mini-player's title and buttons. The title of a full player sits in the bottom bar.
-         The shades never take clicks: a click on the video, even under them, pauses as anywhere else. -->
+         The shades take no clicks, but a click in the band of a bar never pauses (InBarBand). -->
     <Grid x:Name="PlayerHeader" Height="108" VerticalAlignment="Top">
      <Border IsHitTestVisible="False"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#A6000000"/><GradientStop Color="#00000000" Offset="1"/></LinearGradientBrush></Border.Background></Border>
      <DockPanel x:Name="PlayerHeaderBody" Margin="24,42,24,22" VerticalAlignment="Top">

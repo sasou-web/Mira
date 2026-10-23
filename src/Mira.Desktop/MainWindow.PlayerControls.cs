@@ -48,7 +48,9 @@ public partial class MainWindow
         LocationChanged += (_, _) => PositionPlayerControls();
         StateChanged += (_, _) => { PositionPlayerControls(); UpdatePlayerControls(); };
         Activated += (_, _) => { _fullscreenWindow.ActiveChanged(); ShowPlayerControls(); };
-        Deactivated += (_, _) => { _fullscreenWindow.ActiveChanged(); ClosePlayerPopups(); };
+        // In the background, the controls leave but their surface stays over the video: the click that brings Mira back
+        // reaches it, not mpv's own window (MainWindow.PlayerSurface_MouseDown).
+        Deactivated += (_, _) => { _fullscreenWindow.ActiveChanged(); LeavePlayerControls(); };
     }
     /// <summary>Above the button that opened the menu, right-aligned with it and kept inside the video.
     /// WPF supplies the sizes in device pixels, including at 200% DPI.</summary>
@@ -88,14 +90,7 @@ public partial class MainWindow
     private void ShowPlayerControls()
     {
         _lastPlayerInteraction = DateTimeOffset.UtcNow;
-        if (!_playing || (!IsActive && !_args.Contains("--player-check")) || WindowState == WindowState.Minimized) return;
-        // The overlay window stays closed while the mini-player is dragged, gliding or tucked away.
-        if (_miniPlayer && !MiniSettled) return;
-        // Called on every mouse move: layout changes position the overlay themselves, so only a new window needs it.
-        if (!PlayerOverlayLayer.IsOpen) PositionPlayerControls();
-        // Keep a hit-testable surface above the native video, even after the controls fade.
-        // Fully transparent pixels of a layered HWND would let mouse input pass through.
-        PlayerOverlayLayer.IsOpen = true;
+        if (!OpenPlayerSurface() || !PlayerInFront) return;
         PlayerSurface.Cursor = Cursors.Arrow;
         if (_controlsVisible) return;
         _controlsVisible = true;
@@ -108,6 +103,27 @@ public partial class MainWindow
         SetPlayerPanels(false, 240);
         if (!_miniPlayer) PlayerSurface.Cursor = Cursors.None;
     }
+    private bool PlayerInFront => IsActive || _args.Contains("--player-check");
+    /// <summary>
+    /// Keeps a hit-testable surface above the native video while something plays in view, Mira in front or not, even
+    /// after the controls fade (fully transparent pixels of a layered HWND would let mouse input pass through): a click
+    /// on the picture always reaches Mira, never mpv's own window. Closed while the mini-player is dragged, gliding or
+    /// tucked away.
+    /// </summary>
+    private bool OpenPlayerSurface()
+    {
+        if (!_playing || WindowState == WindowState.Minimized || (_miniPlayer && !MiniSettled)) return false;
+        // Called on every mouse move: layout changes position the overlay themselves, so only a new window needs it.
+        if (!PlayerOverlayLayer.IsOpen) { PositionPlayerControls(); PlayerOverlayLayer.IsOpen = true; }
+        return true;
+    }
+    /// <summary>Mira went to the background: its menu closes and the controls fade, the pointer stays visible over it.</summary>
+    private void LeavePlayerControls()
+    {
+        _surfaceClick.Stop(); PlayerOptionsPopup.IsOpen = false;
+        if (_controlsVisible) { _controlsVisible = false; SetPlayerPanels(false, 240); }
+        PlayerSurface.Cursor = Cursors.Arrow;
+    }
     private void SetPlayerPanels(bool visible, int duration)
     {
         foreach (var panel in new UIElement[] { PlayerHeader, PlayerControls, PlayerWindowChrome })
@@ -117,15 +133,20 @@ public partial class MainWindow
     }
     private void ClosePlayerPopups()
     {
-        _surfaceClick.Stop(); _controlsVisible = false; _lastSurfacePoint = null;
+        _surfaceClick.Stop(); _lastSurfacePoint = null;
+        // Opened again later, the surface starts as nothing shows it now: controls hidden.
+        if (_controlsVisible) { _controlsVisible = false; SetPlayerPanels(false, 0); }
         PlayerOverlayLayer.IsOpen = PlayerOptionsPopup.IsOpen = false;
         _volumeHide.Stop(); SetVolumeReveal(false);
         PlayerSurface.Cursor = Cursors.Arrow;
     }
     private void UpdatePlayerControls()
     {
-        if (!_playing || WindowState == WindowState.Minimized || (!IsActive && !_args.Contains("--player-check"))) { ClosePlayerPopups(); return; }
+        if (!_playing || WindowState == WindowState.Minimized) { ClosePlayerPopups(); return; }
         if (_miniPlayer && !MiniSettled) { if (PlayerOverlayLayer.IsOpen) ClosePlayerPopups(); return; }
+        // Also when playback started with Mira in the background (the next episode, the group).
+        OpenPlayerSurface();
+        if (!PlayerInFront) { if (_controlsVisible || PlayerOptionsPopup.IsOpen) LeavePlayerControls(); return; }
         if (!_loaded || _seeking || PlayerOptionsPopup.IsOpen || VolumeSlider.IsMouseCaptureWithin || (_keyboardNavigation && (PlayerControls.IsKeyboardFocusWithin || PlayerHeader.IsKeyboardFocusWithin))) return;
         var idle = DateTimeOffset.UtcNow - _lastPlayerInteraction;
         if (_miniPlayer) { if (!PlayerSurface.IsMouseOver && idle > MiniIdle) HidePlayerControls(); return; }
@@ -142,23 +163,31 @@ public partial class MainWindow
         ShowPlayerControls();
     }
     private void PlayerSurface_MouseLeave(object sender, MouseEventArgs e) => _lastSurfacePoint = null;
-    /// <summary>The pointer rests on the bottom bar (from just above the title) or on the top band: the shades take no
-    /// clicks, so the band is measured rather than asked for IsMouseOver.</summary>
-    private bool PointerOnBars()
+    /// <summary>The pointer rests on the bottom bar (from just above the title) or on the top band.</summary>
+    private bool PointerOnBars() => PlayerSurface.IsMouseOver && InBarBand(Mouse.GetPosition(PlayerSurface));
+    /// <summary>
+    /// The bands of the top and bottom bars, shown or not: from just above the title to the bottom, from the top to just
+    /// under the back button. The shades take no clicks, so the band is measured.
+    /// </summary>
+    private bool InBarBand(Point point)
     {
-        if (!PlayerSurface.IsMouseOver) return false;
-        var point = Mouse.GetPosition(PlayerSurface);
         var bottom = PlayerControlsBody.TranslatePoint(new Point(), PlayerSurface).Y - 12;
         var top = PlayerHeaderBody.TranslatePoint(new Point(0, PlayerHeaderBody.ActualHeight), PlayerSurface).Y + 12;
         return point.Y >= bottom || point.Y <= top;
     }
+    /// <summary>
+    /// A click on the picture pauses or resumes, a double click goes fullscreen. Never in the bands of the bars (a click
+    /// that misses the subtitles or the volume), nor the click that brings Mira back to the front: they show the controls.
+    /// </summary>
     private void PlayerSurface_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (_miniPlayer) { MiniPointerDown(e); return; }
+        var activating = PlayerOverlayLayer.TakeActivatingClick();
+        if (_miniPlayer) { MiniPointerDown(e, activating); return; }
         if (e.OriginalSource != PlayerSurface) return;
         PlayerSurface.Focus(); ShowPlayerControls(); e.Handled = true;
-        if (e.ClickCount == 2) { _surfaceClick.Stop(); ToggleFullscreen(); }
-        else { _surfaceClick.Stop(); _surfaceClick.Start(); }
+        _surfaceClick.Stop();
+        if (activating || InBarBand(e.GetPosition(PlayerSurface))) return;
+        if (e.ClickCount == 2) ToggleFullscreen(); else _surfaceClick.Start();
     }
     private void PlayerSurface_MouseUp(object sender, MouseButtonEventArgs e) { if (_miniPlayer) MiniPointerUp(e); }
     private void PlayerChrome_MouseDown(object sender, MouseButtonEventArgs e)

@@ -77,20 +77,23 @@ public partial class MainWindow
         PositionPlayerControls();
     }
 
-    private void MiniPointerDown(MouseButtonEventArgs e)
+    /// <param name="activating">The click brings Mira back to the front: it may still drag, never pauses.</param>
+    private void MiniPointerDown(MouseButtonEventArgs e, bool activating)
     {
         if (!IsMiniBackground(e.OriginalSource as DependencyObject)) return;
         PlayerSurface.Focus(); e.Handled = true;
-        if (e.ClickCount == 2) { _miniPress = null; _surfaceClick.Stop(); SetMiniPlayer(false); return; }
-        _miniPress = Mouse.GetPosition(Root);
+        if (e.ClickCount == 2 && !activating) { _miniPress = null; _surfaceClick.Stop(); SetMiniPlayer(false); return; }
+        _miniPress = Mouse.GetPosition(Root); _miniPressPauses = !activating && !InBarBand(e.GetPosition(PlayerSurface));
     }
     private void MiniPointerUp(MouseButtonEventArgs e)
     {
         if (_miniPress is null || _miniDragging) return;
         _miniPress = null; e.Handled = true;
-        // A click without movement keeps its meaning: play / pause.
-        _surfaceClick.Stop(); _surfaceClick.Start();
+        // A click without movement keeps its meaning: play / pause, on the picture (not on the title or the timeline's band).
+        _surfaceClick.Stop();
+        if (_miniPressPauses) _surfaceClick.Start(); else ShowPlayerControls();
     }
+    private bool _miniPressPauses;
     /// <summary>Anything but the buttons and the timeline can be used as a grip.</summary>
     private bool IsMiniBackground(DependencyObject? node)
     {
