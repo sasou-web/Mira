@@ -167,14 +167,20 @@ public sealed class PlayerPage : UserControl
         _videoHost.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(_videoHost).Properties.IsLeftButtonPressed) return;
+            _click.Stop();
+            // The click that brings Mira to the front, or one in the band of a bar while the controls are hidden (the
+            // shown bars take their clicks): the controls show, the film never pauses.
+            if (Environment.TickCount64 - _shell.ActivatedAt < 400 || InBarBand(e.GetPosition(_chrome))) { ShowControls(); return; }
             // A double click toggles fullscreen; a single one, after a short wait, pauses or resumes.
-            if (e.ClickCount >= 2) { _click.Stop(); ToggleFullscreen(); } else _click.Start();
+            if (e.ClickCount >= 2) ToggleFullscreen(); else _click.Start();
         };
         PointerMoved += (_, _) => ShowControls();
         _initializing = true; _volume.Value = VolumeBoost.Clamp(shell.Settings.Volume); _initializing = false;
         if (_volume.Value > 0) _lastAudible = _volume.Value;
         ShowVolume();
     }
+    /// <summary>The places of the top and bottom bars, their shades included, shown or not.</summary>
+    public bool InBarBand(Point point) => _top.Bounds.Contains(point) || _bottom.Bounds.Contains(point);
     private static LinearGradientBrush Fade(bool top) => new()
     {
         StartPoint = new RelativePoint(0, top ? 0 : 1, RelativeUnit.Relative), EndPoint = new RelativePoint(0, top ? 1 : 0, RelativeUnit.Relative),
@@ -287,7 +293,7 @@ public sealed class PlayerPage : UserControl
     {
         if (_stopped) return;
         _stopped = true; ++_generation;
-        _tick.Stop(); _hide.Stop(); _groupSeekSoon.Stop(); _groupPlaySoon.Stop(); Cursor = Cursor.Default;
+        _tick.Stop(); _hide.Stop(); _click.Stop(); _groupSeekSoon.Stop(); _groupPlaySoon.Stop(); Cursor = Cursor.Default;
         SleepGuard.Set(false);
         var session = _shell.Session;
         if (_loaded && _mpv is not null && !completed) _session.Position = Reported(_mpv.Number("time-pos", _session.Position));
