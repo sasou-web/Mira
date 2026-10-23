@@ -46,6 +46,8 @@ Mira web est servie par ton propre serveur Jellyfin : rien à télécharger sur 
   </tr>
 </table>
 
+**Regarder avec quelqu’un qui n’a pas de compte.** Un lien d’invité, créé dans les réglages, ouvre Mira chez ton ami, sans compte ni Tailscale, directement dans ton groupe « Regarder ensemble ». Il ne sert qu’à un appareil, et quand tu le retires, ton ami est dehors aussitôt. Il passe par Tailscale Funnel, qui n’ouvre que Mira à Internet, jamais le reste de Jellyfin (détails dans [SECURITY.md](SECURITY.md#liens-dinvités-inviter-par-lien)).
+
 ## Sur ton ordinateur
 
 <table>

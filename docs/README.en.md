@@ -37,6 +37,8 @@ Mira web is served by your own Jellyfin server: nothing to get from the App Stor
   <tr><td align="center">Home</td><td align="center">A film</td><td align="center">A series</td></tr>
 </table>
 
+**Watch with someone who has no account.** A guest link, made in the settings, opens Mira for your friend, with no account and no Tailscale, straight into your “Watch together” group. It works on one device only, and when you take it back, your friend is out at once. It goes through Tailscale Funnel, which opens only Mira to the Internet, never the rest of Jellyfin (details, in French, in [SECURITY.md](../SECURITY.md#liens-dinvités-inviter-par-lien)).
+
 ## On your computer
 
 <table>
