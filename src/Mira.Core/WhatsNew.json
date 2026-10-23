@@ -1,7 +1,7 @@
 [
   {
     "version": "0.8.3",
-    "summary": "Téléchargements plus simples et plus lisibles, plus de pause par erreur, commandes visibles en partage.",
+    "summary": "Téléchargements plus clairs, plus de pause par erreur, commandes du lecteur visibles en partage.",
     "en": { "summary": "Simpler, clearer Downloads, no accidental pauses, and player controls visible when sharing." },
     "items": [
       { "icon": "download", "title": "Une seule recherche", "text": "Téléchargements cherche films, séries et animes à la fois et nomme chaque résultat par son titre.",
