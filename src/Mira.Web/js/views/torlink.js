@@ -44,10 +44,13 @@ export function create({ query }) {
   const list = h('div', { class: 'group torlink-list', hidden: true });
   const placedTitle = h('h2', { class: 'label group-title', hidden: true }, tr('Rangés dans ta bibliothèque'));
   const placedList = h('div', { class: 'group torlink-list', hidden: true });
+  // The latest few only, under what is under way: a title just placed shows without going past the results.
+  const placedMore = h('button', { class: 'btn quiet small torlink-all', type: 'button', hidden: true, 'aria-expanded': 'false', on: { click: () => { placedOpen = !placedOpen; render(lastState); } } });
   const note = h('p', { class: 'group-note torlink-note' },
     tr('TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les comptes administrateurs de Jellyfin voient cet écran.'));
-  // What the PC has under way comes before the results: a download just asked for shows at once, not 60 results below.
-  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, found, placedTitle, placedList, note);
+  // What the PC has under way and has placed comes before the results: a download just asked for, or a title just
+  // placed, shows at once, not 60 results below.
+  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, placedTitle, placedList, placedMore, found, note);
   clear(el).append(back,
     h('div', { class: 'page', style: { paddingTop: 'calc(var(--top) + 64px)', paddingBottom: '12px' } }, h('h1', { class: 'page-title' }, tr('Télécharger')), status),
     body);
@@ -55,6 +58,9 @@ export function create({ query }) {
   let timer = 0, version = 0, failed = false, active = false, agent = null, ready = false, filled = false;
   let looking = null; // the search under way: { id, query, started, timer }
   let lastHits = null; // the last results shown, with their search
+  let lastState = null, placedOpen = false;
+  const sentHits = new Set(); // `${search}/${result}` sent from this screen, marked on their button
+  const PLACED_SHOWN = 3;
   let latest = { requests: [], downloads: [], placed: [], controls: [] };
 
   // ---- What the PC has under way ----------------------------------------------------------------------
@@ -77,7 +83,7 @@ export function create({ query }) {
   const bodyParts = [...body.childNodes];
 
   function render(state) {
-    filled = true;
+    filled = true; lastState = state;
     agent = state?.agent ?? null;
     const line = agentLine(agent);
     ready = line.ready;
@@ -97,7 +103,11 @@ export function create({ query }) {
       }),
     ];
     update(list, listTitle, rows, row);
-    update(placedList, placedTitle, latest.placed.map((x) => ({ key: `p:${x.id}`, name: x.title, line: x.status, placed: x })), placedRow);
+    const placed = latest.placed.map((x) => ({ key: `p:${x.id}`, name: x.title, line: x.status, placed: x }));
+    update(placedList, placedTitle, placedOpen ? placed : placed.slice(0, PLACED_SHOWN), placedRow);
+    placedMore.hidden = placed.length <= PLACED_SHOWN;
+    placedMore.setAttribute('aria-expanded', String(placedOpen));
+    placedMore.textContent = placedOpen ? tr('Voir moins') : tr('Voir les {n} titres rangés', { n: placed.length });
   }
   /** The line under the title, said by screen readers only when it changes. */
   function say(text) { if (status.textContent !== text) status.textContent = text; }
@@ -254,7 +264,10 @@ export function create({ query }) {
   // The last search of this visit, for as long as the relay keeps it: iOS often reloads a Home Screen app left in the
   // background, and the screen comes back with it rather than empty. Kept for the account that made it.
   const savedKey = () => `mira.torlink.search.${session.current?.userId ?? ''}`;
-  function keep(current) { temp.set(savedKey(), JSON.stringify({ query: current.query, id: current.id, started: current.started })); }
+  function keep(current) {
+    const sent = [...sentHits].filter((x) => x.startsWith(`${current.id}/`)).map((x) => x.slice(current.id.length + 1));
+    temp.set(savedKey(), JSON.stringify({ query: current.query, id: current.id, started: current.started, sent }));
+  }
   function forget() { temp.remove(savedKey()); }
   function saved() {
     try {
@@ -265,6 +278,7 @@ export function create({ query }) {
   /** The kept search asked again of the relay: its results show as they were, or it goes on waiting for them. */
   function restore(value) {
     input.value = value.query; clearButton.hidden = false;
+    for (const x of Array.isArray(value.sent) ? value.sent : []) sentHits.add(`${value.id}/${x}`);
     looking = { id: value.id, query: value.query, started: value.started, timer: 0, restored: true };
     waiting(value.query);
     follow(0);
@@ -276,7 +290,7 @@ export function create({ query }) {
    * picture and source, its size and sources, its full name; the other releases folded under it.
    */
   function showHits(current, hits) {
-    lastHits = { search: current.id, hits };
+    lastHits = { search: current.id, query: current.query, started: current.started, hits };
     if (!hits.length) {
       clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, tr('Aucun résultat pour « {query} » dans les films, les séries et les animes. Essaie un autre titre.', { query: current.query })));
       return;
@@ -300,13 +314,25 @@ export function create({ query }) {
   function release(searchId, entry, best) {
     const { hit, release: parsed } = entry;
     const caution = warning(entry);
-    return h('button', { class: ['item torlink-item torlink-release', best && 'torlink-best'], type: 'button', on: { click: () => confirm(searchId, hit) } },
+    const made = h('button', { class: ['item torlink-item torlink-release', best && 'torlink-best'], type: 'button', on: { click: () => confirm(searchId, hit) } },
       h('span', { class: 'grow' },
         h('span', { class: 'torlink-quality' }, qualityLine(parsed) || tr('Qualité non précisée'), best ? h('span', { class: 'torlink-badge' }, tr('Meilleur choix')) : null),
         h('span', { class: 'sub torlink-line' }, hitLine(hit)),
         h('span', { class: 'sub torlink-full clamp-2' }, hit.name),
         caution ? h('span', { class: 'sub torlink-caution' }, caution) : null),
       icon('download', { size: 20 }));
+    made.dataset.hit = `${searchId}/${hit.id}`;
+    if (sentHits.has(made.dataset.hit)) markSent(made);
+    return made;
+  }
+
+  /** A result already sent, as Windows and Mac show it: « Envoyé » in place of its button, not sent twice. */
+  function markSent(button) {
+    if (button.classList.contains('torlink-sent')) return;
+    button.classList.add('torlink-sent');
+    button.disabled = true;
+    button.querySelector(':scope > .icon')?.replaceWith(icon('check', { size: 20 }));
+    button.querySelector('.torlink-quality').append(h('span', { class: 'torlink-done' }, tr('Envoyé')));
   }
 
   function confirm(searchId, hit) {
@@ -324,6 +350,12 @@ export function create({ query }) {
   async function send(body) {
     try {
       await api.torlinkRequest(body);
+      if (body.result) {
+        const key = `${body.search}/${body.result}`;
+        sentHits.add(key);
+        for (const x of found.querySelectorAll('.torlink-release')) if (x.dataset.hit === key) markSent(x);
+        if (looking === null && lastHits?.search === body.search) keep({ query: lastHits.query, id: body.search, started: lastHits.started });
+      }
       toast(ready ? tr('Envoyé au PC serveur.') : tr('Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.'));
       await load();
       // Its row, with its progress, is above the results: brought into view when the results hid it.

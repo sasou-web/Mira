@@ -94,6 +94,9 @@ export default {
   '{n} autre version': ['{n} other version', '{n} other versions'],
   'Qualité non précisée': 'Quality not stated',
   'Meilleur choix': 'Best pick',
+  Envoyé: 'Sent',
+  'Voir les {n} titres rangés': 'See all {n}',
+  'Voir moins': 'See less',
   'Télécharger sur le PC serveur ?': 'Download to the server PC?',
   '{details}. TorLink le télécharge sur {name}, puis Mira le range dans ta bibliothèque. Tu peux l’annuler ici tant qu’il n’est pas terminé.':
     '{details}. TorLink downloads it on {name}, then Mira adds it to your library. You can cancel it here until it’s done.',
