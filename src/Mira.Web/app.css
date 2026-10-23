@@ -628,6 +628,10 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .torlink-release .sub { margin-top: 3px; line-height: 1.4; }
 .torlink-full { overflow-wrap: anywhere; }
 .torlink-caution { color: var(--warning); }
+.torlink-sent { cursor: default; color: var(--ink); }
+.torlink-sent > .icon { color: var(--ink); }
+.torlink-done { padding: 2px 8px; border-radius: var(--r-full); background: var(--raised-2); color: var(--ink); font-size: calc(12px * var(--text)); font-weight: 800; line-height: 1.4; white-space: nowrap; }
+.torlink-all { margin: -16px 0 20px calc(var(--gutter) - 8px); }
 .torlink-best { border-bottom: 1px solid var(--line); }
 .torlink-others .torlink-release { font-size: calc(15px * var(--text)); }
 .torlink-more { min-height: 48px; color: var(--muted); font-size: calc(15px * var(--text)); }
