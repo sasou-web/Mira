@@ -4,7 +4,7 @@
   <p><strong>Your Jellyfin library, like at the movies.</strong></p>
   <p>An app for Windows and Mac that plays everything itself, and Mira web for your iPhone or Android phone.<br />Free, with no account or subscription, and nothing leaves your server.</p>
   <p>
-    <a href="https://github.com/sasou-web/Mira/releases/tag/v0.8.3"><strong>Download for Windows</strong></a> ·
+    <a href="https://github.com/sasou-web/Mira/releases/tag/v0.8.4"><strong>Download for Windows</strong></a> ·
     <a href="INSTALLATION-MAC.md">Mac</a> ·
     <a href="INSTALLATION-WEB.md">iPhone and Android</a> ·
     <a href="../README.md">Français</a>
@@ -60,24 +60,24 @@ Mira web is served by your own Jellyfin server: nothing to get from the App Stor
 
 | On | What you need | How |
 | --- | --- | --- |
-| **Windows** 10 or 11 (x64) | `Mira-0.8.3-win-x64-setup.exe` | Run the installer, connect your Jellyfin server, or let Mira install one. [Guide (French)](INSTALLATION.md) |
-| **Mac** with Apple silicon, macOS 15 or later | `Mira-0.8.3-mac-arm64.dmg` | Drag Mira to Applications, allow it once (it is not signed by Apple). [Guide (French)](INSTALLATION-MAC.md) |
+| **Windows** 10 or 11 (x64) | `Mira-0.8.4-win-x64-setup.exe` | Run the installer, connect your Jellyfin server, or let Mira install one. [Guide (French)](INSTALLATION.md) |
+| **Mac** with Apple silicon, macOS 15 or later | `Mira-0.8.4-mac-arm64.dmg` | Drag Mira to Applications, allow it once (it is not signed by Apple). [Guide (French)](INSTALLATION-MAC.md) |
 | **iPhone, iPad, Android** | Nothing to download | In Mira for Windows: **Guide → Mira sur ton téléphone → Tout préparer**, then scan the QR code. [Guide (French)](INSTALLATION-WEB.md) |
 
-Every file is in the [0.8.3 release](https://github.com/sasou-web/Mira/releases/tag/v0.8.3). You need a Jellyfin 10.9 or later server. Until the Windows files are signed, SmartScreen may show a warning: **More info → Run anyway**. Mira then updates itself.
+Every file is in the [0.8.4 release](https://github.com/sasou-web/Mira/releases/tag/v0.8.4). You need a Jellyfin 10.9 or later server. Until the Windows files are signed, SmartScreen may show a warning: **More info → Run anyway**. Mira then updates itself.
 
 <details>
 <summary>The other Windows files</summary>
 
-- **Mira-0.8.3-win-x64-portable.exe**: one file that runs as it is. Keep it in a writable folder of its own: it creates its `data` folder there.
-- **Mira-0.8.3-win-x64.zip**: the application's whole folder, to extract anywhere.
+- **Mira-0.8.4-win-x64-portable.exe**: one file that runs as it is. Keep it in a writable folder of its own: it creates its `data` folder there.
+- **Mira-0.8.4-win-x64.zip**: the application's whole folder, to extract anywhere.
 
 The .NET runtime is included. The mpv player engine (31 MB) is downloaded on request, from mpv's Windows builds, SHA-256 checked; one already installed with mpv.net or Jellyfin MPV Shim is reused. The optional downloads page turns TorLink on in one click; TorLink is an independent project, and Mira provides no sources or content.
 </details>
 
 ## Status
 
-Mira **0.8.3** is a preview: it is used every day, but some things are still missing (choosing between versions of a title, editable collections, signed Windows files) and HDR, multichannel audio and multiple monitors have not been tried everywhere.
+Mira **0.8.4** is a preview: it is used every day, but some things are still missing (choosing between versions of a title, editable collections, signed Windows files) and HDR, multichannel audio and multiple monitors have not been tried everywhere.
 
 - [Every feature and shortcut (French)](USER_GUIDE.md)
 - [Release history](../CHANGELOG.md)
@@ -90,7 +90,7 @@ Free code signing provided by [SignPath.io](https://signpath.io), certificate by
 - **What is signed.** The Windows files of each release: the installer `Mira-X.Y.Z-win-x64-setup.exe`, the portable `Mira-X.Y.Z-win-x64-portable.exe` and, inside `Mira-X.Y.Z-win-x64.zip`, `Mira.exe`, `Mira.dll` and `Mira.Core.dll`. GitHub Actions ([`windows.yml`](../.github/workflows/windows.yml)) builds them from the `main` commit the release publishes, never on a PC; SignPath Foundation signs them once the maintainer approves each signing request; they are then published at once, with their SHA-256, in an immutable release. Before signing, SignPath checks that each file carries the product name "Mira" and the release's version (artifact configurations in [`installer/signpath/`](../installer/signpath)). The uninstaller Inno Setup generates, the .NET runtime and the third-party libraries in the folder keep their own signature or have none. Mira for Mac is signed ad hoc, without an Apple developer account; Mira web (the Jellyfin plugin) is not a Windows executable.
 - **Team roles.** [sasou-web](https://github.com/sasou-web) (ogsas) is the maintainer: his GitHub account is the only one that writes to `main`, he alone starts a release (`tools/release.ps1`) and approves each signing request in SignPath, with two-factor authentication on GitHub and on SignPath. Changes are written and tested by the Claude AI assistant (Anthropic) at his request, under his account and responsibility; nothing enters a release before GitHub Actions' checks pass (build, tests, Mira web against a real Jellyfin).
 - **Privacy policy.** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it, with one exception: the update check against GitHub (this repository's releases API), at startup then every 6 hours on Windows, at each launch on Mac. It sends nothing but the request itself (IP address, Mira's version) and reports nothing; on Windows, **Réglages → Mises à jour** turns it off. Nothing is collected about you or your library. The services it contacts have their own privacy policies: [GitHub](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) (updates, Mira web), [npm](https://docs.npmjs.com/policies/privacy) (TorLink), the [OpenJS Foundation](https://privacy-policy.openjsf.org/) (Node.js, from nodejs.org), SourceForge (the mpv engine) and Jellyfin (its installer); once started, TorLink is a BitTorrent client (peers, trackers, router), and its terminal relies on [WebView2](https://learn.microsoft.com/microsoft-edge/webview2/concepts/data-privacy), a Windows component that follows Windows’ diagnostic settings. Details: [SECURITY.md](../SECURITY.md).
-- **Status.** Everything is in place, but the application to SignPath Foundation has not been filed yet: up to 0.8.3, the Windows files are unsigned and SmartScreen asks for confirmation.
+- **Status.** Everything is in place, but the application to SignPath Foundation has not been filed yet: up to 0.8.4, the Windows files are unsigned and SmartScreen asks for confirmation.
 
 ## Build
 
