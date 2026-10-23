@@ -62,7 +62,7 @@ export default {
   'Une erreur inattendue est survenue.': 'Something went wrong.',
   Retour: 'Back',
   'Lecture du PC serveur…': 'Checking the server PC…',
-  'Un film, une série, un anime…': 'A movie, a show, an anime…',
+  'Film, série, anime…': 'Movie, show, anime…',
   'Que veux-tu télécharger ?': 'What do you want to download?',
   Effacer: 'Clear',
   Chercher: 'Search',

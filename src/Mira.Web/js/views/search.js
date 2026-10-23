@@ -20,7 +20,7 @@ export function create({ query }) {
       h('form', { class: 'search-box', role: 'search', on: { submit: (e) => { e.preventDefault(); remember(input.value); input.blur(); } } }, icon('search'), input, clearButton)),
     status, results);
   let timer = 0, controller = null, lastText = null;
-  // Asked once, the first time a search finds nothing.
+  // Asked once, the first time a search shows: an administrator can have a title downloaded (views/torlink.js).
   let adminAsked = null;
   const administrator = () => (adminAsked ??= api.me().then((me) => !!me?.Policy?.IsAdministrator, () => false));
 
@@ -86,6 +86,12 @@ export function create({ query }) {
       // An episode opens its series at it; a saga, its own page with its films in order.
       if (episodes.length) results.append(row(tr('Épisodes'), episodes, (x) => kept(wideCard(x, { play: false })), { wide: true }));
       if (sagas.length) results.append(row(tr('Sagas'), sagas, (x) => kept(posterCard(x))));
+      // Found something, but perhaps not the one: an administrator can still have it downloaded.
+      const own = controller;
+      if (await administrator() && own === controller) {
+        results.append(h('div', { class: 'search-download' }, h('p', {}, tr('Pas celui que tu cherches ?')),
+          h('a', { class: 'btn small', href: `#/telecharger?q=${encodeURIComponent(text)}` }, icon('download', { size: 16 }), tr('Le télécharger sur le PC serveur'))));
+      }
     } catch (error) {
       if (error.name === 'AbortError') return;
       results.classList.remove('pending');
