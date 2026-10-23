@@ -92,6 +92,15 @@ jobs:
           $sizes = Join-Path $output 'sizes.txt'
           if (Test-Path -LiteralPath $sizes) { Get-Content -LiteralPath $sizes }
           if ($run.ExitCode -ne 0 -or $result -notlike 'PASS:*') { throw 'Interface captures failed.' }
+      # The real player: libmpv as Mira installs it, a synthetic clip with chapters, the window off screen; its
+      # captures join the interface's (tools/player-check.ps1). The archive is kept between runs (SourceForge).
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .artifacts/player-work/libmpv.7z
+          key: libmpv-${{ hashFiles('src/Mira.Core/MpvPackage.cs') }}
+      - name: Real player (libmpv, synthetic clip)
+        shell: pwsh
+        run: ./tools/player-check.ps1 -Output .artifacts/interface
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-interface
