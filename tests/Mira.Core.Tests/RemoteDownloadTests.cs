@@ -69,6 +69,27 @@ internal static class RemoteDownloadTests
                 && ReleaseRanking.Warning(new(Hit("", 0, "subsplease"), ReleaseRanking.Parse("[SubsPlease] Show - 05 (1080p)"), 0, 0)) == "", "Seeders only break ties; SubsPlease has none");
             return Task.CompletedTask;
         });
+        await Test("Télécharger sur le PC serveur : « Déjà dans ta bibliothèque », comme Mira web (tests/fixtures/owned.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "owned.json")));
+            static int? Int(JsonElement x) => x.ValueKind == JsonValueKind.Number ? x.GetInt32() : null;
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var name = row.GetProperty("name").GetString()!;
+                var group = ReleaseRanking.Group([new RelayHit("x", name, 2L << 30, 10, 0, "check", null)])[0];
+                var items = row.GetProperty("items").EnumerateArray().Select(x => new MediaItem { Type = x[0].GetString()!, Name = x[1].GetString()!, OriginalTitle = x[2].GetString(), ProductionYear = Int(x[3]), Id = x[4].GetString()! }).ToList();
+                var episodes = row.TryGetProperty("episodes", out var list) ? list.EnumerateArray().Select(x => new MediaItem { ParentIndexNumber = Int(x[0]), IndexNumber = Int(x[1]), IndexNumberEnd = x.GetArrayLength() > 2 ? Int(x[2]) : null }).ToList() : [];
+                var line = OwnedTitles.Line(group, items, episodes);
+                var expected = row.GetProperty("line");
+                Assert(expected.ValueKind == JsonValueKind.Null ? line is null : line == new OwnedLine(expected[0].GetString()!, expected[1].GetString()!, expected[2].GetBoolean()), $"« {name} »: {line}");
+            }
+            var many = ReleaseRanking.Group(new[] { "Mira.Check.S01E02.1080p.WEB-DL", "Mira.Check.S01E03.1080p.WEB-DL", "Mira.Check.2026.1080p.WEB-DL" }.Concat(Enumerable.Range(0, 20).Select(i => $"Film {(char)('A' + i)} 2020 1080p BluRay"))
+                .Select((n, i) => new RelayHit($"h{i}", n, 2L << 30, 9, 0, "x", null)));
+            var lookups = OwnedTitles.Lookups(many);
+            Assert(lookups.Count == OwnedTitles.MaxLookups && lookups[0] == ("show|mira check", "Mira Check", false) && lookups[1] == ("film|mira check", "Mira Check", true), "Lookups: " + string.Join(" ; ", lookups));
+            return Task.CompletedTask;
+        });
         await Test("Télécharger sur le PC serveur : l'écran des apps écrit le PC, un résultat, une demande et un téléchargement comme Mira web (tests/fixtures/torlink-lines.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

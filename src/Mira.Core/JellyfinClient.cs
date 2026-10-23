@@ -176,6 +176,12 @@ public sealed class JellyfinClient : IDisposable
     /// </summary>
     public Task<ItemsResult> EpisodesAsync(string seriesId, CancellationToken ct = default) =>
         GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&fields=Overview&isMissing=false", ct);
+    /// <summary>« Télécharger sur le PC serveur »: the films and series of a title found, to say it is already here (OwnedTitles).</summary>
+    public Task<ItemsResult> OwnedAsync(string title, CancellationToken ct = default) =>
+        GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Series&searchTerm={Uri.EscapeDataString(title)}&limit=20&fields=OriginalTitle,ProductionYear&enableImages=false&enableUserData=false", ct);
+    /// <summary>The episodes a series has, their numbers only.</summary>
+    public Task<ItemsResult> OwnedEpisodesAsync(string seriesId, CancellationToken ct = default) =>
+        GetAsync<ItemsResult>($"Shows/{Uri.EscapeDataString(seriesId)}/Episodes?userId={Connection.UserId}&isMissing=false&enableImages=false&enableUserData=false", ct);
     public Task<MediaItem> ItemAsync(string id, CancellationToken ct = default) =>
         GetAsync<MediaItem>($"Items/{Uri.EscapeDataString(id)}?userId={Connection.UserId}", ct);
     /// <summary>Titles Jellyfin finds close to this one (shared genres, people, studios).</summary>

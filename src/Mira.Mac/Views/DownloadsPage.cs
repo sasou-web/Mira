@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Mira.Core;
 using Mira.Core.TorLink;
 using Mira.Mac.Services;
 using static Mira.Core.Lang;
@@ -494,7 +495,44 @@ public sealed class DownloadsPage : Page
         var groups = ReleaseRanking.Group(hits);
         var versions = Count(hits.Count, "version", "versions", "version", "versions"); var titles = Count(groups.Count, "titre", "titres", "title", "titles");
         _searchStatus.Text = L($"{versions} pour « {query} », regroupées en {titles}. La meilleure de chacun en premier.", $"{versions} for “{query}”, grouped into {titles}. The best of each first.");
-        foreach (var group in groups) _results.Children.Add(GroupView(searchId, group));
+        var views = groups.Select(group => (Group: group, View: GroupView(searchId, group))).ToList();
+        foreach (var (_, view) in views) _results.Children.Add(view);
+        _ = MarkOwnedAsync(views);
+    }
+
+    /// <summary>
+    /// « Déjà dans ta bibliothèque » under a title Jellyfin has (OwnedTitles), so that it is not downloaded twice: Jellyfin
+    /// asked once per title found, the episodes of a series once, after the results show.
+    /// </summary>
+    private async Task MarkOwnedAsync(List<(ReleaseGroup Group, Border View)> views)
+    {
+        if (_session is not { } session) return;
+        await Task.WhenAll(OwnedTitles.Lookups(views.Select(x => x.Group)).Select(async lookup =>
+        {
+            var mine = views.Where(x => OwnedTitles.LookupKey(x.Group) == lookup.Key).ToList();
+            List<MediaItem> items, episodes = [];
+            try
+            {
+                items = (await session.Client.OwnedAsync(lookup.Title)).Items;
+                if (!lookup.Film && OwnedTitles.Line(mine[0].Group, items)?.ItemId is { } series && mine.Any(x => !x.Group.Release.Absolute))
+                    episodes = (await session.Client.OwnedEpisodesAsync(series)).Items;
+            }
+            catch (Exception ex) when (Errors.Expected(ex)) { return; } // Nothing said rather than a guess.
+            foreach (var (group, view) in mine)
+            {
+                if (!_results.Children.Contains(view) || view.Child is not StackPanel panel || OwnedTitles.Line(group, items, episodes) is not { } line) continue;
+                var button = new Button
+                {
+                    Classes = { "quiet" }, Padding = new Thickness(10, 5), Margin = new Thickness(-10, -6, 0, 8), HorizontalAlignment = HorizontalAlignment.Left,
+                    Foreground = line.Owned ? Warning : Secondary,
+                    Content = Ui.Row(7, new Icon(line.Owned ? "check" : "info", 14) { VerticalAlignment = VerticalAlignment.Center }, new TextBlock { Text = line.Text, FontSize = 13, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center }),
+                };
+                AutomationProperties.SetName(button, L($"{line.Text} : ouvrir « {group.Title} »", $"{line.Text}: open “{group.Title}”"));
+                var id = line.ItemId;
+                button.Click += (_, _) => _ = OpenAsync(id);
+                panel.Children.Insert(1, button);
+            }
+        }));
     }
 
     private Border GroupView(string searchId, ReleaseGroup group)
