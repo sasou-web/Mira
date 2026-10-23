@@ -333,7 +333,7 @@ public sealed partial class GuestController : ControllerBase
     {
         var pairs = Request.Query
             .Where(x => !x.Key.Equals("ApiKey", StringComparison.OrdinalIgnoreCase) && !x.Key.Equals("api_key", StringComparison.OrdinalIgnoreCase))
-            .Select(x => new KeyValuePair<string, string?>(x.Key, device is not null && x.Key.Equals("deviceId", StringComparison.OrdinalIgnoreCase) ? device : x.Value.ToString()));
+            .SelectMany(x => x.Value.Select(value => new KeyValuePair<string, string?>(x.Key, device is not null && x.Key.Equals("deviceId", StringComparison.OrdinalIgnoreCase) ? device : value)));
         if (token is not null)
         {
             pairs = pairs.Append(new KeyValuePair<string, string?>("ApiKey", token));
