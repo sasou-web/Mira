@@ -5,8 +5,15 @@ import { tr, language } from './i18n.js';
 
 export const VERSION = document.querySelector('meta[name="mira-version"]')?.content.replace('{{version}}', '0.0.0') || '0.0.0';
 
-/** Jellyfin's address on this server, with its base URL if it has one: « » or « /jellyfin ». */
-export const base = location.pathname.replace(/\/Mira\/?.*$/i, '');
+/** This server's root, with its base URL if it has one: « » or « /jellyfin ». */
+const root = location.pathname.replace(/\/Mira\/?.*$/i, '');
+/**
+ * Jellyfin's address for this page: the server's root, or for a guest of « Inviter par lien » the extension's gateway
+ * (/Mira/guest), the only part of Jellyfin a link opened from the Internet reaches.
+ */
+export const base = session.current?.guest ? `${root}/Mira/guest` : root;
+/** A guest of « Inviter par lien »: no account of their own, only the host's group (views/invite.js). */
+export const isGuest = () => !!session.current?.guest;
 
 /** A Tailscale address (100.64.0.0/10): Mira opened through Tailscale. */
 export const isTailnet = (host) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(host);
@@ -303,6 +310,38 @@ export const api = {
     return info;
   },
   publicUsers: () => get('Users/Public', null, { token: null }),
+
+  /**
+   * « Inviter par lien »: the link's code (#/invite/<code>) opened for this device, which it serves from now on. A
+   * session of the guest's account, kept as any other with what says it is one: the gateway is then this page's
+   * Jellyfin (base). Refused ({ error }) for a link taken back or already used on another device.
+   */
+  async openInvite(code) {
+    let response;
+    try {
+      response = await fetch(`${root}/Mira/guest/open`, {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Accept-Language': language() },
+        body: JSON.stringify({ code, device: device.id, name: device.name }),
+      });
+    } catch { throw new ApiError(0, UNREACHABLE); }
+    const answer = await response.json().catch(() => null);
+    if (!response.ok || !answer?.token) {
+      throw new ApiError(response.status, typeof answer?.error === 'string' && answer.error ? answer.error : tr('Jellyfin a répondu avec une erreur ({status}).', { status: response.status }));
+    }
+    recheckServer();
+    session.set({ guest: true, userId: answer.userId, userName: answer.userName, token: answer.token, serverId: answer.serverId, serverName: '', host: answer.host });
+    settings.set('seenVersion', VERSION);
+    return answer;
+  },
+  // « Inviter par lien », the host's side (an administrator): the links made, one more, one taken back, and the
+  // address on the Internet they start with (Tailscale Funnel's).
+  /** { address, invites: [{ id, name, created, used, ends, opened, device, link }] }. */
+  invites: () => get('Mira/invites', null, { timeout: 15000 }),
+  /** A new link for a guest named `name` (« Invité » when empty): its line of invites(). */
+  invite: (name) => post('Mira/invites', { name }, null, { timeout: 20000 }),
+  revokeInvite: (id) => request('DELETE', `Mira/invites/${encodeURIComponent(id)}`, { timeout: 20000 }),
+  setInviteAddress: (address) => request('PUT', 'Mira/invites/address', { body: { address } }),
 
   async signIn(username, password) {
     return this.opened(await post('Users/AuthenticateByName', { Username: username, Pw: password }, null, { token: null }));

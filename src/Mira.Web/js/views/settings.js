@@ -89,6 +89,11 @@ export function create() {
           ? h('a', { class: 'item', href: '#/en-ce-moment' }, icon('server'),
             h('span', { class: 'grow' }, tr('En ce moment sur Jellyfin'), h('span', { class: 'sub' }, tr('Qui regarde quoi, et si Jellyfin doit convertir.'))), icon('right', { size: 20 }))
           : null,
+        // « Inviter par lien »: an account for each link, which only an administrator can make.
+        user?.Policy?.IsAdministrator
+          ? h('a', { class: 'item', href: '#/invites' }, icon('link'),
+            h('span', { class: 'grow' }, tr('Liens d’invités'), h('span', { class: 'sub' }, tr('Regarder ensemble avec quelqu’un sans compte ni Tailscale.'))), icon('right', { size: 20 }))
+          : null,
         // TorLink on the PC of Jellyfin, sent from here: only an administrator, as for Jellyfin's own dashboard.
         user?.Policy?.IsAdministrator
           ? h('a', { class: 'item', href: '#/telecharger' }, icon('download'),

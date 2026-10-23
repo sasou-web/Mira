@@ -3,7 +3,7 @@
 // of its menu. Elsewhere, Mira's controls on top: resume, ±10 s, a timeline with previews, opening and recap to skip,
 // the next episode, audio and subtitle tracks, speed, quality, AirPlay and Picture in Picture. Progress goes to
 // Jellyfin as on Windows, and the next episode follows in the same player.
-import { api, signed, ping, onForeignServer, recheckServer, isLocalHost, viaTailscale, VERSION } from '../api.js';
+import { api, signed, ping, onForeignServer, recheckServer, isLocalHost, viaTailscale, isGuest, VERSION } from '../api.js';
 import { h, icon, clear, clock, seconds, ticks, episodeCode } from '../dom.js';
 import { tr, number } from '../i18n.js';
 import { settings, device, session } from '../session.js';
@@ -755,7 +755,8 @@ export function create({ id, query }) {
         ...(together.group ? [
           { heading: tr('Regarder ensemble') },
           { label: groupText(together.group), sub: tr('Pause, lecture et déplacements pour tout le groupe.'), selected: true },
-          { symbol: 'link', label: tr('Inviter quelqu’un'), run: () => inviteSheet(together.group) },
+          // A guest of « Inviter par lien » invites nobody: their link is the host's to give.
+          ...(isGuest() ? [] : [{ symbol: 'link', label: tr('Inviter quelqu’un'), run: () => inviteSheet(together.group) }]),
           { label: tr('Quitter le groupe'), danger: true, run: () => together.leave() },
         ] : []),
       ],
@@ -816,7 +817,8 @@ export function create({ id, query }) {
       user: session.current?.userName, version: VERSION, browser: navigator.userAgent,
     }) : null;
     const sent = h('p', { class: 'detail', role: 'status' });
-    const send = report ? h('button', { class: 'btn quiet small', on: { click: () => sendReport(report, send, sent) } }, tr('Envoyer le détail à Jellyfin')) : null;
+    // A guest's report would go to someone else's Jellyfin, which takes none from a link (the gateway refuses it).
+    const send = report && !isGuest() ? h('button', { class: 'btn quiet small', on: { click: () => sendReport(report, send, sent) } }, tr('Envoyer le détail à Jellyfin')) : null;
     showMessage(h('div', {}, icon('warning', { size: 36 }), h('h2', { class: 'h3' }, tr('Lecture impossible')), h('p', {}, text),
       media ? h('p', { class: 'detail media' }, media) : null,
       tried.length ? h('ol', { class: 'tried', 'aria-label': tr('Essayé') }, tried.map((line) => h('li', {}, line))) : detail ? h('p', { class: 'detail' }, detail) : null,
@@ -1035,7 +1037,8 @@ export function create({ id, query }) {
     prepare: (startTicks) => { clearTimeout(groupTimer); quietPause(); seekTo(seconds(startTicks)); readyPending = true; checkReady(); },
     switchTo: (id, startTicks) => groupSwitch(id, startTicks),
     command: groupCommand,
-    left: () => { clearTimeout(groupTimer); toast(tr('Tu as quitté le groupe : la lecture continue ici seulement.')); },
+    // A guest out of the group is most often a link taken back: the screen that says so follows, without this word.
+    left: () => { clearTimeout(groupTimer); if (!isGuest()) toast(tr('Tu as quitté le groupe : la lecture continue ici seulement.')); },
   });
   /** Where the group is: a seek here that it does not take as the person's. */
   function seekTo(at) {
@@ -1109,7 +1112,8 @@ export function create({ id, query }) {
     leaveFullscreen();
     video.pause();
     stop();
-    const back = item ? titleHref(item) : '#/';
+    // A guest has no title page: back to the group.
+    const back = isGuest() ? '#/ensemble' : item ? titleHref(item) : '#/';
     // Closed from Apple's player: its picture shrinks back onto the page first, then Mira leaves (unless something
     // else moved Mira meanwhile).
     if (!landing) { goBack(back); return; }
