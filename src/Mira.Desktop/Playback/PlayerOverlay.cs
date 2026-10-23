@@ -17,7 +17,7 @@ public sealed class PlayerOverlay : FrameworkElement
 {
     private HwndSource? _source;
     private FrameworkElement? _child;
-    private long _activatedByClickAt = long.MinValue;
+    private long _activatedByClickAt = long.MinValue / 2;
     public IntPtr Handle => _source?.Handle ?? IntPtr.Zero;
     public FrameworkElement? Child
     {
@@ -65,7 +65,7 @@ public sealed class PlayerOverlay : FrameworkElement
     public bool TakeActivatingClick()
     {
         var activating = Environment.TickCount64 - _activatedByClickAt < 500;
-        _activatedByClickAt = long.MinValue;
+        _activatedByClickAt = long.MinValue / 2;
         return activating;
     }
     private Rect _placed = Rect.Empty;

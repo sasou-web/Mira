@@ -56,6 +56,8 @@ public sealed class MainWindow : Window
     public WatchGroup Group { get; }
     /// <summary>Top room left for the macOS window buttons, which sit over Mira's own content.</summary>
     public double TitleBarInset { get; }
+    /// <summary>When the window last came to the front (Environment.TickCount64): its click shows the player's controls, never pauses.</summary>
+    public long ActivatedAt { get; private set; } = long.MinValue / 2;
 
     public MainWindow(string[] args, Profile profile)
     {
@@ -101,7 +103,7 @@ public sealed class MainWindow : Window
         _toastTimer.Tick += (_, _) => HideNotice();
         _serverChanged.Tick += (_, _) => { _serverChanged.Stop(); _ = RefreshPagesAsync(fromServer: true); };
         _choicesSoon.Tick += async (_, _) => { _choicesSoon.Stop(); await SyncChoicesAsync(); };
-        Activated += (_, _) => { if (DateTimeOffset.UtcNow - _choicesAsked > TimeSpan.FromMinutes(1)) ChoicesChanged(); };
+        Activated += (_, _) => { ActivatedAt = Environment.TickCount64; if (DateTimeOffset.UtcNow - _choicesAsked > TimeSpan.FromMinutes(1)) ChoicesChanged(); };
         KeyDown += OnKeyDown;
         PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsXButton1Pressed) Back(); };
         Closing += OnClosing;
