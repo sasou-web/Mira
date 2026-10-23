@@ -1691,7 +1691,7 @@ const dlContext = await newContext('télécharger');
 const dp = await dlContext.newPage();
 const dlErrors = [];
 dp.on('pageerror', (e) => dlErrors.push(e.message));
-const dl = { ready: '', hit: '', kinds: '', row: '', paused: '', cancelled: false, refused: '', pasted: '', other: 0, entry: false, failure: '' };
+const dl = { ready: '', hit: '', kinds: '', kept: '', row: '', paused: '', cancelled: false, refused: '', pasted: '', other: 0, entry: false, failure: '' };
 try {
   await signIn(dp);
   await dp.locator('.tabbar a[data-tab="settings"]').click();
@@ -1708,6 +1708,11 @@ try {
   dl.hit = `${(await film.locator('.torlink-head').innerText()).trim()} | ${(await hit.innerText()).trim()} | ${await screen.locator('.torlink-results .torlink-more').count()}`.replace(/\s*\n\s*/g, ' | ');
   dl.kinds = (await screen.locator('.torlink-results .torlink-title').evaluateAll((all) => all.map((x) => x.getAttribute('aria-label')))).join(' / ');
   await dp.screenshot({ path: `${out}/25-download-search.png` });
+  // iOS reloads a Home Screen app left in the background: the search comes back from the relay, not asked again.
+  const asked = fake.seen.length;
+  await dp.reload();
+  await hit.waitFor({ timeout: 15000 });
+  dl.kept = `${await screen.locator('input[type=search]').inputValue()} | ${(await screen.locator('.torlink-results .torlink-title').evaluateAll((all) => all.map((x) => x.getAttribute('aria-label')))).join(' / ')} | ${fake.seen.length - asked}`;
   await hit.click();
   await dp.getByRole('menuitem', { name: 'Télécharger', exact: true }).click();
   const row = screen.locator(`.torlink-list [data-key="d:${picked}"]`);
@@ -1742,12 +1747,12 @@ if (!friendToken && agentToken) {
 dl.other = friendToken ? (await fetch(`${relayServer}/Mira/torlink`, { headers: { Authorization: relayAuth('check-friend', friendToken) } })).status : 0;
 fake.stop = true; await agentLoop;
 await dlContext.close();
-check('télécharger sur le PC serveur (administrateur) : recherche faite par le PC dans les films, les séries et les animes à la fois, téléchargement suivi, pause, annulation, lien magnet collé',
+check('télécharger sur le PC serveur (administrateur) : recherche faite par le PC dans les films, les séries et les animes à la fois, gardée au rechargement, téléchargement suivi, pause, annulation, lien magnet collé',
   /PC-CHECK est prêt/.test(dl.ready) && ['movies', 'tv', 'anime'].every((kind) => fake.seen.includes(`search ${kind} mira check`))
-    && dl.hit === 'Mira Check (2026) | FILM | 1080p · WEB-DL | Meilleur choix | 1,4 Go · 42 sources · check | Mira Check 2026 1080p WEB-DL | 1' && dl.kinds === 'Mira Check · S01E02 · Série / Mira Check (2026) · Film'
+    && dl.hit === 'Mira Check (2026) | FILM | 1080p · WEB-DL | Meilleur choix | 1,4 Go · 42 sources · check | Mira Check 2026 1080p WEB-DL | 1' && dl.kinds === 'Mira Check · S01E02 · Série / Mira Check (2026) · Film' && dl.kept === `mira check | ${dl.kinds} | 0`
     && /37 % · 530 Mo sur 1,4 Go · 2,5 Mo\/s · reste 6 min · 4 pairs/.test(dl.row) && /^En pause/.test(dl.paused) && dl.cancelled && fake.seen.includes(`delete ${picked}`)
     && /pas un lien magnet/.test(dl.refused) && /Collé Check/.test(dl.pasted) && !dlErrors.length,
-  dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.kinds} » ; « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
+  dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.kinds} » ; gardée : « ${dl.kept} » ; « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
 check('télécharger sur le PC serveur : refusé à un compte qui n’est pas administrateur', dl.other === 403, String(dl.other));
 // « Reprendre un peu avant »: a film left at 34 s starts 5 s before (the default), and exactly there once « Non » is
 // chosen in Réglages. Its position is put back to nothing for the rest of the run.

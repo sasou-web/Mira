@@ -170,6 +170,7 @@ export default {
   'Aucun résultat': 'No results',
   'Rien ne correspond à « {text} » dans ta bibliothèque.': 'Nothing in your library matches “{text}”.',
   'Le télécharger sur le PC serveur': 'Download to the server PC',
+  'Pas celui que tu cherches ?': 'Not the one you’re looking for?',
   Personnes: 'People',
   'Films et séries': 'Movies & shows',
   Sagas: 'Collections',

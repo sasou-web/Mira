@@ -7,10 +7,13 @@ import { h, icon, clear } from '../dom.js';
 import { tr, trn } from '../i18n.js';
 import { sheet, toast, errorState } from '../components.js';
 import { goBack } from '../app.js';
+import { session, temp } from '../session.js';
 import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable } from '../torlink.js';
 import { groupReleases, parseRelease, qualityLine, warning } from '../releases.js';
 
 const EVERY = 3000, SEARCH_EVERY = 1000, SEARCH_WAIT = 90_000;
+// As long as the relay keeps a search and its results (TorLinkRelay.SearchLife).
+const SEARCH_KEPT = 15 * 60_000;
 const ACTIONS = { pause: tr('Pause demandée au PC serveur…'), resume: tr('Reprise demandée au PC serveur…'), delete: tr('Annulation demandée au PC serveur…') };
 
 /** Mira web's words for what the relay refuses: an account that is not an administrator, an extension without it. */
@@ -26,7 +29,7 @@ export function create({ query }) {
   const status = h('p', { class: 'page-sub', role: 'status' }, tr('Lecture du PC serveur…'));
 
   const input = h('input', {
-    class: 'input', type: 'search', placeholder: tr('Un film, une série, un anime…'), autocomplete: 'off', autocorrect: 'off', autocapitalize: 'none',
+    class: 'input', type: 'search', placeholder: tr('Film, série, anime…'), autocomplete: 'off', autocorrect: 'off', autocapitalize: 'none',
     spellcheck: false, enterkeyhint: 'search', maxlength: 200, 'aria-label': tr('Que veux-tu télécharger ?'), value: query?.get('q') ?? '',
   });
   const clearButton = h('button', { class: 'round flat clear', type: 'button', 'aria-label': tr('Effacer'), hidden: !input.value, on: { click: () => { input.value = ''; clearButton.hidden = true; input.focus(); } } }, icon('close', { size: 20 }));
@@ -185,13 +188,12 @@ export function create({ query }) {
     if (!ready) { say(agentLine(agent).text); return; }
     stopLooking();
     looking = { id: null, query: text, started: Date.now(), timer: 0 };
-    go.disabled = true;
-    found.classList.add('pending');
-    if (!found.firstChild || !lastHits) clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), tr('Recherche de « {query} » dans les films, les séries et les animes sur le PC serveur…', { query: text })));
+    waiting(text);
     try {
       const { id } = await api.torlinkSearch(text, 'all');
       if (!looking || looking.query !== text) return;
       looking.id = id;
+      keep(looking);
       follow();
     } catch (error) {
       if (!looking || looking.query !== text) return;
@@ -200,16 +202,23 @@ export function create({ query }) {
     }
   }
 
-  function follow() {
+  /**
+   * A search under way shows, whatever the screen had: the spinner and its words on top, what was there before dimmed
+   * under it until the answer replaces it (an old message goes at once: it would answer the new search).
+   */
+  function waiting(text) {
+    go.disabled = true;
+    found.classList.add('pending');
+    found.setAttribute('aria-busy', 'true');
+    for (const x of found.querySelectorAll(':scope > .torlink-searching')) x.remove();
+    found.prepend(h('p', { class: 'torlink-searching', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), tr('Recherche de « {query} » dans les films, les séries et les animes sur le PC serveur…', { query: text })));
+  }
+
+  function follow(delay = SEARCH_EVERY) {
     const current = looking;
     if (!current) return;
     current.timer = setTimeout(async () => {
       if (looking !== current) return;
-      if (Date.now() - current.started > SEARCH_WAIT) {
-        done();
-        clear(found).append(h('p', { class: 'torlink-searching torlink-failed', role: 'alert' }, tr('Le PC serveur n’a pas répondu à temps. Vérifie que Mira y est ouvert, puis relance la recherche.')));
-        return;
-      }
       try {
         const state = await api.torlinkSearchState(current.id);
         if (looking !== current) return;
@@ -217,17 +226,48 @@ export function create({ query }) {
         if (state?.state === 'failed') { done(); clear(found).append(h('p', { class: 'torlink-searching torlink-failed', role: 'alert' }, state.error || tr('La recherche n’a pas abouti.'))); return; }
       } catch (error) {
         if (looking !== current) return;
-        // Forgotten (Jellyfin restarted meanwhile): it will not come back.
-        if (error.status === 404) { done(); clear(found).append(h('p', { class: 'torlink-searching torlink-failed', role: 'alert' }, tr('Cette recherche a été perdue : relance-la.'))); return; }
+        // Forgotten (Jellyfin restarted meanwhile, or kept past its time): it will not come back. One found again after
+        // a reload just goes, its words left in the field.
+        if (error.status === 404) {
+          done(); forget();
+          if (current.restored) clear(found);
+          else clear(found).append(h('p', { class: 'torlink-searching torlink-failed', role: 'alert' }, tr('Cette recherche a été perdue : relance-la.')));
+          return;
+        }
+      }
+      if (Date.now() - current.started > SEARCH_WAIT) {
+        done();
+        clear(found).append(h('p', { class: 'torlink-searching torlink-failed', role: 'alert' }, tr('Le PC serveur n’a pas répondu à temps. Vérifie que Mira y est ouvert, puis relance la recherche.')));
+        return;
       }
       follow();
-    }, SEARCH_EVERY);
+    }, delay);
   }
 
   function done() {
     stopLooking();
     found.classList.remove('pending');
+    found.removeAttribute('aria-busy');
     go.disabled = !ready;
+  }
+
+  // The last search of this visit, for as long as the relay keeps it: iOS often reloads a Home Screen app left in the
+  // background, and the screen comes back with it rather than empty. Kept for the account that made it.
+  const savedKey = () => `mira.torlink.search.${session.current?.userId ?? ''}`;
+  function keep(current) { temp.set(savedKey(), JSON.stringify({ query: current.query, id: current.id, started: current.started })); }
+  function forget() { temp.remove(savedKey()); }
+  function saved() {
+    try {
+      const value = JSON.parse(temp.get(savedKey()) ?? 'null');
+      return typeof value?.query === 'string' && typeof value.id === 'string' && Date.now() - value.started < SEARCH_KEPT ? value : null;
+    } catch { return null; }
+  }
+  /** The kept search asked again of the relay: its results show as they were, or it goes on waiting for them. */
+  function restore(value) {
+    input.value = value.query; clearButton.hidden = false;
+    looking = { id: value.id, query: value.query, started: value.started, timer: 0, restored: true };
+    waiting(value.query);
+    follow(0);
   }
   function stopLooking() { if (looking) clearTimeout(looking.timer); looking = null; }
 
@@ -319,6 +359,11 @@ export function create({ query }) {
   }
 
   // Only while the screen shows and the phone is in front: Jellyfin is not asked for nothing.
+  // Opened again without a title to look for (or with the same one): the search kept for this visit comes back.
+  const keptSearch = saved();
+  const restored = keptSearch && (!query?.get('q') || query.get('q') === keptSearch.query) ? keptSearch.query : null;
+  if (restored) restore(keptSearch);
+
   const watch = () => {
     clearInterval(timer); timer = 0;
     if (active && document.visibilityState === 'visible') { timer = setInterval(load, EVERY); load(); }
@@ -331,7 +376,7 @@ export function create({ query }) {
       active = true; watch();
       // Opened from Recherche with a title: searched at once, once the PC is known to be there.
       const asked = next?.get('q');
-      if (asked && (!started || asked !== input.value)) { input.value = asked; clearButton.hidden = false; await load(); if (ready) search(); }
+      if (asked && !(!started && asked === restored) && (!started || asked !== input.value)) { input.value = asked; clearButton.hidden = false; await load(); if (ready) search(); }
       started = true;
     },
     leave() { active = false; watch(); },
