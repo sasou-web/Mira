@@ -2,7 +2,8 @@
 // opening, drawn from its own fonts, mark and featured film's still. PLAYWRIGHT=<.../playwright/index.mjs> node tools/site/share.mjs
 import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'node:path';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 
 const { chromium } = await import(process.env.PLAYWRIGHT ?? 'playwright');
@@ -45,3 +46,12 @@ for (const [file, [title, kicker]] of Object.entries(cards)) {
 }
 await browser.close();
 rmSync(scratch, { recursive: true, force: true });
+// Discord, Slack and the others keep a card by its address, for weeks: each page names its card with the card's own
+// fingerprint, a new address as soon as the card changes.
+for (const [page, file] of [['site/index.html', 'share.jpg'], ['site/en/index.html', 'share-en.jpg']]) {
+  const version = createHash('sha256').update(readFileSync(`site/img/${file}`)).digest('hex').slice(0, 10);
+  const before = readFileSync(page, 'utf8');
+  const after = before.replace(new RegExp(`/img/${file.replace('.', '\\.')}(\\?v=[0-9a-f]+)?"`), `/img/${file}?v=${version}"`);
+  if (after === before && !before.includes(`/img/${file}?v=${version}"`)) throw new Error(`No og:image for ${file} in ${page}`);
+  writeFileSync(page, after);
+}
