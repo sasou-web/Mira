@@ -1,7 +1,9 @@
 name: Site
 # miracinema.app: the showcase site (site/), served by GitHub Pages, its download links set to the latest published
 # release. Runs when the site changes on main and when a release is published (tools/release.ps1, through gh, so the
-# event fires: a release published by GITHUB_TOKEN would not start this workflow).
+# event fires: a release published by GITHUB_TOKEN would not start this workflow). A release's run is on its tag, which
+# the github-pages environment refuses (main only): it starts this workflow again on main, the one deploy it allows
+# (a workflow_dispatch is the one event GITHUB_TOKEN may start).
 on:
   push:
     branches: [main]
@@ -17,7 +19,19 @@ concurrency:
   group: pages
   cancel-in-progress: false
 jobs:
+  release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Deploy from main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run site.yml --repo "$GITHUB_REPOSITORY" --ref main
   build:
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -43,7 +57,7 @@ jobs:
         with:
           path: dist/site
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event_name != 'release'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
