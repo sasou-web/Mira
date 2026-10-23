@@ -31,6 +31,7 @@ public partial class MainWindow
             Require(_controlsVisible && PlayerControls.IsHitTestVisible && PlayerControls.Opacity > .99 && PlayerSurface.Cursor == System.Windows.Input.Cursors.Arrow, "mouse activity can interrupt the fade without a stale hide closing the controls");
             await RunPlayerV044ChecksAsync(output, checks, Require);
             await RunPlayerBarChecksAsync(output, checks, Require);
+            await RunPlayerCaptureChecksAsync(output, checks, Require);
             _mpv!.Set("pause", "yes"); await Task.Delay(200);
             var engine = _mpv; var handle = _videoHandle;
             _mpv.Command("seek", "4", "absolute+exact"); await Task.Delay(240); _mpv.Poll();
@@ -53,8 +54,9 @@ public partial class MainWindow
             var original = new Rect(Left, Top, Width, Height);
             ToggleFullscreen(); await Task.Delay(200);
             var pixels = _fullscreenWindow!.WindowPixels();
+            var screen = CheckScreen();
             checks.Add($"INFO fullscreen rectangle {pixels}; logical size {ActualWidth} × {ActualHeight}");
-            Require(_fullscreen && TitleBar.Visibility == Visibility.Collapsed && Math.Abs(pixels.Width - 1600) < 2 && Math.Abs(pixels.Height - 900) < 2, "fullscreen uses the requested screen rectangle including its full height");
+            Require(_fullscreen && TitleBar.Visibility == Visibility.Collapsed && Math.Abs(pixels.Width - screen.Width) < 2 && Math.Abs(pixels.Height - screen.Height) < 2, "fullscreen uses the requested screen rectangle including its full height");
             Require(PlayerWindowChrome.Visibility == Visibility.Collapsed && Grid.GetRowSpan(PlayerShell) == 2 && ReferenceEquals(engine, _mpv) && _videoHandle == handle, "fullscreen retains the same full-height video host and hides window chrome");
             Require(!HasCaptionStyle() && WindowStyle == WindowStyle.None, "fullscreen drops the native caption style: no title bar or border can appear");
             ToggleFullscreen(); await Task.Delay(200);

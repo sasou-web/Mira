@@ -73,8 +73,6 @@ public partial class MainWindow
 
         ShowPlayerControls(); _session.Paused = true; _lastPlayerInteraction = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5); UpdatePlayerControls();
         require(!_controlsVisible && PlayerSurface.Cursor == Cursors.None, "paused controls and cursor leave after idling, for clean screenshots");
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041)) require(PlayerOverlayLayer.CaptureExcluded, "player controls are excluded from screen captures");
-        else checks.Add("INFO capture exclusion needs Windows 10 2004 or later");
         ShowPlayerControls(); await Task.Delay(250);
 
         if (SeekBar.Chapters.Count > 0)
