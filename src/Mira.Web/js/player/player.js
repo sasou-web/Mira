@@ -349,6 +349,8 @@ export function create({ id, query }) {
     return at;
   }
   timeline.addEventListener('pointerdown', (e) => {
+    // The mouse's other buttons (a right click for the browser's menu) do not move the film.
+    if (e.button !== 0) return;
     scrubbing = true; timeline.classList.add('active'); timeline.setPointerCapture(e.pointerId);
     showControls(true); preview(ratioAt(e.clientX));
   });
