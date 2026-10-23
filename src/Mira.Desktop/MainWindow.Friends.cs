@@ -137,13 +137,13 @@ public partial class MainWindow
         FriendRow.BringIntoView();
         if (FriendForm.Visibility == Visibility.Visible) FriendNameBox.Focus();
     }
-    /// <summary>The invitation's « Ajouter un ami », for an administrator only.</summary>
+    /// <summary>The invitation's « Ajouter un ami » and « Lien sans compte », for an administrator only.</summary>
     private async Task ShowInviteAddFriendAsync(JellyfinClient client)
     {
-        InviteAddFriend.Visibility = Visibility.Collapsed;
+        InviteAddFriend.Visibility = Visibility.Collapsed; InviteGuestLink.Visibility = Visibility.Collapsed;
         bool? admin = null;
         try { admin = await client.IsAdministratorAsync(); }
         catch (Exception ex) when (IsExpected(ex)) { }
-        if (admin == true && ReferenceEquals(client, _client) && InviteOverlay.Visibility == Visibility.Visible) InviteAddFriend.Visibility = Visibility.Visible;
+        if (admin == true && ReferenceEquals(client, _client) && InviteOverlay.Visibility == Visibility.Visible) InviteAddFriend.Visibility = InviteGuestLink.Visibility = Visibility.Visible;
     }
 }
