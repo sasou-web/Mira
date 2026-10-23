@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
-import { parseRelease, qualityLine, episodeLabel, groupReleases, releaseScore, titleKey, warning } from '../../../src/Mira.Web/js/releases.js';
+import { parseRelease, qualityLine, episodeLabel, groupReleases, releaseScore, titleKey, warning, readableName } from '../../../src/Mira.Web/js/releases.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/releases.json', import.meta.url), 'utf8'));
 
@@ -18,6 +18,10 @@ test('what a release name says (tests/fixtures/releases.json)', () => {
   assert.deepEqual(parseRelease('Film.2020.1080p.WEB-DL.MultiSub.x264').languages, [], 'subtitles in many languages are no MULTI');
   assert.equal(titleKey('JoJo’s Bizarre Adventure: Éclat & Co'), 'jojos bizarre adventure eclat and co');
   assert.equal(parseRelease(null).title, '');
+});
+
+test('a download called by its title, its name under it (tests/fixtures/releases.json)', () => {
+  for (const [name, title, full] of fixture.readable) assert.deepEqual(readableName(name), { title, full }, name);
 });
 
 test('the best release first, by title and episode (tests/fixtures/releases.json)', () => {
@@ -47,7 +51,10 @@ test('labels and warnings in English, the release\'s own tags as they are', () =
     assert.equal(episodeLabel(parseRelease('[SubsPlease] Show - 05 (1080p)')), 'Episode 5');
     assert.equal(episodeLabel(parseRelease('Show.S06E05.1080p.WEB-DL')), 'S06E05');
     assert.equal(qualityLine(parseRelease('Film.2020.HDCAM.x264')), 'Theater cam · H.264');
-    assert.equal(qualityLine(parseRelease('Film.2020.MULTI.VFF.1080p.BluRay.x265-GRP')), '1080p · BluRay · HEVC · MULTI · VFF · GRP');
+    assert.equal(qualityLine(parseRelease('Film.2020.MULTI.VFF.1080p.BluRay.x265-GRP')), '1080p · BluRay · HEVC · MULTI · VFF');
+    assert.equal(qualityLine(parseRelease('[Erai-raws] Show - 05 [1080p]')), '1080p · Erai-raws');
+    assert.equal(readableName('Film.2020.1080p.BluRay').title, 'Film (2020)');
+    assert.equal(readableName('Show.S02.1080p.WEB-DL.x264-GRP').title, 'Show · Complete season 2');
     assert.equal(warning({ release: parseRelease('Film.2020.1080p.BluRay'), hit: { seeders: 0, source: '1337x' } }), 'Nobody is sharing this file, so it probably won’t download.');
   } finally { setLanguage('fr'); }
 });

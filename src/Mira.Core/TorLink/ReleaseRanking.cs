@@ -7,10 +7,11 @@ namespace Mira.Core.TorLink;
 /// <summary>
 /// What a release name says: title, year, the other name given in parentheses, season and episode (<see cref="Absolute"/>:
 /// numbered without a season; <see cref="Pack"/>: a whole season or more), resolution, source (remux, bluray, webdl,
-/// webrip, hdrip, hdtv, dvd, cam), codec, HDR, languages (MULTI, VFF, VFQ, VF, VOSTFR), group.
+/// webrip, hdrip, hdtv, dvd, cam), codec, HDR, languages (MULTI, VFF, VFQ, VF, VOSTFR), group (<see cref="Fansub"/>: given in
+/// brackets in front, as fansub groups of anime do, « [Erai-raws] »).
 /// </summary>
 public sealed record ReleaseInfo(string Title, int? Year, string? Alternate, int? Season, int? Episode, int? LastEpisode, bool Absolute, bool Pack,
-    int? Resolution, string? Source, string? Codec, bool TenBit, string? Hdr, IReadOnlyList<string> Languages, string? Group, bool Repack);
+    int? Resolution, string? Source, string? Codec, bool TenBit, string? Hdr, IReadOnlyList<string> Languages, string? Group, bool Repack, bool Fansub = false);
 
 /// <summary>A result of a search, what its name says and how good it is for us (<see cref="ReleaseRanking.Score"/>).</summary>
 public sealed record RankedRelease(RelayHit Hit, ReleaseInfo Release, int Order, int Score);
@@ -218,14 +219,30 @@ public static partial class ReleaseRanking
         if (Has(lower, "vostfr|subfrench")) languages.Add("VOSTFR");
 
         return new(title, year, alternate, season, episode, lastEpisode, absolute, pack, resolution, source, codec, Has(lower, "10-?bits?|hi10p?|main10"),
-            vision ? (hdr is null ? "DV" : $"DV {hdr}") : hdr, languages, group, Has(lower, "repack|proper|rerip"));
+            vision ? (hdr is null ? "DV" : $"DV {hdr}") : hdr, languages, group, Has(lower, "repack|proper|rerip"), lead.Success);
     }
 
-    /// <summary>« 1080p · WEB-DL · HEVC · MULTI · ToonsHub »: what the release is, in the words of the page.</summary>
+    /// <summary>
+    /// « 1080p · WEB-DL · HEVC · MULTI · ToonsHub »: what the release is, in the words of the page. The group only when
+    /// it is a fansub's (Erai-raws, SubsPlease tell who translated an anime); a scene group (FW, QTZ) says nothing to most.
+    /// </summary>
     public static string QualityLine(ReleaseInfo release) => string.Join(" · ", new[]
     {
         release.Resolution == 2160 ? "4K" : release.Resolution is { } p ? $"{p}p" : "", release.Source is { } s ? SourceLabels[s] : "", release.Codec ?? "", release.Hdr ?? "",
-    }.Concat(release.Languages).Append(release.Group ?? "").Where(x => x.Length > 0));
+    }.Concat(release.Languages).Append(release.Fansub ? release.Group ?? "" : "").Where(x => x.Length > 0));
+
+    /// <summary>
+    /// What a download is called on the screen: the title read from its name (« Dune Part Two (2024) », « The Bear · Saison 3
+    /// complète ») and the name itself to show under it; the name alone (<c>Full</c> null) when nothing more can be read.
+    /// </summary>
+    public static (string Title, string? Full) Readable(string? name)
+    {
+        var raw = (name ?? "").Trim();
+        var release = Parse(raw);
+        var label = EpisodeLabel(release);
+        var title = string.Join(" · ", new[] { release.Title + (release.Year is { } y && label.Length == 0 ? $" ({y})" : ""), label }.Where(x => x.Length > 0));
+        return release.Title.Length > 0 && TitleKey(title) != TitleKey(raw) ? (title, raw) : (raw, null);
+    }
 
     /// <summary>Whether a site of TorLink counts who shares its results: SubsPlease never does.</summary>
     public static bool ReportsHealth(string? source) => !string.Equals(source, "subsplease", StringComparison.OrdinalIgnoreCase);

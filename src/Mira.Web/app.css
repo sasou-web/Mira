@@ -627,6 +627,7 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .torlink-badge { padding: 2px 8px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: calc(12px * var(--text)); font-weight: 800; line-height: 1.4; white-space: nowrap; }
 .torlink-release .sub { margin-top: 3px; line-height: 1.4; }
 .torlink-full { overflow-wrap: anywhere; }
+.torlink-raw { font-size: calc(12px * var(--text)); }
 .torlink-caution { color: var(--warning); }
 .torlink-sent { cursor: default; color: var(--ink); }
 .torlink-sent > .icon { color: var(--ink); }

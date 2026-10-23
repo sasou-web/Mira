@@ -1,27 +1,35 @@
 {
- "about": "« Télécharger sur le PC serveur »: what a release name says and which release Mira puts forward. Read by tools/web/unit (js/releases.js). names: [name, title, year, episode label, quality line]. ranked: hits of one search, and for each title or episode the label shown and the id of the release put forward, others in order.",
+ "about": "« Télécharger sur le PC serveur »: what a release name says and which release Mira puts forward. Read by tools/web/unit (js/releases.js). names: [name, title, year, episode label, quality line (a group only in brackets in front, a fansub's)]. readable: [name, title shown for a download, name shown under it or null]. ranked: hits of one search, and for each title or episode the label shown and the id of the release put forward, others in order.",
  "names": [
   ["[ToonsHub] JoJos Bizarre Adventure S06E05 1080p NF WEB-DL DUAL AAC2.0 H.264 (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio, Multi-Subs)", "JoJos Bizarre Adventure", null, "S06E05", "1080p · WEB-DL · H.264 · ToonsHub"],
   ["[Erai-raws] JoJo no Kimyou na Bouken: Steel Ball Run - 05 [1080p NF WEBRip HEVC AAC][MultiSub][68E0C6CB]", "JoJo no Kimyou na Bouken: Steel Ball Run", null, "Épisode 5", "1080p · WEBRip · HEVC · Erai-raws"],
-  ["JoJos Bizarre Adventure S06E05 The Terrorist from a Faraway Country 1080p NF WEB-DL DUAL AAC2.0 H.264-VARYG (JoJo no Kimyou na Bouken Part 5: Ougon no Kaze, Dual-Audio, Multi-Subs)", "JoJos Bizarre Adventure", null, "S06E05", "1080p · WEB-DL · H.264 · VARYG"],
+  ["JoJos Bizarre Adventure S06E05 The Terrorist from a Faraway Country 1080p NF WEB-DL DUAL AAC2.0 H.264-VARYG (JoJo no Kimyou na Bouken Part 5: Ougon no Kaze, Dual-Audio, Multi-Subs)", "JoJos Bizarre Adventure", null, "S06E05", "1080p · WEB-DL · H.264"],
   ["[SubsPlease] Sousou no Frieren S2 - 05 (1080p) [ABCD1234].mkv", "Sousou no Frieren", null, "S02E05", "1080p · SubsPlease"],
   ["[Judas] Frieren - 01-28 (Batch) [1080p][HEVC x265 10bit]", "Frieren", null, "Épisodes 1 à 28", "1080p · HEVC · Judas"],
   ["[Erai-raws] Show - 01 ~ 12 [1080p]", "Show", null, "Épisodes 1 à 12", "1080p · Erai-raws"],
   ["Dune (2021) [1080p bluray]", "Dune", 2021, "", "1080p · BluRay"],
-  ["Dune.Part.Two.2024.MULTi.TRUEFRENCH.1080p.BluRay.x265-QTZ", "Dune Part Two", 2024, "", "1080p · BluRay · HEVC · MULTI · VFF · QTZ"],
+  ["Dune.Part.Two.2024.MULTi.TRUEFRENCH.1080p.BluRay.x265-QTZ", "Dune Part Two", 2024, "", "1080p · BluRay · HEVC · MULTI · VFF"],
   ["Dune.Part.Two.2024.HDCAM.x264", "Dune Part Two", 2024, "", "Filmé en salle · H.264"],
-  ["Blade.Runner.2049.2017.2160p.UHD.BluRay.REMUX.HDR.HEVC.Atmos-EPSiLON", "Blade Runner 2049", 2017, "", "4K · Remux · HEVC · HDR · EPSiLON"],
+  ["Blade.Runner.2049.2017.2160p.UHD.BluRay.REMUX.HDR.HEVC.Atmos-EPSiLON", "Blade Runner 2049", 2017, "", "4K · Remux · HEVC · HDR"],
   ["Film.2023.1080p.WEBRip.x264.AAC5.1-[YTS.MX]", "Film", 2023, "", "1080p · WEBRip · H.264"],
   ["Amélie (2001) VOSTFR 1080p", "Amélie", 2001, "", "1080p · VOSTFR"],
-  ["The.Bear.S03.COMPLETE.1080p.WEB.h264-ETHEL", "The Bear", null, "Saison 3 complète", "1080p · WEB-DL · H.264 · ETHEL"],
+  ["The.Bear.S03.COMPLETE.1080p.WEB.h264-ETHEL", "The Bear", null, "Saison 3 complète", "1080p · WEB-DL · H.264"],
   ["The.Bear.S01-S03.1080p.WEB", "The Bear", null, "Toutes les saisons", "1080p · WEB-DL"],
-  ["Doctor.Who.2005.S13E01.1080p.WEB-DL.x264-GRP", "Doctor Who", 2005, "S13E01", "1080p · WEB-DL · H.264 · GRP"],
-  ["Show.Name.2019.S02E10E11.1080p.WEB.h264-GRP", "Show Name", 2019, "S02E10-E11", "1080p · WEB-DL · H.264 · GRP"],
+  ["Doctor.Who.2005.S13E01.1080p.WEB-DL.x264-GRP", "Doctor Who", 2005, "S13E01", "1080p · WEB-DL · H.264"],
+  ["Show.Name.2019.S02E10E11.1080p.WEB.h264-GRP", "Show Name", 2019, "S02E10-E11", "1080p · WEB-DL · H.264"],
   ["Show.1x05.HDTV", "Show", null, "S01E05", "HDTV"],
-  ["Mr. Robot S01E01 720p HDTV x264-KILLERS", "Mr. Robot", null, "S01E01", "720p · HDTV · H.264 · KILLERS"],
-  ["The.Last.of.Us.S02E03.2160p.WEB.H265.DV.HDR-GRP", "The Last of Us", null, "S02E03", "4K · WEB-DL · HEVC · DV HDR · GRP"]
+  ["Mr. Robot S01E01 720p HDTV x264-KILLERS", "Mr. Robot", null, "S01E01", "720p · HDTV · H.264"],
+  ["The.Last.of.Us.S02E03.2160p.WEB.H265.DV.HDR-GRP", "The Last of Us", null, "S02E03", "4K · WEB-DL · HEVC · DV HDR"]
  ],
- "ranked": [
+ "readable": [
+    ["Dune.Part.Two.2024.MULTi.TRUEFRENCH.1080p.BluRay.x265-QTZ", "Dune Part Two (2024)", "Dune.Part.Two.2024.MULTi.TRUEFRENCH.1080p.BluRay.x265-QTZ"],
+    ["The.Bear.S03.COMPLETE.1080p.WEB.h264-ETHEL", "The Bear · Saison 3 complète", "The.Bear.S03.COMPLETE.1080p.WEB.h264-ETHEL"],
+    ["Doctor.Who.2005.S13E01.1080p.WEB-DL.x264-GRP", "Doctor Who · S13E01", "Doctor.Who.2005.S13E01.1080p.WEB-DL.x264-GRP"],
+    ["[SubsPlease] Sousou no Frieren S2 - 05 (1080p) [ABCD1234].mkv", "Sousou no Frieren · S02E05", "[SubsPlease] Sousou no Frieren S2 - 05 (1080p) [ABCD1234].mkv"],
+    ["  Collé Check ", "Collé Check", null],
+    ["", "", null]
+  ],
+  "ranked": [
   {
    "category": "anime",
    "hits": [
