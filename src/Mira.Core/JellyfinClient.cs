@@ -646,6 +646,52 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return true;
     }
+    /// <summary>« Inviter par lien » (an administrator): the links made, and the address they start with (GET Mira/invites).</summary>
+    public async Task<GuestLinkList> GuestLinksAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Mira/invites", ct);
+        await CheckInvitesAsync(response, ct);
+        var list = await response.Content.ReadFromJsonAsync<GuestLinkList>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+        return list with { Invites = list.Invites ?? [] };
+    }
+    /// <summary>A new link for a guest (its account made by the extension); its <c>Link</c> is null while no address is set.</summary>
+    public async Task<GuestLink> MakeGuestLinkAsync(string name, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/invites", new { name }, ct);
+        await CheckInvitesAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<GuestLink>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    /// <summary>A link taken back: its guest out at once, their account deleted. False when it was gone already.</summary>
+    public async Task<bool> RemoveGuestLinkAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync($"Mira/invites/{Uri.EscapeDataString(id)}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return false;
+        await CheckInvitesAsync(response, ct);
+        return true;
+    }
+    /// <summary>The address the links start with (Funnel's, https://…), or none: the list as it stands then.</summary>
+    public async Task<GuestLinkList> SetGuestAddressAsync(string? address, CancellationToken ct = default)
+    {
+        using var response = await _http.PutAsJsonAsync("Mira/invites/address", new { address }, ct);
+        await CheckInvitesAsync(response, ct);
+        var list = await response.Content.ReadFromJsonAsync<GuestLinkList>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+        return list with { Invites = list.Invites ?? [] };
+    }
+    /// <summary>The extension's refusals, in its words ({ error }, in this Mira's language), or in Mira's.</summary>
+    private static async Task CheckInvitesAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode) return;
+        string? error = null;
+        try
+        {
+            using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            if (body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("error", out var value) && value.ValueKind == JsonValueKind.String) error = value.GetString();
+        }
+        catch (JsonException) { }
+        if (!string.IsNullOrWhiteSpace(error)) throw new RelayRefusedException(error, response.StatusCode);
+        if (GuestLinks.Refused(response.StatusCode) is { } refused) throw new RelayRefusedException(refused, response.StatusCode);
+        await CheckAsync(response);
+    }
     /// <summary>
     /// « Télécharger sur le PC serveur »: Mira for Windows' visit to the relay of the extension (POST Mira/torlink/agent),
     /// its report sent, its work back. No work with the status when the relay refuses: 403 (not an administrator) or

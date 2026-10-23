@@ -43,6 +43,8 @@ public sealed class SettingsPage : Page
         devices.IsVisible = false;
         page.Children.Add(devices);
         if (shell.Session is { } session) _ = ShowWhenEnabledAsync(session.Client, devices);
+        // « Liens d'invités »: an administrator's links for guests without an account (shown once Jellyfin's extension answers).
+        page.Children.Add(new GuestLinksSection(shell, Section).Section);
 
         page.Children.Add(Section(L("Lecture", "Playback"),
             Toggle(L("Reprendre là où tu t’es arrêté", "Resume where you left off"), L("Sinon, chaque titre repart du début.", "Otherwise, every title starts from the beginning."), settings.RememberPosition, v => settings.RememberPosition = v),
