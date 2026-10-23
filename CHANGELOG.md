@@ -1,11 +1,14 @@
 # Historique
 
-## Non publié
+## 0.8.3 — 2026-10-23
+
+Commandes du lecteur visibles dans les captures, plus de pause sans le vouloir, recherche unique dans Téléchargements et résultats plus lisibles.
 
 - **Les commandes du lecteur visibles dans tes captures et tes partages** (Windows) : elles étaient retirées des captures d’écran, des enregistrements et des partages : un partage de fenêtre sur Discord ou OBS montrait la vidéo seule. Elles font maintenant partie de la fenêtre de Mira : quand elles sont affichées, ceux qui regardent ton partage les voient, comme une capture. Elles partent toujours seules après 2,6 s sans mouvement.
 - **Plus de pause sans le vouloir** (Windows, Mac, Mira web) : un clic dans la barre du haut ou du bas qui manque un bouton (les sous-titres, le volume, la ligne de progression) mettait le film en pause ; il ne fait plus qu’afficher les commandes, même cachées. Le clic qui ramène Mira au premier plan non plus ne met plus en pause. Seul un clic sur l’image le fait. Dans Mira web, un toucher sur une barre ne cache plus les commandes et un double toucher n’y saute plus 10 s ; un clic droit sur la ligne de progression ne déplace plus le film.
 - **Un TorLink trop ancien est signalé** (Windows) : un TorLink installé avant Mira et antérieur à la 1.9.0 ne sait ni chercher ni télécharger pour l’écran de Mira et pour Mira web ; la recherche échouait avec « tip: quote magnet links (they contain & characters) », la dernière ligne de l’aide qu’il affiche. La page **Téléchargements** dit maintenant qu’il est trop ancien et propose **Installer celui de Mira** (sa file et ses réglages sont repris) ou **Ouvrir son terminal** ; Mira web dit pourquoi le PC serveur ne répond pas.
 - **Une recherche dans les films, les séries et les animes à la fois** (Téléchargements, Mira web, Windows, Mac) : plus de menu Films / Séries / Animes à choisir avant de chercher. TorLink cherche dans les trois catégories en même temps, les résultats arrivent mêlés (le meilleur de chaque catégorie vers le haut) et chaque titre dit s’il est un film, une série ou un anime. Un anime et sa série en prises de vue réelles restent séparés. Si une catégorie ne répond pas, les autres s’affichent quand même.
+- **Des résultats de téléchargement plus lisibles** (Téléchargements, Mira web, Windows, Mac) : chaque version porte le titre que son nom raconte (« Dune Part Two (2024) », « The Bear · Saison 3 complète ») avec le nom brut en petit dessous, et la ligne de qualité n’affiche plus le groupe de diffusion (FW, QTZ). Un titre déjà dans ta bibliothèque le dit (« Déjà dans ta bibliothèque », ou ce que tu as d’une saison) et ouvre sa fiche ; rien ne quitte ton serveur pour ça. Un résultat envoyé est marqué, les titres rangés s’affichent au-dessus des résultats, une nouvelle recherche apparaît tout de suite et survit à un rechargement, et un téléchargement en échec dit pourquoi (disque plein, dossier inaccessible…).
 
 ## 0.8.2 — 2026-10-22
 
