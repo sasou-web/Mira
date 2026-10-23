@@ -9,7 +9,7 @@ import { sheet, toast, errorState } from '../components.js';
 import { goBack } from '../app.js';
 import { session, temp } from '../session.js';
 import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable } from '../torlink.js';
-import { groupReleases, parseRelease, qualityLine, warning } from '../releases.js';
+import { groupReleases, parseRelease, qualityLine, warning, readableName } from '../releases.js';
 
 const EVERY = 3000, SEARCH_EVERY = 1000, SEARCH_WAIT = 90_000;
 // As long as the relay keeps a search and its results (TorLinkRelay.SearchLife).
@@ -96,10 +96,10 @@ export function create({ query }) {
     // A request TorLink has now shows as its download; one sent and not listed yet, as sent.
     const asked = latest.requests.filter((x) => !(x.state === 'sent' && inTorLink.has(x.infoHash)));
     const rows = [
-      ...asked.map((x) => ({ key: `r:${x.id}`, name: x.name, line: requestLine(x), failed: x.state === 'failed', request: x })),
+      ...asked.map((x) => ({ key: `r:${x.id}`, ...named(x.name), line: requestLine(x), failed: x.state === 'failed', request: x })),
       ...latest.downloads.map((x) => {
         const pending = latest.controls.find((c) => c.target === x.id);
-        return { key: `d:${x.id}`, name: x.name, line: pending ? ACTIONS[pending.action] ?? downloadLine(x) : downloadLine(x), progress: x.progress, download: x };
+        return { key: `d:${x.id}`, ...named(x.name), line: pending ? ACTIONS[pending.action] ?? downloadLine(x) : downloadLine(x), progress: x.progress, download: x };
       }),
     ];
     update(list, listTitle, rows, row);
@@ -109,6 +109,9 @@ export function create({ query }) {
     placedMore.setAttribute('aria-expanded', String(placedOpen));
     placedMore.textContent = placedOpen ? tr('Voir moins') : tr('Voir les {n} titres rangés', { n: placed.length });
   }
+  /** A release called by the title read from its name, the name itself under it (releases.js: readableName). */
+  function named(name) { const { title, full } = readableName(name); return { name: title || name, full }; }
+
   /** The line under the title, said by screen readers only when it changes. */
   function say(text) { if (status.textContent !== text) status.textContent = text; }
 
@@ -136,7 +139,8 @@ export function create({ query }) {
   }
 
   function texts(data) {
-    return [h('span', { class: 'torlink-name clamp-2' }, data.name), h('span', { class: ['sub torlink-line', data.failed && 'torlink-failed'] }, data.line)];
+    return [h('span', { class: 'torlink-name clamp-2' }, data.name), h('span', { class: ['sub torlink-line', data.failed && 'torlink-failed'] }, data.line),
+      data.full ? h('span', { class: 'sub torlink-full torlink-raw clamp-2' }, data.full) : null];
   }
 
   function row(data) {
@@ -172,7 +176,7 @@ export function create({ query }) {
   function actions(download) {
     const paused = download.status === 'paused' || download.status === 'stopped';
     sheet({
-      title: download.name,
+      title: readableName(download.name).title || download.name,
       items: [
         download.status === 'failed' ? null
           : paused ? { label: tr('Reprendre'), symbol: 'play', run: () => control(download, 'resume') }

@@ -44,7 +44,8 @@ const tidy = (text) => {
  * What a release name says: { title, year, alternate (the other name given in parentheses), season, episode,
  * lastEpisode, absolute (numbered without a season), pack (a whole season or more), resolution (2160, 1080…),
  * source (remux, bluray, webdl, webrip, hdrip, hdtv, dvd, cam), codec (HEVC, H.264, AV1, XviD, VP9), tenBit, hdr
- * (HDR10+, HDR, DV, DV HDR), languages (MULTI, VFF, VFQ, VF, VOSTFR), group, repack }; a field it does not say is null.
+ * (HDR10+, HDR, DV, DV HDR), languages (MULTI, VFF, VFQ, VF, VOSTFR), group, repack, fansub (the group given in brackets
+ * in front, « [Erai-raws] ») }; a field it does not say is null.
  */
 export function parseRelease(name) {
   let text = String(name ?? '').replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().replace(/\.(?:mkv|mp4|m4v|avi|webm|ts|torrent)$/i, '');
@@ -137,16 +138,33 @@ export function parseRelease(name) {
 
   return {
     title, year, alternate, season, episode, lastEpisode, absolute, pack, resolution, source, codec, tenBit,
-    hdr: vision ? (hdr ? `DV ${hdr}` : 'DV') : hdr, languages, group, repack: has(lower, 'repack|proper|rerip'),
+    hdr: vision ? (hdr ? `DV ${hdr}` : 'DV') : hdr, languages, group, repack: has(lower, 'repack|proper|rerip'), fansub: !!lead,
   };
 }
 
-/** « 1080p · WEB-DL · HEVC · MULTI · ToonsHub »: what the release is, in the words of the page. */
+/**
+ * « 1080p · WEB-DL · HEVC · MULTI · ToonsHub »: what the release is, in the words of the page. The group only when it
+ * is a fansub's, in brackets in front (Erai-raws, SubsPlease tell who translated an anime); a scene group (FW, QTZ)
+ * says nothing to most.
+ */
 export function qualityLine(release) {
   return [
     release.resolution === 2160 ? '4K' : release.resolution ? `${release.resolution}p` : '',
-    release.source === 'cam' ? tr('Filmé en salle') : SOURCE_LABELS[release.source] ?? '', release.codec ?? '', release.hdr ?? '', ...release.languages, release.group ?? '',
+    release.source === 'cam' ? tr('Filmé en salle') : SOURCE_LABELS[release.source] ?? '', release.codec ?? '', release.hdr ?? '', ...release.languages, release.fansub ? release.group ?? '' : '',
   ].filter(Boolean).join(' · ');
+}
+
+/**
+ * What a download is called on the screen: { title, full }, the title read from its name (« Dune Part Two (2024) »,
+ * « The Bear · Saison 3 complète ») and the name itself to show under it; the name alone (full null) when nothing more
+ * can be read (ReleaseRanking.Readable).
+ */
+export function readableName(name) {
+  const raw = String(name ?? '').trim();
+  const release = parseRelease(raw);
+  const label = episodeLabel(release);
+  const title = [`${release.title}${release.year && !label ? ` (${release.year})` : ''}`, label].filter(Boolean).join(' · ');
+  return release.title && titleKey(title) !== titleKey(raw) ? { title, full: raw } : { title: raw, full: null };
 }
 
 /**

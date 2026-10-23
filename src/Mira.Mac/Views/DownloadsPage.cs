@@ -265,12 +265,12 @@ public sealed class DownloadsPage : Page
         var queue = new List<RowData>();
         // A request TorLink has now shows as its download; one sent and not listed yet, as sent.
         foreach (var request in RemoteLines.Pending(status))
-            queue.Add(new($"r:{request.Id}", $"r|{request.State}", request.Name, RemoteLines.Request(request), null, () => RequestRow(request)));
+            queue.Add(new($"r:{request.Id}", $"r|{request.State}", Shown(request.Name).Title, RemoteLines.Request(request), null, () => RequestRow(request)));
         foreach (var download in status.Downloads)
         {
             var pending = status.Controls.FirstOrDefault(x => x.Target == download.Id);
             var line = pending is not null && RemoteLines.ActionLine(pending.Action) is { } asked ? asked : RemoteLines.Download(download);
-            queue.Add(new($"d:{download.Id}", $"d|{download.Status}|{pending is null}", download.Name, line, download.Progress, () => DownloadRow(download, pending is null)));
+            queue.Add(new($"d:{download.Id}", $"d|{download.Status}|{pending is null}", Shown(download.Name).Title, line, download.Progress, () => DownloadRow(download, pending is null)));
         }
         var placed = status.Placed.Select(x => new RowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(x.Status), null, () => PlacedRow(x))).ToList();
         UpdateRows(_queue, queue); UpdateRows(_placed, placed);
@@ -285,6 +285,9 @@ public sealed class DownloadsPage : Page
     }
 
     private static string Sentence(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
+    /// <summary>A release called by the title read from its name, the name itself under it (as Mira web).</summary>
+    private static (string Title, string? Full) Shown(string name) => ReleaseRanking.Readable(name) is { Title.Length: > 0 } shown ? shown : (name, null);
     private static double Share(int progress) => Math.Clamp(progress, 0, 100) / 100.0;
 
     private void UpdateRows(StackPanel panel, List<RowData> rows)
@@ -309,13 +312,19 @@ public sealed class DownloadsPage : Page
         panel.Children.AddRange(next);
     }
 
-    private static QueueRow RowView(string icon, IBrush color, string name, string line, int? progress, bool failed, Panel actions)
+    private static QueueRow RowView(string icon, IBrush color, string name, string line, int? progress, bool failed, Panel actions, string? full = null)
     {
         var nameText = new TextBlock { Text = name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
-        ToolTip.SetTip(nameText, name);
+        ToolTip.SetTip(nameText, full ?? name);
         var lineText = new TextBlock { Text = line, FontSize = 12.5, Foreground = failed ? WarningText : Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
         var text = new StackPanel();
         text.Children.Add(nameText); text.Children.Add(lineText);
+        if (full is not null)
+        {
+            var fullText = new TextBlock { Text = full, FontSize = 11.5, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 3, 0, 0) };
+            ToolTip.SetTip(fullText, full);
+            text.Children.Add(fullText);
+        }
         Border? bar = null;
         if (progress is { } value)
         {
@@ -335,33 +344,35 @@ public sealed class DownloadsPage : Page
 
     private QueueRow RequestRow(RelayRequest request)
     {
+        var (name, full) = Shown(request.Name);
         var actions = new StackPanel();
         if (request.State != "claimed")
         {
             var label = request.State == "waiting" ? L("Annuler", "Cancel") : L("Retirer", "Remove");
             var buttons = RowButtons();
-            buttons.Children.Add(SmallButton(label, "close", () => _ = CancelRequestAsync(request), label + L($" « {request.Name} »", $" “{request.Name}”")));
+            buttons.Children.Add(SmallButton(label, "close", () => _ = CancelRequestAsync(request), label + L($" « {name} »", $" “{name}”")));
             actions.Children.Add(buttons);
         }
         var failed = request.State == "failed";
-        return RowView(failed ? "warning" : "clock", failed ? Warning : Ui.Faint, request.Name, RemoteLines.Request(request), null, failed, actions);
+        return RowView(failed ? "warning" : "clock", failed ? Warning : Ui.Faint, name, RemoteLines.Request(request), null, failed, actions, full);
     }
 
     private QueueRow DownloadRow(RelayDownload download, bool offer)
     {
+        var (name, full) = Shown(download.Name);
         var actions = new StackPanel();
         if (offer && RemoteLines.Controllable(download))
         {
             var buttons = RowButtons();
             if (download.Status != "failed")
                 buttons.Children.Add(RemoteLines.Paused(download)
-                    ? SmallButton(L("Reprendre", "Resume"), "play", () => _ = ControlAsync(download, "resume"), L($"Reprendre « {download.Name} »", $"Resume “{download.Name}”"))
-                    : SmallButton(L("Pause", "Pause"), "pause", () => _ = ControlAsync(download, "pause"), L($"Mettre en pause « {download.Name} »", $"Pause “{download.Name}”")));
-            buttons.Children.Add(SmallButton(L("Annuler", "Cancel"), "close", () => ConfirmCancel(actions, download), L($"Annuler « {download.Name} »", $"Cancel “{download.Name}”")));
+                    ? SmallButton(L("Reprendre", "Resume"), "play", () => _ = ControlAsync(download, "resume"), L($"Reprendre « {name} »", $"Resume “{name}”"))
+                    : SmallButton(L("Pause", "Pause"), "pause", () => _ = ControlAsync(download, "pause"), L($"Mettre en pause « {name} »", $"Pause “{name}”")));
+            buttons.Children.Add(SmallButton(L("Annuler", "Cancel"), "close", () => ConfirmCancel(actions, download), L($"Annuler « {name} »", $"Cancel “{name}”")));
             actions.Children.Add(buttons);
         }
         var (icon, color) = download.Status switch { "failed" => ("warning", Warning), "completed" or "seeding" => ("check", Success), "downloading" => ("download", Ui.Ink), _ => ("clock", Ui.Faint) };
-        return RowView(icon, color, download.Name, RemoteLines.Download(download), download.Progress, download.Status == "failed", actions);
+        return RowView(icon, color, name, RemoteLines.Download(download), download.Progress, download.Status == "failed", actions, full);
     }
 
     /// <summary>« Annuler » deletes what TorLink already has: asked once more, in the row.</summary>

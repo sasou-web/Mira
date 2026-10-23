@@ -50,6 +50,11 @@ internal static class RemoteDownloadTests
                 var seen = (release.Title, release.Year, ReleaseRanking.EpisodeLabel(release), ReleaseRanking.QualityLine(release));
                 Assert(seen == (row[1].GetString()!, year, row[3].GetString()!, row[4].GetString()!), $"« {row[0]} » read as {seen}");
             }
+            foreach (var row in fixture.RootElement.GetProperty("readable").EnumerateArray())
+            {
+                var shown = ReleaseRanking.Readable(row[0].GetString());
+                Assert(shown == (row[1].GetString()!, row[2].GetString()), $"« {row[0]} » shown as {shown}");
+            }
             foreach (var search in fixture.RootElement.GetProperty("ranked").EnumerateArray())
             {
                 var hits = search.GetProperty("hits").EnumerateArray().Select(x => new RelayHit(x[0].GetString()!, x[1].GetString()!, x[2].GetInt64(), x[3].GetInt32(), 0, x[4].GetString()!, null, x.GetArrayLength() > 5 ? x[5].GetString() : null)).ToList();
