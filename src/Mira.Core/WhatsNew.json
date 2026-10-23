@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.8.3",
+    "summary": "Téléchargements plus simples et plus lisibles, plus de pause par erreur, commandes visibles en partage.",
+    "en": { "summary": "Simpler, clearer Downloads, no accidental pauses, and player controls visible when sharing." },
+    "items": [
+      { "icon": "download", "title": "Une seule recherche", "text": "Téléchargements cherche films, séries et animes à la fois et nomme chaque résultat par son titre.",
+        "en": { "title": "One search", "text": "Downloads searches movies, shows and anime at once and names each result by its title." } },
+      { "icon": "check", "title": "Déjà dans ta bibliothèque", "text": "Un résultat que tu possèdes déjà le dit et ouvre sa fiche ; un échec de téléchargement dit pourquoi.",
+        "en": { "title": "Already in your library", "text": "A result you already own says so and opens its page; a failed download says why." } },
+      { "icon": "film", "title": "Plus de pause par erreur", "text": "Un clic à côté d’un bouton du lecteur n’arrête plus le film ; seul un clic sur l’image le fait.",
+        "en": { "title": "No accidental pauses", "text": "A click that misses a player button no longer pauses the film; only a click on the picture does." } },
+      { "icon": "server", "title": "Commandes visibles en partage", "text": "Sous Windows, les commandes du lecteur apparaissent dans tes captures et partages d’écran.",
+        "en": { "title": "Controls visible when sharing", "text": "On Windows, the player controls show up in your screenshots and screen shares." } }
+    ]
+  },
+  {
     "version": "0.8.2",
     "summary": "Téléchargements sur le PC serveur, Corbeille depuis la fiche, titres supprimés et clé de secours.",
     "en": { "summary": "Downloads on the server PC, Recycle Bin from a title page, deleted titles, and a backup key." },
