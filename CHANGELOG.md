@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Une vraie fenêtre d’installation sur Mac** : l’image disque s’ouvre sur une fenêtre à l’image de Mira, à sa taille, sans barre d’outils ni barre latérale : glisse Mira sur Applications en suivant la flèche ; l’étape du premier lancement (Réglages Système › Confidentialité et sécurité › Ouvrir quand même) y est écrite. L’image disque porte aussi l’icône de Mira.
+
 ## 0.8.3 — 2026-10-23
 
 Commandes du lecteur visibles dans les captures, plus de pause sans le vouloir, recherche unique dans Téléchargements et résultats plus lisibles.

@@ -183,17 +183,33 @@ codesign --verify --deep --strict --verbose=1 "$APP"
 # the build with its reason, instead of a player that never starts on every Mac.
 python3 -c 'import ctypes, sys; ctypes.CDLL(sys.argv[1])' "$APP/Contents/Frameworks/libmpv.2.dylib"
 
-# 6. The disk image: Mira and a link to Applications, to drag one onto the other.
-STAGE="$OUT/dmg"; mkdir -p "$STAGE"
-cp -R "$APP" "$STAGE/"; ln -s /Applications "$STAGE/Applications"
+# 6. The disk image: Mira and a link to Applications, to drag one onto the other, in a window laid out for it (picture,
+# places, size, no toolbar nor sidebar, Mira's icon on the volume: tools/mac/dmg). dmgbuild writes the window's .DS_Store
+# itself, without Finder: pinned by hash, in a virtual environment of its own (Homebrew's Python takes no global install).
+VENV="$OUT/dmgbuild"
+python3 -m venv "$VENV"
+"$VENV/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary :all: -r "$ROOT/tools/mac/dmg/requirements.txt"
 # hdiutil sometimes answers « Resource busy » while macOS still scans the new files (seen on GitHub's Macs): try again.
 DMG="$OUT/Mira-$VERSION-mac-arm64.dmg"
 for attempt in 1 2 3 4 5; do
-  if hdiutil create -volname "Mira $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"; then break; fi
+  if "$VENV/bin/dmgbuild" -s "$ROOT/tools/mac/dmg/settings.py" -D dir="$ROOT/tools/mac/dmg" -D app="$APP" \
+    -D icon="$APP/Contents/Resources/Mira.icns" "Mira $VERSION" "$DMG"; then break; fi
   rm -f "$DMG"
-  if [ "$attempt" -eq 5 ]; then echo "hdiutil failed 5 times" >&2; exit 1; fi
+  if [ "$attempt" -eq 5 ]; then echo "dmgbuild failed 5 times" >&2; exit 1; fi
   sleep $((attempt * 5))
 done
+rm -rf "$VENV"
+# What the window needs is in the image, and Mira in it still passes its signature check.
+MOUNT=$(mktemp -d)
+hdiutil attach -readonly -nobrowse -mountpoint "$MOUNT" "$DMG" >/dev/null
+layout=0
+for file in .DS_Store .background.tiff .VolumeIcon.icns Mira.app/Contents/MacOS/Mira; do
+  [ -e "$MOUNT/$file" ] || { echo "$file missing from the disk image" >&2; layout=1; }
+done
+[ "$(readlink "$MOUNT/Applications")" = /Applications ] || { echo "no link to /Applications in the disk image" >&2; layout=1; }
+codesign --verify --deep --strict "$MOUNT/Mira.app" || layout=1
+hdiutil detach "$MOUNT" >/dev/null || hdiutil detach -force "$MOUNT" >/dev/null
+if [ "$layout" -ne 0 ]; then exit 1; fi
 # 7. Its SHA-256, published beside it: in the download folder, « shasum -a 256 -c Mira-x.y.z-mac-arm64.dmg.sha256 » checks
 # the copy. shasum is on every Mac (md5sum is not).
 (cd "$OUT" && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")

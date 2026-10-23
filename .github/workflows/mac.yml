@@ -63,6 +63,26 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: tools/mac/package.sh "$VERSION"
+      # The disk image's window as Finder opens it, in dark then light appearance, for its previews below: the picture,
+      # the icons' places and the labels Finder writes over the picture (their colour follows the appearance).
+      - name: Disk image window
+        run: |
+          mkdir -p .artifacts/dmg
+          dmg=$(ls dist/mac/*.dmg)
+          volume=$(hdiutil attach "$dmg" | awk -F '\t' '/\/Volumes\// { print $NF }')
+          echo "Mounted at $volume"
+          for appearance in dark light; do
+            if [ "$appearance" = dark ]; then dark=true; else dark=false; fi
+            # A global default alone leaves Finder light: System Events changes it for the whole session.
+            osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $dark" || echo "appearance left as it was"
+            killall Finder 2>/dev/null || true; sleep 4
+            open "$volume"; sleep 6
+            screencapture -x ".artifacts/dmg/screen-$appearance.png"
+            # The window and a margin around it (Finder may move it down from where tools/mac/dmg/settings.py puts it).
+            screencapture -x -R 160,120,720,600 ".artifacts/dmg/dmg-$appearance.png"
+          done
+          killall Finder 2>/dev/null || true
+          hdiutil detach "$volume" || hdiutil detach -force "$volume"
       # The app itself, on this Mac: every screen against a stand-in Jellyfin, then playback in OpenGL and in software.
       - name: Self-check
         run: |
@@ -91,7 +111,7 @@ jobs:
       - name: Capture previews in the log
         if: always()
         run: |
-          for file in .artifacts/check/*.png; do
+          for file in .artifacts/check/*.png .artifacts/dmg/dmg-*.png; do
             [ -f "$file" ] || continue
             name=$(basename "$file" .png); small=".artifacts/$name.jpg"
             sips -s format jpeg -s formatOptions 45 -Z 720 "$file" --out "$small" >/dev/null
@@ -105,6 +125,7 @@ jobs:
           path: |
             .artifacts/check
             .artifacts/check.log
+            .artifacts/dmg
           retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
