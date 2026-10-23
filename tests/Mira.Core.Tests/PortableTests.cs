@@ -14,6 +14,7 @@ internal static class PortableTests
         await PhoneTests.RunAsync(run);
         await TorLinkTests.RunAsync(run);
         await RemoteDownloadTests.RunAsync(run);
+        await GuestTests.RunAsync(run);
         await UpdateTests.RunAsync(run);
         await LanguageTests.RunAsync(run);
         await AccessibilityTests.RunAsync(run.Test);

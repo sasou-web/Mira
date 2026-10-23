@@ -9,6 +9,8 @@
     <Compile Include="../../src/Mira.Jellyfin/ContentPolicy.cs" Link="Plugin/ContentPolicy.cs" />
     <Compile Include="../../src/Mira.Jellyfin/WebFiles.cs" Link="Plugin/WebFiles.cs" />
     <Compile Include="../../src/Mira.Jellyfin/TorLinkRelay.cs" Link="Plugin/TorLinkRelay.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/GuestRoutes.cs" Link="Plugin/GuestRoutes.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/GuestInvites.cs" Link="Plugin/GuestInvites.cs" />
   </ItemGroup>
   <!-- Nor the Mac app's profile, where its session goes: the keychain is replaced there by a stand-in. -->
   <ItemGroup><Compile Include="../../src/Mira.Mac/Services/Profile.cs" Link="Mac/Profile.cs" /></ItemGroup>

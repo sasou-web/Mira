@@ -83,10 +83,7 @@ public sealed class HlsController : ControllerBase
         return Content(text, PlaylistType, Encoding.UTF8);
     }
 
-    /// <summary>
-    /// This server's answer to a path below its base URL: on the loopback address first, then on the address it gives
-    /// for its own network. Both come from Jellyfin's settings, never from the request.
-    /// </summary>
+    /// <summary>This server's answer to a path below its base URL (see <see cref="JellyfinLoopback"/>).</summary>
     private async Task<(int Status, string? Text)> GetAsync(string pathAndQuery, CancellationToken cancellationToken)
     {
         using var client = _clients.CreateClient();
@@ -117,22 +114,5 @@ public sealed class HlsController : ControllerBase
         return ((int)HttpStatusCode.BadGateway, null);
     }
 
-    private IEnumerable<string> Roots()
-    {
-        yield return $"http://127.0.0.1:{_host.HttpPort}{Request.PathBase}/";
-        string? local = null;
-        try
-        {
-            local = _host.GetApiUrlForLocalAccess(null, false);
-        }
-        catch (InvalidOperationException)
-        {
-            // No address for its own network.
-        }
-
-        if (!string.IsNullOrEmpty(local))
-        {
-            yield return local.TrimEnd('/') + "/";
-        }
-    }
+    private IEnumerable<string> Roots() => JellyfinLoopback.Roots(_host, Request.PathBase);
 }

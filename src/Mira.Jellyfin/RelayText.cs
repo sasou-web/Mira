@@ -5,7 +5,7 @@ using Mira.Core.TorLink;
 namespace Mira.Jellyfin;
 
 /// <summary>
-/// What <see cref="TorLinkRelay"/> says, in the language of the request: French when its Accept-Language puts French
+/// What <see cref="TorLinkRelay"/> and the guests' links (<see cref="GuestController"/>) say, in the language of the request: French when its Accept-Language puts French
 /// before English (Mira web sends the language it shows, Mira for Windows its own), English otherwise. The relay writes
 /// French; what Mira for Windows reports (TorLink's own errors) is passed on as it came, in that app's language.
 /// </summary>
@@ -23,6 +23,16 @@ internal static class RelayText
         ["La recherche n’a pas abouti."] = "The search didn’t go through.",
         ["TorLink a refusé ce téléchargement."] = "TorLink refused this download.",
         ["PC serveur"] = "Server PC",
+        // « Inviter par lien » (GuestController, InvitesController).
+        ["Trop d’essais : attends une minute."] = "Too many tries: wait a minute.",
+        ["Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité."] = "This link no longer works: ask the person who invited you for a new one.",
+        ["Ce lien sert déjà sur un autre appareil : demande-en un nouveau à la personne qui t’a invité."] = "This link is already in use on another device: ask the person who invited you for a new one.",
+        ["Jellyfin n’a pas ouvert la séance. Réessaie dans un instant."] = "Jellyfin didn’t open the session. Try again in a moment.",
+        ["Trop de liens en cours : retire ceux qui ne servent plus."] = "Too many links at once: remove those no longer in use.",
+        ["Jellyfin n’a pas répondu. Réessaie dans un instant."] = "Jellyfin didn’t answer. Try again in a moment.",
+        ["Son prénom ne peut contenir que des lettres, des chiffres, des espaces et ces signes : - _ ' . @ +"] = "Their name can only contain letters, digits, spaces and these signs: - _ ' . @ +",
+        ["Jellyfin n’a pas créé le compte de l’invité."] = "Jellyfin didn’t create the guest’s account.",
+        ["L’adresse doit commencer par https:// et finir par le nom de l’ordinateur."] = "The address must start with https:// and end with the computer’s name.",
     };
 
     /// <summary>Whether the request asks for French: the first of French and English among its languages, by preference.</summary>
