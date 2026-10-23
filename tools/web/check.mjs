@@ -1688,6 +1688,84 @@ try {
 }
 await togetherA.close(); await togetherB.close();
 
+// « Inviter par lien » (an administrator): a link for someone without an account, made from « Liens d'invités » (the
+// address of the links first, the one Tailscale Funnel gives: here a made-up one, the link is opened on this address).
+// The guest's phone opens it: Mira reloads on the extension's gateway, joins the host's group and stays there (any
+// other screen leads back to it); Lecture on the host's plays on both. Taken back, the guest is out at once, and the
+// link no longer opens.
+const hostCtx = await newContext('invité (hôte)'), guestCtx = await newContext('invité');
+const inviter = await hostCtx.newPage(), invitee = await guestCtx.newPage();
+const guestErrors = [];
+for (const p of [inviter, invitee]) p.on('pageerror', (e) => guestErrors.push(e.message));
+try {
+  await signIn(inviter);
+  const asHost = as(inviter);
+  for (const old of (await asHost('Mira/invites'))?.invites ?? []) await asHost(`Mira/invites/${old.id}`, 'DELETE');
+  await inviter.evaluate(() => { location.hash = '#/invites'; }); await inviter.waitForTimeout(2000);
+  const addressInput = inviter.locator('.guests-page input[type=url]');
+  if (await addressInput.count()) {
+    await addressInput.fill('https://mira-check.tail0000.ts.net');
+    await inviter.getByRole('button', { name: 'Enregistrer' }).click(); await inviter.waitForTimeout(1000);
+  }
+  await inviter.fill('.guests-page input[type=text]', 'Léa');
+  await inviter.getByRole('button', { name: 'Créer le lien' }).click();
+  await inviter.locator('.guests-page .invite-link').waitFor({ timeout: 10000 }).catch(() => {});
+  const guestLink = (await inviter.locator('.guests-page .invite-link').innerText().catch(() => '')).trim();
+  const listed = (await inviter.locator('.guests-page .item', { hasText: 'Léa' }).innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+  await inviter.screenshot({ path: `${out}/32-guest-link.png` });
+  check('invité : un lien fait depuis « Liens d’invités », listé, pas encore ouvert',
+    /^https:\/\/[^/]+\/Mira\/#\/invite\/[A-Za-z0-9_-]{22}$/.test(guestLink) && listed.includes('Pas encore ouvert'), `${guestLink || 'pas de lien'} ; « ${listed} »`);
+  const film = (await asHost('Items?recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];
+  await inviter.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await inviter.waitForTimeout(2500);
+  await inviter.locator('#view .group-line').click(); await inviter.waitForTimeout(800);
+  await inviter.locator('.sheet-item', { hasText: 'Créer un groupe' }).click();
+  await inviter.locator('.invite-link').first().waitFor({ timeout: 10000 }).catch(() => {});
+  await inviter.keyboard.press('Escape'); await inviter.waitForTimeout(500);
+  const guestHash = guestLink.slice(guestLink.indexOf('#'));
+  await invitee.goto(`${base}${guestHash}`);
+  await invitee.waitForFunction(() => /Tu es dans/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
+  const guestPage = (await invitee.locator('#view h1').innerText().catch(() => '')).trim();
+  const guestSession = await invitee.evaluate(() => JSON.parse(localStorage.getItem('mira.session') ?? 'null'));
+  await invitee.screenshot({ path: `${out}/33-guest-joined.png` });
+  await invitee.evaluate(() => { location.hash = '#/reglages'; }); await invitee.waitForTimeout(1000);
+  const confined = await invitee.evaluate(() => location.hash);
+  // Through the gateway, the guest's session sees the host's group only and nothing of the library's lists.
+  const gateway = (path) => invitee.evaluate(async ([p, t]) => (await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Mira/guest/${p}`, {
+    headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${t}"` } })).status, [path, guestSession?.token ?? '']);
+  const [usersStatus, itemsStatus] = [await gateway('Users'), await gateway('Items')];
+  check('invité : le lien ouvert sur un autre téléphone, sans compte, entre dans le groupe de l’hôte et y reste',
+    /^Tu es dans « Groupe de .+ »$/.test(guestPage) && guestSession?.guest === true && confined === '#/ensemble' && usersStatus === 404 && itemsStatus === 404,
+    `« ${guestPage} » ; session ${guestSession?.guest ? 'd’invité' : 'ordinaire'} ; #/reglages → ${confined} ; Users ${usersStatus}, Items ${itemsStatus}`);
+  await inviter.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
+  const guestFollowed = await invitee.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 20000 }).then(() => true, () => false);
+  for (const p of [inviter, invitee]) await p.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 25000 }).catch(() => {});
+  await invitee.waitForTimeout(1500);
+  const [h, g] = await Promise.all([videoState(inviter), videoState(invitee)]);
+  const guestSrc = await invitee.evaluate(() => document.querySelector('video')?.currentSrc ?? '');
+  check('invité : Lecture chez l’hôte lance le titre chez l’invité, par la passerelle, au même moment',
+    guestFollowed && h && g && !h.paused && !g.paused && Math.abs(h.t - g.t) < 1 && guestSrc.includes('/Mira/guest/'),
+    `${guestFollowed ? 'titre ouvert' : 'rien ouvert'} ; ${h ? `${h.t.toFixed(2)} s` : 'pas de vidéo'} et ${g ? `${g.t.toFixed(2)} s` : 'pas de vidéo'} ; ${guestSrc.replace(/\?.*/, '')}`);
+  const invite = ((await asHost('Mira/invites'))?.invites ?? []).find((x) => x.name === 'Léa');
+  await inviter.evaluate(() => { location.hash = '#/invites'; }); await inviter.waitForTimeout(2000);
+  await inviter.getByRole('button', { name: 'Retirer le lien de Léa' }).click(); await inviter.waitForTimeout(600);
+  await inviter.locator('.sheet-item', { hasText: 'Retirer le lien' }).click();
+  await invitee.waitForFunction(() => /finie/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
+  const endedPage = (await invitee.locator('#view h1').innerText().catch(() => '')).trim();
+  await invitee.screenshot({ path: `${out}/34-guest-ended.png` });
+  const oldToken = await invitee.evaluate(async (t) => (await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Mira/guest/Users/Me`, { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${t}"` } })).status, guestSession?.token ?? '');
+  await invitee.goto(`${base}${guestHash}`);
+  await invitee.waitForFunction(() => /pas marché/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 10000 }).catch(() => {});
+  const reopened = (await invitee.locator('#view .lead').first().innerText().catch(() => '')).trim();
+  check('invité : le lien retiré, l’invité est dehors tout de suite et le lien ne marche plus',
+    invite?.opened && endedPage === 'La soirée est finie pour ce lien' && oldToken === 401 && /ne marche plus/.test(reopened),
+    `${invite?.opened ? `ouvert sur ${invite.device}` : 'jamais ouvert'} ; « ${endedPage} » ; ancienne session : ${oldToken} ; rouvert : « ${reopened} »`);
+  await asHost('SyncPlay/Leave', 'POST').catch(() => null);
+} catch (error) {
+  check('invité : déroulé', false, error.message.split('\n')[0]);
+}
+check('invité : aucune erreur JavaScript', !guestErrors.length, guestErrors.join(' | ') || 'aucune');
+await hostCtx.close(); await guestCtx.close();
+
 // « Télécharger sur le PC serveur » (an administrator): Mira for Windows on the PC of Jellyfin is played here by a fake
 // agent, which visits the extension's relay as it does (Mira/torlink/agent): it answers the search of each category
 // (films, shows, anime: one search of the page asks for the three; a result found twice is shown once), takes

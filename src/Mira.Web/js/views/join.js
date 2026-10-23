@@ -6,6 +6,8 @@ import { h, icon, clear } from '../dom.js';
 import { tr } from '../i18n.js';
 import { markSvg, replaceRoute } from '../app.js';
 import { together } from '../together.js';
+import { isGuest } from '../api.js';
+import { session } from '../session.js';
 import { findGroup, groupText, waitingText, WAITING_LEAD, groupLabel } from '../player/sync.js';
 
 const NO_SYNCPLAY = tr('Jellyfin ne permet pas à ton compte de regarder ensemble. Demande à la personne qui t’invite de l’autoriser : tableau de bord → Utilisateurs → ton compte → SyncPlay.');
@@ -13,7 +15,9 @@ const NO_SYNCPLAY = tr('Jellyfin ne permet pas à ton compte de regarder ensembl
 const EVERY = 4000;
 
 export function create({ id, query }) {
-  const host = query?.get('hote') || null;
+  // A guest of « Inviter par lien » follows the host who invited them, whose groups alone the gateway shows.
+  const guest = isGuest();
+  const host = query?.get('hote') || (guest ? session.current?.host : null) || null;
   const el = h('div', { class: 'view gate' });
   let unwatch = () => {};
   let timer = 0, disposed = false, waited = false, looking = false;
@@ -22,18 +26,28 @@ export function create({ id, query }) {
 
   const page = (title, lead, ...rest) => clear(el).append(markSvg(56),
     h('div', { class: 'gate-text' }, h('h1', {}, title), lead ? h('p', { class: 'lead' }, lead) : ''), ...rest);
-  const home = () => h('button', { class: 'btn primary', on: { click: () => replaceRoute('#/') } }, tr('Aller à l’accueil'));
+  // A guest has no home: their way back into the group instead.
+  const home = () => (guest
+    ? h('button', { class: 'btn primary', on: { click: () => join() } }, tr('Réessayer'))
+    : h('button', { class: 'btn primary', on: { click: () => replaceRoute('#/') } }, tr('Aller à l’accueil')));
   const spinner = (label) => h('div', { class: 'spinner', role: 'status', 'aria-label': label });
 
   function joined() {
     const group = together.group;
     if (!group || !findGroup([group], target, host)) { failed(tr('Tu n’es plus dans ce groupe.')); return; }
     page(tr('Tu es dans « {name} »', { name: groupLabel(group.GroupName) }),
-      tr('Le titre démarre ici dès qu’il est lancé pour le groupe, au même moment chez chacun. Tu peux parcourir Mira en attendant.'),
+      guest
+        ? tr('Garde cette page ouverte : le titre démarre ici dès que {name} le lance, au même moment chez chacun.', { name: host })
+        : tr('Le titre démarre ici dès qu’il est lancé pour le groupe, au même moment chez chacun. Tu peux parcourir Mira en attendant.'),
       h('div', { class: 'hint' },
         h('div', { class: 'step' }, icon('users'), h('span', {}, h('b', {}, groupText(group)), group.Participants.length ? tr(' : {names}', { names: group.Participants.join(', ') }) : ''))),
-      home(),
-      h('button', { class: 'btn quiet small', on: { click: async () => { await together.leave(); replaceRoute('#/'); } } }, tr('Quitter le groupe')));
+      guest ? '' : home(),
+      h('button', { class: 'btn quiet small', on: { click: async () => { await together.leave(); if (guest) left(); else replaceRoute('#/'); } } }, tr('Quitter le groupe')));
+  }
+  /** A guest out of the group by their own choice: back in with a tap. */
+  function left() {
+    unwatch(); unwatch = () => {};
+    page(tr('Tu as quitté le groupe'), '', h('button', { class: 'btn primary', on: { click: () => join() } }, tr('Revenir dans le groupe')));
   }
   function failed(text) {
     stopWaiting();
@@ -54,7 +68,7 @@ export function create({ id, query }) {
   function waiting() {
     if (!waited) {
       waited = true;
-      page(waitingText(host), WAITING_LEAD, spinner(tr('En attente du groupe')), home());
+      page(waitingText(host), WAITING_LEAD, spinner(tr('En attente du groupe')), guest ? '' : home());
       document.addEventListener('visibilitychange', look);
     }
     clearTimeout(timer);

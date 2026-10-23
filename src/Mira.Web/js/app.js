@@ -1,5 +1,5 @@
 // Mira web: the shell (tab bar, navigation, sign-in guard) and the router between screens.
-import { onUnauthorized, onReachable, onForeignServer, ping, recheckServer, trustServer, FOREIGN, UNREACHABLE, UNREACHABLE_SHORT, VERSION } from './api.js';
+import { onUnauthorized, onReachable, onForeignServer, ping, recheckServer, trustServer, isGuest, FOREIGN, UNREACHABLE, UNREACHABLE_SHORT, VERSION } from './api.js';
 import { h, icon, clear } from './dom.js';
 import { session, signedOut, device, isStandalone, temp, applyTextSize, settings, storageBlocked } from './session.js';
 import { toast, sheet } from './components.js';
@@ -31,13 +31,24 @@ const ROUTES = [
   { pattern: /^\/en-ce-moment$/, load: () => import('./views/now.js') },
   // « Télécharger sur le PC serveur », from Réglages or Recherche (an administrator); ?q= searches at once.
   { pattern: /^\/telecharger$/, load: () => import('./views/torlink.js') },
-  { pattern: /^\/lecture\/([0-9a-f-]+)$/i, bare: true, load: () => import('./player/player.js'), args: (m) => ({ id: m[1] }) },
-  // An invitation to « Regarder ensemble » (invite.js): signed in first, then in the group.
-  { pattern: /^\/ensemble\/([0-9a-f-]+)$/i, bare: true, load: () => import('./views/join.js'), args: (m) => ({ id: m[1] }) },
+  { pattern: /^\/lecture\/([0-9a-f-]+)$/i, bare: true, guest: true, load: () => import('./player/player.js'), args: (m) => ({ id: m[1] }) },
+  // An invitation to « Regarder ensemble » (invite.js): signed in first, then in the group. Without a group's id, the
+  // group of the host who invited (a guest of « Inviter par lien »).
+  { pattern: /^\/ensemble\/([0-9a-f-]+)$/i, bare: true, guest: true, load: () => import('./views/join.js'), args: (m) => ({ id: m[1] }) },
+  { pattern: /^\/ensemble$/, bare: true, guest: true, load: () => import('./views/join.js'), args: () => ({ id: '' }) },
+  // « Inviter par lien »: a link opened by someone without an account (views/guest.js); without its code, a link that
+  // no longer works.
+  { pattern: /^\/invite\/([A-Za-z0-9_-]{22})$/, bare: true, open: true, guest: true, load: () => import('./views/guest.js'), args: (m) => ({ code: m[1] }) },
+  { pattern: /^\/invite$/, bare: true, open: true, guest: true, load: () => import('./views/guest.js') },
+  // « Inviter par lien », the host's side (an administrator): the links made, from Réglages or « Inviter quelqu'un ».
+  { pattern: /^\/invites$/, load: () => import('./views/guests.js') },
   { pattern: /^\/connexion$/, bare: true, open: true, load: () => import('./views/login.js') },
   // Opened from Réglages, a screen of its own like the others; opened by Mira for Windows, before any sign-in, alone.
   { pattern: /^\/partager$/, bare: () => !session.current, open: true, load: () => import('./views/share.js') },
 ];
+
+// A guest of « Inviter par lien » (see api.js base): the host's group, the player and nothing else of Mira.
+const GUEST = isGuest();
 
 const app = document.getElementById('app');
 const viewHost = h('main', { id: 'view' });
@@ -154,11 +165,12 @@ async function route() {
     replaceRoute('#/connexion');
     return;
   }
+  if (GUEST && !r.guest) { replaceRoute('#/ensemble'); return; }
   // « Nouvel épisode » once a session shows a screen of Mira (not the player, an invitation or the sign-in), a moment
   // after it: when Mira opens, and right after signing in (that first time only sets the mark).
-  if (session.current && !bare && !newsLooked) { newsLooked = true; setTimeout(lookForNews, 2500); }
+  if (session.current && !GUEST && !bare && !newsLooked) { newsLooked = true; setTimeout(lookForNews, 2500); }
   // « Tes choix gardés sur ton Jellyfin »: this phone and Jellyfin compared once a session shows a screen of Mira.
-  if (session.current && !bare && !choicesLooked) { choicesLooked = true; setTimeout(() => choices().then(({ syncChoices }) => syncChoices()).catch(() => {}), 1500); }
+  if (session.current && !GUEST && !bare && !choicesLooked) { choicesLooked = true; setTimeout(() => choices().then(({ syncChoices }) => syncChoices()).catch(() => {}), 1500); }
 
   const id = ++routeToken;
   let entry = cache.get(key);
@@ -447,7 +459,7 @@ async function offerNews() {
   newsWaiting = false;
   const seen = settings.get('seenVersion');
   // Without the site's storage, nothing would keep it from coming back at every start.
-  if (!session.current || pendingUpdate || !worthAsking(seen, VERSION) || storageBlocked()) return;
+  if (!session.current || GUEST || pendingUpdate || !worthAsking(seen, VERSION) || storageBlocked()) return;
   if (busyScreen()) { newsWaiting = true; return; }
   let notes;
   try {
@@ -611,6 +623,8 @@ function start() {
   onForeignServer((yes) => (yes ? showForeign() : hideForeign()));
   onUnauthorized(() => {
     resetScreens();
+    // A guest's link taken back: no sign-in for them, only what happened.
+    if (GUEST) { replaceRoute('#/invite'); return; }
     temp.set('mira.notice', tr('Ta session a pris fin. Reconnecte-toi.'));
     replaceRoute('#/connexion');
   });

@@ -6,7 +6,7 @@
 // socket (an iPhone gone to Messages to send the invitation): back, it joins the group again, or makes it again under
 // the same name when it made it and the group ended empty, so that the invitation sent still finds it (views/join.js).
 // Lecture of another title than the one the group has on asks first (askFirst).
-import { api } from './api.js';
+import { api, isGuest } from './api.js';
 import { listen } from './remote.js';
 import { session, temp, signedOut } from './session.js';
 import { h } from './dom.js';
@@ -264,7 +264,8 @@ export const together = {
     setAway(false);
     return {
       start(itemId, startTicks) {
-        if (!group) return;
+        // A guest of « Inviter par lien » puts nothing on: the host's devices do (the gateway refuses the queue).
+        if (!group || isGuest()) return;
         // Every device reaches the end of an episode: the next one is put on once.
         if (queue?.itemId === itemId && hooks.itemId() !== itemId) return;
         api.syncQueue(itemId, startTicks).catch((error) => toast(error.message));
@@ -273,7 +274,7 @@ export const together = {
       unpause: () => {
         if (!group) return;
         // The group made again has no title (Jellyfin ended the old one with it): the one here is put on, from here.
-        if (!queue && hooks.itemId()) { api.syncQueue(hooks.itemId(), Math.round(hooks.position() * 1e7)).catch((error) => toast(error.message)); return; }
+        if (!queue && hooks.itemId() && !isGuest()) { api.syncQueue(hooks.itemId(), Math.round(hooks.position() * 1e7)).catch((error) => toast(error.message)); return; }
         api.syncSend('Unpause').catch(() => {});
       },
       seek: (seconds) => { if (group) api.syncSend('Seek', { PositionTicks: Math.max(0, Math.round(seconds * 1e7)) }).catch(() => {}); },

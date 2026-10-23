@@ -702,6 +702,12 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .invite-link { margin: 0; padding: 12px 14px; border-radius: var(--r-m); background: var(--surface); font-size: calc(14px * var(--text)); font-weight: 700; word-break: break-all; user-select: all; -webkit-user-select: all; }
 .invite-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .invite-steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: calc(14px * var(--text)); line-height: 1.45; color: var(--muted); }
+/* « Inviter par lien » (guests.js): a link's form inside the sheet of « Inviter quelqu'un », or in a group of Liens d'invités. */
+.invite .invite { padding: 0; }
+.invite-guests { display: grid; gap: 10px; }
+.invite-guests:empty { display: none; }
+.guests-address { overflow-wrap: anywhere; }
+.group > .invite { padding-top: 16px; }
 
 /* ---------- Player ---------- */
 .player { position: fixed; inset: 0; z-index: 70; background: #000; color: #fff; overflow: hidden; touch-action: pan-x pan-y; user-select: none; -webkit-user-select: none; }

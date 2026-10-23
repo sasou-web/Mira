@@ -1,5 +1,5 @@
 // Jellyfin's artwork for a title, sized for the phone's screen, with its blurred placeholder.
-import { base, onReachable } from './api.js';
+import { base, onReachable, isGuest, signed } from './api.js';
 import { placeholder } from './blurhash.js';
 import { h, initials } from './dom.js';
 
@@ -48,7 +48,9 @@ function pixels(cssWidth) {
 export function imageUrl(art, cssWidth, quality = 85) {
   if (!art) return '';
   const index = art.index != null && art.type === 'Backdrop' ? `/${art.index}` : '';
-  return `${base}/Items/${encodeURIComponent(art.itemId)}/Images/${art.type}${index}?maxWidth=${pixels(cssWidth)}&quality=${quality}&tag=${encodeURIComponent(art.tag)}`;
+  const path = `Items/${encodeURIComponent(art.itemId)}/Images/${art.type}${index}?maxWidth=${pixels(cssWidth)}&quality=${quality}&tag=${encodeURIComponent(art.tag)}`;
+  // A guest's images go through the extension's gateway, which takes nothing without the link's session.
+  return isGuest() ? signed(path) : `${base}/${path}`;
 }
 
 // Images already shown once: drawn again (a screen redrawn, a row refreshed), they appear at once, without fading in
