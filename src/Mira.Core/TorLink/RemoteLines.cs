@@ -125,10 +125,22 @@ public static class RemoteLines
             case "queued": return Join(L("En file d’attente · ", "Queued · ") + progress, Amount(download));
             case "paused": return Join(L("En pause · ", "Paused · ") + progress, Amount(download));
             case "stopped": return L($"Arrêté · {progress} · reprend quand TorLink rouvre sur le PC serveur", $"Stopped · {progress} · resumes when TorLink opens again on the server PC");
-            case "failed": return L("Échec · ", "Failed · ") + progress;
+            case "failed": return Join(L("Échec · ", "Failed · ") + progress, Failure(download.Error));
             case "completed" or "seeding": return L("Terminé · rangement dans ta bibliothèque…", "Done · adding it to your library…");
             default: return progress;
         }
+    }
+
+    /// <summary>
+    /// Why TorLink gave up, as Mira web says it (torlink.js: failure): a full disk or a folder it cannot write to in words,
+    /// anything else in TorLink's own; empty when it did not say.
+    /// </summary>
+    public static string Failure(string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error)) return "";
+        if (error.Contains("ENOSPC", StringComparison.OrdinalIgnoreCase) || error.Contains("no space", StringComparison.OrdinalIgnoreCase)) return L("plus de place sur le disque du PC serveur", "the server PC’s disk is full");
+        if (error.Contains("EACCES", StringComparison.Ordinal) || error.Contains("EPERM", StringComparison.Ordinal)) return L("TorLink ne peut pas écrire dans son dossier", "TorLink can’t write to its folder");
+        return error.Trim();
     }
 
     /// <summary>Downloads that can be paused, resumed or cancelled from here: under way, waiting, paused, stopped or failed.</summary>

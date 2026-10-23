@@ -101,8 +101,20 @@ public static class TorLinkRemote
         item.ValueKind == JsonValueKind.Object && Text(item, "id") is { } id && RemoteDownloads.IsInfoHash(id.ToLowerInvariant())
             ? new(id.ToLowerInvariant(), RemoteDownloads.CleanName(Text(item, "name")) ?? id, Text(item, "status") ?? "", (int)Math.Clamp(Number(item, "progress"), 0, 100),
                 Number(item, "speed"), (int)Math.Min(int.MaxValue, Number(item, "peers")), Number(item, "totalBytes"), Number(item, "downloadedBytes"),
-                Number(item, "eta") is > 0 and var eta && Text(item, "status") == "downloading" ? Math.Min(eta, RemoteDownloads.MaxEta) : null)
+                Number(item, "eta") is > 0 and var eta && Text(item, "status") == "downloading" ? Math.Min(eta, RemoteDownloads.MaxEta) : null,
+                Text(item, "status") == "failed" ? RemoteDownloads.CleanName(Text(item, "error")) : null)
             : null;
+
+    /// <summary>
+    /// TorLink's API leaves out why a download failed; queue.json, which it writes at each change, says it: taken from there
+    /// for the failed ones <paramref name="live"/> lists.
+    /// </summary>
+    public static List<RelayDownload> WithErrors(List<RelayDownload> live, string? queue)
+    {
+        if (queue is null || !live.Any(x => x is { Status: "failed", Error: null })) return live;
+        var saved = ParseQueue(queue, running: true).Where(x => x.Error is not null).ToDictionary(x => x.Id, x => x.Error);
+        return live.Select(x => x is { Status: "failed", Error: null } && saved.TryGetValue(x.Id, out var error) ? x with { Error = error } : x).ToList();
+    }
 
     /// <summary>Something still downloads, waits its turn, or is shared: TorLink without a window keeps running.</summary>
     public static bool Working(JsonElement root)
