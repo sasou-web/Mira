@@ -206,7 +206,7 @@ function cue(entry, index) {
   entry.stage.dataset.cue = String(index);
   entry.cues.forEach((line, i) => line.classList.toggle('on', i === index));
   const shot = Number(entry.cues[index].dataset.shot ?? index);
-  entry.shots.forEach((frame, i) => frame.classList.toggle('on', i === shot));
+  entry.shots.forEach((frame, i) => { frame.classList.toggle('on', i === shot); frame.classList.toggle('past', i < shot); });
   if (entry.shots[shot]?.classList.contains('guide')) tick();
 }
 function scenesAt() {

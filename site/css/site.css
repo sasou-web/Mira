@@ -7,8 +7,10 @@
 @font-face { font-family: 'Nunito Sans'; font-weight: 700; font-display: swap; src: url('../fonts/nunito-sans-700.woff2') format('woff2'); }
 @font-face { font-family: 'Nunito Sans'; font-weight: 800; font-display: swap; src: url('../fonts/nunito-sans-800.woff2') format('woff2'); }
 
-/* Animated by transitions: the phones' fan. */
+/* Animated by transitions: the phones' fan, opened a little more at each line (--spread) and folded behind the middle
+   one while their shot is not on screen (--fan). */
 @property --spread { syntax: '<number>'; inherits: true; initial-value: 0; }
+@property --fan { syntax: '<number>'; inherits: true; initial-value: 1; }
 
 :root {
   color-scheme: dark;
@@ -290,8 +292,17 @@ body::after {
   .stage:has(.cue > img) .frame { display: grid; }
   .frame { margin: 0; gap: 0; justify-items: stretch; }
   .shot { grid-area: 1 / 1; }
-  .shot { place-self: center; opacity: 0; transition: opacity 700ms var(--ease), transform 1.4s var(--ease); transform: scale(1.02); }
-  .shot.on { opacity: 1; transform: none; }
+  /* One shot gives way to the next: the old one rises and fades, the new one comes up from below a moment later (going
+     back, the other way). The phones then open their fan from behind the middle one. */
+  .shot {
+    place-self: center; opacity: 0; transform: translateY(36px) scale(0.97);
+    transition: opacity 500ms var(--ease), transform 1s var(--ease);
+  }
+  .shot.past { transform: translateY(-36px) scale(0.97); }
+  .shot.on { opacity: 1; transform: none; transition-delay: 200ms; }
+  .shot.phones { transition: opacity 500ms var(--ease), transform 1s var(--ease), --spread 900ms var(--ease), --fan 1.2s var(--ease); }
+  .shot.phones.on { transition-delay: 200ms, 200ms, 0s, 380ms; }
+  .shot.phones:not(.on) { --fan: 0; }
   img.shot { width: 100%; height: 100%; object-fit: contain; }
   .cues { grid-template-areas: 'cue'; gap: 0; min-height: 148px; padding: 18px 0 10px; align-items: start; }
   .cue { grid-area: cue; visibility: hidden; }
@@ -355,9 +366,9 @@ body::after {
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 402 21'%3E%3Crect x='134' y='8' width='134' height='5' rx='2.5' fill='%23fff' fill-opacity='.9'/%3E%3C/svg%3E") bottom / 100% auto no-repeat,
     linear-gradient(115deg, rgba(255, 255, 255, 0.07), transparent 32%);
 }
-.phone:nth-child(1) { z-index: 1; transform: translate(calc(-50% - 60% - var(--spread) * 22%), -50%) rotate(calc(-6deg - var(--spread) * 4deg)) scale(0.88); }
+.phone:nth-child(1) { z-index: 1; transform: translate(calc(-50% - var(--fan) * (60% + var(--spread) * 22%)), -50%) rotate(calc(var(--fan) * (-6deg - var(--spread) * 4deg))) scale(0.88); }
 .phone:nth-child(2) { z-index: 3; transform: translate(-50%, calc(-50% - var(--spread) * 3%)); }
-.phone:nth-child(3) { z-index: 2; transform: translate(calc(-50% + 60% + var(--spread) * 22%), -50%) rotate(calc(6deg + var(--spread) * 4deg)) scale(0.88); }
+.phone:nth-child(3) { z-index: 2; transform: translate(calc(-50% + var(--fan) * (60% + var(--spread) * 22%)), -50%) rotate(calc(var(--fan) * (6deg + var(--spread) * 4deg))) scale(0.88); }
 @media (min-width: 901px) and (scripting: enabled) {
   .phones { height: 100%; }
   .phone { width: min(17vw, calc((100svh - var(--top-h) - var(--player-h) - 190px) / 2.1)); }
