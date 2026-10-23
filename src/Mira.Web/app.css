@@ -704,9 +704,11 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 /* Hidden controls fade out, but not the spinner, which stays where the play button is. */
 .controls > *, .controls::before { transition: opacity var(--slow) linear; }
 .player.idle .controls > :not(.p-busy), .player.idle .controls::before { opacity: 0; }
-/* Taps between the buttons reach the video's surface (show or hide the controls, double tap to skip). */
+/* Taps between the middle buttons reach the video's surface (show or hide the controls, double tap to skip). The
+   bands of the top and bottom bars take theirs, shown or hidden: a tap that misses a button there (the subtitles, the
+   timeline) shows the controls, never hides them, never skips, never presses a hidden button. */
 .controls { pointer-events: none; }
-.controls button, .controls a, .controls .timeline { pointer-events: auto; }
+.controls :is(.p-top, .p-bottom, button, a, .timeline) { pointer-events: auto; }
 .player.idle .controls button, .player.idle .controls a, .player.idle .controls .timeline { pointer-events: none; }
 .player.idle { cursor: none; }
 .controls { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto; }

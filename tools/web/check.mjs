@@ -355,6 +355,48 @@ try {
     `${inFull.full ? 'plein écran' : 'pas de plein écran'}, feuille ${inFull.inside ? 'dedans' : 'en dehors'}`);
   await page.keyboard.press('Escape'); await wait(300);
   await page.evaluate(() => document.exitFullscreen?.().catch(() => {})); await wait(500);
+  // The bands of the top and bottom bars take their taps: one that misses a button there shows the controls, never
+  // hides them, never skips 10 s (a double tap on a side), never presses a button hidden there; one on the picture
+  // between them hides the controls.
+  const bands = await (async () => {
+    await page.evaluate(() => document.querySelector('video').play().catch(() => {})); await wait(600);
+    const center = async (selector) => { const b = await page.locator(selector).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+    const state = () => page.evaluate(() => ({
+      idle: document.querySelector('.player').classList.contains('idle'), t: document.querySelector('video').currentTime,
+      sheet: !!document.querySelector('.sheet-layer:not(.leaving)'),
+    }));
+    const said = [];
+    await page.evaluate(() => document.querySelector('.player').classList.add('idle'));
+    const tracks = await center('.p-top button[aria-label="Audio et sous-titres"]');
+    await page.touchscreen.tap(tracks.x, tracks.y); await wait(400);
+    let now = await state();
+    said.push(!now.idle && !now.sheet ? 'bouton caché : commandes montrées' : `bouton caché : ${now.sheet ? 'feuille ouverte' : 'commandes toujours cachées'}`);
+    const ok1 = !now.idle && !now.sheet;
+    const row = await center('.p-bottom .p-row .spacer');
+    await page.touchscreen.tap(row.x, row.y); await wait(400);
+    now = await state();
+    const ok2 = !now.idle;
+    said.push(ok2 ? 'barre du bas : commandes gardées' : 'barre du bas : commandes cachées');
+    const box = await page.locator('.player').boundingBox(), before = now.t, at = Date.now();
+    await page.touchscreen.tap(box.x + box.width * 0.08, row.y); await wait(120);
+    await page.touchscreen.tap(box.x + box.width * 0.08, row.y); await wait(700);
+    now = await state();
+    const moved = now.t - before - (Date.now() - at) / 1000;
+    const ok3 = Math.abs(moved) < 3 && !now.idle;
+    said.push(ok3 ? 'double toucher sur la barre : pas de saut' : `double toucher sur la barre : ${moved.toFixed(1)} s`);
+    const heading = await center('.p-top .p-title');
+    await page.touchscreen.tap(heading.x, heading.y); await wait(400);
+    now = await state();
+    const ok4 = !now.idle;
+    said.push(ok4 ? 'titre : commandes gardées' : 'titre : commandes cachées');
+    const topBar = await page.locator('.p-top').boundingBox(), play = await page.locator('.p-center .round.big').boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, (topBar.y + topBar.height + play.y) / 2); await wait(400);
+    now = await state();
+    const ok5 = now.idle;
+    said.push(ok5 ? 'image : commandes cachées' : 'image : commandes toujours là');
+    return { ok: ok1 && ok2 && ok3 && ok4 && ok5, said };
+  })().catch((error) => ({ ok: false, said: [error.message] }));
+  check('lecteur : les barres du haut et du bas prennent leurs touchers, l’image entre elles cache les commandes', bands.ok, bands.said.join(' ; '));
   await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
 
   // Passages the file's chapters name, with no segment provider on Jellyfin (Chapitres Web: « Avant-générique » 0-4 s,
