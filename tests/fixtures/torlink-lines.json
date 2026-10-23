@@ -46,6 +46,9 @@
   [{"status": "paused", "progress": 10, "speed": 0, "peers": 0, "size": 891289600, "downloaded": 89128960, "eta": 99, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "En pause · 10 % · 85 Mo sur 850 Mo"],
   [{"status": "stopped", "progress": 10, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "Arrêté · 10 % · reprend quand TorLink rouvre sur le PC serveur"],
   [{"status": "failed", "progress": 3, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "Échec · 3 %"],
+  [{"status": "failed", "progress": 3, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune", "error": "ENOSPC: no space left on device, write"}, "Échec · 3 % · plus de place sur le disque du PC serveur"],
+  [{"status": "failed", "progress": 0, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune", "error": "EACCES: permission denied, open 'D:\\Films\\Dune.mkv'"}, "Échec · 0 % · TorLink ne peut pas écrire dans son dossier"],
+  [{"status": "failed", "progress": 12, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune", "error": " Invalid torrent identifier "}, "Échec · 12 % · Invalid torrent identifier"],
   [{"status": "completed", "progress": 100, "speed": 0, "peers": 0, "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Dune"}, "Terminé · rangement dans ta bibliothèque…"]
  ],
  "remaining": [

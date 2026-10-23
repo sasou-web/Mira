@@ -95,6 +95,8 @@ export default {
   'Qualité non précisée': 'Quality not stated',
   'Meilleur choix': 'Best pick',
   Envoyé: 'Sent',
+  'plus de place sur le disque du PC serveur': 'the server PC’s disk is full',
+  'TorLink ne peut pas écrire dans son dossier': 'TorLink can’t write to its folder',
   // owned.js
   'Déjà dans ta bibliothèque': 'Already in your library',
   'Série dans ta bibliothèque': 'Show in your library',

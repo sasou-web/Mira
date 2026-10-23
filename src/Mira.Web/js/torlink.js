@@ -181,10 +181,22 @@ export function downloadLine(download) {
     case 'queued': return [tr('En file d’attente · {progress}', { progress }), amountLine(download)].filter(Boolean).join(' · ');
     case 'paused': return [tr('En pause · {progress}', { progress }), amountLine(download)].filter(Boolean).join(' · ');
     case 'stopped': return tr('Arrêté · {progress} · reprend quand TorLink rouvre sur le PC serveur', { progress });
-    case 'failed': return tr('Échec · {progress}', { progress });
+    case 'failed': return [tr('Échec · {progress}', { progress }), failure(download.error)].filter(Boolean).join(' · ');
     case 'completed': case 'seeding': return tr('Terminé · rangement dans ta bibliothèque…');
     default: return progress;
   }
+}
+
+/**
+ * Why TorLink gave up (RemoteLines.Failure): a full disk or a folder it cannot write to in words, anything else in
+ * TorLink's own; empty when it did not say (an agent of 0.8.2 or before).
+ */
+export function failure(error) {
+  const text = typeof error === 'string' ? error.trim() : '';
+  if (!text) return '';
+  if (/ENOSPC|no space/i.test(text)) return tr('plus de place sur le disque du PC serveur');
+  if (/EACCES|EPERM/.test(text)) return tr('TorLink ne peut pas écrire dans son dossier');
+  return text;
 }
 
 /** Downloads that can be paused, resumed or cancelled from here: under way, waiting, paused or stopped. */

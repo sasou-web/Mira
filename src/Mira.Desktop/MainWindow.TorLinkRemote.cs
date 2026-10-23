@@ -120,7 +120,13 @@ public partial class MainWindow
     {
         if (_torlinkHeadless.Client is { } serve)
         {
-            try { return TorLinkRemote.ParseDownloads(await serve.DownloadsAsync(ct)); }
+            try
+            {
+                var live = TorLinkRemote.ParseDownloads(await serve.DownloadsAsync(ct));
+                if (!live.Any(x => x is { Status: "failed", Error: null })) return live;
+                var known = _torlinkState;
+                return TorLinkRemote.WithErrors(live, await Task.Run(() => known.ReadQueue()));
+            }
             catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested) { }
         }
         var state = _torlinkState; var running = _torlinkTerminal?.Running == true;

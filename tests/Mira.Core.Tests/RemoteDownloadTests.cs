@@ -108,6 +108,12 @@ internal static class RemoteDownloadTests
             foreach (var pair in root.GetProperty("downloads").EnumerateArray()) Assert(RemoteLines.Download(Read<RelayDownload>(pair[0])) == pair[1].GetString(), $"Download {pair[0]}: {RemoteLines.Download(Read<RelayDownload>(pair[0]))}");
             foreach (var pair in root.GetProperty("remaining").EnumerateArray()) Assert(RemoteLines.Remaining(pair[0].GetDouble()) == pair[1].GetString(), $"Remaining {pair[0]}: {RemoteLines.Remaining(pair[0].GetDouble())}");
             var download = new RelayDownload(Hash, "Dune", "paused", 10, 0, 0, Eta: 60);
+            // Why a download failed: in queue.json, never in TorLink's API; taken from there for the failed ones listed live.
+            var queue = $$"""[{"id":"{{Hash}}","name":"Dune","status":"failed","progress":3,"error":"ENOSPC: no space left on device"},{"id":"{{new string('b', 40)}}","name":"Autre","status":"downloading","progress":5,"error":"old"}]""";
+            var live = new List<RelayDownload> { new(Hash, "Dune", "failed", 3, 0, 0), new(new string('b', 40), "Autre", "downloading", 5, 10, 1) };
+            var merged = TorLinkRemote.WithErrors(live, queue);
+            Assert(merged[0].Error == "ENOSPC: no space left on device" && merged[1].Error is null && TorLinkRemote.ParseQueue(queue, true)[1].Error is null
+                && ReferenceEquals(TorLinkRemote.WithErrors(merged, queue), merged) && TorLinkRemote.WithErrors(live, null)[0].Error is null, "Failure reason from queue.json");
             Assert(RemoteLines.TimeLeft(download) is null && RemoteLines.TimeLeft(download with { Status = "downloading", Eta = null, Speed = 10 }) is null, "No time left while paused, nor without a size");
             Assert(RemoteLines.Controllable(download with { Status = "queued" }) && RemoteLines.Paused(download) && !RemoteLines.Controllable(download with { Status = "completed" }), "Controllable");
             var status = new RelayStatus(null, [new("1", "Dune", 0, Hash, "sent", null, now), new("2", "Alien", 0, Other, "sent", null, now)], [], [download], []);
@@ -137,6 +143,9 @@ internal static class RemoteDownloadTests
             Assert(relay.Status().Requests.First(x => x.Id == early).State == "sent" && again != early && relay.Cancel(again!) == true, "Sent; asked again, a new request");
             relay.Exchange("pc-1", Report(downloads: [new(Hash, "Dune", "downloading", 1, 0, 0)]));
             Assert(relay.Status() is { Requests: [], Downloads: [{ Id: Hash }] }, "Sent, then listed by TorLink: no longer a request");
+            relay.Exchange("pc-1", Report(downloads: [new(Hash, "Dune", "failed", 1, 0, 0, Error: "ENOSPC\u0007 " + new string('x', 400)), new(new string('b', 40), "Autre", "downloading", 1, 0, 0, Error: "stale")]));
+            Assert(relay.Status().Downloads is [{ Error: { Length: <= 301 } error }, { Error: null }] && error.StartsWith("ENOSPC x", StringComparison.Ordinal), "Why it failed, cleaned; nothing for one under way");
+            relay.Exchange("pc-1", Report(downloads: [new(Hash, "Dune", "downloading", 1, 0, 0)]));
 
             // A search: cleaned and checked, handed out three at a time, its results checked against their magnet links.
             Assert(relay.Search("   ", "movies").Error == "Écris ce que tu cherches." && relay.Search("dune", "games").Error == "Choisis Films, Séries ou Animes.", "Refused searches");
