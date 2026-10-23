@@ -1,5 +1,18 @@
 [
   {
+    "version": "0.8.4",
+    "summary": "Invite un ami par un simple lien, sans compte ni Tailscale ; fenêtre d’installation sur Mac.",
+    "en": { "summary": "Invite a friend with a simple link, no account or Tailscale; a proper Mac install window." },
+    "items": [
+      { "icon": "server", "title": "Inviter par lien", "text": "Réglages → Liens d’invités : un lien pour un ami sans compte ni Tailscale, qui le fait entrer dans ton groupe.", "web": true,
+        "en": { "title": "Invite by link", "text": "Settings → Guest links: a link for a friend with no account or Tailscale, which brings them into your group." } },
+      { "icon": "check", "title": "Un lien, un appareil", "text": "Le lien ne sert qu’au premier appareil qui l’ouvre ; Retirer le coupe tout de suite, et il expire sans usage.", "web": true,
+        "en": { "title": "One link, one device", "text": "The link works for the first device that opens it; Remove cuts it off at once, and it expires unused." } },
+      { "icon": "download", "title": "Installation plus claire sur Mac", "text": "L’image disque s’ouvre sur une vraie fenêtre : glisse Mira sur Applications, la première ouverture est expliquée.",
+        "en": { "title": "A clearer Mac install", "text": "The disk image opens on a proper window: drag Mira to Applications, and the first launch is explained." } }
+    ]
+  },
+  {
     "version": "0.8.3",
     "summary": "Téléchargements plus clairs, plus de pause par erreur, commandes du lecteur visibles en partage.",
     "en": { "summary": "Simpler, clearer Downloads, no accidental pauses, and player controls visible when sharing." },

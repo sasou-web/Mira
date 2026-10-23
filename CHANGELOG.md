@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.8.4 — 2026-10-24
+
+Inviter un ami par un lien, sans compte ni Tailscale, et une vraie fenêtre d’installation sur Mac.
 
 - **Une vraie fenêtre d’installation sur Mac** : l’image disque s’ouvre sur une fenêtre à l’image de Mira, à sa taille, sans barre d’outils ni barre latérale : glisse Mira sur Applications en suivant la flèche ; l’étape du premier lancement (Réglages Système › Confidentialité et sécurité › Ouvrir quand même) y est écrite. L’image disque porte aussi l’icône de Mira.
 - **Inviter par lien** (Mira web, Windows, Mac ; compte administrateur de Jellyfin) : **Réglages › Liens d’invités**, ou **Inviter quelqu’un › Lien sans compte**, fait un lien pour un ami qui n’a ni compte sur ton Jellyfin ni Tailscale. Il l’ouvre, Mira s’ouvre chez lui et le fait entrer dans ton groupe « Regarder ensemble ». Le lien ne sert qu’au premier appareil qui l’ouvre ; **Retirer** le met dehors tout de suite, et il s’efface seul après 7 jours sans servir. Ton ami regarde le titre du groupe ; il ne peut pas parcourir ta bibliothèque. Le lien passe par Tailscale Funnel, qui n’ouvre que Mira à Internet : sur le PC de Jellyfin, Mira pour Windows l’ouvre lui-même (**Ouvrir Mira à Internet**). La vidéo de ton ami passe alors par les serveurs de Tailscale, chiffrée de bout en bout, et le nom de ton PC dans Tailscale devient public (son certificat HTTPS est publié).
