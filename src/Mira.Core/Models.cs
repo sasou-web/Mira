@@ -32,6 +32,8 @@ public sealed record MediaItem
     public int? ProductionYear { get; init; }
     public int? IndexNumber { get; init; }
     public int? ParentIndexNumber { get; init; }
+    public int? IndexNumberEnd { get; init; }
+    public string? OriginalTitle { get; init; }
     public long? RunTimeTicks { get; init; }
     public float? CommunityRating { get; init; }
     public string[] Genres { get; init; } = [];

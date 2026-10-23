@@ -10,6 +10,7 @@ import { goBack } from '../app.js';
 import { session, temp } from '../session.js';
 import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable } from '../torlink.js';
 import { groupReleases, parseRelease, qualityLine, warning, readableName } from '../releases.js';
+import { ownedLookups, ownedLine, lookupKey } from '../owned.js';
 
 const EVERY = 3000, SEARCH_EVERY = 1000, SEARCH_WAIT = 90_000;
 // As long as the relay keeps a search and its results (TorLinkRelay.SearchLife).
@@ -300,6 +301,7 @@ export function create({ query }) {
       return;
     }
     const groups = groupReleases(hits);
+    const sections = [];
     clear(found).append(
       h('h2', { class: 'label group-title' }, trn(hits.length, '{n} version pour « {query} »', '{n} versions pour « {query} »', { query: current.query })),
       ...groups.map((group) => {
@@ -309,10 +311,37 @@ export function create({ query }) {
           on: { click: () => { const open = others.hidden; others.hidden = !open; more.setAttribute('aria-expanded', String(open)); more.querySelector('.grow').textContent = open ? tr('Masquer les autres versions') : trn(group.others.length, '{n} autre version', '{n} autres versions'); } },
         }, h('span', { class: 'grow' }, trn(group.others.length, '{n} autre version', '{n} autres versions')), icon('down', { size: 18 })) : null;
         const kind = kindLabel(group.category);
-        return h('section', { class: 'group torlink-title', 'aria-label': [group.title, group.label, kind].filter(Boolean).join(' · ') },
+        const section = h('section', { class: 'group torlink-title', 'aria-label': [group.title, group.label, kind].filter(Boolean).join(' · ') },
           h('h3', { class: 'torlink-head' }, h('span', { class: 'clamp-2' }, group.title), group.label ? h('span', { class: 'torlink-episode' }, group.label) : null, kind ? h('span', { class: 'torlink-kind' }, kind) : null),
           release(current.id, group.best, true), more, others);
+        sections.push({ group, section });
+        return section;
       }));
+    markOwned(current, sections);
+  }
+
+  /**
+   * « Déjà dans ta bibliothèque » under a title Jellyfin has (owned.js), so that it is not downloaded twice: Jellyfin
+   * asked once per title found, the episodes of a series once, after the results show.
+   */
+  async function markOwned(current, sections) {
+    const still = () => lastHits?.search === current.id && found.isConnected;
+    await Promise.all(ownedLookups(sections.map((x) => x.group)).map(async (lookup) => {
+      const mine = sections.filter((x) => lookupKey(x.group) === lookup.key);
+      let items = [], episodes = [];
+      try {
+        items = (await api.owned(lookup.title))?.Items ?? [];
+        const series = lookup.film ? null : ownedLine(mine[0].group, items)?.itemId;
+        if (series && mine.some((x) => !x.group.release.absolute)) episodes = (await api.ownedEpisodes(series))?.Items ?? [];
+      } catch { return; } // Nothing said rather than a guess.
+      if (!still()) return;
+      for (const { group, section } of mine) {
+        const line = ownedLine(group, items, episodes);
+        if (!line || section.querySelector('.torlink-owned')) continue;
+        section.querySelector('.torlink-head').after(h('a', { class: ['torlink-owned', line.owned && 'is-owned'], href: `#/titre/${line.itemId}` },
+          icon(line.owned ? 'check' : 'info', { size: 16 }), h('span', { class: 'grow' }, line.text), icon('right', { size: 16 })));
+      }
+    }));
   }
 
   function release(searchId, entry, best) {

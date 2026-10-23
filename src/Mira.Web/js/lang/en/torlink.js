@@ -1,5 +1,5 @@
 // English of Mira web, keyed by the French text of the code (see ../../i18n.js): « Télécharger sur le PC serveur »
-// (views/torlink.js, torlink.js, releases.js). « PC serveur » is “the server PC” everywhere.
+// (views/torlink.js, torlink.js, releases.js, owned.js). « PC serveur » is “the server PC” everywhere.
 export default {
   // torlink.js
   Film: 'Movie',
@@ -95,6 +95,14 @@ export default {
   'Qualité non précisée': 'Quality not stated',
   'Meilleur choix': 'Best pick',
   Envoyé: 'Sent',
+  // owned.js
+  'Déjà dans ta bibliothèque': 'Already in your library',
+  'Série dans ta bibliothèque': 'Show in your library',
+  'Série dans ta bibliothèque, pas cette saison': 'Show in your library, not this season',
+  'Série dans ta bibliothèque, pas cet épisode': 'Show in your library, not this episode',
+  'Tu as déjà {label}': 'You already have {label}',
+  'Tu as déjà {n} épisode de cette série': ['You already have {n} episode of this show', 'You already have {n} episodes of this show'],
+  'Tu as déjà {n} épisode de la saison {season}': ['You already have {n} episode of season {season}', 'You already have {n} episodes of season {season}'],
   'Voir les {n} titres rangés': 'See all {n}',
   'Voir moins': 'See less',
   'Télécharger sur le PC serveur ?': 'Download to the server PC?',

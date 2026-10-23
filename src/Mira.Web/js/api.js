@@ -522,6 +522,12 @@ export const api = {
   }, { signal }),
 
   item: (id) => get(`Items/${encodeURIComponent(id)}`, { userId: user() }),
+  /** « Télécharger sur le PC serveur »: the films and series of a title found, to say it is already here (owned.js). */
+  owned: (title, signal) => get('Items', {
+    userId: user(), recursive: true, includeItemTypes: 'Movie,Series', searchTerm: title, limit: 20, fields: 'OriginalTitle,ProductionYear', enableImages: false, enableUserData: false,
+  }, { signal }),
+  /** The episodes a series has, their numbers only. */
+  ownedEpisodes: (seriesId, signal) => get(`Shows/${encodeURIComponent(seriesId)}/Episodes`, { userId: user(), isMissing: false, enableImages: false, enableUserData: false }, { signal }),
   /** Every episode of a series, without those Jellyfin lists as missing; long series have more than 500. */
   episodes: (seriesId) => get(`Shows/${encodeURIComponent(seriesId)}/Episodes`, { userId: user(), fields: 'Overview', isMissing: false, enableImageTypes: 'Primary,Thumb', imageTypeLimit: 1 }),
   /** The episode after this one, if any. */

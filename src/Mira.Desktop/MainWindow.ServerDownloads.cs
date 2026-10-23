@@ -541,7 +541,43 @@ public partial class MainWindow
         var groups = ReleaseRanking.Group(hits);
         var (versions, titles) = (Count(hits.Count, "version", "versions", "version", "versions"), Count(groups.Count, "titre", "titres", "title", "titles"));
         ServerSearchStatus.Text = L($"{versions} pour « {query} », regroupées en {titles}. La meilleure de chacun en premier.", $"{versions} for “{query}”, grouped into {titles}. The best of each comes first.");
-        foreach (var group in groups) ServerResults.Children.Add(ServerGroupView(searchId, group));
+        var views = groups.Select(group => (Group: group, View: ServerGroupView(searchId, group))).ToList();
+        foreach (var (_, view) in views) ServerResults.Children.Add(view);
+        _ = MarkOwnedAsync(views);
+    }
+
+    /// <summary>
+    /// « Déjà dans ta bibliothèque » under a title Jellyfin has (OwnedTitles), so that it is not downloaded twice: Jellyfin
+    /// asked once per title found, the episodes of a series once, after the results show.
+    /// </summary>
+    private async Task MarkOwnedAsync(List<(ReleaseGroup Group, Border View)> views)
+    {
+        if (_client is not { } client || _demo) return;
+        var ct = _connectionLifetime.Token;
+        await Task.WhenAll(OwnedTitles.Lookups(views.Select(x => x.Group)).Select(async lookup =>
+        {
+            var mine = views.Where(x => OwnedTitles.LookupKey(x.Group) == lookup.Key).ToList();
+            List<MediaItem> items, episodes = [];
+            try
+            {
+                items = (await client.OwnedAsync(lookup.Title, ct)).Items;
+                if (!lookup.Film && OwnedTitles.Line(mine[0].Group, items)?.ItemId is { } series && mine.Any(x => !x.Group.Release.Absolute))
+                    episodes = (await client.OwnedEpisodesAsync(series, ct)).Items;
+            }
+            catch (Exception ex) when (IsExpected(ex)) { return; } // Nothing said rather than a guess.
+            foreach (var (group, view) in mine)
+            {
+                if (!ServerResults.Children.Contains(view) || view.Child is not StackPanel panel || OwnedTitles.Line(group, items, episodes) is not { } line) continue;
+                var content = new StackPanel { Orientation = Orientation.Horizontal };
+                content.Children.Add(new Icon { Kind = line.Owned ? "check" : "info", Width = 14, Height = 14, Margin = new Thickness(0, 0, 7, 0) });
+                content.Children.Add(new TextBlock { Text = line.Text, FontSize = 12.5, FontWeight = FontWeights.SemiBold });
+                var button = new Button { Style = (Style)FindResource("Quiet"), Padding = new Thickness(8, 5, 9, 5), Margin = new Thickness(-8, -6, 0, 8), HorizontalAlignment = HorizontalAlignment.Left, Content = content, Foreground = Palette.Get(line.Owned ? "Warning" : "TextSecondary") };
+                AutomationProperties.SetName(button, L($"{line.Text} : ouvrir « {group.Title} »", $"{line.Text}: open “{group.Title}”"));
+                var id = line.ItemId;
+                button.Click += async (_, _) => await OpenTorLinkItemAsync(id);
+                panel.Children.Insert(1, button);
+            }
+        }));
     }
 
     private Border ServerGroupView(string searchId, ReleaseGroup group)

@@ -1,0 +1,17 @@
+{
+  "about": "« Télécharger sur le PC serveur »: whether a title found is already in the library. Read by tools/web/unit (js/owned.js) and tests/Mira.Core.Tests (OwnedTitles). Each case: a release name (grouped alone), what Jellyfin finds for its title (items: [type, name, original title, year, id]), the episodes of the series found ([season, episode, last episode]), and the line shown: [text, item id, owned] or null.",
+  "cases": [
+    { "name": "Dune.Part.Two.2024.MULTi.1080p.BluRay.x265-QTZ", "items": [["Movie", "Dune : Deuxième partie", "Dune: Part Two", 2024, "f1"]], "line": ["Déjà dans ta bibliothèque", "f1", true] },
+    { "name": "Dune.Part.Two.2024.MULTi.1080p.BluRay.x265-QTZ", "items": [["Movie", "Dune: Part Two", null, 2019, "f9"]], "line": null },
+    { "name": "Aube.Test.2021.1080p.BluRay", "items": [["Movie", "Aube Test (2021)", null, 2021, "f2"]], "line": ["Déjà dans ta bibliothèque", "f2", true] },
+    { "name": "Mira.Check.S01E02.1080p.WEB-DL.H264-GRP", "items": [["Movie", "Mira Check", null, 2026, "f3"]], "line": null },
+    { "name": "Mira.Check.S01E02.1080p.WEB-DL.H264-GRP", "items": [["Series", "Mira Check", null, 2026, "s1"]], "episodes": [[1, 1], [1, 2]], "line": ["Tu as déjà S01E02", "s1", true] },
+    { "name": "Mira.Check.S01E02.1080p.WEB-DL.H264-GRP", "items": [["Series", "Mira Check", null, 2026, "s1"]], "episodes": [[1, 1], [2, 2]], "line": ["Série dans ta bibliothèque, pas cet épisode", "s1", false] },
+    { "name": "Mira.Check.S01E03.1080p.WEB-DL.H264-GRP", "items": [["Series", "Mira Check", null, 2026, "s1"]], "episodes": [[1, 2, 3]], "line": ["Tu as déjà S01E03", "s1", true] },
+    { "name": "The.Bear.S03.COMPLETE.1080p.WEB.h264-ETHEL", "items": [["Series", "The Bear", null, 2022, "s2"]], "episodes": [[3, 1], [3, 2], [2, 1]], "line": ["Tu as déjà 2 épisodes de la saison 3", "s2", true] },
+    { "name": "The.Bear.S03.COMPLETE.1080p.WEB.h264-ETHEL", "items": [["Series", "The Bear", null, 2022, "s2"]], "episodes": [[2, 1]], "line": ["Série dans ta bibliothèque, pas cette saison", "s2", false] },
+    { "name": "The.Bear.S01-S03.1080p.WEB", "items": [["Series", "The Bear", null, 2022, "s2"]], "episodes": [[2, 1]], "line": ["Tu as déjà 1 épisode de cette série", "s2", true] },
+    { "name": "[SubsPlease] Sousou no Frieren - 05 (1080p)", "items": [["Series", "Frieren", "Sousou no Frieren", 2023, "s3"]], "episodes": [[1, 5]], "line": ["Série dans ta bibliothèque", "s3", false] },
+    { "name": "[SubsPlease] Sousou no Frieren - 05 (1080p)", "items": [["Series", "Frieren", null, 2023, "s3"]], "line": null }
+  ]
+}

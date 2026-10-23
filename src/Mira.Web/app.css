@@ -623,6 +623,10 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .torlink-head > .clamp-2 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .torlink-kind { flex: none; color: var(--muted); font-size: calc(12px * var(--text)); font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
 .torlink-episode { flex: none; color: var(--muted); font-size: calc(14px * var(--text)); font-weight: 700; font-variant-numeric: tabular-nums; }
+.torlink-owned { display: flex; align-items: center; gap: 8px; margin: 4px 16px 2px; padding: 8px 0; color: var(--muted); font-size: calc(14px * var(--text)); font-weight: 700; line-height: 1.35; }
+.torlink-owned.is-owned { color: var(--warning); }
+.torlink-owned .icon { flex: none; }
+.torlink-owned > .icon:last-child { color: var(--faint); }
 .torlink-quality { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; overflow-wrap: anywhere; }
 .torlink-badge { padding: 2px 8px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: calc(12px * var(--text)); font-weight: 800; line-height: 1.4; white-space: nowrap; }
 .torlink-release .sub { margin-top: 3px; line-height: 1.4; }
