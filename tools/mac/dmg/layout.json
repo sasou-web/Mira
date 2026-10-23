@@ -1,0 +1,19 @@
+{
+  "width": 640,
+  "height": 400,
+  "iconSize": 112,
+  "textSize": 13,
+  "app": [
+    168,
+    178
+  ],
+  "applications": [
+    472,
+    178
+  ],
+  "labelBelow": 74,
+  "plates": {
+    "app": 56,
+    "applications": 100
+  }
+}
