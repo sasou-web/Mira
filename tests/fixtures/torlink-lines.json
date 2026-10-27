@@ -62,5 +62,40 @@
   [86399, "1 jour"],
   [86400, "1 jour"],
   [259200, "3 jours"]
+ ],
+ "followNotes": [
+  [null, ""],
+  [{"kind": "found", "episode": "S01E13, S01E14"}, "Trouvé : S01E13, S01E14"],
+  [{"kind": "held", "episode": "S02", "reason": "pack"}, "Seulement en pack pour l’instant (S02) : Mira attend l’épisode seul."],
+  [{"kind": "held", "episode": "S01E13", "reason": "language"}, "S01E13 trouvé, mais pas dans la langue des précédents."],
+  [{"kind": "held", "episode": "S01E13", "reason": "health"}, "S01E13 trouvé, mais trop peu de sources pour l’instant."],
+  [{"kind": "held", "episode": "S01E13", "reason": "size"}, "S01E13 trouvé, mais bien plus gros qu’un épisode."],
+  [{"kind": "held", "episode": "S01E13"}, "S01E13 trouvé, mais pas pris."],
+  [{"kind": "nothing", "episode": "S01E12"}, "Rien de nouveau après S01E12."],
+  [{"kind": "nothing"}, "Rien de nouveau."],
+  [{"kind": "unknown"}, "Aucun résultat sous ce nom : essaie un autre nom cherché."],
+  [{"kind": "missing"}, "Cette série n’est plus dans Jellyfin."],
+  [{"kind": "failed", "detail": "TorLink n’est pas prêt sur le PC serveur."}, "Recherche impossible : TorLink n’est pas prêt sur le PC serveur."],
+  [{"kind": "failed"}, "Recherche impossible pour l’instant."],
+  [{"kind": "autre"}, ""]
+ ],
+ "follows": [
+  [{"id": "f1", "seriesId": "0123456789abcdef0123456789abcdef", "name": "Frieren", "created": "2026-10-15T08:00:00Z", "checking": true, "latest": "S01E12", "taken": [], "picks": []}, "Recherche en cours sur le PC serveur…"],
+  [{"id": "f1", "seriesId": "0123456789abcdef0123456789abcdef", "name": "Frieren", "created": "2026-10-15T08:00:00Z", "checked": "2026-10-15T09:00:00Z", "next": "2026-10-15T15:00:00Z", "checking": false, "latest": "S01E12", "taken": [], "picks": []}, "Dernier épisode : S01E12 · prochaine recherche dans 3\u00a0h"],
+  [{"id": "f1", "seriesId": "0123456789abcdef0123456789abcdef", "name": "Frieren", "created": "2026-10-15T08:00:00Z", "checked": "2026-10-15T06:10:00Z", "next": "2026-10-15T12:10:00Z", "checking": false, "taken": [], "picks": []}, "prochaine recherche dans 10\u00a0min"],
+  [{"id": "f1", "seriesId": "0123456789abcdef0123456789abcdef", "name": "Frieren", "created": "2026-10-15T08:00:00Z", "checked": "2026-10-15T05:00:00Z", "next": "2026-10-15T11:00:00Z", "checking": false, "latest": "S02E03", "taken": [], "picks": []}, "Dernier épisode : S02E03 · prochaine recherche bientôt"],
+  [{"id": "f1", "seriesId": "0123456789abcdef0123456789abcdef", "name": "Frieren", "created": "2026-10-15T08:00:00Z", "checking": false, "taken": [], "picks": []}, "prochaine recherche bientôt"]
+ ],
+ "picks": [
+  [{"id": "p1", "episode": "S01E13", "name": "x", "size": 1503238553, "state": "waiting", "sendAt": "2026-10-15T12:08:00Z"}, "S01E13 · 1,4 Go · part dans 8\u00a0min"],
+  [{"id": "p1", "episode": "S01E13", "name": "x", "size": 1503238553, "state": "waiting", "sendAt": "2026-10-15T12:00:20Z"}, "S01E13 · 1,4 Go · part dans moins d’une minute"],
+  [{"id": "p1", "episode": "S01E13", "name": "x", "size": 1503238553, "state": "waiting", "sendAt": "2026-10-15T11:59:00Z"}, "S01E13 · 1,4 Go · part maintenant"],
+  [{"id": "p1", "episode": "S01E13", "name": "x", "size": 1503238553, "state": "claimed", "sendAt": "2026-10-15T11:59:00Z"}, "S01E13 · envoi à TorLink…"],
+  [{"id": "p1", "episode": "S01E13", "name": "x", "size": 1503238553, "state": "failed", "sendAt": "2026-10-15T11:59:00Z", "error": "TorLink n’a pas répondu."}, "S01E13 · TorLink n’a pas répondu."],
+  [{"id": "p1", "episode": "S01E13", "name": "x", "size": 1503238553, "state": "failed", "sendAt": "2026-10-15T11:59:00Z"}, "S01E13 · TorLink a refusé ce téléchargement."]
+ ],
+ "taken": [
+  [{"episode": "S01E13", "name": "x", "at": "2026-10-15T10:00:00Z"}, "S01E13 · pris il y a 2 h"],
+  [{"episode": "S01E14", "name": "x", "at": "2026-10-15T11:59:30Z"}, "S01E14 · pris à l’instant"]
  ]
 }

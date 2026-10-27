@@ -759,6 +759,32 @@ public sealed class JellyfinClient : IDisposable
         using var response = await _http.PostAsJsonAsync("Mira/torlink/control", new { id, action }, RemoteProtocol.Json, ct);
         await RelayIdAsync(response, ct);
     }
+    /// <summary>« Suivre une série »: the series followed (GET Mira/torlink/follows), what the PC of Jellyfin found and chose for each.</summary>
+    public async Task<List<RelayFollow>> TorLinkFollowsAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Mira/torlink/follows", ct);
+        await CheckRelayAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<List<RelayFollow>>(RemoteProtocol.Json, ct) ?? [];
+    }
+    /// <summary>A series of Jellyfin followed, or its name searched changed (<paramref name="query"/> null: its own): the follow's id.</summary>
+    public async Task<string> TorLinkFollowAsync(string seriesId, string name, string? query, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/follows", new { seriesId, name, query }, RemoteProtocol.Json, ct);
+        return await RelayIdAsync(response, ct);
+    }
+    /// <summary>No longer followed: its releases not yet sent go too.</summary>
+    public async Task TorLinkUnfollowAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync($"Mira/torlink/follows/{Uri.EscapeDataString(id)}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound && await HasRelayAsync(ct)) return;
+        await CheckRelayAsync(response, ct);
+    }
+    /// <summary>« Chercher maintenant »: checked at the next visit of the PC of Jellyfin.</summary>
+    public async Task TorLinkCheckFollowAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync($"Mira/torlink/follows/{Uri.EscapeDataString(id)}/check", null, ct);
+        await CheckRelayAsync(response, ct);
+    }
     private async Task<string> RelayIdAsync(HttpResponseMessage response, CancellationToken ct)
     {
         await CheckRelayAsync(response, ct);

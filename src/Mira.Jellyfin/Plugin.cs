@@ -9,7 +9,8 @@ namespace Mira.Jellyfin;
 /// Mira web on Jellyfin: the plugin only declares itself; <see cref="WebController"/> serves the app at /Mira, where
 /// phones open it and add it to their home screen. It has no settings (Jellyfin's base class, which records the
 /// plugin's version, comes with an empty configuration). What it keeps on the server: the guests' links of « Inviter
-/// par lien » (<see cref="GuestInvites"/>), in one file beside the plugins' settings, and their accounts on Jellyfin.
+/// par lien » (<see cref="GuestInvites"/>), in one file beside the plugins' settings, and their accounts on Jellyfin;
+/// the series followed of « Suivre une série » (<see cref="TorLinkRelay"/>), in another file there.
 /// </summary>
 public sealed class Plugin : BasePlugin<BasePluginConfiguration>
 {
@@ -24,6 +25,7 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
     {
         // Beside the plugins' settings: an update of the plugin (another folder) keeps the links.
         _invitesFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.invites.json");
+        TorLinkRelay.FollowsFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.follows.json");
     }
 
     /// <summary>The guests' links, read from their file the first time they are needed.</summary>

@@ -107,6 +107,11 @@ internal static class RemoteDownloadTests
             foreach (var pair in root.GetProperty("requests").EnumerateArray()) Assert(RemoteLines.Request(Read<RelayRequest>(pair[0])) == pair[1].GetString(), $"Request {pair[0]}: {RemoteLines.Request(Read<RelayRequest>(pair[0]))}");
             foreach (var pair in root.GetProperty("downloads").EnumerateArray()) Assert(RemoteLines.Download(Read<RelayDownload>(pair[0])) == pair[1].GetString(), $"Download {pair[0]}: {RemoteLines.Download(Read<RelayDownload>(pair[0]))}");
             foreach (var pair in root.GetProperty("remaining").EnumerateArray()) Assert(RemoteLines.Remaining(pair[0].GetDouble()) == pair[1].GetString(), $"Remaining {pair[0]}: {RemoteLines.Remaining(pair[0].GetDouble())}");
+            T? Maybe<T>(JsonElement value) where T : class => value.ValueKind == JsonValueKind.Null ? null : Read<T>(value);
+            foreach (var pair in root.GetProperty("followNotes").EnumerateArray()) Assert(RemoteLines.FollowNote(Maybe<FollowNote>(pair[0])) == pair[1].GetString(), $"Note {pair[0]}: {RemoteLines.FollowNote(Maybe<FollowNote>(pair[0]))}");
+            foreach (var pair in root.GetProperty("follows").EnumerateArray()) Assert(RemoteLines.Follow(Read<RelayFollow>(pair[0]), now) == pair[1].GetString(), $"Follow {pair[0]}: {RemoteLines.Follow(Read<RelayFollow>(pair[0]), now)}");
+            foreach (var pair in root.GetProperty("picks").EnumerateArray()) Assert(RemoteLines.Pick(Read<RelayPick>(pair[0]), now) == pair[1].GetString(), $"Pick {pair[0]}: {RemoteLines.Pick(Read<RelayPick>(pair[0]), now)}");
+            foreach (var pair in root.GetProperty("taken").EnumerateArray()) Assert(RemoteLines.Taken(Read<RelayTaken>(pair[0]), now) == pair[1].GetString(), $"Taken {pair[0]}: {RemoteLines.Taken(Read<RelayTaken>(pair[0]), now)}");
             var download = new RelayDownload(Hash, "Dune", "paused", 10, 0, 0, Eta: 60);
             // Why a download failed: in queue.json, never in TorLink's API; taken from there for the failed ones listed live.
             var queue = $$"""[{"id":"{{Hash}}","name":"Dune","status":"failed","progress":3,"error":"ENOSPC: no space left on device"},{"id":"{{new string('b', 40)}}","name":"Autre","status":"downloading","progress":5,"error":"old"}]""";

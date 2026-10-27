@@ -94,8 +94,8 @@ public partial class MainWindow
         ++_serverVersion; ++_serverSearchVersion;
         _serverFilled = _serverReady = _serverSearching = false; _serverAgent = null; _serverClient = null;
         _serverSent.Clear(); _serverRows.Clear(); _localMagnets.Clear(); _localProblem = null; _serverQueued = 0;
-        ServerQueue.Children.Clear(); ServerPlaced.Children.Clear(); ServerResults.Children.Clear();
-        ServerPlacedTitle.Visibility = ServerProblem.Visibility = Visibility.Collapsed;
+        ServerQueue.Children.Clear(); ServerFollows.Children.Clear(); ServerPlaced.Children.Clear(); ServerResults.Children.Clear();
+        ServerPlacedTitle.Visibility = ServerFollowsTitle.Visibility = ServerProblem.Visibility = Visibility.Collapsed;
         ServerQueueEmpty.Visibility = ServerResultsEmpty.Visibility = Visibility.Visible;
         ServerQueueSummary.Text = ServerSearchStatus.Text = "";
         ServerSearchButton.Content = L("Chercher", "Search"); ServerResults.Opacity = 1;
@@ -167,13 +167,21 @@ public partial class MainWindow
         try { downloads = await RemoteDownloadsAsync(_torlinkLifetime.Token); }
         catch (OperationCanceledException) { return; }
         if (mine != _serverVersion || !_serverScreen || !_serverLocal) return;
+        // The series followed are the relay's, on this PC too.
+        List<RelayFollow>? follows = null;
+        if (_client is { } client)
+        {
+            try { follows = await client.TorLinkFollowsAsync(_connectionLifetime.Token); }
+            catch (Exception ex) when (IsExpected(ex)) { }
+            if (mine != _serverVersion || !_serverScreen || !_serverLocal) return;
+        }
         if (_localResume)
         {
             _localResume = false;
             // The page's TorLink running, or a queue left under way: it goes on without a window, as it would have in its terminal.
             if (_torlinkHeadless.Client is null && (_torlinkTerminal?.Running == true || downloads.Any(x => x.Status == "stopped"))) _ = ResumeHereAsync();
         }
-        RenderServerStatus(new RelayStatus(null, [], [], downloads, []), DateTimeOffset.UtcNow);
+        RenderServerStatus(new RelayStatus(null, [], [], downloads, [], follows), DateTimeOffset.UtcNow);
     }
 
     private async Task ResumeHereAsync()
@@ -274,13 +282,16 @@ public partial class MainWindow
         }
         // On this PC, « Vers Jellyfin » is TorLink's page's own list (RenderLocalPlaced): its folder, a retry, another library.
         var placed = _serverLocal ? new List<ServerRowData>() : status.Placed.Select(x => new ServerRowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(x.Status), null, () => ServerPlacedRow(x))).ToList();
+        var follows = ServerFollowRows(status.Follows, now);
         UpdateServerRows(ServerQueue, queue);
+        UpdateServerRows(ServerFollows, follows);
+        ServerFollowsTitle.Visibility = follows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (!_serverLocal) UpdateServerRows(ServerPlaced, placed);
-        foreach (var key in _serverRows.Keys.Except(queue.Concat(placed).Select(x => x.Key)).ToList()) _serverRows.Remove(key);
-        _serverQueued = queue.Count;
+        foreach (var key in _serverRows.Keys.Except(queue.Concat(follows).Concat(placed).Select(x => x.Key)).ToList()) _serverRows.Remove(key);
+        _serverQueued = queue.Count + follows.Count;
         var filed = _serverLocal ? ServerPlaced.Children.Count : placed.Count;
         ServerPlacedTitle.Visibility = filed > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ServerQueueEmpty.Visibility = queue.Count + filed == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ServerQueueEmpty.Visibility = queue.Count + follows.Count + filed == 0 ? Visibility.Visible : Visibility.Collapsed;
         var downloading = status.Downloads.Count(x => x.Status == "downloading");
         var waiting = queue.Count - downloading;
         ServerQueueSummary.Text = queue.Count == 0 ? (filed > 0 ? L("Rien en cours. Les derniers titres rangés sont ci-dessous.", "Nothing under way. The latest titles filed are below.") : "")

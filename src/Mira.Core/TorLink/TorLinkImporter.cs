@@ -44,7 +44,12 @@ public sealed class TorLinkImportLog
     /// <summary>Automatic imports only concern downloads finished after this moment (activation of the feature).</summary>
     public DateTimeOffset Baseline { get; set; }
     public List<TorLinkImportEntry> Entries { get; set; } = [];
+    /// <summary>Downloads sent for a series followed: placed where they were chosen for, even with automatic placement off.</summary>
+    public List<TorLinkExpected> Expected { get; set; } = [];
 }
+
+/// <summary>A download sent to TorLink for a series followed (its info hash), and where it goes once finished.</summary>
+public sealed record TorLinkExpected(string Id, ImportTarget Target, DateTimeOffset At);
 
 /// <summary>
 /// Places finished TorLink downloads in the Jellyfin libraries and remembers each decision (data/torlink-imports.json).
@@ -53,7 +58,9 @@ public sealed class TorLinkImportLog
 public sealed class TorLinkImporter
 {
     public const int MaxAttempts = 6;
-    private const int MaxEntries = 500;
+    private const int MaxEntries = 500, MaxExpected = 200;
+    /// <summary>A download expected that long and never finished is forgotten.</summary>
+    private static readonly TimeSpan ExpectedFor = TimeSpan.FromDays(30);
     private readonly string _path;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _sync = new();
@@ -71,6 +78,20 @@ public sealed class TorLinkImporter
     public DateTimeOffset Baseline { get { lock (_sync) return _log.Baseline; } }
     public IReadOnlyList<TorLinkImportEntry> Entries { get { lock (_sync) return _log.Entries.ToList(); } }
     public TorLinkImportEntry? Find(string id) { lock (_sync) return _log.Entries.FirstOrDefault(x => x.Id == id); }
+
+    /// <summary>« Suivre une série »: this download (its info hash) goes to <paramref name="target"/> once finished.</summary>
+    public void Expect(string id, ImportTarget target)
+    {
+        lock (_sync)
+        {
+            var now = DateTimeOffset.UtcNow;
+            _log.Expected.RemoveAll(x => x.Id == id || now - x.At > ExpectedFor);
+            _log.Expected.Insert(0, new(id.ToLowerInvariant(), target, now));
+            if (_log.Expected.Count > MaxExpected) _log.Expected.RemoveRange(MaxExpected, _log.Expected.Count - MaxExpected);
+        }
+        Save();
+    }
+    public ImportTarget? Expected(string id) { lock (_sync) return _log.Expected.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase))?.Target; }
 
     /// <summary>Automatic imports restart from now (used when the option is switched back on).</summary>
     public void RestartBaseline() { lock (_sync) _log.Baseline = DateTimeOffset.UtcNow; Save(); }
@@ -92,12 +113,13 @@ public sealed class TorLinkImporter
                 ct.ThrowIfCancellationRequested();
                 var entry = Find(completion.Id);
                 var asked = requested?.Contains(completion.Id) == true;
+                var target = Expected(completion.Id);
                 // A download blocked by a missing library folder is tried again once the folders change.
                 var due = asked || (entry is null
-                    ? automatic && completion.CompletedAt >= baseline
+                    ? automatic && completion.CompletedAt >= baseline || target is not null
                     : entry.State is TorLinkImportState.Waiting && entry.Attempts < MaxAttempts || entry.State is TorLinkImportState.Blocked && !Equals(libraries, _blockedWith));
                 if (!due) continue;
-                await ImportAsync(completion, entry, state, libraries, mode, ct);
+                await ImportAsync(completion, entry, state, libraries, mode, target, ct);
                 processed++;
             }
             return processed;
@@ -105,7 +127,7 @@ public sealed class TorLinkImporter
         finally { _gate.Release(); }
     }
 
-    private async Task ImportAsync(TorLinkCompletion completion, TorLinkImportEntry? previous, TorLinkState state, MediaLibraries libraries, ImportMode mode, CancellationToken ct)
+    private async Task ImportAsync(TorLinkCompletion completion, TorLinkImportEntry? previous, TorLinkState state, MediaLibraries libraries, ImportMode mode, ImportTarget? target, CancellationToken ct)
     {
         var entry = previous ?? new TorLinkImportEntry { Id = completion.Id, Name = completion.Name, Source = completion.Source, CompletedAt = completion.CompletedAt };
         entry = entry with { State = TorLinkImportState.Importing, Message = null, UpdatedAt = DateTimeOffset.UtcNow };
@@ -128,7 +150,9 @@ public sealed class TorLinkImporter
         }
         // The shows placed before: an episode named otherwise joins its show (« JoJo no Kimyou na Bouken - 05 » after « JoJos Bizarre Adventure S06E04 »).
         var known = Entries.Where(x => x.Id != completion.Id).ToList();
-        var plan = await Task.Run(() => MediaPlanner.Plan(completion.Name, completion.Source, files, libraries, entry.ForcedKind, MediaPlanner.KnownShows(known)), ct);
+        // « Classer comme… » another kind wins over the series it was sent for.
+        if (entry.ForcedKind is { } forced && forced != target?.Kind) target = null;
+        var plan = await Task.Run(() => MediaPlanner.Plan(completion.Name, completion.Source, files, libraries, entry.ForcedKind, MediaPlanner.KnownShows(known), target), ct);
         if (plan.Ignored is { } reason) { Update(entry with { State = TorLinkImportState.Ignored, Message = reason, UpdatedAt = DateTimeOffset.UtcNow }); return; }
         if (plan.Problem is not null || !Directory.Exists(plan.LibraryRoot))
         {
@@ -362,6 +386,7 @@ public sealed class TorLinkImporter
                             Folders = x.Folders ?? [],
                             Files = (x.Files ?? []).Where(f => f is { Destination: not null, RelativePath: not null }).ToList()
                         }).ToList();
+                    log.Expected = (log.Expected ?? []).Where(x => x is { Id: not null, Target: { Root: not null, Folder: not null } } && TorLinkState.IsInfoHash(x.Id)).ToList();
                     return log;
                 }
                 // A scanner or a backup may hold the file for a moment.

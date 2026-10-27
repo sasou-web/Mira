@@ -201,3 +201,56 @@ export function failure(error) {
 
 /** Downloads that can be paused, resumed or cancelled from here: under way, waiting, paused or stopped. */
 export const controllable = (download) => ['downloading', 'queued', 'paused', 'stopped', 'failed'].includes(download?.status);
+
+// « Suivre une série »: a series followed, its releases chosen and its episodes taken (RemoteLines.FollowNote,
+// Follow, Pick, Taken; cases shared in tests/fixtures/torlink-lines.json).
+
+/** What the last check of a series followed found; empty before any. */
+export function followNote(note) {
+  const episode = note?.episode;
+  switch (note?.kind) {
+    case 'found': return tr('Trouvé : {episode}', { episode });
+    case 'held': switch (note.reason) {
+      case 'pack': return tr('Seulement en pack pour l’instant ({episode}) : Mira attend l’épisode seul.', { episode });
+      case 'language': return tr('{episode} trouvé, mais pas dans la langue des précédents.', { episode });
+      case 'health': return tr('{episode} trouvé, mais trop peu de sources pour l’instant.', { episode });
+      case 'size': return tr('{episode} trouvé, mais bien plus gros qu’un épisode.', { episode });
+      default: return tr('{episode} trouvé, mais pas pris.', { episode });
+    }
+    case 'nothing': return episode ? tr('Rien de nouveau après {episode}.', { episode }) : tr('Rien de nouveau.');
+    case 'unknown': return tr('Aucun résultat sous ce nom : essaie un autre nom cherché.');
+    case 'missing': return tr('Cette série n’est plus dans Jellyfin.');
+    case 'failed': return note.detail ? tr('Recherche impossible : {why}', { why: note.detail }) : tr('Recherche impossible pour l’instant.');
+    default: return '';
+  }
+}
+
+// « moins d’une minute », « 8 min », « 3 h »: how long until something, never cut between the number and its unit.
+const within = (seconds) => seconds < 60 ? tr('moins d’une minute')
+  : (seconds < 3570 ? tr('{m} min', { m: Math.round(seconds / 60) }) : tr('{h} h', { h: Math.round(seconds / 3600) })).replace(' ', '\u00a0');
+
+/** « Dernier épisode : S01E12 · prochaine recherche dans 3 h », or « Recherche en cours sur le PC serveur… ». */
+export function followLine(follow, now = Date.now()) {
+  if (follow?.checking) return tr('Recherche en cours sur le PC serveur…');
+  const next = Date.parse(follow?.next);
+  return [
+    follow?.latest ? tr('Dernier épisode : {episode}', { episode: follow.latest }) : '',
+    Number.isFinite(next) && next > now ? tr('prochaine recherche dans {time}', { time: within((next - now) / 1000) }) : tr('prochaine recherche bientôt'),
+  ].filter(Boolean).join(' · ');
+}
+
+/** A release chosen, not yet in TorLink: « S01E13 · 1,4 Go · part dans 8 min », on its way, or refused. */
+export function pickLine(pick, now = Date.now()) {
+  switch (pick?.state) {
+    case 'waiting': {
+      const at = Date.parse(pick.sendAt);
+      return [pick.episode, size(pick.size), at > now ? tr('part dans {time}', { time: within((at - now) / 1000) }) : tr('part maintenant')].filter(Boolean).join(' · ');
+    }
+    case 'claimed': return [pick.episode, tr('envoi à TorLink…')].filter(Boolean).join(' · ');
+    default: return [pick?.episode, pick?.error || tr('TorLink a refusé ce téléchargement.')].filter(Boolean).join(' · ');
+  }
+}
+
+/** An episode taken: « S01E13 · pris il y a 2 h ». */
+export const takenLine = (taken, now = Date.now()) =>
+  tr('{episode} · pris {ago}', { episode: taken?.episode, ago: ago(Math.max(0, (now - Date.parse(taken?.at)) / 1000) || 0) });

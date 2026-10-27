@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import {
   kindLabel, cleanQuery, infoHash, displayName, cleanName, size, speed, agentLine, hitLine, requestLine, downloadLine, controllable, remaining, timeLeft,
+  followNote, followLine, pickLine, takenLine,
 } from '../../../src/Mira.Web/js/torlink.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/torlink-remote.json', import.meta.url), 'utf8'));
@@ -79,6 +80,10 @@ test('the lines Mira for Windows and Mac write too (tests/fixtures/torlink-lines
   for (const [request, text] of lines.requests) assert.equal(requestLine(request), text, `request ${request.state}`);
   for (const [download, text] of lines.downloads) assert.equal(downloadLine(download), text, `download ${JSON.stringify(download)}`);
   for (const [seconds, text] of lines.remaining) assert.equal(remaining(seconds), text, `remaining ${seconds}`);
+  for (const [note, text] of lines.followNotes) assert.equal(followNote(note), text, `follow note ${JSON.stringify(note)}`);
+  for (const [follow, text] of lines.follows) assert.equal(followLine(follow, now), text, `follow ${JSON.stringify(follow)}`);
+  for (const [pick, text] of lines.picks) assert.equal(pickLine(pick, now), text, `pick ${JSON.stringify(pick)}`);
+  for (const [taken, text] of lines.taken) assert.equal(takenLine(taken, now), text, `taken ${JSON.stringify(taken)}`);
 });
 
 test('the same lines in English', () => {
@@ -98,5 +103,9 @@ test('the same lines in English', () => {
     assert.equal(downloadLine({ status: 'downloading', progress: 0, speed: 0, peers: 1 }), '0% · 1 peer, waiting for data');
     assert.equal(downloadLine({ status: 'paused', progress: 10 }), 'Paused · 10%');
     assert.deepEqual([30, 720, 3900, 86400, 3 * 86400].map(remaining), ['less than a minute', '12 min', '1h 05m', '1 day', '3 days']);
+    assert.equal(followLine({ latest: 'S01E12', next: '2026-10-15T15:00:00Z' }, now), 'Latest episode: S01E12 · next search in 3h');
+    assert.equal(followNote({ kind: 'held', episode: 'S02', reason: 'pack' }), 'Only in a pack for now (S02): Mira waits for the single episode.');
+    assert.equal(pickLine({ episode: 'S01E13', size: 1.4 * 2 ** 30, state: 'waiting', sendAt: '2026-10-15T12:08:00Z' }, now), 'S01E13 · 1.4 GB · goes in 8\u00a0min');
+    assert.equal(takenLine({ episode: 'S01E13', at: '2026-10-15T10:00:00Z' }, now), 'S01E13 · taken 2h ago');
   } finally { setLanguage('fr'); }
 });

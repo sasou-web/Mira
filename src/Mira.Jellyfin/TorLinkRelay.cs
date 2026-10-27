@@ -6,13 +6,23 @@ namespace Mira.Jellyfin;
 /// <summary>
 /// « Télécharger sur le PC serveur »: Mira web of an administrator asks here for a search or a download, and Mira for
 /// Windows on the PC of Jellyfin (the agent) comes for them, runs them with its TorLink, and reports. The relay keeps
-/// all of it in memory, nothing on disk: a restart of Jellyfin forgets what was still waiting. The agent asks again
-/// every few seconds (<see cref="Exchange"/>), never holding a request open: Jellyfin would log each one as slow.
-/// Free of ASP.NET (<see cref="TorLinkController"/> serves it), so that the tests check every case.
+/// all of it in memory, nothing on disk: a restart of Jellyfin forgets what was still waiting; only the series followed
+/// are kept in a file (TorLinkRelay.Follows.cs). The agent asks again every few seconds (<see cref="Exchange"/>), never
+/// holding a request open: Jellyfin would log each one as slow. Free of ASP.NET (<see cref="TorLinkController"/> serves
+/// it), so that the tests check every case.
 /// </summary>
-public sealed class TorLinkRelay
+public sealed partial class TorLinkRelay
 {
-    public static TorLinkRelay Shared { get; } = new(() => DateTimeOffset.UtcNow);
+    private static readonly object SharedGate = new();
+    private static TorLinkRelay? _shared;
+
+    /// <summary>Where the plugin keeps the series followed (set by Plugin, beside the plugins' settings).</summary>
+    public static string? FollowsFile { get; set; }
+
+    public static TorLinkRelay Shared
+    {
+        get { lock (SharedGate) return _shared ??= new(() => DateTimeOffset.UtcNow, FollowsFile); }
+    }
 
     /// <summary>An agent heard from within this long is « online ».</summary>
     public static readonly TimeSpan Online = TimeSpan.FromSeconds(45);
@@ -34,7 +44,12 @@ public sealed class TorLinkRelay
     private Agent? _agent;
     private DateTimeOffset _watched = DateTimeOffset.MinValue;
 
-    public TorLinkRelay(Func<DateTimeOffset> now) { _now = now; }
+    public TorLinkRelay(Func<DateTimeOffset> now, string? followsFile = null)
+    {
+        _now = now;
+        _followsFile = followsFile;
+        LoadFollows();
+    }
 
     // ---- Mira web ------------------------------------------------------------------------------------
 
@@ -46,11 +61,12 @@ public sealed class TorLinkRelay
             var now = _now();
             _watched = now;
             Prune(now);
-            var agent = _agent is { } a ? new RelayAgent(a.Name, now - a.Seen < Online, a.Seen, a.Accepting, a.Problem) : null;
+            var agent = _agent is { } a ? new RelayAgent(a.Name, now - a.Seen < Online, a.Seen, a.Accepting, a.Problem, a.Follows) : null;
+            // An episode of a series followed shows with its series (Follows), not among the requests.
             return new RelayStatus(agent,
-                _requests.OrderByDescending(x => x.Created).Select(x => new RelayRequest(x.Id, x.Name, x.Size, x.InfoHash, x.State, x.Error, x.Created)).ToList(),
+                _requests.Where(x => x.FollowId is null).OrderByDescending(x => x.Created).Select(x => new RelayRequest(x.Id, x.Name, x.Size, x.InfoHash, x.State, x.Error, x.Created)).ToList(),
                 _controls.Where(x => x.State is "waiting" or "claimed").Select(x => new RelayControl(x.Id, x.Target, x.Action, x.State)).ToList(),
-                _agent?.Downloads ?? [], _agent?.Placed ?? []);
+                _agent?.Downloads ?? [], _agent?.Placed ?? [], FollowList(now));
         }
     }
 
@@ -106,15 +122,18 @@ public sealed class TorLinkRelay
                 (magnet, name, size) = (hit.Magnet, hit.Name, hit.Size);
             }
             if (RemoteDownloads.InfoHash(magnet) is not { } hash) return (null, "Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »).");
-            if (_requests.FirstOrDefault(x => x.InfoHash == hash && x.State is "waiting" or "claimed") is { } same) return (same.Id, null);
-            if (_requests.Count(x => x.State is "waiting" or "claimed") >= MaxWaiting) return (null, "Trop de demandes attendent déjà le PC serveur.");
+            if (_requests.FirstOrDefault(x => x.InfoHash == hash && x.State is "waiting" or "claimed" && x.FollowId is null) is { } same) return (same.Id, null);
+            if (_requests.Count(x => x.State is "waiting" or "claimed" && x.FollowId is null) >= MaxWaiting) return (null, "Trop de demandes attendent déjà le PC serveur.");
             var ask = new Ask(NewId(), magnet!.Trim(), RemoteDownloads.CleanName(name) ?? RemoteDownloads.DisplayName(magnet) ?? hash, Math.Max(0, size ?? 0), hash, now);
             _requests.Add(ask);
             return (ask.Id, null);
         }
     }
 
-    /// <summary>True: removed before the agent took it; false: it has it already; null: unknown.</summary>
+    /// <summary>
+    /// True: removed before the agent took it; false: it has it already; null: unknown. An episode chosen for a series
+    /// followed, cancelled before it went: that release is never taken again (another one of the episode may be).
+    /// </summary>
     public bool? Cancel(string id)
     {
         lock (_gate)
@@ -122,6 +141,7 @@ public sealed class TorLinkRelay
             if (_requests.FirstOrDefault(x => x.Id == id) is not { } ask) return null;
             if (ask.State is not ("waiting" or "failed" or "sent")) return false;
             _requests.Remove(ask);
+            if (ask.State == "waiting" && FollowOf(ask) is { } follow) { Refuse(follow, ask.InfoHash); SaveFollows(); }
             return true;
         }
     }
@@ -155,7 +175,7 @@ public sealed class TorLinkRelay
         {
             var now = _now();
             if (_agent is { } current && current.Device != device && now - current.Seen < Online) return new([], [], [], Busy, current.Name);
-            _agent = new Agent(device, Text(report.Name) ?? "PC serveur", now, report.Accepting, Text(report.Problem),
+            _agent = new Agent(device, Text(report.Name) ?? "PC serveur", now, report.Accepting, Text(report.Problem), report.Follows is not null,
                 (report.Downloads ?? []).Where(x => RemoteDownloads.IsInfoHash(x.Id)).Take(MaxDownloads)
                     .Select(x => x with { Name = Text(x.Name) ?? x.Id, Status = Text(x.Status) ?? "", Progress = Math.Clamp(x.Progress, 0, 100), Speed = Math.Max(0, x.Speed), Peers = Math.Max(0, x.Peers), Size = Math.Max(0, x.Size), Downloaded = Math.Clamp(x.Downloaded, 0, x.Size > 0 ? x.Size : long.MaxValue), Eta = x.Eta is > 0 and <= RemoteDownloads.MaxEta ? x.Eta : null, Error = x.Status == "failed" ? Text(x.Error) : null }).ToList(),
                 (report.Placed ?? []).Where(x => RemoteDownloads.IsInfoHash(x.Id)).Take(MaxPlaced)
@@ -171,7 +191,11 @@ public sealed class TorLinkRelay
                 }
             foreach (var outcome in report.Requests ?? [])
                 if (_requests.FirstOrDefault(x => x.Id == outcome.Id && x.Device == device && x.State == "claimed") is { } ask)
+                {
                     (ask.State, ask.Error, ask.Done) = outcome.State == "sent" ? ("sent", null, now) : ("failed", Text(outcome.Error) ?? "TorLink a refusé ce téléchargement.", now);
+                    if (ask.State == "sent") Took(ask, now);
+                }
+            ReportFollows(device, report, now);
             foreach (var outcome in report.Controls ?? [])
                 if (_controls.FirstOrDefault(x => x.Id == outcome.Id && x.Device == device && x.State == "claimed") is { } order)
                     (order.State, order.Done) = (outcome.State == "done" ? "done" : "failed", now);
@@ -183,15 +207,16 @@ public sealed class TorLinkRelay
             bool Free(string state, string? owner, DateTimeOffset? claimed) => state == "waiting" || state is "claimed" or "running" && (owner != device || now - claimed >= Claim);
             // Three: a search in every category goes in one visit.
             var searches = _searches.SelectMany(Units).Where(x => Free(x.State, x.Device, x.Claimed)).Take(3).ToList();
-            var requests = report.Accepting ? _requests.Where(x => Free(x.State, x.Device, x.Claimed)).Take(5).ToList() : [];
+            var requests = report.Accepting ? _requests.Where(x => Free(x.State, x.Device, x.Claimed) && !(x.NotBefore > now)).Take(5).ToList() : [];
             var controls = report.Accepting ? _controls.Where(x => Free(x.State, x.Device, x.Claimed)).Take(10).ToList() : [];
             foreach (var s in searches) (s.State, s.Device, s.Claimed) = ("running", device, now);
             foreach (var r in requests) (r.State, r.Device, r.Claimed) = ("claimed", device, now);
             foreach (var c in controls) (c.State, c.Device, c.Claimed) = ("claimed", device, now);
-            var hurry = now - _watched < Watched || _searches.SelectMany(Units).Any(x => x.State == "waiting") || report.Accepting && (_requests.Any(x => x.State == "waiting") || _controls.Any(x => x.State == "waiting"));
+            var follows = report.Follows is not null && report.Accepting ? DueFollows(device, now) : null;
+            var hurry = now - _watched < Watched || _searches.SelectMany(Units).Any(x => x.State == "waiting") || report.Accepting && (_requests.Any(x => x.State == "waiting" && !(x.NotBefore > now)) || _controls.Any(x => x.State == "waiting"));
             return new(searches.Select(x => new WorkSearch(x.Id, x.Query, x.Category)).ToList(),
-                requests.Select(x => new WorkRequest(x.Id, x.Magnet, x.Name)).ToList(),
-                controls.Select(x => new WorkControl(x.Id, x.Target, x.Action)).ToList(), hurry ? Hurry : Idle, null);
+                requests.Select(x => new WorkRequest(x.Id, x.Magnet, x.Name, PlaceOf(x))).ToList(),
+                controls.Select(x => new WorkControl(x.Id, x.Target, x.Action)).ToList(), hurry ? Hurry : Idle, null, follows);
         }
     }
 
@@ -220,7 +245,8 @@ public sealed class TorLinkRelay
     private static string? Text(string? value) => RemoteDownloads.CleanName(value);
     private static string NewId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
 
-    private sealed record Agent(string Device, string Name, DateTimeOffset Seen, bool Accepting, string? Problem, List<RelayDownload> Downloads, List<RelayPlaced> Placed);
+    /// <summary><paramref name="Follows"/>: the agent checks series followed (after 0.8.4).</summary>
+    private sealed record Agent(string Device, string Name, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows, List<RelayDownload> Downloads, List<RelayPlaced> Placed);
     private sealed class Lookup(string id, string query, string category, DateTimeOffset created)
     {
         public string Id { get; } = id; public string Query { get; } = query; public string Category { get; } = category; public DateTimeOffset Created { get; } = created;
@@ -238,6 +264,11 @@ public sealed class TorLinkRelay
         public string? Device { get; set; }
         public DateTimeOffset? Claimed { get; set; }
         public DateTimeOffset? Done { get; set; }
+        /// <summary>An episode chosen for a series followed: the series, the episode, and when it goes (« Annuler » until then).</summary>
+        public string? FollowId { get; init; }
+        public FollowEpisode? Episode { get; init; }
+        public DateTimeOffset? NotBefore { get; init; }
+        public FollowRelease? Release { get; init; }
     }
     private sealed class Order(string id, string target, string action, DateTimeOffset created)
     {

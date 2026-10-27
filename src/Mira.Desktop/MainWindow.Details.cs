@@ -281,7 +281,7 @@ public partial class MainWindow
         DetailRestart.Content ??= ActionLabel("refresh", L("Depuis le début", "From the beginning"));
         FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"));
         WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"));
-        ShowTogetherButton(); ShowOfflineButton(); _ = ShowFilesButtonAsync(item);
+        ShowTogetherButton(); ShowOfflineButton(); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item);
     }
     /// <summary>Length and ratings, then the picture of the file Lecture plays and when it ends (the episode it picks up at, on a series).</summary>
     private void RenderDetailMeta()

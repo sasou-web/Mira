@@ -8,7 +8,8 @@ import { tr, trn } from '../i18n.js';
 import { sheet, toast, errorState } from '../components.js';
 import { goBack } from '../app.js';
 import { session, temp } from '../session.js';
-import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable } from '../torlink.js';
+import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable, followLine, followNote, pickLine, takenLine } from '../torlink.js';
+import { followedSheet } from '../follow.js';
 import { groupReleases, parseRelease, qualityLine, warning, readableName } from '../releases.js';
 import { ownedLookups, ownedLine, lookupKey } from '../owned.js';
 
@@ -43,6 +44,9 @@ export function create({ query }) {
   const found = h('div', { class: 'torlink-results', 'aria-live': 'polite' });
   const listTitle = h('h2', { class: 'label group-title', hidden: true }, tr('Sur le PC serveur'));
   const list = h('div', { class: 'group torlink-list', hidden: true });
+  // « Suivre une série »: the series whose new episodes the PC downloads on its own, followed from their page.
+  const followsTitle = h('h2', { class: 'label group-title', hidden: true }, tr('Séries suivies'));
+  const followsList = h('div', { class: 'group torlink-list', hidden: true });
   const placedTitle = h('h2', { class: 'label group-title', hidden: true }, tr('Rangés dans ta bibliothèque'));
   const placedList = h('div', { class: 'group torlink-list', hidden: true });
   // The latest few only, under what is under way: a title just placed shows without going past the results.
@@ -51,7 +55,7 @@ export function create({ query }) {
     tr('TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les comptes administrateurs de Jellyfin voient cet écran.'));
   // What the PC has under way and has placed comes before the results: a download just asked for, or a title just
   // placed, shows at once, not 60 results below.
-  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, placedTitle, placedList, placedMore, found, note);
+  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, followsTitle, followsList, placedTitle, placedList, placedMore, found, note);
   clear(el).append(back,
     h('div', { class: 'page', style: { paddingTop: 'calc(var(--top) + 64px)', paddingBottom: '12px' } }, h('h1', { class: 'page-title' }, tr('Télécharger')), status),
     body);
@@ -104,6 +108,12 @@ export function create({ query }) {
       }),
     ];
     update(list, listTitle, rows, row);
+    const now = Date.now();
+    const followed = (state?.follows ?? []).flatMap((follow) => [
+      { key: `f:${follow.id}`, name: follow.name, line: [followLine(follow, now), followNote(follow.note), follow.taken?.[0] ? takenLine(follow.taken[0], now) : ''].filter(Boolean).join('\n'), follow },
+      ...(follow.picks ?? []).map((pick) => ({ key: `fp:${pick.id}`, ...named(pick.name), line: pickLine(pick, now), failed: pick.state === 'failed', pick })),
+    ]);
+    update(followsList, followsTitle, followed, followRow);
     const placed = latest.placed.map((x) => ({ key: `p:${x.id}`, name: x.title, line: x.status, placed: x }));
     update(placedList, placedTitle, placedOpen ? placed : placed.slice(0, PLACED_SHOWN), placedRow);
     placedMore.hidden = placed.length <= PLACED_SHOWN;
@@ -124,7 +134,7 @@ export function create({ query }) {
     group.hidden = title.hidden = rows.length === 0;
     const old = new Map([...group.children].map((x) => [x.dataset.key, x]));
     const next = rows.map((data) => {
-      const shape = JSON.stringify([data.request?.state, data.download && controllable(data.download), data.download?.status, data.placed?.itemId, data.placed?.ok]);
+      const shape = JSON.stringify([data.request?.state, data.download && controllable(data.download), data.download?.status, data.placed?.itemId, data.placed?.ok, data.pick?.state, data.follow && JSON.stringify(data.follow)]);
       const kept = old.get(data.key);
       if (kept && kept.dataset.shape === shape) {
         kept.querySelector('.torlink-name').textContent = data.name;
@@ -154,6 +164,29 @@ export function create({ query }) {
         : null;
     return h('div', { class: 'item static torlink-item' }, icon(download ? 'download' : request?.state === 'failed' ? 'warning' : 'clock', { size: 20 }),
       h('span', { class: 'grow' }, ...texts(data), bar), action);
+  }
+
+  /** A series followed (its sheet: « Chercher maintenant », the name searched, « Ne plus suivre »), or an episode it chose, with « Annuler » while it waits. */
+  function followRow(data) {
+    const { follow, pick } = data;
+    if (follow) {
+      return h('button', { class: 'item torlink-item torlink-follow', 'aria-haspopup': 'dialog', on: { click: () => followedSheet(follow, load, { downloads: false }) } },
+        icon('series', { size: 20 }), h('span', { class: 'grow' }, ...texts(data)), icon('right', { size: 20 }));
+    }
+    const action = pick.state === 'claimed' ? null
+      : h('button', { class: 'round flat', 'aria-label': pick.state === 'waiting' ? tr('Annuler {episode}', { episode: pick.episode }) : tr('Retirer « {name} »', { name: data.name }), on: { click: () => cancelPick(pick) } }, icon('close', { size: 20 }));
+    return h('div', { class: 'item static torlink-item torlink-pick' }, icon(pick.state === 'failed' ? 'warning' : 'clock', { size: 20 }),
+      h('span', { class: 'grow' }, ...texts(data)), action);
+  }
+
+  async function cancelPick(pick) {
+    try {
+      await api.torlinkCancel(pick.id);
+      toast(pick.state === 'waiting' ? tr('{episode} annulé : ce fichier ne sera plus pris, un autre de l’épisode pourra l’être.', { episode: pick.episode }) : tr('Retiré de la liste.'));
+    } catch (error) {
+      toast(error.status === 409 ? tr('Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.') : error.status === 404 ? tr('Cet épisode n’est plus en attente.') : explain(error));
+    }
+    load();
   }
 
   function placedRow(data) {

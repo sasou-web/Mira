@@ -65,6 +65,25 @@ public sealed class TorLinkController : ControllerBase
         return id is null ? Refuse(error) : Answer(new { id });
     }
 
+    /// <summary>« Suivre une série »: the series followed, without counting as a look at the Downloads page.</summary>
+    [HttpGet("follows")]
+    public IActionResult Follows() => Answer(RelayText.For(Relay.Follows(), French));
+
+    [HttpPost("follows")]
+    [RequestSizeLimit(4_096)]
+    public async Task<IActionResult> Follow(CancellationToken cancellationToken)
+    {
+        var body = await ReadAsync<FollowBody>(cancellationToken).ConfigureAwait(false);
+        var (id, error) = Relay.Follow(body?.SeriesId, body?.Name, body?.Query);
+        return id is null ? Refuse(error) : Answer(new { id });
+    }
+
+    [HttpDelete("follows/{id}")]
+    public IActionResult Unfollow(string id) => Relay.Unfollow(id) ? NoContent() : NotFound();
+
+    [HttpPost("follows/{id}/check")]
+    public IActionResult CheckNow(string id) => Relay.CheckNow(id) ? NoContent() : NotFound();
+
     /// <summary>Mira for Windows on the PC of Jellyfin: its report, and the work it leaves with.</summary>
     [HttpPost("agent")]
     [RequestSizeLimit(2_000_000)]
@@ -110,4 +129,5 @@ public sealed class TorLinkController : ControllerBase
     private sealed record SearchBody(string? Query, string? Category);
     private sealed record RequestBody(string? Magnet, string? Search, string? Result, string? Name, long? Size);
     private sealed record ControlBody(string? Id, string? Action);
+    private sealed record FollowBody(string? SeriesId, string? Name, string? Query);
 }

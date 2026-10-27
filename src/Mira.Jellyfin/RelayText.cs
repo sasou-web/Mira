@@ -23,6 +23,9 @@ internal static class RelayText
         ["La recherche n’a pas abouti."] = "The search didn’t go through.",
         ["TorLink a refusé ce téléchargement."] = "TorLink refused this download.",
         ["PC serveur"] = "Server PC",
+        // « Suivre une série ».
+        ["Série inconnue."] = "Unknown series.",
+        ["Trop de séries suivies : arrête d’en suivre une d’abord."] = "Too many series followed: stop following one first.",
         // « Inviter par lien » (GuestController, InvitesController).
         ["Trop d’essais : attends une minute."] = "Too many tries: wait a minute.",
         ["Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité."] = "This link no longer works: ask the person who invited you for a new one.",
@@ -57,7 +60,11 @@ internal static class RelayText
     {
         Agent = status.Agent is { } agent ? agent with { Name = For(agent.Name, false)! } : null,
         Requests = status.Requests.Select(x => x with { Error = For(x.Error, false) }).ToList(),
+        Follows = status.Follows is { } follows ? For(follows, false) : null,
     };
+
+    public static List<RelayFollow> For(List<RelayFollow> follows, bool french) => french ? follows
+        : follows.Select(x => x with { Picks = x.Picks.Select(p => p with { Error = For(p.Error, false) }).ToList() }).ToList();
 
     public static RelaySearch For(RelaySearch search, bool french) => french ? search : search with { Error = For(search.Error, false) };
 }

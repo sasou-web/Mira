@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Mira.Core;
+using Mira.Core.TorLink;
 using Mira.Mac.Services;
 using static Mira.Core.Lang;
 
@@ -30,6 +31,9 @@ public sealed class DetailPage : Page
     private bool _filling;
     /// <summary>An episode a search found: the series' page opens at its season, the episode set apart.</summary>
     private readonly MediaItem? _found;
+    /// <summary>« Suivre une série »: known once the relay answered for an administrator; the series as it follows it, null when it does not.</summary>
+    private bool _followKnown;
+    private RelayFollow? _follow;
     public override string Rail => "";
     public MediaItem Item => _item;
     public IReadOnlyList<MediaItem> Episodes => _allEpisodes;
@@ -84,6 +88,7 @@ public sealed class DetailPage : Page
         }
         RenderTop(); RenderBody(session);
         _ = LoadSimilarAsync(session);
+        if (_item.Type == "Series") _ = LoadFollowAsync(session);
         if (_item.Type == "Series" && SeriesTarget is { } target && _targetFile?.Id != target.Id) await LoadTargetFileAsync(session, target);
     }
     private async Task LoadTargetFileAsync(Session session, MediaItem episode)
@@ -150,7 +155,56 @@ public sealed class DetailPage : Page
         Button? together = null;
         together = Ui.Action(group is null ? L("Regarder ensemble", "Watch together") : L("Ensemble · ", "Together · ") + Together.People(Math.Max(1, group.Participants.Count)), "users", group is null ? "" : "chip on", () => _ = TogetherMenuAsync(together!));
         actions.Children.Add(together);
+        if (_followKnown)
+        {
+            Button? follow = null;
+            follow = Ui.Action(_follow is null ? L("Nouveaux épisodes", "New episodes") : L("Épisodes suivis", "Episodes followed"), _follow is null ? "plus" : "check", _follow is null ? "" : "chip on", () => FollowMenu(follow!));
+            ToolTip.SetTip(follow, _follow is null ? L("Le PC serveur cherche les nouveaux épisodes et les télécharge tout seul, avec TorLink", "The server PC looks for new episodes and downloads them on its own, with TorLink")
+                : string.Join(" · ", new[] { RemoteLines.FollowNote(_follow.Note), RemoteLines.Follow(_follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0)));
+            actions.Children.Add(follow);
+        }
         _top.Children.Add(actions);
+    }
+
+    /// <summary>« Nouveaux épisodes »: for an administrator, when the extension follows series.</summary>
+    private async Task LoadFollowAsync(Session session)
+    {
+        try
+        {
+            if (await session.Client.IsAdministratorAsync(session.Lifetime) != true) return;
+            var follows = await session.Client.TorLinkFollowsAsync(session.Lifetime);
+            if (!ReferenceEquals(session, Shell.Session)) return;
+            _follow = follows.FirstOrDefault(x => string.Equals(x.SeriesId, _item.Id, StringComparison.OrdinalIgnoreCase));
+            _followKnown = true;
+            RenderTop();
+        }
+        // An extension without it, or a hiccup: the page is complete without the button.
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+    }
+
+    /// <summary>Followed at once; once followed, « Chercher maintenant », the Downloads page, or « Ne plus suivre ».</summary>
+    private void FollowMenu(Button button)
+    {
+        if (Shell.Session is not { } session) return;
+        async Task Run(Func<Task> action, string done)
+        {
+            try { await action(); Shell.Notice(done); }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
+            await LoadFollowAsync(session);
+        }
+        if (_follow is not { } follow)
+        {
+            _ = Run(() => session.Client.TorLinkFollowAsync(_item.Id, _item.Name, null, session.Lifetime),
+                L($"« {_item.Name} » suivie : le PC serveur cherche ses nouveaux épisodes toutes les 6 h. Chacun attend 10 min dans Téléchargements, le temps de l’annuler, puis rejoint ta bibliothèque.",
+                    $"Following “{_item.Name}”: the server PC looks for its new episodes every 6 hours. Each one waits 10 min in Downloads, time to cancel it, then joins your library."));
+            return;
+        }
+        var menu = new ContextMenu();
+        void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
+        Add(L("Chercher maintenant", "Search now"), () => _ = Run(() => session.Client.TorLinkCheckFollowAsync(follow.Id, session.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")));
+        Add(L("Voir dans Téléchargements", "See in Downloads"), () => Shell.Go("downloads"));
+        Add(L("Ne plus suivre", "Stop following"), () => _ = Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")));
+        menu.Open(button);
     }
     /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>
     private string? GroupPlayLabel(MediaItem target, string code) =>
