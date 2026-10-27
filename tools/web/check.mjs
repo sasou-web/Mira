@@ -1037,6 +1037,62 @@ check('flux bloqué : aucune erreur JavaScript', stuckErrors.length === 0, stuck
 for (const r of held.splice(0)) await r.abort().catch(() => {});
 await stuck.close();
 
+// Jellyfin gone in the middle of a film (restarting: its stream answers 503, System/Ping nothing): the browser pauses the
+// video on that error, before or after saying so. That pause is not the person's: Jellyfin does not hear « en pause »
+// (nor would the group), and once Jellyfin is back the film plays on where it was, not paused.
+const gone = await newContext('serveur parti');
+const gonePage = await gone.newPage();
+const goneErrors = [], goneHeld = [], pausedReports = [];
+gonePage.on('pageerror', (e) => goneErrors.push(e.message));
+let goneAway = false, goneBack = false, quarter = 0;
+gonePage.on('request', (r) => {
+  if (!goneAway || r.method() !== 'POST' || !/Sessions\/Playing\/Progress/i.test(r.url())) return;
+  try { if (JSON.parse(r.postData() ?? '{}').IsPaused) pausedReports.push(r.url()); } catch { /* not JSON */ }
+});
+// Its first quarter at once, the rest only once Jellyfin is back (before, the browser would take it all).
+await gonePage.route((url) => /\/videos\/[^/]+\/stream\.webm/i.test(url.pathname), async (route) => {
+  if (goneBack) return route.continue();
+  if (goneAway) return route.fulfill({ status: 503, body: '' });
+  const from = Number(/bytes=(\d+)/.exec(route.request().headers().range ?? '')?.[1] ?? 0);
+  if (quarter && from >= quarter) { goneHeld.push(route); return; }
+  const response = await route.fetch({ headers: { ...route.request().headers(), range: 'bytes=0-' } }), body = await response.body();
+  quarter ||= Math.floor(body.length / 4);
+  const part = body.subarray(from, quarter);
+  return route.fulfill({ status: 206, body: part,
+    headers: { ...response.headers(), 'content-range': `bytes ${from}-${quarter - 1}/${body.length}`, 'content-length': String(part.length), 'accept-ranges': 'bytes' } });
+});
+await gonePage.route((url) => /\/System\/Ping/i.test(url.pathname), (route) => (goneAway ? route.abort('connectionrefused') : route.continue()));
+try {
+  await signIn(gonePage);
+  const film = await gonePage.evaluate(async () => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { api } = await import(`${root}api.js`);
+    return (await api.browse({ types: 'Movie', search: 'Lueur Web' })).Items[0];
+  });
+  const state = () => gonePage.evaluate(() => {
+    const v = document.querySelector('video');
+    return { t: v?.currentTime ?? 0, paused: v?.paused ?? true, message: document.querySelector('.p-message:not([hidden])')?.textContent ?? '' };
+  });
+  await gonePage.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
+  let s = await state(), lost = false, goneAt = 0;
+  for (let i = 0; i < 30 && !((s = await state()).t > 4); i++) await gonePage.waitForTimeout(1000);
+  goneAway = true; goneAt = s.t;
+  for (const r of goneHeld.splice(0)) await r.fulfill({ status: 503, body: '' }).catch(() => {});
+  for (let i = 0; i < 40 && !(lost = /Connexion au serveur perdue/.test((s = await state()).message)); i++) await gonePage.waitForTimeout(500);
+  await gonePage.screenshot({ path: `${out}/17-server-gone.png` });
+  await gonePage.waitForTimeout(3000);
+  goneAway = false; goneBack = true;
+  for (let i = 0; i < 30 && !((s = await state()).t > goneAt + 2 && !s.paused); i++) await gonePage.waitForTimeout(1000);
+  check('serveur parti pendant la lecture : « Connexion au serveur perdue », puis la lecture reprend où elle était, pas en pause',
+    lost && s.t > goneAt + 2 && s.t < goneAt + 25 && !s.paused && !s.message, `${lost ? 'dit' : 'rien dit'}, parti à ${goneAt.toFixed(1)} s, puis ${s.t.toFixed(1)} s${s.paused ? ', en pause' : ''}`);
+  check('serveur parti : la pause du navigateur sur l’erreur n’est pas dite à Jellyfin comme la sienne', pausedReports.length === 0, `${pausedReports.length} rapport(s) « en pause »`);
+} catch (error) {
+  check('serveur parti : déroulé', false, error.message.split('\n')[0]);
+}
+check('serveur parti : aucune erreur JavaScript', goneErrors.length === 0, goneErrors.slice(0, 3).join(' | '));
+for (const r of goneHeld.splice(0)) await r.abort().catch(() => {});
+await gone.close();
+
 // The session ended by Jellyfin (signed out elsewhere, password changed): back to the sign-in screen, and nothing of
 // the account stays, as after « Se déconnecter ».
 const ended = await newContext('session refusée');

@@ -112,6 +112,9 @@ export function create({ id, query }) {
   // A stream that no longer comes (stream.js stallWatch): the last look at it, the server being asked about it, and
   // where it was opened again after a stall (seconds; null until then, and once it has played on from there).
   let look = STILL, askingStuck = false, reopenedAt = null;
+  // Paused by the person, the group or Mira itself, not by a stream that broke: browsers pause the video on an error
+  // (Chromium before saying so), and a stream opened again after it must play on as it was (pausedThen).
+  let pausedByChoice = false;
   // « Regarder ensemble » (together.js): what the player did itself, not to be told to the group as the person's
   // (until these times); the group's play to come; a stall told to the group; a seek told once the finger stops.
   const expect = { play: 0, pause: 0, seek: 0 };
@@ -469,7 +472,7 @@ export function create({ id, query }) {
     // An opening or a check of the server still on its way for the title before lands on nothing.
     opening++;
     item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0; inband = false;
-    audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; attempts = []; current = null; started = false; ended = false; reopenedAt = null;
+    audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; attempts = []; current = null; started = false; ended = false; reopenedAt = null; pausedByChoice = false;
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
     titleStart = 0; creditsWatched = false; lastAt = 0;
     skipped.clear();
@@ -595,7 +598,7 @@ export function create({ id, query }) {
         lastError = hlsErrorText({ details: data.details, type: data.type, stage: fallback });
         if (current) current.error = hlsError({ details: data.details, type: data.type });
         // Read before hls.js resets the video (its time back to 0); the failed stream stops there.
-        const at = resumeAt(), paused = streamPlaying && video.paused;
+        const at = resumeAt(), paused = pausedThen();
         hls.stopLoad();
         streamFailed(REFUSED, { then: nextFallback(), detail: lastError, at, paused });
       });
@@ -853,12 +856,14 @@ export function create({ id, query }) {
   }
   /** Where to pick the title up again: where it plays, or, before it has played, where it was asked to start. */
   const resumeAt = () => resumeTicks({ streamPlaying, progressive, positionTicks: ticks(position()), currentStart });
+  /** Whether a stream opened again after a failure stays paused: it was, before it broke (never once it had not played). */
+  const pausedThen = () => streamPlaying && pausedByChoice;
   function stopWaiting() { waitToken++; clearTimeout(retryTimer); waitingForServer = false; }
   /**
    * The stream stopped on an error that may be the connection's: Mira asks the server. Silent (PC asleep, Wi-Fi to
    * 4G), Mira waits for it; answering, the stream itself is at fault, and that is said (no endless reopening).
    */
-  function streamFailed(text, { then = null, detail = '', at = resumeAt(), paused = streamPlaying && video.paused } = {}) {
+  function streamFailed(text, { then = null, detail = '', at = resumeAt(), paused = pausedThen() } = {}) {
     const attempt = opening;
     // A stream that breaks may be a network that changed: the server is checked again before it is asked anything.
     recheckServer();
@@ -880,11 +885,11 @@ export function create({ id, query }) {
    * Jellyfin does not answer: not this stream's fault. Apple's player stays open, Mira says so under it or over its
    * own controls, asks again every few seconds, and picks up where the title was, paused if it was.
    */
-  function waitForServer(at = null, pausedThen = null) {
+  function waitForServer(at = null, keepPaused = null) {
     if (waitingForServer || disposed || closing) return;
     waitingForServer = true;
     const mine = ++waitToken;
-    const from = at ?? resumeAt(), paused = pausedThen ?? (streamPlaying && video.paused);
+    const from = at ?? resumeAt(), paused = keepPaused ?? pausedThen();
     busy.hidden = false;
     showNative('lost');
     if (!native) {
@@ -987,12 +992,16 @@ export function create({ id, query }) {
       }
     },
     pause: () => {
+      // The browser's own pause on a stream that broke: neither the person's (Jellyfin, the group) nor kept (pausedThen).
+      if (video.error) { updatePlayIcon(); return; }
+      pausedByChoice = true;
       if (!video.seeking && !video.ended) resumedByUser = true;
       updatePlayIcon(); showControls(true); report('progress');
       // Paused by the person (Mira's button, Apple's, the lock screen): for the whole group.
       if (!expected('pause') && together.group && !closing && !switching && !video.ended && !video.seeking) { clearTimeout(groupTimer); group.pause(); }
     },
     play: () => {
+      pausedByChoice = false;
       updatePlayIcon();
       // Played by the person: the group plays, all at the same moment; until Jellyfin says when, this one waits.
       if (!expected('play') && together.group && !closing) { quietPause(); group.unpause(); }
@@ -1028,7 +1037,7 @@ export function create({ id, query }) {
       lastError = videoErrorText({ code, message: video.error?.message, playMethod, stage: fallback });
       if (current) current.error = videoError({ code, message: video.error?.message });
       // A file Safari was thought to play directly but cannot (decode, format): Jellyfin converts it instead, at once.
-      if (videoErrorStep({ playMethod, stage: fallback, code }) === 'convert') { nextFallback()(resumeAt(), streamPlaying && video.paused); return; }
+      if (videoErrorStep({ playMethod, stage: fallback, code }) === 'convert') { nextFallback()(resumeAt(), pausedThen()); return; }
       // Anything else: the server is asked. Silent, Mira waits for it; answering, the stream is at fault: asked again,
       // more of it converted (a lower quality alone would change nothing: Jellyfin copies what fits under it), until
       // nothing is left to convert.
