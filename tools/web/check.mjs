@@ -995,6 +995,55 @@ try {
 }
 check('app (simulée) : aucune erreur JavaScript', homeErrors.length === 0, homeErrors.slice(0, 3).join(' | '));
 
+// Tablets and computers: an iPad in portrait (834 px) has the rail at the left and the wide title page (its poster
+// beside the title, Lecture and the title's buttons in one row of 48 px buttons), so has a window of 1440 × 900, where
+// Réglages keeps a reading width; a phone on its side keeps the phone's layout.
+const large = await browser.newContext({ ...devices['iPad Pro 11'], viewport: { width: 834, height: 1194 }, locale: 'fr-FR' });
+await watchPolicy(large, 'grand écran');
+const bigPage = await large.newPage();
+const largeErrors = [];
+bigPage.on('pageerror', (e) => largeErrors.push(e.message));
+try {
+  await signIn(bigPage); await bigPage.waitForTimeout(1500);
+  const box = (selector) => bigPage.evaluate((s) => {
+    const r = document.querySelector(s)?.getBoundingClientRect();
+    return r ? { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) } : null;
+  }, selector);
+  const railAtLeft = async () => { const r = await box('.tabbar'); return !!r && r.x === 0 && r.h > r.w; };
+  const widePage = async () => {
+    const [poster, info, play] = [await box('.detail-poster'), await box('.detail-info'), await box('.detail-actions > .btn.primary')];
+    const tools = await bigPage.evaluate(() => [...document.querySelectorAll('.detail-secondary .tool')]
+      .map((t) => ({ y: Math.round(t.getBoundingClientRect().top), h: Math.round(t.getBoundingClientRect().height), size: parseFloat(getComputedStyle(t).fontSize) })));
+    const ok = !!poster && !!info && !!play && poster.x + poster.w <= info.x && play.h === 48 && tools.length >= 2
+      && Math.abs(tools[0].y - play.y) <= 1 && tools.every((t) => t.h >= 44 && t.size >= 14);
+    return { ok, detail: `affiche ${poster ? `${poster.x}+${poster.w}` : 'absente'}, texte à ${info?.x}, Lecture ${play?.h} px à ${play?.y}, boutons ${tools.map((t) => `${t.h} px à ${t.y} (${t.size} px)`).join(', ')}` };
+  };
+  await bigPage.goto(`${base}#/films`); await bigPage.waitForTimeout(2000);
+  check('grand écran : iPad en portrait, le rail à gauche', await railAtLeft(), JSON.stringify(await box('.tabbar')));
+  const film = await bigPage.evaluate(() => [...document.querySelectorAll('a.card')].find((a) => /Lueur/.test(a.textContent))?.getAttribute('href'));
+  await bigPage.goto(`${base}${film}`); await bigPage.waitForTimeout(2500);
+  let page = await widePage();
+  check('grand écran : fiche sur iPad, affiche à côté du titre et boutons en rangée', page.ok, page.detail);
+  await bigPage.screenshot({ path: `${out}/16-large-ipad-title.png` });
+  // Made wider (a computer's window), the same page is laid out again, without a reload.
+  await bigPage.setViewportSize({ width: 1440, height: 900 }); await bigPage.waitForTimeout(800);
+  page = await widePage();
+  check('grand écran : fiche à 1440 × 900', page.ok, page.detail);
+  await bigPage.screenshot({ path: `${out}/16-large-desktop-title.png` });
+  await bigPage.goto(`${base}#/reglages`); await bigPage.waitForTimeout(1500);
+  const group = await box('.settings .group');
+  check('grand écran : Réglages à 760 px au plus', !!group && group.w <= 760 && group.w > 600, JSON.stringify(group));
+  await bigPage.screenshot({ path: `${out}/16-large-desktop-settings.png` });
+  await bigPage.setViewportSize({ width: 874, height: 402 }); await bigPage.waitForTimeout(800);
+  const bar = await box('.tabbar');
+  check('grand écran : téléphone couché, la barre d’onglets reste en bas', !!bar && bar.y > 300 && bar.w > bar.h, JSON.stringify(bar));
+} catch (error) {
+  check('grand écran : déroulé', false, error.message.split('\n')[0]);
+  await bigPage.screenshot({ path: `${out}/error-large.png` }).catch(() => {});
+}
+check('grand écran : aucune erreur JavaScript', largeErrors.length === 0, largeErrors.slice(0, 3).join(' | '));
+await large.close();
+
 // Tabs as an app's: a tab's screen shows whole (no placeholders, nothing moving) and the one left dissolves into it;
 // Recherche takes the keyboard only when touched again; Réglages and Home change in place.
 const tabs = await newContext('onglets');

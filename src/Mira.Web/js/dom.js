@@ -112,5 +112,8 @@ export function onScrollFrame(fn) {
   return () => removeEventListener('scroll', handler);
 }
 
+/** Tablets and computers, as app.css draws them (the rail, the wide title page); a phone on its side stays a phone. */
+export const WIDE = '(min-width: 700px) and (min-height: 600px)';
+export const wideScreen = () => matchMedia(WIDE).matches;
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 export const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -99,7 +99,7 @@ export function create({ query } = {}) {
           ? h('div', { class: 'step' }, icon('phone'), h('span', {}, tr('Pas encore Tailscale sur le téléphone ? Installe-le depuis l’App Store ou le Play Store, puis connecte-toi avec le même compte.')))
           : '',
         h('div', { class: 'step' }, icon('qr'), h('span', {}, tr('Ouvre le lien, puis connecte-toi avec ton compte Jellyfin.'))),
-        h('div', { class: 'step' }, icon('share'), h('span', {}, tr('Sur iPhone : '), h('b', {}, tr('Partager')), tr(', puis '), h('b', {}, tr('Sur l’écran d’accueil')), tr(' pour l’avoir comme une app.'))),
+        h('div', { class: 'step' }, icon('share'), h('span', {}, tr('Sur iPhone ou iPad : '), h('b', {}, tr('Partager')), tr(', puis '), h('b', {}, tr('Sur l’écran d’accueil')), tr(' pour l’avoir comme une app.'))),
         mode === 'home'
           ? h('div', { class: 'step' }, icon('offline'), h('span', {}, choice
             ? tr('Cette adresse ne marche que sur le Wi-Fi de la maison.')

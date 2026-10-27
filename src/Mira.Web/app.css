@@ -183,9 +183,10 @@ html:not(.touch) .tabbar a:active .icon, .tabbar a.pressed .icon { transform: sc
 .tabbar .icon { transition: transform var(--fast) var(--ease); }
 .rail-mark { display: none; }
 
-/* Tablets and computers: a rail at the left. A phone in landscape (wide but short) keeps the phone's layout. */
-@media (min-width: 900px) and (min-height: 600px) {
-  :root { --rail: 88px; --gutter: 32px; --tabbar: 0px; --poster-w: 156px; --wide-w: 340px; }
+/* Tablets (an iPad in portrait too) and computers: a rail at the left. A phone in landscape (wide but short) keeps the
+   phone's layout. The same width as WIDE in dom.js. */
+@media (min-width: 700px) and (min-height: 600px) {
+  :root { --rail: 88px; --gutter: 32px; --tabbar: 0px; --poster-w: 156px; --wide-w: clamp(260px, 30vw, 340px); }
   .tabbar {
     inset: 0 auto 0 0; width: calc(var(--rail) + var(--left)); height: auto; padding: calc(24px + var(--top)) 0 24px var(--left);
     flex-direction: column; justify-content: flex-start; gap: 6px; border-top: 0; border-right: 1px solid var(--line); background: var(--bg);
@@ -463,7 +464,7 @@ html:not(.touch) .home-group:active, .home-group.pressed { background: var(--rai
   .slide-body { right: auto; max-width: 60%; padding-left: calc(var(--gutter) + var(--left)); }
   .slide-title { font-size: calc(28px * var(--text)); }
 }
-@media (min-width: 900px) and (min-height: 600px) {
+@media (min-width: 700px) and (min-height: 600px) {
   .hero { height: min(78vh, 760px); }
   .slide::after { background: linear-gradient(90deg, rgba(7, 7, 8, 0.92) 0, rgba(7, 7, 8, 0.55) 38%, rgba(7, 7, 8, 0) 66%), linear-gradient(to bottom, rgba(7, 7, 8, 0) 60%, var(--bg) 100%); }
   .slide-body { right: auto; max-width: 560px; padding-bottom: 72px; }
@@ -483,6 +484,9 @@ html:not(.touch) .home-group:active, .home-group.pressed { background: var(--rai
 .detail-poster { width: 140px; box-shadow: var(--shadow); }
 .floating-back { position: fixed; z-index: 45; top: calc(var(--top) + 8px); left: calc(var(--rail) + var(--left) + 10px); }
 .detail-head { position: relative; margin-top: -132px; padding: 0 var(--gutter); display: grid; gap: 12px; }
+.detail-info, .detail-play { display: grid; gap: 12px; min-width: 0; }
+.detail-progress { display: grid; gap: 6px; }
+.detail-waiting { height: 48px; border-radius: var(--r-m); }
 /* The logo's box is there before the picture: nothing under it moves when it arrives. */
 .detail-logo { width: min(78%, 420px); height: clamp(72px, 22vw, 120px); object-fit: contain; object-position: left bottom; filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.6)); }
 .detail-title { font-size: calc(32px * var(--text)); line-height: 1.08; font-weight: 800; letter-spacing: -0.015em; }
@@ -519,12 +523,32 @@ html:not(.touch) .detail-secondary .tool:active, .detail-secondary .tool.pressed
 @media (hover: hover) { .genres .chip:hover { background: var(--raised); color: var(--ink); } }
 .credits { display: grid; gap: 4px; font-size: calc(14px * var(--text)); color: var(--muted); }
 .credits a { color: var(--ink); font-weight: 700; }
-@media (min-width: 900px) and (min-height: 600px) {
-  .detail-backdrop { height: min(74vh, 720px); }
+/* Tablets and computers: the poster at the left, beside the title; Lecture and the title's buttons in one row of
+   buttons, the lines under Lecture side by side below them. The rows (saga, studio, similar titles) stay full width. */
+@media (min-width: 700px) and (min-height: 600px) {
+  .detail-backdrop { height: min(66vh, 640px); }
   .detail-backdrop::after { background: linear-gradient(90deg, rgba(7, 7, 8, 0.9) 0, rgba(7, 7, 8, 0.4) 45%, rgba(7, 7, 8, 0) 70%), linear-gradient(to bottom, rgba(7, 7, 8, 0) 55%, var(--bg) 100%); }
-  .detail-head { margin-top: -340px; max-width: 640px; }
-  .detail-actions { grid-template-columns: auto; justify-content: start; }
+  .detail-head { margin-top: -240px; max-width: 1180px; }
+  .detail-head.with-poster { grid-template-columns: clamp(150px, 18vw, 240px) minmax(0, 1fr); column-gap: clamp(24px, 3vw, 40px); align-items: start; }
+  .detail-poster { width: 100%; border-radius: var(--r-m); }
+  .detail-info { gap: 14px; }
+  .detail-play { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .detail-play > :is(.detail-actions, .detail-secondary) { display: contents; }
+  /* The lines start a row of their own, even without the progress bar (its gap taken back). */
+  .detail-play::before { content: ''; order: 2; flex-basis: 100%; margin-bottom: -10px; }
+  .detail-actions > .btn.primary { width: auto; min-width: min(200px, 100%); }
+  .detail-waiting { width: 200px; }
+  .detail-secondary .tool {
+    order: 1; flex: none; display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: var(--r-m);
+    background: var(--raised); color: var(--ink); font-size: calc(15px * var(--text)); font-weight: 800; white-space: nowrap;
+    transition: transform var(--fast) var(--ease), background var(--fast) linear;
+  }
+  .detail-secondary .tool .icon { width: 20px; height: 20px; }
+  html:not(.touch) .detail-secondary .tool:active, .detail-secondary .tool.pressed { background: var(--raised); transform: scale(0.97); }
+  .detail-progress { order: 2; flex: 1 0 100%; grid-template-columns: minmax(0, 320px) auto; align-items: center; column-gap: 12px; }
+  .detail-actions > :is(.tracks-line, .group-line) { order: 3; flex: 1 1 300px; max-width: 460px; }
 }
+@media (min-width: 700px) and (min-height: 600px) and (hover: hover) { .detail-secondary .tool:hover { background: var(--raised-2); } }
 
 .seasons { margin-top: 28px; }
 .season-bar { display: grid; gap: 4px; padding: 0 var(--gutter); }
@@ -578,6 +602,9 @@ html:not(.touch) .recent button:active, .recent button.pressed { color: var(--in
 
 /* ---------- Settings ---------- */
 .settings { padding-bottom: 32px; }
+/* Réglages and the screens opened from it: lists and forms at a reading width on a tablet or a computer, rather than a
+   name at the far left and its value or switch at the far right. */
+.view:is(.settings, .guests-page, .now-page, .torlink-page, .fix-page) { max-width: calc(760px + 2 * var(--gutter)); }
 .profile { display: flex; align-items: center; gap: 14px; padding: 8px var(--gutter) 20px; }
 .avatar { width: 56px; height: 56px; border-radius: var(--r-full); overflow: hidden; flex: none; background: var(--raised); display: grid; place-items: center; font-weight: 800; font-size: calc(20px * var(--text)); }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
