@@ -91,6 +91,42 @@ export const afterCheck = ({ up, canGoOn }) => (!up ? 'wait' : canGoOn ? 'next' 
 export const resumeTicks = ({ streamPlaying, progressive, positionTicks, currentStart }) =>
   (streamPlaying || progressive ? positionTicks : currentStart);
 
+// ---------- A stream that no longer comes ----------
+// The bytes stop arriving while Jellyfin answers (Wi-Fi that hiccups, a slow Tailscale relay, a conversion whose ffmpeg
+// stopped): the browser waits for them forever, with no error. Mira's own clock decides instead.
+
+/** Played, then still for this long (ms) while it should play: the stream is stuck. */
+export const STALL_LIMIT = 15_000;
+/** A stream opened, or a jump, with nothing played since for this long (ms): stuck too (a conversion starts slowly). */
+export const START_LIMIT = 45_000;
+/** How far a stream reopened after a stall plays (seconds) before a new stall counts as a first one again. */
+export const STALL_FORGIVEN = 30;
+/** How long a still stream is given: less once it has played since it was opened or moved. */
+export const stallLimit = (moved) => (moved ? STALL_LIMIT : START_LIMIT);
+/** A stream just opened, or moved: nothing seen of it yet. */
+export const STILL = { since: 0, at: -1, moved: false, seeking: false, stuck: false };
+/**
+ * One look at the stream, about every second. `last` is the look before; now: the time (ms); at: the <video>'s time;
+ * expecting: it should play (not paused by anyone, no message, the server not waited for); ready: the browser has
+ * what comes next (readyState 3 or more: a stream being loaded sets its time without playing); seeking. Its time
+ * moving while ready is playing on; a jump starts the clock again, with nothing played from there; still for its
+ * limit, `stuck`.
+ */
+export function stallWatch(last, { now, at, expecting, ready, seeking }) {
+  const look = { since: 0, at, moved: last.moved, seeking, stuck: false };
+  if (!expecting) return look;
+  if (seeking && !last.seeking) return { ...look, since: now, moved: false };
+  if (at !== last.at && ready && !seeking) return { ...look, moved: true };
+  const since = last.since || now;
+  return { ...look, since, stuck: now - since >= stallLimit(last.moved) };
+}
+/**
+ * A stuck stream, the server asked. Silent: Mira waits for it (« wait »), as after an error. Answering: the stream is
+ * opened again where the title is (« reopen »), once; stuck again before it played on, « Lecture impossible » (« fail »),
+ * with « Réessayer ».
+ */
+export const stallStep = ({ up, reopened }) => (!up ? 'wait' : reopened ? 'fail' : 'reopen');
+
 // ---------- The stream Jellyfin offers ----------
 
 const ERRORS = {

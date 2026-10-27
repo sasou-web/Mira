@@ -58,6 +58,9 @@ export default {
   'Le groupe a arrêté la lecture.': 'The group stopped playback.',
   'Cette série n’a aucun épisode à lire.': 'This show has no episode to play.',
   'Le serveur ne répond pas. La lecture commence dès qu’il répond.': 'The server isn’t answering. Playback starts as soon as it does.',
+  'Jellyfin répond, mais la vidéo n’arrive plus jusqu’ici. Réessaie, ou choisis une qualité plus basse si la connexion est lente.':
+    'Jellyfin is answering, but the video stopped coming through. Try again, or pick a lower quality if the connection is slow.',
+  'Plus rien reçu pendant {n} s': 'Nothing received for {n}s',
 
   // player/stream.js
   'fichier lu tel quel': 'file played as is',

@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Une vidéo qui n’arrive plus ne tourne plus sans fin** (Mira web) : quand la vidéo cessait d’arriver alors que Jellyfin répondait (Wi-Fi qui hoquette, relais Tailscale lent, conversion arrêtée), la roue tournait pour toujours, sans message, et seul **Retour** en sortait. Après 15 s sans image (45 s à l’ouverture ou après un déplacement), Mira demande au serveur : s’il ne répond plus, « Connexion au serveur perdue » et la lecture reprend dès qu’il revient ; s’il répond, Mira rouvre la vidéo où elle s’était arrêtée, et si elle bloque encore, **Lecture impossible** le dit, avec **Réessayer**, qui reprend au même endroit.
+
 ## 0.8.4 — 2026-10-24
 
 Inviter un ami par un lien, sans compte ni Tailscale, et une vraie fenêtre d’installation sur Mac.

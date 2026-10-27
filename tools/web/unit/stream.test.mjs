@@ -9,6 +9,7 @@ import {
   FULL_BITRATE, FULL_MARGIN, UNMEASURED_BITRATE, MEASURE_KEPT, knownBitrate, measuredBitrate, autoBitrate, LAST_STAGE, nextStage, stageRequest,
   stageText, videoErrorText, hlsErrorText, videoErrorStep, hlsErrorStep, afterCheck, resumeTicks, playbackError,
   copiesVideo, chooseStream, burnedIn, subtitleSwitch, webVttAddress, progressFraction, startPosition, RESUME_BACK, RESUME_BACK_FROM, resumeBack,
+  STALL_LIMIT, START_LIMIT, STALL_FORGIVEN, STILL, stallLimit, stallWatch, stallStep,
 } from '../../../src/Mira.Web/js/player/stream.js';
 
 test('bitrate: chosen, full quality, or a fresh measure; null when a measure is needed', () => {
@@ -271,4 +272,48 @@ test('the messages of a failed stream in English', () => {
     assert.equal(playbackError('NotAllowed'), 'Your Jellyfin account isn’t allowed to play this title.');
     assert.equal(playbackError('Other'), 'Jellyfin couldn’t prepare this title for this device.');
   } finally { setLanguage('fr'); }
+});
+
+/** The looks player.js takes, one a second: { t (s), at, expecting, ready, seeking }; the second the stream is stuck, or null. */
+function watch(looks) {
+  let last = STILL;
+  for (const { t, at, expecting = true, ready = true, seeking = false } of looks) {
+    last = stallWatch(last, { now: t * 1000, at, expecting, ready, seeking });
+    if (last.stuck) return t;
+  }
+  return null;
+}
+const seconds = (from, to, look) => Array.from({ length: to - from + 1 }, (_, i) => ({ t: from + i, ...look(from + i) }));
+
+test('stall: a stream that plays, or that should not, is never stuck', () => {
+  assert.equal(watch(seconds(1, 120, (t) => ({ at: t }))), null);
+  // Paused by the person (or by Mira): nothing is expected of it, however long.
+  assert.equal(watch(seconds(1, 300, () => ({ at: 12, expecting: false }))), null);
+});
+
+test('stall: played, then still for 15 s', () => {
+  const looks = [...seconds(1, 10, (t) => ({ at: t })), ...seconds(11, 60, () => ({ at: 10, ready: false }))];
+  assert.equal(watch(looks), 11 + STALL_LIMIT / 1000);
+  assert.equal(stallLimit(true), STALL_LIMIT);
+});
+
+test('stall: opened, or moved, with nothing played since: 45 s', () => {
+  // A conversion that starts slowly: its time set while it loads is not playing on.
+  assert.equal(watch(seconds(1, 120, (t) => ({ at: t < 3 ? 0 : 600, ready: false }))), 1 + START_LIMIT / 1000);
+  assert.equal(watch(seconds(1, 40, () => ({ at: 600, ready: false }))), null);
+  // A jump: its time changes while seeking, which is not playing either.
+  assert.equal(watch(seconds(1, 120, (t) => ({ at: t < 5 ? t : 300, seeking: t >= 5 }))), 5 + START_LIMIT / 1000);
+});
+
+test('stall: a pause, then the same stream played again, gets the short limit; paused time does not count', () => {
+  const looks = [...seconds(1, 10, (t) => ({ at: t })), ...seconds(11, 200, () => ({ at: 10, expecting: false })), ...seconds(201, 260, () => ({ at: 10, ready: false }))];
+  assert.equal(watch(looks), 201 + STALL_LIMIT / 1000);
+});
+
+test('stall: the server asked, silent or answering', () => {
+  assert.equal(stallStep({ up: false, reopened: false }), 'wait');
+  assert.equal(stallStep({ up: false, reopened: true }), 'wait');
+  assert.equal(stallStep({ up: true, reopened: false }), 'reopen');
+  assert.equal(stallStep({ up: true, reopened: true }), 'fail');
+  assert.ok(STALL_FORGIVEN > STALL_LIMIT / 1000);
 });
