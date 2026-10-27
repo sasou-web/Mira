@@ -169,6 +169,15 @@ export function chooseStream(source, { itemId, deviceId, stage, native, subtitle
   return { address, hlsStream, inband, playMethod: copiesVideo(source.TranscodingUrl) ? 'DirectStream' : 'Transcode', progressive: !hlsStream };
 }
 
+/**
+ * Jellyfin offers neither the file nor a conversion at stage 0: an account it does not let convert, the file above the
+ * quality asked. The bitrate to ask again with, full quality: the file as it is rather than nothing (Windows and Mac
+ * play it too), and its subtitles from the start (asked with the limit, Jellyfin cuts them where the title resumes).
+ * null when the limit is not why: past stage 0, or already at full quality.
+ */
+export const uncappedBitrate = (source, { stage, bitrate }) =>
+  (stage === 0 && !source.SupportsDirectPlay && !source.TranscodingUrl && bitrate < FULL_BITRATE ? FULL_BITRATE : null);
+
 /** The chosen subtitles are pictures, drawn into the video by Jellyfin (Apple's menu cannot turn those off). */
 export const burnedIn = (stream, transcodingUrl) => !!stream && !stream.IsTextSubtitleStream && /SubtitleMethod=Encode/i.test(transcodingUrl ?? '');
 

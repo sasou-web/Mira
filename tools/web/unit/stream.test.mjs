@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import {
   FULL_BITRATE, FULL_MARGIN, UNMEASURED_BITRATE, MEASURE_KEPT, knownBitrate, measuredBitrate, autoBitrate, LAST_STAGE, nextStage, stageRequest,
   stageText, videoErrorText, hlsErrorText, videoErrorStep, hlsErrorStep, afterCheck, resumeTicks, playbackError,
-  copiesVideo, chooseStream, burnedIn, subtitleSwitch, webVttAddress, progressFraction, startPosition, RESUME_BACK, RESUME_BACK_FROM, resumeBack,
+  copiesVideo, chooseStream, uncappedBitrate, burnedIn, subtitleSwitch, webVttAddress, progressFraction, startPosition, RESUME_BACK, RESUME_BACK_FROM, resumeBack,
   STALL_LIMIT, START_LIMIT, STALL_FORGIVEN, STILL, stallLimit, stallWatch, stallStep,
 } from '../../../src/Mira.Web/js/player/stream.js';
 
@@ -167,6 +167,16 @@ test('stream: the file as it is at stage 0, MP4 first among its containers', () 
   // Past stage 0, never the file as it is; with no conversion offered, nothing.
   assert.equal(choose(film({ SupportsDirectPlay: true }), { stage: 1 }), null);
   assert.equal(choose(film({ SupportsDirectPlay: false })), null);
+});
+
+test('stream: an account Jellyfin does not let convert asks for the file again without the quality’s limit', () => {
+  // Neither the file nor a conversion under 4 Mb/s: the file as it is, at full quality.
+  assert.equal(uncappedBitrate(film({ SupportsDirectPlay: false }), { stage: 0, bitrate: 4_000_000 }), FULL_BITRATE);
+  // Already at full quality (the file is above it, or the browser does not read it), past stage 0, or something offered: as it is.
+  assert.equal(uncappedBitrate(film({ SupportsDirectPlay: false }), { stage: 0, bitrate: FULL_BITRATE }), null);
+  assert.equal(uncappedBitrate(film({ SupportsDirectPlay: false }), { stage: 1, bitrate: 4_000_000 }), null);
+  assert.equal(uncappedBitrate(film({ SupportsDirectPlay: true }), { stage: 0, bitrate: 4_000_000 }), null);
+  assert.equal(uncappedBitrate(film({ TranscodingUrl: '/videos/item1/master.m3u8' }), { stage: 0, bitrate: 4_000_000 }), null);
 });
 
 test('stream: Jellyfin’s conversion, HLS or progressive', () => {
