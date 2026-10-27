@@ -89,6 +89,16 @@ internal static class LibraryTests
             Assert(catalog.Parent == "b1" && catalog.Sort("recent") == "saga" && catalog.Sort("") == "saga" && catalog.Sort("title") == "title", "Saga : ses titres, dans l’ordre de sortie sauf autre tri.");
             Assert(catalog.GridTitle("") == "Harry Potter - Saga" && catalog.Key("", new CatalogQuery()).Contains(":b1:"), "Saga : son nom, sa clé de cache.");
             Assert(catalog.Empty("", new CatalogQuery(Sort: "saga"), demo: false).Title == "Aucun titre dans cette saga", "Saga vide.");
+            catalog.Saga = null; catalog.ParentId = null;
+            Assert(catalog.PageTitle == "Rechercher" && catalog.AwaitsSearch("") && !catalog.AwaitsSearch("a") && catalog.Empty("", new CatalogQuery(), false) is { Title: "Que veux-tu regarder ?", Reset: false, Guide: false }, "Page Rechercher : une invitation avant la première lettre.");
+            catalog.ShowDemo([new MediaItem { Id = "m", Name = "Alien", Type = "Movie" }], "", new CatalogQuery());
+            Assert(catalog.Items.Count == 0 && catalog.TotalCount == 0, "Démo : rien avant la première lettre.");
+            catalog.View = "Movie"; Assert(!catalog.AwaitsSearch(""), "Films : tous les films.");
+            Assert(catalog.FilterCount(new CatalogQuery()) == 0 && Catalog.FiltersLabel(0) == "Filtrer", "Aucun filtre.");
+            catalog.ParentId = "lib";
+            Assert(catalog.FilterCount(new CatalogQuery(Genre: "Drame", Year: 2021, Played: false, Sort: "title")) == 4 && Catalog.FiltersLabel(4) == "Filtres · 4", "Genre, année, progression et bibliothèque comptés ; le tri non.");
+            catalog.Saga = ("b1", "Saga"); Assert(catalog.FilterCount(new CatalogQuery()) == 0, "La bibliothèque d’une saga n’est pas un filtre.");
+            catalog.Saga = null; catalog.ParentId = null;
             Assert(new CatalogQuery(Sort: "saga").Parameters.EndsWith("&sortBy=ProductionYear,PremiereDate,SortName&sortOrder=Ascending"), "Ordre de sortie.");
             catalog.Clear(); Assert(catalog.Episodes.Count == 0 && catalog.Sagas.Count == 0, "Un autre compte : plus rien de trouvé.");
             var requested = new List<string>();

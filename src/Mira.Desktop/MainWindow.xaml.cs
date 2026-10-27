@@ -363,7 +363,7 @@ public partial class MainWindow : Window
     }
     private async void Navigate_Click(object sender, RoutedEventArgs e)
     {
-        _catalog.View = (string)((Button)sender).Tag; ResetFilters();
+        _catalog.View = (string)((Button)sender).Tag; ResetFilters(); _filtersOpen = false;
         await NavigateLibraryAsync();
     }
     private void Search_Changed(object sender, TextChangedEventArgs e)
@@ -417,6 +417,12 @@ public partial class MainWindow : Window
         _browseCancellation?.Cancel(); _browseCancellation = new CancellationTokenSource();
         var ct = _browseCancellation.Token; var version = ++_viewVersion;
         var search = SearchBox.Text.Trim(); var home = _catalog.IsHome(search);
+        // Recherche before its first letter: nothing to ask Jellyfin.
+        if (_catalog.AwaitsSearch(search) && !more)
+        {
+            _catalog.Receive(new ItemsResult(), false); (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = ([], [], [], []);
+            _catalog.Loading = false; RenderLibrary(); return;
+        }
         var filters = home ? new CatalogQuery() : CurrentQuery();
         var key = _catalog.Key(search, filters);
         var client = _client; var store = _store;

@@ -28,6 +28,11 @@ public partial class MainWindow
             }
             await Page("home", "01-home");
             await Page("library", "02-library");
+            // « Filtrer » unfolds the genre, year, progress and library choices; a filter chosen is counted on it.
+            FiltersToggle_Click(this, new()); _filterBusy = true; GenreFilter.SelectedIndex = Math.Min(1, GenreFilter.Items.Count - 1); _filterBusy = false; RenderDemo();
+            await CaptureAsync(output, "02-library-filters");
+            if (CatalogFilters.Visibility != Visibility.Visible || GenreFilter.SelectedIndex > 0 != FiltersText.Text.Contains('1')) throw new InvalidOperationException("« Filtrer » does not show or count its filters: " + FiltersText.Text);
+            _filtersOpen = false;
             await Page("Movie", "03-films");
             await Page("Series", "04-series");
             await Page("library", "05-favorites", favorites: true);
@@ -68,6 +73,10 @@ public partial class MainWindow
             await Page("library", "11-hover");
             CardHoverEntered((MediaCard)PosterCards.Children[0]);
             await CaptureAsync(output, "11-hover"); ClosePreview();
+            // Recherche: its field alone, an invitation before the first letter, then what was found.
+            ResetFilters(); _catalog.View = "search"; RenderDemo(); await CaptureAsync(output, "12-search-start");
+            if (EmptyState.Visibility != Visibility.Visible || PosterCards.Visibility == Visibility.Visible || CatalogTools.Visibility == Visibility.Visible || SearchField.Visibility != Visibility.Visible)
+                throw new InvalidOperationException("The search page does not wait for a first letter.");
             _filterBusy = true; SearchBox.Text = L("étoiles", "stars"); _filterBusy = false; RenderDemo();
             await CaptureAsync(output, "12-search");
             await Page("home", "01-home");
