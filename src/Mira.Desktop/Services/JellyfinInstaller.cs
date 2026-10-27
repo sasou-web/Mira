@@ -53,12 +53,9 @@ internal static class JellyfinInstaller
     public static async Task<RunningInstaller> StartAsync(string profile, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         var package = JellyfinServerPackage.Current;
-        var folder = Path.Combine(profile, "downloads"); Directory.CreateDirectory(folder);
-        var setup = Path.Combine(folder, package.FileName); var partial = setup + ".partial";
+        var setup = await DownloadAsync(profile, package, progress, ct); var partial = setup + ".partial";
         try
         {
-            await VerifiedDownload.DownloadAsync(package.Url, partial, package.Sha256, null, JellyfinServerPackage.MaximumSize, "Jellyfin", progress: progress, ct: ct);
-            File.Move(partial, setup, overwrite: true);
             Process? process;
             // Held open, sharing reads only, from its check to its start: no program of this account can change or
             // replace the file Windows then runs with administrator rights.
@@ -76,6 +73,25 @@ internal static class JellyfinInstaller
         }
         catch { TryDelete(partial); TryDelete(setup); throw; }
     }
+    /// <summary>
+    /// The installer of <paramref name="package"/> downloaded into the profile and checked against its SHA-256: its
+    /// path. For an update, the elevated script checks it again before running it (<see cref="JellyfinAutostart.UpdateAsync"/>);
+    /// <see cref="Forget"/> deletes it afterwards.
+    /// </summary>
+    public static async Task<string> DownloadAsync(string profile, JellyfinServerPackage package, IProgress<double>? progress = null, CancellationToken ct = default)
+    {
+        var folder = Path.Combine(profile, "downloads"); Directory.CreateDirectory(folder);
+        var setup = Path.Combine(folder, package.FileName); var partial = setup + ".partial";
+        try
+        {
+            await VerifiedDownload.DownloadAsync(package.Url, partial, package.Sha256, null, JellyfinServerPackage.MaximumSize, "Jellyfin", progress: progress, ct: ct);
+            File.Move(partial, setup, overwrite: true);
+            return setup;
+        }
+        catch { TryDelete(partial); throw; }
+    }
+    /// <summary>An installer downloaded by <see cref="DownloadAsync"/>, deleted once it has run.</summary>
+    public static void Forget(string setup) { TryDelete(setup + ".partial"); TryDelete(setup); }
     private static async Task<int> EndAsync(Process process, string partial, string setup)
     {
         using (process)
@@ -100,12 +116,24 @@ internal sealed class RunningInstaller(Process process, Task<int> exited)
     /// and only moved, never answered. False when there is none.
     /// </summary>
     public bool BringForward() => Window() is var window && window != IntPtr.Zero && SetForegroundWindow(window);
-    private IntPtr Window()
+    private IntPtr Window() => Window(owner => owner == _id);
+    /// <summary>
+    /// The message box of the installer the elevated script started (an update), found by its program's name
+    /// (« jellyfin_12.3_windows-x64 »), brought in front of Mira as above. False when there is none.
+    /// </summary>
+    public static bool BringForward(string setup)
+    {
+        var found = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(setup));
+        var ids = found.Select(x => x.Id).ToHashSet();
+        foreach (var process in found) process.Dispose();
+        return ids.Count > 0 && Window(ids.Contains) is var window && window != IntPtr.Zero && SetForegroundWindow(window);
+    }
+    private static IntPtr Window(Func<int, bool> owned)
     {
         var found = IntPtr.Zero;
         EnumWindows((window, _) =>
         {
-            if (!IsWindowVisible(window) || GetWindowThreadProcessId(window, out var owner) == 0 || owner != _id) return true;
+            if (!IsWindowVisible(window) || GetWindowThreadProcessId(window, out var owner) == 0 || !owned(owner)) return true;
             found = window; return false;
         }, IntPtr.Zero);
         return found;

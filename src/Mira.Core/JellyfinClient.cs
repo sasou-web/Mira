@@ -11,11 +11,14 @@ namespace Mira.Core;
 public sealed class JellyfinClient : IDisposable
 {
     private readonly HttpClient _http;
+    /// <summary>The handler given (the tests'), for the rare request longer than <see cref="_http"/>'s limit.</summary>
+    private readonly HttpMessageHandler? _handler;
     public Connection Connection { get; private set; }
     public JellyfinClient(Connection connection, HttpMessageHandler? handler = null)
     {
         var server = NormalizeServer(connection.Server);
         Connection = connection with { Server = server };
+        _handler = handler;
         _http = handler is null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = new Uri(server);
         _http.Timeout = TimeSpan.FromSeconds(12);
@@ -970,6 +973,31 @@ public sealed class JellyfinClient : IDisposable
         if (mira.Any(url => MiraWeb.PinnedVersion(url) is { } pinned && pinned >= version)) return true;
         if (await WebAppVersionAsync(ct) is { } installed && installed >= version) return true;
         return await PinAsync(repositories, await verified(), ct) is null;
+    }
+    /// <summary>Jellyfin's backups (<see cref="JellyfinBackups"/>), newest first; null when this account may not read them, or Jellyfin has none to give (before 10.11).</summary>
+    public async Task<IReadOnlyList<JellyfinBackup>?> BackupsAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Backup", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return JellyfinBackups.Parse(json.RootElement);
+    }
+    /// <summary>
+    /// Has Jellyfin back itself up (<see cref="JellyfinBackups.Options"/>): it answers once its archive is written, which
+    /// may take minutes (<see cref="JellyfinBackups.Limit"/>, beyond this client's usual one). Null when refused (not an
+    /// administrator, or a Jellyfin before 10.11).
+    /// </summary>
+    public async Task<JellyfinBackup?> CreateBackupAsync(CancellationToken ct = default)
+    {
+        using var http = _handler is null ? new HttpClient() : new HttpClient(_handler, disposeHandler: false);
+        http.BaseAddress = _http.BaseAddress; http.Timeout = JellyfinBackups.Limit;
+        foreach (var header in _http.DefaultRequestHeaders) http.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+        using var response = await http.PostAsJsonAsync("Backup/Create", JellyfinBackups.Options, Json.Options, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return JellyfinBackups.Parse(json.RootElement).FirstOrDefault() ?? throw new IOException(L("Jellyfin n’a pas dit où il a rangé sa sauvegarde.", "Jellyfin didn’t say where it put its backup."));
     }
     /// <summary>Jellyfin restarted, as its dashboard does (administrator): it stops answering for a few seconds.</summary>
     public async Task RestartAsync(CancellationToken ct = default)

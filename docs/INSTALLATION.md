@@ -47,6 +47,23 @@ Le service de Jellyfin tourne sous le compte Windows **Network Service**, qui ne
 
 Si Jellyfin est déjà installé et configuré sur ce PC, Mira le signale et propose de se connecter avec son compte. Une installation interrompue se relance avec le même compte : les étapes déjà faites sont gardées. Jellyfin se désinstalle depuis **Paramètres → Applications → Jellyfin Server** ; ses données sont dans `%ProgramData%\Jellyfin\Server`. Ses autres réglages, dont l’accès depuis Internet, se font sur sa page web, `http://127.0.0.1:8096`.
 
+## Sauvegarder et mettre à jour Jellyfin
+
+Sur le PC de Jellyfin, connecté avec un compte administrateur, **Réglages → Jellyfin → Jellyfin sur ce PC** montre sa version et sa dernière sauvegarde (Jellyfin 10.11 ou plus).
+
+- **Sauvegarder maintenant** demande à Jellyfin sa sauvegarde intégrée : ses comptes, la progression de chacun, les bibliothèques, leurs images, les sous-titres extraits et ses réglages, pas tes vidéos ni ses extensions. Elle est rangée dans `%ProgramData%\Jellyfin\Server\data\backups` (Jellyfin exige 5 Go libres sur ce disque). **Copier aussi dans…** choisit un dossier sur une clé USB ou un autre disque : chaque sauvegarde y est copiée, et Mira y garde les trois plus récentes. Elle contient les jetons de connexion de tes appareils : ne la copie pas dans un dossier partagé.
+- Après 30 jours sans sauvegarde, Mira te le rappelle par un avis (**Sauvegarder**), puis chaque semaine.
+- Quand une version plus récente de Jellyfin existe (lue une fois par jour dans le catalogue winget de Microsoft, quelques jours après sa sortie), Mira le dit une fois par un avis. **Mettre à jour Jellyfin** sauvegarde d’abord Jellyfin, télécharge son installateur officiel, vérifie son empreinte, puis Windows demande une autorisation ; Jellyfin s’arrête une minute environ. Refusé pendant que quelqu’un regarde. Une nouvelle version majeure (13 après 12) est annoncée comme telle, avec ses **Nouveautés** : lis-les avant, une majeure peut ne plus charger l’extension de Mira web. Si l’installateur affiche « Could not start the Jellyfin Server service », choisis **Ignorer** : Jellyfin démarre juste après.
+
+Mira ne met à jour que le Jellyfin installé en service par son installateur (celui que Mira installe). Une nouvelle version change la base de Jellyfin sans retour en arrière possible : revenir à l’ancienne demande la sauvegarde.
+
+**Remettre une sauvegarde** (PC neuf, disque changé, retour à l’ancienne version) :
+
+1. Installe Jellyfin, de la même version que la sauvegarde ou plus récente (depuis Mira ou `jellyfin.org`), et termine son assistant avec un compte quelconque.
+2. Copie l’archive `jellyfin-backup-<date>.zip` dans `C:\ProgramData\Jellyfin\Server\data\backups`.
+3. Ouvre `http://127.0.0.1:8096`, **Tableau de bord → Sauvegardes**, et restaure-la : Jellyfin redémarre avec ses anciens comptes, ta progression et tes bibliothèques.
+4. Remets tes vidéos aux mêmes chemins (ou corrige les dossiers des bibliothèques dans le tableau de bord), puis, dans Mira, **Guide → Mira sur ton téléphone → Tout préparer**.
+
 ## Obtenir le moteur vidéo
 
 **Automatiquement.** La case **Télécharger le moteur vidéo mpv** de l’installateur (cochée par défaut), le bouton **Installer le moteur mpv** de **Réglages → Lecture** ou le bouton **Installer** proposé à la première lecture font la même chose : Mira télécharge une build précise des [builds Windows de mpv](https://mpv.io/installation/) (shinchiro, publiée sur SourceForge, 31 Mo), vérifie son empreinte SHA-256, extrait `libmpv-2.dll` et vérifie aussi la sienne, puis la range dans `data\mpv`. Ce moteur suit la build que fige Mira : une build plus récente, figée par une nouvelle version de Mira, est téléchargée en arrière-plan, vérifiée de la même façon et utilisée au démarrage suivant ; un moteur choisi dans les réglages ou trouvé sur le PC n’est jamais touché. Un fichier différent de celui attendu n’est jamais installé. Avec l’installateur, un échec du téléchargement (pas de connexion) n’empêche pas l’installation : Mira le propose de nouveau à la première lecture.
