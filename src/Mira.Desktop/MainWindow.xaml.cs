@@ -107,7 +107,7 @@ public partial class MainWindow : Window
             if (!_demo && !_playing && _client is not null && IsActive && Cadence.RefreshDue(_listening, _lastRefresh, DateTimeOffset.UtcNow)) await RefreshAsync(quiet: true);
         };
         _playerTimer.Tick += PlayerTick;
-        InitializeEpisodeNotices(); InitializeTogether(); InitializeChoices();
+        InitializeEpisodeNotices(); InitializeTogether(); InitializeChoices(); WatchSettingChanges();
         VolumeSlider.Value = VolumeBoost.Clamp(_settings.Volume); ShowVolumeLevel();
         var testArg = Array.IndexOf(args, "--test-media");
         if (testArg >= 0 && testArg + 1 < args.Length) _testMedia = args[testArg + 1];
