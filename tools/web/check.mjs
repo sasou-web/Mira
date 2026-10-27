@@ -130,6 +130,20 @@ try {
   const afterLetter = await titlesShown().count();
   check('films : « Lettre » avec le tri par titre seulement, les titres en L', !chipBefore && lettered.join(', ') === 'Lueur Web (2020)' && /Lettre : L/.test(chipText)
     && await letterChip().count() === 0 && afterLetter >= 4, `${lettered.join(', ')} ; « ${chipText} » ; ${afterLetter} films avec un autre tri`);
+  // « Favoris » with no favourite film: the empty grid says which filter empties it, the count line names it (its chip
+  // may have scrolled away), and its button takes that one off.
+  const favourites = (await api('Items?filters=IsFavorite&includeItemTypes=Movie&recursive=true&limit=1'))?.TotalRecordCount;
+  if (favourites === 0) {
+    await page.locator('#view .library .chip', { hasText: 'Favoris' }).click();
+    await page.waitForSelector('#view .library .state', { timeout: 10000 }).catch(() => {});
+    const empty = { title: await page.locator('#view .library .state h2').innerText().catch(() => ''), button: await page.locator('#view .library .state .btn').innerText().catch(() => ''),
+      count: await page.locator('#view .library-count').innerText() };
+    await shot('03-films-favorites-empty');
+    await page.locator('#view .library .state .btn').click().catch(() => {}); await settled();
+    const back = await titlesShown().count();
+    check('films : « Favoris » vide, le filtre nommé et retiré par son bouton', empty.title === 'Aucun film en favori' && empty.button === 'Retirer « Favoris »' && empty.count === 'Favoris'
+      && back >= 4 && !(await page.locator('#view .library .chip.on').count()), `« ${empty.title} », « ${empty.button} », compte « ${empty.count} » ; ${back} films ensuite`);
+  } else skip('films : « Favoris » vide', `${favourites ?? '?'} film(s) en favori sur ce compte`);
 
   await page.locator('.tabbar a[data-tab="search"]').click(); await wait(800);
   await page.fill('input[type=search]', seriesName.split(' ')[0]); await wait(1800);

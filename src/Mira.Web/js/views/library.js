@@ -156,11 +156,11 @@ export function create({ type, query }) {
     const stored = readStore();
     if (stored?.items?.length) {
       reconcile(grid, stored.items, firstCards(stored.items));
-      count.textContent = stored.total ? counted(stored.total) : '';
+      showCount(stored.total);
       decoded().then(markReady);
     } else {
       clear(grid).append(...skeletonGrid(Math.min(18, firstScreen())).children);
-      count.textContent = '';
+      showCount(0);
     }
     more();
   }
@@ -214,7 +214,7 @@ export function create({ type, query }) {
       }
       total = result?.TotalRecordCount ?? items.length;
       done = start >= total; loadedAt = Date.now(); stale = false;
-      count.textContent = total ? counted(total) : '';
+      showCount(total);
       if (total === 0) showEmpty();
     } catch (error) {
       if (error.name !== 'AbortError' && mine === generation) loadedAt = Date.now();
@@ -223,14 +223,37 @@ export function create({ type, query }) {
     keepLoading();
   }
 
-  /** Nothing to show: why, and what to do. */
+  /** The filters on, by name (« Favoris », « Animation », « 2021 »), in the order of their chips. */
+  const activeFilters = () => [
+    state.letter ? { label: tr('Lettre : {letter}', { letter: state.letter }), off: { letter: '' } } : null,
+    state.genre ? { label: state.genre, off: { genre: '' } } : null,
+    state.year ? { label: state.year, off: { year: '' } } : null,
+    state.unplayed ? { label: tr('Non vus'), off: { unplayed: false } } : null,
+    state.favorite ? { label: tr('Favoris'), off: { favorite: false } } : null,
+  ].filter(Boolean);
+  /** The count, and the filters on once their chips have scrolled away: why the grid shows what it shows. */
+  const showCount = (n) => { count.textContent = [n ? counted(n) : '', activeFilters().map((f) => f.label).join(', ')].filter(Boolean).join(' · '); };
+
+  /** Nothing to show: which filter empties the grid, in words, and the button that takes that one off. */
   function showEmpty() {
-    const onlyLetter = state.letter && !state.genre && !state.year && !state.unplayed && !state.favorite;
-    grid.append(onlyLetter
-      ? emptyState({ symbol: 'filter', title: state.letter === '#' ? tr('Aucun titre avant A') : tr('Aucun titre en {letter}', { letter: state.letter }), text: tr('Choisis une autre lettre.'), action: { label: tr('Toutes les lettres'), run: () => apply({ letter: '' }) } })
-      : filtered()
-      ? emptyState({ symbol: 'filter', title: tr('Aucun titre ne correspond'), text: tr('Essaie un autre genre ou une autre année.'), action: { label: tr('Réinitialiser les filtres'), run: () => apply(noFilters) } })
-      : emptyState({ symbol: movies ? 'films' : 'series', title: movies ? tr('Aucun film pour l’instant') : tr('Aucune série pour l’instant'), text: tr('Ajoute-en dans les dossiers de Jellyfin : ils apparaîtront ici après l’analyse.') }));
+    const on = activeFilters();
+    if (!on.length) {
+      grid.append(emptyState({ symbol: movies ? 'films' : 'series', title: movies ? tr('Aucun film pour l’instant') : tr('Aucune série pour l’instant'), text: tr('Ajoute-en dans les dossiers de Jellyfin : ils apparaîtront ici après l’analyse.') }));
+    } else if (on.length === 1) {
+      const [filter] = on;
+      const words = state.letter ? { title: state.letter === '#' ? tr('Aucun titre avant A') : tr('Aucun titre en {letter}', { letter: state.letter }), text: tr('Choisis une autre lettre.') }
+        : state.favorite ? { title: movies ? tr('Aucun film en favori') : tr('Aucune série en favori'), text: tr('Touche le cœur sur la fiche d’un titre pour le retrouver ici.') }
+        : state.unplayed ? { title: movies ? tr('Tu as vu tous ces films') : tr('Tu as vu toutes ces séries'), text: tr('Rien de nouveau à voir ici pour l’instant.') }
+        : state.genre ? { title: movies ? tr('Aucun film « {genre} »', { genre: state.genre }) : tr('Aucune série « {genre} »', { genre: state.genre }), text: tr('Choisis un autre genre.') }
+        : { title: movies ? tr('Aucun film de {year}', { year: state.year }) : tr('Aucune série de {year}', { year: state.year }), text: tr('Choisis une autre année.') };
+      grid.append(emptyState({ symbol: 'filter', ...words, action: { label: tr('Retirer « {filter} »', { filter: filter.label }), run: () => apply(filter.off) } }));
+    } else {
+      // Several: each can be taken off on its own, or all of them at once.
+      const box = emptyState({ symbol: 'filter', title: tr('Aucun titre avec ces filtres'), text: tr('Retire un filtre pour en voir plus.'), action: { label: tr('Réinitialiser les filtres'), run: () => apply(noFilters) } });
+      box.querySelector('.btn').before(h('div', { class: 'state-filters', role: 'group', 'aria-label': tr('Filtres') }, on.map((filter) =>
+        h('button', { class: 'chip', 'aria-label': tr('Retirer « {filter} »', { filter: filter.label }), on: { click: () => apply(filter.off) } }, icon('close', { size: 16 }), filter.label))));
+      grid.append(box);
+    }
     grid.lastChild.style.gridColumn = '1 / -1';
   }
 
@@ -259,7 +282,7 @@ export function create({ type, query }) {
       start += items.length;
       done = items.length < PAGE || start >= total;
       loadedAt = Date.now();
-      count.textContent = total ? counted(total) : '';
+      showCount(total);
       if (total === 0) showEmpty();
     } catch (error) {
       if (error.name === 'AbortError' || mine !== generation) return;
