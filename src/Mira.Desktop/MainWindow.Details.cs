@@ -320,7 +320,7 @@ public partial class MainWindow
             file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
     }
     private static StackPanel ActionLabel(string icon, string label)
-    { var panel = new StackPanel { Orientation = Orientation.Horizontal }; panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18, Margin = new Thickness(0, 0, 9, 0) }); panel.Children.Add(new TextBlock { Text = label }); return panel; }
+    { var panel = new StackPanel { Orientation = Orientation.Horizontal }; panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18 }); panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) }); return panel; }
     private void Season_Changed(object sender, SelectionChangedEventArgs e) { if (!_seasonBusy) { RenderEpisodes(); ShowOfflineButton(); Motion.Reveal(EpisodesPanel, 220, 7); } }
     private void RenderEpisodes()
     {

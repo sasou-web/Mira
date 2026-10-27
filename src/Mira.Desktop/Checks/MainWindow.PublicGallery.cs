@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using Mira.Core;
 using Mira.Core.TorLink;
 using Mira.Desktop.Services;
@@ -32,6 +33,17 @@ public partial class MainWindow
             await Page("library", "05-favorites", favorites: true);
             await ShowDetailsAsync(_demoItems!.First(x => x.Type == "Movie"));
             await CaptureAsync(output, "06-film-details");
+            // Every button a title's page can have, at Mira's smallest window then on a 1080p screen: one line that
+            // never cuts a button off, labels given up from the least needed ones only when they do not fit.
+            ShowEveryDetailAction();
+            Width = 960; Height = 600; await CaptureAsync(output, "06-film-actions-minimum");
+            var actions = DetailActions.Children.OfType<Button>().Where(x => x.IsVisible).ToList();
+            foreach (var action in actions)
+                if (action.TranslatePoint(new Point(action.ActualWidth, 0), DetailActions).X > DetailActions.ActualWidth + 1)
+                    throw new InvalidOperationException($"« {Accessible.ContentText(action.Content)} » is cut off on the title page at 960 px.");
+            Width = 1920; Height = 1032; await CaptureAsync(output, "06-film-actions-wide");
+            if (actions.FirstOrDefault(x => !ActionRow.ShowsLabel(x)) is { } shrunk) throw new InvalidOperationException($"« {Accessible.ContentText(shrunk.Content)} » lost its label on a 1920 px window.");
+            Width = 1440; Height = 960;
             Settings_Click(this, new()); await CaptureAsync(output, "07-playback-settings");
             SelectSettingsTab("subtitles"); await CaptureAsync(output, "08-subtitles-settings");
             SelectSettingsTab("appearance"); await CaptureAsync(output, "09-appearance-settings");
@@ -113,7 +125,7 @@ public partial class MainWindow
             GoBack();
             if (PlayerErrorShown || PlayerShell.IsVisible || !LibraryShell.IsVisible) throw new InvalidOperationException("« Retour » does not leave the player's error screen.");
             await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
-            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {14 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
+            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {16 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }
         catch (Exception ex)
         {
@@ -122,6 +134,16 @@ public partial class MainWindow
             Environment.ExitCode = 1;
         }
         finally { Close(); }
+    }
+
+    /// <summary>The page's buttons that the demo leaves out (a group, this PC, Jellyfin's files, TorLink), as they read.</summary>
+    private void ShowEveryDetailAction()
+    {
+        DetailPlay.Content = ActionLabel("play", L("Reprendre", "Resume")); DetailRestart.Visibility = Visibility.Visible;
+        TogetherButton.Content = ActionLabel("users", L("Regarder ensemble", "Watch together"));
+        OfflineButton.Content = ActionLabel("check", L("Sur ce PC", "On this PC")); OfflineButton.ToolTip = L("Sur ce PC · 4,2 Go. Clique pour le retirer", "On this PC · 4.2 GB. Click to remove it");
+        _detailFollow = null; DescribeFollowButton();
+        TogetherButton.Visibility = OfflineButton.Visibility = FilesButton.Visibility = FollowButton.Visibility = Visibility.Visible;
     }
 
     /// <summary>The Windows account of the captures' sample paths.</summary>
