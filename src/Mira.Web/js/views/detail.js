@@ -601,8 +601,10 @@ export function create({ id, query }) {
         Promise.all([api.similar(id).then((r) => r?.Items ?? [], () => []), ofSaga, studioTitles(item)]).then(([alike, found, studios]) => {
           sagas = found.filter((saga) => saga.items.length);
           const inSaga = new Set(sagas.flatMap((saga) => saga.items.map((x) => x.Id)));
-          similar = alike.filter((x) => !inSaga.has(x.Id));
           studio = studios.filter(Boolean).map((x) => ({ ...x, items: x.items.filter((t) => t.Id !== id && !inSaga.has(t.Id)).slice(0, 20) })).find((x) => x.items.length) ?? null;
+          // Nor again what « Du même studio » shows just above: in a small library, both rows would be the same titles.
+          const inStudio = new Set(studio?.items.map((x) => x.Id));
+          similar = alike.filter((x) => !inSaga.has(x.Id) && !inStudio.has(x.Id));
           if (sagas.length && sagaBox) clear(sagaBox).append(...sagaRows());
           if (studio && studioBox) clear(studioBox).append(studioRow());
           if (similar.length && similarBox) clear(similarBox).append(row(tr('Titres similaires'), similar, (x) => posterCard(x)) ?? '');

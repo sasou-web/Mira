@@ -15,6 +15,9 @@ export default {
   'il y a {n} jours': '{n} days ago',
   'Mira n’a pas encore été ouvert sur le PC serveur : c’est lui qui cherche et télécharge, avec TorLink. Ouvre-le là-bas, connecté avec un compte administrateur.':
     'Mira hasn’t been opened on the server PC yet: that’s where it searches and downloads, with TorLink. Open it there, signed in with an administrator account.',
+  'Ouvre Mira sur le PC serveur': 'Open Mira on the server PC',
+  'C’est lui qui cherche et télécharge avec TorLink, puis range le titre dans ta bibliothèque. Ouvre-le sur le PC où tourne Jellyfin, connecté avec un compte administrateur : cet écran s’active dès qu’il est là, même réduit.':
+    'It searches and downloads with TorLink, then adds the title to your library. Open it on the PC that runs Jellyfin, signed in with an administrator account: this screen comes alive as soon as it’s there, even minimized.',
   'Mira n’est pas ouvert sur {name} (vu {ago}) : tes demandes l’attendent, il les fera à son retour.':
     'Mira isn’t open on {name} (seen {ago}). Your requests will wait for it and go through when it’s back.',
   'Mira n’est pas ouvert sur {name} : tes demandes l’attendent, il les fera à son retour.':
