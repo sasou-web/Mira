@@ -974,6 +974,69 @@ try {
 check('lecture refusée : aucune erreur JavaScript', fallErrors.length === 0, fallErrors.slice(0, 3).join(' | '));
 await fall.close();
 
+// A stream that stops coming while Jellyfin answers (Wi-Fi that hiccups, a slow relay, a conversion stopped): no error,
+// the browser waits forever. Here the film's first quarter arrives, then its next requests are held. Mira opens the
+// stream again where it was; held again, « Lecture impossible », and « Réessayer » picks it up there.
+const stuck = await newContext('flux bloqué');
+const kp = await stuck.newPage();
+const stuckErrors = [], held = [];
+kp.on('pageerror', (e) => stuckErrors.push(e.message));
+let holding = false, served = 0, infos = 0, releaseOnReopen = false;
+const releaseHeld = () => { holding = false; for (const r of held.splice(0)) r.continue().catch(() => {}); };
+kp.on('request', (r) => { if (/\/PlaybackInfo/i.test(r.url()) && r.method() === 'POST' && ++infos >= 2 && releaseOnReopen) releaseHeld(); });
+await kp.route((url) => /\/videos\/[^/]+\/stream\.webm/i.test(url.pathname), async (route) => {
+  if (!holding) return route.continue();
+  if (served++ > 0) { held.push(route); return; }
+  const response = await route.fetch(), body = await response.body(), cut = Math.floor(body.length / 4);
+  return route.fulfill({ status: 206, body: body.subarray(0, cut),
+    headers: { ...response.headers(), 'content-range': `bytes 0-${cut - 1}/${body.length}`, 'content-length': String(cut), 'accept-ranges': 'bytes' } });
+});
+try {
+  await signIn(kp);
+  const film = await kp.evaluate(async () => {
+    const root = document.querySelector('script[type=module]').src.replace(/app\.js.*$/, '');
+    const { api } = await import(`${root}api.js`);
+    return (await api.browse({ types: 'Movie', search: 'Lueur Web' })).Items[0];
+  });
+  const state = () => kp.evaluate(() => {
+    const v = document.querySelector('video');
+    return { t: v?.currentTime ?? 0, paused: v?.paused ?? true, title: document.querySelector('.p-message:not([hidden]) h2')?.textContent ?? '',
+      tried: [...document.querySelectorAll('.p-message:not([hidden]) ol.tried li')].map((li) => li.textContent) };
+  });
+  const playUntil = async (release, done, seconds) => {
+    holding = true; served = 0; infos = 0; releaseOnReopen = release;
+    await kp.evaluate(() => { location.hash = '#/'; }); await kp.waitForTimeout(1200);
+    await kp.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
+    let s = await state(), stalledAt = 0;
+    for (let i = 0; i < seconds; i++) {
+      await kp.waitForTimeout(1000);
+      s = await state();
+      stalledAt = Math.max(stalledAt, infos < 2 ? s.t : 0);
+      if (done(s)) break;
+    }
+    return { ...s, stalledAt, infos };
+  };
+  // Opened again where it stopped, and then it comes: it plays on from there.
+  let s = await playUntil(true, (x) => infos >= 2 && x.t > 12, 60);
+  check('flux bloqué : rouvert où il s’était arrêté, il reprend', s.infos === 2 && s.stalledAt > 3 && s.t > 12 && !s.paused && !s.title,
+    `arrêté à ${s.stalledAt.toFixed(1)} s, ${s.infos} demandes à Jellyfin, puis ${s.t.toFixed(1)} s`);
+  // Held for good: said, with what was tried, and « Réessayer » plays from where it stopped.
+  s = await playUntil(false, (x) => !!x.title, 100);
+  await kp.screenshot({ path: `${out}/17-stuck.png` });
+  check('flux bloqué pour de bon : « Lecture impossible », chaque essai dit', s.title === 'Lecture impossible' && s.infos === 2 && s.tried.length === 2
+    && s.tried.every((line) => /Plus rien reçu pendant \d+ s/.test(line)), `${s.title || 'rien'} après ${s.infos} demandes ; ${s.tried.join(' | ')}`);
+  const stoppedAt = s.stalledAt;
+  releaseHeld();
+  await kp.getByRole('button', { name: 'Réessayer' }).click();
+  for (let i = 0; i < 30 && !((s = await state()).t > stoppedAt + 1); i++) await kp.waitForTimeout(1000);
+  check('flux bloqué : « Réessayer » reprend où il s’était arrêté', s.t > stoppedAt + 1 && s.t < stoppedAt + 20 && !s.title, `arrêté à ${stoppedAt.toFixed(1)} s, puis ${s.t.toFixed(1)} s`);
+} catch (error) {
+  check('flux bloqué : déroulé', false, error.message.split('\n')[0]);
+}
+check('flux bloqué : aucune erreur JavaScript', stuckErrors.length === 0, stuckErrors.slice(0, 3).join(' | '));
+for (const r of held.splice(0)) await r.abort().catch(() => {});
+await stuck.close();
+
 // The session ended by Jellyfin (signed out elsewhere, password changed): back to the sign-in screen, and nothing of
 // the account stays, as after « Se déconnecter ».
 const ended = await newContext('session refusée');

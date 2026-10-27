@@ -16,7 +16,7 @@ import { trackText, trackMemory, chosenTracks, startTracks, fileTextSubtitles, c
 import {
   knownBitrate, autoBitrate, UNMEASURED_BITRATE, nextStage, stageRequest, videoError, videoErrorText, hlsError, hlsErrorText, videoErrorStep,
   hlsErrorStep, afterCheck, resumeTicks, playbackError, chooseStream, burnedIn, subtitleSwitch, webVttAddress,
-  progressFraction, startPosition,
+  progressFraction, startPosition, STILL, stallWatch, stallLimit, stallStep, STALL_FORGIVEN,
 } from './stream.js';
 import { presentationStep } from './presentation.js';
 import { mediaLine, attemptText, transcodeReasons, failureReport } from './failure.js';
@@ -109,6 +109,9 @@ export function create({ id, query }) {
   let currentStart = 0;       // where the current opening was asked to start (ticks), until it plays
   let resumedByUser = true;   // the next 'playing' follows a pause the person made: the controls show then, not after a stall
   let switchFrom = '';        // how the title that ended was shown (Apple's full screen, Picture in Picture) when the next began
+  // A stream that no longer comes (stream.js stallWatch): the last look at it, the server being asked about it, and
+  // where it was opened again after a stall (seconds; null until then, and once it has played on from there).
+  let look = STILL, askingStuck = false, reopenedAt = null;
   // « Regarder ensemble » (together.js): what the player did itself, not to be told to the group as the person's
   // (until these times); the group's play to come; a stall told to the group; a seek told once the finger stops.
   const expect = { play: 0, pause: 0, seek: 0 };
@@ -466,7 +469,7 @@ export function create({ id, query }) {
     // An opening or a check of the server still on its way for the title before lands on nothing.
     opening++;
     item = null; source = null; playSessionId = ''; playMethod = 'DirectPlay'; offset = 0; progressive = false; total = 0; inband = false;
-    audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; attempts = []; current = null; started = false; ended = false;
+    audioIndex = null; subtitleIndex = null; fallback = 0; lastError = ''; attempts = []; current = null; started = false; ended = false; reopenedAt = null;
     segments = []; chapters = []; trick = null; next = null; nextDismissed = false; currentSkip = null;
     titleStart = 0; creditsWatched = false; lastAt = 0;
     skipped.clear();
@@ -574,6 +577,7 @@ export function create({ id, query }) {
     for (const t of [...video.querySelectorAll('track')]) t.remove();
     pendingStart = startSeconds;
     streamPlaying = false;
+    look = STILL;
     touched = new WeakSet();
     // Subtitles go in before the stream: Safari hands the tracks it finds at loading to Apple's player and its menu.
     addSubtitles();
@@ -843,6 +847,8 @@ export function create({ id, query }) {
   }
   function retry() {
     hideMessage(); failed = false; showNative('loading');
+    // Asked by the person: a stall of this new stream is a first one.
+    reopenedAt = null;
     if (item) open(resumeAt()); else begin();
   }
   /** Where to pick the title up again: where it plays, or, before it has played, where it was asked to start. */
@@ -896,6 +902,42 @@ export function create({ id, query }) {
     };
     retryTimer = setTimeout(again, 2000);
   }
+
+  /**
+   * Looked at every second: a stream that should play and stays still (no error: the browser would wait for it
+   * forever, its spinner on, the controls hidden) is a stall (stream.js stallWatch).
+   */
+  function lookAtStream() {
+    const expecting = !!item && streamAttempt === opening && !!video.getAttribute('src') && !failed && !waitingForServer && !askingStuck
+      && !closing && !disposed && !video.ended && (!video.paused || video.seeking);
+    // Played on well past where it was opened again: the next stall is a first one.
+    if (reopenedAt != null && streamPlaying && position() > reopenedAt + STALL_FORGIVEN) reopenedAt = null;
+    look = stallWatch(look, { now: Date.now(), at: video.currentTime, expecting, ready: video.readyState >= 3, seeking: video.seeking });
+    if (look.stuck) streamStuck(stallLimit(look.moved));
+  }
+  const STUCK = tr('Jellyfin répond, mais la vidéo n’arrive plus jusqu’ici. Réessaie, ou choisis une qualité plus basse si la connexion est lente.');
+  /**
+   * A stall: the server is asked. Silent, Mira waits for it, as after an error; answering, the stream is opened again
+   * where the title is (Jellyfin may have stopped its conversion), and stuck again before it played on,
+   * « Lecture impossible » with « Réessayer » (stream.js stallStep).
+   */
+  function streamStuck(limit) {
+    const attempt = opening, at = resumeAt(), wasReopened = reopenedAt != null;
+    if (current) current.error = tr('Plus rien reçu pendant {n} s', { n: Math.round(limit / 1000) });
+    look = STILL; askingStuck = true;
+    recheckServer();
+    ping().then((up) => {
+      askingStuck = false;
+      if (disposed || closing || attempt !== opening) return;
+      const step = stallStep({ up, reopened: wasReopened });
+      // The stream given up stops asking for more (hls.js would keep trying, and say so later).
+      if (step !== 'reopen') { hls?.stopLoad(); quietPause(); }
+      if (step === 'wait') waitForServer(at, false);
+      else if (step === 'reopen') { reopenedAt = seconds(at); open(at); }
+      else fail(STUCK);
+    });
+  }
+  const stallClock = setInterval(lookAtStream, 1000);
 
   // ---------- Video events ----------
   function fitPicture() {
@@ -1249,7 +1291,7 @@ export function create({ id, query }) {
     leave() { if (started) stop(); },
     dispose() {
       disposed = true;
-      clearInterval(progressTimer); clearInterval(countdownTimer); clearTimeout(hideTimer); clearTimeout(nativeCheck); stopWaiting();
+      clearInterval(progressTimer); clearInterval(countdownTimer); clearInterval(stallClock); clearTimeout(hideTimer); clearTimeout(nativeCheck); stopWaiting();
       document.removeEventListener('fullscreenchange', fullscreenChanged);
       leaveFullscreen();
       removeEventListener('keydown', keys);
