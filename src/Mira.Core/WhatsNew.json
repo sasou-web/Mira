@@ -1,8 +1,8 @@
 [
   {
     "version": "0.8.5",
-    "summary": "Suivre une série, corriger un titre mal reconnu, lire loin de chez toi, sauvegarder Jellyfin.",
-    "en": { "summary": "Follow a series, fix a misidentified title, play away from home, back up Jellyfin." },
+    "summary": "Suivre une série, corriger un titre, lire loin de chez toi ; Réglages et recherche plus clairs.",
+    "en": { "summary": "Follow a series, fix a title, play away from home; clearer Settings and search." },
     "items": [
       { "icon": "series", "title": "Suivre une série", "text": "Le PC serveur cherche et télécharge les nouveaux épisodes d’une série suivie, avec dix minutes pour annuler.", "web": true,
         "en": { "title": "Follow a series", "text": "The server PC finds and downloads new episodes of a followed series, with ten minutes to cancel." } },
