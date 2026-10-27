@@ -101,6 +101,12 @@ try {
   const count = await page.locator('.library-count').innerText();
   check('films : grille', /film/.test(count), count);
   await shot('03-films');
+  // A poster's title on two lines, room kept for both: none cut short at this size (« Chapitres Web » takes two), the
+  // cards of the grid all as tall.
+  const titleLines = await page.evaluate(() => [...document.querySelectorAll('#view .library .grid .card:not([aria-hidden="true"]) .card-title')]
+    .map((t) => ({ name: t.textContent, lines: Math.round(t.scrollHeight / parseFloat(getComputedStyle(t).lineHeight)), cut: t.scrollHeight > t.clientHeight + 1, height: t.clientHeight })));
+  check('films : titres des cartes sur deux lignes, entiers', titleLines.length >= 4 && titleLines.some((t) => t.lines === 2) && !titleLines.some((t) => t.cut)
+    && new Set(titleLines.map((t) => t.height)).size === 1, titleLines.map((t) => `${t.name} ${t.lines}${t.cut ? ' coupé' : ''} ${t.height} px`).join(', '));
   // « Lettre », with the sort by title only: the films under L (tools/web/media.sh: Aube, Chapitres, Lueur, Signes).
   const sortBy = async (label) => {
     await page.locator('#view .library .chip', { hasText: 'Trier' }).click();

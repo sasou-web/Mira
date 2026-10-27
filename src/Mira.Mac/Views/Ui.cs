@@ -200,7 +200,8 @@ public static class Cards
         var art = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = frame, Background = Ui.Raised };
         var aspect = new AspectBox(2.0 / 3) { Child = art };
         var caption = Ui.Column(2,
-            new TextBlock { Text = item.DisplayTitle, FontSize = 14, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
+            // Two lines, both always kept: a long title reads whole, and the cards of a grid stay in line (as on Windows).
+            new TextBlock { Text = item.DisplayTitle, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2, LineHeight = 19, Height = 38 },
             new TextBlock { Text = Caption(item), FontSize = 12.5, Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 });
         var body = new StackPanel { Spacing = 10 };
         body.Children.Add(aspect); body.Children.Add(caption);
