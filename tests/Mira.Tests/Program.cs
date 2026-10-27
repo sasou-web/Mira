@@ -955,11 +955,14 @@ if (args.Contains("--mpv-integration"))
     {
         using var client = new JellyfinClient(new("http://127.0.0.1:18096/", "mock-user", "Compte de test", "mira-test-token", "mpv-integration"));
         var catalog = await client.BrowseAsync(); Assert(catalog.Items.Count == 1, "Mock catalog not loaded");
-        var info = await client.PlaybackAsync("mock-film"); var source = info.MediaSources.Single();
+        // As the player opens it (ServerStreams): Jellyfin on this PC, full quality, the file as it is from its address.
+        var stream = await ServerStreams.OpenAsync(client, new ConnectionSpeed(), StreamQuality.Auto, new MediaItem { Id = "mock-film", Name = "Film" }, new(2), "eng", _ => Task.FromResult(false));
+        var source = stream.Source;
+        Assert(!stream.Converted && stream.Location == client.StreamUri("mock-film", source.Id).AbsoluteUri && stream.Authorization == client.AuthorizationHeader, "Not the file as it is: " + stream.Location);
         using var mpv = new MpvEngine(IntPtr.Zero, new() { Volume = 0 }, headless: true);
         var loaded = false; var ended = false; string? error = null;
         mpv.FileLoaded += () => loaded = true; mpv.Ended += _ => ended = true; mpv.Error += text => error = text;
-        mpv.Load(client.StreamUri("mock-film", source.Id).AbsoluteUri, 2, client.AuthorizationHeader);
+        mpv.Load(stream.Location, 2, stream.Authorization);
         var wait = Stopwatch.StartNew(); while (!loaded && error is null && wait.Elapsed < TimeSpan.FromSeconds(10)) { mpv.Poll(); await Task.Delay(20); }
         Assert(loaded, "Authenticated mpv stream did not load: " + error);
         await Task.Delay(250); mpv.Poll(); Assert(mpv.Number("time-pos") >= 1.9, "Resume position ignored");
@@ -967,7 +970,7 @@ if (args.Contains("--mpv-integration"))
         var position = mpv.Number("time-pos"); await Task.Delay(150); mpv.Poll(); Assert(Math.Abs(mpv.Number("time-pos") - position) < 0.1, "Playback progressed while paused");
         mpv.Command("seek", "8", "absolute+exact"); await Task.Delay(150); mpv.Poll(); Assert(Math.Abs(mpv.Number("time-pos") - 8) < 0.3, "Seek failed");
         Assert(mpv.Tracks().Any(t => t.Type == "audio"), "Audio track not exposed");
-        var report = new PlaybackReport { ItemId = "mock-film", MediaSourceId = source.Id, PlaySessionId = info.PlaySessionId, PositionTicks = 2 * TimeSpan.TicksPerSecond };
+        var report = new PlaybackReport { ItemId = "mock-film", MediaSourceId = source.Id, PlaySessionId = stream.PlaySessionId, PositionTicks = 2 * TimeSpan.TicksPerSecond };
         var store = Store("native-sync"); await using var sync = new SyncService(client, store);
         await sync.RecordAsync("start", report); await sync.RecordAsync("progress", report with { PositionTicks = 8 * TimeSpan.TicksPerSecond, IsPaused = true });
         await sync.RecordAsync("stop", report with { PositionTicks = 8 * TimeSpan.TicksPerSecond });

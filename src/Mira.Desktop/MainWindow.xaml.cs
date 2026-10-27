@@ -262,6 +262,8 @@ public partial class MainWindow : Window
         await DisconnectServicesAsync();
         _demo = false; DemoBadge.Visibility = Visibility.Collapsed;
         var client = _client = new JellyfinClient(connection);
+        // Another server, or the same from elsewhere: its connection is measured again (« Automatique »).
+        _speed.Forget();
         LibraryStore store; SyncService sync;
         // Opened (and checked page by page) off the UI thread: a large cache on a slow disk takes a moment.
         try { (store, sync) = await Task.Run(() => { var opened = new LibraryStore(_profile.DirectoryPath, AccountData.LibraryProfile(connection)); return (opened, new SyncService(client, opened)); }); }

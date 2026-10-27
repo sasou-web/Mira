@@ -130,14 +130,12 @@ public partial class MainWindow
             await Task.Delay(2000);
         }
         if (generation != _playGeneration || !_playing || _mpv is null || _closing) return;
+        // Jellyfin is asked again (its conversion ended meanwhile); the tracks chosen are chosen again once it is open (FileLoaded).
+        // One that cannot load then is a cut stream (MainWindow.PlayerStream.cs): opened again once more, or said.
         try
         {
-            // The tracks chosen are chosen again once it is open (FileLoaded).
-            _reloadTracks = (_mpv.Get("aid"), _mpv.Get("sid"));
-            if (_fileOpen) _skipEnds++;
-            _fileOpen = true; _loaded = false; SeekBar.IsEnabled = false; _wake = WakeState.Reloading;
-            _mpv.Load(_playLocation!, _session.Position, _playAuthorization);
-            _mpv.Set("pause", "yes");
+            if (await ReopenStreamAsync(always: true, paused: true)) _recoveryLoad = true;
+            else if (generation == _playGeneration) { _wake = WakeState.None; EndReopenLoading(); }
         }
         catch (Exception ex) when (IsExpected(ex))
         {

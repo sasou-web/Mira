@@ -159,6 +159,14 @@ public sealed record MediaStream
     /// <summary>« SDR », « HDR »; VideoRangeType is finer: « HDR10 », « HDR10Plus », « HLG », « DOVI », « DOVIWithHDR10 »…</summary>
     public string? VideoRange { get; init; }
     public string? VideoRangeType { get; init; }
+    /// <summary>An audio track's channels (2, 6…).</summary>
+    public int? Channels { get; init; }
+    public string? Title { get; init; }
+    public bool IsForced { get; init; }
+    /// <summary>A subtitle track in text (SubRip, ASS, WebVTT): sent beside a conversion; the others are pictures, drawn into it.</summary>
+    public bool IsTextSubtitleStream { get; init; }
+    /// <summary>How a subtitle track comes with the stream PlaybackInfo chose: « Embed » (in the file), « External » (at <see cref="DeliveryUrl"/>), « Encode » (drawn into the picture).</summary>
+    public string? DeliveryMethod { get; init; }
 }
 public sealed record MediaSource
 {
@@ -168,7 +176,13 @@ public sealed record MediaSource
     public string? Protocol { get; init; }
     /// <summary>The file's size in bytes, when Jellyfin knows it.</summary>
     public long? Size { get; init; }
+    /// <summary>The file's bitrate in bits per second, when Jellyfin knows it.</summary>
+    public long? Bitrate { get; init; }
     public List<MediaStream> MediaStreams { get; init; } = [];
+    /// <summary>What PlaybackInfo decided for the device profile it was sent (<see cref="ServerStreams"/>): the file as it is, or its conversion at <see cref="TranscodingUrl"/>.</summary>
+    public bool SupportsDirectPlay { get; init; }
+    public string? TranscodingUrl { get; init; }
+    public int? DefaultAudioStreamIndex { get; init; }
 }
 public sealed record PlaybackInfo
 {
@@ -224,6 +238,8 @@ public sealed class PlayerSettings
     public bool RememberPosition { get; set; } = true;
     /// <summary>« Reprendre un peu avant »: seconds a title resumes before where it was left (<see cref="PlaybackSession.ResumeBack"/>); 0: exactly there.</summary>
     public int ResumeBack { get; set; } = 5;
+    /// <summary>« Qualité » (<see cref="StreamQuality"/>): « auto », « max », or a bitrate in bits per second (« 6000000 »).</summary>
+    public string Quality { get; set; } = StreamQuality.Auto;
     public bool HeroAutoPlay { get; set; } = true;
     /// <summary>« Accueil à ta main »: the home page's rows, in order, « - » before one put away (<see cref="HomeLayout"/>); empty: as Mira shows them.</summary>
     public string HomeRows { get; set; } = "";

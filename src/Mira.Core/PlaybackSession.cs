@@ -16,6 +16,8 @@ public sealed class PlaybackSession
     public MediaSource? Source { get; private set; }
     /// <summary>Jellyfin's play session, or one of Mira's when Jellyfin gave none.</summary>
     public string PlaySessionId { get; private set; } = "";
+    /// <summary>« DirectPlay », or « Transcode » for Jellyfin's conversion (<see cref="ServerStream.PlayMethod"/>).</summary>
+    public string PlayMethod { get; private set; } = "DirectPlay";
     /// <summary>In seconds.</summary>
     public double Position { get; set; }
     public double Duration { get; set; }
@@ -49,11 +51,20 @@ public sealed class PlaybackSession
     public static double ResumeBack(double position, int back) => back <= 0 || position < ResumeBackFrom ? position : Math.Max(0, position - back);
 
     /// <summary>A new playback: nothing told to Jellyfin yet, no failure, no seek waiting; its length from Jellyfin until mpv knows it.</summary>
-    public void Begin(MediaItem item, MediaSource? source, string playSessionId, double position)
+    public void Begin(MediaItem item, MediaSource? source, string playSessionId, double position, string playMethod = "DirectPlay")
     {
-        Item = item; Source = source; PlaySessionId = playSessionId;
+        Item = item; Source = source; PlaySessionId = playSessionId; PlayMethod = playMethod;
         Position = position; Duration = TimeSpan.FromTicks(item.RunTimeTicks ?? 0).TotalSeconds;
         Reported = false; Failure = null; _pendingSeek = 0; _pendingUntil = DateTimeOffset.MinValue;
+    }
+
+    /// <summary>
+    /// The same playback on another stream (another quality or track, the connection back): Jellyfin hears of it in the
+    /// next progress report, under the new play session. What it was told and where it is stay.
+    /// </summary>
+    public void Reopened(MediaSource source, string playSessionId, string playMethod)
+    {
+        Source = source; PlaySessionId = playSessionId; PlayMethod = playMethod; Failure = null; LastReport = DateTimeOffset.MinValue;
     }
 
     /// <summary>A seek asked for: the position is the target at once, and progress is reported at the next tick.</summary>
@@ -81,7 +92,8 @@ public sealed class PlaybackSession
         PositionTicks = TimeSpan.FromSeconds(Math.Max(0, Position)).Ticks,
         IsPaused = Paused,
         VolumeLevel = VolumeBoost.Reported(level),
-        IsMuted = muted
+        IsMuted = muted,
+        PlayMethod = PlayMethod
     };
 
     /// <summary>

@@ -35,6 +35,8 @@ public sealed class MainWindow : Window
     public Profile Profile { get; }
     public PlayerSettings Settings { get; }
     public Session? Session { get; private set; }
+    /// <summary>The connection's speed to Jellyfin, for « Automatique » away from home: measured once an hour (<see cref="StreamQuality"/>).</summary>
+    public ConnectionSpeed Speed { get; } = new();
     public string[] Args { get; }
     private readonly Grid _root = new();
     private readonly ContentControl _host = new();
@@ -190,6 +192,8 @@ public sealed class MainWindow : Window
     {
         await CloseSessionAsync();
         JellyfinClient.DeviceName = "Mac";
+        // Another server, or the same from elsewhere: its connection is measured again.
+        Speed.Forget();
         try { Session = new Session(connection, Profile, handler); }
         // Even a new cache cannot be written (full disk, folder without rights): no library without it. A damaged one
         // is replaced by LibraryStore itself.

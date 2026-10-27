@@ -1,0 +1,20 @@
+{
+  "about": "« Qualité » of the players. known: read by tests/Mira.Core.Tests (StreamQuality.KnownBitrate) and tools/web/unit (stream.js knownBitrate): both must agree. [choice, at home, measure ([minutes ago, speed in bits per second]) or null, the file's bitrate, bitrate asked or null (the connection must be measured)]. home: read by tests/Mira.Core.Tests (StreamQuality.AtHome), the rule of Mira web's isLocalHost without viaTailscale: [host, at home].",
+  "known": [
+    ["auto", true, null, 0, 120000000],
+    ["auto", false, null, 0, null],
+    ["auto", false, [10, 20000000], 0, 14000000],
+    ["auto", false, [10, 100000000], 60000000, 120000000],
+    ["auto", false, [10, 80000000], 60000000, 40000000],
+    ["auto", false, [70, 20000000], 0, null],
+    ["auto", false, [10, 1000000], 0, 1500000],
+    ["max", false, null, 0, 120000000],
+    [6000000, true, null, 0, 6000000],
+    [1500000, false, [10, 100000000], 0, 1500000]
+  ],
+  "home": [
+    ["127.0.0.1", true], ["localhost", true], ["192.168.1.198", true], ["10.0.0.5", true], ["172.20.1.2", true], ["[fe80::1]", true],
+    ["nas", true], ["pc.local", true], ["livebox.home", true], ["pc.lan", true], ["nas.fritz.box", true],
+    ["100.114.247.13", false], ["[fd7a:115c:a1e0::1]", false], ["salon.tail1234.ts.net", false], ["jellyfin.example.com", false], ["203.0.113.5", false]
+  ]
+}
