@@ -73,7 +73,7 @@ Mira web est servie par ton propre serveur Jellyfin : rien à télécharger sur 
 | **Mac** à puce Apple, macOS 15 ou plus | `Mira-0.8.4-mac-arm64.dmg` | Glisse Mira dans Applications, autorise-la une fois (elle n’est pas signée par Apple). [Guide](docs/INSTALLATION-MAC.md) |
 | **iPhone, iPad, Android** | Rien à télécharger | Dans Mira pour Windows : **Guide → Mira sur ton téléphone → Tout préparer**, puis scanne le QR code. [Guide](docs/INSTALLATION-WEB.md) |
 
-Tous les fichiers sont dans la [release 0.8.4](https://github.com/sasou-web/Mira/releases/tag/v0.8.4). Il te faut un serveur Jellyfin 10.9 ou plus récent. Tant que les fichiers Windows ne sont pas signés, SmartScreen peut afficher un avertissement : **Informations complémentaires → Exécuter quand même**. Mira se met ensuite à jour toute seule.
+Tous les fichiers sont dans la [release 0.8.4](https://github.com/sasou-web/Mira/releases/tag/v0.8.4). Il te faut un serveur Jellyfin 10.9 ou plus récent (Mira web est essayé à chaque modification sur 10.9, 10.10, 12.1 et 12.4 ; sur 10.9 et 10.10, la fiche d’un film n’a pas la rangée de sa saga et un sous-titre ASS garde ses balises de style). Tant que les fichiers Windows ne sont pas signés, SmartScreen peut afficher un avertissement : **Informations complémentaires → Exécuter quand même**. Mira se met ensuite à jour toute seule.
 
 <details>
 <summary>Les autres fichiers pour Windows</summary>

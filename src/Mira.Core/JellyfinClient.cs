@@ -1244,8 +1244,9 @@ public sealed class JellyfinClient : IDisposable
     }
     public async Task<List<Together.Group>> SyncGroupsAsync(CancellationToken ct = default) =>
         (await GetAsync<JsonElement>("SyncPlay/List", ct)) is { ValueKind: JsonValueKind.Array } list ? list.EnumerateArray().Select(Together.ParseGroup).OfType<Together.Group>().ToList() : [];
+    // From the list: `SyncPlay/{id}` answers 404 on Jellyfin 10.9 and 10.10.
     public async Task<Together.Group?> SyncGroupAsync(string groupId, CancellationToken ct = default) =>
-        Together.ParseGroup(await GetAsync<JsonElement>("SyncPlay/" + Uri.EscapeDataString(groupId), ct));
+        (await SyncGroupsAsync(ct)).FirstOrDefault(g => Together.SameGroup(g.GroupId, groupId));
     public Task SyncNewAsync(string name, CancellationToken ct = default) => SyncSendAsync("New", new JsonObject { ["GroupName"] = name }, ct);
     public Task SyncJoinAsync(string groupId, CancellationToken ct = default) => SyncSendAsync("Join", new JsonObject { ["GroupId"] = groupId }, ct);
     public Task SyncLeaveAsync(CancellationToken ct = default) => SyncSendAsync("Leave", null, ct);
