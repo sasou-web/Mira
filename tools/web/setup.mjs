@@ -63,8 +63,10 @@ const items = await until('the library scan', async () => {
   const read = (result.Items ?? []).every((x) => x.RunTimeTicks > 0 && x.MediaSources?.[0]?.RunTimeTicks > 0);
   // The bonus videos of tools/web/media.sh (the « Bonus » row): two for the WebM film, one for its series; and its
   // saga, made by Jellyfin once the films are in.
-  const titles = read && result.TotalRecordCount >= 12 ? await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Series,BoxSet&fields=SpecialFeatureCount`, { token }) : null;
-  if (titles && (titles.Items ?? []).reduce((sum, x) => sum + (x.SpecialFeatureCount ?? 0), 0) >= 3 && (!sagas || titles.Items.some((x) => x.Type === 'BoxSet'))) return result.Items;
+  // The test media of tools/web/media.sh: 4 films and 11 episodes of 5 series (one in Animes), all in before the check
+  // starts: a scan that has not reached Animes yet left the library empty for the check of Jellyfin 12.4.
+  const titles = read && result.TotalRecordCount >= 15 ? await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Series,BoxSet&fields=SpecialFeatureCount`, { token }) : null;
+  if (titles && (titles.Items ?? []).filter((x) => x.Type === 'Series').length >= 5 && (titles.Items ?? []).reduce((sum, x) => sum + (x.SpecialFeatureCount ?? 0), 0) >= 3 && (!sagas || titles.Items.some((x) => x.Type === 'BoxSet'))) return result.Items;
   if (scans++ % 15 === 0) await call('POST', 'Library/Refresh', { token });
   return null;
 }, 240);
