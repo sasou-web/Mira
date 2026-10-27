@@ -16,7 +16,7 @@ public partial class MainWindow
     private static string Choice(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
     private CatalogQuery CurrentQuery() => new(Choice(GenreFilter) is { Length: > 0 } genre ? genre : null,
         int.TryParse(Choice(YearFilter), out var year) ? year : null,
-        Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, _catalog.Sort(Choice(SortFilter)), _catalog.Person?.Id);
+        Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, _catalog.Sort(Choice(SortFilter)), _catalog.Person?.Id, _catalog.Studio?.Id);
     /// <summary>The title page a person's titles were chosen from (<see cref="Catalog.Person"/>).</summary>
     private MediaItem? _personFrom;
     /// <summary>The search a person or a saga was found by (« Personnes », « Sagas »): taken back when their titles are left.</summary>
@@ -33,6 +33,29 @@ public partial class MainWindow
         ResetFilters();
         (_catalog.Person, _personFrom, _personSearch, _personReturnView, _catalog.View) = ((id, person.Name, directed), from, search, view, "library");
         ShowPersonFilter();
+        await NavigateLibraryAsync();
+    }
+    /// <summary>
+    /// A studio clicked on a title page, or found by a search (<paramref name="search"/>): the library with its titles,
+    /// newest first, the page or the search kept to come back to, as for a person.
+    /// </summary>
+    private async Task ShowStudioAsync(string id, string name, string? search = null)
+    {
+        var from = search is null ? _detail : null; var view = _catalog.View;
+        ResetFilters();
+        (_catalog.Studio, _personFrom, _personSearch, _personReturnView, _catalog.View) = ((id, name), from, search, view, "library");
+        _filterBusy = true; SortFilter.SelectedItem = SortFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "year") ?? SortFilter.SelectedItem; _filterBusy = false;
+        ShowPersonFilter();
+        await NavigateLibraryAsync();
+    }
+    /// <summary>A genre clicked on a title page: Films or Séries (as the title is) filtered on it, as Mira web.</summary>
+    private async Task ShowGenreAsync(string genre, string type)
+    {
+        ResetFilters(); _catalog.View = type == "Series" ? "Series" : "Movie";
+        _filterBusy = true;
+        if (GenreFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == genre) is not { } choice)
+            GenreFilter.Items.Add(choice = new ComboBoxItem { Content = genre, Tag = genre });
+        GenreFilter.SelectedItem = choice; _filterBusy = false;
         await NavigateLibraryAsync();
     }
     /// <summary>A saga found by a search: the library with its titles in the order they came out, the search kept to come back to.</summary>
@@ -56,13 +79,13 @@ public partial class MainWindow
     private async void PersonFilter_Click(object sender, RoutedEventArgs e)
     {
         if (_personSearch is not null) { await BackFromPersonAsync(); return; }
-        _catalog.Person = null; _catalog.Saga = null; _personFrom = null; ShowPersonFilter(); await RefreshAsync();
+        _catalog.Person = null; _catalog.Studio = null; _catalog.Saga = null; _personFrom = null; ShowPersonFilter(); await RefreshAsync();
     }
-    /// <summary>The chip of a person's titles, or of a saga's: a click takes it off.</summary>
+    /// <summary>The chip of a person's titles, of a studio's or of a saga's: a click takes it off.</summary>
     private void ShowPersonFilter()
     {
-        PersonFilter.Visibility = _catalog.Person is null && _catalog.Saga is null ? Visibility.Collapsed : Visibility.Visible;
-        PersonFilterText.Text = _catalog.Person is { } person ? Catalog.PersonText(person.Name, person.Directed) : _catalog.Saga is { } saga ? saga.Name : "";
+        PersonFilter.Visibility = _catalog.Person is null && _catalog.Studio is null && _catalog.Saga is null ? Visibility.Collapsed : Visibility.Visible;
+        PersonFilterText.Text = _catalog.Person is { } person ? Catalog.PersonText(person.Name, person.Directed) : _catalog.Studio is { } studio ? studio.Name : _catalog.Saga is { } saga ? saga.Name : "";
     }
     private void InitializeFilters()
     {
@@ -80,7 +103,7 @@ public partial class MainWindow
     }
     private void ResetFilters()
     {
-        _filterBusy = true; SearchBox.Text = ""; _catalog.ParentId = null; _catalog.Favorites = false; _catalog.Person = null; _catalog.Saga = null; _personFrom = null; _personSearch = null;
+        _filterBusy = true; SearchBox.Text = ""; _catalog.ParentId = null; _catalog.Favorites = false; _catalog.Person = null; _catalog.Studio = null; _catalog.Saga = null; _personFrom = null; _personSearch = null;
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = WatchedFilter.SelectedIndex = SortFilter.SelectedIndex = LibraryFilter.SelectedIndex = 0;
         _filterBusy = false; ShowFavoritesFilter(); ShowPersonFilter();
     }
@@ -148,7 +171,7 @@ public partial class MainWindow
         ResumeSection.Visibility = home && row.Count > 0 && HomeShows(HomeLayout.Continue) ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
         RenderShelves(home); ShowHomeGroup();
-        RenderPeople(search); RenderFound(search);
+        RenderPeople(search); RenderStudios(search); RenderFound(search);
         // « Ajoutés récemment » put away (Réglages → Apparence): the home page ends with its rows. A search that found
         // only people, episodes or sagas shows them alone.
         var grid = !home || HomeShows(HomeLayout.Latest);
@@ -192,6 +215,20 @@ public partial class MainWindow
             card.Click += async (_, _) => await ShowPersonAsync(new PersonInfo { Id = person.Id, Name = person.Name }, null, SearchBox.Text.Trim());
             PeopleCards.Children.Add(card);
             if (_images is { } images) _ = card.LoadImageAsync(images);
+        }
+    }
+    /// <summary>« Studios » above a search's titles (« Ghibli »), as in Mira web: a click shows the studio's titles.</summary>
+    private void RenderStudios(string search)
+    {
+        var studios = _catalog.SearchesPeople(search) ? _catalog.Studios : [];
+        StudioResults.Visibility = studios.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (StudioButtons.Children.OfType<Button>().Select(x => x.Tag as string).SequenceEqual(studios.Select(x => x.Id))) return;
+        StudioButtons.Children.Clear();
+        foreach (var studio in studios)
+        {
+            var button = new Button { Content = ActionLabel("film", studio.Name), Tag = studio.Id, Margin = new Thickness(0, 0, 10, 10), ToolTip = L($"Les titres de {studio.Name} dans ta bibliothèque", $"Titles from {studio.Name} in your library") };
+            button.Click += async (_, _) => await ShowStudioAsync(studio.Id, studio.Name, SearchBox.Text.Trim());
+            StudioButtons.Children.Add(button);
         }
     }
     /// <summary>« Épisodes » and « Sagas » under a search's titles, as in Mira web.</summary>

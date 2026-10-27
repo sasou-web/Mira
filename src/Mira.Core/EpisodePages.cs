@@ -41,6 +41,27 @@ public static class EpisodePages
         return position < 0 ? null : pages.FirstOrDefault(x => x.Season == Season(episode) && position >= x.Skip && position < x.Skip + x.Take);
     }
 
-    private static int Season(MediaItem episode) => episode.ParentIndexNumber ?? 1;
+    /// <summary>A season of its own to mark only beside another: with one, the series' own button does it.</summary>
+    public static bool MarksSeasons(IReadOnlyList<MediaItem> episodes) => episodes.Select(Season).Distinct().Count() > 1;
+
+    /// <summary>
+    /// What « Marquer la saison comme vue » marks: the season as Jellyfin holds it (one call, every episode with it),
+    /// else each episode (episodes without a season of Jellyfin's, or split between two). Played: all its episodes are
+    /// watched, and the button offers « non vue ». As seasons.js of Mira web (tests/fixtures/seasons.json).
+    /// </summary>
+    public static (List<string> Ids, bool Played) SeasonMark(IReadOnlyList<MediaItem> episodes, int season)
+    {
+        var list = episodes.Where(x => Season(x) == season).ToList();
+        var held = list.Select(x => x.SeasonId).Distinct().ToList();
+        List<string> ids = held is [{ Length: > 0 } one] ? [one] : list.Select(x => x.Id).ToList();
+        return (ids, list.Count > 0 && list.All(x => x.UserData.Played));
+    }
+
+    /// <summary>The page holding the episode Lecture plays when another season is shown (« À suivre », above its episodes); else null.</summary>
+    public static EpisodePage? NextElsewhere(IReadOnlyList<EpisodePage> pages, IReadOnlyList<MediaItem> episodes, EpisodePage? shown, MediaItem? next) =>
+        Holding(pages, episodes, next) is { } holding && shown is not null && (holding.Season != shown.Season || holding.Skip != shown.Skip) ? holding : null;
+
+    /// <summary>The season of an episode; one without a number is in the first.</summary>
+    public static int Season(MediaItem episode) => episode.ParentIndexNumber ?? 1;
     private static int Number(MediaItem episode, int position) => episode.IndexNumber ?? position + 1;
 }

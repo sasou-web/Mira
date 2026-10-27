@@ -335,6 +335,65 @@ internal static class LibraryTests
             Assert(EpisodePages.From(Enumerable.Range(1, 100).Select(i => Episode(1, i)).ToList()).Single().Label == "Saison 1", "100 episodes stay one page");
             return Task.CompletedTask;
         });
+        await Test("Série : une saison marquée vue d’un coup, « À suivre » dans une autre saison, comme Mira web (tests/fixtures/seasons.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "seasons.json")));
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var name = row[0].GetString();
+                var episodes = row[1].EnumerateArray().Select(x => new MediaItem
+                {
+                    Id = x[0].GetString()!, SeasonId = x[1].GetString(), ParentIndexNumber = x[2].ValueKind == JsonValueKind.Null ? null : x[2].GetInt32(), Type = "Episode",
+                    UserData = new() { Played = x[3].GetBoolean() }
+                }).ToList();
+                Assert(EpisodePages.MarksSeasons(episodes) == row[2].GetBoolean(), $"{name}: marks");
+                foreach (var season in row[3].EnumerateArray())
+                {
+                    var (ids, played) = EpisodePages.SeasonMark(episodes, season[0].GetInt32());
+                    Assert(ids.SequenceEqual(season[1].EnumerateArray().Select(x => x.GetString())) && played == season[2].GetBoolean(), $"{name}: season {season[0]}: {string.Join(",", ids)} {played}");
+                }
+                var pages = EpisodePages.From(episodes);
+                foreach (var next in row[4].EnumerateArray())
+                {
+                    var shown = pages.First(x => x.Season == next[0].GetInt32());
+                    var found = EpisodePages.NextElsewhere(pages, episodes, shown, episodes.FirstOrDefault(x => x.Id == next[1].GetString()));
+                    Assert(found?.Season == (next[2].ValueKind == JsonValueKind.Null ? null : next[2].GetInt32()), $"{name}: shown {next[0]}, next {next[1]}: {found?.Label}");
+                }
+            }
+            return Task.CompletedTask;
+        });
+        await Test("Studios : liens de la fiche, recherche (« Ghibli »), « Du même studio » sans le titre ni sa saga", async () =>
+        {
+            var item = JsonSerializer.Deserialize<MediaItem>("""{"Id":"f1","Name":"Aube","Type":"Movie","Studios":[{"Name":"Studio Test","Id":"st1"},{"Name":"Vide","Id":"st2"}]}""", Json.Options)!;
+            Assert(item.Studios.Select(x => (x.Id, x.Name)).SequenceEqual([("st1", "Studio Test"), ("st2", "Vide")]), "Studios read from the single-item answer");
+            var query = new CatalogQuery(Sort: "year", StudioId: "st 1");
+            Assert(query.Parameters.Contains("&studioIds=st%201") && query.CacheKey != (query with { StudioId = null }).CacheKey && !new CatalogQuery().Parameters.Contains("studioIds"), "Studio filter: " + query.Parameters);
+            var catalog = new Catalog { View = "search" };
+            catalog.Studios = [new() { Id = "st1", Name = "Studio Test", Type = "Studio" }];
+            Assert(catalog.FoundBeside("Studio") && catalog.SearchesPeople("Studio"), "A studio found by a search shows without titles.");
+            catalog.View = "library"; catalog.Studio = ("st1", "Studio Test");
+            Assert(!catalog.SearchesPeople("Studio") && catalog.GridTitle("") == "Studio Test", "A studio's titles: its name, no search beside.");
+            Assert(catalog.Empty("", new CatalogQuery(StudioId: "st1"), demo: false).Reset, "A studio's empty list offers « Réinitialiser ».");
+            catalog.Clear(); Assert(catalog.Studios.Count == 0, "Another account: no studio found.");
+            var requested = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                lock (requested) requested.Add(path);
+                object[] items = path.StartsWith("/Studios") ? [new { Id = "st1", Name = "Studio Test", Type = "Studio" }]
+                    : path.Contains("studioIds=st1") ? [new { Id = "f1", Name = "Aube", Type = "Movie" }, new { Id = "f2", Name = "Lueur", Type = "Movie" }, new { Id = "f3", Name = "Chapitres", Type = "Movie" }]
+                    : [new { Id = "f9", Name = "Autre", Type = "Movie" }];
+                return Task.FromResult(JsonResponse(new { Items = items, TotalRecordCount = items.Length }));
+            }));
+            Assert((await client.StudiosAsync("Ghibli & co")).Single().Name == "Studio Test" && requested[0] == "/Studios?userId=user-1&searchTerm=Ghibli%20%26%20co&limit=12&enableImages=false", "Search: " + requested[0]);
+            requested.Clear();
+            var found = await client.StudioTitlesAsync(item, new HashSet<string> { "f2" });
+            var asked = requested.FirstOrDefault(x => x.Contains("studioIds=st1")) ?? "";
+            Assert(found is { Studio.Id: "st1" } titles && titles.Items.Select(x => x.Id).SequenceEqual(["f3"]), "The first studio with other titles, without the title and its saga's");
+            Assert(requested.Count == 2 && asked.Contains("sortBy=ProductionYear,SortName&sortOrder=Descending") && asked.Contains("limit=21"), "Requests: " + string.Join(" ; ", requested));
+            Assert(await client.StudioTitlesAsync(item, new HashSet<string> { "f2", "f3" }) is { Studio.Id: "st2" } && await client.StudioTitlesAsync(new MediaItem { Id = "x" }, new HashSet<string>()) is null, "The next studio, or none");
+        });
         await Test("Actualiser : Jellyfin analyse les dossiers, avancement suivi jusqu’à la fin, refus d’un compte non administrateur", async () =>
         {
             // The scan task as Jellyfin lists it: Idle with the end of the last scan, then Running with its progress.

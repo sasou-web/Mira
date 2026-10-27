@@ -43,8 +43,9 @@ public partial class MainWindow
         var version = ++_detailVersion; (_detailEpisode, _detailEpisodeShown) = (atEpisode, false);
         var previewArt = _hoverCard?.Item.Id == item.Id ? _hoverCard.ImageSource : null;
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
-        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null;
+        ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
+        StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = Visibility.Collapsed;
         _extras = []; ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
         DetailBackdropPrevious.Source = null;
@@ -105,7 +106,7 @@ public partial class MainWindow
             // A favourite toggled while this request was in flight wins over the older server answer.
             if (_favoriteOverride is { } pending && pending.Id == full.Id) full.UserData.IsFavorite = pending.Favorite;
             _detail = full; RenderDetailText(full); UpdateDetailPlayLabel();
-            await LoadExtrasAsync(full, version);
+            await Task.WhenAll(LoadExtrasAsync(full, version), LoadStudioTitlesAsync(full, version));
         }
         catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion) SetNotice(Friendly(ex)); }
     }
@@ -134,6 +135,23 @@ public partial class MainWindow
         SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" && extras.Count == 0 ? 36 : 0, 0, 0);
     }
     private List<MediaItem> _extras = [];
+    /// <summary>« Du même studio · Studio Ghibli »: its studio's other titles, those of its saga's row left out when drawn.</summary>
+    private (StudioInfo Studio, List<MediaItem> Items)? _studioTitles;
+    private async Task LoadStudioTitlesAsync(MediaItem item, int version)
+    {
+        if (_client is not { } client || item.Studios.Count == 0) return;
+        try
+        {
+            var found = await client.StudioTitlesAsync(item, new HashSet<string>());
+            if (version != _detailVersion || found is not { } titles) return;
+            if (_store is { } store) { await Task.Run(() => store.ApplyLocalProgress(titles.Items)); if (version != _detailVersion) return; }
+            _studioTitles = titles; RenderSimilar();
+        }
+        // Optional, as the similar titles: without an answer the page is complete as it is.
+        catch (Exception ex) when (IsExpected(ex)) { }
+    }
+    private async void StudioAll_Click(object sender, RoutedEventArgs e)
+    { if (_studioTitles is { Studio.Id: { } id } titles) await ShowStudioAsync(id, titles.Studio.Name); }
     private async Task LoadDetailEpisodesAsync(MediaItem item, int version)
     {
         try
@@ -207,6 +225,9 @@ public partial class MainWindow
         var (columns, width) = PosterLayout(available);
         Fill(SagaCards, _saga?.Items ?? []); SagaTitle.Text = _saga?.Name ?? "";
         SagaSection.Visibility = SagaCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Fill(StudioCards, _studioTitles?.Items.Where(x => _saga is null || _saga.Items.All(s => s.Id != x.Id)).ToList() ?? []);
+        StudioTitle.Text = _studioTitles is { } studio ? L($"Du même studio · {studio.Studio.Name}", $"More from {studio.Studio.Name}") : "";
+        StudioSection.Visibility = StudioCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         Fill(SimilarCards, _similar);
         SimilarSection.Margin = new Thickness(0, _detail?.Type == "Series" && _extras.Count == 0 ? 36 : 0, 0, 0);
         SimilarSection.Visibility = SimilarCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -229,10 +250,10 @@ public partial class MainWindow
     private int _similarColumns;
     private void SimilarSection_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!e.WidthChanged || _similar.Count == 0 && _saga is null) return;
+        if (!e.WidthChanged || _similar.Count == 0 && _saga is null && _studioTitles is null) return;
         var (columns, width) = PosterLayout(EpisodesPanel.ActualWidth);
         if (columns != _similarColumns) { RenderSimilar(); return; }
-        foreach (var card in SimilarCards.Children.OfType<MediaCard>().Concat(SagaCards.Children.OfType<MediaCard>())) card.Resize(width);
+        foreach (var card in SimilarCards.Children.OfType<MediaCard>().Concat(SagaCards.Children.OfType<MediaCard>()).Concat(StudioCards.Children.OfType<MediaCard>())) card.Resize(width);
     }
     private async Task<MediaItem?> NextEpisodeAsync(JellyfinClient client, string seriesId)
     {
@@ -274,9 +295,14 @@ public partial class MainWindow
         var kind = item.Type switch { "Series" => L("SÉRIE", "SERIES"), "Episode" => L("ÉPISODE", "EPISODE"), _ => L("FILM", "MOVIE") };
         DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
         RenderDetailMeta();
-        DetailOverview.Text = PlainText(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title.")); DetailGenres.Text = item.Genres.Length > 0 ? string.Join("  ·  ", item.Genres) : L("Non renseignés", "Not listed");
+        DetailOverview.Text = PlainText(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title."));
+        ShowGenres(item);
         ShowPeople(DetailCast, item.CastPeople, false); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var studios = item.Studios.Where(x => x.Name.Trim().Length > 0).Take(3).ToList();
+        ShowLinks(DetailStudios, studios.Select(x => (x.Name, L($"Les titres de {x.Name} dans ta bibliothèque", $"Titles from {x.Name} in your library"),
+            x.Id is { Length: > 0 } id ? () => ShowStudioAsync(id, x.Name) : (Func<Task>?)null)).ToList());
+        DetailStudiosBlock.Visibility = studios.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowDetailPlayLabel(item);
         DetailRestart.Content ??= ActionLabel("refresh", L("Depuis le début", "From the beginning"));
         FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "plus", item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"));
@@ -303,7 +329,11 @@ public partial class MainWindow
         var episodes = page is null ? [] : EpisodePages.Episodes(_episodes, page);
         // The whole season's count, also on a slice of a long one.
         EpisodeHeading.Text = $"{L("Épisodes", "Episodes")}  ·  {(page is null ? 0 : _episodes.Count(x => (x.ParentIndexNumber ?? 1) == page.Season))}";
+        ShowSeasonMark(page);
         if (episodes.Count == 0) { EpisodesPanel.Children.Add(new TextBlock { Text = L("Aucun épisode disponible dans cette bibliothèque.", "No episodes available in this library."), Foreground = Palette.Get("Muted") }); return; }
+        // The episode Lecture plays is in another season than the one shown (a long anime opened on its first): a click brings it.
+        if (_detailEpisode is null && _detailNext is { } next && EpisodePages.NextElsewhere(SeasonPages(), _episodes, page, next) is { } elsewhere)
+            EpisodesPanel.Children.Add(NextElsewhereButton(next, elsewhere));
         foreach (var episode in episodes)
         {
             var isNext = _detailNext?.Id == episode.Id; var wanted = _detailEpisode?.Id == episode.Id;
@@ -341,6 +371,57 @@ public partial class MainWindow
             }
         }
     }
+    private List<EpisodePage> SeasonPages() => SeasonSelector.Items.OfType<ComboBoxItem>().Select(x => x.Tag).OfType<EpisodePage>().ToList();
+    /// <summary>« À suivre : S02 E01 · Le titre », above the episodes of another season; « Saison 2 › » shows its own.</summary>
+    private Button NextElsewhereButton(MediaItem next, EpisodePage elsewhere)
+    {
+        var button = new Button { Background = Palette.Get("Surface"), BorderBrush = Brushes.Transparent, Padding = new Thickness(15, 12, 15, 12), Margin = new Thickness(0, 0, 0, 12), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        var code = $"S{next.ParentIndexNumber ?? 1:00} E{next.IndexNumber ?? 1:00}";
+        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(new Icon { Kind = "play", Width = 18, Height = 18, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center });
+        var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeights.Normal, Foreground = Palette.Get("TextSecondary") }; Grid.SetColumn(text, 1);
+        text.Inlines.Add(new System.Windows.Documents.Run(L("À suivre : ", "Up next: "))); text.Inlines.Add(new System.Windows.Documents.Run(code) { FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Text") });
+        if (next.Name.Length > 0) text.Inlines.Add(new System.Windows.Documents.Run("  ·  " + next.Name));
+        grid.Children.Add(text);
+        var go = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) }; Grid.SetColumn(go, 2);
+        go.Children.Add(new TextBlock { Text = elsewhere.Label, FontSize = 13, Foreground = Palette.Get("Muted"), VerticalAlignment = VerticalAlignment.Center });
+        go.Children.Add(new Icon { Kind = "next", Width = 14, Height = 14, Margin = new Thickness(8, 0, 0, 0), Foreground = Palette.Get("Muted") });
+        grid.Children.Add(go); button.Content = grid;
+        AutomationProperties.SetName(button, L($"À suivre : {code} {next.Name}, afficher {elsewhere.Label}", $"Up next: {code} {next.Name}, show {elsewhere.Label}"));
+        button.Click += (_, _) => SeasonSelector.SelectedItem = SeasonSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => ReferenceEquals(x.Tag, elsewhere)) ?? SeasonSelector.SelectedItem;
+        return button;
+    }
+    /// <summary>
+    /// « Marquer la saison comme vue », or « non vue » once all its episodes are, beside the season list: only when the
+    /// series has another season (with one, « Marquer la série comme vue » does it).
+    /// </summary>
+    private void ShowSeasonMark(EpisodePage? page)
+    {
+        if (page is null || !EpisodePages.MarksSeasons(_episodes)) { SeasonMarkButton.Visibility = Visibility.Collapsed; return; }
+        var played = EpisodePages.SeasonMark(_episodes, page.Season).Played;
+        SeasonMarkButton.Content = ActionLabel(played ? "refresh" : "check", played ? L("Marquer la saison comme non vue", "Mark season as unwatched") : L("Marquer la saison comme vue", "Mark season as watched"));
+        SeasonMarkButton.Tag = (page.Season, !played); SeasonMarkButton.Visibility = Visibility.Visible;
+    }
+    /// <summary>A whole season watched or not: Jellyfin is told (the season in one call, else each episode), then the page follows it.</summary>
+    private async void SeasonMark_Click(object sender, RoutedEventArgs e)
+    {
+        if (SeasonMarkButton.Tag is not (int season, bool played) || _detail is not { } series) return;
+        SeasonMarkButton.IsEnabled = false;
+        try
+        {
+            var episodes = _episodes.Where(x => EpisodePages.Season(x) == season).ToList();
+            if (_client is { } client) foreach (var id in EpisodePages.SeasonMark(_episodes, season).Ids) await client.SetPlayedAsync(id, played);
+            else if (!_demo) return;
+            if (_store is { } store) await Task.Run(() => { foreach (var episode in episodes) store.ForgetProgress(episode.Id); });
+            foreach (var episode in episodes) { episode.UserData.Played = played; episode.UserData.PlaybackPositionTicks = 0; }
+            _metadata?.Clear();
+            SetNotice(played ? L("Saison marquée comme vue.", "Season marked as watched.") : L("Saison marquée comme non vue.", "Season marked as unwatched."));
+            RenderEpisodes();
+            if (!_demo) { await RefreshDetailAsync(); await RefreshAsync(quiet: true); }
+        }
+        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); if (_detail?.Id == series.Id) await RefreshDetailAsync(); }
+        finally { SeasonMarkButton.IsEnabled = true; }
+    }
     private ContextMenu EpisodeMenu(MediaItem episode)
     {
         var menu = new ContextMenu();
@@ -360,22 +441,35 @@ public partial class MainWindow
         // Thumbnails downloaded now fade in; cached ones appear at once.
         if (!cached && image.Source is not null) Motion.Fade(image, 1, 240, 0, Motion.Soft);
     }
+    /// <summary>Each name a link to this person's titles in the library.</summary>
+    private void ShowPeople(TextBlock target, IReadOnlyList<PersonInfo> people, bool directed) =>
+        ShowLinks(target, people.Select(person => (person.Name,
+            L((directed ? "Les titres réalisés par " : "Les titres avec ") + person.Name + " dans ta bibliothèque", (directed ? "Titles directed by " : "Titles with ") + person.Name + " in your library"),
+            person.Id is { Length: > 0 } ? () => ShowPersonAsync(person, directed) : (Func<Task>?)null)).ToList());
+    /// <summary>Its genres, each one Films or Séries (as the title is) filtered on it, as in Mira web.</summary>
+    private void ShowGenres(MediaItem item)
+    {
+        if (item.Genres.Length == 0) { DetailGenres.Inlines.Clear(); DetailGenres.Text = L("Non renseignés", "Not listed"); return; }
+        var films = item.Type == "Series" ? L("séries", "shows") : L("films", "movies");
+        List<(string, string, Func<Task>?)> links = [.. item.Genres.Select(genre => (genre, L($"Les {films} « {genre} » de ta bibliothèque", $"The {genre} {films} of your library"),
+            (Func<Task>)(() => ShowGenreAsync(genre, item.Type))))];
+        ShowLinks(DetailGenres, links);
+    }
     /// <summary>
-    /// Names separated by a dot; each one with a Jellyfin id is a link to this person's titles in the library
-    /// (underlined under the pointer, reachable with Tab and Enter).
+    /// Names separated by a dot; each one that can be opened is a link (underlined under the pointer, reachable with Tab
+    /// and Enter): a person's, a studio's or a genre's titles in the library.
     /// </summary>
-    private void ShowPeople(TextBlock target, IReadOnlyList<PersonInfo> people, bool directed)
+    private void ShowLinks(TextBlock target, IReadOnlyList<(string Name, string Tip, Func<Task>? Open)> links)
     {
         target.Inlines.Clear();
-        for (var i = 0; i < people.Count; i++)
+        for (var i = 0; i < links.Count; i++)
         {
-            var person = people[i];
+            var (name, tip, open) = links[i];
             if (i > 0) target.Inlines.Add(new System.Windows.Documents.Run("  ·  "));
-            if (_demo || person.Id is not { Length: > 0 }) { target.Inlines.Add(new System.Windows.Documents.Run(person.Name)); continue; }
-            var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(person.Name))
+            if (_demo || open is null) { target.Inlines.Add(new System.Windows.Documents.Run(name)); continue; }
+            var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(name))
             {
-                Foreground = target.Foreground, TextDecorations = null, Cursor = Cursors.Hand,
-                ToolTip = L((directed ? "Les titres réalisés par " : "Les titres avec ") + person.Name + " dans ta bibliothèque", (directed ? "Titles directed by " : "Titles with ") + person.Name + " in your library")
+                Foreground = target.Foreground, TextDecorations = null, Cursor = Cursors.Hand, ToolTip = tip
             };
             // Underlined under the pointer and with the keyboard focus, ringed like the other controls (WPF's own ring is
             // a black dotted line, unseen on this page).
@@ -383,7 +477,7 @@ public partial class MainWindow
             void Underline() => link.TextDecorations = link.IsMouseOver || link.IsKeyboardFocused ? TextDecorations.Underline : null;
             link.MouseEnter += (_, _) => Underline(); link.MouseLeave += (_, _) => Underline();
             link.GotKeyboardFocus += (_, _) => Underline(); link.LostKeyboardFocus += (_, _) => Underline();
-            link.Click += async (_, _) => await ShowPersonAsync(person, directed);
+            link.Click += async (_, _) => await open();
             target.Inlines.Add(link);
         }
     }

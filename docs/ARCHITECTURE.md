@@ -111,7 +111,7 @@ Mira.Web
   ├─ app.js : barre d’onglets (barre latérale sur grand écran), routes par ancre, écrans gardés pour un retour instantané, mouvements d’iOS et glissement retour
   ├─ api.js, session.js : API Jellyfin, serveur de la session vérifié avant d’envoyer le jeton (trustServer), session sur l’appareil (jamais le mot de passe), réglages
   ├─ dom.js, components.js, images.js, blurhash.js, icons.js, press.js : éléments, cartes et rangées, images et leur flou d’attente, icônes Phosphor, appuis tactiles
-  ├─ views : connexion (profils), accueil, films et séries, recherche, fiche, personne, saga, réglages, QR code (share.js), en ce moment (now.js), télécharger sur le PC serveur (torlink.js)
+  ├─ views : connexion (profils), accueil, films et séries, recherche, fiche, personne, studio (studio.js), saga, réglages, QR code (share.js), en ce moment (now.js), télécharger sur le PC serveur (torlink.js)
   ├─ guests.js, views/guests.js, views/guest.js : liens d’invités de l’hôte (#/invites) et entrée de l’invité (#/invite/<code>)
   ├─ viewers.js : « En ce moment sur Jellyfin », écrit comme Viewers de Mira.Core (cas communs dans tests/fixtures/viewers.json)
   ├─ torlink.js : recherches et liens magnet vérifiés comme RemoteDownloads de Mira.Core (cas communs dans tests/fixtures/torlink-remote.json), lignes de l’écran
