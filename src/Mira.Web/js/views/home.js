@@ -59,10 +59,14 @@ function heroMeta(item) {
 }
 
 function slide(entry, index) {
-  const { item, play } = entry;
+  const { item, play, poster } = entry;
   const target = play?.Type === 'Episode' ? play : item;
   const resume = play && progress(play) > 0;
-  const art = picture(artFor(item, 'backdrop'), { kind: 'backdrop', width: innerWidth > 900 ? 1600 : 900, eager: index === 0, label: '' });
+  // A library without any backdrop: the poster, blurred to fill the banner, and itself in front of it.
+  const art = poster
+    ? h('div', { class: 'slide-poster' }, picture(poster, { kind: 'backdrop', width: 320, eager: index === 0, className: 'blurred' }),
+      picture(poster, { kind: 'poster', width: innerWidth > 900 ? 480 : 320, eager: index === 0 }))
+    : picture(artFor(item, 'backdrop'), { kind: 'backdrop', width: innerWidth > 900 ? 1600 : 900, eager: index === 0, label: '' });
   const heading = logo(item) ?? h('h2', { class: 'slide-title' }, item.Name);
   if (heading.tagName === 'IMG') heading.addEventListener('error', () => heading.replaceWith(h('h2', { class: 'slide-title' }, item.Name)), { once: true });
   const label = play?.Type === 'Episode'
@@ -202,8 +206,21 @@ export function create() {
       if (entries.length >= 6) break;
       if (artFor(item, 'backdrop') && !seen.has(item.Id)) { seen.add(item.Id); entries.push({ item, play: item.Type === 'Series' ? null : item }); }
     }
+    // No backdrop anywhere (pictures Jellyfin has not found): the same titles by their posters, rather than no banner.
+    if (!entries.length) {
+      for (const play of cont.slice(0, 2)) {
+        const item = (play.Type === 'Episode' ? data.series[play.SeriesId] : null) ?? play;
+        const poster = artFor(item, 'poster');
+        if (poster && !seen.has(item.Id)) { seen.add(item.Id); entries.push({ item, play, poster }); }
+      }
+      for (const item of data.latest) {
+        if (entries.length >= 6) break;
+        const poster = artFor(item, 'poster');
+        if (poster && !seen.has(item.Id)) { seen.add(item.Id); entries.push({ item, play: item.Type === 'Series' ? null : item, poster }); }
+      }
+    }
     // The banner is made again only when its titles change (its timer and its position start over then).
-    const sig = JSON.stringify(entries.map(({ item, play }) => [cardSig(item), play ? cardSig(play) : '']));
+    const sig = JSON.stringify(entries.map(({ item, play, poster }) => [cardSig(item), play ? cardSig(play) : '', !!poster]));
     if (sig !== heroSig) { heroBox?.stop?.(); heroBox = hero(entries); heroSig = sig; }
     if (banner === undefined) banner = installBanner(() => { banner = null; });
     const top = heroBox ?? (titleBox ??= h('div', { class: 'page' }, h('h1', { class: 'page-title' }, tr('Accueil'))));
