@@ -159,6 +159,51 @@ public static class RemoteLines
         return status.Requests.Where(x => !(x.State == "sent" && inTorLink.Contains(x.InfoHash))).ToList();
     }
 
+    // « Suivre une série »: a series followed, its releases chosen and its episodes taken.
+
+    /// <summary>What the last check of a series followed found (torlink.js: followNote); empty before any.</summary>
+    public static string FollowNote(FollowNote? note) => note?.Kind switch
+    {
+        "found" => L($"Trouvé : {note.Episode}", $"Found: {note.Episode}"),
+        "held" => note.Reason switch
+        {
+            "pack" => L($"Seulement en pack pour l’instant ({note.Episode}) : Mira attend l’épisode seul.", $"Only in a pack for now ({note.Episode}): Mira waits for the single episode."),
+            "language" => L($"{note.Episode} trouvé, mais pas dans la langue des précédents.", $"{note.Episode} found, but not in the language of the previous ones."),
+            "health" => L($"{note.Episode} trouvé, mais trop peu de sources pour l’instant.", $"{note.Episode} found, but too few sources for now."),
+            "size" => L($"{note.Episode} trouvé, mais bien plus gros qu’un épisode.", $"{note.Episode} found, but much larger than an episode."),
+            _ => L($"{note.Episode} trouvé, mais pas pris.", $"{note.Episode} found, but not taken.")
+        },
+        "nothing" => note.Episode is { Length: > 0 } latest ? L($"Rien de nouveau après {latest}.", $"Nothing new after {latest}.") : L("Rien de nouveau.", "Nothing new."),
+        "unknown" => L("Aucun résultat sous ce nom : essaie un autre nom cherché.", "No results under this name: try another search name."),
+        "missing" => L("Cette série n’est plus dans Jellyfin.", "This series is no longer in Jellyfin."),
+        "failed" => note.Detail is { Length: > 0 } why ? L($"Recherche impossible : {why}", $"Couldn’t search: {why}") : L("Recherche impossible pour l’instant.", "Couldn’t search for now."),
+        _ => ""
+    };
+
+    /// <summary>« Dernier épisode : S01E12 · prochaine recherche dans 3 h », or « Recherche en cours sur le PC serveur… ».</summary>
+    public static string Follow(RelayFollow follow, DateTimeOffset now)
+    {
+        if (follow.Checking) return L("Recherche en cours sur le PC serveur…", "Searching on the server PC…");
+        var next = follow.Next is { } at && at > now ? L($"prochaine recherche dans {In((at - now).TotalSeconds)}", $"next search in {In((at - now).TotalSeconds)}") : L("prochaine recherche bientôt", "next search soon");
+        return Join(follow.Latest is { } latest ? L($"Dernier épisode : {latest}", $"Latest episode: {latest}") : "", next);
+    }
+
+    /// <summary>A release chosen, not yet in TorLink: « S01E13 · 1,2 Go · part dans 8 min », on its way, or refused.</summary>
+    public static string Pick(RelayPick pick, DateTimeOffset now) => pick.State switch
+    {
+        "waiting" => Join(pick.Episode, Size(pick.Size), pick.SendAt > now ? L($"part dans {In((pick.SendAt - now).TotalSeconds)}", $"goes in {In((pick.SendAt - now).TotalSeconds)}") : L("part maintenant", "going now")),
+        "claimed" => Join(pick.Episode, L("envoi à TorLink…", "sending to TorLink…")),
+        _ => Join(pick.Episode, string.IsNullOrEmpty(pick.Error) ? L("TorLink a refusé ce téléchargement.", "TorLink refused this download.") : pick.Error)
+    };
+
+    /// <summary>An episode taken: « S01E13 · pris il y a 2 h ».</summary>
+    public static string Taken(RelayTaken taken, DateTimeOffset now) =>
+        L($"{taken.Episode} · pris {Ago(Math.Max(0, (now - taken.At).TotalSeconds))}", $"{taken.Episode} · taken {Ago(Math.Max(0, (now - taken.At).TotalSeconds))}");
+
+    /// <summary>« moins d’une minute », « 8 min », « 3 h »: how long until something, never cut between the number and its unit.</summary>
+    private static string In(double seconds) =>
+        seconds < 60 ? L("moins d’une minute", "less than a minute") : seconds < 3570 ? $"{Round(seconds / 60)}\u00a0min" : L($"{Round(seconds / 3600)}\u00a0h", $"{Round(seconds / 3600)}\u00a0hr");
+
     private static int Round(double value) => (int)Math.Round(value, MidpointRounding.AwayFromZero);
     private static string Join(params string?[] parts) => string.Join(" · ", parts.Where(x => !string.IsNullOrEmpty(x)));
 }

@@ -428,6 +428,14 @@ export const api = {
   torlinkCancel: (id) => request('DELETE', `Mira/torlink/requests/${encodeURIComponent(id)}`),
   /** pause, resume or delete (its files with it) a download TorLink has. */
   torlinkControl: (id, action) => post('Mira/torlink/control', { id, action }),
+  // « Suivre une série »: the series whose new episodes the PC of Jellyfin downloads on its own.
+  /** The series followed, with their releases chosen and episodes taken (as in torlink().follows). */
+  torlinkFollows: () => get('Mira/torlink/follows', null, { timeout: 10000 }),
+  /** Follows a series, or changes the name searched for it (query: null for its own): { id } of its follow. */
+  torlinkFollow: (seriesId, name, query = null) => post('Mira/torlink/follows', { seriesId, name, query }),
+  torlinkUnfollow: (id) => request('DELETE', `Mira/torlink/follows/${encodeURIComponent(id)}`),
+  /** « Chercher maintenant »: the PC checks it at its next visit. */
+  torlinkCheckFollow: (id) => post(`Mira/torlink/follows/${encodeURIComponent(id)}/check`),
   /**
    * « Chercher des sous-titres »: the subtitle extensions of Jellyfin (« Open Subtitles »), for an account that may use
    * them (an administrator, or one allowed to manage subtitles); [] otherwise. Asked once per session.

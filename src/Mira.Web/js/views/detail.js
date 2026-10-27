@@ -18,6 +18,8 @@ import { together } from '../together.js';
 import { groupText, people, groupStatus, namesText, groupPlayLabel, groupLabel } from '../player/sync.js';
 import { startPosition } from '../player/stream.js';
 import { inviteSheet } from '../invite.js';
+import { follows, followSheet, followedSheet } from '../follow.js';
+import { followLine as followText, followNote, pickLine } from '../torlink.js';
 
 const SLICE = 100;
 const seasonOf = (x) => x.ParentIndexNumber ?? 1;
@@ -96,6 +98,7 @@ export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': tr('Retour'), on: { click: () => goBack('#/') } }, icon('back'));
   let item = null, episodes = [], next = null, similar = [], sagas = null, extras = [], page = null, stale = false, loadedAt = 0, loadSeq = 0;
+  let followed = null; // the series this administrator follows (follow.js), null until known or for anyone else
   let actionsBox = null, toolsBox = null, sagaBox = null, extrasBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
@@ -135,7 +138,32 @@ export function create({ id, query }) {
       resume ? h('div', { style: { display: 'grid', gap: '6px' } },
         h('div', { class: 'progress-line' }, h('i', { style: { width: `${(progress(target) * 100).toFixed(1)}%` } })),
         h('div', { class: 'meta' }, left)) : null,
-      tracksLine(target), sleepLine(), togetherLine());
+      tracksLine(target), sleepLine(), togetherLine(), followLine());
+  }
+
+  /**
+   * « Télécharger les nouveaux épisodes » (an administrator, follow.js): the PC of Jellyfin downloads them on its own.
+   * Once followed, where it stands: an episode about to go first (time to cancel it), else what the last search found.
+   */
+  function followLine() {
+    if (item.Type !== 'Series' || !followed) return null;
+    const follow = followed.find((x) => x.seriesId?.toLowerCase() === item.Id.toLowerCase());
+    const now = Date.now();
+    const waiting = follow?.picks?.find((x) => x.state === 'waiting');
+    const sub = !follow ? '' : waiting ? pickLine(waiting, now) : followNote(follow.note) || followText(follow, now);
+    return h('button', { class: 'group-line', 'aria-haspopup': 'dialog', on: { click: () => (follow ? followedSheet(follow, loadFollows) : followSheet(item, loadFollows)) } },
+      icon('download', { size: 20 }),
+      h('span', { class: 'grow' }, follow ? h('span', {}, tr('Nouveaux épisodes : '), h('b', {}, tr('suivis'))) : h('span', {}, tr('Télécharger les nouveaux épisodes')),
+        sub ? h('span', { class: waiting ? 'group-state alert' : 'group-state' }, sub) : ''),
+      icon('right', { size: 18 }));
+  }
+  /** The series followed, read again with the page: the line shows only once the extension answered. */
+  function loadFollows() {
+    follows().then((list) => {
+      if (JSON.stringify(list) === JSON.stringify(followed)) return;
+      followed = list;
+      refreshActions();
+    });
   }
 
   /**
@@ -508,6 +536,7 @@ export function create({ id, query }) {
       else if (next?.MediaSources?.[0]) streams = { for: next.Id, source: next.MediaSources[0] };
       loadStreams(); findSubtitles();
       if (inPlace) update(); else render();
+      if (item.Type === 'Series') loadFollows();
       if (!similar.length && !sagas) {
         // Only their rows are drawn when they arrive: the page does not jump or flash under the finger. A film of a
         // saga has its other films in a row of their own, not again among the similar titles.

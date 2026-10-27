@@ -90,8 +90,9 @@ public partial class MainWindow
 
         var problem = TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false },
             DateTime.UtcNow - _remoteElsewhereAt < TimeSpan.FromMinutes(1), !_torlinkHeadless.Running && TorLinkInUse(), installation is { Outdated: false });
-        var (searches, requests, controls) = (_remoteSearchOutcomes.ToList(), _remoteRequestOutcomes.ToList(), _remoteControlOutcomes.ToList());
-        var report = new AgentReport(Environment.MachineName, problem is null, problem, await RemoteDownloadsAsync(ct), TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls);
+        var (searches, requests, controls, follows) = (_remoteSearchOutcomes.ToList(), _remoteRequestOutcomes.ToList(), _remoteControlOutcomes.ToList(), _remoteFollowOutcomes.ToList());
+        // Follows, even empty: this Mira checks the series followed (MainWindow.Follows.cs).
+        var report = new AgentReport(Environment.MachineName, problem is null, problem, await RemoteDownloadsAsync(ct), TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls, follows);
         var (work, status) = await client.TorLinkExchangeAsync(report, ct);
         if (!ReferenceEquals(client, _client)) return TimeSpan.FromSeconds(5);
         if (work is null)
@@ -102,12 +103,13 @@ public partial class MainWindow
             return TimeSpan.FromMinutes(5);
         }
         // Delivered: what the relay has now is not sent again.
-        _remoteSearchOutcomes.RemoveAll(searches.Contains); _remoteRequestOutcomes.RemoveAll(requests.Contains); _remoteControlOutcomes.RemoveAll(controls.Contains);
+        _remoteSearchOutcomes.RemoveAll(searches.Contains); _remoteRequestOutcomes.RemoveAll(requests.Contains); _remoteControlOutcomes.RemoveAll(controls.Contains); _remoteFollowOutcomes.RemoveAll(follows.Contains);
         if (work.Busy is { } other) { _remoteState = L($"Un autre Mira reçoit déjà les téléchargements de tes appareils : {other}.", $"Another Mira already receives your devices’ downloads: {other}."); return TimeSpan.FromSeconds(Math.Clamp(work.Next, 10, 120)); }
         _remoteState = !active ? L("Active TorLink dans la page Téléchargements : tes autres appareils pourront y lancer un téléchargement.", "Turn TorLink on in the Downloads page: your other devices will be able to start a download there.")
             : problem ?? (_torlinkHeadless.Running ? L("Prêt. TorLink travaille en ce moment sans fenêtre, pour un autre appareil.", "Ready. TorLink is working without a window right now, for another device.") : L("Prêt : tes autres appareils peuvent lancer un téléchargement ici.", "Ready: your other devices can start a download here."));
 
         foreach (var search in work.Searches) _ = RunRemoteSearchAsync(installation, search);
+        foreach (var follow in work.Follows ?? []) _ = RunFollowCheckAsync(installation, follow);
         if (work.Requests.Count > 0 || work.Controls.Count > 0) { await RunRemoteDownloadsAsync(installation, work.Requests, work.Controls); _remoteAgain = true; }
         return TimeSpan.FromSeconds(Math.Clamp(work.Next, 1, 60));
     }
@@ -162,7 +164,17 @@ public partial class MainWindow
         var serve = _torlinkHeadless.Client!;
         foreach (var request in requests)
         {
-            if (RemoteDownloads.InfoHash(request.Magnet) is null) { _remoteRequestOutcomes.Add(new(request.Id, "failed", L("Ce n’est pas un lien magnet.", "That’s not a magnet link."))); continue; }
+            if (RemoteDownloads.InfoHash(request.Magnet) is not { } hash) { _remoteRequestOutcomes.Add(new(request.Id, "failed", L("Ce n’est pas un lien magnet.", "That’s not a magnet link."))); continue; }
+            // An episode of a series followed: placed in its series' folder once finished, never anywhere else.
+            if (request.Place is { } place)
+            {
+                if (await FollowTargetAsync(place, ct) is not { } target || _torlink is not { } torlink)
+                {
+                    _remoteRequestOutcomes.Add(new(request.Id, "failed", L("Le dossier de cette série n’est dans aucune bibliothèque de séries de Jellyfin sur ce PC.", "This series’ folder isn’t in any Jellyfin shows library on this PC.")));
+                    continue;
+                }
+                torlink.Importer.Expect(hash, target);
+            }
             try
             {
                 var (outcome, error) = await serve.AddAsync(request.Magnet, ct);

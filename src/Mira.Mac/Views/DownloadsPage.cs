@@ -46,7 +46,8 @@ public sealed class DownloadsPage : Page
     private readonly ScrollViewer _resultsScroll;
     private readonly Control _resultsEmpty;
     private readonly TextBlock _summary = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
-    private readonly StackPanel _queue = new(), _placed = new();
+    private readonly StackPanel _queue = new(), _follows = new(), _placed = new();
+    private readonly TextBlock _followsTitle = new() { Text = L("Séries suivies", "Followed series"), FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(2, 14, 0, 10), IsVisible = false };
     private readonly TextBlock _placedTitle = new() { Text = L("Rangés dans ta bibliothèque", "Added to your library"), FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(2, 14, 0, 10), IsVisible = false };
     private readonly ScrollViewer _queueScroll;
     private readonly Control _queueEmpty;
@@ -147,7 +148,7 @@ public sealed class DownloadsPage : Page
         // —— Right: what the PC of Jellyfin has under way, then what it put in the library ——
         var queueHead = Ui.Column(0, new TextBlock { Text = L("Sur le PC serveur", "On the server PC"), FontSize = 19, FontWeight = FontWeight.Bold }, _summary);
         queueHead.Margin = new Thickness(2, 0, 0, 16);
-        var list = Ui.Column(0, _queue, _placedTitle, _placed);
+        var list = Ui.Column(0, _queue, _followsTitle, _follows, _placedTitle, _placed);
         list.Margin = new Thickness(0, 0, 0, 40);
         _queueScroll = new ScrollViewer { Content = list };
         _queueEmpty = Empty("download", L("Rien en cours", "Nothing under way"), L("Ce que tu envoies apparaît ici avec sa progression et le temps restant, puis rejoint ta bibliothèque.", "What you send shows up here with its progress and time left, then joins your library."), null);
@@ -274,10 +275,12 @@ public sealed class DownloadsPage : Page
             queue.Add(new($"d:{download.Id}", $"d|{download.Status}|{pending is null}", Shown(download.Name).Title, line, download.Progress, () => DownloadRow(download, pending is null)));
         }
         var placed = status.Placed.Select(x => new RowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(x.Status), null, () => PlacedRow(x))).ToList();
-        UpdateRows(_queue, queue); UpdateRows(_placed, placed);
-        foreach (var key in _rows.Keys.Except(queue.Concat(placed).Select(x => x.Key)).ToList()) _rows.Remove(key);
+        var follows = FollowRows(status.Follows, now);
+        UpdateRows(_queue, queue); UpdateRows(_follows, follows); UpdateRows(_placed, placed);
+        foreach (var key in _rows.Keys.Except(queue.Concat(follows).Concat(placed).Select(x => x.Key)).ToList()) _rows.Remove(key);
         _placedTitle.IsVisible = placed.Count > 0;
-        _queueEmpty.IsVisible = queue.Count + placed.Count == 0;
+        _followsTitle.IsVisible = follows.Count > 0;
+        _queueEmpty.IsVisible = queue.Count + follows.Count + placed.Count == 0;
         var downloading = status.Downloads.Count(x => x.Status == "downloading");
         var waiting = queue.Count - downloading;
         _summary.Text = queue.Count == 0 ? (placed.Count > 0 ? L("Rien en cours. Les derniers titres rangés sont ci-dessous.", "Nothing under way. The latest titles added are below.") : "")
@@ -402,6 +405,98 @@ public sealed class DownloadsPage : Page
             actions.Children.Add(buttons);
         }
         return RowView(placed.Ok ? "check" : "warning", placed.Ok ? Success : Warning, placed.Title, Sentence(placed.Status), null, false, actions);
+    }
+
+    // —— « Suivre une série »: the series followed, their releases chosen ——
+
+    /// <summary>Each series followed, what its last check found and its latest episode taken, then the releases chosen, with « Annuler ».</summary>
+    private List<RowData> FollowRows(IReadOnlyList<RelayFollow>? follows, DateTimeOffset now)
+    {
+        var rows = new List<RowData>();
+        foreach (var follow in follows ?? [])
+        {
+            var line = string.Join("\n", new[] { RemoteLines.Follow(follow, now), RemoteLines.FollowNote(follow.Note), follow.Taken.FirstOrDefault() is { } taken ? RemoteLines.Taken(taken, now) : "" }.Where(x => x.Length > 0));
+            rows.Add(new($"f:{follow.Id}", $"f|{follow.Query}", follow.Name, line, null, () => FollowRow(follow, line)));
+            foreach (var pick in follow.Picks)
+                rows.Add(new($"fp:{pick.Id}", $"fp|{pick.State}", Shown(pick.Name).Title, RemoteLines.Pick(pick, now), null, () => PickRow(pick, now)));
+        }
+        return rows;
+    }
+
+    private QueueRow FollowRow(RelayFollow follow, string line)
+    {
+        var actions = new StackPanel();
+        var buttons = RowButtons();
+        buttons.Children.Add(SmallButton(L("Chercher maintenant", "Search now"), "refresh", () => _ = FollowActionAsync(c => c.TorLinkCheckFollowAsync(follow.Id, _session!.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")),
+            L($"Chercher maintenant les nouveaux épisodes de « {follow.Name} »", $"Search now for new episodes of “{follow.Name}”")));
+        buttons.Children.Add(SmallButton(L("Nom cherché", "Search name"), "search", () => EditQuery(actions, follow), L($"Changer le nom cherché pour « {follow.Name} »", $"Change the search name for “{follow.Name}”")));
+        buttons.Children.Add(SmallButton(L("Ne plus suivre", "Stop following"), "close", () => _ = FollowActionAsync(c => c.TorLinkUnfollowAsync(follow.Id, _session!.Lifetime), L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")),
+            L($"Ne plus suivre « {follow.Name} »", $"Stop following “{follow.Name}”")));
+        actions.Children.Add(buttons);
+        return RowView("series", Ui.Ink, follow.Name, line, null, follow.Note?.Kind is "failed" or "missing" or "unknown", actions, follow.Query is { } query ? L($"Cherchée sous « {query} »", $"Searched as “{query}”") : null);
+    }
+
+    /// <summary>The name TorLink searches, changed in the row: empty for the series' own.</summary>
+    private void EditQuery(StackPanel actions, RelayFollow follow)
+    {
+        var kept = actions.Children.ToList();
+        actions.Children.Clear();
+        var box = new TextBox { Text = follow.Query ?? follow.Name, Margin = new Thickness(0, 8, 0, 0), MaxLength = RemoteDownloads.MaxQuery };
+        AutomationProperties.SetName(box, L("Nom cherché", "Search name"));
+        actions.Children.Add(new TextBlock { Text = L("Le nom sous lequel ses épisodes sortent, par exemple son nom japonais. Vide : son nom dans Jellyfin.", "The name its episodes come out under, its Japanese name for example. Empty: its name in Jellyfin."), FontSize = 12.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+        actions.Children.Add(box);
+        void Save()
+        {
+            var query = RemoteDownloads.CleanQuery(box.Text);
+            query = query is null || ReleaseRanking.TitleKey(query) == ReleaseRanking.TitleKey(follow.Name) ? null : query;
+            _ = FollowActionAsync(c => c.TorLinkFollowAsync(follow.SeriesId, follow.Name, query, _session!.Lifetime), L("Nom cherché changé : le PC serveur cherche de nouveau.", "Search name changed: the server PC is searching again."));
+        }
+        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; Save(); } };
+        var buttons = RowButtons();
+        buttons.Margin = new Thickness(-10, 4, 0, 0);
+        buttons.Children.Add(SmallButton(L("Enregistrer", "Save"), "check", Save, L("Enregistrer le nom cherché", "Save the search name")));
+        buttons.Children.Add(SmallButton(L("Annuler", "Cancel"), "close", () => { actions.Children.Clear(); actions.Children.AddRange(kept); }, L("Garder le nom cherché", "Keep the search name")));
+        actions.Children.Add(buttons);
+        Dispatcher.UIThread.Post(() => { box.Focus(); box.SelectAll(); }, DispatcherPriority.Input);
+    }
+
+    private QueueRow PickRow(RelayPick pick, DateTimeOffset now)
+    {
+        var (name, full) = Shown(pick.Name);
+        var actions = new StackPanel();
+        if (pick.State is "waiting" or "failed")
+        {
+            var label = pick.State == "waiting" ? L("Annuler", "Cancel") : L("Retirer", "Remove");
+            var buttons = RowButtons();
+            buttons.Children.Add(SmallButton(label, "close", () => _ = CancelPickAsync(pick), label + L($" « {name} »", $" “{name}”")));
+            actions.Children.Add(buttons);
+        }
+        var failed = pick.State == "failed";
+        return RowView(failed ? "warning" : "clock", failed ? Warning : Ui.Faint, name, RemoteLines.Pick(pick, now), null, failed, actions, full);
+    }
+
+    private async Task FollowActionAsync(Func<JellyfinClient, Task> action, string done)
+    {
+        if (_session is not { } session) return;
+        try { await action(session.Client); Shell.Notice(done); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        await LoadStatusAsync();
+    }
+
+    private async Task CancelPickAsync(RelayPick pick)
+    {
+        if (_session is not { } session) return;
+        try
+        {
+            Shell.Notice(await session.Client.TorLinkCancelAsync(pick.Id, session.Lifetime) switch
+            {
+                true => pick.State == "waiting" ? L($"{pick.Episode} annulé : ce fichier ne sera plus pris, un autre de l’épisode pourra l’être.", $"{pick.Episode} canceled: this file won’t be taken again, another one of the episode may be.") : L("Retiré de la liste.", "Removed from the list."),
+                false => L("Le PC serveur l’a déjà pris : annule-le dans sa liste dès qu’il y apparaît.", "The server PC already took it: cancel it in its list as soon as it shows up there."),
+                null => L("Cet épisode n’est plus en attente.", "This episode is no longer waiting.")
+            });
+        }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        await LoadStatusAsync();
     }
 
     /// <summary>« Voir »: the title's page, as from the library.</summary>
