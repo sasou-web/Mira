@@ -109,8 +109,8 @@ public sealed partial class PlayerPage : UserControl
         ((Flyout)_more.Flyout).Opening += (_, _) => ((Flyout)_more.Flyout).Content = MoreMenu();
         var play = new Button { Content = _pauseIcon, Classes = { "player" } }; play.Click += (_, _) => TogglePause();
         ToolTip.SetTip(play, L("Lecture / pause · Espace", "Play / pause · Space"));
-        var rewind = Ui.IconButton("rewind", "−10 s · ←", () => SeekBy(-10), "player", 23);
-        var forward = Ui.IconButton("forward", "+10 s · →", () => SeekBy(10), "player", 23);
+        var rewind = Ui.IconButton("rewind", "−10 s · ←", () => SeekBy(-10), "player", 23, L("Reculer de 10 secondes", "Back 10 seconds"));
+        var forward = Ui.IconButton("forward", "+10 s · →", () => SeekBy(10), "player", 23, L("Avancer de 10 secondes", "Forward 10 seconds"));
         var mute = new Button { Content = _volumeIcon, Classes = { "player" } }; mute.Click += (_, _) => ToggleMute();
         ToolTip.SetTip(mute, L("Couper le son · M", "Mute · M"));
         // 100 % sits at the middle, marked under the track; to the right, the sound is raised without clipping.
@@ -125,6 +125,10 @@ public sealed partial class PlayerPage : UserControl
         _volume.ValueChanged += (_, e) => VolumeChanged(e.NewValue);
         var fullscreen = new Button { Content = _fullscreenIcon, Classes = { "player" } }; fullscreen.Click += (_, _) => ToggleFullscreen();
         ToolTip.SetTip(fullscreen, L("Plein écran · F", "Full screen · F"));
+        // Their icons say what a click does: VoiceOver reads the same, with the shortcut as help.
+        Speak(play, _pauseIcon, kind => kind == "play" ? L("Lecture", "Play") : L("Pause", "Pause"), L("Espace", "Space"));
+        Speak(mute, _volumeIcon, kind => kind == "mute" ? L("Rétablir le son", "Unmute") : L("Couper le son", "Mute"), "M");
+        Speak(fullscreen, _fullscreenIcon, kind => kind == "collapse" ? L("Quitter le plein écran", "Exit full screen") : L("Plein écran", "Full screen"), "F");
 
         var left = Ui.Row(4, play, rewind, forward, _next, volumeGroup);
         var right = Ui.Row(4, _tracks, _more, fullscreen);
@@ -142,6 +146,7 @@ public sealed partial class PlayerPage : UserControl
 
         _skip = new Button { Classes = { "pill" }, Content = Ui.Row(10, _skipText, new Icon("skip", 16) { VerticalAlignment = VerticalAlignment.Center }), IsVisible = false };
         _skip.Click += (_, _) => Skip();
+        _skipText.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) Avalonia.Automation.AutomationProperties.SetName(_skip, _skipText.Text); };
         _skipCancel = new Button { Classes = { "pill" }, Content = L("Annuler", "Cancel"), IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
         _skipCancel.Click += (_, _) => { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; };
         ToolTip.SetTip(_skipCancel, L("Rester sur cet épisode", "Stay on this episode"));
@@ -599,6 +604,13 @@ public sealed partial class PlayerPage : UserControl
         }
         return menu;
     }
+    /// <summary>The name of a button whose icon changes (« Lecture » or « Pause »), kept with the icon.</summary>
+    private static void Speak(Button button, Icon icon, Func<string, string> name, string shortcut)
+    {
+        Avalonia.Automation.AutomationProperties.SetName(button, name(icon.Kind));
+        Avalonia.Automation.AutomationProperties.SetHelpText(button, shortcut);
+        icon.PropertyChanged += (_, e) => { if (e.Property == Icon.KindProperty) Avalonia.Automation.AutomationProperties.SetName(button, name(icon.Kind)); };
+    }
     private Button Entry(string label, string? details, bool selected, Action choose)
     {
         var text = Ui.Column(1, new TextBlock { Text = label, FontSize = 14, FontWeight = selected ? FontWeight.SemiBold : FontWeight.Normal });
@@ -607,6 +619,7 @@ public sealed partial class PlayerPage : UserControl
         var check = new Icon("check", 16) { Opacity = selected ? 1 : 0, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
         DockPanel.SetDock(check, Dock.Left); row.Children.Add(check); row.Children.Add(text);
         var button = new Button { Content = row, Classes = { "quiet" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 8), FontWeight = FontWeight.Normal };
+        Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { label, details, selected ? L("choisi", "selected") : null }.Where(x => !string.IsNullOrEmpty(x))));
         // The menu stays open, so the other track can be chosen too; it refreshes its marks.
         button.Click += (_, _) => { choose(); RefreshMenus(); };
         return button;

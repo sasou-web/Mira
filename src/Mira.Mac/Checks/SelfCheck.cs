@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.VisualTree;
 using Mira.Core;
 using Mira.Mac.Views;
 
@@ -29,6 +31,13 @@ public static class SelfCheck
         Directory.CreateDirectory(output);
         var results = new List<Result>();
         void Check(bool ok, string name, string detail = "") { results.Add(new(ok, name, detail)); Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {name}{(detail.Length > 0 ? " — " + detail : "")}"); }
+        // Each screen captured is also read as VoiceOver would: no button, field or list it can reach without a name.
+        void Capture(Window shown, string folder, string name)
+        {
+            CaptureWindow(shown, folder, name);
+            var unnamed = Unnamed(shown);
+            Check(unnamed.Count == 0, $"VoiceOver : tout est nommé ({name})", string.Join(", ", unnamed.Take(8)));
+        }
         var mock = args.Contains("--mock") ? new MockJellyfin(Path.GetFullPath(Arg("--media")), Path.GetFullPath(Arg("--short"))) : null;
         var exit = 1;
         try
@@ -65,6 +74,10 @@ public static class SelfCheck
             ((BrowsePage)window.Current!).Search(word);
             Check(await Until(() => window.Current is BrowsePage search && search.Items.Any(x => x.Id == movie.Id), 15), "recherche", $"« {word} »");
             await Task.Delay(800); Capture(window, output, "04-search");
+            ((BrowsePage)window.Current!).Search("zqxwv");
+            Check(await Until(() => window.Current is BrowsePage { Empty.IsVisible: true, Items.Count: 0 } nothing && nothing.Empty.Title.Contains("zqxwv"), 15), "recherche sans résultat : l’état vide le dit",
+                $"{(window.Current as BrowsePage)?.Empty.Title} · {(window.Current as BrowsePage)?.Empty.ActionLabel}");
+            await Task.Delay(500); Capture(window, output, "04-search-empty");
             if (mock is not null)
             {
                 ((BrowsePage)window.Current!).Search("Jeanne");
@@ -121,6 +134,8 @@ public static class SelfCheck
                 var before = player.Position;
                 Key(window, Avalonia.Input.Key.Right);
                 Check(await Until(() => player.Position >= before + 8, 6), $"avance de 10 s ({renderer})", $"{before:0.0} → {player.Position:0.0}");
+                var unnamed = Unnamed(window);
+                Check(unnamed.Count == 0, $"VoiceOver : tout est nommé (lecteur, {renderer})", string.Join(", ", unnamed.Take(8)));
                 await Task.Delay(1500);
                 var colour = ScreenColour(Path.Combine(output, $"08-player-{(software ? "software" : "opengl")}.png"));
                 Check(colour is null || colour > 0.2, $"image visible à l’écran ({renderer})", colour is null ? "capture d’écran indisponible" : $"{colour:P0} de pixels colorés au centre");
@@ -197,13 +212,33 @@ public static class SelfCheck
     private static void Key(MainWindow window, Key key) => window.Player?.HandleKey(new KeyEventArgs { Key = key, RoutedEvent = InputElement.KeyDownEvent });
 
     /// <summary>The window as Avalonia draws it (without mpv's picture, which only reaches the screen).</summary>
-    private static void Capture(Window window, string output, string name)
+    private static void CaptureWindow(Window window, string output, string name)
     {
         var scaling = window.RenderScaling;
         var size = new PixelSize((int)(window.Bounds.Width * scaling), (int)(window.Bounds.Height * scaling));
         using var bitmap = new RenderTargetBitmap(size, new Vector(96 * scaling, 96 * scaling));
         bitmap.Render(window);
         bitmap.Save(Path.Combine(output, name + ".png"));
+    }
+    /// <summary>
+    /// The controls shown that VoiceOver reaches but could only call « bouton » or « champ de texte »: their automation
+    /// peer has no name, or only the name of their content's type (a button holding an icon and a label, without
+    /// AutomationProperties.Name, is read « Avalonia.Controls.StackPanel »; a tooltip is not read). The parts of a
+    /// control's template are its own.
+    /// </summary>
+    public static List<string> Unnamed(Visual root)
+    {
+        var unnamed = new List<string>();
+        foreach (var control in root.GetVisualDescendants().OfType<Control>())
+        {
+            if (control is not (Button or TextBox or ComboBox or Slider) || control.TemplatedParent is not null || !control.IsEffectivelyVisible) continue;
+            var name = ControlAutomationPeer.CreatePeerForElement(control).GetName();
+            if (!string.IsNullOrWhiteSpace(name) && !(control is ContentControl { Content: { } content and not string } && name == content.ToString())) continue;
+            var text = control.GetVisualDescendants().OfType<TextBlock>().Select(x => x.Text).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+            var icon = control.GetVisualDescendants().OfType<Icon>().Select(x => x.Kind).FirstOrDefault();
+            unnamed.Add($"{control.GetType().Name}{(text is not null ? $" « {text} »" : icon is not null ? $" ({icon})" : "")}");
+        }
+        return unnamed;
     }
     /// <summary>
     /// The screen as macOS (screencapture) or X11 (import) shows it, mpv's picture included: the share of colourful

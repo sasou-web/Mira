@@ -41,7 +41,7 @@ public sealed class LoginPage : UserControl
 
         var form = Ui.Column(14,
             new Icon("brand", 52) { Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 10) },
-            Ui.Text(L("Connexion à Jellyfin", "Sign in to Jellyfin"), 28, FontWeight.Bold),
+            Ui.Heading(L("Connexion à Jellyfin", "Sign in to Jellyfin"), 28, 1),
             Ui.Text(L("Mira lit ta bibliothèque Jellyfin. Chez toi, l’adresse du PC qui l’héberge suffit ; ailleurs, celle que Tailscale lui donne.", "Mira plays your Jellyfin library. At home, the address of the PC it runs on is enough; elsewhere, the one Tailscale gives it."), 14.5, color: Ui.Muted),
             Spaced(_server, 10), _found, _choices, _searchAgain, _user, _password, _error, Spaced(_connect, 6),
             Ui.Text(L("Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin.", "Your password is never saved: Mira only keeps the session Jellyfin opened."), 12.5, color: Ui.Faint));
