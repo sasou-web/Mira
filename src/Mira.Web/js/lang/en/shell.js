@@ -238,6 +238,7 @@ export default {
   'touche ': 'tap ',
   Partager: 'Share',
   ' en bas de Safari,': ' at the bottom of Safari,',
+  ' en haut de Safari,': ' at the top of Safari,',
   'puis ': 'then ',
   'Sur l’écran d’accueil': 'Add to Home Screen',
   'Bienvenue sur Mira': 'Welcome to Mira',
@@ -305,7 +306,7 @@ export default {
   'Pas encore Tailscale sur le téléphone ? Installe-le depuis l’App Store ou le Play Store, puis connecte-toi avec le même compte.':
     'No Tailscale on the phone yet? Install it from the App Store or the Play Store, then sign in with the same account.',
   'Ouvre le lien, puis connecte-toi avec ton compte Jellyfin.': 'Open the link, then sign in with your Jellyfin account.',
-  'Sur iPhone : ': 'On iPhone: ',
+  'Sur iPhone ou iPad : ': 'On iPhone or iPad: ',
   ', puis ': ', then ',
   ' pour l’avoir comme une app.': ' to have it as an app.',
   'Cette adresse ne marche que sur le Wi-Fi de la maison.': 'This address only works on your home Wi-Fi.',

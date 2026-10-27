@@ -2,16 +2,17 @@
 // password to type on the phone, a code approved from a device already signed in (Quick Connect).
 import { api, base, exposed } from '../api.js';
 import { h, icon, clear, initials, wait } from '../dom.js';
-import { isIOS, isStandalone, storageBlocked, temp, computerApp } from '../session.js';
+import { isIOS, isStandalone, storageBlocked, temp, computerApp, device } from '../session.js';
 import { appLink } from '../player/sync.js';
 import { markSvg, resetScreens, replaceRoute } from '../app.js';
 import { tr } from '../i18n.js';
 
+/** Where Safari's Share button is: at the bottom of an iPhone's screen, at the top of an iPad's. */
 export function installHint() {
   if (!isIOS() || isStandalone()) return null;
   return h('div', { class: 'hint' },
     h('div', {}, h('b', {}, tr('Ajoute Mira à ton écran d’accueil')), tr(' pour l’ouvrir comme une app, en plein écran :')),
-    h('div', { class: 'step' }, icon('share'), h('span', {}, tr('touche '), h('b', {}, tr('Partager')), tr(' en bas de Safari,'))),
+    h('div', { class: 'step' }, icon('share'), h('span', {}, tr('touche '), h('b', {}, tr('Partager')), device.name === 'iPad' ? tr(' en haut de Safari,') : tr(' en bas de Safari,'))),
     h('div', { class: 'step' }, icon('add-home'), h('span', {}, tr('puis '), h('b', {}, tr('Sur l’écran d’accueil')), '.')));
 }
 

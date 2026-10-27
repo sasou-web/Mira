@@ -1,7 +1,7 @@
 // A title's page: backdrop and logo, play or resume, watched and favourite, overview, genres, cast and studios, for a
 // series its seasons (seasons.js) and episodes, then its saga, its studio's other titles, bonus and similar titles.
 import { api } from '../api.js';
-import { h, icon, clear, duration, seconds, progress, remaining, endsAt, episodeCode } from '../dom.js';
+import { h, icon, clear, duration, seconds, progress, remaining, endsAt, episodeCode, WIDE, wideScreen } from '../dom.js';
 import { tr, trn, number, language as shownLanguage } from '../i18n.js';
 import { artFor, picture, logo } from '../images.js';
 import {
@@ -81,6 +81,12 @@ function episodeRow(episode, current) {
   return link;
 }
 
+/**
+ * The poster beside the title on a tablet or a computer; on a phone only without a backdrop, where it stands above the
+ * title instead of an empty banner.
+ */
+const posterFor = (item, backdrop, wide) => (wide || !backdrop ? artFor(item, 'poster') : null);
+
 export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': tr('Retour'), on: { click: () => goBack('#/') } }, icon('back'));
@@ -126,7 +132,7 @@ export function create({ id, query }) {
     const left = resume ? remaining(target) : '';
     return h('div', { class: 'detail-actions' },
       h('a', { class: 'btn primary block', href: playHref(target, false, chosen?.for === target.Id ? chosen : null) }, icon('play', { size: 20 }), label),
-      resume ? h('div', { style: { display: 'grid', gap: '6px' } },
+      resume ? h('div', { class: 'detail-progress' },
         h('div', { class: 'progress-line' }, h('i', { style: { width: `${(progress(target) * 100).toFixed(1)}%` } })),
         h('div', { class: 'meta' }, left)) : null,
       tracksLine(target), sleepLine(), togetherLine(), followLine());
@@ -474,24 +480,25 @@ export function create({ id, query }) {
 
   function render() {
     // Read before the page is emptied: reading it after would lay out an empty page, and send the scroll to the top.
-    const wide = innerWidth > 900;
+    const wide = wideScreen();
     const headTitle = logo(item, 420, 'detail-logo') ?? h('h1', { class: 'detail-title' }, item.Name);
     if (headTitle.tagName === 'IMG') {
       headTitle.addEventListener('error', () => headTitle.replaceWith(h('h1', { class: 'detail-title' }, item.Name)), { once: true });
       headTitle.setAttribute('role', 'heading'); headTitle.setAttribute('aria-level', '1');
     }
     const cast = (item.People ?? []).filter((p) => p.Type === 'Actor' && p.Id).slice(0, 20);
-    // Without a backdrop, the poster stands above the title instead of an empty banner.
-    const backdrop = artFor(item, 'backdrop'), poster = backdrop ? null : artFor(item, 'poster');
+    const backdrop = artFor(item, 'backdrop'), poster = posterFor(item, backdrop, wide);
     // The title given the focus as the screen opened (app.js) keeps it in the page drawn whole.
     const focused = el.contains(document.activeElement) && document.activeElement.matches('.detail-title, .detail-logo');
     clear(el).append(back,
       h('div', { class: 'detail-top' },
         h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: wide ? 1600 : 900, eager: true }) : null),
-        h('div', { class: 'detail-head' },
-          poster ? picture(poster, { kind: 'poster', width: 140, eager: true, className: 'detail-poster' }) : null,
-          headTitle, (metaBox = meta(item, episodes, playFacts())), (actionsBox = primaryAction()), (toolsBox = tools()), overview(item.Overview),
-          genres(item), credits(item))),
+        h('div', { class: ['detail-head', poster && 'with-poster'] },
+          poster ? picture(poster, { kind: 'poster', width: wide ? 240 : 140, eager: true, className: 'detail-poster' }) : null,
+          h('div', { class: 'detail-info' },
+            headTitle, (metaBox = meta(item, episodes, playFacts())),
+            h('div', { class: 'detail-play' }, (actionsBox = primaryAction()), (toolsBox = tools())),
+            overview(item.Overview), genres(item), credits(item)))),
       (seasonsBox = h('div', {}, seasonsSection())),
       row(tr('Distribution'), cast, (p) => personCard(p), { people: true }) ?? '',
       (sagaBox = h('div', {}, sagaRows())),
@@ -507,21 +514,22 @@ export function create({ id, query }) {
    * picture and title rather than a spinner, and the rest arrives in place.
    */
   function seed(known) {
-    const backdrop = artFor(known, 'backdrop'), poster = backdrop ? null : artFor(known, 'poster');
+    const wide = wideScreen();
+    const backdrop = artFor(known, 'backdrop'), poster = posterFor(known, backdrop, wide);
     const headTitle = logo(known, 420, 'detail-logo') ?? h('h1', { class: 'detail-title' }, known.Name);
     if (headTitle.tagName === 'IMG') {
       headTitle.addEventListener('error', () => headTitle.replaceWith(h('h1', { class: 'detail-title' }, known.Name)), { once: true });
       headTitle.setAttribute('role', 'heading'); headTitle.setAttribute('aria-level', '1');
     }
-    const wide = innerWidth > 900;
     clear(el).append(back,
       h('div', { class: 'detail-top' },
         h('div', { class: ['detail-backdrop', !backdrop && 'none'] }, backdrop ? picture(backdrop, { kind: 'backdrop', width: wide ? 1600 : 900, eager: true }) : null),
-        h('div', { class: 'detail-head' },
-          poster ? picture(poster, { kind: 'poster', width: 140, eager: true, className: 'detail-poster' }) : null,
-          headTitle, meta(known, []),
-          h('div', { class: 'detail-actions' }, h('div', { class: 'skeleton', style: { height: '48px', borderRadius: 'var(--r-m)' } })),
-          h('div', { class: 'skeleton line', style: { width: '90%' } }), h('div', { class: 'skeleton line', style: { width: '75%' } }))));
+        h('div', { class: ['detail-head', poster && 'with-poster'] },
+          poster ? picture(poster, { kind: 'poster', width: wide ? 240 : 140, eager: true, className: 'detail-poster' }) : null,
+          h('div', { class: 'detail-info' },
+            headTitle, meta(known, []),
+            h('div', { class: 'detail-play' }, h('div', { class: 'detail-actions' }, h('div', { class: 'skeleton detail-waiting' }))),
+            h('div', { class: 'skeleton line', style: { width: '90%' } }), h('div', { class: 'skeleton line', style: { width: '75%' } })))));
   }
 
   /**
@@ -638,6 +646,10 @@ export function create({ id, query }) {
   // Joined, left, someone came or went: the line under Lecture says so.
   const unwatchGroup = together.watch(() => refreshActions());
   together.restore();
+  // A window made wider or narrower than a tablet: the page drawn again in the other layout (with or without its poster).
+  const wideQuery = matchMedia(WIDE);
+  const onWide = () => { if (item) render(); };
+  wideQuery.addEventListener('change', onWide);
 
   load();
   return {
@@ -645,6 +657,6 @@ export function create({ id, query }) {
     // Not at the first showing: the page is loading already.
     enter() { if (stale || (loadedAt && Date.now() - loadedAt > 5 * 60_000)) load(true); },
     refresh: () => load(true),
-    dispose() { changes.removeEventListener('item', onChange); unwatchGroup(); },
+    dispose() { changes.removeEventListener('item', onChange); unwatchGroup(); wideQuery.removeEventListener('change', onWide); },
   };
 }

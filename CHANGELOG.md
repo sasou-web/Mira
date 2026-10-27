@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- **Mira web à la taille de l’iPad et de l’ordinateur** : un iPad en portrait a maintenant le rail à gauche et les grilles larges, comme en paysage. Sur iPad et ordinateur, la fiche d’un titre montre son affiche à côté du titre, **Lecture** et les boutons (**Favoris**, **Marquer vu**, **Du début**…) en une rangée de vrais boutons, les lignes **Audio et sous-titres** et **Regarder ensemble** côte à côte ; les Réglages et les pages qu’ils ouvrent gardent une largeur de lecture au lieu de s’étirer d’un bord à l’autre. Sur iPad, l’aide « Ajouter à l’écran d’accueil » cherche **Partager** en haut de Safari. L’iPhone ne change pas.
+
 ## 0.8.5 — 2026-10-27
 
 Suivre une série, corriger un titre mal reconnu, lire loin de chez soi, sauvegarder Jellyfin, et des Réglages et une recherche plus clairs sous Windows.
