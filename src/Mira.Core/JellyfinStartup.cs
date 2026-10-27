@@ -112,9 +112,36 @@ public static class JellyfinStartup
     public sealed record Lift(string Name, string Program, int Protocol, string? LocalPorts, string? RemoteAddresses, int Profiles, int Keep);
     /// <summary>
     /// What the copy of Windows PowerShell started with administrator rights does, in order: the networks the person
-    /// said are home's made private (never a domain one), the block rules lifted, then the commands.
+    /// said are home's made private (never a domain one), the block rules lifted, Jellyfin's installer run
+    /// (<paramref name="Setup"/>, an update), then the commands.
     /// </summary>
-    public sealed record Plan(IReadOnlyList<string> PrivateAdapters, IReadOnlyList<Lift> Lifts, IReadOnlyList<StartupCommand> Commands);
+    public sealed record Plan(IReadOnlyList<string> PrivateAdapters, IReadOnlyList<Lift> Lifts, IReadOnlyList<StartupCommand> Commands, Installer? Setup = null);
+    /// <summary>
+    /// Jellyfin's installer downloaded and checked by Mira (<see cref="JellyfinServerPackage"/>): the script checks its
+    /// SHA-256 again, from a handle that lets nobody write to the file until the installer has ended, then runs it
+    /// silently and waits for it, <see cref="SetupWait"/> at most (its message box « Could not start the Jellyfin Server
+    /// service » waits for an answer even then).
+    /// </summary>
+    public sealed record Installer(string Path, string Sha256);
+    public static readonly TimeSpan SetupWait = TimeSpan.FromMinutes(10);
+    /// <summary>The script's exit codes beyond 0 and 1 (a command failed): the installer's file is not the one checked, could not be run, was still running after <see cref="SetupWait"/>, or ended with an error.</summary>
+    public const int SetupMismatch = 3, SetupNotStarted = 4, SetupStillRunning = 5, SetupFailed = 6;
+
+    /// <summary>
+    /// After Jellyfin's installer updated it: its uninstaller removes the service, and the new one is made as on a
+    /// first installation (started with Windows, never delayed, no restart after an error). What Mira read of it before
+    /// (<paramref name="before"/>) is put back: its delayed start, its restarts after an error. Then it is started, in case
+    /// the installer could not (optional: it usually runs already).
+    /// </summary>
+    public static IReadOnlyList<StartupCommand> AfterUpdate(State before, string service = ServiceName)
+    {
+        if (service.Length == 0 || service.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '_' && c != '-')) throw new ArgumentException("Unexpected service name.");
+        var commands = new List<StartupCommand>();
+        if (before.StartsWithWindows && before.Delayed) commands.Add(new("sc.exe", $"config {service} start= delayed-auto"));
+        if (before.RestartsAfterError) commands.AddRange([new("sc.exe", $"failure {service} reset= 86400 actions= {RestartActions}"), new("sc.exe", $"failureflag {service} 1")]);
+        commands.Add(new("sc.exe", $"start {service}", Optional: true));
+        return commands;
+    }
 
     /// <summary>Windows PowerShell, in System32: the program elevated, which no one without administrator rights can change.</summary>
     public const string PowerShell = @"WindowsPowerShell\v1.0\powershell.exe";
@@ -134,9 +161,10 @@ public static class JellyfinStartup
     /// <summary>
     /// The script of <see cref="PowerShellArguments"/>: fixed code, the plan's numbers written as numbers and its text
     /// (adapter and rule names, command arguments) as base64, decoded by the script, so that nothing in them is ever read
-    /// as code. Only the programs Mira runs (sc.exe, netsh.exe, from System32) and Windows' own COM objects are used: no
-    /// cmdlet, and no module loaded (a module in the person's Documents would run with administrator rights). Exit code
-    /// 0 once every command that is not optional succeeded, 1 otherwise; what was done is read again by Mira.
+    /// as code. Only the programs Mira runs (sc.exe, netsh.exe, from System32, and Jellyfin's installer once its SHA-256
+    /// matches) and Windows' own COM objects are used: no cmdlet, and no module loaded (a module in the person's Documents
+    /// would run with administrator rights). Exit code 0 once every command that is not optional succeeded, 1 otherwise,
+    /// or what became of the installer (<see cref="SetupMismatch"/>…); what was done is read again by Mira.
     /// </summary>
     public static string Script(Plan plan)
     {
@@ -149,6 +177,13 @@ public static class JellyfinStartup
         var commands = plan.Commands.Select(x => x.File is "sc.exe" or "netsh.exe"
             ? $"@{{ F = '{x.File}'; A = (T {Text(x.Arguments)}); O = ${(x.Optional ? "true" : "false")} }}"
             : throw new ArgumentException("Not a program Mira runs: " + x.File, nameof(plan)));
+        var setup = plan.Setup switch
+        {
+            null => "$null",
+            { } x when Path.IsPathFullyQualified(x.Path) && x.Path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && x.Sha256.Length == 64 && x.Sha256.All(char.IsAsciiHexDigit)
+                => $"@{{ P = (T {Text(x.Path)}); H = '{x.Sha256.ToUpperInvariant()}' }}",
+            _ => throw new ArgumentException("Unexpected installer.", nameof(plan)),
+        };
         // Windows PowerShell 5.1: no ?? nor ternary; @() keeps a single element a list.
         return $$"""
             $ErrorActionPreference = 'Stop'
@@ -188,6 +223,22 @@ public static class JellyfinStartup
                 }
               } catch { }
             }
+            $setup = {{setup}}
+            $ended = 0
+            if ($setup -ne $null) {
+              $file = $null
+              try {
+                $file = [IO.File]::Open($setup.P, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+                $sha = [Security.Cryptography.SHA256]::Create()
+                $hash = [BitConverter]::ToString($sha.ComputeHash($file)).Replace('-', '')
+                if ($hash -ne $setup.H) { $file.Dispose(); exit {{SetupMismatch}} }
+                $info = [Diagnostics.ProcessStartInfo]::new($setup.P, '/S')
+                $info.UseShellExecute = $false
+                $installer = [Diagnostics.Process]::Start($info)
+                if (-not $installer.WaitForExit({{(int)SetupWait.TotalMilliseconds}})) { $ended = {{SetupStillRunning}} } elseif ($installer.ExitCode -ne 0) { $ended = {{SetupFailed}} }
+              } catch { if ($file -ne $null) { $file.Dispose() }; exit {{SetupNotStarted}} }
+              $file.Dispose()
+            }
             $failed = $false
             foreach ($command in $commands) {
               $code = -1
@@ -200,6 +251,7 @@ public static class JellyfinStartup
               } catch { }
               if ($code -ne 0 -and -not $command.O) { $failed = $true }
             }
+            if ($ended -ne 0) { exit $ended }
             if ($failed) { exit 1 }
             exit 0
             """;

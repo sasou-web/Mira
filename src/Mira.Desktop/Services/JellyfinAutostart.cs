@@ -244,10 +244,20 @@ internal static class JellyfinAutostart
     }
 
     /// <summary>
-    /// Runs <paramref name="plan"/> in Windows PowerShell with administrator rights, Windows asking for consent: its exit
-    /// code, or null when the person refused. -1 when it could not start or did not end within two minutes.
+    /// « Mettre à jour Jellyfin »: its installer, downloaded and checked (<paramref name="setup"/>), run by the same
+    /// elevated script, which checks it again before running it; then the service as it was before
+    /// (<see cref="JellyfinStartup.AfterUpdate"/>), the installer having made it again. One consent from Windows. The
+    /// script's exit code (<see cref="JellyfinStartup.SetupMismatch"/>…), null when the person refused.
     /// </summary>
-    private static async Task<int?> ElevatedAsync(JellyfinStartup.Plan plan)
+    public static Task<int?> UpdateAsync(string setup, string sha256, JellyfinStartup.State before) =>
+        ElevatedAsync(new([], [], JellyfinStartup.AfterUpdate(before), new(setup, sha256)), JellyfinStartup.SetupWait + TimeSpan.FromMinutes(2));
+
+    /// <summary>
+    /// Runs <paramref name="plan"/> in Windows PowerShell with administrator rights, Windows asking for consent: its exit
+    /// code, or null when the person refused. -1 when it could not start or did not end within <paramref name="limit"/>
+    /// (two minutes by default).
+    /// </summary>
+    private static async Task<int?> ElevatedAsync(JellyfinStartup.Plan plan, TimeSpan? limit = null)
     {
         try
         {
@@ -255,7 +265,7 @@ internal static class JellyfinAutostart
             using var process = Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, JellyfinStartup.PowerShell), JellyfinStartup.PowerShellArguments(plan))
             { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden });
             if (process is null) return -1;
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(2));
+            await process.WaitForExitAsync().WaitAsync(limit ?? TimeSpan.FromMinutes(2));
             return process.ExitCode;
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { return null; }

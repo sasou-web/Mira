@@ -286,4 +286,16 @@ public sealed class PlayerSettings
     public string OfflineFolder { get; set; } = "";
     /// <summary>Every other folder copies were put in: choosing another leaves the earlier copies listed where they are.</summary>
     public List<string> OfflineFolders { get; set; } = [];
+    /// <summary>Windows, on the PC of Jellyfin: the folder its backups are also copied to (<see cref="JellyfinBackups"/>); empty: none.</summary>
+    public string JellyfinBackupFolder { get; set; } = "";
+    /// <summary>When Mira first read Jellyfin's backups (the reminder's clock while there is none), and when it last reminded; null until then.</summary>
+    public DateTimeOffset? JellyfinBackupWatchedSince { get; set; }
+    public DateTimeOffset? JellyfinBackupRemindedAt { get; set; }
+    /// <summary>
+    /// The newer Jellyfin winget's catalogue gave at the last look (« 12.3 »; empty: none, <see cref="JellyfinReleases"/>),
+    /// when that was, and the last one a notice said.
+    /// </summary>
+    public string JellyfinRelease { get; set; } = "";
+    public DateTimeOffset? JellyfinReleaseCheckedAt { get; set; }
+    public string JellyfinReleaseSaid { get; set; } = "";
 }

@@ -170,6 +170,7 @@ public partial class MainWindow : Window
         _fallbackRefresh.Start();
         StartKeepingAwake();
         StartGpuRecheck();
+        StartJellyfinCare();
         _ = RefreshEngineAsync();
         ShowStartupScreen();
         _ = NoticeStaleRuleAsync();

@@ -58,6 +58,7 @@ public partial class MainWindow
     /// </summary>
     private async Task SayUnansweredAsync(JellyfinClient client, Exception? error, string otherwise)
     {
+        if (_updatingJellyfin) return;
         var (verdict, service) = error is null || Unanswered(error) ? await ReadLocalJellyfinAsync(client.Connection.Server) : (LocalJellyfin.Verdict.Unknown, false);
         if (!ReferenceEquals(client, _client)) return;
         var cause = verdict == LocalJellyfin.Verdict.Failing ? await Task.Run(() => JellyfinLog.LastFatal(JellyfinLogFolder, DateTimeOffset.Now.AddDays(-1))) : null;
