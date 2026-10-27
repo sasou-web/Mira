@@ -15,7 +15,7 @@ import { sharedVideo, appleNative } from './video.js';
 import { trackText, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex } from './tracks.js';
 import {
   knownBitrate, autoBitrate, UNMEASURED_BITRATE, nextStage, stageRequest, videoError, videoErrorText, hlsError, hlsErrorText, videoErrorStep,
-  hlsErrorStep, afterCheck, resumeTicks, playbackError, chooseStream, burnedIn, subtitleSwitch, webVttAddress,
+  hlsErrorStep, afterCheck, resumeTicks, playbackError, chooseStream, uncappedBitrate, burnedIn, subtitleSwitch, webVttAddress,
   progressFraction, startPosition, STILL, stallWatch, stallLimit, stallStep, STALL_FORGIVEN,
 } from './stream.js';
 import { presentationStep } from './presentation.js';
@@ -531,14 +531,21 @@ export function create({ id, query }) {
     try {
       const max = await bitrate(source?.Bitrate ?? item.MediaSources?.[0]?.Bitrate ?? 0);
       const { lastResort, ...stage } = stageRequest(fallback);
-      const info = await api.playbackInfo(item.Id, {
-        DeviceProfile: lastResort ? lastResortProfile(max, { hlsSubtitles: native }) : deviceProfile(max, { hlsSubtitles: native }),
-        MaxStreamingBitrate: max, StartTimeTicks: startTicks,
+      const ask = (limit) => api.playbackInfo(item.Id, {
+        DeviceProfile: lastResort ? lastResortProfile(limit, { hlsSubtitles: native }) : deviceProfile(limit, { hlsSubtitles: native }),
+        MaxStreamingBitrate: limit, StartTimeTicks: startTicks,
         AudioStreamIndex: audioIndex ?? undefined, SubtitleStreamIndex: subtitleIndex ?? undefined, MediaSourceId: source?.Id,
         EnableDirectPlay: stage.EnableDirectPlay, EnableDirectStream: stage.EnableDirectStream, EnableTranscoding: true,
         AllowVideoStreamCopy: stage.AllowVideoStreamCopy, AllowAudioStreamCopy: stage.AllowAudioStreamCopy, AutoOpenLiveStream: true,
       });
+      let info = await ask(max);
       if (attempt !== opening || disposed || closing) return;
+      // An account Jellyfin does not let convert, the file above the quality asked: the file as it is (uncappedBitrate).
+      const full = info?.ErrorCode || !info?.MediaSources?.[0] ? null : uncappedBitrate(info.MediaSources[0], { stage: fallback, bitrate: max });
+      if (full) {
+        info = await ask(full);
+        if (attempt !== opening || disposed || closing) return;
+      }
       if (info?.ErrorCode) throw new Error(playbackError(info.ErrorCode));
       const previousSession = playSessionId;
       source = info.MediaSources?.[0];
