@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using Mira.Core;
 using Mira.Core.TorLink;
 using Mira.Desktop.Services;
@@ -27,18 +28,55 @@ public partial class MainWindow
             }
             await Page("home", "01-home");
             await Page("library", "02-library");
+            // « Filtrer » unfolds the genre, year, progress and library choices; a filter chosen is counted on it.
+            FiltersToggle_Click(this, new()); _filterBusy = true; GenreFilter.SelectedIndex = Math.Min(1, GenreFilter.Items.Count - 1); _filterBusy = false; RenderDemo();
+            await CaptureAsync(output, "02-library-filters");
+            if (CatalogFilters.Visibility != Visibility.Visible || GenreFilter.SelectedIndex > 0 != FiltersText.Text.Contains('1')) throw new InvalidOperationException("« Filtrer » does not show or count its filters: " + FiltersText.Text);
+            _filtersOpen = false;
             await Page("Movie", "03-films");
             await Page("Series", "04-series");
             await Page("library", "05-favorites", favorites: true);
             await ShowDetailsAsync(_demoItems!.First(x => x.Type == "Movie"));
             await CaptureAsync(output, "06-film-details");
+            // Every button a title's page can have, at Mira's smallest window: one line that never cuts a button off,
+            // labels given up from the least needed ones only when they do not fit; with fewer buttons, every label back.
+            // (A runner's screen is too small for a wide window: Windows keeps a window within it.)
+            ShowEveryDetailAction();
+            Width = 960; Height = 600; await CaptureAsync(output, "06-film-actions-minimum");
+            void AssertActions(string when)
+            {
+                var actions = DetailActions.Children.OfType<Button>().Where(x => x.IsVisible).ToList();
+                foreach (var action in actions)
+                    if (action.TranslatePoint(new Point(action.ActualWidth, 0), DetailActions).X > DetailActions.ActualWidth + 1)
+                        throw new InvalidOperationException($"« {Accessible.ContentText(action.Content)} » is cut off on the title page {when}.");
+                if (DetailActions.LabelledWidth <= DetailActions.ActualWidth && actions.FirstOrDefault(x => !ActionRow.ShowsLabel(x)) is { } shrunk)
+                    throw new InvalidOperationException($"« {Accessible.ContentText(shrunk.Content)} » lost its label {when}, with room for it.");
+            }
+            AssertActions("at 960 px");
+            TogetherButton.Visibility = OfflineButton.Visibility = FollowButton.Visibility = Visibility.Collapsed;
+            await CaptureAsync(output, "06-film-actions-fewer"); AssertActions("with four buttons at 960 px");
+            if (DetailActions.Children.OfType<Button>().FirstOrDefault(x => x.IsVisible && !ActionRow.ShowsLabel(x)) is { } bare)
+                throw new InvalidOperationException($"« {Accessible.ContentText(bare.Content)} » did not get its label back.");
+            Width = 1440; Height = 960;
             Settings_Click(this, new()); await CaptureAsync(output, "07-playback-settings");
+            // A switch applies on its own, with no button to press: in the settings a moment later, and back the same way.
+            var autoNext = _settings.AutoNext;
+            for (var turn = 0; turn < 2; turn++)
+            {
+                AutoNextCheck.IsChecked = !(AutoNextCheck.IsChecked == true); await Task.Delay(800);
+                if (_settings.AutoNext != (AutoNextCheck.IsChecked == true)) throw new InvalidOperationException("A switch of the settings was not applied on its own.");
+            }
+            if (_settings.AutoNext != autoNext) throw new InvalidOperationException("The settings did not come back as they were.");
             SelectSettingsTab("subtitles"); await CaptureAsync(output, "08-subtitles-settings");
             SelectSettingsTab("appearance"); await CaptureAsync(output, "09-appearance-settings");
             SelectSettingsTab("server"); await CaptureAsync(output, "10-server-settings");
             await Page("library", "11-hover");
             CardHoverEntered((MediaCard)PosterCards.Children[0]);
             await CaptureAsync(output, "11-hover"); ClosePreview();
+            // Recherche: its field alone, an invitation before the first letter, then what was found.
+            ResetFilters(); _catalog.View = "search"; RenderDemo(); await CaptureAsync(output, "12-search-start");
+            if (EmptyState.Visibility != Visibility.Visible || PosterCards.Visibility == Visibility.Visible || CatalogTools.Visibility == Visibility.Visible || SearchField.Visibility != Visibility.Visible)
+                throw new InvalidOperationException("The search page does not wait for a first letter.");
             _filterBusy = true; SearchBox.Text = L("étoiles", "stars"); _filterBusy = false; RenderDemo();
             await CaptureAsync(output, "12-search");
             await Page("home", "01-home");
@@ -113,7 +151,7 @@ public partial class MainWindow
             GoBack();
             if (PlayerErrorShown || PlayerShell.IsVisible || !LibraryShell.IsVisible) throw new InvalidOperationException("« Retour » does not leave the player's error screen.");
             await File.WriteAllLinesAsync(Path.Combine(output, "sizes.txt"), drawn);
-            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {14 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
+            await File.WriteAllTextAsync(Path.Combine(output, "gallery-result.txt"), $"PASS: {16 + drawn.Count} application views; built-in fictional catalogue; no account, server or personal media used.");
         }
         catch (Exception ex)
         {
@@ -122,6 +160,16 @@ public partial class MainWindow
             Environment.ExitCode = 1;
         }
         finally { Close(); }
+    }
+
+    /// <summary>The page's buttons that the demo leaves out (a group, this PC, Jellyfin's files, TorLink), as they read.</summary>
+    private void ShowEveryDetailAction()
+    {
+        DetailPlay.Content = ActionLabel("play", L("Reprendre", "Resume")); DetailRestart.Visibility = Visibility.Visible;
+        TogetherButton.Content = ActionLabel("users", L("Regarder ensemble", "Watch together"));
+        OfflineButton.Content = ActionLabel("check", L("Sur ce PC", "On this PC")); OfflineButton.ToolTip = L("Sur ce PC · 4,2 Go. Clique pour le retirer", "On this PC · 4.2 GB. Click to remove it");
+        _detailFollow = null; DescribeFollowButton();
+        TogetherButton.Visibility = OfflineButton.Visibility = FilesButton.Visibility = FollowButton.Visibility = Visibility.Visible;
     }
 
     /// <summary>The Windows account of the captures' sample paths.</summary>

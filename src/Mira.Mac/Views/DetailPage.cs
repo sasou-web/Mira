@@ -116,6 +116,7 @@ public sealed class DetailPage : Page
         {
             _top.Children[1] = new Image { Source = logo, MaxHeight = 140, MaxWidth = 520, HorizontalAlignment = HorizontalAlignment.Left, Stretch = Stretch.Uniform, Margin = new Thickness(0, 4, 0, 6) };
             Avalonia.Automation.AutomationProperties.SetName(_top.Children[1], title.Text ?? "");
+            Avalonia.Automation.AutomationProperties.SetHeadingLevel(_top.Children[1], 1);
         }
     }
 
@@ -127,7 +128,9 @@ public sealed class DetailPage : Page
         var logo = _top.Children.Count > 1 && _top.Children[1] is Image ? _top.Children[1] : null;
         _top.Children.Clear();
         _top.Children.Add(new TextBlock { Text = (Ui.Kind(_item) + (_item.ProductionYear is { } y ? " · " + y : "")).ToUpperInvariant(), Classes = { "label" }, FontSize = 12.5, Foreground = Ui.Brush("#D0D0D6") });
-        _top.Children.Add(logo ?? new TextBlock { Text = _item.Name, FontSize = 54, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, LineHeight = 60 });
+        var name = new TextBlock { Text = _item.Name, FontSize = 54, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, LineHeight = 60 };
+        Avalonia.Automation.AutomationProperties.SetHeadingLevel(name, 1);
+        _top.Children.Add(logo ?? name);
         var meta = new List<string>();
         if (_item.ProductionYear is { } year) meta.Add(year.ToString());
         if (_item.Type == "Series") { if (_item.ChildCount is > 0) meta.Add(Count(_item.ChildCount.Value, "saison", "saisons", "season", "seasons")); }
@@ -405,6 +408,7 @@ public sealed class DetailPage : Page
         var played = EpisodePages.SeasonMark(_allEpisodes, page.Season).Played;
         var label = played ? L("Marquer la saison comme non vue", "Mark season as unwatched") : L("Marquer la saison comme vue", "Mark season as watched");
         _seasonMark.Content = Ui.Row(8, new Icon(played ? "refresh" : "check", 16), new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        Avalonia.Automation.AutomationProperties.SetName(_seasonMark, label);
         _seasonMark.Tag = (page.Season, !played); _seasonMark.IsEnabled = !_marking;
     }
     /// <summary>A whole season watched or not: Jellyfin is told (the season in one call, else each episode), then the page follows it.</summary>

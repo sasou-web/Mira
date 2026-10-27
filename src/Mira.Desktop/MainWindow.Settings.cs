@@ -2,7 +2,10 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Mira.Core;
 using Mira.Desktop.Playback;
@@ -14,13 +17,36 @@ namespace Mira.Desktop;
 public partial class MainWindow
 {
     private async Task CloseSettingsAnimatedAsync() { AutoSaveSettings(); await Motion.HideAsync(SettingsOverlay); UpdateNavigation(); UpdateHeroClock(); }
-    /// <summary>Leaving the settings keeps what was changed, instead of silently dropping it.</summary>
+    /// <summary>
+    /// Leaving the settings keeps what was still waiting: a field left with the text being typed, a change of the last
+    /// moments (each change is applied on its own, <see cref="WatchSettingChanges"/>).
+    /// </summary>
     private void AutoSaveSettings()
     {
+        _settingsApply.Stop();
         if (SettingsOverlay.Visibility != Visibility.Visible || _settingsBusy || !SettingsChanged()) return;
-        var language = _settings.Language; var saved = ApplySettings();
-        // A new language says so itself (ApplySettings), with its button.
-        if (_settings.Language == language || !saved) SetNotice(saved ? L("Réglages enregistrés.", "Settings saved.") : SettingsNotSaved);
+        if (!ApplySettings()) SetNotice(SettingsNotSaved);
+    }
+    /// <summary>A switch, a choice or a slider changed, or a field was left: applied a moment later (a slider moves in steps).</summary>
+    private readonly DispatcherTimer _settingsApply = new() { Interval = TimeSpan.FromMilliseconds(350) };
+    /// <summary>
+    /// Each setting applies and is saved as soon as it changes, as on Mac and in Mira web: no button to remember. The
+    /// language alone waits for Mira to open again, and says so with « Relancer maintenant ».
+    /// </summary>
+    private void WatchSettingChanges()
+    {
+        _settingsApply.Tick += (_, _) =>
+        {
+            _settingsApply.Stop();
+            if (SettingsOverlay.Visibility == Visibility.Visible && !_settingsBusy && SettingsChanged()) ApplySettings();
+        };
+        void Changed() { if (_initializing || _settingsBusy) return; _settingsApply.Stop(); _settingsApply.Start(); }
+        SettingsContent.AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler((_, _) => Changed()));
+        SettingsContent.AddHandler(ToggleButton.UncheckedEvent, new RoutedEventHandler((_, _) => Changed()));
+        SettingsContent.AddHandler(Selector.SelectionChangedEvent, new SelectionChangedEventHandler((_, _) => Changed()));
+        SettingsContent.AddHandler(RangeBase.ValueChangedEvent, new RoutedPropertyChangedEventHandler<double>((_, _) => Changed()));
+        // A field applies when left, not at each letter (half a folder's path would be a folder for TorLink).
+        SettingsContent.AddHandler(LostKeyboardFocusEvent, new KeyboardFocusChangedEventHandler((_, e) => { if (e.OriginalSource is TextBox) Changed(); }));
     }
     /// <summary>Mira's language as the settings show it: the one chosen, else the one Mira speaks (Windows' or the installer's).</summary>
     private string ShownLanguage => Lang.Known(_settings.Language) ?? Lang.Code;
@@ -79,12 +105,12 @@ public partial class MainWindow
         DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowOfflineSettings();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
-        SettingsSaveStatus.Text = L("Les changements s’appliquent après enregistrement.", "Changes apply once they’re saved.");
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
         SelectSettingsTab("playback"); UpdateNavigation();
-        SettingsSaveStatus.Text = L("Enregistré automatiquement en quittant les réglages.", "Saved automatically when you leave Settings.");
+        SettingsSaveStatus.Text = SettingsApplyAtOnce;
         _ = Dispatcher.BeginInvoke(() => PlaybackSettingsNav.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
+    private static string SettingsApplyAtOnce => L("Chaque changement s’applique et s’enregistre tout de suite.", "Each change applies and is saved at once.");
     private static void SelectChoice(ComboBox box, string value) => box.SelectedItem = box.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == value) ?? box.Items.OfType<ComboBoxItem>().Last();
     private void SettingsTab_Click(object sender, RoutedEventArgs e) => SelectSettingsTab((string)((Button)sender).Tag);
     private void SelectSettingsTab(string tab)
@@ -159,9 +185,9 @@ public partial class MainWindow
         var dialog = new OpenFileDialog { Title = L("Sélectionner le moteur mpv 64 bits", "Select the 64-bit mpv engine"), Filter = L("Bibliothèque mpv|mpv-2.dll;libmpv-2.dll;mpv-1.dll|Bibliothèques DLL|*.dll", "mpv library|mpv-2.dll;libmpv-2.dll;mpv-1.dll|DLL libraries|*.dll") };
         if (dialog.ShowDialog(this) != true) return;
         MpvPathBox.Text = dialog.FileName;
-        EngineStatus.Text = L("Moteur sélectionné · il sera utilisé à la prochaine lecture après enregistrement.", "Engine selected · it will be used from the next playback, once saved.");
+        EngineStatus.Text = L("Moteur sélectionné · il sera utilisé à la prochaine lecture.", "Engine selected · it will be used from the next playback.");
+        ApplySettings();
     }
-    private void SaveSettings_Click(object sender, RoutedEventArgs e) => ApplySettings();
     /// <summary>What the page shows becomes Mira's settings; false when they could not be written.</summary>
     private bool ApplySettings()
     {
@@ -198,7 +224,7 @@ public partial class MainWindow
         if (_torlinkEnabled) ApplyTorLinkLibraries();
         if (remoteChanged) VisitRelaySoon();
         _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.StyleSubtitles(_settings);
-        RenderLibrary(); UpdateHeroClock(); SettingsSaveStatus.Text = saved ? L("Préférences enregistrées.", "Preferences saved.") : SettingsNotSaved;
+        RenderLibrary(); UpdateHeroClock(); SettingsSaveStatus.Text = saved ? L("Enregistré.", "Saved.") : SettingsNotSaved;
         return saved;
     }
     /// <summary>What Mira found: the TorLink installation and the library folders read from Jellyfin.</summary>
@@ -223,14 +249,14 @@ public partial class MainWindow
     private void BrowseTorLink_Click(object sender, RoutedEventArgs e)
     {
         if (ChooseTorLinkFolder() is not { } root) return;
-        TorLinkPathBox.Text = root; DescribeTorLinkSettings();
+        TorLinkPathBox.Text = root; DescribeTorLinkSettings(); ApplySettings();
     }
     private void BrowseTorLinkFolder_Click(object sender, RoutedEventArgs e)
     {
         var target = ((Button)sender).Tag?.ToString() switch { "movies" => TorLinkMoviesBox, "series" => TorLinkSeriesBox, _ => TorLinkAnimeBox };
         var dialog = new OpenFolderDialog { Title = L("Dossier de la bibliothèque Jellyfin", "Jellyfin library folder") };
         if (Directory.Exists(target.Text.Trim())) dialog.InitialDirectory = target.Text.Trim();
-        if (dialog.ShowDialog(this) == true) target.Text = dialog.FolderName;
+        if (dialog.ShowDialog(this) == true) { target.Text = dialog.FolderName; ApplySettings(); }
     }
     private async void SyncNow_Click(object sender, RoutedEventArgs e)
     { await RefreshAsync(quiet: true); if (_demo) SettingsSaveStatus.Text = L("La démonstration utilise des données fictives.", "The demo uses made-up data."); else SettingsSaveStatus.Text = L("Actualisation demandée.", "Refresh requested."); }

@@ -55,7 +55,7 @@ public partial class MainWindow
         _filterBusy = true;
         if (GenreFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == genre) is not { } choice)
             GenreFilter.Items.Add(choice = new ComboBoxItem { Content = genre, Tag = genre });
-        GenreFilter.SelectedItem = choice; _filterBusy = false;
+        GenreFilter.SelectedItem = choice; _filterBusy = false; _filtersOpen = true;
         await NavigateLibraryAsync();
     }
     /// <summary>A saga found by a search: the library with its titles in the order they came out, the search kept to come back to.</summary>
@@ -117,12 +117,38 @@ public partial class MainWindow
         FavoritesFilter.ToolTip = _catalog.Favorites ? L("Afficher tous les titres", "Show all titles") : L("Afficher seulement tes favoris", "Show only your favorites");
     }
     private async void ResetFilters_Click(object sender, RoutedEventArgs e) { ResetFilters(); await RefreshAsync(); }
+    /// <summary>The genre, year, progress and library choices, folded behind « Filtrer » until asked for (a genre clicked opens them).</summary>
+    private bool _filtersOpen;
+    private void FiltersToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _filtersOpen = !_filtersOpen; ShowFilters();
+        if (_filtersOpen) { Motion.Reveal(CatalogFilters, 200, 6); GenreFilter.Focus(); }
+    }
+    /// <summary>
+    /// « Filtrer », or « Filtres · 2 » lit like the favourites while filters narrow the list, folded or not: a list
+    /// shorter than expected always says why. Recherche and « Sur ce PC » have none.
+    /// </summary>
+    private void ShowFilters()
+    {
+        var browsing = _catalog.View is not ("search" or "offline");
+        CatalogTools.Visibility = browsing ? Visibility.Visible : Visibility.Collapsed;
+        CatalogFilters.Visibility = browsing && _filtersOpen ? Visibility.Visible : Visibility.Collapsed;
+        var count = _catalog.FilterCount(CurrentQuery());
+        FiltersText.Text = Catalog.FiltersLabel(count);
+        if (count > 0) { FiltersToggle.Background = Palette.Get("Text"); FiltersToggle.Foreground = FiltersIcon.Foreground = Palette.Get("OnAccent"); }
+        else { FiltersToggle.ClearValue(BackgroundProperty); FiltersToggle.ClearValue(ForegroundProperty); FiltersIcon.ClearValue(Views.Icon.ForegroundProperty); }
+        System.Windows.Automation.AutomationProperties.SetName(FiltersToggle, (count > 0 ? FiltersText.Text : L("Filtrer", "Filter")) + (_filtersOpen ? L(", ouverts", ", open") : ""));
+    }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing && !_filterBusy) await RefreshAsync(); }
     private async void LibraryFilter_Changed(object sender, SelectionChangedEventArgs e)
     { if (_initializing || _filterBusy) return; _catalog.ParentId = Choice(LibraryFilter) is { Length: > 0 } id ? id : null; await RefreshAsync(); }
+    /// <summary>Recherche, a page of its own: what was typed there stays (Ctrl+K selects it); filters of another page do not follow.</summary>
     private async void SearchNav_Click(object sender, RoutedEventArgs e)
     {
-        _catalog.View = "search"; var work = NavigateLibraryAsync(); SearchBox.Focus(); SearchBox.SelectAll(); await work;
+        if (_catalog.View != "search") { ResetFilters(); _filtersOpen = false; }
+        // Shown before the page is drawn (it may wait for the cache): the field takes the first letter typed.
+        _catalog.View = "search"; CatalogHeader.Visibility = SearchField.Visibility = Visibility.Visible;
+        var work = NavigateLibraryAsync(); SearchBox.Focus(); SearchBox.SelectAll(); await work;
     }
     private int _navigationVersion;
     private async Task NavigateLibraryAsync()
@@ -134,7 +160,7 @@ public partial class MainWindow
         _catalog.Loading = true; var navigation = ++_navigationVersion;
         var key = _catalog.Key(SearchBox.Text.Trim(), CurrentQuery()); var page = _catalog.View == "home" ? "home" : key;
         // Read off the UI thread: a page of hundreds of titles takes tens of milliseconds to decode.
-        var cached = _store is { } store ? await Task.Run(() => TryCache(() => store.Load<ItemsResult>(page))) : null;
+        var cached = _store is { } store && !_catalog.AwaitsSearch(SearchBox.Text.Trim()) ? await Task.Run(() => TryCache(() => store.Load<ItemsResult>(page))) : null;
         // Another page was chosen meanwhile: it shows instead.
         if (navigation != _navigationVersion) { await closing; return; }
         _catalog.Items = cached?.Items ?? []; _catalog.TotalCount = cached?.TotalRecordCount ?? 0;
@@ -163,8 +189,8 @@ public partial class MainWindow
         CatalogDescription.Text = _catalog.Description;
         Hero.Visibility = home && _catalog.Items.Count + _catalog.Resume.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         CatalogHeader.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
-        // « Sur ce PC » lists the copies as they are: no search or filter of Jellyfin's.
-        CatalogFilters.Visibility = CatalogTools.Visibility = _catalog.View == "offline" ? Visibility.Collapsed : Visibility.Visible;
+        // « Sur ce PC » lists the copies as they are: no search or filter of Jellyfin's. Recherche has its field alone.
+        SearchField.Visibility = _catalog.View == "search" ? Visibility.Visible : Visibility.Collapsed; ShowFilters();
         if (_catalog.View == "offline") CatalogDescription.Text = OfflineSummary();
         LibraryRows.Margin = new Thickness(110, home && Hero.Visibility == Visibility.Collapsed ? 80 : 0, 40, 42);
         var row = _catalog.ContinueRow();
@@ -176,7 +202,7 @@ public partial class MainWindow
         // only people, episodes or sagas shows them alone.
         var grid = !home || HomeShows(HomeLayout.Latest);
         var found = _catalog.FoundBeside(search) && !_catalog.Loading && _catalog.Items.Count == 0;
-        GridHeader.Visibility = PosterCards.Visibility = grid && !found ? Visibility.Visible : Visibility.Collapsed;
+        GridHeader.Visibility = PosterCards.Visibility = grid && !found && !_catalog.AwaitsSearch(search) ? Visibility.Visible : Visibility.Collapsed;
         GridTitle.Text = _catalog.GridTitle(search);
         ItemCount.Text = Catalog.CountText(_catalog.TotalCount);
         if (home)

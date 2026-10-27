@@ -53,8 +53,18 @@ public sealed class Catalog
     public string? Parent => Saga?.Id ?? ParentId;
     /// <summary>The order asked: a saga's titles in the order they came out, unless another one is chosen.</summary>
     public string Sort(string chosen) => Saga is not null && chosen is "" or "recent" ? "saga" : chosen;
-    public string PageTitle => View switch { "Movie" => L("Films", "Movies"), "Series" => L("Séries & animes", "Shows & anime"), "library" => L("Ta bibliothèque", "Your library"), "offline" => L("Sur ce PC", "On this PC"), _ => L("Explorer", "Browse") };
-    public string Description => Favorites ? L("Les histoires que tu gardes à portée de main.", "The stories you keep close at hand.") : L("Trouve ta prochaine séance dans ta bibliothèque.", "Find your next show in your library.");
+    public string PageTitle => View switch { "Movie" => L("Films", "Movies"), "Series" => L("Séries & animes", "Shows & anime"), "library" => L("Ta bibliothèque", "Your library"), "offline" => L("Sur ce PC", "On this PC"), "search" => L("Rechercher", "Search"), _ => L("Explorer", "Browse") };
+    public string Description => View == "search" ? L("Un film, une série, un épisode, une saga, un acteur ou un studio de ta bibliothèque.", "A movie, a show, an episode, a collection, an actor or a studio from your library.")
+        : Favorites ? L("Les histoires que tu gardes à portée de main.", "The stories you keep close at hand.") : L("Trouve ta prochaine séance dans ta bibliothèque.", "Find your next show in your library.");
+    /// <summary>The search page before anything is typed: an invitation, not every title (Jellyfin is not asked).</summary>
+    public bool AwaitsSearch(string search) => View == "search" && search.Length == 0 && Person is null && Studio is null && Saga is null;
+    /// <summary>
+    /// The filters behind « Filtrer » that are not at « Tous »: genre, year, progress, library. The sort and the
+    /// favourites stay in sight, beside it.
+    /// </summary>
+    public int FilterCount(CatalogQuery query) => (query.Genre is null ? 0 : 1) + (query.Year is null ? 0 : 1) + (query.Played is null ? 0 : 1) + (ParentId is not null && Saga is null ? 1 : 0);
+    /// <summary>« Filtrer », or « Filtres · 2 » while two of them narrow the list.</summary>
+    public static string FiltersLabel(int count) => count == 0 ? L("Filtrer", "Filter") : L($"Filtres · {count}", $"Filters · {count}");
     public string GridTitle(string search) => IsHome(search) ? L("Ajoutés récemment", "Recently added") : View == "offline" ? L("Prêts sans connexion", "Ready offline") : search.Length > 0 ? L($"Résultats pour « {search} »", $"Results for “{search}”")
         : Person is { } shown ? PersonText(shown.Name, shown.Directed) : Studio is { } studio ? studio.Name : Saga is { } saga ? saga.Name : Favorites ? L("Tes favoris", "Your favorites") : L("Tous les titres", "All titles");
     public static string PersonText(string name, bool? directed) => directed switch { true => L("Réalisés par ", "Directed by "), false => L("Avec ", "With "), null => "" } + name;
@@ -138,6 +148,7 @@ public sealed class Catalog
         var emptyLibrary = !demo && search.Length == 0 && !filtered && !Favorites && View is "home" or "library" && Resume.Count == 0;
         var (icon, title, hint) = (search.Length, filtered) switch
         {
+            _ when AwaitsSearch(search) => ("search", L("Que veux-tu regarder ?", "What do you want to watch?"), L("Tape le nom d’un film, d’une série, d’un épisode, d’une saga, d’un acteur ou d’un studio.", "Type the name of a movie, a show, an episode, a collection, an actor or a studio.")),
             ( > 0, _) => ("search", L($"Aucun résultat pour « {search} »", $"No results for “{search}”"), L("Vérifie l’orthographe ou essaie un autre titre.", "Check the spelling or try another title.")),
             (_, true) => ("sliders", L("Aucun titre ne correspond à ces filtres", "No titles match these filters"), L("Élargis ta sélection pour retrouver tes titres.", "Widen your selection to find your titles.")),
             _ when View == "offline" => ("laptop", L("Rien sur ce PC pour l’instant", "Nothing on this PC yet"), L("Sur la fiche d’un film ou d’une série, le bouton ⤓ garde le titre sur ce PC pour le regarder sans connexion.", "On a movie or show’s page, the ⤓ button keeps the title on this PC to watch offline.")),
@@ -146,13 +157,14 @@ public sealed class Catalog
             _ when Saga is not null => ("film", L("Aucun titre dans cette saga", "No titles in this collection"), L("Ses films ne sont pas dans ta bibliothèque.", "Its movies aren’t in your library.")),
             _ => ("library", L("Rien à afficher ici", "Nothing to show here"), L("Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.", "Titles added to your Jellyfin library will show up here."))
         };
-        return new(icon, title, hint, Reset: filtered || search.Length > 0 || Favorites, Guide: emptyLibrary);
+        return new(icon, title, hint, Reset: !AwaitsSearch(search) && (filtered || search.Length > 0 || Favorites), Guide: emptyLibrary);
     }
 
     /// <summary>The demo's list for this page, searched, filtered and sorted as Jellyfin would.</summary>
     public void ShowDemo(List<MediaItem> all, string search, CatalogQuery query)
     {
         Resume = all.Where(x => x.Progress > 0).ToList(); NextUp = [];
+        if (AwaitsSearch(search)) { Items = []; TotalCount = 0; return; }
         var items = all.Where(x => (View is not ("Movie" or "Series") || x.Type == View) && (!Favorites || x.UserData.IsFavorite) &&
             (search.Length == 0 || x.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase))).ToList();
         if (View != "home")
