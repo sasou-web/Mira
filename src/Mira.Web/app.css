@@ -606,6 +606,28 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .now-what { display: block; margin-top: 3px; font-size: calc(15px * var(--text)); font-weight: 400; line-height: 1.35; color: var(--muted); }
 .now-item .btn { flex: none; }
 .now-confirm { padding: 0 20px 10px; font-size: calc(15px * var(--text)); line-height: 1.45; color: var(--muted); }
+/* « Titres à corriger » (views/fix.js): each title, its page behind its poster and name, « Identifier » beside. */
+.fix-item { gap: 12px; padding-top: 10px; padding-bottom: 10px; }
+.fix-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; color: inherit; }
+.fix-title .art { width: 44px; flex: none; }
+.fix-name { display: block; overflow-wrap: anywhere; }
+.fix-item .btn { flex: none; }
+/* « Identifier… » (identify-sheet.js): the search, then Jellyfin's proposals with their posters. */
+.identify-form { display: grid; grid-template-columns: 1fr 84px auto; gap: 8px; }
+.identify-year { padding: 0 10px; text-align: center; font-variant-numeric: tabular-nums; }
+@media (max-width: 440px) { .identify-form { grid-template-columns: 1fr 84px; } .identify-form .btn { grid-column: 1 / -1; } }
+.identify-results { display: grid; padding-bottom: 6px; }
+.identify-match { width: 100%; display: flex; align-items: flex-start; gap: 14px; padding: 10px 20px; text-align: left; }
+html:not(.touch) .identify-match:active, .identify-match.pressed { background: var(--raised); }
+@media (hover: hover) { .identify-match:hover { background: var(--raised); } }
+.identify-poster { width: 56px; flex: none; }
+.identify-match .grow { flex: 1; min-width: 0; }
+.identify-name { display: block; font-size: calc(16px * var(--text)); font-weight: 700; overflow-wrap: anywhere; }
+.identify-match .sub { display: block; font-size: calc(13px * var(--text)); color: var(--faint); }
+.identify-overview { margin-top: 4px; font-size: calc(13px * var(--text)); line-height: 1.4; color: var(--muted); }
+.identify-confirm { display: grid; gap: 10px; padding-bottom: 12px; }
+.identify-confirm .group-note { margin: 0; padding: 0 20px; }
+.identify-actions { display: flex; flex-wrap: wrap; gap: 10px; padding: 4px 20px 0; }
 /* « Télécharger sur le PC serveur »: the search and its category, then what the PC has under way, one row each. */
 .torlink-tools { padding: 4px var(--gutter) 20px; display: grid; gap: 12px; justify-items: start; }
 .torlink-search { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }

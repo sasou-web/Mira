@@ -317,6 +317,56 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
+    // —— Titles recognized badly (TitleIdentity), for an administrator ——
+    /// <summary>Every film and series this account sees, with what « Titres à corriger » judges (<see cref="TitleIdentity.Check"/>).</summary>
+    public async Task<List<MediaItem>> TitlesToCheckAsync(CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Movie,Series&fields={TitleIdentity.Fields}" +
+            "&enableImageTypes=Primary&imageTypeLimit=1&enableUserData=false&sortBy=SortName", ct)).Items;
+    /// <summary>
+    /// What Jellyfin's metadata sources propose for a film or series (TMDb and the others it has), searched by Jellyfin:
+    /// its RemoteSearch, as its dashboard's « Identifier » does.
+    /// </summary>
+    public async Task<List<RemoteMatch>> FindMatchesAsync(MediaItem item, TitleIdentity.Query query, CancellationToken ct = default)
+    {
+        var ids = new JsonObject();
+        foreach (var (key, value) in query.ProviderIds) ids[key] = value;
+        var info = new JsonObject { ["Name"] = query.Name, ["ProviderIds"] = ids };
+        if (query.Year is { } year) info["Year"] = year;
+        var body = new JsonObject { ["SearchInfo"] = info, ["ItemId"] = item.Id, ["IncludeDisabledProviders"] = true };
+        using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync($"Items/RemoteSearch/{(item.Type == "Series" ? "Series" : "Movie")}", content, ct);
+        await CheckAsync(response);
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) is JsonArray found ? [.. found.OfType<JsonObject>().Select(RemoteMatch.From).Where(x => x.Name.Length > 0)] : [];
+    }
+    /// <summary>
+    /// Gives the title the proposal chosen: Jellyfin replaces its metadata and pictures with those of that title, then
+    /// reads it again from its source before answering. False when it has not answered within Mira's time limit: a
+    /// series with many episodes takes longer, and Jellyfin goes on without the answer.
+    /// </summary>
+    public async Task<bool> ApplyMatchAsync(string itemId, RemoteMatch match, CancellationToken ct = default)
+    {
+        using var content = new StringContent(match.Raw.ToJsonString(), Encoding.UTF8, "application/json");
+        try
+        {
+            using var response = await _http.PostAsync($"Items/RemoteSearch/Apply/{Uri.EscapeDataString(itemId)}?replaceAllImages=true", content, ct);
+            await CheckAsync(response);
+            return true;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return false; }
+    }
+    /// <summary>« Actualiser les métadonnées »: Jellyfin reads the title again from its sources, filling what is missing (queued, it answers at once).</summary>
+    public async Task RefreshMetadataAsync(string itemId, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync($"Items/{Uri.EscapeDataString(itemId)}/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=FullRefresh&replaceAllMetadata=false&replaceAllImages=false", null, ct);
+        await CheckAsync(response);
+    }
+    /// <summary>A proposal's poster, through Mira's extension (<see cref="TitleIdentity.ImagePath"/>); null without it (an older extension, none).</summary>
+    public async Task<byte[]?> MatchImageAsync(string url, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync(TitleIdentity.ImagePath(url), ct);
+        return response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true
+            ? await response.Content.ReadAsByteArrayAsync(ct) : null;
+    }
     // —— Subtitles kept on Jellyfin (JellyfinSubtitles) ——
     /// <summary>Whether this account may add subtitles to Jellyfin: an administrator, or allowed to manage them. Null when Jellyfin does not say.</summary>
     public async Task<bool?> CanManageSubtitlesAsync(CancellationToken ct = default)

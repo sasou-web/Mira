@@ -15,6 +15,7 @@
 - **Les studios dans la recherche** (Mira web, Windows, Mac) : « Ghibli » ou « Trigger » trouvent le studio, même quand aucun titre ne porte ce nom.
 - **Marquer une saison comme vue** (Mira web, Windows, Mac) : sur la fiche d’une série de plusieurs saisons, **Marquer la saison comme vue** (ou **non vue**) marque tous ses épisodes d’un coup sur Jellyfin.
 - **À suivre dans une autre saison** (Mira web, Windows, Mac) : quand la saison affichée n’est pas celle de l’épisode suivant, une ligne **À suivre** en tête de la saison le nomme et ouvre sa saison.
+- **Corriger un titre mal reconnu** (Mira web, Windows, Mac ; compte administrateur de Jellyfin) : sur la fiche d’un film ou d’une série, **Corriger › Identifier…** (Windows : le bouton **…** de la fiche) demande à Jellyfin ce que ses sources (TMDb…) proposent, avec leur affiche ; un lien vers la page TMDb ou IMDb du titre tombe juste. Choisis le bon : Jellyfin remplace titre, résumé, affiches et distribution, sur chaque appareil, sans toucher au fichier. **Actualiser les métadonnées** lui fait relire le titre et compléter ce qui manque. **Réglages › Titres à corriger** (Mira web ; Windows : Réglages › Jellyfin) liste les films et séries que Jellyfin n’a pas reconnus, en double, sans affiche, sans année ou sans résumé, avec **Identifier** sur chacun. C’est Jellyfin qui cherche, et les affiches proposées passent par ton serveur : ton téléphone et ton ordinateur ne contactent jamais TMDb.
 
 ## 0.8.4 — 2026-10-24
 

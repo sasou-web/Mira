@@ -10,28 +10,45 @@ using Mira.Desktop.Services;
 namespace Mira.Desktop;
 
 /// <summary>
-/// The files of a film or series, on the PC of Jellyfin only (elsewhere they are not on this computer): « Afficher dans
+/// The « … » of a title's page (with « Identifier… » of an administrator, MainWindow.Identify.cs), and there the files of
+/// a film or series, on the PC of Jellyfin only (elsewhere they are not on this computer): « Afficher dans
 /// l'explorateur », and « Mettre à la Corbeille » for an administrator, asked once more, never for good (the Recycle Bin
 /// keeps it), then said to Jellyfin, which takes it out of the library (<see cref="TitleFiles"/>).
 /// </summary>
 public partial class MainWindow
 {
-    /// <summary>The button beside the others of the page, once its title's place is known and Jellyfin is on this PC.</summary>
+    /// <summary>What the « … » of the page holds: the title's files, on the PC of Jellyfin; « Identifier… », for an administrator.</summary>
+    private (string Id, bool Files, bool Admin) _titleMore;
+    /// <summary>
+    /// The button beside the others of the page, once its title's place is known: for its files when Jellyfin is on
+    /// this PC, for « Identifier… » and « Actualiser les métadonnées » when this account administers Jellyfin.
+    /// </summary>
     private async Task ShowFilesButtonAsync(MediaItem item)
     {
-        FilesButton.Visibility = Visibility.Collapsed;
-        try { if (_demo || _client is not { } client || TitleFiles.Location(item) is null || !await JellyfinOnThisPcAsync(client)) return; }
-        catch (Exception ex) when (IsExpected(ex)) { return; }
-        if (_detail?.Id == item.Id) FilesButton.Visibility = Visibility.Visible;
+        FilesButton.Visibility = Visibility.Collapsed; _titleMore = (item.Id, false, false);
+        if (_demo || _client is not { } client) return;
+        bool files = false, admin = false;
+        try { files = TitleFiles.Location(item) is not null && await JellyfinOnThisPcAsync(client); }
+        catch (Exception ex) when (IsExpected(ex)) { }
+        try { admin = item.Type is "Movie" or "Series" && await IsAdministratorAsync(client); }
+        catch (Exception ex) when (IsExpected(ex)) { }
+        if (_detail?.Id != item.Id || !(files || admin)) return;
+        _titleMore = (item.Id, files, admin);
+        FilesButton.Visibility = Visibility.Visible;
     }
 
     private void Files_Click(object sender, RoutedEventArgs e)
     {
-        if (_detail is not { } item || TitleFiles.Location(item) is not { } location) return;
+        if (_detail is not { } item || _titleMore.Id != item.Id) return;
         var menu = new ContextMenu { PlacementTarget = FilesButton, Placement = PlacementMode.Bottom };
-        menu.Items.Add(MenuAction(L("Afficher dans l’explorateur", "Show in File Explorer"), "folder", () => { ShowInExplorer(item, location); return Task.CompletedTask; }));
-        menu.Items.Add(MenuAction(L("Mettre à la Corbeille…", "Move to the Recycle Bin…"), "trash", () => AskToRecycleAsync(item)));
-        menu.IsOpen = true;
+        if (_titleMore.Admin) AddIdentifyActions(menu, item);
+        if (_titleMore.Files && TitleFiles.Location(item) is { } location)
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+            menu.Items.Add(MenuAction(L("Afficher dans l’explorateur", "Show in File Explorer"), "folder", () => { ShowInExplorer(item, location); return Task.CompletedTask; }));
+            menu.Items.Add(MenuAction(L("Mettre à la Corbeille…", "Move to the Recycle Bin…"), "trash", () => AskToRecycleAsync(item)));
+        }
+        if (menu.Items.Count > 0) menu.IsOpen = true;
     }
 
     /// <summary>A series' folder opened; a film's file (or disc folder) selected in its folder.</summary>

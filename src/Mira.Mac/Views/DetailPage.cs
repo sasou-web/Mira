@@ -94,6 +94,7 @@ public sealed class DetailPage : Page
         RenderTop(); RenderBody(session);
         _ = LoadSimilarAsync(session);
         if (_item.Type == "Series") _ = LoadFollowAsync(session);
+        if (!_admin) _ = CheckAdministratorAsync(session);
         if (_item.Type == "Series" && SeriesTarget is { } target && _targetFile?.Id != target.Id) await LoadTargetFileAsync(session, target);
     }
     private async Task LoadTargetFileAsync(Session session, MediaItem episode)
@@ -168,6 +169,12 @@ public sealed class DetailPage : Page
                 : string.Join(" · ", new[] { RemoteLines.FollowNote(_follow.Note), RemoteLines.Follow(_follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0)));
             actions.Children.Add(follow);
         }
+        if (_admin && _item.Type is "Movie" or "Series")
+        {
+            Button? fix = null;
+            fix = Ui.Action(L("Corriger", "Fix"), "search", "", () => FixMenu(fix!));
+            actions.Children.Add(fix);
+        }
         _top.Children.Add(actions);
     }
 
@@ -209,6 +216,44 @@ public sealed class DetailPage : Page
         Add(L("Chercher maintenant", "Search now"), () => _ = Run(() => session.Client.TorLinkCheckFollowAsync(follow.Id, session.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")));
         Add(L("Voir dans Téléchargements", "See in Downloads"), () => Shell.Go("downloads"));
         Add(L("Ne plus suivre", "Stop following"), () => _ = Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")));
+        menu.Open(button);
+    }
+    /// <summary>An administrator of Jellyfin: « Corriger » offers « Identifier… » and « Actualiser les métadonnées ».</summary>
+    private bool _admin;
+    private async Task CheckAdministratorAsync(Session session)
+    {
+        try { if (await session.Client.IsAdministratorAsync(session.Lifetime) != true) return; }
+        catch (Exception ex) when (Errors.Expected(ex)) { return; }
+        if (!ReferenceEquals(session, Shell.Session) || _admin) return;
+        _admin = true; RenderTop();
+    }
+    private void FixMenu(Button button)
+    {
+        if (Shell.Session is not { } session) return;
+        var menu = new ContextMenu();
+        var identify = new MenuItem { Header = L("Identifier…", "Identify…") };
+        identify.Click += async (_, _) =>
+        {
+            var window = new IdentifyWindow(session, _item);
+            await window.ShowDialog(Shell);
+            if (window.Said is { } said) Shell.Notice(said);
+            if (window.Applied && ReferenceEquals(session, Shell.Session) && Shell.Current == this) { _backdrop.Source = null; _backdrop.Opacity = 0; await RefreshAsync(); }
+        };
+        var refresh = new MenuItem { Header = L("Actualiser les métadonnées", "Refresh metadata") };
+        refresh.Click += async (_, _) =>
+        {
+            try
+            {
+                await session.Client.RefreshMetadataAsync(_item.Id, session.Lifetime);
+                Shell.Notice(L($"Jellyfin relit « {_item.Name} » : la fiche se met à jour dans un moment.", $"Jellyfin is reading “{_item.Name}” again: the page updates in a moment."));
+                // Queued by Jellyfin: a film takes a few seconds, a series longer.
+                await Task.Delay(TimeSpan.FromSeconds(8), session.Lifetime);
+                if (ReferenceEquals(session, Shell.Session) && Shell.Current == this) await RefreshAsync();
+            }
+            catch (OperationCanceledException) when (session.Lifetime.IsCancellationRequested) { }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        };
+        menu.Items.Add(identify); menu.Items.Add(refresh);
         menu.Open(button);
     }
     /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>

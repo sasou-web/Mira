@@ -30,6 +30,8 @@ const ROUTES = [
   { pattern: /^\/saga\/([0-9a-f-]+)$/i, load: () => import('./views/saga.js'), args: (m) => ({ id: m[1] }) },
   // « En ce moment sur Jellyfin », from Réglages (an administrator).
   { pattern: /^\/en-ce-moment$/, load: () => import('./views/now.js') },
+  // « Titres à corriger », from Réglages (an administrator): titles Jellyfin recognized badly.
+  { pattern: /^\/a-corriger$/, load: () => import('./views/fix.js') },
   // « Télécharger sur le PC serveur », from Réglages or Recherche (an administrator); ?q= searches at once.
   { pattern: /^\/telecharger$/, load: () => import('./views/torlink.js') },
   { pattern: /^\/lecture\/([0-9a-f-]+)$/i, bare: true, guest: true, load: () => import('./player/player.js'), args: (m) => ({ id: m[1] }) },
