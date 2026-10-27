@@ -4,5 +4,6 @@ import browse from './en/browse.js';
 import player from './en/player.js';
 import torlink from './en/torlink.js';
 import guests from './en/guests.js';
+import identify from './en/identify.js';
 
-export default { ...shell, ...browse, ...player, ...torlink, ...guests };
+export default { ...shell, ...browse, ...player, ...torlink, ...guests, ...identify };

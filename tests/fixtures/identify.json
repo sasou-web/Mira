@@ -1,0 +1,52 @@
+{
+  "about": "Titles recognized badly (« Titres à corriger », « Identifier… »). Read by tools/web/unit (js/identify.js) and tests/Mira.Core.Tests (TitleIdentity). titles: [type, id, name, year, provider ids, poster, overview]; problems: the entries of the list in order, [id, text in French]; queries: [typed text, year box, name sent, year sent, provider ids sent]; prefill: [title name, title year, name, year].",
+  "titles": [
+    ["Movie", "m1", "Aube Test (2021)", 2021, {}, true, ""],
+    ["Movie", "m2", "Dune", 2021, { "Tmdb": "438631", "Imdb": "tt1160419" }, true, "Paul Atréides…"],
+    ["Movie", "m3", "Dune (2021)", 2021, { "Tmdb": "438631" }, true, "Paul Atréides…"],
+    ["Series", "s1", "Frieren", 2023, { "Tvdb": "424536" }, false, "Après la quête…"],
+    ["Series", "s2", "Sousou no Frieren", null, { "Tvdb": "424536" }, true, ""],
+    ["Series", "s3", "Courte Web", null, {}, false, null],
+    ["Movie", "m4", "Lueur Web (2020)", 2020, { "Tmdb": " " }, true, ""],
+    ["Movie", "m5", "Arrival", 2016, { "Tmdb": "329865" }, true, "Des vaisseaux…"],
+    ["Movie", "m6", "Le Château", 2001, { "Tmdb": "1" }, true, "x"],
+    ["Movie", "m7", "Le château", 2001, { "Tmdb": "2" }, true, "y"],
+    ["Movie", "m8", "Le Château", 2002, { "Tmdb": "3" }, true, "z"],
+    ["Series", "s4", "Steel Ball Run", 2026, { "AniList": "171018" }, true, "Gyro…"],
+    ["Episode", "e1", "Pilote", null, {}, false, ""]
+  ],
+  "problems": [
+    ["m1", "Non reconnu"],
+    ["s3", "Non reconnu · Sans affiche · Sans année"],
+    ["m4", "Non reconnu"],
+    ["m2", "En double avec « Dune (2021) »"],
+    ["m3", "En double avec « Dune (2021) »"],
+    ["s1", "En double avec « Sousou no Frieren » · Sans affiche"],
+    ["m6", "En double avec « Le château (2001) »"],
+    ["m7", "En double avec « Le Château (2001) »"],
+    ["s2", "En double avec « Frieren (2023) » · Sans année · Sans résumé"]
+  ],
+  "queries": [
+    ["Dune", "2021", "Dune", 2021, {}],
+    ["Dune (2021)", "", "Dune", 2021, {}],
+    ["Dune (2021)", "1984", "Dune", 1984, {}],
+    ["  Steel Ball Run ", "abc", "Steel Ball Run", null, {}],
+    ["https://www.themoviedb.org/movie/438631-dune", "2021", "", null, { "Tmdb": "438631" }],
+    ["themoviedb.org/tv/209867-frieren", "", "", null, { "Tmdb": "209867" }],
+    ["https://www.imdb.com/title/tt1160419/", "", "", null, { "Imdb": "tt1160419" }],
+    ["TT1160419", "", "", null, { "Imdb": "tt1160419" }],
+    ["Le film 2049", "99", "Le film 2049", null, {}]
+  ],
+  "prefill": [
+    ["Aube Test (2021)", null, "Aube Test", 2021],
+    ["Aube Test (2021)", 2020, "Aube Test", 2020],
+    ["Dune.Part.Two.2024.MULTi.1080p.BluRay.x265-QTZ", null, "Dune Part Two", 2024],
+    ["Steel Ball Run", 2026, "Steel Ball Run", 2026],
+    ["Blade Runner 2049", null, "Blade Runner 2049", null]
+  ],
+  "matches": [
+    [{ "Name": "Dune", "ProductionYear": 2021, "SearchProviderName": "TheMovieDb" }, "Dune", "2021 · TheMovieDb"],
+    [{ "Name": "Frieren", "PremiereDate": "2023-09-29T00:00:00.0000000Z", "SearchProviderName": "TheTVDB" }, "Frieren", "2023 · TheTVDB"],
+    [{ "Name": "Inconnu" }, "Inconnu", ""]
+  ]
+}

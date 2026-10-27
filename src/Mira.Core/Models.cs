@@ -56,6 +56,12 @@ public sealed record MediaItem
     public string? ExtraType { get; init; }
     /// <summary>How many bonus videos a film or series has (<see cref="JellyfinClient.ExtrasAsync"/>), returned by the single-item request.</summary>
     public int? SpecialFeatureCount { get; init; }
+    /// <summary>
+    /// The ids of the title on TMDb, IMDb, TVDb… as Jellyfin matched it (« Tmdb » → « 438631 »), asked for with
+    /// Fields=ProviderIds; none when Jellyfin recognized nothing (<see cref="TitleIdentity"/>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? ProviderIds { get; init; }
     /// <summary>Cast and crew, returned by the single-item request only.</summary>
     public List<PersonInfo> People { get; init; } = [];
     /// <summary>Who made it (« Studio Ghibli », « MAPPA »), returned by the single-item request only.</summary>

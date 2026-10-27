@@ -15,6 +15,7 @@
   <ItemGroup>
     <Compile Include="../../src/Mira.Jellyfin/HlsPlaylists.cs" Link="Plugin/HlsPlaylists.cs" />
     <Compile Include="../../src/Mira.Jellyfin/ContentPolicy.cs" Link="Plugin/ContentPolicy.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/IdentifyImages.cs" Link="Plugin/IdentifyImages.cs" />
     <Compile Include="../../src/Mira.Jellyfin/WebFiles.cs" Link="Plugin/WebFiles.cs" />
     <Compile Include="../../src/Mira.Jellyfin/TorLinkRelay.cs" Link="Plugin/TorLinkRelay.cs" />
     <Compile Include="../../src/Mira.Jellyfin/TorLinkRelay.Follows.cs" Link="Plugin/TorLinkRelay.Follows.cs" />

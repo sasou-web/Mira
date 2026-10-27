@@ -1202,5 +1202,58 @@ internal static class LibraryTests
             Assert(catalog.Items.Single().Id == "m" && catalog.TotalCount == 1 && catalog.Resume.Count == 0 && catalog.NextUp.Count == 0 && catalog.Shelves["new"].Single().Id == "m", "Forgotten everywhere, its episodes with it");
             return Task.CompletedTask;
         });
+        await Test("Titres à corriger et « Identifier… » : non reconnus, doublons, recherche par nom ou lien, comme Mira web (tests/fixtures/identify.json)", async () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "identify.json")));
+            var root = fixture.RootElement;
+            static int? Int(JsonElement x) => x.ValueKind == JsonValueKind.Number ? x.GetInt32() : null;
+            static string? Text(JsonElement x) => x.ValueKind == JsonValueKind.String ? x.GetString() : null;
+            static Dictionary<string, string> Ids(JsonElement x) => x.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString()!);
+            var titles = root.GetProperty("titles").EnumerateArray().Select(x => new MediaItem
+            {
+                Type = x[0].GetString()!, Id = x[1].GetString()!, Name = x[2].GetString()!, ProductionYear = Int(x[3]), ProviderIds = Ids(x[4]),
+                ImageTags = x[5].GetBoolean() ? new() { ["Primary"] = "tag" } : [], Overview = Text(x[6]),
+            }).ToList();
+            var found = TitleIdentity.Check(titles).Select(x => $"{x.Item.Id} | {TitleIdentity.Text(x)}").ToList();
+            var expected = root.GetProperty("problems").EnumerateArray().Select(x => $"{x[0].GetString()} | {x[1].GetString()}").ToList();
+            Assert(found.SequenceEqual(expected), "List: " + string.Join(" ; ", found));
+            foreach (var x in root.GetProperty("queries").EnumerateArray())
+            {
+                var query = TitleIdentity.Search(x[0].GetString(), x[1].GetString());
+                Assert(query.Name == x[2].GetString() && query.Year == Int(x[3]) && query.ProviderIds.OrderBy(p => p.Key).SequenceEqual(Ids(x[4]).OrderBy(p => p.Key)), $"Search « {x[0].GetString()} »: {query.Name} {query.Year} {string.Join(",", query.ProviderIds)}");
+            }
+            foreach (var x in root.GetProperty("prefill").EnumerateArray())
+                Assert(TitleIdentity.Prefill(new MediaItem { Name = x[0].GetString()!, ProductionYear = Int(x[1]) }) == (x[2].GetString()!, Int(x[3])), $"Prefill « {x[0].GetString()} »: {TitleIdentity.Prefill(new MediaItem { Name = x[0].GetString()!, ProductionYear = Int(x[1]) })}");
+            foreach (var x in root.GetProperty("matches").EnumerateArray())
+            {
+                var match = RemoteMatch.From((System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(x[0].GetRawText())!);
+                Assert(match.Name == x[1].GetString() && TitleIdentity.Line(match) == x[2].GetString(), $"Match {x[0]}: {match.Name} {TitleIdentity.Line(match)}");
+            }
+            Assert(TitleIdentity.ImagePath("https://image.tmdb.org/t/p/w500/a b.jpg") == "Mira/identify/image?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Fw500%2Fa%20b.jpg", "Poster through the extension");
+            // The extension fetches only the posters of the metadata sources' image servers, over HTTPS.
+            Assert(Mira.Jellyfin.IdentifyImages.Allowed("https://image.tmdb.org/t/p/original/a.jpg") is not null && Mira.Jellyfin.IdentifyImages.Allowed("https://artworks.thetvdb.com/banners/x.jpg") is not null, "Posters of TMDb and TVDb");
+            Assert(new[] { "http://image.tmdb.org/a.jpg", "https://image.tmdb.org:8443/a.jpg", "https://u:p@image.tmdb.org/a.jpg", "https://image.tmdb.org.example.com/a.jpg", "https://127.0.0.1/a.jpg", "file:///etc/passwd", "/Users/Public", "", null }
+                .All(x => Mira.Jellyfin.IdentifyImages.Allowed(x) is null), "Nothing else");
+            Assert(Mira.Jellyfin.IdentifyImages.Smaller(new Uri("https://image.tmdb.org/t/p/original/a.jpg")).AbsoluteUri == "https://image.tmdb.org/t/p/w342/a.jpg"
+                && Mira.Jellyfin.IdentifyImages.Smaller(new Uri("https://artworks.thetvdb.com/t/p/original/a.jpg")).AbsoluteUri == "https://artworks.thetvdb.com/t/p/original/a.jpg", "TMDb's original poster asked smaller");
+
+            // Jellyfin's RemoteSearch, then the proposal sent back as it came; a refresh that fills what is missing.
+            var sent = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                sent.Add($"{request.Method} {request.RequestUri!.PathAndQuery} {(request.Content is null ? "" : await request.Content.ReadAsStringAsync())}");
+                if (request.RequestUri.AbsolutePath.EndsWith("/Series", StringComparison.Ordinal))
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""[{"Name":"Frieren","ProductionYear":2023,"ProviderIds":{"Tvdb":"424536"},"SearchProviderName":"TheTVDB","Extra":1},{"Name":""}]""") };
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }));
+            var show = new MediaItem { Id = "s9", Type = "Series", Name = "Sousou no Frieren" };
+            var matches = await client.FindMatchesAsync(show, TitleIdentity.Search("Frieren", "2023"));
+            Assert(matches.Count == 1 && matches[0].Year == 2023 && sent[0] == """POST /Items/RemoteSearch/Series {"SearchInfo":{"Name":"Frieren","ProviderIds":{},"Year":2023},"ItemId":"s9","IncludeDisabledProviders":true}""", "Search: " + sent[0]);
+            Assert(await client.ApplyMatchAsync("s9", matches[0]) && sent[1] == """POST /Items/RemoteSearch/Apply/s9?replaceAllImages=true {"Name":"Frieren","ProductionYear":2023,"ProviderIds":{"Tvdb":"424536"},"SearchProviderName":"TheTVDB","Extra":1}""", "Apply: " + sent[1]);
+            await client.RefreshMetadataAsync("s9");
+            Assert(sent[2] == "POST /Items/s9/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=FullRefresh&replaceAllMetadata=false&replaceAllImages=false ", "Refresh: " + sent[2]);
+            Assert(await client.MatchImageAsync("https://image.tmdb.org/x.jpg") is null, "No poster without an image answer");
+        });
     }
 }

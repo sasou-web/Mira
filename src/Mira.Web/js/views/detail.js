@@ -21,6 +21,7 @@ import { inviteSheet } from '../invite.js';
 import { follows, followSheet, followedSheet } from '../follow.js';
 import { followLine as followText, followNote, pickLine } from '../torlink.js';
 import { seasonOf, episodePages, pageEpisodes, pageHolding, marksSeasons, seasonMark, nextElsewhere } from '../seasons.js';
+import { titleToolsSheet } from '../identify-sheet.js';
 
 /** Year, length, ratings, then what the page adds: the picture of the file Lecture plays and when it ends. */
 function meta(item, episodes, extra = []) {
@@ -92,6 +93,8 @@ export function create({ id, query }) {
   let streams = null, chosen = null;
   // The subtitle extensions of Jellyfin (« Open Subtitles »), when this account may search with them.
   let finders = [];
+  // An administrator of Jellyfin: « … » on a film or series, for « Identifier… » and « Actualiser les métadonnées ».
+  let admin = false;
   // The episode the page was opened for (« Voir la série » from it): marked, its season shown, until Lecture moves on.
   let wanted = query.get('episode');
 
@@ -380,6 +383,9 @@ export function create({ id, query }) {
       tool('played', 'check', played ? tr('Vu') : tr('Marquer vu'), played, () => flip('played', () => setPlayed(item, !played, { quiet: true }))),
       target && progress(target) > 0
         ? h('a', { class: 'tool', href: playHref(target, true, chosen?.for === target.Id ? chosen : null) }, icon('back10'), tr('Du début'))
+        : null,
+      admin && (item.Type === 'Movie' || item.Type === 'Series')
+        ? h('button', { class: 'tool', dataset: { tool: 'more' }, 'aria-haspopup': 'dialog', on: { click: () => titleToolsSheet(item, (full) => load(!full)) } }, icon('more'), tr('Corriger'))
         : null);
   }
 
@@ -577,6 +583,7 @@ export function create({ id, query }) {
       if (item.Type !== 'Series') streams = null;
       else if (next?.MediaSources?.[0]) streams = { for: next.Id, source: next.MediaSources[0] };
       loadStreams(); findSubtitles();
+      if (!admin) api.isAdministrator().then((yes) => { if (yes && !admin) { admin = true; refreshActions(); } });
       if (inPlace) update(); else render();
       if (item.Type === 'Series') loadFollows();
       if (!similar.length && !sagas) {

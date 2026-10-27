@@ -89,6 +89,11 @@ export function create() {
           ? h('a', { class: 'item', href: '#/en-ce-moment' }, icon('server'),
             h('span', { class: 'grow' }, tr('En ce moment sur Jellyfin'), h('span', { class: 'sub' }, tr('Qui regarde quoi, et si Jellyfin doit convertir.'))), icon('right', { size: 20 }))
           : null,
+        // Titles Jellyfin recognized badly, to identify again: what only an administrator may change.
+        user?.Policy?.IsAdministrator
+          ? h('a', { class: 'item', href: '#/a-corriger' }, icon('warning'),
+            h('span', { class: 'grow' }, tr('Titres à corriger'), h('span', { class: 'sub' }, tr('Ceux que Jellyfin n’a pas reconnus, sans affiche ou en double.'))), icon('right', { size: 20 }))
+          : null,
         // « Inviter par lien »: an account for each link, which only an administrator can make.
         user?.Policy?.IsAdministrator
           ? h('a', { class: 'item', href: '#/invites' }, icon('link'),

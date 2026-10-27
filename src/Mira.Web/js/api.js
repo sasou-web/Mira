@@ -1,6 +1,7 @@
 // Jellyfin's API, from the same address as Mira web: no server to type, no cross-site request.
 import { session, device, settings } from './session.js';
 import { SUBTITLE_FORMATS } from './subtitles.js';
+import { FIELDS as CHECK_FIELDS, imagePath } from './identify.js';
 import { tr, language } from './i18n.js';
 
 export const VERSION = document.querySelector('meta[name="mira-version"]')?.content.replace('{{version}}', '0.0.0') || '0.0.0';
@@ -259,6 +260,8 @@ const user = () => session.current?.userId;
 
 // « Sous-titres gardés sur Jellyfin »: the providers asked once per session (api.subtitleProviders).
 let providers = null;   // { token, list }
+// « Identifier… » and « Titres à corriger »: whether this account administers Jellyfin (api.isAdministrator).
+let administrator = null;   // { token, answer }
 /** The bytes of a file, as the base64 Jellyfin's subtitle upload takes. */
 function base64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -409,6 +412,42 @@ export const api = {
     }).catch(() => {});
   },
   me: () => get('Users/Me'),
+  /** Whether this account administers Jellyfin, asked once per session (« Identifier… », « Titres à corriger »). */
+  isAdministrator() {
+    const token = session.current?.token;
+    if (administrator?.token !== token) {
+      administrator = { token, answer: get('Users/Me').then((me) => !!me?.Policy?.IsAdministrator, () => { administrator = null; return false; }) };
+    }
+    return administrator.answer;
+  },
+  // Titles recognized badly (identify.js), for an administrator: what Jellyfin's metadata sources propose, searched by
+  // Jellyfin (it speaks to TMDb, the phone never does), the one chosen given to the title, a refresh.
+  /** Every film and series, with what « Titres à corriger » judges. */
+  titlesToCheck: () => get('Items', {
+    userId: user(), recursive: true, includeItemTypes: 'Movie,Series', fields: CHECK_FIELDS, enableImageTypes: 'Primary', imageTypeLimit: 1, enableUserData: false, sortBy: 'SortName',
+  }, { timeout: 30000 }).then((r) => r?.Items ?? []),
+  /** Jellyfin's RemoteSearch for a film or series: its proposals, as it gives them (sent back as they are by applyMatch). */
+  findMatches: (item, query) => post(`Items/RemoteSearch/${item.Type === 'Series' ? 'Series' : 'Movie'}`, {
+    SearchInfo: { Name: query.name, ProviderIds: query.providerIds, ...(query.year ? { Year: query.year } : {}) }, ItemId: item.Id, IncludeDisabledProviders: true,
+  }, null, { timeout: 30000 }).then((r) => (Array.isArray(r) ? r.filter((x) => x?.Name) : [])),
+  /**
+   * Gives the title the proposal chosen: Jellyfin replaces its metadata and pictures, and reads it again from its
+   * source before it answers (a long series takes a while).
+   */
+  applyMatch: (itemId, match) => post(`Items/RemoteSearch/Apply/${encodeURIComponent(itemId)}`, match, { replaceAllImages: true }, { timeout: 120000 }),
+  /** « Actualiser les métadonnées »: read again from its sources, what is missing filled (queued, answered at once). */
+  refreshMetadata: (itemId) => post(`Items/${encodeURIComponent(itemId)}/Refresh`, undefined, {
+    metadataRefreshMode: 'FullRefresh', imageRefreshMode: 'FullRefresh', replaceAllMetadata: false, replaceAllImages: false,
+  }),
+  /** A proposal's poster, fetched by the extension: an object URL to revoke, null without one. */
+  async matchImage(address, signal) {
+    await trustServer();
+    try {
+      const response = await fetch(url(imagePath(address)), { headers: { Authorization: authorization() }, signal });
+      if (!response.ok || !/^image\//.test(response.headers.get('content-type') ?? '')) return null;
+      return URL.createObjectURL(await response.blob());
+    } catch { return null; }
+  },
   /** « En ce moment sur Jellyfin »: the sessions Jellyfin heard from lately, as Mira for Windows reads them (all of them for an administrator). */
   sessions: () => get('Sessions', { activeWithinSeconds: 960 }),
   /** Asks a session to stop playing: one whose WebSocket takes commands (Mira web while it plays, remote.js). */
