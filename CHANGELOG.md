@@ -3,6 +3,7 @@
 ## Non publié
 
 - **Une vidéo qui n’arrive plus ne tourne plus sans fin** (Mira web) : quand la vidéo cessait d’arriver alors que Jellyfin répondait (Wi-Fi qui hoquette, relais Tailscale lent, conversion arrêtée), la roue tournait pour toujours, sans message, et seul **Retour** en sortait. Après 15 s sans image (45 s à l’ouverture ou après un déplacement), Mira demande au serveur : s’il ne répond plus, « Connexion au serveur perdue » et la lecture reprend dès qu’il revient ; s’il répond, Mira rouvre la vidéo où elle s’était arrêtée, et si elle bloque encore, **Lecture impossible** le dit, avec **Réessayer**, qui reprend au même endroit.
+- **Plus de reprise en pause après « Connexion au serveur perdue »** (Mira web) : quand le serveur partait pendant la lecture, le navigateur mettait la vidéo en pause sur l’erreur et Mira la prenait pour la tienne : Jellyfin la notait, le groupe « Regarder ensemble » se mettait en pause avec toi, et la lecture repartait parfois en pause au retour du serveur. Cette pause-là n’est plus dite à personne, et la lecture reprend comme elle était.
 
 ## 0.8.4 — 2026-10-24
 
