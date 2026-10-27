@@ -176,7 +176,7 @@ body.scrolled .status-scrim { opacity: 1; }
 }
 .tabbar a {
   flex: 1; max-width: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  color: var(--faint); font-size: 11px; font-weight: 700; letter-spacing: 0.01em;
+  color: var(--faint); font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
 }
 .tabbar a[aria-current='page'] { color: var(--ink); }
 html:not(.touch) .tabbar a:active .icon, .tabbar a.pressed .icon { transform: scale(0.9); }
@@ -243,6 +243,19 @@ html:not(.touch) .round:active, .round.pressed { transform: scale(0.92); }
 .chip { transition: transform var(--fast) var(--ease), background var(--fast) linear; }
 html:not(.touch) .chip:active, .chip.pressed { transform: scale(0.96); }
 .chip .icon { width: 16px; height: 16px; }
+
+/* Touch screens: 44 px to touch, Apple's minimum, with the look kept. Chips and small buttons stay drawn at their
+   height, the rest of the 44 px a transparent border (the background stops at it), and take back the room they
+   gained, so nothing moves. Text links (« Tout voir », a studio, a name) reach out around their text; the lines of
+   names part a little more, for each to keep its own. */
+@media (pointer: coarse) {
+  /* !important: each state (on, primary, hovered) sets its background by the shorthand, which would reset the clip. */
+  button.chip, a.chip, .btn.small { height: 44px; border-block: 4px solid transparent; background-clip: padding-box !important; }
+  .chips, .btn.small { margin-block: -4px; }
+  .section-head a { padding: 12px 0 12px 16px; margin: -12px 0 -12px -16px; }
+  .credits { gap: 10px; }
+  .credits a { display: inline-block; padding-block: 12px; margin-block: -12px; }
+}
 
 .field { display: grid; gap: 6px; }
 .field label { font-size: calc(13px * var(--text)); font-weight: 700; color: var(--muted); }
@@ -529,6 +542,7 @@ html:not(.touch) .detail-secondary .tool:active, .detail-secondary .tool.pressed
 .genres { display: flex; flex-wrap: wrap; gap: 6px; }
 .genres .chip { height: 32px; padding: 0 12px; background: var(--surface); color: var(--muted); font-size: calc(13px * var(--text)); }
 @media (hover: hover) { .genres .chip:hover { background: var(--raised); color: var(--ink); } }
+@media (pointer: coarse) { .genres .chip { height: 44px; border-block-width: 6px; margin-block: -6px; } }
 .credits { display: grid; gap: 4px; font-size: calc(14px * var(--text)); color: var(--muted); }
 .credits a { color: var(--ink); font-weight: 700; }
 /* Tablets and computers: the poster at the left, beside the title; Lecture and the title's buttons in one row of
@@ -588,6 +602,8 @@ html:not(.touch) .episode:active, .episode.pressed { background: var(--surface);
   font-size: calc(14px * var(--text)); font-weight: 700; transition: background var(--fast) linear, color var(--fast) linear;
 }
 .segmented button[aria-checked='true'] { background: var(--accent); color: var(--on-accent); }
+/* Touch screens: 44 px in all, as the chips (above). */
+@media (pointer: coarse) { .segmented button { height: 40px; } }
 .library-filters { position: sticky; top: var(--bar); z-index: 30; background: var(--bg); padding: 8px var(--gutter) 12px; }
 .library-count { color: var(--faint); font-size: calc(13px * var(--text)); padding: 0 var(--gutter) 12px; min-height: calc(13px * 1.47 + 12px); }
 .library-grid { padding: 0 var(--gutter) 24px; }

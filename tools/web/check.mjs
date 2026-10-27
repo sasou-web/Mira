@@ -82,6 +82,14 @@ const api = async (path, method = 'GET') => page.evaluate(async ([p, m]) => {
   const t = await r.text(); return t ? JSON.parse(t) : null;
 }, [path, method]);
 
+// What a finger can touch on the screen shown, under 44 px (Apple's minimum) one way or the other: the iOS segmented
+// control (« Tout | Séries | Animes ») is 44 px tall in all, its buttons 40.
+const smallTargets = () => page.evaluate(() => [...document.querySelectorAll('#view a[href], #view button, #view [role=button], .tabbar a')]
+  .filter((el) => !el.closest('[hidden], [aria-hidden="true"]') && el.getClientRects().length)
+  .map((el) => ({ el, r: el.getBoundingClientRect() }))
+  .filter(({ el, r }) => r.width < 44 || r.height < (el.closest('.segmented') ? 40 : 44))
+  .map(({ el, r }) => `« ${(el.getAttribute('aria-label') || el.textContent).trim().slice(0, 30)} » ${Math.round(r.width)} × ${Math.round(r.height)}`));
+
 try {
   await page.goto(base); await wait(1500);
   check('connexion : formulaire affiché', await page.locator('form.login-form, .users').count() > 0);
@@ -107,6 +115,8 @@ try {
     .map((t) => ({ name: t.textContent, lines: Math.round(t.scrollHeight / parseFloat(getComputedStyle(t).lineHeight)), cut: t.scrollHeight > t.clientHeight + 1, height: t.clientHeight })));
   check('films : titres des cartes sur deux lignes, entiers', titleLines.length >= 4 && titleLines.some((t) => t.lines === 2) && !titleLines.some((t) => t.cut)
     && new Set(titleLines.map((t) => t.height)).size === 1, titleLines.map((t) => `${t.name} ${t.lines}${t.cut ? ' coupé' : ''} ${t.height} px`).join(', '));
+  const smallInFilms = await smallTargets();
+  check('films : tout ce qui se touche fait 44 px au moins (filtres, onglets)', !smallInFilms.length, smallInFilms.join(', '));
   // « Lettre », with the sort by title only: the films under L (tools/web/media.sh: Aube, Chapitres, Lueur, Signes).
   const sortBy = async (label) => {
     await page.locator('#view .library .chip', { hasText: 'Trier' }).click();
@@ -375,6 +385,8 @@ try {
   const genreLinks = await page.locator('#view .genres a').evaluateAll((links) => links.map((x) => `${x.textContent} ${x.getAttribute('href')}`));
   const studioLink = await page.locator('#view .credits a[href^="#/studio/"]').evaluateAll((links) => links.map((x) => `${x.parentElement.textContent} ${x.getAttribute('href')}`));
   await shot('12-genres-studio');
+  const smallInTitle = await smallTargets();
+  check('fiche : tout ce qui se touche fait 44 px au moins (genres, studio, « Tout voir »)', !smallInTitle.length, smallInTitle.join(', '));
   // A right click (iPad with a trackpad, Android with a mouse) opens the long press's menu, on a card as on an episode.
   await page.locator('#view .section', { has: page.locator('h2', { hasText: 'Du même studio' }) }).locator('.card').first().click({ button: 'right' }).catch(() => {});
   const cardMenu = await page.locator('.sheet .sheet-item').allInnerTexts().catch(() => []);
