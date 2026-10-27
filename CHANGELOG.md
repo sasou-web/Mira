@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.8.5 — 2026-10-27
+
+Suivre une série, corriger un titre mal reconnu, lire loin de chez soi et sauvegarder Jellyfin.
 
 - **Regarder ensemble sur Jellyfin 10.9 et 10.10** : la liste des personnes du groupe se mettait à jour seulement à partir de Jellyfin 10.11 (la route `SyncPlay/{id}` répond 404 avant) ; Mira lit maintenant la liste des groupes, sur toutes les versions (Mira web, Windows, Mac).
 - **Mira web essayé sur 10.9, 10.10, 12.1 et 12.4** à chaque modification, et sur le dernier Jellyfin chaque lundi. Sur 10.9 et 10.10, la fiche d’un film n’a pas la rangée de sa saga et un sous-titre ASS garde ses balises de style.
