@@ -66,7 +66,7 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ MediaQuality : image du fichier (« 4K · HDR10 », mêmes cas que `qualityText` de Mira web dans `tests/fixtures/quality.json`) et heure de fin sur la fiche
   ├─ MotionState, ScreenFit, Legibility, IconPaths : défilement et carrousel, taille de fenêtre, contraste et taille du texte, tracés des icônes
   ├─ ErrorLog, ExpectedErrors : errors.log (type et méthode), erreurs attendues
-  └─ TorLink : état TorLink, lecture des .torrent, noms de sortie, plan de rangement, importeur, journal, rangement automatique (TorLinkPlacement : surveillance, tours, Jellyfin prévenu, messages), lock npm (Lock/)
+  └─ TorLink : état TorLink, lecture des .torrent, noms de sortie, plan de rangement, importeur, journal, rangement automatique (TorLinkPlacement : surveillance, tours, Jellyfin prévenu, messages), séries suivies (SeriesFollowing : choix des releases ; ImportTarget : épisode rangé dans le dossier de sa série), lock npm (Lock/)
 ```
 
 Une application native C# / WPF permet de compiler et de livrer immédiatement sur le PC Windows équipé de .NET. libmpv est appelé directement par son API C ; aucun terminal, processus mpv externe ou lecteur HTML n’est utilisé pour la vidéo. Le rendu dispose de sa propre surface native. Une surface HwndSource transparente, possédée par la fenêtre et non activable, superpose les commandes au HWND vidéo. Elle reste ouverte lorsque les panneaux s'effacent : le fond d'alpha 1/255 conserve la réception de la souris, et WPF gère son curseur. Elle se ferme à la désactivation et à l'arrêt. Elle n'utilise pas Popup pour cette grande surface : WPF limite les Popup à 75 % de l'aire du moniteur. Seuls les menus de réglages restent des Popup. La source est créée masquée, puis montrée sans activation pour éviter un transfert de focus et une boucle de fermeture/réouverture.
@@ -102,7 +102,7 @@ Mira.Jellyfin (extension Jellyfin)
   ├─ WebController : /Mira (page et politique de sécurité), /Mira/manifest.webmanifest, /Mira/v/<révision>/…
   ├─ HlsController, HlsPlaylists : /Mira/hls/…, listes HLS de Jellyfin réécrites pour que le lecteur d’Apple ait ses sous-titres à l’heure
   ├─ ContentPolicy : politique de sécurité de la page, styles intégrés permis par leur empreinte
-  ├─ TorLinkController, TorLinkRelay : /Mira/torlink/…, relais (en mémoire) des recherches et téléchargements envoyés au PC serveur, administrateurs seulement
+  ├─ TorLinkController, TorLinkRelay : /Mira/torlink/…, relais (en mémoire) des recherches et téléchargements envoyés au PC serveur, administrateurs seulement ; séries suivies (TorLinkRelay.Follows, /Mira/torlink/follows) gardées dans plugins/configurations/Mira.follows.json
   ├─ InvitesController : /Mira/invites, liens d’invités (créer, lister, retirer, adresse des liens), administrateurs seulement ; GuestCleanup supprime les comptes des liens finis
   ├─ GuestController, GuestRoutes : /Mira/guest/…, passerelle de la page d’un invité (ouverture du lien, routes de la liste fermée relayées en boucle locale, playlists réécrites)
   ├─ GuestInvites : les liens (un appareil, 7 jours sans servir), gardés dans plugins/configurations/Mira.invites.json
