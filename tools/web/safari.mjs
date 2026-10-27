@@ -124,13 +124,14 @@ try {
   check('Jellyfin : position du film', saved.UserData.PlaybackPositionTicks > 100_000_000, `${(saved.UserData.PlaybackPositionTicks / 1e7).toFixed(1)} s`);
 
   await go(`#/lecture/${episodes[0].Id}?debut=1`);
-  await playing();
+  const first = await playing();
   let moved = false;
   for (let i = 0; i < 30 && !moved; i++) { await sleep(1000); moved = (await run('return location.hash;')).includes(episodes[1].Id); }
   check('Safari : épisode suivant automatique', moved);
-  await sleep(3500);
-  state = await video();
-  check('Safari : l’épisode suivant joue', state && !state.paused && state.t > 1, `${state?.t?.toFixed(1)} s`);
+  // Its conversion starts in 2 to 4 s on a busy runner: its own stream must play within 10 s, by itself (no tap).
+  const nextAt = Date.now(), next = (x) => !!x && x.src !== first.src && !x.paused && x.t > 1;
+  for (; Date.now() - nextAt < 10_000; await sleep(500)) { state = await video(); if (next(state)) break; }
+  check('Safari : l’épisode suivant joue', next(state), `${state?.t?.toFixed(1)} s après ${((Date.now() - nextAt) / 1000).toFixed(1)} s${state?.src === first.src ? ', flux du premier épisode' : ''}`);
   await shot('06-next-episode');
   await tapControl('.p-top button[aria-label="Retour"]');
   // Retour reports the stop to Jellyfin, then goes back: done once the player's address is gone.
@@ -173,7 +174,7 @@ try {
   const carried = async () => run(`const v = document.querySelector('video'), list = [...v.textTracks].filter((t) => ['subtitles', 'captions', 'forced'].includes(t.kind));
     const on = list.find((t) => t.mode === 'showing');
     return { hls: /SubtitleMethod=Hls/i.test(v.currentSrc) && v.currentSrc.includes('/Mira/hls/'), beside: v.querySelectorAll('track').length, count: list.length, labels: list.map((t) => t.label + ' (' + t.language + ')').join(', '),
-      showing: on ? on.label : '', cue: on && on.activeCues && on.activeCues.length ? on.activeCues[0].text : '', t: v.currentTime, src: v.currentSrc };`);
+      showing: on ? on.label : '', cue: on && on.activeCues && on.activeCues.length ? on.activeCues[0].text : '', t: v.currentTime, seeking: v.seeking, src: v.currentSrc };`);
   // The cue runs from 1 s to 30 s: watched until 20 s, its first appearance tells any shift of the subtitles' clock.
   let inStream = await carried();
   const firstSeen = inStream.t;
@@ -231,6 +232,8 @@ try {
     const seen = { early: '', first: null, text: '' };
     for (let i = 0; i < 120; i++) {
       const now = await carried();
+      // Until a jump is done, WebKit keeps the cues of where it was (they change when it gets there).
+      if (now.seeking) { await sleep(250); continue; }
       if (now.cue && seen.first == null) { seen.first = now.t; seen.text = now.cue; }
       if (now.cue && now.t < until - 0.6) seen.early = `${now.cue} à ${now.t.toFixed(1)} s`;
       if (now.t > until + 3.5 || (seen.first != null && now.t > seen.first + 1)) break;
