@@ -1,13 +1,17 @@
 name: Web build
 # Mira web (src/Mira.Web), served by Jellyfin through Mira's plugin (src/Mira.Jellyfin): packaged, installed from its
-# repository on a real Jellyfin 12.1, checked in Chromium at an iPhone's size and in Safari; attached to the draft of
-# each release, which tools/release.ps1 publishes once every platform is there.
+# repository on a real Jellyfin (12.1, 12.4, and the 10.9 and 10.10 the README promises), checked in Chromium at an
+# iPhone's size, and in Safari on 12.1; attached to the draft of each release, which tools/release.ps1 publishes once
+# every platform is there.
 on:
   push:
     branches: [main]
     paths: ["src/Mira.Web/**", "src/Mira.Jellyfin/**", "tools/web/**", ".github/workflows/web.yml"]
   pull_request:
     paths: ["src/Mira.Web/**", "src/Mira.Jellyfin/**", "tools/web/**", ".github/workflows/web.yml"]
+  # The newest Jellyfin, which nothing pins: a 12.x that breaks the plugin shows here before a friend runs into it.
+  schedule:
+    - cron: "17 5 * * 1"
   # No "release: published": GitHub runs nothing for a draft, and an immutable release takes no file once published.
   workflow_dispatch:
     inputs:
@@ -25,14 +29,28 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
-  JELLYFIN_IMAGE: jellyfin/jellyfin:12.1.20260915-010956
 jobs:
   chromium:
-    # The plugin as Jellyfin installs it, and the whole app against Jellyfin's own Docker image. Not for a release's
-    # draft: its commit was checked on its way to main.
+    # The plugin as Jellyfin installs it, and the whole app against Jellyfin's own Docker image, on each version Mira
+    # claims to work with: 10.9 and 10.10 (.NET 8, what the plugin is built for), 12.1 (the one Mira for Windows
+    # installs) and the newest 12.x. Pinned by tag, moved by hand; `latest` follows Jellyfin and only fails the weekly run.
+    # Not for a release's draft: its commit was checked on its way to main.
     if: inputs.release == ''
+    name: Chromium · Jellyfin ${{ matrix.jellyfin }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    continue-on-error: ${{ matrix.follows && github.event_name != 'schedule' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { jellyfin: "10.9", image: "jellyfin/jellyfin:10.9.11", follows: false }
+          - { jellyfin: "10.10", image: "jellyfin/jellyfin:10.10.7", follows: false }
+          - { jellyfin: "12.1", image: "jellyfin/jellyfin:12.1.20260915-010956", follows: false }
+          - { jellyfin: "12.4", image: "jellyfin/jellyfin:12.4.20261026-211555", follows: false }
+          - { jellyfin: "latest", image: "jellyfin/jellyfin:latest", follows: true }
+    env:
+      JELLYFIN_IMAGE: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -53,7 +71,7 @@ jobs:
         run: |
           command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
           tools/web/media.sh "$PWD/.artifacts/media"
-      - name: Jellyfin 12.1, Mira web installed from the repository
+      - name: Jellyfin ${{ matrix.jellyfin }}, Mira web installed from the repository
         run: |
           (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
           mkdir -p .artifacts/jf-config .artifacts/jf-cache
@@ -84,7 +102,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: Mira-web-check
+          name: Mira-web-check-${{ matrix.jellyfin }}
           path: .artifacts/check
           retention-days: 7
 

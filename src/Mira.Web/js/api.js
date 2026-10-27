@@ -617,7 +617,11 @@ export const api = {
   // « Regarder ensemble », Jellyfin's SyncPlay (together.js): 403 when Jellyfin does not let this account use it.
   utcTime: () => get('GetUtcTime', null, { timeout: 5000 }),
   syncGroups: () => get('SyncPlay/List'),
-  syncGroup: (groupId) => get(`SyncPlay/${encodeURIComponent(groupId)}`),
+  // From the list: `SyncPlay/{id}` answers 404 on Jellyfin 10.9 and 10.10.
+  syncGroup: (groupId) => {
+    const same = (id) => String(id ?? '').replace(/-/g, '').toLowerCase() === String(groupId ?? '').replace(/-/g, '').toLowerCase();
+    return get('SyncPlay/List').then((groups) => (groups ?? []).find((g) => same(g.GroupId)) ?? null);
+  },
   syncNew: (name) => post('SyncPlay/New', { GroupName: name }),
   syncJoin: (groupId) => post('SyncPlay/Join', { GroupId: groupId }),
   syncLeave: () => post('SyncPlay/Leave'),
