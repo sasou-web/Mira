@@ -34,9 +34,9 @@ public partial class MainWindow
                 if (_catalog.Items.Any(x => !x.Genres.Contains(Choice(GenreFilter)))) throw new InvalidOperationException("Genre filter did not apply.");
                 await CaptureAsync(output, "12-filtered");
             }
-            _filterBusy = true; SearchBox.Text = "mira-ui-test-no-matching-title-93718"; _filterBusy = false; await RefreshAsync();
+            _catalog.View = "search"; _filterBusy = true; SearchBox.Text = "mira-ui-test-no-matching-title-93718"; _filterBusy = false; await RefreshAsync();
             if (_catalog.Items.Count != 0 || EmptyState.Visibility != Visibility.Visible) throw new InvalidOperationException("Empty state did not appear.");
-            await CaptureAsync(output, "13-empty-search"); ResetFilters(); await RefreshAsync();
+            await CaptureAsync(output, "13-empty-search"); ResetFilters(); _catalog.View = "library"; await RefreshAsync();
             var series = _catalog.Items.FirstOrDefault(x => x.Type == "Series") ?? _catalog.Items[0];
             await ShowDetailsAsync(series);
             if (_images is { } cache) await Task.WhenAll(_episodes.Select(x => cache.EpisodeAsync(x)));
