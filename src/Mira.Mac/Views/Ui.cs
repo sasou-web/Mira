@@ -25,6 +25,13 @@ public static class Ui
         if (classes is not null) block.Classes.AddRange(classes.Split(' '));
         return block;
     }
+    /// <summary>A page's or a section's title, which VoiceOver lists among the headings (level 1 for the page).</summary>
+    public static TextBlock Heading(string text, double size, int level, FontWeight weight = FontWeight.Bold)
+    {
+        var block = Text(text, size, weight);
+        Avalonia.Automation.AutomationProperties.SetHeadingLevel(block, level);
+        return block;
+    }
     public static StackPanel Stack(Orientation orientation, double spacing, params Control[] children)
     {
         var panel = new StackPanel { Orientation = orientation, Spacing = spacing };
@@ -46,12 +53,18 @@ public static class Ui
         Avalonia.Automation.AutomationProperties.SetName(button, label);
         return button;
     }
-    public static Button IconButton(string icon, string tip, Action click, string classes = "icon", double size = 22)
+    /// <summary>
+    /// A button showing only an icon: its tooltip, and the name VoiceOver reads (a tooltip is not read). A shortcut after
+    /// « · » in the tooltip (« Rechercher · ⌘F ») becomes the button's help, read after a pause.
+    /// </summary>
+    public static Button IconButton(string icon, string tip, Action click, string classes = "icon", double size = 22, string? name = null)
     {
         var button = new Button { Content = new Icon(icon, size) };
         button.Classes.AddRange(classes.Split(' '));
         ToolTip.SetTip(button, tip);
-        Avalonia.Automation.AutomationProperties.SetName(button, tip);
+        var parts = tip.Split(" · ", 2);
+        Avalonia.Automation.AutomationProperties.SetName(button, name ?? parts[0]);
+        if (parts.Length > 1) Avalonia.Automation.AutomationProperties.SetHelpText(button, parts[1]);
         button.Click += (_, _) => click();
         return button;
     }
@@ -90,6 +103,50 @@ public static class Ui
         return L("Reste ", "") + MediaItem.FormatDuration(left) + L("", " left");
     }
     public static string Kind(MediaItem item) => item.Type switch { "Series" => L("Série", "Series"), "Episode" => L("Épisode", "Episode"), _ => L("Film", "Movie") };
+}
+
+/// <summary>
+/// An empty page or list: an icon, what is empty, what to do about it, and the button that does it; the same parts as
+/// Mira web's emptyState() and the Windows catalogue's. VoiceOver reads its title when it appears.
+/// </summary>
+public sealed class EmptyState : StackPanel
+{
+    private readonly Icon _icon = new("library", 26) { Foreground = Ui.Muted };
+    private readonly TextBlock _title = new() { FontSize = 20, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _text = new() { FontSize = 14.5, LineHeight = 21, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
+    private readonly TextBlock _note = new() { FontSize = 13, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly Button _action = new() { Classes = { "primary" }, Padding = new Thickness(18, 9), Margin = new Thickness(0, 20, 0, 0) };
+    private Action? _run;
+    public string Title => _title.Text ?? "";
+    /// <summary>The button's label, empty without one (the self-check).</summary>
+    public string ActionLabel => _action.IsVisible ? _action.Content as string ?? "" : "";
+
+    /// <param name="centered">In the middle of a page; else at the left of a column (Téléchargements).</param>
+    public EmptyState(bool centered = true)
+    {
+        IsVisible = false; MaxWidth = centered ? 460 : 540;
+        var align = centered ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+        HorizontalAlignment = align;
+        Children.Add(new Border
+        {
+            Width = 60, Height = 60, CornerRadius = new CornerRadius(30), Background = Ui.Raised, HorizontalAlignment = align, Margin = new Thickness(0, 0, 0, 18), Child = _icon
+        });
+        _title.TextAlignment = _text.TextAlignment = _note.TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left;
+        _title.HorizontalAlignment = _text.HorizontalAlignment = _note.HorizontalAlignment = _action.HorizontalAlignment = align;
+        Avalonia.Automation.AutomationProperties.SetLiveSetting(_title, Avalonia.Automation.AutomationLiveSetting.Polite);
+        _action.Click += (_, _) => _run?.Invoke();
+        Children.Add(_title); Children.Add(_text); Children.Add(_note); Children.Add(_action);
+    }
+
+    /// <param name="note">A last line, quieter (« Ne télécharge que ce que tu as le droit d’obtenir. »).</param>
+    public void Show(string icon, string title, string text, string? action = null, Action? run = null, string? note = null)
+    {
+        _icon.Kind = icon; _title.Text = title; _text.Text = text; _text.IsVisible = text.Length > 0;
+        _note.Text = note; _note.IsVisible = !string.IsNullOrEmpty(note);
+        _action.Content = action; _run = run; _action.IsVisible = action is not null && run is not null;
+        IsVisible = true;
+    }
+    public void Hide() => IsVisible = false;
 }
 
 /// <summary>Columns of equal width that fill the page, as many as fit: the library grid.</summary>
@@ -288,9 +345,12 @@ public sealed class CardRow : StackPanel
         _items.Margin = new Thickness(sidePadding, 4, sidePadding, 8);
         _scroll = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _items };
         var header = new DockPanel { Margin = new Thickness(sidePadding, 0, sidePadding - 8, 0) };
-        var arrows = Ui.Row(4, Ui.IconButton("back", L("Précédents", "Previous"), () => Page(-1), "icon", 18), Ui.IconButton("next", L("Suivants", "Next"), () => Page(1), "icon", 18));
+        var arrows = Ui.Row(4, Ui.IconButton("back", L("Précédents", "Previous"), () => Page(-1), "icon", 18, L($"Précédents dans « {title} »", $"Previous in “{title}”")),
+            Ui.IconButton("next", L("Suivants", "Next"), () => Page(1), "icon", 18, L($"Suivants dans « {title} »", $"Next in “{title}”")));
         DockPanel.SetDock(arrows, Dock.Right); header.Children.Add(arrows);
-        header.Children.Add(new TextBlock { Text = title, FontSize = 21, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center });
+        var heading = new TextBlock { Text = title, FontSize = 21, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
+        Avalonia.Automation.AutomationProperties.SetHeadingLevel(heading, 2);
+        header.Children.Add(heading);
         Children.Add(header); Children.Add(_scroll);
     }
     private void Page(int direction)

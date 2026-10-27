@@ -78,7 +78,7 @@ Ils sont dans `src/Mira.Desktop/Checks` et ne tournent qu’avec un profil isol�
 | `Mira.exe … --windows-check <dossier>` | session multimédia de Windows et vrai mpv (`failure.txt` si la fenêtre ne se crée pas) |
 | `tools/torlink-check.ps1 [-Executable dist/Mira/Mira.exe]` | TorLink réel dans Mira, téléchargements fictifs rangés dans une bibliothèque isolée |
 | `tools/update-check.ps1` | mises à jour de bout en bout (archive, portable, installateur) avec un flux local et une clé d’essai |
-| `Mira --data <profil> --self-check <dossier> --mock --media <vidéo> --short <vidéo>` (Mac) | chaque écran et la lecture, contre un Jellyfin simulé (`results.txt`) ; `--video-probe <vidéo>` diagnostique le rendu |
+| `Mira --data <profil> --self-check <dossier> --mock --media <vidéo> --short <vidéo>` (Mac) | chaque écran et la lecture, contre un Jellyfin simulé (`results.txt`), chaque écran capturé lu comme VoiceOver (aucun bouton, champ ou liste sans nom) ; marche aussi sous Linux (`xvfb-run`, `libmpv2`) ; `--video-probe <vidéo>` diagnostique le rendu |
 
 `--visual-check` demande un profil avec une session protégée valide, ou `--demo`. Le contrôle de TorLink ouvre une fenêtre visible et n’envoie de vraies touches que si elle a le premier plan ; il ne touche ni à l’état réel de TorLink ni à Jellyfin. Avec une vidéo chapitrée, le contrôle du lecteur vérifie aussi les passages à sauter :
 

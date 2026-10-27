@@ -20,6 +20,8 @@ public sealed class HomePage : Page
 {
     public override string Rail => "home";
     private readonly StackPanel _rows = new() { Spacing = 38, Margin = new Thickness(0, 0, 0, 56) };
+    /// <summary>Nothing at all to show: where videos go, and a way to look again once they are there.</summary>
+    private readonly EmptyState _empty = new() { Margin = new Thickness(56, 120, 56, 60) };
     private readonly Grid _hero = new() { ClipToBounds = true };
     private readonly Image _heroImage = new() { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top };
     private readonly StackPanel _heroText = new() { Spacing = 18, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(56, 0, 40, 66), MaxWidth = 720 };
@@ -64,7 +66,7 @@ public sealed class HomePage : Page
         };
         _groupFor = Shell.Group.Active ? Shell.Group.Group?.GroupId : null;
         var page = new StackPanel { Spacing = 8 };
-        page.Children.Add(_hero); page.Children.Add(_groupLine); page.Children.Add(_rows);
+        page.Children.Add(_hero); page.Children.Add(_groupLine); page.Children.Add(_empty); page.Children.Add(_rows);
         _scroll = new ScrollViewer { Content = page };
         Content = _scroll;
         SizeChanged += (_, e) => _hero.Height = Math.Clamp(e.NewSize.Height * 0.7, 440, 760);
@@ -141,7 +143,9 @@ public sealed class HomePage : Page
             _rows.Children.Add(new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu)) : items.Select(Poster)));
         }
         if (resume.Count == 0 && latest.Count == 0 && favorites.Count == 0 && shelves.Values.All(x => x.Count == 0))
-            _rows.Children.Add(new Border { Margin = new Thickness(56, 0), Child = Ui.Column(8, Ui.Text(L("Ta bibliothèque est vide pour l’instant", "Your library is empty for now"), 20, FontWeight.Bold), Ui.Text(L("Ajoute des films ou des séries dans les dossiers de Jellyfin : ils apparaîtront ici.", "Add movies or shows to Jellyfin’s folders: they’ll show up here."), 14.5, color: Ui.Muted)) });
+            _empty.Show("folder", L("Ta bibliothèque est vide", "Your library is empty"), L("Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici.", "Put your movies and shows in Jellyfin’s folders: they’ll show up here."),
+                L("Actualiser", "Refresh"), () => _ = Shell.RefreshPagesAsync());
+        else _empty.Hide();
         // The banner: what is being watched first, then the latest titles with a backdrop.
         var heroes = resume.Take(2).Concat(latest.Where(x => x.BackdropImageTags.Length > 0)).DistinctBy(x => ContinueWatching.Group(x)).Take(5).ToList();
         if (heroes.Select(x => x.Id).SequenceEqual(_heroItems.Select(x => x.Id)) && heroes.Count > 0) { _heroItems = heroes; ShowHero(_heroIndex, animate: false); return; }
@@ -199,7 +203,9 @@ public sealed class HomePage : Page
     {
         if (Shell.Session is not { } session) return;
         _heroText.Children.Clear(); _heroSide.Children.Clear(); _dots.Children.Clear();
-        if (_heroItems.Count == 0) { _hero.Height = 220; _heroImage.Source = null; return; }
+        // Without a banner, the group's line keeps clear of the window's buttons.
+        _hero.IsVisible = _heroItems.Count > 0; _groupLine.Margin = new Thickness(56, _hero.IsVisible ? 0 : 44 + Shell.TitleBarInset, 56, 30);
+        if (_heroItems.Count == 0) { _heroImage.Source = null; return; }
         _heroIndex = (index % _heroItems.Count + _heroItems.Count) % _heroItems.Count;
         var item = _heroItems[_heroIndex];
         var version = ++_heroVersion;
@@ -234,6 +240,7 @@ public sealed class HomePage : Page
             var target = i;
             var dot = new Button { Width = 46, Height = 14, Padding = new Thickness(0), Background = Brushes.Transparent, Content = new Border { Height = 3, CornerRadius = new CornerRadius(2), Background = Ui.Brush(i == _heroIndex ? "#F5F5F7" : "#55FFFFFF") } };
             ToolTip.SetTip(dot, _heroItems[i].DisplayTitle);
+            Avalonia.Automation.AutomationProperties.SetName(dot, L($"Afficher « {_heroItems[i].DisplayTitle} »{(i == _heroIndex ? ", affiché" : "")}", $"Show “{_heroItems[i].DisplayTitle}”{(i == _heroIndex ? ", shown" : "")}"));
             dot.Click += (_, _) => { ShowHero(target); _rotate.Stop(); _rotate.Start(); };
             _dots.Children.Add(dot);
         }

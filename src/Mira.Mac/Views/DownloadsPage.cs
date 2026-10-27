@@ -87,7 +87,7 @@ public sealed class DownloadsPage : Page
         };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 26) };
         DockPanel.SetDock(pill, Dock.Right); header.Children.Add(pill);
-        header.Children.Add(Ui.Column(0, Ui.Text(L("Téléchargements", "Downloads"), 34, FontWeight.ExtraBold), _subtitle));
+        header.Children.Add(Ui.Column(0, Ui.Heading(L("Téléchargements", "Downloads"), 34, 1, FontWeight.ExtraBold), _subtitle));
 
         // —— Left: the search, a magnet link, the results ——
         _query.InnerLeftContent = new Icon("search", 17) { Foreground = Ui.Faint, Margin = new Thickness(14, 0, 0, 0), IsHitTestVisible = false };
@@ -188,14 +188,11 @@ public sealed class DownloadsPage : Page
         await LoadStatusAsync();
     }
 
-    private static Control Empty(string icon, string title, string text, string? note)
+    private static EmptyState Empty(string icon, string title, string text, string? note)
     {
-        var panel = new StackPanel { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left, MaxWidth = 540, Margin = new Thickness(2, 18, 0, 0) };
-        panel.Children.Add(new Icon(icon, 28) { Foreground = Ui.Faint, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 12) });
-        panel.Children.Add(new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeight.SemiBold });
-        panel.Children.Add(new TextBlock { Text = text, FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
-        if (note is not null) panel.Children.Add(new TextBlock { Text = note, FontSize = 13, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
-        return panel;
+        var empty = new EmptyState(centered: false) { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(2, 18, 0, 0) };
+        empty.Show(icon, title, text, note: note);
+        return empty;
     }
 
     /// <summary>A small quiet button of a row or a tool: its icon, its label, and the name VoiceOver reads.</summary>

@@ -48,7 +48,7 @@ public sealed class BrowsePage : Page
     /// <summary>The libraries of this kind (Séries and Animes), when there are several: one at a time, or all of them.</summary>
     private List<LibrarySection> _libraries = [];
     private readonly Button _favorites, _reset;
-    private readonly TextBlock _empty = new() { FontSize = 15, Foreground = Ui.Muted, IsVisible = false, Margin = new Thickness(0, 20) };
+    private readonly EmptyState _empty = new() { Margin = new Thickness(0, 56, 0, 40) };
     private readonly DispatcherTimer _typing = new() { Interval = TimeSpan.FromMilliseconds(320) };
     private readonly List<MediaItem> _items = [];
     private int _total, _version;
@@ -63,6 +63,8 @@ public sealed class BrowsePage : Page
     /// <summary>The episodes and the sagas the search found, shown under its titles.</summary>
     public IReadOnlyList<MediaItem> FoundEpisodes => _foundEpisodes;
     public IReadOnlyList<MediaItem> FoundSagas => _foundSagas;
+    /// <summary>What the page says when it has nothing to show (the self-check).</summary>
+    public EmptyState Empty => _empty;
     /// <summary>Types a search, as the field does (the self-check).</summary>
     public void Search(string text) => _search.Text = text;
 
@@ -73,7 +75,7 @@ public sealed class BrowsePage : Page
             : kind switch { BrowseKind.Movies => L("Films", "Movies"), BrowseKind.Series => L("Séries", "Shows"), BrowseKind.Search => L("Rechercher", "Search"), _ => L("Bibliothèque", "Library") };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
         DockPanel.SetDock(_count, Dock.Right); header.Children.Add(_count);
-        header.Children.Add(Ui.Text(title, 34, FontWeight.ExtraBold));
+        header.Children.Add(Ui.Heading(title, 34, 1, FontWeight.ExtraBold));
 
         _favorites = Ui.Action(L("Favoris", "Favorites"), "heart", "chip", () => { _favoritesOnly = !_favoritesOnly; _favorites!.Classes.Set("on", _favoritesOnly); _ = ReloadAsync(); });
         _reset = Ui.Action(L("Réinitialiser", "Reset"), "refresh", "chip quiet", Reset);
@@ -122,16 +124,16 @@ public sealed class BrowsePage : Page
             page.Children.Add(chip);
         }
         page.Children.Add(_empty);
-        _peopleSection.Children.Add(Ui.Text(L("Personnes", "People"), 22, FontWeight.Bold));
+        _peopleSection.Children.Add(Ui.Heading(L("Personnes", "People"), 22, 2));
         _peopleSection.Children.Add(_people);
         page.Children.Add(_peopleSection);
-        _studiosSection.Children.Add(Ui.Text(L("Studios", "Studios"), 22, FontWeight.Bold));
+        _studiosSection.Children.Add(Ui.Heading(L("Studios", "Studios"), 22, 2));
         _studiosSection.Children.Add(_studios);
         page.Children.Add(_studiosSection);
         page.Children.Add(_grid);
-        _episodesSection.Children.Add(Ui.Text(L("Épisodes", "Episodes"), 22, FontWeight.Bold));
+        _episodesSection.Children.Add(Ui.Heading(L("Épisodes", "Episodes"), 22, 2));
         _episodesSection.Children.Add(_episodes);
-        _sagasSection.Children.Add(Ui.Text(L("Sagas", "Collections"), 22, FontWeight.Bold));
+        _sagasSection.Children.Add(Ui.Heading(L("Sagas", "Collections"), 22, 2));
         _sagasSection.Children.Add(_sagas);
         page.Children.Add(_episodesSection); page.Children.Add(_sagasSection);
         _scroll = new ScrollViewer { Content = page };
@@ -197,7 +199,7 @@ public sealed class BrowsePage : Page
         if (Shell.Session is not { } session) return;
         _reset.IsVisible = Filtered;
         var search = _search.Text?.Trim() ?? "";
-        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowStudios([]); ShowFound([], []); _count.Text = ""; ShowEmpty(L("Tape le nom d’un film, d’une série, d’un épisode, d’une saga, d’un acteur ou d’un studio.", "Type the name of a movie, a show, an episode, a collection, an actor or a studio.")); return; }
+        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowStudios([]); ShowFound([], []); _count.Text = ""; _empty.Show("search", L("Que veux-tu regarder ?", "What do you want to watch?"), L("Cherche un film, une série, un épisode, une saga, un acteur ou un studio de ta bibliothèque.", "Find a movie, show, episode, collection, actor or studio in your library.")); return; }
         _request?.Cancel(); _request = new CancellationTokenSource();
         var ct = _request.Token; var version = ++_version;
         _loading = true;
@@ -228,9 +230,8 @@ public sealed class BrowsePage : Page
             if (keep) _scroll.Offset = offset; else _scroll.Offset = default;
             Count();
             if (_items.Count == 0 && _found.Count + _foundStudios.Count + _foundEpisodes.Count + _foundSagas.Count == 0)
-                ShowEmpty(_kind == BrowseKind.Search ? L($"Rien ne correspond à « {search} ».", $"Nothing matches “{search}”.") : Filtered ? L("Aucun titre ne correspond à ces filtres.", "No title matches these filters.")
-                    : _saga is not null ? L("Les films de cette saga ne sont pas dans ta bibliothèque.", "This collection’s movies aren’t in your library.") : L("Aucun titre dans cette bibliothèque pour l’instant.", "No titles in this library yet."));
-            else _empty.IsVisible = false;
+                ShowEmpty(search);
+            else _empty.Hide();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (Errors.Expected(ex)) { if (version == _version) Shell.Notice(Errors.Friendly(ex), L("Réessayer", "Try again"), () => _ = ReloadAsync()); }
@@ -254,7 +255,7 @@ public sealed class BrowsePage : Page
         catch (Exception ex) when (Errors.Expected(ex)) { }
         finally { if (version == _version) _loading = false; }
     }
-    private void Count() => _count.Text = Lang.Count(_total, "titre", "titres", "title", "titles");
+    private void Count() => _count.Text = _total == 0 ? "" : Lang.Count(_total, "titre", "titres", "title", "titles");
     /// <summary>The people found, drawn again only when they change (their photos do not flash at each refresh).</summary>
     private void ShowPeople(List<MediaItem> people)
     {
@@ -289,5 +290,28 @@ public sealed class BrowsePage : Page
             foreach (var saga in sagas) { var card = Cards.Poster(saga, session.Images, Shell.Open, Shell.Menu); card.Width = 168; _sagas.Children.Add(card); }
         }
     }
-    private void ShowEmpty(string text) { _empty.Text = text; _empty.IsVisible = true; }
+    /// <summary>
+    /// Nothing found: what is empty and the way out, in the Windows app's words (<see cref="Catalog.Empty"/>) for a search,
+    /// filters, the favourites or a library; a person's, a studio's or a saga's page says whose titles are missing.
+    /// </summary>
+    private void ShowEmpty(string search)
+    {
+        if (search.Length == 0 && !Filtered && (_person is not null || _studio is not null || _saga is not null))
+        {
+            var text = _person is not null ? L("Aucun film ni série de ta bibliothèque ne cite cette personne.", "No movie or show in your library lists this person.")
+                : _studio is not null ? L("Aucun film ni série de ta bibliothèque ne vient de ce studio.", "No movie or show in your library comes from this studio.")
+                : L("Cette saga n’a aucun film de ta bibliothèque.", "None of this collection’s movies are in your library.");
+            _empty.Show(_person is not null ? "user" : "film", L("Aucun titre", "No titles"), text, L("Retour", "Back"), () => Shell.Back());
+            return;
+        }
+        var catalog = new Catalog
+        {
+            View = _kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", BrowseKind.Search => "search", _ => "library" },
+            Favorites = _favoritesOnly, ParentId = _saga is null ? Library : null
+        };
+        var empty = catalog.Empty(search, Query with { PersonId = null, StudioId = null }, demo: false);
+        if (search.Length > 0) _empty.Show(empty.Icon, empty.Title, empty.Hint, L("Effacer la recherche", "Clear the search"), () => _search.Text = "");
+        else if (empty.Reset) _empty.Show(empty.Icon, empty.Title, empty.Hint, L("Réinitialiser les filtres", "Reset filters"), Reset);
+        else _empty.Show(empty.Icon, empty.Title, empty.Hint, L("Actualiser", "Refresh"), () => _ = ReloadAsync());
+    }
 }

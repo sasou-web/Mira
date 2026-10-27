@@ -24,7 +24,7 @@ public sealed class SettingsPage : Page
     {
         var settings = shell.Settings;
         var page = new StackPanel { Spacing = 34, Margin = new Thickness(56, 44 + shell.TitleBarInset, 56, 60), MaxWidth = 860, HorizontalAlignment = HorizontalAlignment.Left };
-        page.Children.Add(Ui.Text(L("Réglages", "Settings"), 34, FontWeight.ExtraBold));
+        page.Children.Add(Ui.Heading(L("Réglages", "Settings"), 34, 1, FontWeight.ExtraBold));
 
         var connection = shell.Session?.Connection;
         // Read when « Se déconnecter » is clicked, never kept: each sign-out asks anew.
@@ -239,7 +239,7 @@ public sealed class SettingsPage : Page
             var radius = new CornerRadius(i == 0 ? 12 : 0, i == 0 ? 12 : 0, i == rows.Length - 1 ? 12 : 0, i == rows.Length - 1 ? 12 : 0);
             list.Children.Add(new Border { Background = Ui.Brush("#111113"), CornerRadius = radius, Padding = new Thickness(22, 16), Child = rows[i] });
         }
-        return Ui.Column(12, new TextBlock { Text = title, FontSize = 19, FontWeight = FontWeight.Bold }, list);
+        return Ui.Column(12, Ui.Heading(title, 19, 2), list);
     }
     private static Control Row(string title, string detail, Control? action)
     {
