@@ -24,6 +24,8 @@ public sealed class ActionRow : Panel
 
     /// <summary>Whether <paramref name="button"/> shows its label; true when it shows the one Mira wants.</summary>
     public static bool ShowsLabel(Button button) => !Compact.TryGetValue(button, out _);
+    /// <summary>The width the row takes with every label, at its last measure.</summary>
+    public double LabelledWidth { get; private set; }
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -31,6 +33,7 @@ public sealed class ActionRow : Panel
         var shown = InternalChildren.OfType<UIElement>().Where(x => x.Visibility != Visibility.Collapsed).ToList();
         double width = 0, height = 0;
         foreach (var child in shown) { if (child is Button button) Show(button, true); child.Measure(infinite); width += child.DesiredSize.Width; }
+        LabelledWidth = width;
         if (width > availableSize.Width)
             foreach (var button in shown.OfType<Button>().Where(x => GetShrink(x) > 0).OrderBy(GetShrink))
             {

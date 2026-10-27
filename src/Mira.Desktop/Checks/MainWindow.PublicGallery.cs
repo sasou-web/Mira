@@ -33,16 +33,25 @@ public partial class MainWindow
             await Page("library", "05-favorites", favorites: true);
             await ShowDetailsAsync(_demoItems!.First(x => x.Type == "Movie"));
             await CaptureAsync(output, "06-film-details");
-            // Every button a title's page can have, at Mira's smallest window then on a 1080p screen: one line that
-            // never cuts a button off, labels given up from the least needed ones only when they do not fit.
+            // Every button a title's page can have, at Mira's smallest window: one line that never cuts a button off,
+            // labels given up from the least needed ones only when they do not fit; with fewer buttons, every label back.
+            // (A runner's screen is too small for a wide window: Windows keeps a window within it.)
             ShowEveryDetailAction();
             Width = 960; Height = 600; await CaptureAsync(output, "06-film-actions-minimum");
-            var actions = DetailActions.Children.OfType<Button>().Where(x => x.IsVisible).ToList();
-            foreach (var action in actions)
-                if (action.TranslatePoint(new Point(action.ActualWidth, 0), DetailActions).X > DetailActions.ActualWidth + 1)
-                    throw new InvalidOperationException($"« {Accessible.ContentText(action.Content)} » is cut off on the title page at 960 px.");
-            Width = 1920; Height = 1032; await CaptureAsync(output, "06-film-actions-wide");
-            if (actions.FirstOrDefault(x => !ActionRow.ShowsLabel(x)) is { } shrunk) throw new InvalidOperationException($"« {Accessible.ContentText(shrunk.Content)} » lost its label on a 1920 px window.");
+            void AssertActions(string when)
+            {
+                var actions = DetailActions.Children.OfType<Button>().Where(x => x.IsVisible).ToList();
+                foreach (var action in actions)
+                    if (action.TranslatePoint(new Point(action.ActualWidth, 0), DetailActions).X > DetailActions.ActualWidth + 1)
+                        throw new InvalidOperationException($"« {Accessible.ContentText(action.Content)} » is cut off on the title page {when}.");
+                if (DetailActions.LabelledWidth <= DetailActions.ActualWidth && actions.FirstOrDefault(x => !ActionRow.ShowsLabel(x)) is { } shrunk)
+                    throw new InvalidOperationException($"« {Accessible.ContentText(shrunk.Content)} » lost its label {when}, with room for it.");
+            }
+            AssertActions("at 960 px");
+            TogetherButton.Visibility = OfflineButton.Visibility = FollowButton.Visibility = Visibility.Collapsed;
+            await CaptureAsync(output, "06-film-actions-fewer"); AssertActions("with four buttons at 960 px");
+            if (DetailActions.Children.OfType<Button>().FirstOrDefault(x => x.IsVisible && !ActionRow.ShowsLabel(x)) is { } bare)
+                throw new InvalidOperationException($"« {Accessible.ContentText(bare.Content)} » did not get its label back.");
             Width = 1440; Height = 960;
             Settings_Click(this, new()); await CaptureAsync(output, "07-playback-settings");
             SelectSettingsTab("subtitles"); await CaptureAsync(output, "08-subtitles-settings");
