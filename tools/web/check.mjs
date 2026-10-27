@@ -2165,8 +2165,8 @@ kp2.on('pageerror', (e) => deskErrors.push(e.message));
 try {
   await signIn(kp2);
   await kp2.evaluate(() => { location.hash = '#/films'; });
-  const card = kp2.locator('#view .grid .card').nth(1);
-  await card.waitFor({ timeout: 10000 });
+  const card = kp2.locator('#view .grid:not([aria-hidden="true"]) a.card').nth(1);
+  await card.waitFor({ state: 'visible', timeout: 10000 }); await kp2.waitForTimeout(500);
   const cardBox = await card.boundingBox();
   const click = { x: Math.round(cardBox.x + cardBox.width / 2), y: Math.round(cardBox.y + 40) };
   await kp2.mouse.click(click.x, click.y, { button: 'right' }); await kp2.waitForTimeout(600);
