@@ -372,9 +372,14 @@ try {
   const ofStudio = await titlesOf('#/studio/');
   const studioHead = await page.locator('#view .studio-page h1').innerText().catch(() => '');
   await shot('12-studio');
+  // Jellyfin 10.9 and 10.10 do not say which collections hold a film (Items/{id}/Collections): no saga row, so nothing
+  // for the studio row to leave out, and Aube Test shows in it beside Chapitres Web.
+  const studioTitles = sameStudio?.slice(1, -1) ?? [];
+  const studioRowOk = olderJellyfin ? studioTitles.length === 2 && studioTitles.includes('Chapitres Web (2024)') && studioTitles.includes('Aube Test (2021)')
+    : studioTitles.join('|') === 'Chapitres Web (2024)';
   check('fiche : genres et studio cliquables, « Du même studio » sans le film de la saga, clic droit sur une carte',
     genreLinks.join('|') === 'Animation #/films?genre=Animation' && /^Studio : Studio Test #\/studio\/[0-9a-f]+$/.test(studioLink[0] ?? '')
-      && sameStudio?.[0] === 'Du même studio · Studio Test' && sameStudio[1] === 'Chapitres Web (2024)' && sameStudio.length === 3 && /^#\/studio\//.test(sameStudio[2])
+      && sameStudio?.[0] === 'Du même studio · Studio Test' && studioRowOk && /^#\/studio\//.test(sameStudio[sameStudio.length - 1])
       && ofGenre?.join('|') === 'Aube Test (2021)|Lueur Web (2020)' && genreChip.includes('Animation')
       && studioHead === 'Studio Test' && ofStudio?.join('|') === 'Aube Test (2021)|Chapitres Web (2024)|Lueur Web (2020)' && cardMenu.some((x) => x.startsWith('Marquer comme')),
     `genres : ${genreLinks.join(', ') || 'aucun lien'} ; ${studioLink.join(', ') || 'pas de studio'} ; rangée : ${sameStudio?.join(', ') ?? 'aucune'} ; `
@@ -500,7 +505,8 @@ try {
   const dialogue = (await api(`Items/${anime.Id}`)).MediaSources[0].MediaStreams.find((x) => x.Type === 'Subtitle' && x.Codec === 'ass' && !x.IsForced);
   // On 10.9 the anime (Matroska) cannot play here: the checks of the player below run on the film.
   await page.evaluate(([id, index]) => { location.hash = `#/lecture/${id}?debut=1${index == null ? '' : `&sous-titres=${index}`}`; }, noVp9Copy ? [film.Id, null] : [anime.Id, dialogue.Index]);
-  if (noVp9Copy) await wait(4000);
+  // The film plays before its controls are used: on a busy runner, Jellyfin 10.9 takes more than a few seconds to start it.
+  if (noVp9Copy) await page.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 0.5; }, null, { timeout: 30000 }).catch(() => {});
   const assCue = noVp9Copy ? null : await page.waitForFunction(() => {
     const v = document.querySelector('video'), t = v && [...v.textTracks].find((x) => x.mode === 'showing');
     return t?.activeCues?.length ? { text: t.activeCues[0].text, t: v.currentTime, src: v.currentSrc, label: t.label } : null;
@@ -1754,7 +1760,7 @@ const togetherA = await newContext('ensemble (1)'), togetherB = await newContext
 const ta = await togetherA.newPage(), tb = await togetherB.newPage();
 const togetherErrors = [];
 for (const p of [ta, tb]) p.on('pageerror', (e) => togetherErrors.push(e.message));
-const videoState = (p) => p.evaluate(() => { const v = document.querySelector('video'); return v ? { t: v.currentTime, paused: v.paused } : null; });
+const videoState = (p) => p.evaluate(() => { const v = document.querySelector('video'); return v ? { t: v.currentTime, paused: v.paused, rs: v.readyState } : null; });
 // Jellyfin's socket of each phone, through Playwright: closed both ways and refused while the phone is away.
 const phones = new Map();
 for (const p of [ta, tb]) {
@@ -1811,13 +1817,14 @@ try {
     `« ${created} » ; lien ${link || 'absent'} (${steps} étapes) ; « ${invitedLead} » ; « ${joinPage} » ; « ${joinedLine} »`);
   await ta.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
   const followed = await tb.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 15000 }).then(() => true, () => false);
-  await ta.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 25000 }).catch(() => {});
-  await tb.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 15000 }).catch(() => {});
+  // Jellyfin waits for the slower of the two phones to load the film: on a busy runner (a conversion starting on 10.x) it takes a minute.
+  await ta.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 60000 }).catch(() => {});
+  await tb.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 30000 }).catch(() => {});
   await ta.waitForTimeout(1500);
   let [a, b] = await Promise.all([videoState(ta), videoState(tb)]);
   check('ensemble : Lecture sur l’un ouvre le titre sur l’autre, lus au même moment',
     followed && a && b && !a.paused && !b.paused && Math.abs(a.t - b.t) < 1,
-    `${followed ? 'titre ouvert sur l’autre' : 'l’autre n’a rien ouvert'} ; ${a ? `${a.t.toFixed(2)} s${a.paused ? ' (en pause)' : ''}` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s${b.paused ? ' (en pause)' : ''}` : 'pas de vidéo'}`);
+    `${followed ? 'titre ouvert sur l’autre' : 'l’autre n’a rien ouvert'} ; ${a ? `${a.t.toFixed(2)} s${a.paused ? ' (en pause)' : ''}, readyState ${a.rs}` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s${b.paused ? ' (en pause)' : ''}, readyState ${b.rs}` : 'pas de vidéo'}`);
   await ta.evaluate(() => document.querySelector('video').pause());
   await tb.waitForFunction(() => document.querySelector('video')?.paused, null, { timeout: 8000 }).catch(() => {});
   await tb.waitForTimeout(800);
