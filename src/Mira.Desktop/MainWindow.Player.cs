@@ -61,7 +61,9 @@ public partial class MainWindow
                 if (await AskGroupAsync(item, fromStart, completePrevious, chosen)) return;
                 groupStart = _groupQueue?.StartTicks ?? 0;
             }
-            string location; string? authorization = null; MediaSource? source = null; string session = ""; OfflineCopy? kept = null;
+            string location; string? authorization = null; MediaSource? source = null; string session = ""; OfflineCopy? kept = null; ServerStream? stream = null;
+            // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
+            double StartAt() => groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack);
             if (_demo)
             {
                 if (_testMedia is null)
@@ -77,17 +79,14 @@ public partial class MainWindow
             else
             {
                 if (_client is null) return;
-                var info = await _client.PlaybackAsync(item.Id);
-                source = info.MediaSources.FirstOrDefault() ?? throw new IOException(L("Aucune source lisible disponible.", "No playable source available."));
-                session = string.IsNullOrEmpty(info.PlaySessionId) ? Guid.NewGuid().ToString("N") : info.PlaySessionId;
-                var isLocalServer = new Uri(_client.Connection.Server).IsLoopback;
-                if (isLocalServer && string.Equals(source.Protocol, "File", StringComparison.OrdinalIgnoreCase) && source.Path is { } path && await ReachableFileAsync(path)) location = path;
-                else { location = _client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = _client.AuthorizationHeader; }
+                // The file as it is, or Jellyfin's conversion under the quality chosen (MainWindow.PlayerStream.cs).
+                stream = await OpenStreamAsync(_client, item, StartAt());
+                source = stream.Source; session = stream.PlaySessionId; location = stream.Location; authorization = stream.Authorization;
             }
             await StopPlaybackAsync(completePrevious);
-            _playingCopy = kept;
-            // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
-            _session.Begin(item, source, session, groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack)); _loaded = false;
+            _playingCopy = kept; UseStream(stream);
+            // After the previous playback stopped: it may have been this title, now further on or watched.
+            _session.Begin(item, source, session, StartAt(), stream?.PlayMethod ?? "DirectPlay"); _loaded = false;
             // "Épisode 3" at once; the total of the season follows with the episode list (LoadServerMarkersAsync).
             PlayingTitle.Text = MiniTitle.Text = item.DisplayTitle; PlayingSubtitle.Text = _demo ? L("Vidéo locale · mode démonstration", "Local video · demo mode") : PlayerText.Subtitle(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
@@ -107,7 +106,7 @@ public partial class MainWindow
             }
             ResetMarkers();
             _mpv = new MpvEngine(_videoHandle, _settings);
-            // Kept to reopen the stream at its position after the PC slept (MainWindow.Power.cs).
+            // Kept to reopen the stream at its position after the PC slept (MainWindow.Power.cs) or a cut (MainWindow.PlayerStream.cs).
             // Someone starting a playback has the PC awake: no earlier sleep is left to handle.
             _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
             PublishWindowsTrack(item);
@@ -117,7 +116,7 @@ public partial class MainWindow
             _ = LoadServerMarkersAsync(item, generation);
             _mpv.Ended += eof =>
             {
-                // The stream replaced by its reopening after sleep: not an end.
+                // The stream replaced by its reopening (after sleep, another quality or track): not an end.
                 if (_skipEnds > 0) { _skipEnds--; return; }
                 _fileOpen = false;
                 // The stream reopened after sleep could not load: an end, never that of the title.
@@ -160,27 +159,28 @@ public partial class MainWindow
     {
         if (_mpv is null || _session.Item is null) return;
         var generation = _playGeneration;
-        var reopened = _wake == WakeState.Reloading; _wake = WakeState.None;
+        var reopened = _wake == WakeState.Reloading; _wake = WakeState.None; _recoveryLoad = false;
+        _starvedSince = null; _buffering = false; ShowPlayerStatus(null);
         _loaded = true; SeekBar.IsEnabled = true; SetPlayerLoading(false); ShowPlayerControls(); _session.Paused = _mpv.Flag("pause"); _session.Duration = _mpv.Number("duration", _session.Duration); _session.Position = _mpv.Number("time-pos", _session.Position);
         SeekBar.SetPlayback(_session.Position, _session.Duration, !_session.Paused, _mpv.Number("speed", 1)); LoadFileChapters();
         UpdateWindowsPlayback();
-        _session.LastReport = DateTimeOffset.Now;
-        // Reopened after sleep: the same playback goes on for Jellyfin.
+        // Reopened (after sleep, another quality, the connection back): the same playback goes on for Jellyfin, told at
+        // the next tick under its new session.
+        _session.LastReport = reopened ? DateTimeOffset.MinValue : DateTimeOffset.Now;
         if (!_demo && _sync is not null && !reopened) { _session.Reported = true; await _sync.RecordAsync("start", Report()); }
         if (generation != _playGeneration || _mpv is null) return;
         await RememberCurrentPlaybackAsync();
         if (generation != _playGeneration || _mpv is null) return;
-        // External subtitles supplied by Jellyfin may not share the video's filename.
-        if (!_demo && _client is not null && _session.Source is not null)
+        if (!_demo && _client is not null && _stream is { } stream)
         {
-            foreach (var stream in _session.Source.MediaStreams.Where(s => s.Type == "Subtitle" && s.IsExternal && s.DeliveryUrl is not null))
-            {
-                var uri = new Uri(new Uri(_client.Connection.Server), stream.DeliveryUrl!);
-                if (uri.GetLeftPart(UriPartial.Authority) != new Uri(_client.Connection.Server).GetLeftPart(UriPartial.Authority)) continue;
-                // Local files need the same authorization header for separately fetched subtitle tracks.
-                _mpv.Set("http-header-fields", "Authorization: " + _client.AuthorizationHeader.Replace(",", "\\,"));
-                try { _mpv.Command("sub-add", uri.AbsoluteUri, "auto", stream.DisplayTitle ?? "", stream.Language ?? ""); } catch (IOException) { }
-            }
+            // Subtitles fetched from Jellyfin take the token in their header too (its file on this PC opens without it).
+            _mpv.Set("http-header-fields", "Authorization: " + _client.AuthorizationHeader.Replace(",", "\\,"));
+            // External subtitles supplied by Jellyfin may not share the video's filename; a conversion's come when chosen.
+            if (!stream.Converted)
+                foreach (var (track, path) in ServerStreams.Beside(stream.Source, converted: false))
+                {
+                    try { _mpv.Command("sub-add", _client.ServerUri(path).AbsoluteUri, "auto", track.DisplayTitle ?? "", track.Language ?? ""); } catch (IOException) { }
+                }
         }
         // The subtitle files kept beside a copy.
         if (_playingCopy is { } kept && kept.Item.Id == _session.Item.Id)
@@ -190,7 +190,26 @@ public partial class MainWindow
             }
         // Whether « Chercher des sous-titres… » shows, known before the menu opens.
         _ = ShowSubtitleSearchAsync();
-        if (reopened) RestoreTracks(); else await ChooseSeriesTracksAsync(generation);
+        await ChooseStartTracksAsync(reopened, generation);
+    }
+    /// <summary>
+    /// The tracks a file starts with: the series' or the settings' languages; opened again, those playing before (by number
+    /// on the same file, by language and name on another stream), or those chosen in a conversion's menu, then kept.
+    /// </summary>
+    private async Task ChooseStartTracksAsync(bool reopened, int generation)
+    {
+        if (_converted is { } converted)
+        {
+            var memory = reopened ? _reopenTracks : _session.Item is { } item ? await SeriesMemoryAsync(item) : null;
+            if (generation != _playGeneration || !ReferenceEquals(converted, _converted)) return;
+            ShowConvertedText(reopened && _reopenText is { } chosen ? chosen >= 0 ? chosen : null : converted.StartText(memory, _settings.SubtitleLanguage));
+        }
+        else if (reopened && _reloadTracks is not null) RestoreTracks();
+        else if (reopened && _reopenTracks is { } tracks) ChooseTracks(tracks);
+        else await ChooseSeriesTracksAsync(generation);
+        if (generation != _playGeneration) return;
+        if (reopened && _reopenChosen) RememberTracks();
+        _reopenText = null; _reopenChosen = false; _reloadTracks = null;
     }
     private async void PlayerTick(object? sender, EventArgs e)
     {
@@ -201,6 +220,7 @@ public partial class MainWindow
         try
         {
             UpdatePlayerControls(); UpdateGroupPill(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
+            ShowBuffering(); KeepTracks();
             _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position)); _session.Duration = _mpv.Number("duration", _session.Duration);
             var paused = _mpv.Flag("pause"); ShowPauseState(paused);
             // The timeline interpolates between these polls on every frame.
@@ -214,6 +234,7 @@ public partial class MainWindow
             UpdateWindowsPlayback();
             var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
+            _recovery.Played(_session.Position);
             // Every 10 s while it plays, once when it pauses or resumes, never while it stays paused.
             if (!_demo && _sync is not null && _session.Reported && Cadence.ProgressDue(changed, paused, _session.LastReport, DateTimeOffset.Now))
             { _session.LastReport = DateTimeOffset.Now; await _sync.RecordAsync("progress", Report()); }
@@ -231,6 +252,8 @@ public partial class MainWindow
         {
             if (!_playing || generation != _playGeneration) return;
             if (interrupted) { _loaded = false; _session.Failure = null; SeekBar.IsEnabled = false; SetPlayerLoading(true); return; }
+            // A stream from Jellyfin that stopped before the end of its title: the connection, as on Mira web.
+            if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
             var previous = _session.Item; var error = _session.Failure; var keepMini = _miniPlayer; var stay = _skips.Stay; var following = _skips.Next;
             if (eof && _session.Duration > 0) _session.Position = _session.Duration;
             await StopPlaybackAsync(eof);
@@ -318,7 +341,7 @@ public partial class MainWindow
         ++_playGeneration; ClosePlayerPopups(); _playerTimer.Stop(); SeekBar.IsEnabled = false; SetPlayerLoading(false);
         if (_playing && _loaded && _mpv is not null && !completed) _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position));
         completed = _session.Completes(_loaded, completed);
-        _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null; UpdateGroupPill();
+        _playing = false; _wake = WakeState.None; _skipEnds = 0; _reloadTracks = null; UpdateGroupPill(); ForgetStream();
         try
         {
             _windows?.Clear();

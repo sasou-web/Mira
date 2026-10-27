@@ -23,7 +23,7 @@ namespace Mira.Mac.Views;
 /// Reports start, progress and end to Jellyfin through the same queue as the Windows app, so progress is never lost
 /// offline, and plays the next episode at the end of one.
 /// </summary>
-public sealed class PlayerPage : UserControl
+public sealed partial class PlayerPage : UserControl
 {
     private readonly MainWindow _shell;
     private readonly Grid _root = new() { Background = Brushes.Black };
@@ -89,6 +89,7 @@ public sealed class PlayerPage : UserControl
         _shell = shell;
         _root.Children.Add(_videoHost);
         _root.Children.Add(_spinner);
+        _root.Children.Add(StatusPill());
 
         var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => _ = _shell.StopPlaybackAsync(), "player", 24);
         var heading = Ui.Column(0, _title, _subtitle); heading.VerticalAlignment = VerticalAlignment.Center; heading.Margin = new Thickness(10, 0, 0, 0);
@@ -201,15 +202,13 @@ public sealed class PlayerPage : UserControl
         try
         {
             if (item.Type == "Series") item = await EpisodeOfAsync(session, item);
-            var playback = await session.Client.PlaybackAsync(item.Id);
-            var source = playback.MediaSources.FirstOrDefault() ?? throw new IOException(L("Aucune source lisible disponible.", "No playable source available."));
-            string location; string? authorization = null;
-            // Jellyfin on this same Mac: its file directly; otherwise the original stream, never transcoded.
-            if (new Uri(session.Connection.Server).IsLoopback && string.Equals(source.Protocol, "File", StringComparison.OrdinalIgnoreCase) && source.Path is { } path && File.Exists(path)) location = path;
-            else { location = session.Client.StreamUri(item.Id, source.Id).AbsoluteUri; authorization = session.Client.AuthorizationHeader; }
+            var start = groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart, back: _shell.Settings.ResumeBack);
+            // Jellyfin on this same Mac: its file directly; otherwise the file as it is, or Jellyfin's conversion under the
+            // quality chosen (PlayerPage.Stream.cs).
+            var stream = await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(session, item)), _shell.Settings.AudioLanguage, FileHere);
             if (generation != _generation) return false;
-            _session.Begin(item, source, string.IsNullOrEmpty(playback.PlaySessionId) ? Guid.NewGuid().ToString("N") : playback.PlaySessionId,
-                groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart, back: _shell.Settings.ResumeBack));
+            UseStream(stream);
+            _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
             _title.Text = item.DisplayTitle; _subtitle.Text = PlayerText.Subtitle(item);
             _next.IsEnabled = false;
 
@@ -218,7 +217,8 @@ public sealed class PlayerPage : UserControl
             // In a group: loaded paused, « ready » once there (GroupRestarted), played when Jellyfin says.
             _groupReadyPending = groupStart is not null; _groupStallSince = null; _groupStalled = false;
             if (groupStart is not null) { Group.SetAway(false); Group.Report("Buffering", _session.Position, false); }
-            _mpv.Load(location, _session.Position, authorization, paused: groupStart is not null);
+            _fileOpen = true;
+            _mpv.Load(stream.Location, _session.Position, stream.Authorization, paused: groupStart is not null);
             _session.LastReport = DateTimeOffset.Now;
             _tick.Start();
             _ = LoadMarkersAsync(session, item, generation);
@@ -253,7 +253,15 @@ public sealed class PlayerPage : UserControl
         player.FileLoaded += FileLoaded;
         player.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
         var generation = _generation;
-        player.Ended += eof => Dispatcher.UIThread.Post(() => _ = EndedAsync(eof, generation));
+        player.Ended += eof =>
+        {
+            // The stream replaced by its reopening (another quality or track, the connection back): not an end.
+            if (_skipEnds > 0) { _skipEnds--; return; }
+            _fileOpen = false;
+            // The stream opened again could not load: an end, never that of the title.
+            var ended = eof && !_reloading;
+            Dispatcher.UIThread.Post(() => _ = EndedAsync(ended, generation));
+        };
         player.Error += message => _session.Failure = message;
         IVideoSurface surface = Environment.GetEnvironmentVariable("MIRA_SOFTWARE_VIDEO") is { Length: > 0 } ? new SoftwareVideoView() : new VideoView();
         if (!await AttachAsync(surface, player) && surface is VideoView gl)
@@ -292,7 +300,7 @@ public sealed class PlayerPage : UserControl
     public async Task StopAsync(bool completed = false)
     {
         if (_stopped) return;
-        _stopped = true; ++_generation;
+        _stopped = true; ++_generation; ForgetStream();
         _tick.Stop(); _hide.Stop(); _click.Stop(); _groupSeekSoon.Stop(); _groupPlaySoon.Stop(); Cursor = Cursor.Default;
         SleepGuard.Set(false);
         var session = _shell.Session;
@@ -315,6 +323,8 @@ public sealed class PlayerPage : UserControl
     private async Task EndedAsync(bool eof, int generation)
     {
         if (generation != _generation || _stopped) return;
+        // A stream from Jellyfin that stopped before the end of its title: the connection, as on Windows and Mira web.
+        if (StreamCut()) { _ = RecoverStreamAsync(generation); return; }
         var error = _session.Failure; var next = _skips.Next; var stay = _skips.Stay;
         if (eof && _session.Duration > 0) _session.Position = _session.Duration;
         // « Arrêter à la fin de l’épisode »: this one was the last.
@@ -364,29 +374,23 @@ public sealed class PlayerPage : UserControl
     {
         if (_mpv is not { } mpv || _session.Item is null || _shell.Session is not { } session) return;
         var generation = _generation;
+        var reopened = _reloading; _reloading = false; _recoveryLoad = false; _starvedSince = null; _buffering = false; ShowStatus(null);
         _loaded = true; _spinner.IsVisible = false;
         _session.Paused = mpv.Flag("pause"); _session.Duration = mpv.Number("duration", _session.Duration); _session.Position = mpv.Number("time-pos", _session.Position);
         _skips.FileChapters = mpv.Chapters(); Rebuild();
         ShowControls();
-        _session.LastReport = DateTimeOffset.Now;
-        _session.Reported = true; await session.Sync.RecordAsync("start", Report());
-        if (generation != _generation || _mpv is null || _session.Source is not { } source) return;
-        // External subtitles supplied by Jellyfin, fetched with the same authorization as the video.
-        foreach (var stream in source.MediaStreams.Where(s => s.Type == "Subtitle" && s.IsExternal && s.DeliveryUrl is not null))
-        {
-            var server = new Uri(session.Connection.Server);
-            var uri = new Uri(server, stream.DeliveryUrl!);
-            if (uri.GetLeftPart(UriPartial.Authority) != server.GetLeftPart(UriPartial.Authority)) continue;
-            _mpv.Set("http-header-fields", "Authorization: " + session.Client.AuthorizationHeader.Replace(",", "\\,"));
-            _mpv.TryCommand("sub-add", uri.AbsoluteUri, "auto", stream.DisplayTitle ?? "", stream.Language ?? "");
-        }
-        // The audio and subtitles last chosen in this series, where this episode has them.
-        if (_session.Item?.SeriesId is not { Length: > 0 } series) return;
-        var tracks = await Task.Run(() => Errors.TryCache(() => session.Store.TracksOf(series)));
-        if (tracks is null || generation != _generation || _mpv is null) return;
-        var (audio, subtitle) = SeriesTracks.Choose(_mpv.Get("track-list"), tracks);
-        if (audio is not null) _mpv.Set("aid", audio);
-        if (subtitle is not null) _mpv.Set("sid", subtitle);
+        // Opened again (another quality, the connection back): the same playback goes on for Jellyfin, told at the next
+        // tick under its new session.
+        _session.LastReport = reopened ? DateTimeOffset.MinValue : DateTimeOffset.Now;
+        if (!reopened) { _session.Reported = true; await session.Sync.RecordAsync("start", Report()); }
+        if (generation != _generation || _mpv is null || _stream is not { } stream) return;
+        // Subtitles fetched from Jellyfin take the token in their header too (its file on this Mac opens without it).
+        _mpv.Set("http-header-fields", "Authorization: " + session.Client.AuthorizationHeader.Replace(",", "\\,"));
+        // External subtitles supplied by Jellyfin; a conversion's come when chosen.
+        if (!stream.Converted)
+            foreach (var (track, path) in ServerStreams.Beside(stream.Source, converted: false))
+                _mpv.TryCommand("sub-add", session.Client.ServerUri(path).AbsoluteUri, "auto", track.DisplayTitle ?? "", track.Language ?? "");
+        await ChooseStartTracksAsync(session, reopened, generation);
     }
     private PlaybackReport Report() => _session.Report(_mpv?.Level ?? _volume.Value, _mpv?.Flag("mute") ?? false);
 
@@ -400,7 +404,9 @@ public sealed class PlayerPage : UserControl
         {
             mpv.Poll(); ShowGroup();
             if (_mpv is null || !_loaded || _stopped) return;
+            ShowBuffering(mpv); KeepTracks(mpv);
             _session.Position = Reported(mpv.Number("time-pos", _session.Position)); _session.Duration = mpv.Number("duration", _session.Duration);
+            _recovery.Played(_session.Position);
             var paused = mpv.Flag("pause");
             SleepGuard.Set(!paused);
             if (paused != _session.Paused) { _session.Paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _session.LastReport = DateTimeOffset.MinValue; GroupPauseChanged(paused); }
@@ -532,6 +538,7 @@ public sealed class PlayerPage : UserControl
     // —— Menus ——
     private Control TracksMenu()
     {
+        if (_converted is { } converted) return ConvertedTracksMenu(converted);
         var tracks = _mpv?.Tracks() ?? [];
         var current = (Audio: _mpv?.Get("aid"), Sub: _mpv?.Get("sid"));
         Control Column(string title, string type, string? selected, bool off)
@@ -551,12 +558,7 @@ public sealed class PlayerPage : UserControl
     {
         if (_mpv is null) return;
         _mpv.Set(property, id);
-        if (_session.Item?.SeriesId is not { Length: > 0 } series || _shell.Session is not { } session) return;
-        if (SeriesTracks.Remember(_mpv.Get("track-list"), _mpv.Get("aid"), _mpv.Get("sid")) is { } tracks)
-        {
-            _ = Task.Run(() => Errors.TryCache(() => session.Store.RememberTracks(series, tracks)));
-            _shell.ChoicesChanged();
-        }
+        RememberTracks();
     }
     private Control MoreMenu()
     {
@@ -587,6 +589,7 @@ public sealed class PlayerPage : UserControl
             sleep.Children.Add(Entry(SleepTimer.Duration(minutes), _sleep.Chosen == minutes ? _sleep.Status(DateTimeOffset.Now) : null, _sleep.Chosen == minutes, () => Sleep(minutes)));
         if (_session.Item?.Type == "Episode") sleep.Children.Add(Entry(L("Fin de l’épisode", "End of episode"), null, _sleep.AtEnd, () => Sleep(0)));
         var menu = Ui.Row(22, speeds, delays, sleep);
+        if (_stream is { } stream) menu.Children.Insert(1, QualityColumn(stream));
         if (Group.Active && Group.Group is { } group)
         {
             var people = new TextBlock { Text = Together.GroupText(group), FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 220 };

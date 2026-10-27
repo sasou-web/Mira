@@ -392,6 +392,7 @@ public partial class MainWindow
     {
         if (_mpv is null) return;
         AudioTrackList.Children.Clear(); SubtitleTrackList.Children.Clear();
+        if (_converted is { } converted) { BuildConvertedTrackMenu(converted); _ = ShowSubtitleSearchAsync(); return; }
         var tracks = _mpv.Tracks(); var audio = _mpv.Get("aid") ?? ""; var subtitle = _mpv.Get("sid") ?? "no";
         foreach (var track in tracks.Where(t => t.Type == "audio"))
             AudioTrackList.Children.Add(MenuChoice("audio", track.Label, track.Details, track.Id == audio, () => ChooseTrack("aid", track.Id)));
@@ -407,7 +408,7 @@ public partial class MainWindow
     private void RememberTracks()
     {
         if (_mpv is null || _store is not { } store || _session.Item?.SeriesId is not { Length: > 0 } series) return;
-        if (SeriesTracks.Remember(_mpv.Get("track-list"), _mpv.Get("aid"), _mpv.Get("sid")) is not { } tracks) return;
+        if (CurrentTracks() is not { } tracks) return;
         _ = Task.Run(() => TryCache(() => store.RememberTracks(series, tracks)));
         ChoicesChanged();
     }
@@ -417,6 +418,11 @@ public partial class MainWindow
         if (_store is not { } store || _session.Item?.SeriesId is not { Length: > 0 } series) return;
         var tracks = await Task.Run(() => TryCache(() => store.TracksOf(series)));
         if (tracks is null || generation != _playGeneration || _mpv is null) return;
+        ChooseTracks(tracks);
+    }
+    private void ChooseTracks(TrackMemory tracks)
+    {
+        if (_mpv is null) return;
         var (audio, subtitle) = SeriesTracks.Choose(_mpv.Get("track-list"), tracks);
         if (audio is not null) _mpv.Set("aid", audio);
         if (subtitle is not null) _mpv.Set("sid", subtitle);
@@ -433,7 +439,7 @@ public partial class MainWindow
             chip.Checked += (_, _) => { if (!_menuBuilding) ChooseSpeed(speed); };
             SpeedList.Children.Add(chip);
         }
-        BuildSleepChoices(); ShowGroupSection();
+        BuildQualityChoices(); BuildSleepChoices(); ShowGroupSection();
         SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay"));
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");

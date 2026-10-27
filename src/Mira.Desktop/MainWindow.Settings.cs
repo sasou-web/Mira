@@ -42,6 +42,7 @@ public partial class MainWindow
         "Settings applied but not saved: the disk is full or the settings file is in use by another program. Mira will try again when it closes.");
     private bool SettingsChanged() =>
         _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true) || _settings.ResumeBack.ToString(CultureInfo.InvariantCulture) != Choice(ResumeBackChoice)
+        || QualityChoice.Items.Count > 0 && StreamQuality.Known(_settings.Quality) != Choice(QualityChoice)
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
         || _settings.SubtitleSize != (int)SubtitleSizeSlider.Value || _settings.SubtitleBackground != (SubtitleBackgroundCheck.IsChecked == true) || _settings.SubtitleBold != (SubtitleBoldCheck.IsChecked == true)
@@ -61,6 +62,8 @@ public partial class MainWindow
         _settingsBusy = true;
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip; RememberCheck.IsChecked = _settings.RememberPosition;
         SelectChoice(ResumeBackChoice, _settings.ResumeBack.ToString(CultureInfo.InvariantCulture));
+        if (QualityChoice.Items.Count == 0) foreach (var (key, label, _, details) in StreamQuality.Choices) QualityChoice.Items.Add(new ComboBoxItem { Content = label, Tag = key, ToolTip = details });
+        SelectChoice(QualityChoice, StreamQuality.Known(_settings.Quality));
         ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion;
         HeroAutoPlayCheck.IsChecked = _settings.HeroAutoPlay; EpisodeNoticesCheck.IsChecked = _settings.EpisodeNotices; ShowHomeRowsSetting(); SelectChoice(MiraLanguageChoice, ShownLanguage);
         AudioLanguageBox.Text = _settings.AudioLanguage; SubtitleLanguageBox.Text = _settings.SubtitleLanguage;
@@ -164,6 +167,8 @@ public partial class MainWindow
     {
         _settings.HardwareDecoding = HardwareCheck.IsChecked == true; _settings.AutoNext = AutoNextCheck.IsChecked == true; _settings.AutoSkip = AutoSkipCheck.IsChecked == true; _settings.RememberPosition = RememberCheck.IsChecked == true;
         _settings.ResumeBack = int.TryParse(Choice(ResumeBackChoice), NumberStyles.Integer, CultureInfo.InvariantCulture, out var back) ? back : 5;
+        // Played from now on; the title playing keeps its stream (the player's ⋮ changes it at once).
+        if (QualityChoice.Items.Count > 0) _settings.Quality = StreamQuality.Known(Choice(QualityChoice));
         _settings.ShowProgress = ShowProgressCheck.IsChecked == true; _settings.ReduceMotion = ReduceMotionCheck.IsChecked == true; _settings.PosterDensity = Choice(DensityChoice);
         _settings.HeroAutoPlay = HeroAutoPlayCheck.IsChecked == true; Motion.Reduced = _settings.ReduceMotion;
         // Turned on again: from what Jellyfin has now, not every episode that came while it was off.

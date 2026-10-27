@@ -208,8 +208,47 @@ public sealed class JellyfinClient : IDisposable
         var others = titles.Items.Where(x => x.Id != id).ToList();
         return others.Count == 0 ? null : new Saga(box.Name, others);
     }
-    public Task<PlaybackInfo> PlaybackAsync(string id, CancellationToken ct = default) =>
-        GetAsync<PlaybackInfo>($"Items/{Uri.EscapeDataString(id)}/PlaybackInfo?userId={Connection.UserId}", ct);
+    /// <summary>What Jellyfin decides for a device profile (<see cref="ServerStreams.Request"/>): the file as it is, or its conversion.</summary>
+    public async Task<PlaybackInfo> PlaybackInfoAsync(string id, JsonObject request, CancellationToken ct = default)
+    {
+        using var content = new StringContent(request.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync($"Items/{Uri.EscapeDataString(id)}/PlaybackInfo?userId={Connection.UserId}", content, ct);
+        await CheckAsync(response);
+        return await response.Content.ReadFromJsonAsync<PlaybackInfo>(Json.Options, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    /// <summary>
+    /// The connection's speed to Jellyfin, in bits per second (« Qualité » on « Automatique », away from home): up to
+    /// <paramref name="size"/> bytes, read for <paramref name="limit"/> at most once Jellyfin starts sending (the wait for
+    /// its answer is not counted: on a fast line it would be most of a short download), as Mira web measures it. Throws
+    /// when Jellyfin refuses (a 503 while it starts is not a slow line), does not answer within 5 s, or sends nothing.
+    /// </summary>
+    public async Task<double> BitrateTestAsync(int size = 4_000_000, int limit = 1500, CancellationToken ct = default)
+    {
+        using var answer = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        answer.CancelAfter(TimeSpan.FromSeconds(5));
+        using var response = await _http.GetAsync($"Playback/BitrateTest?size={size}", HttpCompletionOption.ResponseHeadersRead, answer.Token);
+        await CheckAsync(response);
+        answer.CancelAfter(Timeout.InfiniteTimeSpan);
+        using var reading = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        reading.CancelAfter(limit);
+        var started = System.Diagnostics.Stopwatch.StartNew(); long bytes = 0;
+        var buffer = new byte[64 * 1024];
+        try
+        {
+            await using var body = await response.Content.ReadAsStreamAsync(reading.Token);
+            for (int read; (read = await body.ReadAsync(buffer, reading.Token)) > 0;) bytes += read;
+        }
+        catch (OperationCanceledException) when (reading.IsCancellationRequested && !ct.IsCancellationRequested && bytes > 0) { }
+        if (bytes == 0) throw new IOException(L("Jellyfin n’a rien envoyé.", "Jellyfin sent nothing."));
+        return bytes * 8 / Math.Max(.05, started.Elapsed.TotalSeconds);
+    }
+    /// <summary>Ends Jellyfin's conversion of a play session at once (another quality, another track, the player closed).</summary>
+    public async Task StopEncodingAsync(string playSessionId, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync($"Videos/ActiveEncodings?deviceId={Uri.EscapeDataString(Connection.DeviceId)}&playSessionId={Uri.EscapeDataString(playSessionId)}", ct);
+    }
+    /// <summary>An address Jellyfin gives (« /videos/…/master.m3u8 »), on this server, under its path when it has one.</summary>
+    public Uri ServerUri(string path) => new(_http.BaseAddress!, path.TrimStart('/'));
     /// <summary>Typed intro/credits markers (Jellyfin 10.10+, filled by the server or a plugin such as Intro Skipper).</summary>
     public async Task<List<MediaSegment>> SegmentsAsync(string itemId, CancellationToken ct = default) =>
         (await GetAsync<MediaSegmentsResult>($"MediaSegments/{Uri.EscapeDataString(itemId)}" +

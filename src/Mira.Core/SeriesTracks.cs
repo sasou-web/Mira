@@ -47,7 +47,7 @@ public static class SeriesTracks
     private static bool SameTitle(string? a, string? b) =>
         !string.IsNullOrWhiteSpace(a) && !string.IsNullOrWhiteSpace(b) && string.Equals(a.Trim(), b.Trim(), StringComparison.CurrentCultureIgnoreCase);
     /// <summary>One key per language, whatever its code: « fre », « fra » and « fr » are all French; null when undetermined.</summary>
-    private static string? LanguageKey(string? code)
+    public static string? LanguageKey(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) return null;
         var main = code.Trim().Split('-', '_')[0].ToLowerInvariant();
