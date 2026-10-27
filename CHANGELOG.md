@@ -1,6 +1,8 @@
 # Historique
 
-## Non publié
+## 0.8.5 — 2026-10-27
+
+Suivre une série, corriger un titre mal reconnu, lire loin de chez soi et sauvegarder Jellyfin.
 
 - **Mac : pages vides plus claires, et VoiceOver nomme chaque bouton** : une recherche sans résultat, des filtres trop serrés, des favoris vides ou une bibliothèque vide montrent une icône, ce qui manque et le bouton qui en sort (**Effacer la recherche**, **Réinitialiser les filtres**, **Actualiser**), avec les mots de Mira pour Windows. VoiceOver lisait « Avalonia.Controls.StackPanel » sur certains boutons (lecture, son, plein écran, choix des pistes, points du bandeau) : chacun a maintenant un nom qui suit son état (**Lecture** ou **Pause**), le raccourci clavier en aide, et les titres des pages et des rangées sont des titres pour VoiceOver.
 - **Regarder ensemble sur Jellyfin 10.9 et 10.10** : la liste des personnes du groupe se mettait à jour seulement à partir de Jellyfin 10.11 (la route `SyncPlay/{id}` répond 404 avant) ; Mira lit maintenant la liste des groupes, sur toutes les versions (Mira web, Windows, Mac).
