@@ -291,6 +291,9 @@ html:not(.touch) .card:active .art, .card.pressed .art { transform: scale(0.97);
 .card.holding .art { transform: scale(1.03); box-shadow: var(--shadow); transition: transform 300ms var(--ios), box-shadow 300ms var(--ios); }
 .card-title { margin-top: 8px; font-size: calc(14px * var(--text)); font-weight: 700; line-height: 1.3; }
 .card-sub { font-size: calc(12px * var(--text)); color: var(--faint); margin-top: 1px; }
+/* A poster's title on two lines, always room for both: a long title reads whole, the cards of a grid stay in line
+   and the year sits at the same height under each (as on Windows). */
+.card-title.lines-2 { min-height: 2.6em; }
 @media (hover: hover) { a.card:hover .art { outline: 2px solid rgba(245, 245, 247, 0.85); outline-offset: 2px; } }
 
 .section { margin-top: 28px; }
@@ -307,6 +310,9 @@ html:not(.touch) .section-head a:active, .section-head a.pressed { opacity: 0.55
 .row.people { grid-auto-columns: 84px; scroll-snap-type: x proximity; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 12px; }
 @media (min-width: 600px) { .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 24px 16px; } }
+/* « Très grande » text (session.js): wider columns, two on a phone rather than three, for titles that still fit. */
+.large-text .grid { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); }
+@media (min-width: 600px) { .large-text .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
 
 .person { text-align: center; }
 .person .art { border-radius: var(--r-full); aspect-ratio: 1; }

@@ -126,7 +126,10 @@ function forgetAccount() {
 /** The text size of Réglages, on the whole page (app.css multiplies each size by --text). */
 export function applyTextSize() {
   const percent = Number(settings.get('textSize'));
-  document.documentElement.style.setProperty('--text', String((percent >= 80 && percent <= 200 ? percent : 100) / 100));
+  const text = percent >= 80 && percent <= 200 ? percent : 100;
+  document.documentElement.style.setProperty('--text', String(text / 100));
+  // Over 125 %, the grids take wider columns (app.css).
+  document.documentElement.classList.toggle('large-text', text > 125);
 }
 
 export const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;

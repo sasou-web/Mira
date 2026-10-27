@@ -72,7 +72,7 @@ export function posterCard(item, { width = posterWidth(), eager = false } = {}) 
   const art = picture(artFor(item, 'poster'), { kind: 'poster', width, label: name, eager });
   marks(item, art);
   const card = h('a', { class: 'card', href: titleHref(item), 'aria-label': toWatch(item) ? trn(toWatch(item), '{name}, {n} épisode à voir', '{name}, {n} épisodes à voir', { name }) : name },
-    art, h('div', { class: 'card-title clamp-1' }, name), h('div', { class: 'card-sub clamp-1' }, subtitle(item)));
+    art, h('div', { class: 'card-title clamp-2 lines-2' }, name), h('div', { class: 'card-sub clamp-1' }, subtitle(item)));
   card.dataset.sig = cardSig(item);
   // The item the card shows now (reconcile keeps a card and gives it the item as the server just sent it).
   card.item = item;
@@ -155,7 +155,7 @@ export function row(title, items, card, { wide = false, more = '', people = fals
 
 /** A card's place while it loads, with the card's own lines: nothing moves when the card takes it. */
 const skeletonCard = (kind) => h('div', { class: ['card', kind === 'wide' && 'wide-card'], 'aria-hidden': 'true' }, h('div', { class: ['skeleton', 'art', kind] }),
-  h('div', { class: 'card-title' }, h('span', { class: 'skeleton' })), h('div', { class: 'card-sub' }, h('span', { class: 'skeleton' })));
+  h('div', { class: ['card-title', kind === 'poster' && 'lines-2'] }, h('span', { class: 'skeleton' })), h('div', { class: 'card-sub' }, h('span', { class: 'skeleton' })));
 
 export function skeletonRow({ wide = false, count = 6, title = true } = {}) {
   return h('section', { class: 'section', 'aria-hidden': 'true' },
