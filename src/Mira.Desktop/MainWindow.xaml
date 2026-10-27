@@ -287,7 +287,7 @@
    </StackPanel></ScrollViewer>
   </Grid>
   <Grid x:Name="SettingsOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="{StaticResource Bg}" KeyboardNavigation.TabNavigation="Cycle">
-   <Grid x:Name="SettingsContent" Margin="112,57,43,22"><Grid.RowDefinitions><RowDefinition Height="100"/><RowDefinition/><RowDefinition Height="65"/></Grid.RowDefinitions>
+   <Grid x:Name="SettingsContent" Margin="112,57,43,22"><Grid.RowDefinitions><RowDefinition Height="100"/><RowDefinition/><RowDefinition Height="44"/></Grid.RowDefinitions>
     <StackPanel><TextBlock Text="{v:L 'Réglages', 'Settings'}" FontSize="31" FontWeight="SemiBold"/><TextBlock Text="{v:L 'Une lecture qui te ressemble.', 'Playback, your way.'}" Foreground="{StaticResource Muted}" Margin="0,9,0,0"/><Border Height="1" Background="{StaticResource Raised2}" Margin="0,23,0,0"/></StackPanel>
     <Grid Grid.Row="1" Margin="0,25,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="205"/><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
      <DockPanel><TextBlock x:Name="SettingsVersion" DockPanel.Dock="Bottom" Text="Mira · Jellyfin + mpv" FontSize="11" Foreground="{StaticResource Faint}" Margin="12,20,0,12"/><StackPanel x:Name="SettingsNavigation"><Button x:Name="PlaybackSettingsNav" Style="{StaticResource NavButton}" Content="{v:L 'Lecture', 'Playback'}" Tag="playback" Click="SettingsTab_Click"/><Button x:Name="SubtitleSettingsNav" Style="{StaticResource NavButton}" Content="{v:L 'Audio &amp; sous-titres', 'Audio &amp; subtitles'}" Tag="subtitles" Click="SettingsTab_Click"/><Button x:Name="AppearanceSettingsNav" Style="{StaticResource NavButton}" Content="{v:L 'Apparence', 'Appearance'}" Tag="appearance" Click="SettingsTab_Click"/><Button x:Name="ServerSettingsNav" Style="{StaticResource NavButton}" Content="{v:L 'Jellyfin &amp; synchronisation', 'Jellyfin &amp; sync'}" Tag="server" Click="SettingsTab_Click"/><Button x:Name="ReportSettingsNav" Style="{StaticResource NavButton}" Content="{v:L 'Ton bilan', 'Your recap'}" Tag="report" Click="SettingsTab_Click"/><Button x:Name="TorLinkSettingsNav" Style="{StaticResource NavButton}" Content="TorLink" Tag="torlink" Click="SettingsTab_Click"/><Button x:Name="UpdateSettingsNav" Style="{StaticResource NavButton}" Content="{v:L 'Mises à jour', 'Updates'}" Tag="updates" Click="SettingsTab_Click"/></StackPanel></DockPanel>
@@ -385,7 +385,7 @@
       </StackPanel>
      </StackPanel></ScrollViewer>
     </Grid>
-    <DockPanel Grid.Row="2" Margin="241,14,8,0"><Button Content="{v:L 'Enregistrer', 'Save'}" DockPanel.Dock="Right" Style="{StaticResource Primary}" Click="SaveSettings_Click" MinWidth="126"/><TextBlock x:Name="SettingsSaveStatus" Text="{v:L 'Les changements s’appliquent après enregistrement.', 'Changes apply once saved.'}" v:Accessible.Announce="Polite" VerticalAlignment="Center" Foreground="{DynamicResource Faint}" FontSize="12" TextWrapping="Wrap" Margin="0,0,15,0"/></DockPanel>
+    <DockPanel Grid.Row="2" Margin="241,14,8,0"><TextBlock x:Name="SettingsSaveStatus" Text="{v:L 'Chaque changement s’applique et s’enregistre tout de suite.', 'Each change applies and is saved at once.'}" v:Accessible.Announce="Polite" VerticalAlignment="Center" Foreground="{DynamicResource Faint}" FontSize="12" TextWrapping="Wrap" Margin="0,0,15,0"/></DockPanel>
    </Grid>
   </Grid>
   <Grid x:Name="GuideOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="{StaticResource Bg}" KeyboardNavigation.TabNavigation="Cycle">

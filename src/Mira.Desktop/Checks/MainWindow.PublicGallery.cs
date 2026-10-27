@@ -54,6 +54,14 @@ public partial class MainWindow
                 throw new InvalidOperationException($"« {Accessible.ContentText(bare.Content)} » did not get its label back.");
             Width = 1440; Height = 960;
             Settings_Click(this, new()); await CaptureAsync(output, "07-playback-settings");
+            // A switch applies on its own, with no button to press: in the settings a moment later, and back the same way.
+            var autoNext = _settings.AutoNext;
+            for (var turn = 0; turn < 2; turn++)
+            {
+                AutoNextCheck.IsChecked = !(AutoNextCheck.IsChecked == true); await Task.Delay(800);
+                if (_settings.AutoNext != (AutoNextCheck.IsChecked == true)) throw new InvalidOperationException("A switch of the settings was not applied on its own.");
+            }
+            if (_settings.AutoNext != autoNext) throw new InvalidOperationException("The settings did not come back as they were.");
             SelectSettingsTab("subtitles"); await CaptureAsync(output, "08-subtitles-settings");
             SelectSettingsTab("appearance"); await CaptureAsync(output, "09-appearance-settings");
             SelectSettingsTab("server"); await CaptureAsync(output, "10-server-settings");
