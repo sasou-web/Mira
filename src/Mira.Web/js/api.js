@@ -516,7 +516,7 @@ export const api = {
 
   /** Films and series, newest first unless sorted otherwise; filters as Mira on Windows. */
   /** startsWith: titles whose sort name starts with it (« The Batman » under B); before: those that sort before it. */
-  browse({ types = 'Movie,Series', start = 0, limit = 60, sort = 'recent', genre, year, played, favorite, person, search, library, startsWith, before, fields = CARD_FIELDS, signal } = {}) {
+  browse({ types = 'Movie,Series', start = 0, limit = 60, sort = 'recent', genre, year, played, favorite, person, studio, search, library, startsWith, before, fields = CARD_FIELDS, signal } = {}) {
     const sorts = {
       title: ['SortName', 'Ascending'], year: ['ProductionYear,SortName', 'Descending'], rating: ['CommunityRating,SortName', 'Descending'],
       played: ['DatePlayed,SortName', 'Descending'], recent: ['DateCreated,SortName', 'Descending'],
@@ -525,7 +525,7 @@ export const api = {
     return get('Items', {
       userId: user(), recursive: true, includeItemTypes: types, startIndex: start, limit, sortBy, sortOrder,
       fields, ...CARD_IMAGES, enableTotalRecordCount: true,
-      genres: genre, years: year, isPlayed: played, isFavorite: favorite ? true : undefined, personIds: person, searchTerm: search,
+      genres: genre, years: year, isPlayed: played, isFavorite: favorite ? true : undefined, personIds: person, studioIds: studio, searchTerm: search,
       parentId: library, nameStartsWith: startsWith, nameLessThan: before,
     }, { signal });
   },
@@ -559,6 +559,8 @@ export const api = {
   filters: (types = 'Movie,Series') => get('Items/Filters2', { userId: user(), includeItemTypes: types, recursive: true }),
   years: (types = 'Movie,Series') => get('Years', { userId: user(), includeItemTypes: types, recursive: true, enableImages: false, sortBy: 'SortName', sortOrder: 'Descending' }),
   persons: (search, signal) => get('Persons', { userId: user(), searchTerm: search, limit: 12, enableImageTypes: 'Primary' }, { signal }),
+  /** The studios whose name holds the search (« Ghibli », « MAPPA »), among those of the titles this account sees. */
+  studios: (search, signal) => get('Studios', { userId: user(), searchTerm: search, limit: 12, enableImages: false }, { signal }),
   /**
    * What the search finds beside films and series: episodes by their own name (a dozen, those Jellyfin lists as missing
    * left out) or sagas, Jellyfin's collections (« Harry Potter - Saga »).

@@ -58,6 +58,8 @@ public sealed record MediaItem
     public int? SpecialFeatureCount { get; init; }
     /// <summary>Cast and crew, returned by the single-item request only.</summary>
     public List<PersonInfo> People { get; init; } = [];
+    /// <summary>Who made it (« Studio Ghibli », « MAPPA »), returned by the single-item request only.</summary>
+    public List<StudioInfo> Studios { get; init; } = [];
     /// <summary>The files of a film or an episode, returned by the single-item request only (<see cref="MediaQuality"/>).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<MediaSource>? MediaSources { get; init; }
@@ -98,6 +100,13 @@ public sealed record PersonInfo
     public string? Type { get; init; }
 }
 
+/// <summary>A studio of a title, with its Jellyfin id to list its other titles.</summary>
+public sealed record StudioInfo
+{
+    public string? Id { get; init; }
+    public string Name { get; init; } = "";
+}
+
 public sealed record ItemsResult
 {
     public List<MediaItem> Items { get; init; } = [];
@@ -110,13 +119,14 @@ public sealed record CatalogFilters
     public string[] Genres { get; init; } = [];
     public int[] Years { get; init; } = [];
 }
-/// <summary>Catalog filters; <paramref name="PersonId"/>: only the titles with this actor or director.</summary>
-public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? Played = null, string Sort = "recent", string? PersonId = null)
+/// <summary>Catalog filters; <paramref name="PersonId"/>: only the titles with this actor or director; <paramref name="StudioId"/>: of this studio.</summary>
+public sealed record CatalogQuery(string? Genre = null, int? Year = null, bool? Played = null, string Sort = "recent", string? PersonId = null, string? StudioId = null)
 {
-    public string CacheKey => $"{Genre}|{Year}|{Played}|{Sort}|{PersonId}";
+    public string CacheKey => $"{Genre}|{Year}|{Played}|{Sort}|{PersonId}|{StudioId}";
     public string Parameters =>
         (string.IsNullOrWhiteSpace(Genre) ? "" : "&genres=" + Uri.EscapeDataString(Genre)) +
         (string.IsNullOrWhiteSpace(PersonId) ? "" : "&personIds=" + Uri.EscapeDataString(PersonId)) +
+        (string.IsNullOrWhiteSpace(StudioId) ? "" : "&studioIds=" + Uri.EscapeDataString(StudioId)) +
         (Year is null ? "" : "&years=" + Year.Value) +
         (Played is null ? "" : "&isPlayed=" + Played.Value.ToString().ToLowerInvariant()) +
         (Sort switch

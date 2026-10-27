@@ -12,9 +12,9 @@ namespace Mira.Mac.Views;
 public enum BrowseKind { Movies, Series, All, Search }
 
 /// <summary>
-/// A grid of the library: films, series, everything, a search, the titles of one actor or director, or a saga's.
-/// Filters by genre, year and watched state, sorts, keeps only favourites; more titles load as the grid scrolls. A
-/// search also finds people, above its titles, and episodes and sagas, under them.
+/// A grid of the library: films, series, everything, a search, the titles of one actor or director, of a studio, or a
+/// saga's. Filters by genre, year and watched state, sorts, keeps only favourites; more titles load as the grid
+/// scrolls. A search also finds people and studios, above its titles, and episodes and sagas, under them.
 /// </summary>
 public sealed class BrowsePage : Page
 {
@@ -23,6 +23,14 @@ public sealed class BrowsePage : Page
     private readonly bool? _director;
     /// <summary>A saga (a Jellyfin collection): its titles in the order they came out, unless another order is chosen.</summary>
     private readonly MediaItem? _saga;
+    /// <summary>A studio (« Studio Ghibli »): its titles, newest first unless another order is chosen.</summary>
+    private readonly StudioInfo? _studio;
+    /// <summary>The genre the grid opens filtered on (a genre clicked on a title page).</summary>
+    private readonly string? _openGenre;
+    /// <summary>« Studios »: those a search finds (« Ghibli »), as in Mira web: a title's search never looks at them.</summary>
+    private readonly WrapPanel _studios = new() { ItemSpacing = 10, LineSpacing = 10 };
+    private readonly StackPanel _studiosSection = new() { Spacing = 16, IsVisible = false, Margin = new Thickness(0, 0, 0, 30) };
+    private List<MediaItem> _foundStudios = [];
     private readonly CardGrid _grid = new();
     /// <summary>« Personnes »: the actors and directors a search finds, as in Mira web.</summary>
     private readonly WrapPanel _people = new() { ItemSpacing = 18, LineSpacing = 18 };
@@ -46,20 +54,22 @@ public sealed class BrowsePage : Page
     private int _total, _version;
     private bool _loading, _filling, _favoritesOnly;
     private CancellationTokenSource? _request;
-    public override string Rail => _person is not null || _saga is not null ? "" : _kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", BrowseKind.Search => "search", _ => "library" };
+    public override string Rail => _person is not null || _saga is not null || _studio is not null ? "" : _kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", BrowseKind.Search => "search", _ => "library" };
     public IReadOnlyList<MediaItem> Items => _items;
     /// <summary>The people the search found, shown above its titles.</summary>
     public IReadOnlyList<MediaItem> People => _found;
+    /// <summary>The studios the search found, shown above its titles.</summary>
+    public IReadOnlyList<MediaItem> Studios => _foundStudios;
     /// <summary>The episodes and the sagas the search found, shown under its titles.</summary>
     public IReadOnlyList<MediaItem> FoundEpisodes => _foundEpisodes;
     public IReadOnlyList<MediaItem> FoundSagas => _foundSagas;
     /// <summary>Types a search, as the field does (the self-check).</summary>
     public void Search(string text) => _search.Text = text;
 
-    public BrowsePage(MainWindow shell, BrowseKind kind, PersonInfo? person = null, bool? director = false, MediaItem? saga = null) : base(shell)
+    public BrowsePage(MainWindow shell, BrowseKind kind, PersonInfo? person = null, bool? director = false, MediaItem? saga = null, StudioInfo? studio = null, string? genre = null) : base(shell)
     {
-        _kind = kind; _person = person; _director = director; _saga = saga;
-        var title = person is not null ? Catalog.PersonText(person.Name, director) : saga is not null ? saga.Name
+        _kind = kind; _person = person; _director = director; _saga = saga; _studio = studio; _openGenre = genre;
+        var title = person is not null ? Catalog.PersonText(person.Name, director) : saga is not null ? saga.Name : studio is not null ? studio.Name
             : kind switch { BrowseKind.Movies => L("Films", "Movies"), BrowseKind.Series => L("Séries", "Shows"), BrowseKind.Search => L("Rechercher", "Search"), _ => L("Bibliothèque", "Library") };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
         DockPanel.SetDock(_count, Dock.Right); header.Children.Add(_count);
@@ -68,7 +78,7 @@ public sealed class BrowsePage : Page
         _favorites = Ui.Action(L("Favoris", "Favorites"), "heart", "chip", () => { _favoritesOnly = !_favoritesOnly; _favorites!.Classes.Set("on", _favoritesOnly); _ = ReloadAsync(); });
         _reset = Ui.Action(L("Réinitialiser", "Reset"), "refresh", "chip quiet", Reset);
         Fill(_state, L("Tous", "All"), L("Non vus", "Unwatched"), L("Vus", "Watched"));
-        Fill(_sort, saga is not null ? L("Ordre de sortie", "Release order") : L("Ajouts récents", "Recently added"), L("Titre", "Title"), L("Année", "Year"), L("Note", "Rating"), L("Derniers vus", "Last watched"));
+        Fill(_sort, saga is not null ? L("Ordre de sortie", "Release order") : studio is not null ? L("Plus récents", "Newest") : L("Ajouts récents", "Recently added"), L("Titre", "Title"), L("Année", "Year"), L("Note", "Rating"), L("Derniers vus", "Last watched"));
         _genre.PlaceholderText = L("Genre", "Genre"); _year.PlaceholderText = L("Année", "Year");
         foreach (var (box, name) in new[] { (_library, L("Bibliothèque", "Library")), (_genre, L("Genre", "Genre")), (_year, L("Année", "Year")), (_state, L("État", "Status")), (_sort, L("Tri", "Sort")) })
         {
@@ -97,6 +107,13 @@ public sealed class BrowsePage : Page
             chip.HorizontalAlignment = HorizontalAlignment.Left; chip.Margin = new Thickness(0, -12, 0, 22);
             page.Children.Add(chip);
         }
+        if (studio is not null)
+        {
+            var chip = Ui.Action(L("Studio", "Studio"), "close", "chip on", () => Shell.Back());
+            ToolTip.SetTip(chip, L("Retirer ce filtre", "Remove this filter"));
+            chip.HorizontalAlignment = HorizontalAlignment.Left; chip.Margin = new Thickness(0, -12, 0, 22);
+            page.Children.Add(chip);
+        }
         if (saga is not null)
         {
             var chip = Ui.Action(L("Saga", "Collection"), "close", "chip on", () => Shell.Back());
@@ -108,6 +125,9 @@ public sealed class BrowsePage : Page
         _peopleSection.Children.Add(Ui.Text(L("Personnes", "People"), 22, FontWeight.Bold));
         _peopleSection.Children.Add(_people);
         page.Children.Add(_peopleSection);
+        _studiosSection.Children.Add(Ui.Text(L("Studios", "Studios"), 22, FontWeight.Bold));
+        _studiosSection.Children.Add(_studios);
+        page.Children.Add(_studiosSection);
         page.Children.Add(_grid);
         _episodesSection.Children.Add(Ui.Text(L("Épisodes", "Episodes"), 22, FontWeight.Bold));
         _episodesSection.Children.Add(_episodes);
@@ -125,8 +145,8 @@ public sealed class BrowsePage : Page
         Genre: _genre.SelectedIndex > 0 ? _genre.SelectedItem as string : null,
         Year: _year.SelectedIndex > 0 && int.TryParse(_year.SelectedItem as string, out var year) ? year : null,
         Played: _state.SelectedIndex switch { 1 => false, 2 => true, _ => null },
-        Sort: _sort.SelectedIndex switch { 1 => "title", 2 => "year", 3 => "rating", 4 => "played", _ => _saga is not null ? "saga" : "recent" },
-        PersonId: _person?.Id);
+        Sort: _sort.SelectedIndex switch { 1 => "title", 2 => "year", 3 => "rating", 4 => "played", _ => _saga is not null ? "saga" : _studio is not null ? "year" : "recent" },
+        PersonId: _person?.Id, StudioId: _studio?.Id);
     private string? Library => _saga?.Id ?? (_library.SelectedIndex > 0 && _library.SelectedIndex <= _libraries.Count ? _libraries[_library.SelectedIndex - 1].Id : null);
     private bool Filtered => _library.SelectedIndex > 0 || _genre.SelectedIndex > 0 || _year.SelectedIndex > 0 || _state.SelectedIndex > 0 || _sort.SelectedIndex > 0 || _favoritesOnly;
     private void Reset()
@@ -152,7 +172,7 @@ public sealed class BrowsePage : Page
                 _libraries = (await libraries).Where(x => kinds.Contains(x.CollectionType)).ToList();
                 _filling = true;
                 _library.Items.Add(L("Toutes les bibliothèques", "All libraries")); foreach (var library in _libraries) _library.Items.Add(library.Name);
-                _library.SelectedIndex = 0; _library.IsVisible = _person is null && _saga is null && _libraries.Count > 1;
+                _library.SelectedIndex = 0; _library.IsVisible = _person is null && _saga is null && _studio is null && _libraries.Count > 1;
                 _filling = false;
             }
             catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; }
@@ -163,6 +183,7 @@ public sealed class BrowsePage : Page
                 _genre.Items.Add(L("Tous les genres", "All genres")); foreach (var genre in filters.Genres) _genre.Items.Add(genre);
                 _year.Items.Add(L("Toutes les années", "All years")); foreach (var year in filters.Years.OrderDescending()) _year.Items.Add(year.ToString());
                 _genre.SelectedIndex = 0; _year.SelectedIndex = 0;
+                if (_openGenre is { } opened) { if (!_genre.Items.Contains(opened)) _genre.Items.Add(opened); _genre.SelectedItem = opened; }
                 _filling = false;
             }
             catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; }
@@ -176,7 +197,7 @@ public sealed class BrowsePage : Page
         if (Shell.Session is not { } session) return;
         _reset.IsVisible = Filtered;
         var search = _search.Text?.Trim() ?? "";
-        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowFound([], []); _count.Text = ""; ShowEmpty(L("Tape le nom d’un film, d’une série, d’un épisode, d’une saga ou d’un acteur.", "Type the name of a movie, a show, an episode, a collection or an actor.")); return; }
+        if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowStudios([]); ShowFound([], []); _count.Text = ""; ShowEmpty(L("Tape le nom d’un film, d’une série, d’un épisode, d’une saga, d’un acteur ou d’un studio.", "Type the name of a movie, a show, an episode, a collection, an actor or a studio.")); return; }
         _request?.Cancel(); _request = new CancellationTokenSource();
         var ct = _request.Token; var version = ++_version;
         _loading = true;
@@ -186,26 +207,27 @@ public sealed class BrowsePage : Page
             var limit = keep ? Math.Clamp(_items.Count, JellyfinClient.PageSize, 600) : JellyfinClient.PageSize;
             var others = _kind == BrowseKind.Search && search.Length >= 2;
             var people = others ? session.Client.PersonsAsync(search, ct) : null;
+            var studios = others ? session.Client.StudiosAsync(search, ct) : null;
             var episodes = others ? session.Client.SearchOthersAsync("Episode", search, ct) : null;
             var sagas = others ? session.Client.SearchOthersAsync("BoxSet", search, ct) : null;
             var result = await session.Client.BrowseAsync(Types, Library, search.Length > 0 ? search : null, 0, _favoritesOnly, ct, Query, limit);
             await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(result.Items)), CancellationToken.None);
-            // The people, episodes and sagas are a bonus: the titles show even if Jellyfin does not answer for them.
+            // The people, studios, episodes and sagas are a bonus: the titles show even if Jellyfin does not answer for them.
             async Task<List<MediaItem>> Bonus(Task<List<MediaItem>>? asked)
             {
                 if (asked is not null) try { return await asked; } catch (Exception ex) when (!ct.IsCancellationRequested && Errors.Expected(ex)) { }
                 return [];
             }
-            var found = await Bonus(people); var foundEpisodes = await Bonus(episodes); var foundSagas = await Bonus(sagas);
+            var found = await Bonus(people); var foundStudios = await Bonus(studios); var foundEpisodes = await Bonus(episodes); var foundSagas = await Bonus(sagas);
             if (version != _version) return;
-            ShowPeople(found); ShowFound(foundEpisodes, foundSagas);
+            ShowPeople(found); ShowStudios(foundStudios); ShowFound(foundEpisodes, foundSagas);
             _items.Clear(); _items.AddRange(result.Items); _total = result.TotalRecordCount;
             var offset = _scroll.Offset;
             _grid.Children.Clear();
             foreach (var item in result.Items) _grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu));
             if (keep) _scroll.Offset = offset; else _scroll.Offset = default;
             Count();
-            if (_items.Count == 0 && _found.Count + _foundEpisodes.Count + _foundSagas.Count == 0)
+            if (_items.Count == 0 && _found.Count + _foundStudios.Count + _foundEpisodes.Count + _foundSagas.Count == 0)
                 ShowEmpty(_kind == BrowseKind.Search ? L($"Rien ne correspond à « {search} ».", $"Nothing matches “{search}”.") : Filtered ? L("Aucun titre ne correspond à ces filtres.", "No title matches these filters.")
                     : _saga is not null ? L("Les films de cette saga ne sont pas dans ta bibliothèque.", "This collection’s movies aren’t in your library.") : L("Aucun titre dans cette bibliothèque pour l’instant.", "No titles in this library yet."));
             else _empty.IsVisible = false;
@@ -241,6 +263,15 @@ public sealed class BrowsePage : Page
         _found.Clear(); _found.AddRange(people); _people.Children.Clear();
         foreach (var person in people)
             _people.Children.Add(Cards.Person(person, Shell.Session?.Images, x => Shell.OpenPerson(new PersonInfo { Id = x.Id, Name = x.Name }, null)));
+    }
+    /// <summary>The studios found, each one its titles in the library; drawn again only when they change.</summary>
+    private void ShowStudios(List<MediaItem> studios)
+    {
+        _studiosSection.IsVisible = studios.Count > 0;
+        if (studios.Select(x => x.Id).SequenceEqual(_foundStudios.Select(x => x.Id))) return;
+        _foundStudios = studios; _studios.Children.Clear();
+        foreach (var studio in studios)
+            _studios.Children.Add(Ui.Action(studio.Name, "film", "chip", () => Shell.OpenStudio(new StudioInfo { Id = studio.Id, Name = studio.Name })));
     }
     /// <summary>The episodes (opened at their series' season) and the sagas found, drawn again only when they change.</summary>
     private void ShowFound(List<MediaItem> episodes, List<MediaItem> sagas)

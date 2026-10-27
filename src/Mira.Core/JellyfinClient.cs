@@ -151,6 +151,27 @@ public sealed class JellyfinClient : IDisposable
     public async Task<List<MediaItem>> PersonsAsync(string search, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Persons?userId={Connection.UserId}&searchTerm={Uri.EscapeDataString(search)}&limit=12&enableImageTypes=Primary", ct)).Items;
     /// <summary>
+    /// The studios whose name holds the search (« Ghibli », « MAPPA »), among those of the titles this account sees, a
+    /// dozen at most (Mira web asks the same). A title's search (Items) never looks at its studios.
+    /// </summary>
+    public async Task<List<MediaItem>> StudiosAsync(string search, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Studios?userId={Connection.UserId}&searchTerm={Uri.EscapeDataString(search)}&limit=12&enableImages=false", ct)).Items;
+    /// <summary>
+    /// « Du même studio »: the other titles of a title's studios (three at most, newest first), from the first studio
+    /// that has some beside <paramref name="except"/>; null when none has.
+    /// </summary>
+    public async Task<(StudioInfo Studio, List<MediaItem> Items)?> StudioTitlesAsync(MediaItem title, IReadOnlySet<string> except, CancellationToken ct = default)
+    {
+        var studios = title.Studios.Where(x => x.Id is { Length: > 0 }).Take(3).ToList();
+        var asked = studios.Select(x => BrowseAsync(ct: ct, filters: new CatalogQuery(Sort: "year", StudioId: x.Id), limit: 21)).ToList();
+        for (var i = 0; i < studios.Count; i++)
+        {
+            var items = (await asked[i]).Items.Where(x => x.Id != title.Id && !except.Contains(x.Id)).Take(20).ToList();
+            if (items.Count > 0) return (studios[i], items);
+        }
+        return null;
+    }
+    /// <summary>
     /// What a search finds beside films and series (Mira web asks the same): episodes by their own name, those Jellyfin
     /// lists as missing left out (<paramref name="type"/> « Episode »), or sagas, its collections (« BoxSet »); a dozen at most.
     /// </summary>

@@ -443,6 +443,10 @@ public sealed class MainWindow : Window
     }
     /// <summary>A person's titles: <paramref name="director"/> says what they did, null when it is not known (found by a search).</summary>
     public void OpenPerson(PersonInfo person, bool? director) => _ = NavigateAsync(new BrowsePage(this, BrowseKind.All, person, director));
+    /// <summary>A studio's titles (« Studio Ghibli »), newest first.</summary>
+    public void OpenStudio(StudioInfo studio) => _ = NavigateAsync(new BrowsePage(this, BrowseKind.All, studio: studio));
+    /// <summary>Films or Séries (as the title is) filtered on a genre, as in Mira web.</summary>
+    public void OpenGenre(string genre, string type) => _ = NavigateAsync(new BrowsePage(this, type == "Series" ? BrowseKind.Series : BrowseKind.Movies, genre: genre));
 
     // —— Playback ——
     /// <param name="groupStart">Put on by the group (<see cref="WatchGroup"/>), from there.</param>

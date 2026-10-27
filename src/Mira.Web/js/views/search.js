@@ -1,4 +1,4 @@
-// Search films, series, people, episodes and sagas as you type; recent searches stay on this phone.
+// Search films, series, people, studios, episodes and sagas as you type; recent searches stay on this phone.
 import { api, GRID_FIELDS } from '../api.js';
 import { h, icon, clear } from '../dom.js';
 import { tr, trn } from '../i18n.js';
@@ -32,7 +32,7 @@ export function create({ query }) {
 
   function recent() {
     const list = settings.get('recentSearches');
-    if (!list.length) return emptyState({ symbol: 'search', title: tr('Que veux-tu regarder ?'), text: tr('Cherche un film, une série, un épisode, une saga ou un acteur de ta bibliothèque.') });
+    if (!list.length) return emptyState({ symbol: 'search', title: tr('Que veux-tu regarder ?'), text: tr('Cherche un film, une série, un épisode, une saga, un acteur ou un studio de ta bibliothèque.') });
     return h('div', {}, h('div', { class: 'section-head' }, h('h2', { class: 'label' }, tr('Recherches récentes')),
       h('button', { class: 'btn quiet small', on: { click: () => { settings.set('recentSearches', []); clear(results).append(recent()); } } }, tr('Effacer'))),
     h('div', { class: 'recent' }, list.map((text) => h('button', { on: { click: () => { input.value = text; update(); } } }, icon('history', { size: 20 }), text))));
@@ -50,20 +50,22 @@ export function create({ query }) {
     else if (!quiet) clear(results).append(h('div', { style: { padding: '0 var(--gutter)' } }, skeletonGrid(6)));
     try {
       // Only the films and series are needed: people, episodes and sagas that cannot be had are left out.
-      const [titles, people, found, boxes] = await Promise.all([
+      const [titles, people, makers, found, boxes] = await Promise.all([
         api.browse({ search: text, limit: 60, sort: 'title', fields: GRID_FIELDS, signal: controller.signal }),
         api.persons(text, controller.signal).catch(() => null),
+        // « Ghibli », « MAPPA »: a title's search does not look at its studios.
+        api.studios(text, controller.signal).catch(() => null),
         api.searchOthers('Episode', text, controller.signal).catch(() => null),
         api.searchOthers('BoxSet', text, controller.signal).catch(() => null),
       ]);
-      const items = titles?.Items ?? [], persons = (people?.Items ?? []).slice(0, 12);
+      const items = titles?.Items ?? [], persons = (people?.Items ?? []).slice(0, 12), studios = (makers?.Items ?? []).slice(0, 12);
       const episodes = (found?.Items ?? []).slice(0, 12), sagas = (boxes?.Items ?? []).slice(0, 12);
       results.classList.remove('pending');
-      const signature = JSON.stringify([items, persons, episodes, sagas]);
+      const signature = JSON.stringify([items, persons, studios, episodes, sagas]);
       if (quiet && signature === shownSignature) return;
       shownSignature = signature;
       clear(results);
-      const total = items.length + persons.length + episodes.length + sagas.length;
+      const total = items.length + persons.length + studios.length + episodes.length + sagas.length;
       status.textContent = total ? trn(total, '{n} résultat', '{n} résultats') : tr('Aucun résultat');
       if (!total) {
         // An administrator can have it downloaded on the PC of Jellyfin (views/torlink.js).
@@ -79,6 +81,12 @@ export function create({ query }) {
       // A result opened keeps the search among the recent ones.
       const kept = (card) => { card.addEventListener('click', () => remember(text)); return card; };
       if (persons.length) results.append(row(tr('Personnes'), persons, (p) => personCard(p), { people: true }));
+      // A studio opens its titles in the library.
+      if (studios.length) {
+        results.append(h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, tr('Studios'))),
+          h('div', { style: { padding: '0 var(--gutter)' } }, h('div', { class: 'chips', role: 'list' },
+            studios.map((x) => kept(h('a', { class: 'chip', role: 'listitem', href: `#/studio/${x.Id}` }, icon('films'), x.Name)))))));
+      }
       if (items.length) {
         results.append(h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, tr('Films et séries'))),
           h('div', { class: 'grid', style: { padding: '0 var(--gutter) 24px' } }, items.map((x) => kept(posterCard(x))))));

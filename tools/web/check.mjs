@@ -329,6 +329,95 @@ try {
     filmExtras.length === 2 && filmExtras.some((x) => /^Coulisses · (reste )?1 min$/.test(x)) && !!extraPlayed && seriesExtras.join('|') === 'Générique sans texte',
     `film : ${filmExtras.join(' ; ') || 'aucune rangée'}, ${extraPlayed ? 'lue' : 'pas lue'} ; série : ${seriesExtras.join(' ; ') || 'aucune rangée'}`);
 
+  // Genres and studio on a title page (tools/web/media.sh: Lueur Web and Aube Test are « Animation » films of « Studio
+  // Test », in a saga; Chapitres Web is of the same studio, outside it). The genre opens Films filtered on it, the studio
+  // its own page; « Du même studio » leaves out the film of the saga's row. A search finds the studio by its name.
+  await page.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id);
+  const sameStudio = await page.waitForFunction(() => {
+    const head = [...document.querySelectorAll('#view .section h2')].find((x) => x.textContent.startsWith('Du même studio'));
+    const section = head?.closest('.section');
+    return section ? [head.textContent, ...[...section.querySelectorAll('.card-title')].map((x) => x.textContent), section.querySelector('.section-head a')?.getAttribute('href') ?? ''] : null;
+  }, null, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => null);
+  const genreLinks = await page.locator('#view .genres a').evaluateAll((links) => links.map((x) => `${x.textContent} ${x.getAttribute('href')}`));
+  const studioLink = await page.locator('#view .credits a[href^="#/studio/"]').evaluateAll((links) => links.map((x) => `${x.parentElement.textContent} ${x.getAttribute('href')}`));
+  await shot('12-genres-studio');
+  // A right click (iPad with a trackpad, Android with a mouse) opens the long press's menu, on a card as on an episode.
+  await page.locator('#view .section', { has: page.locator('h2', { hasText: 'Du même studio' }) }).locator('.card').first().click({ button: 'right' }).catch(() => {});
+  const cardMenu = await page.locator('.sheet .sheet-item').allInnerTexts().catch(() => []);
+  await page.keyboard.press('Escape'); await wait(500);
+  const titlesOf = (prefix) => page.waitForFunction((start) => {
+    const cards = [...document.querySelectorAll('#view .grid:not([aria-hidden="true"]) .card-title')].map((x) => x.textContent);
+    return location.hash.startsWith(start) && cards.length && !document.querySelector('#view .grid .card[aria-hidden="true"]') ? cards.sort() : null;
+  }, prefix, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => null);
+  await page.locator('#view .genres a', { hasText: 'Animation' }).click();
+  const ofGenre = await titlesOf('#/films?genre=');
+  const genreChip = await page.locator('#view .library .chip.on').allInnerTexts().catch(() => []);
+  await shot('12-genre');
+  await page.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await wait(1500);
+  await page.locator('#view .credits a[href^="#/studio/"]').click();
+  const ofStudio = await titlesOf('#/studio/');
+  const studioHead = await page.locator('#view .studio-page h1').innerText().catch(() => '');
+  await shot('12-studio');
+  check('fiche : genres et studio cliquables, « Du même studio » sans le film de la saga, clic droit sur une carte',
+    genreLinks.join('|') === 'Animation #/films?genre=Animation' && /^Studio : Studio Test #\/studio\/[0-9a-f]+$/.test(studioLink[0] ?? '')
+      && sameStudio?.[0] === 'Du même studio · Studio Test' && sameStudio[1] === 'Chapitres Web (2024)' && sameStudio.length === 3 && /^#\/studio\//.test(sameStudio[2])
+      && ofGenre?.join('|') === 'Aube Test (2021)|Lueur Web (2020)' && genreChip.includes('Animation')
+      && studioHead === 'Studio Test' && ofStudio?.join('|') === 'Aube Test (2021)|Chapitres Web (2024)|Lueur Web (2020)' && cardMenu.some((x) => x.startsWith('Marquer comme')),
+    `genres : ${genreLinks.join(', ') || 'aucun lien'} ; ${studioLink.join(', ') || 'pas de studio'} ; rangée : ${sameStudio?.join(', ') ?? 'aucune'} ; `
+      + `genre : ${ofGenre?.join(', ') ?? 'rien'} (${genreChip.join(', ')}) ; studio : ${studioHead} ${ofStudio?.join(', ') ?? 'rien'} ; clic droit : ${cardMenu.join(', ') || 'pas de menu'}`);
+  await page.locator('.tabbar a[data-tab="search"]').click(); await wait(800);
+  await page.fill('input[type=search]', 'studio te');
+  const foundStudio = await page.waitForFunction(() => {
+    const head = [...document.querySelectorAll('#view .search .section h2')].find((x) => x.textContent === 'Studios');
+    return head ? [...head.closest('.section').querySelectorAll('a.chip')].map((x) => `${x.textContent} ${x.getAttribute('href')}`) : null;
+  }, null, { timeout: 8000 }).then((handle) => handle.jsonValue(), () => null);
+  await shot('12-search-studio');
+  check('recherche : un studio par son nom (aucun titre ne le porte)', foundStudio?.length === 1 && /^Studio Test #\/studio\/[0-9a-f]+$/.test(foundStudio[0]), foundStudio?.join(' ; ') ?? 'aucune section « Studios »');
+  await page.fill('input[type=search]', '');
+
+  // A series of two seasons (Deux Temps): the first watched, the page opens on the second, where Lecture picks up.
+  // Season 1 shown: « À suivre » brings season 2; « Marquer la saison comme non vue » marks season 1 at once on
+  // Jellyfin, then « comme vue » again.
+  const twice = (await api('Items?recursive=true&includeItemTypes=Series&searchTerm=Deux%20Temps')).Items[0];
+  const userId = JSON.parse(await page.evaluate(() => localStorage.getItem('mira.session'))).userId;
+  const twoSeasons = async () => (await api(`Shows/${twice.Id}/Episodes?userId=${userId}`)).Items;
+  // The page shows the mark at once, and Jellyfin has it a moment later.
+  const watchedOnJellyfin = async (expected) => {
+    let seen = [];
+    for (let i = 0; i < 20; i++) {
+      seen = (await twoSeasons()).map((e) => `${e.ParentIndexNumber}:${e.UserData.Played ? 'vu' : 'non vu'}`);
+      if (seen.join('|') === expected) break;
+      await wait(250);
+    }
+    return seen;
+  };
+  for (const e of await twoSeasons()) await api(`UserPlayedItems/${e.Id}`, e.ParentIndexNumber === 1 ? 'POST' : 'DELETE');
+  await page.evaluate((id) => { location.hash = `#/titre/${id}`; }, twice.Id);
+  await page.waitForFunction(() => document.querySelectorAll('#view .seasons .chip').length === 2 && document.querySelector('#view .episode'), null, { timeout: 10000 }).catch(() => {});
+  const opened = await page.locator('#view .seasons .chip.on').innerText().catch(() => '');
+  const barOnNext = await page.locator('#view .season-bar').innerText().catch(() => '');
+  await page.locator('#view .seasons .chip', { hasText: 'Saison 1' }).click(); await wait(400);
+  const hint = await page.locator('#view .next-line').innerText().catch(() => '');
+  const markLabel = await page.locator('#view .season-mark').innerText().catch(() => '');
+  await shot('12-season-next');
+  await page.locator('#view .next-line').click(); await wait(400);
+  const brought = await page.locator('#view .seasons .chip.on').innerText().catch(() => '');
+  check('série : « À suivre » quand une autre saison est affichée, qui l’amène',
+    opened === 'Saison 2' && !/À suivre/.test(barOnNext) && /À suivre : S2 · É1/.test(hint) && /Saison 2/.test(hint) && brought === 'Saison 2',
+    `ouverte sur ${opened || '?'} ; Saison 1 : « ${hint.replace(/\s+/g, ' ') || 'rien'} » ; après le clic : ${brought || '?'}`);
+  await page.locator('#view .seasons .chip', { hasText: 'Saison 1' }).click(); await wait(400);
+  await page.locator('#view .season-mark').click();
+  const unmarked = await page.waitForFunction(() => /comme vue$/.test(document.querySelector('#view .season-mark')?.textContent.trim() ?? '') && !document.querySelector('#view .next-line')
+    && !document.querySelector('#view .episode .badge-watched'), null, { timeout: 10000 }).then(() => true, () => false);
+  const afterUnmark = await watchedOnJellyfin('1:non vu|1:non vu|2:non vu');
+  await shot('12-season-unmarked');
+  await page.locator('#view .season-mark').click();
+  const remarked = await page.waitForFunction(() => /non vue$/.test(document.querySelector('#view .season-mark')?.textContent.trim() ?? ''), null, { timeout: 10000 }).then(() => true, () => false);
+  const afterMark = await watchedOnJellyfin('1:vu|1:vu|2:non vu');
+  check('série : « Marquer la saison comme non vue », puis « comme vue », d’un coup sur Jellyfin',
+    /comme non vue$/.test(markLabel) && unmarked && remarked && afterUnmark.join('|') === '1:non vu|1:non vu|2:non vu' && afterMark.join('|') === '1:vu|1:vu|2:non vu',
+    `bouton : « ${markLabel} » ; non vue : ${afterUnmark.join(', ')}${unmarked ? '' : ' (page pas à jour)'} ; vue : ${afterMark.join(', ')}${remarked ? '' : ' (page pas à jour)'}`);
+
   // An anime's ASS subtitles, inside its file: Jellyfin would draw them into the picture (it never converts ASS by
   // profile); Mira asks for them as WebVTT, beside the video. Their line runs from 5 s to 8 s.
   const anime = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Signes')).Items[0];

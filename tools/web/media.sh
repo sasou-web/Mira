@@ -7,7 +7,9 @@
 #   series whose chapters name its end credits and preview;
 #   a one-episode series in Animes, a second library of series (the choice between them);
 #   bonus videos (Extras folders) beside the WebM film and series, for the « Bonus » row; two films of one saga
-#   (their movie.nfo), gathered into a collection by Jellyfin when the library adds films to collections;
+#   (their movie.nfo), gathered into a collection by Jellyfin when the library adds films to collections, both of the
+#   genre « Animation » and of « Studio Test », with the chapters' film of the same studio (« Du même studio »);
+#   a series of two seasons (« Deux Temps », not a word the English check looks for: « À suivre » and « Marquer la saison comme vue »);
 #   with « formats », the kinds of files a home library holds whose stream Apple's player may refuse (see below).
 #   tools/web/media.sh <folder> [formats]
 set -euo pipefail
@@ -45,9 +47,10 @@ extra() {
 extra "$ROOT/Films/Lueur Web (2020)/extras/Bêtisier.webm"
 extra "$ROOT/Films/Lueur Web (2020)/behind the scenes/Tournage.webm"
 extra "$ROOT/Séries/Courte Web/extras/Générique sans texte.webm"
-# The saga of a film, as TMDb gives it to Jellyfin: here from the NFO beside each film (Jellyfin reads it at the scan).
+# The saga, genre and studio of a film, as TMDb gives them to Jellyfin: here from the NFO beside each film (Jellyfin
+# reads it at the scan). A third film of the studio, outside the saga, for « Du même studio ».
 for film in "Lueur Web (2020)" "Aube Test (2021)"; do
-  printf '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<movie>\n  <set>\n    <name>Saga Test</name>\n  </set>\n</movie>\n' > "$ROOT/Films/$film/movie.nfo"
+  printf '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<movie>\n  <set>\n    <name>Saga Test</name>\n  </set>\n  <genre>Animation</genre>\n  <studio>Studio Test</studio>\n</movie>\n' > "$ROOT/Films/$film/movie.nfo"
 done
 mkdir -p "$ROOT/Animes/Courte Anime/Season 01"
 q -f lavfi -i testsrc=duration=6:size=640x360:rate=24 -f lavfi -i sine=frequency=880:duration=6 \
@@ -64,6 +67,13 @@ done
 q -f lavfi -i testsrc2=duration=30:size=640x360:rate=24 -f lavfi -i sine=frequency=480:duration=30 -i "$meta" -map 0:v -map 1:a -map_chapters 2 \
   -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 500k -c:a libopus -t 30 "$ROOT/Films/Chapitres Web (2024)/Chapitres Web (2024).webm"
 rm -f "$meta"
+printf '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<movie>\n  <studio>Studio Test</studio>\n</movie>\n' > "$ROOT/Films/Chapitres Web (2024)/movie.nfo"
+# A series of two seasons: a season marked watched at once, and the next episode in another season than the one shown.
+for code in S01E01 S01E02 S02E01; do
+  mkdir -p "$ROOT/Séries/Deux Temps/Season ${code:1:2}"
+  q -f lavfi -i testsrc=duration=4:size=640x360:rate=24 -f lavfi -i sine=frequency=520:duration=4 \
+    -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -c:a libopus -shortest "$ROOT/Séries/Deux Temps/Season ${code:1:2}/Deux Temps $code.webm"
+done
 # A series whose chapters name its end credits, then the next episode's preview: in Apple's player, the next episode
 # starts by itself 10 s into the credits (22 s), before the end (30 s).
 mkdir -p "$ROOT/Séries/Courte Fin/Season 01"

@@ -1,0 +1,21 @@
+{
+  "about": "A series' seasons on its title page: whether a season has a mark of its own (« Marquer la saison comme vue »: only beside another season), what it marks (the season as Jellyfin holds it, else each episode) and whether all its episodes are watched; and the season of the episode Lecture plays when another is shown (« À suivre »). Read by tests/Mira.Core.Tests (EpisodePages) and tools/web/unit (seasons.js): both must agree. cases: [name, episodes (Id, SeasonId, season, played; season null = none, read as 1), marks, [[season, ids, played]], next: [[season shown, next episode, season of « À suivre » or null]]]",
+  "cases": [
+    ["two seasons, the first watched",
+      [["a1", "s1", 1, true], ["a2", "s1", 1, true], ["b1", "s2", 2, false]],
+      true, [[1, ["s1"], true], [2, ["s2"], false]],
+      [[1, "b1", 2], [2, "b1", null], [1, null, null]]],
+    ["one season: the series' own button marks it",
+      [["a1", "s1", 1, true], ["a2", "s1", 1, false]],
+      false, [[1, ["s1"], false]],
+      [[1, "a2", null]]],
+    ["no season of Jellyfin's (an anime numbered without seasons): each episode",
+      [["a1", null, null, false], ["a2", null, null, false], ["z1", "s0", 0, true]],
+      true, [[1, ["a1", "a2"], false], [0, ["s0"], true]],
+      [[0, "a2", 1]]],
+    ["a season split between two of Jellyfin's: each episode",
+      [["a1", "s1", 1, true], ["a2", "s9", 1, true], ["b1", "s2", 2, true]],
+      true, [[1, ["a1", "a2"], true], [2, ["s2"], true]],
+      [[2, "a1", 1], [1, "gone", null]]]
+  ]
+}

@@ -1,12 +1,12 @@
-// A title's page: backdrop and logo, play or resume, watched and favourite, overview, cast and, for a series, its
-// seasons (long ones in slices of 100, as on Windows) and episodes.
+// A title's page: backdrop and logo, play or resume, watched and favourite, overview, genres, cast and studios, for a
+// series its seasons (seasons.js) and episodes, then its saga, its studio's other titles, bonus and similar titles.
 import { api } from '../api.js';
 import { h, icon, clear, duration, seconds, progress, remaining, endsAt, episodeCode } from '../dom.js';
 import { tr, trn, number, language as shownLanguage } from '../i18n.js';
 import { artFor, picture, logo } from '../images.js';
 import {
   row, posterCard, extraCard, cardSig, personCard, errorState, spinner, changes, playHref, titleHref, setPlayed, setFavorite, toast, sheet, withActions,
-  knownItem, overview,
+  knownItem, overview, changed,
 } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
 import { settings, session } from '../session.js';
@@ -20,32 +20,7 @@ import { startPosition } from '../player/stream.js';
 import { inviteSheet } from '../invite.js';
 import { follows, followSheet, followedSheet } from '../follow.js';
 import { followLine as followText, followNote, pickLine } from '../torlink.js';
-
-const SLICE = 100;
-const seasonOf = (x) => x.ParentIndexNumber ?? 1;
-
-/** The season list: a season, or slices of a long one (« Saison 1 · 101–200 »). */
-export function episodePages(episodes) {
-  const seasons = new Map();
-  for (const e of episodes) { const s = seasonOf(e); if (!seasons.has(s)) seasons.set(s, []); seasons.get(s).push(e); }
-  const pages = [];
-  for (const [season, list] of [...seasons].sort((a, b) => a[0] - b[0])) {
-    const name = season === 0 ? tr('Épisodes spéciaux') : tr('Saison {n}', { n: season });
-    if (list.length <= SLICE) { pages.push({ season, skip: 0, take: list.length, label: name }); continue; }
-    for (let skip = 0; skip < list.length; skip += SLICE) {
-      const take = Math.min(SLICE, list.length - skip);
-      const first = list[skip].IndexNumber ?? skip + 1, last = list[skip + take - 1].IndexNumber ?? skip + take;
-      pages.push({ season, skip, take, label: first === last ? `${name} · ${first}` : `${name} · ${first}–${last}` });
-    }
-  }
-  return pages;
-}
-const pageEpisodes = (episodes, page) => episodes.filter((x) => seasonOf(x) === page.season).slice(page.skip, page.skip + page.take);
-function pageHolding(pages, episodes, episode) {
-  if (!episode) return null;
-  const position = episodes.filter((x) => seasonOf(x) === seasonOf(episode)).findIndex((x) => x.Id === episode.Id);
-  return position < 0 ? null : pages.find((p) => p.season === seasonOf(episode) && position >= p.skip && position < p.skip + p.take) ?? null;
-}
+import { seasonOf, episodePages, pageEpisodes, pageHolding, marksSeasons, seasonMark, nextElsewhere } from '../seasons.js';
 
 /** Year, length, ratings, then what the page adds: the picture of the file Lecture plays and when it ends. */
 function meta(item, episodes, extra = []) {
@@ -61,16 +36,27 @@ function meta(item, episodes, extra = []) {
   return h('div', { class: 'detail-meta' }, parts.map((p, i) => (i ? [h('span', { class: 'dot', 'aria-hidden': 'true' }), p] : p)));
 }
 
+/** Who made it, each name a link to their titles in the library: directors, actors, studios (« Studio Ghibli »). */
 function credits(item) {
   const people = item.People ?? [];
-  const link = (p) => (p.Id ? h('a', { href: `#/personne/${p.Id}` }, p.Name) : h('span', {}, p.Name));
-  const join = (list) => list.flatMap((p, i) => (i ? [', ', link(p)] : [link(p)]));
+  const link = (p, href) => (p.Id ? h('a', { href: `${href}${p.Id}` }, p.Name) : h('span', {}, p.Name));
+  const join = (list, href = '#/personne/') => list.flatMap((p, i) => (i ? [', ', link(p, href)] : [link(p, href)]));
   const directors = people.filter((p) => p.Type === 'Director').slice(0, 3);
   const actors = people.filter((p) => p.Type === 'Actor').slice(0, 4);
-  if (!directors.length && !actors.length) return null;
+  const studios = (item.Studios ?? []).filter((x) => x.Name).slice(0, 3);
+  if (!directors.length && !actors.length && !studios.length) return null;
   return h('div', { class: 'credits' },
     directors.length ? h('div', {}, directors.length > 1 ? tr('Réalisation : ') : tr('Réalisé par '), join(directors)) : null,
-    actors.length ? h('div', {}, tr('Avec '), join(actors)) : null);
+    actors.length ? h('div', {}, tr('Avec '), join(actors)) : null,
+    studios.length ? h('div', {}, studios.length > 1 ? tr('Studios : ') : tr('Studio : '), join(studios, '#/studio/')) : null);
+}
+
+/** Its genres, each one the library of its kind (Films or Séries) filtered on it. */
+function genres(item) {
+  if (!item.Genres?.length) return null;
+  const tab = item.Type === 'Series' ? '#/series' : '#/films';
+  return h('div', { class: 'genres', role: 'list', 'aria-label': tr('Genres') },
+    item.Genres.map((name) => h('a', { class: 'chip', role: 'listitem', href: `${tab}?genre=${encodeURIComponent(name)}` }, name)));
 }
 
 /** What an episode's row shows: when it changes, the row is drawn again, and only then. */
@@ -97,9 +83,11 @@ function episodeRow(episode, current) {
 export function create({ id, query }) {
   const el = h('div', { class: 'view detail' });
   const back = h('button', { class: 'round floating-back', 'aria-label': tr('Retour'), on: { click: () => goBack('#/') } }, icon('back'));
-  let item = null, episodes = [], next = null, similar = [], sagas = null, extras = [], page = null, stale = false, loadedAt = 0, loadSeq = 0;
+  let item = null, episodes = [], next = null, similar = [], sagas = null, studio = null, extras = [], page = null, stale = false, loadedAt = 0, loadSeq = 0;
   let followed = null; // the series this administrator follows (follow.js), null until known or for anyone else
-  let actionsBox = null, toolsBox = null, sagaBox = null, extrasBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
+  let actionsBox = null, toolsBox = null, sagaBox = null, studioBox = null, extrasBox = null, similarBox = null, metaBox = null, seasonsBox = null, listBox = null, shownIds = '';
+  // Above the episodes: the season's mark (« Marquer la saison comme vue ») and, another season shown, « À suivre ».
+  let seasonBar = null, marking = false, pages = [], showPage = () => {};
   // The tracks Lecture starts with: the streams of the title it plays, and the choice made here, if any.
   let streams = null, chosen = null;
   // The subtitle extensions of Jellyfin (« Open Subtitles »), when this account may search with them.
@@ -398,7 +386,7 @@ export function create({ id, query }) {
   function seasonsSection() {
     if (item.Type !== 'Series') return null;
     if (!episodes.length) return h('div', { class: 'state' }, icon('series'), h('h2', {}, tr('Aucun épisode')), h('p', {}, tr('Jellyfin n’a encore trouvé aucun épisode de cette série.')));
-    const pages = episodePages(episodes);
+    pages = episodePages(episodes);
     const focus = episodes.find((x) => x.Id === wanted) ?? next;
     page ??= pageHolding(pages, episodes, focus) ?? pages[0];
     const list = h('div', { class: 'episodes' });
@@ -414,7 +402,9 @@ export function create({ id, query }) {
         c.classList.toggle('on', on);
       }
       clear(list).append(...pageEpisodes(episodes, p).map((e) => episodeRow(e, e.Id === (wanted ?? next?.Id))));
+      drawSeasonBar();
     };
+    showPage = show;
     for (const p of pages) {
       chips.append(h('button', { class: 'chip', dataset: { key: `${p.season}:${p.skip}` }, on: { click: () => show(p) } }, p.label));
     }
@@ -427,7 +417,53 @@ export function create({ id, query }) {
     return h('section', { class: 'seasons' },
       h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, tr('Épisodes')), h('span', { class: 'meta' }, trn(episodes.length, '{n} épisode', '{n} épisodes'))),
       pages.length > 1 ? h('div', { style: { padding: '0 var(--gutter) 8px' } }, chips) : null,
-      list);
+      seasonBar, list);
+  }
+
+  /**
+   * Above the episodes of the season shown: « À suivre » when Lecture plays one of another season (a long anime opened
+   * on its first), which brings that season; « Marquer la saison comme vue », or « non vue » once all are, when the
+   * series has another season (with one, the series' own button does it).
+   */
+  function drawSeasonBar() {
+    const bar = h('div', { class: 'season-bar' });
+    const elsewhere = wanted ? null : nextElsewhere(pages, episodes, page, next);
+    if (elsewhere) {
+      bar.append(h('button', { class: 'next-line', on: { click: () => showPage(elsewhere) } },
+        icon('play', { size: 20 }),
+        h('span', { class: 'grow' }, h('span', {}, tr('À suivre : '), h('b', {}, episodeCode(next))), next.Name ? h('span', { class: 'sub' }, next.Name) : ''),
+        h('span', { class: 'go' }, elsewhere.label, icon('right', { size: 18 }))));
+    }
+    if (marksSeasons(episodes)) {
+      const { played } = seasonMark(episodes, page.season);
+      bar.append(h('button', { class: 'btn quiet small season-mark', disabled: marking, on: { click: () => markSeason(page.season, !played) } },
+        icon(played ? 'refresh' : 'check', { size: 18 }), played ? tr('Marquer la saison comme non vue') : tr('Marquer la saison comme vue')));
+    }
+    if (seasonBar?.isConnected) seasonBar.replaceWith(bar);
+    seasonBar = bar;
+    return bar;
+  }
+
+  /**
+   * A whole season watched or not: its episodes say so at once, Jellyfin is told (the season in one call, else each
+   * episode), and the page follows what Jellyfin then says (where the series picks up).
+   */
+  async function markSeason(season, played) {
+    if (marking) return;
+    const { ids } = seasonMark(episodes, season);
+    const before = new Map(episodes.map((e) => [e.Id, e.UserData]));
+    for (const e of episodes) if (seasonOf(e) === season) e.UserData = { ...e.UserData, Played: played, PlaybackPositionTicks: 0 };
+    marking = true; update();
+    try {
+      for (const id of ids) await api.setPlayed(id, played);
+      toast(played ? tr('Saison marquée comme vue.') : tr('Saison marquée comme non vue.'));
+    } catch (error) {
+      for (const e of episodes) if (before.has(e.Id)) e.UserData = before.get(e.Id);
+      toast(error.message);
+    } finally { marking = false; }
+    // This page follows what Jellyfin says now (where the series picks up), and so do the series' poster and
+    // Continuer à regarder on the other screens.
+    changed(item);
   }
 
   function render() {
@@ -449,11 +485,11 @@ export function create({ id, query }) {
         h('div', { class: 'detail-head' },
           poster ? picture(poster, { kind: 'poster', width: 140, eager: true, className: 'detail-poster' }) : null,
           headTitle, (metaBox = meta(item, episodes, playFacts())), (actionsBox = primaryAction()), (toolsBox = tools()), overview(item.Overview),
-          item.Genres?.length ? h('div', { class: 'genres' }, item.Genres.join(' · ')) : null,
-          credits(item))),
+          genres(item), credits(item))),
       (seasonsBox = h('div', {}, seasonsSection())),
       row(tr('Distribution'), cast, (p) => personCard(p), { people: true }) ?? '',
       (sagaBox = h('div', {}, sagaRows())),
+      (studioBox = h('div', {}, studioRow() ?? '')),
       (extrasBox = h('div', {}, row(tr('Bonus'), extras, (x) => extraCard(x), { wide: true }) ?? '')),
       (similarBox = h('div', {}, row(tr('Titres similaires'), similar, (x) => posterCard(x)) ?? '')),
       h('div', { style: { height: '32px' } }));
@@ -500,10 +536,16 @@ export function create({ id, query }) {
       const e = byId.get(old.dataset.id);
       if (e && old.dataset.state !== rowState(e, e.Id === currentId)) old.replaceWith(episodeRow(e, e.Id === currentId));
     }
+    drawSeasonBar();
   }
 
   /** The row of the film's saga, named as Jellyfin names it (« Harry Potter - Saga »); « Tout voir » opens its page. */
   const sagaRows = () => (sagas ?? []).map((saga) => row(saga.name, saga.items, (x) => posterCard(x), { more: `#/saga/${saga.id}` }) ?? '');
+  /** « Du même studio · Studio Ghibli »: its other titles, but those already in the saga's row; « Tout voir » opens the studio's page. */
+  const studioRow = () => (studio ? row(tr('Du même studio · {name}', { name: studio.name }), studio.items, (x) => posterCard(x), { more: `#/studio/${studio.id}` }) : null);
+  /** The other titles of its studios (three at most, newest first): the first studio that has some. */
+  const studioTitles = (of) => Promise.all((of.Studios ?? []).filter((x) => x.Id).slice(0, 3)
+    .map((x) => api.browse({ studio: x.Id, sort: 'year', limit: 21 }).then((r) => ({ id: x.Id, name: x.Name, items: r?.Items ?? [] }), () => null)));
 
   async function load(quiet = false) {
     // Only the latest load draws: an older answer, read before a mark or the end of the player, never wins.
@@ -541,11 +583,13 @@ export function create({ id, query }) {
         // Only their rows are drawn when they arrive: the page does not jump or flash under the finger. A film of a
         // saga has its other films in a row of their own, not again among the similar titles.
         const ofSaga = item.Type === 'Movie' ? api.sagas(id).catch(() => []) : Promise.resolve([]);
-        Promise.all([api.similar(id).then((r) => r?.Items ?? [], () => []), ofSaga]).then(([alike, found]) => {
+        Promise.all([api.similar(id).then((r) => r?.Items ?? [], () => []), ofSaga, studioTitles(item)]).then(([alike, found, studios]) => {
           sagas = found.filter((saga) => saga.items.length);
           const inSaga = new Set(sagas.flatMap((saga) => saga.items.map((x) => x.Id)));
           similar = alike.filter((x) => !inSaga.has(x.Id));
+          studio = studios.filter(Boolean).map((x) => ({ ...x, items: x.items.filter((t) => t.Id !== id && !inSaga.has(t.Id)).slice(0, 20) })).find((x) => x.items.length) ?? null;
           if (sagas.length && sagaBox) clear(sagaBox).append(...sagaRows());
+          if (studio && studioBox) clear(studioBox).append(studioRow());
           if (similar.length && similarBox) clear(similarBox).append(row(tr('Titres similaires'), similar, (x) => posterCard(x)) ?? '');
         });
       }
