@@ -452,7 +452,7 @@ try {
   await page.route(/image\.tmdb\.org|themoviedb\.org/, (route) => { tmdbAsked.push(route.request().url()); route.abort(); });
   await page.route(/\/Items\/RemoteSearch\/Movie$/, (route) => {
     searches.push(route.request().postDataJSON());
-    route.fulfill({ contentType: 'application/json', body: JSON.stringify([{ Name: 'Aube Vérifiée', ProductionYear: 2021, ProviderIds: { Tmdb: '999001' }, SearchProviderName: 'TheMovieDb', ImageUrl: 'https://image.tmdb.org/t/p/original/check.jpg', Overview: 'Une proposition du contrôle.' }]) });
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify([{ Name: 'Aube Vérifiée', ProductionYear: 2021, ProviderIds: { Tmdb: '999999999' }, SearchProviderName: 'TheMovieDb', ImageUrl: 'https://image.tmdb.org/t/p/original/check.jpg', Overview: 'Une proposition du contrôle.' }]) });
   });
   const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
   await page.route(/\/Mira\/identify\/image\?/, (route) => { postersAsked.push(new URL(route.request().url()).searchParams.get('url')); route.fulfill({ contentType: 'image/png', body: pixel }); });
@@ -473,20 +473,26 @@ try {
   check('identifier un film (administrateur) : recherche par Jellyfin, affiche par l’extension seulement, choix donné au film',
     prefilled.join('|') === 'Aube Test|2021' && searches[0]?.SearchInfo?.Name === 'Aube Test' && searches[0]?.SearchInfo?.Year === 2021 && searches[0]?.ItemId === aube.Id
       && /Aube Vérifiée/.test(proposals[0] ?? '') && /2021 · TheMovieDb/.test(proposals[0] ?? '') && postersAsked[0] === 'https://image.tmdb.org/t/p/original/check.jpg' && tmdbAsked.length === 0
-      && /« Aube Test \(2021\) » devient « Aube Vérifiée \(2021\) »/.test(question) && applied && identified.Tmdb === '999001',
+      && /« Aube Test \(2021\) » devient « Aube Vérifiée \(2021\) »/.test(question) && applied && identified.Tmdb === '999999999',
     `${prefilled.join(' ')} ; ${(proposals[0] ?? 'aucune proposition').replace(/\s+/g, ' ')} ; affiche ${postersAsked.length ? 'par l’extension' : 'pas demandée'}, TMDb ${tmdbAsked.length ? 'appelé' : 'jamais appelé'} ; ${applied ? 'appliqué' : 'pas appliqué'}, ids ${JSON.stringify(identified)}`);
   await page.locator('#view [data-tool="more"]').click({ timeout: 10000 }).catch(() => {});
   await page.locator('.sheet-item', { hasText: 'Actualiser les métadonnées' }).click({ timeout: 5000 }).catch(() => {});
   const refreshed = await page.locator('.toast', { hasText: 'Jellyfin relit' }).waitFor({ timeout: 10000 }).then(() => true, () => false);
   check('actualiser les métadonnées (administrateur) : demandé à Jellyfin', refreshed);
   await page.unroute(/image\.tmdb\.org|themoviedb\.org/); await page.unroute(/\/Items\/RemoteSearch\/Movie$/); await page.unroute(/\/Mira\/identify\/image\?/);
-  await page.evaluate(async (id) => {
+  // The refresh asked above is queued by Jellyfin: once it is done, the film's name and ids put back by hand (an id
+  // that is no title anywhere: with Internet, as in CI, Jellyfin would otherwise rename the film after a real one).
+  await wait(5000);
+  await page.evaluate(async ([id, name]) => {
     const s = JSON.parse(localStorage.getItem('mira.session'));
-    await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Items/RemoteSearch/Apply/${id}?replaceAllImages=false`, {
-      method: 'POST', body: JSON.stringify({ Name: 'Aube Test', ProviderIds: {} }),
-      headers: { 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` },
-    });
-  }, aube.Id);
+    const root = location.pathname.replace(/\/Mira\/?.*$/i, '');
+    const headers = { 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` };
+    const item = await (await fetch(`${root}/Items/${id}`, { headers })).json();
+    await fetch(`${root}/Items/${id}`, { method: 'POST', headers, body: JSON.stringify({ ...item, Name: name, ProviderIds: {} }) });
+  }, [aube.Id, aube.Name]);
+  const aubeAfter = (await api(`Items/${aube.Id}`)) ?? {};
+  check('identifier un film : remis comme avant pour la suite', aubeAfter.Name === aube.Name && Object.keys(aubeAfter.ProviderIds ?? {}).length === 0,
+    `${aubeAfter.Name}, ids ${JSON.stringify(aubeAfter.ProviderIds ?? {})}`);
 
   // An anime's ASS subtitles, inside its file: Jellyfin would draw them into the picture (it never converts ASS by
   // profile); Mira asks for them as WebVTT, beside the video. Their line runs from 5 s to 8 s.
