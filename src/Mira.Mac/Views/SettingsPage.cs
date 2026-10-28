@@ -45,6 +45,8 @@ public sealed class SettingsPage : Page
         if (shell.Session is { } session) _ = ShowWhenEnabledAsync(session.Client, devices);
         // « Liens d'invités »: an administrator's links for guests without an account (shown once Jellyfin's extension answers).
         page.Children.Add(new GuestLinksSection(shell, Section).Section);
+        // « Sous-titres automatiques »: the extension's search and alignment of subtitles, for an administrator.
+        page.Children.Add(new AutoSubtitlesSection(shell, Section).Section);
 
         page.Children.Add(Section(L("Lecture", "Playback"),
             Toggle(L("Reprendre là où tu t’es arrêté", "Resume where you left off"), L("Sinon, chaque titre repart du début.", "Otherwise, every title starts from the beginning."), settings.RememberPosition, v => settings.RememberPosition = v),

@@ -95,6 +95,11 @@ export function create() {
           ? h('a', { class: 'item', href: '#/a-corriger' }, icon('warning'),
             h('span', { class: 'grow' }, tr('Titres à corriger'), h('span', { class: 'sub' }, tr('Ceux que Jellyfin n’a pas reconnus, sans affiche ou en double.'))), icon('right', { size: 20 }))
           : null,
+        // « Sous-titres automatiques »: the extension's settings, which only an administrator may change.
+        user?.Policy?.IsAdministrator
+          ? h('a', { class: 'item', href: '#/sous-titres-auto' }, icon('subtitles'),
+            h('span', { class: 'grow' }, tr('Sous-titres automatiques'), h('span', { class: 'sub' }, tr('Jellyfin cherche les sous-titres de chaque titre qui arrive et les recale sur la vidéo.'))), icon('right', { size: 20 }))
+          : null,
         // « Inviter par lien »: an account for each link, which only an administrator can make.
         user?.Policy?.IsAdministrator
           ? h('a', { class: 'item', href: '#/invites' }, icon('link'),

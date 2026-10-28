@@ -5,5 +5,6 @@ import player from './en/player.js';
 import torlink from './en/torlink.js';
 import guests from './en/guests.js';
 import identify from './en/identify.js';
+import subtitlesAuto from './en/subtitles-auto.js';
 
-export default { ...shell, ...browse, ...player, ...torlink, ...guests, ...identify };
+export default { ...shell, ...browse, ...player, ...torlink, ...guests, ...identify, ...subtitlesAuto };

@@ -236,6 +236,25 @@ internal static class PlayerTests
             }
             return Task.CompletedTask;
         });
+        await Test("Sous-titres automatiques : lignes du journal et attente, comme Mira web (tests/fixtures/subtitles-auto.json)", () =>
+        {
+            var repository = TestSupport.Repository() ?? throw new Exception("Repository not found");
+            var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "subtitles-auto.json")))!.AsObject();
+            foreach (var x in fixture["journal"]!.AsArray())
+            {
+                var entry = System.Text.Json.JsonSerializer.Deserialize<AutoSubtitleEntry>(x!["entry"]!.ToJsonString())!;
+                Assert(AutoSubtitles.Line(entry) == (string)x["line"]!, "Line: " + AutoSubtitles.Line(entry));
+            }
+            foreach (var x in fixture["waiting"]!.AsArray())
+            {
+                var state = System.Text.Json.JsonSerializer.Deserialize<AutoSubtitleState>(x!["state"]!.ToJsonString())!;
+                Assert(AutoSubtitles.Waiting(state) == (string)x["line"]!, "Waiting: " + AutoSubtitles.Waiting(state));
+            }
+            Assert(AutoSubtitles.Tried([new("OpenSubtitles", true, 1240), new("SubDL", false, Refused: true)]) == "OpenSubtitles répond (1\u00A0240 téléchargements restants) · SubDL : identifiants ou clé refusés", "Tried: " + AutoSubtitles.Tried([new("OpenSubtitles", true, 1240)]));
+            Assert(AutoSubtitles.Tried([]) == "Aucune source allumée." && AutoSubtitles.LanguageName("spa") == "Espagnol" && AutoSubtitles.LanguageName("xyz") == "xyz", "Tried, names");
+            Assert(AutoSubtitles.Languages.Distinct().Count() == AutoSubtitles.Languages.Count && AutoSubtitles.Languages.All(c => PlayerText.Language(c) is not null), "Languages offered");
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres gardés sur Jellyfin : envoi, dossier du film en lecture seule, droit refusé et recherche", async () =>
         {
             // Jellyfin 12.1 with a media folder it only reads: 500, then the film library keeps them in its own data.
