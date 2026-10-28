@@ -136,6 +136,12 @@ public sealed partial class MiraSubtitleProvider : ISubtitleProvider
         return video.Path is { Length: > 0 } path && SubtitleFiles.HasBeside(path, two);
     }
 
+    /// <summary>A file fetched for the title that was not kept after all (it did not fit the video): no longer counts as there.</summary>
+    public static void Forget(Guid item, string two)
+    {
+        lock (Gate) Fetched.Remove((item, two));
+    }
+
     /// <summary>Every candidate of every source for the video in one language, scored, best first; a source that fails is logged and skipped.</summary>
     public async Task<List<SubtitleScore>> RankAsync(Video video, List<SubtitleSource> sources, string two, MatchPreferences preferences, bool hashOnly, CancellationToken ct,
         int? season = null, int? episode = null)

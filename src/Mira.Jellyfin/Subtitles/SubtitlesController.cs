@@ -113,6 +113,7 @@ public sealed class SubtitlesController : ControllerBase
     {
         ["when"] = e.When.ToString("o"), ["itemId"] = e.ItemId, ["name"] = e.Name, ["language"] = e.Language, ["kind"] = e.Kind,
         ["source"] = e.Source, ["release"] = e.Release, ["score"] = e.Score, ["detail"] = e.Detail,
+        ["alignedOn"] = e.AlignedOn, ["shift"] = e.Shift, ["speed"] = e.Speed,
     }).ToArray());
 
     private ContentResult Answer(JsonNode node) => Content(node.ToJsonString(), "application/json");
