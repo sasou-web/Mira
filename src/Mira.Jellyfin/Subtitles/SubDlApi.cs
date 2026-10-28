@@ -77,6 +77,8 @@ public sealed class SubDlApi : SubtitleSource
     public static SubtitleCandidate? Candidate(JsonObject entry, string language, SubtitleQuery query)
     {
         if (Text(entry, "url") is not { Length: > 0 } url) return null;
+        // Old archives from Subscene come as .rar (Mira reads zip only), and SubDL often no longer has them.
+        if (url.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) || url.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)) return null;
         var release = Text(entry, "release_name") ?? Text(entry, "name") ?? "";
         var season = Int(entry, "season"); var episode = Int(entry, "episode");
         var pack = Flag(entry, "full_season");
