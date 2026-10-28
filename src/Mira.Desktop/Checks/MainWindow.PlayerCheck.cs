@@ -75,6 +75,12 @@ public partial class MainWindow
             ChooseSpeed(1.25); Require(Math.Abs(_mpv.Number("speed") - 1.25) < .001, "speed menu selection reaches mpv");
             SubtitleDelay_Click(new Button { Tag = "0.5" }, new());
             Require(Math.Abs(_mpv.Number("sub-delay") - .5) < .001 && Equals(SubtitleDelayReset.Content, DelayLabel(.5)), "subtitle timing buttons reach mpv and show the new offset");
+            AudioDelay_Click(new Button { Tag = "0.1" }, new()); AudioDelay_Click(new Button { Tag = "0.1" }, new());
+            Require(Math.Abs(_mpv.Number("audio-delay") - .2) < .001 && Equals(AudioDelayReset.Content, DelayLabel(.2)), "audio timing buttons reach mpv and show the new offset");
+            AudioDelay_Click(new Button { Tag = "0" }, new());
+            Require(Math.Abs(_mpv.Number("audio-delay")) < .001 && _audioDelay == 0, "audio delay reset");
+            // The runner's software rendering may drop frames and put the player on a lighter level: judged on the level it is on.
+            Require((_mpv.Get("video-sync") == "display-resample") == (_picture != Mira.Core.PictureQuality.Standard) && (_mpv.Get("deband") == "yes") == (_picture != Mira.Core.PictureQuality.Standard), $"« Image » {_picture} (chosen {_settings.Picture}) reaches mpv: video-sync {_mpv.Get("video-sync")}, deband {_mpv.Get("deband")}");
             var panel = (FrameworkElement)PlayerOptionsPopup.Child;
             var dpi = VisualTreeHelper.GetDpi(PlayerShell);
             var panelPixels = new Size(panel.ActualWidth * dpi.DpiScaleX, panel.ActualHeight * dpi.DpiScaleY);

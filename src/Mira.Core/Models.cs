@@ -238,6 +238,8 @@ public sealed class PlayerSettings
     public static string DefaultAudioLanguage => L("jpn,ja,fre,fra,fr,eng,en", "jpn,ja,eng,en,fre,fra,fr");
     public static string DefaultSubtitleLanguage => L("fre,fra,fr,eng,en", "eng,en,fre,fra,fr");
     public bool HardwareDecoding { get; set; } = true;
+    /// <summary>« Image » of Mira for Windows (<see cref="PictureQuality"/>): « standard », « cinema » or « max ».</summary>
+    public string Picture { get; set; } = PictureQuality.Cinema;
     public bool AutoNext { get; set; } = true;
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
     public bool AutoSkip { get; set; }

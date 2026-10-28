@@ -35,6 +35,25 @@ internal static class StreamTests
             Assert(new PlayerSettings().Quality == StreamQuality.Auto && StreamQuality.Label("1500000") == "1,5 Mb/s" && StreamQuality.Choices.Count == 7, "Default, names");
             return Task.CompletedTask;
         });
+        await Test("Image : niveaux de mpv, « Cinéma » par défaut, niveau en dessous quand le PC perd des images", () =>
+        {
+            Assert(new PlayerSettings().Picture == PictureQuality.Cinema && PictureQuality.Known("x") == PictureQuality.Cinema && PictureQuality.Known(null) == PictureQuality.Cinema, "« Cinéma » by default and for an unknown choice");
+            Assert(PictureQuality.Lower(PictureQuality.Best) == PictureQuality.Cinema && PictureQuality.Lower(PictureQuality.Cinema) == PictureQuality.Standard && PictureQuality.Lower(PictureQuality.Standard) is null, "Each level has the one below");
+            var standard = PictureQuality.Options(PictureQuality.Standard); var cinema = PictureQuality.Options(PictureQuality.Cinema).ToDictionary(x => x.Name, x => x.Value); var best = PictureQuality.Options(PictureQuality.Best).ToDictionary(x => x.Name, x => x.Value);
+            Assert(standard.All(x => x.Value is null), "« Standard » is mpv's own: every option back to its default");
+            Assert(cinema["video-sync"] == "display-resample" && cinema["interpolation"] == "yes" && cinema["tscale"] == "oversample" && cinema["deband"] == "yes" && cinema["scale"] is null, "« Cinéma »: frames timed to the screen, interpolation, deband, mpv's scaling");
+            Assert(best["scale"] == "ewa_lanczossharp" && best["video-sync"] == "display-resample" && best["deband"] == "yes", "« Maximale »: « Cinéma » and the high-quality profile");
+            Assert(standard.Select(x => x.Name).SequenceEqual(cinema.Keys) && cinema.Keys.SequenceEqual(best.Keys), "Every level names every option, so going down puts each one back");
+            var watch = new PictureWatch(); var t = new DateTimeOffset(2026, 10, 28, 20, 0, 0, TimeSpan.Zero);
+            bool Feed(double seconds, long drops, bool steady = true) => watch.Struggling(t.AddSeconds(seconds), drops, steady);
+            Assert(!Feed(0, 0, steady: false) && !Feed(1, 40) && !Feed(2.9, 80), "Drops in the seconds after a pause, seek or resize do not count");
+            Assert(!Feed(3, 100) && !Feed(8, 105) && !Feed(13, 111), "A few drops over 10 s are not stutter");
+            Assert(Feed(14, 120), "12 drops within 10 s of steady playback: the PC cannot keep up");
+            Assert(!Feed(15, 200) && !Feed(18, 220), "Then it starts over, after settling");
+            Assert(!Feed(19, 0) && !Feed(25, 11), "A new file starts mpv's counter again");
+            Assert(!Feed(26, 30, steady: false) && !Feed(30, 30) && !Feed(40, 41) && !Feed(52, 52), "Not steady resets; drops spread out stay under the limit");
+            return Task.CompletedTask;
+        });
         await Test("Qualité : profil de mpv, demande à PlaybackInfo, adresses sans jeton", () =>
         {
             var body = ServerStreams.Request("user-1", 6_000_000, 90, null, null, null);
