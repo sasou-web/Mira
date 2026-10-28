@@ -273,13 +273,23 @@ try {
   check('reprise au bon endroit', resumed >= second.UserData.PlaybackPositionTicks / 1e7 - 1, `${resumed.toFixed(1)} s`);
   // « Arrêter » from « En ce moment sur Jellyfin » (Mira for Windows, Mira web): Jellyfin's Playstate Stop, through the
   // socket the player keeps open, closes it.
+  // A Sessions answer that is not a list yet (Jellyfin busy starting the stream) is asked again: an exception in the
+  // function would end the wait at once (« session jamais prête » 11 ms after, seen on 10.9).
   const phone = await page.evaluate(() => JSON.parse(localStorage.getItem('mira.device')));
+  let sessionsSeen = '';
   const watching = await page.waitForFunction(async ([id]) => {
-    const s = JSON.parse(localStorage.getItem('mira.session'));
-    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Sessions`, { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
-    const found = (await r.json()).find((x) => x.DeviceId === id);
-    return found?.SupportsRemoteControl && found.NowPlayingItem ? found.Id : null;
-  }, [phone], { timeout: 15000, polling: 500 }).then((handle) => handle.jsonValue(), () => null);
+    try {
+      const s = JSON.parse(localStorage.getItem('mira.session'));
+      const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Sessions`, { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+      const list = await r.json();
+      const found = Array.isArray(list) ? list.find((x) => x.DeviceId === id) : null;
+      window.miraSessionsSeen = `HTTP ${r.status}, ${Array.isArray(list) ? `${list.length} session(s)` : 'pas une liste'}${found ? `, la sienne : ${found.SupportsRemoteControl ? 'commandable' : 'pas commandable'}, ${found.NowPlayingItem ? 'en lecture' : 'rien en lecture'}` : ', pas la sienne'}`;
+      return found?.SupportsRemoteControl && found.NowPlayingItem ? found.Id : null;
+    } catch (error) { window.miraSessionsSeen = String(error); return null; }
+  }, [phone], { timeout: 15000, polling: 500 }).then((handle) => handle.jsonValue(), async (error) => {
+    sessionsSeen = await page.evaluate(() => window.miraSessionsSeen ?? '').catch(() => '') || error.message.split('\n')[0];
+    return null;
+  });
   // « En ce moment sur Jellyfin » in Mira web, on another device with this administrator's account: the phone's
   // session and how Jellyfin sends it; its « Arrêter » is what stops it here.
   let nowRow = '', stoppedFromList = false;
@@ -302,7 +312,7 @@ try {
     await admin.close();
   }
   check('en ce moment (Mira web, administrateur) : la lecture du téléphone, comment Jellyfin l’envoie, « Arrêter »',
-    stoppedFromList && nowRow.includes(seriesName) && /Lecture directe|Conversion|Fichier remis/.test(nowRow), nowRow || 'session jamais prête');
+    stoppedFromList && nowRow.includes(seriesName) && /Lecture directe|Conversion|Fichier remis/.test(nowRow), nowRow || `session jamais prête (${sessionsSeen})`);
   if (watching && !stoppedFromList) await api(`Sessions/${watching}/Playing/Stop`, 'POST');
   const stoppedFromPc = await page.waitForFunction((id) => location.hash.startsWith(`#/titre/${id}`), series.Id, { timeout: 8000 }).then(() => true, () => false);
   const stopToast = await page.locator('.toast').innerText().catch(() => '');
