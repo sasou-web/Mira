@@ -47,6 +47,19 @@ export function icon(name, { size = 0, label = '' } = {}) {
 
 export function clear(el) { while (el.firstChild) el.firstChild.remove(); return el; }
 
+const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+/**
+ * Draws `box` again (`draw`) without losing the keyboard's place: the control of it that had the focus hands it to the
+ * one at the same place among the new ones, so that Tab goes on from there rather than from the top of the page.
+ */
+export function keepFocus(box, draw) {
+  const before = box.contains(document.activeElement) ? [...box.querySelectorAll(FOCUSABLE)].indexOf(document.activeElement) : -1;
+  draw();
+  if (before < 0 || box.contains(document.activeElement)) return;
+  const now = box.querySelectorAll(FOCUSABLE);
+  now[Math.min(before, now.length - 1)]?.focus({ preventScroll: true });
+}
+
 const TICKS = 10_000_000;
 export const seconds = (ticks) => (ticks ?? 0) / TICKS;
 export const ticks = (secondsValue) => Math.max(0, Math.round(secondsValue * TICKS));

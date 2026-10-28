@@ -37,6 +37,8 @@ function qr(text) {
   code.make();
   const box = h('div', { class: 'qr', role: 'img', 'aria-label': tr('QR code de {address}', { address: text }) });
   box.innerHTML = code.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  // The box is the image, named by its address; the drawing in it is not one more.
+  box.firstElementChild?.setAttribute('aria-hidden', 'true');
   return box;
 }
 

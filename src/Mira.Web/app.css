@@ -66,6 +66,8 @@ html {
   touch-action: manipulation;
 }
 html.android { overscroll-behavior-y: contain; }
+/* What Tab brings into view stops clear of the bars (the tab bar at the bottom, the small title at the top), never under. */
+html { scroll-padding: var(--bar) 0 var(--tabbar); }
 /* Nor does it select its text or open link previews on a long press: only fields and addresses select. */
 body { margin: 0; min-height: 100dvh; background: var(--bg); overflow-x: hidden; -webkit-user-select: none; user-select: none; }
 a, img { -webkit-touch-callout: none; -webkit-user-drag: none; }
@@ -939,6 +941,30 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 @media (orientation: landscape) and (max-height: 500px) {
   .p-center .round.big { width: 64px; height: 64px; }
   .pill, .up-next { bottom: calc(var(--bottom) + 84px); }
+}
+
+/* ---------- Contrast ---------- */
+/* « Augmenter le contraste » (iOS, macOS) and Windows' « Contraste plus élevé »: the secondary inks at 7:1 at least on
+   every background, edges that show, bars and sheets without anything showing through. */
+@media (prefers-contrast: more) {
+  :root { --muted: #c8c8cc; --faint: #b8b8bd; --danger: #ff8a80; --line: #5a5a60; --glass: var(--glass-solid); --scrim: rgba(0, 0, 0, 0.88); }
+  .chip, .btn:not(.primary, .quiet), .round:not(.flat), .letter, .segmented, .input, .sheet, .group, :is(.tracks-line, .group-line, .next-line) { box-shadow: inset 0 0 0 1px var(--line); }
+  .switch { box-shadow: inset 0 0 0 1px var(--muted); }
+}
+/* Windows' contrast themes (forced colours) take every fill away, Mira's dark one with them: a control drawn by its
+   fill keeps an edge in the theme's colour, and what is chosen (a chip, a letter, a switch, a tab) takes its highlight. */
+@media (forced-colors: active) {
+  .btn, .round, .chip, .letter, .segmented button, .tool, .sheet, .toast, .pill, .netbar, .up-next,
+  :is(.tracks-line, .group-line, .next-line) { border: 1px solid ButtonText; }
+  .round.flat, .btn.quiet { border-color: transparent; }
+  :is(.chip[aria-pressed='true'], .chip.on, .letter.on, .segmented button[aria-checked='true']) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+  .switch { forced-color-adjust: none; background: Canvas; border: 1px solid ButtonText; }
+  .switch::after { background: ButtonText; box-shadow: none; top: 1px; left: 1px; }
+  [aria-checked='true'] .switch { background: Highlight; border-color: Highlight; }
+  [aria-checked='true'] .switch::after { background: HighlightText; }
+  .progress { forced-color-adjust: none; background: Canvas; outline: 1px solid CanvasText; }
+  .progress > i { background: Highlight; }
+  .tabbar a[aria-current='page'] { forced-color-adjust: none; color: Highlight; }
 }
 
 @media (prefers-reduced-motion: reduce) {

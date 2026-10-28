@@ -200,7 +200,8 @@ export function create({ id, query }) {
   function showControls(hold = false) {
     el.classList.remove('idle');
     clearTimeout(hideTimer);
-    if (!hold && !video.paused && !scrubbing) hideTimer = setTimeout(() => el.classList.add('idle'), 3200);
+    // Never from under the keyboard: a control Tab is on stays shown.
+    if (!hold && !video.paused && !scrubbing) hideTimer = setTimeout(() => { if (!el.querySelector(':focus-visible')) el.classList.add('idle'); }, 3200);
   }
   function hideControls() { if (!video.paused && !scrubbing) el.classList.add('idle'); }
 
@@ -232,6 +233,8 @@ export function create({ id, query }) {
     });
     el.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') showControls(); });
     controls.addEventListener('click', () => showControls());
+    // Tab brings the controls back, as a move of the mouse does: never a ring on something unseen.
+    el.addEventListener('focusin', () => { if (el.querySelector(':focus-visible')) showControls(); });
   }
 
   let flashMark = null;
