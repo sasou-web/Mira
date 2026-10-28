@@ -89,6 +89,11 @@ final class MiraUITests: XCTestCase {
             app.coordinate(withNormalizedOffset: .zero)
                 .withOffset(CGVector(dx: min(box.maxX + 30, app.frame.maxX - 20), dy: box.midY)).tap()
         }
+        // Then the tab bar is the search field and the last tab before Search: back to it, the tabs unfold.
+        if !settings.waitForExistence(timeout: 3) {
+            let back = app.buttons["Movies"].firstMatch
+            if back.waitForExistence(timeout: 3) { back.tap() }
+        }
         if !settings.waitForExistence(timeout: 5) {
             capture("08-search-left")
             XCTFail("No Settings tab; buttons: \(app.buttons.allElementsBoundByIndex.map { "\($0.label)|\($0.identifier)|\($0.frame)" })")
