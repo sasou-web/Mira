@@ -76,6 +76,8 @@ export default {
   'Jellyfin demande à {providers} : le nom du fichier et son empreinte partent chez ce service.':
     'Jellyfin asks {providers}: the file’s name and its fingerprint are sent to that service.',
   '{a} et {b}': '{a} and {b}',
+  'Mira demande à OpenSubtitles, et à SubDL s’il est réglé : l’empreinte et la taille du fichier, ses identifiants IMDb ou TMDb et la langue partent chez ces services, jamais le nom du fichier.':
+    'Mira asks OpenSubtitles, and SubDL when it is set up: the file’s fingerprint and size, the title’s IMDb or TMDb ids and the language are sent to those services, never the file’s name.',
   'Jellyfin demande à son extension de sous-titres : le nom du fichier et son empreinte partent chez ce service.':
     'Jellyfin asks its subtitle plugin: the file’s name and its fingerprint are sent to that service.',
   'Sous-titres gardés sur Jellyfin, en {language} : tes autres appareils les proposent aussi.':

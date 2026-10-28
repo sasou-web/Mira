@@ -60,6 +60,12 @@
     },
     "bare": {
       "file": "film.mkv"
+    },
+    "frierenScanning": {
+      "file": "[ToonsHub] Sousou no Frieren S02E03 (1080p WEB-DL HEVC).mkv",
+      "duration": 1440,
+      "fps": 23.976,
+      "width": 1920
     }
   },
   "scores": [
@@ -182,6 +188,25 @@
       "candidate": {
         "source": "OpenSubtitles",
         "id": "7",
+        "release": "Sousou.no.Frieren.S02E04.1080p.WEB-DL.HEVC-ToonsHub",
+        "fps": 23.976
+      },
+      "score": 0,
+      "verdict": "Rejected",
+      "reasons": [
+        "other-episode",
+        "same-group",
+        "same-source",
+        "same-fps"
+      ],
+      "text": "autre épisode (S02E04) · même release (ToonsHub) · même source (WEB-DL) · même cadence (23,976 i/s)"
+    },
+    {
+      "name": "un autre épisode, alors que Jellyfin n'a pas encore numéroté l'épisode (nom du fichier) : rejeté",
+      "video": "frierenScanning",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "17",
         "release": "Sousou.no.Frieren.S02E04.1080p.WEB-DL.HEVC-ToonsHub",
         "fps": 23.976
       },

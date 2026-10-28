@@ -5,7 +5,7 @@
 import { api } from '../api.js';
 import { h, icon, clear } from '../dom.js';
 import { tr, trn } from '../i18n.js';
-import { sheet, toast, errorState } from '../components.js';
+import { sheet, toast, errorState, emptyState } from '../components.js';
 import { goBack } from '../app.js';
 import { session, temp } from '../session.js';
 import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable, followLine, followNote, pickLine, takenLine } from '../torlink.js';
@@ -51,11 +51,16 @@ export function create({ query }) {
   const placedList = h('div', { class: 'group torlink-list', hidden: true });
   // The latest few only, under what is under way: a title just placed shows without going past the results.
   const placedMore = h('button', { class: 'btn quiet small torlink-all', type: 'button', hidden: true, 'aria-expanded': 'false', on: { click: () => { placedOpen = !placedOpen; render(lastState); } } });
+  // Mira never seen on the PC of Jellyfin: nothing can go yet. One message says so, in place of the results, and the
+  // search waits for it (read again every 3 s: the screen comes alive as soon as it visits).
+  const absent = emptyState({ symbol: 'server', title: tr('Ouvre Mira sur le PC serveur'),
+    text: tr('C’est lui qui cherche et télécharge avec TorLink, puis range le titre dans ta bibliothèque. Ouvre-le sur le PC où tourne Jellyfin, connecté avec un compte administrateur : cet écran s’active dès qu’il est là, même réduit.') });
+  absent.hidden = true;
   const note = h('p', { class: 'group-note torlink-note' },
     tr('TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les comptes administrateurs de Jellyfin voient cet écran.'));
   // What the PC has under way and has placed comes before the results: a download just asked for, or a title just
   // placed, shows at once, not 60 results below.
-  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, followsTitle, followsList, placedTitle, placedList, placedMore, found, note);
+  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, followsTitle, followsList, placedTitle, placedList, placedMore, absent, found, note);
   clear(el).append(back,
     h('div', { class: 'page', style: { paddingTop: 'calc(var(--top) + 64px)', paddingBottom: '12px' } }, h('h1', { class: 'page-title' }, tr('Télécharger')), status),
     body);
@@ -92,7 +97,9 @@ export function create({ query }) {
     agent = state?.agent ?? null;
     const line = agentLine(agent);
     ready = line.ready;
-    say(line.text);
+    say(agent ? line.text : '');
+    absent.hidden = !!agent; note.hidden = !agent;
+    input.disabled = paste.disabled = !agent;
     go.disabled = !ready || !!looking;
     latest = {
       requests: state?.requests ?? [], downloads: state?.downloads ?? [], placed: state?.placed ?? [], controls: state?.controls ?? [],

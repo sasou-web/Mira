@@ -45,10 +45,18 @@ export function remoteText(found) {
       machine(found) ? tr('traduction automatique') : ''].filter(Boolean).join(' · '),
   };
 }
-/** The sentence said before any search: what leaves the server, and for whom. */
-export const privacyText = (providers) => (providers?.length
-  ? tr('Jellyfin demande à {providers} : le nom du fichier et son empreinte partent chez ce service.', { providers: providers.reduce((a, b) => tr('{a} et {b}', { a, b })) })
-  : tr('Jellyfin demande à son extension de sous-titres : le nom du fichier et son empreinte partent chez ce service.'));
+/**
+ * The sentence said before any search: what leaves the server, and for whom. « Mira » (the extension's own provider)
+ * sends neither the file's name nor anything of the file but its fingerprint: it gets its own sentence.
+ */
+export function privacyText(providers) {
+  const mira = providers?.includes('Mira');
+  const others = (providers ?? []).filter((p) => p !== 'Mira');
+  const said = others.length
+    ? tr('Jellyfin demande à {providers} : le nom du fichier et son empreinte partent chez ce service.', { providers: others.reduce((a, b) => tr('{a} et {b}', { a, b })) })
+    : mira ? '' : tr('Jellyfin demande à son extension de sous-titres : le nom du fichier et son empreinte partent chez ce service.');
+  return [said, mira ? tr('Mira demande à OpenSubtitles, et à SubDL s’il est réglé : l’empreinte et la taille du fichier, ses identifiants IMDb ou TMDb et la langue partent chez ces services, jamais le nom du fichier.') : ''].filter(Boolean).join(' ');
+}
 
 /** What happened to a subtitle sent to Jellyfin (Kept, KeptInJellyfinData, Refused, NotWritten), in a sentence. */
 export function keptText(kept, language) {

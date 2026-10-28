@@ -382,6 +382,11 @@ try {
     const section = head?.closest('.section');
     return section ? [head.textContent, ...[...section.querySelectorAll('.card-title')].map((x) => x.textContent), section.querySelector('.section-head a')?.getAttribute('href') ?? ''] : null;
   }, null, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => null);
+  // « Titres similaires » does not show again what « Du même studio » shows (in this small library, Chapitres Web).
+  const similarTitles = await page.evaluate(() => {
+    const head = [...document.querySelectorAll('#view .section h2')].find((x) => x.textContent === 'Titres similaires');
+    return [...head?.closest('.section').querySelectorAll('.card-title') ?? []].map((x) => x.textContent);
+  });
   const genreLinks = await page.locator('#view .genres a').evaluateAll((links) => links.map((x) => `${x.textContent} ${x.getAttribute('href')}`));
   const studioLink = await page.locator('#view .credits a[href^="#/studio/"]').evaluateAll((links) => links.map((x) => `${x.parentElement.textContent} ${x.getAttribute('href')}`));
   await shot('12-genres-studio');
@@ -409,12 +414,12 @@ try {
   const studioTitles = sameStudio?.slice(1, -1) ?? [];
   const studioRowOk = olderJellyfin ? studioTitles.length === 2 && studioTitles.includes('Chapitres Web (2024)') && studioTitles.includes('Aube Test (2021)')
     : studioTitles.join('|') === 'Chapitres Web (2024)';
-  check('fiche : genres et studio cliquables, « Du même studio » sans le film de la saga, clic droit sur une carte',
-    genreLinks.join('|') === 'Animation #/films?genre=Animation' && /^Studio : Studio Test #\/studio\/[0-9a-f]+$/.test(studioLink[0] ?? '')
+  check('fiche : genres et studio cliquables, « Du même studio » sans le film de la saga ni « Titres similaires » en double, clic droit sur une carte',
+    !similarTitles.some((x) => studioTitles.includes(x)) && genreLinks.join('|') === 'Animation #/films?genre=Animation' && /^Studio : Studio Test #\/studio\/[0-9a-f]+$/.test(studioLink[0] ?? '')
       && sameStudio?.[0] === 'Du même studio · Studio Test' && studioRowOk && /^#\/studio\//.test(sameStudio[sameStudio.length - 1])
       && ofGenre?.join('|') === 'Aube Test (2021)|Lueur Web (2020)' && genreChip.includes('Animation')
       && studioHead === 'Studio Test' && ofStudio?.join('|') === 'Aube Test (2021)|Chapitres Web (2024)|Lueur Web (2020)' && cardMenu.some((x) => x.startsWith('Marquer comme')),
-    `genres : ${genreLinks.join(', ') || 'aucun lien'} ; ${studioLink.join(', ') || 'pas de studio'} ; rangée : ${sameStudio?.join(', ') ?? 'aucune'} ; `
+    `genres : ${genreLinks.join(', ') || 'aucun lien'} ; ${studioLink.join(', ') || 'pas de studio'} ; rangée : ${sameStudio?.join(', ') ?? 'aucune'} ; similaires : ${similarTitles.join(', ') || 'aucun'} ; `
       + `genre : ${ofGenre?.join(', ') ?? 'rien'} (${genreChip.join(', ')}) ; studio : ${studioHead} ${ofStudio?.join(', ') ?? 'rien'} ; clic droit : ${cardMenu.join(', ') || 'pas de menu'}`);
   await page.locator('.tabbar a[data-tab="search"]').click(); await wait(800);
   await page.fill('input[type=search]', 'studio te');
@@ -2148,6 +2153,54 @@ try {
 }
 check('invité : aucune erreur JavaScript', !guestErrors.length, guestErrors.join(' | ') || 'aucune');
 await hostCtx.close(); await guestCtx.close();
+
+// A computer (a mouse, no touch): a right click opens the menu by the pointer, not a sheet in the middle. And
+// « Télécharger » before Mira has ever come on the PC of Jellyfin (the fake agent below is not there yet): one message,
+// the field and « Coller un lien magnet » off.
+const deskContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'fr-FR' });
+await watchPolicy(deskContext, 'ordinateur');
+const kp2 = await deskContext.newPage();
+const deskErrors = [];
+kp2.on('pageerror', (e) => deskErrors.push(e.message));
+try {
+  await signIn(kp2);
+  await kp2.evaluate(() => { location.hash = '#/films'; });
+  const card = kp2.locator('#view .grid:not([aria-hidden="true"]) a.card').nth(1);
+  await card.waitFor({ state: 'visible', timeout: 10000 }); await kp2.waitForTimeout(500);
+  const cardBox = await card.boundingBox();
+  const click = { x: Math.round(cardBox.x + cardBox.width / 2), y: Math.round(cardBox.y + 40) };
+  await kp2.mouse.click(click.x, click.y, { button: 'right' }); await kp2.waitForTimeout(600);
+  const menu = await kp2.evaluate(() => {
+    const panel = document.querySelector('.sheet-layer .sheet'), r = panel?.getBoundingClientRect();
+    return panel ? { anchored: panel.parentElement.classList.contains('anchored'), x: Math.round(r.left), y: Math.round(r.top), right: r.right <= innerWidth, bottom: r.bottom <= innerHeight, items: panel.querySelectorAll('.sheet-item').length } : null;
+  });
+  await kp2.screenshot({ path: `${out}/12-right-click.png` });
+  await kp2.mouse.click(5, 790); await kp2.waitForTimeout(400);
+  check('ordinateur : clic droit = menu près du pointeur, dans la fenêtre, fermé par un clic à côté',
+    menu?.anchored && Math.abs(menu.x - click.x) <= 2 && Math.abs(menu.y - click.y) <= 2 && menu.right && menu.bottom && menu.items >= 3 && await kp2.locator('.sheet-layer').count() === 0,
+    menu ? `${menu.anchored ? 'menu' : 'feuille'} à ${menu.x},${menu.y} pour un clic à ${click.x},${click.y}, ${menu.items} choix` : 'rien d’ouvert');
+  const agentSeen = await kp2.evaluate(async () => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Mira/torlink`, { headers: { Authorization: `MediaBrowser Token="${s.token}"` } });
+    return r.ok ? !!(await r.json())?.agent : null;
+  });
+  if (agentSeen === false) {
+    await kp2.evaluate(() => { location.hash = '#/telecharger'; });
+    await kp2.waitForFunction(() => document.querySelector('.torlink-page .state:not([hidden]) h2'), null, { timeout: 20000 }).catch(() => {});
+    const empty = await kp2.evaluate(() => ({
+      title: document.querySelector('.torlink-page .state:not([hidden]) h2')?.textContent ?? '', sub: document.querySelector('.torlink-page .page-sub')?.textContent ?? '',
+      off: document.querySelector('.torlink-page input[type=search]').disabled && document.querySelector('.torlink-paste').disabled,
+      note: !document.querySelector('.torlink-note')?.hidden,
+    }));
+    await kp2.screenshot({ path: `${out}/12-download-no-agent.png` });
+    check('Télécharger sans Mira sur le PC serveur : un seul message, champ et lien magnet désactivés',
+      empty.title === 'Ouvre Mira sur le PC serveur' && !empty.sub && empty.off && !empty.note, JSON.stringify(empty));
+  } else check('Télécharger sans Mira sur le PC serveur (déjà venu sur ce Jellyfin : rien à voir)', agentSeen === true, String(agentSeen));
+} catch (error) {
+  check('ordinateur : déroulé', false, error.message.split('\n')[0]);
+}
+check('ordinateur : aucune erreur JavaScript', !deskErrors.length, deskErrors.join(' | ') || 'aucune');
+await deskContext.close();
 
 // « Télécharger sur le PC serveur » (an administrator): Mira for Windows on the PC of Jellyfin is played here by a fake
 // agent, which visits the extension's relay as it does (Mira/torlink/agent): it answers the search of each category

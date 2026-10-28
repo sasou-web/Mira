@@ -217,11 +217,13 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
  * { heading } above a group of them. Closes on a choice, on the backdrop, or with Escape.
  */
 /** focus: a field of `body` that takes the focus at once, within the touch that opened the sheet (iOS's keyboard). */
-export function sheet({ title = '', items = [], body = null, held = false, focus = null }) {
+export function sheet({ title = '', items = [], body = null, held = false, focus = null, at = null }) {
   // A second tap on what opens a sheet (while the first one is still arriving) does not stack another.
   if (document.querySelector('.sheet-layer:not(.leaving)')) return () => {};
   const previous = document.activeElement;
-  const layer = h('div', { class: 'sheet-layer' });
+  // A right click with a mouse or a trackpad (at: where it was) opens a menu there, as a computer does; a finger, the sheet.
+  const anchored = !!at && matchMedia('(pointer: fine)').matches;
+  const layer = h('div', { class: ['sheet-layer', anchored && 'anchored'] });
   const openedAt = performance.now();
   // A touch held to open a menu ends with a click where the finger lifts: too soon to be a choice in the sheet. A
   // sheet opened by a plain tap takes the next tap at once.
@@ -235,6 +237,7 @@ export function sheet({ title = '', items = [], body = null, held = false, focus
     if (closing) return;
     closing = true;
     try { watcher?.destroy(); } catch { /* already gone */ }
+    resized?.disconnect();
     removeEventListener('keydown', keys); removeEventListener('hashchange', close);
     layer.classList.add('leaving');
     panel.style.transform = '';
@@ -266,9 +269,28 @@ export function sheet({ title = '', items = [], body = null, held = false, focus
     title ? h('div', { class: 'sheet-title', 'aria-hidden': 'true' }, title) : null,
     body,
     menu);
-  layer.append(h('div', { class: 'sheet-backdrop', on: { click: () => { if (!early()) close(); } } }), panel);
-  dragToClose(panel, close);
+  // A right click beside the menu closes it, without the browser's own menu.
+  layer.append(h('div', { class: 'sheet-backdrop', on: { click: () => { if (!early()) close(); }, contextmenu: (e) => { e.preventDefault(); close(); } } }), panel);
+  if (!anchored) dragToClose(panel, close);
   overlayHost().append(layer);
+  // Its list scrolls when the screen is short (a phone on its side): its foot fades while more is below.
+  const more = () => panel.classList.toggle('more', panel.scrollHeight - panel.scrollTop - panel.clientHeight > 4);
+  panel.addEventListener('scroll', more, { passive: true });
+  // The menu by the pointer, inside the window: to its left or above it when there is no room, placed again when
+  // what it says arrives (a summary).
+  const place = () => {
+    if (anchored) {
+      const { width, height } = panel.getBoundingClientRect();
+      const x = at.x + width > innerWidth - 8 ? Math.max(8, at.x - width) : at.x;
+      const y = at.y + height > innerHeight - 8 ? Math.max(8, Math.min(at.y - height, innerHeight - 8 - height)) : at.y;
+      panel.style.left = `${x}px`; panel.style.top = `${y}px`;
+      panel.style.transformOrigin = `${at.x - x}px ${at.y - y}px`;
+    }
+    more();
+  };
+  const resized = 'ResizeObserver' in window ? new ResizeObserver(place) : null;
+  resized?.observe(panel);
+  place();
   addEventListener('keydown', keys);
   addEventListener('hashchange', close);
   // The panel takes the focus, so that screen readers and Tab start there, without a ring on touch screens.
@@ -318,7 +340,7 @@ function dragToClose(panel, close) {
 export function withActions(card, item, { resumeRow = false, inTitle = false } = {}) {
   let timer = 0, lift = 0, startX = 0, startY = 0, fired = false;
   const stop = () => { clearTimeout(timer); clearTimeout(lift); card.classList.remove('holding'); };
-  const open = () => { stop(); if (fired) return; fired = true; itemMenu(card.item ?? item, { resumeRow, inTitle, held: true }); };
+  const open = (at = null) => { stop(); if (fired) return; fired = true; itemMenu(card.item ?? item, { resumeRow, inTitle, held: !at, at }); };
   card.addEventListener('touchstart', (e) => {
     fired = false; startX = e.touches[0].clientX; startY = e.touches[0].clientY;
     lift = setTimeout(() => card.classList.add('holding'), 180);
@@ -332,7 +354,13 @@ export function withActions(card, item, { resumeRow = false, inTitle = false } =
   card.addEventListener('touchend', (e) => { stop(); if (fired && e.cancelable) e.preventDefault(); }, { passive: false });
   card.addEventListener('touchcancel', stop);
   card.addEventListener('click', (e) => { if (fired) { e.preventDefault(); fired = false; } });
-  card.addEventListener('contextmenu', (e) => { e.preventDefault(); open(); });
+  // A right click opens the menu where it was; the menu key of a keyboard, at the card.
+  card.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (e.pointerType === 'touch') { open(); return; }
+    const box = card.getBoundingClientRect();
+    open(e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : { x: box.left + 12, y: box.top + 12 });
+  });
   // A mouse or a pen: only the click after a long touch is swallowed, never the next real one.
   card.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') fired = false; });
 }
@@ -342,7 +370,7 @@ export function openPlayer(href) {
   if (dispatchEvent(new CustomEvent('mira-play', { cancelable: true, detail: href }))) location.hash = href;
 }
 
-export function itemMenu(item, { resumeRow = false, inTitle = false, held = false } = {}) {
+export function itemMenu(item, { resumeRow = false, inTitle = false, held = false, at = null } = {}) {
   const name = item.Type === 'Episode' ? `${item.SeriesName} · ${episodeCode(item)}` : item.Name;
   const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
   const items = [];
@@ -356,7 +384,7 @@ export function itemMenu(item, { resumeRow = false, inTitle = false, held = fals
   items.push({ label: played ? tr('Marquer comme non vu') : tr('Marquer comme vu'), symbol: 'check', run: () => setPlayed(item, !played) });
   items.push({ label: favorite ? tr('Retirer des favoris') : tr('Ajouter aux favoris'), symbol: favorite ? 'heart-fill' : 'heart', run: () => setFavorite(item, !favorite) });
   if (resumeRow) items.push({ label: tr('Retirer de Continuer à regarder'), symbol: 'close', run: () => hideFromResume(item) });
-  sheet({ title: name, items, held, body: about(item) });
+  sheet({ title: name, items, held, at, body: about(item) });
 }
 
 /**
