@@ -43,6 +43,15 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["title.play"].waitForExistence(timeout: 10), "Closing the player did not lead back to the title page")
         app.navigationBars.buttons.firstMatch.tap()
 
+        // A series: Play for its next episode, then its episodes, each with a Play of its own.
+        let series = app.buttons["Pioneer One, 2010"].firstMatch
+        XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
+        series.tap()
+        XCTAssertTrue(app.buttons["episode.play.3"].waitForExistence(timeout: 15), "The series page lists no episodes")
+        settle()
+        capture("06-series")
+        app.navigationBars.buttons.firstMatch.tap()
+
         // Scrolling down Home folded the tab bar into its Home button; back at the top, it shows every tab again.
         app.swipeDown()
         app.swipeDown()
@@ -50,7 +59,7 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 5), "The tab bar did not unfold back at the top of Home")
         settings.tap()
         XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
-        capture("06-settings")
+        capture("07-settings")
         app.buttons["settings.signout"].tap()
         // The dialog's button, by its identifier or, if iOS does not pass it on, by its name.
         let confirm = app.buttons.matching(NSPredicate(format: "identifier == 'settings.signout.confirm' OR (label == 'Sign out' AND identifier != 'settings.signout')")).firstMatch

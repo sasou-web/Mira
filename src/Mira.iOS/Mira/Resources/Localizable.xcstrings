@@ -260,16 +260,6 @@
         }
       }
     },
-    "Episodes in Mira web": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Épisodes dans Mira web"
-          }
-        }
-      }
-    },
     "external file": {
       "localizations": {
         "fr": {
@@ -536,6 +526,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lecture"
+          }
+        }
+      }
+    },
+    "Play %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire %@"
           }
         }
       }

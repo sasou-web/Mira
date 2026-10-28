@@ -81,6 +81,19 @@ extension JellyfinClient {
         return items[1]
     }
 
+    /// A series' seasons, in order (specials first when Jellyfin has them).
+    func seasons(_ series: String) async throws -> [Item] {
+        try await get("Shows/\(series)/Seasons", ["userId": userId, "enableUserData": "true", "enableImages": "false"], as: ItemList.self).items ?? []
+    }
+
+    /// A season's episodes, in order, with their pictures, progress and files (for their languages).
+    func episodes(_ series: String, season: String) async throws -> [Item] {
+        try await get("Shows/\(series)/Episodes", [
+            "userId": userId, "seasonId": season, "fields": "Overview,MediaSources", "enableUserData": "true",
+            "enableImageTypes": "Primary,Thumb,Backdrop", "imageTypeLimit": "1",
+        ], as: ItemList.self).items ?? []
+    }
+
     /// The episode Jellyfin would play next in a series: the one started, else the first not watched.
     func nextUp(series: String) async throws -> Item? {
         let list: ItemList = try await get("Shows/NextUp", [
