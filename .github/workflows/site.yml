@@ -47,6 +47,13 @@ jobs:
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
       - name: Build
         run: node tools/site/build.mjs "${{ steps.release.outputs.version }}" dist/site
+      # The AltStore source of Mira for iPhone (altstore.json): the .ipa of each published release.
+      - name: AltStore source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" > "$RUNNER_TEMP/releases.json"
+          node tools/site/altstore.mjs "$RUNNER_TEMP/releases.json" dist/site
       # Nothing a page loads may come from another host (each page's policy says so too): links only.
       - name: No third-party request
         run: |
