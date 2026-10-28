@@ -93,6 +93,21 @@ Sur Mac, mpv n’a pas de fenêtre à lui : `vo=libmpv`, et Mira dessine chaque 
 
 `tools/mac/package.sh` construit Mira.app (runtime .NET inclus), y copie libmpv et toutes ses bibliothèques depuis Homebrew en réécrivant leurs chemins (`dylibbundler`), range dans `Contents/Resources` la licence de Mira, ses notices, `licenses/` (avec les textes de la GPL et de la LGPL) et `licenses/HOMEBREW-LIBRARIES.txt` (formule, version exacte, licence et source de chaque bibliothèque embarquée, avec les fichiers de licence de chaque formule dans `licenses/homebrew/`), signe le tout ad hoc et crée l’image disque. Le workflow `mac.yml` le lance sur un Mac de GitHub et exécute le contrôle complet de l’application, à chaque modification du code Mac. Pour une release, c’est `tools/release.ps1` qui le lance, sur `main`, pour le brouillon de la release : il construit et contrôle l’application depuis le commit de ce brouillon, puis y joint l’image disque et son SHA-256 (sans jamais remplacer un fichier déjà là).
 
+## Mira pour iPhone
+
+`src/Mira.iOS` est une app native SwiftUI pour iPhone et iPad (iOS 26, Swift 6 en mode strict, Liquid Glass d’iOS 26), sans dépendance. Elle ne partage pas de code avec Mira.Core (C#) : ses règles reprennent celles de Core et de Mira web (adresses du serveur de `ServerAddress`, ordre de « Continuer à regarder » de `home.js`), avec leurs tests. Le projet Xcode et l’`Info.plist` sont générés par XcodeGen depuis `project.yml` ; les textes sont dans des catalogues (`Localizable.xcstrings`, `InfoPlist.xcstrings`), anglais en source, français à côté.
+
+```text
+Mira.iOS (SwiftUI)
+  ├─ App : MiraApp (onglets Accueil et Réglages), AppModel (session, identifiant d’appareil), SessionStore (trousseau)
+  ├─ Jellyfin : JellyfinClient (requêtes, en-tête Authorization, recherche du serveur parmi les adresses candidates), ServerAddress, Models
+  ├─ Home : HomeModel (Accueil, gardé dans Caches/home/<compte>.json), HomeView (bandeau, rangées), TitleView (fiche)
+  ├─ Login, Settings
+  └─ Design : Palette (jetons de Mira web), Nunito Sans, RemoteImage (images à la taille affichée, BlurHash en attendant)
+```
+
+Phase 0 : pas de lecteur. **Lecture** ouvre Mira web dans Safari à `/Mira/#/lecture/<id>`. Le workflow `ios.yml` génère le projet, vérifie que chaque texte a son français (`xcodebuild -exportLocalizations` + `tools/ios/strings.mjs`), lance les tests unitaires et d’interface sur le simulateur contre un faux Jellyfin (`tools/ios/mock-jellyfin.mjs`, captures de chaque écran), puis construit l’`.ipa` non signée, que AltStore Classic signe sur l’iPhone. Pour une release, `tools/release.ps1` le lance comme `mac.yml` ; `site.yml` en tire la source AltStore `altstore.json` du site (`tools/site/altstore.mjs`).
+
 ## Mira web
 
 `src/Mira.Web` est l’application pour téléphone et tablette : HTML, CSS et modules JavaScript, sans étape de construction. `src/Mira.Jellyfin` est une extension Jellyfin (compilée contre Jellyfin 10.9, cible `net8.0`, chargée par 10.9 jusqu’à 12.x ; `net8.0` n’est que la cible de compilation, l’extension tourne dans le .NET de Jellyfin : .NET 8 pour 10.9 et 10.10, .NET 9 pour 10.11, .NET 10 pour 12.x, de sorte que la fin des correctifs de .NET 8 ne la concerne pas ; passer à `net10.0` et `Jellyfin.Controller` 12.x exigerait Jellyfin 12 pour tout le monde, ce sera fait le jour où un 12.x refuse l’extension ou que le README lâche 10.9 et 10.10) qui contient ces fichiers et les sert à `/Mira`, après l’URL de base de Jellyfin. La page vient donc de la même adresse que l’API : pas d’adresse de serveur à saisir, pas de requête vers un autre site, et l’accès suit les réglages réseau de Jellyfin (maison, Tailscale).
