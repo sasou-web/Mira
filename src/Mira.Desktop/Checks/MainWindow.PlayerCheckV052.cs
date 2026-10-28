@@ -40,8 +40,10 @@ public partial class MainWindow
             {
                 var target = Math.Min(chapter.Start + 1, _session.Duration - 1);
                 TryCommand("seek", target.ToString(System.Globalization.CultureInfo.InvariantCulture), "absolute+exact"); HoldPosition(target);
-                await Task.Delay(380); Hold();
-                require(ChapterText.IsVisible && ChapterText.Text == chapter.Title!.Trim(), $"the chapter being played is named above the time: « {ChapterText.Text} » at {target:0} s");
+                // An exact seek on a loaded runner can take longer than a few polls of the player: waited for, up to 3 s.
+                var named = false; var waited = System.Diagnostics.Stopwatch.StartNew();
+                while (!named && waited.ElapsedMilliseconds < 3000) { await Task.Delay(100); Hold(); named = ChapterText.IsVisible && ChapterText.Text == chapter.Title!.Trim(); }
+                require(named, $"the chapter being played is named above the time: « {ChapterText.Text} » at {target:0} s (mpv at {mpv.Number("time-pos"):0.0} s, {waited.ElapsedMilliseconds} ms)");
             }
             // The capture shows the bar in the second chapter, as in the reference.
             var second = SeekBar.Chapters.Where(c => c.Start > .5).Select(c => c.Start).DefaultIfEmpty(0).First();
