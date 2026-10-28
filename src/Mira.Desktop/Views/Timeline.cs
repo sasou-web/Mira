@@ -83,9 +83,19 @@ public sealed class Timeline : RangeBase
         if (now < _holdUntil && Math.Abs(position - _holdTarget) > 1.5) return;
         _holdUntil = 0;
         var shown = Displayed(now);
-        // A poll landing a frame or two away is blended in rather than snapped: no backwards shimmer.
-        _sample = playing && _playing && !_dragging && Math.Abs(position - shown) < .5 ? shown + (position - shown) * .35 : position;
-        _sampleTime = now; _playing = playing; _speed = double.IsFinite(speed) && speed > 0 ? speed : 1;
+        _speed = double.IsFinite(speed) && speed > 0 ? speed : 1;
+        // Resumed: mpv starts moving a little later (later still when frames are timed to the screen, « Image »
+        // Cinéma): the bar waits for its time to move rather than run ahead and come back.
+        if (playing && !_playing && !_dragging && Math.Abs(position - _sample) < .001) playing = false;
+        // A poll landing a frame or two away is blended in rather than snapped: no backwards shimmer. Behind what the
+        // bar shows, the bar waits there for mpv's time to catch up.
+        if (playing && _playing && !_dragging && Math.Abs(position - shown) < .5)
+        {
+            if (position >= shown) { _sample = shown + (position - shown) * .35; _sampleTime = now; }
+            else { _sample = shown; _sampleTime = now + (long)((shown - position) / _speed * Stopwatch.Frequency); }
+        }
+        else { _sample = position; _sampleTime = now; }
+        _playing = playing;
         if (!_dragging) SetCurrentValue(ValueProperty, Math.Clamp(position, Minimum, Maximum));
         if (playing) Attach(); else InvalidateVisual();
     }
