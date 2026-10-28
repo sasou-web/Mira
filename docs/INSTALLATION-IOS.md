@@ -55,6 +55,7 @@ La source ne propose Mira qu’à partir de la première version publiée avec l
 
 - **« Could not find AltServer »** pendant un rafraîchissement : l’iPhone et le PC ne sont pas sur le même Wi-Fi, AltServer n’est pas lancé, ou la synchronisation Wi-Fi d’iTunes est décochée.
 - **iCloud demande une mise à jour pour se connecter** : normal avec la version du lien, ne te connecte pas (voir l’étape 1). Pour garder iCloud connecté sur ce PC, suis « Windows Store iCloud » dans le guide de dépannage d’AltStore ci-dessous.
+- **AltStore installé depuis Safari** : c’est AltStore PAL (Union européenne), qui n’installe que des apps notariées par Apple, donc pas Mira. Supprime-le et installe AltStore Classic par AltServer (étape 2).
 - **AltServer ne voit pas l’iPhone** : vérifie qu’iTunes et iCloud viennent bien du site d’Apple, débranche et rebranche l’iPhone déverrouillé.
 - **Mira dit que Jellyfin est injoignable** : à la maison, vérifie le Wi-Fi et l’accès au réseau local (Réglages → Apps → Mira → Réseau local) ; ailleurs, active Tailscale.
 - Guide officiel et dépannage : <https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows>, <https://faq.altstore.io/altstore-classic/troubleshooting-guide>.
