@@ -73,6 +73,17 @@ enum ServerAddress {
         guard host.contains(".") else { return false }
         return !homeSuffixes.contains { host.hasSuffix($0) }
     }
+    /// A server at home, where Mira asks for full quality: an address of the home network or a name of it, never
+    /// Tailscale (it reaches the home from anywhere, on any connection).
+    static func isHome(_ server: URL) -> Bool {
+        guard var host = server.host(percentEncoded: false)?.lowercased() else { return false }
+        host = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]."))
+        if let ip = IPv4(host) { return ip.isPrivate && !(ip.bytes[0] == 100 && (64...127).contains(ip.bytes[1])) }
+        if host.contains(":") { return host == "::1" || host.hasPrefix("fe80:") || host.hasPrefix("fc") || (host.hasPrefix("fd") && !host.hasPrefix("fd7a:115c:a1e0:")) }
+        // As StreamQuality.AtHome of Mira for Windows and Mac (tests/fixtures/bitrate.json).
+        return !host.contains(".") || [".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain", ".fritz.box", ".localhost"].contains { host.hasSuffix($0) }
+    }
+
     private static let homeSuffixes = [".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain", ".ts.net"]
 
     struct IPv4 {

@@ -86,6 +86,8 @@ struct HomeView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, model.isStale { Task { await load() } }
         }
+        // A title stopped or the next episode started: Continue watching moves.
+        .onChange(of: app.playback) { Task { await load() } }
         .accessibilityIdentifier("home")
     }
 
@@ -263,7 +265,7 @@ struct BannerView: View {
     let client: JellyfinClient
     let size: CGSize
     let zoom: Namespace.ID
-    @Environment(\.openURL) private var openURL
+    @Environment(AppModel.self) private var app
     @State private var current: String?
 
     var body: some View {
@@ -326,9 +328,9 @@ struct BannerView: View {
                 }
                 Text(ItemText.meta(item)).font(MiraFont.subheadline).foregroundStyle(Palette.muted).lineLimit(1)
                 HStack(spacing: 10) {
-                    if let play = entry.play, let url = ServerAddress.miraWeb(client.server, route: "lecture/\(play.id)") {
+                    if let play = entry.play {
                         Button {
-                            openURL(url)
+                            app.play(play)
                         } label: {
                             Label {
                                 Text(playLabel(entry)).font(MiraFont.headline)
@@ -339,7 +341,6 @@ struct BannerView: View {
                             .padding(.horizontal, 6)
                         }
                         .buttonStyle(.glassProminent)
-                        .accessibilityHint(Text("Opens in Mira web"))
                     }
                     NavigationLink(value: TitleRoute(item: item, source: "banner-\(item.id)")) {
                         if entry.play == nil {

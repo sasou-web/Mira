@@ -11,6 +11,16 @@
         }
       }
     },
+    "%lld channels": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld canaux"
+          }
+        }
+      }
+    },
     "%lld h": {
       "localizations": {
         "en": {
@@ -133,6 +143,46 @@
         }
       }
     },
+    "Audio": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        }
+      }
+    },
+    "Automatic": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatique"
+          }
+        }
+      }
+    },
+    "Automatic: the file as it is at home; away from home, what your connection to Jellyfin allows. Below the file’s quality, Jellyfin converts it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatique : le fichier tel quel à la maison ; ailleurs, ce que permet ta connexion à Jellyfin. En dessous de la qualité du fichier, Jellyfin le convertit."
+          }
+        }
+      }
+    },
+    "Can’t play this title": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecture impossible"
+          }
+        }
+      }
+    },
     "Can’t reach Jellyfin. At home, check the Wi-Fi; away from home, turn on Tailscale.": {
       "localizations": {
         "fr": {
@@ -210,12 +260,52 @@
         }
       }
     },
+    "Episodes in Mira web": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisodes dans Mira web"
+          }
+        }
+      }
+    },
+    "external file": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fichier externe"
+          }
+        }
+      }
+    },
     "Featured": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "À la une"
+          }
+        }
+      }
+    },
+    "forced": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "forcés"
+          }
+        }
+      }
+    },
+    "From the beginning": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depuis le début"
           }
         }
       }
@@ -260,12 +350,42 @@
         }
       }
     },
+    "Jellyfin doesn’t allow this account to play this title.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin n’autorise pas ce compte à lire ce titre."
+          }
+        }
+      }
+    },
+    "Jellyfin has no stream this iPhone can play for this title.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne propose aucun flux lisible par cet iPhone pour ce titre."
+          }
+        }
+      }
+    },
     "Jellyfin isn’t answering": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Jellyfin ne répond pas"
+          }
+        }
+      }
+    },
+    "Jellyfin refused to play this title (%@).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin a refusé de lire ce titre (%@)."
           }
         }
       }
@@ -286,6 +406,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chargement"
+          }
+        }
+      }
+    },
+    "Maximum": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximale"
           }
         }
       }
@@ -320,12 +450,12 @@
         }
       }
     },
-    "Mira web opens this show in Safari, to choose an episode.": {
+    "Mono": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mira web ouvre cette série dans Safari, pour choisir un épisode."
+            "value": "Mono"
           }
         }
       }
@@ -360,12 +490,22 @@
         }
       }
     },
-    "Open in Mira web": {
+    "Off": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ouvrir dans Mira web"
+            "value": "Désactivés"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
           }
         }
       }
@@ -376,16 +516,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ouvrir Mira web"
-          }
-        }
-      }
-    },
-    "Opens in Mira web": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "S’ouvre dans Mira web"
           }
         }
       }
@@ -410,12 +540,22 @@
         }
       }
     },
-    "Plays in Mira web, in Safari, until Mira for iPhone has its own player.": {
+    "Playback": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La lecture se fait dans Mira web, dans Safari, tant que Mira pour iPhone n’a pas son propre lecteur."
+            "value": "Lecture"
+          }
+        }
+      }
+    },
+    "Quality": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qualité"
           }
         }
       }
@@ -460,12 +600,12 @@
         }
       }
     },
-    "Served by Jellyfin’s Mira extension. Until Mira for iPhone has its own player, it plays your titles.": {
+    "Served by Jellyfin’s Mira extension: for your friends, and what Mira for iPhone doesn’t do yet.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Servi par l’extension Mira de Jellyfin. Tant que Mira pour iPhone n’a pas son propre lecteur, c’est lui qui lit tes titres."
+            "value": "Servi par l’extension Mira de Jellyfin : pour tes amis, et pour ce que Mira pour iPhone ne fait pas encore."
           }
         }
       }
@@ -560,6 +700,56 @@
         }
       }
     },
+    "Stereo": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stéréo"
+          }
+        }
+      }
+    },
+    "Subtitles": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sous-titres"
+          }
+        }
+      }
+    },
+    "Subtitles off": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans sous-titres"
+          }
+        }
+      }
+    },
+    "The player refused this video, even fully converted by Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le lecteur refuse cette vidéo, même entièrement convertie par Jellyfin."
+          }
+        }
+      }
+    },
+    "The player refused this video, even fully converted by Jellyfin. (%@)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le lecteur refuse cette vidéo, même entièrement convertie par Jellyfin. (%@)"
+          }
+        }
+      }
+    },
     "The server isn’t answering. Check the address and that Jellyfin is running.": {
       "localizations": {
         "fr": {
@@ -596,6 +786,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://192.168.1.20:8096."
+          }
+        }
+      }
+    },
+    "Track %lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Piste %lld"
           }
         }
       }

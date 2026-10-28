@@ -35,6 +35,7 @@ struct RootView: View {
 
 struct MainView: View {
     enum Section: Hashable { case home, settings }
+    @Environment(AppModel.self) private var app
     @State private var section = Section.home
 
     var body: some View {
@@ -47,6 +48,11 @@ struct MainView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .alert("Can’t play this title", isPresented: Binding(get: { app.playerMessage != nil }, set: { if !$0 { app.playerMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(verbatim: app.playerMessage ?? "")
+        }
     }
 }
 

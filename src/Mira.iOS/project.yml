@@ -44,6 +44,8 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UIUserInterfaceStyle: Dark
+        # Picture in Picture and AirPlay go on with the app in the background.
+        UIBackgroundModes: [audio]
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -78,6 +80,9 @@ targets:
     platform: iOS
     sources:
       - path: MiraTests
+      # Cases shared with Mira web and Mira for Windows and Mac.
+      - path: ../../tests/fixtures/bitrate.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

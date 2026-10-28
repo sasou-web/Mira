@@ -1,13 +1,18 @@
 import SwiftUI
 
-/// A title's page: its artwork, what it is, how far it was watched, its summary, and Play. Until Mira for iPhone has
-/// its own player, Play opens Mira web (served by Jellyfin's Mira extension) in Safari, at that title.
+/// A title's page: its artwork, what it is, how far it was watched, its summary, Play in Apple's player, and the
+/// languages to play it in (Apple's player cannot change a conversion's audio, as on Mira web). A series plays its
+/// next episode; its episodes are listed in Mira web for now.
 struct TitleView: View {
     let route: TitleRoute
     @Environment(AppModel.self) private var app
     @Environment(\.openURL) private var openURL
     @State private var item: Item
     @State private var width: CGFloat = 402
+    /// What Play plays: the title, or a series' next episode.
+    @State private var next: Item?
+    @State private var audioIndex: Int?
+    @State private var subtitleIndex: Int?
 
     init(route: TitleRoute) {
         self.route = route
@@ -63,9 +68,12 @@ struct TitleView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .navigationTitle(item.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: route.item.id) {
+        .task(id: "\(route.item.id)-\(app.playback)") {
             guard let client = app.client else { return }
-            do { item = try await client.item(route.item.id) } catch JellyfinError.unauthorized { app.sessionEnded() } catch {}
+            do {
+                item = try await client.item(route.item.id)
+                if item.isSeries { next = try await client.nextUp(series: item.id) }
+            } catch JellyfinError.unauthorized { app.sessionEnded() } catch {}
         }
     }
 
@@ -94,33 +102,113 @@ struct TitleView: View {
         }
     }
 
-    /// Play (Resume) in Mira web for a film or an episode; a series opens its page there, to choose an episode.
+    /// The film or episode Play plays.
+    private var playable: Item? { item.isSeries ? next : item }
+
+    /// Play (Resume, « Play S1 · E3 » for a series), From the beginning when it was started, the languages; for a
+    /// series, its episodes in Mira web.
     @ViewBuilder private var play: some View {
-        if let client = app.client {
-            let label: LocalizedStringKey = item.isSeries ? "Open in Mira web" : ItemText.progress(item) > 0 ? "Resume" : "Play"
-            let route = item.isSeries ? "titre/\(item.id)" : "lecture/\(item.id)"
-            if let url = ServerAddress.miraWeb(client.server, route: route) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Button {
-                        openURL(url)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: item.isSeries ? "safari.fill" : "play.fill")
-                            Text(label).font(MiraFont.headline)
-                        }
-                        .foregroundStyle(Palette.onAccent)
-                        .frame(maxWidth: .infinity, minHeight: 32)
+        VStack(alignment: .leading, spacing: 12) {
+            if let playable {
+                let resume = ItemText.progress(playable) > 0
+                Button {
+                    app.play(playable, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill")
+                        Text(playLabel(playable, resume: resume)).font(MiraFont.headline)
                     }
-                    .buttonStyle(.glassProminent)
-                    .accessibilityIdentifier("title.play")
-                    (item.isSeries ? Text("Mira web opens this show in Safari, to choose an episode.")
-                        : Text("Plays in Mira web, in Safari, until Mira for iPhone has its own player."))
-                        .font(MiraFont.footnote)
-                        .foregroundStyle(Palette.muted)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(Palette.onAccent)
+                    .frame(maxWidth: .infinity, minHeight: 32)
                 }
-                .frame(maxWidth: 420, alignment: .leading)
+                .buttonStyle(.glassProminent)
+                .accessibilityIdentifier("title.play")
+                if resume {
+                    Button {
+                        app.play(playable, fromStart: true, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+                    } label: {
+                        Label("From the beginning", systemImage: "backward.end.fill").font(MiraFont.callout)
+                    }
+                    .buttonStyle(.glass)
+                    .accessibilityIdentifier("title.fromStart")
+                }
+                if let source = playable.mediaSources?.first {
+                    HStack(spacing: 10) {
+                        TrackMenus(source: source, audioIndex: $audioIndex, subtitleIndex: $subtitleIndex)
+                    }
+                }
             }
+            if item.isSeries, let client = app.client, let url = ServerAddress.miraWeb(client.server, route: "titre/\(item.id)") {
+                Button {
+                    openURL(url)
+                } label: {
+                    Label("Episodes in Mira web", systemImage: "safari").font(MiraFont.callout)
+                }
+                .buttonStyle(.glass)
+            }
+        }
+        .frame(maxWidth: 420, alignment: .leading)
+        .onChange(of: playable?.id) {
+            audioIndex = nil
+            subtitleIndex = nil
+        }
+    }
+
+    private func playLabel(_ playable: Item, resume: Bool) -> String {
+        if item.isSeries {
+            let code = ItemText.episodeCode(playable)
+            return resume ? String(localized: "Resume \(code)") : String(localized: "Watch \(code)")
+        }
+        return resume ? String(localized: "Resume") : String(localized: "Play")
+    }
+}
+
+/// Audio and Subtitles: a menu each, the file's tracks by Mira's names, Jellyfin's choice until another is picked.
+struct TrackMenus: View {
+    let source: MediaSource
+    @Binding var audioIndex: Int?
+    @Binding var subtitleIndex: Int?
+
+    var body: some View {
+        let audio = source.audio, subtitles = source.subtitles
+        let audioNames = TrackNames.names(audio), subtitleNames = TrackNames.names(subtitles)
+        if audio.count > 1 {
+            let current = audioIndex ?? source.defaultAudioStreamIndex ?? audio.first?.index
+            Menu {
+                Picker("Audio", selection: Binding(get: { current ?? -1 }, set: { audioIndex = $0 })) {
+                    ForEach(audio, id: \.index) { stream in
+                        Text(verbatim: audioNames[stream.index] ?? "").tag(stream.index)
+                    }
+                }
+            } label: {
+                Label(current.flatMap { audioNames[$0] } ?? String(localized: "Audio"), systemImage: "speaker.wave.2.fill")
+                    .font(MiraFont.callout)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.glass)
+            .accessibilityLabel(Text("Audio"))
+            .accessibilityValue(Text(verbatim: current.flatMap { audioNames[$0] } ?? ""))
+            .accessibilityIdentifier("title.audio")
+        }
+        if !subtitles.isEmpty {
+            let current = subtitleIndex ?? source.defaultSubtitleStreamIndex ?? -1
+            let name = current >= 0 ? subtitleNames[current] : nil
+            Menu {
+                Picker("Subtitles", selection: Binding(get: { current }, set: { subtitleIndex = $0 })) {
+                    Text("Off").tag(-1)
+                    ForEach(subtitles, id: \.index) { stream in
+                        Text(verbatim: subtitleNames[stream.index] ?? "").tag(stream.index)
+                    }
+                }
+            } label: {
+                Label(name ?? String(localized: "Subtitles off"), systemImage: "captions.bubble.fill")
+                    .font(MiraFont.callout)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.glass)
+            .accessibilityLabel(Text("Subtitles"))
+            .accessibilityValue(Text(verbatim: name ?? String(localized: "Off")))
+            .accessibilityIdentifier("title.subtitles")
         }
     }
 }

@@ -21,6 +21,8 @@ dist/
 *.p12
 *.key
 *.mp4
+# The 10 s clip the stand-in Jellyfin of the iPhone tests plays (37 KB).
+!tools/ios/media/clip.mp4
 *.mkv
 *.zip
 *.7z
