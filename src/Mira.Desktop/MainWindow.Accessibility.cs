@@ -125,12 +125,16 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Validation runs: every control shown on a captured screen can be named by a screen reader.</summary>
+    /// <summary>Validation runs: every control shown on a captured screen can be named by a screen reader, and shows a ring under the keyboard.</summary>
     private void AssertNamed(string screen)
     {
         var unnamed = Accessible.Unnamed((DependencyObject)Content);
         if (unnamed.Count > 0)
             throw new InvalidOperationException($"{screen}: {unnamed.Count} control(s) without a name for screen readers: " + string.Join(", ", unnamed.Take(6).Select(Accessible.Describe)) + ".");
+        // And every control Tab reaches there shows where the focus is.
+        var unringed = Accessible.WithoutFocusRing((DependencyObject)Content, (Style)FindResource("KeyboardFocus"));
+        if (unringed.Count > 0)
+            throw new InvalidOperationException($"{screen}: {unringed.Count} control(s) Tab reaches without a visible focus ring: " + string.Join(", ", unringed.Take(6).Select(Accessible.Describe)) + ".");
     }
 
     private const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, WM_NCLBUTTONUP = 0xA2, WM_NCLBUTTONDBLCLK = 0xA3, WM_NCMOUSELEAVE = 0x2A2, HTMAXBUTTON = 9;

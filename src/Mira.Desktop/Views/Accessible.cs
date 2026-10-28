@@ -54,6 +54,29 @@ public static class Accessible
         Visit(root);
         return found;
     }
+    /// <summary>Set on a control that draws its own keyboard focus (the ring of a card): <see cref="WithoutFocusRing"/> takes its word for it.</summary>
+    public static readonly DependencyProperty OwnFocusRingProperty = DependencyProperty.RegisterAttached("OwnFocusRing", typeof(bool), typeof(Accessible), new PropertyMetadata(false));
+    public static bool GetOwnFocusRing(DependencyObject element) => (bool)element.GetValue(OwnFocusRingProperty);
+    public static void SetOwnFocusRing(DependencyObject element, bool value) => element.SetValue(OwnFocusRingProperty, value);
+    /// <summary>
+    /// The controls shown under <paramref name="root"/> that Tab reaches but that would show no ring there: none, or
+    /// WPF's own (a black dotted line, unseen on Mira's dark pages). A ring is Mira's <paramref name="ring"/> style
+    /// (KeyboardFocus), a field's border lit by its template, or one the control draws itself (<see cref="OwnFocusRingProperty"/>).
+    /// </summary>
+    public static List<FrameworkElement> WithoutFocusRing(DependencyObject root, Style ring)
+    {
+        var found = new List<FrameworkElement>();
+        static bool LitByTemplate(Control control) => control.Template?.Triggers.OfType<Trigger>().Any(t => t.Property == UIElement.IsKeyboardFocusedProperty || t.Property == UIElement.IsKeyboardFocusWithinProperty || t.Property == UIElement.IsFocusedProperty) == true;
+        void Visit(DependencyObject node)
+        {
+            if (node is UIElement { Visibility: not Visibility.Visible }) return;
+            if (node is Control { Focusable: true, IsEnabled: true } control && control is ButtonBase or TextBoxBase or PasswordBox or ComboBox or Slider or ListBoxItem
+                && KeyboardNavigation.GetIsTabStop(control) && !ReferenceEquals(control.FocusVisualStyle, ring) && !GetOwnFocusRing(control) && !LitByTemplate(control)) found.Add(control);
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) Visit(VisualTreeHelper.GetChild(node, i));
+        }
+        Visit(root);
+        return found;
+    }
     /// <summary>A control as a person finding it in a list of faults would: its type, x:Name and where it sits.</summary>
     public static string Describe(FrameworkElement control)
     {

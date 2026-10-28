@@ -74,7 +74,7 @@ public sealed class MediaCard : Button
         }
         _hover.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(5) });
         _visual.Children.Add(_hover);
-        FocusVisualStyle = null; // the ring above is the focus indicator
+        FocusVisualStyle = null; Accessible.SetOwnFocusRing(this, true); // the ring above is the focus indicator
         MouseEnter += (_, _) => HoverEntered?.Invoke(this);
         MouseMove += (_, _) => HoverEntered?.Invoke(this);
         MouseLeave += (_, _) => HoverLeft?.Invoke(this);
