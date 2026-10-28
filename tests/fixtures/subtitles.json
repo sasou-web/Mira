@@ -96,6 +96,31 @@
       },
       "label": "Aube Test",
       "details": "Open Subtitles · SRT · 1 234 567 téléchargements · traduction automatique"
+    },
+    {
+      "found": {
+        "Id": "m1",
+        "Name": "Aube.Test.2021.1080p.WEB-DL.H.264-FLUX",
+        "ProviderName": "Mira",
+        "Author": "OpenSubtitles",
+        "Comment": "82/100 · same release (FLUX) · same source (WEB-DL)",
+        "Format": "srt",
+        "DownloadCount": 40
+      },
+      "label": "Aube.Test.2021.1080p.WEB-DL.H.264-FLUX",
+      "details": "Mira · OpenSubtitles · note 82/100 · SRT · 40 téléchargements"
+    },
+    {
+      "found": {
+        "Id": "m2",
+        "Name": "Aube Test",
+        "ProviderName": "Open Subtitles",
+        "Comment": "90/100",
+        "Format": "srt",
+        "DownloadCount": 0
+      },
+      "label": "Aube Test",
+      "details": "Open Subtitles · SRT"
     }
   ],
   "sort": {
@@ -119,14 +144,28 @@
         "DownloadCount": 700
       },
       {
+        "Id": "e",
+        "ProviderName": "Mira",
+        "Comment": "82/100 · same release (FLUX)",
+        "DownloadCount": 5
+      },
+      {
+        "Id": "f",
+        "ProviderName": "Mira",
+        "Comment": "20/100 · other source (BluRay)",
+        "DownloadCount": 3000
+      },
+      {
         "Name": "sans identifiant",
         "DownloadCount": 99999
       }
     ],
     "order": [
       "c",
+      "e",
       "d",
       "a",
+      "f",
       "b"
     ]
   },
@@ -147,8 +186,7 @@
     {
       "providers": [],
       "text": "Jellyfin demande à son extension de sous-titres : le nom du fichier et son empreinte partent chez ce service."
-    }
-,
+    },
     {
       "providers": [
         "Mira"
