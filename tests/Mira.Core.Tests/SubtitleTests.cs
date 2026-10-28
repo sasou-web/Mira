@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
@@ -243,6 +244,41 @@ internal static class SubtitleTests
                 }
                 else Console.WriteLine("      SubDL: no key (MIRA_SUBDL_KEY), not tried");
             });
+        await Test("Sous-titres : file d'attente, essais espacés, abandon après un mois, gardée au redémarrage", () =>
+        {
+            var now = new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
+            var file = Path.Combine(run.Root, "Mira.subtitles-queue.json");
+            var queue = new SubtitleQueue(file, () => now);
+            queue.Add("a", "fre"); queue.Add("a", "eng"); queue.Add("b", "fre");
+            now += TimeSpan.FromMinutes(1); queue.Add("a", "fre");
+            Assert(queue.Count == 3 && queue.Due(10).Count == 0, "Nothing due before two minutes, no double");
+            now += TimeSpan.FromMinutes(1);
+            Assert(queue.Due(2).Select(x => x.ItemId + x.Language).SequenceEqual(["afre", "aeng"]) && queue.Due(10).Count == 3, "Due, the oldest first, at most asked");
+            queue.Done("a", "eng");
+            // Tries: +1 h, +6 h, +1 d, +3 d, +7 d, then every week until 30 days after the title arrived.
+            var tries = new List<TimeSpan>();
+            var arrived = now - TimeSpan.FromMinutes(2);
+            while (queue.Retry("a", "fre"))
+            {
+                var wait = JsonNode.Parse(File.ReadAllText(file))!.AsArray().First(x => (string)x!["itemId"]! == "a")!;
+                var at = DateTimeOffset.Parse((string)wait["next"]!, CultureInfo.InvariantCulture);
+                tries.Add(at - now); now = at;
+            }
+            Assert(tries.Take(5).SequenceEqual(SubtitleQueue.Delays) && tries.Skip(5).All(x => x == SubtitleQueue.Week) && tries.Count == 7, "Delays: " + string.Join(", ", tries));
+            Assert(now - arrived <= SubtitleQueue.GiveUpAfter && queue.Count == 1, "Given up within a month, the other title kept");
+            Assert(SubtitleQueue.NextAttempt(arrived, 1, arrived + TimeSpan.FromDays(29.99)) is null && SubtitleQueue.NextAttempt(arrived, 1, arrived) == arrived + TimeSpan.FromHours(1), "Never past a month");
+            // A quota spent: the try is not counted, the title keeps its place until the reset.
+            var reset = now + TimeSpan.FromHours(5);
+            queue.Postpone("b", "fre", reset);
+            Assert(queue.Due(10).Count == 0, "Postponed");
+            var again = new SubtitleQueue(file, () => reset);
+            Assert(again.Count == 1 && again.Due(10) is [{ ItemId: "b", Attempts: 0 }], "Kept in its file, tries not counted");
+            again.Add("c", "fre"); again.Forget("c"); again.Forget("b");
+            Assert(again.Count == 0 && new SubtitleQueue(file).Count == 0, "Title gone");
+            File.WriteAllText(file, "{ broken");
+            Assert(new SubtitleQueue(file).Count == 0, "Broken file: empty queue");
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres : réglages gardés par l'extension, secrets jamais renvoyés", () =>
         {
             var file = Path.Combine(run.Root, "Mira.subtitles.json");
