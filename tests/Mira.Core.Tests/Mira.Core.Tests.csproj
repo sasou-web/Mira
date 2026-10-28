@@ -21,6 +21,10 @@
     <Compile Include="../../src/Mira.Jellyfin/TorLinkRelay.Follows.cs" Link="Plugin/TorLinkRelay.Follows.cs" />
     <Compile Include="../../src/Mira.Jellyfin/GuestRoutes.cs" Link="Plugin/GuestRoutes.cs" />
     <Compile Include="../../src/Mira.Jellyfin/GuestInvites.cs" Link="Plugin/GuestInvites.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/Subtitles/SubtitleSources.cs" Link="Plugin/SubtitleSources.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/Subtitles/OpenSubtitlesApi.cs" Link="Plugin/OpenSubtitlesApi.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/Subtitles/SubDlApi.cs" Link="Plugin/SubDlApi.cs" />
+    <Compile Include="../../src/Mira.Jellyfin/Subtitles/SubtitleSettings.cs" Link="Plugin/SubtitleSettings.cs" />
   </ItemGroup>
   <!-- Nor the Mac app's profile, where its session goes: the keychain is replaced there by a stand-in. -->
   <ItemGroup><Compile Include="../../src/Mira.Mac/Services/Profile.cs" Link="Mac/Profile.cs" /></ItemGroup>

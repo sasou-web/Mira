@@ -148,6 +148,20 @@
       "providers": [],
       "text": "Jellyfin demande à son extension de sous-titres : le nom du fichier et son empreinte partent chez ce service."
     }
+,
+    {
+      "providers": [
+        "Mira"
+      ],
+      "text": "Mira demande à OpenSubtitles, et à SubDL s’il est réglé : l’empreinte et la taille du fichier, ses identifiants IMDb ou TMDb et la langue partent chez ces services, jamais le nom du fichier."
+    },
+    {
+      "providers": [
+        "Open Subtitles",
+        "Mira"
+      ],
+      "text": "Jellyfin demande à Open Subtitles : le nom du fichier et son empreinte partent chez ce service. Mira demande à OpenSubtitles, et à SubDL s’il est réglé : l’empreinte et la taille du fichier, ses identifiants IMDb ou TMDb et la langue partent chez ces services, jamais le nom du fichier."
+    }
   ],
   "kept": [
     {

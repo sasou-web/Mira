@@ -183,41 +183,54 @@ public static partial class SubtitleMatch
         return new SubtitleCheck(verdict, cues.Count, last);
     }
 
-    /// <summary>A reason in words, in Mira's language: « même release (QTZ) », « fps différents (25 au lieu de 23,976) ».</summary>
-    public static string Text(MatchReason reason) => reason.Code switch
+    /// <summary>
+    /// A reason in words: « même release (QTZ) », « cadence différente (25 / 23,976 i/s) ». In Mira's language, or in
+    /// the one asked (<paramref name="french"/>: the extension answers each request in its own language).
+    /// </summary>
+    public static string Text(MatchReason reason, bool? french = null)
     {
-        "hash" => L("pour ce fichier (empreinte reconnue)", "for this file (fingerprint recognised)"),
-        "same-group" => L($"même release ({reason.Detail})", $"same release ({reason.Detail})"),
-        "other-group" => L($"autre release ({reason.Detail})", $"other release ({reason.Detail})"),
-        "same-source" => L($"même source ({reason.Detail})", $"same source ({reason.Detail})"),
-        "close-source" => L($"source proche ({reason.Detail})", $"close source ({reason.Detail})"),
-        "other-source" => L($"autre source ({reason.Detail})", $"other source ({reason.Detail})"),
-        "same-fps" => L($"même cadence ({reason.Detail} i/s)", $"same frame rate ({reason.Detail} fps)"),
-        "other-fps" => L($"cadence différente ({reason.Detail} i/s)", $"different frame rate ({reason.Detail} fps)"),
-        "trusted" => L("auteur de confiance", "trusted uploader"),
-        "hearing" => L("pour sourds et malentendants", "for the deaf and hard of hearing"),
-        "machine" => L("traduction automatique", "machine translation"),
-        "forced" => L("sous-titres forcés", "forced subtitles"),
-        "not-forced" => L("pas des sous-titres forcés", "not forced subtitles"),
-        "other-episode" => L($"autre épisode ({reason.Detail})", $"other episode ({reason.Detail})"),
-        "other-year" => L($"autre année ({reason.Detail})", $"other year ({reason.Detail})"),
-        "other-edition" => L($"autre montage ({reason.Detail})", $"other cut ({reason.Detail})"),
-        "edition-unsaid" => L($"montage incertain ({reason.Detail})", $"uncertain cut ({reason.Detail})"),
-        _ => reason.Detail ?? reason.Code,
-    };
+        var fr = french ?? IsFrench;
+        // Frame rates are written with a dot (CultureInfo.InvariantCulture), and said with the reader's decimal mark.
+        var d = reason.Code is "same-fps" or "other-fps" && fr ? reason.Detail?.Replace('.', ',') : reason.Detail;
+        return reason.Code switch
+        {
+            "hash" => fr ? "pour ce fichier (empreinte reconnue)" : "for this file (fingerprint recognised)",
+            "same-group" => fr ? $"même release ({d})" : $"same release ({d})",
+            "other-group" => fr ? $"autre release ({d})" : $"other release ({d})",
+            "same-source" => fr ? $"même source ({d})" : $"same source ({d})",
+            "close-source" => fr ? $"source proche ({d})" : $"close source ({d})",
+            "other-source" => fr ? $"autre source ({d})" : $"other source ({d})",
+            "same-fps" => fr ? $"même cadence ({d} i/s)" : $"same frame rate ({d} fps)",
+            "other-fps" => fr ? $"cadence différente ({d} i/s)" : $"different frame rate ({d} fps)",
+            "trusted" => fr ? "auteur de confiance" : "trusted uploader",
+            "hearing" => fr ? "pour sourds et malentendants" : "for the deaf and hard of hearing",
+            "machine" => fr ? "traduction automatique" : "machine translation",
+            "forced" => fr ? "sous-titres forcés" : "forced subtitles",
+            "not-forced" => fr ? "pas des sous-titres forcés" : "not forced subtitles",
+            "other-episode" => fr ? $"autre épisode ({d})" : $"other episode ({d})",
+            "other-year" => fr ? $"autre année ({d})" : $"other year ({d})",
+            "other-edition" => fr ? $"autre montage ({d})" : $"other cut ({d})",
+            "edition-unsaid" => fr ? $"montage incertain ({d})" : $"uncertain cut ({d})",
+            _ => d ?? reason.Code,
+        };
+    }
 
     /// <summary>The verdict of a check in words: why a downloaded file was set aside.</summary>
-    public static string Text(SubtitleCheck check) => check.Verdict switch
+    public static string Text(SubtitleCheck check, bool? french = null)
     {
-        SubtitleCheckVerdict.Ok => L("fichier vérifié", "file checked"),
-        SubtitleCheckVerdict.Unreadable => L("fichier illisible", "unreadable file"),
-        SubtitleCheckVerdict.TooFew => L($"trop peu de lignes ({check.Cues})", $"too few lines ({check.Cues})"),
-        SubtitleCheckVerdict.TooShort => L("finit bien avant la vidéo", "ends well before the video"),
-        _ => L("dure plus que la vidéo", "runs longer than the video"),
-    };
+        var fr = french ?? IsFrench;
+        return check.Verdict switch
+        {
+            SubtitleCheckVerdict.Ok => fr ? "fichier vérifié" : "file checked",
+            SubtitleCheckVerdict.Unreadable => fr ? "fichier illisible" : "unreadable file",
+            SubtitleCheckVerdict.TooFew => fr ? $"trop peu de lignes ({check.Cues})" : $"too few lines ({check.Cues})",
+            SubtitleCheckVerdict.TooShort => fr ? "finit bien avant la vidéo" : "ends well before the video",
+            _ => fr ? "dure plus que la vidéo" : "runs longer than the video",
+        };
+    }
 
     private static string WithoutSubtitleExtension(string name) => ReleaseName.IsSubtitle(name) ? name[..name.LastIndexOf('.')] : name;
     private static bool SameGroup(string? a, string? b) => a is { Length: > 0 } && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     private static bool Compatible(string a, string b) => CompatibleSources.Any(x => x.Contains(a) && x.Contains(b));
-    private static string Fps(double fps) => fps.ToString("0.###", Culture);
+    private static string Fps(double fps) => fps.ToString("0.###", CultureInfo.InvariantCulture);
 }

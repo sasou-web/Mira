@@ -26,6 +26,24 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         // Beside the plugins' settings: an update of the plugin (another folder) keeps the links.
         _invitesFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.invites.json");
         TorLinkRelay.FollowsFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.follows.json");
+        _subtitlesFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles.json");
+        _journalFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles-journal.json");
+    }
+
+    private static string? _subtitlesFile, _journalFile;
+    private static SubtitleConfig? _subtitles;
+    private static SubtitleJournal? _journal;
+
+    /// <summary>The settings of « Sous-titres automatiques », read from their file the first time they are needed.</summary>
+    public static SubtitleConfig Subtitles
+    {
+        get { lock (Gate) return _subtitles ??= new SubtitleConfig(_subtitlesFile); }
+    }
+
+    /// <summary>What « Sous-titres automatiques » did lately.</summary>
+    public static SubtitleJournal SubtitleJournal
+    {
+        get { lock (Gate) return _journal ??= new SubtitleJournal(_journalFile); }
     }
 
     /// <summary>The guests' links, read from their file the first time they are needed.</summary>

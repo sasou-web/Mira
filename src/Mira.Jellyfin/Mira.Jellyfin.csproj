@@ -25,6 +25,13 @@
     <!-- What a search or a download sent from Mira web may be, and what Mira for Windows exchanges with the relay: shared with it. -->
     <Compile Include="../Mira.Core/TorLink/RemoteDownloads.cs" Link="RemoteDownloads.cs" />
     <Compile Include="../Mira.Core/TorLink/RemoteProtocol.cs" Link="RemoteProtocol.cs" />
+    <!-- « Sous-titres automatiques »: the scoring and file reading of Mira.Core, and what they need (release names, texts). -->
+    <Compile Include="../Mira.Core/GlobalUsings.cs" Link="Core/GlobalUsings.cs" />
+    <Compile Include="../Mira.Core/Lang.cs" Link="Core/Lang.cs" />
+    <Compile Include="../Mira.Core/Subtitles/SubtitleText.cs" Link="Core/SubtitleText.cs" />
+    <Compile Include="../Mira.Core/Subtitles/SubtitleMatch.cs" Link="Core/SubtitleMatch.cs" />
+    <Compile Include="../Mira.Core/TorLink/ReleaseName.cs" Link="Core/ReleaseName.cs" />
+    <Compile Include="../Mira.Core/TorLink/ReleaseRanking.cs" Link="Core/ReleaseRanking.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="../Mira.Web/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
