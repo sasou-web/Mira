@@ -1,6 +1,6 @@
 # Installer Mira pour iPhone (AltStore Classic)
 
-Mira pour iPhone et iPad est une app native (SwiftUI, iOS 26, Liquid Glass). Elle n’est pas sur l’App Store : tu l’installes avec **AltStore Classic**, gratuit, qui la signe sur ton iPhone avec ton propre identifiant Apple. Pour l’instant (phase 0), elle se connecte à ton Jellyfin et montre l’Accueil et les fiches ; la lecture passe encore par Mira web, dans Safari. Tes amis gardent Mira web ([Mira sur iPhone, iPad et Android](INSTALLATION-WEB.md)), qui n’expire jamais.
+Mira pour iPhone et iPad est une app native (SwiftUI, iOS 26, Liquid Glass). Elle n’est pas sur l’App Store : tu l’installes avec **AltStore Classic**, gratuit, qui la signe sur ton iPhone avec ton propre identifiant Apple. Elle a ta bibliothèque, la recherche, les favoris, le lecteur d’Apple (Image dans l’image, AirPlay, épisode suivant), la Minuterie et Regarder ensemble avec les autres appareils de Mira. Tes amis gardent Mira web ([Mira sur iPhone, iPad et Android](INSTALLATION-WEB.md)), qui n’expire jamais.
 
 ## Ce que ça implique
 
@@ -39,7 +39,7 @@ Sur le PC où tourne Jellyfin, avec ton compte Windows habituel :
 2. Ouvre la source **Mira** → **Mira** → **FREE**. AltStore télécharge l’app, la signe avec ton identifiant Apple et l’installe.
 3. Ouvre **Mira**, tape l’adresse de ton serveur (`192.168.1.198` à la maison, `100.114.247.13` avec Tailscale), ton nom d’utilisateur et ton mot de passe. À la première connexion au réseau de la maison, iOS demande l’accès au **réseau local** : touche **Autoriser** (sinon Mira ne voit pas Jellyfin en Wi-Fi).
 
-La source ne propose Mira qu’à partir de la première version publiée avec l’app iPhone (la 0.8.6). Avant, ou pour essayer une version pas encore publiée :
+La source propose Mira depuis la 0.8.6, la première version publiée avec l’app iPhone. Pour essayer une version pas encore publiée :
 
 1. Sur l’iPhone, dans Safari connecté à GitHub, ouvre l’exécution « iPhone build » voulue (onglet **Actions** du dépôt) et télécharge l’artefact **Mira-ios**.
 2. Dans **Fichiers**, touche le `.zip` téléchargé pour en sortir `Mira-x.y.z-ios.ipa`.

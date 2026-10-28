@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.8.6",
+    "summary": "L’app iPhone, sous-titres automatiques, collections, meilleures versions et épisodes à venir.",
+    "en": { "summary": "The iPhone app, automatic subtitles, collections, better versions and upcoming episodes." },
+    "items": [
+      { "icon": "phone", "title": "Mira pour iPhone", "text": "Une vraie app, en essai avec AltStore Classic : bibliothèque, lecteur d’Apple, Minuterie et Regarder ensemble.",
+        "en": { "title": "Mira for iPhone", "text": "A real app, on trial through AltStore Classic: library, Apple’s player, sleep timer and Watch together." } },
+      { "icon": "subtitles", "title": "Sous-titres automatiques", "text": "Jellyfin cherche, vérifie et recale les sous-titres de tes nouveaux titres : Réglages → Sous-titres automatiques.", "web": true,
+        "en": { "title": "Automatic subtitles", "text": "Jellyfin finds, checks and aligns subtitles for your new titles: Settings → Automatic subtitles." } },
+      { "icon": "plus", "title": "Tes collections", "text": "Ajouter à une collection… dans le menu d’un film ou d’une série, et une rangée Collections sur l’Accueil.", "web": true,
+        "en": { "title": "Your collections", "text": "Add to collection… in a movie’s or show’s menu, and a Collections row on Home." } },
+      { "icon": "sparkle", "title": "Une meilleure version", "text": "Chercher une meilleure version sur une fiche : la nouvelle remplace l’ancienne, ta progression reste.", "web": true,
+        "en": { "title": "A better version", "text": "Find a better version on a title page: the new file replaces the old one, your progress stays." } },
+      { "icon": "calendar", "title": "Épisodes à venir", "text": "Une série dit les épisodes qui manquent et la date du prochain ; les séries suivies le cherchent le jour de sa sortie.", "web": true,
+        "en": { "title": "Upcoming episodes", "text": "A show says which episodes are missing and when the next one airs; followed shows look for it on the day." } }
+    ]
+  },
+  {
     "version": "0.8.5",
     "summary": "Suivre une série, corriger un titre, lire loin de chez toi ; Réglages et recherche plus clairs.",
     "en": { "summary": "Follow a series, fix a title, play away from home; clearer Settings and search." },
