@@ -49,7 +49,6 @@ struct TitleView: View {
                     }
                     play.padding(.top, 6)
                     TitleActions(item: $item)
-                    if let playable { TogetherSection(item: playable).padding(.top, 8) }
                     if let overview = item.overview, !overview.isEmpty {
                         Text(overview)
                             .font(MiraFont.body)
@@ -58,6 +57,7 @@ struct TitleView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     }
+                    if let playable { TogetherSection(item: playable).padding(.top, 8) }
                     if item.isSeries {
                         EpisodeList(series: item, next: next).padding(.top, 18)
                     }
@@ -121,7 +121,7 @@ struct TitleView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "play.fill")
-                        Text(playLabel(playable, resume: resume)).font(MiraFont.headline)
+                        Text(playLabel(playable, resume: resume)).font(MiraFont.headline).lineLimit(2).multilineTextAlignment(.center)
                     }
                     .foregroundStyle(Palette.onAccent)
                     .frame(maxWidth: .infinity, minHeight: 32)
@@ -138,7 +138,7 @@ struct TitleView: View {
                     .accessibilityIdentifier("title.fromStart")
                 }
                 if let source = playable.mediaSources?.first {
-                    HStack(spacing: 10) {
+                    ChipRow {
                         TrackMenus(source: source, audioIndex: $audioIndex, subtitleIndex: $subtitleIndex)
                     }
                 }

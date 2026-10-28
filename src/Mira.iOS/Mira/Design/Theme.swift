@@ -83,3 +83,16 @@ struct MiraIcon: View {
             .accessibilityHidden(true)
     }
 }
+
+/// Buttons side by side, or one under the other when they do not fit (the largest text sizes, a long language name):
+/// never a label cut in the middle.
+struct ChipRow<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { content }
+            VStack(alignment: .leading, spacing: 10) { content }
+        }
+    }
+}

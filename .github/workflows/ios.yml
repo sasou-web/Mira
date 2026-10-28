@@ -124,7 +124,7 @@ jobs:
           for test in json.load(open(os.path.join(root, "manifest.json"))):
               for attachment in test.get("attachments", []):
                   name = attachment.get("suggestedHumanReadableName", "").split("_")[0]
-                  if re.fullmatch(r"[0-9]{2}-[a-z-]+", name) and attachment["exportedFileName"].endswith(".png"):
+                  if re.fullmatch(r"[0-9]{2}[a-z]?-[a-z-]+", name) and attachment["exportedFileName"].endswith(".png"):
                       shutil.copy(os.path.join(root, attachment["exportedFileName"]), os.path.join(".artifacts/screens", name + ".png"))
           EOF
           ls -la .artifacts/screens

@@ -185,31 +185,26 @@ final class MiraUITests: XCTestCase {
         dismissSavePassword(app)
         settle()
         capture("21-accueil-grand")
-        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
-        if poster.waitForExistence(timeout: 10) {
-            poster.tap()
-            XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
-            settle()
-            capture("22-fiche-grand")
-            app.swipeUp()
-            settle()
-            capture("22b-fiche-grand-suite")
-            app.navigationBars.buttons.firstMatch.tap()
-        }
-        app.swipeDown()
-        app.swipeDown()
-        let films = app.tabBars.buttons["Films"]
-        if films.waitForExistence(timeout: 5) {
-            films.tap()
-            settle()
-            capture("23-films-grand")
-        }
+        // The tabs first: once a page has scrolled, the tab bar keeps only the current tab.
         let settings = app.tabBars.buttons["Réglages"]
-        if settings.waitForExistence(timeout: 5) {
-            settings.tap()
-            settle()
-            capture("24-reglages-grand")
-        }
+        XCTAssertTrue(settings.waitForExistence(timeout: 5), "Pas d'onglet Réglages en grand texte")
+        settings.tap()
+        settle()
+        capture("24-reglages-grand")
+        let films = app.tabBars.buttons["Films"]
+        XCTAssertTrue(films.waitForExistence(timeout: 5), "Pas d'onglet Films en grand texte")
+        films.tap()
+        settle()
+        capture("23-films-grand")
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "Tears of Steel absent des films")
+        poster.tap()
+        XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
+        settle()
+        capture("22-fiche-grand")
+        app.swipeUp()
+        settle()
+        capture("22b-fiche-grand-suite")
     }
 
     @MainActor
