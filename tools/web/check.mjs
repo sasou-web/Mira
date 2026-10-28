@@ -2186,7 +2186,7 @@ try {
   });
   if (agentSeen === false) {
     await kp2.evaluate(() => { location.hash = '#/telecharger'; });
-    await kp2.waitForFunction(() => document.querySelector('.torlink-page .state h2'), null, { timeout: 10000 }).catch(() => {});
+    await kp2.waitForFunction(() => document.querySelector('.torlink-page .state:not([hidden]) h2'), null, { timeout: 20000 }).catch(() => {});
     const empty = await kp2.evaluate(() => ({
       title: document.querySelector('.torlink-page .state:not([hidden]) h2')?.textContent ?? '', sub: document.querySelector('.torlink-page .page-sub')?.textContent ?? '',
       off: document.querySelector('.torlink-page input[type=search]').disabled && document.querySelector('.torlink-paste').disabled,
