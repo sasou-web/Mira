@@ -20,7 +20,16 @@ async function wd(method, path, body) {
   if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${data?.value?.error ?? ''} ${data?.value?.message ?? ''}`.trim());
   return data.value;
 }
-const { sessionId: id } = await wd('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari' } } });
+// On a fresh runner, Safari may start slower than safaridriver waits for it (« session not created … timed out while
+// connecting to a Safari instance »): asked again, three times at most.
+let id;
+for (let attempt = 1; ; attempt++) {
+  try { ({ sessionId: id } = await wd('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari' } } })); break; } catch (error) {
+    if (attempt >= 3 || !/session not created/.test(error.message)) throw error;
+    console.log(`safaridriver, essai ${attempt} : ${error.message}`);
+    await sleep(10_000);
+  }
+}
 const s = (path) => `/session/${id}${path}`;
 const run = (script, ...args) => wd('POST', s('/execute/sync'), { script, args });
 const runAsync = (body, ...args) => wd('POST', s('/execute/async'), {
