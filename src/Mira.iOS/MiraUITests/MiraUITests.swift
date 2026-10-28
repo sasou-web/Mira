@@ -32,7 +32,12 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["title.play"].exists, "No Play button on the title page")
         app.navigationBars.buttons.firstMatch.tap()
 
-        app.tabBars.buttons["Settings"].tap()
+        // Scrolling down Home folded the tab bar into its Home button; back at the top, it shows every tab again.
+        app.swipeDown()
+        app.swipeDown()
+        let settings = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5), "The tab bar did not unfold back at the top of Home")
+        settings.tap()
         XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
         capture("05-settings")
         app.buttons["settings.signout"].tap()

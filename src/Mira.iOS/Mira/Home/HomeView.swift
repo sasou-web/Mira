@@ -18,6 +18,9 @@ struct HomeView: View {
     var body: some View {
         let content = model.content
         let banner = content?.banner ?? []
+        // Home runs under the status bar (the banner's picture reaches the top edge); a header without a banner, and
+        // everything scrolled up, keeps clear of it, and a shade under the clock keeps the clock readable.
+        let top = statusBar
         ScrollView {
             VStack(alignment: .leading, spacing: 30) {
                 if let content, let client = app.client {
@@ -26,7 +29,7 @@ struct HomeView: View {
                             .font(MiraFont.largeTitle)
                             .foregroundStyle(Palette.ink)
                             .padding(.horizontal, 16)
-                            .padding(.top, 12)
+                            .padding(.top, top + 12)
                             .accessibilityAddTraits(.isHeader)
                     } else {
                         BannerView(entries: banner, client: client, size: size, zoom: zoom)
@@ -43,7 +46,7 @@ struct HomeView: View {
                         .font(MiraFont.largeTitle)
                         .foregroundStyle(Palette.ink)
                         .padding(.horizontal, 16)
-                        .padding(.top, 12)
+                        .padding(.top, top + 12)
                     EmptyState(symbol: "wifi.exclamationmark", title: Text("Jellyfin isn’t answering"), text: Text(Messages.text(error))) {
                         Button {
                             Task { await load() }
@@ -59,7 +62,14 @@ struct HomeView: View {
             .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
-        .ignoresSafeArea(edges: banner.isEmpty ? [] : .top)
+        .ignoresSafeArea(edges: .top)
+        .overlay(alignment: .top) {
+            LinearGradient(colors: [Palette.bg.opacity(0.85), Palette.bg.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(height: top + 12)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .background(Palette.bg)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
         .refreshable { await load() }
@@ -77,6 +87,13 @@ struct HomeView: View {
             if phase == .active, model.isStale { Task { await load() } }
         }
         .accessibilityIdentifier("home")
+    }
+
+    /// The status bar's height (0 when hidden, in landscape), read again whenever Home's size changes.
+    private var statusBar: CGFloat {
+        _ = size
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        return scene?.keyWindow?.safeAreaInsets.top ?? 0
     }
 
     private func load() async {
