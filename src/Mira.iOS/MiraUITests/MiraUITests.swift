@@ -86,10 +86,13 @@ final class MiraUITests: XCTestCase {
         if !settings.waitForExistence(timeout: 3) {
             // iOS 26 keeps the search field in place of the tabs, with a close button on its right.
             let box = field.frame
-            let close = app.buttons.allElementsBoundByIndex.first { $0.frame.minX >= box.maxX && abs($0.frame.midY - box.midY) < 30 }
-            close?.tap()
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: min(box.maxX + 30, app.frame.maxX - 20), dy: box.midY)).tap()
         }
-        XCTAssertTrue(settings.waitForExistence(timeout: 5), "No Settings tab")
+        if !settings.waitForExistence(timeout: 5) {
+            capture("08-search-left")
+            XCTFail("No Settings tab; buttons: \(app.buttons.allElementsBoundByIndex.map { "\($0.label)|\($0.identifier)|\($0.frame)" })")
+        }
         settings.tap()
         XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
         capture("09-settings")
