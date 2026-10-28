@@ -45,6 +45,7 @@ const films = [
     'When a group of rowdy teenagers trek into an isolated forest, they discover peaceful mushroom creatures that turn out to be an unexpected force of nature.'),
 ];
 const SERIES = 'c9d8e1f0a3b42c5d6e7f8a9b0c1d2e3f';
+const SEASON = 'd0e9f2a1b4c53d6e7f8a9b0c1d2e3f40';
 const series = {
   Id: SERIES, Name: 'Pioneer One', Type: 'Series', ProductionYear: 2010, ChildCount: 1, Genres: ['Drama', 'Science Fiction'],
   Overview: 'An object in the sky spreads radiation over North America. Fearing terrorism, U.S. Homeland Security agents are dispatched to investigate.',
@@ -53,7 +54,7 @@ const series = {
 function episode(number, name, extra = {}) {
   const id = `e${number}`.padEnd(32, '0');
   return {
-    Id: id, Name: name, Type: 'Episode', SeriesId: SERIES, SeriesName: 'Pioneer One', ParentIndexNumber: 1, IndexNumber: number,
+    Id: id, Name: name, Type: 'Episode', SeriesId: SERIES, SeasonId: SEASON, SeriesName: 'Pioneer One', ParentIndexNumber: 1, IndexNumber: number,
     RunTimeTicks: minutes(36), ImageTags: art(id, 'Primary'), ParentThumbItemId: SERIES, ParentThumbImageTag: `t-${SERIES}`,
     ParentBackdropItemId: SERIES, ParentBackdropImageTags: [`b-${SERIES}`], SeriesPrimaryImageTag: `p-${SERIES}`,
     Overview: 'Agent Tom Taylor brings a man found in the wreckage of a Soviet capsule in for questioning.',
@@ -152,6 +153,7 @@ const server = http.createServer(async (req, res) => {
   if (path === '/Sessions/Logout') return send(res, 204, undefined);
   if (path === '/UserItems/Resume') return send(res, 200, list([episodes[1], films[0]]));
   if (path === '/Shows/NextUp') return send(res, 200, list([q.get('seriesId') ? episodes[1] : episodes[2]]));
+  if (path === `/Shows/${SERIES}/Seasons`) return send(res, 200, list([{ Id: SEASON, Name: 'Season 1', Type: 'Season', IndexNumber: 1, SeriesId: SERIES }]));
   if (path === `/Shows/${SERIES}/Episodes`) {
     const from = Math.max(0, episodes.findIndex((x) => x.Id === q.get('startItemId')));
     return send(res, 200, list(episodes.slice(from, from + Number(q.get('limit') ?? 100))));

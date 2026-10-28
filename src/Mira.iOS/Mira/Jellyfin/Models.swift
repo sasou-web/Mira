@@ -16,6 +16,7 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var childCount: Int?
     var seriesId: String?
     var seriesName: String?
+    var seasonId: String?
     var parentIndexNumber: Int?
     var indexNumber: Int?
     var indexNumberEnd: Int?

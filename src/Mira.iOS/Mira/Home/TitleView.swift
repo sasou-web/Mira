@@ -2,11 +2,10 @@ import SwiftUI
 
 /// A title's page: its artwork, what it is, how far it was watched, its summary, Play in Apple's player, and the
 /// languages to play it in (Apple's player cannot change a conversion's audio, as on Mira web). A series plays its
-/// next episode; its episodes are listed in Mira web for now.
+/// next episode and lists its seasons and episodes.
 struct TitleView: View {
     let route: TitleRoute
     @Environment(AppModel.self) private var app
-    @Environment(\.openURL) private var openURL
     @State private var item: Item
     @State private var width: CGFloat = 402
     /// What Play plays: the title, or a series' next episode.
@@ -54,6 +53,9 @@ struct TitleView: View {
                             .lineSpacing(3)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
+                    }
+                    if item.isSeries {
+                        EpisodeList(series: item, next: next).padding(.top, 18)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -105,8 +107,7 @@ struct TitleView: View {
     /// The film or episode Play plays.
     private var playable: Item? { item.isSeries ? next : item }
 
-    /// Play (Resume, « Play S1 · E3 » for a series), From the beginning when it was started, the languages; for a
-    /// series, its episodes in Mira web.
+    /// Play (Resume, « Play S1 · E3 » for a series), From the beginning when it was started, the languages.
     @ViewBuilder private var play: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let playable {
@@ -137,14 +138,6 @@ struct TitleView: View {
                         TrackMenus(source: source, audioIndex: $audioIndex, subtitleIndex: $subtitleIndex)
                     }
                 }
-            }
-            if item.isSeries, let client = app.client, let url = ServerAddress.miraWeb(client.server, route: "titre/\(item.id)") {
-                Button {
-                    openURL(url)
-                } label: {
-                    Label("Episodes in Mira web", systemImage: "safari").font(MiraFont.callout)
-                }
-                .buttonStyle(.glass)
             }
         }
         .frame(maxWidth: 420, alignment: .leading)
