@@ -184,7 +184,7 @@ internal static class SubtitleTests
             HttpResponseMessage Answer(HttpRequestMessage request)
             {
                 var path = request.RequestUri!.PathAndQuery;
-                calls.Add($"{request.Method} {request.RequestUri.Host}{path} agent={string.Join(" ", request.Headers.UserAgent)} key={request.Headers.GetValues("X-API-Key").FirstOrDefault()}");
+                calls.Add($"{request.Method} {request.RequestUri.Host}{path} agent={string.Join(" ", request.Headers.UserAgent)} key={(request.Headers.TryGetValues("X-API-Key", out var k) ? k.First() : System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["api_key"])}");
                 if (path.StartsWith("/api/v1/subtitles?", StringComparison.Ordinal))
                     return JsonResponse(new
                     {
