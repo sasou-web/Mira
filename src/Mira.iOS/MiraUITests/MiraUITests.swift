@@ -83,9 +83,11 @@ final class MiraUITests: XCTestCase {
         // Out of the search field: the tab bar comes back in place of the keyboard.
         field.typeText("\n")
         let settings = app.tabBars.buttons["Settings"]
-        if !settings.waitForExistence(timeout: 3) || !settings.isHittable {
-            let leave = app.buttons.matching(NSPredicate(format: "label IN %@", ["Cancel", "Close"])).firstMatch
-            if leave.waitForExistence(timeout: 3) { leave.tap() }
+        if !settings.waitForExistence(timeout: 3) {
+            // iOS 26 keeps the search field in place of the tabs, with a close button on its right.
+            let box = field.frame
+            let close = app.buttons.allElementsBoundByIndex.first { $0.frame.minX >= box.maxX && abs($0.frame.midY - box.midY) < 30 }
+            close?.tap()
         }
         XCTAssertTrue(settings.waitForExistence(timeout: 5), "No Settings tab")
         settings.tap()
