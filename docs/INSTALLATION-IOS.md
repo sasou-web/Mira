@@ -17,6 +17,7 @@ Sur le PC où tourne Jellyfin, avec ton compte Windows habituel :
    - iTunes 64 bits : <https://www.apple.com/itunes/download/win64>
    - iCloud : <https://updates.cdn-apple.com/2020/windows/001-39935-20200911-1A70AA56-F448-11EA-8CC0-99D41950005E/iCloudSetup.exe>
    Si une version du Microsoft Store est déjà là, désinstalle-la d’abord (Paramètres → Applications).
+   **Ne te connecte pas à iCloud** : AltServer n’a besoin que de ce qu’il installe. Cette version refuse d’ailleurs la connexion (« Update iCloud for Windows to the latest version to sign in ») : clique sur **OK** puis **Cancel**, et surtout ne la mets pas à jour par le Microsoft Store. Ton identifiant Apple, tu le tapes dans AltServer à l’étape 2.
 2. Télécharge **AltServer pour Windows** : <https://cdn.altstore.io/file/altstore/altinstaller.zip>. Décompresse `altinstaller.zip`, puis lance `Setup.exe`.
 3. Dans la recherche de Windows, tape **AltServer**, clic droit → **Exécuter en tant qu’administrateur**. Si le pare-feu demande, autorise les **réseaux privés** seulement. Une icône en losange apparaît près de l’horloge.
 4. Pour qu’AltServer reparte après un redémarrage : si son menu (clic sur l’icône) propose **Launch at Login**, coche-le ; sinon, relance-le comme à l’étape 3 après chaque redémarrage. Le rafraîchissement ne marche que si une session Windows est ouverte sur le PC et AltServer lancé.
@@ -53,6 +54,7 @@ La source ne propose Mira qu’à partir de la première version publiée avec l
 ## Si ça coince
 
 - **« Could not find AltServer »** pendant un rafraîchissement : l’iPhone et le PC ne sont pas sur le même Wi-Fi, AltServer n’est pas lancé, ou la synchronisation Wi-Fi d’iTunes est décochée.
+- **iCloud demande une mise à jour pour se connecter** : normal avec la version du lien, ne te connecte pas (voir l’étape 1). Pour garder iCloud connecté sur ce PC, suis « Windows Store iCloud » dans le guide de dépannage d’AltStore ci-dessous.
 - **AltServer ne voit pas l’iPhone** : vérifie qu’iTunes et iCloud viennent bien du site d’Apple, débranche et rebranche l’iPhone déverrouillé.
 - **Mira dit que Jellyfin est injoignable** : à la maison, vérifie le Wi-Fi et l’accès au réseau local (Réglages → Apps → Mira → Réseau local) ; ailleurs, active Tailscale.
 - Guide officiel et dépannage : <https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows>, <https://faq.altstore.io/altstore-classic/troubleshooting-guide>.
