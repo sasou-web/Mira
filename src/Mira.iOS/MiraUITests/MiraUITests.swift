@@ -16,6 +16,7 @@ final class MiraUITests: XCTestCase {
         capture("01-login")
         signIn(app, password: "mira")
         XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
         settle()
         capture("02-home")
         app.swipeUp()
@@ -52,8 +53,8 @@ final class MiraUITests: XCTestCase {
         let password = app.secureTextFields["login.password"]
         password.tap()
         password.typeText("mira\n")
-        dismissSavePassword(app)
         XCTAssertTrue(app.staticTexts["Continuer à regarder"].waitForExistence(timeout: 20), "L'Accueil n'a pas montré Continuer à regarder")
+        dismissSavePassword(app)
         settle()
         capture("13-accueil")
         app.tabBars.buttons["Réglages"].tap()
@@ -84,16 +85,13 @@ final class MiraUITests: XCTestCase {
         field.tap()
         field.typeText(password)
         app.buttons["login.signin"].tap()
-        if password == "mira" { dismissSavePassword(app) }
     }
 
-    /// iOS may offer to save the password: not now.
+    /// iOS may offer to save the password, a few seconds after Home opens, over it: not now.
     @MainActor
     private func dismissSavePassword(_ app: XCUIApplication) {
-        for name in ["Not Now", "Pas maintenant"] {
-            let button = app.buttons[name]
-            if button.waitForExistence(timeout: 2) { button.tap(); return }
-        }
+        let button = app.buttons.matching(NSPredicate(format: "label IN %@", ["Not Now", "Pas maintenant"])).firstMatch
+        if button.waitForExistence(timeout: 6) { button.tap() }
     }
 
     /// Pictures fade in from the server: a moment before a capture.
