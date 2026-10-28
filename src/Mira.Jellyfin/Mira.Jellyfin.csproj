@@ -30,6 +30,7 @@
     <Compile Include="../Mira.Core/Lang.cs" Link="Core/Lang.cs" />
     <Compile Include="../Mira.Core/Subtitles/SubtitleText.cs" Link="Core/SubtitleText.cs" />
     <Compile Include="../Mira.Core/Subtitles/SubtitleMatch.cs" Link="Core/SubtitleMatch.cs" />
+    <Compile Include="../Mira.Core/Subtitles/SubtitleSync.cs" Link="Core/SubtitleSync.cs" />
     <Compile Include="../Mira.Core/TorLink/ReleaseName.cs" Link="Core/ReleaseName.cs" />
     <Compile Include="../Mira.Core/TorLink/ReleaseRanking.cs" Link="Core/ReleaseRanking.cs" />
   </ItemGroup>
