@@ -84,7 +84,8 @@ struct TogetherTests {
     func invites() throws {
         let fixture = try SyncFixture.load()
         for case let entry as [Any] in try #require(fixture["invites"] as? [Any]) {
-            let server = try #require(URL(string: try #require(entry[0] as? String)))
+            let address = try #require(entry[0] as? String)
+            let server = try #require(URL(string: address))
             #expect(SyncRules.inviteLink(server: server, groupId: entry[1] as! String, host: entry[2] as? String) == entry[3] as? String, "\(entry)")
         }
     }
