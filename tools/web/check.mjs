@@ -2497,7 +2497,8 @@ try {
   const open = async (hash, settle = 2500) => { await ax.evaluate((h) => { location.hash = h; }, hash); await ax.waitForTimeout(settle); };
   const screens = [['accueil', '#/'], ['films', '#/films'], ['séries', '#/series'], ['fiche d’un film', `#/titre/${auditedFilm.Id}`],
     ['fiche d’une série', `#/titre/${series.Id}`], ['réglages', '#/reglages'], ['partager', '#/partager'], ['titres à corriger', '#/a-corriger'],
-    ['liens d’invités', '#/invites'], ['en ce moment', '#/en-ce-moment'], ['télécharger', '#/telecharger']];
+    ['liens d’invités', '#/invites'], ['en ce moment', '#/en-ce-moment'], ['télécharger', '#/telecharger'],
+    ['sous-titres automatiques', '#/sous-titres-auto']];
   for (const [name, hash] of screens) {
     await open(hash);
     const { faults, stops } = await audit(ax);
