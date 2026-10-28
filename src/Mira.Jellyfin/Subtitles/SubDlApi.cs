@@ -57,16 +57,18 @@ public sealed class SubDlApi : SubtitleSource
     public override async Task<List<SubtitleCandidate>> SearchAsync(SubtitleQuery query, string language, CancellationToken ct)
     {
         if (!query.Askable || query.Hash is not null && query.ImdbId is null && query.TmdbId is null && query.ParentImdbId is null && query.ParentTmdbId is null && query.Title is null) return [];
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_base, "subtitles?" + SearchQuery(query, language)));
-        request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        // The key goes in the query, as SubDL's API reads it (it reads no header).
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_base, "subtitles?" + SearchQuery(query, language) + "&api_key=" + Uri.EscapeDataString(_apiKey)));
         request.Headers.TryAddWithoutValidation("User-Agent", _userAgent);
         using var response = await SendAsync(request, ct).ConfigureAwait(false);
         var text = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new SubtitleSourceException("SubDL refused the key", refused: true);
-        if (!response.IsSuccessStatusCode) throw new SubtitleSourceException($"SubDL: {(int)response.StatusCode}");
         JsonObject? body;
         try { body = JsonNode.Parse(text) as JsonObject; }
         catch (JsonException) { body = null; }
+        var error = body is not null && Text(body, "error") is { Length: > 0 } said ? said : null;
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden || error?.Contains("key", StringComparison.OrdinalIgnoreCase) == true)
+            throw new SubtitleSourceException("SubDL refused the key" + (error is null ? "" : ": " + error), refused: true);
+        if (!response.IsSuccessStatusCode) throw new SubtitleSourceException($"SubDL: {(int)response.StatusCode}" + (error is null ? "" : " " + error));
         if (body?["subtitles"] is not JsonArray subtitles) return [];
         return subtitles.OfType<JsonObject>().Select(x => Candidate(x, language, query)).OfType<SubtitleCandidate>().ToList();
     }
