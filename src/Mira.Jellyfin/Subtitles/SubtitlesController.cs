@@ -31,9 +31,15 @@ public sealed class SubtitlesController : ControllerBase
 
     private bool French => RelayText.French(Request);
 
-    /// <summary>The settings and the journal.</summary>
+    /// <summary>The settings, the journal, how many titles wait, and until when the loop waits for a quota.</summary>
     [HttpGet("")]
-    public IActionResult Get() => Answer(new JsonObject { ["settings"] = Plugin.Subtitles.Public(), ["journal"] = JournalJson(Plugin.SubtitleJournal.Recent()) });
+    public IActionResult Get() => Answer(new JsonObject
+    {
+        ["settings"] = Plugin.Subtitles.Public(),
+        ["journal"] = JournalJson(Plugin.SubtitleJournal.Recent()),
+        ["waiting"] = Plugin.SubtitleQueue.Count,
+        ["pausedUntil"] = SubtitleAutomation.PausedUntil?.ToString("o"),
+    });
 
     /// <summary>Changes the settings (the fields given); answers with them.</summary>
     [HttpPut("settings")]
