@@ -146,7 +146,9 @@ public sealed class SubtitleConfig
 }
 
 /// <summary>One thing that happened to a title: found and kept, nothing found, set aside and why.</summary>
-public sealed record SubtitleJournalEntry(DateTimeOffset When, string ItemId, string Name, string Language, string Kind, string? Source = null, string? Release = null, int? Score = null, string? Detail = null);
+/// <remarks>Aligned: what it was aligned on (« track », « audio »), and the shift (seconds) and speed applied, when any.</remarks>
+public sealed record SubtitleJournalEntry(DateTimeOffset When, string ItemId, string Name, string Language, string Kind, string? Source = null, string? Release = null, int? Score = null,
+    string? Detail = null, string? AlignedOn = null, double? Shift = null, double? Speed = null);
 
 /// <summary>
 /// What « Sous-titres automatiques » did, the last <see cref="Keep"/> things, in one file beside the plugins' settings
