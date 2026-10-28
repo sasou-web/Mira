@@ -67,10 +67,20 @@ jobs:
         run: |
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
           tools/web/package.sh "$version" http://127.0.0.1:8765
-      - name: Test media
+      # ffmpeg: imageio-ffmpeg's static build from PyPI, pinned by its hash, as tools/player-check.ps1 takes it on
+      # Windows. Not apt: the runner has no ffmpeg, and the Ubuntu mirror sometimes sends its 92 MB at 76 kB/s (20 min).
+      - name: ffmpeg
+        timeout-minutes: 5
         run: |
-          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
-          tools/web/media.sh "$PWD/.artifacts/media"
+          echo 'imageio-ffmpeg==0.6.0 --hash=sha256:c7e46fcec401dd990405049d2e2f475e2b397779df2519b544b8aab515195282' > "$RUNNER_TEMP/ffmpeg.txt"
+          python3 -m pip install --disable-pip-version-check --quiet --no-deps --only-binary ':all:' --require-hashes --target "$RUNNER_TEMP/ffmpeg" -r "$RUNNER_TEMP/ffmpeg.txt"
+          mkdir -p "$RUNNER_TEMP/bin"
+          ln -s "$(ls "$RUNNER_TEMP"/ffmpeg/imageio_ffmpeg/binaries/ffmpeg-linux-x86_64-*)" "$RUNNER_TEMP/bin/ffmpeg"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/ffmpeg" -hide_banner -version | head -1
+      - name: Test media
+        timeout-minutes: 5
+        run: tools/web/media.sh "$PWD/.artifacts/media"
       - name: Jellyfin ${{ matrix.jellyfin }}, Mira web installed from the repository
         run: |
           (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
