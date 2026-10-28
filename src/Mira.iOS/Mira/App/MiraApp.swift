@@ -62,6 +62,11 @@ struct MainView: View {
         } message: {
             Text(verbatim: app.playerMessage ?? "")
         }
+        .alert("Jellyfin refused", isPresented: Binding(get: { app.actionMessage != nil }, set: { if !$0 { app.actionMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(verbatim: app.actionMessage ?? "")
+        }
     }
 }
 

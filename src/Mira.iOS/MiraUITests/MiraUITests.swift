@@ -41,6 +41,15 @@ final class MiraUITests: XCTestCase {
         if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
         XCTAssertTrue(waitForReport("/Stopped", timeout: 20), "Jellyfin never heard that playback stopped")
         XCTAssertTrue(app.buttons["title.play"].waitForExistence(timeout: 10), "Closing the player did not lead back to the title page")
+        // Favorite, then not: Jellyfin is told each time, and the page reads it back.
+        let favorite = app.buttons["title.favorite"]
+        XCTAssertTrue(favorite.waitForExistence(timeout: 5), "The title page has no Favorite")
+        favorite.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'title.favorite' AND label == 'In favorites'")).firstMatch.waitForExistence(timeout: 10),
+                      "Favorite did not stick")
+        favorite.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'title.favorite' AND label == 'Favorite'")).firstMatch.waitForExistence(timeout: 10),
+                      "Taking the title out of favorites did not stick")
         app.navigationBars.buttons.firstMatch.tap()
 
         // A series: Play for its next episode, then its episodes, each with a Play of its own.

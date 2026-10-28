@@ -203,6 +203,16 @@
         }
       }
     },
+    "Add to favorites": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter aux favoris"
+          }
+        }
+      }
+    },
     "Address": {
       "localizations": {
         "fr": {
@@ -410,6 +420,16 @@
         }
       }
     },
+    "Favorite": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favori"
+          }
+        }
+      }
+    },
     "Favorites": {
       "localizations": {
         "fr": {
@@ -480,6 +500,16 @@
         }
       }
     },
+    "In favorites": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans tes favoris"
+          }
+        }
+      }
+    },
     "Jellyfin": {
       "localizations": {
         "fr": {
@@ -540,6 +570,16 @@
         }
       }
     },
+    "Jellyfin refused": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin a refusé"
+          }
+        }
+      }
+    },
     "Jellyfin refused to play this title (%@).": {
       "localizations": {
         "fr": {
@@ -576,6 +616,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chargement"
+          }
+        }
+      }
+    },
+    "Mark as unwatched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marquer comme non vu"
+          }
+        }
+      }
+    },
+    "Mark as watched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marquer comme vu"
           }
         }
       }
@@ -846,6 +906,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retire un filtre pour en voir plus."
+          }
+        }
+      }
+    },
+    "Remove from favorites": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer des favoris"
           }
         }
       }

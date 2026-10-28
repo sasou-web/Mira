@@ -112,6 +112,7 @@ struct HomeView: View {
                         .matchedTransitionSource(id: "continue-\(item.id)", in: zoom)
                 }
                 .buttonStyle(.plain)
+                .titleMenu(item)
             }
         }
         if !content.latest.isEmpty {
@@ -121,6 +122,7 @@ struct HomeView: View {
                         .matchedTransitionSource(id: "latest-\(item.id)", in: zoom)
                 }
                 .buttonStyle(.plain)
+                .titleMenu(item)
             }
         }
         if !content.favorites.isEmpty {
@@ -130,6 +132,7 @@ struct HomeView: View {
                         .matchedTransitionSource(id: "favorite-\(item.id)", in: zoom)
                 }
                 .buttonStyle(.plain)
+                .titleMenu(item)
             }
         }
     }
