@@ -9,7 +9,7 @@ struct TitleActions: View {
     var body: some View {
         let favorite = item.userData?.isFavorite == true
         let played = item.userData?.played == true
-        HStack(spacing: 10) {
+        ChipRow {
             Button {
                 update(favorite: !favorite)
             } label: {

@@ -332,13 +332,13 @@ struct BannerView: View {
                     Text(item.name ?? "").font(MiraFont.extraBold(34, .largeTitle)).foregroundStyle(Palette.ink).lineLimit(2)
                 }
                 Text(ItemText.meta(item)).font(MiraFont.subheadline).foregroundStyle(Palette.muted).lineLimit(1)
-                HStack(spacing: 10) {
+                ChipRow {
                     if let play = entry.play {
                         Button {
                             app.play(play)
                         } label: {
                             Label {
-                                Text(playLabel(entry)).font(MiraFont.headline)
+                                Text(playLabel(entry)).font(MiraFont.headline).lineLimit(1)
                             } icon: {
                                 Image(systemName: "play.fill")
                             }
