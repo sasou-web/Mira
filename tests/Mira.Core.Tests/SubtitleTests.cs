@@ -101,6 +101,100 @@ internal static class SubtitleTests
             Assert(string.Join(" · ", english.Reasons.Select(r => SubtitleMatch.Text(r))) == "other release (GRP) · other source (BluRay) · different frame rate (25 / 23.976 fps)", "English: " + string.Join(" · ", english.Reasons.Select(r => SubtitleMatch.Text(r))));
             return Task.CompletedTask;
         });
+        await Test("Sous-titres : recalage sur une piste et sur l'audio, décalage et vitesse retrouvés, autre épisode refusé", () =>
+        {
+            // FFT: a known spectrum.
+            var data = new System.Numerics.Complex[8];
+            data[1] = 1;
+            SubtitleAlign.Fft(data, false);
+            Assert(data.All(x => Math.Abs(x.Magnitude - 1) < 1e-9), "FFT of an impulse");
+            SubtitleAlign.Fft(data, true);
+            Assert(Math.Abs(data[1].Real - 1) < 1e-9 && data.Where((_, i) => i != 1).All(x => x.Magnitude < 1e-9), "Inverse FFT");
+            Assert(SpeechDetector.RollingMinimum([5, 3, 4, 9, 8, 7, 1, 6], 1).SequenceEqual([3f, 3, 3, 4, 7, 1, 1, 1]), "Rolling minimum");
+
+            // A film of 20 minutes: when people speak, and the subtitles made for it as shown on screen (a little before
+            // the voice, a while after it).
+            var length = TimeSpan.FromMinutes(20);
+            List<SubtitleCue> Pattern(int seed)
+            {
+                var random = new Random(seed);
+                var list = new List<SubtitleCue>();
+                var at = 5000.0;
+                while (at < length.TotalMilliseconds - 10000)
+                {
+                    var spoken = 800 + random.NextDouble() * 3000;
+                    list.Add(new SubtitleCue(TimeSpan.FromMilliseconds(at), TimeSpan.FromMilliseconds(at + spoken), "-"));
+                    at += spoken + 300 + random.NextDouble() * (random.NextDouble() < 0.1 ? 30000 : 4000);
+                }
+                return list;
+            }
+            var speech = Pattern(1);
+            var shownRandom = new Random(2);
+            var shown = speech.Select(c => c with { Start = c.Start - TimeSpan.FromMilliseconds(shownRandom.Next(0, 200)), End = c.End + TimeSpan.FromMilliseconds(shownRandom.Next(300, 1200)) }).ToList();
+            // The file as fetched: made for another release, its times = (true - shift) / speed.
+            List<SubtitleCue> Fetched(double speed, double shift) =>
+                shown.Select(c => c with { Start = TimeSpan.FromMilliseconds((c.Start.TotalMilliseconds - shift) / speed), End = TimeSpan.FromMilliseconds((c.End.TotalMilliseconds - shift) / speed) }).ToList();
+            double Error(List<SubtitleCue> aligned) => aligned.Zip(shown, (a, b) => Math.Abs((a.Start - b.Start).TotalMilliseconds)).Max();
+
+            // On another subtitle track of the file: its own line breaks, a few lines missing.
+            var trackRandom = new Random(3);
+            var track = SubtitleAlign.Lines(shown.Where(_ => trackRandom.NextDouble() > 0.1)
+                .Select(c => c with { Start = c.Start + TimeSpan.FromMilliseconds(trackRandom.Next(-100, 100)), End = c.End + TimeSpan.FromMilliseconds(trackRandom.Next(-300, 300)) }).ToList(), SubtitleAlign.Frames(length));
+            foreach (var (speed, shift) in new[] { (1.0, 0.0), (1.0, 2340.0), (1.0, -7420.0), (25 / 23.976, 1200.0), (23.976 / 25, -300.0) })
+            {
+                var fetched = Fetched(speed, shift);
+                var sync = SubtitleAlign.Align(track, fetched)!;
+                var aligned = SubtitleAlign.Apply(fetched, sync);
+                Assert(sync.Confident && Math.Abs(sync.Ratio - speed) < 0.0005 && Error(aligned) < 250 && sync.Fit > sync.FitBefore - 0.01,
+                    $"Track, {speed:F4} {shift}: {sync.Ratio:F5} {sync.Shift.TotalMilliseconds:F0} ms, error {Error(aligned):F0} ms, z {sync.Confidence:F1}");
+                Assert(sync.Changes == (speed != 1 || shift != 0), $"Changes {shift}: {sync.Ratio:F7} {sync.Shift.TotalMilliseconds}");
+            }
+
+            // On the audio: speech over music that swells and fades, room noise, a loud scene; at 8 kHz, as ffmpeg gives it.
+            var detector = new SpeechDetector();
+            var noise = new Random(4);
+            double Gauss() => Math.Sqrt(-2 * Math.Log(1 - noise.NextDouble())) * Math.Cos(2 * Math.PI * noise.NextDouble());
+            var samples = new short[SpeechDetector.Rate];
+            var line = 0;
+            for (var second = 0; second < (int)length.TotalSeconds; second++)
+            {
+                for (var i = 0; i < samples.Length; i++)
+                {
+                    var ms = second * 1000.0 + i * 1000.0 / SpeechDetector.Rate;
+                    while (line < speech.Count && speech[line].End.TotalMilliseconds < ms) line++;
+                    var speaking = line < speech.Count && speech[line].Start.TotalMilliseconds <= ms;
+                    var music = 1500 * Math.Sin(2 * Math.PI * 220 * ms / 1000) * (0.5 + 0.5 * Math.Sin(2 * Math.PI * ms / 60000));
+                    var voice = speaking ? 5000 * Gauss() * Math.Max(0, Math.Sin(2 * Math.PI * 4 * ms / 1000)) : 0;
+                    var loud = second is > 600 and < 615 ? 6000 * Gauss() : 0;
+                    samples[i] = (short)Math.Clamp(music + 300 * Gauss() + voice + loud, short.MinValue, short.MaxValue);
+                }
+                detector.Add(MemoryMarshalBytes(samples));
+            }
+            var audio = detector.Speech();
+            Assert(audio.Length == SubtitleAlign.Frames(length) && SubtitleAlign.Fit(audio, SubtitleAlign.Lines(speech, audio.Length)) > 0.7, "Speech found: " + SubtitleAlign.Fit(audio, SubtitleAlign.Lines(speech, audio.Length)));
+            foreach (var (speed, shift) in new[] { (1.0, 1730.0), (1.0, -45000.0), (25 / 23.976, 800.0) })
+            {
+                var fetched = Fetched(speed, shift);
+                var sync = SubtitleAlign.Align(audio, fetched)!;
+                var aligned = SubtitleAlign.Apply(fetched, sync);
+                Assert(sync.Confident && Math.Abs(sync.Ratio - speed) < 0.0005 && Error(aligned) < 500,
+                    $"Audio, {speed:F4} {shift}: {sync.Ratio:F5} {sync.Shift.TotalMilliseconds:F0} ms, error {Error(aligned):F0} ms, z {sync.Confidence:F1}");
+            }
+
+            // The lines of another episode fit nowhere: not confident, on the track as on the audio.
+            var other = Pattern(99);
+            Assert(SubtitleAlign.Align(track, other) is { Confident: false } && SubtitleAlign.Align(audio, other) is { Confident: false }, "Another episode");
+            Assert(SubtitleAlign.Align(new float[100], shown) is null && SubtitleAlign.Align(track, []) is null, "Nothing to align");
+
+            // Applied: times stretched then moved; a line pushed before the start is cut there, one entirely before it dropped.
+            var moved = SubtitleAlign.Apply([new(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), "a"), new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(12), "b")],
+                new SubtitleSync(TimeSpan.FromSeconds(-1.5), 2, 1, 0, 10, true));
+            Assert(moved is [{ Text: "a", Start.TotalMilliseconds: 500, End.TotalMilliseconds: 2500 }, { Start.TotalMilliseconds: 18500, End.TotalMilliseconds: 22500 }], "Apply");
+            moved = SubtitleAlign.Apply([new(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), "a"), new(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(4), "b")],
+                new SubtitleSync(TimeSpan.FromSeconds(-2.5), 1, 1, 0, 10, true));
+            Assert(moved is [{ Text: "b", Start.TotalMilliseconds: 500 }], "Before the start: " + string.Join(", ", moved));
+            return Task.CompletedTask;
+        });
         await Test("Sous-titres : langues, empreinte du fichier, identifiants et archives des sources", () =>
         {
             Assert(SubtitleLanguages.Two("fre") == "fr" && SubtitleLanguages.Two("fra") == "fr" && SubtitleLanguages.Two("eng") == "en" && SubtitleLanguages.Two("jpn") == "ja" && SubtitleLanguages.Two("xxx") is null, "Two");
@@ -308,4 +402,6 @@ internal static class SubtitleTests
             }
         return memory.ToArray();
     }
+
+    private static byte[] MemoryMarshalBytes(short[] samples) => System.Runtime.InteropServices.MemoryMarshal.AsBytes(samples.AsSpan()).ToArray();
 }
