@@ -46,6 +46,7 @@ const films = [
 ];
 const SERIES = 'c9d8e1f0a3b42c5d6e7f8a9b0c1d2e3f';
 const SEASON = 'd0e9f2a1b4c53d6e7f8a9b0c1d2e3f40';
+const MOVIES = 'f1e2d3c4b5a69788796a5b4c3d2e1f00', SHOWS = 'f2e3d4c5b6a7988796a5b4c3d2e1f011';
 const series = {
   Id: SERIES, Name: 'Pioneer One', Type: 'Series', ProductionYear: 2010, ChildCount: 1, Genres: ['Drama', 'Science Fiction'],
   Overview: 'An object in the sky spreads radiation over North America. Fearing terrorism, U.S. Homeland Security agents are dispatched to investigate.',
@@ -171,6 +172,40 @@ const server = http.createServer(async (req, res) => {
   }
   const one = /^\/Items\/([0-9a-f]+)$/.exec(path);
   if (one) { const item = everything.find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
+  if (path === '/UserViews') {
+    return send(res, 200, list([
+      { Id: MOVIES, Name: 'Movies', Type: 'CollectionFolder', CollectionType: 'movies' },
+      { Id: SHOWS, Name: 'Shows', Type: 'CollectionFolder', CollectionType: 'tvshows' },
+    ]));
+  }
+  if (path === '/Items/Filters2') {
+    const kinds = (q.get('includeItemTypes') ?? '').split(',');
+    const genres = [...new Set(everything.filter((x) => kinds.includes(x.Type)).flatMap((x) => x.Genres ?? []))].sort();
+    return send(res, 200, { Genres: genres.map((name) => ({ Name: name, Id: name })) });
+  }
+  if (path === '/Years') {
+    const kinds = (q.get('includeItemTypes') ?? '').split(',');
+    const years = [...new Set(everything.filter((x) => kinds.includes(x.Type)).map((x) => x.ProductionYear))].sort((a, b) => b - a);
+    return send(res, 200, list(years.map((year) => ({ Id: String(year), Name: String(year), Type: 'Year' }))));
+  }
+  // A library's grid (startIndex) and Search (searchTerm): filtered, sorted and cut as Jellyfin does.
+  if (path === '/Items' && (q.has('startIndex') || q.has('searchTerm'))) {
+    const kinds = (q.get('includeItemTypes') ?? '').split(',');
+    const term = (q.get('searchTerm') ?? '').toLowerCase();
+    let found = everything.filter((x) => kinds.includes(x.Type)
+      && (!term || x.Name.toLowerCase().includes(term))
+      && (!q.get('genres') || (x.Genres ?? []).includes(q.get('genres')))
+      && (!q.get('years') || String(x.ProductionYear) === q.get('years'))
+      && (q.get('isPlayed') !== 'false' || !x.UserData?.Played)
+      && (q.get('isFavorite') !== 'true' || x.UserData?.IsFavorite));
+    const by = (q.get('sortBy') ?? 'SortName').split(',')[0];
+    const key = { SortName: (x) => x.Name, ProductionYear: (x) => x.ProductionYear, CommunityRating: (x) => x.CommunityRating ?? 0,
+      DatePlayed: (x) => x.UserData?.LastPlayedDate ?? '', DateCreated: (x) => everything.length - everything.indexOf(x) }[by] ?? ((x) => x.Name);
+    found = [...found].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) || a.Name.localeCompare(b.Name));
+    if (q.get('sortOrder') === 'Descending') found.reverse();
+    const start = Number(q.get('startIndex') ?? 0), limit = Number(q.get('limit') ?? 60);
+    return send(res, 200, { Items: found.slice(start, start + limit), TotalRecordCount: found.length, StartIndex: start });
+  }
   if (path === '/Items') {
     if (q.get('sortBy') === 'DatePlayed') return send(res, 200, list(everything.filter((x) => x.UserData?.LastPlayedDate)));
     if (q.get('isFavorite') === 'true') return send(res, 200, list(everything.filter((x) => x.UserData?.IsFavorite && x.Type !== 'Episode')));

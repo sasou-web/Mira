@@ -102,7 +102,10 @@ final class AppModel {
     func signOut() {
         let client = client
         player?.close()
-        if let session { HomeCache.clear(userId: session.userId) }
+        if let session {
+            HomeCache.clear(userId: session.userId)
+            RecentSearches.clear(session.userId)
+        }
         SessionStore.delete()
         session = nil
         Task { await client?.signOut() }
@@ -113,6 +116,7 @@ final class AppModel {
         guard let session else { return }
         player?.close()
         HomeCache.clear(userId: session.userId)
+        RecentSearches.clear(session.userId)
         SessionStore.delete()
         notice = String(localized: "Your session on Jellyfin has ended. Sign in again.")
         self.session = nil

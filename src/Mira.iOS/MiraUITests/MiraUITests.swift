@@ -58,11 +58,39 @@ final class MiraUITests: XCTestCase {
         // Scrolling down Home folded the tab bar into its Home button; back at the top, it shows every tab again.
         app.swipeDown()
         app.swipeDown()
+        let movies = app.tabBars.buttons["Movies"]
+        XCTAssertTrue(movies.waitForExistence(timeout: 5), "The tab bar did not unfold back at the top of Home")
+        movies.tap()
+
+        // Movies: every film in a grid, then only the favorites.
+        XCTAssertTrue(app.staticTexts["8 movies"].waitForExistence(timeout: 15), "Movies does not count the 8 films")
+        XCTAssertTrue(app.buttons["Sprite Fright, 2021"].waitForExistence(timeout: 5), "Movies shows no grid of films")
+        settle()
+        capture("07-movies")
+        app.buttons["library.favorites"].tap()
+        XCTAssertTrue(app.staticTexts["3 movies"].waitForExistence(timeout: 10), "Favorites does not keep only the 3 favorite films")
+
+        // Search: an episode found by its own name.
+        app.tabBars.buttons["Search"].tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "Search has no search field")
+        field.tap()
+        field.typeText("man")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS 'The Man from Mars'")).firstMatch.waitForExistence(timeout: 15),
+                      "Search did not find The Man from Mars")
+        settle()
+        capture("08-search")
+        // Out of the search field: the tab bar comes back in place of the keyboard.
+        field.typeText("\n")
         let settings = app.tabBars.buttons["Settings"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 5), "The tab bar did not unfold back at the top of Home")
+        if !settings.waitForExistence(timeout: 3) || !settings.isHittable {
+            let leave = app.buttons.matching(NSPredicate(format: "label IN %@", ["Cancel", "Close"])).firstMatch
+            if leave.waitForExistence(timeout: 3) { leave.tap() }
+        }
+        XCTAssertTrue(settings.waitForExistence(timeout: 5), "No Settings tab")
         settings.tap()
         XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
-        capture("07-settings")
+        capture("09-settings")
         app.buttons["settings.signout"].tap()
         // The dialog's button, by its identifier or, if iOS does not pass it on, by its name.
         let confirm = app.buttons.matching(NSPredicate(format: "identifier == 'settings.signout.confirm' OR (label == 'Sign out' AND identifier != 'settings.signout')")).firstMatch

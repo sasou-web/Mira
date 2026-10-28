@@ -34,7 +34,7 @@ struct RootView: View {
 }
 
 struct MainView: View {
-    enum Section: Hashable { case home, settings }
+    enum Section: Hashable { case home, movies, shows, search, settings }
     @Environment(AppModel.self) private var app
     @State private var section = Section.home
 
@@ -43,8 +43,17 @@ struct MainView: View {
             Tab("Home", systemImage: "house.fill", value: Section.home) {
                 NavigationStack { HomeView() }
             }
+            Tab("Movies", systemImage: "film", value: Section.movies) {
+                NavigationStack { LibraryView(kind: .movies) }
+            }
+            Tab("Shows", systemImage: "tv", value: Section.shows) {
+                NavigationStack { LibraryView(kind: .shows) }
+            }
             Tab("Settings", systemImage: "gearshape.fill", value: Section.settings) {
                 NavigationStack { SettingsView() }
+            }
+            Tab(value: Section.search, role: .search) {
+                NavigationStack { SearchView() }
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
