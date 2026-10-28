@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Sous-titres automatiques, première pierre** (rien de visible encore) : Mira sait lire un fichier de sous-titres (SRT, WebVTT, ASS, quel que soit son encodage), juger s’il est fait pour un fichier vidéo donné (empreinte reconnue, même release, même source, même cadence, autre montage ou autre épisode écartés) et vérifier qu’il dure autant que la vidéo. Les sources, le téléchargement et le recalage viennent dans les prochaines versions.
 - **Mira web à la taille de l’iPad et de l’ordinateur** : un iPad en portrait a maintenant le rail à gauche et les grilles larges, comme en paysage. Sur iPad et ordinateur, la fiche d’un titre montre son affiche à côté du titre, **Lecture** et les boutons (**Favoris**, **Marquer vu**, **Du début**…) en une rangée de vrais boutons, les lignes **Audio et sous-titres** et **Regarder ensemble** côte à côte ; les Réglages et les pages qu’ils ouvrent gardent une largeur de lecture au lieu de s’étirer d’un bord à l’autre. Sur iPad, l’aide « Ajouter à l’écran d’accueil » cherche **Partager** en haut de Safari. L’iPhone ne change pas.
 - **Les titres des cartes se lisent en entier** (Mira web, Mac) : sous une affiche, le titre tenait sur une ligne et se coupait vite (« Signes Te… », la plupart des titres d’anime). Il prend maintenant deux lignes, et les cartes restent alignées, comme sous Windows. Avec le texte **Très grande**, les grilles passent à des colonnes plus larges (deux sur un téléphone).
 

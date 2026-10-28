@@ -46,6 +46,7 @@ Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ ServerSearch : serveur proposé à la connexion (ce PC, découverte de Jellyfin sur le réseau, appareils Tailscale)
   ├─ LibraryStore, AccountData : cache SQLite, progression locale et file persistante ; fichiers d’un compte
   ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels
+  ├─ Subtitles/ : sous-titres automatiques — SubtitleText (SRT, WebVTT, ASS lus en cues, encodage deviné, réécriture SRT), SubtitleMatch (note d’un sous-titre proposé par une source pour un fichier vidéo, vérification d’un fichier téléchargé contre la durée de la vidéo), cas communs `tests/fixtures/subtitle-match.json`
   ├─ JellyfinSubtitles : sous-titres gardés sur Jellyfin (langue lue dans le nom du fichier, résultats de l’extension triés, messages, nouvelle piste repérée par son chemin), comme `subtitles.js` de Mira web, cas communs `tests/fixtures/subtitles.json`
   ├─ PlaybackSession : état d’une lecture sans WPF ni mpv (position, saut en attente, rapport, fin, titre vu, reprise un peu avant `ResumeBack` comme `resumeBack` de Mira web, cas communs `tests/fixtures/resume.json`), Windows et Mac
   ├─ MpvClient : API C de libmpv commune à Windows et Mac (options, propriétés, commandes, événements, volume au-delà de 100 %)
