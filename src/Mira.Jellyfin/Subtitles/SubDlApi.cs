@@ -12,7 +12,7 @@ namespace Mira.Jellyfin;
 
 /// <summary>
 /// SubDL (subdl.com, heir of Subscene), through its API (api.subdl.com/api/v1). It knows no hash: Mira compares the
-/// release names it gives. What leaves the server: the person's own key (it identifies their SubDL account), the
+/// release names it gives. What leaves the server: the person's own key on a search (it identifies their SubDL account), the
 /// server's public address, the title's ids, season and episode, the languages; the title's name only when no id is
 /// known. Never the file's name. Files come as zip archives, sometimes a whole season (<see cref="SubtitleArchive"/>).
 /// </summary>
@@ -96,12 +96,13 @@ public sealed class SubDlApi : SubtitleSource
     {
         var address = key.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? new Uri(key) : new Uri(_files, key);
         if (address.Host != _files.Host) throw new SubtitleSourceException("SubDL: unexpected file host");
+        // Without the key: a file asked with one counts against a paid download quota that a free key does not have;
+        // without, SubDL allows 300 a day for the address.
         using var request = new HttpRequestMessage(HttpMethod.Get, address);
-        request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
         request.Headers.TryAddWithoutValidation("User-Agent", _userAgent);
         using var response = await SendAsync(request, ct).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.TooManyRequests) throw new SubtitleSourceException("SubDL: download quota spent", DateTimeOffset.UtcNow.AddHours(24));
-        if (!response.IsSuccessStatusCode) throw new SubtitleSourceException($"SubDL: {(int)response.StatusCode} on the file");
+        if (!response.IsSuccessStatusCode) throw new SubtitleSourceException($"SubDL: {(int)response.StatusCode} on {address.AbsolutePath}");
         var bytes = await ReadLimitedAsync(response, MaxFile, ct).ConfigureAwait(false);
         if (SubtitleArchive.IsZip(bytes))
             return SubtitleArchive.Pick(bytes, season, episode) ?? throw new SubtitleSourceException("SubDL: no subtitle file for this episode in the archive");
