@@ -135,3 +135,102 @@ struct PlaybackTests {
         #expect(try JSONSerialization.data(withJSONObject: PlaybackProfile.lastResort(bitrate: 4_000_000)).count > 300)
     }
 }
+
+@Suite("Minuterie")
+struct SleepTimerTests {
+    @Test("Les mêmes cas que Mira web, Windows et Mac (sleep.json)")
+    func shared() throws {
+        let fixture = try Fixtures.json("sleep")
+        for case let entry as [Any] in try #require(fixture["durations"] as? [Any]) {
+            let minutes = try #require(entry[0] as? Int)
+            #expect(SleepTimer.duration(minutes) == entry[1] as? String, "\(entry)")
+        }
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        for case let entry as [Any] in try #require(fixture["status"] as? [Any]) {
+            var timer = SleepTimer()
+            timer.choose(entry[0] as? Int, now: start)
+            let seconds = try #require(entry[1] as? Double)
+            let now = start.addingTimeInterval(seconds)
+            let due = timer.due(now)
+            let status: String? = switch timer.status(now) {
+            case nil: nil
+            case .endOfEpisode: "Arrêt à la fin de l’épisode"
+            case let .pause(left): "Pause dans \(left)"
+            }
+            #expect(status == entry[2] as? String, "\(entry)")
+            #expect(due == (entry[3] as? Bool), "\(entry)")
+        }
+    }
+
+    @Test("Ne met en pause qu'une fois")
+    func once() {
+        var timer = SleepTimer()
+        let start = Date()
+        timer.choose(15, now: start)
+        #expect(timer.due(start.addingTimeInterval(900)))
+        #expect(!timer.due(start.addingTimeInterval(901)))
+        #expect(timer.chosen == nil)
+    }
+}
+
+@Suite("Coupures")
+struct StallWatchTests {
+    private struct Look {
+        var t: Int
+        var at: Double
+        var expecting = true
+        var ready = true
+        var seeking = false
+    }
+
+    /// The looks the player takes, one a second here; the second the stream is stuck, or nil (as stream.test.mjs).
+    private func watch(_ looks: [Look]) -> Int? {
+        var last = StallWatch()
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        for look in looks {
+            last = last.next(now: start.addingTimeInterval(Double(look.t)), at: look.at, expecting: look.expecting, ready: look.ready, seeking: look.seeking)
+            if last.stuck { return look.t }
+        }
+        return nil
+    }
+
+    private func seconds(_ from: Int, _ to: Int, _ look: (Int) -> Look) -> [Look] { (from...to).map(look) }
+
+    @Test("Un flux qui avance, ou qu'on n'attend pas, n'est jamais bloqué")
+    func playing() {
+        #expect(watch(seconds(1, 120) { Look(t: $0, at: Double($0)) }) == nil)
+        #expect(watch(seconds(1, 300) { Look(t: $0, at: 12, expecting: false) }) == nil)
+    }
+
+    @Test("Lu, puis immobile 15 s")
+    func still() {
+        let looks = seconds(1, 10) { Look(t: $0, at: Double($0)) } + seconds(11, 60) { Look(t: $0, at: 10, ready: false) }
+        #expect(watch(looks) == 11 + Int(StallWatch.stallLimit))
+    }
+
+    @Test("Ouvert ou déplacé, rien lu depuis : 45 s")
+    func opened() {
+        #expect(watch(seconds(1, 120) { Look(t: $0, at: $0 < 3 ? 0 : 600, ready: false) }) == 1 + Int(StallWatch.startLimit))
+        #expect(watch(seconds(1, 40) { Look(t: $0, at: 600, ready: false) }) == nil)
+        #expect(watch(seconds(1, 120) { Look(t: $0, at: $0 < 5 ? Double($0) : 300, seeking: $0 >= 5) }) == 5 + Int(StallWatch.startLimit))
+    }
+
+    @Test("Après une pause, le délai court ; le temps en pause ne compte pas")
+    func afterPause() {
+        let looks = seconds(1, 10) { Look(t: $0, at: Double($0)) } + seconds(11, 200) { Look(t: $0, at: 10, expecting: false) }
+            + seconds(201, 260) { Look(t: $0, at: 10, ready: false) }
+        #expect(watch(looks) == 201 + Int(StallWatch.stallLimit))
+    }
+
+    @Test("Le serveur interrogé, muet ou qui répond ; une fin avant 90 % n'en est pas une")
+    func steps() {
+        #expect(StallWatch.step(up: false, reopened: false) == .wait)
+        #expect(StallWatch.step(up: false, reopened: true) == .wait)
+        #expect(StallWatch.step(up: true, reopened: false) == .reopen)
+        #expect(StallWatch.step(up: true, reopened: true) == .fail)
+        #expect(StallWatch.forgiven > StallWatch.stallLimit)
+        #expect(StallWatch.cut(position: 500, total: 1000))
+        #expect(!StallWatch.cut(position: 950, total: 1000))
+        #expect(!StallWatch.cut(position: 10, total: 0))
+    }
+}

@@ -36,6 +36,7 @@ struct RootView: View {
 struct MainView: View {
     enum Section: Hashable { case home, movies, shows, search, settings }
     @Environment(AppModel.self) private var app
+    @Environment(\.scenePhase) private var phase
     @State private var section = Section.home
 
     var body: some View {
@@ -57,6 +58,8 @@ struct MainView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .overlay(alignment: .top) { NoticeToast() }
+        .onChange(of: phase) { if phase == .active { app.together.foreground() } }
         .alert("Can’t play this title", isPresented: Binding(get: { app.playerMessage != nil }, set: { if !$0 { app.playerMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -77,6 +80,8 @@ enum Messages {
         case let problem as ServerAddress.Problem:
             return problem == .empty ? String(localized: "Enter your Jellyfin server’s address, for example 192.168.1.20.")
                 : String(localized: "Enter an http:// or https:// address, without credentials in it.")
+        case let error as TogetherError:
+            return error.errorDescription ?? ""
         case let error as JellyfinError:
             switch error {
             case .unauthorized: return String(localized: "Wrong username or password.")
@@ -95,5 +100,36 @@ enum Messages {
         default:
             return String(localized: "Can’t reach Jellyfin. At home, check the Wi-Fi; away from home, turn on Tailscale.")
         }
+    }
+}
+
+/// A line of « Watch together » said for a few seconds over the top of the app: someone came or went, the group ended.
+struct NoticeToast: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        let notice = app.together.notice
+        ZStack {
+            if let notice {
+                Text(verbatim: notice)
+                    .font(MiraFont.callout)
+                    .foregroundStyle(Palette.ink)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .glassEffect(.regular, in: .capsule)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .accessibilityIdentifier("notice")
+                    .onTapGesture { app.together.notice = nil }
+                    .task(id: notice) {
+                        AccessibilityNotification.Announcement(notice).post()
+                        try? await Task.sleep(for: .seconds(4))
+                        if app.together.notice == notice { app.together.notice = nil }
+                    }
+            }
+        }
+        .animation(.spring(duration: 0.35), value: notice)
     }
 }

@@ -83,6 +83,10 @@ targets:
       # Cases shared with Mira web and Mira for Windows and Mac.
       - path: ../../tests/fixtures/bitrate.json
         buildPhase: resources
+      - path: ../../tests/fixtures/sleep.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/syncplay.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

@@ -1,12 +1,92 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ and %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ et %@"
+          }
+        }
+      }
+    },
+    "%@ and %lld others": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ and %lld other"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ and %lld others"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ et %lld autre"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ et %lld autres"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@ joined the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a rejoint le groupe"
+          }
+        }
+      }
+    },
     "%@ left": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "reste %@"
+          }
+        }
+      }
+    },
+    "%@ left the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a quitté le groupe"
+          }
+        }
+      }
+    },
+    "%@’s group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Groupe de %@"
           }
         }
       }
@@ -99,6 +179,56 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld people": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld person"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld people"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld personne"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld personnes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld s"
           }
         }
       }
@@ -293,6 +423,16 @@
         }
       }
     },
+    "Cancel": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler"
+          }
+        }
+      }
+    },
     "Can’t play this title": {
       "localizations": {
         "fr": {
@@ -343,6 +483,16 @@
         }
       }
     },
+    "Connection to the server lost. Playback resumes as soon as it answers.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion au serveur perdue. La lecture reprend dès qu’il répond."
+          }
+        }
+      }
+    },
     "Continue": {
       "localizations": {
         "fr": {
@@ -363,6 +513,16 @@
         }
       }
     },
+    "Create a group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créer un groupe"
+          }
+        }
+      }
+    },
     "E%@": {
       "localizations": {
         "en": {
@@ -379,6 +539,16 @@
         }
       },
       "comment": "An episode's number: É5 in French"
+    },
+    "End of the episode": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fin de l’épisode"
+          }
+        }
+      }
     },
     "Enter an http:// or https:// address, without credentials in it.": {
       "localizations": {
@@ -490,6 +660,16 @@
         }
       }
     },
+    "Group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Groupe"
+          }
+        }
+      }
+    },
     "Home": {
       "localizations": {
         "fr": {
@@ -506,6 +686,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dans tes favoris"
+          }
+        }
+      }
+    },
+    "Invite": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inviter"
           }
         }
       }
@@ -530,6 +720,26 @@
         }
       }
     },
+    "Jellyfin answers, but the video no longer reaches this iPhone. Try again, or choose a lower quality if the connection is slow.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin répond, mais la vidéo n’arrive plus jusqu’à cet iPhone. Réessaie, ou choisis une qualité plus basse si la connexion est lente."
+          }
+        }
+      }
+    },
+    "Jellyfin didn’t answer. Try again in a moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin n’a pas répondu. Réessaie dans un instant."
+          }
+        }
+      }
+    },
     "Jellyfin doesn’t allow this account to do that.": {
       "localizations": {
         "fr": {
@@ -546,6 +756,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Jellyfin n’autorise pas ce compte à lire ce titre."
+          }
+        }
+      }
+    },
+    "Jellyfin doesn’t allow this account to put a title on for the group.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne permet pas à ce compte de lancer un titre pour le groupe."
+          }
+        }
+      }
+    },
+    "Jellyfin doesn’t allow this account to watch together (SyncPlay).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne permet pas à ce compte de regarder ensemble (SyncPlay)."
           }
         }
       }
@@ -590,12 +820,42 @@
         }
       }
     },
+    "Join": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejoindre"
+          }
+        }
+      }
+    },
+    "Join %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejoindre %@"
+          }
+        }
+      }
+    },
     "Language": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Langue"
+          }
+        }
+      }
+    },
+    "Leave the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitter le groupe"
           }
         }
       }
@@ -616,6 +876,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chargement"
+          }
+        }
+      }
+    },
+    "Loading for the group…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chargement pour le groupe…"
           }
         }
       }
@@ -810,12 +1080,42 @@
         }
       }
     },
+    "Open this link and sign in with your own Jellyfin account: you’ll be in my group on Mira.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre ce lien et connecte-toi avec ton propre compte Jellyfin : tu seras dans mon groupe sur Mira."
+          }
+        }
+      }
+    },
     "Password": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Mot de passe"
+          }
+        }
+      }
+    },
+    "Pause in %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause dans %@"
+          }
+        }
+      }
+    },
+    "Paused for the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En pause pour le groupe"
           }
         }
       }
@@ -836,6 +1136,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lire %@"
+          }
+        }
+      }
+    },
+    "Play a title at the same moment as friends, each on their own screen; pause and seeks go to everyone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regarde un titre au même moment que des amis, chacun sur son écran ; pause et déplacements valent pour tous."
           }
         }
       }
@@ -920,6 +1230,36 @@
         }
       }
     },
+    "Replace for the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remplacer pour le groupe"
+          }
+        }
+      }
+    },
+    "Replace the group’s title?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remplacer le titre du groupe ?"
+          }
+        }
+      }
+    },
+    "Replace “%@” for the whole group?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remplacer « %@ » pour tout le groupe ?"
+          }
+        }
+      }
+    },
     "Reset": {
       "localizations": {
         "fr": {
@@ -946,6 +1286,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reprendre %@"
+          }
+        }
+      }
+    },
+    "Resume %@ for the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre %@ pour le groupe"
+          }
+        }
+      }
+    },
+    "Resume for the group at %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre pour le groupe à %@"
           }
         }
       }
@@ -1080,6 +1440,26 @@
         }
       }
     },
+    "Sleep timer": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minuterie"
+          }
+        }
+      }
+    },
+    "Someone in the group can’t access this title on Jellyfin.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un membre du groupe n’a pas accès à ce titre dans Jellyfin."
+          }
+        }
+      }
+    },
     "Sort by": {
       "localizations": {
         "fr": {
@@ -1100,12 +1480,42 @@
         }
       }
     },
+    "Start %@ for the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lancer %@ pour le groupe"
+          }
+        }
+      }
+    },
+    "Start for the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lancer pour le groupe"
+          }
+        }
+      }
+    },
     "Stereo": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Stéréo"
+          }
+        }
+      }
+    },
+    "Stop at the end of the episode": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêt à la fin de l’épisode"
           }
         }
       }
@@ -1126,6 +1536,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sans sous-titres"
+          }
+        }
+      }
+    },
+    "The group is watching it now. Play replaces it for everyone, at the same moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le groupe le regarde en ce moment. Lecture le remplace chez chacun, au même moment."
+          }
+        }
+      }
+    },
+    "The group no longer exists.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le groupe n’existe plus."
+          }
+        }
+      }
+    },
+    "The group stopped playback.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le groupe a arrêté la lecture."
           }
         }
       }
@@ -1180,12 +1620,32 @@
         }
       }
     },
+    "This group no longer exists.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce groupe n’existe plus."
+          }
+        }
+      }
+    },
     "This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://192.168.1.20:8096.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://192.168.1.20:8096."
+          }
+        }
+      }
+    },
+    "Timer off": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désactivée"
           }
         }
       }
@@ -1206,6 +1666,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Les titres que tu ajoutes à Jellyfin apparaîtront ici."
+          }
+        }
+      }
+    },
+    "Together · %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ensemble · %@"
+          }
+        }
+      }
+    },
+    "Together · nobody else yet": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ensemble · personne d’autre pour l’instant"
           }
         }
       }
@@ -1260,12 +1740,52 @@
         }
       }
     },
+    "Waiting for %@…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On attend %@…"
+          }
+        }
+      }
+    },
+    "Waiting for someone in the group…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On attend quelqu’un du groupe…"
+          }
+        }
+      }
+    },
     "Watch %@": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Regarder %@"
+          }
+        }
+      }
+    },
+    "Watch together": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regarder ensemble"
+          }
+        }
+      }
+    },
+    "Watch with the group": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regarder avec le groupe"
           }
         }
       }
@@ -1296,6 +1816,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Année"
+          }
+        }
+      }
+    },
+    "You left the group: playback goes on here only.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu as quitté le groupe : la lecture continue ici seulement."
           }
         }
       }

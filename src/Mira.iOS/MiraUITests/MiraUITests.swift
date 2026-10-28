@@ -50,6 +50,33 @@ final class MiraUITests: XCTestCase {
         favorite.tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'title.favorite' AND label == 'Favorite'")).firstMatch.waitForExistence(timeout: 10),
                       "Taking the title out of favorites did not stick")
+
+        // Watch together: a group made here, the title put on for it from Play; Jellyfin's socket tells the player
+        // when to start, and it says it is ready; then out of the group.
+        let create = app.buttons["together.create"]
+        for _ in 0..<4 where !create.isHittable { app.swipeUp() }
+        XCTAssertTrue(create.waitForExistence(timeout: 5), "The title page has no Create a group")
+        create.tap()
+        let group = app.descendants(matching: .any)["together.group"]
+        XCTAssertTrue(group.waitForExistence(timeout: 15), "Making a group did not show it on the title page")
+        settle()
+        capture("05b-together")
+        let play = app.buttons["title.play"]
+        for _ in 0..<4 where !play.isHittable { app.swipeDown() }
+        XCTAssertEqual(play.label, "Start for the group")
+        play.tap()
+        XCTAssertTrue(waitForSync("SetNewQueue", timeout: 30), "Play did not put the title on for the group")
+        XCTAssertTrue(waitForSync("Ready", timeout: 30), "The player never told the group it was ready")
+        Thread.sleep(forTimeInterval: 2.5)
+        capture("05c-together-player")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
+        XCTAssertTrue(waitForSync("SetIgnoreWait", timeout: 20), "Closing the player did not tell the group to go on without it")
+        let leave = app.buttons["together.leave"]
+        for _ in 0..<4 where !leave.isHittable { app.swipeUp() }
+        XCTAssertTrue(leave.waitForExistence(timeout: 10), "No Leave the group")
+        leave.tap()
+        XCTAssertTrue(create.waitForExistence(timeout: 15), "Leaving the group did not bring back Create a group")
         app.navigationBars.buttons.firstMatch.tap()
 
         // A series: Play for its next episode, then its episodes, each with a Play of its own.
@@ -190,6 +217,20 @@ final class MiraUITests: XCTestCase {
         while Date() < deadline {
             if let data = try? Data(contentsOf: url), let reports = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
                reports.contains(where: { $0["kind"] as? String == kind }) {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        return false
+    }
+
+    /// Waits for the stand-in Jellyfin to have received this request of « Watch together » (SyncPlay/<what>).
+    private func waitForSync(_ what: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        let url = URL(string: "http://\(Self.server)/Mock/SyncPlay")!
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: url), let answer = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let requests = answer["requests"] as? [[String: Any]], requests.contains(where: { $0["what"] as? String == what }) {
                 return true
             }
             Thread.sleep(forTimeInterval: 0.5)
