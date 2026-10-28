@@ -167,8 +167,10 @@ struct SleepTimerTests {
         var timer = SleepTimer()
         let start = Date()
         timer.choose(15, now: start)
-        #expect(timer.due(start.addingTimeInterval(900)))
-        #expect(!timer.due(start.addingTimeInterval(901)))
+        let first = timer.due(start.addingTimeInterval(900))
+        let again = timer.due(start.addingTimeInterval(901))
+        #expect(first)
+        #expect(!again)
         #expect(timer.chosen == nil)
     }
 }
