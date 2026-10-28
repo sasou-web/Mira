@@ -70,7 +70,8 @@ jobs:
         run: |
           mkdir -p .artifacts
           xcodebuild -exportLocalizations -project src/Mira.iOS/Mira.xcodeproj -localizationPath .artifacts/localizations -exportLanguage fr \
-            -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO > .artifacts/localizations.log 2>&1 || { tail -60 .artifacts/localizations.log; exit 1; }
+            -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO > .artifacts/localizations.log 2>&1 \
+            || { grep -E -A3 "error:" .artifacts/localizations.log | head -150; tail -20 .artifacts/localizations.log; exit 1; }
           node tools/ios/strings.mjs .artifacts/localizations
       - name: Simulator
         id: simulator

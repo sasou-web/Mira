@@ -118,9 +118,6 @@ enum PlaybackPlan {
         return item.userData?.playbackPositionTicks ?? 0
     }
 
-    /// A title is done: Jellyfin counts it watched.
-    static let doneFraction = 0.9
-
     private static func encode(_ text: String) -> String {
         text.addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? text
     }

@@ -39,12 +39,14 @@ enum PlaybackProfile {
     /// None beside the video: AVPlayer reads no subtitle file of its own, so text subtitles chosen for a file sent as it
     /// is make Jellyfin copy it into HLS with them (the video copied, not converted). Pictures (PGS, DVD) are drawn
     /// into the video.
-    private static let subtitles: [[String: Any]] = [
-        ["Format": "vtt", "Method": "Hls"],
-        ["Format": "pgssub", "Method": "Encode"],
-        ["Format": "dvdsub", "Method": "Encode"],
-        ["Format": "dvbsub", "Method": "Encode"],
-    ]
+    private static var subtitles: [[String: Any]] {
+        [
+            ["Format": "vtt", "Method": "Hls"],
+            ["Format": "pgssub", "Method": "Encode"],
+            ["Format": "dvdsub", "Method": "Encode"],
+            ["Format": "dvbsub", "Method": "Encode"],
+        ]
+    }
 
     /// The profile Jellyfin's PlaybackInfo decides with; `bitrate` caps both the file as it is and conversions.
     static func make(bitrate: Int, device: Device) -> [String: Any] {
