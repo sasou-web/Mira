@@ -244,6 +244,7 @@ export function sheet({ title = '', items = [], body = null, held = false, focus
     const done = () => { layer.remove(); };
     panel.addEventListener('animationend', done, { once: true });
     setTimeout(done, 400);
+    for (const el of stilled) el.inert = false;
     previous?.focus?.({ preventScroll: true });
   };
   const keys = (e) => { if (e.key === 'Escape') close(); };
@@ -291,6 +292,10 @@ export function sheet({ title = '', items = [], body = null, held = false, focus
   const resized = 'ResizeObserver' in window ? new ResizeObserver(place) : null;
   resized?.observe(panel);
   place();
+  // Tab and a screen reader stay in the sheet while it is open: what is under it cannot be reached (aria-modal alone
+  // is not enough for Tab), and takes them back once it closes.
+  const stilled = [...overlayHost().children].filter((el) => el !== layer && !el.inert);
+  for (const el of stilled) el.inert = true;
   addEventListener('keydown', keys);
   addEventListener('hashchange', close);
   // The panel takes the focus, so that screen readers and Tab start there, without a ring on touch screens.

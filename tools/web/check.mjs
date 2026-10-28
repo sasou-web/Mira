@@ -17,6 +17,7 @@ import './unit/fr.mjs';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 import { phoneNotes } from '../../src/Mira.Web/js/whats-new.js';
+import { audit, contrast, forcedColors, sheetFocus } from './a11y.mjs';
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
 const [base = 'http://127.0.0.1:8096/Mira/', user = 'mira', password = 'mira-check', seriesName = 'Courte Web', out = 'shots/e2e'] = process.argv.slice(2);
 fs.mkdirSync(out, { recursive: true });
@@ -2448,6 +2449,114 @@ try {
 }
 check('sous-titres : aucune erreur JavaScript', subtitleErrors.length === 0, subtitleErrors.slice(0, 3).join(' | '));
 await subtitled.close();
+
+// Accessibility, screen after screen (tools/web/a11y.mjs): what a screen reader names, the contrast of the text, Tab
+// through each screen (in the order it is read, never under a bar, a ring where it is), the sheets that keep Tab and
+// give the focus back; then iOS's « Augmenter le contraste » (7:1), and Windows' contrast themes on a computer.
+const access = await newContext('accessibilité');
+const ax = await access.newPage();
+const accessErrors = [];
+ax.on('pageerror', (e) => accessErrors.push(e.message));
+let auditedFilm = null, filmData = null;
+const asAccount = (path, method = 'GET', body) => ax.evaluate(async ([p, m, b]) => {
+  const s = JSON.parse(localStorage.getItem('mira.session'));
+  const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/${p.replace('{user}', s.userId)}`, { method: m, body: b === undefined ? undefined : JSON.stringify(b),
+    headers: { 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+  const t = await r.text(); return t ? JSON.parse(t) : null;
+}, [path, method, body]);
+try {
+  await signIn(ax); await ax.waitForTimeout(2500);
+  auditedFilm = (await asAccount('Items?userId={user}&recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];
+  const series = (await asAccount(`Items?userId={user}&recursive=true&includeItemTypes=Series&searchTerm=${encodeURIComponent(seriesName)}`)).Items[0];
+  filmData = await asAccount(`UserItems/${auditedFilm.Id}/UserData?userId={user}`);
+  const open = async (hash, settle = 2500) => { await ax.evaluate((h) => { location.hash = h; }, hash); await ax.waitForTimeout(settle); };
+  const screens = [['accueil', '#/'], ['films', '#/films'], ['séries', '#/series'], ['fiche d’un film', `#/titre/${auditedFilm.Id}`],
+    ['fiche d’une série', `#/titre/${series.Id}`], ['réglages', '#/reglages'], ['partager', '#/partager'], ['titres à corriger', '#/a-corriger'],
+    ['liens d’invités', '#/invites'], ['en ce moment', '#/en-ce-moment'], ['télécharger', '#/telecharger']];
+  for (const [name, hash] of screens) {
+    await open(hash);
+    const { faults, stops } = await audit(ax);
+    check(`accessibilité : ${name}`, !faults.length && stops.length > 3, faults.join(' | ') || `${stops.length} arrêts de Tab`);
+  }
+  await open('#/recherche', 1200);
+  await ax.fill('input[type=search]', seriesName.split(' ')[0]); await ax.waitForTimeout(1800);
+  const searched = await audit(ax);
+  check('accessibilité : recherche, avec ses résultats', !searched.faults.length && searched.stops.length > 3, searched.faults.join(' | ') || `${searched.stops.length} arrêts de Tab`);
+  // Sheets from the keyboard: closed by Escape, or by a choice that draws the screen again behind them.
+  await open('#/films');
+  const sheets = [['« Trier », Escape', await sheetFocus(ax, ax.locator('#view .chip', { hasText: 'Trier' }))],
+    ['« Trier », un choix', await sheetFocus(ax, ax.locator('#view .chip', { hasText: 'Trier' }), { choose: 'Titre' })]];
+  await ax.locator('#view .chip', { hasText: 'Trier' }).click(); await ax.locator('.sheet-item', { hasText: 'Ajouts récents' }).click(); await ax.waitForTimeout(800);
+  await open('#/reglages');
+  sheets.push(['« Qualité », un choix', await sheetFocus(ax, ax.locator('#view button.item', { hasText: 'Qualité' }), { choose: 'Automatique' })]);
+  await open(`#/titre/${auditedFilm.Id}`);
+  sheets.push(['« Audio et sous-titres » de la fiche', await sheetFocus(ax, ax.locator('#view .tracks-line'))]);
+  for (const [name, faults] of sheets) check(`accessibilité : feuille ${name}`, !faults.length, faults.join(' ; '));
+  // A filter chip used from the keyboard: the screen drawn again, Tab goes on from it.
+  await open('#/films');
+  await ax.locator('#view .chip', { hasText: 'Non vus' }).focus(); await ax.keyboard.press('Enter'); await ax.waitForTimeout(1200);
+  const kept = await ax.evaluate(() => document.activeElement?.textContent.trim() ?? '');
+  await ax.keyboard.press('Enter'); await ax.waitForTimeout(1200);
+  check('accessibilité : un filtre pris au clavier garde le focus', kept === 'Non vus', `focus sur « ${kept || 'rien'} »`);
+  // The player, playing, its controls gone after 3 s: Tab brings them back and keeps them while it is on them.
+  await open(`#/lecture/${auditedFilm.Id}`, 1500);
+  await ax.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.readyState >= 2; }, null, { timeout: 20000 });
+  await ax.waitForTimeout(4000);
+  const idle = await ax.evaluate(() => document.querySelector('.player')?.classList.contains('idle'));
+  const player = await audit(ax, { tabs: 20 });
+  // Tab went round once and left the page: once more onto « Retour », then longer than the controls stay on their own.
+  await ax.keyboard.press('Tab'); await ax.waitForTimeout(3600);
+  const stillShown = await ax.evaluate(() => !document.querySelector('.player')?.classList.contains('idle') && !!document.activeElement?.matches(':focus-visible'));
+  check('accessibilité : lecteur, commandes ramenées par Tab', idle && !player.faults.length && player.stops.length >= 6 && stillShown,
+    `${idle ? 'cachées' : 'pas cachées'} avant Tab, ${stillShown ? 'gardées' : 'recachées'} sous le focus ; ${player.faults.join(' | ') || player.stops.join(', ')}`);
+  await ax.keyboard.press('Escape'); await ax.waitForTimeout(1500);
+  // « Augmenter le contraste » of iOS (prefers-contrast: more): 7:1 for every text, 4.5:1 for large text.
+  await ax.emulateMedia({ contrast: 'more' });
+  const more = [];
+  for (const [name, hash] of [['accueil', '#/'], ['films', '#/films'], ['fiche', `#/titre/${auditedFilm.Id}`], ['série', `#/titre/${series.Id}`], ['réglages', '#/reglages']]) {
+    await open(hash, 2000);
+    more.push(...(await contrast(ax, 7)).map((x) => `${name} : ${x}`));
+  }
+  await ax.emulateMedia({ contrast: 'no-preference' });
+  check('accessibilité : contraste élevé, 7:1 au moins', !more.length, more.slice(0, 6).join(' ; '));
+  await ax.screenshot({ path: `${out}/17-contrast-more-settings.png` });
+} catch (error) {
+  check('accessibilité : déroulé', false, error.message.split('\n')[0]);
+  await ax.screenshot({ path: `${out}/error-access.png` }).catch(() => {});
+} finally {
+  // What the player wrote of the film goes back as it was, for the checks after these.
+  if (filmData) await asAccount(`UserItems/${auditedFilm.Id}/UserData?userId={user}`, 'POST', { PlaybackPositionTicks: filmData.PlaybackPositionTicks ?? 0, Played: !!filmData.Played }).catch(() => {});
+}
+check('accessibilité : aucune erreur JavaScript', accessErrors.length === 0, accessErrors.slice(0, 3).join(' | '));
+await access.close();
+// Windows' contrast themes, on a computer (Edge or Chrome in a contrast theme): the controls drawn by their fill keep
+// an edge, what is chosen stays told apart; Tab on the rail and the wide pages.
+const computer = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'fr-FR' });
+await watchPolicy(computer, 'thème contrasté');
+const cp = await computer.newPage();
+try {
+  await signIn(cp); await cp.waitForTimeout(2500);
+  const open = async (hash) => { await cp.evaluate((h) => { location.hash = h; }, hash); await cp.waitForTimeout(2500); };
+  await open('#/films');
+  await cp.locator('#view .chip', { hasText: 'Non vus' }).click(); await cp.waitForTimeout(1500);
+  const film = await cp.evaluate(() => [...document.querySelectorAll('#view a.card')].find((a) => /Lueur/.test(a.textContent))?.getAttribute('href') ?? '#/films');
+  for (const [name, hash] of [['films', null], ['séries', '#/series'], ['fiche', film], ['réglages', '#/reglages'], ['titres à corriger', '#/a-corriger']]) {
+    if (hash) await open(hash);
+    const forced = await forcedColors(cp);
+    const { faults } = await audit(cp);
+    check(`accessibilité sur ordinateur : ${name}, thème contrasté et clavier`, forced.filled > 0 && !forced.faults.length && !faults.length,
+      [...forced.faults, ...faults].slice(0, 6).join(' | ') || `${forced.filled} contrôles dessinés par leur fond`);
+  }
+  await cp.emulateMedia({ forcedColors: 'active' }); await cp.waitForTimeout(300);
+  await cp.screenshot({ path: `${out}/17-forced-colors-settings.png` });
+  await cp.emulateMedia({ forcedColors: 'none' });
+  await open('#/films');
+  await cp.locator('#view .chip', { hasText: 'Non vus' }).click(); await cp.waitForTimeout(800);
+} catch (error) {
+  check('accessibilité sur ordinateur : déroulé', false, error.message.split('\n')[0]);
+  await cp.screenshot({ path: `${out}/error-forced.png` }).catch(() => {});
+}
+await computer.close();
 
 // Mira in English, its default: a phone whose browser is in English (Chromium's en-US) gets English everywhere, and
 // Réglages → Language switches to French and back, the page reloaded on the same screen.

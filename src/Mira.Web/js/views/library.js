@@ -1,6 +1,6 @@
 // Films or Séries: the whole library in a grid, loaded as you scroll, with Mira's filters and sorts.
 import { api, GRID_FIELDS } from '../api.js';
-import { h, icon, clear, append } from '../dom.js';
+import { h, icon, clear, append, keepFocus } from '../dom.js';
 import { tr, trn } from '../i18n.js';
 import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast, reconcile, cardSig } from '../components.js';
 import { session } from '../session.js';
@@ -75,8 +75,9 @@ export function create({ type, query }) {
   }
 
   function renderChips() {
-    // append of dom.js skips the chips not shown (Element.append would write « null »).
-    append(clear(chips), [
+    // append of dom.js skips the chips not shown (Element.append would write « null »). A chip used from the keyboard
+    // keeps the focus where it was.
+    keepFocus(chips, () => append(clear(chips), [
       chip(tr('Trier : {sort}', { sort: SORTS.find(([k]) => k === state.sort)[1] }), { menu: true, run: () => sheet({
         // A letter goes with the sort by title only.
         title: tr('Trier par'), items: SORTS.map(([key, label]) => ({ label, selected: state.sort === key, run: () => apply({ sort: key, letter: key === 'title' ? state.letter : '' }) })),
@@ -87,14 +88,14 @@ export function create({ type, query }) {
       chip(tr('Non vus'), { on: state.unplayed, run: () => apply({ unplayed: !state.unplayed }) }),
       chip(tr('Favoris'), { on: state.favorite, run: () => apply({ favorite: !state.favorite }) }),
       filtered() ? h('button', { class: 'chip', on: { click: () => apply(noFilters) } }, icon('close', { size: 16 }), tr('Réinitialiser')) : null,
-    ]);
+    ]));
   }
 
   /** « Tout | Séries | Animes »: only with several libraries of this kind. A view rather than a filter: kept by Réinitialiser. */
   function renderShelves() {
     shelves.hidden = libraries.length < 2;
-    clear(shelves).append(...(shelves.hidden ? [] : [{ id: '', name: tr('Tout') }, ...libraries].map(({ id, name }) =>
-      h('button', { role: 'radio', 'aria-checked': String(state.library === id), on: { click: () => { if (state.library !== id) apply({ library: id }); } } }, name))));
+    keepFocus(shelves, () => clear(shelves).append(...(shelves.hidden ? [] : [{ id: '', name: tr('Tout') }, ...libraries].map(({ id, name }) =>
+      h('button', { role: 'radio', 'aria-checked': String(state.library === id), on: { click: () => { if (state.library !== id) apply({ library: id }); } } }, name)))));
   }
   function loadShelves() {
     api.libraries().then((views) => {

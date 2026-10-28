@@ -1,6 +1,6 @@
 // Settings: playback quality and behaviour, this phone, the account; what Mira and the server are.
 import { api, base, VERSION } from '../api.js';
-import { h, icon, clear, initials } from '../dom.js';
+import { h, icon, clear, initials, keepFocus } from '../dom.js';
 import { session, settings, settingsChanged, isIOS, isStandalone, device, applyTextSize, storageBlocked } from '../session.js';
 import { tr, trn, trc, number, LANGUAGES, browserLanguage } from '../i18n.js';
 import { sheet, toast } from '../components.js';
@@ -76,7 +76,8 @@ export function create() {
     }
     const avatar = photo;
 
-    clear(el).append(
+    // Drawn again after a choice: the keyboard stays on the line it was on.
+    keepFocus(el, () => clear(el).append(
       h('div', { class: 'page', style: { paddingBottom: '16px' } }, h('h1', { class: 'page-title' }, tr('Réglages'))),
       h('div', { class: 'profile' }, avatar, h('div', {},
         h('div', { class: 'h3' }, current.userName ?? ''),
@@ -175,7 +176,7 @@ export function create() {
         }) } }, icon('sign-out'), h('span', { class: 'grow' }, tr('Se déconnecter')))),
 
       h('p', { class: 'about' }, `Mira ${VERSION}`, info?.Version ? ` · Jellyfin ${info.Version}` : ''),
-      h('p', { class: 'about' }, tr('Ta progression est enregistrée sur ton serveur Jellyfin : elle te suit sur Mira pour Windows et pour Mac.')));
+      h('p', { class: 'about' }, tr('Ta progression est enregistrée sur ton serveur Jellyfin : elle te suit sur Mira pour Windows et pour Mac.'))));
   }
 
   // Another language: the page reloads, on this screen, so that every screen and table follows (i18n.js reads it first).
@@ -202,7 +203,7 @@ export function create() {
     const list = (title, lines) => (lines.length ? h('section', { class: 'report-part' }, h('h3', { class: 'label' }, title), h('ul', {}, lines)) : null);
     async function load() {
       const mine = ++version;
-      chips.replaceChildren(option(false, tr('Ce mois-ci')), option(true, tr('Cette année')));
+      keepFocus(chips, () => chips.replaceChildren(option(false, tr('Ce mois-ci')), option(true, tr('Cette année'))));
       content.replaceChildren(h('p', { class: 'meta' }, tr('Calcul de ton bilan…')));
       try {
         const from = reportStart(Date.now(), year);
