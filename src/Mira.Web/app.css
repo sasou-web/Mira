@@ -378,12 +378,6 @@ html:has(.sheet-layer) { overflow: hidden; }
   .sheet-layer.leaving .sheet { animation: fade-out 180ms linear forwards; }
 }
 .sheet:focus { outline: none; }
-/* A phone on its side: the whole height, closer rows, and a fading foot while more of the list is below. */
-@media (max-height: 500px) {
-  .sheet { max-height: calc(100dvh - 12px - var(--top)); }
-  .sheet-item { min-height: 44px; padding-block: 6px; }
-  .sheet-title { padding-bottom: 6px; }
-}
 .sheet.more { mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent); }
 /* A right click with a mouse (components.js, sheet's at): a menu by the pointer, over a page that stays visible. */
 .sheet-layer.anchored { display: block; }
@@ -413,6 +407,12 @@ html:not(.touch) .sheet-item:active, .sheet-item.pressed { background: var(--rai
 .sheet-item .sub { display: block; font-size: calc(13px * var(--text)); color: var(--faint); font-weight: 400; }
 .sheet-item .tick { color: var(--accent); }
 .sheet-item.danger { color: var(--danger); }
+/* A phone on its side: the whole height, closer rows, and a fading foot while more of the list is below. */
+@media (max-height: 500px) {
+  .sheet { max-height: calc(100dvh - 12px - var(--top)); }
+  .sheet-item { min-height: 44px; padding-block: 6px; }
+  .sheet-title { padding-bottom: 6px; }
+}
 .sheet-heading { padding: 14px 20px 4px; font-size: calc(12px * var(--text)); font-weight: 800; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
 .sheet-question { margin: 0; padding: 2px 20px 6px; font-size: calc(17px * var(--text)); font-weight: 700; line-height: 1.3; color: var(--ink); }
 .sheet-note { margin: 0; padding: 0 20px 12px; font-size: calc(14px * var(--text)); line-height: 1.45; color: var(--muted); }
