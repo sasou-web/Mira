@@ -612,7 +612,7 @@ html:not(.touch) .recent button:active, .recent button.pressed { color: var(--in
 .settings { padding-bottom: 32px; }
 /* Réglages and the screens opened from it: lists and forms at a reading width on a tablet or a computer, rather than a
    name at the far left and its value or switch at the far right. */
-.view:is(.settings, .guests-page, .now-page, .torlink-page, .fix-page) { max-width: calc(760px + 2 * var(--gutter)); }
+.view:is(.settings, .guests-page, .now-page, .torlink-page, .fix-page, .auto-subtitles-page) { max-width: calc(760px + 2 * var(--gutter)); }
 .profile { display: flex; align-items: center; gap: 14px; padding: 8px var(--gutter) 20px; }
 .avatar { width: 56px; height: 56px; border-radius: var(--r-full); overflow: hidden; flex: none; background: var(--raised); display: grid; place-items: center; font-weight: 800; font-size: calc(20px * var(--text)); }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }

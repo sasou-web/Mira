@@ -29,17 +29,30 @@ export const searchLanguages = (preferences) =>
 
 /** A Jellyfin result (RemoteSubtitleInfo) put by translation: an AI's or a machine's. */
 const machine = (found) => !!(found.MachineTranslated || found.AiTranslated);
-/** The search's results: the version of this very file first (its hash), then those people wrote, the most downloaded first. */
+/** The score « Mira » (the extension's own provider) writes at the head of its comment (« 57/100 · … »); null for another. */
+export function miraScore(found) {
+  const match = found?.ProviderName === 'Mira' ? /^(\d{1,3})\/100/.exec(String(found.Comment ?? '')) : null;
+  return match ? Number(match[1]) : null;
+}
+/** Where a result Mira did not score stands among those it did: what Mira would take once aligned. */
+const UNSCORED = 35;
+/**
+ * The search's results: the version of this very file first (its hash), then those people wrote; among them, by how
+ * well Mira says they fit the file (another provider's result counts as an average one), then the most downloaded first.
+ */
 export const sortRemote = (found) => [...(found ?? [])].filter((x) => x?.Id)
-  .sort((a, b) => Number(!!b.IsHashMatch) - Number(!!a.IsHashMatch) || Number(machine(a)) - Number(machine(b)) || (b.DownloadCount ?? 0) - (a.DownloadCount ?? 0));
+  .sort((a, b) => Number(!!b.IsHashMatch) - Number(!!a.IsHashMatch) || Number(machine(a)) - Number(machine(b))
+    || (miraScore(b) ?? UNSCORED) - (miraScore(a) ?? UNSCORED) || (b.DownloadCount ?? 0) - (a.DownloadCount ?? 0));
 // French as Mira.Core writes it (a no-break space between thousands); English as Intl does.
 const thousands = (n) => (shown() === 'fr' ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0') : number(n));
-/** A result as a row: its name, then « OpenSubtitles · SRT · 1 234 téléchargements · pour ce fichier ». */
+/** A result as a row: its name, then « OpenSubtitles · SRT · 1 234 téléchargements · pour ce fichier » (« Mira · OpenSubtitles · note 57/100 · … »). */
 export function remoteText(found) {
   const downloads = found.DownloadCount ?? 0;
+  const score = miraScore(found);
   return {
     label: found.Name || tr('Sous-titres'),
-    details: [found.ProviderName, String(found.Format ?? '').toUpperCase(),
+    details: [found.ProviderName === 'Mira' && found.Author ? `Mira · ${found.Author}` : found.ProviderName,
+      score !== null ? tr('note {n}/100', { n: score }) : '', String(found.Format ?? '').toUpperCase(),
       downloads > 0 ? trn(downloads, '{n} téléchargement', '{n} téléchargements', { n: thousands(downloads) }) : '',
       found.IsHashMatch ? tr('pour ce fichier') : '', found.Forced ? tr('forcés') : '', found.HearingImpaired ? tr('pour sourds et malentendants') : '',
       machine(found) ? tr('traduction automatique') : ''].filter(Boolean).join(' · '),

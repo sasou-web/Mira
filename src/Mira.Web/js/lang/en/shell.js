@@ -70,6 +70,7 @@ export default {
   'Sous-titres': 'Subtitles',
   '{n} téléchargement': ['{n} download', '{n} downloads'],
   'pour ce fichier': 'for this file',
+  'note {n}/100': 'score {n}/100',
   forcés: 'forced',
   'pour sourds et malentendants': 'SDH',
   'traduction automatique': 'machine-translated',

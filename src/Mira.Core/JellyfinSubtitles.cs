@@ -12,7 +12,9 @@ public sealed record SubtitleUpload(string Format, string Language, bool Forced,
 /// </summary>
 public enum SubtitleKept { Kept, KeptInJellyfinData, Refused, NotWritten }
 /// <summary>A subtitle Jellyfin's subtitle extension (Open Subtitles…) found for a title (Items/{id}/RemoteSearch/Subtitles).</summary>
-public sealed record RemoteSubtitle(string Id, string Name, string Provider, string Format, string Language, int Downloads, bool HashMatch, bool Forced, bool HearingImpaired, bool MachineTranslated);
+/// <remarks>Score and Source: Mira's own provider (« Mira ») says how well each result fits the file (0 to 100) and which site it is from.</remarks>
+public sealed record RemoteSubtitle(string Id, string Name, string Provider, string Format, string Language, int Downloads, bool HashMatch, bool Forced, bool HearingImpaired, bool MachineTranslated,
+    int? Score = null, string? Source = null);
 
 /// <summary>
 /// « Sous-titres gardés sur Jellyfin » (Windows and Mac; Mira web's js/subtitles.js says the same, the shared cases
@@ -67,24 +69,35 @@ public static class JellyfinSubtitles
         return (format, language ?? SearchLanguages(preferences)[0], forced, hearing);
     }
 
-    /// <summary>The search's results: the version of this very file first (its hash), then those people wrote, the most downloaded first.</summary>
+    /// <summary>
+    /// The search's results: the version of this very file first (its hash), then those people wrote; among them, by how
+    /// well Mira says they fit the file (a result of another provider counts as an average one, <see cref="Unscored"/>),
+    /// then the most downloaded first.
+    /// </summary>
     public static IReadOnlyList<RemoteSubtitle> Sort(IEnumerable<RemoteSubtitle> found) =>
-        found.OrderByDescending(x => x.HashMatch).ThenBy(x => x.MachineTranslated).ThenByDescending(x => x.Downloads).ToList();
+        found.OrderByDescending(x => x.HashMatch).ThenBy(x => x.MachineTranslated).ThenByDescending(x => x.Score ?? Unscored).ThenByDescending(x => x.Downloads).ToList();
+    /// <summary>Where a result Mira did not score stands among those it did: what Mira would take once aligned.</summary>
+    public const int Unscored = 35;
     /// <summary>A result as a row: its name, then « OpenSubtitles · SRT · 1 234 téléchargements · pour ce fichier ».</summary>
     public static (string Label, string Details) Describe(RemoteSubtitle subtitle) => (subtitle.Name.Length > 0 ? subtitle.Name : L("Sous-titres", "Subtitles"), string.Join(" · ", new[]
     {
-        subtitle.Provider, subtitle.Format.ToUpperInvariant(),
+        subtitle.Provider == "Mira" && subtitle.Source is { Length: > 0 } source ? "Mira · " + source : subtitle.Provider,
+        subtitle.Score is { } score ? L($"note {score}/100", $"score {score}/100") : "", subtitle.Format.ToUpperInvariant(),
         subtitle.Downloads > 0 ? Thousands(subtitle.Downloads) + " " + Plural(subtitle.Downloads, "téléchargement", "téléchargements", "download", "downloads") : "",
         subtitle.HashMatch ? L("pour ce fichier", "for this file") : "", subtitle.Forced ? L("forcés", "forced") : "", subtitle.HearingImpaired ? L("pour sourds et malentendants", "for the deaf and hard of hearing") : "",
         subtitle.MachineTranslated ? L("traduction automatique", "machine translation") : "",
     }.Where(x => x.Length > 0)));
-    private static string Thousands(int count) => IsFrench ? Regex.Replace(count.ToString(CultureInfo.InvariantCulture), @"\B(?=(\d{3})+(?!\d))", "\u00A0") : count.ToString("N0", Culture);
+    internal static string Thousands(int count) => IsFrench ? Regex.Replace(count.ToString(CultureInfo.InvariantCulture), @"\B(?=(\d{3})+(?!\d))", "\u00A0") : count.ToString("N0", Culture);
     /// <summary>A result as Jellyfin gives it (RemoteSubtitleInfo); null without an id to keep it by.</summary>
     public static RemoteSubtitle? FromJellyfin(JsonObject found, string language) => Field(found, "Id") is { Length: > 0 } id
         ? new RemoteSubtitle(id, Field(found, "Name") ?? "", Field(found, "ProviderName") ?? "", Field(found, "Format") ?? "srt", Field(found, "ThreeLetterISOLanguageName") ?? language,
             found["DownloadCount"] is JsonValue count && count.TryGetValue<int>(out var downloads) ? downloads : 0,
-            Flag(found, "IsHashMatch"), Flag(found, "Forced"), Flag(found, "HearingImpaired"), Flag(found, "MachineTranslated") || Flag(found, "AiTranslated"))
+            Flag(found, "IsHashMatch"), Flag(found, "Forced"), Flag(found, "HearingImpaired"), Flag(found, "MachineTranslated") || Flag(found, "AiTranslated"),
+            MiraScore(found), Field(found, "ProviderName") == "Mira" ? Field(found, "Author") : null)
         : null;
+    /// <summary>The score « Mira » writes at the head of its comment (« 57/100 · … »); null for another provider.</summary>
+    private static int? MiraScore(JsonObject found) =>
+        Field(found, "ProviderName") == "Mira" && Field(found, "Comment") is { } comment && Regex.Match(comment, @"^(\d{1,3})/100") is { Success: true } m ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : null;
     private static string? Field(JsonObject node, string name) => node[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
     private static bool Flag(JsonObject node, string name) => node[name] is JsonValue value && value.TryGetValue<bool>(out var on) && on;
     /// <summary>
