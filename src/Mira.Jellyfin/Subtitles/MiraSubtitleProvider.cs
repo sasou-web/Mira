@@ -11,6 +11,7 @@ using MediaBrowser.Controller.Subtitles;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Providers;
 using Microsoft.Extensions.Logging;
+using Mira.Core.TorLink;
 using Mira.Core.Subtitles;
 
 namespace Mira.Jellyfin;
@@ -23,7 +24,7 @@ namespace Mira.Jellyfin;
 /// worth taking without anyone looking. A file fetched is read and checked against the video's length before Jellyfin
 /// writes it. Nothing of the file's name leaves the server: see <see cref="SubtitleQuery"/>.
 /// </summary>
-public sealed class MiraSubtitleProvider : ISubtitleProvider
+public sealed partial class MiraSubtitleProvider : ISubtitleProvider
 {
     public const string ProviderName = "Mira";
     /// <summary>Results given to Jellyfin are remembered this long, to check the file fetched against the video.</summary>
@@ -61,34 +62,46 @@ public sealed class MiraSubtitleProvider : ISubtitleProvider
         return sources;
     }
 
-    /// <summary>What the file is, read from Jellyfin's item: never sent anywhere.</summary>
-    public VideoFacts Facts(Video video)
+    /// <summary>What the file is, read from Jellyfin's item: never sent anywhere. Season and episode: see <see cref="Numbers"/>.</summary>
+    public VideoFacts Facts(Video video, int? season = null, int? episode = null)
     {
         var streams = Streams(video.Id);
         var picture = streams.FirstOrDefault(x => x.Type == MediaStreamType.Video);
         double? fps = picture?.RealFrameRate ?? picture?.AverageFrameRate;
         return new VideoFacts(video.Path ?? "", video.RunTimeTicks is { } ticks ? TimeSpan.FromTicks(ticks) : null, fps is > 0 ? fps : null, picture?.Width,
-            video is Episode ? video.ParentIndexNumber : null, video is Episode ? video.IndexNumber : null, video is Movie ? video.ProductionYear : null);
+            video is Episode ? video.ParentIndexNumber ?? season : null, video is Episode ? video.IndexNumber ?? episode : null, video is Movie ? video.ProductionYear : null);
+    }
+
+    /// <summary>
+    /// An episode's season and number: Jellyfin's, else those of Jellyfin's request, else those its file name says.
+    /// Jellyfin asks for subtitles while it scans, sometimes before it has numbered a new episode (seen on 12.1): asked
+    /// without them, a source answers for every episode of the series.
+    /// </summary>
+    public static (int? Season, int? Episode) Numbers(Video video, int? season = null, int? episode = null)
+    {
+        if (video is not Episode) return (null, null);
+        var named = ReleaseRanking.Parse(Path.GetFileName(video.Path ?? ""));
+        return (video.ParentIndexNumber ?? season ?? named.Season, video.IndexNumber ?? episode ?? named.Episode);
     }
 
     /// <summary>
     /// The streams Jellyfin read in a file. By reflection: IMediaSourceManager.GetMediaStreams(Guid) gives a List on
     /// 10.9 and another collection on 12.x, and a call compiled against 10.9 fails there (MissingMethodException).
     /// </summary>
-    private List<MediaStream> Streams(Guid id)
+    public List<MediaStream> Streams(Guid id)
     {
         var method = _mediaSources.GetType().GetMethods().FirstOrDefault(m => m.Name == "GetMediaStreams" && m.GetParameters() is [{ ParameterType: var type }] && type == typeof(Guid));
         return method?.Invoke(_mediaSources, [id]) is System.Collections.IEnumerable found ? found.OfType<MediaStream>().ToList() : [];
     }
 
     /// <summary>What the sources are asked: ids, season and episode, the fingerprint; the title's name only without an id.</summary>
-    public static SubtitleQuery Query(Video video, string? hash, long? size, bool hashOnly)
+    public static SubtitleQuery Query(Video video, string? hash, long? size, bool hashOnly, int? season = null, int? number = null)
     {
         var episode = video as Episode;
         var series = episode?.Series;
         string? Id(BaseItem? item, string name) => item?.ProviderIds is { } ids && ids.TryGetValue(name, out var id) && !string.IsNullOrWhiteSpace(id) ? id.Trim() : null;
         return new SubtitleQuery(episode is not null, hash, size, Id(video, "Imdb"), Id(video, "Tmdb"), Id(series, "Imdb"), Id(series, "Tmdb"),
-            episode?.ParentIndexNumber, episode?.IndexNumber, episode is not null ? series?.Name ?? episode.SeriesName : video.Name, video.ProductionYear, hashOnly);
+            episode is null ? null : episode.ParentIndexNumber ?? season, episode is null ? null : episode.IndexNumber ?? number, Bare(episode is not null ? series?.Name ?? episode.SeriesName : video.Name), video.ProductionYear, hashOnly);
     }
 
     public async Task<IEnumerable<RemoteSubtitleInfo>> Search(SubtitleSearchRequest request, CancellationToken cancellationToken)
@@ -103,7 +116,9 @@ public sealed class MiraSubtitleProvider : ISubtitleProvider
         // that follows, before its database knows the new file: seen on 12.1, three files for one title). Each download
         // counts against the source's daily quota: an automatic search for a language the title already has is not made.
         if (request.IsAutomated && AlreadyHas(video, two)) return [];
-        var ranked = await RankAsync(video, sources, two, settings.Preferences, request.IsPerfectMatch, cancellationToken).ConfigureAwait(false);
+        var (season, episode) = Numbers(video, request.ParentIndexNumber, request.IndexNumber);
+        if (request.IsAutomated && video is Episode && episode is null) return [];
+        var ranked = await RankAsync(video, sources, two, settings.Preferences, request.IsPerfectMatch, cancellationToken, season, episode).ConfigureAwait(false);
         var given = request.IsAutomated ? SubtitleMatch.Automatic(ranked, syncAvailable: false) : ranked;
         if (request.IsPerfectMatch) given = given.Where(x => x.Candidate.HashMatch).ToList();
         var three = SubtitleLanguages.Three(two);
@@ -122,16 +137,18 @@ public sealed class MiraSubtitleProvider : ISubtitleProvider
     }
 
     /// <summary>Every candidate of every source for the video in one language, scored, best first; a source that fails is logged and skipped.</summary>
-    public async Task<List<SubtitleScore>> RankAsync(Video video, List<SubtitleSource> sources, string two, MatchPreferences preferences, bool hashOnly, CancellationToken ct)
+    public async Task<List<SubtitleScore>> RankAsync(Video video, List<SubtitleSource> sources, string two, MatchPreferences preferences, bool hashOnly, CancellationToken ct,
+        int? season = null, int? episode = null)
     {
-        var facts = Facts(video);
+        if (season is null && episode is null) (season, episode) = Numbers(video);
+        var facts = Facts(video, season, episode);
         string? hash = null; long? size = null;
         try
         {
             if (video.Path is { Length: > 0 } path && !path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase) && File.Exists(path)) { hash = MovieHash.Compute(path); size = new FileInfo(path).Length; }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { _logger.LogWarning(ex, "Mira: could not read {Path} for its hash", video.Path); }
-        var query = Query(video, hash, size, hashOnly);
+        var query = Query(video, hash, size, hashOnly, season, episode);
         var candidates = new List<SubtitleCandidate>();
         foreach (var source in sources)
         {
@@ -227,7 +244,14 @@ public sealed class MiraSubtitleProvider : ISubtitleProvider
         return new FetchedSubtitle(Encoding.UTF8.GetBytes(text.TrimStart('﻿')), fetched.FileName, format);
     }
 
-    private static string Title(Video video) => video is Episode episode
+    /// <summary>How the journal names a title: « Série S01E02 », « Film (2024) ».</summary>
+    public static string Title(Video video) => video is Episode episode
         ? $"{episode.SeriesName} S{(episode.ParentIndexNumber ?? 0).ToString("00", CultureInfo.InvariantCulture)}E{(episode.IndexNumber ?? 0).ToString("00", CultureInfo.InvariantCulture)}"
-        : video.ProductionYear is { } year ? $"{video.Name} ({year})" : video.Name;
+        : video.ProductionYear is { } year ? $"{Bare(video.Name)} ({year})" : video.Name;
+
+    /// <summary>A name without the « (2024) » of its folder (a title Jellyfin found nothing about keeps it).</summary>
+    private static string? Bare(string? name) => name is null ? null : YearSuffix().Replace(name, "");
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\s*\((?:19|20)\d\d\)\s*$")]
+    private static partial System.Text.RegularExpressions.Regex YearSuffix();
 }
