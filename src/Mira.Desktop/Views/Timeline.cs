@@ -40,6 +40,8 @@ public sealed class Timeline : RangeBase
     public IReadOnlyList<ChapterMark> Chapters => _chapters;
     /// <summary>Position currently drawn, including the extrapolation since the last poll.</summary>
     public double DisplayedPosition => Displayed(Stopwatch.GetTimestamp());
+    /// <summary>True while the bar holds still for mpv: resumed but not yet moving, or a poll that landed behind it.</summary>
+    public bool WaitingForPlayer => !_dragging && (!_playing || Stopwatch.GetTimestamp() < _sampleTime);
 
     static Timeline()
     {
