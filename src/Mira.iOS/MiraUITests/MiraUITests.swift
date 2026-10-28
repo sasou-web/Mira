@@ -56,7 +56,7 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Nom d’utilisateur ou mot de passe incorrect."].waitForExistence(timeout: 10), "No message for a wrong password")
         capture("12-mot-de-passe-faux")
         let password = app.secureTextFields["login.password"]
-        password.tap()
+        focus(password)
         password.typeText("mira\n")
         XCTAssertTrue(app.staticTexts["Continuer à regarder"].waitForExistence(timeout: 20), "L'Accueil n'a pas montré Continuer à regarder")
         dismissSavePassword(app)
@@ -79,17 +79,30 @@ final class MiraUITests: XCTestCase {
     private func signIn(_ app: XCUIApplication, password: String) {
         let address = app.textFields["login.address"]
         XCTAssertTrue(address.waitForExistence(timeout: 10))
-        address.tap()
+        focus(address)
         address.typeText(Self.server)
         app.buttons["login.continue"].tap()
         let username = app.textFields["login.username"]
         XCTAssertTrue(username.waitForExistence(timeout: 15), "The server was not found")
-        username.tap()
-        username.typeText("ogsas")
+        focus(username)
+        // Return goes on to the password, as a person would.
+        username.typeText("ogsas\n")
         let field = app.secureTextFields["login.password"]
-        field.tap()
+        focus(field)
         field.typeText(password)
         app.buttons["login.signin"].tap()
+    }
+
+    /// Gives a field the keyboard: a tap can land while the form still scrolls clear of the keyboard and miss.
+    @MainActor
+    private func focus(_ field: XCUIElement) {
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        for _ in 0..<3 {
+            if focused.evaluate(with: field) { return }
+            field.tap()
+            if XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 2) == .completed { return }
+        }
+        XCTFail("\(field.identifier) never got the keyboard")
     }
 
     /// iOS offers to save the password after a sign-in, over Home, from 2 to more than 6 seconds later on a busy
