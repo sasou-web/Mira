@@ -233,14 +233,25 @@ internal static class SubtitleTests
                 if (Environment.GetEnvironmentVariable("MIRA_SUBDL_KEY") is { Length: > 0 } key)
                 {
                     var sd = new SubDlApi(http, key, "Mira v0.0.0-check");
-                    var series = new SubtitleQuery(true, null, null, null, null, "tt0903747", "1396", 1, 1, "Breaking Bad", 2008);
+                    var series = new SubtitleQuery(true, null, null, null, null, "tt3581920", "100088", 1, 1, "The Last of Us", 2023);
                     var episodes = await sd.SearchAsync(series, "fr", default);
                     Console.WriteLine($"      SubDL: {episodes.Count} candidates, first {episodes.FirstOrDefault()?.ReleaseName}");
                     Assert(episodes.Count > 0, "SubDL results");
-                    var episodeFile = await sd.FetchAsync(episodes[0].Id, 1, 1, default);
-                    var episodeCues = SubtitleText.Parse(SubtitleText.Decode(episodeFile.Bytes));
-                    Console.WriteLine($"      SubDL file: {episodeFile.FileName}, {episodeCues.Count} lines");
-                    Assert(episodeCues.Count > 100, "SubDL file");
+                    // A file SubDL lists can be gone: the first of three that comes.
+                    var failures = new List<string>();
+                    foreach (var candidate in episodes.Take(3))
+                    {
+                        try
+                        {
+                            var episodeFile = await sd.FetchAsync(candidate.Id, 1, 1, default);
+                            var episodeCues = SubtitleText.Parse(SubtitleText.Decode(episodeFile.Bytes));
+                            Console.WriteLine($"      SubDL file: {episodeFile.FileName}, {episodeCues.Count} lines");
+                            Assert(episodeCues.Count > 100, "SubDL file");
+                            failures.Clear(); break;
+                        }
+                        catch (SubtitleSourceException e) { failures.Add(e.Message); }
+                    }
+                    Assert(failures.Count == 0, "SubDL files: " + string.Join(" · ", failures));
                 }
                 else Console.WriteLine("      SubDL: no key (MIRA_SUBDL_KEY), not tried");
             });
