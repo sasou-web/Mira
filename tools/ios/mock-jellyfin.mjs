@@ -7,6 +7,7 @@
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
+import { createHash, randomUUID } from 'node:crypto';
 
 const clip = readFileSync(new URL('media/clip.mp4', import.meta.url));
 const reports = [];
@@ -116,6 +117,53 @@ function png(id, width, height) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', deflateSync(Buffer.concat(rows))), chunk('IEND', Buffer.alloc(0))]);
 }
 
+// « Watch together »: one group at a time, Jellyfin's messages through its WebSocket (written here by hand: frames of
+// text, masked from the app), the requests listed at /Mock/SyncPlay. Ready while the group waits plays it 1 s later.
+const sockets = new Set();
+const syncLog = [];
+let group = null, queue = null;
+const jellyfinDate = (ms) => new Date(ms).toISOString().replace('Z', '0000Z');
+function frame(text) {
+  const data = Buffer.from(text);
+  const head = data.length < 126 ? Buffer.from([0x81, data.length]) : Buffer.from([0x81, 126, data.length >> 8, data.length & 255]);
+  return Buffer.concat([head, data]);
+}
+const broadcast = (message) => { for (const socket of sockets) socket.write(frame(JSON.stringify(message))); };
+const groupUpdate = (type, data) => broadcast({ MessageType: 'SyncPlayGroupUpdate', Data: { GroupId: group?.GroupId, Type: type, Data: data } });
+function command(name, ticks, delay = 0) {
+  broadcast({ MessageType: 'SyncPlayCommand', Data: { GroupId: group.GroupId, PlaylistItemId: queue?.PlaylistItemId ?? '', When: jellyfinDate(Date.now() + delay), PositionTicks: ticks, Command: name, EmittedAt: jellyfinDate(Date.now()) } });
+}
+function state(name) { group.State = name; groupUpdate('StateUpdate', { State: name, Reason: 'Mock' }); }
+function syncPlay(what, body) {
+  syncLog.push({ what, body });
+  switch (what) {
+    case 'New':
+      group = { GroupId: randomUUID().replaceAll('-', ''), GroupName: body.GroupName, State: 'Idle', Participants: ['ogsas'], LastUpdatedAt: jellyfinDate(Date.now()) };
+      queue = null;
+      groupUpdate('GroupJoined', group); state('Idle');
+      return;
+    case 'Join':
+      if (!group) { broadcast({ MessageType: 'SyncPlayGroupUpdate', Data: { Type: 'GroupDoesNotExist', Data: '' } }); return; }
+      groupUpdate('GroupJoined', group);
+      return;
+    case 'Leave': groupUpdate('GroupLeft', group?.GroupId); group = null; queue = null; return;
+    case 'SetNewQueue': {
+      if (!group) return;
+      queue = { ItemId: body.PlayingQueue[0], PlaylistItemId: randomUUID().replaceAll('-', '') };
+      groupUpdate('PlayQueue', { Reason: 'NewPlaylist', LastUpdate: jellyfinDate(Date.now()), Playlist: [queue], PlayingItemIndex: 0, StartPositionTicks: body.StartPositionTicks ?? 0, IsPlaying: false, ShuffleMode: 'Sorted', RepeatMode: 'RepeatNone' });
+      state('Waiting');
+      return;
+    }
+    case 'Ready':
+      if (group?.State === 'Waiting') { command('Unpause', body.PositionTicks ?? 0, 1000); state('Playing'); }
+      return;
+    case 'Pause': if (group) { command('Pause', body.PositionTicks ?? 0); state('Paused'); } return;
+    case 'Unpause': if (group) { command('Unpause', 0, 500); state('Playing'); } return;
+    case 'Seek': if (group) { command('Seek', body.PositionTicks ?? 0); state('Waiting'); } return;
+    default: return;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const path = url.pathname, q = url.searchParams;
@@ -123,6 +171,7 @@ const server = http.createServer(async (req, res) => {
   console.log(req.method, req.url);
   if (path === '/System/Info/Public') return send(res, 200, { LocalAddress: `http://127.0.0.1:${port}`, ServerName: 'Maison', Version: '12.1.0', ProductName: 'Jellyfin Server', Id: SERVER_ID, StartupWizardCompleted: true });
   if (path === '/Mock/Reports') return send(res, 200, reports);
+  if (path === '/Mock/SyncPlay') return send(res, 200, { group, queue, requests: syncLog });
   // The stream needs no header: AVPlayer reads it by its address, the session in it (ApiKey).
   const video = /^\/Videos\/([0-9a-f]+)\/stream\.mp4$/.exec(path);
   if (video) {
@@ -152,6 +201,11 @@ const server = http.createServer(async (req, res) => {
   }
   if (!(req.headers.authorization ?? '').includes(`Token="${TOKEN}"`)) return send(res, 401, undefined);
   if (path === '/Sessions/Logout') return send(res, 204, undefined);
+  if (path === '/Sessions/Capabilities') return send(res, 204, undefined);
+  if (path === '/GetUtcTime') { const now = jellyfinDate(Date.now()); return send(res, 200, { RequestReceptionTime: now, ResponseTransmissionTime: now }); }
+  if (path === '/SyncPlay/List') return send(res, 200, group ? [group] : []);
+  const sync = /^\/SyncPlay\/(\w+)$/.exec(path);
+  if (sync && req.method === 'POST') { syncPlay(sync[1], JSON.parse(raw || '{}')); return send(res, 204, undefined); }
   if (path === '/UserItems/Resume') return send(res, 200, list([episodes[1], films[0]]));
   if (path === '/Shows/NextUp') return send(res, 200, list([q.get('seriesId') ? episodes[1] : episodes[2]]));
   if (path === `/Shows/${SERIES}/Seasons`) return send(res, 200, list([{ Id: SEASON, Name: 'Season 1', Type: 'Season', IndexNumber: 1, SeriesId: SERIES }]));
@@ -221,5 +275,35 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, list(latest.slice(0, Number(q.get('limit') ?? 24))));
   }
   return send(res, 404, undefined);
+});
+server.on('upgrade', (req, socket) => {
+  const url = new URL(req.url, 'http://localhost');
+  const key = req.headers['sec-websocket-key'];
+  if (url.pathname !== '/socket' || !key || !(req.headers.authorization ?? '').includes(`Token="${TOKEN}"`)) { socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n'); return; }
+  const accept = createHash('sha1').update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+  sockets.add(socket);
+  console.log('socket open');
+  socket.write(frame(JSON.stringify({ MessageType: 'ForceKeepAlive', Data: 60 })));
+  let pending = Buffer.alloc(0);
+  socket.on('data', (chunk) => {
+    pending = Buffer.concat([pending, chunk]);
+    while (pending.length >= 2) {
+      const opcode = pending[0] & 15, masked = pending[1] & 128;
+      let length = pending[1] & 127, at = 2;
+      if (length === 126) { length = pending.readUInt16BE(2); at = 4; } else if (length === 127) { length = Number(pending.readBigUInt64BE(2)); at = 10; }
+      const total = at + (masked ? 4 : 0) + length;
+      if (pending.length < total) return;
+      const mask = masked ? pending.subarray(at, at + 4) : null;
+      const data = Buffer.from(pending.subarray(at + (masked ? 4 : 0), total));
+      if (mask) for (let i = 0; i < data.length; i++) data[i] ^= mask[i % 4];
+      pending = pending.subarray(total);
+      if (opcode === 8) { socket.end(); return; }
+      if (opcode === 9) socket.write(Buffer.concat([Buffer.from([0x8a, data.length]), data]));
+    }
+  });
+  const drop = () => { sockets.delete(socket); console.log('socket closed'); };
+  socket.on('close', drop);
+  socket.on('error', drop);
 });
 server.listen(port, '127.0.0.1', () => console.log(`Mock Jellyfin ready on 127.0.0.1:${port}`));

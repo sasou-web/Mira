@@ -122,6 +122,14 @@ extension JellyfinClient {
         return (answer.1 as? HTTPURLResponse)?.statusCode == 200
     }
 
+    /// Jellyfin is there and ready (System/Ping; while it starts, it answers 503): 5 s at most.
+    func ping() async -> Bool {
+        var request = URLRequest(url: server.appending(path: "System/Ping"), timeoutInterval: 5)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        guard let answer = try? await Self.session.data(for: request) else { return false }
+        return ((answer.1 as? HTTPURLResponse)?.statusCode ?? 0) / 100 == 2
+    }
+
     /// How fast Jellyfin reaches this iPhone, in bits per second: 2 MB of Playback/BitrateTest, 5 s at most.
     func measureSpeed() async -> Double? {
         let size = 2_000_000

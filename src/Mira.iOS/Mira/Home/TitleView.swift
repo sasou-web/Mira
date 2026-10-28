@@ -12,6 +12,8 @@ struct TitleView: View {
     @State private var next: Item?
     @State private var audioIndex: Int?
     @State private var subtitleIndex: Int?
+    /// Lecture of another title than the group's: asked first, naming the group's title.
+    @State private var replacing: (item: Item, fromStart: Bool, current: String)?
 
     init(route: TitleRoute) {
         self.route = route
@@ -47,6 +49,7 @@ struct TitleView: View {
                     }
                     play.padding(.top, 6)
                     TitleActions(item: $item)
+                    if let playable { TogetherSection(item: playable).padding(.top, 8) }
                     if let overview = item.overview, !overview.isEmpty {
                         Text(overview)
                             .font(MiraFont.body)
@@ -114,7 +117,7 @@ struct TitleView: View {
             if let playable {
                 let resume = ItemText.progress(playable) > 0
                 Button {
-                    app.play(playable, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+                    start(playable, fromStart: false)
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "play.fill")
@@ -127,7 +130,7 @@ struct TitleView: View {
                 .accessibilityIdentifier("title.play")
                 if resume {
                     Button {
-                        app.play(playable, fromStart: true, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+                        start(playable, fromStart: true)
                     } label: {
                         Label("From the beginning", systemImage: "backward.end.fill").font(MiraFont.callout)
                     }
@@ -139,6 +142,7 @@ struct TitleView: View {
                         TrackMenus(source: source, audioIndex: $audioIndex, subtitleIndex: $subtitleIndex)
                     }
                 }
+                SleepMenu(episode: playable.isEpisode)
             }
         }
         .frame(maxWidth: 420, alignment: .leading)
@@ -146,9 +150,49 @@ struct TitleView: View {
             audioIndex = nil
             subtitleIndex = nil
         }
+        .confirmationDialog(Text("Watch together"), isPresented: Binding(get: { replacing != nil }, set: { if !$0 { replacing = nil } }), titleVisibility: .visible, presenting: replacing) { asked in
+            Button("Replace for the group") {
+                app.play(asked.item, fromStart: asked.fromStart, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+            }
+            Button("Watch with the group") { joinGroupTitle() }
+            Button("Cancel", role: .cancel) {}
+        } message: { asked in
+            Text(verbatim: SyncRules.replaceQuestion(asked.current) + "\n" + String(localized: "The group is watching it now. Play replaces it for everyone, at the same moment."))
+        }
+    }
+
+    /// Play: alone, or for the group this iPhone is in (its own title joined where it is; another one asked first).
+    private func start(_ playable: Item, fromStart: Bool) {
+        let together = app.together
+        if together.group != nil, let queue = together.queue, queue.itemId == playable.id {
+            joinGroupTitle()
+            return
+        }
+        if together.replaces(playable.id), let queue = together.queue {
+            Task {
+                let current = (try? await app.client?.item(queue.itemId)).map(SyncRules.titleName) ?? ""
+                replacing = (playable, fromStart, current)
+            }
+            return
+        }
+        app.play(playable, fromStart: fromStart, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+    }
+
+    /// The group's title, where the group is: Jellyfin holds the others until this iPhone is ready.
+    private func joinGroupTitle() {
+        guard let queue = app.together.queue, let client = app.client else { return }
+        Task {
+            guard let title = try? await client.item(queue.itemId) else { return }
+            app.play(title, groupStart: queue.startTicks)
+        }
     }
 
     private func playLabel(_ playable: Item, resume: Bool) -> String {
+        if app.together.group != nil {
+            let code = item.isSeries ? ItemText.episodeCode(playable) : ""
+            let resumeAt = resume ? Double(playable.userData?.playbackPositionTicks ?? 0) / Double(ItemText.ticksPerSecond) : 0
+            return SyncRules.groupPlayLabel(code: code, resumeAt: resumeAt, groupTitle: app.together.queue?.itemId == playable.id)
+        }
         if item.isSeries {
             let code = ItemText.episodeCode(playable)
             return resume ? String(localized: "Resume \(code)") : String(localized: "Watch \(code)")

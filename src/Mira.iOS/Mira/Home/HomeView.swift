@@ -37,6 +37,7 @@ struct HomeView: View {
                     if case let .failed(error) = model.state {
                         AwayLine(error: error) { Task { await load() } }
                     }
+                    HomeGroup()
                     rows(content, client)
                     if content.isEmpty {
                         EmptyState(symbol: "film.stack", title: Text("Your library is empty"), text: Text("Movies and shows you add to Jellyfin will show up here."))
@@ -101,6 +102,7 @@ struct HomeView: View {
     private func load() async {
         guard let client = app.client else { return }
         await model.load(client) { app.sessionEnded() }
+        await app.together.refresh()
     }
 
     @ViewBuilder private func rows(_ content: HomeContent, _ client: JellyfinClient) -> some View {
@@ -462,5 +464,51 @@ struct LoadingHome: View {
         .clipped()
         .accessibilityElement()
         .accessibilityLabel(Text("Loading"))
+    }
+}
+
+/// A group of « Watch together » open on Jellyfin, under the banner while this iPhone is in none (Together.HomeGroup of
+/// Windows and Mac): joined with a touch, its title then opens when the group puts one on.
+struct HomeGroup: View {
+    @Environment(AppModel.self) private var app
+    @State private var working = false
+    @State private var failure: String?
+
+    var body: some View {
+        let together = app.together
+        if together.group == nil, let group = together.open.first {
+            HStack(spacing: 12) {
+                Image(systemName: "person.2.fill").font(.title3).foregroundStyle(Palette.ink).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Watch together").font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                    Text(verbatim: SyncRules.groupText(group)).font(MiraFont.headline).foregroundStyle(Palette.ink).lineLimit(2)
+                    if let failure { Text(verbatim: failure).font(MiraFont.footnote).foregroundStyle(Palette.danger) }
+                }
+                Spacer(minLength: 8)
+                Button {
+                    working = true
+                    failure = nil
+                    Task {
+                        defer { working = false }
+                        // Ended meanwhile: said, rather than a group made again by mistake.
+                        await together.refresh()
+                        guard together.open.contains(where: { $0.groupId == group.groupId }) else {
+                            failure = String(localized: "This group no longer exists.")
+                            return
+                        }
+                        do { try await together.join(group.groupId) } catch { failure = Messages.text(error) }
+                    }
+                } label: {
+                    Text("Join").font(MiraFont.callout).foregroundStyle(Palette.onAccent).padding(.horizontal, 4)
+                }
+                .buttonStyle(.glassProminent)
+                .disabled(working)
+                .accessibilityIdentifier("home.joinGroup")
+            }
+            .padding(14)
+            .background(Palette.raised, in: .rect(cornerRadius: 18))
+            .padding(.horizontal, 16)
+            .accessibilityElement(children: .contain)
+        }
     }
 }

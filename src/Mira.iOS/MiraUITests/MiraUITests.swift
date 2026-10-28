@@ -50,6 +50,33 @@ final class MiraUITests: XCTestCase {
         favorite.tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'title.favorite' AND label == 'Favorite'")).firstMatch.waitForExistence(timeout: 10),
                       "Taking the title out of favorites did not stick")
+
+        // Watch together: a group made here, the title put on for it from Play; Jellyfin's socket tells the player
+        // when to start, and it says it is ready; then out of the group.
+        let create = app.buttons["together.create"]
+        for _ in 0..<4 where !create.isHittable { app.swipeUp() }
+        XCTAssertTrue(create.waitForExistence(timeout: 5), "The title page has no Create a group")
+        create.tap()
+        let group = app.descendants(matching: .any)["together.group"]
+        XCTAssertTrue(group.waitForExistence(timeout: 15), "Making a group did not show it on the title page")
+        settle()
+        capture("05b-together")
+        let play = app.buttons["title.play"]
+        for _ in 0..<4 where !play.isHittable { app.swipeDown() }
+        XCTAssertEqual(play.label, "Start for the group")
+        play.tap()
+        XCTAssertTrue(waitForSync("SetNewQueue", timeout: 30), "Play did not put the title on for the group")
+        XCTAssertTrue(waitForSync("Ready", timeout: 30), "The player never told the group it was ready")
+        Thread.sleep(forTimeInterval: 2.5)
+        capture("05c-together-player")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
+        XCTAssertTrue(waitForSync("SetIgnoreWait", timeout: 20), "Closing the player did not tell the group to go on without it")
+        let leave = app.buttons["together.leave"]
+        for _ in 0..<4 where !leave.isHittable { app.swipeUp() }
+        XCTAssertTrue(leave.waitForExistence(timeout: 10), "No Leave the group")
+        leave.tap()
+        XCTAssertTrue(create.waitForExistence(timeout: 15), "Leaving the group did not bring back Create a group")
         app.navigationBars.buttons.firstMatch.tap()
 
         // A series: Play for its next episode, then its episodes, each with a Play of its own.
@@ -132,15 +159,63 @@ final class MiraUITests: XCTestCase {
         dismissSavePassword(app)
         settle()
         capture("13-accueil")
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "Pas de carte pour Tears of Steel")
+        poster.tap()
+        XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
+        settle()
+        capture("13b-fiche")
+        app.swipeUp()
+        settle()
+        capture("13c-fiche-suite")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.swipeDown()
         app.tabBars.buttons["Réglages"].tap()
         XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
         capture("14-reglages")
     }
 
+    /// The largest text a person may choose short of the accessibility sizes' last ones, in French (the longer
+    /// language): every screen still reads, nothing cut.
     @MainActor
-    private func launch(language: String, locale: String) -> XCUIApplication {
+    func testLargeText() throws {
+        let app = launch(language: "fr", locale: "fr_FR", extra: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continuer à regarder"].waitForExistence(timeout: 20), "L'Accueil n'a pas montré Continuer à regarder")
+        dismissSavePassword(app)
+        settle()
+        capture("21-accueil-grand")
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        if poster.waitForExistence(timeout: 10) {
+            poster.tap()
+            XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
+            settle()
+            capture("22-fiche-grand")
+            app.swipeUp()
+            settle()
+            capture("22b-fiche-grand-suite")
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+        app.swipeDown()
+        app.swipeDown()
+        let films = app.tabBars.buttons["Films"]
+        if films.waitForExistence(timeout: 5) {
+            films.tap()
+            settle()
+            capture("23-films-grand")
+        }
+        let settings = app.tabBars.buttons["Réglages"]
+        if settings.waitForExistence(timeout: 5) {
+            settings.tap()
+            settle()
+            capture("24-reglages-grand")
+        }
+    }
+
+    @MainActor
+    private func launch(language: String, locale: String, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-mira-reset", "-AppleLanguages", "(\(language))", "-AppleLocale", locale]
+        app.launchArguments = ["-mira-reset", "-AppleLanguages", "(\(language))", "-AppleLocale", locale] + extra
         app.launch()
         return app
     }
@@ -190,6 +265,20 @@ final class MiraUITests: XCTestCase {
         while Date() < deadline {
             if let data = try? Data(contentsOf: url), let reports = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
                reports.contains(where: { $0["kind"] as? String == kind }) {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        return false
+    }
+
+    /// Waits for the stand-in Jellyfin to have received this request of « Watch together » (SyncPlay/<what>).
+    private func waitForSync(_ what: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        let url = URL(string: "http://\(Self.server)/Mock/SyncPlay")!
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: url), let answer = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let requests = answer["requests"] as? [[String: Any]], requests.contains(where: { $0["what"] as? String == what }) {
                 return true
             }
             Thread.sleep(forTimeInterval: 0.5)

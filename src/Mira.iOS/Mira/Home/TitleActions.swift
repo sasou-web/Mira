@@ -71,3 +71,39 @@ private struct TitleMenu: ViewModifier {
         }
     }
 }
+
+/// The sleep timer on a title's page: off, 15 min, 30 min, 1 h, or the end of the episode for an episode; the button
+/// says what is set and the time left.
+struct SleepMenu: View {
+    let episode: Bool
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 20)) { context in
+            let status = app.sleep.status(context.date)
+            Menu {
+                Picker("Sleep timer", selection: Binding(get: { app.sleep.chosen ?? -1 }, set: { app.sleep.choose($0 < 0 ? nil : $0, now: .now) })) {
+                    Text("Timer off").tag(-1)
+                    ForEach(SleepTimer.minutes, id: \.self) { minutes in Text(verbatim: SleepTimer.duration(minutes)).tag(minutes) }
+                    if episode { Text("End of the episode").tag(0) }
+                }
+            } label: {
+                Label(label(status), systemImage: status == nil ? "moon.zzz" : "moon.zzz.fill")
+                    .font(MiraFont.callout)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.glass)
+            .accessibilityLabel(Text("Sleep timer"))
+            .accessibilityValue(Text(label(status)))
+            .accessibilityIdentifier("title.sleep")
+        }
+    }
+
+    private func label(_ status: SleepTimer.Status?) -> String {
+        switch status {
+        case nil: String(localized: "Sleep timer")
+        case .endOfEpisode: String(localized: "Stop at the end of the episode")
+        case let .pause(left): String(localized: "Pause in \(left)")
+        }
+    }
+}

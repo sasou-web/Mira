@@ -25,6 +25,10 @@ final class AppModel {
     private(set) var player: PlayerSession?
     /// Why a title could not play, said over the page it was started from.
     var playerMessage: String?
+    /// « Watch together »: the group this iPhone is in, Jellyfin's SyncPlay.
+    let together = Together()
+    /// The sleep timer, chosen on a title's page, read by the player it opens.
+    var sleep = SleepTimer()
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
     /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.
@@ -48,6 +52,7 @@ final class AppModel {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
         device = DeviceIdentity(id: id, name: UIDevice.current.model, version: version)
         session = SessionStore.load()
+        together.app = self
     }
 
     var client: JellyfinClient? {
@@ -67,12 +72,22 @@ final class AppModel {
 
     /// Plays a film or an episode in Apple's player, where it was left unless `fromStart`; a title already playing
     /// (in Picture in Picture) stops first.
-    func play(_ item: Item, fromStart: Bool = false, audioIndex: Int? = nil, subtitleIndex: Int? = nil) {
+    func play(_ item: Item, fromStart: Bool = false, audioIndex: Int? = nil, subtitleIndex: Int? = nil, groupStart: Int64? = nil) {
         guard let client else { return }
         player?.close()
         let session = PlayerSession(item: item, client: client, app: self, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
         player = session
-        session.start(fromStart: fromStart)
+        session.start(fromStart: fromStart, groupStart: groupStart)
+    }
+
+    /// The group put a title on while no player is open here: it opens, paused where the group starts it, until
+    /// Jellyfin says when everyone plays.
+    func playForGroup(_ itemId: String, startTicks: Int64) {
+        guard let client else { return }
+        Task {
+            guard let item = try? await client.item(itemId), together.queue?.itemId == itemId else { return }
+            play(item, groupStart: startTicks)
+        }
     }
 
     /// Marks a title watched or not, or a favorite or not, then has every page read Jellyfin again; says why when
@@ -92,7 +107,10 @@ final class AppModel {
     }
 
     func playerClosed(_ session: PlayerSession) {
-        if player === session { player = nil }
+        if player === session {
+            player = nil
+            sleep.clear()
+        }
         playback += 1
     }
 
@@ -120,6 +138,7 @@ final class AppModel {
     func signOut() {
         let client = client
         player?.close()
+        together.signedOut()
         if let session {
             HomeCache.clear(userId: session.userId)
             RecentSearches.clear(session.userId)
@@ -133,6 +152,7 @@ final class AppModel {
     func sessionEnded() {
         guard let session else { return }
         player?.close()
+        together.signedOut()
         HomeCache.clear(userId: session.userId)
         RecentSearches.clear(session.userId)
         SessionStore.delete()
