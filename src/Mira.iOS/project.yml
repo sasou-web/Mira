@@ -1,0 +1,111 @@
+# Mira for iPhone and iPad: the Xcode project, generated on the runner by XcodeGen (`xcodegen generate` in this folder),
+# never kept in the repository. .github/workflows/ios.yml builds it, runs its tests on the simulator and packages the
+# unsigned .ipa that AltStore signs on the iPhone with its owner's own Apple account.
+name: Mira
+options:
+  bundleIdPrefix: app.miracinema
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+settings:
+  base:
+    # Swift 6 language mode: complete concurrency checking. The version of Mira for Windows, set by ios.yml.
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.0.0"
+    CURRENT_PROJECT_VERSION: "0.0.0"
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    # Nothing is signed here: AltStore signs the .ipa on the iPhone, the simulator runs it as is.
+    DEVELOPMENT_TEAM: ""
+targets:
+  Mira:
+    type: application
+    platform: iOS
+    sources:
+      - path: Mira
+        excludes:
+          - Info.plist
+    info:
+      path: Mira/Info.plist
+      properties:
+        CFBundleDisplayName: Mira
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, fr]
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIUserInterfaceStyle: Dark
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIAppFonts:
+          - NunitoSans-Regular.ttf
+          - NunitoSans-SemiBold.ttf
+          - NunitoSans-Bold.ttf
+          - NunitoSans-ExtraBold.ttf
+        # Jellyfin at home and over Tailscale answers in plain HTTP (http://192.168.1.20:8096, http://100.x.y.z:8096):
+        # Tailscale already encrypts, and Mira warns before a password goes in clear over the Internet.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: Mira connects to your Jellyfin server on your home network.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.miracinema.Mira
+        PRODUCT_NAME: Mira
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+  MiraTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: MiraTests
+    dependencies:
+      - target: Mira
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.miracinema.MiraTests
+  MiraUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: MiraUITests
+    dependencies:
+      - target: Mira
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.miracinema.MiraUITests
+        TEST_TARGET_NAME: Mira
+schemes:
+  Mira:
+    build:
+      targets:
+        Mira: all
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - MiraTests
+        - MiraUITests
+    archive:
+      config: Release

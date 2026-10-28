@@ -5,14 +5,15 @@
 #      Windows build (ci.yml) passed on it;
 #   2. creates the release vX.Y.Z as a draft on that commit, with the notes from WhatsNew.json and no file yet: a draft
 #      is seen by no one and has no tag yet;
-#   3. runs windows.yml, mac.yml and web.yml on main for that draft, which build from the same commit and attach the
-#      Windows files (built by GitHub, never on this PC, and signed by SignPath Foundation: two signing requests to
-#      approve in SignPath while the script waits), the .dmg, mira-jellyfin-X.Y.Z.zip and jellyfin-manifest.json, with
-#      their .sha256, and waits for all three;
+#   3. runs windows.yml, mac.yml, web.yml and ios.yml on main for that draft, which build from the same commit and
+#      attach the Windows files (built by GitHub, never on this PC, and signed by SignPath Foundation: two signing
+#      requests to approve in SignPath while the script waits), the .dmg, mira-jellyfin-X.Y.Z.zip and
+#      jellyfin-manifest.json, the iPhone's unsigned .ipa (AltStore signs it on the iPhone), with their .sha256, and
+#      waits for all four;
 #   4. takes those files from the runs it watched (their artifacts), checks them (Mira.Release, the checks Mira for
 #      Windows makes too, and the Authenticode signatures of the Windows executables), signs mira-update.json for every
 #      platform, checks that signature against the keys installed copies trust, and attaches it;
-#   5. checks that the draft holds exactly the 12 expected files, each with the SHA-256 of the file checked here (all
+#   5. checks that the draft holds exactly the 14 expected files, each with the SHA-256 of the file checked here (all
 #      but the manifest uploaded by GitHub Actions itself), then publishes it: the release appears whole, at once, with
 #      the notes from WhatsNew.json, and checks that GitHub made it immutable.
 # -Unsigned has windows.yml skip SignPath (Windows files without Authenticode signature: before SignPath accepts the
@@ -26,7 +27,7 @@ $ErrorActionPreference = 'Stop'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $repository = 'sasou-web/Mira'
-$workflows = @('windows.yml', 'web.yml', 'mac.yml')
+$workflows = @('windows.yml', 'web.yml', 'mac.yml', 'ios.yml')
 
 function Invoke-Native([string]$what, [scriptblock]$command) {
     & $command
@@ -182,7 +183,7 @@ try {
     Write-Output "Brouillon de $tag créé sur $short, sans fichier encore."
 
     # Every platform, built by GitHub from the same commit and attached to the draft: the Windows files, signed by
-    # SignPath Foundation unless -Unsigned; the Mac disk image; Mira web.
+    # SignPath Foundation unless -Unsigned; the Mac disk image; Mira web; Mira for iPhone.
     $runs = @()
     foreach ($workflow in $workflows) {
         $more = @()
@@ -205,20 +206,24 @@ try {
     # draft's copies are then compared with them, digest by digest.
     $packages = Join-Path $workspace 'dist/packages'
     $release = Join-Path $workspace 'dist/release'
-    foreach ($folder in @($packages, $release)) {
+    # Apart from the files Mira.Release signs into mira-update.json: the .ipa reaches the iPhone through AltStore.
+    $ios = Join-Path $workspace 'dist/ios'
+    foreach ($folder in @($packages, $release, $ios)) {
         if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force }
         New-Item -ItemType Directory -Path $folder | Out-Null
     }
     $names = @("Mira-$version-win-x64-setup.exe", "Mira-$version-win-x64-portable.exe", "Mira-$version-win-x64.zip")
     $windows = @($names | ForEach-Object { $_; "$_.sha256" })
     $others = @("Mira-$version-mac-arm64.dmg", "Mira-$version-mac-arm64.dmg.sha256", "mira-jellyfin-$version.zip", 'jellyfin-manifest.json')
-    $artifacts = @{ 'windows.yml' = 'Mira-win-x64-release'; 'mac.yml' = 'Mira-mac-arm64'; 'web.yml' = 'Mira-web-release' }
+    $iphone = @("Mira-$version-ios.ipa", "Mira-$version-ios.ipa.sha256")
+    $artifacts = @{ 'windows.yml' = 'Mira-win-x64-release'; 'mac.yml' = 'Mira-mac-arm64'; 'web.yml' = 'Mira-web-release'; 'ios.yml' = 'Mira-ios' }
     foreach ($run in $runs) {
         $artifact = $artifacts[$run.Workflow]
-        $into = if ($run.Workflow -eq 'windows.yml') { $packages } else { $release }
+        $into = switch ($run.Workflow) { 'windows.yml' { $packages } 'ios.yml' { $ios } default { $release } }
         Invoke-Native "gh run download ($artifact)" { gh run download $run.Id --repo $repository --name $artifact --dir $into }
     }
-    $missing = @($windows | Where-Object { -not (Test-Path -LiteralPath (Join-Path $packages $_)) }) + @($others | Where-Object { -not (Test-Path -LiteralPath (Join-Path $release $_)) })
+    $missing = @($windows | Where-Object { -not (Test-Path -LiteralPath (Join-Path $packages $_)) }) + @($others | Where-Object { -not (Test-Path -LiteralPath (Join-Path $release $_)) }) +
+        @($iphone | Where-Object { -not (Test-Path -LiteralPath (Join-Path $ios $_)) })
     if ($missing.Count) { throw "Les exécutions de $tag n’ont pas produit : $($missing -join ', '). Regarde les exécutions ci-dessus, puis relance." }
     # The Authenticode signatures SignPath Foundation put on the installer, the portable Mira and, in the archive,
     # Mira's own files: valid, by that publisher, timestamped.
@@ -233,12 +238,16 @@ try {
     Invoke-Native 'Mira.Release verify' { dotnet run --project $tool -c Release -- verify --version $version --packages $packages --others $release }
     Invoke-Native 'gh release upload' { gh release upload $tag (Join-Path $packages 'mira-update.json') (Join-Path $packages 'mira-update.json.sig') --repo $repository --clobber }
 
-    # Exactly the 12 files on the draft made for this commit, each with the SHA-256 of the file checked here; those built
+    # The .ipa against its .sha256 (« <hash>  <name> », as shasum writes it).
+    $ipaHash = (Get-FileHash -LiteralPath (Join-Path $ios $iphone[0]) -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ((Get-Content -LiteralPath (Join-Path $ios $iphone[1]) -Raw).Trim() -ne "$ipaHash  $($iphone[0])") { throw "$($iphone[1]) ne correspond pas à $($iphone[0])." }
+    # Exactly the 14 files on the draft made for this commit, each with the SHA-256 of the file checked here; those built
     # by GitHub uploaded by GitHub Actions itself.
     $expected = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([StringComparer]::Ordinal)
     foreach ($name in $windows + @('mira-update.json', 'mira-update.json.sig')) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $packages $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
     foreach ($name in $others) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $release $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
-    $byActions = $windows + $others
+    foreach ($name in $iphone) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $ios $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
+    $byActions = $windows + $others + $iphone
     # A draft has no tag: its assets are read through its API address.
     $api = ([string](Get-Native { gh release view $tag --repo $repository --json apiUrl --jq .apiUrl })).Trim() -replace '^https://api\.github\.com/', ''
     if (-not $api) { throw "gh release view a échoué pour $tag." }
