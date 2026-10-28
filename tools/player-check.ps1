@@ -61,7 +61,7 @@ if ($LASTEXITCODE -ne 0) { throw "ffmpeg could not make the clip ($LASTEXITCODE)
 # The check itself: the window is placed off screen, the result written to result.txt.
 $result = Join-Path $Output 'result.txt'
 if (Test-Path -LiteralPath $result) { Remove-Item -LiteralPath $result -Force }
-$run = Start-Process -FilePath ([IO.Path]::GetFullPath($Executable)) -PassThru -ArgumentList @('--demo', '--data', "`"$profilePath`"", '--test-media', "`"$clip`"", '--player-check', "`"$Output`"")
+$run = Start-Process -FilePath ([IO.Path]::GetFullPath($Executable)) -PassThru -ArgumentList @('--demo', '--data', "`"$profilePath`"", '--test-media', "`"$clip`"", '--player-check', "`"$Output`"", '--perf-probe')
 if (-not $run.WaitForExit(300000)) { $run.Kill(); throw 'The player check did not finish within 5 minutes.' }
 if (-not (Test-Path -LiteralPath $result)) { throw "The player check wrote no result (exit code $($run.ExitCode))." }
 $lines = Get-Content -LiteralPath $result

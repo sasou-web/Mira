@@ -101,6 +101,11 @@ jobs:
       - name: Real player (libmpv, synthetic clip)
         shell: pwsh
         run: ./tools/player-check.ps1 -Output .artifacts/interface
+      # Mira left alone on its Home for 60 s: processor, memory and bytes written, in the log and the job's summary, to
+      # see a drift from one version to the next (tools/idle-check.ps1). Numbers only: nothing fails on them.
+      - name: Mira at rest (60 s)
+        shell: pwsh
+        run: ./tools/idle-check.ps1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Mira-interface
