@@ -49,7 +49,7 @@ async function syncClock() {
   if (!best || !group) return;
   offset = best.offset;
   // Jellyfin waits for the slowest device of the group before it says when to play.
-  api.syncSend('Ping', { Ping: Math.max(1, best.trip) }).catch(() => {});
+  send('Ping', { Ping: Math.max(1, best.trip) }).catch(() => {});
 }
 
 /** The socket open, then `then`: Jellyfin's answer (GroupJoined) comes through it. */
@@ -150,11 +150,22 @@ function command(data) {
 function setAway(value) {
   if (!group || away === value) return;
   away = value;
-  api.syncSend('SetIgnoreWait', { IgnoreWait: value }).catch(() => {});
+  send('SetIgnoreWait', { IgnoreWait: value }).catch(() => {});
+}
+/**
+ * What this device tells the group, one request at a time, in order: two at once may reach Jellyfin crossed, and a
+ * Buffering taken after the Ready that follows it holds the whole group for this device (for good on Jellyfin 10.x,
+ * 30 s on 12.x). A request that fails lets the next one go.
+ */
+let sending = Promise.resolve();
+function send(what, body) {
+  const sent = sending.then(() => api.syncSend(what, body));
+  sending = sent.catch(() => {});
+  return sent;
 }
 function report(what, seconds, playing) {
   if (!group || !queue) return;
-  api.syncSend(what, { When: serverNow(), PositionTicks: Math.max(0, Math.round(seconds * 1e7)), IsPlaying: !!playing, PlaylistItemId: queue.playlistItemId }).catch(() => {});
+  send(what, { When: serverNow(), PositionTicks: Math.max(0, Math.round(seconds * 1e7)), IsPlaying: !!playing, PlaylistItemId: queue.playlistItemId }).catch(() => {});
 }
 /**
  * Back in the group after Jellyfin let this device go (its session ended with the socket): joined again where it is,
@@ -270,14 +281,14 @@ export const together = {
         if (queue?.itemId === itemId && hooks.itemId() !== itemId) return;
         api.syncQueue(itemId, startTicks).catch((error) => toast(error.message));
       },
-      pause: () => { if (group) api.syncSend('Pause').catch(() => {}); },
+      pause: () => { if (group) send('Pause').catch(() => {}); },
       unpause: () => {
         if (!group) return;
         // The group made again has no title (Jellyfin ended the old one with it): the one here is put on, from here.
         if (!queue && hooks.itemId() && !isGuest()) { api.syncQueue(hooks.itemId(), Math.round(hooks.position() * 1e7)).catch((error) => toast(error.message)); return; }
-        api.syncSend('Unpause').catch(() => {});
+        send('Unpause').catch(() => {});
       },
-      seek: (seconds) => { if (group) api.syncSend('Seek', { PositionTicks: Math.max(0, Math.round(seconds * 1e7)) }).catch(() => {}); },
+      seek: (seconds) => { if (group) send('Seek', { PositionTicks: Math.max(0, Math.round(seconds * 1e7)) }).catch(() => {}); },
       buffering: (seconds, playing) => report('Buffering', seconds, playing),
       ready: (seconds, playing) => report('Ready', seconds, playing),
       unbind() { if (player === hooks) { player = null; setAway(true); } },

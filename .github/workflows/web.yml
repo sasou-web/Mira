@@ -96,7 +96,10 @@ jobs:
           PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs" node tools/web/check.mjs http://127.0.0.1:8096/Mira/ mira mira-check "Courte Web" .artifacts/check
       - name: Jellyfin log
         if: failure()
-        run: docker logs jellyfin 2>&1 | tail -80
+        # « Regarder ensemble » happens long before the end: its SyncPlay lines, wherever they are, then the end.
+        run: |
+          docker logs jellyfin 2>&1 | grep -E 'SyncPlay' | tail -120
+          docker logs jellyfin 2>&1 | tail -80
       # Small JPEG copies of the captures, in base64, to review them without downloading the artifact.
       # Lines read: MIRA-PREVIEW <name> <part>/<parts> <base64>.
       - name: Capture previews in the log
