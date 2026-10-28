@@ -92,11 +92,12 @@ final class MiraUITests: XCTestCase {
         app.buttons["login.signin"].tap()
     }
 
-    /// iOS may offer to save the password, a few seconds after Home opens, over it: not now.
+    /// iOS offers to save the password after a sign-in, over Home, from 2 to more than 6 seconds later on a busy
+    /// runner: waited for long enough that no later tap lands on it.
     @MainActor
     private func dismissSavePassword(_ app: XCUIApplication) {
         let button = app.buttons.matching(NSPredicate(format: "label IN %@", ["Not Now", "Pas maintenant"])).firstMatch
-        if button.waitForExistence(timeout: 6) { button.tap() }
+        if button.waitForExistence(timeout: 20) { button.tap() }
     }
 
     /// Pictures fade in from the server: a moment before a capture.
