@@ -62,6 +62,8 @@ public partial class MainWindow
         var resumedAt = mpv.Number("time-pos"); mpv.Set("pause", "no"); await Task.Delay(350);
         for (var waited = 0; waited < 3000 && mpv.Number("time-pos") - resumedAt < .1; waited += 50) await Task.Delay(50);
         await Task.Delay(150);
+        // A poll landing behind the bar holds it still until mpv catches up (no going back): sample after that.
+        for (var waited = 0; waited < 1000 && SeekBar.WaitingForPlayer; waited += 15) await Task.Delay(15);
         var first = SeekBar.DisplayedPosition; await Task.Delay(45); var second = SeekBar.DisplayedPosition;
         require(second > first && Math.Abs(second - mpv.Number("time-pos")) < .4, $"timeline advances between mpv polls ({first:0.000} -> {second:0.000} s)");
 
