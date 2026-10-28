@@ -63,6 +63,46 @@
         }
       }
     },
+    "%lld movies": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld movie"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld movies"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld film"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld films"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld seasons": {
       "localizations": {
         "en": {
@@ -103,6 +143,46 @@
         }
       }
     },
+    "%lld shows": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld show"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld shows"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld série"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld séries"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "About": {
       "localizations": {
         "fr": {
@@ -129,6 +209,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adresse"
+          }
+        }
+      }
+    },
+    "All": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toutes"
+          }
+        }
+      }
+    },
+    "All genres": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tous les genres"
+          }
+        }
+      }
+    },
+    "All years": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toutes les années"
           }
         }
       }
@@ -203,6 +313,26 @@
         }
       }
     },
+    "Check the spelling, or try another word of the title.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifie l’orthographe, ou essaie un autre mot du titre."
+          }
+        }
+      }
+    },
+    "Clear": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effacer"
+          }
+        }
+      }
+    },
     "Continue": {
       "localizations": {
         "fr": {
@@ -260,6 +390,16 @@
         }
       }
     },
+    "Episodes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisodes"
+          }
+        }
+      }
+    },
     "external file": {
       "localizations": {
         "fr": {
@@ -270,12 +410,32 @@
         }
       }
     },
+    "Favorites": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoris"
+          }
+        }
+      }
+    },
     "Featured": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "À la une"
+          }
+        }
+      }
+    },
+    "Find a movie, a show or an episode by its name.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trouve un film, une série ou un épisode par son nom."
           }
         }
       }
@@ -296,6 +456,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Depuis le début"
+          }
+        }
+      }
+    },
+    "Genre": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Genre"
           }
         }
       }
@@ -390,6 +560,16 @@
         }
       }
     },
+    "Library": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliothèque"
+          }
+        }
+      }
+    },
     "Loading": {
       "localizations": {
         "fr": {
@@ -470,12 +650,72 @@
         }
       }
     },
+    "Movies": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Films"
+          }
+        }
+      }
+    },
+    "Movies and shows": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Films et séries"
+          }
+        }
+      }
+    },
     "Movies and shows you add to Jellyfin will show up here.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Les films et séries ajoutés à Jellyfin apparaîtront ici."
+          }
+        }
+      }
+    },
+    "Movies, shows, episodes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Films, séries, épisodes"
+          }
+        }
+      }
+    },
+    "No titles with these filters": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun titre avec ces filtres"
+          }
+        }
+      }
+    },
+    "Nothing found for “%@”": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien trouvé pour « %@ »"
+          }
+        }
+      }
+    },
+    "Nothing here yet": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien ici pour l’instant"
           }
         }
       }
@@ -560,12 +800,62 @@
         }
       }
     },
+    "Rating": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note"
+          }
+        }
+      }
+    },
+    "Recent searches": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherches récentes"
+          }
+        }
+      }
+    },
     "Recently added": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ajouts récents"
+          }
+        }
+      }
+    },
+    "Recently watched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vus récemment"
+          }
+        }
+      }
+    },
+    "Remove a filter to see more.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retire un filtre pour en voir plus."
+          }
+        }
+      }
+    },
+    "Reset": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effacer"
           }
         }
       }
@@ -596,6 +886,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réessayer"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche"
+          }
+        }
+      }
+    },
+    "Search your library": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cherche dans ta bibliothèque"
           }
         }
       }
@@ -636,6 +946,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réglages"
+          }
+        }
+      }
+    },
+    "Shows": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Séries"
           }
         }
       }
@@ -686,6 +1006,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se déconnecter de Jellyfin sur cet iPhone ?"
+          }
+        }
+      }
+    },
+    "Sort by": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trier par"
           }
         }
       }
@@ -790,6 +1120,26 @@
         }
       }
     },
+    "Title": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titre"
+          }
+        }
+      }
+    },
+    "Titles you add to Jellyfin will show up here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les titres que tu ajoutes à Jellyfin apparaîtront ici."
+          }
+        }
+      }
+    },
     "Track %lld": {
       "localizations": {
         "fr": {
@@ -806,6 +1156,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réessayer"
+          }
+        }
+      }
+    },
+    "Unwatched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non vus"
           }
         }
       }
@@ -856,6 +1216,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nom d’utilisateur ou mot de passe incorrect."
+          }
+        }
+      }
+    },
+    "Year": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Année"
           }
         }
       }
