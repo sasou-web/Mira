@@ -35,7 +35,7 @@ public sealed class PersonCard : Button
         root.Children.Add(new TextBlock { Text = person.Name, FontSize = 13.5, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 38, LineHeight = 19, Margin = new Thickness(0, 10, 0, 0), Foreground = Palette.Get("Text") });
         Content = root;
         // The ring is the hover and keyboard focus indicator, as on the posters.
-        FocusVisualStyle = null;
+        FocusVisualStyle = null; Accessible.SetOwnFocusRing(this, true);
         MouseEnter += (_, _) => _ring.Opacity = 1; MouseLeave += (_, _) => { if (!IsKeyboardFocused) _ring.Opacity = 0; };
         GotKeyboardFocus += (_, _) => _ring.Opacity = 1; LostKeyboardFocus += (_, _) => { if (!IsMouseOver) _ring.Opacity = 0; };
     }

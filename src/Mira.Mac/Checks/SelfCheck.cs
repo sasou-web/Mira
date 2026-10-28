@@ -37,6 +37,9 @@ public static class SelfCheck
             CaptureWindow(shown, folder, name);
             var unnamed = Unnamed(shown);
             Check(unnamed.Count == 0, $"VoiceOver : tout est nommé ({name})", string.Join(", ", unnamed.Take(8)));
+            // And by the keyboard: Tab goes from control to control, never to one hidden or without a size.
+            var (stops, faults) = TabWalk(shown);
+            Check(stops > 0 && faults.Count == 0, $"Clavier : Tab parcourt l’écran ({name})", faults.Count > 0 ? string.Join(", ", faults.Take(8)) : $"{stops} arrêts");
         }
         var mock = args.Contains("--mock") ? new MockJellyfin(Path.GetFullPath(Arg("--media")), Path.GetFullPath(Arg("--short"))) : null;
         var exit = 1;
@@ -239,6 +242,27 @@ public static class SelfCheck
             unnamed.Add($"{control.GetType().Name}{(text is not null ? $" « {text} »" : icon is not null ? $" ({icon})" : "")}");
         }
         return unnamed;
+    }
+    /// <summary>
+    /// Tab from the window's start, as macOS's « Navigation au clavier » does, until it comes back to a control already
+    /// reached (200 at most): how many stops, and those that would be hidden (not shown, disabled, without a size).
+    /// </summary>
+    public static (int Stops, List<string> Faults) TabWalk(Window root)
+    {
+        var seen = new HashSet<IInputElement>(); var faults = new List<string>();
+        IInputElement current = root;
+        for (var i = 0; i < 200; i++)
+        {
+            if (KeyboardNavigationHandler.GetNext(current, NavigationDirection.Next) is not { } next || !seen.Add(next)) break;
+            current = next;
+            if (next is not Control control) continue;
+            if (!control.IsEffectivelyVisible || !control.IsEffectivelyEnabled || control.Bounds.Width < 1 || control.Bounds.Height < 1)
+            {
+                var label = ControlAutomationPeer.CreatePeerForElement(control).GetName();
+                faults.Add($"{control.GetType().Name}{(string.IsNullOrWhiteSpace(label) ? "" : $" « {label} »")} caché");
+            }
+        }
+        return (seen.Count, faults);
     }
     /// <summary>
     /// The screen as macOS (screencapture) or X11 (import) shows it, mpv's picture included: the share of colourful
