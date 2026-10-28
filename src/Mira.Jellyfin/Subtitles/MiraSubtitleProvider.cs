@@ -217,7 +217,7 @@ public sealed partial class MiraSubtitleProvider : ISubtitleProvider
         lock (Gate) given = Given.TryGetValue(id, out var g) ? g : null;
         var settings = Config.Current;
         var source = Sources(settings).FirstOrDefault(x => (sourceKey == SubtitleIds.SubDl) == x is SubDlApi) ?? throw new InvalidOperationException("This source is no longer set in Mira's settings");
-        var fetched = await FetchCheckedAsync(source, key, given?.Score, given?.Video, language, cancellationToken).ConfigureAwait(false);
+        var fetched = await FetchCheckedAsync(source, key, given?.Score, given?.Video, language, cancellationToken, given?.Item).ConfigureAwait(false);
         if (given is { } kept && SubtitleLanguages.Two(language) is { } fetchedTwo) lock (Gate) Fetched[(kept.Item, fetchedTwo)] = DateTimeOffset.UtcNow;
         return new SubtitleResponse
         {
@@ -233,17 +233,17 @@ public sealed partial class MiraSubtitleProvider : ISubtitleProvider
     /// The file of a candidate, read (any encoding, format told from the content) and checked against the video's
     /// length when the video is known; given back as UTF-8 in its format. A file that fails the check is not given.
     /// </summary>
-    public async Task<FetchedSubtitle> FetchCheckedAsync(SubtitleSource source, string key, SubtitleScore? score, VideoFacts? video, string language, CancellationToken ct)
+    public async Task<FetchedSubtitle> FetchCheckedAsync(SubtitleSource source, string key, SubtitleScore? score, VideoFacts? video, string language, CancellationToken ct, Guid? item = null)
     {
         var fetched = await source.FetchAsync(key, video?.Season, video?.Episode, ct).ConfigureAwait(false);
         var text = SubtitleText.Decode(fetched.Bytes);
         var format = SubtitleText.FormatOf(text) ?? fetched.Format;
         var cues = SubtitleText.Parse(text);
         var check = SubtitleMatch.Check(cues, video?.Duration);
-        var name = video is not null ? Path.GetFileNameWithoutExtension(video.FileName) : key;
         if (check.Verdict != SubtitleCheckVerdict.Ok)
         {
-            Journal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, "", name, language, "rejected", source.Name, score?.Candidate.ReleaseName, score?.Score, SubtitleMatch.Text(check)));
+            var title = item is { } id && _library.GetItemById(id) is Video known ? Title(known) : video is not null ? Path.GetFileNameWithoutExtension(video.FileName) : key;
+            Journal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, item?.ToString("N") ?? "", title, language, "rejected", source.Name, score?.Candidate.ReleaseName, score?.Score, Check: check));
             throw new InvalidOperationException($"Mira set this file aside: {SubtitleMatch.Text(check)}");
         }
         if (format == "srt") text = SubtitleText.ToSrt(cues);

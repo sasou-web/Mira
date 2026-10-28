@@ -571,6 +571,31 @@ try {
   check('identifier un film : remis comme avant pour la suite', aubeAfter.Name === aube.Name && Object.keys(aubeAfter.ProviderIds ?? {}).length === 0,
     `${aubeAfter.Name}, ids ${JSON.stringify(aubeAfter.ProviderIds ?? {})}`);
 
+  // « Sous-titres automatiques » (an administrator): the extension's settings, changed from the page and read back from
+  // Jellyfin, then put back; the page itself asks nothing of OpenSubtitles or SubDL (only the PC of Jellyfin does).
+  const subtitleSitesAsked = [];
+  await page.route(/opensubtitles\.com|subdl\.com/, (route) => { subtitleSitesAsked.push(route.request().url()); route.abort(); });
+  await page.evaluate(() => { location.hash = '#/reglages'; });
+  await page.locator('a[href="#/sous-titres-auto"]').click({ timeout: 10000 }).catch(() => {});
+  await page.locator('.auto-subtitles-page .group').first().waitFor({ timeout: 15000 }).catch(() => {});
+  const autoBefore = (await api('Mira/subtitles'))?.settings ?? {};
+  const syncSwitch = page.locator('.auto-subtitles-page button[role="switch"]', { hasText: 'Recaler sur la vidéo' });
+  await syncSwitch.click({ timeout: 5000 }).catch(() => {});
+  await wait(1500);
+  const autoFlipped = (await api('Mira/subtitles'))?.settings ?? {};
+  const autoShown = await syncSwitch.getAttribute('aria-checked').catch(() => null);
+  const autoStatus = await page.locator('.auto-subtitles-page .page-sub').innerText().catch(() => '');
+  const autoPrivacy = await page.locator('.auto-subtitles-page .group-note').first().innerText().catch(() => '');
+  await shot('14-sous-titres-auto');
+  await page.locator('.auto-subtitles-page button[role="switch"]', { hasText: 'Recaler sur la vidéo' }).click({ timeout: 5000 }).catch(() => {});
+  await wait(1500);
+  const autoAfter = (await api('Mira/subtitles'))?.settings ?? {};
+  await page.unroute(/opensubtitles\.com|subdl\.com/);
+  check('sous-titres automatiques (administrateur) : réglage changé sur Jellyfin depuis la page, remis, rien demandé aux sites par le téléphone',
+    typeof autoBefore.sync === 'boolean' && autoFlipped.sync === !autoBefore.sync && autoShown === String(!autoBefore.sync) && autoAfter.sync === autoBefore.sync
+      && /jamais le nom du fichier/.test(autoPrivacy) && autoStatus.length > 0 && subtitleSitesAsked.length === 0,
+    `recaler ${autoBefore.sync} → ${autoFlipped.sync} → ${autoAfter.sync} ; « ${autoStatus} » ; ${subtitleSitesAsked.length} demande(s) aux sites`);
+
   // An anime's ASS subtitles, inside its file: Jellyfin would draw them into the picture (it never converts ASS by
   // profile); Mira asks for them as WebVTT, beside the video. Their line runs from 5 s to 8 s.
   const anime = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Signes')).Items[0];

@@ -32,6 +32,8 @@ const ROUTES = [
   { pattern: /^\/en-ce-moment$/, load: () => import('./views/now.js') },
   // « Titres à corriger », from Réglages (an administrator): titles Jellyfin recognized badly.
   { pattern: /^\/a-corriger$/, load: () => import('./views/fix.js') },
+  // « Sous-titres automatiques », from Réglages (an administrator): the extension's search and alignment of subtitles.
+  { pattern: /^\/sous-titres-auto$/, load: () => import('./views/auto-subtitles.js') },
   // « Télécharger sur le PC serveur », from Réglages or Recherche (an administrator); ?q= searches at once.
   { pattern: /^\/telecharger$/, load: () => import('./views/torlink.js') },
   { pattern: /^\/lecture\/([0-9a-f-]+)$/i, bare: true, guest: true, load: () => import('./player/player.js'), args: (m) => ({ id: m[1] }) },
