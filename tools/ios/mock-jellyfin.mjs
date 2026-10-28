@@ -1,9 +1,15 @@
 // A stand-in Jellyfin for the tests of Mira for iPhone on the simulator (ios.yml): the answers Mira asks for to sign in
 // and to draw Home, about the Blender Foundation's free films and Pioneer One, with pictures drawn here (gradients),
 // so the captures need neither a real server nor anything from the Internet. Account « ogsas », password « mira ».
+// Every film and episode plays media/clip.mp4 (SMPTE bars and a tone, 10 s, H.264 and AAC in MP4) as it is; what the
+// player reports is listed at /Mock/Reports for the UI tests.
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
+
+const clip = readFileSync(new URL('media/clip.mp4', import.meta.url));
+const reports = [];
 
 const port = Number(process.argv[2] ?? 18097);
 const TOKEN = 'mock-token';
@@ -60,6 +66,17 @@ const episodes = [
   episode(3, 'Alone in the Night'),
 ];
 const everything = [...films, series, ...episodes];
+// Each playable title: one MP4 file, its tracks.
+const mediaSource = (item) => ({
+  Id: item.Id, Container: 'mov,mp4,m4a', Bitrate: 30_000, RunTimeTicks: item.RunTimeTicks, SupportsDirectPlay: true, SupportsDirectStream: true,
+  DefaultAudioStreamIndex: 1, MediaStreams: [
+    { Index: 0, Type: 'Video', Codec: 'h264', Width: 640, Height: 360 },
+    { Index: 1, Type: 'Audio', Codec: 'aac', Language: 'eng', Channels: 1, IsDefault: true },
+    { Index: 2, Type: 'Audio', Codec: 'aac', Language: 'fre', Channels: 1 },
+    { Index: 3, Type: 'Subtitle', Codec: 'subrip', Language: 'fre', IsExternal: true, IsTextSubtitleStream: true },
+  ],
+});
+for (const item of everything) if (item.Type !== 'Series') item.MediaSources = [mediaSource(item)];
 const latest = [films[1], series, films[2], films[3], films[4], films[0], films[5], films[6], films[7]];
 
 function send(res, status, body) {
@@ -103,6 +120,20 @@ const server = http.createServer(async (req, res) => {
   let raw = ''; for await (const part of req) raw += part;
   console.log(req.method, req.url);
   if (path === '/System/Info/Public') return send(res, 200, { LocalAddress: `http://127.0.0.1:${port}`, ServerName: 'Maison', Version: '12.1.0', ProductName: 'Jellyfin Server', Id: SERVER_ID, StartupWizardCompleted: true });
+  if (path === '/Mock/Reports') return send(res, 200, reports);
+  // The stream needs no header: AVPlayer reads it by its address, the session in it (ApiKey).
+  const video = /^\/Videos\/([0-9a-f]+)\/stream\.mp4$/.exec(path);
+  if (video) {
+    if (q.get('ApiKey') !== TOKEN) return send(res, 401, undefined);
+    const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
+    if (!range) {
+      res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': clip.length, 'Accept-Ranges': 'bytes' });
+      return res.end(req.method === 'HEAD' ? undefined : clip);
+    }
+    const start = Number(range[1]), end = Math.min(clip.length - 1, range[2] ? Number(range[2]) : clip.length - 1);
+    res.writeHead(206, { 'Content-Type': 'video/mp4', 'Content-Length': end - start + 1, 'Content-Range': `bytes ${start}-${end}/${clip.length}`, 'Accept-Ranges': 'bytes' });
+    return res.end(req.method === 'HEAD' ? undefined : clip.subarray(start, end + 1));
+  }
   if (path === '/System/Ping') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('Jellyfin Server'); }
   const image = /^\/Items\/([0-9a-f]+)\/Images\/(Primary|Thumb|Backdrop)(?:\/\d+)?$/.exec(path);
   if (image) {
@@ -120,7 +151,22 @@ const server = http.createServer(async (req, res) => {
   if (!(req.headers.authorization ?? '').includes(`Token="${TOKEN}"`)) return send(res, 401, undefined);
   if (path === '/Sessions/Logout') return send(res, 204, undefined);
   if (path === '/UserItems/Resume') return send(res, 200, list([episodes[1], films[0]]));
-  if (path === '/Shows/NextUp') return send(res, 200, list([episodes[2]]));
+  if (path === '/Shows/NextUp') return send(res, 200, list([q.get('seriesId') ? episodes[1] : episodes[2]]));
+  if (path === `/Shows/${SERIES}/Episodes`) {
+    const from = Math.max(0, episodes.findIndex((x) => x.Id === q.get('startItemId')));
+    return send(res, 200, list(episodes.slice(from, from + Number(q.get('limit') ?? 100))));
+  }
+  const playback = /^\/Items\/([0-9a-f]+)\/PlaybackInfo$/.exec(path);
+  if (playback && req.method === 'POST') {
+    const item = everything.find((x) => x.Id === playback[1]);
+    if (!item?.MediaSources) return send(res, 404, undefined);
+    return send(res, 200, { MediaSources: item.MediaSources, PlaySessionId: `play-${reports.length}` });
+  }
+  if (path.startsWith('/Sessions/Playing')) {
+    const body = JSON.parse(raw || '{}');
+    reports.push({ kind: path.slice('/Sessions/Playing'.length) || '/Start', item: body.ItemId, method: body.PlayMethod, position: body.PositionTicks, paused: body.IsPaused });
+    return send(res, 204, undefined);
+  }
   const one = /^\/Items\/([0-9a-f]+)$/.exec(path);
   if (one) { const item = everything.find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
   if (path === '/Items') {

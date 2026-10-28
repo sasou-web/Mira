@@ -21,6 +21,14 @@ final class AppModel {
     /// Said once on the sign-in screen when Jellyfin ended the session (401).
     var notice: String?
     let device: DeviceIdentity
+    /// The title playing, in Apple's player or in Picture in Picture.
+    private(set) var player: PlayerSession?
+    /// Why a title could not play, said over the page it was started from.
+    var playerMessage: String?
+    /// Bumped when a title stops or another one starts: Home and the title's page read Jellyfin again.
+    private(set) var playback = 0
+    /// The last measure of the connection to Jellyfin (bits per second), kept an hour.
+    @ObservationIgnored private var measure: (at: Date, speed: Double, server: URL)?
 
     init() {
         let defaults = UserDefaults.standard
@@ -53,9 +61,47 @@ final class AppModel {
         self.session = session
     }
 
+    // MARK: Playing
+
+    /// Plays a film or an episode in Apple's player, where it was left unless `fromStart`; a title already playing
+    /// (in Picture in Picture) stops first.
+    func play(_ item: Item, fromStart: Bool = false, audioIndex: Int? = nil, subtitleIndex: Int? = nil) {
+        guard let client else { return }
+        player?.close()
+        let session = PlayerSession(item: item, client: client, app: self, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+        player = session
+        session.start(fromStart: fromStart)
+    }
+
+    func playerClosed(_ session: PlayerSession) {
+        if player === session { player = nil }
+        playback += 1
+    }
+
+    func playbackChanged() { playback += 1 }
+
+    /// The quality chosen in Settings: « auto », « max », or a bitrate in bits per second.
+    var quality: String {
+        get { UserDefaults.standard.string(forKey: Keys.quality) ?? "auto" }
+        set { UserDefaults.standard.set(newValue, forKey: Keys.quality) }
+    }
+
+    /// The bitrate to ask Jellyfin for (PlaybackInfo): the one chosen, full quality at home (Tailscale is not home),
+    /// else what a measure of the connection allows for this file, kept an hour (knownBitrate of Mira web).
+    func bitrate(for client: JellyfinClient, fileBitrate: Int) async -> Int {
+        let known: (at: Date, speed: Double)? = measure.flatMap { $0.server == client.server ? (at: $0.at, speed: $0.speed) : nil }
+        if let bitrate = PlaybackPlan.knownBitrate(quality, atHome: ServerAddress.isHome(client.server), measure: known, fileBitrate: fileBitrate) {
+            return bitrate
+        }
+        guard let speed = await client.measureSpeed() else { return PlaybackPlan.unmeasuredBitrate }
+        measure = (Date(), speed, client.server)
+        return PlaybackPlan.autoBitrate(speed: speed, fileBitrate: fileBitrate)
+    }
+
     /// Signed out on this iPhone at once, then on Jellyfin; the account's Home kept for a quick start goes too.
     func signOut() {
         let client = client
+        player?.close()
         if let session { HomeCache.clear(userId: session.userId) }
         SessionStore.delete()
         session = nil
@@ -65,6 +111,7 @@ final class AppModel {
     /// Jellyfin no longer knows the token (401): back to the sign-in screen, which says why.
     func sessionEnded() {
         guard let session else { return }
+        player?.close()
         HomeCache.clear(userId: session.userId)
         SessionStore.delete()
         notice = String(localized: "Your session on Jellyfin has ended. Sign in again.")
@@ -74,6 +121,7 @@ final class AppModel {
     private enum Keys {
         static let deviceId = "mira.deviceId"
         static let lastServer = "mira.lastServer"
+        static let quality = "mira.quality"
     }
 }
 

@@ -1,7 +1,7 @@
 import XCTest
 
 /// The app on the simulator against the stand-in Jellyfin of tools/ios/mock-jellyfin.mjs (ios.yml starts it): sign in,
-/// Home, a title, Settings, sign out, in English then in French. Each screen is captured (the attachments ios.yml
+/// Home, a title, playing it, Settings, sign out, in English then in French. Each screen is captured (the attachments ios.yml
 /// takes out of the results), the only way to see the app without an iPhone.
 final class MiraUITests: XCTestCase {
     static let server = "127.0.0.1:18097"
@@ -30,6 +30,17 @@ final class MiraUITests: XCTestCase {
         settle()
         capture("04-title")
         XCTAssertTrue(app.buttons["title.play"].exists, "No Play button on the title page")
+
+        // Play: Apple's player over the app, the file as it is; Jellyfin hears where it is, then where it stopped.
+        app.buttons["title.play"].tap()
+        XCTAssertTrue(waitForReport("/Start", timeout: 30), "Jellyfin never heard that playback started")
+        Thread.sleep(forTimeInterval: 1.5)
+        capture("05-player")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let close = app.buttons.matching(NSPredicate(format: "label IN %@", ["Close", "Done", "Dismiss"])).firstMatch
+        if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
+        XCTAssertTrue(waitForReport("/Stopped", timeout: 20), "Jellyfin never heard that playback stopped")
+        XCTAssertTrue(app.buttons["title.play"].waitForExistence(timeout: 10), "Closing the player did not lead back to the title page")
         app.navigationBars.buttons.firstMatch.tap()
 
         // Scrolling down Home folded the tab bar into its Home button; back at the top, it shows every tab again.
@@ -39,7 +50,7 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 5), "The tab bar did not unfold back at the top of Home")
         settings.tap()
         XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
-        capture("05-settings")
+        capture("06-settings")
         app.buttons["settings.signout"].tap()
         // The dialog's button, by its identifier or, if iOS does not pass it on, by its name.
         let confirm = app.buttons.matching(NSPredicate(format: "identifier == 'settings.signout.confirm' OR (label == 'Sign out' AND identifier != 'settings.signout')")).firstMatch
@@ -111,6 +122,20 @@ final class MiraUITests: XCTestCase {
     private func dismissSavePassword(_ app: XCUIApplication) {
         let button = app.buttons.matching(NSPredicate(format: "label IN %@", ["Not Now", "Pas maintenant"])).firstMatch
         if button.waitForExistence(timeout: 20) { button.tap() }
+    }
+
+    /// Waits for the stand-in Jellyfin to have received this report of the player (/Start, /Progress, /Stopped).
+    private func waitForReport(_ kind: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        let url = URL(string: "http://\(Self.server)/Mock/Reports")!
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: url), let reports = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+               reports.contains(where: { $0["kind"] as? String == kind }) {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        return false
     }
 
     /// Pictures fade in from the server: a moment before a capture.

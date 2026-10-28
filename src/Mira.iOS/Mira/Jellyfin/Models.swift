@@ -30,6 +30,7 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var parentLogoImageTag: String?
     var seriesPrimaryImageTag: String?
     var userData: UserData?
+    var mediaSources: [MediaSource]?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }
