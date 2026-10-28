@@ -57,7 +57,11 @@ public partial class MainWindow
             checks.Add($"INFO mpv synchronous property read: paused {poll:0.000} ms, playing worst {worst:0.00} ms");
         }
 
-        mpv.Set("pause", "no"); await Task.Delay(350);
+        // With frames timed to the screen, mpv starts moving a little after a resume, and the bar waits for it:
+        // sample once mpv has moved (3 s at most on a loaded runner).
+        var resumedAt = mpv.Number("time-pos"); mpv.Set("pause", "no"); await Task.Delay(350);
+        for (var waited = 0; waited < 3000 && mpv.Number("time-pos") - resumedAt < .1; waited += 50) await Task.Delay(50);
+        await Task.Delay(150);
         var first = SeekBar.DisplayedPosition; await Task.Delay(45); var second = SeekBar.DisplayedPosition;
         require(second > first && Math.Abs(second - mpv.Number("time-pos")) < .4, $"timeline advances between mpv polls ({first:0.000} -> {second:0.000} s)");
 
