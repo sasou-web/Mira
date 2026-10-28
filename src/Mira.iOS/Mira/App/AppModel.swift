@@ -25,7 +25,9 @@ final class AppModel {
     private(set) var player: PlayerSession?
     /// Why a title could not play, said over the page it was started from.
     var playerMessage: String?
-    /// Bumped when a title stops or another one starts: Home and the title's page read Jellyfin again.
+    /// Why Jellyfin refused to mark a title watched or a favorite.
+    var actionMessage: String?
+    /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.
     private(set) var playback = 0
     /// The last measure of the connection to Jellyfin (bits per second), kept an hour.
     @ObservationIgnored private var measure: (at: Date, speed: Double, server: URL)?
@@ -71,6 +73,22 @@ final class AppModel {
         let session = PlayerSession(item: item, client: client, app: self, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
         player = session
         session.start(fromStart: fromStart)
+    }
+
+    /// Marks a title watched or not, or a favorite or not, then has every page read Jellyfin again; says why when
+    /// Jellyfin refuses.
+    func set(_ item: Item, played: Bool? = nil, favorite: Bool? = nil) async {
+        guard let client else { return }
+        do {
+            if let played { try await client.setPlayed(item.id, played) }
+            if let favorite { try await client.setFavorite(item.id, favorite) }
+        } catch JellyfinError.unauthorized {
+            sessionEnded()
+            return
+        } catch {
+            actionMessage = Messages.text(error)
+        }
+        playback += 1
     }
 
     func playerClosed(_ session: PlayerSession) {

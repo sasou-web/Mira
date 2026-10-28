@@ -124,6 +124,7 @@ struct SearchView: View {
                                     .matchedTransitionSource(id: "search-\(item.id)", in: zoom)
                             }
                             .buttonStyle(.plain)
+                            .titleMenu(item)
                             .simultaneousGesture(TapGesture().onEnded { remember(term) })
                         }
                     }

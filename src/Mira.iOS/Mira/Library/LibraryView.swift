@@ -143,6 +143,7 @@ struct LibraryView: View {
                             .matchedTransitionSource(id: "grid-\(item.id)", in: zoom)
                     }
                     .buttonStyle(.plain)
+                    .titleMenu(item)
                     .onAppear { if item.id == items.last?.id { Task { await more() } } }
                 }
             }

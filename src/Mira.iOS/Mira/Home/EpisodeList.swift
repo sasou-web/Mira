@@ -135,6 +135,7 @@ struct EpisodeRow: View {
             }
             .buttonStyle(.plain)
         }
+        .titleMenu(episode)
     }
 
     private var heading: String {

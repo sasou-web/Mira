@@ -170,6 +170,15 @@ const server = http.createServer(async (req, res) => {
     reports.push({ kind: path.slice('/Sessions/Playing'.length) || '/Start', item: body.ItemId, method: body.PlayMethod, position: body.PositionTicks, paused: body.IsPaused });
     return send(res, 204, undefined);
   }
+  // Watched and favorites, kept until the mock stops.
+  const mark = /^\/User(Played|Favorite)Items\/([0-9a-f]+)$/.exec(path);
+  if (mark) {
+    const item = everything.find((x) => x.Id === mark[2]);
+    if (!item) return send(res, 404, undefined);
+    const on = req.method === 'POST';
+    item.UserData = { ...item.UserData, ...(mark[1] === 'Played' ? { Played: on, PlaybackPositionTicks: 0 } : { IsFavorite: on }) };
+    return send(res, 200, item.UserData);
+  }
   const one = /^\/Items\/([0-9a-f]+)$/.exec(path);
   if (one) { const item = everything.find((x) => x.Id === one[1]); return item ? send(res, 200, item) : send(res, 404, undefined); }
   if (path === '/UserViews') {

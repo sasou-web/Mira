@@ -46,6 +46,7 @@ struct TitleView: View {
                         }
                     }
                     play.padding(.top, 6)
+                    TitleActions(item: $item)
                     if let overview = item.overview, !overview.isEmpty {
                         Text(overview)
                             .font(MiraFont.body)
