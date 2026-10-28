@@ -28,11 +28,13 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
         TorLinkRelay.FollowsFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.follows.json");
         _subtitlesFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles.json");
         _journalFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles-journal.json");
+        _queueFile = Path.Combine(applicationPaths.PluginConfigurationsPath, "Mira.subtitles-queue.json");
     }
 
-    private static string? _subtitlesFile, _journalFile;
+    private static string? _subtitlesFile, _journalFile, _queueFile;
     private static SubtitleConfig? _subtitles;
     private static SubtitleJournal? _journal;
+    private static SubtitleQueue? _queue;
 
     /// <summary>The settings of « Sous-titres automatiques », read from their file the first time they are needed.</summary>
     public static SubtitleConfig Subtitles
@@ -44,6 +46,12 @@ public sealed class Plugin : BasePlugin<BasePluginConfiguration>
     public static SubtitleJournal SubtitleJournal
     {
         get { lock (Gate) return _journal ??= new SubtitleJournal(_journalFile); }
+    }
+
+    /// <summary>The titles « Sous-titres automatiques » still looks for.</summary>
+    public static SubtitleQueue SubtitleQueue
+    {
+        get { lock (Gate) return _queue ??= new SubtitleQueue(_queueFile); }
     }
 
     /// <summary>The guests' links, read from their file the first time they are needed.</summary>
