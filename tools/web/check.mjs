@@ -1901,6 +1901,11 @@ try {
       && invitedLead.startsWith(`${user} t’invite à regarder ensemble`) && /^Tu es dans « Groupe de .+ »$/.test(joinPage) && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine)
       && created.includes('Personne d’autre pour l’instant') && (joinedLine.includes(`${user} et Ami Mira`) || joinedLine.includes(`Ami Mira et ${user}`)),
     `« ${created} » ; lien ${link || 'absent'} (${steps} étapes) ; « ${invitedLead} » ; « ${joinPage} » ; « ${joinedLine} »`);
+  // A busy server takes two requests sent at once in either order: a Buffering taken after the Ready sent just behind it
+  // would hold the group for this phone (for good on Jellyfin 10.x, 30 s on 12.x). Here each Buffering of the first
+  // phone reaches Jellyfin 0.8 s late: Mira sends them one at a time, in order.
+  const lateBuffering = /\/SyncPlay\/Buffering/, late = async (route) => { await new Promise((r) => setTimeout(r, 800)); await route.continue(); };
+  await ta.route(lateBuffering, late);
   await ta.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
   const followed = await tb.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 15000 }).then(() => true, () => false);
   // Jellyfin waits for the slower of the two phones to load the film: on a busy runner (a conversion starting on 10.x) it takes a minute.
@@ -1911,6 +1916,7 @@ try {
   check('ensemble : Lecture sur l’un ouvre le titre sur l’autre, lus au même moment',
     followed && a && b && !a.paused && !b.paused && Math.abs(a.t - b.t) < 1,
     `${followed ? 'titre ouvert sur l’autre' : 'l’autre n’a rien ouvert'} ; ${a ? `${a.t.toFixed(2)} s${a.paused ? ' (en pause)' : ''}, readyState ${a.rs}` : 'pas de vidéo'} et ${b ? `${b.t.toFixed(2)} s${b.paused ? ' (en pause)' : ''}, readyState ${b.rs}` : 'pas de vidéo'}`);
+  await ta.unroute(lateBuffering, late);
   await ta.evaluate(() => document.querySelector('video').pause());
   await tb.waitForFunction(() => document.querySelector('video')?.paused, null, { timeout: 8000 }).catch(() => {});
   await tb.waitForTimeout(800);
