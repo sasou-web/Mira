@@ -1,0 +1,705 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ left": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reste %@"
+          }
+        }
+      }
+    },
+    "%lld h": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldh"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld h"
+          }
+        }
+      }
+    },
+    "%lld h %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lldh %2$@m"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld h %2$@"
+          }
+        }
+      }
+    },
+    "%lld min": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld min"
+          }
+        }
+      }
+    },
+    "%lld seasons": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld season"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld seasons"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld saison"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld saisons"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À propos"
+          }
+        }
+      }
+    },
+    "Account": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compte"
+          }
+        }
+      }
+    },
+    "Address": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adresse"
+          }
+        }
+      }
+    },
+    "At home, the address of the PC with Jellyfin. Away from home, its Tailscale address, with Tailscale on.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À la maison, l’adresse du PC où tourne Jellyfin. Ailleurs, son adresse Tailscale, Tailscale activé."
+          }
+        }
+      }
+    },
+    "Can’t reach Jellyfin. At home, check the Wi-Fi; away from home, turn on Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin est injoignable. À la maison, vérifie le Wi-Fi ; ailleurs, active Tailscale."
+          }
+        }
+      }
+    },
+    "Change": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changer"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuer"
+          }
+        }
+      }
+    },
+    "Continue watching": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuer à regarder"
+          }
+        }
+      }
+    },
+    "E%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E%@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "É%@"
+          }
+        }
+      },
+      "comment": "An episode's number: É5 in French"
+    },
+    "Enter an http:// or https:// address, without credentials in it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisis une adresse http:// ou https://, sans identifiants dans l’adresse."
+          }
+        }
+      }
+    },
+    "Enter your Jellyfin server’s address, for example 192.168.1.20.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indique l’adresse de ton serveur Jellyfin, par exemple 192.168.1.20."
+          }
+        }
+      }
+    },
+    "Featured": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À la une"
+          }
+        }
+      }
+    },
+    "Home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accueil"
+          }
+        }
+      }
+    },
+    "Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        }
+      }
+    },
+    "Jellyfin answered with an error (%lld). Try again in a moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin a répondu par une erreur (%lld). Réessaie dans un instant."
+          }
+        }
+      }
+    },
+    "Jellyfin doesn’t allow this account to do that.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne permet pas ça à ce compte."
+          }
+        }
+      }
+    },
+    "Jellyfin isn’t answering": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne répond pas"
+          }
+        }
+      }
+    },
+    "Language": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue"
+          }
+        }
+      }
+    },
+    "Loading": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chargement"
+          }
+        }
+      }
+    },
+    "Mira follows your iPhone’s language. To choose another one for Mira only: Settings, Apps, Mira, Language.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira suit la langue de ton iPhone. Pour en choisir une autre pour Mira seulement : Réglages, Apps, Mira, Langue."
+          }
+        }
+      }
+    },
+    "Mira needs Jellyfin 10.9 or later; this server runs %@. Update Jellyfin to continue.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira a besoin de Jellyfin 10.9 ou plus récent ; ce serveur est en %@. Mets Jellyfin à jour pour continuer."
+          }
+        }
+      }
+    },
+    "Mira talks only to your Jellyfin server: no account of ours, no analytics, no ads.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne parle qu’à ton serveur Jellyfin : pas de compte chez nous, pas de statistiques, pas de pub."
+          }
+        }
+      }
+    },
+    "Mira web opens this show in Safari, to choose an episode.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira web ouvre cette série dans Safari, pour choisir un épisode."
+          }
+        }
+      }
+    },
+    "More info": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus d’infos"
+          }
+        }
+      }
+    },
+    "More info about %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus d’infos sur %@"
+          }
+        }
+      }
+    },
+    "Movies and shows you add to Jellyfin will show up here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les films et séries ajoutés à Jellyfin apparaîtront ici."
+          }
+        }
+      }
+    },
+    "Open in Mira web": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir dans Mira web"
+          }
+        }
+      }
+    },
+    "Open Mira web": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir Mira web"
+          }
+        }
+      }
+    },
+    "Opens in Mira web": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S’ouvre dans Mira web"
+          }
+        }
+      }
+    },
+    "Password": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mot de passe"
+          }
+        }
+      }
+    },
+    "Play": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecture"
+          }
+        }
+      }
+    },
+    "Plays in Mira web, in Safari, until Mira for iPhone has its own player.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lecture se fait dans Mira web, dans Safari, tant que Mira pour iPhone n’a pas son propre lecteur."
+          }
+        }
+      }
+    },
+    "Recently added": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouts récents"
+          }
+        }
+      }
+    },
+    "Resume": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre"
+          }
+        }
+      }
+    },
+    "Resume %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre %@"
+          }
+        }
+      }
+    },
+    "Retry": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayer"
+          }
+        }
+      }
+    },
+    "Served by Jellyfin’s Mira extension. Until Mira for iPhone has its own player, it plays your titles.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Servi par l’extension Mira de Jellyfin. Tant que Mira pour iPhone n’a pas son propre lecteur, c’est lui qui lit tes titres."
+          }
+        }
+      }
+    },
+    "Server": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serveur"
+          }
+        }
+      }
+    },
+    "Server address": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adresse du serveur"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages"
+          }
+        }
+      }
+    },
+    "Sign in": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter"
+          }
+        }
+      }
+    },
+    "Sign in anyway": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter quand même"
+          }
+        }
+      }
+    },
+    "Sign in to %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion à %@"
+          }
+        }
+      }
+    },
+    "Sign out": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter"
+          }
+        }
+      }
+    },
+    "Sign out of Jellyfin on this iPhone?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter de Jellyfin sur cet iPhone ?"
+          }
+        }
+      }
+    },
+    "Source code": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code source"
+          }
+        }
+      }
+    },
+    "The server isn’t answering. Check the address and that Jellyfin is running.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur ne répond pas. Vérifie l’adresse et que Jellyfin est bien lancé."
+          }
+        }
+      }
+    },
+    "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette adresse répond, mais ce n’est pas un serveur Jellyfin. Vérifie le port (8096 par défaut)."
+          }
+        }
+      }
+    },
+    "This address goes over the Internet with http://: nothing is encrypted, and anyone along the way could read your password. Use its https:// address or Tailscale instead, or tap “Sign in anyway”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette adresse passe par Internet, en http:// : rien n’y est chiffré, et ton mot de passe y passerait lisible par n’importe qui sur le trajet. Utilise plutôt son adresse https:// ou Tailscale, ou touche « Se connecter quand même »."
+          }
+        }
+      }
+    },
+    "This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://192.168.1.20:8096.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://192.168.1.20:8096."
+          }
+        }
+      }
+    },
+    "Try again": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayer"
+          }
+        }
+      }
+    },
+    "Username": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom d’utilisateur"
+          }
+        }
+      }
+    },
+    "Version": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
+          }
+        }
+      }
+    },
+    "Watch %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regarder %@"
+          }
+        }
+      }
+    },
+    "Watched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vu"
+          }
+        }
+      }
+    },
+    "Wrong username or password.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom d’utilisateur ou mot de passe incorrect."
+          }
+        }
+      }
+    },
+    "Your favorites": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tes favoris"
+          }
+        }
+      }
+    },
+    "Your Jellyfin, like at the cinema.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton Jellyfin, comme au cinéma."
+          }
+        }
+      }
+    },
+    "Your library is empty": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta bibliothèque est vide"
+          }
+        }
+      }
+    },
+    "Your session on Jellyfin has ended. Sign in again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta session sur Jellyfin a pris fin. Reconnecte-toi."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
