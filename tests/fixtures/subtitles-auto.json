@@ -1,0 +1,21 @@
+{
+  "about": "« Sous-titres automatiques » : ce que dit chaque ligne du journal de l’extension, les mêmes cas pour Mira web (js/subtitles-auto.js, tools/web/unit/subtitles-auto.test.mjs) et pour Windows et Mac (Mira.Core AutoSubtitles, tests/Mira.Core.Tests).",
+  "journal": [
+    { "entry": { "kind": "kept", "source": "OpenSubtitles", "score": 82 }, "line": "Gardés · OpenSubtitles · note 82/100" },
+    { "entry": { "kind": "kept", "source": "OpenSubtitles", "score": 57, "alignedOn": "audio", "shift": 3.17, "speed": 1.04239 }, "line": "Gardés · OpenSubtitles · note 57/100 · recalés sur l’audio, 3,17 s plus tard, vitesse corrigée" },
+    { "entry": { "kind": "kept", "source": "SubDL", "score": 64, "alignedOn": "track", "shift": -0.5 }, "line": "Gardés · SubDL · note 64/100 · recalés sur la piste du fichier, 0,5 s plus tôt" },
+    { "entry": { "kind": "kept", "source": "SubDL", "score": 70, "alignedOn": "audio" }, "line": "Gardés · SubDL · note 70/100 · vérifiés sur l’audio" },
+    { "entry": { "kind": "none", "source": "OpenSubtitles", "score": 42, "detail": "autre source (BluRay)" }, "line": "Rien d’assez sûr pour l’instant : nouvel essai plus tard · meilleur : note 42/100 · autre source (BluRay)" },
+    { "entry": { "kind": "none" }, "line": "Rien d’assez sûr pour l’instant : nouvel essai plus tard" },
+    { "entry": { "kind": "given-up" }, "line": "Rien trouvé en 30 jours : Mira n’en cherche plus" },
+    { "entry": { "kind": "rejected", "source": "OpenSubtitles", "score": 40, "detail": "ne colle pas à la vidéo, même recalé" }, "line": "Écartés · OpenSubtitles · note 40/100 · ne colle pas à la vidéo, même recalé" },
+    { "entry": { "kind": "failed", "source": "SubDL", "detail": "HTTP 500" }, "line": "Échec chez SubDL · HTTP 500" },
+    { "entry": { "kind": "quota", "source": "OpenSubtitles", "detail": "Download limit reached" }, "line": "Quota épuisé chez OpenSubtitles : Mira attend sa remise à zéro" }
+  ],
+  "waiting": [
+    { "state": { "settings": { "enabled": false, "languages": ["fre"] }, "waiting": 3 }, "line": "Arrêtés : Mira ne cherche rien tout seul." },
+    { "state": { "settings": { "enabled": true, "languages": [] } }, "line": "Choisis au moins une langue." },
+    { "state": { "settings": { "enabled": true, "languages": ["fre"] }, "waiting": 0 }, "line": "Rien en attente : Mira cherche dès qu’un titre arrive." },
+    { "state": { "settings": { "enabled": true, "languages": ["fre", "eng"] }, "waiting": 1240 }, "line": "1 240 recherches en attente." }
+  ]
+}

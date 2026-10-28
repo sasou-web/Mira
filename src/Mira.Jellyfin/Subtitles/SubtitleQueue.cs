@@ -4,8 +4,11 @@ using System.Text.Json.Serialization;
 
 namespace Mira.Jellyfin;
 
-/// <summary>A title waiting for subtitles in one language: when it arrived, when it is tried next, how many tries so far.</summary>
-public sealed record SubtitleWait(string ItemId, string Language, DateTimeOffset FirstSeen, DateTimeOffset Next, int Attempts);
+/// <summary>
+/// A title waiting for subtitles in one language: when it arrived, when it is tried next, how many tries so far.
+/// Backlog: a title that was already in the library, asked for once (« Chercher aussi pour ce qui est déjà là »).
+/// </summary>
+public sealed record SubtitleWait(string ItemId, string Language, DateTimeOffset FirstSeen, DateTimeOffset Next, int Attempts, bool Backlog = false);
 
 /// <summary>
 /// The titles « Sous-titres automatiques » still looks for, one entry per title and language, kept in one file beside
@@ -65,6 +68,30 @@ public sealed class SubtitleQueue
         }
     }
 
+    /// <summary>
+    /// The titles already in the library, asked for once each (never tried again, they would hold the new ones back),
+    /// after those waiting already. Those already waiting keep their place. Answers how many were added.
+    /// </summary>
+    public int AddBacklog(IEnumerable<(string ItemId, string Language)> titles)
+    {
+        lock (_gate)
+        {
+            var now = _now();
+            var known = _waits.Select(x => (x.ItemId, x.Language)).ToHashSet();
+            var room = Keep - _waits.Count;
+            var added = 0;
+            foreach (var title in titles)
+            {
+                if (added >= room) break;
+                if (!known.Add(title)) continue;
+                _waits.Add(new SubtitleWait(title.ItemId, title.Language, now, now + FirstDelay, 0, true));
+                added++;
+            }
+            if (added > 0) Save();
+            return added;
+        }
+    }
+
     /// <summary>What is due now, the longest waiting first.</summary>
     public List<SubtitleWait> Due(int count)
     {
@@ -91,7 +118,7 @@ public sealed class SubtitleQueue
             var i = _waits.FindIndex(x => x.ItemId == itemId && x.Language == language);
             if (i < 0) return false;
             var wait = _waits[i];
-            var next = NextAttempt(wait.FirstSeen, wait.Attempts + 1, now);
+            var next = wait.Backlog ? null : NextAttempt(wait.FirstSeen, wait.Attempts + 1, now);
             if (next is { } at) _waits[i] = wait with { Next = at, Attempts = wait.Attempts + 1 };
             else _waits.RemoveAt(i);
             Save();

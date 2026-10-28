@@ -790,6 +790,41 @@ public sealed class JellyfinClient : IDisposable
         var list = await response.Content.ReadFromJsonAsync<GuestLinkList>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
         return list with { Invites = list.Invites ?? [] };
     }
+    /// <summary>
+    /// « Sous-titres automatiques » (an administrator): the extension's settings (secrets said only as set), its journal
+    /// in this Mira's language, the titles waiting (GET Mira/subtitles). Null when the extension is older than it.
+    /// </summary>
+    public async Task<AutoSubtitleState?> AutoSubtitlesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Mira/subtitles", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckInvitesAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<AutoSubtitleState>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    /// <summary>Changes the settings (the fields given; a secret given empty is cleared, one not given is kept): them as kept.</summary>
+    public async Task<AutoSubtitleSettings> SetAutoSubtitlesAsync(System.Text.Json.Nodes.JsonObject changes, CancellationToken ct = default)
+    {
+        using var content = new StringContent(changes.ToJsonString(), System.Text.Encoding.UTF8, "application/json");
+        using var response = await _http.PutAsync("Mira/subtitles/settings", content, ct);
+        await CheckInvitesAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<AutoSubtitleSettings>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    /// <summary>« Essayer les sources »: a search of each source turned on, and its account when one is set.</summary>
+    public async Task<IReadOnlyList<AutoSubtitleSourceTry>> TestAutoSubtitlesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync("Mira/subtitles/test", null, ct);
+        await CheckInvitesAsync(response, ct);
+        var answer = await response.Content.ReadFromJsonAsync<AutoSubtitleTries>(ct);
+        return answer?.Sources ?? [];
+    }
+    /// <summary>« Chercher aussi pour ce qui est déjà là »: every title waits once per language; how many were added, how many wait.</summary>
+    public async Task<(int Added, int Waiting)> QueueAutoSubtitlesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync("Mira/subtitles/library", null, ct);
+        await CheckInvitesAsync(response, ct);
+        var answer = await response.Content.ReadFromJsonAsync<AutoSubtitleQueued>(ct);
+        return (answer?.Added ?? 0, answer?.Waiting ?? 0);
+    }
     /// <summary>The extension's refusals, in its words ({ error }, in this Mira's language), or in Mira's.</summary>
     private static async Task CheckInvitesAsync(HttpResponseMessage response, CancellationToken ct)
     {

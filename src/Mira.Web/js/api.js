@@ -345,6 +345,16 @@ export const api = {
   invite: (name) => post('Mira/invites', { name }, null, { timeout: 20000 }),
   revokeInvite: (id) => request('DELETE', `Mira/invites/${encodeURIComponent(id)}`, { timeout: 20000 }),
   setInviteAddress: (address) => request('PUT', 'Mira/invites/address', { body: { address } }),
+  // « Sous-titres automatiques » (an administrator): the extension's settings (secrets said only as set), its journal,
+  // how many titles wait; a change of the settings (the fields given; a secret given empty is cleared); a try of each
+  // source; every title already there searched too.
+  /** { settings, journal: [{ when, itemId, name, language, kind, source, release, score, detail, alignedOn, shift, speed }], waiting, pausedUntil }. */
+  autoSubtitles: () => get('Mira/subtitles', null, { timeout: 15000 }),
+  setAutoSubtitles: (changes) => request('PUT', 'Mira/subtitles/settings', { body: changes }),
+  /** { sources: [{ source, ok, found, remaining, reset, error, refused }] }. */
+  testAutoSubtitles: () => post('Mira/subtitles/test', {}, null, { timeout: 60000 }),
+  /** { added, waiting }. */
+  queueAutoSubtitles: () => post('Mira/subtitles/library', {}, null, { timeout: 60000 }),
 
   async signIn(username, password) {
     return this.opened(await post('Users/AuthenticateByName', { Username: username, Pw: password }, null, { token: null }));

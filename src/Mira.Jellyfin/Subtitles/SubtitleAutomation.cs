@@ -28,7 +28,7 @@ namespace Mira.Jellyfin;
 /// </summary>
 public sealed class SubtitleAutomation : IHostedService, IDisposable
 {
-    /// <summary>Titles tried per minute at most.</summary>
+    /// <summary>Titles searched per minute at most.</summary>
     private const int PerTick = 3;
     private static readonly TimeSpan Tick = TimeSpan.FromMinutes(1);
     /// <summary>
@@ -139,30 +139,36 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
         var now = DateTimeOffset.UtcNow;
         if (now < _pausedUntil) return;
         PausedUntil = null;
-        foreach (var wait in Queue.Due(PerTick))
+        // Titles that need no search (already there, gone, not read yet) do not count: a whole library goes through fast.
+        var searched = 0;
+        foreach (var wait in Queue.Due(200))
         {
-            if (Watching() || ct.IsCancellationRequested) return;
-            if (!await TryAsync(wait, settings, ct).ConfigureAwait(false)) return;
+            if (searched >= PerTick || Watching() || ct.IsCancellationRequested) return;
+            var outcome = await TryAsync(wait, settings, ct).ConfigureAwait(false);
+            if (outcome == Outcome.Stop) return;
+            if (outcome == Outcome.Searched) searched++;
         }
     }
 
-    /// <summary>One title in one language. False when the loop should stop for now (a quota spent).</summary>
-    private async Task<bool> TryAsync(SubtitleWait wait, SubtitleSettings settings, CancellationToken ct)
+    private enum Outcome { Quick, Searched, Stop }
+
+    /// <summary>One title in one language: done without asking anything (Quick), asked the sources, or stop for now (a quota spent, someone watching).</summary>
+    private async Task<Outcome> TryAsync(SubtitleWait wait, SubtitleSettings settings, CancellationToken ct)
     {
         var two = SubtitleLanguages.Two(wait.Language);
         if (!Guid.TryParse(wait.ItemId, out var id) || _library.GetItemById(id) is not Video video || !Wanted(video) || two is null || !settings.Languages.Contains(wait.Language))
         {
             Queue.Done(wait.ItemId, wait.Language);
-            return true;
+            return Outcome.Quick;
         }
-        if (video.RunTimeTicks is null || video is Episode && MiraSubtitleProvider.Numbers(video).Episode is null) { Queue.Postpone(wait.ItemId, wait.Language, DateTimeOffset.UtcNow + NotReadYet); return true; }
-        if (Has(video, two)) { Queue.Done(wait.ItemId, wait.Language); return true; }
+        if (video.RunTimeTicks is null || video is Episode && MiraSubtitleProvider.Numbers(video).Episode is null) { Queue.Postpone(wait.ItemId, wait.Language, DateTimeOffset.UtcNow + NotReadYet); return Outcome.Quick; }
+        if (Has(video, two)) { Queue.Done(wait.ItemId, wait.Language); return Outcome.Quick; }
         var sources = _provider.Sources(settings);
-        if (sources.Count == 0) { Queue.Postpone(wait.ItemId, wait.Language, DateTimeOffset.UtcNow + NoSource); return true; }
+        if (sources.Count == 0) { Queue.Postpone(wait.ItemId, wait.Language, DateTimeOffset.UtcNow + NoSource); return Outcome.Quick; }
         // Through Jellyfin, as « Chercher des sous-titres »: it writes the file where the library keeps subtitles. A
         // library where « Mira » is turned off among the subtitle downloaders is left alone.
         var mira = _subtitles.GetSupportedProviders(video).FirstOrDefault(p => p.Name == MiraSubtitleProvider.ProviderName);
-        if (mira is null) { Queue.Done(wait.ItemId, wait.Language); return true; }
+        if (mira is null) { Queue.Done(wait.ItemId, wait.Language); return Outcome.Quick; }
 
         var ranked = await _provider.RankAsync(video, sources, two, settings.Preferences, false, ct).ConfigureAwait(false);
         var ffmpeg = _encoder.EncoderPath;
@@ -179,7 +185,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
             var reader = new SubtitleReference(ffmpeg);
             try { reference = await reader.ReadAsync(video.Path!, _provider.Streams(video.Id), TimeSpan.FromTicks(video.RunTimeTicks.Value), watch.Token).ConfigureAwait(false); }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
-            if (watch.IsCancellationRequested && !ct.IsCancellationRequested) return false;
+            if (watch.IsCancellationRequested && !ct.IsCancellationRequested) return Outcome.Stop;
             referenceKind = reader.Kind;
         }
 
@@ -194,7 +200,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                     await _subtitles.DownloadSubtitles(video, mira.Id + "_" + MiraSubtitleProvider.Id(candidate), ct).ConfigureAwait(false);
                     Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, "kept", candidate.Source, candidate.ReleaseName, score.Score));
                     Queue.Done(wait.ItemId, wait.Language);
-                    return true;
+                    return Outcome.Searched;
                 }
                 var fetched = await _provider.GetSubtitles(MiraSubtitleProvider.Id(candidate), ct).ConfigureAwait(false);
                 string text;
@@ -206,7 +212,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                     // Only worth taking once found to fit the video: it does not.
                     MiraSubtitleProvider.Forget(video.Id, two);
                     Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, "rejected", candidate.Source, candidate.ReleaseName, score.Score,
-                        reference is null ? "nothing to align with" : "does not fit the video", referenceKind));
+                        AlignedOn: referenceKind, Code: reference is null ? "no-reference" : "does-not-fit"));
                     continue;
                 }
                 var format = fetched.Format;
@@ -227,7 +233,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                 Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, "kept", candidate.Source, candidate.ReleaseName, score.Score, null,
                     sync is { Confident: true } ? referenceKind : null, sync is { Changes: true } ? Math.Round(sync.Shift.TotalSeconds, 2) : null, sync is { Changes: true } && sync.Ratio != 1 ? Math.Round(sync.Ratio, 5) : null));
                 Queue.Done(wait.ItemId, wait.Language);
-                return true;
+                return Outcome.Searched;
             }
             catch (SubtitleSourceException ex) when (ex.Until is { } until)
             {
@@ -235,7 +241,7 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
                 Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, "quota", candidate.Source, null, null, ex.Message));
                 _pausedUntil = until; PausedUntil = until;
                 Queue.Postpone(wait.ItemId, wait.Language, until);
-                return false;
+                return Outcome.Stop;
             }
             catch (Exception ex) when (ex is SubtitleSourceException or InvalidOperationException or HttpRequestException or IOException or TaskCanceledException && !ct.IsCancellationRequested)
             {
@@ -249,8 +255,8 @@ public sealed class SubtitleAutomation : IHostedService, IDisposable
         var again = Queue.Retry(wait.ItemId, wait.Language);
         if (chosen.Count == 0)
             Plugin.SubtitleJournal.Add(new SubtitleJournalEntry(DateTimeOffset.UtcNow, wait.ItemId, name, wait.Language, again ? "none" : "given-up",
-                best?.Candidate.Source, best?.Candidate.ReleaseName, best?.Score, best is null ? null : string.Join(" · ", best.Reasons.Select(r => SubtitleMatch.Text(r)))));
-        return true;
+                best?.Candidate.Source, best?.Candidate.ReleaseName, best?.Score, Reasons: best?.Reasons));
+        return Outcome.Searched;
     }
 
     /// <summary>
