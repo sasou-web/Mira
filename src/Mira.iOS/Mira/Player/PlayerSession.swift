@@ -243,6 +243,9 @@ final class PlayerSession: NSObject {
     private func streamFailed() {
         guard !closed, !askingServer, let current = player.currentItem else { return }
         let error = current.error
+        let cut = Self.cut(error)
+        let refused = error.map { String(localized: "The player refused this video, even fully converted by Jellyfin. (\($0.localizedDescription))") }
+            ?? String(localized: "The player refused this video, even fully converted by Jellyfin.")
         let at = resumeSeconds
         pendingStart = nil
         player.replaceCurrentItem(with: nil)
@@ -256,14 +259,13 @@ final class PlayerSession: NSObject {
                 waitForServer(at)
                 return
             }
-            if Self.cut(error), reopenedAt == nil {
+            if cut, reopenedAt == nil {
                 reopenedAt = at
                 reopen(at)
                 return
             }
             guard let next = PlaybackPlan.nextStage(stage) else {
-                fail(error.map { String(localized: "The player refused this video, even fully converted by Jellyfin. (\($0.localizedDescription))") }
-                    ?? String(localized: "The player refused this video, even fully converted by Jellyfin."))
+                fail(refused)
                 return
             }
             stage = next
@@ -274,10 +276,12 @@ final class PlayerSession: NSObject {
     /// An error of the way to the server, not of the video.
     private static func cut(_ error: Error?) -> Bool {
         guard let error else { return false }
-        let error = error as NSError
-        let codes: [URLError.Code] = [.networkConnectionLost, .notConnectedToInternet, .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .resourceUnavailable]
-        let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError
-        return [error, underlying].contains { $0?.domain == NSURLErrorDomain && codes.map(\.rawValue).contains($0?.code ?? 0) }
+        let list: [URLError.Code] = [.networkConnectionLost, .notConnectedToInternet, .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .resourceUnavailable]
+        let codes = Set(list.map(\.rawValue))
+        let outer = error as NSError
+        var chain: [NSError] = [outer]
+        if let underlying = outer.userInfo[NSUnderlyingErrorKey] as? NSError { chain.append(underlying) }
+        return chain.contains { $0.domain == NSURLErrorDomain && codes.contains($0.code) }
     }
 
     /// Where the title is, in seconds: where it was asked to start while it opens.

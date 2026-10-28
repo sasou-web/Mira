@@ -1,6 +1,6 @@
 import Foundation
 
-/// A group of « Watch together » as Jellyfin lists it (SyncPlay/List, GroupJoined).
+/// A group of « Watch together » as Jellyfin lists it (SyncPlay/List, GroupJoined), read by JSON.decoder.
 struct SyncGroup: Codable, Sendable, Hashable, Identifiable {
     var groupId: String
     var groupName: String?
@@ -8,10 +8,6 @@ struct SyncGroup: Codable, Sendable, Hashable, Identifiable {
     var participants: [String]?
 
     var id: String { groupId }
-
-    enum CodingKeys: String, CodingKey {
-        case groupId = "GroupId", groupName = "GroupName", state = "State", participants = "Participants"
-    }
 }
 
 /// The group's title: what a PlayQueue update puts on, and where it starts.

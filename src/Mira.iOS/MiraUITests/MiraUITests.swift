@@ -159,15 +159,63 @@ final class MiraUITests: XCTestCase {
         dismissSavePassword(app)
         settle()
         capture("13-accueil")
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "Pas de carte pour Tears of Steel")
+        poster.tap()
+        XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
+        settle()
+        capture("13b-fiche")
+        app.swipeUp()
+        settle()
+        capture("13c-fiche-suite")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.swipeDown()
         app.tabBars.buttons["Réglages"].tap()
         XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
         capture("14-reglages")
     }
 
+    /// The largest text a person may choose short of the accessibility sizes' last ones, in French (the longer
+    /// language): every screen still reads, nothing cut.
     @MainActor
-    private func launch(language: String, locale: String) -> XCUIApplication {
+    func testLargeText() throws {
+        let app = launch(language: "fr", locale: "fr_FR", extra: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continuer à regarder"].waitForExistence(timeout: 20), "L'Accueil n'a pas montré Continuer à regarder")
+        dismissSavePassword(app)
+        settle()
+        capture("21-accueil-grand")
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        if poster.waitForExistence(timeout: 10) {
+            poster.tap()
+            XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
+            settle()
+            capture("22-fiche-grand")
+            app.swipeUp()
+            settle()
+            capture("22b-fiche-grand-suite")
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+        app.swipeDown()
+        app.swipeDown()
+        let films = app.tabBars.buttons["Films"]
+        if films.waitForExistence(timeout: 5) {
+            films.tap()
+            settle()
+            capture("23-films-grand")
+        }
+        let settings = app.tabBars.buttons["Réglages"]
+        if settings.waitForExistence(timeout: 5) {
+            settings.tap()
+            settle()
+            capture("24-reglages-grand")
+        }
+    }
+
+    @MainActor
+    private func launch(language: String, locale: String, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-mira-reset", "-AppleLanguages", "(\(language))", "-AppleLocale", locale]
+        app.launchArguments = ["-mira-reset", "-AppleLanguages", "(\(language))", "-AppleLocale", locale] + extra
         app.launch()
         return app
     }

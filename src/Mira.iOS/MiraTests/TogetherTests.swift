@@ -14,7 +14,7 @@ private final class SyncFixture {
 struct TogetherTests {
     private func groups(_ value: Any?) throws -> [SyncGroup] {
         let data = try JSONSerialization.data(withJSONObject: value ?? [])
-        return try JSONDecoder().decode([SyncGroup].self, from: data)
+        return try JSON.decoder.decode([SyncGroup].self, from: data)
     }
 
     @Test("L'heure de Jellyfin et l'écart d'horloge (syncplay.json)")
