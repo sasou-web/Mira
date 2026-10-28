@@ -52,6 +52,30 @@ await (async () => {
 const internetName = 'mira-check.example', tailscaleName = 'mira-check.tail0000.ts.net';
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required',
   `--host-resolver-rules=MAP ${internetName} ${new URL(base).hostname}, MAP ${tailscaleName} ${new URL(base).hostname}`] });
+// The Chromium of GitHub's runners (Playwright's) plays neither H.264, AAC nor HLS itself: the checks below count on it
+// (a film converted, the streams tried one after the other). A Chromium that plays them (a newer Playwright's, Google
+// Chrome) is shown to Mira as that one, in every context: Mira's profile reads canPlayType and MediaSource.
+const plays = await (async () => {
+  const p = await browser.newPage();
+  try { return await p.evaluate(() => ['video/mp4; codecs="avc1.640029"', 'audio/mp4; codecs="mp4a.40.2"', 'application/vnd.apple.mpegurl'].filter((t) => document.createElement('video').canPlayType(t))); } finally { await p.close(); }
+})();
+if (plays.length) {
+  console.log(`Ce Chromium lit ${plays.join(', ')} : montré à Mira sans, comme celui de GitHub`);
+  const make = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const made = await make(options);
+    await made.addInitScript(() => {
+      const hidden = /avc1|avc3|mp4a|hvc1|hev1|mpegurl/i;
+      const canPlay = HTMLMediaElement.prototype.canPlayType;
+      HTMLMediaElement.prototype.canPlayType = function (type) { return hidden.test(type) ? '' : canPlay.call(this, type); };
+      for (const Source of [window.MediaSource, window.ManagedMediaSource].filter(Boolean)) {
+        const supported = Source.isTypeSupported.bind(Source);
+        Source.isTypeSupported = (type) => !hidden.test(type) && supported(type);
+      }
+    });
+    return made;
+  };
+}
 // What the page's security policy refuses, in every page of every context below: nothing is expected.
 const violations = [];
 const watchPolicy = async (context, name, seen = violations) => {
