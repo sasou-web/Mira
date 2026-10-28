@@ -440,13 +440,13 @@ public partial class MainWindow
             SpeedList.Children.Add(chip);
         }
         BuildQualityChoices(); BuildSleepChoices(); ShowGroupSection();
-        SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay"));
+        SubtitleDelayReset.Content = DelayLabel(_mpv.Number("sub-delay")); AudioDelayReset.Content = DelayLabel(_mpv.Number("audio-delay"));
         // Short names ("H.264", "AAC"): mpv's long codec descriptions wrap over several lines.
         var width = _mpv.Number("width"); var height = _mpv.Number("height");
         var video = string.Join(" · ", new[] { PlayerText.Codec(_mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null }.Where(x => x is not null));
         var decoding = _mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? L($"matériel ({hwdec})", $"hardware ({hwdec})") : L("logiciel", "software");
         var shown = video.Length > 0 ? video : "—"; var audio = PlayerText.Codec(_mpv.Get("audio-codec-name")) ?? "—"; var dropped = _mpv.Get("frame-drop-count") ?? "0";
-        PlaybackInfo.Text = L($"Vidéo  {shown}\nDécodage  {decoding}\nAudio  {audio}\nImages perdues  {dropped}", $"Video  {shown}\nDecoding  {decoding}\nAudio  {audio}\nDropped frames  {dropped}");
+        PlaybackInfo.Text = L($"Vidéo  {shown}\nDécodage  {decoding}\nImage  {PictureInfo}\nAudio  {audio}\nImages perdues  {dropped}", $"Video  {shown}\nDecoding  {decoding}\nPicture  {PictureInfo}\nAudio  {audio}\nDropped frames  {dropped}");
     }
     /// <summary>« Minuterie »: off, 15 min, 30 min, 1 h, or the end of an episode (<see cref="SleepTimer"/>).</summary>
     private void BuildSleepChoices()

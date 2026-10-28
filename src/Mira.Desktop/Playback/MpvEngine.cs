@@ -27,8 +27,9 @@ public sealed class MpvEngine : MpvClient
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "mpv.net", "libmpv-2.dll") };
         return candidates.FirstOrDefault(p => File.Exists(p) && PortableExecutable.IsX64(p));
     }
-    public MpvEngine(IntPtr window, PlayerSettings settings, bool headless = false) : this(window, settings, headless, FindLibrary(settings.MpvPath)) { }
-    private MpvEngine(IntPtr window, PlayerSettings settings, bool headless, string? path) : base(path ?? "", Load(path), unload: true)
+    /// <param name="picture">« Image » of this playback (<see cref="PictureQuality"/>): the one chosen, or lighter when this PC could not keep up.</param>
+    public MpvEngine(IntPtr window, PlayerSettings settings, bool headless = false, string? picture = null) : this(window, settings, headless, FindLibrary(settings.MpvPath), picture ?? settings.Picture) { }
+    private MpvEngine(IntPtr window, PlayerSettings settings, bool headless, string? path, string picture) : base(path ?? "", Load(path), unload: true)
     {
         try
         {
@@ -41,6 +42,7 @@ public sealed class MpvEngine : MpvClient
             if (headless) Option("ao", "null");
             Option("hwdec", !headless && settings.HardwareDecoding ? "auto" : "no");
             PlayerOptions(settings);
+            if (!headless) PictureOptions(picture);
             Initialize(L("Échec de l’initialisation du rendu mpv.", "mpv’s video rendering couldn’t start."));
         }
         catch { Dispose(); throw; }

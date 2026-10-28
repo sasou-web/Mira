@@ -67,7 +67,7 @@ public partial class MainWindow
     private static string SettingsNotSaved => L("Réglages appliqués, mais pas enregistrés : le disque est plein ou le fichier des réglages est utilisé par un autre programme. Mira réessaiera en se fermant.",
         "Settings applied but not saved: the disk is full or the settings file is in use by another program. Mira will try again when it closes.");
     private bool SettingsChanged() =>
-        _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true) || _settings.ResumeBack.ToString(CultureInfo.InvariantCulture) != Choice(ResumeBackChoice)
+        _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || PictureChoice.Items.Count > 0 && PictureQuality.Known(_settings.Picture) != Choice(PictureChoice) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true) || _settings.ResumeBack.ToString(CultureInfo.InvariantCulture) != Choice(ResumeBackChoice)
         || QualityChoice.Items.Count > 0 && StreamQuality.Known(_settings.Quality) != Choice(QualityChoice)
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
@@ -88,6 +88,8 @@ public partial class MainWindow
         _settingsBusy = true;
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip; RememberCheck.IsChecked = _settings.RememberPosition;
         SelectChoice(ResumeBackChoice, _settings.ResumeBack.ToString(CultureInfo.InvariantCulture));
+        if (PictureChoice.Items.Count == 0) foreach (var (key, label, details) in PictureQuality.Choices) PictureChoice.Items.Add(new ComboBoxItem { Content = label, Tag = key, ToolTip = details });
+        SelectChoice(PictureChoice, PictureQuality.Known(_settings.Picture));
         if (QualityChoice.Items.Count == 0) foreach (var (key, label, _, details) in StreamQuality.Choices) QualityChoice.Items.Add(new ComboBoxItem { Content = label, Tag = key, ToolTip = details });
         SelectChoice(QualityChoice, StreamQuality.Known(_settings.Quality));
         ShowProgressCheck.IsChecked = _settings.ShowProgress; ReduceMotionCheck.IsChecked = _settings.ReduceMotion;
@@ -193,6 +195,9 @@ public partial class MainWindow
     {
         _settings.HardwareDecoding = HardwareCheck.IsChecked == true; _settings.AutoNext = AutoNextCheck.IsChecked == true; _settings.AutoSkip = AutoSkipCheck.IsChecked == true; _settings.RememberPosition = RememberCheck.IsChecked == true;
         _settings.ResumeBack = int.TryParse(Choice(ResumeBackChoice), NumberStyles.Integer, CultureInfo.InvariantCulture, out var back) ? back : 5;
+        // From the next playback (mpv sizes the decoder's frames for it when it opens). Chosen again: tried again, even
+        // after this PC was put on a lighter level.
+        if (PictureChoice.Items.Count > 0 && PictureQuality.Known(Choice(PictureChoice)) is var picture && picture != PictureQuality.Known(_settings.Picture)) { _settings.Picture = picture; _pictureCap = null; }
         // Played from now on; the title playing keeps its stream (the player's ⋮ changes it at once).
         if (QualityChoice.Items.Count > 0) _settings.Quality = StreamQuality.Known(Choice(QualityChoice));
         _settings.ShowProgress = ShowProgressCheck.IsChecked == true; _settings.ReduceMotion = ReduceMotionCheck.IsChecked == true; _settings.PosterDensity = Choice(DensityChoice);

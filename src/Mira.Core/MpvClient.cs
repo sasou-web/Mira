@@ -96,6 +96,21 @@ public abstract unsafe class MpvClient : IDisposable
         foreach (var (name, value) in SubtitleStyle.Options(settings))
             if ((value ?? Get($"option-info/{name}/default-value")) is { } text) Set(name, text);
     }
+    /// <summary>« Image » (<see cref="PictureQuality"/>) before the playback starts; an option this mpv does not know is left out.</summary>
+    protected void PictureOptions(string? level)
+    {
+        foreach (var (name, value) in PictureQuality.Options(level))
+            if (value is not null) TryOption(name, value);
+    }
+    /// <summary>
+    /// « Image » changed while a video plays (only ever to a lighter level: <see cref="PictureWatch"/>): each option set
+    /// again, mpv's own default where the level sets none.
+    /// </summary>
+    public void Picture(string? level)
+    {
+        foreach (var (name, value) in PictureQuality.Options(level))
+            if ((value ?? Get($"option-info/{name}/default-value")) is { } text) Set(name, text);
+    }
     protected void Initialize(string failure) { if (_initialize(_handle) < 0) throw new IOException(failure); }
     public bool Set(string name, string value)
     {

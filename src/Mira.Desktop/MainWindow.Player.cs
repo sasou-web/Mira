@@ -105,7 +105,8 @@ public partial class MainWindow
                 VideoContainer.Children.Add(_videoHost); _videoHandle = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
             }
             ResetMarkers();
-            _mpv = new MpvEngine(_videoHandle, _settings);
+            _mpv = new MpvEngine(_videoHandle, _settings, picture: PictureForPlayback());
+            if (_audioDelay != 0) _mpv.Set("audio-delay", _audioDelay.ToString(CultureInfo.InvariantCulture));
             // Kept to reopen the stream at its position after the PC slept (MainWindow.Power.cs) or a cut (MainWindow.PlayerStream.cs).
             // Someone starting a playback has the PC awake: no earlier sleep is left to handle.
             _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
@@ -228,7 +229,7 @@ public partial class MainWindow
             SeekBar.SetBuffered(_mpv.Number("demuxer-cache-time", 0)); DurationText.Text = TimeLabel(_session.Duration);
             var changed = paused != _session.Paused; _session.Paused = paused; if (changed && paused) ShowPlayerControls(); UpdateMuteIcon();
             if (changed) GroupPauseChanged(paused);
-            WatchGroupStall();
+            WatchGroupStall(); WatchPicture(paused);
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
             UpdateSkip(); CheckSleepTimer();
             UpdateWindowsPlayback();
