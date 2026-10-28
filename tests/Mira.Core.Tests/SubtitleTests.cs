@@ -207,7 +207,7 @@ internal static class SubtitleTests
             Assert(found[0] is { Source: "SubDL", Language: "fre", HashMatch: false } && found[0].ReleaseName.EndsWith("ToonsHub", StringComparison.Ordinal), "Candidate: " + found[0]);
             var file = await api.FetchAsync("/subtitle/1-4.zip", 2, 3, default);
             Assert(file.FileName == "Frieren.S02E03.srt" && Encoding.UTF8.GetString(file.Bytes) == Srt, "The episode from the pack: " + file.FileName);
-            Assert(calls.All(x => x.EndsWith("agent=Mira v0.8.6 key=own-key", StringComparison.Ordinal)) && calls[1].StartsWith("GET dl.subdl.com/subtitle/", StringComparison.Ordinal), "Hosts and key: " + string.Join("\n", calls));
+            Assert(calls[0].EndsWith("agent=Mira v0.8.6 key=own-key", StringComparison.Ordinal) && calls[1].StartsWith("GET dl.subdl.com/subtitle/", StringComparison.Ordinal) && calls[1].EndsWith("agent=Mira v0.8.6 key=", StringComparison.Ordinal), "Hosts, key on the search only: " + string.Join("\n", calls));
             try { await api.FetchAsync("https://evil.example/x.zip", 2, 3, default); throw new Exception("Other host fetched"); }
             catch (SubtitleSourceException) { }
         });
