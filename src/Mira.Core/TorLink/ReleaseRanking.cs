@@ -31,6 +31,8 @@ public static partial class ReleaseRanking
 {
     private static Dictionary<string, string> SourceLabels => new()
     { ["remux"] = "Remux", ["bluray"] = "BluRay", ["webdl"] = "WEB-DL", ["webrip"] = "WEBRip", ["hdrip"] = "HDRip", ["hdtv"] = "HDTV", ["dvd"] = "DVD", ["cam"] = L("Filmé en salle", "Cam") };
+    /// <summary>A source as the page says it: « WEB-DL », « BluRay »; the key itself when Mira has no word for it.</summary>
+    public static string SourceLabel(string source) => SourceLabels.TryGetValue(source, out var label) ? label : source;
     private static readonly Dictionary<string, int> SourceScore = new()
     { ["remux"] = 14, ["bluray"] = 12, ["webdl"] = 10, ["webrip"] = 7, ["hdrip"] = 5, ["hdtv"] = 4, ["dvd"] = 2, ["cam"] = -100 };
     private static readonly Dictionary<int, int> ResolutionScore = new() { [2160] = 20, [1080] = 30, [720] = 16, [576] = 4, [480] = 4 };

@@ -1,0 +1,388 @@
+{
+  "about": "« Sous-titres automatiques » : comment un sous-titre proposé par une source est noté pour un fichier vidéo (Mira.Core SubtitleMatch, tests/Mira.Core.Tests/SubtitleTests.cs). Rien du fichier ne part pour cette note : elle se calcule sur ce que la source dit de son sous-titre et sur ce que Mira sait du fichier.",
+  "editions": [
+    {
+      "name": "Blade.Runner.The.Final.Cut.1982.1080p.BluRay.x264-GRP.mkv",
+      "editions": [
+        "finalcut"
+      ]
+    },
+    {
+      "name": "Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX.mkv",
+      "editions": []
+    },
+    {
+      "name": "Lord.of.the.Rings.Extended.Edition.2001.2160p.UHD.BluRay.REMUX-GRP.mkv",
+      "editions": [
+        "extended"
+      ]
+    },
+    {
+      "name": "Alien 1979 Directors Cut 1080p BluRay",
+      "editions": [
+        "directors"
+      ]
+    },
+    {
+      "name": "Film.2020.REMASTERED.1080p.BluRay-GRP",
+      "editions": []
+    },
+    {
+      "name": "Film.2020.UNRATED.EXTENDED.1080p",
+      "editions": [
+        "extended",
+        "unrated"
+      ]
+    }
+  ],
+  "video": {
+    "dune": {
+      "file": "D:\\Films\\Dune Part Two (2024)\\Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX.mkv",
+      "duration": 9960,
+      "fps": 23.976,
+      "width": 1920,
+      "year": 2024
+    },
+    "duneExtended": {
+      "file": "Dune.Part.Two.2024.EXTENDED.1080p.WEB-DL.H.264-FLUX.mkv",
+      "duration": 10800,
+      "fps": 23.976,
+      "width": 1920,
+      "year": 2024
+    },
+    "frieren": {
+      "file": "[ToonsHub] Sousou no Frieren S02E03 (1080p WEB-DL HEVC).mkv",
+      "duration": 1440,
+      "fps": 23.976,
+      "width": 1920,
+      "season": 2,
+      "episode": 3
+    },
+    "bare": {
+      "file": "film.mkv"
+    }
+  },
+  "scores": [
+    {
+      "name": "l'empreinte reconnue : certain, quoi que dise le nom",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "1",
+        "release": "Dune.Part.Two.2024.2160p.BluRay-OTHER",
+        "fps": 25,
+        "hashMatch": true,
+        "downloads": 3
+      },
+      "score": 100,
+      "verdict": "Sure",
+      "reasons": [
+        "hash"
+      ],
+      "text": "pour ce fichier (empreinte reconnue)"
+    },
+    {
+      "name": "la même release : bon, en tête",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "2",
+        "release": "Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX",
+        "fps": 23.976,
+        "trusted": true,
+        "downloads": 12000
+      },
+      "score": 99,
+      "verdict": "Good",
+      "reasons": [
+        "same-group",
+        "same-source",
+        "same-fps",
+        "trusted"
+      ],
+      "text": "même release (FLUX) · même source (WEB-DL) · même cadence (23,976 i/s) · auteur de confiance"
+    },
+    {
+      "name": "même source, autre groupe : seulement une fois recalé",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "3",
+        "release": "Dune.Part.Two.2024.2160p.WEB-DL.DV.HDR.H.265-GRP",
+        "fps": 23.976,
+        "downloads": 300
+      },
+      "score": 57,
+      "verdict": "IfSynced",
+      "reasons": [
+        "other-group",
+        "same-source",
+        "same-fps"
+      ],
+      "text": "autre release (GRP) · même source (WEB-DL) · même cadence (23,976 i/s)"
+    },
+    {
+      "name": "BluRay à 25 i/s pour un WEB-DL à 23,976 : rejeté",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "4",
+        "release": "Dune.Part.Two.2024.1080p.BluRay.x264-GRP",
+        "fps": 25,
+        "downloads": 5000
+      },
+      "score": 0,
+      "verdict": "Rejected",
+      "reasons": [
+        "other-group",
+        "other-source",
+        "other-fps"
+      ],
+      "text": "autre release (GRP) · autre source (BluRay) · cadence différente (25 / 23,976 i/s)"
+    },
+    {
+      "name": "le montage étendu nommé par le sous-titre et pas par la vidéo : autre montage",
+      "video": "dune",
+      "candidate": {
+        "source": "SubDL",
+        "id": "5",
+        "release": "Dune.Part.Two.2024.EXTENDED.1080p.WEB-DL.H.264-FLUX"
+      },
+      "score": 0,
+      "verdict": "Rejected",
+      "reasons": [
+        "other-edition",
+        "same-group",
+        "same-source"
+      ],
+      "text": "autre montage (extended) · même release (FLUX) · même source (WEB-DL)"
+    },
+    {
+      "name": "la vidéo est un montage étendu et le sous-titre ne le dit pas : à recaler d'abord",
+      "video": "duneExtended",
+      "candidate": {
+        "source": "SubDL",
+        "id": "6",
+        "release": "Dune.Part.Two.2024.1080p.WEB-DL.H.264-FLUX",
+        "fps": 23.976
+      },
+      "score": 99,
+      "verdict": "IfSynced",
+      "reasons": [
+        "edition-unsaid",
+        "same-group",
+        "same-source",
+        "same-fps"
+      ],
+      "text": "montage incertain (extended) · même release (FLUX) · même source (WEB-DL) · même cadence (23,976 i/s)"
+    },
+    {
+      "name": "un autre épisode de la série : rejeté",
+      "video": "frieren",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "7",
+        "release": "Sousou.no.Frieren.S02E04.1080p.WEB-DL.HEVC-ToonsHub",
+        "fps": 23.976
+      },
+      "score": 0,
+      "verdict": "Rejected",
+      "reasons": [
+        "other-episode",
+        "same-group",
+        "same-source",
+        "same-fps"
+      ],
+      "text": "autre épisode (S02E04) · même release (ToonsHub) · même source (WEB-DL) · même cadence (23,976 i/s)"
+    },
+    {
+      "name": "le pack de la saison, même groupe : bon (le fichier de l'épisode se choisit dans l'archive)",
+      "video": "frieren",
+      "candidate": {
+        "source": "SubDL",
+        "id": "8",
+        "release": "Sousou.no.Frieren.S02.1080p.WEB-DL.HEVC-ToonsHub",
+        "fps": 23.976
+      },
+      "score": 99,
+      "verdict": "Good",
+      "reasons": [
+        "same-group",
+        "same-source",
+        "same-fps"
+      ],
+      "text": "même release (ToonsHub) · même source (WEB-DL) · même cadence (23,976 i/s)"
+    },
+    {
+      "name": "le nom de fichier dit le groupe quand le nom de la release ne dit rien",
+      "video": "frieren",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "9",
+        "release": "Frieren Beyond Journey's End 2x03",
+        "files": [
+          "[ToonsHub] Sousou no Frieren S02E03 (1080p WEB-DL HEVC).srt"
+        ]
+      },
+      "score": 90,
+      "verdict": "Good",
+      "reasons": [
+        "same-group",
+        "same-source"
+      ],
+      "text": "même release (ToonsHub) · même source (WEB-DL)"
+    },
+    {
+      "name": "pour sourds et malentendants, laissés de côté : la même release passe sous le seuil du bon",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "10",
+        "release": "Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX",
+        "hearingImpaired": true
+      },
+      "preferences": {
+        "hearing": "Avoid"
+      },
+      "score": 75,
+      "verdict": "Good",
+      "reasons": [
+        "same-group",
+        "same-source",
+        "hearing"
+      ],
+      "text": "même release (FLUX) · même source (WEB-DL) · pour sourds et malentendants"
+    },
+    {
+      "name": "pour sourds et malentendants, préférés : un point de plus, un autre sans en perd",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "11",
+        "release": "Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX"
+      },
+      "preferences": {
+        "hearing": "Prefer"
+      },
+      "score": 85,
+      "verdict": "Good",
+      "reasons": [
+        "same-group",
+        "same-source"
+      ],
+      "text": "même release (FLUX) · même source (WEB-DL)"
+    },
+    {
+      "name": "traduction automatique : rejetée sauf si acceptée",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "12",
+        "release": "Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX",
+        "machineTranslated": true
+      },
+      "score": 0,
+      "verdict": "Rejected",
+      "reasons": [
+        "machine",
+        "same-group",
+        "same-source"
+      ],
+      "text": "traduction automatique · même release (FLUX) · même source (WEB-DL)"
+    },
+    {
+      "name": "traduction automatique acceptée : notée comme une autre",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "13",
+        "release": "Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX",
+        "machineTranslated": true
+      },
+      "preferences": {
+        "allowMachineTranslated": true
+      },
+      "score": 90,
+      "verdict": "Good",
+      "reasons": [
+        "same-group",
+        "same-source"
+      ],
+      "text": "même release (FLUX) · même source (WEB-DL)"
+    },
+    {
+      "name": "des sous-titres forcés quand on veut les complets : rejetés",
+      "video": "dune",
+      "candidate": {
+        "source": "OpenSubtitles",
+        "id": "14",
+        "release": "Dune.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX",
+        "forced": true,
+        "hashMatch": true
+      },
+      "score": 0,
+      "verdict": "Rejected",
+      "reasons": [
+        "hash",
+        "forced"
+      ],
+      "text": "pour ce fichier (empreinte reconnue) · sous-titres forcés"
+    },
+    {
+      "name": "une autre année : un autre film du même nom",
+      "video": "dune",
+      "candidate": {
+        "source": "SubDL",
+        "id": "15",
+        "release": "Dune.1984.1080p.BluRay.x264-GRP"
+      },
+      "score": 0,
+      "verdict": "Rejected",
+      "reasons": [
+        "other-year",
+        "other-group",
+        "other-source"
+      ],
+      "text": "autre année (1984) · autre release (GRP) · autre source (BluRay)"
+    },
+    {
+      "name": "rien de connu du fichier ni de la release : trop peu pour l'automatique",
+      "video": "bare",
+      "candidate": {
+        "source": "SubDL",
+        "id": "16",
+        "release": "Film 2020 WEB"
+      },
+      "score": 20,
+      "verdict": "Rejected",
+      "reasons": [],
+      "text": ""
+    }
+  ],
+  "rank": {
+    "video": "dune",
+    "candidates": [
+      "4",
+      "3",
+      "2",
+      "16",
+      "1"
+    ],
+    "order": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "16"
+    ],
+    "automaticWithSync": [
+      "1",
+      "2",
+      "3"
+    ],
+    "automaticWithoutSync": [
+      "1",
+      "2"
+    ]
+  }
+}
