@@ -52,6 +52,30 @@ await (async () => {
 const internetName = 'mira-check.example', tailscaleName = 'mira-check.tail0000.ts.net';
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required',
   `--host-resolver-rules=MAP ${internetName} ${new URL(base).hostname}, MAP ${tailscaleName} ${new URL(base).hostname}`] });
+// The Chromium of GitHub's runners (Playwright's) plays neither H.264, AAC nor HLS itself: the checks below count on it
+// (a film converted, the streams tried one after the other). A Chromium that plays them (a newer Playwright's, Google
+// Chrome) is shown to Mira as that one, in every context: Mira's profile reads canPlayType and MediaSource.
+const plays = await (async () => {
+  const p = await browser.newPage();
+  try { return await p.evaluate(() => ['video/mp4; codecs="avc1.640029"', 'audio/mp4; codecs="mp4a.40.2"', 'application/vnd.apple.mpegurl'].filter((t) => document.createElement('video').canPlayType(t))); } finally { await p.close(); }
+})();
+if (plays.length) {
+  console.log(`Ce Chromium lit ${plays.join(', ')} : montré à Mira sans, comme celui de GitHub`);
+  const make = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const made = await make(options);
+    await made.addInitScript(() => {
+      const hidden = /avc1|avc3|mp4a|hvc1|hev1|mpegurl/i;
+      const canPlay = HTMLMediaElement.prototype.canPlayType;
+      HTMLMediaElement.prototype.canPlayType = function (type) { return hidden.test(type) ? '' : canPlay.call(this, type); };
+      for (const Source of [window.MediaSource, window.ManagedMediaSource].filter(Boolean)) {
+        const supported = Source.isTypeSupported.bind(Source);
+        Source.isTypeSupported = (type) => !hidden.test(type) && supported(type);
+      }
+    });
+    return made;
+  };
+}
 // What the page's security policy refuses, in every page of every context below: nothing is expected.
 const violations = [];
 const watchPolicy = async (context, name, seen = violations) => {
@@ -249,13 +273,23 @@ try {
   check('reprise au bon endroit', resumed >= second.UserData.PlaybackPositionTicks / 1e7 - 1, `${resumed.toFixed(1)} s`);
   // « Arrêter » from « En ce moment sur Jellyfin » (Mira for Windows, Mira web): Jellyfin's Playstate Stop, through the
   // socket the player keeps open, closes it.
+  // A Sessions answer that is not a list yet (Jellyfin busy starting the stream) is asked again: an exception in the
+  // function would end the wait at once (« session jamais prête » 11 ms after, seen on 10.9).
   const phone = await page.evaluate(() => JSON.parse(localStorage.getItem('mira.device')));
+  let sessionsSeen = '';
   const watching = await page.waitForFunction(async ([id]) => {
-    const s = JSON.parse(localStorage.getItem('mira.session'));
-    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Sessions`, { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
-    const found = (await r.json()).find((x) => x.DeviceId === id);
-    return found?.SupportsRemoteControl && found.NowPlayingItem ? found.Id : null;
-  }, [phone], { timeout: 15000, polling: 500 }).then((handle) => handle.jsonValue(), () => null);
+    try {
+      const s = JSON.parse(localStorage.getItem('mira.session'));
+      const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Sessions`, { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+      const list = await r.json();
+      const found = Array.isArray(list) ? list.find((x) => x.DeviceId === id) : null;
+      window.miraSessionsSeen = `HTTP ${r.status}, ${Array.isArray(list) ? `${list.length} session(s)` : 'pas une liste'}${found ? `, la sienne : ${found.SupportsRemoteControl ? 'commandable' : 'pas commandable'}, ${found.NowPlayingItem ? 'en lecture' : 'rien en lecture'}` : ', pas la sienne'}`;
+      return found?.SupportsRemoteControl && found.NowPlayingItem ? found.Id : null;
+    } catch (error) { window.miraSessionsSeen = String(error); return null; }
+  }, [phone], { timeout: 15000, polling: 500 }).then((handle) => handle.jsonValue(), async (error) => {
+    sessionsSeen = await page.evaluate(() => window.miraSessionsSeen ?? '').catch(() => '') || error.message.split('\n')[0];
+    return null;
+  });
   // « En ce moment sur Jellyfin » in Mira web, on another device with this administrator's account: the phone's
   // session and how Jellyfin sends it; its « Arrêter » is what stops it here.
   let nowRow = '', stoppedFromList = false;
@@ -278,7 +312,7 @@ try {
     await admin.close();
   }
   check('en ce moment (Mira web, administrateur) : la lecture du téléphone, comment Jellyfin l’envoie, « Arrêter »',
-    stoppedFromList && nowRow.includes(seriesName) && /Lecture directe|Conversion|Fichier remis/.test(nowRow), nowRow || 'session jamais prête');
+    stoppedFromList && nowRow.includes(seriesName) && /Lecture directe|Conversion|Fichier remis/.test(nowRow), nowRow || `session jamais prête (${sessionsSeen})`);
   if (watching && !stoppedFromList) await api(`Sessions/${watching}/Playing/Stop`, 'POST');
   const stoppedFromPc = await page.waitForFunction((id) => location.hash.startsWith(`#/titre/${id}`), series.Id, { timeout: 8000 }).then(() => true, () => false);
   const stopToast = await page.locator('.toast').innerText().catch(() => '');
