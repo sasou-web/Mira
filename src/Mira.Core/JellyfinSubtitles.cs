@@ -87,10 +87,21 @@ public static class JellyfinSubtitles
         : null;
     private static string? Field(JsonObject node, string name) => node[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
     private static bool Flag(JsonObject node, string name) => node[name] is JsonValue value && value.TryGetValue<bool>(out var on) && on;
-    /// <summary>The sentence said before any search: what leaves the server, and for whom.</summary>
-    public static string Privacy(IReadOnlyList<string> providers) =>
-        L($"Jellyfin demande à {(providers.Count > 0 ? string.Join(" et ", providers) : "son extension de sous-titres")} : le nom du fichier et son empreinte partent chez ce service.",
-            $"Jellyfin asks {(providers.Count > 0 ? string.Join(" and ", providers) : "its subtitles plugin")}: the file’s name and its fingerprint go to that service.");
+    /// <summary>
+    /// The sentence said before any search: what leaves the server, and for whom. « Mira » (the extension's own provider)
+    /// sends neither the file's name nor anything of the file but its fingerprint: it gets its own sentence.
+    /// </summary>
+    public static string Privacy(IReadOnlyList<string> providers)
+    {
+        var mira = providers.Contains("Mira");
+        var others = providers.Where(p => p != "Mira").ToList();
+        var said = others.Count > 0 || !mira
+            ? L($"Jellyfin demande à {(others.Count > 0 ? string.Join(" et ", others) : "son extension de sous-titres")} : le nom du fichier et son empreinte partent chez ce service.",
+                $"Jellyfin asks {(others.Count > 0 ? string.Join(" and ", others) : "its subtitles plugin")}: the file’s name and its fingerprint go to that service.")
+            : "";
+        var miraSaid = mira ? L("Mira demande à OpenSubtitles, et à SubDL s’il est réglé : l’empreinte et la taille du fichier, ses identifiants IMDb ou TMDb et la langue partent chez ces services, jamais le nom du fichier.", "Mira asks OpenSubtitles, and SubDL when it is set up: the file’s fingerprint and size, the title’s IMDb or TMDb ids and the language go to those services, never the file’s name.") : "";
+        return string.Join(" ", new[] { said, miraSaid }.Where(x => x.Length > 0));
+    }
 
     /// <summary>What happened, in a sentence: « Sous-titres gardés sur Jellyfin, en français : … ».</summary>
     public static string KeptText(SubtitleKept kept, string? language)
