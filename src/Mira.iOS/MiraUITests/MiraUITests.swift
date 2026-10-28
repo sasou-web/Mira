@@ -47,9 +47,12 @@ final class MiraUITests: XCTestCase {
         let series = app.buttons["Pioneer One, 2010"].firstMatch
         XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
         series.tap()
-        XCTAssertTrue(app.buttons["episode.play.3"].waitForExistence(timeout: 15), "The series page lists no episodes")
+        // The episodes come after the summary, drawn as they scroll into view.
+        let third = app.buttons["episode.play.3"]
+        for _ in 0..<4 where !third.waitForExistence(timeout: 4) { app.swipeUp() }
         settle()
         capture("06-series")
+        XCTAssertTrue(third.exists, "The series page lists no episodes")
         app.navigationBars.buttons.firstMatch.tap()
 
         // Scrolling down Home folded the tab bar into its Home button; back at the top, it shows every tab again.
