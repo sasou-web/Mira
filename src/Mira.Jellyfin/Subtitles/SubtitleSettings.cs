@@ -25,7 +25,9 @@ public sealed class SubtitleSettings
     public OpenSubtitlesSettings OpenSubtitles { get; set; } = new();
     public SubDlSettings SubDl { get; set; } = new();
 
+    [JsonIgnore]
     public HearingPreference HearingPreference => Hearing switch { "prefer" => HearingPreference.Prefer, "avoid" => HearingPreference.Avoid, _ => HearingPreference.Any };
+    [JsonIgnore]
     public MatchPreferences Preferences => new(HearingPreference, MachineTranslated);
 }
 
@@ -148,7 +150,8 @@ public sealed record SubtitleJournalEntry(DateTimeOffset When, string ItemId, st
 
 /// <summary>
 /// What « Sous-titres automatiques » did, the last <see cref="Keep"/> things, in one file beside the plugins' settings
-/// (Mira.subtitles-journal.json), for the Réglages of the apps. Kinds: « kept », « none », « rejected », « failed », « quota ».
+/// (Mira.subtitles-journal.json), for the Réglages of the apps. Kinds: « kept », « none » (nothing good
+/// enough yet, tried again later), « given-up », « rejected » (a file set aside by the check), « failed », « quota ».
 /// </summary>
 public sealed class SubtitleJournal
 {

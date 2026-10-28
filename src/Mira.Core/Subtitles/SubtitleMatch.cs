@@ -111,10 +111,13 @@ public static partial class SubtitleMatch
         var chosen = best.OrderByDescending(x => x.Points).First();
         var said = chosen.Release;
 
-        // Out: another episode, another year (a remake), another cut.
-        if (video.Episode is { } episode && said.Episode is { } saidEpisode && (saidEpisode != episode || (video.Season is { } season && said.Season is { } saidSeason && saidSeason != season)))
+        // Out: another episode, another year (a remake), another cut. The video's episode is Jellyfin's, else its file
+        // name's: Jellyfin asks for subtitles while it scans, sometimes before it has numbered the episode.
+        var videoEpisode = video.Episode ?? video.Release.Episode;
+        var videoSeason = video.Season ?? video.Release.Season;
+        if (videoEpisode is { } episode && said.Episode is { } saidEpisode && (saidEpisode != episode || (videoSeason is { } season && said.Season is { } saidSeason && saidSeason != season)))
             Out("other-episode", ReleaseRanking.EpisodeLabel(said));
-        if (video.Episode is not null && said.Episode is null && said.Pack && video.Season is { } s && said.Season is { } ps && ps != s) Out("other-episode", ReleaseRanking.EpisodeLabel(said));
+        if (videoEpisode is not null && said.Episode is null && said.Pack && videoSeason is { } s && said.Season is { } ps && ps != s) Out("other-episode", ReleaseRanking.EpisodeLabel(said));
         if (video.Year is { } year && said.Year is { } saidYear && Math.Abs(saidYear - year) > 1 && video.Episode is null) Out("other-year", saidYear.ToString(CultureInfo.InvariantCulture));
         // The cut: named by the candidate and not the video's, it is another file; named by the video alone, the
         // candidate may be either (many uploads say nothing): worth taking once the audio confirms it.
