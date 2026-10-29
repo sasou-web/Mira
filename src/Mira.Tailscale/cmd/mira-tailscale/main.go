@@ -104,7 +104,11 @@ func main() {
 			out.send(answer(req.ID, nil))
 			h.quit(0)
 		}
-		go h.handle(req)
+		h.inflight.Add(1)
+		go func() {
+			defer h.inflight.Done()
+			h.handle(req)
+		}()
 	}
 	// The app is gone (or closed our input): nothing to serve any more.
 	h.quit(0)
@@ -114,11 +118,12 @@ type helper struct {
 	out  *output
 	logf func(string, ...any)
 
-	mu    sync.Mutex
-	node  *tailnet.Node
-	proxy *tailnet.Proxy
-	stop  func()
-	quits atomic.Bool
+	mu       sync.Mutex
+	node     *tailnet.Node
+	proxy    *tailnet.Proxy
+	stop     func()
+	quits    atomic.Bool
+	inflight sync.WaitGroup // requests being handled: answered before the helper ends
 }
 
 func (h *helper) handle(req request) {
@@ -238,6 +243,15 @@ func (h *helper) close() {
 func (h *helper) quit(code int) {
 	if !h.quits.CompareAndSwap(false, true) {
 		select {}
+	}
+	answered := make(chan struct{})
+	go func() {
+		h.inflight.Wait()
+		close(answered)
+	}()
+	select {
+	case <-answered:
+	case <-time.After(5 * time.Second):
 	}
 	done := make(chan struct{})
 	go func() {
