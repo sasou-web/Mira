@@ -7,8 +7,8 @@ namespace Mira.Desktop;
 
 /// <summary>
 /// « Accueil à ta main » (<see cref="HomeLayout"/>, as on Mac and in Mira web): the home page's rows in the order chosen
-/// in Réglages → Apparence, each shown or not. Continuer à regarder, Tes favoris and « Nouveau dans … » (a library's
-/// latest titles) are rows; « Ajoutés récemment » is the grid that goes on with « Afficher plus », so it stays below them.
+/// in Réglages → Apparence, each shown or not. Continuer à regarder, Tes favoris, Collections and « Nouveau dans … » (a
+/// library's latest titles) are rows; « Ajoutés récemment » is the grid that goes on with « Afficher plus », so it stays below them.
 /// </summary>
 public partial class MainWindow
 {
@@ -19,7 +19,7 @@ public partial class MainWindow
     private List<HomeLayout.Row> HomeRows() => HomeLayout.Rows(_settings.HomeRows, _homeLibraries);
     private bool HomeShows(string key) => HomeRows().FirstOrDefault(x => x.Key == key)?.Shown != false;
 
-    /// <summary>The rows Jellyfin fills beside Continuer à regarder: the favourites, a library's latest titles.</summary>
+    /// <summary>The rows Jellyfin fills beside Continuer à regarder: the favourites, the collections, a library's latest titles.</summary>
     private async Task<Dictionary<string, List<MediaItem>>> LoadShelvesAsync(JellyfinClient client, CancellationToken ct)
     {
         if (_homeLibraries.Count == 0)
@@ -27,10 +27,14 @@ public partial class MainWindow
             try { _homeLibraries = await client.LibrariesAsync(ct); }
             catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested) { }
         }
-        var rows = HomeRows().Where(x => x.Shown && (x.Key == HomeLayout.Favorites || x.LibraryId is not null)).ToList();
+        var rows = HomeRows().Where(x => x.Shown && (x.Key is HomeLayout.Favorites or HomeLayout.Collections || x.LibraryId is not null)).ToList();
         var lists = await Task.WhenAll(rows.Select(async row =>
         {
-            try { return (await (row.LibraryId is { } library ? client.BrowseAsync(parentId: library, limit: 30, ct: ct) : client.BrowseAsync(favorites: true, limit: 30, ct: ct))).Items; }
+            try
+            {
+                if (row.Key == HomeLayout.Collections) return await client.CollectionsAsync(30, ct);
+                return (await (row.LibraryId is { } library ? client.BrowseAsync(parentId: library, limit: 30, ct: ct) : client.BrowseAsync(favorites: true, limit: 30, ct: ct))).Items;
+            }
             // A row that does not come leaves the others.
             catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested) { return null; }
         }));

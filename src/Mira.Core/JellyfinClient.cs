@@ -229,6 +229,86 @@ public sealed class JellyfinClient : IDisposable
         var others = titles.Items.Where(x => x.Id != id).ToList();
         return others.Count == 0 ? null : new Saga(box.Name, others);
     }
+    // Collections made by hand (TitleCollections), beside the sagas: Jellyfin's own, which only list titles.
+    /// <summary>Every collection this account sees, sagas and those made by hand, by name, with their folder (<see cref="TitleCollections.NameProblem"/>).</summary>
+    public async Task<List<MediaItem>> CollectionsAsync(int limit = 500, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=BoxSet&sortBy=SortName&limit={limit}&fields=ChildCount,Path&enableImages=true", ct)).Items;
+    /// <summary>The ids of the collections holding a title; null when Jellyfin cannot say (404: older than 12.1).</summary>
+    public async Task<HashSet<string>?> CollectionsOfAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"Items/{Uri.EscapeDataString(id)}/Collections?userId={Connection.UserId}&enableImages=false", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        var found = await response.Content.ReadFromJsonAsync<ItemsResult>(Json.Options, ct);
+        return (found?.Items ?? []).Where(x => x.Type == "BoxSet").Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+    /// <summary>What this account may do with collections, read from its policy; none when Jellyfin does not say.</summary>
+    public async Task<TitleCollections.Rights> CollectionRightsAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("Users/Me", ct);
+        if (!response.IsSuccessStatusCode) return TitleCollections.Rights.None;
+        using var user = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return user.RootElement.ValueKind == JsonValueKind.Object && user.RootElement.TryGetProperty("Policy", out var policy) ? TitleCollections.Rights.From(policy) : TitleCollections.Rights.None;
+    }
+    /// <summary>
+    /// A new collection holding <paramref name="ids"/>: its id. The name is checked first against those already there
+    /// (<see cref="TitleCollections.NameProblem"/>): Jellyfin would put a second collection of the same folder in the first's place.
+    /// </summary>
+    public async Task<string> CreateCollectionAsync(string name, IEnumerable<string> ids, CancellationToken ct = default)
+    {
+        var clean = TitleCollections.Clean(name);
+        if (TitleCollections.NameProblem(clean, await CollectionsAsync(ct: ct)) is { } refusal) throw new UserInputException(refusal.Text);
+        // Without titles, an empty collection (« Nouvelle collection » of the collections' page).
+        var titles = string.Join(',', ids.Select(Uri.EscapeDataString));
+        using var response = await _http.PostAsync($"Collections?name={Uri.EscapeDataString(clean)}{(titles.Length > 0 ? "&ids=" + titles : "")}", null, ct);
+        await CheckCollectionAsync(response);
+        using var made = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return made.RootElement.TryGetProperty("Id", out var id) && id.GetString() is { Length: > 0 } text ? text : throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    /// <summary>Titles put in a collection, or taken out of it (the titles themselves stay where they are).</summary>
+    public async Task SetInCollectionAsync(string collectionId, IEnumerable<string> ids, bool inside, CancellationToken ct = default)
+    {
+        var path = $"Collections/{Uri.EscapeDataString(collectionId)}/Items?ids={string.Join(',', ids.Select(Uri.EscapeDataString))}";
+        using var response = inside ? await _http.PostAsync(path, null, ct) : await _http.DeleteAsync(path, ct);
+        await CheckCollectionAsync(response);
+    }
+    /// <summary>
+    /// A collection renamed (an administrator): its details as Jellyfin gives them, sent back with the new name, so that
+    /// nothing else of it changes. Its folder keeps its first name.
+    /// </summary>
+    public async Task RenameCollectionAsync(string collectionId, string name, CancellationToken ct = default)
+    {
+        var clean = TitleCollections.Clean(name);
+        if (TitleCollections.NameProblem(clean, await CollectionsAsync(ct: ct), collectionId) is { } refusal) throw new UserInputException(refusal.Text);
+        var item = await CollectionAsync(collectionId, ct);
+        item["Name"] = clean;
+        using var content = new StringContent(item.ToJsonString(), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync($"Items/{Uri.EscapeDataString(collectionId)}", content, ct);
+        await CheckCollectionAsync(response);
+    }
+    /// <summary>
+    /// A collection deleted: its list and its folder in Jellyfin's data, never its titles. Jellyfin deletes anything by
+    /// this route, files included: it is asked first what <paramref name="collectionId"/> is, and only a collection goes.
+    /// </summary>
+    public async Task DeleteCollectionAsync(string collectionId, CancellationToken ct = default)
+    {
+        await CollectionAsync(collectionId, ct);
+        using var response = await _http.DeleteAsync($"Items/{Uri.EscapeDataString(collectionId)}", ct);
+        await CheckCollectionAsync(response);
+    }
+    /// <summary>
+    /// A refusal of Jellyfin said as one: this account may not manage collections (its rights changed since they were
+    /// read), never « session expirée », which would sign it out.
+    /// </summary>
+    private static Task CheckCollectionAsync(HttpResponseMessage response) =>
+        response.StatusCode == HttpStatusCode.Forbidden ? throw new UserInputException(TitleCollections.Refused) : CheckAsync(response);
+    /// <summary>A collection's details as Jellyfin gives them; refused for anything else.</summary>
+    private async Task<JsonObject> CollectionAsync(string collectionId, CancellationToken ct)
+    {
+        var item = await GetAsync<JsonObject>($"Items/{Uri.EscapeDataString(collectionId)}?userId={Connection.UserId}", ct);
+        return item["Type"] is JsonValue type && type.TryGetValue<string>(out var kind) && kind == "BoxSet"
+            ? item : throw new UserInputException(L("Ce n’est pas une collection : Mira n’y touche pas.", "This isn’t a collection: Mira leaves it alone."));
+    }
     /// <summary>What Jellyfin decides for a device profile (<see cref="ServerStreams.Request"/>): the file as it is, or its conversion.</summary>
     public async Task<PlaybackInfo> PlaybackInfoAsync(string id, JsonObject request, CancellationToken ct = default)
     {

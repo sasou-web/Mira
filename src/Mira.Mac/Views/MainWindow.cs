@@ -222,6 +222,8 @@ public sealed class MainWindow : Window
         _overlay.Children.Clear(); _rail.IsVisible = true;
         _railButtons["downloads"].IsVisible = false;
         _ = OfferDownloadsAsync(Session);
+        CollectionRights = TitleCollections.Rights.None;
+        _ = LoadCollectionRightsAsync(Session);
         _history.Clear();
         await NavigateAsync(new HomePage(this));
         if (Session.Store.DamagedCopy is not null) Notice(L("Le cache local de ce compte était illisible : il a été recréé.", "This account’s local cache couldn’t be read: it was created again."));
@@ -531,11 +533,13 @@ public sealed class MainWindow : Window
     {
         var menu = new ContextMenu();
         void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
-        // A saga plays nothing by itself: its films do, from their page.
+        // A collection (a saga or one made by hand) plays nothing by itself: its titles do, from their page.
         if (item.Type == "BoxSet")
         {
-            Add(L("Voir la saga", "See the collection"), () => Open(item));
+            Add(L("Voir la collection", "See the collection"), () => Open(item));
             Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
+            if (CollectionRights.Rename) Add(L("Renommer…", "Rename…"), () => _ = RenameCollectionAsync(item));
+            if (CollectionRights.Manage) Add(L("Supprimer la collection…", "Delete collection…"), () => AskDeleteCollection(item));
             return menu;
         }
         Add(item.Progress > 0 && !item.UserData.Played ? L("Reprendre", "Resume") : L("Lecture", "Play"), () => _ = PlayAsync(item));
@@ -543,7 +547,69 @@ public sealed class MainWindow : Window
         Add(L("Plus d’infos", "More info"), () => Open(item));
         Add(item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), () => _ = SetPlayedAsync(item, !item.UserData.Played));
         Add(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), () => _ = SetFavoriteAsync(item, !item.UserData.IsFavorite));
+        if (TitleCollections.Holds(item) && CollectionRights.Manage)
+        {
+            Add(L("Ajouter à une collection…", "Add to collection…"), () => _ = CollectAsync(item));
+            if (Current is BrowsePage { Saga: { } shown }) Add(L("Retirer de la collection", "Remove from collection"), () => _ = PutInCollectionAsync(item, shown, false));
+        }
         return menu;
+    }
+
+    // Collections made by hand (TitleCollections), as Windows and Mira web make them; only for an account Jellyfin lets
+    // manage collections, never a file moved.
+    /// <summary>What this account may do with collections, once Jellyfin said: a card's menu, drawn at once, reads it.</summary>
+    public TitleCollections.Rights CollectionRights { get; private set; } = TitleCollections.Rights.None;
+    private async Task LoadCollectionRightsAsync(Session session)
+    {
+        try { var rights = await session.Client.CollectionRightsAsync(); if (ReferenceEquals(session, Session)) CollectionRights = rights; }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+    }
+    /// <summary>« Ajouter à une collection… »: the collections ticked, a new one named.</summary>
+    public async Task CollectAsync(MediaItem item)
+    {
+        if (Session is not { } session) return;
+        var window = new CollectionWindow(session, item);
+        await window.ShowDialog(this);
+        if (window.Said is { } said) Notice(said);
+        if (window.Changed) await RefreshPagesAsync();
+    }
+    /// <summary>« Renommer… » (an administrator); its page, shown, opens again under its new name.</summary>
+    public async Task RenameCollectionAsync(MediaItem collection)
+    {
+        if (Session is not { } session) return;
+        var window = new CollectionWindow(session, null, collection);
+        await window.ShowDialog(this);
+        if (window.Said is { } said) Notice(said);
+        if (window.NewName is { } name && Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id) { Back(); Open(new MediaItem { Id = collection.Id, Name = name, Type = "BoxSet" }); }
+        else if (window.Changed) await RefreshPagesAsync();
+    }
+    /// <summary>« Supprimer la collection… », asked first: its list goes, never its titles.</summary>
+    public void AskDeleteCollection(MediaItem collection) =>
+        Notice(TitleCollections.DeleteQuestion(collection.Name), L("Supprimer", "Delete"), () => _ = DeleteCollectionAsync(collection), sticky: true);
+    private async Task DeleteCollectionAsync(MediaItem collection)
+    {
+        if (Session is not { } session) return;
+        try
+        {
+            await session.Client.DeleteCollectionAsync(collection.Id);
+            Notice(TitleCollections.Deleted(collection.Name));
+            if (Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id) { Back(); return; }
+            await RefreshPagesAsync();
+        }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
+    }
+    /// <summary>A title taken out of a collection from its page (« Annuler » puts it back), or put back.</summary>
+    private async Task PutInCollectionAsync(MediaItem item, MediaItem collection, bool inside)
+    {
+        if (Session is not { } session) return;
+        try
+        {
+            await session.Client.SetInCollectionAsync(collection.Id, [item.Id], inside);
+            if (inside) Notice(TitleCollections.Added(collection.Name));
+            else Notice(TitleCollections.Removed(collection.Name), L("Annuler", "Undo"), () => _ = PutInCollectionAsync(item, collection, true));
+            await RefreshPagesAsync();
+        }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

@@ -2,6 +2,7 @@
 import { session, device, settings } from './session.js';
 import { SUBTITLE_FORMATS } from './subtitles.js';
 import { FIELDS as CHECK_FIELDS, imagePath } from './identify.js';
+import { collectionRights } from './collections.js';
 import { tr, language } from './i18n.js';
 
 export const VERSION = document.querySelector('meta[name="mira-version"]')?.content.replace('{{version}}', '0.0.0') || '0.0.0';
@@ -262,6 +263,8 @@ const user = () => session.current?.userId;
 let providers = null;   // { token, list }
 // « Identifier… » and « Titres à corriger »: whether this account administers Jellyfin (api.isAdministrator).
 let administrator = null;   // { token, answer }
+// Collections made by hand: what this account may do with them (api.collectionRights).
+let rights = null;   // { token, answer }
 /** The bytes of a file, as the base64 Jellyfin's subtitle upload takes. */
 function base64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -672,6 +675,35 @@ export const api = {
   /** A saga's titles in the order they came out (its page, and the row on the page of one of its films). */
   sagaTitles: (id) => get('Items', { userId: user(), parentId: id, sortBy: 'ProductionYear,PremiereDate,SortName', fields: CARD_FIELDS, ...CARD_IMAGES, enableUserData: true })
     .then((r) => r?.Items ?? []),
+  // Collections made by hand (collection-sheet.js), beside the sagas: Jellyfin's own, which only list titles.
+  /** Every collection this account sees, sagas and those made by hand, by name, with their folder (collections.js). */
+  collections: (limit = 500) => get('Items', { userId: user(), recursive: true, includeItemTypes: 'BoxSet', sortBy: 'SortName', limit, fields: `${GRID_FIELDS},Path`, ...CARD_IMAGES })
+    .then((r) => r?.Items ?? []),
+  /** The ids of the collections holding a title; null when Jellyfin cannot say (404: older than 12.1). */
+  collectionsOf: (id) => get(`Items/${encodeURIComponent(id)}/Collections`, { userId: user(), enableImages: false })
+    .then((r) => new Set((r?.Items ?? []).filter((x) => x.Type === 'BoxSet').map((x) => x.Id)), (error) => { if (error?.status === 404) return null; throw error; }),
+  /** What this account may do with collections ({ manage, rename }), asked once per session. */
+  collectionRights() {
+    // A guest of « Inviter par lien » has no library of their own.
+    if (isGuest()) return Promise.resolve(collectionRights(null));
+    const token = session.current?.token;
+    if (rights?.token !== token) rights = { token, answer: get('Users/Me').then((me) => collectionRights(me?.Policy), () => { rights = null; return collectionRights(null); }) };
+    return rights.answer;
+  },
+  /** A new collection holding these titles: its id. Its name is checked by the caller (nameProblem): a second of the same folder takes the first's place. */
+  createCollection: (name, ids) => post('Collections', undefined, { name, ids: ids.join(',') }).then((r) => r?.Id ?? null),
+  /** Titles put in a collection (inside), or taken out of it: the titles themselves stay where they are. */
+  setInCollection: (collectionId, ids, inside) => request(inside ? 'POST' : 'DELETE', `Collections/${encodeURIComponent(collectionId)}/Items`, { params: { ids: ids.join(',') } }),
+  /** A collection's details as Jellyfin gives them; refused for anything else (Jellyfin deletes a title's files by the same route). */
+  async collection(id) {
+    const item = await get(`Items/${encodeURIComponent(id)}`, { userId: user() });
+    if (item?.Type !== 'BoxSet') throw new ApiError(400, tr('Ce n’est pas une collection : Mira n’y touche pas.'));
+    return item;
+  },
+  /** Renamed (an administrator): its details sent back with the new name, nothing else of it changed. Its folder keeps its first name. */
+  async renameCollection(id, name) { return post(`Items/${encodeURIComponent(id)}`, { ...(await this.collection(id)), Name: name }); },
+  /** Deleted: its list and its folder in Jellyfin's data, never its titles; asked first that it is a collection. */
+  async deleteCollection(id) { await this.collection(id); return request('DELETE', `Items/${encodeURIComponent(id)}`); },
 
   setPlayed: (id, played) => request(played ? 'POST' : 'DELETE', `UserPlayedItems/${encodeURIComponent(id)}`, { params: { userId: user() } }),
   setFavorite: (id, favorite) => request(favorite ? 'POST' : 'DELETE', `UserFavoriteItems/${encodeURIComponent(id)}`, { params: { userId: user() } }),

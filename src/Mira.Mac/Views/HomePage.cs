@@ -94,12 +94,16 @@ public sealed class HomePage : Page
         var latest = client.BrowseAsync(limit: 30);
         var favorites = client.BrowseAsync(favorites: true, limit: 30);
         var libraries = TryAsync(() => client.LibrariesAsync());
-        await Task.WhenAll(resume, next, latest, favorites, libraries);
+        // The collections only while their row is shown.
+        var collections = HomeLayout.Rows(Shell.Settings.HomeRows, []).Any(x => x.Key == HomeLayout.Collections && x.Shown)
+            ? TryAsync(() => client.CollectionsAsync(30)) : Task.FromResult<List<MediaItem>?>(null);
+        await Task.WhenAll(resume, next, latest, favorites, libraries, collections);
         // « Nouveau dans Animes »: only the libraries whose row is shown are asked.
         var views = libraries.Result ?? [];
         var wanted = HomeLayout.Rows(Shell.Settings.HomeRows, views).Where(x => x.Shown && x.LibraryId is not null).Select(x => x.LibraryId!).ToList();
         var lists = await Task.WhenAll(wanted.Select(id => TryAsync(() => client.BrowseAsync(parentId: id, limit: 30))));
         var shelves = wanted.Zip(lists).ToDictionary(x => x.First, x => x.Second?.Items ?? []);
+        if (collections.Result is { } found) shelves[HomeLayout.Collections] = found;
         var seasons = Artwork.Seasons(resume.Result.Items.Concat(next.Result.Items)).ToList();
         var thumbs = seasons.Count > 0 ? await TryAsync(() => client.SeasonThumbsAsync(seasons)) ?? [] : [];
         var (merged, history, hidden) = await Task.Run(() =>
@@ -137,6 +141,7 @@ public sealed class HomePage : Page
                 HomeLayout.Continue => resume,
                 HomeLayout.Latest => latest,
                 HomeLayout.Favorites => favorites,
+                HomeLayout.Collections => shelves.GetValueOrDefault(HomeLayout.Collections) ?? [],
                 _ => shelves.GetValueOrDefault(row.LibraryId ?? "") ?? []
             };
             if (items.Count == 0) continue;

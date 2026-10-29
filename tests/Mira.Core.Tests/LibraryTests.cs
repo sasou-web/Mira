@@ -88,7 +88,7 @@ internal static class LibraryTests
             Assert(!catalog.SearchesPeople("Harry") && !catalog.FoundBeside("Harry"), "Dans une saga, ni personnes, ni épisodes, ni sagas.");
             Assert(catalog.Parent == "b1" && catalog.Sort("recent") == "saga" && catalog.Sort("") == "saga" && catalog.Sort("title") == "title", "Saga : ses titres, dans l’ordre de sortie sauf autre tri.");
             Assert(catalog.GridTitle("") == "Harry Potter - Saga" && catalog.Key("", new CatalogQuery()).Contains(":b1:"), "Saga : son nom, sa clé de cache.");
-            Assert(catalog.Empty("", new CatalogQuery(Sort: "saga"), demo: false).Title == "Aucun titre dans cette saga", "Saga vide.");
+            Assert(catalog.Empty("", new CatalogQuery(Sort: "saga"), demo: false).Title == "Aucun titre dans cette collection", "Collection vide.");
             catalog.Saga = null; catalog.ParentId = null;
             Assert(catalog.PageTitle == "Rechercher" && catalog.AwaitsSearch("") && !catalog.AwaitsSearch("a") && catalog.Empty("", new CatalogQuery(), false) is { Title: "Que veux-tu regarder ?", Reset: false, Guide: false }, "Page Rechercher : une invitation avant la première lettre.");
             catalog.ShowDemo([new MediaItem { Id = "m", Name = "Alien", Type = "Movie" }], "", new CatalogQuery());
@@ -208,6 +208,76 @@ internal static class LibraryTests
                 Assert(shown == row[3].GetString(), $"« {row[0]} » {row[1]} {row[2]}: {shown}");
             }
             return Task.CompletedTask;
+        });
+        await Test("Collections à la main : noms refusés (vide, trop long, nom ou dossier déjà pris), dossier, droits, comme Mira web (tests/fixtures/collections.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "collections.json")));
+            var collections = fixture.RootElement.GetProperty("collections").EnumerateArray().Select(x => new MediaItem
+            {
+                Id = x.GetProperty("Id").GetString()!, Name = x.GetProperty("Name").GetString()!, Type = "BoxSet",
+                Path = x.TryGetProperty("Path", out var path) ? path.GetString() : null,
+            }).ToList();
+            foreach (var row in fixture.RootElement.GetProperty("names").EnumerateArray())
+            {
+                var refusal = TitleCollections.NameProblem(row[0].GetString(), collections, row[1].GetString());
+                var problem = refusal?.Problem switch { null => null, TitleCollections.Problem.TooLong => "long", var p => p.ToString()!.ToLowerInvariant() };
+                Assert(problem == row[2].GetString() && refusal?.Taken == row[3].GetString(), $"« {row[0]} »: {problem} {refusal?.Taken}");
+            }
+            foreach (var row in fixture.RootElement.GetProperty("folders").EnumerateArray())
+                Assert(TitleCollections.Folder(row[0].GetString()) == row[1].GetString(), $"Folder of {row[0]}: {TitleCollections.Folder(row[0].GetString())}");
+            foreach (var row in fixture.RootElement.GetProperty("rights").EnumerateArray())
+                Assert(TitleCollections.Rights.From(row[0]) == new TitleCollections.Rights(row[1].GetBoolean(), row[2].GetBoolean()), $"Rights of {row[0]}");
+            Assert(TitleCollections.Rights.From(default) == TitleCollections.Rights.None, "No policy, no rights");
+            Assert(TitleCollections.Holds(new() { Type = "Movie" }) && TitleCollections.Holds(new() { Type = "Series" }) && !TitleCollections.Holds(new() { Type = "Episode" }) && !TitleCollections.Holds(new() { Type = "BoxSet" }), "What a collection takes");
+            Assert(string.Join("|", TitleCollections.Sorted([new() { Name = "soirées" }, new() { Name = "Ghibli" }, new() { Name = "À montrer" }]).Select(x => x.Name)) == "À montrer|Ghibli|soirées", "Order of the menu");
+            Assert(new TitleCollections.Refusal(TitleCollections.Problem.Taken, "Soirées").Text == "Ce nom est déjà pris par la collection « Soirées ».", "Text of a name taken");
+            return Task.CompletedTask;
+        });
+        await Test("Collections à la main sur Jellyfin : un nom pris jamais envoyé, une collection vide possible, renommée entière, seule une collection supprimée", async () =>
+        {
+            var asked = new List<string>();
+            var holding = HttpStatusCode.OK;
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                asked.Add($"{request.Method} {path}{(request.Content is null ? "" : " " + await request.Content.ReadAsStringAsync())}");
+                if (path.StartsWith("/Items?", StringComparison.Ordinal) && path.Contains("includeItemTypes=BoxSet"))
+                    return JsonResponse(new { Items = new object[] { new { Id = "c1", Name = "Soirées", Type = "BoxSet", Path = "/config/data/collections/Soirées [boxset]" }, new { Id = "c2", Name = "Dimanche", Type = "BoxSet", Path = "/config/data/collections/Ancien nom [boxset]" } }, TotalRecordCount = 2 });
+                if (path.StartsWith("/Collections?", StringComparison.Ordinal)) return JsonResponse(new { Id = "c9" });
+                if (path.StartsWith("/Items/c1/Collections", StringComparison.Ordinal)) return holding == HttpStatusCode.OK ? JsonResponse(new { Items = new object[] { new { Id = "c1", Type = "BoxSet" }, new { Id = "f1", Type = "Folder" } } }) : new HttpResponseMessage(holding);
+                if (path.StartsWith("/Items/c2?", StringComparison.Ordinal)) return JsonResponse(new { Id = "c2", Name = "Dimanche", Type = "BoxSet", Overview = "Pour le dimanche", LockedFields = new[] { "Name" } });
+                if (path.StartsWith("/Items/film?", StringComparison.Ordinal)) return JsonResponse(new { Id = "film", Name = "Alien", Type = "Movie" });
+                if (path == "/Users/Me") return JsonResponse(new { Policy = new { IsAdministrator = false, EnableCollectionManagement = true } });
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }));
+            foreach (var taken in new[] { " soirées", "ancien nom" })
+            {
+                try { await client.CreateCollectionAsync(taken, ["film"]); throw new Exception("A name taken was sent: " + taken); }
+                catch (UserInputException ex) { Assert(ex.Message.StartsWith("Ce nom est déjà pris", StringComparison.Ordinal), ex.Message); }
+            }
+            Assert(!asked.Any(x => x.StartsWith("POST /Collections", StringComparison.Ordinal)), "Sent: " + string.Join(" | ", asked));
+            Assert(await client.CreateCollectionAsync(" À montrer ", ["film", "série 2"]) == "c9" && asked[^1] == "POST /Collections?name=%C3%80%20montrer&ids=film,s%C3%A9rie%202", asked[^1]);
+            Assert(await client.CreateCollectionAsync("Vide", []) == "c9" && asked[^1] == "POST /Collections?name=Vide", asked[^1]);
+            await client.SetInCollectionAsync("c1", ["film"], inside: true);
+            Assert(asked[^1] == "POST /Collections/c1/Items?ids=film", asked[^1]);
+            await client.SetInCollectionAsync("c1", ["film"], inside: false);
+            Assert(asked[^1] == "DELETE /Collections/c1/Items?ids=film", asked[^1]);
+            Assert((await client.CollectionsOfAsync("c1"))!.SetEquals(["c1"]), "Collections holding a title");
+            holding = HttpStatusCode.NotFound;
+            Assert(await client.CollectionsOfAsync("c1") is null, "Jellyfin 10.x: cannot say");
+            Assert(await client.CollectionRightsAsync() == new TitleCollections.Rights(true, false), "Rights from Users/Me");
+
+            // Renamed: its old folder stays taken by it, its other details sent back as they were.
+            try { await client.RenameCollectionAsync("c2", "Soirées"); throw new Exception("Renamed to a name taken"); } catch (UserInputException) { }
+            await client.RenameCollectionAsync("c2", "Ancien nom");
+            Assert(asked[^1].StartsWith("POST /Items/c2 ", StringComparison.Ordinal) && asked[^1].Contains("\"Name\":\"Ancien nom\"") && asked[^1].Contains("\"Overview\":\"Pour le dimanche\"") && asked[^1].Contains("\"LockedFields\":[\"Name\"]"), asked[^1]);
+            // Jellyfin deletes a film's files by the same route: only a collection goes.
+            asked.Clear();
+            try { await client.DeleteCollectionAsync("film"); throw new Exception("A film was deleted"); }
+            catch (UserInputException ex) { Assert(ex.Message == "Ce n’est pas une collection : Mira n’y touche pas." && !asked.Any(x => x.StartsWith("DELETE", StringComparison.Ordinal)), string.Join(" | ", asked)); }
+            await client.DeleteCollectionAsync("c2");
+            Assert(asked[^1] == "DELETE /Items/c2", asked[^1]);
         });
         await Test("Continuer à regarder : un titre retiré disparaît jusqu’à sa prochaine lecture, et sa reprise est remise à zéro", async () =>
         {

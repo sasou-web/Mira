@@ -25,6 +25,6 @@ test('the names of the rows in English', () => {
   try {
     setLanguage('en');
     const rows = homeRows('', [{ Id: 'a1', Name: 'Anime', CollectionType: 'tvshows' }]);
-    assert.deepEqual(rows.map((x) => x.title), ['Continue watching', 'Recently added', 'Your favorites', 'New in Anime']);
+    assert.deepEqual(rows.map((x) => x.title), ['Continue watching', 'Recently added', 'Your favorites', 'Collections', 'New in Anime']);
   } finally { setLanguage('fr'); }
 });

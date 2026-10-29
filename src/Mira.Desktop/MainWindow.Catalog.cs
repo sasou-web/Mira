@@ -58,7 +58,7 @@ public partial class MainWindow
         GenreFilter.SelectedItem = choice; _filterBusy = false; _filtersOpen = true;
         await NavigateLibraryAsync();
     }
-    /// <summary>A saga found by a search: the library with its titles in the order they came out, the search kept to come back to.</summary>
+    /// <summary>A collection (a saga, or one made by hand) found by a search or on Home: the library with its titles in the order they came out, the search kept to come back to.</summary>
     private async Task ShowSagaAsync(MediaItem saga, string search)
     {
         var view = _catalog.View;
@@ -362,11 +362,12 @@ public partial class MainWindow
         menu.Opened += (_, _) =>
         {
             var item = card.Item; menu.Items.Clear(); ClosePreview();
-            // A saga plays nothing by itself: its films do, from their page.
+            // A collection (a saga or one made by hand) plays nothing by itself: its titles do, from their page.
             if (item.Type == "BoxSet")
             {
-                menu.Items.Add(MenuAction(L("Voir la saga", "View collection"), "info", async () => await ShowSagaAsync(item, SearchBox.Text.Trim())));
+                menu.Items.Add(MenuAction(L("Voir la collection", "View collection"), "info", async () => await ShowSagaAsync(item, SearchBox.Text.Trim())));
                 menu.Items.Add(MenuAction(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
+                AddCollectionActions(menu, item);
                 return;
             }
             var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
@@ -377,6 +378,7 @@ public partial class MainWindow
             menu.Items.Add(MenuAction(item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"), item.UserData.Played ? "refresh" : "check", async () => await SetPlayedAsync(item, !item.UserData.Played)));
             menu.Items.Add(MenuAction(item.UserData.IsFavorite ? L("Retirer des favoris", "Remove from favorites") : L("Ajouter aux favoris", "Add to favorites"), item.UserData.IsFavorite ? "minus" : "heart", async () => { await ToggleFavoriteAsync(item); RenderAfterUserDataChange(); }));
             if (wide) menu.Items.Add(MenuAction(L("Retirer de Continuer à regarder", "Remove from Continue watching"), "close", async () => await HideFromResumeAsync(item)));
+            AddCollectionEntries(menu, item);
             if (OfflineMenuItem(item) is { } offline) { menu.Items.Add(new Separator()); menu.Items.Add(offline); }
         };
         menu.Items.Add(new MenuItem { Header = "…" }); // replaced when opened

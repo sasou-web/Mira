@@ -1,4 +1,4 @@
-// Search films, series, people, studios, episodes and sagas as you type; recent searches stay on this phone.
+// Search films, series, people, studios, episodes and collections as you type; recent searches stay on this phone.
 import { api, GRID_FIELDS } from '../api.js';
 import { h, icon, clear } from '../dom.js';
 import { tr, trn } from '../i18n.js';
@@ -32,7 +32,7 @@ export function create({ query }) {
 
   function recent() {
     const list = settings.get('recentSearches');
-    if (!list.length) return emptyState({ symbol: 'search', title: tr('Que veux-tu regarder ?'), text: tr('Cherche un film, une série, un épisode, une saga, un acteur ou un studio de ta bibliothèque.') });
+    if (!list.length) return emptyState({ symbol: 'search', title: tr('Que veux-tu regarder ?'), text: tr('Cherche un film, une série, un épisode, une collection, un acteur ou un studio de ta bibliothèque.') });
     return h('div', {}, h('div', { class: 'section-head' }, h('h2', { class: 'label' }, tr('Recherches récentes')),
       h('button', { class: 'btn quiet small', on: { click: () => { settings.set('recentSearches', []); clear(results).append(recent()); } } }, tr('Effacer'))),
     h('div', { class: 'recent' }, list.map((text) => h('button', { on: { click: () => { input.value = text; update(); } } }, icon('history', { size: 20 }), text))));
@@ -91,9 +91,9 @@ export function create({ query }) {
         results.append(h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, tr('Films et séries'))),
           h('div', { class: 'grid', style: { padding: '0 var(--gutter) 24px' } }, items.map((x) => kept(posterCard(x))))));
       }
-      // An episode opens its series at it; a saga, its own page with its films in order.
+      // An episode opens its series at it; a collection, its own page with its titles in order.
       if (episodes.length) results.append(row(tr('Épisodes'), episodes, (x) => kept(wideCard(x, { play: false })), { wide: true }));
-      if (sagas.length) results.append(row(tr('Sagas'), sagas, (x) => kept(posterCard(x))));
+      if (sagas.length) results.append(row(tr('Collections'), sagas, (x) => kept(posterCard(x))));
       // Found something, but perhaps not the one: an administrator can still have it downloaded.
       const own = controller;
       if (await administrator() && own === controller) {

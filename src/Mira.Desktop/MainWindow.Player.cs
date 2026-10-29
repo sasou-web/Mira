@@ -501,6 +501,7 @@ public partial class MainWindow
         if (WhatsNewOverlay.Visibility == Visibility.Visible && WhatsNewOverlay.IsHitTestVisible) { _ = CloseWhatsNewAsync(); return true; }
         if (InviteOverlay.Visibility == Visibility.Visible && InviteOverlay.IsHitTestVisible) { _ = CloseInviteAsync(); return true; }
         if (IdentifyOverlay.Visibility == Visibility.Visible && IdentifyOverlay.IsHitTestVisible) { _ = CloseIdentifyAsync(); return true; }
+        if (CollectionOverlay.Visibility == Visibility.Visible && CollectionOverlay.IsHitTestVisible) { _ = CloseCollectionsAsync(); return true; }
         // From the welcome, one step back is the sign-in form it leads to.
         if (WelcomeOverlay.Visibility == Visibility.Visible && WelcomeOverlay.IsHitTestVisible) { WelcomeConnect_Click(this, new()); return true; }
         if (GuideOverlay.Visibility == Visibility.Visible && GuideOverlay.IsHitTestVisible) { _ = CloseGuideAsync(); return true; }
