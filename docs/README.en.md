@@ -77,7 +77,7 @@ The .NET runtime is included. The mpv player engine (31 MB) is downloaded on req
 
 ## Status
 
-Mira **0.8.5** is a preview: it is used every day, but some things are still missing (choosing between versions of a title, editable collections, signed Windows files) and HDR, multichannel audio and multiple monitors have not been tried everywhere.
+Mira **0.8.5** is a preview: it is used every day, but some things are still missing (choosing between versions of a title, signed Windows files) and HDR, multichannel audio and multiple monitors have not been tried everywhere.
 
 - [Every feature and shortcut (French)](USER_GUIDE.md)
 - [Release history](../CHANGELOG.md)

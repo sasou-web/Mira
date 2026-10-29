@@ -4,7 +4,7 @@
 // Imported by Node too (tools/web/unit): nothing of the browser here.
 import { tr } from './i18n.js';
 
-export const CONTINUE = 'continue', LATEST = 'latest', FAVORITES = 'favorites', LIBRARY = 'library:';
+export const CONTINUE = 'continue', LATEST = 'latest', FAVORITES = 'favorites', COLLECTIONS = 'collections', LIBRARY = 'library:';
 
 /** The libraries that get a row of their own: films, series and mixed ones, not Jellyfin's collections. */
 export const offered = (library) => [undefined, null, 'movies', 'tvshows', 'mixed'].includes(library.CollectionType);
@@ -15,6 +15,7 @@ export function homeRows(saved, libraries = []) {
     { key: CONTINUE, title: tr('Continuer à regarder'), shown: true, library: null },
     { key: LATEST, title: tr('Ajouts récents'), shown: true, library: null },
     { key: FAVORITES, title: tr('Tes favoris'), shown: true, library: null },
+    { key: COLLECTIONS, title: tr('Collections'), shown: true, library: null },
     ...libraries.filter(offered).map((x) => ({ key: LIBRARY + x.Id, title: tr('Nouveau dans {name}', { name: x.Name }), shown: false, library: x.Id })),
   ];
   const rows = [];

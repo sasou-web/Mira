@@ -197,7 +197,7 @@ try {
   check('recherche : un épisode par son nom, avec sa série et son numéro', foundEpisodes?.length === 1 && /^Courte Web \| S1 · É3 · Courte Web S01E03 \| #\/titre\/[0-9a-f]+\?episode=[0-9a-f]+$/.test(foundEpisodes[0]),
     foundEpisodes?.join(' ; ') ?? 'aucune section « Épisodes »');
   await page.fill('input[type=search]', 'Saga Test'); await wait(1500);
-  const foundSagas = await section('Sagas');
+  const foundSagas = await section('Collections');
   let sagaPage = null;
   if (foundSagas?.length === 1) {
     await page.locator('#view .search .card[href^="#/saga/"]').click();
@@ -210,7 +210,7 @@ try {
   }
   check('recherche : une saga, sa page avec ses films dans l’ordre', /^Saga Test \| 2 titres \| #\/saga\/[0-9a-f]+$/.test(foundSagas?.[0] ?? '')
     && sagaPage?.titles.join(', ') === 'Lueur Web (2020), Aube Test (2021)' && sagaPage.sub === '2 films · 2020 – 2021',
-    `${foundSagas?.join(' ; ') ?? 'aucune section « Sagas »'} ; ${sagaPage ? `${sagaPage.titles.join(', ')} (${sagaPage.sub})` : 'pas de page de saga'}`);
+    `${foundSagas?.join(' ; ') ?? 'aucune section « Collections »'} ; ${sagaPage ? `${sagaPage.titles.join(', ')} (${sagaPage.sub})` : 'pas de page de saga'}`);
 
   const found = await api(`Items?recursive=true&includeItemTypes=Series&searchTerm=${encodeURIComponent(seriesName)}`);
   const series = found.Items[0];
@@ -466,6 +466,116 @@ try {
   await shot('12-search-studio');
   check('recherche : un studio par son nom (aucun titre ne le porte)', foundStudio?.length === 1 && /^Studio Test #\/studio\/[0-9a-f]+$/.test(foundStudio[0]), foundStudio?.join(' ; ') ?? 'aucune section « Studios »');
   await page.fill('input[type=search]', '');
+
+  // Collections made by hand (collection-sheet.js; an administrator here): from a card's menu, a new one, its name
+  // refused while it is the saga's (Jellyfin would put the new one in its place, the saga's titles lost), a second
+  // title ticked in, the row of Home and its page, a title taken out, renamed, deleted: the saga and the titles stay.
+  const boxSets = async () => (await api('Items?recursive=true&includeItemTypes=BoxSet&fields=ChildCount'))?.Items ?? [];
+  const sagaBefore = (await boxSets()).find((x) => x.Name === 'Saga Test');
+  // The choices of the sheet open, not of the one sliding away.
+  const live = '.sheet-layer:not(.leaving) .sheet-item';
+  const cardMenuOf = async (name) => {
+    await page.locator('#view .card', { hasText: name }).first().click({ button: 'right' });
+    await page.locator(live).first().waitFor({ timeout: 5000 }).catch(() => {});
+    return page.locator(live).allInnerTexts().catch(() => []);
+  };
+  const toastSaying = (text) => page.locator('.toast', { hasText: text }).last().innerText({ timeout: 8000 }).catch(() => '');
+  try {
+    await page.evaluate(() => { location.hash = '#/films'; }); await settled();
+    const filmMenu = await cardMenuOf('Chapitres Web');
+    await page.locator(live, { hasText: 'Ajouter à une collection…' }).click();
+    await page.locator(live, { hasText: 'Nouvelle collection…' }).waitFor({ timeout: 8000 }).catch(() => {});
+    const offered = await page.locator(live).evaluateAll((items) => items.map((x) => `${x.querySelector('.grow')?.firstChild?.textContent ?? x.textContent} ${x.getAttribute('aria-checked') ?? '-'}`));
+    await shot('13-collection-sheet');
+    await page.locator(live, { hasText: 'Nouvelle collection…' }).click();
+    const field = page.locator('.sheet input.input');
+    await field.waitFor({ timeout: 5000 }).catch(() => {});
+    await field.fill('saga test'); await field.press('Enter'); await wait(300);
+    const refused = await page.locator('.sheet .group-note.error').innerText().catch(() => '');
+    await shot('13-collection-name-refused');
+    await field.fill('Soirées Web'); await field.press('Enter');
+    const created = await toastSaying('créée avec');
+    await wait(800);
+    const made = (await boxSets()).find((x) => x.Name === 'Soirées Web');
+    // A second title, from its own menu: the new collection unticked, the saga ticked (12.1 says which hold it).
+    await page.keyboard.press('Escape').catch(() => {});
+    await cardMenuOf('Lueur Web');
+    await page.locator(live, { hasText: 'Ajouter à une collection…' }).click();
+    const soirees = page.locator(live, { hasText: 'Soirées Web' });
+    await soirees.waitFor({ timeout: 8000 }).catch(() => {});
+    const ticks = { saga: await page.locator(live, { hasText: 'Saga Test' }).getAttribute('aria-checked').catch(() => null), mine: await soirees.getAttribute('aria-checked').catch(() => null) };
+    await soirees.click();
+    const added = await toastSaying('Ajouté à');
+    // Home: the Collections row and « Tout voir », the page of every collection.
+    await page.locator('.tabbar a[data-tab="home"]').click();
+    const homeRow = await page.waitForFunction(() => {
+      const head = [...document.querySelectorAll('#view .section h2')].find((x) => x.textContent === 'Collections');
+      const titles = [...head?.closest('.section').querySelectorAll('.card-title') ?? []].map((x) => x.textContent);
+      return titles.includes('Soirées Web') ? titles : null;
+    }, null, { timeout: 15000 }).then((handle) => handle.jsonValue(), () => null);
+    await page.evaluate(() => { location.hash = '#/collections'; });
+    const allPage = await page.waitForFunction(() => {
+      const titles = [...document.querySelectorAll('#view .collections-page .grid .card-title')].map((x) => x.textContent);
+      return titles.length ? { titles, add: !document.querySelector('#view .collections-head .btn')?.hidden } : null;
+    }, null, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => null);
+    await shot('13-collections');
+    // Its page: both titles in the order they came out; one taken out from its card's menu.
+    await page.locator('#view .collections-page .card', { hasText: 'Soirées Web' }).click();
+    const pageTitles = await page.waitForFunction(() => {
+      const titles = [...document.querySelectorAll('#view .saga-page .grid .card-title')].map((x) => x.textContent);
+      return titles.length === 2 ? titles : null;
+    }, null, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => null);
+    await shot('13-collection-page');
+    const inPageMenu = await cardMenuOf('Lueur Web');
+    await page.locator(live, { hasText: 'Retirer de la collection' }).click();
+    const removed = await toastSaying('Retiré de');
+    const afterRemove = await page.waitForFunction(() => {
+      const titles = [...document.querySelectorAll('#view .saga-page .grid .card-title')].map((x) => x.textContent);
+      return titles.length === 1 ? titles : null;
+    }, null, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => null);
+    // « … »: renamed (the saga's name refused again), then deleted.
+    await page.locator('#view .floating-more').click();
+    const actions = await page.locator(live).allInnerTexts().catch(() => []);
+    await page.locator(live, { hasText: 'Renommer…' }).click();
+    await field.waitFor({ timeout: 5000 }).catch(() => {});
+    const prefilled = await field.inputValue().catch(() => '');
+    await field.fill('Saga Test'); await field.press('Enter'); await wait(300);
+    const renameRefused = await page.locator('.sheet .group-note.error').innerText().catch(() => '');
+    await field.fill('Soirées du vendredi'); await field.press('Enter');
+    const renamed = await toastSaying('renommée');
+    const heading = await page.locator('#view .saga-page h1').innerText().catch(() => '');
+    await wait(800);
+    const afterRename = (await boxSets()).find((x) => x.Id === made?.Id);
+    await page.locator('#view .floating-more').click();
+    await page.locator(live, { hasText: 'Supprimer la collection…' }).click();
+    const question = await page.locator('.sheet .now-confirm').innerText().catch(() => '');
+    await shot('13-collection-delete');
+    await page.getByRole('menuitem', { name: 'Supprimer la collection', exact: true }).click();
+    const deleted = await toastSaying('supprimée');
+    await wait(1000);
+    const left = await boxSets();
+    const chapitres = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Chapitres'))?.Items ?? [];
+    const sagaAfter = left.find((x) => x.Name === 'Saga Test');
+    check('collections : faite depuis le menu d’une carte, nom de la saga refusé, un 2e titre coché, rangée de l’Accueil, page, retrait, renommée, supprimée sans toucher aux titres',
+      filmMenu.includes('Ajouter à une collection…') && offered.some((x) => x.startsWith('Saga Test') && x.endsWith('false')) && offered.some((x) => x.startsWith('Nouvelle collection…'))
+        && refused === 'Ce nom est déjà pris par la collection « Saga Test ».' && created.startsWith('Collection « Soirées Web » créée avec « Chapitres Web') && made?.ChildCount === 1
+        && (olderJellyfin || (ticks.saga === 'true' && ticks.mine === 'false')) && added.startsWith('Ajouté à « Soirées Web »')
+        && homeRow?.includes('Saga Test') && allPage?.titles.includes('Soirées Web') && allPage.add
+        && pageTitles?.join('|') === 'Lueur Web (2020)|Chapitres Web (2024)' && inPageMenu.includes('Retirer de la collection') && removed.startsWith('Retiré de « Soirées Web »')
+        && afterRemove?.join('|') === 'Chapitres Web (2024)' && actions.join('|') === 'Renommer…|Supprimer la collection…' && prefilled === 'Soirées Web'
+        && renameRefused === 'Ce nom est déjà pris par la collection « Saga Test ».' && renamed === 'Collection renommée « Soirées du vendredi ».' && heading === 'Soirées du vendredi'
+        && afterRename?.Name === 'Soirées du vendredi' && afterRename.ChildCount === 1
+        && question === 'Supprimer la collection « Soirées du vendredi » ? Ses titres restent dans ta bibliothèque.' && deleted.startsWith('Collection « Soirées du vendredi » supprimée')
+        && !left.some((x) => x.Id === made.Id) && chapitres.length === 1 && sagaAfter?.Id === sagaBefore?.Id && sagaAfter?.ChildCount === sagaBefore?.ChildCount,
+      `menu : ${filmMenu.join(', ')} ; feuille : ${offered.join(', ')} ; refus : « ${refused} » ; « ${created} » (${made?.ChildCount ?? 'aucune'}) ; coches ${ticks.saga}/${ticks.mine} ; « ${added} » ; `
+        + `Accueil : ${homeRow?.join(', ') ?? 'pas de rangée'} ; page : ${allPage?.titles.join(', ') ?? 'rien'} ; titres : ${pageTitles?.join(', ') ?? 'rien'} ; « ${removed} » → ${afterRemove?.join(', ') ?? '?'} ; `
+        + `… : ${actions.join(', ')} ; « ${prefilled} », « ${renameRefused} », « ${renamed} », « ${heading} » (${afterRename?.Name}, ${afterRename?.ChildCount}) ; « ${question} » « ${deleted} » ; `
+        + `restent : ${left.map((x) => `${x.Name} (${x.ChildCount})`).join(', ')}, Chapitres ${chapitres.length}`);
+  } finally {
+    // Whatever went wrong, the collection made here does not stay for the next run (the saga is setup.mjs's).
+    await page.keyboard.press('Escape').catch(() => {});
+    for (const box of await boxSets().catch(() => [])) if (/^Soirées (Web|du vendredi)$/.test(box.Name)) await api(`Items/${box.Id}`, 'DELETE').catch(() => {});
+  }
 
   // A series of two seasons (Deux Temps): the first watched, the page opens on the second, where Lecture picks up.
   // Season 1 shown: « À suivre » brings season 2; « Marquer la saison comme non vue » marks season 1 at once on

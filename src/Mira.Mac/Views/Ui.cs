@@ -240,7 +240,7 @@ public static class Cards
     {
         "Series" => string.Join(" · ", new[] { item.ProductionYear?.ToString(), L("Série", "Series") }.Where(x => x is not null)),
         "Episode" => EpisodeCode(item),
-        "BoxSet" => L("Saga", "Collection"),
+        "BoxSet" => L("Collection", "Collection"),
         _ => string.Join(" · ", new[] { item.ExtraType is not null ? PlayerText.ExtraKind(item.ExtraType) : item.ProductionYear?.ToString(), item.DurationLabel }.Where(x => !string.IsNullOrEmpty(x)))
     };
     /// <summary>« S1 · É3 », “S1 · E3”.</summary>

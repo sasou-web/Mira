@@ -56,7 +56,7 @@
       <Button x:Name="LoadMore" Content="{v:L 'Afficher plus de titres', 'Show more titles'}" HorizontalAlignment="Center" Click="LoadMore_Click" Margin="0,15,0,20" Visibility="Collapsed"/>
       <!-- What a search finds beside films and series, under them as in Mira web: an episode opens its series at it, a saga its titles. -->
       <StackPanel x:Name="EpisodeResults" Visibility="Collapsed" Margin="0,12,0,18"><TextBlock Text="{v:L 'Épisodes', 'Episodes'}" FontSize="24" FontWeight="Normal" Foreground="{StaticResource TextTertiary}" Margin="0,0,0,18"/><WrapPanel x:Name="EpisodeCards" v:Accessible.ArrowKeys="True"/></StackPanel>
-      <StackPanel x:Name="SagaResults" Visibility="Collapsed" Margin="0,12,0,0"><TextBlock Text="{v:L 'Sagas', 'Collections'}" FontSize="24" FontWeight="Normal" Foreground="{StaticResource TextTertiary}" Margin="0,0,0,18"/><WrapPanel x:Name="FoundSagaCards" v:Accessible.ArrowKeys="True"/></StackPanel>
+      <StackPanel x:Name="SagaResults" Visibility="Collapsed" Margin="0,12,0,0"><TextBlock Text="{v:L 'Collections', 'Collections'}" FontSize="24" FontWeight="Normal" Foreground="{StaticResource TextTertiary}" Margin="0,0,0,18"/><WrapPanel x:Name="FoundSagaCards" v:Accessible.ArrowKeys="True"/></StackPanel>
      </StackPanel>
     </StackPanel>
    </ScrollViewer>
@@ -574,6 +574,23 @@
       <ScrollViewer x:Name="IdentifyScroll" MaxHeight="400" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0"><StackPanel x:Name="IdentifyResults" v:Accessible.ArrowKeys="True"/></ScrollViewer>
       <StackPanel x:Name="IdentifyConfirm" Visibility="Collapsed" Margin="0,12,0,0"><TextBlock x:Name="IdentifyQuestion" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{v:L 'Jellyfin remplace son titre, son résumé, ses affiches et sa distribution par ceux de ce titre, sur chaque appareil. Le fichier ne bouge pas.', 'Jellyfin replaces its title, summary, posters and cast with this title’s, on every device. The file stays where it is.'}" FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,14"/><StackPanel Orientation="Horizontal"><Button x:Name="IdentifyApply" Style="{StaticResource Primary}" v:Motion.Radius="9" Content="{v:L 'Remplacer', 'Replace'}" Padding="22,10" Click="IdentifyApply_Click"/><Button Content="{v:L 'Retour', 'Back'}" Style="{StaticResource Quiet}" Margin="8,0,0,0" Click="IdentifyBack_Click"/></StackPanel></StackPanel>
       <DockPanel Margin="0,16,0,0"><Button Content="{v:L 'Fermer', 'Close'}" Style="{StaticResource Quiet}" HorizontalAlignment="Left" Click="IdentifyClose_Click"/></DockPanel>
+     </StackPanel>
+    </Border>
+   </Viewbox>
+  </Grid>
+  <!-- « Ajouter à une collection » and a collection's name (MainWindow.Collections.cs): the collections ticked, a new one named, a name refused before Jellyfin sees it. -->
+  <Grid x:Name="CollectionOverlay" Grid.RowSpan="2" Panel.ZIndex="76" Visibility="Collapsed" Background="{StaticResource Scrim}" KeyboardNavigation.TabNavigation="Cycle">
+   <Viewbox Margin="28,44,28,24" Stretch="Uniform" StretchDirection="DownOnly" TextOptions.TextFormattingMode="Ideal">
+    <Border x:Name="CollectionCard" Width="560" Padding="38,34" Background="{StaticResource Sheet}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="20">
+     <StackPanel>
+      <StackPanel Orientation="Horizontal"><v:Icon Kind="library" Width="16" Height="16" Foreground="{StaticResource TextSecondary}"/><TextBlock x:Name="CollectionKicker" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="8,1,0,0"/></StackPanel>
+      <TextBlock x:Name="CollectionTitle" FontSize="28" FontWeight="Bold" TextWrapping="Wrap" Margin="0,10,0,6"/>
+      <TextBlock x:Name="CollectionNote" FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+      <ScrollViewer x:Name="CollectionScroll" MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0"><StackPanel x:Name="CollectionList" v:Accessible.ArrowKeys="True"/></ScrollViewer>
+      <TextBlock x:Name="CollectionNameLabel" FontSize="13" FontWeight="SemiBold" Margin="0,18,0,8"/>
+      <DockPanel><Button x:Name="CollectionSave" DockPanel.Dock="Right" Style="{StaticResource Primary}" v:Motion.Radius="9" Padding="20,10" Margin="10,0,0,0" Click="CollectionSave_Click"/><TextBox x:Name="CollectionName" MaxLength="120" KeyDown="CollectionName_KeyDown" TextChanged="CollectionName_TextChanged" AutomationProperties.Name="{v:L 'Nom de la collection', 'Collection name'}"/></DockPanel>
+      <TextBlock x:Name="CollectionStatus" FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,10,0,0" v:Accessible.Announce="Polite"/>
+      <DockPanel Margin="0,16,0,0"><Button Content="{v:L 'Fermer', 'Close'}" Style="{StaticResource Quiet}" HorizontalAlignment="Left" Click="CollectionClose_Click"/></DockPanel>
      </StackPanel>
     </Border>
    </Viewbox>

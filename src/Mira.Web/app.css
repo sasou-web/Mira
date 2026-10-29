@@ -539,6 +539,9 @@ html:not(.touch) .home-group:active, .home-group.pressed { background: var(--rai
 .detail-backdrop.none + .detail-head { margin-top: 0 !important; }
 .detail-poster { width: 140px; box-shadow: var(--shadow); }
 .floating-back { position: fixed; z-index: 45; top: calc(var(--top) + 8px); left: calc(var(--rail) + var(--left) + 10px); }
+/* A collection's « … » (rename, delete), across from the back button. */
+.floating-more { position: fixed; z-index: 45; top: calc(var(--top) + 8px); right: calc(var(--right) + 10px); }
+.collections-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; }
 .detail-head { position: relative; margin-top: -132px; padding: 0 var(--gutter); display: grid; gap: 12px; }
 .detail-info, .detail-play { display: grid; gap: 12px; min-width: 0; }
 .detail-progress { display: grid; gap: 6px; }
@@ -808,6 +811,7 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .code { font-size: calc(44px * var(--text)); font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; color: var(--ink); padding: 14px 26px; border-radius: var(--r-m); background: var(--surface); user-select: all; -webkit-user-select: all; }
 .sheet-form { display: grid; gap: 14px; padding: 4px 20px 20px; }
 .sheet-form .group-note { padding: 0; margin: 0; }
+.sheet-form .group-note.error { color: var(--danger); font-weight: 600; }
 .code-input { font-size: calc(24px * var(--text)); font-weight: 800; letter-spacing: 0.2em; text-align: center; font-variant-numeric: tabular-nums; }
 .code-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .hint { width: 100%; max-width: 420px; display: grid; gap: 10px; padding: 16px; border-radius: var(--r-m); background: var(--surface); text-align: left; font-size: calc(14px * var(--text)); color: var(--muted); }

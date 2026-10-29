@@ -30,6 +30,8 @@ const ROUTES = [
   { pattern: /^\/saga\/([0-9a-f-]+)$/i, load: () => import('./views/saga.js'), args: (m) => ({ id: m[1] }) },
   // « À venir »: the series' next episodes and those missing (TheTVDB's extension of Jellyfin), from Séries or a series' page.
   { pattern: /^\/a-venir$/, tab: 'series', load: () => import('./views/upcoming.js') },
+  // Every collection, from the Collections row of Home.
+  { pattern: /^\/collections$/, load: () => import('./views/collections.js') },
   // « En ce moment sur Jellyfin », from Réglages (an administrator).
   { pattern: /^\/en-ce-moment$/, load: () => import('./views/now.js') },
   // « Titres à corriger », from Réglages (an administrator): titles Jellyfin recognized badly.

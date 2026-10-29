@@ -63,6 +63,8 @@ public sealed class BrowsePage : Page
     /// <summary>The episodes and the sagas the search found, shown under its titles.</summary>
     public IReadOnlyList<MediaItem> FoundEpisodes => _foundEpisodes;
     public IReadOnlyList<MediaItem> FoundSagas => _foundSagas;
+    /// <summary>The collection whose titles are shown; null on another page.</summary>
+    public MediaItem? Saga => _saga;
     /// <summary>What the page says when it has nothing to show (the self-check).</summary>
     public EmptyState Empty => _empty;
     /// <summary>Types a search, as the field does (the self-check).</summary>
@@ -118,10 +120,14 @@ public sealed class BrowsePage : Page
         }
         if (saga is not null)
         {
-            var chip = Ui.Action(L("Saga", "Collection"), "close", "chip on", () => Shell.Back());
+            var chip = Ui.Action(L("Collection", "Collection"), "close", "chip on", () => Shell.Back());
             ToolTip.SetTip(chip, L("Retirer ce filtre", "Remove this filter"));
-            chip.HorizontalAlignment = HorizontalAlignment.Left; chip.Margin = new Thickness(0, -12, 0, 22);
-            page.Children.Add(chip);
+            // A collection made by hand or a saga: renamed (an administrator) or deleted here, its titles kept.
+            var line = Ui.Row(10, chip);
+            if (Shell.CollectionRights.Rename) line.Children.Add(Ui.Action(L("Renommer…", "Rename…"), "pencil", "quiet", () => _ = Shell.RenameCollectionAsync(saga)));
+            if (Shell.CollectionRights.Manage) line.Children.Add(Ui.Action(L("Supprimer la collection…", "Delete collection…"), "trash", "quiet", () => Shell.AskDeleteCollection(saga)));
+            line.HorizontalAlignment = HorizontalAlignment.Left; line.Margin = new Thickness(0, -12, 0, 22);
+            page.Children.Add(line);
         }
         page.Children.Add(_empty);
         _peopleSection.Children.Add(Ui.Heading(L("Personnes", "People"), 22, 2));
@@ -133,7 +139,7 @@ public sealed class BrowsePage : Page
         page.Children.Add(_grid);
         _episodesSection.Children.Add(Ui.Heading(L("Épisodes", "Episodes"), 22, 2));
         _episodesSection.Children.Add(_episodes);
-        _sagasSection.Children.Add(Ui.Heading(L("Sagas", "Collections"), 22, 2));
+        _sagasSection.Children.Add(Ui.Heading(L("Collections", "Collections"), 22, 2));
         _sagasSection.Children.Add(_sagas);
         page.Children.Add(_episodesSection); page.Children.Add(_sagasSection);
         _scroll = new ScrollViewer { Content = page };

@@ -5,12 +5,14 @@ import { tr, trn, trc } from './i18n.js';
 import { artFor, picture } from './images.js';
 import { settings } from './session.js';
 import { qualityText } from './player/tracks.js';
+import { holds } from './collections.js';
+import { collectionSheet, takeOut } from './collection-sheet.js';
 
 /** Item changes (watched, favourite, hidden) that every screen showing the item takes into account. */
 export const changes = new EventTarget();
 export function changed(item, detail = {}) { changes.dispatchEvent(new CustomEvent('item', { detail: { item, ...detail } })); }
 
-/** A title's page; an episode's is its series', open at it; a saga (a Jellyfin collection) has a page of its own. */
+/** A title's page; an episode's is its series', open at it; a collection (a saga or one made by hand) has a page of its own. */
 export function titleHref(item) {
   if (item.Type === 'Episode' && item.SeriesId) return `#/titre/${item.SeriesId}?episode=${item.Id}`;
   return item.Type === 'BoxSet' ? `#/saga/${item.Id}` : `#/titre/${item.Id}`;
@@ -32,7 +34,7 @@ export function subtitle(item) {
     const seasons = item.ChildCount;
     return seasons ? trn(seasons, '{n} saison', '{n} saisons') : (item.ProductionYear ? String(item.ProductionYear) : tr('Série'));
   }
-  if (item.Type === 'BoxSet') return item.ChildCount ? trn(item.ChildCount, '{n} titre', '{n} titres') : tr('Saga');
+  if (item.Type === 'BoxSet') return item.ChildCount ? trn(item.ChildCount, '{n} titre', '{n} titres') : tr('Collection');
   return [item.ProductionYear, remaining(item)].filter(Boolean).join(' · ');
 }
 
@@ -66,8 +68,11 @@ function remember(item) {
 const posterWidth = () => (innerWidth < 600 ? 120 : 156);
 const wideWidth = () => Math.min(340, Math.round(innerWidth * 0.74));
 
-/** A poster with its title: opens the title page; a long press offers the item's actions. */
-export function posterCard(item, { width = posterWidth(), eager = false } = {}) {
+/**
+ * A poster with its title: opens the title page; a long press offers the item's actions. collection: the collection
+ * whose page shows it ({ Id, Name }), which its menu offers to take it out of.
+ */
+export function posterCard(item, { width = posterWidth(), eager = false, collection = null } = {}) {
   const name = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
   const art = picture(artFor(item, 'poster'), { kind: 'poster', width, label: name, eager });
   marks(item, art);
@@ -77,7 +82,7 @@ export function posterCard(item, { width = posterWidth(), eager = false } = {}) 
   // The item the card shows now (reconcile keeps a card and gives it the item as the server just sent it).
   card.item = item;
   card.addEventListener('click', () => remember(card.item));
-  withActions(card, item);
+  withActions(card, item, { collection });
   return card;
 }
 
@@ -213,7 +218,7 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
 }
 
 /**
- * A sheet of choices from the bottom of the screen. items: { label, sub, symbol, selected, danger, run }, or
+ * A sheet of choices from the bottom of the screen. items: { label, sub, symbol, selected, checkbox, danger, run }, or
  * { heading } above a group of them. Closes on a choice, on the backdrop, or with Escape.
  */
 /** focus: a field of `body` that takes the focus at once, within the touch that opened the sheet (iOS's keyboard). */
@@ -249,7 +254,7 @@ export function sheet({ title = '', items = [], body = null, held = false, focus
   };
   const keys = (e) => { if (e.key === 'Escape') close(); };
   const choice = (item) => h('button', {
-    class: ['sheet-item', item.danger && 'danger'], role: item.selected != null ? 'menuitemradio' : 'menuitem',
+    class: ['sheet-item', item.danger && 'danger'], role: item.selected != null ? (item.checkbox ? 'menuitemcheckbox' : 'menuitemradio') : 'menuitem',
     'aria-checked': item.selected != null ? String(!!item.selected) : null,
     on: { click: () => { if (closing || early()) return; close(); item.run?.(); } },
   }, item.symbol ? icon(item.symbol) : null,
@@ -340,12 +345,13 @@ function dragToClose(panel, close) {
 
 /**
  * Long press (or right click) on a card: play, open, watched, favourite, and out of Continuer à regarder. inTitle:
- * the card is on its own title's page, which the menu does not offer to open again.
+ * the card is on its own title's page, which the menu does not offer to open again; collection: the collection whose
+ * page shows the card ({ Id, Name }), which the menu offers to take it out of.
  */
-export function withActions(card, item, { resumeRow = false, inTitle = false } = {}) {
+export function withActions(card, item, { resumeRow = false, inTitle = false, collection = null } = {}) {
   let timer = 0, lift = 0, startX = 0, startY = 0, fired = false;
   const stop = () => { clearTimeout(timer); clearTimeout(lift); card.classList.remove('holding'); };
-  const open = (at = null) => { stop(); if (fired) return; fired = true; itemMenu(card.item ?? item, { resumeRow, inTitle, held: !at, at }); };
+  const open = (at = null) => { stop(); if (fired) return; fired = true; itemMenu(card.item ?? item, { resumeRow, inTitle, collection, held: !at, at }); };
   card.addEventListener('touchstart', (e) => {
     fired = false; startX = e.touches[0].clientX; startY = e.touches[0].clientY;
     lift = setTimeout(() => card.classList.add('holding'), 180);
@@ -375,20 +381,27 @@ export function openPlayer(href) {
   if (dispatchEvent(new CustomEvent('mira-play', { cancelable: true, detail: href }))) location.hash = href;
 }
 
-export function itemMenu(item, { resumeRow = false, inTitle = false, held = false, at = null } = {}) {
+/**
+ * The menu of a card. « Ajouter à une collection… » and « Retirer de la collection » for an account Jellyfin lets
+ * manage collections: asked once per session, the first menu waits for it.
+ */
+export async function itemMenu(item, { resumeRow = false, inTitle = false, collection = null, held = false, at = null } = {}) {
+  const rights = holds(item) || collection ? await api.collectionRights().catch(() => null) : null;
   const name = item.Type === 'Episode' ? `${item.SeriesName} · ${episodeCode(item)}` : item.Name;
   const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
   const items = [];
-  // A saga plays nothing by itself: its films do, from its page.
+  // A collection plays nothing by itself: its films do, from its page.
   const plays = item.Type !== 'Series' && item.Type !== 'BoxSet';
   if (plays) items.push({ label: progress(item) > 0 ? tr('Reprendre') : tr('Lecture'), symbol: 'play', run: () => openPlayer(playHref(item)) });
   // A title under way starts again from its beginning, wherever its card is (Windows has it on a right click).
   if (plays && progress(item) > 0) items.push({ label: tr('Lire depuis le début'), symbol: 'back10', run: () => openPlayer(playHref(item, true)) });
-  const see = { Episode: tr('Voir la série'), BoxSet: tr('Voir la saga') }[item.Type] ?? tr('Voir la fiche');
+  const see = { Episode: tr('Voir la série'), BoxSet: tr('Voir la collection') }[item.Type] ?? tr('Voir la fiche');
   if (!inTitle) items.push({ label: see, symbol: 'info', run: () => { location.hash = titleHref(item); } });
   items.push({ label: played ? tr('Marquer comme non vu') : tr('Marquer comme vu'), symbol: 'check', run: () => setPlayed(item, !played) });
   items.push({ label: favorite ? tr('Retirer des favoris') : tr('Ajouter aux favoris'), symbol: favorite ? 'heart-fill' : 'heart', run: () => setFavorite(item, !favorite) });
   if (resumeRow) items.push({ label: tr('Retirer de Continuer à regarder'), symbol: 'close', run: () => hideFromResume(item) });
+  if (rights?.manage && holds(item)) items.push({ label: tr('Ajouter à une collection…'), symbol: 'stack', run: () => collectionSheet(item) });
+  if (rights?.manage && collection) items.push({ label: tr('Retirer de la collection'), symbol: 'close', run: () => takeOut(item, collection) });
   sheet({ title: name, items, held, at, body: about(item) });
 }
 

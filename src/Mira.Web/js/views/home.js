@@ -1,12 +1,13 @@
-// Home: a banner of titles, then Continuer à regarder, the latest additions and your favourites, as on Windows, in the
-// order chosen in the settings (« Accueil à ta main », home-rows.js), with the latest titles of a library if asked.
+// Home: a banner of titles, then Continuer à regarder, the latest additions, your favourites and the collections, as on
+// Windows, in the order chosen in the settings (« Accueil à ta main », home-rows.js), with the latest titles of a library if asked.
 // A « Regarder ensemble » group open on Jellyfin is a line under the banner, to join it, while this device is in none.
 import { api } from '../api.js';
 import { h, icon, clear, episodeCode, duration, seconds, progress, reducedMotion } from '../dom.js';
 import { tr, trn } from '../i18n.js';
 import { artFor, picture, logo } from '../images.js';
 import { session, settings, settingsChanged, isIOS, isStandalone } from '../session.js';
-import { homeRows, CONTINUE, LATEST, FAVORITES } from '../home-rows.js';
+import { homeRows, CONTINUE, LATEST, FAVORITES, COLLECTIONS } from '../home-rows.js';
+import { collectionChanges } from '../collection-sheet.js';
 import { together } from '../together.js';
 import { people, groupLabel } from '../player/sync.js';
 import {
@@ -228,10 +229,11 @@ export function create() {
       if (x.key === CONTINUE) return section(x.title, cont, (y) => wideCard(y), { wide: true });
       if (x.key === LATEST) return section(x.title, data.latest, (y) => posterCard(y), { more: '#/films' });
       if (x.key === FAVORITES) return section(x.title, data.favorites, (y) => posterCard(y));
+      if (x.key === COLLECTIONS) return section(x.title, data.collections, (y) => posterCard(y), { more: '#/collections' });
       return section(x.title, data.rows?.[x.library], (y) => posterCard(y));
     });
     const parts = [top, banner, groupLine(), ...rows].filter(Boolean);
-    if (!cont.length && !data.latest.length && !data.favorites.length && !Object.values(data.rows ?? {}).some((x) => x.length)) {
+    if (!cont.length && !data.latest.length && !data.favorites.length && !data.collections?.length && !Object.values(data.rows ?? {}).some((x) => x.length)) {
       parts.push(emptyBox ??= emptyState({ symbol: 'films', title: tr('Ta bibliothèque est vide'), text: tr('Les films et séries ajoutés à Jellyfin apparaîtront ici.') }));
     }
     parts.push(spacer);
@@ -247,9 +249,11 @@ export function create() {
     loadGroups();
     loading = (async () => {
       try {
-        const [resume, next, history, latest, favorites, libraries] = await Promise.all([
+        // The collections only while their row is shown; a row that does not come leaves the others.
+        const collectionsShown = homeRows(settings.get('homeRows'), data?.libraries ?? []).some((x) => x.key === COLLECTIONS && x.shown);
+        const [resume, next, history, latest, favorites, libraries, collections] = await Promise.all([
           api.resume(), api.nextUp(), api.history(), api.browse({ limit: 24 }), api.browse({ favorite: true, limit: 24, sort: 'title' }),
-          api.libraries().catch(() => []),
+          api.libraries().catch(() => []), collectionsShown ? api.collections(24).catch(() => []) : [],
         ]);
         // « Nouveau dans Animes »: only the libraries whose row is shown are asked.
         const wanted = homeRows(settings.get('homeRows'), libraries).filter((x) => x.shown && x.library);
@@ -262,7 +266,7 @@ export function create() {
         const series = Object.fromEntries(seriesIds.map((id, i) => [id, found[i]]));
         data = {
           resume: resume?.Items ?? [], next: next?.Items ?? [], history: (history?.Items ?? []).filter((x) => x.UserData?.LastPlayedDate),
-          latest: latest?.Items ?? [], favorites: favorites?.Items ?? [], series,
+          latest: latest?.Items ?? [], favorites: favorites?.Items ?? [], collections, series,
           libraries: libraries.map(({ Id, Name, CollectionType }) => ({ Id, Name, CollectionType })), rows,
         };
         writeCache(data);
@@ -277,6 +281,8 @@ export function create() {
 
   const onChange = () => { loadedAt = 0; if (el.isConnected) load(); };
   changes.addEventListener('item', onChange);
+  // A collection made, renamed or deleted: its row reads it when Home comes back.
+  collectionChanges.addEventListener('change', onChange);
   // A title removed or put back on another device (account-choices.js).
   const onSetting = (event) => { if (event.detail === 'hiddenResume' && el.isConnected) render(); };
   settingsChanged.addEventListener('change', onSetting);
@@ -301,11 +307,11 @@ export function create() {
       // The rows chosen again in the settings: in their new order at once, a library's row once Jellyfin answers.
       render();
       if (kept) { restore(kept); heroBox?.light?.(); kept = null; }
-      const missing = data && homeRows(settings.get('homeRows'), data.libraries ?? []).some((x) => x.shown && x.library && !data.rows?.[x.library]);
+      const missing = data && homeRows(settings.get('homeRows'), data.libraries ?? []).some((x) => x.shown && (x.library ? !data.rows?.[x.library] : x.key === COLLECTIONS && !data.collections));
       if (missing || Date.now() - loadedAt > 30_000) load();
       else loadGroups();
     },
     refresh: load,
-    dispose() { heroBox?.stop?.(); changes.removeEventListener('item', onChange); settingsChanged.removeEventListener('change', onSetting); unwatchGroup(); },
+    dispose() { heroBox?.stop?.(); changes.removeEventListener('item', onChange); collectionChanges.removeEventListener('change', onChange); settingsChanged.removeEventListener('change', onSetting); unwatchGroup(); },
   };
 }

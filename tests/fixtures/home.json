@@ -7,22 +7,25 @@
     { "Id": "c1", "Name": "Collections", "CollectionType": "boxsets" },
     { "Id": "m1", "Name": "Musique", "CollectionType": "music" }
   ],
-  "titles": [["continue", "Continuer à regarder"], ["latest", "Ajouts récents"], ["favorites", "Tes favoris"], ["library:a1", "Nouveau dans Animes"]],
+  "titles": [["continue", "Continuer à regarder"], ["latest", "Ajouts récents"], ["favorites", "Tes favoris"], ["collections", "Collections"], ["library:a1", "Nouveau dans Animes"]],
   "rows": [
-    ["", ["continue", "latest", "favorites", "-library:f1", "-library:s1", "-library:a1"]],
-    ["favorites,-latest,library:a1", ["favorites", "-latest", "library:a1", "continue", "-library:f1", "-library:s1"]],
-    ["library:gone,continue,continue,later-row, latest", ["continue", "latest", "favorites", "-library:f1", "-library:s1", "-library:a1"]],
-    ["-continue,-latest,-favorites", ["-continue", "-latest", "-favorites", "-library:f1", "-library:s1", "-library:a1"]]
+    ["", ["continue", "latest", "favorites", "collections", "-library:f1", "-library:s1", "-library:a1"]],
+    ["favorites,-latest,library:a1", ["favorites", "-latest", "library:a1", "continue", "collections", "-library:f1", "-library:s1"]],
+    ["library:gone,continue,continue,later-row, latest", ["continue", "latest", "favorites", "collections", "-library:f1", "-library:s1", "-library:a1"]],
+    ["-continue,-latest,-favorites", ["-continue", "-latest", "-favorites", "collections", "-library:f1", "-library:s1", "-library:a1"]],
+    ["continue,-collections,latest", ["continue", "-collections", "latest", "favorites", "-library:f1", "-library:s1", "-library:a1"]]
   ],
   "moves": [
-    ["", "favorites", -1, "continue,favorites,latest,-library:f1,-library:s1,-library:a1"],
-    ["", "continue", -1, "continue,latest,favorites,-library:f1,-library:s1,-library:a1"],
-    ["", "library:a1", 1, "continue,latest,favorites,-library:f1,-library:s1,-library:a1"],
-    ["favorites,-latest", "continue", -1, "favorites,continue,-latest,-library:f1,-library:s1,-library:a1"],
-    ["", "unknown", 1, "continue,latest,favorites,-library:f1,-library:s1,-library:a1"]
+    ["", "favorites", -1, "continue,favorites,latest,collections,-library:f1,-library:s1,-library:a1"],
+    ["", "continue", -1, "continue,latest,favorites,collections,-library:f1,-library:s1,-library:a1"],
+    ["", "library:a1", 1, "continue,latest,favorites,collections,-library:f1,-library:s1,-library:a1"],
+    ["favorites,-latest", "continue", -1, "favorites,continue,-latest,collections,-library:f1,-library:s1,-library:a1"],
+    ["", "collections", -1, "continue,latest,collections,favorites,-library:f1,-library:s1,-library:a1"],
+    ["", "unknown", 1, "continue,latest,favorites,collections,-library:f1,-library:s1,-library:a1"]
   ],
   "shows": [
-    ["", "library:a1", true, "continue,latest,favorites,-library:f1,-library:s1,library:a1"],
-    ["", "latest", false, "continue,-latest,favorites,-library:f1,-library:s1,-library:a1"]
+    ["", "library:a1", true, "continue,latest,favorites,collections,-library:f1,-library:s1,library:a1"],
+    ["", "latest", false, "continue,-latest,favorites,collections,-library:f1,-library:s1,-library:a1"],
+    ["", "collections", false, "continue,latest,favorites,-collections,-library:f1,-library:s1,-library:a1"]
   ]
 }

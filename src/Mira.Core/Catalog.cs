@@ -54,7 +54,7 @@ public sealed class Catalog
     /// <summary>The order asked: a saga's titles in the order they came out, unless another one is chosen.</summary>
     public string Sort(string chosen) => Saga is not null && chosen is "" or "recent" ? "saga" : chosen;
     public string PageTitle => View switch { "Movie" => L("Films", "Movies"), "Series" => L("Séries & animes", "Shows & anime"), "library" => L("Ta bibliothèque", "Your library"), "offline" => L("Sur ce PC", "On this PC"), "search" => L("Rechercher", "Search"), _ => L("Explorer", "Browse") };
-    public string Description => View == "search" ? L("Un film, une série, un épisode, une saga, un acteur ou un studio de ta bibliothèque.", "A movie, a show, an episode, a collection, an actor or a studio from your library.")
+    public string Description => View == "search" ? L("Un film, une série, un épisode, une collection, un acteur ou un studio de ta bibliothèque.", "A movie, a show, an episode, a collection, an actor or a studio from your library.")
         : Favorites ? L("Les histoires que tu gardes à portée de main.", "The stories you keep close at hand.") : L("Trouve ta prochaine séance dans ta bibliothèque.", "Find your next show in your library.");
     /// <summary>The search page before anything is typed: an invitation, not every title (Jellyfin is not asked).</summary>
     public bool AwaitsSearch(string search) => View == "search" && search.Length == 0 && Person is null && Studio is null && Saga is null;
@@ -148,13 +148,13 @@ public sealed class Catalog
         var emptyLibrary = !demo && search.Length == 0 && !filtered && !Favorites && View is "home" or "library" && Resume.Count == 0;
         var (icon, title, hint) = (search.Length, filtered) switch
         {
-            _ when AwaitsSearch(search) => ("search", L("Que veux-tu regarder ?", "What do you want to watch?"), L("Tape le nom d’un film, d’une série, d’un épisode, d’une saga, d’un acteur ou d’un studio.", "Type the name of a movie, a show, an episode, a collection, an actor or a studio.")),
+            _ when AwaitsSearch(search) => ("search", L("Que veux-tu regarder ?", "What do you want to watch?"), L("Tape le nom d’un film, d’une série, d’un épisode, d’une collection, d’un acteur ou d’un studio.", "Type the name of a movie, a show, an episode, a collection, an actor or a studio.")),
             ( > 0, _) => ("search", L($"Aucun résultat pour « {search} »", $"No results for “{search}”"), L("Vérifie l’orthographe ou essaie un autre titre.", "Check the spelling or try another title.")),
             (_, true) => ("sliders", L("Aucun titre ne correspond à ces filtres", "No titles match these filters"), L("Élargis ta sélection pour retrouver tes titres.", "Widen your selection to find your titles.")),
             _ when View == "offline" => ("laptop", L("Rien sur ce PC pour l’instant", "Nothing on this PC yet"), L("Sur la fiche d’un film ou d’une série, le bouton ⤓ garde le titre sur ce PC pour le regarder sans connexion.", "On a movie or show’s page, the ⤓ button keeps the title on this PC to watch offline.")),
             _ when Favorites => ("heart", L("Aucun favori ici pour l’instant", "No favorites here yet"), L("Depuis la fiche d’un titre, choisis « Ajouter aux favoris » pour le retrouver ici.", "On a title’s page, choose “Add to favorites” to find it here.")),
             _ when emptyLibrary => ("folder", L("Ta bibliothèque est vide", "Your library is empty"), L("Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici.", "Put your movies and shows in Jellyfin’s folders: they’ll show up here.")),
-            _ when Saga is not null => ("film", L("Aucun titre dans cette saga", "No titles in this collection"), L("Ses films ne sont pas dans ta bibliothèque.", "Its movies aren’t in your library.")),
+            _ when Saga is not null => ("film", L("Aucun titre dans cette collection", "No titles in this collection"), L("Ajoute-y un film ou une série depuis son menu « Ajouter à une collection… ».", "Add a movie or show to it from its menu, “Add to collection…”.")),
             _ => ("library", L("Rien à afficher ici", "Nothing to show here"), L("Les titres ajoutés à ta bibliothèque Jellyfin apparaîtront ici.", "Titles added to your Jellyfin library will show up here."))
         };
         return new(icon, title, hint, Reset: !AwaitsSearch(search) && (filtered || search.Length > 0 || Favorites), Guide: emptyLibrary);

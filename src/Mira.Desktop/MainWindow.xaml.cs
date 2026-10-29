@@ -428,6 +428,8 @@ public partial class MainWindow : Window
         var client = _client; var store = _store;
         // « Regarder ensemble »: a group open on Jellyfin, a line of Home's to join it.
         if (home && !more) _ = LoadHomeGroupsAsync(client);
+        // Collections made by hand: what a card's menu offers.
+        if (!more) _ = LoadCollectionRightsAsync(client);
         LoadMore.IsEnabled = false; var startOffset = LibraryScroll.VerticalOffset; var started = DateTimeOffset.UtcNow;
         if (!quiet && !more) { SyncLabel.Text = L("↻  Actualisation…", "↻  Refreshing…"); SpinRefresh(true); }
         try

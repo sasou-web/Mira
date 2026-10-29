@@ -1,0 +1,44 @@
+{
+  "about": "Collections made by hand (« Soirées »): the names Mira refuses, as TitleCollections.cs (tests/Mira.Core.Tests) and collections.js (tools/web/unit) judge them; both must agree. collections: Jellyfin's BoxSets with their folder (Path); names: [name typed, id of the collection renamed or null, problem (empty, long, unusable, taken) or null, name of the collection that has it]; folders: [Path, folder name without « [boxset] »]; rights: [policy of Users/Me, may manage, may rename].",
+  "collections": [
+    {"Id": "c1", "Name": "Soirées", "Path": "/config/data/collections/Soirées [boxset]"},
+    {"Id": "c2", "Name": "Studio Ghibli", "Path": "C:\\ProgramData\\Jellyfin\\Server\\data\\collections\\Ghibli [boxset]"},
+    {"Id": "c3", "Name": "AC/DC: live", "Path": "/config/data/collections/AC DC  live [boxset]"},
+    {"Id": "c4", "Name": "Harry Potter - Saga"}
+  ],
+  "names": [
+    ["Soirées", null, "taken", "Soirées"],
+    ["  soirées ", null, "taken", "Soirées"],
+    ["SOIRÉES", null, "taken", "Soirées"],
+    ["Soire\u0301es", null, "taken", "Soirées"],
+    ["Soirées", "c1", null, null],
+    ["Ghibli", null, "taken", "Studio Ghibli"],
+    ["ghibli", "c2", null, null],
+    ["Studio Ghibli", null, "taken", "Studio Ghibli"],
+    ["AC DC: live", null, "taken", "AC/DC: live"],
+    ["AC|DC  live", null, "taken", "AC/DC: live"],
+    ["AC DC live", null, null, null],
+    ["harry potter - saga", null, "taken", "Harry Potter - Saga"],
+    ["Soirées d’été", null, null, null],
+    ["À montrer à Léa", null, null, null],
+    ["", null, "empty", null],
+    ["   ", null, "empty", null],
+    ["???", null, "unusable", null],
+    ["/ :", null, "unusable", null],
+    ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", null, "long", null],
+    ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", null, null, null]
+  ],
+  "folders": [
+    ["/config/data/collections/Soirées [boxset]", "Soirées"],
+    ["C:\\ProgramData\\Jellyfin\\Server\\data\\collections\\Ghibli [boxset]\\", "Ghibli"],
+    ["/config/data/collections/Ancienne", "Ancienne"],
+    [null, null],
+    ["", null]
+  ],
+  "rights": [
+    [{"IsAdministrator": true, "EnableCollectionManagement": false}, true, true],
+    [{"IsAdministrator": false, "EnableCollectionManagement": true}, true, false],
+    [{"IsAdministrator": false, "EnableCollectionManagement": false}, false, false],
+    [{}, false, false]
+  ]
+}

@@ -87,7 +87,7 @@ Le runtime .NET est inclus. Le moteur vidéo mpv (31 Mo) est téléchargé à la
 
 ## Où en est Mira
 
-Mira **0.8.5** est une préversion : elle sert tous les jours, mais certaines choses manquent encore (choix entre plusieurs versions d’un même titre, collections modifiables, signature des fichiers Windows) et le HDR, le multicanal et le multi-écrans n’ont pas été essayés partout. L’interface est en français.
+Mira **0.8.5** est une préversion : elle sert tous les jours, mais certaines choses manquent encore (choix entre plusieurs versions d’un même titre, signature des fichiers Windows) et le HDR, le multicanal et le multi-écrans n’ont pas été essayés partout. L’interface est en français.
 
 - [Toutes les fonctions et les raccourcis](docs/USER_GUIDE.md)
 - [Historique des versions](CHANGELOG.md)
