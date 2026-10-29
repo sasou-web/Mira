@@ -50,6 +50,7 @@ struct LibraryView: View {
             .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
+        .foldsTabBar()
         .background(Palette.bg)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .navigationTitle(title)

@@ -163,6 +163,7 @@ struct SettingsView: View {
         }
         .font(MiraFont.body)
         .scrollContentBackground(.hidden)
+        .foldsTabBar()
         .background(Palette.bg)
         .navigationTitle("Settings")
         .confirmationDialog("Sign out of Jellyfin on this iPhone?", isPresented: $confirmSignOut, titleVisibility: .visible) {

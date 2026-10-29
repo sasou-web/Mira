@@ -67,6 +67,7 @@ struct HomeView: View {
             .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
+        .foldsTabBar()
         .ignoresSafeArea(edges: .top)
         .overlay(alignment: .top) {
             LinearGradient(colors: [Palette.bg.opacity(0.85), Palette.bg.opacity(0)], startPoint: .top, endPoint: .bottom)

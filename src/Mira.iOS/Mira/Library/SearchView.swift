@@ -14,6 +14,8 @@ struct SearchView: View {
     @State private var failure: Error?
     @State private var recent: [String] = []
     @State private var width: CGFloat = 402
+    /// The field, ready to type in as Search opens (as iOS's own Search tab).
+    @FocusState private var typing: Bool
     @Namespace private var zoom
 
     private var term: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -31,11 +33,13 @@ struct SearchView: View {
             .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
+        .foldsTabBar()
         .scrollDismissesKeyboard(.immediately)
         .background(Palette.bg)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .navigationTitle("Search")
-        .searchable(text: $text, prompt: Text("Movies, shows, episodes"))
+        .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("Movies, shows, episodes"))
+        .searchFocused($typing)
         .onSubmit(of: .search) { remember(term) }
         .task(id: term) {
             guard !term.isEmpty else {
@@ -49,7 +53,11 @@ struct SearchView: View {
             guard !Task.isCancelled else { return }
             await search(term)
         }
-        .onAppear { recent = RecentSearches.load(app.session?.userId) }
+        .onAppear {
+            recent = RecentSearches.load(app.session?.userId)
+            // A moment after the page is in place: the field takes no focus before.
+            if term.isEmpty { Task { try? await Task.sleep(for: .milliseconds(350)); typing = true } }
+        }
         .navigationDestination(for: TitleRoute.self) { route in
             TitleView(route: route).navigationTransition(.zoom(sourceID: route.source, in: zoom))
         }
