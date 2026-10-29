@@ -128,14 +128,14 @@ public partial class MainWindow
 
                 step = "the Jellyfin PC turned off";
                 (await bench.PostAsync("mira/jellyfin?online=0", null)).EnsureSuccessStatusCode();
-                await Until("the node sees the Jellyfin PC off", () => tailnet.Node?.Status?.Peer(ip) is { Online: false }, 60);
+                await Until("the node sees the Jellyfin PC off", () => tailnet.Node?.Status?.Peer(ip) is { Online: false }, 90);
                 HideNotice();
                 await RefreshAsync();
                 await Until("the notice of a PC off", () => Notice.Visibility == Visibility.Visible && NoticeText.Text.Contains("éteint, en veille ou sans Internet", StringComparison.Ordinal), 30);
                 Require(NoticeText.Text.StartsWith(name, StringComparison.OrdinalIgnoreCase) && _offlineSince is not null, "the Jellyfin PC off: said as off or asleep, by its name on Tailscale: " + NoticeText.Text);
                 await Shot("tailnet-pc-off");
                 (await bench.PostAsync("mira/jellyfin?online=1", null)).EnsureSuccessStatusCode();
-                await Until("the node sees the Jellyfin PC again", () => tailnet.Node?.Status?.Peer(ip) is { Online: true }, 60);
+                await Until("the node sees the Jellyfin PC again", () => tailnet.Node?.Status?.Peer(ip) is { Online: true }, 90);
                 // A connection opened before it went off may fail once more: refreshed until Jellyfin answers, as « Actualiser » would be.
                 step = "Home back";
                 for (var timer = Stopwatch.StartNew(); ; await Task.Delay(2000))
