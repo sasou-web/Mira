@@ -5,6 +5,8 @@ import SwiftUI
 struct TitleActions: View {
     @Binding var item: Item
     @Environment(AppModel.self) private var app
+    /// Touched here: the only change that is felt (not a page read again after the player closed).
+    @State private var touched = 0
 
     var body: some View {
         let favorite = item.userData?.isFavorite == true
@@ -27,7 +29,7 @@ struct TitleActions: View {
             .accessibilityIdentifier("title.watched")
             .accessibilityAddTraits(played ? .isSelected : [])
         }
-        .sensoryFeedback(.selection, trigger: item.userData)
+        .sensoryFeedback(.selection, trigger: touched)
     }
 
     private func update(played: Bool? = nil, favorite: Bool? = nil) {
@@ -39,6 +41,7 @@ struct TitleActions: View {
         if let favorite { data.isFavorite = favorite }
         let target = item
         item.userData = data
+        touched += 1
         Task { await app.set(target, played: played, favorite: favorite) }
     }
 }

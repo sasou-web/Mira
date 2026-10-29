@@ -8,7 +8,7 @@ actor ImagePipeline {
     private let memory = NSCache<NSURL, UIImage>()
     private var running: [URL: Task<UIImage?, Never>] = [:]
 
-    init() { memory.totalCostLimit = 96 << 20 }
+    init() { memory.totalCostLimit = 160 << 20 }
 
     func cached(_ url: URL) -> UIImage? { memory.object(forKey: url as NSURL) }
 

@@ -11,6 +11,8 @@ struct EpisodeList: View {
     @State private var season: String?
     @State private var episodes: [Item] = []
     @State private var failed = false
+    /// A season chosen by hand: the episode to watch next no longer moves the list.
+    @State private var picked = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -20,6 +22,7 @@ struct EpisodeList: View {
                         ForEach(seasons) { entry in
                             let chosen = entry.id == season
                             Button {
+                                picked = true
                                 season = entry.id
                             } label: {
                                 Text(verbatim: entry.name ?? "")
@@ -48,8 +51,14 @@ struct EpisodeList: View {
                 }
             }
         }
-        .task(id: "\(series.id)-\(app.playback)") { await loadSeasons() }
+        .task(id: series.id) { await loadSeasons() }
         .task(id: season) { await loadEpisodes() }
+        // A title stopped or marked: the season shown is read again in place (same episodes, same rows).
+        .onChange(of: app.playback) { Task { await loadEpisodes() } }
+        // The episode to watch next, known after the seasons: its season comes first.
+        .onChange(of: next?.seasonId) { _, id in
+            if !picked, let id, seasons.contains(where: { $0.id == id }) { season = id }
+        }
     }
 
     private func loadSeasons() async {

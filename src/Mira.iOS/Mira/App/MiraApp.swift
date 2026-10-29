@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 @main
 struct MiraApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var app = AppModel()
 
     init() { MiraFont.applyToNavigationBars() }
@@ -13,6 +15,17 @@ struct MiraApp: App {
                 .preferredColorScheme(.dark)
                 .tint(Palette.accent)
         }
+    }
+}
+
+/// On iPhone, Mira's pages stay upright and only Apple's player turns sideways: coming back from a film watched
+/// sideways, the pages are never laid out sideways first, then upright again. iPad turns everywhere.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return .all }
+        var top = window?.rootViewController
+        while let next = top?.presentedViewController { top = next }
+        return top is MiraPlayerController && top?.isBeingDismissed == false ? .allButUpsideDown : .portrait
     }
 }
 
@@ -61,7 +74,13 @@ struct MainView: View {
         .overlay(alignment: .top) { NoticeToast() }
         .onChange(of: phase) { if phase == .active { app.together.foreground() } }
         .alert("Can’t play this title", isPresented: Binding(get: { app.playerMessage != nil }, set: { if !$0 { app.playerMessage = nil } })) {
-            Button("OK", role: .cancel) {}
+            if let retry = app.retryItem {
+                Button("Try again") {
+                    app.retryItem = nil
+                    app.play(retry)
+                }
+            }
+            Button("OK", role: .cancel) { app.retryItem = nil }
         } message: {
             Text(verbatim: app.playerMessage ?? "")
         }

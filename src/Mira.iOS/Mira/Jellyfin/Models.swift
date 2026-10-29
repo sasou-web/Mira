@@ -132,6 +132,14 @@ enum ItemText {
         return min(1, Double(done) / Double(total))
     }
 
+    /// « ★ 7.8 · PG-13 »: Jellyfin's community rating and the age rating, on a title's page.
+    static func ratings(_ item: Item) -> String {
+        var parts: [String] = []
+        if let rating = item.communityRating, rating > 0 { parts.append("★ " + rating.formatted(.number.precision(.fractionLength(1)))) }
+        if let official = item.officialRating, !official.isEmpty { parts.append(official) }
+        return parts.joined(separator: " · ")
+    }
+
     /// « 2024 · 2 h 05 · Animation, Adventure » for a film, the seasons for a series.
     static func meta(_ item: Item) -> String {
         var parts: [String] = []

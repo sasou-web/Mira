@@ -88,7 +88,10 @@ final class PlayerSession: NSObject {
     func start(fromStart: Bool, groupStart: Int64? = nil) {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
-        Self.topController()?.present(controller, animated: true)
+        Self.topController()?.present(controller, animated: true) { [controller] in
+            // The player may turn sideways (AppDelegate): asked again once it is up.
+            controller.setNeedsUpdateOfSupportedInterfaceOrientations()
+        }
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(500))
@@ -435,12 +438,17 @@ final class PlayerSession: NSObject {
         let report = started && !stopped
         let encoding = playMethod != "DirectPlay" ? playSessionId : nil
         player.pause()
-        player.replaceCurrentItem(with: nil)
         let failure = failure
+        if failure != nil { app?.retryItem = item }
+        // The picture stays on the player while it slides away; emptied once it is gone (no black frame going down).
         if controller.presentingViewController != nil && !controller.isBeingDismissed {
-            controller.dismiss(animated: true) { [weak self] in self?.app?.playerMessage = failure }
-        } else if let failure {
-            app?.playerMessage = failure
+            controller.dismiss(animated: true) { [weak self] in
+                self?.player.replaceCurrentItem(with: nil)
+                self?.app?.playerMessage = failure
+            }
+        } else {
+            player.replaceCurrentItem(with: nil)
+            if let failure { app?.playerMessage = failure }
         }
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         let client = client
@@ -626,6 +634,14 @@ extension PlayerSession: @preconcurrency AVPlayerViewControllerDelegate {
 /// Apple's player, which says when it leaves the screen (closed, or swiped down).
 final class MiraPlayerController: AVPlayerViewController {
     var onDismissed: (@MainActor () -> Void)?
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        // Leaving (closed or swiped down): the pages under it are upright on iPhone (AppDelegate), turned back now.
+        guard isBeingDismissed, let scene = view.window?.windowScene, UIDevice.current.userInterfaceIdiom == .phone else { return }
+        presentingViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+    }
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)

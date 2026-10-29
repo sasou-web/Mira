@@ -15,11 +15,16 @@ struct LibraryView: View {
     @State private var genres: [String] = []
     @State private var years: [String] = []
     @State private var width: CGFloat = 402
+    /// On screen: a change of progress or of a mark is read again at once; otherwise once the grid shows again.
+    @State private var shown = false
+    @State private var stale = false
     @Namespace private var zoom
 
-    init(kind: Kind) {
+    init(kind: Kind, genre: String? = nil) {
         self.kind = kind
-        _query = State(initialValue: BrowseQuery(types: kind == .movies ? "Movie" : "Series"))
+        var query = BrowseQuery(types: kind == .movies ? "Movie" : "Series")
+        query.genre = genre
+        _query = State(initialValue: query)
     }
 
     private var title: LocalizedStringKey { kind == .movies ? "Movies" : "Shows" }
@@ -63,7 +68,14 @@ struct LibraryView: View {
         .refreshable { await reload() }
         .task(id: query) { await reload() }
         .task { await loadOptions() }
-        .onChange(of: app.playback) { Task { await reload() } }
+        .onChange(of: app.playback) {
+            if shown { Task { await refresh() } } else { stale = true }
+        }
+        .onAppear {
+            shown = true
+            if stale { stale = false; Task { await refresh() } }
+        }
+        .onDisappear { shown = false }
         .navigationDestination(for: TitleRoute.self) { route in
             TitleView(route: route).navigationTransition(.zoom(sourceID: route.source, in: zoom))
         }
@@ -109,6 +121,13 @@ struct LibraryView: View {
             .padding(.horizontal, 16)
         }
         .scrollIndicators(.hidden)
+        // The row goes on past the right edge: it fades there, so that it reads as a row to swipe.
+        .mask {
+            HStack(spacing: 0) {
+                Rectangle()
+                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .leading, endPoint: .trailing).frame(width: 28)
+            }
+        }
         .buttonStyle(.plain)
     }
 
@@ -186,6 +205,15 @@ struct LibraryView: View {
         } catch {
             if items.isEmpty { failure = error }
         }
+    }
+
+    /// The grid read again in place, as far as it was scrolled, without a wheel: progress and marks change, nothing jumps.
+    private func refresh() async {
+        guard let client = app.client, !loading, !items.isEmpty else { return await reload() }
+        let asked = query
+        guard let page = try? await client.browse(asked, start: 0, limit: max(60, items.count)), asked == query else { return }
+        items = page.items ?? []
+        total = page.totalRecordCount ?? items.count
     }
 
     private func more() async {

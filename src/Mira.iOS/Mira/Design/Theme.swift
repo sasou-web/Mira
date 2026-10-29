@@ -96,3 +96,14 @@ struct ChipRow<Content: View>: View {
         }
     }
 }
+
+extension View {
+    /// A picture at the top of a page that follows a pull down: it grows from its bottom edge to fill what opens above
+    /// it, never a black gap. Measured against the nearest vertical scroll view (0 at rest, the page's top).
+    func stretchesWhenPulled(height: CGFloat) -> some View {
+        visualEffect { content, proxy in
+            let pulled = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
+            return content.scaleEffect(pulled > 0 ? (height + pulled) / max(1, height) : 1, anchor: .bottom)
+        }
+    }
+}

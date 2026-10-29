@@ -25,6 +25,8 @@ final class AppModel {
     private(set) var player: PlayerSession?
     /// Why a title could not play, said over the page it was started from.
     var playerMessage: String?
+    /// The title that could not play, for « Try again » (Jellyfin back, Tailscale awake): where it was left.
+    var retryItem: Item?
     /// « Watch together »: the group this iPhone is in, Jellyfin's SyncPlay.
     let together = Together()
     /// The sleep timer, chosen on a title's page, read by the player it opens.

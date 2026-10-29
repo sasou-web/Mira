@@ -223,6 +223,16 @@
         }
       }
     },
+    "%lld results": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld résultats"
+          }
+        }
+      }
+    },
     "%lld s": {
       "localizations": {
         "fr": {
@@ -660,6 +670,16 @@
         }
       }
     },
+    "Genres": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Genres"
+          }
+        }
+      }
+    },
     "Group": {
       "localizations": {
         "fr": {
@@ -1090,6 +1110,16 @@
         }
       }
     },
+    "Opens the show": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre la série"
+          }
+        }
+      }
+    },
     "Password": {
       "localizations": {
         "fr": {
@@ -1376,6 +1406,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réglages"
+          }
+        }
+      }
+    },
+    "Show more": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher plus"
           }
         }
       }
