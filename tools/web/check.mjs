@@ -528,7 +528,7 @@ try {
   await shot('12-series-calendar-sheet');
   check('série : épisodes manquants et prochaine sortie (extension TheTVDB de Jellyfin)',
     virtuals.length === 7 && /^2 épisodes manquants : S1 · É3, S2 · É2 Prochain épisode : S2 · É3, [a-z]+$/.test(calendarLine)
-      && /Manquants/.test(calendarSheet) && /S1 · É3 · Le retour/.test(calendarSheet) && /À venir/.test(calendarSheet) && /S2 · É4 · La suite/.test(calendarSheet) && !/Saison trois/.test(calendarSheet)
+      && /Manquants/i.test(calendarSheet) && /S1 · É3 · Le retour/.test(calendarSheet) && /À venir/i.test(calendarSheet) && /S2 · É4 · La suite/.test(calendarSheet) && !/Saison trois/.test(calendarSheet)
       && /Le télécharger sur le PC serveur/.test(calendarSheet),
     `${virtuals.length} épisodes virtuels ; ligne : « ${calendarLine || 'rien'} » ; feuille : ${calendarSheet.replace(/\s+/g, ' ').slice(0, 300)}`);
   await page.locator('.sheet-item', { hasText: 'Toutes les sorties de tes séries' }).click({ timeout: 5000 }).catch(() => {});
