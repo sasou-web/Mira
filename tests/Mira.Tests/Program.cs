@@ -581,6 +581,22 @@ await Test("Session protégée par Windows, mot de passe absent du stockage", ()
     profile.SaveConnection(connection); Assert(profile.LoadConnection() == connection, "Session round trip failed");
     var disk = File.ReadAllBytes(Path.Combine(profile.DirectoryPath, "session.protected")); Assert(!Encoding.UTF8.GetString(disk).Contains("secret-session-token"), "Token stored as plain text"); return Task.CompletedTask;
 });
+await Test("Tailscale intégré : clé de son état gardée par Windows, remplacée si illisible, jamais si occupée, effacée avec lui", () =>
+{
+    var profile = new LocalProfile(Path.Combine(testRoot, "tailnet")); var file = Path.Combine(profile.DirectoryPath, "tailscale.protected");
+    var key = profile.TailnetKey();
+    Assert(key is { Length: 32 } && profile.TailnetKey() is { } again && again.SequenceEqual(key), "The node's key is not kept");
+    Assert(File.ReadAllBytes(file).AsSpan().IndexOf(key) < 0, "The node's key is stored as it is");
+    File.WriteAllBytes(file, [1, 2, 3]);
+    Assert(profile.TailnetKey() is { Length: 32 } replaced && !replaced.SequenceEqual(key) && profile.TailnetKey()!.SequenceEqual(replaced), "An unreadable key is not replaced by a new one, kept");
+    var before = File.ReadAllBytes(file);
+    using (new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.None)) Assert(profile.TailnetKey() is null, "A key held by another program is not left for later");
+    Assert(File.ReadAllBytes(file).SequenceEqual(before), "A key held by another program is replaced");
+    Directory.CreateDirectory(profile.TailnetDirectory); File.WriteAllText(Path.Combine(profile.TailnetDirectory, "tailscaled.state"), "state");
+    profile.ForgetTailnet();
+    Assert(!File.Exists(file) && !Directory.Exists(profile.TailnetDirectory), "Signed out, the node's key or state stays on this PC");
+    return Task.CompletedTask;
+});
 await Test("Profil : un identifiant d’appareil vide est remplacé, puis gardé", () =>
 {
     var folder = Path.Combine(testRoot, "empty-device"); Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder, "device-id"), "  \n");
