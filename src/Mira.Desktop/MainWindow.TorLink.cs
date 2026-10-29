@@ -86,6 +86,8 @@ public partial class MainWindow
         _torlink?.Watch();
         if (_torlink?.PlacementDue() == true) QueueTorLinkImport();
         _ = CheckTorLinkAvailabilityAsync();
+        // Better versions: those TorLink finished, those waiting for their title to be watched, those Jellyfin has now.
+        _ = ReplaceDueAsync(); _ = FinishReplacementsAsync();
     }
 
     /// <summary>Library folders: manual choices first, otherwise the Jellyfin libraries this PC can reach.</summary>
@@ -109,6 +111,7 @@ public partial class MainWindow
         if (_torlink is not { } torlink) return;
         await torlink.PlaceAsync(() => (_settings.TorLinkAutoImport, _settings.TorLinkKeepShared ? ImportMode.KeepSeeding : ImportMode.Move),
             async () => { RenderTorLinkImports(); if (_client is { } client && !_demo) await torlink.NotifyAsync(client, _torlinkLifetime.Token); }, _torlinkLifetime.Token);
+        await ReplaceDueAsync();
     }
 
     private void RequestTorLinkImport(string id) { _torlink?.Request(id); _ = ProcessTorLinkAsync(); }
@@ -133,7 +136,7 @@ public partial class MainWindow
 
     // ---- Page -----------------------------------------------------------------------------------
 
-    private async void TorLinkNav_Click(object sender, RoutedEventArgs e) => await ShowTorLinkAsync();
+    private async void TorLinkNav_Click(object sender, RoutedEventArgs e) { EndUpgrade(); await ShowTorLinkAsync(); }
 
     private async Task ShowTorLinkAsync()
     {

@@ -41,7 +41,7 @@ public partial class MainWindow
     {
         if (_detail is not { } item || _titleMore.Id != item.Id) return;
         var menu = new ContextMenu { PlacementTarget = FilesButton, Placement = PlacementMode.Bottom };
-        if (_titleMore.Admin) AddIdentifyActions(menu, item);
+        if (_titleMore.Admin) { AddIdentifyActions(menu, item); if (UpgradeMenuItem(item) is { } upgrade) menu.Items.Add(upgrade); }
         if (_titleMore.Files && TitleFiles.Location(item) is { } location)
         {
             if (menu.Items.Count > 0) menu.Items.Add(new Separator());

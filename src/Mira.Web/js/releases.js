@@ -142,6 +142,11 @@ export function parseRelease(name) {
   };
 }
 
+/** A source as the page says it: « WEB-DL », « BluRay », « Filmé en salle »; the key itself when Mira has no word for it. */
+export function sourceLabel(source) {
+  return source === 'cam' ? tr('Filmé en salle') : SOURCE_LABELS[source] ?? source;
+}
+
 /**
  * « 1080p · WEB-DL · HEVC · MULTI · ToonsHub »: what the release is, in the words of the page. The group only when it
  * is a fansub's, in brackets in front (Erai-raws, SubsPlease tell who translated an anime); a scene group (FW, QTZ)

@@ -99,7 +99,8 @@ public sealed class TorLinkPlacement : IDisposable
                 Earlier = await Task.Run(async () =>
                 {
                     await importer.ProcessAsync(state, libraries, mode, automatic, requested, token);
-                    var known = importer.Entries.Select(x => x.Id).ToHashSet();
+                    // A better version of a title is never offered as a download to place.
+                    var known = importer.Entries.Select(x => x.Id).Concat(importer.Replacements.Select(x => x.Id)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                     return (state.ReadHistory() ?? []).Where(x => !known.Contains(x.Id)).Take(5).ToList();
                 }, token);
                 await placed();
@@ -168,6 +169,8 @@ public sealed class TorLinkPlacement : IDisposable
     /// <summary>What Mira says of an outcome, if anything.</summary>
     public static string? Outcome(TorLinkImportEntry entry) => entry.State switch
     {
+        TorLinkImportState.Imported when entry.Replaced is not null => L($"« {TitleOf(entry)} » : la meilleure version a pris la place de l’ancienne, mise à la Corbeille.", $"“{TitleOf(entry)}”: the better version took the old one’s place, moved to the Recycle Bin."),
+        TorLinkImportState.Failed when entry.Replaced is not null => L($"« {TitleOf(entry)} » n’a pas été remplacé : {entry.Message}", $"“{TitleOf(entry)}” wasn’t replaced: {entry.Message}"),
         TorLinkImportState.Imported when entry.JellyfinId is not null => L($"« {TitleOf(entry)} » est disponible dans ta bibliothèque.", $"“{TitleOf(entry)}” is available in your library."),
         TorLinkImportState.Imported => L($"« {TitleOf(entry)} » rejoint {KindName(entry.Kind)}. Jellyfin l’ajoute à la bibliothèque.", $"“{TitleOf(entry)}” goes to {KindName(entry.Kind)}. Jellyfin is adding it to the library."),
         TorLinkImportState.Partial => L($"« {TitleOf(entry)} » : une partie des fichiers est rangée. Détails dans TorLink.", $"“{TitleOf(entry)}”: some of the files are in place. Details in TorLink."),
@@ -190,6 +193,8 @@ public sealed class TorLinkPlacement : IDisposable
     public static string KindName(MediaKind? kind) => kind switch { MediaKind.Movie => L("Films", "Movies"), MediaKind.Series => L("Séries", "Shows"), MediaKind.Anime => L("Animes", "Anime"), _ => L("la bibliothèque", "the library") };
     public static string StatusOf(TorLinkImportEntry entry) => entry.State switch
     {
+        TorLinkImportState.Imported when entry.Replaced is not null => L("meilleure version en place, l’ancienne dans la Corbeille", "better version in place, the old one in the Recycle Bin"),
+        TorLinkImportState.Failed when entry.Replaced is not null => L($"pas remplacé : {entry.Message}", $"not replaced: {entry.Message}"),
         TorLinkImportState.Waiting => L("en attente des fichiers", "waiting for the files"),
         TorLinkImportState.Blocked => L("dossier de bibliothèque à choisir", "library folder to choose"),
         TorLinkImportState.Importing => L("rangement en cours…", "sorting…"),
@@ -204,7 +209,8 @@ public sealed class TorLinkPlacement : IDisposable
         var status = StatusOf(entry);
         var line = entry.Kind is { } kind && entry.State is not (TorLinkImportState.Ignored or TorLinkImportState.Waiting) ? $"{KindName(kind)} · {status}" : char.ToUpper(status[0], Culture) + status[1..];
         if (entry.Method is { } method && entry.State is TorLinkImportState.Imported or TorLinkImportState.Partial) line += " · " + method;
-        return entry.Message is { Length: > 0 } message ? line + "\n" + message : line;
+        // A replacement that failed says why in its status already.
+        return entry.Message is { Length: > 0 } message && !(entry.Replaced is not null && entry.State == TorLinkImportState.Failed) ? line + "\n" + message : line;
     }
 
     public void Dispose() { _watcher?.Dispose(); _watcher = null; }

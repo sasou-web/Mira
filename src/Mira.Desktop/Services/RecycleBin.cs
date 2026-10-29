@@ -11,13 +11,17 @@ namespace Mira.Desktop.Services;
 internal static class RecycleBin
 {
     private const uint Delete = 3;
-    private const ushort AllowUndo = 0x40, NoConfirmation = 0x10, WantNukeWarning = 0x4000;
+    private const ushort AllowUndo = 0x40, NoConfirmation = 0x10, NoErrorUi = 0x400, WantNukeWarning = 0x4000;
 
-    /// <summary>True once <paramref name="path"/> is no longer there; false when refused, cancelled or only partly done.</summary>
-    public static bool Send(string path, IntPtr owner)
+    /// <summary>
+    /// True once <paramref name="path"/> is no longer there; false when refused, cancelled or only partly done.
+    /// <paramref name="quiet"/>: no dialog for a file in use (« Remplacer par une meilleure version » tries again later);
+    /// Windows still asks before deleting for good.
+    /// </summary>
+    public static bool Send(string path, IntPtr owner, bool quiet = false)
     {
         // A list of paths, each ended by a null, the whole by another.
-        var operation = new FileOperation { Owner = owner, Function = Delete, From = path + "\0\0", Flags = AllowUndo | NoConfirmation | WantNukeWarning };
+        var operation = new FileOperation { Owner = owner, Function = Delete, From = path + "\0\0", Flags = (ushort)(AllowUndo | NoConfirmation | WantNukeWarning | (quiet ? NoErrorUi : 0)) };
         var result = SHFileOperation(ref operation);
         return result == 0 && !operation.AnyAborted && !File.Exists(path) && !Directory.Exists(path);
     }

@@ -98,6 +98,7 @@ export default {
   'Qualité non précisée': 'Quality not stated',
   'Meilleur choix': 'Best pick',
   Envoyé: 'Sent',
+  Demandé: 'Requested',
   'plus de place sur le disque du PC serveur': 'the server PC’s disk is full',
   'TorLink ne peut pas écrire dans son dossier': 'TorLink can’t write to its folder',
   // owned.js
@@ -173,4 +174,24 @@ export default {
   'Nouveaux épisodes : ': 'New episodes: ',
   suivis: 'followed',
   'Séries suivies': 'Followed shows',
+  // upgrade.js, views/torlink.js and identify-sheet.js: « Chercher une meilleure version »
+  'Définition inconnue': 'Unknown resolution',
+  'source inconnue': 'unknown source',
+  'Chercher une meilleure version': 'Find a better version',
+  'Sur le PC serveur, la nouvelle version prend la place de l’ancienne, mise à la Corbeille.': 'On the server PC, the new version takes the old one’s place, which goes to the Recycle Bin.',
+  'Meilleure version': 'Better version',
+  'Meilleure version de « {title} »': 'Better version of “{title}”',
+  'Actuellement : {quality}': 'Currently: {quality}',
+  'Ne plus chercher de meilleure version': 'Stop looking for a better version',
+  'Seules les versions meilleures sont montrées. Une fois téléchargée et vérifiée (même durée, lisible par Jellyfin), la nouvelle prend la place de l’ancienne, qui part à la Corbeille du PC serveur. L’avancement, les favoris et les collections passent sur la nouvelle.':
+    'Only better versions are shown. Once downloaded and checked (same length, readable by Jellyfin), the new one takes the old one’s place, which goes to the server PC’s Recycle Bin. Progress, favorites and collections move over to the new one.',
+  'Aucune version meilleure que l’actuelle ({quality}) parmi les {n} résultats pour « {query} ». Réessaie plus tard, ou avec un autre nom.':
+    'No version better than the current one ({quality}) among the {n} results for “{query}”. Try again later, or with another name.',
+  '{n} version meilleure que l’actuelle': ['{n} version better than the current one', '{n} versions better than the current one'],
+  'Une meilleure version de ce titre est déjà demandée : elle s’affiche plus haut.': 'A better version of this title is already requested: it shows above.',
+  'Mira sur le PC serveur ne sait pas encore remplacer un titre : mets-le à jour.': 'Mira on the server PC can’t replace a title yet: update it.',
+  'Remplacer « {title} » ?': 'Replace “{title}”?',
+  '{details}. TorLink la télécharge sur le PC serveur. Une fois vérifiée (même durée, lisible par Jellyfin), elle prend la place de la version actuelle ({quality}), qui part à la Corbeille du PC serveur ; jamais pendant que quelqu’un regarde ce titre.':
+    '{details}. TorLink downloads it on the server PC. Once checked (same length, readable by Jellyfin), it takes the place of the current version ({quality}), which goes to the server PC’s Recycle Bin; never while someone is watching this title.',
+  'Demandé au PC serveur : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.': 'Requested from the server PC: the new version will take the old one’s place once downloaded and checked.',
 };

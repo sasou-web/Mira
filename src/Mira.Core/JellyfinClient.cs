@@ -577,6 +577,24 @@ public sealed class JellyfinClient : IDisposable
         using var response = await _http.PostAsJsonAsync($"UserItems/{Uri.EscapeDataString(id)}/UserData?userId={Connection.UserId}", new { PlaybackPositionTicks = Math.Max(0, ticks) }, Json.Options, ct);
         await CheckAsync(response);
     }
+    /// <summary>An account's state of a title (an administrator reads anyone's): « Remplacer par une meilleure version » copies it onto the new file.</summary>
+    public async Task<SavedUserData> UserDataOfAsync(string id, string userId, CancellationToken ct = default)
+    {
+        var data = await GetAsync<JsonElement>($"UserItems/{Uri.EscapeDataString(id)}/UserData?userId={Uri.EscapeDataString(userId)}", ct);
+        bool Flag(string name) => data.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
+        long Number(string name) => data.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number) ? number : 0;
+        return new(userId, Flag("Played"), (int)Math.Clamp(Number("PlayCount"), 0, int.MaxValue), Math.Max(0, Number("PlaybackPositionTicks")), Flag("IsFavorite"),
+            data.TryGetProperty("LastPlayedDate", out var last) && last.ValueKind == JsonValueKind.String && last.TryGetDateTimeOffset(out var at) ? at : null,
+            data.TryGetProperty("Likes", out var likes) && likes.ValueKind is JsonValueKind.True or JsonValueKind.False ? likes.GetBoolean() : null,
+            data.TryGetProperty("Rating", out var rating) && rating.ValueKind == JsonValueKind.Number ? rating.GetDouble() : null);
+    }
+    /// <summary>That state written on another title: what is not known (null) is left as it is.</summary>
+    public async Task SetUserDataAsync(string id, SavedUserData data, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsJsonAsync($"UserItems/{Uri.EscapeDataString(id)}/UserData?userId={Uri.EscapeDataString(data.UserId)}",
+            new { data.Played, data.PlayCount, data.PlaybackPositionTicks, data.IsFavorite, data.LastPlayedDate, data.Likes, data.Rating }, Json.Options, ct);
+        await CheckAsync(response);
+    }
     /// <summary>Marks an item (or every episode of a series) as watched or not watched.</summary>
     public async Task SetPlayedAsync(string id, bool played, CancellationToken ct = default)
     {
@@ -828,6 +846,17 @@ public sealed class JellyfinClient : IDisposable
     /// </summary>
     public async Task<List<Viewer>> ViewersAsync(CancellationToken ct = default) =>
         Viewers.Parse(await GetAsync<JsonElement>("Sessions?activeWithinSeconds=960", ct), Connection.DeviceId);
+    /// <summary>The titles played on Jellyfin right now, paused ones too, by id: every session's for an administrator.</summary>
+    public async Task<HashSet<string>> PlayingIdsAsync(CancellationToken ct = default)
+    {
+        var sessions = await GetAsync<JsonElement>("Sessions?activeWithinSeconds=960", ct);
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (sessions.ValueKind != JsonValueKind.Array) return ids;
+        foreach (var session in sessions.EnumerateArray())
+            if (session.TryGetProperty("NowPlayingItem", out var item) && item.ValueKind == JsonValueKind.Object && item.TryGetProperty("Id", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() is { Length: > 0 } text)
+                ids.Add(text);
+        return ids;
+    }
     /// <summary>
     /// Asks a session to stop (Jellyfin's Playstate Stop): only one whose WebSocket takes commands (CanStop) does,
     /// Mira web among them while it plays. False when refused.
@@ -957,10 +986,13 @@ public sealed class JellyfinClient : IDisposable
         await CheckRelayAsync(response, ct);
         return await response.Content.ReadFromJsonAsync<RelaySearch>(RemoteProtocol.Json, ct);
     }
-    /// <summary>A result of a search, sent to the PC of Jellyfin (its magnet link stays with the relay): the request's id.</summary>
-    public async Task<string> TorLinkRequestAsync(string search, RelayHit hit, CancellationToken ct = default)
+    /// <summary>
+    /// A result of a search, sent to the PC of Jellyfin (its magnet link stays with the relay): the request's id.
+    /// <paramref name="replace"/>: the film or episode whose file it replaces (« Remplacer par une meilleure version »).
+    /// </summary>
+    public async Task<string> TorLinkRequestAsync(string search, RelayHit hit, CancellationToken ct = default, string? replace = null)
     {
-        using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { search, result = hit.Id, name = hit.Name, size = hit.Size }, RemoteProtocol.Json, ct);
+        using var response = await _http.PostAsJsonAsync("Mira/torlink/requests", new { search, result = hit.Id, name = hit.Name, size = hit.Size, replace }, RemoteProtocol.Json, ct);
         return await RelayIdAsync(response, ct);
     }
     /// <summary>A pasted magnet link, sent to the PC of Jellyfin: the request's id.</summary>
@@ -1069,6 +1101,14 @@ public sealed class JellyfinClient : IDisposable
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return null;
         await CheckAsync(response);
         return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonObject;
+    }
+    /// <summary>The ffmpeg Jellyfin converts with, as its settings name it (an administrator); null when unknown.</summary>
+    public async Task<string?> EncoderPathAsync(CancellationToken ct = default)
+    {
+        if (await EncodingSettingsAsync(ct) is not { } encoding) return null;
+        foreach (var name in new[] { "EncoderAppPathDisplay", "EncoderAppPath" })
+            if (encoding[name] is JsonValue value && value.TryGetValue<string>(out var path) && path.Length > 0) return path;
+        return null;
     }
     /// <summary>Jellyfin's accounts, the hidden ones too, as an administrator sees them; null when this account may not.</summary>
     public async Task<List<AuthUser>?> UsersAsync(CancellationToken ct = default)
@@ -1432,9 +1472,10 @@ public sealed class JellyfinClient : IDisposable
     private sealed record MediaUpdates(MediaUpdate[] Updates);
     /// <summary>
     /// The titles owning these files once Jellyfin has indexed them, among its 100 latest films and episodes, in one
-    /// request: file path → the film, or the series of an episode. Paths must match exactly the ones the server sees.
+    /// request: file path → the film, or the series of an episode (the episode itself when <paramref name="itself"/>).
+    /// Paths must match exactly the ones the server sees.
     /// </summary>
-    public async Task<Dictionary<string, string>> FindIndexedAsync(IReadOnlyCollection<string> files, CancellationToken ct = default)
+    public async Task<Dictionary<string, string>> FindIndexedAsync(IReadOnlyCollection<string> files, CancellationToken ct = default, bool itself = false)
     {
         var wanted = new HashSet<string>(files, StringComparer.OrdinalIgnoreCase);
         var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -1444,7 +1485,7 @@ public sealed class JellyfinClient : IDisposable
         foreach (var item in items.EnumerateArray())
         {
             if (!item.TryGetProperty("Path", out var path) || path.ValueKind != JsonValueKind.String || path.GetString() is not { } value || !wanted.Contains(value) || found.ContainsKey(value)) continue;
-            var owner = item.TryGetProperty("SeriesId", out var series) && series.ValueKind == JsonValueKind.String && series.GetString() is { Length: > 0 } seriesId ? seriesId
+            var owner = !itself && item.TryGetProperty("SeriesId", out var series) && series.ValueKind == JsonValueKind.String && series.GetString() is { Length: > 0 } seriesId ? seriesId
                 : item.TryGetProperty("Id", out var own) && own.ValueKind == JsonValueKind.String ? own.GetString() : null;
             if (owner is not null) found[value] = owner;
         }

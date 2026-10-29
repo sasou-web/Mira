@@ -6,12 +6,13 @@ import { api } from '../api.js';
 import { h, icon, clear } from '../dom.js';
 import { tr, trn } from '../i18n.js';
 import { sheet, toast, errorState, emptyState } from '../components.js';
-import { goBack } from '../app.js';
+import { goBack, replaceRoute } from '../app.js';
 import { session, temp } from '../session.js';
 import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable, followLine, followNote, pickLine, takenLine } from '../torlink.js';
 import { followedSheet } from '../follow.js';
 import { groupReleases, parseRelease, qualityLine, warning, readableName } from '../releases.js';
 import { ownedLookups, ownedLine, lookupKey } from '../owned.js';
+import { candidates, currentQuality, qualityText, upgradeQuery, upgradeTitle } from '../upgrade.js';
 
 const EVERY = 3000, SEARCH_EVERY = 1000, SEARCH_WAIT = 90_000;
 // As long as the relay keeps a search and its results (TorLinkRelay.SearchLife).
@@ -58,9 +59,12 @@ export function create({ query }) {
   absent.hidden = true;
   const note = h('p', { class: 'group-note torlink-note' },
     tr('TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les comptes administrateurs de Jellyfin voient cet écran.'));
+  // « Chercher une meilleure version » (#/telecharger?remplacer=<id>, from a film's or an episode's menu): the title whose
+  // file the results would replace, and what it is now (upgrade.js).
+  const banner = h('section', { class: 'group torlink-upgrade', hidden: true, 'aria-label': tr('Meilleure version') });
   // What the PC has under way and has placed comes before the results: a download just asked for, or a title just
   // placed, shows at once, not 60 results below.
-  const body = h('div', {}, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, followsTitle, followsList, placedTitle, placedList, placedMore, absent, found, note);
+  const body = h('div', {}, banner, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, followsTitle, followsList, placedTitle, placedList, placedMore, absent, found, note);
   clear(el).append(back,
     h('div', { class: 'page', style: { paddingTop: 'calc(var(--top) + 64px)', paddingBottom: '12px' } }, h('h1', { class: 'page-title' }, tr('Télécharger')), status),
     body);
@@ -69,6 +73,7 @@ export function create({ query }) {
   let looking = null; // the search under way: { id, query, started, timer }
   let lastHits = null; // the last results shown, with their search
   let lastState = null, placedOpen = false;
+  let upgrade = null, upgradeSent = false; // the title to replace, and whether a better version of it was asked for
   const sentHits = new Set(); // `${search}/${result}` sent from this screen, marked on their button
   const PLACED_SHOWN = 3;
   let latest = { requests: [], downloads: [], placed: [], controls: [] };
@@ -248,7 +253,8 @@ export function create({ query }) {
       const { id } = await api.torlinkSearch(text, 'all');
       if (!looking || looking.query !== text) return;
       looking.id = id;
-      keep(looking);
+      // A search for a better version is for this title only: not the one the screen comes back with.
+      if (!upgrade) keep(looking);
       follow();
     } catch (error) {
       if (!looking || looking.query !== text) return;
@@ -336,6 +342,7 @@ export function create({ query }) {
    */
   function showHits(current, hits) {
     lastHits = { search: current.id, query: current.query, started: current.started, hits };
+    if (upgrade) { showBetter(current, hits); return; }
     if (!hits.length) {
       clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, tr('Aucun résultat pour « {query} » dans les films, les séries et les animes. Essaie un autre titre.', { query: current.query })));
       return;
@@ -358,6 +365,37 @@ export function create({ query }) {
         return section;
       }));
     markOwned(current, sections);
+  }
+
+  /** Only this title, in a better picture than its file, the best first: never a second version, it takes its place. */
+  function showBetter(current, hits) {
+    const kept = candidates(upgrade, hits);
+    if (!kept.length) {
+      clear(found).append(h('p', { class: 'torlink-searching', role: 'status' }, tr('Aucune version meilleure que l’actuelle ({quality}) parmi les {n} résultats pour « {query} ». Réessaie plus tard, ou avec un autre nom.',
+        { quality: qualityText(currentQuality(upgrade)), n: hits.length, query: current.query })));
+      return;
+    }
+    const best = groupReleases(kept).flatMap((group) => [group.best, ...group.others]).sort((a, b) => b.score - a.score);
+    clear(found).append(
+      h('h2', { class: 'label group-title' }, trn(best.length, '{n} version meilleure que l’actuelle', '{n} versions meilleures que l’actuelle')),
+      h('section', { class: 'group torlink-title', 'aria-label': upgradeTitle(upgrade) }, best.map((entry, i) => release(current.id, entry, i === 0))));
+  }
+
+  async function startUpgrade(id) {
+    let item;
+    try { item = await api.item(id); } catch (error) { clear(found).append(h('p', { class: 'torlink-searching torlink-failed', role: 'alert' }, explain(error))); return; }
+    if (item.Type !== 'Movie' && item.Type !== 'Episode') return;
+    upgrade = item;
+    banner.replaceChildren(
+      h('div', { class: 'item static torlink-item' }, icon('download', { size: 20 }),
+        h('span', { class: 'grow' }, h('span', { class: 'torlink-name clamp-2' }, tr('Meilleure version de « {title} »', { title: upgradeTitle(item) })),
+          h('span', { class: 'sub torlink-line' }, tr('Actuellement : {quality}', { quality: qualityText(currentQuality(item)) }))),
+        h('button', { class: 'round flat', type: 'button', 'aria-label': tr('Ne plus chercher de meilleure version'), on: { click: () => replaceRoute('#/telecharger') } }, icon('close', { size: 20 }))),
+      h('p', { class: 'group-note' }, tr('Seules les versions meilleures sont montrées. Une fois téléchargée et vérifiée (même durée, lisible par Jellyfin), la nouvelle prend la place de l’ancienne, qui part à la Corbeille du PC serveur. L’avancement, les favoris et les collections passent sur la nouvelle.')));
+    banner.hidden = false;
+    input.value = upgradeQuery(item); clearButton.hidden = !input.value;
+    await load();
+    if (ready) search();
   }
 
   /**
@@ -387,7 +425,7 @@ export function create({ query }) {
   function release(searchId, entry, best) {
     const { hit, release: parsed } = entry;
     const caution = warning(entry);
-    const made = h('button', { class: ['item torlink-item torlink-release', best && 'torlink-best'], type: 'button', on: { click: () => confirm(searchId, hit) } },
+    const made = h('button', { class: ['item torlink-item torlink-release', best && 'torlink-best'], type: 'button', on: { click: () => upgrade ? confirmReplace(searchId, hit) : confirm(searchId, hit) } },
       h('span', { class: 'grow' },
         h('span', { class: 'torlink-quality' }, qualityLine(parsed) || tr('Qualité non précisée'), best ? h('span', { class: 'torlink-badge' }, tr('Meilleur choix')) : null),
         h('span', { class: 'sub torlink-line' }, hitLine(hit)),
@@ -405,7 +443,7 @@ export function create({ query }) {
     button.classList.add('torlink-sent');
     button.disabled = true;
     button.querySelector(':scope > .icon')?.replaceWith(icon('check', { size: 20 }));
-    button.querySelector('.torlink-quality').append(h('span', { class: 'torlink-done' }, tr('Envoyé')));
+    button.querySelector('.torlink-quality').append(h('span', { class: 'torlink-done' }, upgrade ? tr('Demandé') : tr('Envoyé')));
   }
 
   function confirm(searchId, hit) {
@@ -420,6 +458,20 @@ export function create({ query }) {
     });
   }
 
+  /** The one better version, asked once more: what it will do to the old file, and what goes over to the new one. */
+  function confirmReplace(searchId, hit) {
+    if (upgradeSent) { toast(tr('Une meilleure version de ce titre est déjà demandée : elle s’affiche plus haut.')); return; }
+    if (agent && !agent.replaces) { toast(tr('Mira sur le PC serveur ne sait pas encore remplacer un titre : mets-le à jour.')); return; }
+    const details = [qualityLine(parseRelease(hit.name)), hitLine(hit)].filter(Boolean).join(' · ');
+    sheet({
+      title: tr('Remplacer « {title} » ?', { title: upgradeTitle(upgrade) }),
+      body: h('div', { class: 'sheet-form' }, h('p', { class: 'torlink-confirm' }, hit.name),
+        h('p', { class: 'group-note' }, tr('{details}. TorLink la télécharge sur le PC serveur. Une fois vérifiée (même durée, lisible par Jellyfin), elle prend la place de la version actuelle ({quality}), qui part à la Corbeille du PC serveur ; jamais pendant que quelqu’un regarde ce titre.',
+          { details, quality: qualityText(currentQuality(upgrade)) }))),
+      items: [{ label: tr('Remplacer'), symbol: 'download', run: async () => { if (await send({ search: searchId, result: hit.id, name: hit.name, size: hit.size, replace: upgrade.Id })) upgradeSent = true; } }],
+    });
+  }
+
   async function send(body) {
     try {
       await api.torlinkRequest(body);
@@ -427,9 +479,10 @@ export function create({ query }) {
         const key = `${body.search}/${body.result}`;
         sentHits.add(key);
         for (const x of found.querySelectorAll('.torlink-release')) if (x.dataset.hit === key) markSent(x);
-        if (looking === null && lastHits?.search === body.search) keep({ query: lastHits.query, id: body.search, started: lastHits.started });
+        if (looking === null && lastHits?.search === body.search && !upgrade) keep({ query: lastHits.query, id: body.search, started: lastHits.started });
       }
-      toast(ready ? tr('Envoyé au PC serveur.') : tr('Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.'));
+      toast(body.replace ? tr('Demandé au PC serveur : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.')
+        : ready ? tr('Envoyé au PC serveur.') : tr('Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.'));
       await load();
       // Its row, with its progress, is above the results: brought into view when the results hid it.
       if (!listTitle.hidden && listTitle.getBoundingClientRect().top < 0) listTitle.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -465,7 +518,8 @@ export function create({ query }) {
 
   // Only while the screen shows and the phone is in front: Jellyfin is not asked for nothing.
   // Opened again without a title to look for (or with the same one): the search kept for this visit comes back.
-  const keptSearch = saved();
+  const replacing = query?.get('remplacer');
+  const keptSearch = replacing ? null : saved();
   const restored = keptSearch && (!query?.get('q') || query.get('q') === keptSearch.query) ? keptSearch.query : null;
   if (restored) restore(keptSearch);
 
@@ -479,6 +533,8 @@ export function create({ query }) {
     el, title: tr('Télécharger'), keep: true,
     async enter({ query: next } = {}) {
       active = true; watch();
+      // « Chercher une meilleure version »: the title read, its search made at once.
+      if (replacing && !started) { started = true; await startUpgrade(replacing); return; }
       // Opened from Recherche with a title: searched at once, once the PC is known to be there.
       const asked = next?.get('q');
       if (asked && !(!started && asked === restored) && (!started || asked !== input.value)) { input.value = asked; clearButton.hidden = false; await load(); if (ready) search(); }

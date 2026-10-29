@@ -15,10 +15,11 @@ public static class RemoteProtocol
 /// The agent's report: its name, whether its TorLink can take downloads now (<paramref name="Accepting"/>), or why not
 /// (<paramref name="Problem"/>), TorLink's downloads and the latest titles placed in the library, and the outcome of
 /// the work it took. <paramref name="Follows"/>: the outcome of the series it checked (« Suivre une série », after 0.8.4);
-/// an older agent leaves it out, and the relay hands it no series.
+/// an older agent leaves it out, and the relay hands it no series. <paramref name="Replaces"/>: it puts a better version
+/// in a title's place (« Remplacer par une meilleure version », after 0.8.5); the relay hands an older one no such download.
 /// </summary>
 public sealed record AgentReport(string? Name, bool Accepting, string? Problem, List<RelayDownload>? Downloads, List<RelayPlaced>? Placed,
-    List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls, List<AgentFollowOutcome>? Follows = null);
+    List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls, List<AgentFollowOutcome>? Follows = null, bool Replaces = false);
 /// <summary>
 /// A download in TorLink: its info hash, TorLink's status (downloading, queued, paused, failed), percent, bytes per second,
 /// its size and what it has of it (0 when unknown), and the seconds TorLink still expects (null when it cannot tell).
@@ -40,8 +41,11 @@ public sealed record AgentOutcome(string Id, string State, string? Error);
 /// </summary>
 public sealed record AgentWork(List<WorkSearch> Searches, List<WorkRequest> Requests, List<WorkControl> Controls, int Next, string? Busy, List<WorkFollow>? Follows = null);
 public sealed record WorkSearch(string Id, string Query, string Category);
-/// <summary><paramref name="Place"/>: an episode of a followed series, placed in its folder whatever its release calls it.</summary>
-public sealed record WorkRequest(string Id, string Magnet, string Name, FollowPlace? Place = null);
+/// <summary>
+/// <paramref name="Place"/>: an episode of a followed series, placed in its folder whatever its release calls it.
+/// <paramref name="Replace"/>: the film or episode of Jellyfin (its id) whose file this download replaces once checked.
+/// </summary>
+public sealed record WorkRequest(string Id, string Magnet, string Name, FollowPlace? Place = null, string? Replace = null);
 public sealed record WorkControl(string Id, string Target, string Action);
 
 // « Suivre une série »: the series whose new episodes the agent fetches by itself, kept by the relay on the server
@@ -83,9 +87,13 @@ public sealed record FollowPlace(string Folder, int Season, int Episode);
 // What Mira web (and Mira for Windows or Mac away from the PC of Jellyfin) reads (GET /Mira/torlink, GET /Mira/torlink/search/{id}).
 /// <summary><paramref name="Follows"/>: the series followed; an extension of 0.8.4 or before leaves it out.</summary>
 public sealed record RelayStatus(RelayAgent? Agent, List<RelayRequest> Requests, List<RelayControl> Controls, List<RelayDownload> Downloads, List<RelayPlaced> Placed, List<RelayFollow>? Follows = null);
-/// <summary><paramref name="Follows"/>: its Mira checks the series followed (an agent of 0.8.4 or before does not).</summary>
-public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows = false);
-public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created);
+/// <summary>
+/// <paramref name="Follows"/>: its Mira checks the series followed (an agent of 0.8.4 or before does not).
+/// <paramref name="Replaces"/>: it replaces a title's file by a better version (an agent of 0.8.5 or before does not).
+/// </summary>
+public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows = false, bool Replaces = false);
+/// <summary><paramref name="Replace"/>: the title (its id in Jellyfin) whose file this download is to replace.</summary>
+public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created, string? Replace = null);
 public sealed record RelayControl(string Id, string Target, string Action, string State);
 public sealed record RelaySearch(string Id, string Query, string Category, string State, List<RelayHit> Results, string? Error);
 /// <summary><paramref name="Category"/>: the search of TorLink that found it (movies, tv, anime); an extension before 0.8.3 leaves it out.</summary>

@@ -83,7 +83,7 @@ public partial class MainWindow
     private void HideServerDownloads()
     {
         if (!_serverScreen) return;
-        _serverScreen = _serverLocal = false; _serverTimer.Stop();
+        _serverScreen = _serverLocal = false; _serverTimer.Stop(); EndUpgrade();
         ServerDownloadsPanel.Visibility = Visibility.Collapsed; TorLinkTerminalHost.Visibility = TorLinkSettingsButton.Visibility = Visibility.Visible;
         TorLinkSubtitle.Text = TorLinkPageLine;
         ResetServerDownloads();
@@ -548,6 +548,17 @@ public partial class MainWindow
     private void ShowServerHits(string searchId, string query, IReadOnlyList<RelayHit> hits)
     {
         ServerResultsEmpty.Visibility = Visibility.Collapsed; ServerResults.Children.Clear(); SmoothScroll.Jump(ServerResultsScroll);
+        // « Chercher une meilleure version »: only this title, in a better picture than its file.
+        if (_upgrade is { } upgrade)
+        {
+            var better = TitleUpgrade.Candidates(upgrade, hits);
+            ServerSearchStatus.Text = better.Count == 0
+                ? L($"Aucune version meilleure que l’actuelle ({TitleUpgrade.Line(TitleUpgrade.Current(upgrade))}) parmi les {hits.Count} résultats pour « {query} ». Réessaie plus tard, ou avec un autre nom.",
+                    $"No version better than the current one ({TitleUpgrade.Line(TitleUpgrade.Current(upgrade))}) among the {hits.Count} results for “{query}”. Try again later, or with another name.")
+                : L($"{Count(better.Count, "version meilleure", "versions meilleures", "better version", "better versions")} que l’actuelle, la meilleure en premier.", $"{Count(better.Count, "version meilleure", "versions meilleures", "better version", "better versions")} than the current one, the best first.");
+            foreach (var group in ReleaseRanking.Group(better)) ServerResults.Children.Add(ServerGroupView(searchId, group));
+            return;
+        }
         if (hits.Count == 0) { ServerSearchStatus.Text = L($"Aucun résultat pour « {query} » dans les films, les séries et les animes. Essaie un autre titre.", $"No results for “{query}” in movies, shows and anime. Try another title."); return; }
         var groups = ReleaseRanking.Group(hits);
         var (versions, titles) = (Count(hits.Count, "version", "versions", "version", "versions"), Count(groups.Count, "titre", "titres", "title", "titles"));
@@ -651,7 +662,7 @@ public partial class MainWindow
         var key = searchId + "/" + hit.Id;
         var button = new Button { Style = (Style)FindResource(best ? "Primary" : "Quiet"), Padding = new Thickness(16, 9, 16, 9), VerticalAlignment = VerticalAlignment.Center };
         ShowSendState(button, _serverSent.Contains(key), best);
-        AutomationProperties.SetName(button, L($"Télécharger {hit.Name}", $"Download {hit.Name}"));
+        AutomationProperties.SetName(button, _upgrade is null ? L($"Télécharger {hit.Name}", $"Download {hit.Name}") : L($"Remplacer par {hit.Name}", $"Replace with {hit.Name}"));
         button.Click += async (_, _) => await SendServerHitAsync(searchId, hit, button, best);
         Grid.SetColumn(button, 1); grid.Children.Add(button);
         if (best) return grid;
@@ -662,8 +673,9 @@ public partial class MainWindow
     private void ShowSendState(Button button, bool sent, bool best)
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal };
-        content.Children.Add(new Icon { Kind = sent ? "check" : "download", Width = 15, Height = 15, Margin = new Thickness(0, 0, 7, 0), Foreground = Palette.Get(best && !sent ? "OnAccent" : "TextBody") });
-        content.Children.Add(new TextBlock { Text = sent ? L("Envoyé", "Sent") : L("Télécharger", "Download"), FontSize = 13, FontWeight = FontWeights.SemiBold });
+        var replace = _upgrade is not null;
+        content.Children.Add(new Icon { Kind = sent ? "check" : replace ? "sparkle" : "download", Width = 15, Height = 15, Margin = new Thickness(0, 0, 7, 0), Foreground = Palette.Get(best && !sent ? "OnAccent" : "TextBody") });
+        content.Children.Add(new TextBlock { Text = sent ? replace ? L("Demandé", "Requested") : L("Envoyé", "Sent") : replace ? L("Remplacer", "Replace") : L("Télécharger", "Download"), FontSize = 13, FontWeight = FontWeights.SemiBold });
         button.Content = content; button.IsEnabled = !sent;
     }
 
@@ -671,22 +683,29 @@ public partial class MainWindow
     {
         var client = _client;
         if (client is null && !_serverLocal) return;
+        // One better version at a time: the second would only replace the first.
+        if (_upgrade is not null && _upgradeSent) { SetNotice(L("Une meilleure version de ce titre est déjà demandée : elle s’affiche à droite.", "A better version of this title is already requested: it shows on the right.")); return; }
+        var replace = _upgrade?.Id;
         button.IsEnabled = false;
         try
         {
-            if (!_serverLocal) await client!.TorLinkRequestAsync(searchId, hit, _connectionLifetime.Token);
+            if (!_serverLocal) await client!.TorLinkRequestAsync(searchId, hit, _connectionLifetime.Token, replace);
             else if (!_localMagnets.TryGetValue(searchId + "/" + hit.Id, out var magnet)) { button.IsEnabled = true; SetNotice(L("Ce résultat n’est plus là : relance la recherche.", "This result is gone: search again.")); return; }
+            else if (replace is not null && (RemoteDownloads.InfoHash(magnet) is not { } hash ? L("Ce n’est pas un lien magnet.", "That’s not a magnet link.") : await ExpectReplacementAsync(hash, replace, _torlinkLifetime.Token)) is { } refusal)
+            { button.IsEnabled = true; SetNotice(refusal); return; }
             else if (await DownloadHereAsync(magnet) is { } refused) { button.IsEnabled = true; SetNotice(refused); return; }
             _serverSent.Add(searchId + "/" + hit.Id); ShowSendState(button, sent: true, best);
-            await SentToServerAsync();
+            if (replace is not null) _upgradeSent = true;
+            await SentToServerAsync(replace is not null);
         }
         catch (Exception ex) when (IsExpected(ex)) { button.IsEnabled = true; SetNotice(ServerError(ex)); }
     }
 
     /// <summary>Its row, with its progress, is at the top of the right column.</summary>
-    private async Task SentToServerAsync()
+    private async Task SentToServerAsync(bool replacing = false)
     {
-        SetNotice(_serverLocal ? L("TorLink le télécharge : sa progression s’affiche à droite.", "TorLink is downloading it: its progress shows on the right.")
+        SetNotice(replacing ? L("Demandé : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.", "Requested: the new version will take the old one’s place once downloaded and checked.")
+            : _serverLocal ? L("TorLink le télécharge : sa progression s’affiche à droite.", "TorLink is downloading it: its progress shows on the right.")
             : _serverReady ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
         SmoothScroll.Jump(ServerQueueScroll);
         await LoadServerDownloadsAsync();

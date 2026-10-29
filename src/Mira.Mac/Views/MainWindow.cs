@@ -243,6 +243,15 @@ public sealed class MainWindow : Window
         catch (Exception ex) when (Errors.Expected(ex)) { }
         if (ReferenceEquals(session, Session)) _railButtons["downloads"].IsVisible = admin == true;
     }
+    /// <summary>
+    /// « Chercher une meilleure version » of a film or an episode (an administrator): Téléchargements, its search made, only
+    /// the versions better than its file; the one chosen replaces it on the PC of Jellyfin, never kept beside it.
+    /// </summary>
+    public void FindBetter(MediaItem item)
+    {
+        if (Session is null || Player is not null) return;
+        _ = NavigateAsync(new DownloadsPage(this, item));
+    }
     /// <summary>Whether the rail offers an entry now (the self-check).</summary>
     public bool Offers(string key) => _railButtons.TryGetValue(key, out var button) && button.IsVisible;
 
@@ -552,6 +561,7 @@ public sealed class MainWindow : Window
             Add(L("Ajouter à une collection…", "Add to collection…"), () => _ = CollectAsync(item));
             if (Current is BrowsePage { Saga: { } shown }) Add(L("Retirer de la collection", "Remove from collection"), () => _ = PutInCollectionAsync(item, shown, false));
         }
+        if (item.Type is "Movie" or "Episode" && Offers("downloads")) Add(L("Chercher une meilleure version", "Find a better version"), () => FindBetter(item));
         return menu;
     }
 

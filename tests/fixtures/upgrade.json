@@ -1,0 +1,88 @@
+{
+  "about": "« Chercher une meilleure version »: what a title's file is, which results of TorLink are this very title in a better picture, what is searched, and whether the new file lasts as long. Read by tools/web/unit (js/upgrade.js) and tests/Mira.Core.Tests (TitleUpgrade). Items: [\"Movie\", name, original title, year] or [\"Episode\", series, season, episode, last episode].",
+  "current": [
+    { "width": 1280, "height": 720, "path": "/medias/Films/Dune (2021)/Dune.2021.720p.WEBRip.x264-GRP.mkv", "quality": [720, "webrip"], "line": "720p · WEBRip" },
+    { "width": 3840, "height": 1600, "path": "/medias/Films/Dune (2021)/Dune (2021).mkv", "quality": [2160, null], "line": "4K · source inconnue" },
+    { "width": 1920, "height": 800, "path": "D:\\Films\\Dune.2021.1080p.BluRay.x264-GRP\\Dune.mkv", "quality": [1080, "bluray"], "line": "1080p · BluRay" },
+    { "width": 2560, "height": 1080, "path": "/medias/Films/Film/Film.2019.WEB-DL.mkv", "quality": [1440, "webdl"], "line": "1440p · WEB-DL" },
+    { "width": 720, "height": 480, "path": "/medias/Films/Film/Film.DVDRip.XviD.avi", "quality": [480, "dvd"], "line": "SD · DVD" },
+    { "width": 0, "height": 0, "path": "/medias/Films/Film/Film.2024.HDCAM.mkv", "quality": [null, "cam"], "line": "Définition inconnue · Filmé en salle" },
+    { "width": 1280, "height": 534, "path": null, "quality": [720, null], "line": "720p · source inconnue" }
+  ],
+  "better": [
+    [720, "webrip", "Dune.2021.1080p.WEB-DL.x264-GRP", true],
+    [720, "bluray", "Dune.2021.1080p.WEBRip.x264-GRP", false],
+    [720, "bluray", "Dune.2021.1080p.WEB-DL.x264-GRP", true],
+    [1080, "bluray", "Dune.2021.2160p.WEB-DL.HEVC-GRP", false],
+    [1080, "webdl", "Dune.2021.2160p.WEB-DL.HEVC-GRP", true],
+    [1080, "webdl", "Dune.2021.1080p.BluRay.x264-GRP", true],
+    [1080, "webdl", "Dune.2021.1080p.WEB-DL.x264-OTHER", false],
+    [1080, null, "Dune.2021.1080p.WEBRip.x264-GRP", false],
+    [1080, null, "Dune.2021.1080p.BluRay.x264-GRP", true],
+    [720, null, "Dune.2021.1080p.x264-GRP", false],
+    [480, null, "Dune.2021.720p.HDTV.x264-GRP", true],
+    [480, "dvd", "Dune.2021.1080p.x264-GRP", true],
+    [null, "cam", "Dune.2021.720p.HDRip.x264-GRP", true],
+    [null, "cam", "Dune.2021.DVDRip.XviD-GRP", false],
+    [720, "webrip", "Dune.2021.1080p.HDCAM.x264-GRP", false],
+    [720, "webrip", "Dune.2021.MULTi.WEB-DL.x264-GRP", false],
+    [720, "webdl", "Mira.Check.S01.1080p.BluRay.x264-GRP", false],
+    [2160, "remux", "Dune.2021.2160p.REMUX.HEVC-GRP", false]
+  ],
+  "fits": [
+    [["Movie", "Dune", "Dune", 2021], "Dune.2021.1080p.BluRay.x264-GRP", true],
+    [["Movie", "Dune", "Dune", 2021], "Dune.Part.Two.2024.1080p.BluRay.x264-GRP", false],
+    [["Movie", "Dune", "Dune", 2021], "Dune.1984.1080p.BluRay.x264-GRP", false],
+    [["Movie", "Dune", "Dune", 2021], "Dune.2020.1080p.BluRay.x264-GRP", true],
+    [["Movie", "Dune", "Dune", 2021], "Dune 1080p BluRay x264", true],
+    [["Movie", "Dune : Deuxième partie", "Dune: Part Two", 2024], "Dune.Part.Two.2024.MULTi.2160p.WEB-DL.HEVC-GRP", true],
+    [["Movie", "Aube Test (2021)", null, 2021], "Aube.Test.2021.1080p.BluRay.x264-GRP", true],
+    [["Movie", "Dune", "Dune", 2021], "Dune.S01E01.1080p.WEB-DL.x264-GRP", false],
+    [["Episode", "Mira Check", 1, 2, null], "Mira.Check.S01E02.1080p.WEB-DL.H264-GRP", true],
+    [["Episode", "Mira Check", 1, 2, null], "Mira.Check.S01E03.1080p.WEB-DL.H264-GRP", false],
+    [["Episode", "Mira Check", 1, 2, null], "Mira.Check.S02E02.1080p.WEB-DL.H264-GRP", false],
+    [["Episode", "Mira Check", 1, 2, null], "Mira.Check.S01.1080p.WEB-DL.H264-GRP", false],
+    [["Episode", "Mira Check", 1, 2, null], "Other.Show.S01E02.1080p.WEB-DL.H264-GRP", false],
+    [["Episode", "Mira Check", 1, 5, null], "[SubsPlease] Mira Check - 05 (1080p) [ABCDEF12].mkv", true],
+    [["Episode", "Mira Check", 2, 5, null], "[SubsPlease] Mira Check - 05 (1080p) [ABCDEF12].mkv", false],
+    [["Episode", "Mira Check", 1, 1, 2], "Mira.Check.S01E01E02.1080p.WEB-DL.H264-GRP", true],
+    [["Episode", "Mira Check", 1, 1, null], "Mira.Check.S01E01E02.1080p.WEB-DL.H264-GRP", false]
+  ],
+  "queries": [
+    [["Movie", "Dune", "Dune", 2021], "Dune 2021"],
+    [["Movie", "Dune : Deuxième partie", "Dune: Part Two", 2024], "Dune Part Two 2024"],
+    [["Movie", "Le Voyage de Chihiro", "千と千尋の神隠し", 2001], "Le Voyage de Chihiro 2001"],
+    [["Movie", "Aube Test (2021)", null, 2021], "Aube Test 2021"],
+    [["Movie", "Film", null, null], "Film"],
+    [["Episode", "The Bear", 3, 1, null], "The Bear S03E01"],
+    [["Episode", "Show: Name", 1, 12, null], "Show Name S01E12"]
+  ],
+  "titles": [
+    [["Movie", "Dune", "Dune", 2021], "Dune (2021)"],
+    [["Movie", "Aube Test (2021)", null, 2021], "Aube Test (2021)"],
+    [["Movie", "Film", null, null], "Film"],
+    [["Episode", "The Bear", 3, 1, null], "The Bear · S03E01"]
+  ],
+  "lengths": [
+    [7200, 7300, true],
+    [7200, 7344, true],
+    [7200, 7400, false],
+    [7200, 7000, false],
+    [0, 7200, false],
+    [1440, 1452, true]
+  ],
+  "candidates": {
+    "item": ["Movie", "Dune", "Dune", 2021],
+    "file": [1280, 720, "/medias/Films/Dune (2021)/Dune.2021.720p.WEBRip.x264-GRP.mkv"],
+    "hits": ["Dune.2021.1080p.BluRay.x264-GRP", "Dune.2021.720p.WEBRip.x264-OTHER", "Dune.Part.Two.2024.1080p.BluRay.x264-GRP", "Dune.2021.1080p.HDCAM.x264-GRP", "Dune.2021.2160p.WEB-DL.HEVC-GRP"],
+    "kept": ["Dune.2021.1080p.BluRay.x264-GRP", "Dune.2021.2160p.WEB-DL.HEVC-GRP"]
+  },
+  "probes": [
+    ["{\"streams\":[{\"codec_type\":\"video\"},{\"codec_type\":\"audio\"}],\"format\":{\"duration\":\"7212.480000\"}}", 7212.48],
+    ["{\"streams\":[{\"codec_type\":\"audio\"}],\"format\":{\"duration\":\"7212.480000\"}}", null],
+    ["{\"streams\":[{\"codec_type\":\"video\"}],\"format\":{}}", null],
+    ["{\"streams\":[{\"codec_type\":\"video\"}],\"format\":{\"duration\":\"N/A\"}}", null],
+    ["", null],
+    ["not json", null]
+  ]
+}

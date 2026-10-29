@@ -2442,7 +2442,8 @@ await deskContext.close();
 // « Télécharger sur le PC serveur » (an administrator): Mira for Windows on the PC of Jellyfin is played here by a fake
 // agent, which visits the extension's relay as it does (Mira/torlink/agent): it answers the search of each category
 // (films, shows, anime: one search of the page asks for the three; a result found twice is shown once), takes
-// the download and reports it under way, pauses and cancels it as asked. Another account is refused.
+// the download and reports it under way, pauses and cancels it as asked. Another account is refused. It replaces a
+// title's file (« Chercher une meilleure version »): asked for Aube Test, it finds better and worse versions of it.
 const relayServer = base.replace(/\/Mira\/?.*$/i, '');
 const relayAuth = (id, token) => `MediaBrowser Client="check", Device="check", DeviceId="${id}", Version="1"${token ? `, Token="${token}"` : ''}`;
 const tokenFor = async (id, name, pw) => (await (await fetch(`${relayServer}/Users/AuthenticateByName`, {
@@ -2454,11 +2455,18 @@ const fake = { searches: [], requests: [], controls: [], downloads: [], seen: []
 const agentToken = await tokenFor('check-agent', user, password).catch(() => null);
 const agentLoop = (async () => {
   while (!fake.stop && agentToken) {
-    const report = { name: 'PC-CHECK', accepting: true, problem: null, downloads: fake.downloads, placed: [], searches: fake.searches.splice(0), requests: fake.requests.splice(0), controls: fake.controls.splice(0) };
+    const report = { name: 'PC-CHECK', accepting: true, problem: null, downloads: fake.downloads, placed: [], searches: fake.searches.splice(0), requests: fake.requests.splice(0), controls: fake.controls.splice(0), replaces: true };
     const answer = await fetch(`${relayServer}/Mira/torlink/agent`, { method: 'POST', headers: { Authorization: relayAuth('check-agent', agentToken), 'Content-Type': 'application/json' }, body: JSON.stringify(report) }).catch(() => null);
     const work = answer?.ok ? await answer.json() : null;
     for (const s of work?.searches ?? []) {
       fake.seen.push(`search ${s.category} ${s.query}`);
+      // A film of the library (1280 × 720, its source unknown): one better version among others that are not, or another title.
+      const aube = (n, name) => ({ id: String(n).repeat(40), name, size: 2 ** 31, seeders: 20, leechers: 1, source: 'check', magnet: magnetOf(String(n).repeat(40), name), added: null });
+      if (/aube test/i.test(s.query)) {
+        fake.searches.push({ id: s.id, state: 'done', error: null, results: s.category !== 'movies' ? [] : [aube(1, 'Aube.Test.2021.720p.WEB-DL.x264-GRP'), aube(2, 'Aube.Test.2021.1080p.BluRay.x264-GRP'),
+          aube(3, 'Aube.Test.2021.1080p.HDCAM.x264-GRP'), aube(4, 'Lueur.Web.2020.1080p.BluRay.x264-GRP'), aube(5, 'Aube.Test.2021.2160p.HDTV.x265-GRP')] });
+        continue;
+      }
       const film = { id: picked, name: 'Mira Check 2026 1080p WEB-DL', size: Math.round(1.4 * 2 ** 30), seeders: 42, leechers: 3, source: 'check', magnet: magnetOf(picked, 'Mira Check 2026 1080p WEB-DL'), added: null };
       fake.searches.push({ id: s.id, state: 'done', results: {
         // Better shared but worse: the 1080p WEB-DL is put forward all the same, the HDTV folded under it.
@@ -2467,7 +2475,7 @@ const agentLoop = (async () => {
       }[s.category] ?? [], error: null });
     }
     for (const r of work?.requests ?? []) {
-      fake.seen.push(`add ${r.name}`);
+      fake.seen.push(r.replace ? `replace ${r.name} ${r.replace}` : `add ${r.name}`);
       fake.requests.push({ id: r.id, state: 'sent', error: null });
       fake.downloads.push({ id: /btih:([0-9a-f]{40})/i.exec(r.magnet)[1].toLowerCase(), name: r.name, status: 'downloading', progress: 37, speed: 2.5 * 2 ** 20, peers: 4, size: Math.round(1.4 * 2 ** 30), downloaded: Math.round(0.37 * 1.4 * 2 ** 30), eta: 380 });
     }
@@ -2484,7 +2492,7 @@ const dlContext = await newContext('télécharger');
 const dp = await dlContext.newPage();
 const dlErrors = [];
 dp.on('pageerror', (e) => dlErrors.push(e.message));
-const dl = { ready: '', hit: '', kinds: '', kept: '', sent: false, row: '', paused: '', cancelled: false, refused: '', pasted: '', other: 0, entry: false, failure: '' };
+const dl = { ready: '', hit: '', kinds: '', kept: '', sent: false, row: '', paused: '', cancelled: false, refused: '', pasted: '', other: 0, entry: false, failure: '', upgrade: '', upgradeId: '', upgradeFailure: '' };
 try {
   await signIn(dp);
   await dp.locator('.tabbar a[data-tab="settings"]').click();
@@ -2532,6 +2540,30 @@ try {
   await sent.waitFor({ timeout: 15000 });
   dl.pasted = (await sent.innerText()).trim().replace(/\s*\n\s*/g, ' | ');
 } catch (error) { dl.failure = error.message.split('\n')[0]; }
+// « Chercher une meilleure version » from a film's « Corriger »: its search made, only the version better than its file
+// (1280 × 720) shown, asked as its replacement once confirmed; the request reaches the PC with the title it replaces.
+try {
+  dl.upgradeId = await dp.evaluate(async () => {
+    const s = JSON.parse(localStorage.getItem('mira.session'));
+    const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Items?userId=${s.userId}&recursive=true&includeItemTypes=Movie&searchTerm=Aube`,
+      { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${s.token}"` } });
+    return (await r.json()).Items[0].Id;
+  });
+  await dp.evaluate((id) => { location.hash = `#/titre/${id}`; }, dl.upgradeId);
+  await dp.locator('.tool[data-tool="more"]').click();
+  await dp.getByRole('menuitem', { name: /Chercher une meilleure version/ }).click();
+  const screen = dp.locator('.torlink-page');
+  const better = screen.locator('.torlink-results .torlink-release');
+  await better.first().waitFor({ timeout: 20000 });
+  await dp.waitForTimeout(300);
+  dl.upgrade = [(await screen.locator('.torlink-upgrade').innerText()).trim(), await screen.locator('input[type=search]').inputValue(),
+    `${await better.count()} résultat(s)`, (await screen.locator('.torlink-results').innerText()).trim()].join(' | ').replace(/\s*\n\s*/g, ' · ');
+  await dp.screenshot({ path: `${out}/27-download-better.png` });
+  await better.first().click();
+  await dp.getByRole('menuitem', { name: 'Remplacer', exact: true }).click();
+  await dp.waitForFunction(() => /Demandé|Envoyé/.test(document.querySelector('.torlink-results .torlink-release')?.textContent ?? ''), null, { timeout: 15000 });
+  for (let i = 0; i < 40 && !fake.seen.some((x) => x.startsWith('replace ')); i++) await dp.waitForTimeout(250);
+} catch (error) { dl.upgradeFailure = error.message.split('\n')[0]; }
 // Another account (the friend of « Regarder ensemble » above, made again when it is missing): the relay refuses it.
 const friendName = 'Ami Mira', friendPassword = 'ami-check';
 let friendToken = await tokenFor('check-friend', friendName, friendPassword).catch(() => null);
@@ -2549,6 +2581,11 @@ check('télécharger sur le PC serveur (administrateur) : recherche faite par le
     && /pas un lien magnet/.test(dl.refused) && /Collé Check/.test(dl.pasted) && !dlErrors.length,
   dl.failure || `« ${dl.ready} » ; « ${dl.hit} » ; « ${dl.kinds} » ; gardée : « ${dl.kept} » ;${dl.sent ? '' : ' pas marqué « Envoyé » ;'} « ${dl.row} » ; « ${dl.paused} » ; ${dl.cancelled ? 'annulé' : 'resté'} ; « ${dl.refused} » ; « ${dl.pasted} » ; ${fake.seen.join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
 check('télécharger sur le PC serveur : refusé à un compte qui n’est pas administrateur', dl.other === 403, String(dl.other));
+check('chercher une meilleure version (administrateur) : depuis « Corriger », seule la version meilleure que le fichier (720p) montrée, demandée au PC avec le titre qu’elle remplace',
+  /Meilleure version de « Aube Test \(2021\) »/.test(dl.upgrade) && /Actuellement : 720p · source inconnue/.test(dl.upgrade) && dl.upgrade.includes('| Aube Test 2021 |')
+    && dl.upgrade.includes('| 1 résultat(s) |') && dl.upgrade.includes('Aube.Test.2021.1080p.BluRay.x264-GRP') && /1 version meilleure que l’actuelle/i.test(dl.upgrade)
+    && fake.seen.includes(`replace Aube.Test.2021.1080p.BluRay.x264-GRP ${dl.upgradeId.toLowerCase().replace(/-/g, '')}`) && !dlErrors.length,
+  dl.upgradeFailure || `« ${dl.upgrade} » ; ${fake.seen.filter((x) => /aube|replace/i.test(x)).join(', ')}${dlErrors.length ? ` ; ${dlErrors.join(' | ')}` : ''}`);
 // « Reprendre un peu avant »: a film left at 34 s starts 5 s before (the default), and exactly there once « Non » is
 // chosen in Réglages. Its position is put back to nothing for the rest of the run.
 const resumed = await newContext('reprendre un peu avant');
