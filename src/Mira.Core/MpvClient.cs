@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using Mira.Core.Tailscale;
 
 namespace Mira.Core;
 
@@ -167,14 +168,35 @@ public abstract unsafe class MpvClient : IDisposable
         }
         finally { foreach (var p in pointers) Marshal.FreeCoTaskMem(p); Marshal.FreeHGlobal(array); }
     }
+    /// <summary>The way mpv's requests go: Mira's Tailscale node for a device of the tailnet, straight otherwise.</summary>
+    public TailnetNetwork Network { get; init; } = TailnetNetwork.Default;
+    /// <summary>The node's proxy credentials, sent ahead with each request of the open file (http:// only).</summary>
+    private string? _proxyAuthorization;
     /// <param name="paused">Opened paused: « Regarder ensemble » plays it when the group does.</param>
+    /// <exception cref="TailnetException">The file is on a device of the tailnet that Mira's node cannot reach now.</exception>
     public void Load(string location, double startSeconds, string? authorization = null, bool paused = false)
     {
-        // Tokens are sent as request headers, never in media URLs, logs or shell commands.
-        Set("http-header-fields", authorization is null ? "" : "Authorization: " + authorization.Replace(",", "\\,"));
+        var url = Uri.TryCreate(location, UriKind.Absolute, out var parsed) && parsed.Scheme is "http" or "https" ? parsed : null;
+        var node = url is null ? null : Network.ForPlayer(url);
+        Set("http-proxy", node?.Proxy ?? "");
+        _proxyAuthorization = url?.Scheme == "http" ? node?.Authorization : null;
+        SetAuthorization(authorization);
         Set("start", Format(startSeconds)); Set("pause", paused ? "yes" : "no");
         _open = false;
         Command("loadfile", location, "replace");
+    }
+    /// <summary>
+    /// The headers of mpv's requests from now on (subtitles added to the open file too): Jellyfin's token, and the
+    /// node's proxy credentials when the file goes through it. Tokens are sent as request headers, never in media URLs,
+    /// logs or shell commands.
+    /// </summary>
+    public void SetAuthorization(string? authorization)
+    {
+        // A list separated by commas: those of Jellyfin's header are escaped (Base64 has none).
+        var fields = new List<string>(2);
+        if (authorization is not null) fields.Add("Authorization: " + authorization.Replace(",", "\\,"));
+        if (_proxyAuthorization is not null) fields.Add("Proxy-Authorization: " + _proxyAuthorization);
+        Set("http-header-fields", string.Join(",", fields));
     }
     /// <summary>The volume as the slider shows it, from 0 to <see cref="VolumeBoost.Maximum"/>.</summary>
     public double Level => _level;

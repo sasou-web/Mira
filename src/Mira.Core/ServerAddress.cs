@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Mira.Core.Tailscale;
 
 namespace Mira.Core;
 
@@ -51,7 +52,7 @@ public static partial class ServerAddress
     public static async Task<ServerInfo> DiscoverAsync(string input, HttpMessageHandler? handler = null, CancellationToken ct = default)
     {
         var candidates = Candidates(input);
-        using var http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        using var http = new HttpClient(handler ?? TailnetNetwork.Default.Handler, disposeHandler: false);
         http.Timeout = Timeout.InfiniteTimeSpan;
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var probes = candidates.Select(candidate => ProbeAsync(http, candidate, stop.Token)).ToList();
@@ -92,6 +93,12 @@ public static partial class ServerAddress
             throw new ServerDiscoveryException(L($"Le certificat HTTPS de ce serveur n’est pas reconnu. Mira n’essaie pas http:// à la place : ton mot de passe y passerait en clair. Si ce serveur est chez toi, tape son adresse complète, {candidates[plain].TrimEnd('/')} ; sinon, il lui faut un certificat valide.",
                 $"This server’s HTTPS certificate isn’t recognized. Mira doesn’t try http:// instead: your password would go in clear text. If this server is at your home, type its full address, {candidates[plain].TrimEnd('/')}; otherwise, it needs a valid certificate."));
         var failures = probes.Select(x => x.Result).ToList();
+        // Mira's Tailscale node said why: its words (not signed in, the PC asleep…), not a guess. A closed port is only one
+        // candidate's (443 when Jellyfin listens on 8096): said only when every candidate found it so.
+        var node = failures.Select(x => x.Tailnet).FirstOrDefault(x => x is not null && x != TailnetCodes.Closed)
+            ?? (failures.All(x => x.Tailnet == TailnetCodes.Closed) ? TailnetCodes.Closed : null);
+        if (node is not null && TailnetText.Problem(node, TailnetNetwork.Default.Peer(new Uri(candidates[0]).IdnHost)) is { } problem)
+            throw new ServerDiscoveryException(problem);
         throw new ServerDiscoveryException(
             failures.Any(x => x.Failure == ProbeFailure.NotJellyfin) ? L("Cette adresse répond, mais ce n’est pas un serveur Jellyfin. Vérifie le port (8096 par défaut).", "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).")
             : failures.Any(x => x.Failure == ProbeFailure.Certificate) ? L($"Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://{new Uri(candidates[0]).Host}:8096 ; sinon, il lui faut un certificat valide.",
@@ -114,8 +121,10 @@ public static partial class ServerAddress
         var uri = new Uri(address);
         if (uri.Scheme != Uri.UriSchemeHttp) return false;
         var host = uri.IdnHost.Trim('[', ']').TrimEnd('.');
-        // Tailscale's names and the home network's own (mDNS) are answered by those networks, never by the Internet.
-        if (host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)) return false;
+        // Tailscale's names and the home network's own (mDNS) are answered by those networks, never by the Internet; so is
+        // a device that Mira's own Tailscale node knows by its short name (« desktop-invefqh »).
+        if (host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+            || TailnetNetwork.Default.IsTailnet(host)) return false;
         if (InternetName(host)) return true;
         IPAddress[] addresses;
         if (IPAddress.TryParse(host, out var literal)) addresses = [literal];
@@ -159,7 +168,8 @@ public static partial class ServerAddress
         return web.Success ? url[..web.Index] : url;
     }
     internal enum ProbeFailure { None, Unreachable, Timeout, Certificate, NotJellyfin }
-    internal sealed record Probe(ServerInfo? Info, ProbeFailure Failure);
+    /// <param name="Tailnet">Why Mira's Tailscale node could not reach the address, when it went through it (<see cref="TailnetCodes"/>).</param>
+    internal sealed record Probe(ServerInfo? Info, ProbeFailure Failure, string? Tailnet = null);
     /// <summary>Jellyfin's public information at <paramref name="address"/>, within <paramref name="wait"/> (<see cref="ProbeTimeout"/> by default).</summary>
     internal static async Task<Probe> ProbeAsync(HttpClient http, string address, CancellationToken ct, TimeSpan? wait = null)
     {
@@ -181,9 +191,14 @@ public static partial class ServerAddress
             return new(new ServerInfo(final, Text("ServerName") ?? "Jellyfin", Text("Version") ?? "", Text("Id")!), ProbeFailure.None);
         }
         // Never throws: the caller reads every probe's result. Stopped because another address won, it simply lost.
-        catch (OperationCanceledException) { return new(null, ct.IsCancellationRequested ? ProbeFailure.Unreachable : ProbeFailure.Timeout); }
+        catch (OperationCanceledException ex)
+        {
+            if (ct.IsCancellationRequested) return new(null, ProbeFailure.Unreachable);
+            // Out of time on the way to a device of the tailnet: a node still starting, or a device Tailscale says is offline.
+            return new(null, ProbeFailure.Timeout, TailnetNetwork.Default.Explain(ex, new Uri(address).IdnHost));
+        }
         catch (HttpRequestException ex) when (ex.InnerException is AuthenticationException) { return new(null, ProbeFailure.Certificate); }
-        catch (HttpRequestException) { return new(null, ProbeFailure.Unreachable); }
+        catch (HttpRequestException ex) { return new(null, ProbeFailure.Unreachable, TailnetNetwork.Find(ex)?.Code); }
         catch (JsonException) { return new(null, ProbeFailure.NotJellyfin); }
         catch (ArgumentException) { return new(null, ProbeFailure.NotJellyfin); }
     }
