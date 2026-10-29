@@ -63,12 +63,15 @@ struct HomeContent: Codable, Sendable, Equatable {
 
     /// Jellyfin's dates: « 2026-10-27T21:14:03.1234567Z », seven decimals that ISO8601DateFormatter does not read.
     static func parseDate(_ text: String) -> Date? {
-        var text = text
+        // Jellyfin writes seven digits of a second, which the ISO 8601 parser refuses: read apart, then added back
+        // (episodes added within the same second are told apart by them).
+        var text = text, fraction = 0.0
         if let dot = text.firstIndex(of: ".") {
             let end = text[dot...].firstIndex { $0 == "Z" || $0 == "+" || $0 == "-" } ?? text.endIndex
+            fraction = Double("0" + text[dot..<end]) ?? 0
             text.removeSubrange(dot..<end)
         }
-        return try? Date(text, strategy: .iso8601)
+        return (try? Date(text, strategy: .iso8601))?.addingTimeInterval(fraction)
     }
 }
 

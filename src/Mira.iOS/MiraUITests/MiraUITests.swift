@@ -135,9 +135,13 @@ final class MiraUITests: XCTestCase {
             XCTFail("No Settings tab; buttons: \(app.buttons.allElementsBoundByIndex.map { "\($0.label)|\($0.identifier)|\($0.frame)" })")
         }
         settings.tap()
-        XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings did not open")
+        settle()
         capture("09-settings")
-        app.buttons["settings.signout"].tap()
+        let signOut = signOutButton(app)
+        XCTAssertTrue(signOut.exists, "No Sign out at the bottom of Settings")
+        capture("09b-settings-bottom")
+        signOut.tap()
         // The dialog's button, by its identifier or, if iOS does not pass it on, by its name.
         let confirm = app.buttons.matching(NSPredicate(format: "identifier == 'settings.signout.confirm' OR (label == 'Sign out' AND identifier != 'settings.signout')")).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "No confirmation to sign out")
@@ -171,8 +175,11 @@ final class MiraUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         app.swipeDown()
         app.tabBars.buttons["Réglages"].tap()
-        XCTAssertTrue(app.buttons["settings.signout"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Réglages"].waitForExistence(timeout: 10), "Les Réglages ne se sont pas ouverts")
+        settle()
         capture("14-reglages")
+        XCTAssertTrue(signOutButton(app).exists, "Pas de Se déconnecter en bas des Réglages")
+        capture("14b-reglages-bas")
     }
 
     /// The largest text a person may choose short of the accessibility sizes' last ones, in French (the longer
@@ -282,6 +289,14 @@ final class MiraUITests: XCTestCase {
     }
 
     /// Pictures fade in from the server: a moment before a capture.
+    /// Settings is a long list, drawn as it scrolls: Sign out, at the bottom, exists only once scrolled to.
+    @MainActor
+    private func signOutButton(_ app: XCUIApplication) -> XCUIElement {
+        let button = app.buttons["settings.signout"]
+        for _ in 0..<8 where !(button.exists && button.isHittable) { app.swipeUp() }
+        return button
+    }
+
     private func settle() { Thread.sleep(forTimeInterval: 2.5) }
 
     @MainActor
