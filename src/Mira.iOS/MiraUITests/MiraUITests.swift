@@ -295,6 +295,10 @@ final class MiraUITests: XCTestCase {
     /// the bar sits beside it (captured as `folded`): scrolling back up unfolds both.
     @MainActor
     private func closePlayer(_ app: XCUIApplication, folded: String? = nil) {
+        // Paused first: the clip of the stand-in Jellyfin lasts 10 s for a title of 12 min, and a title that ends before
+        // 90 % is a cut, which closes the player with « Can't play this title ».
+        let play = app.buttons["player.play"]
+        if reveal(play, app), play.label == "Pause" { play.tap() }
         let minimize = app.buttons["player.minimize"]
         XCTAssertTrue(reveal(minimize, app), "The player shows no Reduce button")
         minimize.tap()

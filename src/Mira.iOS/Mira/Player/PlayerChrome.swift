@@ -115,30 +115,28 @@ private struct TracksMenu: View {
 
     var body: some View {
         Menu {
-            // An inline picker shows no title in a menu: its section does.
+            // Ticks in titled sections: an inline picker shows no title in a menu, and « French » twice says nothing.
             if model.audio.count > 1 {
-                Section {
-                    Picker(selection: Binding(get: { model.audioIndex ?? -2 }, set: { model.actions?.selectAudio($0) })) {
-                        ForEach(model.audio) { Text(verbatim: $0.name).tag($0.index) }
-                    } label: {
-                        Text("Audio")
+                Section("Audio") {
+                    ForEach(model.audio) { track in
+                        Toggle(isOn: Binding(get: { model.audioIndex == track.index },
+                                             set: { if $0 { model.actions?.selectAudio(track.index) } })) {
+                            Text(verbatim: track.name)
+                        }
                     }
-                    .pickerStyle(.inline)
-                } header: {
-                    Text("Audio")
                 }
             }
             if !model.subtitles.isEmpty {
-                Section {
-                    Picker(selection: Binding(get: { model.subtitleIndex }, set: { model.actions?.selectSubtitles($0) })) {
-                        Text("Off").tag(-1)
-                        ForEach(model.subtitles) { Text(verbatim: $0.name).tag($0.index) }
-                    } label: {
-                        Text("Subtitles")
+                Section("Subtitles") {
+                    Toggle(isOn: Binding(get: { model.subtitleIndex < 0 }, set: { if $0 { model.actions?.selectSubtitles(-1) } })) {
+                        Text("Off")
                     }
-                    .pickerStyle(.inline)
-                } header: {
-                    Text("Subtitles")
+                    ForEach(model.subtitles) { track in
+                        Toggle(isOn: Binding(get: { model.subtitleIndex == track.index },
+                                             set: { if $0 { model.actions?.selectSubtitles(track.index) } })) {
+                            Text(verbatim: track.name)
+                        }
+                    }
                 }
             }
         } label: {
