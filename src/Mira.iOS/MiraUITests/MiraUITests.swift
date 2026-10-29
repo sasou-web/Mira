@@ -110,10 +110,10 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(third.exists, "The series page lists no episodes")
         app.navigationBars.buttons.firstMatch.tap()
 
-        // Scrolling down Home folded the tab bar into its Home button; back at the top, it shows every tab again.
+        // Scrolling down Home folded Mira's tab bar to its Home tab; back at the top, it shows every tab again.
         app.swipeDown()
         app.swipeDown()
-        let movies = app.tabBars.buttons["Movies"]
+        let movies = app.buttons["tab.movies"]
         XCTAssertTrue(movies.waitForExistence(timeout: 5), "The tab bar did not unfold back at the top of Home")
         movies.tap()
 
@@ -126,7 +126,7 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["3 movies"].waitForExistence(timeout: 10), "Favorites does not keep only the 3 favorite films")
 
         // Search: an episode found by its own name.
-        app.tabBars.buttons["Search"].tap()
+        app.buttons["tab.search"].tap()
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10), "Search has no search field")
         field.tap()
@@ -135,20 +135,10 @@ final class MiraUITests: XCTestCase {
                       "Search did not find The Man from Mars")
         settle()
         capture("08-search")
-        // Out of the search field: the tab bar comes back in place of the keyboard.
+        // Out of the search field: the tab bar comes back in place of the keyboard (scrolling the results puts it away).
         field.typeText("\n")
-        let settings = app.tabBars.buttons["Settings"]
-        if !settings.waitForExistence(timeout: 3) {
-            // iOS 26 keeps the search field in place of the tabs, with a close button on its right.
-            let box = field.frame
-            app.coordinate(withNormalizedOffset: .zero)
-                .withOffset(CGVector(dx: min(box.maxX + 30, app.frame.maxX - 20), dy: box.midY)).tap()
-        }
-        // Then the tab bar is the search field and the last tab before Search: back to it, the tabs unfold.
-        if !settings.waitForExistence(timeout: 3) {
-            let back = app.buttons["Movies"].firstMatch
-            if back.waitForExistence(timeout: 3) { back.tap() }
-        }
+        let settings = app.buttons["tab.settings"]
+        if !settings.waitForExistence(timeout: 3) { app.swipeDown() }
         if !settings.waitForExistence(timeout: 5) {
             capture("08-search-left")
             XCTFail("No Settings tab; buttons: \(app.buttons.allElementsBoundByIndex.map { "\($0.label)|\($0.identifier)|\($0.frame)" })")
@@ -194,7 +184,7 @@ final class MiraUITests: XCTestCase {
         capture("13c-fiche-suite")
         app.navigationBars.buttons.firstMatch.tap()
         app.swipeDown()
-        app.tabBars.buttons["Réglages"].tap()
+        app.buttons["tab.settings"].tap()
         XCTAssertTrue(app.navigationBars["Réglages"].waitForExistence(timeout: 10), "Les Réglages ne se sont pas ouverts")
         settle()
         capture("14-reglages")
@@ -213,12 +203,12 @@ final class MiraUITests: XCTestCase {
         settle()
         capture("21-accueil-grand")
         // The tabs first: once a page has scrolled, the tab bar keeps only the current tab.
-        let settings = app.tabBars.buttons["Réglages"]
+        let settings = app.buttons["tab.settings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5), "Pas d'onglet Réglages en grand texte")
         settings.tap()
         settle()
         capture("24-reglages-grand")
-        let films = app.tabBars.buttons["Films"]
+        let films = app.buttons["tab.movies"]
         XCTAssertTrue(films.waitForExistence(timeout: 5), "Pas d'onglet Films en grand texte")
         films.tap()
         settle()

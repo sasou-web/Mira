@@ -46,31 +46,35 @@ struct RootView: View {
     }
 }
 
+/// The tabs, each keeping its pages, under Mira's own tab bar (MiraTabBar): iOS's bar stays hidden.
 struct MainView: View {
     enum Section: Hashable { case home, movies, shows, search, settings }
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var phase
     @State private var section = Section.home
+    @State private var bar = TabBarModel()
+    /// A tab touched again while open: its pages start over from the first.
+    @State private var restarts: [Section: Int] = [:]
+    @State private var keyboard = false
 
     var body: some View {
         TabView(selection: $section) {
-            Tab("Home", systemImage: "house.fill", value: Section.home) {
-                NavigationStack { HomeView() }
-            }
-            Tab("Movies", systemImage: "film", value: Section.movies) {
-                NavigationStack { LibraryView(kind: .movies) }
-            }
-            Tab("Shows", systemImage: "tv", value: Section.shows) {
-                NavigationStack { LibraryView(kind: .shows) }
-            }
-            Tab("Settings", systemImage: "gearshape.fill", value: Section.settings) {
-                NavigationStack { SettingsView() }
-            }
-            Tab(value: Section.search, role: .search) {
-                NavigationStack { SearchView() }
+            Tab("Home", systemImage: "house.fill", value: Section.home) { stack(.home) { HomeView() } }
+            Tab("Movies", systemImage: "film.fill", value: Section.movies) { stack(.movies) { LibraryView(kind: .movies) } }
+            Tab("Shows", systemImage: "tv.fill", value: Section.shows) { stack(.shows) { LibraryView(kind: .shows) } }
+            Tab("Settings", systemImage: "gearshape.fill", value: Section.settings) { stack(.settings) { SettingsView() } }
+            Tab("Search", systemImage: "magnifyingglass", value: Section.search) { stack(.search) { SearchView() } }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !keyboard {
+                MiraTabBar(section: $section) { restarts[$0, default: 0] += 1 }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .animation(.easeOut(duration: 0.2), value: keyboard)
+        .modifier(KeyboardWatch(shown: $keyboard))
+        .environment(bar)
+        .onChange(of: section) { bar.folded = false }
         .overlay(alignment: .top) { NoticeToast() }
         .overlay(alignment: .top) { NewEpisodesBanner() }
         .onChange(of: phase) {
@@ -101,6 +105,13 @@ struct MainView: View {
         } message: {
             Text(verbatim: app.actionMessage ?? "")
         }
+    }
+
+    /// A tab's pages, iOS's tab bar hidden on each.
+    private func stack(_ tab: Section, @ViewBuilder _ root: () -> some View) -> some View {
+        NavigationStack { root() }
+            .toolbar(.hidden, for: .tabBar)
+            .id(restarts[tab, default: 0])
     }
 }
 

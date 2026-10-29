@@ -63,6 +63,7 @@ struct TitleView: View {
             }
         }
         .scrollIndicators(.hidden)
+        .foldsTabBar()
         .ignoresSafeArea(edges: .top)
         .onScrollGeometryChange(for: Bool.self) { geometry in
             // The title reaching the bars: from there the bar has its edge and the title's name.
