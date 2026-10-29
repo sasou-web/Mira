@@ -6,7 +6,7 @@
 // Every film and episode plays media/clip.mp4 (SMPTE bars and a tone, 10 s, H.264 and AAC in MP4) as it is; what the
 // player reports is listed at /Mock/Reports for the UI tests. Sintel plays media/film.mp4 instead when ios.yml could
 // fetch it (its trailer, © Blender Foundation, CC BY 3.0), at its real length, with chapters and the trickplay
-// pictures of media/trickplay (tools/ios/trickplay.swift): the player's captures.
+// pictures of media/trickplay (tools/ios/trickplay.sh): the player's captures.
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
 import http from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
