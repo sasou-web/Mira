@@ -46,7 +46,7 @@ final class PlayerSession: NSObject {
     private var closed = false
     private var wasPaused = false
     private var lastReport = Date.distantPast
-    private var pictureInPicture = false
+    private var inPictureInPicture = false
     private var restoring = false
     /// Reduced to the bar over the tabs: the player left the screen, the title goes on.
     private(set) var minimized = false
@@ -725,7 +725,7 @@ final class PlayerSession: NSObject {
             minimizing = false
             return
         }
-        guard !pictureInPicture, !restoring else { return }
+        guard !inPictureInPicture, !restoring else { return }
         close()
     }
 
@@ -1077,7 +1077,7 @@ extension PlayerSession: PlayerActions {
 
 extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        pictureInPicture = true
+        inPictureInPicture = true
     }
 
     /// In its window, the title leaves the player: the app is free under it.
@@ -1086,7 +1086,7 @@ extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
     }
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        pictureInPicture = false
+        inPictureInPicture = false
         // Closed from its window, not brought back into the app: the title stops there.
         if !restoring && controller.presentingViewController == nil && !minimized { close() }
         restoring = false
