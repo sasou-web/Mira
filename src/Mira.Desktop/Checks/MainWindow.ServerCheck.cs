@@ -40,12 +40,16 @@ public partial class MainWindow
                 if (timer.Elapsed.TotalSeconds > seconds) throw new TimeoutException($"{what}: not within {seconds} s.");
             }
         }
-        // The video moves on: its position, two seconds later.
+        // The video moves on: two seconds further within 30 s (a runner without a graphics card starts slowly).
         async Task<double> Advancing(string what)
         {
             step = what;
-            var before = _mpv?.Number("time-pos") ?? 0; await Task.Delay(2000); var after = _mpv?.Number("time-pos") ?? 0;
-            if (after - before < 1) throw new InvalidOperationException($"{what}: the video does not move on ({before:0.0} s, then {after:0.0} s).");
+            var before = _mpv?.Number("time-pos") ?? 0; var after = before;
+            for (var timer = Stopwatch.StartNew(); after - before < 2; await Task.Delay(250))
+            {
+                if (timer.Elapsed.TotalSeconds > 30) throw new InvalidOperationException($"{what}: the video does not move on ({before:0.0} s, then {after:0.0} s in 30 s).");
+                after = _mpv?.Number("time-pos") ?? 0;
+            }
             return after;
         }
         async Task Shot(string name) { await ArtworkAsync(); await CaptureAsync(output, name); }
