@@ -15,6 +15,7 @@
 // Robustness: the site's storage blocked, a Wi-Fi's page answering for Jellyfin, a library of 3,000 films.
 import './unit/fr.mjs';
 import fs from 'node:fs';
+import http from 'node:http';
 import { execSync } from 'node:child_process';
 import { phoneNotes } from '../../src/Mira.Web/js/whats-new.js';
 import { audit, contrast, forcedColors, sheetFocus } from './a11y.mjs';
@@ -86,7 +87,7 @@ const watchPolicy = async (context, name, seen = violations) => {
   }, true));
 };
 // A phone set in French: the checks below read Mira's French (English, Mira's default, is checked at the end).
-const newContext = async (name, locale = 'fr-FR') => { const c = await browser.newContext({ ...devices['iPhone 15 Pro'], locale }); await watchPolicy(c, name); return c; };
+const newContext = async (name, locale = 'fr-FR', options = {}) => { const c = await browser.newContext({ ...devices['iPhone 15 Pro'], locale, ...options }); await watchPolicy(c, name); return c; };
 const signIn = async (p, url = `${base}#/connexion`) => {
   await p.goto(url); await p.waitForTimeout(1500);
   if (await p.locator('.users').count()) await p.getByRole('button', { name: 'Autre compte' }).click();
@@ -2146,8 +2147,22 @@ await togetherA.close(); await togetherB.close();
 // address of the links first, the one Tailscale Funnel gives: here a made-up one, the link is opened on this address).
 // The guest's phone opens it: Mira reloads on the extension's gateway, joins the host's group and stays there (any
 // other screen leads back to it); Lecture on the host's plays on both. Taken back, the guest is out at once, and the
-// link no longer opens.
-const hostCtx = await newContext('invité (hôte)'), guestCtx = await newContext('invité');
+// link no longer opens. Everything the guest's phone asks, its WebSocket included, comes as through Tailscale Funnel
+// (the header Tailscale puts on each request): the extension's guard (TunnelGuard) lets through Mira web, the gateway
+// and the guest's own WebSocket, and nothing else.
+const FUNNEL = { 'Tailscale-Funnel-Request': '?1' };
+const hostCtx = await newContext('invité (hôte)'), guestCtx = await newContext('invité', 'fr-FR', { extraHTTPHeaders: FUNNEL });
+// One request as Funnel hands it on, its path as written: its status, 101 for a WebSocket opened (closed at once).
+const throughFunnel = (path, headers = {}) => new Promise((resolve) => {
+  const origin = new URL(base);
+  const request = http.request({ host: origin.hostname, port: origin.port, path, headers: { ...FUNNEL, ...headers } });
+  request.on('upgrade', (_, socket) => { socket.destroy(); resolve(101); });
+  request.on('response', (response) => { response.resume(); resolve(response.statusCode); });
+  request.on('error', () => resolve(0));
+  request.setTimeout(10000, () => { request.destroy(); resolve(0); });
+  request.end();
+});
+const SOCKET = { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==' };
 const inviter = await hostCtx.newPage(), invitee = await guestCtx.newPage();
 const guestErrors = [];
 for (const p of [inviter, invitee]) p.on('pageerror', (e) => guestErrors.push(e.message));
@@ -2200,6 +2215,17 @@ try {
     guestFollowed && h && g && !h.paused && !g.paused && Math.abs(h.t - g.t) < 1 && guestSrc.includes('/Mira/guest/'),
     `${guestFollowed ? 'titre ouvert' : 'rien ouvert'} ; ${h ? `${h.t.toFixed(2)} s` : 'pas de vidéo'} et ${g ? `${g.t.toFixed(2)} s` : 'pas de vidéo'} ; ${guestSrc.replace(/\?.*/, '')}`);
   const invite = ((await asHost('Mira/invites'))?.invites ?? []).find((x) => x.name === 'Léa');
+  // Through Funnel, nothing but Mira web and the gateway: not Jellyfin, not the extension's other parts, not even by a
+  // path that Jellyfin's server reads back to its own (« /Mira/%2e%2e/… »), and no WebSocket with another session.
+  const root = new URL(base).pathname.replace(/\/Mira\/?.*$/i, '');
+  const hostToken = await inviter.evaluate(() => JSON.parse(localStorage.getItem('mira.session')).token);
+  const outside = [];
+  for (const path of ['/System/Info/Public', '/Mira/%2e%2e/System/Info/Public', '/web/', '/Users/Public', '/Mira/invites', '/Mira/torlink']) outside.push([path, await throughFunnel(root + path)]);
+  const [page, door] = [await throughFunnel(`${root}/Mira/`), await throughFunnel(`${root}/Mira/guest/System/Info/Public`)];
+  const [hostSocket, elsewhere] = [await throughFunnel(`${root}/Mira/guest/socket?ApiKey=${hostToken}&deviceId=check`, SOCKET), await throughFunnel(`${root}/socket?ApiKey=${hostToken}&deviceId=check`, SOCKET)];
+  check('invité : par Tailscale Funnel, seulement Mira web et la passerelle',
+    outside.every(([, status]) => status === 404) && page === 200 && door === 200 && hostSocket === 404 && elsewhere === 404,
+    `${outside.map(([path, status]) => `${path} ${status}`).join(', ')} ; page ${page}, passerelle ${door} ; WebSocket de l’hôte ${hostSocket}, ailleurs ${elsewhere}`);
   await inviter.evaluate(() => { location.hash = '#/invites'; }); await inviter.waitForTimeout(2000);
   await inviter.getByRole('button', { name: 'Retirer le lien de Léa' }).click(); await inviter.waitForTimeout(600);
   await inviter.locator('.sheet-item', { hasText: 'Retirer le lien' }).click();

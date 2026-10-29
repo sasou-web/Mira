@@ -62,7 +62,7 @@ public partial class MainWindow
         GuestForm.Visibility = !asking && !made ? Visibility.Visible : Visibility.Collapsed;
         if (asking) GuestMade.Visibility = Visibility.Collapsed;
         GuestAddressLine.Visibility = address is null || asking ? Visibility.Collapsed : Visibility.Visible;
-        GuestAddressText.Text = L($"Les liens commencent par {address}.", $"Links start with {address}.");
+        GuestAddressText.Text = GuestLinks.AddressLine(list) ?? "";
 
         GuestList.Children.Clear();
         var invites = list.Invites ?? [];

@@ -98,6 +98,13 @@ public static class GuestLinks
         catch (System.Text.Json.JsonException) { return false; }
     }
 
+    /// <summary>
+    /// The line under the links: the address they start with, then what the extension found there trying it as from
+    /// the Internet; null without an address.
+    /// </summary>
+    public static string? AddressLine(GuestLinkList list) => list.Address is not { } address ? null
+        : L($"Les liens commencent par {address}.", $"Links start with {address}.") + (list.Tunnel?.Text is { Length: > 0 } tunnel ? "\n" + tunnel : "");
+
     /// <summary>The page where an administrator of the tailnet turns Funnel on, when <c>tailscale funnel</c> asks for it.</summary>
     public static string? EnablePage(string? output)
     {
@@ -118,7 +125,20 @@ public sealed record GuestLink(
     [property: JsonPropertyName("device")] string? Device,
     [property: JsonPropertyName("link")] string? Link);
 
-/// <summary>The links made, and the address they start with (null until one is given).</summary>
+/// <summary>
+/// The links made, the address they start with (null until one is given), and what the extension found trying that
+/// address as from the Internet (null before any try, or from an extension older than 0.8.6).
+/// </summary>
 public sealed record GuestLinkList(
     [property: JsonPropertyName("address")] string? Address,
-    [property: JsonPropertyName("invites")] List<GuestLink>? Invites);
+    [property: JsonPropertyName("invites")] List<GuestLink>? Invites,
+    [property: JsonPropertyName("tunnel")] GuestTunnel? Tunnel = null);
+
+/// <summary>
+/// The address of the links tried from the PC of Jellyfin as a visitor from the Internet would: « closed » (only Mira
+/// answers there), « open » (Jellyfin answers outside Mira: no link is made), « unreachable »; said in the language
+/// this Mira asked for.
+/// </summary>
+public sealed record GuestTunnel(
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("text")] string? Text);

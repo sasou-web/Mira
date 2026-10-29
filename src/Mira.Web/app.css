@@ -827,6 +827,7 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .invite-guests { display: grid; gap: 10px; }
 .invite-guests:empty { display: none; }
 .guests-address { overflow-wrap: anywhere; }
+.guests-tunnel.open { color: var(--warning); }
 .group > .invite { padding-top: 16px; }
 
 /* ---------- Player ---------- */

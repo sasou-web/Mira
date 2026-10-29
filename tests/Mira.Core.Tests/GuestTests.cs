@@ -1,10 +1,15 @@
 using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Text;
 using System.Text.Json.Nodes;
 using Mira.Jellyfin;
 using static TestSupport;
 
 /// <summary>
-/// « Inviter par lien »: what a guest's page may ask of Jellyfin through the extension's gateway (GuestRoutes), and the
+/// « Inviter par lien »: what a guest's page may ask of Jellyfin through the extension's gateway (GuestRoutes), what a
+/// request from Tailscale Funnel may reach at all, the links' address tried as from the Internet (TunnelCheck), and the
 /// links themselves (GuestInvites, on a clock of their own): one device each, taken back, gone after a week unused.
 /// </summary>
 internal static class GuestTests
@@ -54,6 +59,95 @@ internal static class GuestTests
                 Assert(For(method, path) == GuestRoutes.Access.None, $"{method} {path} let through");
             Assert(GuestRoutes.IsId(Item) && GuestRoutes.IsId(Dashed) && !GuestRoutes.IsId("x") && !GuestRoutes.IsId(null), "Ids");
             return Task.CompletedTask;
+        });
+
+        await Test("Inviter par lien : par Funnel, seulement la page et la passerelle", () =>
+        {
+            static GuestRoutes.Tunnel Through(string method, string path, string baseUrl = "", bool upgrade = false) => GuestRoutes.ThroughTunnel(method, path, baseUrl, upgrade);
+            foreach (var (method, path) in new[] { ("GET", "/Mira"), ("GET", "/Mira/"), ("HEAD", "/Mira/"), ("GET", "/Mira/manifest.webmanifest"), ("GET", "/mira/v/abc/js/app.js") })
+                Assert(Through(method, path) == GuestRoutes.Tunnel.Page, $"{method} {path}: {Through(method, path)}");
+            foreach (var (method, path) in new[] { ("POST", "/Mira/guest/open"), ("GET", $"/Mira/guest/Items/{Item}"), ("DELETE", "/Mira/guest/Videos/ActiveEncodings"), ("GET", "/MIRA/GUEST/System/Info/Public") })
+                Assert(Through(method, path) == GuestRoutes.Tunnel.Gateway, $"{method} {path}: {Through(method, path)}");
+            Assert(Through("GET", "/Mira/guest/socket", upgrade: true) == GuestRoutes.Tunnel.Socket, "WebSocket at the gateway: for a guest's session only");
+            Assert(Through("GET", "/jellyfin/Mira/guest/Users/Me", "/jellyfin") == GuestRoutes.Tunnel.Gateway && Through("GET", "/jellyfin/Mira/", "/jellyfin/") == GuestRoutes.Tunnel.Page
+                && Through("GET", "/Mira/", "/jellyfin") == GuestRoutes.Tunnel.None, "Under a base URL");
+            // Jellyfin itself, the extension's other parts, a WebSocket anywhere else, the page written to: never.
+            foreach (var (method, path, upgrade) in new[]
+            {
+                ("GET", "/System/Info/Public", false), ("GET", "/web/", false), ("GET", "/Users/Public", false), ("POST", "/Users/AuthenticateByName", false), ("GET", "/", false), ("GET", "", false),
+                ("GET", "/Mira/invites", false), ("PUT", "/Mira/invites/address", false), ("GET", "/Mira/torlink", false), ("GET", $"/Mira/hls/{Item}/master.m3u8", false), ("GET", "/Mira/subtitles", false),
+                ("GET", "/Mira/identify/image", false), ("POST", "/Mira/", false), ("GET", "/Mira/guest", false), ("GET", "/Miraguest/x", false), ("GET", "/Mira%2Fguest/x", false), ("GET", "/Mira/guest%2F..%2FSystem", false),
+                ("GET", "/socket", true), ("GET", "/Mira/socket", true), ("GET", "/Mira/", true), ("GET", "/Mira/v/x/socket", true),
+            })
+                Assert(Through(method, path, upgrade: upgrade) == GuestRoutes.Tunnel.None, $"{method} {path}{(upgrade ? " (WebSocket)" : "")} let through");
+            Assert(GuestRoutes.FunnelHeader == "Tailscale-Funnel-Request", "Tailscale's own header (ipn/ipnlocal/serve.go)");
+            return Task.CompletedTask;
+        });
+
+        await Test("Inviter par lien : l’adresse des liens essayée comme depuis Internet", async () =>
+        {
+            const string Me = "36b069f8-2dc3-4050-a793-0eb75a7373ea";
+            static string Card(string id) => $"{{\"ServerName\":\"pc\",\"Version\":\"12.1.0\",\"Id\":\"{id}\"}}";
+            // A stand-in for the address: each request line kept as it came, a card where `answer` gives one.
+            static async Task<(TunnelCheck.Result Result, List<string> Targets)> TryAsync(Func<string, string?> answer, bool listening = true)
+            {
+                using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
+                var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                if (!listening) listener.Stop();
+                var targets = new List<string>();
+                using var stop = new CancellationTokenSource();
+                var serving = !listening ? Task.CompletedTask : Task.Run(async () =>
+                {
+                    while (true)
+                    {
+                        TcpClient connection;
+                        try { connection = await listener.AcceptTcpClientAsync(stop.Token); } catch (OperationCanceledException) { return; }
+                        _ = Task.Run(async () =>
+                        {
+                            using var held = connection; var stream = connection.GetStream(); var reader = new StreamReader(stream, Encoding.ASCII);
+                            var line = await reader.ReadLineAsync() ?? ""; while (!string.IsNullOrEmpty(await reader.ReadLineAsync())) { }
+                            var target = line.Split(' ') is [_, var t, ..] ? t : ""; lock (targets) targets.Add(target);
+                            var body = answer(target);
+                            await stream.WriteAsync(Encoding.UTF8.GetBytes(body is null ? "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                                : $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {Encoding.UTF8.GetByteCount(body)}\r\nConnection: close\r\n\r\n{body}"));
+                        });
+                    }
+                });
+                using var client = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false });
+                var result = await TunnelCheck.RunAsync(client, $"http://127.0.0.1:{port}/", Me, DateTimeOffset.UnixEpoch, CancellationToken.None);
+                stop.Cancel(); await serving; listener.Stop();
+                lock (targets) return (result, [.. targets]);
+            }
+            // What Jellyfin's server makes of a path: « %2e » read as « . », then « . » and « .. » gone.
+            static string Normalized(string target) => new Uri("http://x" + target.Replace("%2e", ".", StringComparison.OrdinalIgnoreCase)).AbsolutePath;
+
+            // Funnel opened for /Mira only: Mira at the gateway, nothing else; each path sent as written.
+            var (closed, sent) = await TryAsync(target => target == TunnelCheck.Inside ? Card(Me.Replace("-", "", StringComparison.Ordinal)) : null);
+            Assert(closed.State == TunnelCheck.State.Closed && closed.Path is null, $"Only Mira: {closed}");
+            Assert(TunnelCheck.Detours.All(sent.Contains) && sent.Contains(TunnelCheck.Inside) && sent.Contains("/Mira/%2e%2e/System/Info/Public") && sent.Contains("/Mira/../System/Info/Public"),
+                "Sent as written: " + string.Join(" ", sent));
+            // Funnel opened for all of Jellyfin, or a tunnel that hands « /Mira/%2e%2e/… » on as it is to Jellyfin.
+            var (whole, _) = await TryAsync(target => Normalized(target) is "/System/Info/Public" or "/Mira/guest/System/Info/Public" ? Card(Me) : null);
+            Assert(whole.State == TunnelCheck.State.Open && whole.Path == "/System/Info/Public", $"All of Jellyfin: {whole}");
+            var (dotted, _) = await TryAsync(target => target == TunnelCheck.Inside || target == "/Mira/%2e%2e/System/Info/Public" ? Card(Me) : null);
+            Assert(dotted.State == TunnelCheck.State.Open && dotted.Path == "/Mira/%2e%2e/System/Info/Public", $"A path out of /Mira: {dotted}");
+            // Another server there, or none.
+            var (other, _) = await TryAsync(target => Normalized(target).EndsWith("/System/Info/Public", StringComparison.Ordinal) ? Card("0123456789abcdef0123456789abcdef") : null);
+            Assert(other.State == TunnelCheck.State.Unreachable, $"Another Jellyfin: {other}");
+            var (none, _) = await TryAsync(_ => null, listening: false);
+            Assert(none.State == TunnelCheck.State.Unreachable, $"Nothing there: {none}");
+
+            Assert(TunnelCheck.ServerId(Card(Me)) == Me && TunnelCheck.ServerId("<html>") is null && TunnelCheck.ServerId("[1]") is null && TunnelCheck.ServerId("{\"Id\":3}") is null, "Card read");
+            var at = DateTimeOffset.Parse("2026-10-29T10:00:00Z");
+            TunnelCheck.Result Was(TunnelCheck.State state) => new("https://pc.ts.net", state, at);
+            Assert(TunnelCheck.Stale(null, at, TimeSpan.FromHours(6), TimeSpan.FromMinutes(1)) && !TunnelCheck.Stale(Was(TunnelCheck.State.Closed), at.AddHours(5), TimeSpan.FromHours(6), TimeSpan.FromMinutes(1))
+                && TunnelCheck.Stale(Was(TunnelCheck.State.Unreachable), at.AddMinutes(2), TimeSpan.FromHours(6), TimeSpan.FromMinutes(1))
+                && TunnelCheck.Stale(Was(TunnelCheck.State.Open), at, TimeSpan.FromMinutes(10), TimeSpan.Zero), "Tried again when due");
+            TunnelCheck.Keep(Was(TunnelCheck.State.Closed));
+            Assert(TunnelCheck.Last("https://pc.ts.net") is { State: TunnelCheck.State.Closed } && TunnelCheck.Last("https://autre.ts.net") is null && TunnelCheck.Last(null) is null, "Kept for its address");
+            var open = new TunnelCheck.Result("https://pc.ts.net", TunnelCheck.State.Open, at, "/Mira/%2e%2e/System/Info/Public");
+            Assert(TunnelCheck.Text(open, true).Contains("https://pc.ts.net/Mira/%2e%2e/System/Info/Public", StringComparison.Ordinal) && TunnelCheck.Text(open, false).StartsWith("The tunnel lets more than Mira through", StringComparison.Ordinal)
+                && TunnelCheck.Text(Was(TunnelCheck.State.Closed), true).StartsWith("Adresse vérifiée", StringComparison.Ordinal) && TunnelCheck.Text(Was(TunnelCheck.State.Unreachable), false).StartsWith("Mira doesn’t answer", StringComparison.Ordinal), "Texts");
         });
 
         await Test("Inviter par lien : les playlists passent par la passerelle", () =>
