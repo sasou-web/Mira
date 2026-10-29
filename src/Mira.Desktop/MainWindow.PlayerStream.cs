@@ -33,6 +33,8 @@ public partial class MainWindow
     private bool _recovering, _recoveryLoad;
     /// <summary>Since when mpv waits for data (paused-for-cache), and whether the spinner says so.</summary>
     private DateTimeOffset? _starvedSince; private bool _buffering;
+    /// <summary>Where the stream was opened or moved to: played past it, a wait for data is judged sooner (<see cref="StreamRecovery.Stuck"/>).</summary>
+    private double _stallFrom;
     private static readonly TimeSpan BufferingShown = TimeSpan.FromSeconds(1);
     /// <summary>How often Jellyfin is asked again while it does not answer.</summary>
     private static readonly TimeSpan LostRetry = TimeSpan.FromSeconds(3);
@@ -169,6 +171,18 @@ public partial class MainWindow
         var buffering = _starvedSince is { } since && DateTimeOffset.UtcNow - since > BufferingShown;
         if (buffering == _buffering) return;
         _buffering = buffering; SetPlayerLoading(buffering);
+    }
+    /// <summary>
+    /// mpv waiting for data too long on a stream from Jellyfin: it may never end the file (Jellyfin gone with its PC, a
+    /// connection that hangs), so the cut is handled as one: Jellyfin silent, waited for; answering, opened again once.
+    /// Its old file's end, if it comes, is then not the end of the title (waiting).
+    /// </summary>
+    private void WatchStall()
+    {
+        if (_starvedSince is not { } since || _recovering || _wake != WakeState.None || _asleep || _stream is null || !IsStream(_playLocation)) return;
+        if (!StreamRecovery.Stuck(DateTimeOffset.UtcNow - since, moved: _session.Position > _stallFrom + 1)) return;
+        _starvedSince = null; _wake = WakeState.Waiting;
+        _ = RecoverStreamAsync(_playGeneration);
     }
     /// <summary>A line under the spinner, why the video waits; null hides it, and <paramref name="seconds"/> after that long.</summary>
     private void ShowPlayerStatus(string? text, double seconds = 0)
