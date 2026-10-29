@@ -575,5 +575,45 @@ internal static class ConnectionTests
             Assert(profile.LoadConnection() is null && !keychain.Tokens.ContainsKey(folder), "Token left in the keychain after signing out");
             return Task.CompletedTask;
         });
+        await Test("Mac : clé de Tailscale intégré dans le trousseau, dans un fichier privé s’il la refuse, jamais remplacée quand elle est illisible", () =>
+        {
+            var folder = Path.Combine(testRoot, "mac-tailnet"); var keychain = new TokenStandIn();
+            var profile = new Mira.Mac.Services.Profile(folder, keychain); var account = profile.TailnetDirectory;
+            var file = Path.Combine(folder, "tailscale.key");
+            // The keychain does not take it: a file of this account only, read again until the keychain takes it.
+            keychain.RefuseStore = true;
+            var first = profile.TailnetKey();
+            Assert(first is { Length: 32 } && File.Exists(file) && !keychain.Tokens.ContainsKey(account), "Key not kept in its file when the keychain refused it");
+            if (!OperatingSystem.IsWindows()) Assert((File.GetUnixFileMode(file) & (UnixFileMode.GroupRead | UnixFileMode.OtherRead)) == 0, "Key file readable by others");
+            Assert(profile.TailnetKey()!.SequenceEqual(first!), "Key file not read back");
+            keychain.RefuseStore = false;
+            Assert(profile.TailnetKey()!.SequenceEqual(first!) && keychain.Tokens[account] == Convert.ToBase64String(first!) && keychain.Labels[account] == "Mira (Tailscale)" && !File.Exists(file),
+                "Key not moved to the keychain once it took it");
+            Assert(profile.TailnetKey()!.SequenceEqual(first!) && new Mira.Mac.Services.Profile(folder).TailnetKey() is { } other && !other.SequenceEqual(first!), "Key not read back from the keychain alone");
+            File.Delete(file);
+            // There but unreadable now (locked keychain, question declined): no new key, which would sign the node out.
+            keychain.Refuse = true;
+            Assert(profile.TailnetKey() is null && !File.Exists(file), "An unreadable key was replaced");
+            keychain.Refuse = false;
+            // The session's own item is another one: signing out of Jellyfin leaves the node signed in.
+            profile.SaveConnection(new Connection("http://nas:8096/", "user", "Alice", "token-1", profile.DeviceId)); profile.ClearConnection();
+            Assert(profile.TailnetKey()!.SequenceEqual(first!), "Signing out of Jellyfin took the node's key");
+            // Signed out of Tailscale: key and state gone, a new key next time.
+            Directory.CreateDirectory(account); File.WriteAllText(Path.Combine(account, "state.bin"), "état");
+            profile.ForgetTailnet();
+            Assert(!keychain.Tokens.ContainsKey(account) && !Directory.Exists(account), "Key or state left after signing out of Tailscale");
+            var second = profile.TailnetKey()!;
+            Assert(second is { Length: 32 } && !second.SequenceEqual(first!) && keychain.Tokens[account] == Convert.ToBase64String(second), "No new key after signing out of Tailscale");
+            // Signed out while the keychain kept the key: never read again; removed once it lets go.
+            keychain.RefuseDelete = true; profile.ForgetTailnet();
+            var third = profile.TailnetKey()!;
+            Assert(third is { Length: 32 } && !third.SequenceEqual(second) && File.Exists(file) && keychain.Tokens[account] == Convert.ToBase64String(second), "The forgotten key was used again");
+            keychain.RefuseDelete = false;
+            Assert(profile.TailnetKey()!.SequenceEqual(third) && keychain.Tokens[account] == Convert.ToBase64String(third) && !File.Exists(file), "The forgotten key stayed in the keychain");
+            // A damaged item: a new key.
+            keychain.Tokens[account] = "pas une clé";
+            Assert(profile.TailnetKey() is { Length: 32 } fourth && keychain.Tokens[account] == Convert.ToBase64String(fourth), "A damaged key was not replaced");
+            return Task.CompletedTask;
+        });
     }
 }

@@ -194,6 +194,32 @@ public static class SelfCheck
                     or Services.Keychain.AuthFailed or Services.Keychain.UserCanceled) Check(true, "trousseau", probe.Result + " : indisponible ici, non mesurable");
                 else Check(probe.Result is null, "trousseau : écrire, relire, effacer", probe.Result ?? "");
             }
+
+            // —— Built-in Tailscale: its node in Mira.app ——
+            // Where tools/mac/package.sh puts it, free of any quarantine; then a copy marked as macOS marks a download, which
+            // Mira must take for one Gatekeeper holds, until the mark says the person let it open.
+            if (OperatingSystem.IsMacOS())
+            {
+                var (helper, missing) = Services.TailnetExecutable.Locate();
+                Check(helper is not null && Services.TailnetExecutable.Blocked(helper) is null, "Tailscale intégré : mira-tailscale dans Mira.app", helper ?? missing ?? "");
+                if (helper is not null)
+                {
+                    var copy = Path.Combine(Path.GetTempPath(), $"mira-tailscale-{Guid.NewGuid():N}");
+                    File.Copy(helper, copy);
+                    try
+                    {
+                        string? Marked(string flags)
+                        {
+                            using var xattr = Process.Start("/usr/bin/xattr", ["-w", "com.apple.quarantine", $"{flags};{DateTimeOffset.UtcNow.ToUnixTimeSeconds():x};Safari;", copy])!;
+                            xattr.WaitForExit();
+                            return Services.TailnetExecutable.Blocked(copy);
+                        }
+                        string? held = Marked("0083"), allowed = Marked("00c3");
+                        Check(held?.Contains(Services.TailnetExecutable.Command) == true && allowed is null, "Tailscale intégré : blocage de Gatekeeper reconnu", held ?? "marque de quarantaine pas lue");
+                    }
+                    finally { File.Delete(copy); }
+                }
+            }
             exit = results.All(x => x.Ok) ? 0 : 1;
         }
         catch (Exception ex)

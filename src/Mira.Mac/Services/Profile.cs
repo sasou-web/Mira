@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Mira.Core;
 
@@ -120,6 +121,87 @@ public sealed class Profile
         else WriteMarker(Refused, Version);
     }
 
+    // —— « Tailscale intégré » ——
+    /// <summary>The folder of Mira's own Tailscale node: its state, encrypted with <see cref="TailnetKey"/>, and its lock.</summary>
+    public string TailnetDirectory => Path.Combine(DirectoryPath, "tailscale");
+    /// <summary>
+    /// The 32 bytes that encrypt the node's state, its identity on the person's Tailscale network: a keychain item of its
+    /// own (« Mira (Tailscale) », the node's folder as its account), else a file of this macOS account only
+    /// (tailscale.key) while the keychain does not take it, or without a keychain (the self-check). Made the first time.
+    /// Null when the key is there but cannot be read now (keychain locked, question declined) or cannot be kept: another
+    /// one would sign the node out for nothing. May wait for the person after an update: never on the UI thread.
+    /// </summary>
+    public byte[]? TailnetKey()
+    {
+        // Signed out while the keychain kept the old key: removed now, or never read again (a new key goes to the file).
+        var keychain = _tokens;
+        if (keychain is not null && File.Exists(Marker(TailnetForget)))
+        {
+            if (keychain.Delete(TailnetDirectory)) DeleteMarker(TailnetForget);
+            else keychain = null;
+        }
+        // The file, when there, is the key the node uses: the keychain refused it. It moves there once the keychain takes it.
+        var file = Marker(TailnetFile);
+        if (File.Exists(file))
+        {
+            byte[]? kept;
+            try { kept = Key(File.ReadAllText(file)); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+            if (kept is not null)
+            {
+                if (keychain?.Store(TailnetDirectory, Convert.ToBase64String(kept), TailnetLabel) == true)
+                {
+                    WriteMarker(TailnetTrusted, Version);
+                    try { File.Delete(file); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                }
+                return kept;
+            }
+        }
+        else if (keychain is not null)
+        {
+            var stored = keychain.Read(TailnetDirectory);
+            if (stored is null && !keychain.Missing) return null;
+            if (Key(stored) is { } key)
+            {
+                // Once per version, stored again by this copy, which the item then trusts, as the session's token.
+                if (ReadMarker(TailnetTrusted) != Version && keychain.Store(TailnetDirectory, stored!, TailnetLabel)) WriteMarker(TailnetTrusted, Version);
+                return key;
+            }
+        }
+        // None yet, or one that is not a key (damaged): a new one, and the node signs in again.
+        var made = RandomNumberGenerator.GetBytes(32);
+        var text = Convert.ToBase64String(made);
+        if (keychain?.Store(TailnetDirectory, text, TailnetLabel) == true)
+        {
+            WriteMarker(TailnetTrusted, Version);
+            // A damaged file left there would come first at the next start.
+            try { File.Delete(file); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            return made;
+        }
+        try { Write(TailnetFile, System.Text.Encoding.ASCII.GetBytes(text)); return made; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+    /// <summary>
+    /// « Se déconnecter de Tailscale »: the node's key and state leave this Mac. A key the keychain keeps is removed at a
+    /// later start, and never read again meanwhile. Not on the UI thread.
+    /// </summary>
+    public void ForgetTailnet()
+    {
+        if (_tokens is not null && !_tokens.Delete(TailnetDirectory)) WriteMarker(TailnetForget, "");
+        DeleteMarker(TailnetTrusted);
+        var file = Marker(TailnetFile);
+        if (File.Exists(file)) File.Delete(file);
+        if (Directory.Exists(TailnetDirectory)) Directory.Delete(TailnetDirectory, recursive: true);
+    }
+    private const string TailnetFile = "tailscale.key", TailnetForget = "tailscale-keychain-forget", TailnetTrusted = "tailscale-keychain-version", TailnetLabel = "Mira (Tailscale)";
+    private static byte[]? Key(string? text)
+    {
+        var bytes = new byte[32];
+        return Convert.TryFromBase64String(text?.Trim() ?? "", bytes, out var length) && length == bytes.Length ? bytes : null;
+    }
+
     /// <summary>True when settings.json exists but could not be read: the defaults are used instead, and replace it on the next save.</summary>
     public bool SettingsUnreadable { get; private set; }
     /// <summary>The copy of that unreadable file kept beside it (settings.json.bad-…); null when it could not be copied either.</summary>
@@ -177,13 +259,15 @@ public sealed class Profile
     }
 }
 
-/// <summary>Where a profile keeps its session token, apart from the rest of session.json.</summary>
+/// <summary>Where a profile keeps its session token, apart from the rest of session.json, and the key of its Tailscale node.</summary>
 public interface ITokenStore
 {
-    /// <summary>Replaces the token kept for <paramref name="account"/>; false when it could not be stored.</summary>
-    bool Store(string account, string token);
-    /// <summary>The token kept for <paramref name="account"/>, or null: none, or it cannot be read.</summary>
+    /// <summary>Replaces the token kept for <paramref name="account"/>, named <paramref name="label"/> where the Mac shows it; false when it could not be stored.</summary>
+    bool Store(string account, string token, string label = "Mira");
+    /// <summary>The token kept for <paramref name="account"/>, or null: none (<see cref="Missing"/>), or it cannot be read.</summary>
     string? Read(string account);
     /// <summary>Removes it; false when it may still be there.</summary>
     bool Delete(string account);
+    /// <summary>The last <see cref="Read"/> found nothing for its account, rather than something it could not read (keychain locked, question declined).</summary>
+    bool Missing { get; }
 }

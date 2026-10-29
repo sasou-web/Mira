@@ -389,8 +389,9 @@ public sealed partial class PlayerPage : UserControl
         _session.LastReport = reopened ? DateTimeOffset.MinValue : DateTimeOffset.Now;
         if (!reopened) { _session.Reported = true; await session.Sync.RecordAsync("start", Report()); }
         if (generation != _generation || _mpv is null || _stream is not { } stream) return;
-        // Subtitles fetched from Jellyfin take the token in their header too (its file on this Mac opens without it).
-        _mpv.Set("http-header-fields", "Authorization: " + session.Client.AuthorizationHeader.Replace(",", "\\,"));
+        // Subtitles fetched from Jellyfin take the token in their header too (its file on this Mac opens without it), and
+        // through Built-in Tailscale its proxy's credentials (MpvClient.SetAuthorization keeps them).
+        _mpv.SetAuthorization(session.Client.AuthorizationHeader);
         // External subtitles supplied by Jellyfin; a conversion's come when chosen.
         if (!stream.Converted)
             foreach (var (track, path) in ServerStreams.Beside(stream.Source, converted: false))
