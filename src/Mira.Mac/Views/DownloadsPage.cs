@@ -20,6 +20,8 @@ namespace Mira.Mac.Views;
 /// (<c>Mira/torlink</c>), as Mira web's « Télécharger sur le PC serveur » and Mira for Windows away from that PC do: the
 /// best release of each title or episode first (<see cref="ReleaseRanking"/>), what the PC has under way with its
 /// progress and time left (<see cref="RemoteLines"/>), read every 3 s while the page shows, and only then.
+/// « Chercher une meilleure version » of a film or an episode opens it for that title: its search made, its results
+/// only those better than its file (<see cref="TitleUpgrade"/>), each one asked as its replacement.
 /// </summary>
 public sealed class DownloadsPage : Page
 {
@@ -75,10 +77,18 @@ public sealed class DownloadsPage : Page
     /// <summary>« Télécharger » on the best release of the first title found (the self-check).</summary>
     public Task SendBestAsync() => _firstBest is var (search, hit, button) ? SendHitAsync(search, hit, button) : Task.CompletedTask;
     private (string Search, RelayHit Hit, Button Button)? _firstBest;
+    /// <summary>« Chercher une meilleure version »: the title asked for, then as Jellyfin has it (its file); whether a better version of it was asked.</summary>
+    private readonly MediaItem? _upgradeOf;
+    private MediaItem? _upgrade;
+    private bool _upgradeStarted, _upgradeSent;
+    private readonly Border _upgradeBanner;
+    private readonly TextBlock _upgradeTitle = new() { FontSize = 15, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _upgradeLine = new() { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
 
-    public DownloadsPage(MainWindow shell) : base(shell)
+    public DownloadsPage(MainWindow shell, MediaItem? upgrade = null) : base(shell)
     {
         _session = shell.Session;
+        _upgradeOf = upgrade;
         // —— Header: the page, where the PC stands, and its pill ——
         var pill = new Border
         {
@@ -135,7 +145,14 @@ public sealed class DownloadsPage : Page
                 magnetRow, _magnetError)
         };
         _searchStatus.Margin = new Thickness(0, 16, 0, 14);
-        var top = Ui.Column(0, bar, tools, _magnetPanel, _searchStatus);
+        // « Chercher une meilleure version »: the title replaced, what its file is now, what happens to it; closed, the page as it is.
+        var endUpgrade = Ui.IconButton("close", L("Ne plus chercher de meilleure version", "Stop looking for a better version"), EndUpgrade, "icon", 14);
+        endUpgrade.Width = endUpgrade.Height = 30; endUpgrade.VerticalAlignment = VerticalAlignment.Top;
+        var upgradeHead = new DockPanel();
+        DockPanel.SetDock(endUpgrade, Dock.Right); upgradeHead.Children.Add(endUpgrade);
+        upgradeHead.Children.Add(Ui.Row(10, new Icon("sparkle", 18) { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) }, Ui.Column(0, _upgradeTitle, _upgradeLine)));
+        _upgradeBanner = new Border { Background = Surface, CornerRadius = new CornerRadius(10), Padding = new Thickness(16, 14, 10, 14), Margin = new Thickness(0, 0, 0, 14), IsVisible = false, Child = upgradeHead };
+        var top = Ui.Column(0, _upgradeBanner, bar, tools, _magnetPanel, _searchStatus);
         _resultsScroll = new ScrollViewer { Content = _results };
         _resultsEmpty = Empty("search", L("Cherche un film, une série ou un anime", "Search for a movie, a show or an anime"),
             L("TorLink le cherche sur le PC serveur. Mira regroupe les versions par titre et par épisode, et met la meilleure en avant : la qualité de la source d’abord, le 1080p, puis MULTI ou VF.",
@@ -178,7 +195,36 @@ public sealed class DownloadsPage : Page
         DetachedFromVisualTree += (_, _) => _timer.Stop();
     }
 
-    public override Task LoadAsync() => LoadStatusAsync();
+    public override async Task LoadAsync()
+    {
+        await LoadStatusAsync();
+        if (_upgradeOf is { } wanted && !_upgradeStarted) { _upgradeStarted = true; await StartUpgradeAsync(wanted); }
+    }
+
+    /// <summary>« Chercher une meilleure version »: the title as Jellyfin has it now (its file, its picture), then its search.</summary>
+    private async Task StartUpgradeAsync(MediaItem wanted)
+    {
+        if (_session is not { } session) return;
+        MediaItem item;
+        try { item = await session.Client.ItemAsync(wanted.Id, session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { if (!session.Lifetime.IsCancellationRequested) Shell.Notice(Errors.Friendly(ex)); return; }
+        _upgrade = item; _upgradeSent = false;
+        _upgradeTitle.Text = L($"Meilleure version de « {TitleUpgrade.Title(item)} »", $"Better version of “{TitleUpgrade.Title(item)}”");
+        _upgradeLine.Text = L($"Actuellement : {TitleUpgrade.Line(TitleUpgrade.Current(item))}. Seules les versions meilleures sont montrées. Une fois téléchargée et vérifiée (même durée, lisible par Jellyfin), la nouvelle prend la place de l’ancienne, qui part à la Corbeille du PC serveur.",
+            $"Currently: {TitleUpgrade.Line(TitleUpgrade.Current(item))}. Only better versions are shown. Once downloaded and checked (same length, readable by Jellyfin), the new one takes the old one’s place, which goes to the server PC’s Recycle Bin.");
+        _upgradeBanner.IsVisible = true;
+        AutomationProperties.SetName(_upgradeBanner, _upgradeTitle.Text);
+        _query.Text = TitleUpgrade.Query(item);
+        await SearchAsync();
+    }
+
+    /// <summary>Back to the page as it is: every result, downloaded as a new title.</summary>
+    private void EndUpgrade()
+    {
+        _upgrade = null; _upgradeSent = false; _upgradeBanner.IsVisible = false;
+        _searchVersion++; _results.Children.Clear(); _resultsEmpty.IsVisible = true; _searchStatus.Text = ""; _firstBest = null;
+        _query.Text = ""; _query.Focus();
+    }
     public override Task RefreshAsync() => LoadStatusAsync();
 
     private async Task TickAsync()
@@ -583,6 +629,19 @@ public sealed class DownloadsPage : Page
     private void ShowHits(string searchId, string query, IReadOnlyList<RelayHit> hits)
     {
         _resultsEmpty.IsVisible = false; _results.Children.Clear(); _resultsScroll.Offset = default; _firstBest = null;
+        // « Chercher une meilleure version »: only this title, in a better picture than its file.
+        if (_upgrade is { } upgrade)
+        {
+            var better = TitleUpgrade.Candidates(upgrade, hits);
+            var now = TitleUpgrade.Line(TitleUpgrade.Current(upgrade));
+            var count = Count(better.Count, "version meilleure", "versions meilleures", "better version", "better versions");
+            _searchStatus.Text = better.Count == 0
+                ? L($"Aucune version meilleure que l’actuelle ({now}) parmi les {hits.Count} résultats pour « {query} ». Réessaie plus tard, ou avec un autre nom.",
+                    $"No version better than the current one ({now}) among the {hits.Count} results for “{query}”. Try again later, or with another name.")
+                : L($"{count} que l’actuelle, la meilleure en premier.", $"{count} than the current one, the best first.");
+            foreach (var group in ReleaseRanking.Group(better)) _results.Children.Add(GroupView(searchId, group));
+            return;
+        }
         if (hits.Count == 0) { _searchStatus.Text = L($"Aucun résultat pour « {query} » dans les films, les séries et les animes. Essaie un autre titre.", $"No results for “{query}” in movies, shows and anime. Try another title."); return; }
         var groups = ReleaseRanking.Group(hits);
         var versions = Count(hits.Count, "version", "versions", "version", "versions"); var titles = Count(groups.Count, "titre", "titres", "title", "titles");
@@ -698,7 +757,7 @@ public sealed class DownloadsPage : Page
         if (best) _firstBest ??= (searchId, hit, button);
         if (best) button.Classes.Add("primary");
         ShowSendState(button, _sent.Contains(key));
-        AutomationProperties.SetName(button, L($"Télécharger {hit.Name}", $"Download {hit.Name}"));
+        AutomationProperties.SetName(button, _upgrade is null ? L($"Télécharger {hit.Name}", $"Download {hit.Name}") : L($"Remplacer par {hit.Name}", $"Replace with {hit.Name}"));
         button.Click += async (_, _) => await SendHitAsync(searchId, hit, button);
         Grid.SetColumn(button, 1); grid.Children.Add(button);
         if (best) return grid;
@@ -706,29 +765,37 @@ public sealed class DownloadsPage : Page
         return new Border { BorderBrush = Line, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 12, 0, 0), Margin = new Thickness(0, 12, 0, 0), Child = grid };
     }
 
-    private static void ShowSendState(Button button, bool sent)
+    private void ShowSendState(Button button, bool sent)
     {
-        button.Content = Ui.Row(7, new Icon(sent ? "check" : "download", 15) { VerticalAlignment = VerticalAlignment.Center }, new TextBlock { Text = sent ? L("Envoyé", "Sent") : L("Télécharger", "Download"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
+        var replace = _upgrade is not null;
+        button.Content = Ui.Row(7, new Icon(sent ? "check" : replace ? "sparkle" : "download", 15) { VerticalAlignment = VerticalAlignment.Center },
+            new TextBlock { Text = sent ? replace ? L("Demandé", "Requested") : L("Envoyé", "Sent") : replace ? L("Remplacer", "Replace") : L("Télécharger", "Download"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         button.IsEnabled = !sent;
     }
 
     private async Task SendHitAsync(string searchId, RelayHit hit, Button button)
     {
         if (_session is not { } session) return;
+        var replace = _upgrade?.Id;
+        // One better version at a time: the second would only replace the first. A Mira of 0.8.5 on the PC would keep both.
+        if (replace is not null && _upgradeSent) { Shell.Notice(L("Une meilleure version de ce titre est déjà demandée : elle s’affiche à droite.", "A better version of this title is already requested: it shows on the right.")); return; }
+        if (replace is not null && _agent is { Replaces: false }) { Shell.Notice(L("Mira sur le PC serveur ne sait pas encore remplacer un titre : mets-le à jour.", "Mira on the server PC can’t replace a title yet: update it.")); return; }
         button.IsEnabled = false;
         try
         {
-            await session.Client.TorLinkRequestAsync(searchId, hit, session.Lifetime);
+            await session.Client.TorLinkRequestAsync(searchId, hit, session.Lifetime, replace);
             _sent.Add(searchId + "/" + hit.Id); ShowSendState(button, sent: true);
-            await SentAsync();
+            if (replace is not null) _upgradeSent = true;
+            await SentAsync(replace is not null);
         }
         catch (Exception ex) when (Errors.Expected(ex)) { button.IsEnabled = true; Shell.Notice(Errors.Friendly(ex)); }
     }
 
     /// <summary>Its row, with its progress, is at the top of the right column.</summary>
-    private async Task SentAsync()
+    private async Task SentAsync(bool replacing = false)
     {
-        Shell.Notice(_ready ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
+        Shell.Notice(replacing ? L("Demandé au PC serveur : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.", "Requested from the server PC: the new version will take the old one’s place once downloaded and checked.")
+            : _ready ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
         _queueScroll.Offset = default;
         await LoadStatusAsync();
     }

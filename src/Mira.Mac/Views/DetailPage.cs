@@ -228,7 +228,7 @@ public sealed class DetailPage : Page
         Add(L("Ne plus suivre", "Stop following"), () => _ = Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")));
         menu.Open(button);
     }
-    /// <summary>An administrator of Jellyfin: « Corriger » offers « Identifier… » and « Actualiser les métadonnées ».</summary>
+    /// <summary>An administrator of Jellyfin: « Corriger » offers « Identifier… », « Actualiser les métadonnées » and, for a film, « Chercher une meilleure version ».</summary>
     private bool _admin;
     private async Task CheckAdministratorAsync(Session session)
     {
@@ -264,6 +264,12 @@ public sealed class DetailPage : Page
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
         };
         menu.Items.Add(identify); menu.Items.Add(refresh);
+        if (_item.Type == "Movie" && Shell.Offers("downloads"))
+        {
+            var better = new MenuItem { Header = L("Chercher une meilleure version", "Find a better version") };
+            better.Click += (_, _) => Shell.FindBetter(_item);
+            menu.Items.Add(better);
+        }
         menu.Open(button);
     }
     /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>

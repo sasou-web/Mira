@@ -430,6 +430,13 @@ public partial class MainWindow
         if (resume) menu.Items.Add(MenuAction(L("Lire depuis le début", "Play from the beginning"), "refresh", async () => await PlayAsync(episode, fromStart: true, chosen: true)));
         menu.Items.Add(MenuAction(episode.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : L("Marquer comme vu", "Mark as watched"), episode.UserData.Played ? "refresh" : "check", async () => { await SetPlayedAsync(episode, !episode.UserData.Played); await RefreshDetailAsync(); }));
         if (OfflineMenuItem(episode) is { } offline) menu.Items.Add(offline);
+        // An administrator's, once Jellyfin said (asked by the series' page).
+        if (UpgradeMenuItem(episode) is { } upgrade)
+        {
+            var line = new Separator();
+            menu.Items.Add(line); menu.Items.Add(upgrade);
+            menu.Opened += (_, _) => line.Visibility = upgrade.Visibility = Administers ? Visibility.Visible : Visibility.Collapsed;
+        }
         return menu;
     }
     private async Task LoadEpisodeImageAsync(Image image, MediaItem item)

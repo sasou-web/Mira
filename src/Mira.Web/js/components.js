@@ -7,6 +7,7 @@ import { settings } from './session.js';
 import { qualityText } from './player/tracks.js';
 import { holds } from './collections.js';
 import { collectionSheet, takeOut } from './collection-sheet.js';
+import { upgradeEntry } from './identify-sheet.js';
 
 /** Item changes (watched, favourite, hidden) that every screen showing the item takes into account. */
 export const changes = new EventTarget();
@@ -387,6 +388,8 @@ export function openPlayer(href) {
  */
 export async function itemMenu(item, { resumeRow = false, inTitle = false, collection = null, held = false, at = null } = {}) {
   const rights = holds(item) || collection ? await api.collectionRights().catch(() => null) : null;
+  // « Chercher une meilleure version », an administrator's (asked once a session, as « Corriger »).
+  const admin = item.Type === 'Movie' || item.Type === 'Episode' ? await api.isAdministrator().catch(() => false) : false;
   const name = item.Type === 'Episode' ? `${item.SeriesName} · ${episodeCode(item)}` : item.Name;
   const played = !!item.UserData?.Played, favorite = !!item.UserData?.IsFavorite;
   const items = [];
@@ -402,6 +405,7 @@ export async function itemMenu(item, { resumeRow = false, inTitle = false, colle
   if (resumeRow) items.push({ label: tr('Retirer de Continuer à regarder'), symbol: 'close', run: () => hideFromResume(item) });
   if (rights?.manage && holds(item)) items.push({ label: tr('Ajouter à une collection…'), symbol: 'stack', run: () => collectionSheet(item) });
   if (rights?.manage && collection) items.push({ label: tr('Retirer de la collection'), symbol: 'close', run: () => takeOut(item, collection) });
+  if (admin) items.push(upgradeEntry(item));
   sheet({ title: name, items, held, at, body: about(item) });
 }
 

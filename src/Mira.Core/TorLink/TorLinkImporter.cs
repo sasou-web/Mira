@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Mira.Core.TorLink;
 
 namespace Mira.Core;
 
@@ -37,6 +38,8 @@ public sealed record TorLinkImportEntry
     public bool Notified { get; init; }
     public string? JellyfinId { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
+    /// <summary>« Remplacer par une meilleure version »: the title's file this download was to replace (<see cref="TorLinkReplacement"/>).</summary>
+    public string? Replaced { get; init; }
 }
 
 public sealed class TorLinkImportLog
@@ -46,6 +49,55 @@ public sealed class TorLinkImportLog
     public List<TorLinkImportEntry> Entries { get; set; } = [];
     /// <summary>Downloads sent for a series followed: placed where they were chosen for, even with automatic placement off.</summary>
     public List<TorLinkExpected> Expected { get; set; } = [];
+    /// <summary>Downloads that take a title's place once finished (« Remplacer par une meilleure version »): never imported as new titles.</summary>
+    public List<TorLinkReplacement> Replacements { get; set; } = [];
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ReplacementState>))]
+public enum ReplacementState { Waiting, Swapping, Swapped, Done, Failed }
+
+/// <summary>
+/// « Remplacer par une meilleure version »: a download (its info hash) that takes the place of a film's or an episode's
+/// file once finished, checked (readable, as long as the old one) and swapped (<see cref="TitleSwap"/>): its title in
+/// Jellyfin, the old file and its length (ticks, as Jellyfin measured it), then where it is: <see cref="ReplacementState.Swapping"/>
+/// while the files change, <see cref="ReplacementState.Swapped"/> until Jellyfin has the new file and the state of the
+/// old title (<see cref="Saved"/>) is copied onto it, <see cref="ReplacementState.Done"/> or <see cref="ReplacementState.Failed"/>
+/// (<see cref="Message"/>: why; the old file stays).
+/// </summary>
+public sealed record TorLinkReplacement
+{
+    public string Id { get; init; } = "";
+    public string ItemId { get; init; } = "";
+    public string Title { get; init; } = "";
+    public string OldPath { get; init; } = "";
+    public long Runtime { get; init; }
+    /// <summary>The old file's size when the files began to change: told from the new one when both have the same name.</summary>
+    public long OldSize { get; init; }
+    public ReplacementState State { get; init; } = ReplacementState.Waiting;
+    public string? NewPath { get; init; }
+    public string? NewItemId { get; init; }
+    public TitleSnapshot? Saved { get; init; }
+    public string? Message { get; init; }
+    /// <summary>Times the old file was open when its turn came (someone watching, Jellyfin reading it), and when to try again.</summary>
+    public int Attempts { get; init; }
+    public DateTimeOffset? RetryAt { get; init; }
+    public DateTimeOffset At { get; init; }
+    public DateTimeOffset UpdatedAt { get; init; }
+}
+
+/// <summary>
+/// What Mira for Windows says before a file is replaced: the old title's state to copy onto the new one, why it cannot
+/// be replaced (<paramref name="Problem"/>: the title is gone or moved), or why it waits (<paramref name="Wait"/>: watched now).
+/// </summary>
+public sealed record ReplacementCheck(TitleSnapshot? Saved, string? Problem = null, string? Wait = null);
+
+/// <summary>What Jellyfin knew of a title before its file was replaced, copied onto the new one: each account's state, the collections holding it.</summary>
+public sealed record TitleSnapshot(List<SavedUserData> Users, List<string> Collections);
+/// <summary>An account's state of a title: watched, how many times, where it resumes, favourite, last watched, liked, rated.</summary>
+public sealed record SavedUserData(string UserId, bool Played, int PlayCount, long PlaybackPositionTicks, bool IsFavorite, DateTimeOffset? LastPlayedDate, bool? Likes, double? Rating)
+{
+    /// <summary>Something to copy: an account that never touched the title has nothing.</summary>
+    [JsonIgnore] public bool Kept => Played || PlayCount > 0 || PlaybackPositionTicks > 0 || IsFavorite || Likes is not null || Rating is not null;
 }
 
 /// <summary>A download sent to TorLink for a series followed (its info hash), and where it goes once finished.</summary>
@@ -58,7 +110,10 @@ public sealed record TorLinkExpected(string Id, ImportTarget Target, DateTimeOff
 public sealed class TorLinkImporter
 {
     public const int MaxAttempts = 6;
-    private const int MaxEntries = 500, MaxExpected = 200;
+    private const int MaxEntries = 500, MaxExpected = 200, MaxReplacements = 100;
+    /// <summary>An old file open this many times in a row, <see cref="RetryEvery"/> apart, is given up: about an hour.</summary>
+    private const int MaxBusy = 30;
+    private static readonly TimeSpan RetryEvery = TimeSpan.FromMinutes(2);
     /// <summary>A download expected that long and never finished is forgotten.</summary>
     private static readonly TimeSpan ExpectedFor = TimeSpan.FromDays(30);
     private readonly string _path;
@@ -93,6 +148,33 @@ public sealed class TorLinkImporter
     }
     public ImportTarget? Expected(string id) { lock (_sync) return _log.Expected.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase))?.Target; }
 
+    /// <summary>« Remplacer par une meilleure version »: this download takes <paramref name="replacement"/>'s title's place once finished, never imported as a new title.</summary>
+    public void ExpectReplacement(TorLinkReplacement replacement)
+    {
+        lock (_sync)
+        {
+            var now = DateTimeOffset.UtcNow;
+            // Finished ones are forgotten after the time a download is expected; one under way never is.
+            _log.Replacements.RemoveAll(x => x.Id == replacement.Id || x.State is ReplacementState.Done or ReplacementState.Failed && now - x.UpdatedAt > ExpectedFor);
+            _log.Replacements.Insert(0, replacement with { Id = replacement.Id.ToLowerInvariant(), State = ReplacementState.Waiting, At = now, UpdatedAt = now });
+            while (_log.Replacements.Count > MaxReplacements && _log.Replacements.FindLastIndex(x => x.State is ReplacementState.Done or ReplacementState.Failed) is var last and >= 0) _log.Replacements.RemoveAt(last);
+        }
+        Save();
+    }
+    public TorLinkReplacement? Replacement(string id) { lock (_sync) return _log.Replacements.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase)); }
+    public IReadOnlyList<TorLinkReplacement> Replacements { get { lock (_sync) return _log.Replacements.ToList(); } }
+    /// <summary>A replacement moved on (Jellyfin has the new title, its state copied, or given up).</summary>
+    public void UpdateReplacement(TorLinkReplacement replacement)
+    {
+        lock (_sync)
+        {
+            var index = _log.Replacements.FindIndex(x => x.Id == replacement.Id);
+            if (index < 0) return;
+            _log.Replacements[index] = replacement with { UpdatedAt = DateTimeOffset.UtcNow };
+        }
+        Save();
+    }
+
     /// <summary>Automatic imports restart from now (used when the option is switched back on).</summary>
     public void RestartBaseline() { lock (_sync) _log.Baseline = DateTimeOffset.UtcNow; Save(); }
 
@@ -111,6 +193,8 @@ public sealed class TorLinkImporter
             foreach (var completion in history.OrderBy(x => x.CompletedAt))
             {
                 ct.ThrowIfCancellationRequested();
+                // A better version of a title takes its place (ReplaceAsync), never imported beside it.
+                if (Replacement(completion.Id) is not null) continue;
                 var entry = Find(completion.Id);
                 var asked = requested?.Contains(completion.Id) == true;
                 var target = Expected(completion.Id);
@@ -172,6 +256,131 @@ public sealed class TorLinkImporter
         ct.ThrowIfCancellationRequested();
     }
 
+    /// <summary>The replacements whose download TorLink has finished, to check and swap now (<see cref="ReplaceAsync"/>).</summary>
+    public IReadOnlyList<TorLinkReplacement> Due(TorLinkState state)
+    {
+        var waiting = Replacements.Where(x => x.State is ReplacementState.Waiting or ReplacementState.Swapping).ToList();
+        if (waiting.Count == 0) return [];
+        var finished = (state.ReadHistory() ?? []).Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return waiting.Where(x => finished.Contains(x.Id)).ToList();
+    }
+
+    /// <summary>
+    /// « Remplacer par une meilleure version », once TorLink finished the download: its video checked (one film or episode,
+    /// readable by <paramref name="probe"/>, as long as the old file within <see cref="TitleUpgrade.LengthTolerance"/>), then
+    /// put in the old file's place, which goes to the Recycle Bin by <paramref name="recycle"/> (<see cref="TitleSwap"/>), and
+    /// written in the log as a title placed. <paramref name="prepare"/>, just before: the old title's state, kept to copy
+    /// onto the new one, or why it waits (watched now) or cannot be (gone from Jellyfin).
+    /// Null while its files are not all there; otherwise the replacement as it now is. Nothing changes when a check fails:
+    /// the old file stays, the download stays in TorLink.
+    /// </summary>
+    public async Task<TorLinkReplacement?> ReplaceAsync(string id, TorLinkState state, ImportMode mode, Func<TorLinkReplacement, CancellationToken, Task<ReplacementCheck>> prepare,
+        Func<string, CancellationToken, Task<TimeSpan?>> probe, Func<string, bool> recycle, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            if (Replacement(id) is not { State: ReplacementState.Waiting or ReplacementState.Swapping } replacement) return Replacement(id);
+            if (replacement.RetryAt > DateTimeOffset.UtcNow) return replacement;
+            var history = await Task.Run(state.ReadHistory, ct);
+            if (history?.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase)) is not { } completion) return null;
+            // Mira closed while the files changed: the old file still there means nothing happened (a new attempt clears
+            // what it left); gone, the new one is in its place, or still beside it under its temporary name.
+            if (replacement.State == ReplacementState.Swapping && Recover(replacement) is { } recovered)
+                return recovered.Placed is { } path ? Swapped(replacement with { NewPath = path }, completion, path, false)
+                    : Failed(replacement, completion, recovered.Problem ?? "", kept: false);
+            if (replacement.State == ReplacementState.Swapping) replacement = replacement with { State = ReplacementState.Waiting };
+            var files = await Task.Run(() => DownloadedFiles(state, completion), ct);
+            if (files is null) return null;
+            var videos = files.Where(f => ReleaseName.IsVideo(f.RelativePath) && !ReleaseName.InExtrasFolder(f.RelativePath)).ToList();
+            var largest = videos.Count == 0 ? 0 : videos.Max(v => v.Length);
+            // A clip called "sample" beside the feature is left out; anything else as long is another title.
+            var features = videos.Where(v => v.Length >= largest * .5 && !(ReleaseName.IsSample(v.RelativePath) && v.Length < largest * .3)).ToList();
+            if (features.Count != 1)
+                return Failed(replacement, completion, features.Count == 0 ? L("Aucune vidéo dans ce téléchargement.", "No video in this download.")
+                    : L("Ce téléchargement contient plusieurs vidéos : Mira ne sait pas laquelle garder.", "This download has several videos: Mira can’t tell which one to keep."));
+            var video = features[0];
+            if (await probe(video.Path, ct) is not { } length)
+                return Failed(replacement, completion, L("Jellyfin ne sait pas lire la nouvelle version (ffprobe).", "Jellyfin can’t read the new version (ffprobe)."));
+            var old = TimeSpan.FromTicks(replacement.Runtime);
+            if (!TitleUpgrade.SameLength(old, length))
+                return Failed(replacement, completion, L($"La nouvelle version dure {MediaItem.FormatDuration(length)}, l’ancienne {MediaItem.FormatDuration(old)} : un autre montage, ou un autre titre.",
+                    $"The new version runs {MediaItem.FormatDuration(length)}, the old one {MediaItem.FormatDuration(old)}: another cut, or another title."));
+            var check = await prepare(replacement, ct);
+            if (check.Problem is { } problem) return Failed(replacement, completion, problem);
+            if (check.Wait is { } wait) return Later(replacement, wait, counted: false);
+            var subtitles = files.Where(f => ReleaseName.IsSubtitle(f.RelativePath) && !ReleaseName.IsSample(f.RelativePath) && !ReleaseName.InExtrasFolder(f.RelativePath)).ToList();
+            var size = new FileInfo(replacement.OldPath) is { Exists: true } info ? info.Length : 0;
+            replacement = replacement with { State = ReplacementState.Swapping, NewPath = TitleSwap.Destination(replacement.OldPath, video.Path), OldSize = size, Saved = check.Saved, Message = null };
+            UpdateReplacement(replacement);
+            var result = await TitleSwap.SwapAsync(replacement.OldPath, video, subtitles, mode, recycle, ct);
+            if (result.Busy)
+                return replacement.Attempts + 1 >= MaxBusy ? Failed(replacement, completion, L("L’ancien fichier est resté ouvert pendant plus d’une heure.", "The old file stayed open for over an hour."))
+                    : Later(replacement with { State = ReplacementState.Waiting }, result.Problem ?? "", counted: true);
+            if (result.NewPath is not { } placed) return Failed(replacement, completion, result.Problem ?? "", kept: !result.Recycled);
+            if (result.Moved) MediaImporter.PruneEmptyFolders([Path.GetDirectoryName(video.Path)], [completion.Directory]);
+            return Swapped(replacement, completion, placed, result.Moved, result.Subtitles, video.RelativePath);
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>
+    /// Where a swap cut short by Mira's end stands: null when the old file is still there (nothing happened); otherwise the
+    /// new file in its place (moved there now when it was still beside it), or why not.
+    /// </summary>
+    private static (string? Placed, string? Problem)? Recover(TorLinkReplacement replacement)
+    {
+        if (replacement.NewPath is not { } path) return File.Exists(replacement.OldPath) ? null : (null, Lost);
+        var same = string.Equals(Path.GetFullPath(path), Path.GetFullPath(replacement.OldPath), StringComparison.OrdinalIgnoreCase);
+        // Under the same name, the old file is the one of the size it had.
+        if (File.Exists(replacement.OldPath) && (!same || new FileInfo(path).Length == replacement.OldSize)) return null;
+        if (File.Exists(path)) return (path, null);
+        var temporary = path + TitleSwap.Suffix;
+        if (!File.Exists(temporary)) return (null, Lost);
+        try { File.Move(temporary, path, false); JellyfinServiceAccess.ShareWithFolder(path); return (path, null); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return (null, Lost); }
+    }
+    private static string Lost => L("Mira s’est fermé pendant le remplacement : l’ancien fichier est dans la Corbeille, la nouvelle version à côté du titre ou dans le dossier de TorLink.",
+        "Mira closed during the replacement: the old file is in the Recycle Bin, the new version beside the title or in TorLink’s folder.");
+
+    /// <summary>Tried again in a few minutes: someone watches it (<paramref name="counted"/> false: as long as it takes), or it is open.</summary>
+    private TorLinkReplacement Later(TorLinkReplacement replacement, string why, bool counted)
+    {
+        var later = replacement with { Message = why, Attempts = replacement.Attempts + (counted ? 1 : 0), RetryAt = DateTimeOffset.UtcNow + RetryEvery };
+        UpdateReplacement(later);
+        return later;
+    }
+
+    private TorLinkReplacement Swapped(TorLinkReplacement replacement, TorLinkCompletion completion, string placed, bool moved, IReadOnlyList<string>? subtitles = null, string? relative = null)
+    {
+        var done = replacement with { State = ReplacementState.Swapped, NewPath = placed, Message = null };
+        UpdateReplacement(done);
+        Update(new TorLinkImportEntry
+        {
+            Id = completion.Id, Name = completion.Name, Source = completion.Source, CompletedAt = completion.CompletedAt,
+            State = TorLinkImportState.Imported, Title = replacement.Title, Folders = [Path.GetDirectoryName(placed) ?? placed],
+            Files = (subtitles ?? []).Select(x => new TorLinkImportedFile(Path.GetFileName(x), x, "subtitle")).Prepend(new TorLinkImportedFile(relative ?? Path.GetFileName(placed), placed, "video")).ToList(),
+            MovedOut = moved, Replaced = replacement.OldPath,
+            // Mira tells Jellyfin itself, with the old file gone.
+            Notified = true, UpdatedAt = DateTimeOffset.UtcNow
+        });
+        return done;
+    }
+
+    /// <param name="kept">The old file is where it was (every check that fails before the swap).</param>
+    private TorLinkReplacement Failed(TorLinkReplacement replacement, TorLinkCompletion completion, string reason, bool kept = true)
+    {
+        var failed = replacement with { State = ReplacementState.Failed, Message = reason };
+        UpdateReplacement(failed);
+        Update(new TorLinkImportEntry
+        {
+            Id = completion.Id, Name = completion.Name, Source = completion.Source, CompletedAt = completion.CompletedAt,
+            State = TorLinkImportState.Failed, Title = replacement.Title, Replaced = replacement.OldPath, Notified = true, UpdatedAt = DateTimeOffset.UtcNow,
+            Message = kept ? string.Join(" ", reason, L("L’ancien fichier reste ; le téléchargement aussi, dans TorLink.", "The old file stays; so does the download, in TorLink.")) : reason
+        });
+        return failed;
+    }
+
     /// <summary>Moves an imported download to another kind of library (film, series, anime), keeping its files.</summary>
     /// <returns>The entry and the library folders it left, to report to Jellyfin.</returns>
     public async Task<(TorLinkImportEntry? Entry, IReadOnlyList<string> Left)> ReclassifyAsync(string id, MediaKind kind, MediaLibraries libraries, CancellationToken ct = default)
@@ -179,7 +388,7 @@ public sealed class TorLinkImporter
         await _gate.WaitAsync(ct);
         try
         {
-            if (Find(id) is not { } entry || entry.Files.Count == 0 || entry.Kind == kind) return (Find(id), []);
+            if (Find(id) is not { } entry || entry.Files.Count == 0 || entry.Kind == kind || entry.Replaced is not null) return (Find(id), []);
             // Only the links and copies Mira placed move; a file that was already in the library stays where it is.
             var sources = entry.Files.Where(f => !f.Found && File.Exists(f.Destination)).Select(f => new SourceFile(f.Destination, f.RelativePath, new FileInfo(f.Destination).Length)).ToList();
             if (sources.Count == 0)
@@ -387,6 +596,7 @@ public sealed class TorLinkImporter
                             Files = (x.Files ?? []).Where(f => f is { Destination: not null, RelativePath: not null }).ToList()
                         }).ToList();
                     log.Expected = (log.Expected ?? []).Where(x => x is { Id: not null, Target: { Root: not null, Folder: not null } } && TorLinkState.IsInfoHash(x.Id)).ToList();
+                    log.Replacements = (log.Replacements ?? []).Where(x => x is { Id: not null, ItemId: not null, OldPath: not null } && TorLinkState.IsInfoHash(x.Id)).ToList();
                     return log;
                 }
                 // A scanner or a backup may hold the file for a moment.

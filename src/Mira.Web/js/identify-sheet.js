@@ -18,8 +18,15 @@ export function titleToolsSheet(item, changed) {
     items: [
       { symbol: 'search', label: tr('Identifier…'), sub: tr('Jellyfin s’est trompé de titre, ou ne l’a pas reconnu : choisis le bon.'), run: () => identifySheet(item, changed) },
       { symbol: 'refresh', label: tr('Actualiser les métadonnées'), sub: tr('Jellyfin relit ce titre auprès de ses sources et complète ce qui manque (affiche, résumé, distribution).'), run: () => refresh(item, changed) },
-    ],
+      item.Type === 'Movie' ? upgradeEntry(item) : null,
+    ].filter(Boolean),
   });
+}
+
+/** « Chercher une meilleure version » of a film or an episode (views/torlink.js, upgrade.js): its file replaced, never a second one kept. */
+export function upgradeEntry(item) {
+  return { symbol: 'download', label: tr('Chercher une meilleure version'), sub: tr('Sur le PC serveur, la nouvelle version prend la place de l’ancienne, mise à la Corbeille.'),
+    run: () => { location.hash = `#/telecharger?remplacer=${encodeURIComponent(item.Id)}`; } };
 }
 
 async function refresh(item, changed) {

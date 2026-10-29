@@ -91,8 +91,8 @@ public partial class MainWindow
         var problem = TorLinkRemote.Problem(installation is { HasRuntime: true }, installation is { Detected: false },
             DateTime.UtcNow - _remoteElsewhereAt < TimeSpan.FromMinutes(1), !_torlinkHeadless.Running && TorLinkInUse(), installation is { Outdated: false });
         var (searches, requests, controls, follows) = (_remoteSearchOutcomes.ToList(), _remoteRequestOutcomes.ToList(), _remoteControlOutcomes.ToList(), _remoteFollowOutcomes.ToList());
-        // Follows, even empty: this Mira checks the series followed (MainWindow.Follows.cs).
-        var report = new AgentReport(Environment.MachineName, problem is null, problem, await RemoteDownloadsAsync(ct), TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls, follows);
+        // Follows, even empty: this Mira checks the series followed (MainWindow.Follows.cs); it replaces titles (MainWindow.Upgrades.cs).
+        var report = new AgentReport(Environment.MachineName, problem is null, problem, await RemoteDownloadsAsync(ct), TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls, follows, Replaces: true);
         var (work, status) = await client.TorLinkExchangeAsync(report, ct);
         if (!ReferenceEquals(client, _client)) return TimeSpan.FromSeconds(5);
         if (work is null)
@@ -174,6 +174,12 @@ public partial class MainWindow
                     continue;
                 }
                 torlink.Importer.Expect(hash, target);
+            }
+            // A better version of a title: noted first, so that it takes the title's place rather than being placed beside it.
+            else if (request.Replace is { } replace && await ExpectReplacementAsync(hash, replace, ct) is { } refusal)
+            {
+                _remoteRequestOutcomes.Add(new(request.Id, "failed", refusal));
+                continue;
             }
             try
             {

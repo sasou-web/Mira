@@ -87,6 +87,8 @@ public static partial class RemoteDownloads
 
     /// <summary>40 hexadecimal digits: how TorLink names a download.</summary>
     public static bool IsInfoHash(string? id) => id is not null && Hex40().IsMatch(id);
+    /// <summary>32 hexadecimal digits: how Jellyfin names a title in its addresses.</summary>
+    public static bool IsItemId(string? id) => id is { Length: 32 } && id.All(Uri.IsHexDigit);
 
     /// <summary>A name to show: trimmed, without control characters, at most <see cref="MaxName"/> characters; null when empty.</summary>
     public static string? CleanName(string? name)
