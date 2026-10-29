@@ -5,7 +5,8 @@ import UIKit
 /// Mira's tab bar, floating over the pages: the four tabs in one bar of glass, the open one in a light squircle with its
 /// name that slides to the next with a spring while its icon bounces; Search on its own on the right, as in iOS's own
 /// bar. Scrolling a page down folds it to the open tab and Search, scrolling up or back to the top unfolds it. The open
-/// tab touched again goes back to its first page.
+/// tab touched again goes back to its first page. Its size stops at a large text size (MainView), past which a long
+/// press on a tab shows it larger, as with iOS's own bar.
 struct MiraTabBar: View {
     @Binding var section: MainView.Section
     /// The open tab, touched again.
@@ -43,6 +44,8 @@ struct MiraTabBar: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, -8)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.room = $0 }
+        .onDisappear { model.room = 0 }
         .animation(.spring(response: 0.38, dampingFraction: 0.8), value: model.folded)
         .sensoryFeedback(.selection, trigger: section)
     }
@@ -79,6 +82,7 @@ struct MiraTabBar: View {
                     .accessibilityLabel(Text(entry.name))
                     .accessibilityAddTraits(chosen ? .isSelected : [])
                     .accessibilityIdentifier(entry.id)
+                    .accessibilityShowsLargeContentViewer { Label { Text(entry.name) } icon: { Image(systemName: entry.symbol) } }
                     .transition(.opacity.combined(with: .scale(scale: 0.6)))
                 }
             }
@@ -107,6 +111,7 @@ struct MiraTabBar: View {
         .accessibilityLabel(Text("Search"))
         .accessibilityAddTraits(chosen ? .isSelected : [])
         .accessibilityIdentifier("tab.search")
+        .accessibilityShowsLargeContentViewer { Label("Search", systemImage: "magnifyingglass") }
     }
 
     private func touch(_ tab: MainView.Section) {
@@ -122,14 +127,17 @@ struct MiraTabBar: View {
     }
 }
 
-/// Whether the tab bar is folded, as the page scrolls.
+/// Whether the tab bar is folded, as the page scrolls, and how far it reaches above the bottom of the screen's safe
+/// area (none while it is hidden).
 @MainActor @Observable
 final class TabBarModel {
     var folded = false
+    var room: CGFloat = 0
 }
 
 extension View {
-    /// Scrolling this page down folds Mira's tab bar to the open tab, scrolling up or back to the top unfolds it.
+    /// Scrolling this page down folds Mira's tab bar to the open tab, scrolling up or back to the top unfolds it; the
+    /// page's last lines stop above the bar.
     func foldsTabBar() -> some View { modifier(TabBarFolding()) }
 }
 
@@ -137,11 +145,13 @@ private struct TabBarFolding: ViewModifier {
     @Environment(TabBarModel.self) private var bar: TabBarModel?
 
     func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { old, new in
-            guard let bar else { return }
-            let folded = new < 24 ? false : new - old > 4 ? true : old - new > 12 ? false : bar.folded
-            if folded != bar.folded { bar.folded = folded }
-        }
+        content
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { old, new in
+                guard let bar else { return }
+                let folded = new < 24 ? false : new - old > 4 ? true : old - new > 12 ? false : bar.folded
+                if folded != bar.folded { bar.folded = folded }
+            }
+            .safeAreaPadding(.bottom, bar.map { $0.room > 0 ? $0.room + 8 : 0 } ?? 0)
     }
 }
 

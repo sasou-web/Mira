@@ -121,6 +121,7 @@ struct HomeRowsView: View {
         .environment(\.editMode, .constant(.active))
         .font(MiraFont.body)
         .scrollContentBackground(.hidden)
+        .foldsTabBar()
         .background(Palette.bg)
         .navigationTitle("Home rows")
         .navigationBarTitleDisplayMode(.inline)

@@ -158,6 +158,7 @@ struct ReportView: View {
         }
         .font(MiraFont.body)
         .scrollContentBackground(.hidden)
+        .foldsTabBar()
         .background(Palette.bg)
         .navigationTitle("Your recap")
         .navigationBarTitleDisplayMode(.inline)
