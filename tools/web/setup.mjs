@@ -50,7 +50,9 @@ const folders = await call('GET', 'Library/VirtualFolders', { token });
 const sagas = !folders.some((f) => f.Name === 'Films');
 for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 'tvshows', 'Séries'], ['Animes', 'tvshows', 'Animes']]) {
   if (folders.some((f) => f.Name === name)) continue;
-  const path = `${media.replace(/\/$/, '')}/${folder}`;
+  // The separator of the media folder: on Windows, a path that mixes \ and / leaves the library's titles out of every view.
+  const separator = media.includes('\\') ? '\\' : '/';
+  const path = `${media.replace(/[\\/]$/, '')}${separator}${folder}`;
   // Films gathered into sagas, as Mira for Windows sets up Jellyfin (JellyfinSetup.ConfigureAsync).
   await call('POST', `Library/VirtualFolders?name=${encodeURIComponent(name)}&collectionType=${type}&paths=${encodeURIComponent(path)}&refreshLibrary=true`,
     { token, body: { LibraryOptions: { AutomaticallyAddToCollection: type === 'movies' } } });
