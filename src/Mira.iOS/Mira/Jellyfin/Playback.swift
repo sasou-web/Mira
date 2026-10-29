@@ -121,24 +121,29 @@ extension JellyfinClient {
     /// Jellyfin's Mira extension answers here (it serves Mira web): its HLS playlists then time the subtitles of a
     /// conversion right for Apple's player.
     func hasMiraExtension() async -> Bool {
-        var request = URLRequest(url: server.appending(path: "Mira/"), timeoutInterval: 6)
+        var request = URLRequest(url: await Way.shared.map(server.appending(path: "Mira/")), timeoutInterval: 6)
         request.httpMethod = "HEAD"
         guard let answer = try? await Self.session.data(for: request) else { return false }
         return (answer.1 as? HTTPURLResponse)?.statusCode == 200
     }
 
-    /// Jellyfin is there and ready (System/Ping; while it starts, it answers 503): 5 s at most.
+    /// Jellyfin is there and ready (System/Ping; while it starts, it answers 503): 5 s at most. Silent, or out of
+    /// Built-in Tailscale's reach, another way to it is looked for (the next ping takes it).
     func ping() async -> Bool {
-        var request = URLRequest(url: server.appending(path: "System/Ping"), timeoutInterval: 5)
+        let address = await Way.shared.map(server.appending(path: "System/Ping"))
+        var request = URLRequest(url: address, timeoutInterval: 5)
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        guard let answer = try? await Self.session.data(for: request) else { return false }
-        return ((answer.1 as? HTTPURLResponse)?.statusCode ?? 0) / 100 == 2
+        let answer = try? await Self.session.data(for: request)
+        if let answer, ((answer.1 as? HTTPURLResponse)?.statusCode ?? 0) / 100 == 2 { return true }
+        if answer == nil || answer.flatMap({ Self.relayFailure($0.1) }) != nil { await Way.shared.lost(address) }
+        return false
     }
 
     /// How fast Jellyfin reaches this iPhone, in bits per second: 2 MB of Playback/BitrateTest, 5 s at most.
     func measureSpeed() async -> Double? {
         let size = 2_000_000
-        var request = URLRequest(url: url("Playback/BitrateTest", ["size": String(size)]), cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 5)
+        var request = URLRequest(url: await Way.shared.map(url("Playback/BitrateTest", ["size": String(size)])), cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
+                                 timeoutInterval: 5)
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
         let started = Date()
         guard let answer = try? await Self.session.data(for: request), (answer.1 as? HTTPURLResponse)?.statusCode == 200, answer.0.count > 100_000 else { return nil }

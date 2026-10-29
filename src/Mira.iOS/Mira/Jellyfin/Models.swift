@@ -68,6 +68,8 @@ struct PublicInfo: Codable, Sendable, Hashable {
     var serverName: String?
     var version: String?
     var productName: String?
+    /// Jellyfin's address on the home network, as it sees it (Way tries it at home).
+    var localAddress: String?
 }
 
 /// Users/AuthenticateByName's answer.

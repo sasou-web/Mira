@@ -1,6 +1,7 @@
 # Mira for iPhone and iPad: the Xcode project, generated on the runner by XcodeGen (`xcodegen generate` in this folder),
 # never kept in the repository. .github/workflows/ios.yml builds it, runs its tests on the simulator and packages the
-# unsigned .ipa that AltStore signs on the iPhone with its owner's own Apple account.
+# unsigned .ipa that AltStore signs on the iPhone with its owner's own Apple account. Built-in Tailscale
+# (Frameworks/MiraTailscale.xcframework) is built first by tools/ios/tailscale.sh.
 name: Mira
 options:
   bundleIdPrefix: app.miracinema
@@ -29,6 +30,10 @@ targets:
       - path: Mira
         excludes:
           - Info.plist
+    dependencies:
+      # Built-in Tailscale: Go's static library (src/Mira.Tailscale/ios), linked into the app.
+      - framework: Frameworks/MiraTailscale.xcframework
+        embed: false
     info:
       path: Mira/Info.plist
       properties:
@@ -75,6 +80,8 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        # What Go's runtime calls in the system: its name resolver, the certificates' checks.
+        OTHER_LDFLAGS: ["-lresolv", "-framework", "Security", "-framework", "CoreFoundation"]
   MiraTests:
     type: bundle.unit-test
     platform: iOS

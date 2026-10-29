@@ -1,4 +1,5 @@
 import SwiftUI
+import Synchronization
 import UIKit
 
 @main
@@ -31,9 +32,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-/// Signed in: the tabs; otherwise the sign-in screen.
+/// Signed in: the tabs; otherwise the sign-in screen. Built-in Tailscale follows Mira on and off the screen.
 struct RootView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         ZStack {
@@ -45,6 +47,13 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: app.session?.userId)
+        .onChange(of: phase) {
+            switch phase {
+            case .active: app.foreground()
+            case .background: app.background()
+            default: break
+            }
+        }
     }
 }
 
@@ -134,7 +143,9 @@ enum Messages {
             switch error {
             case .unauthorized: return String(localized: "Wrong username or password.")
             case .forbidden: return String(localized: "Jellyfin doesn’t allow this account to do that.")
-            case .timeout: return String(localized: "The server isn’t answering. Check the address and that Jellyfin is running.")
+            case .timeout:
+                if let hint = Way.hint.withLock({ $0 }) { return text(hint) }
+                return String(localized: "The server isn’t answering. Check the address and that Jellyfin is running.")
             case .notJellyfin: return String(localized: "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).")
             case .certificate:
                 return String(localized: "This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://192.168.1.20:8096.")
@@ -143,10 +154,59 @@ enum Messages {
             case let .http(status):
                 return String(localized: "Jellyfin answered with an error (\(status)). Try again in a moment.")
             case .unreachable:
+                if let hint = Way.hint.withLock({ $0 }) { return text(hint) }
                 return String(localized: "Can’t reach Jellyfin. At home, check the Wi-Fi; away from home, turn on Tailscale.")
+            case let .tailscale(code):
+                return tailscale(code)
             }
         default:
+            if let hint = Way.hint.withLock({ $0 }) { return text(hint) }
             return String(localized: "Can’t reach Jellyfin. At home, check the Wi-Fi; away from home, turn on Tailscale.")
+        }
+    }
+
+    /// Why no way reaches Jellyfin, from what Mira knows of the network and of Built-in Tailscale (Way).
+    static func text(_ hint: WayPlan.Hint) -> String {
+        switch hint {
+        case .noNetwork:
+            String(localized: "This iPhone isn’t connected to the Internet.")
+        case .tailscaleOff:
+            String(localized: "Can’t reach Jellyfin. Away from home, turn on Built-in Tailscale in Settings, or the Tailscale app.")
+        case .signedOut:
+            String(localized: "Built-in Tailscale is signed out: sign in again in Settings.")
+        case .expired:
+            String(localized: "This iPhone’s sign-in to Tailscale has expired: sign in again in Settings.")
+        case .approval:
+            String(localized: "Built-in Tailscale is waiting for this iPhone to be approved in Tailscale’s admin console.")
+        case .starting:
+            String(localized: "Built-in Tailscale is connecting. Try again in a moment.")
+        case .offline:
+            String(localized: "Built-in Tailscale can’t reach Tailscale. Check this iPhone’s connection.")
+        case let .serverOffline(name):
+            String(localized: "The PC with Jellyfin (\(name)) is offline on Tailscale: check that it’s on and connected to Tailscale.")
+        case .serverNotFound:
+            String(localized: "No device of your Tailscale network answers as this Jellyfin. Check that the PC with Jellyfin is on and connected to Tailscale.")
+        }
+    }
+
+    /// A request Built-in Tailscale's relay could not take to Jellyfin, by its reason (X-Mira-Tailscale).
+    static func tailscale(_ code: String) -> String {
+        switch code {
+        case "needs-login": text(.signedOut)
+        case "expired": text(.expired)
+        case "machine-auth": text(.approval)
+        case "starting", "stopped": text(.starting)
+        case "offline": text(.offline)
+        case "peer-offline":
+            String(localized: "The PC with Jellyfin is offline on Tailscale: check that it’s on and connected to Tailscale.")
+        case "closed":
+            String(localized: "The PC with Jellyfin answers on Tailscale, but Jellyfin doesn’t: check that Jellyfin is running.")
+        case "refused":
+            String(localized: "Built-in Tailscale only reaches the devices of your Tailscale network.")
+        case "certificate":
+            String(localized: "This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://192.168.1.20:8096.")
+        default:
+            String(localized: "The PC with Jellyfin doesn’t answer on Tailscale. Check that it’s on, then try again.")
         }
     }
 }

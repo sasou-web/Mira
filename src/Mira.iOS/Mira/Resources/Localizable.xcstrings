@@ -563,12 +563,42 @@
         }
       }
     },
-    "At home, the address of the PC with Jellyfin. Away from home, its Tailscale address, with Tailscale on.": {
+    "As “%@” on %@.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "À la maison, l’adresse du PC où tourne Jellyfin. Ailleurs, son adresse Tailscale, Tailscale activé."
+            "value": "Sous le nom « %1$@ » sur %2$@."
+          }
+        }
+      }
+    },
+    "As “%@”.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sous le nom « %@ »."
+          }
+        }
+      }
+    },
+    "At home (direct)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À la maison (direct)"
+          }
+        }
+      }
+    },
+    "At home, the address of the PC with Jellyfin. Away from home, its Tailscale address, with Built-in Tailscale or the Tailscale app on.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À la maison, l’adresse du PC où tourne Jellyfin. Ailleurs, son adresse Tailscale, avec Tailscale intégré ou l’app Tailscale activés."
           }
         }
       }
@@ -653,6 +683,116 @@
         }
       }
     },
+    "Away from home": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ailleurs qu’à la maison"
+          }
+        }
+      }
+    },
+    "Away from home, Mira reaches Jellyfin again once you sign in.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ailleurs, Mira rejoindra Jellyfin quand tu te reconnecteras."
+          }
+        }
+      }
+    },
+    "Away from home: Built-in Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ailleurs : Tailscale intégré"
+          }
+        }
+      }
+    },
+    "Built-in Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré"
+          }
+        }
+      }
+    },
+    "Built-in Tailscale can’t reach Tailscale. Check this iPhone’s connection.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré ne joint pas Tailscale. Vérifie la connexion de cet iPhone."
+          }
+        }
+      }
+    },
+    "Built-in Tailscale couldn’t start": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré n’a pas pu démarrer"
+          }
+        }
+      }
+    },
+    "Built-in Tailscale couldn’t start. Close Mira and open it again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré n’a pas pu démarrer. Ferme Mira et rouvre-la."
+          }
+        }
+      }
+    },
+    "Built-in Tailscale is connecting. Try again in a moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré se connecte. Réessaie dans un instant."
+          }
+        }
+      }
+    },
+    "Built-in Tailscale is signed out: sign in again in Settings.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré est déconnecté : reconnecte-toi dans les Réglages."
+          }
+        }
+      }
+    },
+    "Built-in Tailscale is waiting for this iPhone to be approved in Tailscale’s admin console.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré attend que cet iPhone soit approuvé dans la console d’administration de Tailscale."
+          }
+        }
+      }
+    },
+    "Built-in Tailscale only reaches the devices of your Tailscale network.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré ne joint que les appareils de ton réseau Tailscale."
+          }
+        }
+      }
+    },
     "Cancel": {
       "localizations": {
         "fr": {
@@ -679,6 +819,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Jellyfin est injoignable. À la maison, vérifie le Wi-Fi ; ailleurs, active Tailscale."
+          }
+        }
+      }
+    },
+    "Can’t reach Jellyfin. Away from home, turn on Built-in Tailscale in Settings, or the Tailscale app.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin est injoignable. Ailleurs, active Tailscale intégré dans les Réglages, ou l’app Tailscale."
           }
         }
       }
@@ -719,6 +869,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Code"
+          }
+        }
+      }
+    },
+    "Connected to Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecté à Tailscale"
+          }
+        }
+      }
+    },
+    "Connecting to Tailscale…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion à Tailscale…"
           }
         }
       }
@@ -769,6 +939,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Appareil autorisé : il se connecte à ton compte."
+          }
+        }
+      }
+    },
+    "Direct": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direct"
           }
         }
       }
@@ -860,12 +1040,152 @@
         }
       }
     },
+    "Jellyfin on your Tailscale network": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin sur ton réseau Tailscale"
+          }
+        }
+      }
+    },
+    "last seen %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vu pour la dernière fois %@"
+          }
+        }
+      }
+    },
+    "Look again": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chercher à nouveau"
+          }
+        }
+      }
+    },
+    "Looking for Jellyfin on your Tailscale network…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche de Jellyfin sur ton réseau Tailscale…"
+          }
+        }
+      }
+    },
     "More": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Plus"
+          }
+        }
+      }
+    },
+    "No device of your Tailscale network answers as Jellyfin on port 8096. Check that the PC with Jellyfin is on and connected to Tailscale, or type its Tailscale address.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun appareil de ton réseau Tailscale ne répond comme Jellyfin sur le port 8096. Vérifie que le PC de Jellyfin est allumé et connecté à Tailscale, ou tape son adresse Tailscale."
+          }
+        }
+      }
+    },
+    "No device of your Tailscale network answers as this Jellyfin. Check that the PC with Jellyfin is on and connected to Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun appareil de ton réseau Tailscale ne répond comme ce Jellyfin. Vérifie que le PC de Jellyfin est allumé et connecté à Tailscale."
+          }
+        }
+      }
+    },
+    "Not reachable now": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Injoignable pour l’instant"
+          }
+        }
+      }
+    },
+    "Once, with your Tailscale account. Your password stays on Tailscale’s page: Mira never sees it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une seule fois, avec ton compte Tailscale. Ton mot de passe reste sur la page de Tailscale : Mira ne le voit jamais."
+          }
+        }
+      }
+    },
+    "Open Tailscale’s admin console": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir la console de Tailscale"
+          }
+        }
+      }
+    },
+    "Path to Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chemin vers Jellyfin"
+          }
+        }
+      }
+    },
+    "PC with Jellyfin offline": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PC de Jellyfin hors ligne"
+          }
+        }
+      }
+    },
+    "PC with Jellyfin online": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PC de Jellyfin en ligne"
+          }
+        }
+      }
+    },
+    "Reach your Jellyfin away from home without the Tailscale app: Mira joins your Tailscale network itself, only while it’s open.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Joins ton Jellyfin ailleurs qu’à la maison sans l’app Tailscale : Mira rejoint elle-même ton réseau Tailscale, seulement quand elle est ouverte."
+          }
+        }
+      }
+    },
+    "Reach your Jellyfin away from home without the Tailscale app: Mira joins your Tailscale network itself, only while it’s open. At home, it goes direct.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Joins ton Jellyfin ailleurs qu’à la maison sans l’app Tailscale : Mira rejoint elle-même ton réseau Tailscale, seulement quand elle est ouverte. À la maison, elle passe en direct."
           }
         }
       }
@@ -2170,6 +2490,26 @@
         }
       }
     },
+    "Sign in to Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter à Tailscale"
+          }
+        }
+      }
+    },
+    "Sign in to Tailscale again": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reconnecter à Tailscale"
+          }
+        }
+      }
+    },
     "Sign in with a code": {
       "localizations": {
         "fr": {
@@ -2196,6 +2536,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se déconnecter de Jellyfin sur cet iPhone ?"
+          }
+        }
+      }
+    },
+    "Sign out of Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter de Tailscale"
+          }
+        }
+      }
+    },
+    "Sign this iPhone out of your Tailscale network?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déconnecter cet iPhone de ton réseau Tailscale ?"
           }
         }
       }
@@ -2380,6 +2740,46 @@
         }
       }
     },
+    "Tailscale can’t be reached": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale est injoignable"
+          }
+        }
+      }
+    },
+    "Tailscale didn’t answer. Check this iPhone’s connection, then try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale n’a pas répondu. Vérifie la connexion de cet iPhone, puis réessaie."
+          }
+        }
+      }
+    },
+    "Tailscale didn’t give a sign-in page. Try again in a moment.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale n’a pas donné de page de connexion. Réessaie dans un instant."
+          }
+        }
+      }
+    },
+    "Tailscale’s servers see this device join your Tailscale network: its name, its system and its IP addresses (public and local, for direct connections). Your videos stay end-to-end encrypted, directly or through a Tailscale relay. Mira sends no logs to Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les serveurs de Tailscale voient cet appareil rejoindre ton réseau Tailscale : son nom, son système et ses adresses IP (publique et locales, pour les connexions directes). Tes vidéos restent chiffrées de bout en bout, en direct ou par un relais de Tailscale. Mira n’envoie aucun journal à Tailscale."
+          }
+        }
+      }
+    },
     "Text size": {
       "localizations": {
         "fr": {
@@ -2430,6 +2830,56 @@
         }
       }
     },
+    "The iPhone’s Keychain isn’t available yet: unlock the iPhone, then try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le trousseau de l’iPhone n’est pas encore disponible : déverrouille l’iPhone, puis réessaie."
+          }
+        }
+      }
+    },
+    "The PC with Jellyfin (%@) is offline on Tailscale: check that it’s on and connected to Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le PC de Jellyfin (%@) est hors ligne sur Tailscale : vérifie qu’il est allumé et connecté à Tailscale."
+          }
+        }
+      }
+    },
+    "The PC with Jellyfin answers on Tailscale, but Jellyfin doesn’t: check that Jellyfin is running.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le PC de Jellyfin répond sur Tailscale, mais pas Jellyfin : vérifie que Jellyfin est lancé."
+          }
+        }
+      }
+    },
+    "The PC with Jellyfin doesn’t answer on Tailscale. Check that it’s on, then try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le PC de Jellyfin ne répond pas sur Tailscale. Vérifie qu’il est allumé, puis réessaie."
+          }
+        }
+      }
+    },
+    "The PC with Jellyfin is offline on Tailscale: check that it’s on and connected to Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le PC de Jellyfin est hors ligne sur Tailscale : vérifie qu’il est allumé et connecté à Tailscale."
+          }
+        }
+      }
+    },
     "The player refused this video, even fully converted by Jellyfin.": {
       "localizations": {
         "fr": {
@@ -2466,6 +2916,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leur ordre, et celles qui s’affichent, sur cet iPhone."
+          }
+        }
+      }
+    },
+    "Then sign in to Tailscale, once, with your Tailscale account.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puis connecte-toi à Tailscale, une seule fois, avec ton compte Tailscale."
           }
         }
       }
@@ -2530,6 +2990,56 @@
         }
       }
     },
+    "This iPhone has no connection to Tailscale right now. Check its connection.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet iPhone ne joint pas Tailscale pour l’instant. Vérifie sa connexion."
+          }
+        }
+      }
+    },
+    "This iPhone isn’t connected to the Internet.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet iPhone n’est pas connecté à Internet."
+          }
+        }
+      }
+    },
+    "This iPhone’s sign-in to Tailscale expires on %@: sign in again then, or turn off key expiry in Tailscale’s admin console (the ⋯ menu of “%@”, “Disable key expiry”).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La connexion de cet iPhone à Tailscale expire le %1$@ : reconnecte-le alors, ou coupe cette expiration dans la console de Tailscale (menu ⋯ de « %2$@ », « Disable key expiry »)."
+          }
+        }
+      }
+    },
+    "This iPhone’s sign-in to Tailscale has expired. Your password stays on Tailscale’s page: Mira never sees it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La connexion de cet iPhone à Tailscale a expiré. Ton mot de passe reste sur la page de Tailscale : Mira ne le voit jamais."
+          }
+        }
+      }
+    },
+    "This iPhone’s sign-in to Tailscale has expired: sign in again in Settings.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La connexion de cet iPhone à Tailscale a expiré : reconnecte-toi dans les Réglages."
+          }
+        }
+      }
+    },
     "This month": {
       "localizations": {
         "fr": {
@@ -2566,6 +3076,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ceux que Jellyfin n’a pas reconnus, sans affiche ou en double."
+          }
+        }
+      }
+    },
+    "Through Built-in Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par Tailscale intégré"
+          }
+        }
+      }
+    },
+    "Through the Tailscale app": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par l’app Tailscale"
           }
         }
       }
@@ -2650,6 +3180,16 @@
         }
       }
     },
+    "Turn on Built-in Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activer Tailscale intégré"
+          }
+        }
+      }
+    },
     "Unknown or expired code. Check it, or ask the device for a new one.": {
       "localizations": {
         "fr": {
@@ -2696,6 +3236,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "On attend %@…"
+          }
+        }
+      }
+    },
+    "Waiting for approval in Tailscale’s admin console": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente d’approbation dans la console de Tailscale"
           }
         }
       }
@@ -2886,6 +3436,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fermer"
+          }
+        }
+      }
+    },
+    "Your Tailscale network has new devices approved by an administrator: approve “%@” there.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton réseau Tailscale fait approuver chaque nouvel appareil par un administrateur : approuve « %@ » dans la console."
           }
         }
       }

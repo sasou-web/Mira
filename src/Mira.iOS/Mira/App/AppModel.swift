@@ -43,7 +43,14 @@ final class AppModel {
     /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.
     private(set) var playback = 0
     /// The last measure of the connection to Jellyfin (bits per second), kept an hour.
-    @ObservationIgnored private var measure: (at: Date, speed: Double, server: URL)?
+    @ObservationIgnored private var measure: (at: Date, speed: Double, server: URL, way: WayPlan.Kind?)?
+    /// Built-in Tailscale: Jellyfin away from home without Tailscale's app.
+    let tailnet: Tailnet
+    /// The way to Jellyfin taken now (Way), and what to say while there is none.
+    private(set) var way: WayPlan.Route?
+    private(set) var wayHint: WayPlan.Hint?
+    @ObservationIgnored private let network = NetworkWatch()
+    @ObservationIgnored private var inBackground = false
 
     init() {
         let preferences = Preferences()
@@ -51,11 +58,16 @@ final class AppModel {
         choices = ChoicesSync(preferences: preferences)
         let defaults = UserDefaults.standard
         // The UI tests start from nothing: no account, no address typed before.
-        if ProcessInfo.processInfo.arguments.contains("-mira-reset") {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-mira-reset") {
             SessionStore.delete()
             defaults.removeObject(forKey: Keys.lastServer)
             HomeCache.clearAll()
+            Tailnet.reset()
+            Way.forgetAll()
         }
+        // Once the UI tests' reset is done: it reads whether it is on.
+        tailnet = Tailnet()
         var id = defaults.string(forKey: Keys.deviceId) ?? ""
         if id.isEmpty {
             id = UUID().uuidString.lowercased()
@@ -67,6 +79,45 @@ final class AppModel {
         together.app = self
         preferences.use(account: session?.userId)
         preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.client } }
+        // The UI tests reach the stand-in Jellyfin only through Built-in Tailscale, though it is on this Mac.
+        var only: Set<WayPlan.Kind>?
+        #if DEBUG
+        if arguments.contains("-mira-way-builtin") { only = [.builtIn] }
+        #endif
+        Way.select(session?.server, id: session?.serverId)
+        Task { [weak self, only] in
+            await Way.shared.setup(readTailnet: { await TailscaleLibrary.snapshot() }, onChange: { route, hint in
+                Task { @MainActor in self?.wayChanged(route, hint) }
+            }, only: only)
+            await Way.shared.wake()
+        }
+        network.start { network, interface in
+            Task { await Way.shared.network(network) }
+            if let interface { Task { await TailscaleLibrary.network(interface) } }
+        }
+        Task { await tailnet.start() }
+    }
+
+    private func wayChanged(_ route: WayPlan.Route?, _ hint: WayPlan.Hint?) {
+        if route != way { way = route }
+        if hint != wayHint { wayHint = hint }
+    }
+
+    /// Mira back on screen: Built-in Tailscale started again (or its relay checked), the way to Jellyfin looked at.
+    func foreground() {
+        let wasAway = inBackground
+        inBackground = false
+        guard wasAway else { return }
+        Task {
+            await tailnet.foreground(playing: player != nil)
+            await Way.shared.wake()
+        }
+    }
+
+    /// Mira off screen: Built-in Tailscale stops, unless a title plays on (Picture in Picture, AirPlay).
+    func background() {
+        inBackground = true
+        tailnet.background(playing: player != nil)
     }
 
     /// What is new in the series followed: at the start, and back after 15 minutes away.
@@ -87,6 +138,7 @@ final class AppModel {
     var lastServer: String { UserDefaults.standard.string(forKey: Keys.lastServer) ?? "" }
 
     func signedIn(_ session: Session, typed: String) {
+        Way.select(session.server, id: session.serverId)
         SessionStore.save(session)
         UserDefaults.standard.set(typed, forKey: Keys.lastServer)
         notice = nil
@@ -145,6 +197,8 @@ final class AppModel {
         if player === session {
             player = nil
             sleep.clear()
+            // Closed from Picture in Picture with Mira off screen: Built-in Tailscale stops now.
+            if inBackground { tailnet.background(playing: false) }
         }
         if minimizedPlayer === session { minimizedPlayer = nil }
         playback += 1
@@ -162,14 +216,17 @@ final class AppModel {
     var quality: String { preferences.quality }
 
     /// The bitrate to ask Jellyfin for (PlaybackInfo): the one chosen, full quality at home (Tailscale is not home),
-    /// else what a measure of the connection allows for this file, kept an hour (knownBitrate of Mira web).
+    /// else what a measure of the connection allows for this file, kept an hour (knownBitrate of Mira web). Home is the
+    /// way taken now: the server signed in at its Tailscale address is at home on the home's Wi-Fi.
     func bitrate(for client: JellyfinClient, fileBitrate: Int) async -> Int {
-        let known: (at: Date, speed: Double)? = measure.flatMap { $0.server == client.server ? (at: $0.at, speed: $0.speed) : nil }
-        if let bitrate = PlaybackPlan.knownBitrate(quality, atHome: ServerAddress.isHome(client.server), measure: known, fileBitrate: fileBitrate) {
+        let taken = await Way.shared.current()?.kind
+        let atHome = taken.map { $0 == .home } ?? ServerAddress.isHome(client.server)
+        let known: (at: Date, speed: Double)? = measure.flatMap { $0.server == client.server && $0.way == taken ? (at: $0.at, speed: $0.speed) : nil }
+        if let bitrate = PlaybackPlan.knownBitrate(quality, atHome: atHome, measure: known, fileBitrate: fileBitrate) {
             return bitrate
         }
         guard let speed = await client.measureSpeed() else { return PlaybackPlan.unmeasuredBitrate }
-        measure = (Date(), speed, client.server)
+        measure = (Date(), speed, client.server, taken)
         return PlaybackPlan.autoBitrate(speed: speed, fileBitrate: fileBitrate)
     }
 
@@ -187,8 +244,14 @@ final class AppModel {
         newEpisodes.dismiss()
         choices.stop()
         SessionStore.delete()
+        let serverId = session?.serverId
         session = nil
-        Task { await client?.signOut() }
+        // Told to Jellyfin on the way taken, then the way forgotten with the server's other addresses.
+        Task {
+            await client?.signOut()
+            if let serverId { await Way.shared.forget(serverId) }
+            Way.select(nil, id: nil)
+        }
     }
 
     /// Jellyfin no longer knows the token (401): back to the sign-in screen, which says why.
@@ -205,6 +268,7 @@ final class AppModel {
         SessionStore.delete()
         notice = String(localized: "Your session on Jellyfin has ended. Sign in again.")
         self.session = nil
+        Way.select(nil, id: nil)
     }
 
     private enum Keys {

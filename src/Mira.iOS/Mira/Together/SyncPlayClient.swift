@@ -40,9 +40,9 @@ extension JellyfinClient {
         _ = try? await send("POST", "Sessions/Capabilities", ["playableMediaTypes": "Video", "supportsMediaControl": "true"], timeout: 6)
     }
 
-    /// Jellyfin's WebSocket for this session, its token in the header rather than the address.
-    func socketRequest() -> URLRequest? {
-        guard var parts = URLComponents(url: server.appending(path: "socket"), resolvingAgainstBaseURL: false) else { return nil }
+    /// Jellyfin's WebSocket for this session on the way taken now, its token in the header rather than the address.
+    func socketRequest() async -> URLRequest? {
+        guard var parts = URLComponents(url: await Way.shared.map(server.appending(path: "socket")), resolvingAgainstBaseURL: false) else { return nil }
         parts.scheme = parts.scheme == "https" ? "wss" : "ws"
         parts.queryItems = [URLQueryItem(name: "deviceId", value: device.id)]
         guard let address = parts.url else { return nil }

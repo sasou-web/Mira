@@ -240,11 +240,13 @@ final class Together {
     // MARK: The socket
 
     private func connect() {
-        guard connection == nil, let client = app?.client, let request = client.socketRequest() else { return }
+        guard connection == nil, let client = app?.client else { return }
         connection = Task { [weak self] in
             await client.capabilities()
             while !Task.isCancelled {
                 guard let self, self.group != nil || self.entering else { break }
+                // Asked each time: the way to Jellyfin may have changed since the last opening (out of the home's Wi-Fi).
+                guard let request = await client.socketRequest() else { break }
                 let task = Self.session.webSocketTask(with: request)
                 self.socket = task
                 task.resume()

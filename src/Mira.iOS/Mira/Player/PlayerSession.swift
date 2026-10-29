@@ -192,10 +192,15 @@ final class PlayerSession: NSObject {
             subtitleIndex = subtitleIndex ?? next.defaultSubtitleStreamIndex ?? -1
             guard let stream = PlaybackPlan.stream(next, itemId: item.id, deviceId: client.device.id, stage: stage, subtitleIndex: subtitleIndex, miraHls: miraHls ?? false),
                   let url = client.signed(stream.path) else { throw PlayerError.nothing }
+            // On the way to the server taken now. Through Built-in Tailscale's relay (127.0.0.1), a television would look
+            // for the stream at its own address over AirPlay: the iPhone keeps playing it then.
+            let address = await Way.shared.map(url)
+            guard attempt == opening, !closed else { return }
+            player.allowsExternalPlayback = !WayPlan.isLoopback(address)
             playMethod = stream.playMethod
             inband = stream.inband
             describeTracks()
-            attach(url, startSeconds: Double(ticks) / Double(ItemText.ticksPerSecond))
+            attach(address, startSeconds: Double(ticks) / Double(ItemText.ticksPerSecond))
         } catch is CancellationError {
         } catch {
             guard attempt == opening, !closed else { return }
@@ -864,7 +869,8 @@ final class PlayerSession: NSObject {
         let url = client.imageURL(art, width: 640, scale: 1)
         let id = item.id
         Task {
-            guard let answer = try? await JellyfinClient.session.data(from: url), item.id == id, let current = player.currentItem,
+            let address = await Way.shared.map(url)
+            guard let answer = try? await JellyfinClient.session.data(from: address), item.id == id, let current = player.currentItem,
                   let image = UIImage(data: answer.0) else { return }
             current.nowPlayingInfo = nowPlayingInfo(artwork: image)
         }
