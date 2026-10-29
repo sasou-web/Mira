@@ -1,11 +1,13 @@
 import AVFoundation
 import AVKit
+import MediaPlayer
 import UIKit
 
-/// One title playing in Apple's player (AVPlayerViewController, full screen): Picture in Picture, AirPlay, the Lock
-/// Screen and Control Center come with it. The session asks Jellyfin what to play (PlaybackInfo), tells it where this
-/// iPhone is (Sessions/Playing), asks again with more converted when the player refuses a stream (the cascade of Mira
-/// web), and goes on to the next episode of a series in the same player.
+/// One title playing in Mira's own player (PlayerController, full screen): its controls, the gestures on the picture,
+/// Picture in Picture, AirPlay, the Lock Screen and Control Center. The session asks Jellyfin what to play
+/// (PlaybackInfo), tells it where this iPhone is (Sessions/Playing), asks again with more converted when the player
+/// refuses a stream (the cascade of Mira web), and goes on to the next episode of a series in the same player.
+/// Reduced, it goes on in the bar over the tabs (MiniPlayer).
 @MainActor
 final class PlayerSession: NSObject {
     private(set) var item: Item
@@ -22,9 +24,14 @@ final class PlayerSession: NSObject {
     private var miraHls: Bool?
     private let device: PlaybackProfile.Device
 
-    private let player = AVPlayer()
-    private let controller = MiraPlayerController()
+    let player: AVPlayer
+    /// What the controls draw.
+    let model: PlayerModel
+    private let controller: PlayerController
+    private var pip: AVPictureInPictureController?
+    private var nowPlaying: MPNowPlayingSession?
     private var loop: Task<Void, Never>?
+    private var clock: Any?
     private var observers: [NSObjectProtocol] = []
     /// Bumped by each opening: what an older one finds afterwards is dropped.
     private var opening = 0
@@ -32,6 +39,8 @@ final class PlayerSession: NSObject {
     private var tracksChosen = false
     /// Where the stream being opened starts (seconds), until the player is ready for it.
     private var pendingStart: Double?
+    /// The stream being opened stays paused there (another track or quality chosen while paused).
+    private var pendingPaused = false
     private var started = false
     private var stopped = false
     private var closed = false
@@ -39,6 +48,9 @@ final class PlayerSession: NSObject {
     private var lastReport = Date.distantPast
     private var pictureInPicture = false
     private var restoring = false
+    /// Reduced to the bar over the tabs: the player left the screen, the title goes on.
+    private(set) var minimized = false
+    private var minimizing = false
     private var failure: String?
     /// The stream watched for stalls; the server asked about one, or waited for.
     private var look = StallWatch()
@@ -46,7 +58,6 @@ final class PlayerSession: NSObject {
     private var waitingForServer = false
     /// Where a stream opened again after a stall started (seconds), until it played on past it.
     private var reopenedAt: Double?
-    private let waiting = WaitingOverlay()
     // « Watch together »: what the player did itself, not to be told to the group as the person's (until this time);
     // the group's play to come; a seek told once the finger stops; a stall told to the group.
     private var quietUntil = Date.distantPast
@@ -58,7 +69,6 @@ final class PlayerSession: NSObject {
     private var waitingSince: Date?
     private var stallTold = false
     private var rateObserver: NSObjectProtocol?
-    private let pill = GroupPill()
     // The title's timeline (Timeline): its passages, those skipped by themselves, where it started, its next episode.
     private var passages: [Passage] = []
     private var passagesFor: String?
@@ -66,7 +76,9 @@ final class PlayerSession: NSObject {
     private var startedAt: Double = 0
     private var nextItem: Item?
     private var nextAsked = false
-    private let passageButton = PassageButton()
+    private var trickplay: TrickplayTiles?
+    /// The speed chosen in the menu (1 in a group); twice it while held down.
+    private var speed: Float = 1
 
     init(item: Item, client: JellyfinClient, app: AppModel, audioIndex: Int?, subtitleIndex: Int?) {
         self.item = item
@@ -75,24 +87,25 @@ final class PlayerSession: NSObject {
         self.audioIndex = audioIndex
         self.subtitleIndex = subtitleIndex
         device = PlaybackProfile.Device.read()
+        let player = AVPlayer(), model = PlayerModel()
+        self.player = player
+        self.model = model
+        controller = PlayerController(model: model, player: player)
         super.init()
-        controller.player = player
-        controller.delegate = self
-        controller.allowsPictureInPicturePlayback = true
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
-        controller.modalPresentationStyle = .fullScreen
-        controller.view.accessibilityIdentifier = "player"
+        model.actions = self
+        model.onScrub = { [weak self] seconds in self?.showThumbnail(seconds) }
         controller.onDismissed = { [weak self] in self?.dismissed() }
         player.allowsExternalPlayback = true
-        waiting.install(in: controller.contentOverlayView)
-        pill.install(in: controller.contentOverlayView)
-        // Over Apple's controls, so that a touch reaches it.
-        passageButton.install(in: controller.view)
-        passageButton.onTap = { [weak self] in self?.passageTapped() }
-        controller.onLayout = { [passageButton] in passageButton.bringToFront() }
+        player.usesExternalPlaybackWhileExternalScreenIsActive = true
+        let pip = AVPictureInPictureController(contentSource: .init(playerLayer: controller.video.playerLayer))
+        pip.canStartPictureInPictureAutomaticallyFromInline = true
+        pip.delegate = self
+        self.pip = pip
+        model.canPictureInPicture = AVPictureInPictureController.isPictureInPictureSupported()
         rateObserver = NotificationCenter.default.addObserver(forName: AVPlayer.rateDidChangeNotification, object: player, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.rateChanged() }
         }
+        describe()
     }
 
     private var together: Together? { app?.together }
@@ -102,15 +115,16 @@ final class PlayerSession: NSObject {
     func start(fromStart: Bool, groupStart: Int64? = nil) {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
-        Self.topController()?.present(controller, animated: true) { [controller] in
-            // The player may turn sideways (AppDelegate): asked again once it is up.
-            controller.setNeedsUpdateOfSupportedInterfaceOrientations()
-        }
+        present()
+        setUpNowPlaying()
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(500))
                 self?.tick()
             }
+        }
+        clock = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 4), queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
         }
         let preferences = app?.preferences
         var ticks = PlaybackPlan.startTicks(item, fromStart: fromStart, resume: preferences?.resume ?? true, back: preferences?.resumeBack ?? 0)
@@ -124,6 +138,7 @@ final class PlayerSession: NSObject {
             }
         }
         startedAt = Double(ticks) / Double(ItemText.ticksPerSecond)
+        model.time = startedAt
         let chosen = groupStart == nil
         Task {
             await open(at: ticks)
@@ -132,6 +147,12 @@ final class PlayerSession: NSObject {
                 await together.start(item.id, startTicks: ticks)
             }
         }
+    }
+
+    /// The player over the app: sideways for a film on iPhone.
+    private func present() {
+        controller.prepareToShow()
+        Self.topController()?.present(controller, animated: true)
     }
 
     // MARK: Opening a stream
@@ -173,6 +194,7 @@ final class PlayerSession: NSObject {
                   let url = client.signed(stream.path) else { throw PlayerError.nothing }
             playMethod = stream.playMethod
             inband = stream.inband
+            describeTracks()
             attach(url, startSeconds: Double(ticks) / Double(ItemText.ticksPerSecond))
         } catch is CancellationError {
         } catch {
@@ -197,7 +219,7 @@ final class PlayerSession: NSObject {
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers = []
         let next = AVPlayerItem(url: url)
-        next.externalMetadata = metadata()
+        next.nowPlayingInfo = nowPlayingInfo()
         player.replaceCurrentItem(with: next)
         pendingStart = startSeconds
         look = StallWatch()
@@ -217,6 +239,7 @@ final class PlayerSession: NSObject {
     /// Twice a second: the stream ready (start it where it should), refused (the cascade), paused or played (told to
     /// Jellyfin at once), and every 10 s where it is.
     private func tick() {
+        refresh()
         guard !closed, !askingServer, !waitingForServer, let current = player.currentItem else { return }
         watchStream()
         switch current.status {
@@ -232,8 +255,9 @@ final class PlayerSession: NSObject {
                     seekQuietly(start)
                 } else {
                     if start > 0 { player.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) }
-                    player.play()
+                    if pendingPaused { player.pause() } else { player.play() }
                 }
+                pendingPaused = false
                 if inband { Task { await chooseSubtitles() } }
                 if !started {
                     started = true
@@ -247,7 +271,7 @@ final class PlayerSession: NSObject {
         if app?.sleep.due(Date()) == true { player.pause() }
         watchPassages()
         if inGroup { watchGroupStall() }
-        pill.show(groupLine())
+        model.set(\.groupLine, groupLine())
         let paused = player.timeControlStatus == .paused
         if paused != wasPaused || Date().timeIntervalSince(lastReport) >= 10 {
             wasPaused = paused
@@ -255,7 +279,38 @@ final class PlayerSession: NSObject {
         }
     }
 
-    /// Text subtitles in the HLS stream: the one chosen on the title's page shown, or none.
+    /// What the controls show: where the title is, what came already, playing or not, loading, AirPlay.
+    private func refresh() {
+        guard !closed else { return }
+        let now = player.currentTime().seconds
+        if !model.scrubbing { model.set(\.time, pendingStart ?? (now.isFinite ? max(0, now) : 0)) }
+        model.set(\.duration, duration)
+        if let range = player.currentItem?.loadedTimeRanges.last?.timeRangeValue {
+            let end = range.end.seconds
+            model.set(\.buffered, end.isFinite ? end : 0)
+        }
+        let status = player.timeControlStatus
+        let playing = pendingStart != nil ? !pendingPaused : status != .paused
+        if playing != model.playing {
+            model.playing = playing
+            if playing { model.scheduleHide() } else { model.touched() }
+        }
+        let ready = player.currentItem?.status == .readyToPlay && pendingStart == nil
+        let reason = player.reasonForWaitingToPlay
+        let stalled = status == .waitingToPlayAtSpecifiedRate && (reason == .toMinimizeStalls || reason == .evaluatingBufferingRate)
+        model.set(\.loading, !waitingForServer && (!ready || stalled))
+        let television = AVAudioSession.sharedInstance().currentRoute.outputs.first { $0.portType == .airPlay }?.portName
+        model.set(\.externalName, player.isExternalPlaybackActive ? television ?? String(localized: "AirPlay") : nil)
+        let sleep = app?.sleep
+        model.set(\.sleep, sleep?.status(Date()))
+        model.set(\.sleepChoice, sleep?.chosen ?? -1)
+        model.set(\.inGroup, inGroup)
+        model.set(\.groupName, together?.group?.groupName)
+        model.set(\.quality, app?.preferences.quality ?? "auto")
+        model.set(\.waitingForServer, waitingForServer)
+    }
+
+    /// Text subtitles in the HLS stream: the one chosen shown, or none.
     private func chooseSubtitles() async {
         guard let current = player.currentItem else { return }
         let asset = current.asset
@@ -270,6 +325,37 @@ final class PlayerSession: NSObject {
             ?? group.options.first { language != nil && $0.displayName == language }
             ?? group.options.first { $0.extendedLanguageTag?.lowercased().hasPrefix(String((stream.language ?? "-").prefix(2)).lowercased()) == true }
         if let option { current.select(option, in: group) }
+    }
+
+    // MARK: What the controls say
+
+    /// The title, its line under it, and what the menus offer of it.
+    private func describe() {
+        model.title = heading.title
+        model.subtitle = heading.subtitle
+        model.isEpisode = item.isEpisode
+        model.hasNext = false
+        model.chapters = []
+        model.passage = nil
+        model.nextCountdown = nil
+    }
+
+    private func describeTracks() {
+        guard let source else { return }
+        let audio = source.audio, subtitles = source.subtitles
+        let audioNames = TrackNames.names(audio), subtitleNames = TrackNames.names(subtitles)
+        model.audio = audio.map { PlayerTrack(index: $0.index, name: audioNames[$0.index] ?? "") }
+        model.subtitles = subtitles.map { PlayerTrack(index: $0.index, name: subtitleNames[$0.index] ?? "") }
+        model.audioIndex = audioIndex
+        model.subtitleIndex = subtitleIndex ?? -1
+        switch playMethod {
+        case "DirectPlay": model.qualityNow = String(localized: "Original file")
+        case "DirectStream": model.qualityNow = String(localized: "Original quality")
+        default:
+            let rate = (Double(bitrate ?? PlaybackPlan.fullBitrate) / 1_000_000).formatted(.number.precision(.fractionLength(0...1)))
+            model.qualityNow = bitrate.map { $0 < PlaybackPlan.fullBitrate } == true
+                ? String(localized: "Converted · \(rate) Mb/s") : String(localized: "Converted")
+        }
     }
 
     // MARK: Failures
@@ -327,13 +413,14 @@ final class PlayerSession: NSObject {
         return pendingStart ?? max(0, now.isFinite ? now : 0)
     }
 
-    private func reopen(_ at: Double) {
+    private func reopen(_ at: Double, paused: Bool = false) {
         // In a group: it waits for this iPhone, then everyone goes on together.
         if let together, together.group != nil {
             readyPending = true
             readyPlaying = true
             together.buffering(at, playing: true)
         }
+        pendingPaused = paused && !inGroup
         Task { await open(at: Int64(at * Double(ItemText.ticksPerSecond))) }
     }
 
@@ -347,7 +434,7 @@ final class PlayerSession: NSObject {
         // Played on well past where it was opened again: the next stall is a first one.
         if let reopenedAt, playing, at > reopenedAt + StallWatch.forgiven { self.reopenedAt = nil }
         let expecting = pendingStart != nil || player.timeControlStatus != .paused
-        // A jump (the scrubber, ±15 s) starts the clock again: a conversion takes a while to start from there.
+        // A jump (the timeline, ±10 s) starts the clock again: a conversion takes a while to start from there.
         let jumped = look.at >= 0 && at >= 0 && abs(at - look.at) > 3
         look = look.next(now: Date(), at: at, expecting: expecting, ready: playing, seeking: jumped)
         if look.stuck { stuck() }
@@ -382,7 +469,8 @@ final class PlayerSession: NSObject {
     private func waitForServer(_ at: Double) {
         guard !waitingForServer else { return }
         waitingForServer = true
-        waiting.show(true)
+        model.waitingForServer = true
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Connection to the server lost. Playback resumes as soon as it answers."))
         Task { [weak self] in
             while true {
                 try? await Task.sleep(for: .seconds(3))
@@ -391,7 +479,7 @@ final class PlayerSession: NSObject {
             }
             guard let self, !self.closed else { return }
             self.waitingForServer = false
-            self.waiting.show(false)
+            self.model.waitingForServer = false
             self.player.replaceCurrentItem(with: nil)
             self.reopen(at)
         }
@@ -471,19 +559,53 @@ final class PlayerSession: NSObject {
         nextItem = nil
         nextAsked = false
         startedAt = seconds
-        passageButton.show(nil)
+        trickplay = nil
+        model.time = seconds
+        describe()
     }
 
-    /// Jellyfin's segments, filled by what the file's chapters name.
+    /// Jellyfin's segments, filled by what the file's chapters name; its trickplay pictures; the next episode.
     private func loadPassages() {
         let id = item.id, known = item
         passagesFor = id
         Task {
             let server = await client.passages(id)
-            let full = known.chapters != nil ? known : ((try? await client.item(id)) ?? known)
+            let full = (try? await client.item(id)) ?? known
             guard item.id == id, !closed else { return }
             passages = Timeline.withChapters(server, Timeline.chapterPassages(full.chapters, totalTicks: full.runTimeTicks ?? source?.runTimeTicks))
+            var chapters: [(start: Double, name: String?)] = []
+            for chapter in full.chapters ?? [] {
+                guard let ticks = chapter.startPositionTicks, ticks >= 0 else { continue }
+                let name = chapter.name?.trimmingCharacters(in: .whitespaces) ?? ""
+                chapters.append((start: Timeline.seconds(ticks), name: name.isEmpty ? nil : name))
+            }
+            model.chapters = chapters.sorted { $0.start < $1.start }
+            if let set = TrickplaySet.pick(id, full.trickplay, sourceId: source?.id ?? full.mediaSources?.first?.id) {
+                let tiles = TrickplayTiles(set: set, client: client)
+                tiles.loaded = { [weak self] in
+                    guard let self, self.model.scrubbing else { return }
+                    self.showThumbnail(self.model.scrubTime)
+                }
+                trickplay = tiles
+                model.previewSize = CGSize(width: set.info.width ?? 16, height: set.info.height ?? 9)
+            }
         }
+        guard known.isEpisode else { return }
+        Task {
+            let next = try? await client.episode(after: known)
+            guard item.id == id, !closed else { return }
+            if nextItem == nil { nextItem = next }
+            model.hasNext = nextItem != nil
+        }
+    }
+
+    /// The thumbnail of that moment; the last one stays while the next one's tile comes.
+    private func showThumbnail(_ seconds: Double) {
+        guard let trickplay else {
+            model.preview = nil
+            return
+        }
+        if let image = trickplay.thumbnail(seconds) { model.preview = image }
     }
 
     private var duration: Double {
@@ -506,7 +628,7 @@ final class PlayerSession: NSObject {
             return
         }
         guard end > 0, item.isEpisode else {
-            passageButton.show(passage.flatMap { Timeline.skipLabel($0.type) })
+            showPassage(passage.flatMap { Timeline.skipLabel($0.type) })
             return
         }
         let nextFrom = Timeline.nextFrom(passages, end: end)
@@ -515,37 +637,34 @@ final class PlayerSession: NSObject {
             let id = item.id, current = item
             Task {
                 let next = try? await client.episode(after: current)
-                if item.id == id { nextItem = next }
+                if item.id == id, let next { nextItem = next }
+                model.hasNext = nextItem != nil
             }
         }
         if nextItem != nil && at >= nextFrom {
-            passageButton.show(String(localized: "Next episode"), next: true)
-            if !inGroup, app?.preferences.autoNext != false, app?.sleep.atEnd != true,
-               let auto = Timeline.nativeNextAt(passages, end: end, startedAt: startedAt), at >= auto {
-                goToNext()
-            }
+            let auto = !inGroup && app?.preferences.autoNext != false && app?.sleep.atEnd != true
+                ? Timeline.nativeNextAt(passages, end: end, startedAt: startedAt) : nil
+            showPassage(String(localized: "Next episode"), next: true, countdown: auto.map { 1 - max(0, $0 - at) / Timeline.countdown })
+            if let auto, at >= auto { goToNext() }
         } else {
-            passageButton.show(passage.flatMap { Timeline.skipLabel($0.type) })
+            showPassage(passage.flatMap { Timeline.skipLabel($0.type) })
         }
     }
 
-    private func passageTapped() {
-        let at = player.currentTime().seconds
-        guard !closed, at.isFinite else { return }
-        if passageButton.isNext {
-            goToNext()
-        } else if let passage = Timeline.skippable(passages, at: at) {
-            skipped.insert(passage)
-            passageButton.show(nil)
-            player.seek(to: CMTime(seconds: passage.end, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
-        }
+    private func showPassage(_ text: String?, next: Bool = false, countdown: Double? = nil) {
+        if text != model.passage, let text { UIAccessibility.post(notification: .announcement, argument: text) }
+        model.passage = text
+        model.passageIsNext = next && text != nil
+        model.nextCountdown = countdown
     }
+
+    // MARK: The end, Picture in Picture, the bar over the tabs
 
     /// The rest of the episode is credits: watched, and the next one now.
     private func goToNext() {
         guard !closed, !stopped, nextItem != nil else { return }
         stopped = true
-        passageButton.show(nil)
+        showPassage(nil)
         let finished = state(position: max(item.runTimeTicks ?? 0, position))
         let encoding = playMethod != "DirectPlay" ? playSessionId : nil
         player.pause()
@@ -561,8 +680,10 @@ final class PlayerSession: NSObject {
         guard !closed else { return }
         closed = true
         loop?.cancel()
-        waiting.show(false)
-        passageButton.show(nil)
+        if let clock { player.removeTimeObserver(clock) }
+        clock = nil
+        model.waitingForServer = false
+        showPassage(nil)
         groupPlay?.cancel()
         groupSeek?.cancel()
         if let rateObserver { NotificationCenter.default.removeObserver(rateObserver) }
@@ -573,6 +694,8 @@ final class PlayerSession: NSObject {
         let report = started && !stopped
         let encoding = playMethod != "DirectPlay" ? playSessionId : nil
         player.pause()
+        if pip?.isPictureInPictureActive == true { pip?.stopPictureInPicture() }
+        controller.giveBrightnessBack()
         let failure = failure
         if failure != nil { app?.retryItem = item }
         // The picture stays on the player while it slides away; emptied once it is gone (no black frame going down).
@@ -585,6 +708,7 @@ final class PlayerSession: NSObject {
             player.replaceCurrentItem(with: nil)
             if let failure { app?.playerMessage = failure }
         }
+        nowPlaying = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         let client = client
         Task {
@@ -595,9 +719,23 @@ final class PlayerSession: NSObject {
     }
 
     private func dismissed() {
-        // Picture in Picture takes the video out of the player, which leaves the screen: still playing.
+        // Picture in Picture takes the video out of the player, which leaves the screen; reduced, it goes on in the
+        // bar over the tabs: still playing.
+        if minimizing {
+            minimizing = false
+            return
+        }
         guard !pictureInPicture, !restoring else { return }
         close()
+    }
+
+    /// Back to the full player, from the bar over the tabs.
+    func expand() {
+        guard !closed, minimized else { return }
+        minimized = false
+        app?.playerMinimized(self, false)
+        present()
+        model.showControls()
     }
 
     // MARK: Watch together
@@ -627,8 +765,8 @@ final class PlayerSession: NSObject {
         readyPlaying = false
     }
 
-    /// Paused or played in Apple's player, from the Lock Screen or Control Center: for the whole group. Played, it
-    /// waits until Jellyfin says when everyone plays.
+    /// Paused or played in the player, from the Lock Screen or Control Center: for the whole group. Played, it waits
+    /// until Jellyfin says when everyone plays.
     private func rateChanged() {
         guard inGroup, !closed, pendingStart == nil, Date() >= quietUntil, player.currentItem?.status == .readyToPlay else { return }
         if player.rate == 0 {
@@ -642,9 +780,9 @@ final class PlayerSession: NSObject {
         }
     }
 
-    /// Moved in Apple's player: for the whole group, once the finger stops.
+    /// Moved in the player: for the whole group, once the finger stops.
     private func jumped() {
-        guard inGroup, !closed, pendingStart == nil, Date() >= quietUntil else { return }
+        guard inGroup, !closed, pendingStart == nil, Date() >= quietUntil, !model.scrubbing else { return }
         groupSeek?.cancel()
         groupSeek = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
@@ -709,19 +847,16 @@ final class PlayerSession: NSObject {
         return (item.name ?? "", item.productionYear.map(String.init))
     }
 
-    private func metadata(artwork: Data? = nil) -> [AVMetadataItem] {
-        func entry(_ identifier: AVMetadataIdentifier, _ value: any NSCopying & NSObjectProtocol) -> AVMetadataItem {
-            let entry = AVMutableMetadataItem()
-            entry.identifier = identifier
-            entry.value = value
-            entry.extendedLanguageTag = "und"
-            return entry.copy() as! AVMetadataItem
+    private func nowPlayingInfo(artwork: UIImage? = nil) -> [String: Any] {
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: heading.title,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.video.rawValue,
+        ]
+        if let subtitle = heading.subtitle { info[MPMediaItemPropertyArtist] = subtitle }
+        if let artwork {
+            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { @Sendable _ in artwork }
         }
-        var items = [entry(.commonIdentifierTitle, heading.title as NSString)]
-        if let subtitle = heading.subtitle { items.append(entry(.iTunesMetadataTrackSubTitle, subtitle as NSString)) }
-        if case let overview = OverviewText.plain(item.overview), !overview.isEmpty { items.append(entry(.commonIdentifierDescription, overview as NSString)) }
-        if let artwork { items.append(entry(.commonIdentifierArtwork, artwork as NSData)) }
-        return items
+        return info
     }
 
     private func loadArtwork() {
@@ -729,9 +864,47 @@ final class PlayerSession: NSObject {
         let url = client.imageURL(art, width: 640, scale: 1)
         let id = item.id
         Task {
-            guard let answer = try? await JellyfinClient.session.data(from: url), item.id == id, let current = player.currentItem else { return }
-            current.externalMetadata = metadata(artwork: answer.0)
+            guard let answer = try? await JellyfinClient.session.data(from: url), item.id == id, let current = player.currentItem,
+                  let image = UIImage(data: answer.0) else { return }
+            current.nowPlayingInfo = nowPlayingInfo(artwork: image)
         }
+    }
+
+    /// The Lock Screen, Control Center and the headphones' buttons: Apple's player did this itself.
+    private func setUpNowPlaying() {
+        let session = MPNowPlayingSession(players: [player])
+        session.automaticallyPublishesNowPlayingInfo = true
+        let commands = session.remoteCommandCenter
+        commands.playCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in self?.player.play() }
+            return .success
+        }
+        commands.pauseCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in self?.player.pause() }
+            return .success
+        }
+        commands.togglePlayPauseCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in self?.togglePlay() }
+            return .success
+        }
+        commands.skipForwardCommand.preferredIntervals = [10]
+        commands.skipForwardCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in self?.skip(10) }
+            return .success
+        }
+        commands.skipBackwardCommand.preferredIntervals = [10]
+        commands.skipBackwardCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in self?.skip(-10) }
+            return .success
+        }
+        commands.changePlaybackPositionCommand.addTarget { @Sendable [weak self] event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+            let seconds = event.positionTime
+            Task { @MainActor in self?.seek(to: seconds) }
+            return .success
+        }
+        nowPlaying = session
+        session.becomeActiveIfPossible(completion: nil)
     }
 
     static func topController() -> UIViewController? {
@@ -743,50 +916,199 @@ final class PlayerSession: NSObject {
     }
 }
 
-extension PlayerSession: @preconcurrency AVPlayerViewControllerDelegate {
-    func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
+// MARK: The controls' requests
+
+extension PlayerSession: PlayerActions {
+    func togglePlay() {
+        guard !closed else { return }
+        if player.timeControlStatus == .paused && pendingStart == nil {
+            player.play()
+        } else if pendingStart != nil {
+            pendingPaused.toggle()
+        } else {
+            player.pause()
+        }
+        model.touched()
+        refresh()
+    }
+
+    func skip(_ seconds: Double) {
+        let now = player.currentTime().seconds
+        guard !closed, now.isFinite, player.currentItem?.status == .readyToPlay else { return }
+        let end = duration
+        seek(to: min(max(0, now + seconds), end > 0 ? end - 1 : now + seconds))
+    }
+
+    func seek(to seconds: Double) {
+        guard !closed, player.currentItem?.status == .readyToPlay else { return }
+        model.time = seconds
+        player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        model.touched()
+    }
+
+    func scrubbing(_ active: Bool) {
+        model.scrubbing = active
+        if active {
+            model.showControls()
+            showThumbnail(model.scrubTime)
+        } else {
+            model.preview = nil
+            model.scheduleHide()
+        }
+    }
+
+    func selectAudio(_ index: Int) {
+        guard index != audioIndex, !closed else { return }
+        audioIndex = index
+        model.audioIndex = index
+        rememberTracks()
+        // Another audio track: Jellyfin sends the file again with it (copied into HLS when it is not the first).
+        let paused = player.timeControlStatus == .paused
+        let at = resumeSeconds
+        player.replaceCurrentItem(with: nil)
+        reopen(at, paused: paused)
+    }
+
+    func selectSubtitles(_ index: Int) {
+        guard index != (subtitleIndex ?? -1), !closed else { return }
+        let target = source?.subtitles.first { $0.index == index }
+        let current = source?.subtitles.first { $0.index == subtitleIndex }
+        // Pictures are drawn into the video by Jellyfin: leaving them needs a new stream, as does choosing them.
+        let burned = current != nil && current?.isTextSubtitleStream != true && playMethod != "DirectPlay"
+        subtitleIndex = index
+        model.subtitleIndex = index
+        rememberTracks()
+        if inband && !burned && (index < 0 || target?.isTextSubtitleStream == true) {
+            Task { await chooseSubtitles() }
+            Task { await report(.progress) }
+            return
+        }
+        if index < 0 && !burned {
+            return
+        }
+        let paused = player.timeControlStatus == .paused
+        let at = resumeSeconds
+        player.replaceCurrentItem(with: nil)
+        reopen(at, paused: paused)
+    }
+
+    private func rememberTracks() {
+        guard let series = item.seriesId, let source else { return }
+        app?.preferences.remember(TrackChoice.memory(source, audio: audioIndex, subtitle: subtitleIndex), for: series)
+    }
+
+    func setSpeed(_ speed: Float) {
+        guard !inGroup else { return }
+        self.speed = speed
+        model.speed = speed
+        player.defaultRate = speed
+        if player.rate > 0 { player.rate = speed }
+    }
+
+    func boost(_ on: Bool) {
+        if on {
+            guard !inGroup, player.timeControlStatus == .playing else { return }
+            model.boosted = true
+            player.rate = 2
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } else if model.boosted {
+            model.boosted = false
+            if player.rate > 0 { player.rate = speed }
+        }
+    }
+
+    func setQuality(_ quality: String) {
+        guard !closed, let app else { return }
+        app.preferences.quality = quality
+        model.quality = quality
+        // Asked again from scratch: the file as it is when the new quality allows it.
+        bitrate = nil
+        stage = 0
+        let paused = player.timeControlStatus == .paused
+        let at = resumeSeconds
+        player.replaceCurrentItem(with: nil)
+        reopen(at, paused: paused)
+    }
+
+    func setSleep(_ minutes: Int?) {
+        app?.sleep.choose(minutes, now: .now)
+        refresh()
+    }
+
+    func passageTapped() {
+        let at = player.currentTime().seconds
+        guard !closed, at.isFinite else { return }
+        if model.passageIsNext {
+            goToNext()
+        } else if let passage = Timeline.skippable(passages, at: at) {
+            skipped.insert(passage)
+            showPassage(nil)
+            player.seek(to: CMTime(seconds: passage.end, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+    }
+
+    func playNext() {
+        goToNext()
+    }
+
+    func pictureInPicture() {
+        guard let pip, pip.isPictureInPicturePossible else { return }
+        pip.startPictureInPicture()
+    }
+
+    /// Reduced to the bar over the tabs (iOS 26.1 and later); before, Picture in Picture when it can, else closed.
+    func minimize() {
+        guard !closed else { return }
+        guard #available(iOS 26.1, *) else {
+            if pip?.isPictureInPicturePossible == true { pip?.startPictureInPicture() } else { close() }
+            return
+        }
+        minimizing = true
+        minimized = true
+        model.hideControls()
+        app?.playerMinimized(self, true)
+        controller.dismiss(animated: true)
+    }
+
+    func leaveGroup() {
+        Task { await together?.leave() }
+    }
+}
+
+extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
+    func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         pictureInPicture = true
     }
 
-    func playerViewControllerDidStopPictureInPicture(_ playerViewController: AVPlayerViewController) {
+    /// In its window, the title leaves the player: the app is free under it.
+    func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        if controller.presentingViewController != nil && !controller.isBeingDismissed { controller.dismiss(animated: true) }
+    }
+
+    func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         pictureInPicture = false
         // Closed from its window, not brought back into the app: the title stops there.
-        if !restoring && controller.presentingViewController == nil { close() }
+        if !restoring && controller.presentingViewController == nil && !minimized { close() }
         restoring = false
     }
 
-    func playerViewController(_ playerViewController: AVPlayerViewController,
-                              restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
-        guard controller.presentingViewController == nil, let top = Self.topController() else {
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController,
+                                    restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+        guard controller.presentingViewController == nil else {
             completionHandler(true)
             return
         }
         restoring = true
+        if minimized {
+            minimized = false
+            app?.playerMinimized(self, false)
+        }
+        controller.prepareToShow()
+        guard let top = Self.topController() else {
+            completionHandler(true)
+            return
+        }
         top.present(controller, animated: true) { completionHandler(true) }
-    }
-}
-
-/// Apple's player, which says when it leaves the screen (closed, or swiped down).
-final class MiraPlayerController: AVPlayerViewController {
-    var onDismissed: (@MainActor () -> Void)?
-    var onLayout: (@MainActor () -> Void)?
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        onLayout?()
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        // Leaving (closed or swiped down): the pages under it are upright on iPhone (AppDelegate), turned back now.
-        guard isBeingDismissed, let scene = view.window?.windowScene, UIDevice.current.userInterfaceIdiom == .phone else { return }
-        presentingViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-        scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-    }
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        if isBeingDismissed || presentingViewController == nil { onDismissed?() }
     }
 }
 
@@ -807,55 +1129,6 @@ enum PlayerError: Error {
         default:
             return Messages.text(error)
         }
-    }
-}
-
-/// « Connection to the server lost », over the video while Mira waits for Jellyfin (under Apple's controls, which stay).
-@MainActor
-private final class WaitingOverlay {
-    private let box = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterialDark))
-
-    func install(in view: UIView?) {
-        guard let view else { return }
-        let spinner = UIActivityIndicatorView(style: .medium)
-        spinner.color = .white
-        spinner.startAnimating()
-        let label = UILabel()
-        label.text = String(localized: "Connection to the server lost. Playback resumes as soon as it answers.")
-        label.font = UIFontMetrics(forTextStyle: .callout).scaledFont(for: .systemFont(ofSize: 16, weight: .semibold))
-        label.adjustsFontForContentSizeCategory = true
-        label.textColor = .white
-        label.numberOfLines = 0
-        label.textAlignment = .center
-        let stack = UIStackView(arrangedSubviews: [spinner, label])
-        stack.axis = .vertical
-        stack.spacing = 12
-        stack.alignment = .center
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        box.contentView.addSubview(stack)
-        box.layer.cornerRadius = 22
-        box.clipsToBounds = true
-        box.translatesAutoresizingMaskIntoConstraints = false
-        box.isHidden = true
-        box.isAccessibilityElement = true
-        box.accessibilityLabel = label.text
-        box.accessibilityIdentifier = "player.waiting"
-        view.addSubview(box)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: box.contentView.topAnchor, constant: 18),
-            stack.bottomAnchor.constraint(equalTo: box.contentView.bottomAnchor, constant: -18),
-            stack.leadingAnchor.constraint(equalTo: box.contentView.leadingAnchor, constant: 20),
-            stack.trailingAnchor.constraint(equalTo: box.contentView.trailingAnchor, constant: -20),
-            box.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            box.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            box.widthAnchor.constraint(lessThanOrEqualToConstant: 340),
-            box.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
-        ])
-    }
-
-    func show(_ shown: Bool) {
-        box.isHidden = !shown
-        if shown { UIAccessibility.post(notification: .announcement, argument: box.accessibilityLabel) }
     }
 }
 
@@ -935,91 +1208,3 @@ extension PlayerSession: GroupPlayer {
     }
 }
 
-/// The group's line over the video, at the top (under Apple's controls, which stay): « Waiting for Marc… ».
-@MainActor
-private final class GroupPill {
-    private let box = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterialDark))
-    private let label = UILabel()
-
-    func install(in view: UIView?) {
-        guard let view else { return }
-        label.font = UIFontMetrics(forTextStyle: .footnote).scaledFont(for: .systemFont(ofSize: 14, weight: .semibold))
-        label.adjustsFontForContentSizeCategory = true
-        label.textColor = .white
-        label.numberOfLines = 2
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        box.contentView.addSubview(label)
-        box.layer.cornerRadius = 16
-        box.clipsToBounds = true
-        box.translatesAutoresizingMaskIntoConstraints = false
-        box.isHidden = true
-        box.isAccessibilityElement = true
-        box.accessibilityIdentifier = "player.group"
-        view.addSubview(box)
-        NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: box.contentView.topAnchor, constant: 8),
-            label.bottomAnchor.constraint(equalTo: box.contentView.bottomAnchor, constant: -8),
-            label.leadingAnchor.constraint(equalTo: box.contentView.leadingAnchor, constant: 14),
-            label.trailingAnchor.constraint(equalTo: box.contentView.trailingAnchor, constant: -14),
-            box.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            box.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 56),
-            box.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
-        ])
-    }
-
-    func show(_ text: String?) {
-        guard label.text != text || box.isHidden != (text == nil) else { return }
-        label.text = text
-        box.accessibilityLabel = text
-        box.isHidden = text == nil
-        if let text { UIAccessibility.post(notification: .announcement, argument: text) }
-    }
-}
-
-/// « Skip intro », « Next episode »: over Apple's controls, bottom right, while it applies.
-@MainActor
-private final class PassageButton {
-    private let button = UIButton(configuration: .glass())
-    private(set) var isNext = false
-    var onTap: (@MainActor () -> Void)?
-
-    func install(in view: UIView?) {
-        guard let view else { return }
-        var configuration = UIButton.Configuration.glass()
-        configuration.cornerStyle = .capsule
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18)
-        configuration.imagePadding = 8
-        configuration.baseForegroundColor = .white
-        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
-            var attributes = attributes
-            attributes.font = UIFontMetrics(forTextStyle: .callout).scaledFont(for: .systemFont(ofSize: 16, weight: .semibold))
-            return attributes
-        }
-        button.configuration = configuration
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.isHidden = true
-        button.accessibilityIdentifier = "player.passage"
-        button.addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
-        view.addSubview(button)
-        NSLayoutConstraint.activate([
-            button.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
-            button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -96),
-            button.leadingAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
-        ])
-    }
-
-    func bringToFront() {
-        button.superview?.bringSubviewToFront(button)
-    }
-
-    /// The button's words, or nil to hide it.
-    func show(_ title: String?, next: Bool = false) {
-        guard button.configuration?.title != title || button.isHidden != (title == nil) || isNext != next else { return }
-        isNext = next && title != nil
-        button.configuration?.title = title
-        button.configuration?.image = title == nil ? nil : UIImage(systemName: next ? "forward.end.fill" : "forward.fill")
-        button.isHidden = title == nil
-        if let title { UIAccessibility.post(notification: .announcement, argument: title) }
-    }
-}
