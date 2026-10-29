@@ -64,7 +64,8 @@ public static class TailnetText
     /// </summary>
     public static string? Problem(string code, TailnetDevice? peer = null) => code switch
     {
-        TailnetCodes.NeedsLogin or TailnetCodes.Expired => L($"{Name} n’est pas connecté : {SignIn} dans les Réglages.", $"{Name} isn’t signed in: {SignIn} in Settings."),
+        TailnetCodes.NeedsLogin => L($"{Name} n’est pas connecté : « {SignIn} » dans les Réglages.", $"{Name} isn’t signed in: “{SignIn}” in Settings."),
+        TailnetCodes.Expired => L($"La connexion de {Name} a expiré : « {SignIn} » dans les Réglages.", $"{Name}’s sign-in expired: “{SignIn}” in Settings."),
         TailnetCodes.MachineAuth => WaitingApproval + ".",
         TailnetCodes.Starting => L($"{Name} n’a pas encore rejoint ton réseau Tailscale.", $"{Name} hasn’t joined your Tailscale network yet."),
         TailnetCodes.Offline => L($"Pas de réseau : {Name} ne joint pas Tailscale.", $"No network: {Name} can’t reach Tailscale."),
