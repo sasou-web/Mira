@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Mira.Core.Tailscale;
 using Mira.Core.TorLink;
 
 namespace Mira.Core;
@@ -19,7 +20,8 @@ public sealed class JellyfinClient : IDisposable
         var server = NormalizeServer(connection.Server);
         Connection = connection with { Server = server };
         _handler = handler;
-        _http = handler is null ? new HttpClient() : new HttpClient(handler);
+        // Mira's own network unless the tests give theirs: straight, or through Mira's Tailscale node for a device of the tailnet.
+        _http = handler is null ? new HttpClient(TailnetNetwork.Default.Handler, disposeHandler: false) : new HttpClient(handler);
         _http.BaseAddress = new Uri(server);
         _http.Timeout = TimeSpan.FromSeconds(12);
         SetAuthorization();
@@ -1281,7 +1283,7 @@ public sealed class JellyfinClient : IDisposable
     /// </summary>
     public async Task<JellyfinBackup?> CreateBackupAsync(CancellationToken ct = default)
     {
-        using var http = _handler is null ? new HttpClient() : new HttpClient(_handler, disposeHandler: false);
+        using var http = new HttpClient(_handler ?? TailnetNetwork.Default.Handler, disposeHandler: false);
         http.BaseAddress = _http.BaseAddress; http.Timeout = JellyfinBackups.Limit;
         foreach (var header in _http.DefaultRequestHeaders) http.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
         using var response = await http.PostAsJsonAsync("Backup/Create", JellyfinBackups.Options, Json.Options, ct);
@@ -1571,7 +1573,9 @@ public sealed class JellyfinClient : IDisposable
                 // refuse an "api_key" in the address unless legacy authorization is turned on ("Token is required").
                 socket.Options.SetRequestHeader("Authorization", AuthorizationHeader);
                 var b = new UriBuilder(new Uri(_http.BaseAddress!, "socket")) { Scheme = _http.BaseAddress!.Scheme == "https" ? "wss" : "ws" };
-                await socket.ConnectAsync(b.Uri, ct);
+                // The way requests go (Mira's Tailscale node for a device of the tailnet); the tests' own handler serves no WebSocket.
+                if (_handler is null) await socket.ConnectAsync(b.Uri, TailnetNetwork.Default.Invoker, ct);
+                else await socket.ConnectAsync(b.Uri, ct);
                 using var heartbeatStop = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 var heartbeat = KeepAliveAsync(socket, heartbeatStop.Token);
                 var buffer = new byte[8192];

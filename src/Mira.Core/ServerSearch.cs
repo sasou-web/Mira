@@ -98,7 +98,7 @@ public static class ServerSearch
     public static async Task<IReadOnlyList<Found>> FindAsync(IReadOnlyList<string> tailnet, HttpMessageHandler? handler = null,
         Func<CancellationToken, Task<IReadOnlyList<Found>>>? home = null, CancellationToken ct = default)
     {
-        using var http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        using var http = new HttpClient(handler ?? TailnetNetwork.Default.Handler, disposeHandler: false);
         http.Timeout = Timeout.InfiniteTimeSpan;
         var asked = new List<Task<IReadOnlyList<Found>>> { AskAsync(http, "http://127.0.0.1:8096/", Place.ThisComputer, ct), (home ?? AskHomeAsync)(ct) };
         asked.AddRange(tailnet.Distinct().Take(MaxDevices).Select(device => AskAsync(http, $"http://{device}:8096/", Place.Tailnet, ct)));
