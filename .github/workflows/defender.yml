@@ -3,6 +3,9 @@ name: Defender scan
 # own Microsoft Defender (signatures updated, cloud protection on) scan the result without removing anything, and
 # keeps Mira's assemblies as an artifact. With a release tag, also compares them with the published zip's, part by
 # part (tools/compare-assemblies.mjs): a build made on a PC is shown to be the code of its commit, or not.
+# mira-tailscale.exe, the node of « Tailscale intégré », is built as the packages build it (tools/tailscale/build.mjs,
+# the same bytes on every machine), scanned beside Mira and inside the one-file Mira, and compared whole with the
+# release's (tools/tailscale/digest.mjs: its signature, if any, aside).
 # Run on another commit (the input) to find the change a detection started with.
 on:
   workflow_dispatch:
@@ -20,7 +23,7 @@ permissions:
 jobs:
   scan:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -31,13 +34,22 @@ jobs:
         env:
           COMMIT: ${{ inputs.commit }}
         run: |
-          # The comparison tool of this workflow's branch, kept aside: the commit under test may predate it.
+          # The comparison tools of this workflow's branch, kept aside: the commit under test may predate them.
           Copy-Item -LiteralPath tools/compare-assemblies.mjs -Destination (Join-Path $env:RUNNER_TEMP 'compare-assemblies.mjs')
+          Copy-Item -LiteralPath tools/tailscale/digest.mjs -Destination (Join-Path $env:RUNNER_TEMP 'digest.mjs')
           if ($env:COMMIT) { git checkout --detach $env:COMMIT; if ($LASTEXITCODE -ne 0) { throw "Unknown commit: $env:COMMIT" } }
           git log -1 --format='%H %s'
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 10.0.x
+      # As in the packages: the Go of the runner fetches the toolchain go.mod names (GOTOOLCHAIN=auto, checked against
+      # Go's checksum database), and the modules afresh.
+      - name: Built-in Tailscale's node (as tools/package.ps1)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath src/Mira.Tailscale/go.mod)) { Write-Output 'This commit has no Built-in Tailscale.'; exit 0 }
+          node tools/tailscale/build.mjs windows/amd64 .artifacts/tailscale/windows-amd64
+          if ($LASTEXITCODE -ne 0) { throw 'Building mira-tailscale.exe failed.' }
       - name: Restore
         run: dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config -r win-x64
       - name: Publish (as tools/package.ps1)
@@ -47,6 +59,10 @@ jobs:
           $version = [string]$project.Project.PropertyGroup.Version
           dotnet publish src/Mira.Desktop/Mira.Desktop.csproj --no-restore -c Release -r win-x64 --self-contained true -o .artifacts/scan/Mira -p:DebugType=None -p:DebugSymbols=false "-p:Version=$version" -p:MiraValidation=false
           if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+          # The one-file Mira, which carries mira-tailscale.exe inside and writes it out on this PC: scanned too.
+          dotnet publish src/Mira.Desktop/Mira.Desktop.csproj --no-restore -c Release -r win-x64 --self-contained true -o .artifacts/scan/Portable -p:DebugType=None -p:DebugSymbols=false "-p:Version=$version" `
+            -p:MiraValidation=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { throw 'Single-file publish failed.' }
       - name: Defender signatures
         shell: pwsh
         run: |
@@ -62,16 +78,20 @@ jobs:
         shell: pwsh
         run: |
           $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
-          $folder = Join-Path $PWD '.artifacts\scan\Mira'
           Write-Output "SDK $(dotnet --version)"
-          Get-ChildItem -LiteralPath $folder -Filter 'Mira*.dll' | ForEach-Object { "{0}  {1}  {2} bytes" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name, $_.Length }
-          & $mp -Scan -ScanType 3 -File $folder -DisableRemediation
-          $code = $LASTEXITCODE
-          Write-Output "MpCmdRun exit code: $code (0 = nothing found, 2 = a threat found)"
+          $flagged = $false
+          foreach ($folder in @((Join-Path $PWD '.artifacts\scan\Mira'), (Join-Path $PWD '.artifacts\scan\Portable'))) {
+            Write-Output "=== $folder"
+            Get-ChildItem -LiteralPath $folder -File | Where-Object { $_.Name -like 'Mira*' -or $_.Name -eq 'mira-tailscale.exe' } | ForEach-Object { "{0}  {1}  {2} bytes" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name, $_.Length }
+            & $mp -Scan -ScanType 3 -File $folder -DisableRemediation
+            $code = $LASTEXITCODE
+            Write-Output "MpCmdRun exit code: $code (0 = nothing found, 2 = a threat found)"
+            if ($code -eq 2) { $flagged = $true }
+            elseif ($code -ne 0) { throw "The scan did not run (exit code $code)." }
+          }
           Get-MpThreatDetection | Format-List
           Get-MpThreat | Format-List
-          if ($code -eq 2) { Write-Output '::warning::Microsoft Defender flags this build.' }
-          elseif ($code -ne 0) { throw "The scan did not run (exit code $code)." }
+          if ($flagged) { Write-Output '::warning::Microsoft Defender flags this build.' }
       # Mira's own assemblies, to compare with a build made elsewhere (the published zip, a PC).
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
@@ -81,6 +101,8 @@ jobs:
             .artifacts/scan/Mira/Mira.dll
             .artifacts/scan/Mira/Mira.Core.dll
             .artifacts/scan/Mira/Mira.exe
+            .artifacts/scan/Mira/mira-tailscale.exe
+          if-no-files-found: ignore
           retention-days: 7
       - name: Compare with the published release
         if: ${{ inputs.release != '' }}
@@ -99,6 +121,13 @@ jobs:
           foreach ($name in @('Mira.dll', 'Mira.Core.dll')) {
             Write-Output "=== ${name}: this build (A) and the published $env:RELEASE (B)"
             node (Join-Path $env:RUNNER_TEMP 'compare-assemblies.mjs') (Join-Path $PWD ".artifacts\scan\Mira\$name") (Join-Path $published $name)
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          # Go builds the same bytes everywhere: the node compares whole, its signature (if any) aside.
+          $node = Join-Path $PWD '.artifacts\scan\Mira\mira-tailscale.exe'
+          if ((Test-Path -LiteralPath $node) -or (Test-Path -LiteralPath (Join-Path $published 'mira-tailscale.exe'))) {
+            Write-Output "=== mira-tailscale.exe: this build, then the published $env:RELEASE"
+            node (Join-Path $env:RUNNER_TEMP 'digest.mjs') $node (Join-Path $published 'mira-tailscale.exe')
             if ($LASTEXITCODE -ne 0) { $failed = $true }
           }
           if ($failed) { Write-Output "::warning::The published $env:RELEASE is not the code of this commit."; exit 1 }

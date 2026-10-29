@@ -69,7 +69,8 @@ jobs:
           done
   build:
     runs-on: windows-latest
-    timeout-minutes: 15
+    # About 8 minutes, a few more when Go's cache is cold (a new go.sum).
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -104,6 +105,16 @@ jobs:
           }
           if ($failed) { exit 1 }
           Write-Output "PowerShell $($PSVersionTable.PSVersion): every script reads."
+      # Built-in Tailscale's node (src/Mira.Tailscale), as packages carry it: Mira.Desktop.csproj puts it beside Mira.exe
+      # with its SHA-256. The runner's Go fetches the version go.mod asks for; modules and builds are kept between runs.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/AppData/Local/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('src/Mira.Tailscale/go.sum', 'tools/tailscale/winres/go.sum') }}
+      - name: Built-in Tailscale's node
+        run: node tools/tailscale/build.mjs windows/amd64 .artifacts/tailscale/windows-amd64
       - name: Restore
         run: dotnet restore Mira.sln --configfile NuGet.Config
       - name: Build

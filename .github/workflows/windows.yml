@@ -64,13 +64,16 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           Write-Output "Mira $version"
       # The application folder and the one-file portable Mira, published as for every release; nothing packaged yet.
+      # package.ps1 builds mira-tailscale.exe first (tools/tailscale/build.mjs): the runner's Go fetches the Go that
+      # go.mod names and the modules, checked against Go's checksum database, afresh: no cache in a release.
       - name: Publish
         shell: pwsh
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: ./tools/package.ps1 -Publish .artifacts/app -Version $env:VERSION
-      # Only Mira's own files go to SignPath. The rest of the folder (the .NET runtime, third-party libraries) is
-      # Microsoft's or theirs, and stays as it is. SignPath Foundation signs a file only if its product name is Mira
+      # Only Mira's own files go to SignPath, mira-tailscale.exe among them (built from src/Mira.Tailscale; Mira checks
+      # it by a SHA-256 a signature does not change). The rest of the folder (the .NET runtime, third-party libraries)
+      # is Microsoft's or theirs, and stays as it is. SignPath Foundation signs a file only if its product name is Mira
       # and its product version is the release's (installer/signpath/app.xml): checked here first, after an approval
       # it would be too late. Trimmed: Inno Setup pads the installer's version strings with spaces.
       - name: Files to sign
@@ -78,7 +81,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          foreach ($file in 'Mira/Mira.exe', 'Mira/Mira.dll', 'Mira/Mira.Core.dll', 'Portable/Mira.exe') {
+          foreach ($file in 'Mira/Mira.exe', 'Mira/Mira.dll', 'Mira/Mira.Core.dll', 'Mira/mira-tailscale.exe', 'Portable/Mira.exe') {
             $source = Join-Path .artifacts/app $file
             $info = (Get-Item -LiteralPath $source).VersionInfo
             if ($info.ProductName.Trim() -ne 'Mira' -or $info.ProductVersion.Trim() -ne $env:VERSION) { throw "${file}: product Mira $env:VERSION expected, got '$($info.ProductName)' '$($info.ProductVersion)'." }
@@ -123,12 +126,12 @@ jobs:
         env:
           SIGNED: ${{ inputs.sign }}
         run: |
-          foreach ($file in 'Mira/Mira.exe', 'Mira/Mira.dll', 'Mira/Mira.Core.dll', 'Portable/Mira.exe') {
+          foreach ($file in 'Mira/Mira.exe', 'Mira/Mira.dll', 'Mira/Mira.Core.dll', 'Mira/mira-tailscale.exe', 'Portable/Mira.exe') {
             $signed = Join-Path .artifacts/signed $file
             if (-not (Test-Path -LiteralPath $signed)) { throw "$file is missing from the signed files." }
             Copy-Item -LiteralPath $signed -Destination (Join-Path .artifacts/app $file) -Force
           }
-          if ($env:SIGNED -eq 'true') { ./tools/check-signed.ps1 -Files .artifacts/app/Mira/Mira.exe, .artifacts/app/Mira/Mira.dll, .artifacts/app/Mira/Mira.Core.dll, .artifacts/app/Portable/Mira.exe }
+          if ($env:SIGNED -eq 'true') { ./tools/check-signed.ps1 -Files .artifacts/app/Mira/Mira.exe, .artifacts/app/Mira/Mira.dll, .artifacts/app/Mira/Mira.Core.dll, .artifacts/app/Mira/mira-tailscale.exe, .artifacts/app/Portable/Mira.exe }
       # The archive, the portable Mira and the installer, from the folder whose files are signed, each with its SHA-256.
       - name: Package
         shell: pwsh

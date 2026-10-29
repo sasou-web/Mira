@@ -5,6 +5,8 @@ param([string]$Configuration = 'Release', [string]$Iscc = '', [string]$SigningKe
 #   Mira-<version>-win-x64-portable.exe   the same application as one self-contained file (it creates data beside it)
 #   Mira-<version>-win-x64-setup.exe      per-user installer (Inno Setup 6), when ISCC.exe is available
 # and .artifacts/release-notes-<version>.md, the release page's short text (the version's entry in WhatsNew.json).
+# Each package carries mira-tailscale.exe, the node of Built-in Tailscale, built first for that version by
+# tools/tailscale/build.mjs (Go 1.21 or later and Node), with its Go modules' licences in licenses\mira-tailscale.
 # A release's files are built by windows.yml, on GitHub, in three steps of this script, so that SignPath Foundation
 # signs Mira's own files before the packages are made around them:
 #   -Publish <dir>   publishes the application folder (<dir>\Mira) and the one-file Mira (<dir>\Portable\Mira.exe), then stops;
@@ -41,13 +43,18 @@ $output = if ($Output) { [IO.Path]::GetFullPath($Output) } else { Join-Path $wor
 Push-Location $workspace
 try {
     if ($From) {
-        foreach ($required in @((Join-Path $bundle 'Mira.exe'), (Join-Path $bundle 'Mira.dll'), (Join-Path $bundle 'Mira.Core.dll'), (Join-Path $single 'Mira.exe'))) {
+        foreach ($required in @((Join-Path $bundle 'Mira.exe'), (Join-Path $bundle 'Mira.dll'), (Join-Path $bundle 'Mira.Core.dll'), (Join-Path $bundle 'mira-tailscale.exe'), (Join-Path $single 'Mira.exe'))) {
             if (-not (Test-Path -LiteralPath $required)) { throw "$required is missing: -From expects the folder -Publish wrote." }
         }
     } else {
         # Folders of this publication only: a file left by an earlier one would be packaged too.
         foreach ($folder in @($bundle, $single)) { if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force } }
         New-Item -ItemType Directory -Path $bundle, $single -Force | Out-Null
+        # The node of Built-in Tailscale (src/Mira.Tailscale), built here for this version: Mira.Desktop.csproj puts
+        # it beside Mira.exe and inside the one-file Mira, with its SHA-256, the only copy Mira will run.
+        $tailscale = Join-Path $workspace '.artifacts/tailscale/windows-amd64'
+        node (Join-Path $workspace 'tools/tailscale/build.mjs') windows/amd64 $tailscale --version $version
+        if ($LASTEXITCODE -ne 0) { throw 'Building mira-tailscale.exe failed: it needs Go 1.21 or later and Node.' }
         dotnet restore $project --configfile NuGet.Config -r win-x64
         if ($LASTEXITCODE -ne 0) { throw 'Restore failed.' }
         # Without the validation harnesses of Checks/ (Mira.Desktop.csproj): they stay in the builds the checks use.
@@ -65,6 +72,11 @@ try {
         Copy-Item -LiteralPath (Join-Path $workspace 'docs/INSTALLATION.md') -Destination (Join-Path $bundle 'INSTALLATION.md')
         Copy-Item -LiteralPath (Join-Path $workspace 'docs/INSTALLATION.md') -Destination (Join-Path $bundle 'README.md')
         Copy-Item -LiteralPath (Join-Path $workspace 'licenses') -Destination $bundle -Recurse
+        # The node published is the one just built, a Mira file for SignPath; its Go modules' licences go with it.
+        $node = Get-Item -LiteralPath (Join-Path $bundle 'mira-tailscale.exe')
+        if ((Get-FileHash -LiteralPath $node.FullName -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath (Join-Path $tailscale 'mira-tailscale.exe') -Algorithm SHA256).Hash) { throw 'The published mira-tailscale.exe is not the one just built.' }
+        if ($node.VersionInfo.ProductName -ne 'Mira' -or $node.VersionInfo.ProductVersion -ne $version) { throw "mira-tailscale.exe: product Mira $version expected, got '$($node.VersionInfo.ProductName)' '$($node.VersionInfo.ProductVersion)'." }
+        Copy-Item -LiteralPath (Join-Path $tailscale 'licenses') -Destination (Join-Path $bundle 'licenses/mira-tailscale') -Recurse
         $privateFiles = Get-ChildItem -LiteralPath $bundle -Recurse -Force | Where-Object {
             $_.Name -eq 'data' -or $_.Name -match '\.(protected|db|db-wal|db-shm|sqlite|log|pfx|p12|key|mp4|mkv)$' -or $_.Name -eq 'settings.json'
         }

@@ -10,6 +10,7 @@
     <Compile Include="../../src/Mira.Desktop/Services/Updater.cs" Link="Desktop/Updater.cs" />
     <Compile Include="../../src/Mira.Desktop/Services/MetadataCache.cs" Link="Desktop/MetadataCache.cs" />
     <Compile Include="../../src/Mira.Desktop/Services/ShellRegistration.cs" Link="Desktop/ShellRegistration.cs" />
+    <Compile Include="../../src/Mira.Desktop/Services/TailnetExecutable.cs" Link="Desktop/TailnetExecutable.cs" />
   </ItemGroup>
   <!-- The plugin's playlist rewriting, security policy and web files have no Jellyfin dependency. -->
   <ItemGroup>

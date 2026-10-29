@@ -18,7 +18,25 @@
          checks, never in the packages (tools/package.ps1 and tools/publish.ps1 build with -p:MiraValidation=false). -->
     <MiraValidation Condition="'$(MiraValidation)' == ''">true</MiraValidation>
     <DefineConstants Condition="'$(MiraValidation)' == 'true'">$(DefineConstants);MIRA_VALIDATION</DefineConstants>
+    <!-- mira-tailscale.exe, the node of « Tailscale intégré » (src/Mira.Tailscale), as tools/tailscale/build.mjs builds
+         it: beside Mira.exe in the folder distribution, inside the single-file Mira (MIRA_TAILSCALE_EMBEDDED: the define
+         also makes that publish compile Mira.dll again, which a resource alone would not). Its SHA-256 goes into Mira
+         (MiraTailscaleSha256), which runs no other file. Without it (Go not installed), Mira builds without the feature. -->
+    <MiraTailscale Condition="'$(MiraTailscale)' == ''">$(MSBuildThisFileDirectory)../../.artifacts/tailscale/windows-amd64/mira-tailscale.exe</MiraTailscale>
+    <DefineConstants Condition="'$(PublishSingleFile)' == 'true' and Exists('$(MiraTailscale)')">$(DefineConstants);MIRA_TAILSCALE_EMBEDDED</DefineConstants>
   </PropertyGroup>
+  <ItemGroup Condition="Exists('$(MiraTailscale)')">
+    <None Include="$(MiraTailscale)" Link="mira-tailscale.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="'$(PublishSingleFile)' != 'true'" />
+    <EmbeddedResource Include="$(MiraTailscale)" LogicalName="Mira.App/mira-tailscale.exe" Condition="'$(PublishSingleFile)' == 'true'" />
+  </ItemGroup>
+  <Target Name="MiraTailscaleHash" BeforeTargets="GetAssemblyAttributes" Condition="Exists('$(MiraTailscale)')">
+    <GetFileHash Files="$(MiraTailscale)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="MiraTailscaleSha256" />
+    </GetFileHash>
+    <ItemGroup>
+      <AssemblyMetadata Include="MiraTailscaleSha256" Value="$(MiraTailscaleSha256)" />
+    </ItemGroup>
+  </Target>
   <ItemGroup Condition="'$(MiraValidation)' != 'true'">
     <Compile Remove="Checks/**" />
   </ItemGroup>
