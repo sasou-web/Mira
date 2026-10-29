@@ -158,7 +158,8 @@ final class MiraUITests: XCTestCase {
         capture("12-mot-de-passe-faux")
         let password = app.secureTextFields["login.password"]
         focus(password)
-        password.typeText("mira\n")
+        // The wrong password may still be in the field (iOS clears a secure field only when it gets the keyboard back).
+        password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 12) + "mira\n")
         XCTAssertTrue(app.staticTexts["Continuer à regarder"].waitForExistence(timeout: 20), "L'Accueil n'a pas montré Continuer à regarder")
         dismissSavePassword(app)
         settle()
