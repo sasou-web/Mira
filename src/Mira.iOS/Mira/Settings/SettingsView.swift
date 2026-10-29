@@ -30,6 +30,12 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                     .accessibilityElement(children: .combine)
+                    NavigationLink {
+                        ReportView()
+                    } label: {
+                        row("Your recap", "What you watched this month and this year.", symbol: "clock.arrow.circlepath")
+                    }
+                    .accessibilityIdentifier("settings.report")
                 }
                 .listRowBackground(Palette.surface)
 
