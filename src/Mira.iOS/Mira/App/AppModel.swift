@@ -21,8 +21,10 @@ final class AppModel {
     /// Said once on the sign-in screen when Jellyfin ended the session (401).
     var notice: String?
     let device: DeviceIdentity
-    /// The title playing, in Apple's player or in Picture in Picture.
+    /// The title playing, in Mira's player, reduced over the tabs, or in Picture in Picture.
     private(set) var player: PlayerSession?
+    /// The title playing reduced to the bar over the tabs (MiniPlayer).
+    private(set) var minimizedPlayer: PlayerSession?
     /// Why a title could not play, said over the page it was started from.
     var playerMessage: String?
     /// The title that could not play, for « Try again » (Jellyfin back, Tailscale awake): where it was left.
@@ -94,8 +96,8 @@ final class AppModel {
 
     // MARK: Playing
 
-    /// Plays a film or an episode in Apple's player, where it was left unless `fromStart`; a title already playing
-    /// (in Picture in Picture) stops first.
+    /// Plays a film or an episode in Mira's player, where it was left unless `fromStart`; a title already playing
+    /// (reduced, or in Picture in Picture) stops first.
     func play(_ item: Item, fromStart: Bool = false, audioIndex: Int? = nil, subtitleIndex: Int? = nil, groupStart: Int64? = nil) {
         guard let client else { return }
         player?.close()
@@ -144,7 +146,14 @@ final class AppModel {
             player = nil
             sleep.clear()
         }
+        if minimizedPlayer === session { minimizedPlayer = nil }
         playback += 1
+    }
+
+    /// The player reduced to the bar over the tabs, or opened full again.
+    func playerMinimized(_ session: PlayerSession, _ minimized: Bool) {
+        guard player === session else { return }
+        minimizedPlayer = minimized ? session : nil
     }
 
     func playbackChanged() { playback += 1 }

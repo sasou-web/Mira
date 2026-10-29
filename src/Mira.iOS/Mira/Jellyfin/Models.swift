@@ -36,6 +36,8 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var mediaSources: [MediaSource]?
     /// The file's chapters (Items/{id} only): their titles name openings and credits (Timeline).
     var chapters: [Chapter]?
+    /// Jellyfin's trickplay pictures (Items/{id} only), by file and by width: the thumbnails over the timeline.
+    var trickplay: [String: [String: TrickplayInfo]]?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }

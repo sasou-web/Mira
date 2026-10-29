@@ -4,14 +4,28 @@
 // logo (media/backdrop.jpg, media/logo.png), to see a title's page as with a real library. Account « ogsas », password
 // « mira ».
 // Every film and episode plays media/clip.mp4 (SMPTE bars and a tone, 10 s, H.264 and AAC in MP4) as it is; what the
-// player reports is listed at /Mock/Reports for the UI tests.
+// player reports is listed at /Mock/Reports for the UI tests. Sintel plays media/film.mp4 instead when ios.yml could
+// fetch it (its trailer, © Blender Foundation, CC BY 3.0), at its real length, with chapters and the trickplay
+// pictures of media/trickplay (tools/ios/trickplay.swift): the player's captures.
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { createHash, randomUUID } from 'node:crypto';
 
 const clip = readFileSync(new URL('media/clip.mp4', import.meta.url));
+const filmUrl = new URL('media/film.mp4', import.meta.url), trickplayUrl = new URL('media/trickplay/', import.meta.url);
+const filmData = existsSync(filmUrl) ? readFileSync(filmUrl) : null;
+const trickplay = filmData && existsSync(new URL('info.json', trickplayUrl)) ? JSON.parse(readFileSync(new URL('info.json', trickplayUrl), 'utf8')) : null;
+/** An MP4's length in seconds, from its movie header (mvhd). */
+function mp4Seconds(data) {
+  const at = data.indexOf('mvhd');
+  if (at < 0) return 0;
+  const v1 = data[at + 4] === 1;
+  const scale = data.readUInt32BE(at + (v1 ? 24 : 16));
+  const length = v1 ? Number(data.readBigUInt64BE(at + 28)) : data.readUInt32BE(at + 20);
+  return scale ? length / scale : 0;
+}
 const reports = [];
 
 const port = Number(process.argv[2] ?? 18097);
@@ -85,6 +99,16 @@ const mediaSource = (item) => ({
     { Index: 3, Type: 'Subtitle', Codec: 'subrip', Language: 'fre', IsExternal: true, IsTextSubtitleStream: true },
   ],
 });
+// The film of the player's captures: Sintel at its trailer's length, left at 40 %, with named chapters.
+if (filmData) {
+  const sintel = films[0], seconds = mp4Seconds(filmData), ticks = Math.round(seconds * tick);
+  sintel.RunTimeTicks = ticks;
+  sintel.UserData = { ...sintel.UserData, PlaybackPositionTicks: Math.round(ticks * 0.4) };
+  sintel.Chapters = [['Prologue', 0], ['Scales', 0.18], ['The search', 0.42], ['The cave', 0.7]]
+    .map(([Name, at]) => ({ Name, StartPositionTicks: Math.round(ticks * at) }));
+  if (trickplay) sintel.Trickplay = { [sintel.Id]: { [String(trickplay.Width)]: trickplay } };
+  console.log(`Sintel plays media/film.mp4 (${seconds.toFixed(1)} s)${trickplay ? ', with trickplay pictures' : ''}`);
+}
 for (const item of everything) if (item.Type !== 'Series') item.MediaSources = [mediaSource(item)];
 const latest = [films[1], series, films[2], films[3], films[4], films[0], films[5], films[6], films[7]];
 
@@ -182,14 +206,15 @@ const server = http.createServer(async (req, res) => {
   const video = /^\/Videos\/([0-9a-f]+)\/stream\.mp4$/.exec(path);
   if (video) {
     if (q.get('ApiKey') !== TOKEN) return send(res, 401, undefined);
+    const data = filmData && video[1] === films[0].Id ? filmData : clip;
     const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
     if (!range) {
-      res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': clip.length, 'Accept-Ranges': 'bytes' });
-      return res.end(req.method === 'HEAD' ? undefined : clip);
+      res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': data.length, 'Accept-Ranges': 'bytes' });
+      return res.end(req.method === 'HEAD' ? undefined : data);
     }
-    const start = Number(range[1]), end = Math.min(clip.length - 1, range[2] ? Number(range[2]) : clip.length - 1);
-    res.writeHead(206, { 'Content-Type': 'video/mp4', 'Content-Length': end - start + 1, 'Content-Range': `bytes ${start}-${end}/${clip.length}`, 'Accept-Ranges': 'bytes' });
-    return res.end(req.method === 'HEAD' ? undefined : clip.subarray(start, end + 1));
+    const start = Number(range[1]), end = Math.min(data.length - 1, range[2] ? Number(range[2]) : data.length - 1);
+    res.writeHead(206, { 'Content-Type': 'video/mp4', 'Content-Length': end - start + 1, 'Content-Range': `bytes ${start}-${end}/${data.length}`, 'Accept-Ranges': 'bytes' });
+    return res.end(req.method === 'HEAD' ? undefined : data.subarray(start, end + 1));
   }
   if (path === '/System/Ping') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('Jellyfin Server'); }
   // Tears of Steel's own pictures, as a title of a real library has.
@@ -197,6 +222,14 @@ const server = http.createServer(async (req, res) => {
   if (file) {
     res.writeHead(200, { 'Content-Type': file.endsWith('.png') ? 'image/png' : 'image/jpeg', 'Cache-Control': 'public, max-age=31536000' });
     return res.end(readFileSync(new URL(`media/${file}`, import.meta.url)));
+  }
+  const tile = /^\/Videos\/([0-9a-f]+)\/Trickplay\/(\d+)\/(\d+)\.jpg$/.exec(path);
+  if (tile) {
+    if (!(req.headers.authorization ?? '').includes(`Token="${TOKEN}"`)) return send(res, 401, undefined);
+    const file = new URL(`${tile[2]}/${tile[3]}.jpg`, trickplayUrl);
+    if (!trickplay || tile[1] !== films[0].Id || !existsSync(file)) return send(res, 404, undefined);
+    res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+    return res.end(readFileSync(file));
   }
   const image = /^\/Items\/([0-9a-f]+)\/Images\/(Primary|Thumb|Backdrop)(?:\/\d+)?$/.exec(path);
   if (image) {

@@ -21,8 +21,10 @@ dist/
 *.p12
 *.key
 *.mp4
-# The 10 s clip the stand-in Jellyfin of the iPhone tests plays (37 KB).
+# The 10 s clip the stand-in Jellyfin of the iPhone tests plays (37 KB); the film and trickplay pictures ios.yml
+# fetches and makes for the player's captures stay out.
 !tools/ios/media/clip.mp4
+tools/ios/media/trickplay/
 *.mkv
 *.zip
 *.7z

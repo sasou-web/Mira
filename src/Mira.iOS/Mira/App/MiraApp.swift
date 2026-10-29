@@ -18,14 +18,16 @@ struct MiraApp: App {
     }
 }
 
-/// On iPhone, Mira's pages stay upright and only Apple's player turns sideways: coming back from a film watched
-/// sideways, the pages are never laid out sideways first, then upright again. iPad turns everywhere.
+/// On iPhone, Mira's pages stay upright and only the player turns, sideways for a film unless turned back (its
+/// button): coming back from a film watched sideways, the pages are never laid out sideways first, then upright
+/// again. iPad turns everywhere.
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         guard UIDevice.current.userInterfaceIdiom == .phone else { return .all }
         var top = window?.rootViewController
         while let next = top?.presentedViewController { top = next }
-        return top is MiraPlayerController && top?.isBeingDismissed == false ? .allButUpsideDown : .portrait
+        guard let player = top as? PlayerController, !player.isBeingDismissed else { return .portrait }
+        return player.supportedInterfaceOrientations
     }
 }
 
@@ -79,6 +81,7 @@ struct MainView: View {
         .modifier(KeyboardWatch(shown: $keyboard))
         .environment(bar)
         .onChange(of: section) { bar.folded = false }
+        .miniPlayer(app.minimizedPlayer)
         .overlay(alignment: .top) { NoticeToast() }
         .overlay(alignment: .top) { NewEpisodesBanner() }
         .onChange(of: phase) {

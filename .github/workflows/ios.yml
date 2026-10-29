@@ -96,6 +96,17 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid"
           xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+      # The film of the player's captures, Sintel's trailer (© Blender Foundation, CC BY 3.0), and its trickplay
+      # pictures made here as Jellyfin makes them; without it, Sintel plays the 10 s clip as every other title does.
+      - name: Film for the player's captures
+        run: |
+          if curl -fsSL --retry 3 --max-time 180 -o tools/ios/media/film.mp4 https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4; then
+            shasum -a 256 tools/ios/media/film.mp4
+            xcrun swift tools/ios/trickplay.swift tools/ios/media/film.mp4 tools/ios/media/trickplay || rm -rf tools/ios/media/trickplay
+          else
+            rm -f tools/ios/media/film.mp4
+            echo "::warning::No film for the player's captures: Sintel plays the test clip."
+          fi
       - name: Tests on the simulator
         env:
           UDID: ${{ steps.simulator.outputs.udid }}

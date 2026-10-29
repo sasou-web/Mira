@@ -31,15 +31,15 @@ final class MiraUITests: XCTestCase {
         capture("04-title")
         XCTAssertTrue(app.buttons["title.play"].exists, "No Play button on the title page")
 
-        // Play: Apple's player over the app, the file as it is; Jellyfin hears where it is, then where it stopped.
+        // Play: Mira's player over the app, sideways, the file as it is; Jellyfin hears where it is, then where it
+        // stopped, once the player reduced over the tabs is closed.
         app.buttons["title.play"].tap()
-        XCTAssertTrue(waitForReport("/Start", timeout: 30), "Jellyfin never heard that playback started")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(waitForReport("/Start", item: Self.tearsOfSteel, timeout: 30), "Jellyfin never heard that playback started")
         Thread.sleep(forTimeInterval: 1.5)
         capture("05-player")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        let close = app.buttons.matching(NSPredicate(format: "label IN %@", ["Close", "Done", "Dismiss"])).firstMatch
-        if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
-        XCTAssertTrue(waitForReport("/Stopped", timeout: 20), "Jellyfin never heard that playback stopped")
+        closePlayer(app)
+        XCTAssertTrue(waitForReport("/Stopped", item: Self.tearsOfSteel, timeout: 20), "Jellyfin never heard that playback stopped")
         XCTAssertTrue(app.buttons["title.play"].waitForExistence(timeout: 10), "Closing the player did not lead back to the title page")
         // Favorite, then not: Jellyfin is told each time, and the page reads it back.
         let favorite = app.buttons["title.favorite"]
@@ -75,12 +75,12 @@ final class MiraUITests: XCTestCase {
         for _ in 0..<4 where !play.isHittable { app.swipeDown() }
         XCTAssertEqual(play.label, "Start for the group")
         play.tap()
+        XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(waitForSync("SetNewQueue", timeout: 30), "Play did not put the title on for the group")
         XCTAssertTrue(waitForSync("Ready", timeout: 30), "The player never told the group it was ready")
         Thread.sleep(forTimeInterval: 2.5)
         capture("05c-together-player")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
+        closePlayer(app)
         XCTAssertTrue(waitForSync("SetIgnoreWait", timeout: 20), "Closing the player did not tell the group to go on without it")
         let leave = app.buttons["together.leave"]
         for _ in 0..<4 where !leave.isHittable { app.swipeUp() }
@@ -224,6 +224,93 @@ final class MiraUITests: XCTestCase {
         capture("22b-fiche-grand-suite")
     }
 
+    /// Mira's own player, sideways, on Sintel (its trailer when ios.yml could fetch it, with its trickplay pictures):
+    /// the controls, the menus, a double tap, what a finger holds, the padlock, then reduced over the tabs and closed.
+    @MainActor
+    func testPlayer() throws {
+        let app = launch(language: "en", locale: "en_US")
+        signIn(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
+        dismissSavePassword(app)
+        let movies = app.tabBars.buttons["Movies"]
+        XCTAssertTrue(movies.waitForExistence(timeout: 5), "No Movies tab")
+        movies.tap()
+        let sintel = app.buttons["Sintel, 2010"].firstMatch
+        XCTAssertTrue(sintel.waitForExistence(timeout: 15), "No card for Sintel")
+        sintel.tap()
+        let start = app.buttons["title.play"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "Sintel's page has no Play")
+        start.tap()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(waitForReport("/Start", item: Self.sintel, timeout: 30), "Jellyfin never heard that Sintel started")
+        Thread.sleep(forTimeInterval: 2)
+
+        // Paused, the controls stay.
+        let play = app.buttons["player.play"]
+        if !play.exists { tapPicture(app) }
+        XCTAssertTrue(play.waitForExistence(timeout: 5), "The player shows no Play button")
+        if play.label == "Pause" { play.tap() }
+        settle()
+        capture("31-player")
+
+        // Speed, quality and the sleep timer; then audio and subtitles: Apple's menus, in glass.
+        for (button, name) in [("player.more", "32-player-menu"), ("player.tracks", "33-player-tracks")] {
+            let menu = app.buttons[button]
+            XCTAssertTrue(menu.waitForExistence(timeout: 5), "No \(button) in the player")
+            menu.tap()
+            Thread.sleep(forTimeInterval: 1.5)
+            capture(name)
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).tap()
+            Thread.sleep(forTimeInterval: 1)
+        }
+
+        // A double tap on the right: 10 s forward, the circles of YouTube.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).doubleTap()
+        capture("34-player-skip")
+        Thread.sleep(forTimeInterval: 1.5)
+
+        // What a finger holds: the timeline and its thumbnail, the volume, twice as fast, the padlock.
+        let showcase = app.buttons["player.showcase"]
+        XCTAssertTrue(showcase.exists, "No showcase button in a debug build")
+        for name in ["35-player-scrub", "36-player-volume", "37-player-fast", "38-player-locked"] {
+            showcase.tap()
+            Thread.sleep(forTimeInterval: name == "35-player-scrub" ? 2.5 : 1)
+            capture(name)
+        }
+        showcase.tap()
+
+        // Reduced: the bar over the tabs, upright; a tap opens the player again.
+        let minimize = app.buttons["player.minimize"]
+        XCTAssertTrue(minimize.waitForExistence(timeout: 5), "No Reduce in the player")
+        minimize.tap()
+        XCUIDevice.shared.orientation = .portrait
+        let bar = app.descendants(matching: .any)["mini"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 10), "Reducing the player showed no bar over the tabs")
+        settle()
+        capture("39-player-reduced")
+        app.buttons["mini.close"].tap()
+        XCTAssertTrue(waitForReport("/Stopped", item: Self.sintel, timeout: 20), "Closing the bar did not stop Sintel")
+    }
+
+    /// Reduces Mira's player to the bar over the tabs, then closes it there.
+    @MainActor
+    private func closePlayer(_ app: XCUIApplication) {
+        let minimize = app.buttons["player.minimize"]
+        if !minimize.waitForExistence(timeout: 2) { tapPicture(app) }
+        XCTAssertTrue(minimize.waitForExistence(timeout: 5), "The player shows no Reduce button")
+        minimize.tap()
+        XCUIDevice.shared.orientation = .portrait
+        let close = app.buttons["mini.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "Reducing the player showed no bar over the tabs")
+        close.tap()
+    }
+
+    /// A tap in the middle of the picture, with the controls hidden: they come back.
+    @MainActor
+    private func tapPicture(_ app: XCUIApplication) {
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
     @MainActor
     private func launch(language: String, locale: String, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
@@ -277,13 +364,17 @@ final class MiraUITests: XCTestCase {
         card.tap()
     }
 
-    /// Waits for the stand-in Jellyfin to have received this report of the player (/Start, /Progress, /Stopped).
-    private func waitForReport(_ kind: String, timeout: TimeInterval) -> Bool {
+    static let tearsOfSteel = "b2e1d4c3f6a75b8e9d0c1f2e3a4b5c6d"
+    static let sintel = "a1f0c3d2e5b64a7f8c9d0e1f2a3b4c5d"
+
+    /// Waits for the stand-in Jellyfin to have received this report of the player (/Start, /Progress, /Stopped) about
+    /// this title (the stand-in keeps them from one test to the next: each test plays its own title).
+    private func waitForReport(_ kind: String, item: String, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         let url = URL(string: "http://\(Self.server)/Mock/Reports")!
         while Date() < deadline {
             if let data = try? Data(contentsOf: url), let reports = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-               reports.contains(where: { $0["kind"] as? String == kind }) {
+               reports.contains(where: { $0["kind"] as? String == kind && $0["item"] as? String == item }) {
                 return true
             }
             Thread.sleep(forTimeInterval: 0.5)
