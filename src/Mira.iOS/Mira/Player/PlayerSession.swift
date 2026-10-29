@@ -59,6 +59,14 @@ final class PlayerSession: NSObject {
     private var stallTold = false
     private var rateObserver: NSObjectProtocol?
     private let pill = GroupPill()
+    // The title's timeline (Timeline): its passages, those skipped by themselves, where it started, its next episode.
+    private var passages: [Passage] = []
+    private var passagesFor: String?
+    private var skipped: Set<Passage> = []
+    private var startedAt: Double = 0
+    private var nextItem: Item?
+    private var nextAsked = false
+    private let passageButton = PassageButton()
 
     init(item: Item, client: JellyfinClient, app: AppModel, audioIndex: Int?, subtitleIndex: Int?) {
         self.item = item
@@ -78,6 +86,10 @@ final class PlayerSession: NSObject {
         player.allowsExternalPlayback = true
         waiting.install(in: controller.contentOverlayView)
         pill.install(in: controller.contentOverlayView)
+        // Over Apple's controls, so that a touch reaches it.
+        passageButton.install(in: controller.view)
+        passageButton.onTap = { [weak self] in self?.passageTapped() }
+        controller.onLayout = { [passageButton] in passageButton.bringToFront() }
         rateObserver = NotificationCenter.default.addObserver(forName: AVPlayer.rateDidChangeNotification, object: player, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.rateChanged() }
         }
@@ -111,6 +123,7 @@ final class PlayerSession: NSObject {
                 together.buffering(Double(ticks) / Double(ItemText.ticksPerSecond), playing: false)
             }
         }
+        startedAt = Double(ticks) / Double(ItemText.ticksPerSecond)
         let chosen = groupStart == nil
         Task {
             await open(at: ticks)
@@ -135,6 +148,7 @@ final class PlayerSession: NSObject {
                 tracksChosen = true
                 await chooseTracks()
             }
+            if passagesFor != item.id { loadPassages() }
             guard attempt == opening, !closed else { return }
             func ask(_ limit: Int) async throws -> PlaybackInfo {
                 try await client.playbackInfo(item.id, request: PlaybackRequest(
@@ -231,6 +245,7 @@ final class PlayerSession: NSObject {
         }
         // The sleep timer's minutes are over: a pause, once.
         if app?.sleep.due(Date()) == true { player.pause() }
+        watchPassages()
         if inGroup { watchGroupStall() }
         pill.show(groupLine())
         let paused = player.timeControlStatus == .paused
@@ -408,14 +423,16 @@ final class PlayerSession: NSObject {
         }
     }
 
-    private func nextEpisode() async {
+    /// `asked`: by the Next episode button, whatever Settings say.
+    private func nextEpisode(asked: Bool = false) async {
         // « End of the episode » on the sleep timer: this one was the last.
-        if app?.sleep.atEnd == true {
+        if app?.sleep.atEnd == true && !asked {
             close()
             return
         }
         // « Next episode automatically » off: the episode ends there (the group's choice in a group).
-        guard item.isEpisode, app?.preferences.autoNext != false || inGroup, let next = try? await client.episode(after: item), !closed else {
+        let known = nextItem
+        guard item.isEpisode, asked || app?.preferences.autoNext != false || inGroup, let next = known ?? (try? await client.episode(after: item)), !closed else {
             close()
             return
         }
@@ -431,6 +448,7 @@ final class PlayerSession: NSObject {
         audioIndex = TrackNames.same(audio, in: streams.filter { $0.type == "Audio" })?.index
         subtitleIndex = subtitleIndex == -1 ? -1 : TrackNames.same(subtitle, in: streams.filter { $0.type == "Subtitle" })?.index ?? -1
         item = next
+        newTitle(at: 0)
         reopenedAt = nil
         source = nil
         playSessionId = nil
@@ -442,12 +460,108 @@ final class PlayerSession: NSObject {
         await open(at: 0)
     }
 
+    // MARK: Passages and the next episode
+
+    /// Another title in the same player: its own timeline.
+    private func newTitle(at seconds: Double) {
+        passages = []
+        passagesFor = nil
+        skipped = []
+        nextItem = nil
+        nextAsked = false
+        startedAt = seconds
+        passageButton.show(nil)
+    }
+
+    /// Jellyfin's segments, filled by what the file's chapters name.
+    private func loadPassages() {
+        let id = item.id, known = item
+        passagesFor = id
+        Task {
+            let server = await client.passages(id)
+            let full = known.chapters != nil ? known : ((try? await client.item(id)) ?? known)
+            guard item.id == id, !closed else { return }
+            passages = Timeline.withChapters(server, Timeline.chapterPassages(full.chapters, totalTicks: full.runTimeTicks ?? source?.runTimeTicks))
+        }
+    }
+
+    private var duration: Double {
+        if let ticks = item.runTimeTicks ?? source?.runTimeTicks, ticks > 0 { return Timeline.seconds(ticks) }
+        let seconds = player.currentItem?.duration.seconds ?? 0
+        return seconds.isFinite ? seconds : 0
+    }
+
+    /// Twice a second: an intro or recap skipped by itself, the Skip button over a passage, the Next episode button
+    /// from the end credits (or the last seconds), and the next episode a countdown into credits (timeline.js).
+    private func watchPassages() {
+        let at = player.currentTime().seconds
+        guard pendingStart == nil, !stopped, at.isFinite else { return }
+        let end = duration
+        let passage = Timeline.skippable(passages, at: at)
+        // In a group, skips are the person's: the group follows them (never by themselves).
+        if !inGroup, Timeline.skipsItself(passage, autoSkip: app?.preferences.autoSkip == true, skipped: skipped), let passage {
+            skipped.insert(passage)
+            player.seek(to: CMTime(seconds: passage.end, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+            return
+        }
+        guard end > 0, item.isEpisode else {
+            passageButton.show(passage.flatMap { Timeline.skipLabel($0.type) })
+            return
+        }
+        let nextFrom = Timeline.nextFrom(passages, end: end)
+        if !nextAsked && at >= nextFrom - 30 {
+            nextAsked = true
+            let id = item.id, current = item
+            Task {
+                let next = try? await client.episode(after: current)
+                if item.id == id { nextItem = next }
+            }
+        }
+        if nextItem != nil && at >= nextFrom {
+            passageButton.show(String(localized: "Next episode"), next: true)
+            if !inGroup, app?.preferences.autoNext != false, app?.sleep.atEnd != true,
+               let auto = Timeline.nativeNextAt(passages, end: end, startedAt: startedAt), at >= auto {
+                goToNext()
+            }
+        } else {
+            passageButton.show(passage.flatMap { Timeline.skipLabel($0.type) })
+        }
+    }
+
+    private func passageTapped() {
+        let at = player.currentTime().seconds
+        guard !closed, at.isFinite else { return }
+        if passageButton.isNext {
+            goToNext()
+        } else if let passage = Timeline.skippable(passages, at: at) {
+            skipped.insert(passage)
+            passageButton.show(nil)
+            player.seek(to: CMTime(seconds: passage.end, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+    }
+
+    /// The rest of the episode is credits: watched, and the next one now.
+    private func goToNext() {
+        guard !closed, !stopped, nextItem != nil else { return }
+        stopped = true
+        passageButton.show(nil)
+        let finished = state(position: max(item.runTimeTicks ?? 0, position))
+        let encoding = playMethod != "DirectPlay" ? playSessionId : nil
+        player.pause()
+        Task {
+            await client.report(.stop, finished)
+            if let encoding { await client.stopEncoding(encoding) }
+            await nextEpisode(asked: true)
+        }
+    }
+
     /// The player is gone (closed, or a failure): Jellyfin told where it stopped, its conversion ended.
     func close() {
         guard !closed else { return }
         closed = true
         loop?.cancel()
         waiting.show(false)
+        passageButton.show(nil)
         groupPlay?.cancel()
         groupSeek?.cancel()
         if let rateObserver { NotificationCenter.default.removeObserver(rateObserver) }
@@ -654,6 +768,12 @@ extension PlayerSession: @preconcurrency AVPlayerViewControllerDelegate {
 /// Apple's player, which says when it leaves the screen (closed, or swiped down).
 final class MiraPlayerController: AVPlayerViewController {
     var onDismissed: (@MainActor () -> Void)?
+    var onLayout: (@MainActor () -> Void)?
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        onLayout?()
+    }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
@@ -768,6 +888,7 @@ extension PlayerSession: GroupPlayer {
             audioIndex = TrackNames.same(audio, in: streams.filter { $0.type == "Audio" })?.index
             subtitleIndex = subtitleIndex == -1 ? -1 : TrackNames.same(subtitle, in: streams.filter { $0.type == "Subtitle" })?.index ?? -1
             item = next
+            newTitle(at: Double(startTicks) / Double(ItemText.ticksPerSecond))
             reopenedAt = nil
             source = nil
             playSessionId = nil
@@ -852,5 +973,52 @@ private final class GroupPill {
         box.accessibilityLabel = text
         box.isHidden = text == nil
         if let text { UIAccessibility.post(notification: .announcement, argument: text) }
+    }
+}
+
+/// « Skip intro », « Next episode »: over Apple's controls, bottom right, while it applies.
+@MainActor
+private final class PassageButton {
+    private let button = UIButton(configuration: .glass())
+    private(set) var isNext = false
+    var onTap: (@MainActor () -> Void)?
+
+    func install(in view: UIView?) {
+        guard let view else { return }
+        var configuration = UIButton.Configuration.glass()
+        configuration.cornerStyle = .capsule
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18)
+        configuration.imagePadding = 8
+        configuration.baseForegroundColor = .white
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = UIFontMetrics(forTextStyle: .callout).scaledFont(for: .systemFont(ofSize: 16, weight: .semibold))
+            return attributes
+        }
+        button.configuration = configuration
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isHidden = true
+        button.accessibilityIdentifier = "player.passage"
+        button.addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
+        view.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -96),
+            button.leadingAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+        ])
+    }
+
+    func bringToFront() {
+        button.superview?.bringSubviewToFront(button)
+    }
+
+    /// The button's words, or nil to hide it.
+    func show(_ title: String?, next: Bool = false) {
+        guard button.configuration?.title != title || button.isHidden != (title == nil) || isNext != next else { return }
+        isNext = next && title != nil
+        button.configuration?.title = title
+        button.configuration?.image = title == nil ? nil : UIImage(systemName: next ? "forward.end.fill" : "forward.fill")
+        button.isHidden = title == nil
+        if let title { UIAccessibility.post(notification: .announcement, argument: title) }
     }
 }

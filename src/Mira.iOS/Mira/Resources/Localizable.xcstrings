@@ -353,6 +353,16 @@
         }
       }
     },
+    "10 seconds into the end credits when they are marked, otherwise at the end of the episode. A button offers it sooner.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 secondes après le début du générique de fin quand il est repéré, sinon à la fin de l’épisode. Un bouton le propose plus tôt."
+          }
+        }
+      }
+    },
     "About": {
       "localizations": {
         "fr": {
@@ -449,16 +459,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "À la maison, l’adresse du PC où tourne Jellyfin. Ailleurs, son adresse Tailscale, Tailscale activé."
-          }
-        }
-      }
-    },
-    "At the end of an episode, the next one starts.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "À la fin d’un épisode, le suivant démarre."
           }
         }
       }
@@ -1250,6 +1250,16 @@
         }
       }
     },
+    "Next episode": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisode suivant"
+          }
+        }
+      }
+    },
     "Next episode automatically": {
       "localizations": {
         "fr": {
@@ -1810,6 +1820,56 @@
         }
       }
     },
+    "Skip ad": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passer la pub"
+          }
+        }
+      }
+    },
+    "Skip intro": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passer l’intro"
+          }
+        }
+      }
+    },
+    "Skip intros and recaps": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passer les intros et les récaps"
+          }
+        }
+      }
+    },
+    "Skip preview": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passer l’aperçu"
+          }
+        }
+      }
+    },
+    "Skip recap": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passer le récap"
+          }
+        }
+      }
+    },
     "Sleep timer": {
       "localizations": {
         "fr": {
@@ -2266,6 +2326,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vu"
+          }
+        }
+      }
+    },
+    "When Jellyfin or the file’s chapters mark them, playback jumps over them. Otherwise, a button offers it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand Jellyfin ou les chapitres du fichier les repèrent, la lecture saute par-dessus. Sinon, un bouton le propose."
           }
         }
       }

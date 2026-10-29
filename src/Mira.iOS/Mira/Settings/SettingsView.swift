@@ -66,9 +66,13 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.resumeBack")
                     }
                     Toggle(isOn: $preferences.autoNext) {
-                        row("Next episode automatically", "At the end of an episode, the next one starts.")
+                        row("Next episode automatically", "10 seconds into the end credits when they are marked, otherwise at the end of the episode. A button offers it sooner.")
                     }
                     .accessibilityIdentifier("settings.autoNext")
+                    Toggle(isOn: $preferences.autoSkip) {
+                        row("Skip intros and recaps", "When Jellyfin or the file’s chapters mark them, playback jumps over them. Otherwise, a button offers it.")
+                    }
+                    .accessibilityIdentifier("settings.autoSkip")
                     Picker("Audio language", selection: Binding(get: { preferences.audioOrder }, set: { preferences.audioLanguages = $0 })) {
                         ForEach(Preferences.audioOrders, id: \.self) { order in Text(verbatim: orderName(order)).tag(order) }
                     }

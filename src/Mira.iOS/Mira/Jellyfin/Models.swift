@@ -32,9 +32,16 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var seriesPrimaryImageTag: String?
     var userData: UserData?
     var mediaSources: [MediaSource]?
+    /// The file's chapters (Items/{id} only): their titles name openings and credits (Timeline).
+    var chapters: [Chapter]?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }
+}
+
+struct Chapter: Codable, Sendable, Hashable {
+    var name: String?
+    var startPositionTicks: Int64?
 }
 
 struct UserData: Codable, Sendable, Hashable {

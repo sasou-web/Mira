@@ -91,6 +91,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/resume.json
         buildPhase: resources
+      - path: ../../tests/fixtures/chapters.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:
