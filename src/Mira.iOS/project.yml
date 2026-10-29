@@ -87,6 +87,10 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/syncplay.json
         buildPhase: resources
+      - path: ../../tests/fixtures/choices.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/resume.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

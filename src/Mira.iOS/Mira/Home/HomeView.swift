@@ -20,7 +20,8 @@ struct HomeView: View {
 
     var body: some View {
         let content = model.content
-        let banner = content?.banner ?? []
+        let hidden = app.preferences.hidden
+        let banner = content?.banner(hidden: hidden) ?? []
         // Home runs under the status bar (the banner's picture reaches the top edge); a header without a banner, and
         // everything scrolled up, keeps clear of it, and a shade under the clock keeps the clock readable.
         let top = statusBar
@@ -42,7 +43,7 @@ struct HomeView: View {
                     }
                     HomeGroup()
                     rows(content, client)
-                    if content.isEmpty {
+                    if content.isEmpty(hidden: hidden) {
                         EmptyState(symbol: "film.stack", title: Text("Your library is empty"), text: Text("Movies and shows you add to Jellyfin will show up here."))
                     }
                 } else if case let .failed(error) = model.state {
@@ -116,7 +117,7 @@ struct HomeView: View {
     }
 
     @ViewBuilder private func rows(_ content: HomeContent, _ client: JellyfinClient) -> some View {
-        let continuing = content.continueWatching
+        let continuing = content.continueWatching(hidden: app.preferences.hidden)
         if !continuing.isEmpty {
             CardRow(title: "Continue watching", items: continuing) { item in
                 NavigationLink(value: TitleRoute(item: item, source: "continue-\(item.id)")) {
@@ -124,7 +125,7 @@ struct HomeView: View {
                         .matchedTransitionSource(id: "continue-\(item.id)", in: zoom)
                 }
                 .buttonStyle(.plain)
-                .titleMenu(item)
+                .titleMenu(item, inContinueWatching: true)
             }
         }
         if !content.latest.isEmpty {

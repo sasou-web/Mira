@@ -81,6 +81,26 @@
         }
       }
     },
+    "%@ Mb/s": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Mb/s"
+          }
+        }
+      }
+    },
+    "%@, then %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, puis %2$@"
+          }
+        }
+      }
+    },
     "%@’s group": {
       "localizations": {
         "fr": {
@@ -243,6 +263,16 @@
         }
       }
     },
+    "%lld s earlier": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld s avant"
+          }
+        }
+      }
+    },
     "%lld seasons": {
       "localizations": {
         "en": {
@@ -363,6 +393,16 @@
         }
       }
     },
+    "Administration": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Administration"
+          }
+        }
+      }
+    },
     "All": {
       "localizations": {
         "fr": {
@@ -393,12 +433,32 @@
         }
       }
     },
+    "Apple’s player": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le lecteur d’Apple"
+          }
+        }
+      }
+    },
     "At home, the address of the PC with Jellyfin. Away from home, its Tailscale address, with Tailscale on.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "À la maison, l’adresse du PC où tourne Jellyfin. Ailleurs, son adresse Tailscale, Tailscale activé."
+          }
+        }
+      }
+    },
+    "At the end of an episode, the next one starts.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À la fin d’un épisode, le suivant démarre."
           }
         }
       }
@@ -413,12 +473,62 @@
         }
       }
     },
+    "Audio language": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue audio"
+          }
+        }
+      }
+    },
+    "Authorize": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser"
+          }
+        }
+      }
+    },
+    "Authorize a device": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser un appareil"
+          }
+        }
+      }
+    },
+    "Authorizing…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorisation…"
+          }
+        }
+      }
+    },
     "Automatic": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Automatique"
+          }
+        }
+      }
+    },
+    "Automatic subtitles": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sous-titres automatiques"
           }
         }
       }
@@ -493,6 +603,16 @@
         }
       }
     },
+    "Code": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code"
+          }
+        }
+      }
+    },
     "Connection to the server lost. Playback resumes as soon as it answers.": {
       "localizations": {
         "fr": {
@@ -533,6 +653,26 @@
         }
       }
     },
+    "Device authorized: it signs in to your account.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appareil autorisé : il se connecte à ton compte."
+          }
+        }
+      }
+    },
+    "Download on the server PC": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger sur le PC serveur"
+          }
+        }
+      }
+    },
     "E%@": {
       "localizations": {
         "en": {
@@ -566,6 +706,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saisis une adresse http:// ou https://, sans identifiants dans l’adresse."
+          }
+        }
+      }
+    },
+    "Enter the 6-digit code the device to connect shows. It will open your account: only authorize a device you can see.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tape le code à 6 chiffres affiché par l’appareil à connecter. Il ouvrira ton compte : n’autorise qu’un appareil que tu vois."
           }
         }
       }
@@ -640,6 +790,16 @@
         }
       }
     },
+    "For your friends, and for what Mira for iPhone doesn’t do yet.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour tes amis, et pour ce que Mira pour iPhone ne fait pas encore."
+          }
+        }
+      }
+    },
     "forced": {
       "localizations": {
         "fr": {
@@ -686,6 +846,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Groupe"
+          }
+        }
+      }
+    },
+    "Guest links": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liens d’invités"
           }
         }
       }
@@ -820,6 +990,16 @@
         }
       }
     },
+    "Jellyfin looks for each new title’s subtitles and syncs them to the video.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin cherche les sous-titres de chaque nouveau titre et les cale sur la vidéo."
+          }
+        }
+      }
+    },
     "Jellyfin refused": {
       "localizations": {
         "fr": {
@@ -866,6 +1046,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Langue"
+          }
+        }
+      }
+    },
+    "Languages choose the tracks at the start of each title. On a title’s page, Audio and Subtitles choose others: Mira keeps them for the next episodes of the series. These choices are kept on your Jellyfin, with the tracks of each series and the titles taken out of Continue watching: you find them on Mira web, Windows and Mac.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les langues choisissent les pistes au début de chaque titre. Sur la page d’un titre, Audio et Sous-titres en choisissent d’autres : Mira les garde pour les épisodes suivants de la série. Ces choix sont gardés sur ton Jellyfin, avec les pistes de chaque série et les titres retirés de Continuer à regarder : tu les retrouves sur Mira web, Windows et Mac."
           }
         }
       }
@@ -940,6 +1130,16 @@
         }
       }
     },
+    "Mira follows the text size of your iPhone: Settings, Display & Brightness, Text Size, or Control Center.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira suit la taille du texte de ton iPhone : Réglages, Luminosité et affichage, Taille du texte, ou le Centre de contrôle."
+          }
+        }
+      }
+    },
     "Mira follows your iPhone’s language. To choose another one for Mira only: Settings, Apps, Mira, Language.": {
       "localizations": {
         "fr": {
@@ -966,6 +1166,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mira ne parle qu’à ton serveur Jellyfin : pas de compte chez nous, pas de statistiques, pas de pub."
+          }
+        }
+      }
+    },
+    "Mira talks only to your Jellyfin server: no account of ours, no analytics, no ads. Your progress is kept on your Jellyfin: it follows you to Mira web, Windows and Mac.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne parle qu’à ton serveur Jellyfin : aucun compte chez nous, aucune mesure d’audience, aucune publicité. Ta progression est gardée sur ton Jellyfin : elle te suit sur Mira web, Windows et Mac."
           }
         }
       }
@@ -1040,6 +1250,26 @@
         }
       }
     },
+    "Next episode automatically": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épisode suivant automatique"
+          }
+        }
+      }
+    },
+    "No": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non"
+          }
+        }
+      }
+    },
     "No titles with these filters": {
       "localizations": {
         "fr": {
@@ -1066,6 +1296,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rien ici pour l’instant"
+          }
+        }
+      }
+    },
+    "Now on Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En ce moment sur Jellyfin"
           }
         }
       }
@@ -1116,6 +1356,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ouvre la série"
+          }
+        }
+      }
+    },
+    "Otherwise, every title starts from the beginning.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sinon, chaque titre part du début."
           }
         }
       }
@@ -1200,6 +1450,16 @@
         }
       }
     },
+    "Quick Connect is turned off on this server: turn it on in Jellyfin’s dashboard (General).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général)."
+          }
+        }
+      }
+    },
     "Rating": {
       "localizations": {
         "fr": {
@@ -1250,12 +1510,32 @@
         }
       }
     },
+    "Remove from Continue watching": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer de Continuer à regarder"
+          }
+        }
+      }
+    },
     "Remove from favorites": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Retirer des favoris"
+          }
+        }
+      }
+    },
+    "Removed from Continue watching.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retiré de Continuer à regarder."
           }
         }
       }
@@ -1330,12 +1610,32 @@
         }
       }
     },
+    "Resume a little earlier": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre un peu avant"
+          }
+        }
+      }
+    },
     "Resume for the group at %@": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Reprendre pour le groupe à %@"
+          }
+        }
+      }
+    },
+    "Resume where you left off": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre où tu t’es arrêté"
           }
         }
       }
@@ -1356,6 +1656,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recherche"
+          }
+        }
+      }
+    },
+    "Search for a title: TorLink downloads it there, Mira files it in your library.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cherche un titre : TorLink le télécharge là-bas, Mira le range dans ta bibliothèque."
           }
         }
       }
@@ -1396,6 +1706,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adresse du serveur"
+          }
+        }
+      }
+    },
+    "Server “%@”": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serveur « %@ »"
           }
         }
       }
@@ -1480,6 +1800,16 @@
         }
       }
     },
+    "Signs a device that shows a code into your account, without typing your password there.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecte à ton compte un appareil qui affiche un code, sans y taper ton mot de passe."
+          }
+        }
+      }
+    },
     "Sleep timer": {
       "localizations": {
         "fr": {
@@ -1560,6 +1890,16 @@
         }
       }
     },
+    "Subtitle language": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue des sous-titres"
+          }
+        }
+      }
+    },
     "Subtitles": {
       "localizations": {
         "fr": {
@@ -1570,12 +1910,42 @@
         }
       }
     },
+    "Subtitles look as set in iPhone Settings: Accessibility, Subtitles & Captioning, Style.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sous-titres ont l’apparence réglée dans les Réglages de l’iPhone : Accessibilité, Sous-titres, Style."
+          }
+        }
+      }
+    },
     "Subtitles off": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Sans sous-titres"
+          }
+        }
+      }
+    },
+    "Text size": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taille du texte"
+          }
+        }
+      }
+    },
+    "The code has 6 digits.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le code a 6 chiffres."
           }
         }
       }
@@ -1640,6 +2010,16 @@
         }
       }
     },
+    "These open in Mira web, inside Mira. Sign in there once.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ces pages s’ouvrent dans Mira web, dans Mira. Connecte-toi là une fois."
+          }
+        }
+      }
+    },
     "This address answers, but it isn’t a Jellyfin server. Check the port (8096 by default).": {
       "localizations": {
         "fr": {
@@ -1670,12 +2050,32 @@
         }
       }
     },
+    "This iPhone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet iPhone"
+          }
+        }
+      }
+    },
     "This server’s HTTPS certificate isn’t recognized. If this server is at your home, type its full address with http://, for example http://192.168.1.20:8096.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Le certificat HTTPS de ce serveur n’est pas reconnu. Si ce serveur est chez toi, tape son adresse complète en http://, par exemple http://192.168.1.20:8096."
+          }
+        }
+      }
+    },
+    "Those Jellyfin didn’t recognize, without a poster or twice.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ceux que Jellyfin n’a pas reconnus, sans affiche ou en double."
           }
         }
       }
@@ -1696,6 +2096,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Titre"
+          }
+        }
+      }
+    },
+    "Titles to fix": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titres à corriger"
           }
         }
       }
@@ -1746,6 +2156,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réessayer"
+          }
+        }
+      }
+    },
+    "Unknown or expired code. Check it, or ask the device for a new one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code inconnu ou expiré. Vérifie-le, ou demande-en un nouveau à l’appareil."
           }
         }
       }
@@ -1820,6 +2240,16 @@
         }
       }
     },
+    "Watch together with someone who has no account and no Tailscale.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regarder ensemble avec quelqu’un qui n’a ni compte ni Tailscale."
+          }
+        }
+      }
+    },
     "Watch with the group": {
       "localizations": {
         "fr": {
@@ -1836,6 +2266,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vu"
+          }
+        }
+      }
+    },
+    "Who watches what, and whether Jellyfin converts it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qui regarde quoi, et si Jellyfin le convertit."
           }
         }
       }

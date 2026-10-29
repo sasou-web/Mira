@@ -31,6 +31,9 @@ final class AppModel {
     let together = Together()
     /// The sleep timer, chosen on a title's page, read by the player it opens.
     var sleep = SleepTimer()
+    /// Settings, some of them kept on the account's Jellyfin too (choices).
+    let preferences: Preferences
+    let choices: ChoicesSync
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
     /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.
@@ -39,6 +42,9 @@ final class AppModel {
     @ObservationIgnored private var measure: (at: Date, speed: Double, server: URL)?
 
     init() {
+        let preferences = Preferences()
+        self.preferences = preferences
+        choices = ChoicesSync(preferences: preferences)
         let defaults = UserDefaults.standard
         // The UI tests start from nothing: no account, no address typed before.
         if ProcessInfo.processInfo.arguments.contains("-mira-reset") {
@@ -55,6 +61,13 @@ final class AppModel {
         device = DeviceIdentity(id: id, name: UIDevice.current.model, version: version)
         session = SessionStore.load()
         together.app = self
+        preferences.use(account: session?.userId)
+        preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.client } }
+    }
+
+    /// The account's choices compared with its Jellyfin: at the start, and back on the screen after a while.
+    func syncChoices(lookAgain: Bool = false) {
+        if lookAgain { choices.lookAgain { [weak self] in self?.client } } else if let client { choices.run(client) }
     }
 
     var client: JellyfinClient? {
@@ -68,6 +81,7 @@ final class AppModel {
         UserDefaults.standard.set(typed, forKey: Keys.lastServer)
         notice = nil
         self.session = session
+        preferences.use(account: session.userId)
     }
 
     // MARK: Playing
@@ -108,6 +122,15 @@ final class AppModel {
         playback += 1
     }
 
+    /// Takes a film or series out of Continue watching until it is played again; its resume point goes to 0 on
+    /// Jellyfin too, so that no other device offers it (hideFromResume of Mira web).
+    func hideFromContinueWatching(_ item: Item) async {
+        preferences.hide(item.seriesId ?? item.id, true)
+        together.notice = String(localized: "Removed from Continue watching.")
+        if (item.userData?.playbackPositionTicks ?? 0) > 0 { try? await client?.setPosition(item.id, ticks: 0) }
+        playback += 1
+    }
+
     func playerClosed(_ session: PlayerSession) {
         if player === session {
             player = nil
@@ -119,10 +142,7 @@ final class AppModel {
     func playbackChanged() { playback += 1 }
 
     /// The quality chosen in Settings: « auto », « max », or a bitrate in bits per second.
-    var quality: String {
-        get { UserDefaults.standard.string(forKey: Keys.quality) ?? "auto" }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.quality) }
-    }
+    var quality: String { preferences.quality }
 
     /// The bitrate to ask Jellyfin for (PlaybackInfo): the one chosen, full quality at home (Tailscale is not home),
     /// else what a measure of the connection allows for this file, kept an hour (knownBitrate of Mira web).
@@ -144,7 +164,9 @@ final class AppModel {
         if let session {
             HomeCache.clear(userId: session.userId)
             RecentSearches.clear(session.userId)
+            preferences.forget(account: session.userId)
         }
+        choices.stop()
         SessionStore.delete()
         session = nil
         Task { await client?.signOut() }
@@ -157,6 +179,8 @@ final class AppModel {
         together.signedOut()
         HomeCache.clear(userId: session.userId)
         RecentSearches.clear(session.userId)
+        preferences.forget(account: session.userId)
+        choices.stop()
         SessionStore.delete()
         notice = String(localized: "Your session on Jellyfin has ended. Sign in again.")
         self.session = nil
@@ -165,7 +189,6 @@ final class AppModel {
     private enum Keys {
         static let deviceId = "mira.deviceId"
         static let lastServer = "mira.lastServer"
-        static let quality = "mira.quality"
     }
 }
 

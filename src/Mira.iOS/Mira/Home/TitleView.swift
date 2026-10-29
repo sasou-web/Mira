@@ -242,7 +242,17 @@ struct TitleView: View {
                 }
                 if let source = playable.mediaSources?.first {
                     ChipRow {
-                        TrackMenus(source: source, audioIndex: $audioIndex, subtitleIndex: $subtitleIndex)
+                        // What will play: chosen here, else the series' last tracks or the languages of Settings.
+                        let preferences = app.preferences
+                        let auto = TrackChoice.choose(source, memory: preferences.tracks(for: playable.seriesId),
+                                                      audioOrder: preferences.audioOrder, subtitleOrder: preferences.subtitleOrder)
+                        TrackMenus(source: source, audioIndex: Binding(get: { audioIndex ?? auto.audio }, set: { index in
+                            audioIndex = index
+                            remember(playable, source, audio: index, subtitle: subtitleIndex ?? auto.subtitle)
+                        }), subtitleIndex: Binding(get: { subtitleIndex ?? auto.subtitle }, set: { index in
+                            subtitleIndex = index
+                            remember(playable, source, audio: audioIndex ?? auto.audio, subtitle: index)
+                        }))
                     }
                 } else if !loaded {
                     TrackPlaceholder()
@@ -294,6 +304,12 @@ struct TitleView: View {
             return
         }
         app.play(playable, fromStart: fromStart, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
+    }
+
+    /// Tracks chosen for an episode: the series' next episodes start with the same languages, on every device.
+    private func remember(_ playable: Item, _ source: MediaSource, audio: Int?, subtitle: Int?) {
+        guard let series = playable.seriesId else { return }
+        app.preferences.remember(TrackChoice.memory(source, audio: audio, subtitle: subtitle), for: series)
     }
 
     /// The group's title, where the group is: Jellyfin holds the others until this iPhone is ready.

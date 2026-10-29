@@ -164,7 +164,7 @@ struct HomeTests {
             return film
         }
         let content = HomeContent(resume: [episode], latest: [series] + latest, series: ["s": series])
-        let banner = content.banner
+        let banner = content.banner(hidden: [:])
         #expect(banner.map(\.id) == ["s", "f0", "f2", "f3", "f4", "f5"])
         #expect(banner.first?.play?.id == "e1")
     }

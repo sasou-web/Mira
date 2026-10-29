@@ -12,15 +12,26 @@ struct HomeContent: Codable, Sendable, Equatable {
     /// The series of the first titles of Continue watching, for their artwork in the banner.
     var series: [String: Item] = [:]
 
-    var continueWatching: [Item] { HomeContent.orderContinue(resume: resume, next: next, history: history) }
+    /// Continue watching, without the films and series taken out of it (`hidden`: their ids, or their series', with
+    /// when, in ms), unless played again since (withoutHidden of Mira web).
+    func continueWatching(hidden: [String: Double] = [:]) -> [Item] {
+        let ordered = HomeContent.orderContinue(resume: resume, next: next, history: history)
+        guard !hidden.isEmpty else { return ordered }
+        func group(_ item: Item) -> String { item.seriesId ?? item.id }
+        func played(_ item: Item) -> Double { (item.userData?.lastPlayedDate.flatMap(HomeContent.parseDate)?.timeIntervalSince1970 ?? 0) * 1000 }
+        return ordered.filter { item in
+            guard let when = hidden[group(item)], when > 0 else { return true }
+            return played(item) > when || history.contains { group($0) == group(item) && played($0) > when }
+        }
+    }
 
-    var isEmpty: Bool { continueWatching.isEmpty && latest.isEmpty && favorites.isEmpty }
+    func isEmpty(hidden: [String: Double]) -> Bool { continueWatching(hidden: hidden).isEmpty && latest.isEmpty && favorites.isEmpty }
 
     /// The banner: the first two titles of Continue watching (under their series' artwork), then the latest additions,
     /// six at most, only those with a picture to show.
-    var banner: [BannerEntry] {
+    func banner(hidden: [String: Double]) -> [BannerEntry] {
         var entries: [BannerEntry] = [], seen = Set<String>()
-        for play in continueWatching.prefix(2) {
+        for play in continueWatching(hidden: hidden).prefix(2) {
             let item = play.isEpisode ? (play.seriesId.flatMap { series[$0] } ?? play) : play
             if Artwork.of(item, .backdrop) != nil, seen.insert(item.id).inserted { entries.append(BannerEntry(item: item, play: play)) }
         }

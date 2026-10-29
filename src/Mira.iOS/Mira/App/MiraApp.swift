@@ -72,7 +72,14 @@ struct MainView: View {
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .overlay(alignment: .top) { NoticeToast() }
-        .onChange(of: phase) { if phase == .active { app.together.foreground() } }
+        .onChange(of: phase) {
+            if phase == .active {
+                app.together.foreground()
+                app.syncChoices(lookAgain: true)
+            }
+        }
+        // Signed in or opened: what changed on the other devices comes, what changed here goes.
+        .task(id: app.session?.userId) { app.syncChoices() }
         .alert("Can’t play this title", isPresented: Binding(get: { app.playerMessage != nil }, set: { if !$0 { app.playerMessage = nil } })) {
             if let retry = app.retryItem {
                 Button("Try again") {

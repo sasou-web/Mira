@@ -28,6 +28,8 @@ final class PlayerSession: NSObject {
     private var observers: [NSObjectProtocol] = []
     /// Bumped by each opening: what an older one finds afterwards is dropped.
     private var opening = 0
+    /// The tracks to start with chosen once (the next episodes carry them by their languages).
+    private var tracksChosen = false
     /// Where the stream being opened starts (seconds), until the player is ready for it.
     private var pendingStart: Double?
     private var started = false
@@ -98,7 +100,8 @@ final class PlayerSession: NSObject {
                 self?.tick()
             }
         }
-        var ticks = PlaybackPlan.startTicks(item, fromStart: fromStart)
+        let preferences = app?.preferences
+        var ticks = PlaybackPlan.startTicks(item, fromStart: fromStart, resume: preferences?.resume ?? true, back: preferences?.resumeBack ?? 0)
         if let together, together.group != nil {
             together.bind(self)
             if let groupStart {
@@ -128,6 +131,10 @@ final class PlayerSession: NSObject {
             let fileBitrate = source?.bitrate ?? item.mediaSources?.first?.bitrate ?? 0
             if bitrate == nil { bitrate = await app?.bitrate(for: client, fileBitrate: fileBitrate) ?? PlaybackPlan.fullBitrate }
             if miraHls == nil { miraHls = await client.hasMiraExtension() }
+            if !tracksChosen {
+                tracksChosen = true
+                await chooseTracks()
+            }
             guard attempt == opening, !closed else { return }
             func ask(_ limit: Int) async throws -> PlaybackInfo {
                 try await client.playbackInfo(item.id, request: PlaybackRequest(
@@ -158,6 +165,18 @@ final class PlayerSession: NSObject {
             guard attempt == opening, !closed else { return }
             fail(PlayerError.text(error))
         }
+    }
+
+    /// Nothing chosen on the title's page: the series' last tracks, else the languages of Settings (TrackChoice, as
+    /// Mira web), from the file's tracks.
+    private func chooseTracks() async {
+        guard audioIndex == nil, subtitleIndex == nil, let preferences = app?.preferences else { return }
+        var file = item.mediaSources?.first
+        if file?.mediaStreams?.isEmpty != false { file = (try? await client.item(item.id))?.mediaSources?.first }
+        guard let file, file.mediaStreams?.isEmpty == false, audioIndex == nil, subtitleIndex == nil else { return }
+        let chosen = TrackChoice.choose(file, memory: preferences.tracks(for: item.seriesId), audioOrder: preferences.audioOrder, subtitleOrder: preferences.subtitleOrder)
+        audioIndex = chosen.audio
+        subtitleIndex = chosen.subtitle
     }
 
     private func attach(_ url: URL, startSeconds: Double) {
@@ -395,7 +414,8 @@ final class PlayerSession: NSObject {
             close()
             return
         }
-        guard item.isEpisode, let next = try? await client.episode(after: item), !closed else {
+        // « Next episode automatically » off: the episode ends there (the group's choice in a group).
+        guard item.isEpisode, app?.preferences.autoNext != false || inGroup, let next = try? await client.episode(after: item), !closed else {
             close()
             return
         }
