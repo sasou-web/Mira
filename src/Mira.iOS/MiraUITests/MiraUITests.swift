@@ -25,8 +25,8 @@ final class MiraUITests: XCTestCase {
 
         let poster = app.buttons["Tears of Steel, 2012"].firstMatch
         XCTAssertTrue(poster.waitForExistence(timeout: 10), "No card for Tears of Steel")
-        poster.tap()
-        XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "The title page did not open")
+        tapCard(app, poster)
+        XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "The title page did not open")
         settle()
         capture("04-title")
         XCTAssertTrue(app.buttons["title.play"].exists, "No Play button on the title page")
@@ -51,11 +51,21 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'title.favorite' AND label == 'Favorite'")).firstMatch.waitForExistence(timeout: 10),
                       "Taking the title out of favorites did not stick")
 
-        // Watch together: a group made here, the title put on for it from Play; Jellyfin's socket tells the player
-        // when to start, and it says it is ready; then out of the group.
+        // Watch together, from « … »: a group made here, the title put on for it from Play; Jellyfin's socket tells the
+        // player when to start, and it says it is ready; then out of the group.
+        let titleMore = app.buttons["title.more"]
+        XCTAssertTrue(titleMore.waitForExistence(timeout: 5), "The title page has no « … »")
+        titleMore.tap()
+        // A menu's item, by its identifier or, if iOS does not pass it on, by its name.
+        let together = app.buttons.matching(NSPredicate(format: "identifier == 'title.together' OR label == 'Watch together'")).firstMatch
+        XCTAssertTrue(together.waitForExistence(timeout: 5), "« … » has no Watch together")
+        settle()
+        capture("05a-title-more")
+        together.tap()
         let create = app.buttons["together.create"]
-        for _ in 0..<4 where !create.isHittable { app.swipeUp() }
-        XCTAssertTrue(create.waitForExistence(timeout: 5), "The title page has no Create a group")
+        XCTAssertTrue(create.waitForExistence(timeout: 5), "Watch together has no Create a group")
+        settle()
+        capture("05a-together-sheet")
         create.tap()
         let group = app.descendants(matching: .any)["together.group"]
         XCTAssertTrue(group.waitForExistence(timeout: 15), "Making a group did not show it on the title page")
@@ -76,13 +86,13 @@ final class MiraUITests: XCTestCase {
         for _ in 0..<4 where !leave.isHittable { app.swipeUp() }
         XCTAssertTrue(leave.waitForExistence(timeout: 10), "No Leave the group")
         leave.tap()
-        XCTAssertTrue(create.waitForExistence(timeout: 15), "Leaving the group did not bring back Create a group")
+        XCTAssertTrue(group.waitForNonExistence(timeout: 15), "Leaving the group did not take it off the title page")
         app.navigationBars.buttons.firstMatch.tap()
 
         // A series: Play for its next episode, then its episodes, each with a Play of its own.
         let series = app.buttons["Pioneer One, 2010"].firstMatch
         XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
-        series.tap()
+        tapCard(app, series)
         // Its summary comes from Jellyfin in HTML: shown as text, cut at four lines, « More » opens it.
         let more = app.buttons["overview.more"]
         XCTAssertTrue(more.waitForExistence(timeout: 10), "A long summary is not cut with More")
@@ -175,8 +185,8 @@ final class MiraUITests: XCTestCase {
         capture("13-accueil")
         let poster = app.buttons["Tears of Steel, 2012"].firstMatch
         XCTAssertTrue(poster.waitForExistence(timeout: 10), "Pas de carte pour Tears of Steel")
-        poster.tap()
-        XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
+        tapCard(app, poster)
+        XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
         settle()
         capture("13b-fiche")
         app.swipeUp()
@@ -215,8 +225,8 @@ final class MiraUITests: XCTestCase {
         capture("23-films-grand")
         let poster = app.buttons["Tears of Steel, 2012"].firstMatch
         XCTAssertTrue(poster.waitForExistence(timeout: 10), "Tears of Steel absent des films")
-        poster.tap()
-        XCTAssertTrue(app.staticTexts["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
+        tapCard(app, poster)
+        XCTAssertTrue(app.descendants(matching: .any)["title.name"].waitForExistence(timeout: 10), "La fiche ne s'est pas ouverte")
         settle()
         capture("22-fiche-grand")
         app.swipeUp()
@@ -265,9 +275,16 @@ final class MiraUITests: XCTestCase {
     /// iOS offers to save the password after a sign-in, over Home, from 2 to more than 6 seconds later on a busy
     /// runner: waited for long enough that no later tap lands on it.
     @MainActor
-    private func dismissSavePassword(_ app: XCUIApplication) {
+    private func dismissSavePassword(_ app: XCUIApplication, timeout: TimeInterval = 20) {
         let button = app.buttons.matching(NSPredicate(format: "label IN %@", ["Not Now", "Pas maintenant"])).firstMatch
-        if button.waitForExistence(timeout: 20) { button.tap() }
+        if button.waitForExistence(timeout: timeout) { button.tap() }
+    }
+
+    /// A card's touch, once « Save Password? » is out of its way: iOS may show it more than 20 s after Home.
+    @MainActor
+    private func tapCard(_ app: XCUIApplication, _ card: XCUIElement) {
+        if !card.isHittable { dismissSavePassword(app, timeout: 5) }
+        card.tap()
     }
 
     /// Waits for the stand-in Jellyfin to have received this report of the player (/Start, /Progress, /Stopped).

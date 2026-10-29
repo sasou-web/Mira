@@ -2,7 +2,8 @@
 
 ## Non publié
 
-- **Des résumés lisibles et courts** (iPhone, Mira web, Windows, Mac) : le résumé de certains titres, surtout des animes (AniList), arrivait de Jellyfin en HTML et montrait des `<br>` en clair. Il s’affiche maintenant en texte, avec ses paragraphes ; les autres balises et les `&amp;` disparaissent aussi. Sur iPhone, le résumé d’une fiche s’arrête à quatre lignes, **Plus** le déroule : les épisodes d’une série sont juste dessous, comme sur Mira web.
+- **Des résumés lisibles et courts** (iPhone, Mira web, Windows, Mac) : le résumé de certains titres, surtout des animes (AniList), arrivait de Jellyfin en HTML et montrait des `<br>` en clair. Il s’affiche maintenant en texte, avec ses paragraphes ; les autres balises et les `&amp;` disparaissent aussi. Sur iPhone, le résumé d’une fiche s’arrête à trois lignes, **Plus** le déroule : les épisodes d’une série sont juste dessous, comme sur Mira web.
+- **La fiche d’un titre refaite sur iPhone** : l’image du haut prend toute la largeur et se fond dans la page sans bande sombre ni flou ; le logo du titre est posé dessus quand Jellyfin en a un. Une ligne dit l’année, la durée (ou les saisons), la note et l’âge. **Lecture**, **Favori**, **Vu** et **…** tiennent sur une ligne ; **…** a **Depuis le début**, la **Minuterie** et **Regarder ensemble**, qui s’ouvre dans une feuille (dans un groupe, sa carte reste sur la fiche). Les langues tiennent sur une ligne discrète, puis viennent le résumé et les épisodes ; les genres passent tout en bas.
 
 ## 0.8.6 — 2026-10-29
 

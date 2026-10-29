@@ -2869,6 +2869,26 @@
           }
         }
       }
+    },
+    "Turns the timer off": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coupe la minuterie"
+          }
+        }
+      }
+    },
+    "Close": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fermer"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
