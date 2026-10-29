@@ -76,12 +76,13 @@ struct TitleView: View {
                     }
                     play.padding(.top, 6)
                     TitleActions(item: $item)
-                    if let overview = item.overview, !overview.isEmpty {
-                        Text(overview)
+                    let overview = OverviewText.plain(item.overview)
+                    if !overview.isEmpty {
+                        // Four lines, then « More »: a series' episodes come right under it.
+                        ClampedText(text: overview)
                             .font(MiraFont.body)
                             .foregroundStyle(Palette.ink)
                             .lineSpacing(3)
-                            .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     }
                     if let genres = item.genres, !genres.isEmpty, !item.isEpisode {

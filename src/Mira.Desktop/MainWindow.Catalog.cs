@@ -517,5 +517,4 @@ public partial class MainWindow
     }
     private void DismissNotice_Click(object sender, RoutedEventArgs e) => HideNotice();
     private void Combo_PreviewClick(object sender, MouseButtonEventArgs e) => ((ComboBox)sender).Focus();
-    private static string PlainText(string text) => System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", " ")).Trim();
 }

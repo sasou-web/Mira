@@ -171,7 +171,7 @@ struct EpisodeRow: View {
                     if let detail {
                         Text(verbatim: detail).font(MiraFont.footnote).foregroundStyle(Palette.muted)
                     }
-                    if let overview = episode.overview, !overview.isEmpty {
+                    if case let overview = OverviewText.plain(episode.overview, flat: true), !overview.isEmpty {
                         Text(verbatim: overview).font(MiraFont.footnote).foregroundStyle(Palette.muted).lineLimit(2).multilineTextAlignment(.leading)
                     }
                 }

@@ -315,7 +315,7 @@ public sealed class DetailPage : Page
         _body.Children.Clear();
         var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,48,*") };
         var left = new StackPanel { Spacing = 18 };
-        if (!string.IsNullOrWhiteSpace(_item.Overview)) left.Children.Add(new TextBlock { Text = _item.Overview, FontSize = 16, LineHeight = 26, Foreground = Ui.Brush("#C9C9CF"), TextWrapping = TextWrapping.Wrap });
+        if (!string.IsNullOrWhiteSpace(_item.Overview)) left.Children.Add(new TextBlock { Text = OverviewText.Plain(_item.Overview), FontSize = 16, LineHeight = 26, Foreground = Ui.Brush("#C9C9CF"), TextWrapping = TextWrapping.Wrap });
         columns.Children.Add(left);
         var side = new StackPanel { Spacing = 22 }; Grid.SetColumn(side, 2);
         // Each genre: Films or Séries (as the title is) filtered on it, as in Mira web.
@@ -514,7 +514,7 @@ public sealed class DetailPage : Page
         var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
         var copy = Ui.Column(6,
             new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1 },
-            new TextBlock { Text = episode.Overview ?? "", FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19 });
+            new TextBlock { Text = OverviewText.Plain(episode.Overview, flat: true), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, LineHeight = 19 });
         copy.VerticalAlignment = VerticalAlignment.Center; copy.Margin = new Thickness(20, 0);
         var state = episode.UserData.Played ? L("✓ Vu", "✓ Watched") : isNext ? episode.Progress > 0 ? L("En cours", "In progress") : L("À suivre", "Up next") : null;
         var status = Ui.Column(8, new TextBlock { Text = episode.DurationLabel, FontSize = 12.5, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Right });

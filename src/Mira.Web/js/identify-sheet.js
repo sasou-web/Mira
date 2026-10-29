@@ -7,6 +7,7 @@ import { h, icon } from './dom.js';
 import { tr } from './i18n.js';
 import { sheet, toast } from './components.js';
 import { prefill, searchQuery, matchYear, matchLine, named } from './identify.js';
+import { plainOverview } from './overview.js';
 
 /** Shown at most: Jellyfin's sources give up to twenty, the right one among the first. */
 const SHOWN = 12;
@@ -90,7 +91,7 @@ export function identifySheet(item, changed) {
       h('span', { class: 'grow' },
         h('span', { class: 'identify-name' }, match.Name),
         matchLine(match) ? h('span', { class: 'sub' }, matchLine(match)) : null,
-        match.Overview ? h('span', { class: 'identify-overview clamp-2' }, match.Overview) : null));
+        match.Overview ? h('span', { class: 'identify-overview clamp-2' }, plainOverview(match.Overview, { flat: true })) : null));
   }
 
   function confirm(match) {

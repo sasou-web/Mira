@@ -89,7 +89,7 @@ public sealed class IdentifyWindow : Window
         var text = new StackPanel { Spacing = 3, Margin = new Thickness(14, 0, 0, 0) };
         text.Children.Add(new TextBlock { Text = match.Name, FontSize = 15, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
         if (TitleIdentity.Line(match) is { Length: > 0 } line) text.Children.Add(Ui.Text(line, 12.5, color: Ui.Muted));
-        if (match.Overview is { } overview) text.Children.Add(new TextBlock { Text = overview, FontSize = 12.5, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis });
+        if (match.Overview is { } overview) text.Children.Add(new TextBlock { Text = OverviewText.Plain(overview, flat: true), FontSize = 12.5, Foreground = Ui.Faint, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis });
         var content = new DockPanel();
         DockPanel.SetDock(frame, Dock.Left); content.Children.Add(frame); content.Children.Add(text);
         var button = new Button { Content = content, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(10, 8) };

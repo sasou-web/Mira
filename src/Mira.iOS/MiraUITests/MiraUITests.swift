@@ -83,6 +83,15 @@ final class MiraUITests: XCTestCase {
         let series = app.buttons["Pioneer One, 2010"].firstMatch
         XCTAssertTrue(series.waitForExistence(timeout: 10), "No card for Pioneer One")
         series.tap()
+        // Its summary comes from Jellyfin in HTML: shown as text, cut at four lines, « More » opens it.
+        let more = app.buttons["overview.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "A long summary is not cut with More")
+        XCTAssertEqual(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '<br>' OR label CONTAINS '&nbsp;'")).count, 0,
+                       "The summary shows its HTML")
+        settle()
+        capture("06a-series-summary")
+        more.tap()
+        XCTAssertTrue(more.waitForNonExistence(timeout: 5), "More stays once the summary is open")
         // The episodes come after the summary, drawn as they scroll into view.
         let third = app.buttons["episode.play.3"]
         for _ in 0..<4 where !third.waitForExistence(timeout: 4) { app.swipeUp() }
