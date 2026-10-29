@@ -1,7 +1,8 @@
 # Updates proposed as pull requests, once a month, each ecosystem in one: the actions of the workflows (pinned by
-# commit) and the NuGet packages. A version is proposed a week after its release at the earliest, time for a broken or
-# hijacked one to be withdrawn. NuGet majors stay by hand: Jellyfin.Controller stays on the oldest Jellyfin Mira supports,
-# and a major of .NET, Avalonia or SQLite moves the whole app.
+# commit), the NuGet packages and the Go modules of Mira's Tailscale node. A version is proposed a week after its
+# release at the earliest, time for a broken or hijacked one to be withdrawn. NuGet majors stay by hand:
+# Jellyfin.Controller stays on the oldest Jellyfin Mira supports, and a major of .NET, Avalonia or SQLite moves the
+# whole app.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -25,4 +26,15 @@ updates:
         update-types: ["version-update:semver-major"]
     groups:
       nuget:
+        patterns: ["*"]
+  # Mira's Tailscale node (src/Mira.Tailscale): tailscale.com and what it pulls in. A Tailscale with new features to
+  # leave out fails TestBuildTags (tailnet/tags_test.go), which gives the line to write in build-tags.txt.
+  - package-ecosystem: gomod
+    directory: /src/Mira.Tailscale
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      go:
         patterns: ["*"]

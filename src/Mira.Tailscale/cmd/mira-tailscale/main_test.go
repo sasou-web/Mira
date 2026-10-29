@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -145,7 +148,11 @@ func TestHelper(t *testing.T) {
 	if testing.Short() {
 		t.Skip("starts a Tailscale network")
 	}
+	var forwarded atomic.Value // a Proxy-Authorization that reached Jellyfin
 	jf := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if v := r.Header.Get("Proxy-Authorization"); v != "" {
+			forwarded.Store(v)
+		}
 		fmt.Fprint(w, `{"ServerName":"Jellyfin de test"}`)
 	}))
 	defer jf.Close()
@@ -222,6 +229,21 @@ func TestHelper(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != 200 || !strings.Contains(string(body), "Jellyfin de test") {
 		t.Fatalf("through the proxy: %d %s", res.StatusCode, body)
+	}
+	// As mpv sends it: an absolute address, the credentials sent ahead (no 407 first), and Jellyfin's own header.
+	conn, err := net.Dial("tcp", proxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Fprintf(conn, "GET http://jellyfin-pc.%s:8096/System/Info/Public HTTP/1.1\r\nHost: jellyfin-pc.%s:8096\r\nProxy-Authorization: Basic %s\r\nAuthorization: MediaBrowser Token=\"t\"\r\nConnection: close\r\n\r\n",
+		tailnettest.MagicDNSSuffix, tailnettest.MagicDNSSuffix, base64.StdEncoding.EncodeToString([]byte("mira:pw")))
+	raw, _ := io.ReadAll(conn)
+	conn.Close()
+	if !strings.HasPrefix(string(raw), "HTTP/1.1 200 ") || !strings.Contains(string(raw), "Jellyfin de test") {
+		t.Fatalf("absolute address with the credentials ahead: %q", raw)
+	}
+	if v := forwarded.Load(); v != nil {
+		t.Fatalf("the proxy's credentials reached Jellyfin: %v", v)
 	}
 
 	// Stopped and started again in the same process: still logged in.

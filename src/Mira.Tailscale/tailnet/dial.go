@@ -35,6 +35,12 @@ const (
 	CodeClosed = "closed"
 	// CodeLocked: another Mira already runs a node from the same folder.
 	CodeLocked = "locked"
+	// CodeCertificate: the relay reached an HTTPS server whose certificate it refused.
+	CodeCertificate = "certificate"
+	// CodeTimeout: the relay's request took too long.
+	CodeTimeout = "timeout"
+	// CodeProtocol: the helper didn't understand a request.
+	CodeProtocol = "protocol"
 )
 
 // Error is a failure of the node, with the code the apps explain.
