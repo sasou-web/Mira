@@ -106,7 +106,7 @@ public partial class MainWindow
         var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0) };
         text.Children.Add(new TextBlock { Text = match.Name, FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
         if (TitleIdentity.Line(match) is { Length: > 0 } line) text.Children.Add(new TextBlock { Text = line, FontSize = 12, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 3, 0, 0) });
-        if (match.Overview is { } overview) text.Children.Add(new TextBlock { Text = overview, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("TextBody"), TextWrapping = TextWrapping.Wrap, MaxHeight = 38, TextTrimming = TextTrimming.WordEllipsis, Margin = new Thickness(0, 5, 0, 0) });
+        if (match.Overview is { } overview) text.Children.Add(new TextBlock { Text = OverviewText.Plain(overview, flat: true), FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("TextBody"), TextWrapping = TextWrapping.Wrap, MaxHeight = 38, TextTrimming = TextTrimming.WordEllipsis, Margin = new Thickness(0, 5, 0, 0) });
         var content = new DockPanel();
         DockPanel.SetDock(frame, Dock.Left); content.Children.Add(frame); content.Children.Add(text);
         var button = new Button { Style = (Style)FindResource("Quiet"), Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(-10, 0, -10, 2) };

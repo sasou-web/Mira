@@ -8,6 +8,7 @@ import { qualityText } from './player/tracks.js';
 import { holds } from './collections.js';
 import { collectionSheet, takeOut } from './collection-sheet.js';
 import { upgradeEntry } from './identify-sheet.js';
+import { plainOverview } from './overview.js';
 
 /** Item changes (watched, favourite, hidden) that every screen showing the item takes into account. */
 export const changes = new EventTarget();
@@ -420,7 +421,7 @@ function about(item) {
   const facts = (x) => [x.Type === 'Movie' ? x.ProductionYear : '', x.RunTimeTicks ? duration(seconds(x.RunTimeTicks)) : '', remaining(x),
     qualityText(x.MediaSources?.[0])].filter(Boolean).join(' · ');
   const meta = h('div', { class: 'sheet-about-meta' }, facts(item));
-  let text = item.Overview ? h('p', { class: 'sheet-about-text' }, item.Overview)
+  let text = item.Overview ? h('p', { class: 'sheet-about-text' }, plainOverview(item.Overview, { flat: true }))
     : h('div', { class: 'sheet-about-text', 'aria-hidden': 'true' }, h('div', { class: 'skeleton line', style: { width: '100%', marginTop: '0' } }), h('div', { class: 'skeleton line', style: { marginTop: '0' } }));
   const box = h('div', { class: 'sheet-about' },
     item.Type === 'Episode' && item.Name ? h('div', { class: 'sheet-about-name' }, `${item.IndexNumber != null ? `${item.IndexNumber}. ` : ''}${item.Name}`) : null,
@@ -429,7 +430,7 @@ function about(item) {
     api.item(item.Id).then((full) => {
       // Where the title is now stays the card's: what the menu acts on.
       meta.textContent = facts({ ...full, UserData: item.UserData ?? full.UserData });
-      const summary = full.Overview ? h('p', { class: 'sheet-about-text' }, full.Overview) : null;
+      const summary = full.Overview ? h('p', { class: 'sheet-about-text' }, plainOverview(full.Overview, { flat: true })) : null;
       if (summary) { text.replaceWith(summary); text = summary; } else if (!item.Overview) text.remove();
     }, () => { if (!item.Overview) text.remove(); });
   }
@@ -474,10 +475,11 @@ export async function setFavorite(item, favorite, { quiet = false } = {}) {
 }
 
 /**
- * A text cut at four lines, with « Plus » once it really is cut (measured whenever its box changes size, not once:
+ * A summary in plain text (Jellyfin's HTML read: overview.js) cut at four lines, with « Plus » once it really is cut (measured whenever its box changes size, not once:
  * a screen still sliding in has no size yet). A tap on the text opens it too.
  */
 export function overview(text, className = 'overview') {
+  text = plainOverview(text);
   if (!text) return null;
   const body = h('p', { class: [className, 'clamp-4'] }, text);
   const open = () => { if (!body.classList.contains('clamp-4')) return; body.classList.remove('clamp-4'); more.remove(); watcher?.disconnect(); };

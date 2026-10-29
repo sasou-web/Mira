@@ -575,7 +575,7 @@ html:not(.touch) :is(.tracks-line, .group-line, .next-line):active, :is(.tracks-
 html:not(.touch) .detail-secondary .tool:active, .detail-secondary .tool.pressed { background: var(--surface); }
 .detail-secondary .tool.pop .icon { animation: pop 320ms var(--ios); }
 @keyframes pop { 40% { transform: scale(1.28); } }
-.overview { color: rgba(244, 244, 245, 0.9); font-size: calc(15px * var(--text)); line-height: 1.55; max-width: 70ch; }
+.overview { white-space: pre-line; color: rgba(244, 244, 245, 0.9); font-size: calc(15px * var(--text)); line-height: 1.55; max-width: 70ch; }
 .more-link { color: var(--ink); font-weight: 800; font-size: calc(14px * var(--text)); padding: 10px 16px 10px 0; margin: -6px 0 -10px; }
 .genres { display: flex; flex-wrap: wrap; gap: 6px; }
 .genres .chip { height: 32px; padding: 0 12px; background: var(--surface); color: var(--muted); font-size: calc(13px * var(--text)); }

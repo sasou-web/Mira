@@ -73,7 +73,7 @@ public partial class MainWindow
     {
         HeroTitle.Text = item.DisplayTitle; HeroTitle.Visibility = logo is null ? Visibility.Visible : Visibility.Collapsed;
         HeroLogo.Source = logo; HeroLogo.Visibility = logo is null ? Visibility.Collapsed : Visibility.Visible;
-        HeroOverview.Text = HeroSmallOverview.Text = PlainText(string.IsNullOrWhiteSpace(item.Overview) ? series?.Overview ?? "" : item.Overview);
+        HeroOverview.Text = HeroSmallOverview.Text = OverviewText.Plain(string.IsNullOrWhiteSpace(item.Overview) ? series?.Overview : item.Overview, flat: true);
         HeroPlayText.Text = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition ? L("Reprendre", "Resume") : L("Regarder", "Watch");
         HeroMetaPills.Children.Clear();
         if (item.ProductionYear is { } year) AddPill(HeroMetaPills, year.ToString());

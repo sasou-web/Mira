@@ -443,6 +443,20 @@ internal static class LibraryTests
             }
             return Task.CompletedTask;
         });
+        await Test("Résumé : le HTML de Jellyfin (« <br> » d’AniList) lu en texte, comme Mira web et l’iPhone (tests/fixtures/overview.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "overview.json")));
+            foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var name = row[0].GetString();
+                var text = row[1].GetString();
+                Assert(OverviewText.Plain(text) == row[2].GetString(), $"{name}: «{OverviewText.Plain(text)}»");
+                Assert(OverviewText.Plain(text, flat: true) == row[3].GetString(), $"{name} (flat): «{OverviewText.Plain(text, flat: true)}»");
+            }
+            Assert(OverviewText.Plain(null) == "", "null");
+            return Task.CompletedTask;
+        });
         await Test("Studios : liens de la fiche, recherche (« Ghibli »), « Du même studio » sans le titre ni sa saga", async () =>
         {
             var item = JsonSerializer.Deserialize<MediaItem>("""{"Id":"f1","Name":"Aube","Type":"Movie","Studios":[{"Name":"Studio Test","Id":"st1"},{"Name":"Vide","Id":"st2"}]}""", Json.Options)!;

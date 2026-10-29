@@ -23,6 +23,7 @@ import { followLine as followText, followNote, pickLine } from '../torlink.js';
 import { seasonOf, episodePages, pageEpisodes, pageHolding, marksSeasons, seasonMark, nextElsewhere } from '../seasons.js';
 import { titleToolsSheet } from '../identify-sheet.js';
 import { calendar, missingText, nextText, dayText, dayTitle, today } from '../calendar.js';
+import { plainOverview } from '../overview.js';
 
 /** Year, length, ratings, then what the page adds: the picture of the file Lecture plays and when it ends. */
 function meta(item, episodes, extra = []) {
@@ -76,7 +77,7 @@ function episodeRow(episode, current) {
   },
     art,
     h('div', {}, h('div', { class: 'ep-title clamp-2' }, `${episode.IndexNumber != null ? `${episode.IndexNumber}. ` : ''}${episode.Name ?? ''}`), h('div', { class: 'ep-meta' }, facts)),
-    episode.Overview ? h('p', { class: 'ep-overview clamp-2' }, episode.Overview) : null);
+    episode.Overview ? h('p', { class: 'ep-overview clamp-2' }, plainOverview(episode.Overview, { flat: true })) : null);
   // A long press offers the episode's actions (watched, favourite) instead of playing it, as on the cards.
   withActions(link, episode, { inTitle: true });
   return link;

@@ -1,0 +1,14 @@
+{
+  "about": "A title's summary as Jellyfin gives it (HTML from some metadata providers, AniList's « <br> » first), shown as plain text: <br> = a new line, a paragraph or two <br> = an empty line between paragraphs, other tags taken out, entities read (&nbsp; stays a space that does not break), spaces and empty lines collapsed. flat: on one line, for summaries cut at two lines (episodes). Read by tests/Mira.Core.Tests (OverviewText), tools/web/unit (overview.js) and the iPhone app (OverviewText): all must agree. cases: [name, Jellyfin's text, plain, flat]",
+  "cases": [
+    ["plain text stays as it is", "A boy fights.", "A boy fights.", "A boy fights."],
+    ["AniList: two <br> and a new line between paragraphs", "A boy fights... for \"the right death.\"<br>\n<br>\nHardship, regret, shame.<br>\n<br>\n(Source: Crunchyroll)<br>\n<br>\n", "A boy fights... for \"the right death.\"\n\nHardship, regret, shame.\n\n(Source: Crunchyroll)", "A boy fights... for \"the right death.\" Hardship, regret, shame. (Source: Crunchyroll)"],
+    ["one <br>: a new line", "Line one<br/>Line two<BR />Line three", "Line one\nLine two\nLine three", "Line one Line two Line three"],
+    ["paragraphs", "<p>First.</p><p>Second.</p>", "First.\n\nSecond.", "First. Second."],
+    ["other tags taken out, their text kept", "An <i>exorcist</i> and <b>a curse</b>, by <a href=\"https://anilist.co/staff/1\">Gege Akutami</a>.", "An exorcist and a curse, by Gege Akutami.", "An exorcist and a curse, by Gege Akutami."],
+    ["entities", "Tom &amp; Jerry &mdash; &laquo;&nbsp;l&#39;&eacute;t&eacute;&nbsp;&raquo; &#x2026; &lt;3 &quot;yes&quot; &rsquo;", "Tom & Jerry — « l'été » … <3 \"yes\" ’", "Tom & Jerry — « l'été » … <3 \"yes\" ’"],
+    ["a « < » that is no tag stays", "If a < b and b > c", "If a < b and b > c", "If a < b and b > c"],
+    ["new lines of Jellyfin's own, spaces and empty lines collapsed", "  First   line  \r\n\r\n\r\n\r\n  Second\tline  ", "First line\n\nSecond line", "First line Second line"],
+    ["only tags: nothing", "<br><br>", "", ""]
+  ]
+}

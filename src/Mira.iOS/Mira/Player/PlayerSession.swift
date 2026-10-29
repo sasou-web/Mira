@@ -719,7 +719,7 @@ final class PlayerSession: NSObject {
         }
         var items = [entry(.commonIdentifierTitle, heading.title as NSString)]
         if let subtitle = heading.subtitle { items.append(entry(.iTunesMetadataTrackSubTitle, subtitle as NSString)) }
-        if let overview = item.overview, !overview.isEmpty { items.append(entry(.commonIdentifierDescription, overview as NSString)) }
+        if case let overview = OverviewText.plain(item.overview), !overview.isEmpty { items.append(entry(.commonIdentifierDescription, overview as NSString)) }
         if let artwork { items.append(entry(.commonIdentifierArtwork, artwork as NSData)) }
         return items
     }

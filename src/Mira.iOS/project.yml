@@ -101,6 +101,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/new-episodes.json
         buildPhase: resources
+      - path: ../../tests/fixtures/overview.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

@@ -295,7 +295,7 @@ public partial class MainWindow
         var kind = item.Type switch { "Series" => L("SÉRIE", "SERIES"), "Episode" => L("ÉPISODE", "EPISODE"), _ => L("FILM", "MOVIE") };
         DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
         RenderDetailMeta();
-        DetailOverview.Text = PlainText(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title."));
+        DetailOverview.Text = OverviewText.Plain(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title."));
         ShowGenres(item);
         ShowPeople(DetailCast, item.CastPeople, false); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -348,7 +348,7 @@ public partial class MainWindow
             var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(21, 0, 20, 0) }; Grid.SetColumn(copy, 1);
             var title = episode.IndexNumber is { } number ? $"{number:00}   {episode.Name}" : episode.Name;
             copy.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            copy.Children.Add(new TextBlock { Text = PlainText(episode.Overview ?? ""), FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 7, 0, 0) });
+            copy.Children.Add(new TextBlock { Text = OverviewText.Plain(episode.Overview, flat: true), FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 36, LineHeight = 18, Margin = new Thickness(0, 7, 0, 0) });
             grid.Children.Add(copy);
             var status = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right }; Grid.SetColumn(status, 2);
             status.Children.Add(new TextBlock { Text = episode.DurationLabel, FontSize = 12, FontWeight = FontWeights.Normal, Foreground = Palette.Get("Muted"), HorizontalAlignment = HorizontalAlignment.Right });

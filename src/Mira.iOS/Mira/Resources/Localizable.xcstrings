@@ -860,6 +860,26 @@
         }
       }
     },
+    "More": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus"
+          }
+        }
+      }
+    },
+    "Shows the whole summary": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affiche tout le résumé"
+          }
+        }
+      }
+    },
     "external file": {
       "localizations": {
         "fr": {

@@ -50,7 +50,10 @@ const SEASON = 'd0e9f2a1b4c53d6e7f8a9b0c1d2e3f40';
 const MOVIES = 'f1e2d3c4b5a69788796a5b4c3d2e1f00', SHOWS = 'f2e3d4c5b6a7988796a5b4c3d2e1f011';
 const series = {
   Id: SERIES, Name: 'Pioneer One', Type: 'Series', ProductionYear: 2010, ChildCount: 1, Genres: ['Drama', 'Science Fiction'],
-  Overview: 'An object in the sky spreads radiation over North America. Fearing terrorism, U.S. Homeland Security agents are dispatched to investigate.',
+  // In HTML, as AniList's summaries come through Jellyfin: the app shows it as text, four lines then « More ».
+  Overview: 'An object in the sky spreads radiation over North America.<br>\n<br>\nFearing terrorism, U.S. Homeland Security agents are dispatched to investigate. '
+    + 'What they find in the wreckage changes the way they see the &laquo;&nbsp;space race&nbsp;&raquo; and the story they were told about it.<br>\n<br>\n'
+    + 'They must decide what to tell the world, and how much of it, before somebody else does.<br>\n<br>\n(Source: <i>VODO</i>)<br>',
   ImageTags: art(SERIES, 'Primary', 'Thumb'), BackdropImageTags: [`b-${SERIES}`], UserData: { Played: false, IsFavorite: true, UnplayedItemCount: 4 },
 };
 function episode(number, name, extra = {}) {
