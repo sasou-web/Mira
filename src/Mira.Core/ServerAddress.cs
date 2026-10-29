@@ -71,11 +71,14 @@ public static partial class ServerAddress
             while (true)
             {
                 ct.ThrowIfCancellationRequested();
-                // The first candidate, in order, that has either answered or is still out.
+                // The first candidate, in order, that has either answered or is still out. They end on other threads meanwhile:
+                // when that one, or every one still out, ends between two looks, all are looked at again.
                 var first = First(i => !probes[i].IsCompleted || Answered(i));
                 if (first < 0) break;
-                if (probes[first].IsCompleted) return Supported(probes[first].Result.Info!);
-                var pending = Task.WhenAny(probes.Where(x => !x.IsCompleted));
+                if (Answered(first)) return Supported(probes[first].Result.Info!);
+                var waiting = probes.Where(x => !x.IsCompleted).ToList();
+                if (probes[first].IsCompleted || waiting.Count == 0) continue;
+                var pending = Task.WhenAny(waiting);
                 // A less preferred address already answers: the preferred one gets a moment, not its whole timeout.
                 if (First(Answered) is var answered and >= 0)
                 {
