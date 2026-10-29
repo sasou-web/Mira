@@ -431,8 +431,9 @@ final class PlayerSession: NSObject {
             return
         }
         // « Next episode automatically » off: the episode ends there (the group's choice in a group).
-        let known = nextItem
-        guard item.isEpisode, asked || app?.preferences.autoNext != false || inGroup, let next = known ?? (try? await client.episode(after: item)), !closed else {
+        var found = nextItem
+        if found == nil, item.isEpisode { found = try? await client.episode(after: item) }
+        guard item.isEpisode, asked || app?.preferences.autoNext != false || inGroup, let next = found, !closed else {
             close()
             return
         }
