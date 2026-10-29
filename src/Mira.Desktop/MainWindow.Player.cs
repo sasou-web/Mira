@@ -164,6 +164,7 @@ public partial class MainWindow
         var reopened = _wake == WakeState.Reloading; _wake = WakeState.None; _recoveryLoad = false;
         _starvedSince = null; _buffering = false; ShowPlayerStatus(null);
         _loaded = true; SeekBar.IsEnabled = true; SetPlayerLoading(false); ShowPlayerControls(); _session.Paused = _mpv.Flag("pause"); _session.Duration = _mpv.Number("duration", _session.Duration); _session.Position = _mpv.Number("time-pos", _session.Position);
+        _stallFrom = _session.Position;
         SeekBar.SetPlayback(_session.Position, _session.Duration, !_session.Paused, _mpv.Number("speed", 1)); LoadFileChapters();
         UpdateWindowsPlayback();
         // Reopened (after sleep, another quality, the connection back): the same playback goes on for Jellyfin, told at
@@ -222,7 +223,7 @@ public partial class MainWindow
         try
         {
             UpdatePlayerControls(); UpdateGroupPill(); _mpv.Poll(); if (_mpv is null || !_loaded || !_playing) return;
-            ShowBuffering(); KeepTracks();
+            ShowBuffering(); WatchStall(); KeepTracks();
             _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position)); _session.Duration = _mpv.Number("duration", _session.Duration);
             var paused = _mpv.Flag("pause"); ShowPauseState(paused);
             // The timeline interpolates between these polls on every frame.
@@ -436,7 +437,7 @@ public partial class MainWindow
     /// <summary>mpv may report the pre-seek time for a poll or two; keep the requested time meanwhile.</summary>
     private void HoldPosition(double target)
     {
-        _session.Hold(target, DateTimeOffset.UtcNow); SeekBar.Hold(target); PositionText.Text = TimeLabel(target);
+        _session.Hold(target, DateTimeOffset.UtcNow); SeekBar.Hold(target); PositionText.Text = TimeLabel(target); _stallFrom = target;
     }
     private double ReportedPosition(double reported) => _session.Settled(reported, DateTimeOffset.UtcNow);
     private void Volume_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { ShowVolumeLevel(); if (_initializing) return; _settings.Volume = e.NewValue; _mpv?.SetLevel(e.NewValue); if (e.NewValue > 0) { _lastAudibleVolume = e.NewValue; _mpv?.Set("mute", "no"); } }

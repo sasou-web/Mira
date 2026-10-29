@@ -299,6 +299,15 @@ public sealed class StreamRecovery
     /// <summary>« Lecture impossible » when the stream opened again stopped again at once (as Mira web).</summary>
     public static string StuckText => L("Jellyfin répond, mais la vidéo n’arrive plus jusqu’ici. Réessaie, ou choisis une qualité plus basse si la connexion est lente.",
         "Jellyfin is answering, but the video stopped coming through. Try again, or pick a lower quality if the connection is slow.");
+    /// <summary>Played, then waiting for data this long while it should play: the stream is stuck (Mira web's STALL_LIMIT).</summary>
+    public static readonly TimeSpan StallLimit = TimeSpan.FromSeconds(15);
+    /// <summary>Opened or moved, nothing played since, this long: stuck too (a conversion starts slowly; START_LIMIT).</summary>
+    public static readonly TimeSpan StartLimit = TimeSpan.FromSeconds(45);
+    /// <summary>
+    /// mpv waiting for data for <paramref name="waiting"/>, <paramref name="moved"/> when it played since it was opened or
+    /// moved: the connection may be gone without mpv ever ending the file (a PC that goes off), so Mira decides.
+    /// </summary>
+    public static bool Stuck(TimeSpan waiting, bool moved) => waiting >= (moved ? StallLimit : StartLimit);
     private double? _reopenedAt;
     /// <summary>An end at <paramref name="position"/> before <see cref="LibraryStore.WatchedThreshold"/> of the title: a cut.</summary>
     public static bool CutShort(double position, double duration) => duration > 0 && position < duration * LibraryStore.WatchedThreshold;

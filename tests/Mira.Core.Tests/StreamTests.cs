@@ -198,6 +198,8 @@ internal static class StreamTests
             Assert(recovery.Step(true) == RecoveryStep.Reopen, "Past 30 s: the next cut is reopened again");
             recovery.Reopening(700); recovery.Reset();
             Assert(recovery.Step(true) == RecoveryStep.Reopen, "Another try starts over");
+            Assert(!StreamRecovery.Stuck(TimeSpan.FromSeconds(14), moved: true) && StreamRecovery.Stuck(TimeSpan.FromSeconds(15), moved: true), "Played, then 15 s without data: stuck");
+            Assert(!StreamRecovery.Stuck(TimeSpan.FromSeconds(30), moved: false) && StreamRecovery.Stuck(TimeSpan.FromSeconds(45), moved: false), "Opened or moved: 45 s");
             var session = new PlaybackSession();
             session.Begin(new MediaItem { Id = "item-1", Name = "Film" }, Source(), "session-1", 10, "Transcode");
             session.Failure = "cut"; session.Reported = true;
