@@ -57,7 +57,7 @@ for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 't
 }
 // A library added while Jellyfin is still starting may be scanned empty: scans again until every file is in, and
 // read (a title without its length yet has no HLS subtitles: Jellyfin refuses their playlists).
-let scans = 0;
+let scans = 0, seen = 'nothing yet';
 const items = await until('the library scan', async () => {
   const result = await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Episode&fields=MediaSources`, { token });
   // Without the episodes TheTVDB's plugin adds (tools/web/fake-tvdb in web.yml): no file, never read.
@@ -67,11 +67,13 @@ const items = await until('the library scan', async () => {
   // saga, made by Jellyfin once the films are in.
   // The test media of tools/web/media.sh: 4 films and 11 episodes of 5 series (one in Animes), all in before the check
   // starts: a scan that has not reached Animes yet left the library empty for the check of Jellyfin 12.4.
+  seen = `${result.Items.length} films and episodes, ${result.Items.filter((x) => !(x.RunTimeTicks > 0 && x.MediaSources?.[0]?.RunTimeTicks > 0)).length} without their length`;
   const titles = read && result.Items.length >= 15 ? await call('GET', `Items?userId=${signIn.User.Id}&recursive=true&includeItemTypes=Movie,Series,BoxSet&fields=SpecialFeatureCount`, { token }) : null;
+  if (titles) seen += `, ${titles.Items?.filter((x) => x.Type === 'Series').length} series, ${(titles.Items ?? []).reduce((sum, x) => sum + (x.SpecialFeatureCount ?? 0), 0)} bonus videos, ${titles.Items?.some((x) => x.Type === 'BoxSet') ? 'a' : 'no'} saga`;
   if (titles && (titles.Items ?? []).filter((x) => x.Type === 'Series').length >= 5 && (titles.Items ?? []).reduce((sum, x) => sum + (x.SpecialFeatureCount ?? 0), 0) >= 3 && (!sagas || titles.Items.some((x) => x.Type === 'BoxSet'))) return result.Items;
   if (scans++ % 15 === 0) await call('POST', 'Library/Refresh', { token });
   return null;
-}, 240);
+}, 240).catch((error) => { throw new Error(`${error.message}: ${seen}`); });
 console.log(`Library: ${items.length} films and episodes`);
 
 if (repository) {
