@@ -123,6 +123,15 @@ internal static class ConnectionTests
             await Refused("http://nas:8096", Serve(_ => Info("10.8.13")), "10.8.13");
             await Refused("https://nas", Serve(_ => throw new HttpRequestException("TLS", new System.Security.Authentication.AuthenticationException())), "certificat");
             await Refused("nas", Serve(_ => throw new HttpRequestException("refusé")), "Aucun serveur Jellyfin");
+            // Every address fails at the same instant, while the search looks at them (Mira's Tailscale node refuses ports 443
+            // and 80 at once): said in words each time, never an error of the search itself.
+            for (var round = 0; round < 300; round++)
+            {
+                var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var together = Refused("nas", new Handler(async _ => { await gate.Task; throw new HttpRequestException("refusé"); }), "Aucun serveur Jellyfin");
+                gate.SetResult();
+                await together;
+            }
         });
         await Test("Serveur trouvé sans le taper : réponse de Jellyfin sur le réseau, appareils Tailscale, ordre et adresse gardée", () =>
         {
