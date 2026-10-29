@@ -138,10 +138,15 @@ sealed class SyncProgress<T>(Action<T> report) : IProgress<T> { public void Repo
 sealed class TokenStandIn : Mira.Mac.Services.ITokenStore
 {
     public Dictionary<string, string> Tokens { get; } = [];
+    public Dictionary<string, string> Labels { get; } = [];
+    /// <summary>Refuses everything (locked, question declined); only storing; only removing.</summary>
     public bool Refuse { get; set; }
-    public bool Store(string account, string token) { if (Refuse) return false; Tokens[account] = token; return true; }
-    public string? Read(string account) => Refuse ? null : Tokens.GetValueOrDefault(account);
-    public bool Delete(string account) { if (Refuse) return false; Tokens.Remove(account); return true; }
+    public bool RefuseStore { get; set; }
+    public bool RefuseDelete { get; set; }
+    public bool Missing { get; private set; }
+    public bool Store(string account, string token, string label = "Mira") { if (Refuse || RefuseStore) return false; Tokens[account] = token; Labels[account] = label; return true; }
+    public string? Read(string account) { Missing = !Refuse && !Tokens.ContainsKey(account); return Refuse ? null : Tokens.GetValueOrDefault(account); }
+    public bool Delete(string account) { if (Refuse || RefuseDelete) return false; Tokens.Remove(account); return true; }
 }
 sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
 { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request).WaitAsync(cancellationToken); }

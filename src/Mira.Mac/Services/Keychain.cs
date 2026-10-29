@@ -5,7 +5,8 @@ namespace Mira.Mac.Services;
 
 /// <summary>
 /// The login keychain, through Security.framework's SecItem calls (SecKeychain…GenericPassword is deprecated since
-/// macOS 10.10): one generic password « Mira » per profile, the profile's folder as its account. The item trusts the copy
+/// macOS 10.10): one generic password « Mira » per profile, the profile's folder as its account, and « Mira (Tailscale) »
+/// for the key of its Tailscale node, the node's folder as its account. The item trusts the copy
 /// of Mira that wrote it: macOS asks before another program, or a later Mira (signed ad hoc, so another identity for
 /// macOS), reads it. Not the data protection keychain: it needs an entitlement only an Apple developer account signs.
 /// Every failure, a missing framework included, answers false or null; <see cref="Status"/> keeps the code.
@@ -55,15 +56,17 @@ public sealed partial class Keychain : ITokenStore
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return null; }
     });
 
-    public bool Store(string account, string token) => Item(account, false, (names, item) =>
+    public bool Store(string account, string token, string label = Service) => Item(account, false, (names, item) =>
     {
         // A new item each time rather than an update: it trusts this copy of Mira, which then reads it without a question.
         if (!Remove(names, item)) return false;
         var bytes = Encoding.UTF8.GetBytes(token);
-        IntPtr data = CFDataCreate(IntPtr.Zero, bytes, bytes.Length), label = Text(Service);
-        try { return data != IntPtr.Zero && label != IntPtr.Zero && With(names, [.. item, (names.Label, label), (names.Data, data)], attributes => SecItemAdd(attributes, IntPtr.Zero)) == Success; }
-        finally { Release(data); Release(label); }
+        IntPtr data = CFDataCreate(IntPtr.Zero, bytes, bytes.Length), name = Text(label);
+        try { return data != IntPtr.Zero && name != IntPtr.Zero && With(names, [.. item, (names.Label, name), (names.Data, data)], attributes => SecItemAdd(attributes, IntPtr.Zero)) == Success; }
+        finally { Release(data); Release(name); }
     });
+    /// <summary>The last <see cref="Read"/> found no item for its account: not one it could not read.</summary>
+    public bool Missing => Status == ItemNotFound;
 
     public string? Read(string account) => Item(account, (string?)null, (names, item) =>
     {

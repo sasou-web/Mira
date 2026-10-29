@@ -18,8 +18,9 @@ using static TestSupport;
 /// Mira's own Tailscale node, seen from the apps: the reasons the Go node gives (src/Mira.Tailscale) are those the apps
 /// explain, a failure of the node is a network failure like any other, each address takes the way the three apps agree
 /// on (tests/fixtures/tailnet.json), and Mira's requests, WebSocket and player reach a device of the tailnet through the
-/// node's proxy. With MIRA_TAILNET_HELPER and MIRA_TAILNET_TESTNET (the tailscale job of ci.yml), the same with the real
-/// helper on a Tailscale network of its own, and mpv too with MIRA_TAILNET_MPV.
+/// node's proxy. With MIRA_TAILNET_HELPER and MIRA_TAILNET_TESTNET (the tailscale job of ci.yml; mac.yml with the node of
+/// Mira.app, its version in MIRA_TAILNET_VERSION), the same with the real helper on a Tailscale network of its own, and
+/// mpv too with MIRA_TAILNET_MPV.
 /// </summary>
 internal static class TailnetTests
 {
@@ -237,7 +238,7 @@ internal static class TailnetTests
             var log = Path.Combine(folder, "tailscale.log");
             await using var process = new TailnetProcess(new()
             {
-                Executable = helper, Directory = Path.Combine(folder, "node"), Hostname = "Mira-Test Mac", AppVersion = "test",
+                Executable = helper, Directory = Path.Combine(folder, "node"), Hostname = "Mira-Test Mac", AppVersion = Environment.GetEnvironmentVariable("MIRA_TAILNET_VERSION") is { Length: > 0 } version ? version : "test",
                 LogFile = log, StateKey = () => key, ControlUrl = control,
             });
             string Diagnostics() => (File.Exists(log) ? File.ReadAllText(log) : "(no log)") + "\n--- mira-testnet\n" + benchLog;

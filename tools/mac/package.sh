@@ -1,5 +1,6 @@
 #!/bin/bash
-# Builds Mira.app for Apple Silicon and its disk image, on a Mac with Homebrew's mpv and dylibbundler:
+# Builds Mira.app for Apple Silicon and its disk image, on a Mac with Homebrew's mpv and dylibbundler, Go (1.21 or later)
+# and Node, which build Mira's Tailscale node (tools/tailscale/build.mjs):
 #   tools/mac/package.sh 0.6.0   →   dist/mac/Mira.app, dist/mac/Mira-0.6.0-mac-arm64.dmg and its .sha256
 # No Apple Developer account: the app is signed ad hoc, so macOS asks once to allow it (see docs/INSTALLATION.md).
 set -euo pipefail
@@ -18,11 +19,16 @@ rm -rf "$OUT" && mkdir -p "$OUT"
 # 1. Mira, with its own .NET runtime: nothing to install beside it.
 dotnet publish "$ROOT/src/Mira.Mac/Mira.Mac.csproj" -c Release -r osx-arm64 --self-contained true \
   -p:Version="$VERSION" -p:UseAppHost=true -p:DebugType=none -p:DebugSymbols=false -o "$OUT/publish"
+# 1b. « Tailscale intégré »: mira-tailscale, Mira's own Tailscale node (src/Mira.Tailscale), built for this version as
+# Mira for Windows builds its own: pure Go, the same bytes on every Mac, with the licences of the modules it links.
+node "$ROOT/tools/tailscale/build.mjs" darwin/arm64 "$OUT/tailscale" --version "$VERSION"
 
 # 2. The bundle. English and French (CFBundleLocalizations): macOS's own panels (open file…) follow the Mac's language,
 # as Mira's texts do (SystemLanguage).
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp -R "$OUT/publish/." "$APP/Contents/MacOS/"
+# Beside Mira, which starts it from there (TailnetExecutable); the bundle's signature covers it (step 5).
+cp "$OUT/tailscale/mira-tailscale" "$APP/Contents/MacOS/mira-tailscale"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -84,7 +90,7 @@ done
 if otool -L "$APP"/Contents/Frameworks/*.dylib | grep -E "^\s+($BREW|/usr/local/(opt|Cellar))"; then echo "libraries still linked to Homebrew" >&2; exit 1; fi
 # Nothing may ask for a macOS newer than the one Mira declares: it would fail to load there, after the Mac let it open.
 newer=0
-for binary in "$APP/Contents/MacOS/Mira" "$APP"/Contents/MacOS/*.dylib "$APP"/Contents/Frameworks/*.dylib; do
+for binary in "$APP/Contents/MacOS/Mira" "$APP/Contents/MacOS/mira-tailscale" "$APP"/Contents/MacOS/*.dylib "$APP"/Contents/Frameworks/*.dylib; do
   [ -f "$binary" ] || continue
   # awk reads to the end: leaving early would stop otool with SIGPIPE, which pipefail turns into a failed build.
   needs=$(otool -l "$binary" | awk '/LC_BUILD_VERSION/ { build = 1 } /LC_VERSION_MIN_MACOSX/ { old = 1 }
@@ -102,6 +108,9 @@ if [ "$newer" -ne 0 ]; then exit 1; fi
 RESOURCES="$APP/Contents/Resources"
 cp "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$RESOURCES/"
 cp -R "$ROOT/licenses" "$RESOURCES/licenses"
+# The Tailscale node's: Go's and each module's (Tailscale, WireGuard, gVisor…), listed in MODULES.txt with their versions.
+cp -R "$OUT/tailscale/licenses" "$RESOURCES/licenses/mira-tailscale"
+[ -s "$RESOURCES/licenses/mira-tailscale/MODULES.txt" ] || { echo "licenses/mira-tailscale/MODULES.txt missing" >&2; exit 1; }
 mkdir -p "$RESOURCES/licenses/homebrew"
 # A library's formula and version, from where Homebrew keeps it: <prefix>/Cellar/<formula>/<version>/lib/<file>.
 cellar() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
@@ -182,6 +191,20 @@ codesign --verify --deep --strict --verbose=1 "$APP"
 # libmpv loaded here from the bundle, as Mira loads it: whatever dyld refuses (a library missing, an rpath twice) stops
 # the build with its reason, instead of a player that never starts on every Mac.
 python3 -c 'import ctypes, sys; ctypes.CDLL(sys.argv[1])' "$APP/Contents/Frameworks/libmpv.2.dylib"
+# The node too, signed as it ships, started as Mira starts it: its first line says the protocol, this version and that it
+# can upload no log to Tailscale; then it ends with its input. macOS refusing it (its signature) stops the build here.
+node_out=$("$APP/Contents/MacOS/mira-tailscale" < /dev/null)
+python3 - "${node_out%%$'\n'*}" "$VERSION" <<'PY'
+import json, sys
+line, version = sys.argv[1:3]
+try:
+    hello = json.loads(line)
+except ValueError:
+    sys.exit(f"mira-tailscale: not a JSON line: {line!r}")
+if hello.get("event") != "hello" or hello.get("version") != version or hello.get("logUpload") is not False:
+    sys.exit(f"mira-tailscale: hello for {version} without log upload expected, got {line}")
+print(f"mira-tailscale {version}: Tailscale {hello.get('tailscale')}, {hello.get('go')}, no log upload")
+PY
 
 # 6. The disk image: Mira and a link to Applications, to drag one onto the other, in a window laid out for it (picture,
 # places, size, no toolbar nor sidebar, Mira's icon on the volume: tools/mac/dmg). dmgbuild writes the window's .DS_Store
