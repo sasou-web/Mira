@@ -38,7 +38,7 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/Start", item: Self.tearsOfSteel, timeout: 30), "Jellyfin never heard that playback started")
         Thread.sleep(forTimeInterval: 1.5)
         capture("05-player")
-        closePlayer(app)
+        closePlayer(app, folded: "05d-mini-folded")
         XCTAssertTrue(waitForReport("/Stopped", item: Self.tearsOfSteel, timeout: 20), "Jellyfin never heard that playback stopped")
         XCTAssertTrue(app.buttons["title.play"].waitForExistence(timeout: 10), "Closing the player did not lead back to the title page")
         // Favorite, then not: Jellyfin is told each time, and the page reads it back.
@@ -292,15 +292,23 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/Stopped", item: Self.sintel, timeout: 20), "Closing the bar did not stop Sintel")
     }
 
-    /// Reduces Mira's player to the bar over the tabs, then closes it there.
+    /// Reduces Mira's player to the bar over the tabs, then closes it there. Scrolled down, the tab bar is folded and
+    /// the bar sits beside it (captured as `folded`): scrolling back up unfolds both.
     @MainActor
-    private func closePlayer(_ app: XCUIApplication) {
+    private func closePlayer(_ app: XCUIApplication, folded: String? = nil) {
         let minimize = app.buttons["player.minimize"]
         if !minimize.waitForExistence(timeout: 2) { tapPicture(app) }
         XCTAssertTrue(minimize.waitForExistence(timeout: 5), "The player shows no Reduce button")
         minimize.tap()
         XCUIDevice.shared.orientation = .portrait
         let close = app.buttons["mini.close"]
+        if !close.waitForExistence(timeout: 4) {
+            if let folded {
+                settle()
+                capture(folded)
+            }
+            app.swipeDown()
+        }
         XCTAssertTrue(close.waitForExistence(timeout: 10), "Reducing the player showed no bar over the tabs")
         close.tap()
     }

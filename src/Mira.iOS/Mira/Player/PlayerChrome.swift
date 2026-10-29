@@ -41,15 +41,19 @@ struct PlayerChrome: View {
     }
 }
 
-/// Darker at the top and the bottom, where the controls are, so that they read on any picture.
+/// The picture dimmed under the controls, as YouTube does, and darker still at the top and the bottom, where the text
+/// is, so that they read on any picture (a white sky, a test card).
 private struct Scrims: View {
     var body: some View {
-        VStack(spacing: 0) {
-            LinearGradient(colors: [.black.opacity(0.62), .clear], startPoint: .top, endPoint: .bottom)
-                .frame(maxHeight: .infinity)
-            Color.clear.frame(maxHeight: .infinity)
-            LinearGradient(colors: [.clear, .black.opacity(0.78)], startPoint: .top, endPoint: .bottom)
-                .frame(maxHeight: .infinity)
+        ZStack {
+            Color.black.opacity(0.3)
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.black.opacity(0.5), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(maxHeight: .infinity)
+                Color.clear.frame(maxHeight: .infinity)
+                LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .top, endPoint: .bottom)
+                    .frame(maxHeight: .infinity)
+            }
         }
         .ignoresSafeArea()
     }
@@ -111,22 +115,31 @@ private struct TracksMenu: View {
 
     var body: some View {
         Menu {
+            // An inline picker shows no title in a menu: its section does.
             if model.audio.count > 1 {
-                Picker(selection: Binding(get: { model.audioIndex ?? -2 }, set: { model.actions?.selectAudio($0) })) {
-                    ForEach(model.audio) { Text(verbatim: $0.name).tag($0.index) }
-                } label: {
+                Section {
+                    Picker(selection: Binding(get: { model.audioIndex ?? -2 }, set: { model.actions?.selectAudio($0) })) {
+                        ForEach(model.audio) { Text(verbatim: $0.name).tag($0.index) }
+                    } label: {
+                        Text("Audio")
+                    }
+                    .pickerStyle(.inline)
+                } header: {
                     Text("Audio")
                 }
-                .pickerStyle(.inline)
             }
             if !model.subtitles.isEmpty {
-                Picker(selection: Binding(get: { model.subtitleIndex }, set: { model.actions?.selectSubtitles($0) })) {
-                    Text("Off").tag(-1)
-                    ForEach(model.subtitles) { Text(verbatim: $0.name).tag($0.index) }
-                } label: {
+                Section {
+                    Picker(selection: Binding(get: { model.subtitleIndex }, set: { model.actions?.selectSubtitles($0) })) {
+                        Text("Off").tag(-1)
+                        ForEach(model.subtitles) { Text(verbatim: $0.name).tag($0.index) }
+                    } label: {
+                        Text("Subtitles")
+                    }
+                    .pickerStyle(.inline)
+                } header: {
                     Text("Subtitles")
                 }
-                .pickerStyle(.inline)
             }
         } label: {
             ToolIcon(symbol: model.subtitleIndex >= 0 ? "captions.bubble.fill" : "captions.bubble")
@@ -285,9 +298,9 @@ private struct BottomBar: View {
 
     var body: some View {
         VStack(spacing: 4) {
+            // While the finger is on the timeline, only the timeline and its thumbnail.
             HStack(alignment: .center, spacing: 10) {
                 TimeText(model: model)
-                    .opacity(model.scrubbing ? 0 : 1)
                 Spacer(minLength: 8)
                 if model.speed != 1 && !model.inGroup {
                     Text(verbatim: MoreMenu.speedName(model.speed))
@@ -321,6 +334,7 @@ private struct BottomBar: View {
                     }
                 }
             }
+            .opacity(model.scrubbing ? 0 : 1)
             ScrubBar(model: model)
         }
         .region("bottom", model)
@@ -401,14 +415,13 @@ private struct ScrubBar: View {
                 model.actions?.seek(to: target)
             })
             .overlay(alignment: .bottomLeading) {
+                // Over the finger, kept inside the bar at both ends.
                 if model.scrubbing {
+                    let tip = ScrubTip.width
                     ScrubTip(model: model)
-                        .alignmentGuide(.leading) { tip in
-                            let center = width * played
-                            return -min(max(0, center - tip.width / 2), max(0, width - tip.width))
-                        }
-                        .alignmentGuide(.bottom) { tip in tip.height + 44 }
-                        .transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .bottom)))
+                        .frame(width: tip)
+                        .offset(x: min(max(0, width * played - tip / 2), max(0, width - tip)), y: -40)
+                        .transition(.opacity)
                 }
             }
         }
@@ -454,7 +467,6 @@ private struct ScrubTip: View {
             .padding(.vertical, 4)
             .glassEffect(.regular, in: .rect(cornerRadius: 10))
         }
-        .frame(maxWidth: Self.width + 40)
         .accessibilityHidden(true)
     }
 
@@ -639,7 +651,7 @@ private struct UnlockButton: View {
             model.lockHint = false
             model.showControls()
         } label: {
-            Label("Locked · Tap to unlock", systemImage: "lock.open.fill")
+            Label("Locked · Tap to unlock", systemImage: "lock.fill")
                 .font(MiraFont.callout)
                 .padding(.horizontal, 18)
                 .frame(height: 46)
