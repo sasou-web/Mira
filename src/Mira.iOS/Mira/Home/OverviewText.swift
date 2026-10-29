@@ -44,7 +44,8 @@ enum OverviewText {
 }
 
 /// A summary cut at a few lines, with « More » once it really is cut (as Mira web): the episodes of a series come
-/// right under it. A tap on the text opens it too.
+/// right under it. Cut, its paragraphs run on, so that its lines are full; open, they are back. A tap on the text opens
+/// it too.
 struct ClampedText: View {
     let text: String
     var lines = 4
@@ -53,16 +54,19 @@ struct ClampedText: View {
     @State private var shown: CGFloat = 0
 
     private var cut: Bool { !open && whole > shown + 1 }
+    private var runOn: String {
+        text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(verbatim: text)
+            Text(verbatim: open ? text : runOn)
                 .lineLimit(open ? nil : lines)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(alignment: .topLeading) {
                     // The text whole, unseen: its height tells whether the lines shown cut it.
-                    Text(verbatim: text)
+                    Text(verbatim: open ? text : runOn)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                         .hidden()

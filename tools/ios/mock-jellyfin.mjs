@@ -1,6 +1,8 @@
 // A stand-in Jellyfin for the tests of Mira for iPhone on the simulator (ios.yml): the answers Mira asks for to sign in
 // and to draw Home, about the Blender Foundation's free films and Pioneer One, with pictures drawn here (gradients),
-// so the captures need neither a real server nor anything from the Internet. Account « ogsas », password « mira ».
+// so the captures need neither a real server nor anything from the Internet; Tears of Steel has a real backdrop and a
+// logo (media/backdrop.jpg, media/logo.png), to see a title's page as with a real library. Account « ogsas », password
+// « mira ».
 // Every film and episode plays media/clip.mp4 (SMPTE bars and a tone, 10 s, H.264 and AAC in MP4) as it is; what the
 // player reports is listed at /Mock/Reports for the UI tests.
 //   node tools/ios/mock-jellyfin.mjs [port]   (18097 by default, on 127.0.0.1)
@@ -31,7 +33,8 @@ const films = [
     'A lonely young woman, Sintel, helps and befriends a dragon, whom she calls Scales. When he is kidnapped by an adult dragon, she sets out on a quest to find him.',
     { UserData: { Played: false, IsFavorite: true, PlaybackPositionTicks: minutes(6), LastPlayedDate: days(1) } }),
   film('b2e1d4c3f6a75b8e9d0c1f2e3a4b5c6d', 'Tears of Steel', 2012, 12, ['Science Fiction'],
-    'In an attempt to save the world from destructive robots, a group of warriors and scientists stage a dramatic breakup scene in Amsterdam.'),
+    'In an attempt to save the world from destructive robots, a group of warriors and scientists stage a dramatic breakup scene in Amsterdam.',
+    { ImageTags: { ...art('b2e1d4c3f6a75b8e9d0c1f2e3a4b5c6d', 'Primary', 'Thumb'), Logo: 'l-b2e1d4c3' }, CommunityRating: 6.4, OfficialRating: 'PG-13' }),
   film('c3d2e5f4a7b86c9d0e1f2a3b4c5d6e7f', 'Spring', 2019, 8, ['Animation', 'Fantasy'],
     'The story of a shepherd girl and her dog, who face ancient spirits in order to continue the cycle of life.', { UserData: { Played: true, IsFavorite: true, PlaybackPositionTicks: 0 } }),
   film('d4e3f6a5b8c97d0e1f2a3b4c5d6e7f8a', 'Cosmos Laundromat', 2015, 12, ['Animation', 'Comedy'],
@@ -189,6 +192,12 @@ const server = http.createServer(async (req, res) => {
     return res.end(req.method === 'HEAD' ? undefined : clip.subarray(start, end + 1));
   }
   if (path === '/System/Ping') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('Jellyfin Server'); }
+  // Tears of Steel's own pictures, as a title of a real library has.
+  const file = path === `/Items/${films[1].Id}/Images/Backdrop/0` ? 'backdrop.jpg' : path === `/Items/${films[1].Id}/Images/Logo` ? 'logo.png' : null;
+  if (file) {
+    res.writeHead(200, { 'Content-Type': file.endsWith('.png') ? 'image/png' : 'image/jpeg', 'Cache-Control': 'public, max-age=31536000' });
+    return res.end(readFileSync(new URL(`media/${file}`, import.meta.url)));
+  }
   const image = /^\/Items\/([0-9a-f]+)\/Images\/(Primary|Thumb|Backdrop)(?:\/\d+)?$/.exec(path);
   if (image) {
     const width = Math.min(1200, Math.max(40, Number(q.get('maxWidth') ?? 400)));
