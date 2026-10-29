@@ -13,6 +13,15 @@ using static TestSupport;
 
 // Started again by the checks of TailnetProcess as the stand-in for mira-tailscale.
 if (args.Length > 0 && args[0] == "--fake-tailnet") return await FakeTailnet.RunAsync(args);
+// Started again by the check of ChildProcesses as a Mira: a long program tied to its life, its id written, then a wait to be ended.
+if (args.Length == 2 && args[0] == "--hold-child")
+{
+    using var held = Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "PING.EXE"), ["-n", "120", "127.0.0.1"]) { UseShellExecute = false, CreateNoWindow = true })!;
+    ChildProcesses.BindToMira(held);
+    File.WriteAllText(args[1] + ".part", held.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)); File.Move(args[1] + ".part", args[1], overwrite: true);
+    await Task.Delay(TimeSpan.FromMinutes(2));
+    return 0;
+}
 if (args.Contains("--prepare-ui"))
 {
     var profile = new LocalProfile(Path.GetFullPath(".artifacts/mock-profile"));
@@ -596,6 +605,24 @@ await Test("Tailscale intégré : clé de son état gardée par Windows, remplac
     profile.ForgetTailnet();
     Assert(!File.Exists(file) && !Directory.Exists(profile.TailnetDirectory), "Signed out, the node's key or state stays on this PC");
     return Task.CompletedTask;
+});
+await Test("Tailscale intégré : son programme finit avec Mira, même arrêtée par le Gestionnaire des tâches", async () =>
+{
+    // This program started again as a Mira (--hold-child), then ended as the Task Manager ends a program.
+    var written = Path.Combine(testRoot, "held-child.pid");
+    var self = Environment.ProcessPath!;
+    string[] prefix = Path.GetFileNameWithoutExtension(self).Equals("dotnet", StringComparison.OrdinalIgnoreCase) ? [System.Reflection.Assembly.GetEntryAssembly()!.Location] : [];
+    using var mira = Process.Start(new ProcessStartInfo(self, [.. prefix, "--hold-child", written]) { UseShellExecute = false, CreateNoWindow = true })!;
+    try
+    {
+        for (var timer = Stopwatch.StartNew(); !File.Exists(written); await Task.Delay(100))
+            Assert(timer.Elapsed.TotalSeconds < 30 && !mira.HasExited, "The stand-in of Mira did not start its program");
+        using var child = Process.GetProcessById(int.Parse(File.ReadAllText(written), System.Globalization.CultureInfo.InvariantCulture));
+        Assert(!child.HasExited, "The program ended on its own");
+        mira.Kill();
+        Assert(child.WaitForExit(10_000), "Mira ended, its program goes on");
+    }
+    finally { if (!mira.HasExited) mira.Kill(entireProcessTree: true); }
 });
 await Test("Profil : un identifiant d’appareil vide est remplacé, puis gardé", () =>
 {

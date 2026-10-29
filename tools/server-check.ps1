@@ -5,14 +5,18 @@ param(
     [string]$Output = '.artifacts/server',
     [string]$Work = '.artifacts/server-work',
     [string]$User = 'mira',
-    [string]$Password = 'mira-check'
+    [string]$Password = 'mira-check',
+    [string]$Testnet
 )
 # Mira for Windows against a real Jellyfin (Mira.exe --server-check, see docs/TESTS.md), run by ci.yml on the Windows
 # runner: $Jellyfin is a published Jellyfin (the folder of jellyfin.dll, run by dotnet), $Media the test media of
 # tools/web/media.sh, to which a 4-minute film at 4 Mb/s is added here (« Coupure Test »: converted under 1.5 Mb/s, long
 # enough to be cut halfway). A fresh Jellyfin prepared by tools/web/setup.mjs, libmpv as Mira installs it
 # (tools/mpv-engine.ps1), then Mira signed in at this PC's network address; the check stops and starts Jellyfin by the
-# two scripts written here. ffmpeg, Node.js and 7-Zip on the PATH. Windows PowerShell 5.1 and PowerShell 7.
+# two scripts written here. With -Testnet (mira-testnet.exe of src/Mira.Tailscale), then « Tailscale intégré »
+# (Mira.exe --tailnet-check, run twice on a profile of its own): Mira's own node on a Tailscale network of this PC only,
+# whose « Jellyfin PC » exposes the same Jellyfin. ffmpeg, Node.js and 7-Zip on the PATH. Windows PowerShell 5.1 and
+# PowerShell 7.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $Work = [IO.Path]::GetFullPath($Work); $Output = [IO.Path]::GetFullPath($Output); $Media = [IO.Path]::GetFullPath($Media); $Jellyfin = [IO.Path]::GetFullPath($Jellyfin)
@@ -60,6 +64,21 @@ $env:MIRA_STOP = "`"$powershell`" -NoProfile -ExecutionPolicy Bypass -File `"$st
 & $powershell -NoProfile -ExecutionPolicy Bypass -File $start
 if ($LASTEXITCODE -ne 0) { throw "Jellyfin did not start ($LASTEXITCODE)" }
 
+# One run of Mira.exe on a check: its lines PASS, INFO and FAIL in the log, a failure when one failed or none passed.
+function Invoke-MiraCheck([string]$Name, [string[]]$Arguments, [string]$Result, [int]$Minutes) {
+    if (Test-Path -LiteralPath $Result) { Remove-Item -LiteralPath $Result -Force }
+    $run = Start-Process -FilePath ([IO.Path]::GetFullPath($Executable)) -PassThru -ArgumentList $Arguments
+    if (-not $run.WaitForExit($Minutes * 60000)) { $run.Kill(); throw "The $Name did not finish within $Minutes minutes." }
+    if (-not (Test-Path -LiteralPath $Result)) { throw "The $Name wrote no result (exit code $($run.ExitCode))." }
+    $lines = Get-Content -LiteralPath $Result
+    $lines | Write-Output
+    $failed = @($lines | Where-Object { $_ -like 'FAIL*' }).Count
+    $passed = @($lines | Where-Object { $_ -like 'PASS*' }).Count
+    if ($failed -gt 0 -or $passed -eq 0) { throw "The $Name`: $passed passed, $failed failed." }
+    Write-Output "The $Name`: $passed passed."
+}
+
+$testnetProcess = $null
 try {
     & node (Join-Path $PSScriptRoot 'web/setup.mjs') 'http://127.0.0.1:8096' $Media $User $Password
     if ($LASTEXITCODE -ne 0) { throw 'Jellyfin setup failed.' }
@@ -73,21 +92,40 @@ try {
     $ping = Invoke-WebRequest -UseBasicParsing -Uri "$server/System/Ping" -TimeoutSec 10
     Write-Output "Jellyfin at $server ($($ping.StatusCode))"
 
-    $result = Join-Path $Output 'result.txt'
-    if (Test-Path -LiteralPath $result) { Remove-Item -LiteralPath $result -Force }
     $env:MIRA_CHECK_SERVER = $server; $env:MIRA_CHECK_USER = $User; $env:MIRA_CHECK_PASSWORD = $Password
-    $run = Start-Process -FilePath ([IO.Path]::GetFullPath($Executable)) -PassThru -ArgumentList @('--data', "`"$profilePath`"", '--server-check', "`"$Output`"")
-    if (-not $run.WaitForExit(900000)) { $run.Kill(); throw 'The server check did not finish within 15 minutes.' }
-    if (-not (Test-Path -LiteralPath $result)) { throw "The server check wrote no result (exit code $($run.ExitCode))." }
-    $lines = Get-Content -LiteralPath $result
-    $lines | Write-Output
-    $failed = @($lines | Where-Object { $_ -like 'FAIL*' }).Count
-    $passed = @($lines | Where-Object { $_ -like 'PASS*' }).Count
-    if ($failed -gt 0 -or $passed -eq 0) { throw "Server check: $passed passed, $failed failed." }
-    Write-Output "Server check: $passed passed."
+    Invoke-MiraCheck 'server check' @('--data', "`"$profilePath`"", '--server-check', "`"$Output`"") (Join-Path $Output 'result.txt') 15
+
+    if ($Testnet) {
+        # The test tailnet: its coordination server, relay and STUN on 127.0.0.1:18090, its « Jellyfin PC » exposing this
+        # Jellyfin on port 8096 of its Tailscale addresses; ready once it has written its description.
+        $tailnetProfile = Join-Path $Work 'tailnet-profile'; $tailnetOutput = Join-Path $Output 'tailnet'; $info = Join-Path $Work 'testnet.json'
+        foreach ($path in $tailnetProfile, $info) { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force } }
+        New-Item -ItemType Directory -Force -Path $tailnetOutput | Out-Null
+        & (Join-Path $PSScriptRoot 'mpv-engine.ps1') -Work $Work -ProfileFolder $tailnetProfile
+        $testnetProcess = Start-Process -FilePath ([IO.Path]::GetFullPath($Testnet)) -PassThru -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $Work 'testnet-out.log') -RedirectStandardError (Join-Path $Work 'testnet.log') `
+            -ArgumentList @('-addr', '127.0.0.1:18090', '-forward', '8096=127.0.0.1:8096', '-info', "`"$info`"")
+        for ($i = 0; -not (Test-Path -LiteralPath $info); $i++) {
+            if ($testnetProcess.HasExited -or $i -ge 240) { throw 'mira-testnet did not start.' }
+            Start-Sleep -Milliseconds 250
+        }
+        Write-Output "Test tailnet: $((Get-Content -LiteralPath $info -Raw).Trim())"
+        # Signed in on a fresh profile, then Mira started again on it, then signed out.
+        $arguments = @('--data', "`"$tailnetProfile`"", '--tailnet-check', "`"$tailnetOutput`"", '--tailnet-control', 'http://127.0.0.1:18090')
+        Invoke-MiraCheck 'tailnet check' $arguments (Join-Path $tailnetOutput 'result.txt') 10
+        Invoke-MiraCheck 'tailnet check, Mira started again' $arguments (Join-Path $tailnetOutput 'result-again.txt') 6
+    }
 }
 catch {
     Get-ChildItem -LiteralPath (Join-Path $data 'log') -Filter '*.log' | ForEach-Object { Write-Output "--- $($_.Name)"; Get-Content -LiteralPath $_.FullName -Tail 80 }
+    if ($testnetProcess) {
+        # Mira's node (its log on this PC hides login pages), then the test tailnet.
+        $node = Join-Path $Work 'tailnet-profile/tailscale/mira-tailscale.log'
+        foreach ($log in $node, (Join-Path $Work 'testnet.log')) { if (Test-Path -LiteralPath $log) { Write-Output "--- $(Split-Path -Leaf $log)"; Get-Content -LiteralPath $log -Tail 80 } }
+    }
     throw
 }
-finally { & $powershell -NoProfile -ExecutionPolicy Bypass -File $stop }
+finally {
+    if ($testnetProcess -and -not $testnetProcess.HasExited) { Stop-Process -Id $testnetProcess.Id -Force -ErrorAction SilentlyContinue }
+    & $powershell -NoProfile -ExecutionPolicy Bypass -File $stop
+}

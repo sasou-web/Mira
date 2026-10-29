@@ -133,7 +133,7 @@ public partial class MainWindow
     private bool PlayKeptSubtitle(JellyfinClient client, string itemId, string sourceId, MediaStream subtitle)
     {
         if (_mpv is null) return false;
-        _mpv.Set("http-header-fields", "Authorization: " + client.AuthorizationHeader.Replace(",", "\\,"));
+        _mpv.SetAuthorization(client.AuthorizationHeader);
         if (!TryCommand("sub-add", client.SubtitleUri(itemId, sourceId, subtitle).AbsoluteUri, "select", subtitle.DisplayTitle ?? "", subtitle.Language ?? "")) return false;
         RememberTracks();
         return true;

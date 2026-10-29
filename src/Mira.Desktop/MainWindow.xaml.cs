@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Data.Sqlite;
 using Mira.Core;
+using Mira.Core.Tailscale;
 using Mira.Desktop.Services;
 using Mira.Desktop.Views;
 
@@ -115,7 +116,7 @@ public partial class MainWindow : Window
         _initializing = false;
     }
     /// <summary>Validation runs set their own sizes, off screen: nothing is remembered from them.</summary>
-    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--server-check" or "--offscreen");
+    private bool ValidationRun => _args.Any(x => x is "--visual-check" or "--player-check" or "--public-gallery" or "--windows-check" or "--torlink-check" or "--server-check" or "--tailnet-check" or "--offscreen");
     /// <summary>
     /// The size the window had when Mira last closed, or the default one (1480 × 930), kept within the screen it opens
     /// on, with that screen's scale: a 1080p screen at 125 % has about 1536 × 826 usable, at 150 % about 1280 × 688 (see
@@ -160,9 +161,12 @@ public partial class MainWindow : Window
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.
+        await StartTailnetWithMiraAsync();
         if (_args.Contains("--demo")) await ShowDemoAsync();
         else if (_profile.LoadConnection() is { } connection) await ActivateConnectionAsync(connection);
         else { LoginOverlay.Visibility = Visibility.Visible; _ = RefreshTorLinkLibrariesAsync(); if (_invite is not null) _ = OfferInviteAsync(); else FindServer(); }
+        RenderTailnet(); _ = ReadTailscaleAppAsync();
         await RevealStartupAsync();
 #if MIRA_VALIDATION
         if (await RunRequestedCheckAsync()) return;
@@ -234,6 +238,12 @@ public partial class MainWindow : Window
             ConnectText.Text = L("Recherche du serveur…", "Looking for the server…");
             // No address yet: the one the search is finding.
             if (ServerBox.Text.Trim().Length == 0) await _loginSearch;
+            // A server on Tailscale, and nothing here to reach it: said at once, rather than after every address timed out.
+            if (OnTailnet(ServerBox.Text) && TailnetOffered)
+            {
+                await ReadTailscaleAppAsync();
+                if (!_tailscaleAppHere && !_settings.Tailnet && _tailnet?.SigningIn != true) { LoginError.Text = L("Ce serveur est sur Tailscale : connecte d’abord Tailscale intégré, juste au-dessus, ou installe l’app Tailscale.", "This server is on Tailscale: first sign in to Built-in Tailscale, just above, or install the Tailscale app."); return; }
+            }
             var server = await ServerAddress.DiscoverAsync(ServerBox.Text);
             ServerBox.Text = server.Address;
             if (server.Address != _warnedPlainHttp && await ServerAddress.ExposesPasswordAsync(server.Address)) { _warnedPlainHttp = server.Address; LoginError.Text = ServerAddress.PlainHttpWarning; return; }
@@ -579,6 +589,8 @@ public partial class MainWindow : Window
         UnauthorizedAccessException => FromMira(ex) ? ex.Message : L("Windows refuse à Mira l’accès à l’un de ses fichiers : vérifie que son dossier de données n’est pas en lecture seule.", "Windows denies Mira access to one of its files: check that its data folder isn’t read-only."),
         UserInputException => ex.Message,
         ServerDiscoveryException => ex.Message,
+        // Through « Tailscale intégré »: why the node could not reach Jellyfin's PC (MainWindow.Tailnet.cs says it with its device).
+        _ when TailnetNetwork.Find(ex) is { } node && TailnetText.Problem(node.Code) is { } said => said,
         OperationCanceledException => L("Jellyfin met trop de temps à répondre.", "Jellyfin is taking too long to answer."),
         HttpRequestException { StatusCode: { } status } => JellyfinClient.StatusMessage(status),
         HttpRequestException => L("Le serveur Jellyfin est momentanément inaccessible.", "The Jellyfin server can’t be reached right now."),
@@ -597,6 +609,7 @@ public partial class MainWindow : Window
     {
         ClosePreview(); UsernameBox.Text = _client?.Connection.UserName ?? "";
         if (_client is not null) ServerBox.Text = _client.Connection.Server; else if (ServerBox.Text.Trim().Length == 0) FindServer();
+        RenderTailnetLogin();
         LoginArt.Source = _demo ? null : HeroImage.Source;
         LogoutButton.Visibility = _profile.LoadConnection() is null ? Visibility.Collapsed : Visibility.Visible; EraseAccountData.IsChecked = false;
         BackToLibrary.Visibility = _client is not null || _demo ? Visibility.Visible : Visibility.Collapsed;

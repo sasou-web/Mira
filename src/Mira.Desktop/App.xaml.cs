@@ -29,7 +29,7 @@ public partial class App : Application
 #if !MIRA_VALIDATION
         // A package: the validation harnesses are not in it (Mira.Desktop.csproj), and their options open nothing.
         if (args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--public-gallery"
-            or "--readme-gallery" or "--server-check" or "--qa-window" or "--perf-probe" or "--test-media" or "--loop-test-media")) { Shutdown(2); return; }
+            or "--readme-gallery" or "--server-check" or "--tailnet-check" or "--qa-window" or "--perf-probe" or "--test-media" or "--loop-test-media" or "--tailnet-control")) { Shutdown(2); return; }
 #endif
         // The downloaded version replacing the old files: no window, no profile, no single-instance lock.
         if (args.FirstOrDefault() == "--apply-update") { Shutdown(UpdateApplier.Run(args)); return; }
@@ -112,7 +112,7 @@ public partial class App : Application
         try
         {
             var window = _window = new MainWindow(args);
-            if (args.Contains("--visual-check") || args.Contains("--player-check") || args.Contains("--public-gallery") || args.Contains("--readme-gallery") || args.Contains("--server-check")) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; window.ShowInTaskbar = false; }
+            if (args.Contains("--visual-check") || args.Contains("--player-check") || args.Contains("--public-gallery") || args.Contains("--readme-gallery") || args.Contains("--server-check") || args.Contains("--tailnet-check")) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; window.ShowInTaskbar = false; }
             // --offscreen: validation runs with an isolated profile (update checks) stay off the user's screen, closable as usual.
             else if (args.Contains("--offscreen") && dataArg >= 0) { window.ShowActivated = false; window.WindowStartupLocation = WindowStartupLocation.Manual; window.Left = -30000; window.Top = -30000; }
             if (args.Contains("--qa-window")) window.Title = L("Mira · Validation du lecteur", "Mira · Player validation");
@@ -183,7 +183,7 @@ public partial class App : Application
     private static void UseLanguage(string[] args, bool isolated, bool installed)
     {
         var forced = Array.IndexOf(args, "--language") is var at and >= 0 && at + 1 < args.Length && isolated ? args[at + 1] : null;
-        if (forced is null && args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--server-check" or "--qa-window" or "--perf-probe")) forced = Lang.French;
+        if (forced is null && args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--server-check" or "--tailnet-check" or "--qa-window" or "--perf-probe")) forced = Lang.French;
         Lang.Use(Lang.Resolve(forced ?? ChosenLanguage(AppFiles.ProfileDirectory), installed ? InstalledLanguage() : null, CultureInfo.CurrentUICulture));
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = Lang.Culture;
         // Dates, numbers and hyphenation that WPF formats itself (bindings, StringFormat).
