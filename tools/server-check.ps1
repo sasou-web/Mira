@@ -22,7 +22,11 @@ $profilePath = Join-Path $Work 'profile'
 if (Test-Path -LiteralPath $profilePath) { Remove-Item -LiteralPath $profilePath -Recurse -Force }
 & (Join-Path $PSScriptRoot 'mpv-engine.ps1') -Work $Work -ProfileFolder $profilePath
 
+# The real ffmpeg, not Chocolatey's shim: Jellyfin looks for ffprobe beside it.
 $ffmpeg = (Get-Command ffmpeg).Source
+if ($ffmpeg -like '*\chocolatey\bin\*') { $ffmpeg = (Get-ChildItem -Path (Join-Path (Split-Path (Split-Path $ffmpeg)) 'lib\ffmpeg') -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1).FullName }
+if (-not (Test-Path -LiteralPath (Join-Path (Split-Path $ffmpeg) 'ffprobe.exe'))) { throw "No ffprobe beside $ffmpeg" }
+Write-Output "ffmpeg: $ffmpeg"
 $cut = Join-Path $Media 'Films/Coupure Test (2025)'
 if (-not (Test-Path -LiteralPath $cut)) {
     New-Item -ItemType Directory -Force -Path $cut | Out-Null
@@ -79,10 +83,11 @@ try {
     $lines | Write-Output
     $failed = @($lines | Where-Object { $_ -like 'FAIL*' }).Count
     $passed = @($lines | Where-Object { $_ -like 'PASS*' }).Count
-    if ($failed -gt 0 -or $passed -eq 0) {
-        Get-ChildItem -LiteralPath (Join-Path $data 'log') -Filter '*.log' | ForEach-Object { Write-Output "--- $($_.Name)"; Get-Content -LiteralPath $_.FullName -Tail 80 }
-        throw "Server check: $passed passed, $failed failed."
-    }
+    if ($failed -gt 0 -or $passed -eq 0) { throw "Server check: $passed passed, $failed failed." }
     Write-Output "Server check: $passed passed."
+}
+catch {
+    Get-ChildItem -LiteralPath (Join-Path $data 'log') -Filter '*.log' | ForEach-Object { Write-Output "--- $($_.Name)"; Get-Content -LiteralPath $_.FullName -Tail 80 }
+    throw
 }
 finally { & $powershell -NoProfile -ExecutionPolicy Bypass -File $stop }
