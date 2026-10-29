@@ -7,9 +7,9 @@ name: iPhone build
 on:
   push:
     branches: [main]
-    paths: ["src/Mira.iOS/**", "tools/ios/**", ".github/workflows/ios.yml"]
+    paths: ["src/Mira.iOS/**", "tools/ios/**", "tests/fixtures/**", ".github/workflows/ios.yml"]
   pull_request:
-    paths: ["src/Mira.iOS/**", "tools/ios/**", ".github/workflows/ios.yml"]
+    paths: ["src/Mira.iOS/**", "tools/ios/**", "tests/fixtures/**", ".github/workflows/ios.yml"]
   # No "release: published": GitHub runs nothing for a draft, and an immutable release takes no file once published.
   workflow_dispatch:
     inputs:

@@ -12,7 +12,10 @@ struct HomeLibrary: Codable, Sendable, Hashable {
 /// « continue,favorites,-latest,library:id »: the order, a « - » before a row put away. Rows not in it yet (a new
 /// library) come after: the built-in rows shown, a library's own row put away.
 enum HomeLayout {
-    static let continueKey = "continue", latestKey = "latest", favoritesKey = "favorites", libraryPrefix = "library:"
+    static let continueKey = "continue", latestKey = "latest", favoritesKey = "favorites", collectionsKey = "collections", libraryPrefix = "library:"
+    /// Rows the rules know (the line stays the same as elsewhere) but this iPhone does not show yet: Collections, until
+    /// it has a page for a collection. Left out of Home and of Settings.
+    static let notOnIPhone: Set<String> = [collectionsKey]
 
     struct Row: Sendable, Hashable, Identifiable {
         let key: String
@@ -33,6 +36,7 @@ enum HomeLayout {
             Row(key: continueKey, title: String(localized: "Continue watching"), shown: true, library: nil),
             Row(key: latestKey, title: String(localized: "Recently added"), shown: true, library: nil),
             Row(key: favoritesKey, title: String(localized: "Your favorites"), shown: true, library: nil),
+            Row(key: collectionsKey, title: "Collections", shown: true, library: nil),
         ] + libraries.filter(offered).map { Row(key: libraryPrefix + $0.id, title: String(localized: "New in \($0.name)"), shown: false, library: $0.id) }
         var rows: [Row] = []
         for part in saved.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) where !part.isEmpty {
@@ -82,7 +86,7 @@ struct HomeRowsView: View {
     @State private var loaded = false
 
     var body: some View {
-        let rows = HomeLayout.rows(app.preferences.homeRows, libraries: libraries)
+        let rows = HomeLayout.rows(app.preferences.homeRows, libraries: libraries).filter { !HomeLayout.notOnIPhone.contains($0.key) }
         List {
             Section {
                 ForEach(rows) { row in
@@ -100,6 +104,9 @@ struct HomeRowsView: View {
                 .onMove { from, to in
                     var moved = rows
                     moved.move(fromOffsets: from, toOffset: to)
+                    // The rows not shown here keep their place among the others.
+                    let all = HomeLayout.rows(app.preferences.homeRows, libraries: libraries)
+                    for (index, row) in all.enumerated() where HomeLayout.notOnIPhone.contains(row.key) { moved.insert(row, at: min(index, moved.count)) }
                     app.preferences.homeRows = HomeLayout.save(moved)
                 }
             } footer: {
@@ -123,7 +130,15 @@ struct HomeRowsView: View {
         }
     }
 
+    /// Past the rows this iPhone does not show, to the next one seen.
     private func move(_ key: String, _ step: Int) {
-        app.preferences.homeRows = HomeLayout.move(app.preferences.homeRows, libraries: libraries, key: key, step: step)
+        var line = app.preferences.homeRows
+        while true {
+            let before = HomeLayout.rows(line, libraries: libraries)
+            guard let index = before.firstIndex(where: { $0.key == key }), before.indices.contains(index + step.signum()) else { break }
+            line = HomeLayout.move(line, libraries: libraries, key: key, step: step)
+            if !HomeLayout.notOnIPhone.contains(before[index + step.signum()].key) { break }
+        }
+        app.preferences.homeRows = line
     }
 }
