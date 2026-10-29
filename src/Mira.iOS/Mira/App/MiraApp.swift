@@ -65,9 +65,13 @@ struct MainView: View {
             Tab("Settings", systemImage: "gearshape.fill", value: Section.settings) { stack(.settings) { SettingsView() } }
             Tab("Search", systemImage: "magnifyingglass", value: Section.search) { stack(.search) { SearchView() } }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // Over the tabs, not a safe-area inset: TabView doesn't pass an inset on to the tabs' pages, which make room
+        // for the bar themselves (foldsTabBar).
+        .overlay(alignment: .bottom) {
             if !keyboard {
                 MiraTabBar(section: $section) { restarts[$0, default: 0] += 1 }
+                    // Like iOS's own bar, it stops growing with the text, past which a long press shows it larger.
+                    .dynamicTypeSize(...DynamicTypeSize.xLarge)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
