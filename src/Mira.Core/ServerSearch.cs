@@ -3,6 +3,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using Mira.Core.Tailscale;
 
 namespace Mira.Core;
 
@@ -85,6 +86,10 @@ public static class ServerSearch
         }
         catch (JsonException) { return []; }
     }
+    /// <summary>The same devices from the status of Mira's own node (« Tailscale intégré »).</summary>
+    public static IReadOnlyList<string> NodeDevices(TailnetStatus? status) => status?.State != TailnetStates.Running ? [] : status.Peers
+        .Where(x => x.Online && x.Os is not ("iOS" or "android" or "tvOS") && x.DnsName?.TrimEnd('.').EndsWith(".mullvad.ts.net", StringComparison.OrdinalIgnoreCase) != true)
+        .Select(x => x.Ips.FirstOrDefault(LocalNetwork.IsTailnet)).OfType<string>().Distinct().Take(MaxDevices).ToList();
 
     /// <summary>
     /// Asks it all at once and waits <see cref="Wait"/> at most: Jellyfin on this computer, the home network

@@ -11,6 +11,8 @@ using Mira.Desktop.Services;
 using Mira.Desktop.Playback;
 using static TestSupport;
 
+// Started again by the checks of TailnetProcess as the stand-in for mira-tailscale.
+if (args.Length > 0 && args[0] == "--fake-tailnet") return await FakeTailnet.RunAsync(args);
 if (args.Contains("--prepare-ui"))
 {
     var profile = new LocalProfile(Path.GetFullPath(".artifacts/mock-profile"));
