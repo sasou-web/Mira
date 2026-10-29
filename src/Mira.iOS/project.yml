@@ -97,6 +97,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/report.json
         buildPhase: resources
+      - path: ../../tests/fixtures/seasons.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

@@ -1200,6 +1200,26 @@
         }
       }
     },
+    "Mark the season as unwatched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marquer la saison comme non vue"
+          }
+        }
+      }
+    },
+    "Mark the season as watched": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marquer la saison comme vue"
+          }
+        }
+      }
+    },
     "Maximum": {
       "localizations": {
         "fr": {
