@@ -134,9 +134,11 @@ func (n *Node) refresh() {
 		n.mu.Unlock()
 		return
 	}
+	prev := n.status
 	n.status = next
 	subs := n.subscribers()
 	n.mu.Unlock()
+	n.dropGone(prev, next)
 	for _, f := range subs {
 		f(next)
 	}
