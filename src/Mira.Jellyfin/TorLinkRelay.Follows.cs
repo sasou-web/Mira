@@ -9,13 +9,13 @@ namespace Mira.Jellyfin;
 /// <summary>
 /// « Suivre une série »: the series whose new episodes the agent fetches by itself. Kept in a file beside the plugins'
 /// settings (a restart of Jellyfin keeps them, and checks them all again at the agent's next visit), handed to the agent
-/// every <see cref="Every"/> or when asked; the releases it chose wait <see cref="Hold"/> as requests, for « Annuler »,
+/// when <see cref="FollowSchedule"/> says (every 6 hours, or around the air date TheTVDB gives) or when asked; the releases it chose wait <see cref="Hold"/> as requests, for « Annuler »,
 /// then go to TorLink like any other, with where to place them.
 /// </summary>
 public sealed partial class TorLinkRelay
 {
-    /// <summary>How often a series is checked, how long a release chosen waits before it goes (SeriesFollowing, on the agent).</summary>
-    public static readonly TimeSpan Every = TimeSpan.FromHours(6), Hold = TimeSpan.FromMinutes(10);
+    /// <summary>How long a release chosen waits before it goes (SeriesFollowing, on the agent).</summary>
+    public static readonly TimeSpan Hold = TimeSpan.FromMinutes(10);
     /// <summary>A check the agent took and never reported within this long is handed out again.</summary>
     public static readonly TimeSpan FollowClaim = TimeSpan.FromMinutes(5);
     /// <summary>A check that failed (TorLink not ready, Jellyfin busy) is tried again after this long.</summary>
@@ -110,7 +110,9 @@ public sealed partial class TorLinkRelay
             (follow.Device, follow.Claimed, follow.Due) = (null, null, false);
             var failed = outcome.State != "done";
             // Failed (TorLink not ready, Jellyfin busy): again in a while rather than in six hours.
-            follow.Checked = failed ? now - Every + Retry : now;
+            (follow.Checked, follow.Failed) = (now, failed);
+            if (!failed) follow.Airing = outcome.Airing?.Where(x => Valid(new FollowEpisode(x.Season, x.Episode)) is not null && Math.Abs((x.Day - now).TotalDays) < 3650)
+                .Take(FollowSchedule.MaxAiring).ToList() is { Count: > 0 } airing ? airing : null;
             follow.Note = CleanNote(outcome.Note) ?? (failed ? new FollowNote("failed") : null);
             if (outcome.Folder is { Length: > 0 and <= 1024 } folder && !folder.Any(char.IsControl)) follow.Folder = folder;
             if (outcome.Category is "anime" or "tv") follow.Category = outcome.Category;
@@ -146,10 +148,10 @@ public sealed partial class TorLinkRelay
         SaveFollows();
     }
 
-    /// <summary>The series to check now: never checked, asked for, or not for <see cref="Every"/>; a few at a time.</summary>
+    /// <summary>The series to check now: never checked, asked for, or their time come (<see cref="NextCheck"/>); a few at a time.</summary>
     private List<WorkFollow> DueFollows(string device, DateTimeOffset now)
     {
-        var due = _follows.Where(x => (x.Device is null || now - x.Claimed >= FollowClaim) && (x.Due || x.Checked is not { } at || now - at >= Every))
+        var due = _follows.Where(x => (x.Device is null || now - x.Claimed >= FollowClaim) && (NextCheck(x) is not { } next || now >= next))
             .OrderByDescending(x => x.Due).ThenBy(x => x.Checked ?? DateTimeOffset.MinValue).Take(FollowsPerVisit).ToList();
         foreach (var follow in due) (follow.Device, follow.Claimed) = (device, now);
         return due.Select(x =>
@@ -177,17 +179,27 @@ public sealed partial class TorLinkRelay
     private List<RelayFollow> FollowList(DateTimeOffset now) => _follows.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Select(x =>
     {
         var checking = x.Device is not null && now - x.Claimed < FollowClaim;
-        var latest = x.Taken.Select(t => new FollowEpisode(t.Season, t.Episode)).Append(x.Latest).OfType<FollowEpisode>().OrderBy(e => e.Season).ThenBy(e => e.Episode).LastOrDefault();
+        var latest = LatestOf(x);
+        var airs = FollowSchedule.Coming(latest, x.Airing, now);
         var picks = _requests.Where(r => r.FollowId == x.Id && r.State is "waiting" or "claimed" or "failed" && r.Episode is not null).OrderBy(r => r.Episode!.Season).ThenBy(r => r.Episode!.Episode)
             .Select(r => new RelayPick(r.Id, Label(r.Episode!), r.Name, r.Size, r.State, r.NotBefore ?? r.Created, r.Error)).ToList();
-        return new RelayFollow(x.Id, x.SeriesId, x.Name, x.Query, x.Created, x.Checked, x.Due || x.Checked is null ? null : x.Checked + Every, checking, x.Note,
-            latest is null ? null : Label(latest), x.Taken.AsEnumerable().Reverse().Take(10).Select(t => new RelayTaken(Label(new(t.Season, t.Episode)), t.Name, t.At)).ToList(), picks);
+        return new RelayFollow(x.Id, x.SeriesId, x.Name, x.Query, x.Created, x.Checked, NextCheck(x), checking, x.Note,
+            latest is null ? null : Label(latest), x.Taken.AsEnumerable().Reverse().Take(10).Select(t => new RelayTaken(Label(new(t.Season, t.Episode)), t.Name, t.At)).ToList(), picks,
+            airs is null ? null : new RelayAiring(Label(new(airs.Season, airs.Episode)), airs.Day));
     }).ToList();
 
     private static FollowNote? CleanNote(FollowNote? note) => note is { Kind: { } kind } && NoteKinds.Contains(kind)
         ? new FollowNote(kind, Text(note.Episode), note.Reason is { } reason && NoteReasons.Contains(reason) ? reason : null, Text(note.Detail)) : null;
 
     private static FollowEpisode? Valid(FollowEpisode? episode) => episode is { Season: >= 1 and <= 100, Episode: >= 1 and <= 5000 } ? episode : null;
+    /// <summary>When a series is checked next; null: at the agent's next visit.</summary>
+    private static DateTimeOffset? NextCheck(Followed x) =>
+        x.Due || x.Checked is not { } at ? null : x.Failed ? at + Retry : FollowSchedule.Next(at, LatestOf(x), x.Airing);
+
+    /// <summary>The latest episode the library has or that was taken for it.</summary>
+    private static FollowEpisode? LatestOf(Followed x) =>
+        x.Taken.Select(t => new FollowEpisode(t.Season, t.Episode)).Append(x.Latest).OfType<FollowEpisode>().OrderBy(e => e.Season).ThenBy(e => e.Episode).LastOrDefault();
+
     private static bool Later(FollowEpisode a, FollowEpisode b) => a.Season > b.Season || a.Season == b.Season && a.Episode > b.Episode;
     private static string Label(FollowEpisode episode) => string.Create(CultureInfo.InvariantCulture, $"S{episode.Season:00}E{episode.Episode:00}");
 
@@ -252,6 +264,10 @@ public sealed partial class TorLinkRelay
         public FollowEpisode? Latest { get; set; }
         public List<TakenEpisode> Taken { get; set; } = [];
         public List<string> Refused { get; set; } = [];
+        /// <summary>The episodes TheTVDB dates that the library lacks, as the agent saw them at its last check.</summary>
+        public List<FollowAiring>? Airing { get; set; }
+        /// <summary>The last check failed: again after <see cref="Retry"/>.</summary>
+        public bool Failed { get; set; }
         [JsonIgnore] public bool Due { get; set; } = true;
         [JsonIgnore] public string? Device { get; set; }
         [JsonIgnore] public DateTimeOffset? Claimed { get; set; }

@@ -180,12 +180,21 @@ public static class RemoteLines
         _ => ""
     };
 
-    /// <summary>« Dernier épisode : S01E12 · prochaine recherche dans 3 h », or « Recherche en cours sur le PC serveur… ».</summary>
+    /// <summary>« Dernier épisode : S01E12 · S01E13 sort samedi · prochaine recherche dans 3 h », or « Recherche en cours sur le PC serveur… ».</summary>
     public static string Follow(RelayFollow follow, DateTimeOffset now)
     {
         if (follow.Checking) return L("Recherche en cours sur le PC serveur…", "Searching on the server PC…");
         var next = follow.Next is { } at && at > now ? L($"prochaine recherche dans {In((at - now).TotalSeconds)}", $"next search in {In((at - now).TotalSeconds)}") : L("prochaine recherche bientôt", "next search soon");
-        return Join(follow.Latest is { } latest ? L($"Dernier épisode : {latest}", $"Latest episode: {latest}") : "", next);
+        return Join(follow.Latest is { } latest ? L($"Dernier épisode : {latest}", $"Latest episode: {latest}") : "", Airs(follow.Airs, now), next);
+    }
+
+    /// <summary>« S01E13 sort samedi », « S01E13 sorti hier »: the next episode TheTVDB dates; empty without one.</summary>
+    public static string Airs(RelayAiring? airs, DateTimeOffset now)
+    {
+        if (airs is null) return "";
+        var (day, today) = (DateOnly.FromDateTime(airs.Day.UtcDateTime), EpisodeCalendar.Today(now.LocalDateTime));
+        var when = EpisodeCalendar.DayText(day, today);
+        return day < today ? L($"{airs.Episode} sorti {when}", $"{airs.Episode} aired {when}") : L($"{airs.Episode} sort {when}", $"{airs.Episode} airs {when}");
     }
 
     /// <summary>A release chosen, not yet in TorLink: « S01E13 · 1,2 Go · part dans 8 min », on its way, or refused.</summary>

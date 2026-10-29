@@ -22,6 +22,7 @@ import { follows, followSheet, followedSheet } from '../follow.js';
 import { followLine as followText, followNote, pickLine } from '../torlink.js';
 import { seasonOf, episodePages, pageEpisodes, pageHolding, marksSeasons, seasonMark, nextElsewhere } from '../seasons.js';
 import { titleToolsSheet } from '../identify-sheet.js';
+import { calendar, missingText, nextText, dayText, dayTitle, today } from '../calendar.js';
 
 /** Year, length, ratings, then what the page adds: the picture of the file Lecture plays and when it ends. */
 function meta(item, episodes, extra = []) {
@@ -103,6 +104,9 @@ export function create({ id, query }) {
   let admin = false;
   // The episode the page was opened for (« Voir la série » from it): marked, its season shown, until Lecture moves on.
   let wanted = query.get('episode');
+  // A series' episodes missing and coming (calendar.js), once Jellyfin's TheTVDB extension told it; above its episodes.
+  let schedule = null;
+  const calendarBar = h('div', { class: 'calendar-bar' });
 
   const playTarget = () => (item.Type === 'Series' ? next ?? episodes[0] : item);
 
@@ -428,8 +432,54 @@ export function create({ id, query }) {
     });
     return h('section', { class: 'seasons' },
       h('div', { class: 'section-head' }, h('h2', { class: 'h2' }, tr('Épisodes')), h('span', { class: 'meta' }, trn(episodes.length, '{n} épisode', '{n} épisodes'))),
+      calendarBar,
       pages.length > 1 ? h('div', { style: { padding: '0 var(--gutter) 8px' } }, chips) : null,
       seasonBar, list);
+  }
+
+  /**
+   * « 2 épisodes manquants : S1 · É3, S2 · É2 » and « Prochain épisode : S2 · É3, samedi », from the episodes Jellyfin's
+   * TheTVDB extension adds without their file: a tap lists them, with what to do (« À venir », the PC server).
+   */
+  function drawCalendar() {
+    const { missing = [], coming = [] } = schedule ?? {};
+    const day = today();
+    const first = missing.length ? missingText(missing) : nextText(coming, day);
+    const line = !first ? null : h('button', { class: 'next-line', 'aria-haspopup': 'dialog', on: { click: calendarSheet } },
+      icon(missing.length ? 'warning' : 'calendar', { size: 20 }),
+      h('span', { class: 'grow' }, h('span', {}, first), missing.length && coming.length ? h('span', { class: 'sub' }, nextText(coming, day)) : ''),
+      icon('right', { size: 18 }));
+    calendarBar.replaceChildren(...(line ? [line] : []));
+  }
+  function calendarSheet() {
+    const { missing = [], coming = [] } = schedule ?? {};
+    const day = today();
+    const named = (x) => [episodeCode(x), x.Name].filter(Boolean).join(' · ');
+    // An administrator: TorLink on the PC server looks for the first one missing (or the series, for several).
+    const search = missing.length === 1 ? `${item.Name} S${String(missing[0].ParentIndexNumber).padStart(2, '0')}E${String(missing[0].IndexNumber).padStart(2, '0')}` : item.Name;
+    sheet({
+      title: tr('Épisodes de « {name} »', { name: item.Name }),
+      body: h('p', { class: 'sheet-note' }, tr('D’après TheTVDB, que ton serveur Jellyfin consulte avec son extension : ces épisodes ne sont pas dans ta bibliothèque.')),
+      items: [
+        ...(missing.length ? [{ heading: trn(missing.length, 'Manquant', 'Manquants') }, ...missing.slice(0, 30).map((x) => ({ symbol: 'warning', label: named(x), sub: tr('Sorti {day}', { day: dayText(x.PremiereDate.slice(0, 10), day) }) }))] : []),
+        ...(missing.length > 30 ? [{ label: trn(missing.length - 30, 'Et {n} autre', 'Et {n} autres') }] : []),
+        ...(missing.length && admin ? [{ symbol: 'download', label: tr('Le télécharger sur le PC serveur'), sub: tr('Cherche « {query} » avec TorLink.', { query: search }), run: () => { location.hash = `#/telecharger?q=${encodeURIComponent(search)}`; } }] : []),
+        ...(coming.length ? [{ heading: tr('À venir') }, ...coming.slice(0, 12).map((x) => ({ symbol: 'calendar', label: named(x), sub: dayTitle(x.PremiereDate.slice(0, 10), day) }))] : []),
+        { symbol: 'right', label: tr('Toutes les sorties de tes séries'), run: () => { location.hash = '#/a-venir'; } },
+      ],
+    });
+  }
+  /** The episodes missing and coming of this series, read again with the page (kept a minute by api.js). */
+  function loadCalendar() {
+    if (item?.Type !== 'Series') return;
+    const id = item.Id;
+    api.virtualEpisodes().then((list) => {
+      if (item?.Id !== id) return;
+      const next = calendar(list.filter((x) => x.SeriesId === id), today());
+      const sig = (x) => [...x.missing, ...x.coming].map((e) => `${e.Id}:${e.PremiereDate}:${e.Name}`).join();
+      if (schedule && sig(schedule) === sig(next)) return;
+      schedule = next; drawCalendar();
+    }, () => {});
   }
 
   /**
@@ -593,7 +643,7 @@ export function create({ id, query }) {
       loadStreams(); findSubtitles();
       if (!admin) api.isAdministrator().then((yes) => { if (yes && !admin) { admin = true; refreshActions(); } });
       if (inPlace) update(); else render();
-      if (item.Type === 'Series') loadFollows();
+      if (item.Type === 'Series') { loadFollows(); loadCalendar(); }
       if (!similar.length && !sagas) {
         // Only their rows are drawn when they arrive: the page does not jump or flash under the finger. A film of a
         // saga has its other films in a row of their own, not again among the similar titles.

@@ -51,7 +51,7 @@ public partial class MainWindow
         DetailBackdropPrevious.Source = null;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
         if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), true), animate: false);
-        RenderDetailText(item); EpisodesPanel.Children.Clear();
+        RenderDetailText(item); EpisodesPanel.Children.Clear(); _calendar = ([], []); _calendarOpen = false; RenderCalendar();
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
         EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
         if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
@@ -63,7 +63,7 @@ public partial class MainWindow
         if (_metadata is not null)
         {
             tasks.Add(LoadDetailMetadataAsync(item, version));
-            if (item.Type == "Series") tasks.Add(LoadDetailEpisodesAsync(item, version));
+            if (item.Type == "Series") { tasks.Add(LoadDetailEpisodesAsync(item, version)); tasks.Add(LoadCalendarAsync(item, version)); }
             tasks.Add(LoadSimilarAsync(item, version));
         }
         else if (_demo)
@@ -80,7 +80,7 @@ public partial class MainWindow
         var version = ++_detailVersion; _metadata?.Clear();
         if (_metadata is null) { RenderDetailText(item); if (_episodes.Count > 0) RenderEpisodes(); return; }
         var tasks = new List<Task> { LoadDetailMetadataAsync(item, version) };
-        if (item.Type == "Series") tasks.Add(LoadDetailEpisodesAsync(item, version));
+        if (item.Type == "Series") { tasks.Add(LoadDetailEpisodesAsync(item, version)); tasks.Add(LoadCalendarAsync(item, version)); }
         await Task.WhenAll(tasks);
     }
     /// <summary>New artwork fades in over the previous one instead of flashing through black.</summary>

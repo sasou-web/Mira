@@ -25,6 +25,7 @@
     <!-- What a search or a download sent from Mira web may be, and what Mira for Windows exchanges with the relay: shared with it. -->
     <Compile Include="../Mira.Core/TorLink/RemoteDownloads.cs" Link="RemoteDownloads.cs" />
     <Compile Include="../Mira.Core/TorLink/RemoteProtocol.cs" Link="RemoteProtocol.cs" />
+    <Compile Include="../Mira.Core/TorLink/FollowSchedule.cs" Link="Core/FollowSchedule.cs" />
     <!-- « Sous-titres automatiques »: the scoring and file reading of Mira.Core, and what they need (release names, texts). -->
     <Compile Include="../Mira.Core/GlobalUsings.cs" Link="Core/GlobalUsings.cs" />
     <Compile Include="../Mira.Core/Lang.cs" Link="Core/Lang.cs" />

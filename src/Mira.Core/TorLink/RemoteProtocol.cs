@@ -60,9 +60,14 @@ public sealed record WorkFollow(string Id, string SeriesId, string Name, string?
     FollowEpisode? Latest, List<FollowEpisode>? Taken, List<string>? Refused, FollowRelease? Prefer);
 /// <summary>
 /// A check: <paramref name="State"/> done or failed, what it found to say, the series' folder and kind (anime or tv), the
-/// other names its releases gave, the latest episode of the library, and the releases chosen.
+/// other names its releases gave, the latest episode of the library, and the releases chosen. <paramref name="Airing"/>: the
+/// episodes TheTVDB dates that the library lacks (Jellyfin's virtual ones), for <see cref="FollowSchedule"/>; an agent of
+/// 0.8.5 or before, or one whose Jellyfin hasn't TheTVDB's plugin, leaves it out.
 /// </summary>
-public sealed record AgentFollowOutcome(string Id, string State, FollowNote? Note, string? Folder, string? Category, List<string>? Names, FollowEpisode? Latest, List<FollowPick>? Picks);
+public sealed record AgentFollowOutcome(string Id, string State, FollowNote? Note, string? Folder, string? Category, List<string>? Names, FollowEpisode? Latest, List<FollowPick>? Picks,
+    List<FollowAiring>? Airing = null);
+/// <summary>An episode TheTVDB dates (<paramref name="Day"/>: midnight UTC of its air date, as Jellyfin keeps it).</summary>
+public sealed record FollowAiring(int Season, int Episode, DateTimeOffset Day);
 /// <summary>
 /// What a check found, for each screen to say in its language (RemoteLines.Note, torlink.js: noteText): <paramref name="Kind"/>
 /// nothing (nothing after <paramref name="Episode"/>), found, held (<paramref name="Episode"/> found but not taken, for
@@ -88,10 +93,13 @@ public sealed record RelayHit(string Id, string Name, long Size, int Seeders, in
 /// <summary>
 /// A series followed: its name and the name searched instead, when it was last checked and when it is next
 /// (<paramref name="Next"/> null: at the agent's next visit), <paramref name="Checking"/> while the agent searches, what the
-/// last check found, the latest episode known (« S01E12 »), the latest taken and the releases chosen not yet sent.
+/// last check found, the latest episode known (« S01E12 »), the latest taken and the releases chosen not yet sent;
+/// <paramref name="Airs"/>: the next episode TheTVDB dates (<see cref="FollowSchedule.Coming"/>), when known.
 /// </summary>
 public sealed record RelayFollow(string Id, string SeriesId, string Name, string? Query, DateTimeOffset Created, DateTimeOffset? Checked, DateTimeOffset? Next, bool Checking,
-    FollowNote? Note, string? Latest, List<RelayTaken> Taken, List<RelayPick> Picks);
+    FollowNote? Note, string? Latest, List<RelayTaken> Taken, List<RelayPick> Picks, RelayAiring? Airs = null);
+/// <summary>An episode coming (« S01E13 ») and its air date (midnight UTC).</summary>
+public sealed record RelayAiring(string Episode, DateTimeOffset Day);
 public sealed record RelayTaken(string Episode, string Name, DateTimeOffset At);
 /// <summary>
 /// A release chosen for an episode (« S01E13 »): <paramref name="State"/> waiting (it goes at <paramref name="SendAt"/>,

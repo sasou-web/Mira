@@ -1,0 +1,39 @@
+{
+  "about": "« Épisodes manquants et prochaines sorties »: what Jellyfin's TheTVDB extension adds to a series (virtual episodes with the day they air). Read by tests/Mira.Core.Tests (EpisodeCalendar) and tools/web/unit (calendar.js): both must agree, in French. today: the day of the device; episodes: a series as Jellyfin lists it; missing, coming: the episodes as « S·E » in order; texts: what the series page says; ranges: [episodes « S·E », text]; days: [day, as a sentence says it]; byDay: the coming episodes by day.",
+  "today": "2026-10-29",
+  "episodes": [
+    { "Id": "e11", "Type": "Episode", "ParentIndexNumber": 1, "IndexNumber": 1, "Name": "Deux Temps S01E01", "LocationType": "FileSystem" },
+    { "Id": "e12", "Type": "Episode", "ParentIndexNumber": 1, "IndexNumber": 2, "Name": "Deux Temps S01E02", "LocationType": "FileSystem", "PremiereDate": "2026-12-01T00:00:00.0000000Z" },
+    { "Id": "e13", "Type": "Episode", "ParentIndexNumber": 1, "IndexNumber": 3, "Name": "Le retour", "LocationType": "Virtual", "PremiereDate": "2026-10-20T00:00:00.0000000Z" },
+    { "Id": "e21", "Type": "Episode", "ParentIndexNumber": 2, "IndexNumber": 1, "Name": "Deux Temps S02E01", "LocationType": "FileSystem" },
+    { "Id": "e24", "Type": "Episode", "ParentIndexNumber": 2, "IndexNumber": 4, "Name": "La suite", "LocationType": "Virtual", "PremiereDate": "2026-11-07T00:00:00.0000000Z" },
+    { "Id": "e22", "Type": "Episode", "ParentIndexNumber": 2, "IndexNumber": 2, "Name": "La veille", "LocationType": "Virtual", "PremiereDate": "2026-10-27T00:00:00.0000000Z" },
+    { "Id": "e23", "Type": "Episode", "ParentIndexNumber": 2, "IndexNumber": 3, "Name": "Le lendemain", "LocationType": "Virtual", "PremiereDate": "2026-10-31T00:00:00.0000000Z" },
+    { "Id": "e31", "Type": "Episode", "ParentIndexNumber": 3, "IndexNumber": 1, "Name": "Saison trois", "LocationType": "Virtual" },
+    { "Id": "e01", "Type": "Episode", "ParentIndexNumber": 0, "IndexNumber": 1, "Name": "Épisode spécial", "LocationType": "Virtual", "PremiereDate": "2026-10-01T00:00:00.0000000Z" },
+    { "Id": "e0x", "Type": "Episode", "ParentIndexNumber": 2, "Name": "Sans numéro", "LocationType": "Virtual", "PremiereDate": "2026-10-02T00:00:00.0000000Z" }
+  ],
+  "missing": ["S1E3", "S2E2"],
+  "coming": ["S2E3", "S2E4"],
+  "texts": {
+    "missing": "2 épisodes manquants : S1 · É3, S2 · É2",
+    "next": "Prochain épisode : S2 · É3, samedi"
+  },
+  "ranges": [
+    [["S1E3"], "1 épisode manquant : S1 · É3"],
+    [["S2E2", "S1E3", "S1E4", "S1E5"], "4 épisodes manquants : S1 · É3–5, S2 · É2"],
+    [["S1E3", "S1E4", "S1E5", "S2E1", "S3E2", "S3E3", "S4E1", "S4E7"], "8 épisodes manquants : S1 · É3–5, S2 · É1, S3 · É2–3 et 2 autres"],
+    [[], ""]
+  ],
+  "days": [
+    ["2026-10-29", "aujourd’hui"],
+    ["2026-10-30", "demain"],
+    ["2026-10-28", "hier"],
+    ["2026-10-31", "samedi"],
+    ["2026-11-04", "mercredi"],
+    ["2026-11-05", "jeudi 5 novembre"],
+    ["2026-10-20", "mardi 20 octobre"],
+    ["2027-01-02", "samedi 2 janvier 2027"]
+  ],
+  "byDay": [["2026-10-31", ["S2E3"]], ["2026-11-07", ["S2E4"]]]
+}

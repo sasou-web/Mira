@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The checks of Mira web only (tools/web/check.mjs, web.yml), never shipped: a stand-in for Jellyfin's TheTVDB
+    plugin, which TheTVDB itself (out of reach of the checks) would feed. Under the same id and name, so that Mira finds
+    « TheTVDB » installed, it adds to the test series (tools/web/media.sh) the virtual episodes the real one would: aired
+    and missing, coming, announced without a date, as Jellyfin's own Episode and Season with IsVirtualItem.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Jellyfin.Plugin.FakeTvdb</AssemblyName>
+    <!-- Above any version of the real plugin: Jellyfin's « Update Plugins » never replaces it with TheTVDB's own. -->
+    <Version>9999.0.0</Version>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Jellyfin.Controller" Version="10.9.11" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8g4q-xg66-9fp4" />
+  </ItemGroup>
+</Project>
