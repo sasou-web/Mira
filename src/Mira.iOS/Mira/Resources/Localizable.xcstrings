@@ -673,6 +673,16 @@
         }
       }
     },
+    "Drag a row to move it. A library’s row shows what was added to it lately.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fais glisser une rangée pour la déplacer. La rangée d’une bibliothèque montre ce qui vient d’y être ajouté."
+          }
+        }
+      }
+    },
     "E%@": {
       "localizations": {
         "en": {
@@ -866,6 +876,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Accueil"
+          }
+        }
+      }
+    },
+    "Home rows": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rangées de l’accueil"
           }
         }
       }
@@ -1210,6 +1230,26 @@
         }
       }
     },
+    "Move down": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descendre"
+          }
+        }
+      }
+    },
+    "Move up": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monter"
+          }
+        }
+      }
+    },
     "Movies": {
       "localizations": {
         "fr": {
@@ -1246,6 +1286,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Films, séries, épisodes"
+          }
+        }
+      }
+    },
+    "New in %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau dans %@"
           }
         }
       }
@@ -1476,6 +1526,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Note"
+          }
+        }
+      }
+    },
+    "Reading your libraries…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecture de tes bibliothèques…"
           }
         }
       }
@@ -2066,6 +2126,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Le serveur ne répond pas. Vérifie l’adresse et que Jellyfin est bien lancé."
+          }
+        }
+      }
+    },
+    "Their order, and which show, on this iPhone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leur ordre, et celles qui s’affichent, sur cet iPhone."
           }
         }
       }

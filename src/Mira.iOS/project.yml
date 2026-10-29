@@ -93,6 +93,8 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/chapters.json
         buildPhase: resources
+      - path: ../../tests/fixtures/home.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

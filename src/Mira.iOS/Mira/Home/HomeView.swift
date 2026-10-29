@@ -95,6 +95,8 @@ struct HomeView: View {
         .onChange(of: app.playback) {
             if shown { Task { await load() } } else { stale = true }
         }
+        // Home's rows changed in Settings: a library's row shown is asked.
+        .onChange(of: app.preferences.homeRows) { stale = true }
         .onAppear {
             shown = true
             if stale { stale = false; Task { await load() } }
@@ -112,37 +114,42 @@ struct HomeView: View {
 
     private func load() async {
         guard let client = app.client else { return }
-        await model.load(client) { app.sessionEnded() }
+        await model.load(client, rows: app.preferences.homeRows) { app.sessionEnded() }
         await app.together.refresh()
     }
 
+    /// Home's rows in the order and choice of Settings (HomeLayout); an empty row is left out.
     @ViewBuilder private func rows(_ content: HomeContent, _ client: JellyfinClient) -> some View {
         let continuing = content.continueWatching(hidden: app.preferences.hidden)
-        if !continuing.isEmpty {
-            CardRow(title: "Continue watching", items: continuing) { item in
-                NavigationLink(value: TitleRoute(item: item, source: "continue-\(item.id)")) {
-                    WideCard(item: item, client: client, width: wideWidth)
-                        .matchedTransitionSource(id: "continue-\(item.id)", in: zoom)
+        ForEach(HomeLayout.rows(app.preferences.homeRows, libraries: content.libraries).filter(\.shown)) { row in
+            switch row.key {
+            case HomeLayout.continueKey:
+                if !continuing.isEmpty {
+                    CardRow(title: row.title, items: continuing) { item in
+                        NavigationLink(value: TitleRoute(item: item, source: "continue-\(item.id)")) {
+                            WideCard(item: item, client: client, width: wideWidth)
+                                .matchedTransitionSource(id: "continue-\(item.id)", in: zoom)
+                        }
+                        .buttonStyle(.plain)
+                        .titleMenu(item, inContinueWatching: true)
+                    }
                 }
-                .buttonStyle(.plain)
-                .titleMenu(item, inContinueWatching: true)
+            case HomeLayout.latestKey:
+                posters(row, content.latest, client)
+            case HomeLayout.favoritesKey:
+                posters(row, content.favorites, client)
+            default:
+                posters(row, row.library.flatMap { content.libraryRows[$0] } ?? [], client)
             }
         }
-        if !content.latest.isEmpty {
-            CardRow(title: "Recently added", items: content.latest) { item in
-                NavigationLink(value: TitleRoute(item: item, source: "latest-\(item.id)")) {
+    }
+
+    @ViewBuilder private func posters(_ row: HomeLayout.Row, _ items: [Item], _ client: JellyfinClient) -> some View {
+        if !items.isEmpty {
+            CardRow(title: row.title, items: items) { item in
+                NavigationLink(value: TitleRoute(item: item, source: "\(row.key)-\(item.id)")) {
                     PosterCard(item: item, client: client, width: posterWidth)
-                        .matchedTransitionSource(id: "latest-\(item.id)", in: zoom)
-                }
-                .buttonStyle(.plain)
-                .titleMenu(item)
-            }
-        }
-        if !content.favorites.isEmpty {
-            CardRow(title: "Your favorites", items: content.favorites) { item in
-                NavigationLink(value: TitleRoute(item: item, source: "favorite-\(item.id)")) {
-                    PosterCard(item: item, client: client, width: posterWidth)
-                        .matchedTransitionSource(id: "favorite-\(item.id)", in: zoom)
+                        .matchedTransitionSource(id: "\(row.key)-\(item.id)", in: zoom)
                 }
                 .buttonStyle(.plain)
                 .titleMenu(item)
@@ -157,13 +164,13 @@ struct HomeView: View {
 
 /// A row of cards that scrolls sideways, stopping on a card.
 struct CardRow<Card: View>: View {
-    let title: LocalizedStringKey
+    let title: String
     let items: [Item]
     @ViewBuilder let card: (Item) -> Card
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
+            Text(verbatim: title)
                 .font(MiraFont.section)
                 .foregroundStyle(Palette.ink)
                 .padding(.horizontal, 16)

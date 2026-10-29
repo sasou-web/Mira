@@ -104,6 +104,12 @@ struct SettingsView: View {
                     } label: {
                         row("Text size", "Mira follows the text size of your iPhone: Settings, Display & Brightness, Text Size, or Control Center.", symbol: "textformat.size")
                     }
+                    NavigationLink {
+                        HomeRowsView()
+                    } label: {
+                        row("Home rows", "Their order, and which show, on this iPhone.", symbol: "rectangle.grid.1x2")
+                    }
+                    .accessibilityIdentifier("settings.homeRows")
                 } header: {
                     Text("This iPhone")
                 }

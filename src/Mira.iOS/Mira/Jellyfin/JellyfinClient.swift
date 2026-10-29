@@ -137,10 +137,10 @@ struct JellyfinClient: Sendable {
         ], as: ItemList.self).items ?? []
     }
 
-    /// Films and series, newest first; or the favourites, by title.
-    func browse(favorites: Bool = false, limit: Int = 24) async throws -> [Item] {
+    /// Films and series, newest first (of one library: « New in … »); or the favourites, by title.
+    func browse(favorites: Bool = false, library: String? = nil, limit: Int = 24) async throws -> [Item] {
         try await get("Items", cards.merging([
-            "recursive": "true", "includeItemTypes": "Movie,Series", "limit": String(limit),
+            "recursive": "true", "includeItemTypes": "Movie,Series", "limit": String(limit), "parentId": library,
             "sortBy": favorites ? "SortName" : "DateCreated,SortName", "sortOrder": favorites ? "Ascending" : "Descending",
             "isFavorite": favorites ? "true" : nil, "enableTotalRecordCount": "false",
         ]) { $1 }, as: ItemList.self).items ?? []

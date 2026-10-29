@@ -11,6 +11,9 @@ struct HomeContent: Codable, Sendable, Equatable {
     var favorites: [Item] = []
     /// The series of the first titles of Continue watching, for their artwork in the banner.
     var series: [String: Item] = [:]
+    /// The account's libraries, and the latest titles of those whose row is shown (« New in … », HomeLayout).
+    var libraries: [HomeLibrary] = []
+    var libraryRows: [String: [Item]] = [:]
 
     /// Continue watching, without the films and series taken out of it (`hidden`: their ids, or their series', with
     /// when, in ms), unless played again since (withoutHidden of Mira web).
@@ -94,7 +97,8 @@ final class HomeModel {
         if content == nil { content = HomeCache.load(userId: userId) }
     }
 
-    func load(_ client: JellyfinClient, onUnauthorized: () -> Void) async {
+    /// `rows`: Home's rows on this iPhone (HomeLayout): only the libraries whose row is shown are asked.
+    func load(_ client: JellyfinClient, rows: String, onUnauthorized: () -> Void) async {
         if content == nil { state = .loading }
         do {
             async let resume = client.resume()
@@ -102,8 +106,17 @@ final class HomeModel {
             async let history = client.history()
             async let latest = client.browse()
             async let favorites = client.browse(favorites: true)
+            async let libraries = client.homeLibraries()
             var fresh = try await HomeContent(resume: resume, next: next, history: history.filter { $0.userData?.lastPlayedDate != nil },
                                               latest: latest, favorites: favorites)
+            fresh.libraries = (try? await libraries) ?? content?.libraries ?? []
+            let wanted = HomeLayout.rows(rows, libraries: fresh.libraries).compactMap { $0.shown ? $0.library : nil }
+            fresh.libraryRows = await withTaskGroup(of: (String, [Item]?).self) { group in
+                for id in wanted { group.addTask { (id, try? await client.browse(library: id)) } }
+                var found: [String: [Item]] = [:]
+                for await (id, items) in group { if let items { found[id] = items } }
+                return found
+            }
             var seriesIds: [String] = []
             for id in (fresh.resume + fresh.next).compactMap(\.seriesId) where !seriesIds.contains(id) && seriesIds.count < 4 { seriesIds.append(id) }
             fresh.series = await withTaskGroup(of: Item?.self) { group in
