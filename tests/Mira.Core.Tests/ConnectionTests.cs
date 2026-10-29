@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Mira.Core;
+using Mira.Core.Tailscale;
 using Mira.Core.Updates;
 using Mira.Desktop.Services;
 using static TestSupport;
@@ -161,6 +162,22 @@ internal static class ConnectionTests
             Assert(ServerSearch.TailnetDevices(null).Count == 0 && ServerSearch.TailnetDevices("not json").Count == 0 && ServerSearch.TailnetDevices("""{"BackendState":"Stopped"}""").Count == 0, "No Tailscale");
             var many = "{\"Peer\":{" + string.Join(",", Enumerable.Range(1, 50).Select(i => $"\"k{i}\":{{\"OS\":\"linux\",\"TailscaleIPs\":[\"100.80.1.{i}\"],\"Online\":true}}")) + "}}";
             Assert(ServerSearch.TailnetDevices(many).Count == ServerSearch.MaxDevices, "A large tailnet asked device by device");
+            // The same from Mira's own node (« Tailscale intégré »), once it is signed in.
+            var node = new TailnetStatus
+            {
+                State = TailnetStates.Running,
+                Peers =
+                [
+                    new() { HostName = "DESKTOP-INVEFQH", DnsName = "desktop-invefqh.tail1234.ts.net", Os = "windows", Ips = ["100.114.247.13", "fd7a:115c:a1e0::1"], Online = true },
+                    new() { HostName = "iPhone", Os = "iOS", Ips = ["100.80.0.3"], Online = true },
+                    new() { HostName = "vieux-pc", Os = "windows", Ips = ["100.80.0.4"], Online = false },
+                    new() { HostName = "se-got-wg-001", DnsName = "se-got-wg-001.mullvad.ts.net", Os = "linux", Ips = ["100.90.0.1"], Online = true },
+                    new() { HostName = "nas", Os = "linux", Ips = ["100.80.0.5"], Online = true },
+                    new() { HostName = "ip6", Os = "linux", Ips = ["fd7a:115c:a1e0::6"], Online = true },
+                ],
+            };
+            Assert(ServerSearch.NodeDevices(node).SequenceEqual(["100.114.247.13", "100.80.0.5"]), "Devices of the node: " + string.Join(", ", ServerSearch.NodeDevices(node)));
+            Assert(ServerSearch.NodeDevices(node with { State = TailnetStates.NeedsLogin }).Count == 0 && ServerSearch.NodeDevices(null).Count == 0, "A node not signed in has devices");
 
             // Where the question is broadcast: each network's own broadcast address, none for Tailscale or a single address.
             IPAddress? Broadcast(string address, string mask) => ServerSearch.Broadcast(IPAddress.Parse(address), IPAddress.Parse(mask));
