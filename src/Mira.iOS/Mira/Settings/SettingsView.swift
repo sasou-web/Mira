@@ -39,6 +39,8 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Palette.surface)
 
+                TailscaleSection()
+
                 if me?.isAdministrator == true {
                     Section {
                         admin("Now on Jellyfin", "Who watches what, and whether Jellyfin converts it.", symbol: "server.rack", route: "en-ce-moment")
@@ -132,7 +134,7 @@ struct SettingsView: View {
                     }
                     if let url = ServerAddress.miraWeb(session.server) {
                         Button {
-                            web = WebPage(url: url)
+                            open(url)
                         } label: {
                             row("Open Mira web", "For your friends, and for what Mira for iPhone doesn’t do yet.", symbol: "safari")
                         }
@@ -186,23 +188,13 @@ struct SettingsView: View {
         quickConnect = await quick
     }
 
-    /// A line of Settings: its name, what it does under it, an icon before it.
     private func row(_ title: LocalizedStringKey, _ detail: LocalizedStringKey, symbol: String? = nil) -> some View {
-        HStack(spacing: 14) {
-            if let symbol {
-                Image(systemName: symbol).font(.body).foregroundStyle(Palette.ink).frame(width: 26).accessibilityHidden(true)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(MiraFont.body).foregroundStyle(Palette.ink)
-                Text(detail).font(MiraFont.footnote).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.vertical, 2)
+        SettingsRow(title, detail, symbol: symbol)
     }
 
     private func admin(_ title: LocalizedStringKey, _ detail: LocalizedStringKey, symbol: String, route: String) -> some View {
         Button {
-            if let session = app.session, let url = ServerAddress.miraWeb(session.server, route: route) { web = WebPage(url: url) }
+            if let session = app.session, let url = ServerAddress.miraWeb(session.server, route: route) { open(url) }
         } label: {
             HStack {
                 row(title, detail, symbol: symbol)
@@ -210,6 +202,11 @@ struct SettingsView: View {
                 Image(systemName: "arrow.up.forward.app").font(.footnote).foregroundStyle(Palette.muted).accessibilityHidden(true)
             }
         }
+    }
+
+    /// A page of Mira web, on the way to Jellyfin taken now (through Built-in Tailscale, its relay serves it too).
+    private func open(_ url: URL) {
+        Task { web = WebPage(url: await Way.shared.map(url)) }
     }
 
     private func openSettings() {

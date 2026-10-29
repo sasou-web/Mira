@@ -17,7 +17,9 @@ actor ImagePipeline {
         if let image = memory.object(forKey: url as NSURL) { return image }
         if let task = running[url] { return await task.value }
         let task = Task<UIImage?, Never> {
-            guard let (data, response) = try? await JellyfinClient.session.data(from: url),
+            // Kept by its address as signed in, fetched on the way taken now.
+            let address = await Way.shared.map(url)
+            guard let (data, response) = try? await JellyfinClient.session.data(from: address),
                   (response as? HTTPURLResponse)?.statusCode == 200, let image = UIImage(data: data) else { return nil }
             guard image.size.width > pixels else { return image.preparingForDisplay() ?? image }
             let target = CGSize(width: pixels, height: pixels * image.size.height / max(1, image.size.width))

@@ -21,6 +21,9 @@ enum JellyfinError: Error, Sendable, Equatable {
     case notJellyfin
     case certificate
     case tooOld(String)
+    /// Built-in Tailscale's relay could not reach the server, and why (its X-Mira-Tailscale: needs-login, offline,
+    /// unreachable…).
+    case tailscale(String)
 }
 
 /// Mira's way to Jellyfin's API: one server, one account. Every request carries Jellyfin's authorization header with
@@ -64,27 +67,57 @@ struct JellyfinClient: Sendable {
         do { return try JSON.decoder.decode(T.self, from: data) } catch { throw JellyfinError.notJellyfin }
     }
 
+    /// Sent on the way to the server taken now (Way); found cut, another way is looked for, and a request that may be
+    /// sent twice (reading, deleting) goes once more on it.
     @discardableResult
     func send(_ method: String, _ path: String, _ query: [String: String?] = [:], body: Data? = nil, timeout: TimeInterval? = nil) async throws -> Data {
-        var request = URLRequest(url: url(path, query))
-        request.httpMethod = method
-        request.setValue(authorization, forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(Bundle.main.preferredLocalizations.first ?? "en", forHTTPHeaderField: "Accept-Language")
-        if let body {
-            request.httpBody = body
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var again = ["GET", "HEAD", "DELETE"].contains(method)
+        while true {
+            var request = URLRequest(url: await Way.shared.map(url(path, query)))
+            request.httpMethod = method
+            request.setValue(authorization, forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.setValue(Bundle.main.preferredLocalizations.first ?? "en", forHTTPHeaderField: "Accept-Language")
+            if let body {
+                request.httpBody = body
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            }
+            if let timeout { request.timeoutInterval = timeout }
+            let (data, response): (Data, URLResponse)
+            do { (data, response) = try await Self.session.data(for: request) } catch {
+                let failure = Self.failure(error)
+                if Self.cut(failure), let sent = request.url, await Way.shared.lost(sent), again {
+                    again = false
+                    continue
+                }
+                throw failure
+            }
+            guard let http = response as? HTTPURLResponse else { throw JellyfinError.notJellyfin }
+            if let code = Self.relayFailure(http) {
+                if let sent = request.url, await Way.shared.lost(sent), again {
+                    again = false
+                    continue
+                }
+                throw JellyfinError.tailscale(code)
+            }
+            switch http.statusCode {
+            case 200..<300: return data
+            case 401: throw JellyfinError.unauthorized
+            case 403: throw JellyfinError.forbidden
+            default: throw JellyfinError.http(http.statusCode)
+            }
         }
-        if let timeout { request.timeoutInterval = timeout }
-        let (data, response): (Data, URLResponse)
-        do { (data, response) = try await Self.session.data(for: request) } catch { throw Self.failure(error) }
-        guard let http = response as? HTTPURLResponse else { throw JellyfinError.notJellyfin }
-        switch http.statusCode {
-        case 200..<300: return data
-        case 401: throw JellyfinError.unauthorized
-        case 403: throw JellyfinError.forbidden
-        default: throw JellyfinError.http(http.statusCode)
-        }
+    }
+
+    /// An error of the way to the server, not of Jellyfin.
+    static func cut(_ error: Error) -> Bool {
+        (error as? JellyfinError).map { $0 == .unreachable || $0 == .timeout } ?? false
+    }
+
+    /// Built-in Tailscale's relay answered instead of the server it could not reach: why (src/Mira.Tailscale/tailnet/relay.go).
+    static func relayFailure(_ response: URLResponse) -> String? {
+        guard let http = response as? HTTPURLResponse, [403, 502, 504].contains(http.statusCode) else { return nil }
+        return http.value(forHTTPHeaderField: "X-Mira-Tailscale")
     }
 
     static func failure(_ error: Error) -> Error {
@@ -213,6 +246,8 @@ extension JellyfinClient {
             let failures = results.compactMap { $0?.failure }
             if results.contains(where: { $0?.info != nil }) || failures.contains(.certificate) { throw JellyfinError.certificate }
             if failures.contains(.notJellyfin) { throw JellyfinError.notJellyfin }
+            // Through Built-in Tailscale: why its relay could not reach the server (signed out, PC off…).
+            for case let .tailscale(code) in failures where code != "unreachable" { throw JellyfinError.tailscale(code) }
             if !failures.isEmpty && failures.allSatisfy({ $0 == .timeout }) { throw JellyfinError.timeout }
             throw JellyfinError.unreachable
         }
@@ -223,21 +258,41 @@ extension JellyfinClient {
         var failure: JellyfinError?
     }
 
-    /// Jellyfin's public information at an address, within six seconds. Never throws.
+    /// Jellyfin's public information at an address, within six seconds. Never throws. A Tailscale address is asked
+    /// through Built-in Tailscale's relay too, when it is connected (away from home without Tailscale's app).
     static func probe(_ address: URL) async -> Probe {
-        var request = URLRequest(url: address.appending(path: "System/Info/Public"), timeoutInterval: probeTimeout)
+        guard WayPlan.isTailnet(address), let relayed = await Way.shared.builtIn(address) else { return await probe(address, at: address) }
+        return await withTaskGroup(of: Probe.self) { group in
+            group.addTask { await probe(address, at: address) }
+            group.addTask { await probe(address, at: relayed) }
+            var failure: Probe?
+            for await result in group {
+                if result.info != nil {
+                    group.cancelAll()
+                    return result
+                }
+                failure = failure ?? result
+            }
+            return failure ?? Probe(failure: .unreachable)
+        }
+    }
+
+    /// Jellyfin's public information for `address`, asked at `base`: the address itself, or its way through the relay.
+    private static func probe(_ address: URL, at base: URL) async -> Probe {
+        var request = URLRequest(url: base.appending(path: "System/Info/Public"), timeoutInterval: probeTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         do {
             let (data, response) = try await session.data(for: request)
+            if let code = relayFailure(response) { return Probe(failure: .tailscale(code)) }
             guard let http = response as? HTTPURLResponse, http.statusCode == 200, data.count < 1_000_000,
                   let info = try? JSON.decoder.decode(PublicInfo.self, from: data), let id = info.id, !id.isEmpty else {
                 return Probe(failure: .notJellyfin)
             }
             // Emby answers the same request: its product name tells them apart.
             if let product = info.productName, !product.localizedCaseInsensitiveContains("Jellyfin") { return Probe(failure: .notJellyfin) }
-            // A proxy may redirect http:// to https://: keep the address that actually answered.
+            // A proxy may redirect http:// to https://: keep the address that actually answered (never the relay's).
             var final = address
-            if let answered = http.url?.absoluteString, answered.hasSuffix("System/Info/Public"),
+            if base == address, let answered = http.url?.absoluteString, answered.hasSuffix("System/Info/Public"),
                let url = try? ServerAddress.normalize(String(answered.dropLast("System/Info/Public".count))) {
                 final = url
             }

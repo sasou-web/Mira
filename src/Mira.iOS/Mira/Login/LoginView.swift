@@ -15,6 +15,8 @@ struct LoginView: View {
     /// The server lets a device sign in with a code (Quick Connect), and the code is shown.
     @State private var quickConnect = false
     @State private var withCode = false
+    /// Built-in Tailscale's sheet, to find Jellyfin on the Tailscale network.
+    @State private var tailscale = false
     @FocusState private var focus: Field?
 
     enum Field: Hashable { case address, username, password }
@@ -49,6 +51,13 @@ struct LoginView: View {
             message = app.notice
             focus = address.isEmpty ? .address : nil
         }
+        .sheet(isPresented: $tailscale) {
+            TailscaleSheet { found in
+                address = found.address.absoluteString
+                Task { await use(found) }
+            }
+                .presentationDetents([.large])
+        }
     }
 
     private var header: some View {
@@ -80,7 +89,7 @@ struct LoginView: View {
                 .onSubmit { Task { await findServer() } }
                 .modifier(FieldStyle(focused: focus == .address))
                 .accessibilityIdentifier("login.address")
-            Text("At home, the address of the PC with Jellyfin. Away from home, its Tailscale address, with Tailscale on.")
+            Text("At home, the address of the PC with Jellyfin. Away from home, its Tailscale address, with Built-in Tailscale or the Tailscale app on.")
                 .font(MiraFont.footnote)
                 .foregroundStyle(Palette.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -94,6 +103,17 @@ struct LoginView: View {
             .disabled(busy || address.trimmingCharacters(in: .whitespaces).isEmpty)
             .accessibilityIdentifier("login.continue")
             .padding(.top, 6)
+            Button {
+                focus = nil
+                tailscale = true
+            } label: {
+                Label("Away from home: Built-in Tailscale", systemImage: "point.3.connected.trianglepath.dotted")
+                    .font(MiraFont.callout)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glass)
+            .disabled(busy)
+            .accessibilityIdentifier("login.tailscale")
         }
     }
 
@@ -103,16 +123,23 @@ struct LoginView: View {
         message = nil
         defer { busy = false }
         do {
-            let found = try await JellyfinClient.discover(address)
-            plainWarned = false
-            withCode = false
-            server = found
-            focus = username.isEmpty ? .username : .password
-            quickConnect = await JellyfinClient(server: found.address, device: app.device).quickConnectEnabled()
+            await use(try await JellyfinClient.discover(address))
         } catch is CancellationError {
         } catch {
             message = Messages.text(error)
         }
+    }
+
+    /// The server found, by its address or on the Tailscale network: its way chosen before the account's form asks it
+    /// anything.
+    private func use(_ found: ServerInfo) async {
+        Way.select(found.address, id: found.id)
+        plainWarned = false
+        withCode = false
+        message = nil
+        server = found
+        focus = username.isEmpty ? .username : .password
+        quickConnect = await JellyfinClient(server: found.address, device: app.device).quickConnectEnabled()
     }
 
     // MARK: Account
@@ -130,6 +157,7 @@ struct LoginView: View {
                 }
                 Spacer(minLength: 8)
                 Button("Change") {
+                    Way.select(nil, id: nil)
                     withCode = false
                     quickConnect = false
                     self.server = nil

@@ -68,6 +68,10 @@ struct LibraryView: View {
         }
         .refreshable { await reload() }
         .task(id: query) { await reload() }
+        // A way to Jellyfin found again: what failed is asked again.
+        .onChange(of: app.way) { _, way in
+            if way != nil, failure != nil { Task { await reload() } }
+        }
         .task { await loadOptions() }
         .onChange(of: app.playback) {
             if shown { Task { await refresh() } } else { stale = true }
@@ -174,7 +178,12 @@ struct LibraryView: View {
             ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
         } else if let failure {
             EmptyState(symbol: "wifi.exclamationmark", title: Text("Jellyfin isn’t answering"), text: Text(Messages.text(failure))) {
-                Button { Task { await reload() } } label: { Text("Try again").font(MiraFont.headline).padding(.horizontal, 8) }
+                Button {
+                    Task {
+                        await Way.shared.retry()
+                        await reload()
+                    }
+                } label: { Text("Try again").font(MiraFont.headline).padding(.horizontal, 8) }
                     .buttonStyle(.glass)
             }
             .frame(maxWidth: .infinity)

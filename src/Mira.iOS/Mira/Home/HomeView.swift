@@ -16,6 +16,8 @@ struct HomeView: View {
     /// On screen: Continue watching follows a title stopped at once; otherwise once Home shows again.
     @State private var shown = false
     @State private var stale = false
+    /// Built-in Tailscale's sheet, offered when it is what Jellyfin can't be reached without.
+    @State private var tailscale = false
     @Namespace private var zoom
 
     var body: some View {
@@ -39,7 +41,7 @@ struct HomeView: View {
                         BannerView(entries: banner, client: client, size: size, zoom: zoom)
                     }
                     if case let .failed(error) = model.state {
-                        AwayLine(error: error) { Task { await load() } }
+                        AwayLine(error: error, tailscale: offersTailscale ? { tailscale = true } : nil) { Task { await retry() } }
                     }
                     HomeGroup()
                     rows(content, client)
@@ -53,12 +55,23 @@ struct HomeView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, top + 12)
                     EmptyState(symbol: "wifi.exclamationmark", title: Text("Jellyfin isn’t answering"), text: Text(Messages.text(error))) {
-                        Button {
-                            Task { await load() }
-                        } label: {
-                            Text("Try again").font(MiraFont.headline).padding(.horizontal, 8)
+                        VStack(spacing: 12) {
+                            Button {
+                                Task { await retry() }
+                            } label: {
+                                Text("Try again").font(MiraFont.headline).padding(.horizontal, 8)
+                            }
+                            .buttonStyle(.glass)
+                            if offersTailscale {
+                                Button {
+                                    tailscale = true
+                                } label: {
+                                    Label("Built-in Tailscale", systemImage: "point.3.connected.trianglepath.dotted").font(MiraFont.callout).padding(.horizontal, 8)
+                                }
+                                .buttonStyle(.glass)
+                                .accessibilityIdentifier("home.tailscale")
+                            }
                         }
-                        .buttonStyle(.glass)
                     }
                 } else {
                     LoadingHome(size: size)
@@ -103,7 +116,26 @@ struct HomeView: View {
             if stale { stale = false; Task { await load() } }
         }
         .onDisappear { shown = false }
+        // A way to Jellyfin found again (back home, Built-in Tailscale connected): what failed is asked again.
+        .onChange(of: app.way) { _, way in
+            if way != nil, case .failed = model.state { Task { await load() } }
+        }
+        .sheet(isPresented: $tailscale) { TailscaleSheet() }
         .accessibilityIdentifier("home")
+    }
+
+    /// Jellyfin can't be reached without Built-in Tailscale, or it waits for a sign-in or an approval.
+    private var offersTailscale: Bool {
+        switch app.wayHint {
+        case .tailscaleOff, .signedOut, .expired, .approval: true
+        default: false
+        }
+    }
+
+    /// « Try again »: the way looked for again, then Home.
+    private func retry() async {
+        await Way.shared.retry()
+        await load()
     }
 
     /// The status bar's height (0 when hidden, in landscape), read again whenever Home's size changes.
@@ -452,14 +484,22 @@ struct LogoImage: View {
     }
 }
 
-/// « Can't reach Jellyfin »: over a Home kept from before, with a way to ask again.
+/// « Can't reach Jellyfin »: over a Home kept from before, with a way to ask again (and to Built-in Tailscale, when
+/// it is what's missing).
 struct AwayLine: View {
     let error: JellyfinError
+    var tailscale: (() -> Void)?
     let retry: () -> Void
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "wifi.exclamationmark").foregroundStyle(Palette.warning).accessibilityHidden(true)
-            Text(Messages.text(error)).font(MiraFont.footnote).foregroundStyle(Palette.ink).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Messages.text(error)).font(MiraFont.footnote).foregroundStyle(Palette.ink).fixedSize(horizontal: false, vertical: true)
+                if let tailscale {
+                    Button("Built-in Tailscale", action: tailscale).font(MiraFont.footnote).buttonStyle(.glass)
+                        .accessibilityIdentifier("home.tailscale")
+                }
+            }
             Spacer(minLength: 0)
             Button("Retry", action: retry).font(MiraFont.footnote).buttonStyle(.glass)
         }
