@@ -692,6 +692,15 @@ html:not(.touch) button.item:active, html:not(.touch) a.item:active, button.item
 .now-what { display: block; margin-top: 3px; font-size: calc(15px * var(--text)); font-weight: 400; line-height: 1.35; color: var(--muted); }
 .now-item .btn { flex: none; }
 .now-confirm { padding: 0 20px 10px; font-size: calc(15px * var(--text)); line-height: 1.45; color: var(--muted); }
+/* « À venir » (views/upcoming.js): a series' poster, its name, the episode and its day below. */
+.view.upcoming-page { max-width: calc(760px + 2 * var(--gutter)); }
+.upcoming-item { gap: 12px; padding-top: 10px; padding-bottom: 10px; color: inherit; }
+.upcoming-item .art { width: 44px; flex: none; }
+.upcoming-item .icon { flex: none; color: var(--faint); }
+.upcoming-name { display: block; overflow-wrap: anywhere; }
+/* Above a series' episodes: those missing and the next one (calendar.js). */
+.calendar-bar { display: grid; padding: 0 var(--gutter) 10px; }
+.calendar-bar:empty { display: none; }
 /* « Titres à corriger » (views/fix.js): each title, its page behind its poster and name, « Identifier » beside. */
 .fix-item { gap: 12px; padding-top: 10px; padding-bottom: 10px; }
 .fix-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; color: inherit; }

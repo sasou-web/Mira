@@ -304,6 +304,9 @@ export async function ping() {
   } catch { return false; }
 }
 
+// The virtual episodes of virtualEpisodes(), kept a minute for this account.
+let virtuals = null;
+
 export const api = {
   /** What any server says of itself, asked without the token: it may not be yours yet (checkServer). */
   async publicInfo() {
@@ -626,6 +629,22 @@ export const api = {
   }, { signal }),
   /** The episodes a series has, their numbers only. */
   ownedEpisodes: (seriesId, signal) => get(`Shows/${encodeURIComponent(seriesId)}/Episodes`, { userId: user(), isMissing: false, enableImages: false, enableUserData: false }, { signal }),
+  /**
+   * The episodes Jellyfin knows of without their file, with the day each airs (its TheTVDB extension adds them:
+   * calendar.js), across the libraries: Jellyfin never finds them under their series (parentId misses them), only by
+   * library. Kept a minute: a series' page and « À venir » both read them. [] when there are none.
+   */
+  virtualEpisodes() {
+    const token = session.current?.token;
+    if (virtuals?.token === token && Date.now() - virtuals.at < 60_000) return virtuals.list;
+    const list = get('Items', {
+      userId: user(), recursive: true, includeItemTypes: 'Episode', locationTypes: 'Virtual', fields: 'PremiereDate',
+      sortBy: 'PremiereDate,ParentIndexNumber,IndexNumber', enableImageTypes: 'Primary', imageTypeLimit: 1, enableUserData: false, limit: 5000,
+    }).then((r) => r?.Items ?? []);
+    virtuals = { token, at: Date.now(), list };
+    list.catch(() => { if (virtuals?.list === list) virtuals = null; });
+    return list;
+  },
   /** Every episode of a series, without those Jellyfin lists as missing; long series have more than 500. */
   episodes: (seriesId) => get(`Shows/${encodeURIComponent(seriesId)}/Episodes`, { userId: user(), fields: 'Overview', isMissing: false, enableImageTypes: 'Primary,Thumb', imageTypeLimit: 1 }),
   /** The episode after this one, if any. */

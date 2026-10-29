@@ -866,6 +866,102 @@ internal static class LibraryTests
             var picked = NewEpisodes.Pick(many, followed, seen);
             Assert(picked.Notices.Select(x => x.SeriesId).SequenceEqual(["s4", "s3", "s2"]) && picked.More == "Et 2 autres séries que tu suis ont de nouveaux épisodes.", $"{string.Join(",", picked.Notices.Select(x => x.SeriesId))} {picked.More}");
         });
+        await Test("Épisodes manquants et prochaines sorties : comme Mira web (tests/fixtures/calendar.json)", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "tests", "fixtures", "calendar.json")));
+            var root = fixture.RootElement;
+            static DateOnly Day(string text) => DateOnly.ParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            static string Code(MediaItem x) => $"S{x.ParentIndexNumber}E{x.IndexNumber}";
+            static List<string> Strings(JsonElement x) => x.EnumerateArray().Select(e => e.GetString()!).ToList();
+            static MediaItem Episode(string code)
+            {
+                var parts = code[1..].Split('E');
+                return new MediaItem { Type = "Episode", LocationType = "Virtual", ParentIndexNumber = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture), IndexNumber = int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture), PremiereDate = DateTimeOffset.Parse("2026-10-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture) };
+            }
+            var today = Day(root.GetProperty("today").GetString()!);
+            var episodes = root.GetProperty("episodes").Deserialize<List<MediaItem>>(Json.Options)!;
+            var (missing, coming) = EpisodeCalendar.Read(episodes, today);
+            Assert(missing.Select(Code).SequenceEqual(Strings(root.GetProperty("missing"))), "Missing: " + string.Join(",", missing.Select(Code)));
+            Assert(coming.Select(Code).SequenceEqual(Strings(root.GetProperty("coming"))), "Coming: " + string.Join(",", coming.Select(Code)));
+            var texts = root.GetProperty("texts");
+            Assert(EpisodeCalendar.MissingText(missing) == texts.GetProperty("missing").GetString(), EpisodeCalendar.MissingText(missing));
+            Assert(EpisodeCalendar.NextText(coming, today) == texts.GetProperty("next").GetString(), EpisodeCalendar.NextText(coming, today));
+            foreach (var row in root.GetProperty("ranges").EnumerateArray())
+            {
+                var list = Strings(row[0]).Select(Episode).ToList();
+                Assert(EpisodeCalendar.MissingText(list) == row[1].GetString(), $"{EpisodeCalendar.MissingText(list)} ≠ {row[1].GetString()}");
+            }
+            foreach (var row in root.GetProperty("days").EnumerateArray())
+                Assert(EpisodeCalendar.DayText(Day(row[0].GetString()!), today) == row[1].GetString(), $"{row[0].GetString()}: {EpisodeCalendar.DayText(Day(row[0].GetString()!), today)}");
+            var days = EpisodeCalendar.ByDay(coming).Select(x => (x.Day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), string.Join(",", x.Episodes.Select(Code)))).ToList();
+            var expected = root.GetProperty("byDay").EnumerateArray().Select(x => (x[0].GetString()!, string.Join(",", Strings(x[1])))).ToList();
+            Assert(days.SequenceEqual(expected), "By day: " + string.Join(" | ", days));
+            Assert(EpisodeCalendar.DayTitle(today, today) == "Aujourd’hui" && EpisodeCalendar.NextText([], today) == "", "Title of a day, no next episode");
+            return Task.CompletedTask;
+        });
+        await Test("TheTVDB : installée depuis le dépôt de Jellyfin, ses noms et images coupés, seuls les épisodes manquants gardés", async () =>
+        {
+            // As Jellyfin 12.1 lists them: a server with Series in its settings, no Person; a series library listing its fetchers, one not.
+            var configuration = System.Text.Json.Nodes.JsonNode.Parse("""
+                {"ServerName":"x","MetadataOptions":[{"ItemType":"Series","DisabledMetadataFetchers":["Missing Episode Fetcher"],"DisabledImageFetchers":[]},
+                 {"ItemType":"MusicVideo","DisabledMetadataFetchers":["The Open Movie Database"],"DisabledImageFetchers":[]}]}
+                """)!.AsObject();
+            var folders = System.Text.Json.Nodes.JsonNode.Parse("""
+                [{"Name":"Séries","CollectionType":"tvshows","ItemId":"s1","LibraryOptions":{"TypeOptions":[{"Type":"Series","MetadataFetchers":["TheMovieDb"]},{"Type":"Episode","MetadataFetchers":["TheMovieDb"]}]}},
+                 {"Name":"Animes","CollectionType":"tvshows","ItemId":"s2","LibraryOptions":{"TypeOptions":[]}},
+                 {"Name":"Films","CollectionType":"movies","ItemId":"f1","LibraryOptions":{"TypeOptions":[{"Type":"Movie","MetadataFetchers":["TheMovieDb"]}]}}]
+                """)!.AsArray();
+            var repositories = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["Name"] = "Mira", ["Url"] = "https://github.com/sasou-web/Mira/releases/download/v0.8.5/jellyfin-manifest.json", ["Enabled"] = true });
+            var plugins = new System.Text.Json.Nodes.JsonArray();
+            var calls = new List<string>();
+            using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
+            {
+                var path = request.RequestUri!.PathAndQuery;
+                calls.Add($"{request.Method} {path}");
+                var body = request.Content is null ? null : System.Text.Json.Nodes.JsonNode.Parse(await request.Content.ReadAsStringAsync());
+                if (path == "/Plugins") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(plugins.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/Repositories" && request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(repositories.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/Repositories") { repositories = body!.AsArray(); return new HttpResponseMessage(HttpStatusCode.NoContent); }
+                if (path == "/System/Configuration" && request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(configuration.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/System/Configuration") { configuration = body!.AsObject(); return new HttpResponseMessage(HttpStatusCode.NoContent); }
+                if (path == "/Library/VirtualFolders") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(folders.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/Library/VirtualFolders/LibraryOptions")
+                {
+                    folders.First(x => (string?)x!["ItemId"] == (string?)body!["Id"])!["LibraryOptions"] = body!["LibraryOptions"]!.DeepClone();
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                if (path.StartsWith("/Packages/Installed/TheTVDB?", StringComparison.Ordinal))
+                {
+                    plugins.Add(new System.Text.Json.Nodes.JsonObject { ["Name"] = "TheTVDB", ["Version"] = "21.0.0.0", ["Id"] = "a677c0dafac54cde941a7134223f14c8", ["Status"] = "Restart" });
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }));
+            Assert(await client.TvdbStateAsync() == TvdbExtension.State.Absent, "Absent");
+            Assert(await client.InstallTvdbAsync(), "Installed");
+            Assert(repositories.Count == 2 && (string?)repositories[1]!["Url"] == TvdbExtension.Repository, "Jellyfin's repository added, Mira's kept: " + repositories.ToJsonString());
+            Assert(calls.Any(x => x == $"POST /Packages/Installed/TheTVDB?assemblyGuid={TvdbExtension.PluginId}&repositoryUrl={Uri.EscapeDataString(TvdbExtension.Repository)}"), "Install: " + string.Join(" | ", calls));
+            Assert(await client.TvdbStateAsync() == TvdbExtension.State.Restart, "Waiting for a restart");
+            static List<string> Names(System.Text.Json.Nodes.JsonNode? list) => list!.AsArray().Select(x => (string)x!).ToList();
+            var options = configuration["MetadataOptions"]!.AsArray();
+            foreach (var type in TvdbExtension.ItemTypes)
+            {
+                var entry = options.First(x => (string?)x!["ItemType"] == type)!;
+                Assert(Names(entry["DisabledMetadataFetchers"]).Contains("TheTVDB") && Names(entry["DisabledImageFetchers"]).Contains("TheTVDB") && !Names(entry["DisabledMetadataFetchers"]).Contains("Missing Episode Fetcher"), $"{type}: {entry.ToJsonString()}");
+            }
+            Assert(configuration["ServerName"]!.GetValue<string>() == "x" && Names(options.First(x => (string?)x!["ItemType"] == "MusicVideo")!["DisabledMetadataFetchers"]).SequenceEqual(["The Open Movie Database"]), "Other settings kept");
+            var series = folders[0]!["LibraryOptions"]!["TypeOptions"]!.AsArray();
+            Assert(Names(series[0]!["MetadataFetchers"]).SequenceEqual(["TheMovieDb", "Missing Episode Fetcher"]) && Names(series[1]!["MetadataFetchers"]).SequenceEqual(["TheMovieDb"]), "Series library: " + series.ToJsonString());
+            Assert(folders[1]!["LibraryOptions"]!["TypeOptions"]!.AsArray().Count == 0 && Names(folders[2]!["LibraryOptions"]!["TypeOptions"]![0]!["MetadataFetchers"]).SequenceEqual(["TheMovieDb"]), "Other libraries untouched");
+            // Again: nothing more to install, nothing to send.
+            calls.Clear();
+            Assert(await client.InstallTvdbAsync() && !calls.Any(x => x.StartsWith("POST", StringComparison.Ordinal)), "Again: " + string.Join(" | ", calls));
+            plugins[0]!["Status"] = "Active";
+            Assert(await client.TvdbStateAsync() == TvdbExtension.State.Active, "Active");
+            Assert(TvdbExtension.Read(System.Text.Json.Nodes.JsonNode.Parse("""[{"Id":"a677c0da-fac5-4cde-941a-7134223f14c8","Status":"Disabled"}]""")!.AsArray()) == TvdbExtension.State.Off, "Disabled in Jellyfin");
+            Assert(TvdbExtension.Privacy.Contains("TheTVDB", StringComparison.Ordinal), "Privacy");
+        });
         await Test("Nouveaux épisodes : séries suivies, marque, lignes et « Et 2 autres séries », comme Mira web (tests/fixtures/new-episodes.json)", () =>
         {
             var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);

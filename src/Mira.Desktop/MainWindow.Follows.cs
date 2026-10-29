@@ -60,6 +60,11 @@ public partial class MainWindow
             var library = series.Path is { } path ? libraries.FirstOrDefault(x => x.Locations.Any(location => Inside(path, location))) : null;
             var category = library is not null && MediaLibraries.IsAnime(library) ? "anime" : "tv";
             var (names, title, prefer) = SeriesFollowing.FromJournal(torlink.Importer.Entries, series.Path);
+            // The air dates TheTVDB gives Jellyfin (its plugin's virtual episodes): when to look next, and which number a
+            // release should have. Null without them (no plugin, or a Jellyfin that refused): checked every 6 h as before.
+            List<FollowAiring>? airing = null;
+            try { airing = EpisodeCalendar.Airing((await client.VirtualEpisodesAsync(ct)).Where(x => x.SeriesId == follow.SeriesId), DateTimeOffset.UtcNow); }
+            catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested) { }
             var parts = new List<(string Category, IReadOnlyList<AgentHit> Hits, string? Error)>();
             foreach (var query in SeriesFollowing.Queries(follow.Query, series.Name, title ?? follow.Names?.FirstOrDefault()))
                 foreach (var kind in SeriesFollowing.Categories(category))
@@ -69,8 +74,9 @@ public partial class MainWindow
                 }
             var (found, failure) = RemoteDownloads.Combine(parts, x => x.Id);
             if (failure is not null) return Outcome("failed", new("failed", Detail: failure));
-            var check = SeriesFollowing.Choose(follow, new FollowedSeries(series.Name, series.OriginalTitle, series.ProductionYear, owned), names, found, follow.Prefer ?? prefer);
-            return new(follow.Id, "done", check.Note, series.Path, category, check.Names, check.Latest, check.Picks);
+            var check = SeriesFollowing.Choose(follow, new FollowedSeries(series.Name, series.OriginalTitle, series.ProductionYear, owned), names, found, follow.Prefer ?? prefer,
+                airing is null ? null : FollowSchedule.Out(airing, DateTimeOffset.UtcNow));
+            return new(follow.Id, "done", check.Note, series.Path, category, check.Names, check.Latest, check.Picks, airing);
         }
         catch (Exception ex) when (IsExpected(ex) && !ct.IsCancellationRequested) { return Outcome("failed", new("failed", Detail: Friendly(ex))); }
     }

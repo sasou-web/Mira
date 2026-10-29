@@ -54,6 +54,12 @@ internal static class SeriesFollowingTests
             Assert(learned.Picks.Count == 1 && learned.Names.SequenceEqual(["Sousou no Frieren"]), "The other name of a release is learned: " + string.Join(", ", learned.Names));
             Assert(SeriesFollowing.Choose(Work(), frieren, ["Sousou no Frieren"], hits, null).Picks.Count == 2 && SeriesFollowing.Choose(Work(query: "Sousou no Frieren"), frieren, [], hits, null).Picks.Count == 2, "Names known on the PC, or searched");
 
+            // Both numbers possible: « - 9 » after S02E03 with five episodes in season 1 is S02E09 or S02E04; TheTVDB says which is out.
+            var short1 = new FollowedSeries("Frieren: Beyond Journey's End", null, 2023, [.. Episodes(1, 1, 5), .. Episodes(2, 1, 3)]);
+            var nine = new List<(string, AgentHit)> { Hit(1, "[SubsPlease] Sousou no Frieren - 09 (1080p) [A1B2C3D4].mkv", seeders: 0, source: "subsplease") };
+            Assert(SeriesFollowing.Choose(Work(["Sousou no Frieren"]), short1, [], nine, null).Picks.Count == 0, "Two readings, nothing known: left alone");
+            Assert(SeriesFollowing.Choose(Work(["Sousou no Frieren"]), short1, [], nine, null, new HashSet<FollowEpisode> { new(2, 4) }).Picks.Single() is { Season: 2, Episode: 4 }, "TheTVDB says S02E04 is out");
+
             // Taken and refused releases, episodes taken since, the latest of the library never going back.
             var after = SeriesFollowing.Choose(Work(["Sousou no Frieren"], taken: [new(2, 3)], refused: [Hash(3)]), frieren, [], hits, null);
             Assert(after.Picks.Count == 0 && after.Note == new FollowNote("held", "S02E05", "size"), $"Taken and refused: {after.Note}");
@@ -125,6 +131,31 @@ internal static class SeriesFollowingTests
             Assert(MediaLibraries.IsAnime(new VirtualFolder("Animés", "tvshows", [anime], null)) && !MediaLibraries.IsAnime(new VirtualFolder("Dessins animés", "tvshows", [Path.Combine(dir, "Cartoons")], null)), "Anime libraries");
         });
 
+        await Test("Suivre une série : chercher le jour de la sortie, toutes les 2 h ce jour-là, sinon une fois par jour (FollowSchedule)", () =>
+        {
+            var at = DateTimeOffset.Parse("2026-10-29T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
+            FollowAiring Air(int episode, string day) => new(1, episode, DateTimeOffset.Parse(day + "T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
+            var latest = new FollowEpisode(1, 4);
+            Assert(FollowSchedule.Next(at, latest, null) == at + TimeSpan.FromHours(6) && FollowSchedule.Next(at, latest, []) == at + TimeSpan.FromHours(6), "No dates: every 6 h");
+            Assert(FollowSchedule.Next(at, latest, [Air(5, "2026-10-29")]) == at + TimeSpan.FromHours(2), "Out today: every 2 h");
+            Assert(FollowSchedule.Next(at, latest, [Air(5, "2026-10-30")]) == DateTimeOffset.Parse("2026-10-29T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture), "Tomorrow in its country, maybe tonight here: from half a day before");
+            Assert(FollowSchedule.Next(at, latest, [Air(5, "2026-10-31")]) == at + TimeSpan.FromDays(1) && FollowSchedule.Next(at + TimeSpan.FromDays(1), latest, [Air(5, "2026-10-31")]) == DateTimeOffset.Parse("2026-10-30T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture), "Saturday: once a day, then from Friday noon UTC");
+            Assert(FollowSchedule.Next(at, latest, [Air(5, "2026-11-12")]) == at + TimeSpan.FromDays(1), "Weeks away: once a day");
+            Assert(FollowSchedule.Next(at, latest, [Air(5, "2026-10-20"), Air(6, "2026-11-12")]) == at + TimeSpan.FromHours(6), "Behind: every 6 h");
+            Assert(FollowSchedule.Next(at, new(1, 5), [Air(5, "2026-10-29"), Air(6, "2026-11-05")]) == DateTimeOffset.Parse("2026-10-30T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture), "Already here or taken: the next one, within a day");
+            Assert(FollowSchedule.Coming(latest, [Air(5, "2026-10-20"), Air(6, "2026-10-28"), Air(7, "2026-11-04")], at) == Air(6, "2026-10-28"), "Said: the first whose window isn't over");
+            Assert(FollowSchedule.Out([Air(5, "2026-10-29"), Air(6, "2026-10-30"), Air(7, "2026-11-04")], at).SetEquals([new FollowEpisode(1, 5)]) && FollowSchedule.Out([Air(6, "2026-10-30")], at + TimeSpan.FromHours(2)).Count == 1, "Out by now, from half a day ahead");
+            var episodes = new List<MediaItem>
+            {
+                new() { Type = "Episode", LocationType = "Virtual", ParentIndexNumber = 1, IndexNumber = 6, PremiereDate = DateTimeOffset.Parse("2026-11-05T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture) },
+                new() { Type = "Episode", LocationType = "Virtual", ParentIndexNumber = 0, IndexNumber = 1, PremiereDate = at },
+                new() { Type = "Episode", LocationType = "Virtual", ParentIndexNumber = 1, IndexNumber = 7 },
+                new() { Type = "Episode", LocationType = "FileSystem", ParentIndexNumber = 1, IndexNumber = 4, PremiereDate = at },
+                new() { Type = "Episode", LocationType = "Virtual", ParentIndexNumber = 1, IndexNumber = 5, PremiereDate = DateTimeOffset.Parse("2026-10-29T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture) },
+            };
+            Assert(EpisodeCalendar.Airing(episodes, at).SequenceEqual([Air(5, "2026-10-29"), Air(6, "2026-11-05")]), "Sent by the agent: virtual, numbered, dated, by date");
+            return Task.CompletedTask;
+        });
         await Test("Suivre une série : le relais garde les séries, les donne à l'agent et retient ses choix 10 min", () =>
         {
             var now = DateTimeOffset.Parse("2026-10-27T12:00:00Z");
@@ -149,7 +180,7 @@ internal static class SeriesFollowingTests
             FollowPick Pick(int n, int episode) => new(2, episode, $"[SubsPlease] Sousou no Frieren - {28 + episode} (1080p)", Magnet(n), 2 * Gib, 0, "subsplease", "SubsPlease", [], 1080);
             relay.Exchange("device-1", Report([new(id!, "done", new FollowNote("found", "S02E03, S02E04"), folder, "anime", ["Sousou no Frieren"], new(2, 2), [Pick(1, 3), Pick(2, 4), Pick(3, 3)])]));
             var follow = relay.Follows().Single();
-            Assert(follow is { Checking: false, Latest: "S02E02", Note.Kind: "found" } && follow.Next == now + SeriesFollowing.Every && follow.Picks.Select(x => (x.Episode, x.State)).SequenceEqual([("S02E03", "waiting"), ("S02E04", "waiting")])
+            Assert(follow is { Checking: false, Latest: "S02E02", Note.Kind: "found" } && follow.Next == now + FollowSchedule.Every && follow.Picks.Select(x => (x.Episode, x.State)).SequenceEqual([("S02E03", "waiting"), ("S02E04", "waiting")])
                 && follow.Picks[0].SendAt == now + SeriesFollowing.Hold && relay.Status().Requests.Count == 0, "Held picks, one per episode");
             Assert(relay.Exchange("device-1", Report([])).Requests.Count == 0, "Not sent before 10 min");
             Assert(relay.Cancel(follow.Picks[1].Id) == true && relay.Follows().Single().Picks.Count == 1, "Cancelled");
@@ -179,6 +210,12 @@ internal static class SeriesFollowingTests
             Assert(reopened.Exchange("device-2", Report([])).Follows!.Count == 1, "Failed: again in 30 min");
             now += TorLinkRelay.FollowClaim;
             Assert(reopened.Exchange("device-3", Report([])).Follows!.Count == 1, "Never reported: handed again");
+            // TheTVDB's dates (the agent's Airing): S02E03 out yesterday is behind, S02E04 comes in two days.
+            reopened.CheckNow(id!); reopened.Exchange("device-3", Report([]));
+            reopened.Exchange("device-3", Report([new(id!, "done", new FollowNote("nothing", "S02E02"), folder, "anime", null, new(2, 2), null,
+                [new(2, 3, now.UtcDateTime.Date.AddDays(-1)), new(2, 4, now.UtcDateTime.Date.AddDays(2)), new(0, 1, now), new(2, 5, now.AddYears(30))])]));
+            var dated = reopened.Follows().Single();
+            Assert(dated is { Airs.Episode: "S02E03" } && dated.Next == now + TimeSpan.FromHours(2), $"In the window of S02E03: every 2 h ({dated.Next}, {dated.Airs})");
             Assert(!reopened.Unfollow("autre") && reopened.Unfollow(id!) && reopened.Follows().Count == 0 && new TorLinkRelay(() => now, file).Follows().Count == 0, "Unfollowed");
             for (var i = 0; i < TorLinkRelay.MaxFollows; i++) reopened.Follow(i.ToString("x32"), $"Série {i}", null);
             Assert(reopened.Follow(SeriesId, "Une de trop", null).Error is not null, "At most 40");

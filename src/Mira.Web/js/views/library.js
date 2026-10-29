@@ -4,6 +4,7 @@ import { h, icon, clear, append, keepFocus } from '../dom.js';
 import { tr, trn } from '../i18n.js';
 import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast, reconcile, cardSig } from '../components.js';
 import { session } from '../session.js';
+import { calendar, today } from '../calendar.js';
 
 /** What a card needs of an item, kept on the phone so that the tab opens with its first page at once next time. */
 // Every field cardSig reads (components.js): a card drawn from it is kept as it is once the server answers the same.
@@ -66,6 +67,17 @@ export function create({ type, query }) {
     h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? tr('Films') : tr('Séries')), shelves),
     h('div', { class: 'library-filters' }, chips), count, body);
 
+  // Séries: « À venir » once Jellyfin knows of episodes coming or missing (its TheTVDB extension: calendar.js).
+  let upcoming = false;
+  function loadUpcoming() {
+    if (movies) return;
+    api.virtualEpisodes().then((list) => {
+      const { missing, coming } = calendar(list, today());
+      const any = missing.length + coming.length > 0;
+      if (any !== upcoming) { upcoming = any; renderChips(); }
+    }, () => {});
+  }
+
   const filtered = () => state.genre || state.year || state.unplayed || state.favorite || state.letter;
   const noFilters = { genre: '', year: '', unplayed: false, favorite: false, letter: '' };
 
@@ -78,6 +90,7 @@ export function create({ type, query }) {
     // append of dom.js skips the chips not shown (Element.append would write « null »). A chip used from the keyboard
     // keeps the focus where it was.
     keepFocus(chips, () => append(clear(chips), [
+      upcoming ? h('a', { class: 'chip', href: '#/a-venir' }, icon('calendar', { size: 16 }), tr('À venir')) : null,
       chip(tr('Trier : {sort}', { sort: SORTS.find(([k]) => k === state.sort)[1] }), { menu: true, run: () => sheet({
         // A letter goes with the sort by title only.
         title: tr('Trier par'), items: SORTS.map(([key, label]) => ({ label, selected: state.sort === key, run: () => apply({ sort: key, letter: key === 'title' ? state.letter : '' }) })),
@@ -320,11 +333,12 @@ export function create({ type, query }) {
   changes.addEventListener('item', onChange);
 
   renderShelves(); renderChips();
-  loadShelves();
+  loadShelves(); loadUpcoming();
   reset();
   return {
     el, title: movies ? tr('Films') : tr('Séries'), keep: true, ready,
     enter() {
+      loadUpcoming();
       if (stale || Date.now() - loadedAt > 10 * 60_000) refresh();
       else requestAnimationFrame(keepLoading);
     },

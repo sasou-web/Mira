@@ -52,6 +52,15 @@ public sealed record MediaItem
     public string? Path { get; init; }
     /// <summary>When Jellyfin added it (« Ajouts récents »), asked for with Fields=DateCreated.</summary>
     public DateTimeOffset? DateCreated { get; init; }
+    /// <summary>
+    /// The day an episode aired or airs, as TheTVDB gives it (Jellyfin keeps it at midnight UTC): read for the virtual
+    /// episodes of <see cref="EpisodeCalendar"/>, asked for with Fields=PremiereDate.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? PremiereDate { get; init; }
+    /// <summary>« Virtual » for an episode Jellyfin knows of without its file (TheTVDB's extension); « FileSystem » otherwise.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LocationType { get; init; }
     /// <summary>A bonus video's kind (« BehindTheScenes », « DeletedScene »…, « Unknown » in an Extras folder); null for a title.</summary>
     public string? ExtraType { get; init; }
     /// <summary>How many bonus videos a film or series has (<see cref="JellyfinClient.ExtrasAsync"/>), returned by the single-item request.</summary>

@@ -84,7 +84,10 @@ jobs:
       - name: Jellyfin ${{ matrix.jellyfin }}, Mira web installed from the repository
         run: |
           (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
-          mkdir -p .artifacts/jf-config .artifacts/jf-cache
+          mkdir -p .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0 .artifacts/jf-cache
+          # A stand-in for TheTVDB's plugin (out of reach): the missing episodes and air dates of the test series.
+          dotnet build tools/web/fake-tvdb/FakeTvdb.csproj -c Release -o .artifacts/fake-tvdb
+          cp .artifacts/fake-tvdb/Jellyfin.Plugin.FakeTvdb.dll .artifacts/jf-config/plugins/FakeTvdb_9999.0.0.0/
           docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
           node tools/web/setup.mjs http://127.0.0.1:8096 /media mira mira-check http://127.0.0.1:8765/jellyfin-manifest.json
       - name: Check in Chromium

@@ -1176,6 +1176,76 @@ public sealed class JellyfinClient : IDisposable
         using var restart = await _http.PostAsync("System/Restart", null, ct);
         await CheckAsync(restart);
     }
+    /// <summary>
+    /// The virtual episodes of every series this account sees (TheTVDB's « Missing Episode Fetcher », <see cref="TvdbExtension"/>),
+    /// with their air date, for <see cref="EpisodeCalendar"/>. Asked across the libraries: Jellyfin leaves them out of a
+    /// series' recursive children and of Shows/{id}/Episodes (checked on 12.1). Empty without the plugin.
+    /// </summary>
+    public async Task<List<MediaItem>> VirtualEpisodesAsync(CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes=Episode&locationTypes=Virtual&fields=PremiereDate"
+            + "&sortBy=PremiereDate,ParentIndexNumber,IndexNumber&enableImageTypes=Primary&imageTypeLimit=1&enableUserData=false&limit=5000", ct)).Items;
+    /// <summary>TheTVDB's plugin on this server (<see cref="TvdbExtension.Read"/>); null when this account may not read the plugins.</summary>
+    public async Task<TvdbExtension.State?> TvdbStateAsync(CancellationToken ct = default) =>
+        await PluginsAsync(ct) is { } plugins ? TvdbExtension.Read(plugins) : null;
+    /// <summary>
+    /// TheTVDB's plugin installed from Jellyfin's own repository (added if missing, the others kept), its metadata and
+    /// image fetchers turned off and its « Missing Episode Fetcher » on (<see cref="TvdbExtension.KeepToMissingEpisodes"/>,
+    /// <see cref="TvdbExtension.ListMissingEpisodes"/>). Jellyfin loads it at its next restart. False when refused (only
+    /// an administrator may) or when the repository doesn't offer it.
+    /// </summary>
+    public async Task<bool> InstallTvdbAsync(CancellationToken ct = default)
+    {
+        if (await RepositoriesAsync(ct) is not { } repositories) return false;
+        var repository = TvdbExtension.OfficialRepository(repositories);
+        if (repository is null)
+        {
+            repositories.Add(new JsonObject { ["Name"] = "Jellyfin Stable", ["Url"] = repository = TvdbExtension.Repository, ["Enabled"] = true });
+            using var content = new StringContent(repositories.ToJsonString(), Encoding.UTF8, "application/json");
+            using var saved = await _http.PostAsync("Repositories", content, ct);
+            if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(saved);
+        }
+        if (!await KeepTvdbToMissingEpisodesAsync(ct)) return false;
+        if (await PluginsAsync(ct) is { } plugins && TvdbExtension.Read(plugins) is TvdbExtension.State.Active or TvdbExtension.State.Restart) return true;
+        using var installed = await _http.PostAsync($"Packages/Installed/{Uri.EscapeDataString(TvdbExtension.PluginName)}?assemblyGuid={TvdbExtension.PluginId}&repositoryUrl={Uri.EscapeDataString(repository)}", null, ct);
+        if (installed.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return false;
+        await CheckAsync(installed);
+        return true;
+    }
+    /// <summary>The server settings and the series libraries changed as <see cref="InstallTvdbAsync"/> says, sent back whole. False when refused.</summary>
+    private async Task<bool> KeepTvdbToMissingEpisodesAsync(CancellationToken ct)
+    {
+        using (var read = await _http.GetAsync("System/Configuration", ct))
+        {
+            if (read.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(read);
+            if (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) is JsonObject configuration && TvdbExtension.KeepToMissingEpisodes(configuration))
+            {
+                using var content = new StringContent(configuration.ToJsonString(), Encoding.UTF8, "application/json");
+                using var saved = await _http.PostAsync("System/Configuration", content, ct);
+                if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+                await CheckAsync(saved);
+            }
+        }
+        if (await LibraryOptionsAsync(["tvshows"], ct) is not { } libraries) return false;
+        foreach (var (id, options) in libraries)
+        {
+            if (options is null) continue;
+            var changed = (JsonObject)options.DeepClone();
+            if (!TvdbExtension.ListMissingEpisodes(changed)) continue;
+            using var response = await _http.PostAsJsonAsync("Library/VirtualFolders/LibraryOptions", new JsonObject { ["Id"] = id, ["LibraryOptions"] = changed }, ct);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(response);
+        }
+        return true;
+    }
+    private async Task<JsonArray?> PluginsAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync("Plugins", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return null;
+        await CheckAsync(response);
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) as JsonArray ?? [];
+    }
     /// <summary>Mira web as Jellyfin serves it and as it waits for a restart (<see cref="MiraWeb.Installed"/>); null when this account may not read the plugins.</summary>
     public async Task<MiraWeb.Versions?> WebAppVersionsAsync(CancellationToken ct = default)
     {

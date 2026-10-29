@@ -489,17 +489,17 @@ try {
   const opened = await page.locator('#view .seasons .chip.on').innerText().catch(() => '');
   const barOnNext = await page.locator('#view .season-bar').innerText().catch(() => '');
   await page.locator('#view .seasons .chip', { hasText: 'Saison 1' }).click(); await wait(400);
-  const hint = await page.locator('#view .next-line').innerText().catch(() => '');
+  const hint = await page.locator('#view .season-bar .next-line').innerText().catch(() => '');
   const markLabel = await page.locator('#view .season-mark').innerText().catch(() => '');
   await shot('12-season-next');
-  await page.locator('#view .next-line').click(); await wait(400);
+  await page.locator('#view .season-bar .next-line').click(); await wait(400);
   const brought = await page.locator('#view .seasons .chip.on').innerText().catch(() => '');
   check('série : « À suivre » quand une autre saison est affichée, qui l’amène',
     opened === 'Saison 2' && !/À suivre/.test(barOnNext) && /À suivre : S2 · É1/.test(hint) && /Saison 2/.test(hint) && brought === 'Saison 2',
     `ouverte sur ${opened || '?'} ; Saison 1 : « ${hint.replace(/\s+/g, ' ') || 'rien'} » ; après le clic : ${brought || '?'}`);
   await page.locator('#view .seasons .chip', { hasText: 'Saison 1' }).click(); await wait(400);
   await page.locator('#view .season-mark').click();
-  const unmarked = await page.waitForFunction(() => /comme vue$/.test(document.querySelector('#view .season-mark')?.textContent.trim() ?? '') && !document.querySelector('#view .next-line')
+  const unmarked = await page.waitForFunction(() => /comme vue$/.test(document.querySelector('#view .season-mark')?.textContent.trim() ?? '') && !document.querySelector('#view .season-bar .next-line')
     && !document.querySelector('#view .episode .badge-watched'), null, { timeout: 10000 }).then(() => true, () => false);
   const afterUnmark = await watchedOnJellyfin('1:non vu|1:non vu|2:non vu');
   await shot('12-season-unmarked');
@@ -509,6 +509,41 @@ try {
   check('série : « Marquer la saison comme non vue », puis « comme vue », d’un coup sur Jellyfin',
     /comme non vue$/.test(markLabel) && unmarked && remarked && afterUnmark.join('|') === '1:non vu|1:non vu|2:non vu' && afterMark.join('|') === '1:vu|1:vu|2:non vu',
     `bouton : « ${markLabel} » ; non vue : ${afterUnmark.join(', ')}${unmarked ? '' : ' (page pas à jour)'} ; vue : ${afterMark.join(', ')}${remarked ? '' : ' (page pas à jour)'}`);
+
+  // « Épisodes manquants et sorties »: TheTVDB's plugin, faked by tools/web/fake-tvdb (web.yml installs it), gives
+  // Deux Temps S1E3 (9 days ago) and S2E2 (2 days ago), missing, S2E3 (in 2 days) and S2E4 (in 9) to come, S3E1 without
+  // a day; Courte Anime S1E2 today and S1E3 in a week. The line above the episodes, its sheet, the « À venir » chip of
+  // Séries and its page, by day then by series. Nothing of it reaches TheTVDB from here: Jellyfin asks it, never the page.
+  let virtuals = [];
+  for (let i = 0; i < 60 && virtuals.length < 7; i++) {
+    if (i) await wait(500);
+    virtuals = (await api(`Items?userId=${userId}&recursive=true&includeItemTypes=Episode&locationTypes=Virtual&fields=PremiereDate`)).Items ?? [];
+  }
+  await page.evaluate((id) => { location.hash = `#/titre/${id}`; }, twice.Id);
+  const calendarLine = await page.waitForFunction(() => document.querySelector('#view .calendar-bar .next-line')?.innerText.replace(/\s+/g, ' ').trim(), null, { timeout: 10000 })
+    .then((handle) => handle.jsonValue(), () => '');
+  await shot('12-series-calendar');
+  await page.locator('#view .calendar-bar .next-line').click().catch(() => {});
+  const calendarSheet = await page.locator('.sheet').innerText({ timeout: 5000 }).catch(() => '');
+  await shot('12-series-calendar-sheet');
+  check('série : épisodes manquants et prochaine sortie (extension TheTVDB de Jellyfin)',
+    virtuals.length === 7 && /^2 épisodes manquants : S1 · É3, S2 · É2 Prochain épisode : S2 · É3, [a-z]+$/.test(calendarLine)
+      && /Manquants/.test(calendarSheet) && /S1 · É3 · Le retour/.test(calendarSheet) && /À venir/.test(calendarSheet) && /S2 · É4 · La suite/.test(calendarSheet) && !/Saison trois/.test(calendarSheet)
+      && /Le télécharger sur le PC serveur/.test(calendarSheet),
+    `${virtuals.length} épisodes virtuels ; ligne : « ${calendarLine || 'rien'} » ; feuille : ${calendarSheet.replace(/\s+/g, ' ').slice(0, 300)}`);
+  await page.locator('.sheet-item', { hasText: 'Toutes les sorties de tes séries' }).click({ timeout: 5000 }).catch(() => {});
+  const upcomingPage = await page.waitForFunction(() => {
+    const titles = [...document.querySelectorAll('.upcoming-page .group-title')].map((x) => x.textContent);
+    return titles.length >= 3 ? { titles, rows: [...document.querySelectorAll('.upcoming-page .upcoming-item')].map((x) => x.innerText.replace(/\s+/g, ' ').trim()) } : null;
+  }, null, { timeout: 10000 }).then((handle) => handle.jsonValue(), () => ({ titles: [], rows: [] }));
+  await shot('12-upcoming');
+  check('« À venir » : les prochains épisodes par jour, puis les manquants par série',
+    upcomingPage.titles[0] === 'Aujourd’hui' && upcomingPage.titles.at(-1) === 'Épisodes manquants' && upcomingPage.titles.length === 5
+      && upcomingPage.rows.some((x) => /^Courte Anime S1 · É2 · Ce soir/.test(x)) && upcomingPage.rows.some((x) => /^Deux Temps 2 épisodes manquants : S1 · É3, S2 · É2/.test(x)),
+    `${upcomingPage.titles.join(' | ')} ; ${upcomingPage.rows.join(' ; ')}`);
+  await page.evaluate(() => { location.hash = '#/series'; });
+  const upcomingChip = await page.locator('a.chip[href="#/a-venir"]').innerText({ timeout: 10000 }).catch(() => '');
+  check('Séries : la puce « À venir »', upcomingChip.trim() === 'À venir', upcomingChip || 'absente');
 
   // « Titres à corriger » (an administrator): no test title is known to TMDb (out of reach here), each is « Non
   // reconnu ». « Identifier… » from a film's page: Jellyfin's search answered by the check (its sources are out of

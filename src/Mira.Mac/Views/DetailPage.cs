@@ -38,6 +38,13 @@ public sealed class DetailPage : Page
     /// <summary>« Suivre une série »: known once the relay answered for an administrator; the series as it follows it, null when it does not.</summary>
     private bool _followKnown;
     private RelayFollow? _follow;
+    /// <summary>
+    /// Missing episodes and coming ones (TheTVDB's plugin on Jellyfin, <see cref="TvdbExtension"/>): one line above the
+    /// episodes, opened into their list, as Mira web and Windows (<see cref="EpisodeCalendar"/>).
+    /// </summary>
+    private readonly StackPanel _calendar = new() { Spacing = 8 };
+    private (List<MediaItem> Missing, List<MediaItem> Coming) _schedule = ([], []);
+    private bool _calendarOpen;
     public override string Rail => "";
     public MediaItem Item => _item;
     public IReadOnlyList<MediaItem> Episodes => _allEpisodes;
@@ -93,7 +100,7 @@ public sealed class DetailPage : Page
         }
         RenderTop(); RenderBody(session);
         _ = LoadSimilarAsync(session);
-        if (_item.Type == "Series") _ = LoadFollowAsync(session);
+        if (_item.Type == "Series") { _ = LoadFollowAsync(session); _ = LoadCalendarAsync(session); }
         if (!_admin) _ = CheckAdministratorAsync(session);
         if (_item.Type == "Series" && SeriesTarget is { } target && _targetFile?.Id != target.Id) await LoadTargetFileAsync(session, target);
     }
@@ -366,7 +373,8 @@ public sealed class DetailPage : Page
         if (_seasonMark.Parent is Panel holding) holding.Children.Remove(_seasonMark);
         header.Children.Add(_seasons); header.Children.Add(_seasonMark); header.Children.Add(_episodeHeading);
         if (_episodes.Parent is Panel holder) holder.Children.Remove(_episodes);
-        return Ui.Column(14, header, _episodes);
+        if (_calendar.Parent is Panel calendarHolder) calendarHolder.Children.Remove(_calendar);
+        return Ui.Column(14, header, _calendar, _episodes);
     }
     private void RenderEpisodes()
     {
@@ -381,6 +389,65 @@ public sealed class DetailPage : Page
         var pages = _seasons.Items.OfType<ComboBoxItem>().Select(x => x.Tag).OfType<EpisodePage>().ToList();
         if (_found is null && _next is { } next && EpisodePages.NextElsewhere(pages, _allEpisodes, page, next) is { } elsewhere) _episodes.Children.Add(NextElsewhereRow(next, elsewhere));
         foreach (var episode in episodes) _episodes.Children.Add(EpisodeRow(session, episode));
+    }
+    private async Task LoadCalendarAsync(Session session)
+    {
+        try
+        {
+            var episodes = await session.Client.VirtualEpisodesAsync(session.Lifetime);
+            _schedule = EpisodeCalendar.Read(episodes.Where(x => x.SeriesId == _item.Id), EpisodeCalendar.Today());
+        }
+        // Optional, as the similar titles: the episodes say it when Jellyfin is out of reach.
+        catch (Exception ex) when (Errors.Expected(ex)) { _schedule = ([], []); }
+        RenderCalendar();
+    }
+    private void RenderCalendar()
+    {
+        _calendar.Children.Clear();
+        var (missing, coming) = _schedule;
+        var today = EpisodeCalendar.Today();
+        var first = missing.Count > 0 ? EpisodeCalendar.MissingText(missing) : EpisodeCalendar.NextText(coming, today);
+        _calendar.IsVisible = first.Length > 0;
+        if (first.Length == 0) return;
+        var warning = Ui.Brush("#D5B787");
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
+        text.Children.Add(new TextBlock { Text = first, FontSize = 15, TextWrapping = TextWrapping.Wrap });
+        if (missing.Count > 0 && coming.Count > 0) text.Children.Add(new TextBlock { Text = EpisodeCalendar.NextText(coming, today), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap });
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        grid.Children.Add(new Icon(missing.Count > 0 ? "warning" : "calendar", 18) { Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = missing.Count > 0 ? warning : Ui.Muted });
+        Grid.SetColumn(text, 1); grid.Children.Add(text);
+        var chevron = new Icon(_calendarOpen ? "up" : "down", 14) { Margin = new Thickness(16, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.Muted };
+        Grid.SetColumn(chevron, 2); grid.Children.Add(chevron);
+        var line = new Button { Content = grid, Classes = { "row" }, Background = Ui.Brush("#18181B"), Padding = new Thickness(16, 12), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        Avalonia.Automation.AutomationProperties.SetName(line, string.Join(". ", text.Children.OfType<TextBlock>().Select(x => x.Text)));
+        Avalonia.Automation.AutomationProperties.SetHelpText(line, _calendarOpen ? L("Masquer la liste", "Hide the list") : L("Voir la liste", "Show the list"));
+        line.Click += (_, _) => { _calendarOpen = !_calendarOpen; RenderCalendar(); };
+        _calendar.Children.Add(line);
+        if (!_calendarOpen) return;
+        var list = new StackPanel { Spacing = 8, Margin = new Thickness(16, 4, 16, 12) };
+        list.Children.Add(new TextBlock { Text = L("D’après TheTVDB, que ton serveur Jellyfin consulte avec son extension : ces épisodes ne sont pas dans ta bibliothèque.", "From TheTVDB, which your Jellyfin server checks with its plugin: these episodes aren’t in your library."), Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap });
+        void Heading(string title) => list.Children.Add(new TextBlock { Text = title, FontSize = 12, Foreground = Ui.Faint, Margin = new Thickness(0, 10, 0, 0) });
+        void Line(MediaItem x, string when)
+        {
+            var row = new DockPanel();
+            var day = new TextBlock { Text = when, Foreground = Ui.Muted, Margin = new Thickness(16, 0, 0, 0) };
+            DockPanel.SetDock(day, Dock.Right);
+            row.Children.Add(day);
+            row.Children.Add(new TextBlock { Text = string.Join(" · ", new[] { EpisodeCalendar.Code(x), x.Name }.Where(y => !string.IsNullOrEmpty(y))), TextTrimming = TextTrimming.CharacterEllipsis });
+            list.Children.Add(row);
+        }
+        if (missing.Count > 0)
+        {
+            Heading(missing.Count == 1 ? L("Manquant", "Missing") : L("Manquants", "Missing"));
+            foreach (var x in missing.Take(30)) Line(x, L($"Sorti {EpisodeCalendar.DayText(EpisodeCalendar.AirDay(x)!.Value, today)}", $"Aired {EpisodeCalendar.DayText(EpisodeCalendar.AirDay(x)!.Value, today)}"));
+            if (missing.Count > 30) list.Children.Add(new TextBlock { Text = L($"Et {Lang.Count(missing.Count - 30, "autre", "autres", "more", "more")}", $"And {Lang.Count(missing.Count - 30, "autre", "autres", "more", "more")}"), Foreground = Ui.Muted });
+        }
+        if (coming.Count > 0)
+        {
+            Heading(L("À venir", "Coming up"));
+            foreach (var x in coming.Take(12)) Line(x, EpisodeCalendar.DayTitle(EpisodeCalendar.AirDay(x)!.Value, today));
+        }
+        _calendar.Children.Add(list);
     }
     /// <summary>« À suivre : S2 É1 · Le titre », above the episodes of another season; « Saison 2 › » shows its own.</summary>
     private Button NextElsewhereRow(MediaItem next, EpisodePage elsewhere)

@@ -3,6 +3,7 @@
 // tests/fixtures/torlink-remote.json), and the lines the screen writes (views/torlink.js). Nothing of the browser at
 // load: Node imports it as it is.
 import { tr, trn, language } from './i18n.js';
+import { airDay, dayText, today } from './calendar.js';
 
 /** TorLink's search categories Mira offers, in its words: never « games », Jellyfin has no use for them. */
 /** What a title found in a category of TorLink is, on its card (RemoteLines.KindLabel); empty when the relay does not say. */
@@ -229,14 +230,24 @@ export function followNote(note) {
 const within = (seconds) => seconds < 60 ? tr('moins d’une minute')
   : (seconds < 3570 ? tr('{m} min', { m: Math.round(seconds / 60) }) : tr('{h} h', { h: Math.round(seconds / 3600) })).replace(' ', '\u00a0');
 
-/** « Dernier épisode : S01E12 · prochaine recherche dans 3 h », or « Recherche en cours sur le PC serveur… ». */
+/** « Dernier épisode : S01E12 · S01E13 sort samedi · prochaine recherche dans 3 h », or « Recherche en cours sur le PC serveur… ». */
 export function followLine(follow, now = Date.now()) {
   if (follow?.checking) return tr('Recherche en cours sur le PC serveur…');
   const next = Date.parse(follow?.next);
   return [
     follow?.latest ? tr('Dernier épisode : {episode}', { episode: follow.latest }) : '',
+    airsText(follow?.airs, now),
     Number.isFinite(next) && next > now ? tr('prochaine recherche dans {time}', { time: within((next - now) / 1000) }) : tr('prochaine recherche bientôt'),
   ].filter(Boolean).join(' · ');
+}
+
+/** « S01E13 sort samedi », « S01E13 sorti hier »: the next episode TheTVDB dates (calendar.js); empty without one. */
+export function airsText(airs, now = Date.now()) {
+  const day = airDay({ PremiereDate: airs?.day });
+  if (!airs?.episode || !day) return '';
+  const day0 = today(new Date(now));
+  const when = dayText(day, day0);
+  return day < day0 ? tr('{episode} sorti {day}', { episode: airs.episode, day: when }) : tr('{episode} sort {day}', { episode: airs.episode, day: when });
 }
 
 /** A release chosen, not yet in TorLink: « S01E13 · 1,4 Go · part dans 8 min », on its way, or refused. */

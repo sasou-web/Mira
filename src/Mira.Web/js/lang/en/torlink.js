@@ -137,6 +137,8 @@ export default {
   'Recherche impossible pour l’instant.': 'Couldn’t search for now.',
   'Recherche en cours sur le PC serveur…': 'Searching on the server PC…',
   'Dernier épisode : {episode}': 'Latest episode: {episode}',
+  '{episode} sort {day}': '{episode} airs {day}',
+  '{episode} sorti {day}': '{episode} aired {day}',
   'prochaine recherche dans {time}': 'next search in {time}',
   'prochaine recherche bientôt': 'next search soon',
   'part dans {time}': 'goes in {time}',

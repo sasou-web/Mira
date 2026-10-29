@@ -20,8 +20,6 @@ public sealed record FollowCheck(List<FollowPick> Picks, FollowNote Note, List<s
 /// </summary>
 public static partial class SeriesFollowing
 {
-    /// <summary>How often the relay hands a series to the agent: four times a day.</summary>
-    public static readonly TimeSpan Every = TimeSpan.FromHours(6);
     /// <summary>How long a release chosen waits for « Annuler » before going to TorLink.</summary>
     public static readonly TimeSpan Hold = TimeSpan.FromMinutes(10);
     public const int MaxPicks = 6, Window = 12, MinSeeders = 2, MaxNames = 6, MaxQueries = 2;
@@ -84,9 +82,11 @@ public static partial class SeriesFollowing
     /// <summary>
     /// The releases to take among the results of a check (<paramref name="hits"/>, with the search that found each), what
     /// to say of it, the names learned and the latest episode the library has. <paramref name="names"/>: other names of the
-    /// series known on the PC of Jellyfin (<see cref="FromJournal"/>); <paramref name="prefer"/>: the release taken last.
+    /// series known on the PC of Jellyfin (<see cref="FromJournal"/>); <paramref name="prefer"/>: the release taken last;
+    /// <paramref name="expected"/>: the episodes TheTVDB says are out (<see cref="FollowSchedule.Out"/>), when known.
     /// </summary>
-    public static FollowCheck Choose(WorkFollow follow, FollowedSeries series, IEnumerable<string> names, IReadOnlyList<(string Category, AgentHit Hit)> hits, FollowRelease? prefer)
+    public static FollowCheck Choose(WorkFollow follow, FollowedSeries series, IEnumerable<string> names, IReadOnlyList<(string Category, AgentHit Hit)> hits, FollowRelease? prefer,
+        IReadOnlySet<FollowEpisode>? expected = null)
     {
         var library = Latest(series.Owned);
         var latestLibrary = Latest([library, follow.Latest]);
@@ -130,6 +130,8 @@ public static partial class SeriesFollowing
             var mapped = new[] { new FollowEpisode(season, number), new FollowEpisode(season, number - Before(season)) }.Distinct()
                 .Where(x => x.Episode >= 1 && (x.Season == lastSeason && x.Episode > lastEpisode && x.Episode <= lastEpisode + Window
                     || release.Season is not null && x.Season == lastSeason + 1 && x.Episode <= Window)).ToList();
+            // Both readings possible (« Show - 9 » after S02E03, five episodes in season 1: S02E09 or S02E04): the one TheTVDB says is out.
+            if (mapped.Count == 2 && expected is not null && mapped.Where(expected.Contains).ToList() is [var aired]) mapped = [aired];
             if (mapped is not [var episode] || taken.Contains(episode) || refused.Contains(hash) || release.Source == "cam") continue;
             candidates.Add((episode, new RankedRelease(hit, release, candidates.Count, ReleaseRanking.Score(hit, release, category)), found));
         }
