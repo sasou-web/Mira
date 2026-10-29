@@ -240,6 +240,13 @@ public sealed class PlayerSettings
     public bool HardwareDecoding { get; set; } = true;
     /// <summary>« Image » of Mira for Windows (<see cref="PictureQuality"/>): « standard », « cinema » or « max ».</summary>
     public string Picture { get; set; } = PictureQuality.Cinema;
+    /// <summary>« Sortie audio » of Mira for Windows (<see cref="AudioOutput"/>): mpv's device name, « auto » for Windows' default.</summary>
+    public string AudioDevice { get; set; } = AudioOutput.Default;
+    /// <summary>The device's name as Windows gave it, shown while it is unplugged.</summary>
+    public string AudioDeviceLabel { get; set; } = "";
+    public string AudioChannels { get; set; } = AudioOutput.AutoChannels;
+    /// <summary>« off », « optical » or « hdmi » (<see cref="AudioOutput.Codecs"/>).</summary>
+    public string AudioPassthrough { get; set; } = AudioOutput.Off;
     public bool AutoNext { get; set; } = true;
     /// <summary>Openings and recaps jumped over without a press, where Jellyfin's segments or the file's chapters mark them.</summary>
     public bool AutoSkip { get; set; }

@@ -28,25 +28,32 @@ public sealed class MpvEngine : MpvClient
         return candidates.FirstOrDefault(p => File.Exists(p) && PortableExecutable.IsX64(p));
     }
     /// <param name="picture">« Image » of this playback (<see cref="PictureQuality"/>): the one chosen, or lighter when this PC could not keep up.</param>
-    public MpvEngine(IntPtr window, PlayerSettings settings, bool headless = false, string? picture = null) : this(window, settings, headless, FindLibrary(settings.MpvPath), picture ?? settings.Picture) { }
-    private MpvEngine(IntPtr window, PlayerSettings settings, bool headless, string? path, string picture) : base(path ?? "", Load(path), unload: true)
+    public MpvEngine(IntPtr window, PlayerSettings settings, bool headless = false, string? picture = null) : this(window, settings, headless ? Use.Headless : Use.Video, FindLibrary(settings.MpvPath), picture ?? settings.Picture) { }
+    /// <summary>Sound only, on « Sortie audio »: « Tester » of Réglages.</summary>
+    public static MpvEngine Sound(PlayerSettings settings) => new(IntPtr.Zero, settings, Use.Sound, FindLibrary(settings.MpvPath), settings.Picture);
+    private enum Use { Video, Headless, Sound }
+    private MpvEngine(IntPtr window, PlayerSettings settings, Use use, string? path, string picture) : base(path ?? "", Load(path), unload: true)
     {
         try
         {
-            if (!headless) Option("wid", window.ToInt64().ToString(CultureInfo.InvariantCulture));
+            if (use == Use.Video) Option("wid", window.ToInt64().ToString(CultureInfo.InvariantCulture));
             // Keeps the screen on and the PC awake while a video plays (mpv's default, made explicit); paused, it may sleep.
-            if (!headless) Option("stop-screensaver", "yes");
+            if (use == Use.Video) Option("stop-screensaver", "yes");
             Option("input-vo-keyboard", "yes");
             Option("input-conf", Services.AppFiles.InputConf);
-            Option("vo", headless ? "null" : "gpu-next,gpu");
-            if (headless) Option("ao", "null");
-            Option("hwdec", !headless && settings.HardwareDecoding ? "auto" : "no");
+            Option("vo", use == Use.Video ? "gpu-next,gpu" : "null");
+            if (use == Use.Headless) Option("ao", "null");
+            Option("hwdec", use == Use.Video && settings.HardwareDecoding ? "auto" : "no");
             PlayerOptions(settings);
-            if (!headless) PictureOptions(picture);
+            if (use == Use.Video) PictureOptions(picture);
             Initialize(L("Échec de l’initialisation du rendu mpv.", "mpv’s video rendering couldn’t start."));
+            if (use != Use.Headless) AudioMissing = !Audio(settings);
         }
         catch { Dispose(); throw; }
     }
+    /// <summary>The device of « Sortie audio » is unplugged: the sound goes to Windows' default.</summary>
+    public bool AudioMissing { get; private set; }
+    protected override string? AudioDriver => "wasapi";
     /// <summary>
     /// LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR + DEFAULT_DIRS: dependencies beside the chosen DLL, never the current folder or
     /// the PATH.

@@ -54,6 +54,34 @@ internal static class StreamTests
             Assert(!Feed(26, 30, steady: false) && !Feed(30, 30) && !Feed(40, 41) && !Feed(52, 52), "Not steady resets; drops spread out stay under the limit");
             return Task.CompletedTask;
         });
+        await Test("Sortie audio : sortie choisie seulement si branchée, canaux et passthrough pour mpv, son de test par haut-parleur", () =>
+        {
+            var settings = new PlayerSettings();
+            Assert(settings.AudioDevice == AudioOutput.Default && settings.AudioChannels == AudioOutput.AutoChannels && settings.AudioPassthrough == AudioOutput.Off, "Windows' output, its channels, no passthrough by default");
+            Assert(AudioOutput.Options(settings).All(x => x.Value is null), "Defaults are mpv's own: each option back to its default");
+            const string list = """[{"name":"auto","description":"Autoselect device"},{"name":"wasapi/{0.0.0.00000000}.{a1}","description":"Haut-parleurs (Realtek(R) Audio)"},{"name":"wasapi/{0.0.0.00000000}.{b2}","description":"  "},{"name":"wasapi/{0.0.0.00000000}.{a1}","description":"double"},{"name":"openal/Speakers","description":"OpenAL"}]""";
+            var devices = AudioOutput.Devices(list, "wasapi");
+            Assert(devices.Count == 2 && devices[0].Label == "Haut-parleurs (Realtek(R) Audio)" && devices[1].Label == "{0.0.0.00000000}.{b2}", "Windows' devices, named by Windows, else by their id; auto, duplicates and other outputs left out");
+            Assert(AudioOutput.Devices("not json", "wasapi").Count == 0 && AudioOutput.Devices(null, "wasapi").Count == 0 && AudioOutput.Devices("""{"a":1}""", "wasapi").Count == 0, "An unreadable list: no device");
+            Assert(AudioOutput.Device("wasapi/{0.0.0.00000000}.{a1}", devices) == "wasapi/{0.0.0.00000000}.{a1}" && AudioOutput.Device("wasapi/gone", devices) == AudioOutput.Default && AudioOutput.Device("", devices) == AudioOutput.Default, "The device chosen while plugged in, else Windows' default");
+            settings.AudioChannels = "5.1,stereo"; settings.AudioPassthrough = AudioOutput.Optical;
+            var options = AudioOutput.Options(settings).ToDictionary(x => x.Name, x => x.Value);
+            Assert(options["audio-channels"] == "5.1,stereo" && options["audio-spdif"] == "ac3,dts", "5.1 at most; an optical cable carries Dolby Digital and DTS only");
+            Assert(AudioOutput.Codecs(AudioOutput.Hdmi) == "ac3,eac3,dts-hd,truehd" && AudioOutput.Codecs("x") is null && AudioOutput.KnownChannels("9.1") == AudioOutput.AutoChannels, "HDMI: TrueHD and DTS-HD too; unknown choices are the defaults");
+            foreach (var (channels, count, mask) in new[] { (AudioOutput.AutoChannels, 2, 0x3), ("stereo", 2, 0x3), ("5.1,stereo", 6, 0x3F), ("7.1,5.1,stereo", 8, 0x63F) })
+            {
+                var (wav, speakers) = AudioOutput.TestSound(channels);
+                var step = (int)(AudioOutput.TestRate * AudioOutput.TestStep.TotalSeconds);
+                Assert(speakers.Count == count && System.Text.Encoding.ASCII.GetString(wav, 0, 4) == "RIFF" && BitConverter.ToInt32(wav, 4) == wav.Length - 8 && BitConverter.ToUInt16(wav, 20) == 0xFFFE && BitConverter.ToUInt16(wav, 22) == count && BitConverter.ToInt32(wav, 24) == AudioOutput.TestRate && BitConverter.ToInt32(wav, 40) == mask && BitConverter.ToInt32(wav, 64) == wav.Length - 68 && wav.Length - 68 == step * count * count * 2,
+                    $"{channels}: a WAV of {count} speakers with their layout, one step each");
+                short Sample(int frame, int channel) => BitConverter.ToInt16(wav, 68 + (frame * count + channel) * 2);
+                int Loudest(int frame) => Enumerable.Range(0, count).OrderByDescending(c => Math.Abs((int)Sample(frame, c))).First();
+                Assert(Enumerable.Range(0, count).All(c => Loudest(c * step + 9013) == c && Enumerable.Range(0, count).Where(o => o != c).All(o => Sample(c * step + 9013, o) == 0)), $"{channels}: each speaker alone, in turn");
+                Assert(Sample(0, 0) == 0 && Enumerable.Range(0, count * step).Max(f => Math.Abs((int)Sample(f, f / step))) < short.MaxValue / 2, $"{channels}: starts from silence, never loud");
+            }
+            Assert(AudioOutput.TestSound("stereo").Speakers.SequenceEqual(["gauche", "droite"]) && AudioOutput.TestSound("5.1,stereo").Speakers[3] == "caisson de basses", "Speakers named in the order heard");
+            return Task.CompletedTask;
+        });
         await Test("Qualité : profil de mpv, demande à PlaybackInfo, adresses sans jeton", () =>
         {
             var body = ServerStreams.Request("user-1", 6_000_000, 90, null, null, null);

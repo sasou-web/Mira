@@ -27,6 +27,8 @@ public abstract unsafe class MpvClient : IDisposable
     private enum Boost { None, Installed, Unavailable }
     /// <summary>A file is open, so mpv checks a new audio filter before using it.</summary>
     private bool _open;
+    /// <summary>Passthrough is on (<see cref="AudioOutput"/>): no boost filter.</summary>
+    private bool _passthrough;
     public event Action? FileLoaded;
     public event Action? PlaybackRestarted;
     /// <summary>A file ended: true when it played to its end.</summary>
@@ -111,6 +113,25 @@ public abstract unsafe class MpvClient : IDisposable
         foreach (var (name, value) in PictureQuality.Options(level))
             if ((value ?? Get($"option-info/{name}/default-value")) is { } text) Set(name, text);
     }
+    /// <summary>The mpv output whose devices Mira lists (« wasapi » on Windows); none, only the system's default device.</summary>
+    protected virtual string? AudioDriver => null;
+    /// <summary>The sound devices the system has now (<see cref="AudioOutput.Devices"/>).</summary>
+    public IReadOnlyList<(string Name, string Label)> AudioDevices() => AudioDriver is { } driver ? AudioOutput.Devices(Get("audio-device-list"), driver) : [];
+    /// <summary>
+    /// « Sortie audio » (<see cref="AudioOutput"/>), after <see cref="Initialize"/>: channels, passthrough, and the
+    /// device chosen while the system has it, else its default. While a video plays, the device and channels change at
+    /// once and passthrough with the next file or audio track (mpv decides it when it opens the decoder). Only what
+    /// changed is set: each one reopens the sound. False when the device chosen is not there.
+    /// </summary>
+    public bool Audio(PlayerSettings settings)
+    {
+        foreach (var (name, value) in AudioOutput.Options(settings))
+            if ((value ?? Get($"option-info/{name}/default-value")) is { } text && Get(name) != text) Set(name, text);
+        _passthrough = AudioOutput.Codecs(settings.AudioPassthrough) is not null; ApplyLevel();
+        var device = AudioOutput.Device(settings.AudioDevice, AudioDevices());
+        if (Get("audio-device") != device) Set("audio-device", device);
+        return device == settings.AudioDevice || settings.AudioDevice is "" or AudioOutput.Default;
+    }
     protected void Initialize(string failure) { if (_initialize(_handle) < 0) throw new IOException(failure); }
     public bool Set(string name, string value)
     {
@@ -167,7 +188,9 @@ public abstract unsafe class MpvClient : IDisposable
     {
         if (_handle == IntPtr.Zero) return;
         var (volume, gain) = VolumeBoost.Split(_level);
-        if (_boost == Boost.Unavailable) { Set("volume", Format(_level)); return; }
+        // What goes untouched to an amplifier cannot go through a filter: mpv's own volume, which PCM still follows.
+        if (_passthrough && _boost == Boost.Installed && TryCommand("af", "remove", "@" + VolumeBoost.Label)) _boost = Boost.None;
+        if (_boost == Boost.Unavailable || _passthrough) { Set("volume", Format(_level)); return; }
         Set("volume", Format(volume));
         // Back to 100 or less: a new file starts without the filter; the open one keeps it at gain 1, without a gap.
         if (_boost == Boost.Installed && gain <= 1 && (loading || !_open))
