@@ -19,7 +19,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
+	"golang.org/x/text/unicode/norm"
 	"tailscale.com/client/local"
 	"tailscale.com/envknob"
 	"tailscale.com/ipn"
@@ -206,11 +208,15 @@ func (n *Node) Rebind() {
 	}
 }
 
-// Hostname turns a device name (« Mira-MacBook Air ») into the DNS label Tailscale shows (« mira-macbook-air »).
+// Hostname turns a device name (« Mira-MacBook Air de Élodie ») into the DNS label Tailscale shows
+// (« mira-macbook-air-de-elodie »).
 func Hostname(name string) string {
 	var b strings.Builder
 	dash := false
-	for _, r := range strings.ToLower(name) {
+	for _, r := range norm.NFD.String(strings.ToLower(name)) {
+		if unicode.Is(unicode.Mn, r) {
+			continue // the accent of a letter
+		}
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
 			b.WriteRune(r)
