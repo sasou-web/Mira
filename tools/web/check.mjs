@@ -497,7 +497,7 @@ try {
     const created = await toastSaying('créée avec');
     await wait(800);
     const made = (await boxSets()).find((x) => x.Name === 'Soirées Web');
-    // A second title, from its own menu: the new collection unticked, the saga ticked (12.1 says which hold it).
+    // A second title, from its own menu: the new collection unticked, the saga ticked (12.1 says which hold it; 10.x: no ticks).
     await page.keyboard.press('Escape').catch(() => {});
     await cardMenuOf('Lueur Web');
     await page.locator(live, { hasText: 'Ajouter à une collection…' }).click();
@@ -557,7 +557,7 @@ try {
     const chapitres = (await api('Items?recursive=true&includeItemTypes=Movie&searchTerm=Chapitres'))?.Items ?? [];
     const sagaAfter = left.find((x) => x.Name === 'Saga Test');
     check('collections : faite depuis le menu d’une carte, nom de la saga refusé, un 2e titre coché, rangée de l’Accueil, page, retrait, renommée, supprimée sans toucher aux titres',
-      filmMenu.includes('Ajouter à une collection…') && offered.some((x) => x.startsWith('Saga Test') && x.endsWith('false')) && offered.some((x) => x.startsWith('Nouvelle collection…'))
+      filmMenu.includes('Ajouter à une collection…') && offered.some((x) => x.startsWith('Saga Test') && x.endsWith(olderJellyfin ? '-' : 'false')) && offered.some((x) => x.startsWith('Nouvelle collection…'))
         && refused === 'Ce nom est déjà pris par la collection « Saga Test ».' && created.startsWith('Collection « Soirées Web » créée avec « Chapitres Web') && made?.ChildCount === 1
         && (olderJellyfin || (ticks.saga === 'true' && ticks.mine === 'false')) && added.startsWith('Ajouté à « Soirées Web »')
         && homeRow?.includes('Saga Test') && allPage?.titles.includes('Soirées Web') && allPage.add
