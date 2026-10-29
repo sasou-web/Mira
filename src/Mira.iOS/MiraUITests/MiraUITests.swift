@@ -1,8 +1,10 @@
+import Synchronization
 import XCTest
 
 /// The app on the simulator against the stand-in Jellyfin of tools/ios/mock-jellyfin.mjs (ios.yml starts it): sign in,
-/// Home, a title, playing it, Settings, sign out, in English then in French. Each screen is captured (the attachments ios.yml
-/// takes out of the results), the only way to see the app without an iPhone.
+/// Home, a title, playing it, Settings, sign out, in English then in French; and Built-in Tailscale, from the sign-in
+/// screen to a title played through it, on the stand-in Tailscale network of src/Mira.Tailscale (cmd/mira-testnet). Each
+/// screen is captured (the attachments ios.yml takes out of the results), the only way to see the app without an iPhone.
 final class MiraUITests: XCTestCase {
     static let server = "127.0.0.1:18097"
 
@@ -299,6 +301,86 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/Stopped", item: Self.sintel, timeout: 20), "Closing the bar did not stop Sintel")
     }
 
+    /// Built-in Tailscale from end to end (ios.yml starts the stand-in Tailscale network, whose « Jellyfin PC » puts the
+    /// stand-in Jellyfin on it, and passes its address in MIRA_TS_CONTROL): turned on from the sign-in screen, signed in
+    /// once on its page, Jellyfin found on the network, then the account, Home and a title played; every request through
+    /// the node and its relay (`-mira-way-builtin`: never straight to the stand-in Jellyfin, though it is on this Mac).
+    /// Then the PC switched off and on again, as Settings tells it. Last of the tests (by name): ios.yml reads its node's
+    /// log in the app's folder, which the next test's reset would delete.
+    @MainActor
+    func testTailscale() throws {
+        guard let control = ProcessInfo.processInfo.environment["MIRA_TS_CONTROL"], !control.isEmpty else {
+            throw XCTSkip("No stand-in Tailscale network (MIRA_TS_CONTROL)")
+        }
+        let app = launch(language: "en", locale: "en_US", extra: ["-mira-tailscale-control", control, "-mira-way-builtin"])
+        let entry = app.buttons["login.tailscale"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10), "The sign-in screen offers no Built-in Tailscale")
+        entry.tap()
+        let turnOn = app.buttons["tailscale.turnOn"]
+        XCTAssertTrue(turnOn.waitForExistence(timeout: 10), "Built-in Tailscale's sheet has no Turn on")
+        settle()
+        capture("41-tailscale")
+        turnOn.tap()
+        // Tailscale's page over Mira, the stand-in network's signing this iPhone in as it opens, closed by Mira once the
+        // node runs. iOS asks first only for a page that shares Safari's cookies, which Mira's never does.
+        let consent = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Continue"]
+        if consent.waitForExistence(timeout: 3) { consent.tap() }
+        let found = app.buttons["tailscale.server.0"]
+        if !found.waitForExistence(timeout: 60) {
+            capture("42-tailscale-not-found")
+            // Looked for before the PC showed online: looked for again, as a person would.
+            let again = app.buttons["Look again"]
+            if again.exists { again.tap() }
+            XCTAssertTrue(found.waitForExistence(timeout: 30), "Jellyfin was never found on the Tailscale network")
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["tailscale.connected"].exists, "The sheet does not say Mira is connected to Tailscale")
+        settle()
+        capture("42-tailscale-found")
+        found.tap()
+        signInAccount(app, password: "mira")
+        XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 30), "Home never showed Continue watching through Built-in Tailscale")
+        dismissSavePassword(app)
+        settle()
+        capture("43-tailscale-home")
+
+        // A title played through the relay: Mira's player reads the file from it. Tears of Steel played in testEnglish
+        // already: the reports of this play are those after the ones counted now.
+        let started = reports("/Start", item: Self.tearsOfSteel), stopped = reports("/Stopped", item: Self.tearsOfSteel)
+        let poster = app.buttons["Tears of Steel, 2012"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "No card for Tears of Steel")
+        tapCard(app, poster)
+        let play = app.buttons["title.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 15), "The title page did not open")
+        play.tap()
+        XCTAssertTrue(waitForReport("/Start", item: Self.tearsOfSteel, timeout: 45, after: started), "The player never played through Built-in Tailscale")
+        Thread.sleep(forTimeInterval: 1.5)
+        capture("44-tailscale-player")
+        closePlayer(app)
+        XCTAssertTrue(waitForReport("/Stopped", item: Self.tearsOfSteel, timeout: 20, after: stopped), "Jellyfin never heard through Built-in Tailscale that playback stopped")
+        XCTAssertTrue(play.waitForExistence(timeout: 10), "Closing the player did not lead back to the title page")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // Settings: the way taken, the network, the PC; switched off, then on again. Home scrolled to the card folded
+        // Mira's tab bar to its Home tab: scrolling back up unfolds it.
+        let settings = app.buttons["tab.settings"]
+        if !settings.waitForExistence(timeout: 3) { app.swipeDown() }
+        XCTAssertTrue(settings.waitForExistence(timeout: 5), "No Settings tab")
+        settings.tap()
+        let way = app.descendants(matching: .any)["settings.way"]
+        for _ in 0..<4 where !(way.exists && way.isHittable) { app.swipeUp() }
+        XCTAssertTrue(way.waitForExistence(timeout: 10), "Settings does not say how Mira reaches Jellyfin")
+        XCTAssertTrue(way.label.contains("Through Built-in Tailscale"), "The way to Jellyfin: \(way.label)")
+        XCTAssertTrue(app.staticTexts["PC with Jellyfin online"].waitForExistence(timeout: 15), "Settings does not show the PC with Jellyfin online")
+        settle()
+        capture("45-tailscale-settings")
+        bench(control, "/mira/jellyfin?online=0")
+        XCTAssertTrue(app.staticTexts["PC with Jellyfin offline"].waitForExistence(timeout: 45), "Settings never said the PC with Jellyfin is offline")
+        settle()
+        capture("46-tailscale-pc-off")
+        bench(control, "/mira/jellyfin?online=1")
+        XCTAssertTrue(app.staticTexts["PC with Jellyfin online"].waitForExistence(timeout: 45), "Settings never said the PC with Jellyfin is back online")
+    }
+
     /// Reduces Mira's player to the bar over the tabs, then closes it there.
     @MainActor
     private func closePlayer(_ app: XCUIApplication) {
@@ -352,6 +434,12 @@ final class MiraUITests: XCTestCase {
         focus(address)
         address.typeText(Self.server)
         app.buttons["login.continue"].tap()
+        signInAccount(app, password: password)
+    }
+
+    /// The account's form, once the server is found.
+    @MainActor
+    private func signInAccount(_ app: XCUIApplication, password: String) {
         let username = app.textFields["login.username"]
         XCTAssertTrue(username.waitForExistence(timeout: 15), "The server was not found")
         focus(username)
@@ -394,18 +482,36 @@ final class MiraUITests: XCTestCase {
     static let sintel = "a1f0c3d2e5b64a7f8c9d0e1f2a3b4c5d"
 
     /// Waits for the stand-in Jellyfin to have received this report of the player (/Start, /Progress, /Stopped) about
-    /// this title (the stand-in keeps them from one test to the next: each test plays its own title).
-    private func waitForReport(_ kind: String, item: String, timeout: TimeInterval) -> Bool {
+    /// this title, more than `after` of them (the stand-in keeps them from one test to the next: each test plays its own
+    /// title, or counts those of the tests before).
+    private func waitForReport(_ kind: String, item: String, timeout: TimeInterval, after: Int = 0) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
-        let url = URL(string: "http://\(Self.server)/Mock/Reports")!
         while Date() < deadline {
-            if let data = try? Data(contentsOf: url), let reports = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-               reports.contains(where: { $0["kind"] as? String == kind && $0["item"] as? String == item }) {
-                return true
-            }
+            if reports(kind, item: item) > after { return true }
             Thread.sleep(forTimeInterval: 0.5)
         }
         return false
+    }
+
+    /// How many reports of this kind about this title the stand-in Jellyfin has received.
+    private func reports(_ kind: String, item: String) -> Int {
+        guard let data = try? Data(contentsOf: URL(string: "http://\(Self.server)/Mock/Reports")!),
+              let reports = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return 0 }
+        return reports.count { $0["kind"] as? String == kind && $0["item"] as? String == item }
+    }
+
+    /// Tells the stand-in Tailscale network something (POST /mira/…: the Jellyfin PC off or on), and checks it was done.
+    private func bench(_ control: String, _ command: String) {
+        var request = URLRequest(url: URL(string: control + command)!)
+        request.httpMethod = "POST"
+        let answer = Answer()
+        let done = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            answer.status.withLock { $0 = (response as? HTTPURLResponse)?.statusCode ?? 0 }
+            done.signal()
+        }.resume()
+        _ = done.wait(timeout: .now() + 10)
+        XCTAssertEqual(answer.status.withLock { $0 }, 204, "The stand-in Tailscale network did not take \(command)")
     }
 
     /// Waits for the stand-in Jellyfin to have received this request of « Watch together » (SyncPlay/<what>).
@@ -440,4 +546,9 @@ final class MiraUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+}
+
+/// What a request answered, written from URLSession's queue.
+private final class Answer: Sendable {
+    let status = Mutex(0)
 }
