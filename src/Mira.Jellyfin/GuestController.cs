@@ -131,7 +131,7 @@ public sealed partial class GuestController : ControllerBase
         string? token = null;
         if (access != GuestRoutes.Access.Public)
         {
-            var tokens = Tokens().Distinct(StringComparer.Ordinal).ToList();
+            var tokens = Tokens(Request).Distinct(StringComparer.Ordinal).ToList();
             invite = tokens.Count == 1 ? Plugin.Invites.ByToken(tokens[0]) : null;
             if (invite?.Device is null)
             {
@@ -343,11 +343,11 @@ public sealed partial class GuestController : ControllerBase
     }
 
     /// <summary>Every session token the request carries, in any of the places Jellyfin reads one.</summary>
-    private IEnumerable<string> Tokens()
+    internal static IEnumerable<string> Tokens(HttpRequest request)
     {
         foreach (var header in new[] { "Authorization", "X-Emby-Authorization" })
         {
-            foreach (var value in Request.Headers[header])
+            foreach (var value in request.Headers[header])
             {
                 foreach (Match match in TokenParameter().Matches(value ?? ""))
                 {
@@ -358,7 +358,7 @@ public sealed partial class GuestController : ControllerBase
 
         foreach (var header in new[] { "X-Emby-Token", "X-MediaBrowser-Token" })
         {
-            foreach (var value in Request.Headers[header])
+            foreach (var value in request.Headers[header])
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -367,7 +367,7 @@ public sealed partial class GuestController : ControllerBase
             }
         }
 
-        foreach (var pair in Request.Query.Where(x => x.Key.Equals("ApiKey", StringComparison.OrdinalIgnoreCase) || x.Key.Equals("api_key", StringComparison.OrdinalIgnoreCase)))
+        foreach (var pair in request.Query.Where(x => x.Key.Equals("ApiKey", StringComparison.OrdinalIgnoreCase) || x.Key.Equals("api_key", StringComparison.OrdinalIgnoreCase)))
         {
             foreach (var value in pair.Value)
             {

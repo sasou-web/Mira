@@ -66,13 +66,13 @@ public sealed class GuestLinksSection
             row.Children.Add(text);
             _body.Children.Add(row);
         }
-        if (list.Address is { } address && !_editing)
+        if (GuestLinks.AddressLine(list) is { } addressLine && !_editing)
         {
             var line = new DockPanel();
             var change = Ui.Action(L("Changer", "Change"), null, "quiet", () => { _editing = true; _ = LoadAsync(); });
             Avalonia.Automation.AutomationProperties.SetName(change, L("Changer l’adresse des liens", "Change the address of the links"));
             DockPanel.SetDock(change, Dock.Right); line.Children.Add(change);
-            line.Children.Add(Note(L($"Les liens commencent par {address}.", $"Links start with {address}.")));
+            line.Children.Add(Note(addressLine));
             _body.Children.Add(line);
         }
     }

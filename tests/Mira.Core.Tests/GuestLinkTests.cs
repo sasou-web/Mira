@@ -40,6 +40,9 @@ internal static class GuestLinkTests
             Assert(GuestLinks.Refused(HttpStatusCode.Forbidden)!.Contains("administrateurs", StringComparison.Ordinal) && GuestLinks.Refused(HttpStatusCode.NotFound)!.Contains("mets à jour", StringComparison.Ordinal)
                 && GuestLinks.Refused(HttpStatusCode.BadGateway) is null, "refus");
             Assert(GuestLinks.Message("https://x/Mira/#/invite/y") == "Regarde avec moi sur Mira : https://x/Mira/#/invite/y", "message");
+            var listed = System.Text.Json.JsonSerializer.Deserialize<GuestLinkList>("""{"address":"https://pc.ts.net","invites":[],"tunnel":{"state":"open","at":"2026-10-29T09:33:29+00:00","text":"Le tunnel laisse passer plus que Mira."}}""")!;
+            Assert(listed.Tunnel is { State: "open" } && GuestLinks.AddressLine(listed) == "Les liens commencent par https://pc.ts.net.\nLe tunnel laisse passer plus que Mira.", "adresse et tunnel : " + GuestLinks.AddressLine(listed));
+            Assert(GuestLinks.AddressLine(listed with { Tunnel = null }) == "Les liens commencent par https://pc.ts.net." && GuestLinks.AddressLine(listed with { Address = null }) is null, "adresse seule, ou rien");
             return Task.CompletedTask;
         });
     }

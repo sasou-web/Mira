@@ -1,6 +1,6 @@
 // « Liens d'invités » (Inviter par lien), from Réglages or « Inviter quelqu'un », for an administrator: the address the
-// links start with, a new link, and the links made, each taken back with a tap (its guest is out at once, and their
-// account deleted from Jellyfin).
+// links start with (and what the extension found trying it as from the Internet), a new link, and the links made, each
+// taken back with a tap (its guest is out at once, and their account deleted from Jellyfin).
 import { api } from '../api.js';
 import { h, icon, clear } from '../dom.js';
 import { tr, trn } from '../i18n.js';
@@ -32,7 +32,7 @@ export function create() {
     }
   }
 
-  function render({ address, invites = [] }) {
+  function render({ address, invites = [], tunnel = null }) {
     status.textContent = invites.length ? trn(invites.length, '{n} lien en cours.', '{n} liens en cours.') : tr('Aucun lien en cours.');
     const parts = [];
     if (!address) {
@@ -51,7 +51,7 @@ export function create() {
     }
     if (address) {
       parts.push(h('h2', { class: 'label group-title' }, tr('Adresse des liens')), h('div', { class: 'group' }, h('div', { class: 'item static' },
-        icon('server'), h('span', { class: 'grow guests-address' }, address),
+        icon('server'), h('span', { class: 'grow guests-address' }, address, tunnel?.text ? h('span', { class: `sub guests-tunnel ${tunnel.state}` }, tunnel.text) : null),
         h('button', { class: 'btn small', 'aria-label': tr('Changer l’adresse des liens'), on: { click: () => sheet({ title: tr('Adresse des liens'), body: addressForm(address, (listing) => { render(listing); toast(tr('Adresse enregistrée.')); }) }) } }, tr('Changer')))));
     }
     body.replaceChildren(...parts);

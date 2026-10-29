@@ -10,7 +10,8 @@ namespace Mira.Jellyfin;
 
 /// <summary>
 /// « Inviter par lien », the host's side, for Jellyfin's administrators only (making an account takes one): the links
-/// made, a new one with its account, one taken back with its account, and the address the links start with. Every
+/// made, a new one with its account, one taken back with its account, and the address the links start with, tried as
+/// a visitor from the Internet would (<see cref="TunnelCheck"/>): no link where Jellyfin answers outside Mira. Every
 /// change on Jellyfin goes through its own API, on its loopback address, with the administrator's own session.
 /// </summary>
 [ApiController]
@@ -20,6 +21,10 @@ public sealed class InvitesController : ControllerBase
 {
     // The name Jellyfin's dashboard shows for the plugin's API key (Tableau de bord → Clés API).
     private const string KeyName = "Mira";
+    // The address tried again after this long when only Mira answered there, after this long otherwise (Funnel's
+    // certificate on its way, Funnel opened again); one try at a time.
+    private static readonly TimeSpan TunnelFresh = TimeSpan.FromHours(6), TunnelRetry = TimeSpan.FromMinutes(1);
+    private static readonly SemaphoreSlim Trying = new(1, 1);
     private readonly IHttpClientFactory _clients;
     private readonly IServerApplicationHost _host;
 
@@ -39,6 +44,10 @@ public sealed class InvitesController : ControllerBase
     {
         using var client = _clients.CreateClient();
         await GuestCleanup.SweepAsync(client, Roots(), Admin(), cancellationToken).ConfigureAwait(false);
+        // Said with the list as it was last tried; tried again meanwhile, when due, for the next look.
+        var roots = Roots().ToList();
+        var address = Invites.Address;
+        _ = Task.Run(() => TunnelAsync(roots, address, TunnelFresh, TunnelRetry, CancellationToken.None), CancellationToken.None);
         return Answer(Listing());
     }
 
@@ -51,6 +60,13 @@ public sealed class InvitesController : ControllerBase
         if (Invites.Count >= GuestInvites.MaxInvites)
         {
             return Refuse(StatusCodes.Status409Conflict, "Trop de liens en cours : retire ceux qui ne servent plus.");
+        }
+
+        // Never a link where the tunnel lets Jellyfin through: tried again unless only Mira answered there 10 minutes ago.
+        var tunnel = await TunnelAsync(Roots().ToList(), Invites.Address, TimeSpan.FromMinutes(10), TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
+        if (tunnel?.State == TunnelCheck.State.Open)
+        {
+            return Refuse(StatusCodes.Status409Conflict, TunnelCheck.Text(tunnel, French));
         }
 
         var admin = Admin();
@@ -110,25 +126,76 @@ public sealed class InvitesController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>The address the links start with (« https://pc.tailnet.ts.net »), or none (null).</summary>
+    /// <summary>The address the links start with (« https://pc.tailnet.ts.net »), or none (null): tried at once.</summary>
     [HttpPut("address")]
     [RequestSizeLimit(4_096)]
     public async Task<IActionResult> Address(CancellationToken cancellationToken)
     {
         var body = await ReadAsync<AddressBody>(cancellationToken).ConfigureAwait(false);
         var address = string.IsNullOrWhiteSpace(body?.Address) ? null : body.Address;
-        return Invites.SetAddress(address)
-            ? Answer(Listing())
-            : Refuse(StatusCodes.Status400BadRequest, "L’adresse doit commencer par https:// et finir par le nom de l’ordinateur.");
+        if (!Invites.SetAddress(address))
+        {
+            return Refuse(StatusCodes.Status400BadRequest, "L’adresse doit commencer par https:// et finir par le nom de l’ordinateur.");
+        }
+
+        await TunnelAsync(Roots().ToList(), Invites.Address, TimeSpan.Zero, TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
+        return Answer(Listing());
     }
 
-    private object Listing() => new { address = Invites.Address, invites = Invites.All().Select(x => View(x, Invites.Address)) };
+    private object Listing() => new
+    {
+        address = Invites.Address,
+        invites = Invites.All().Select(x => View(x, Invites.Address)),
+        tunnel = TunnelCheck.Last(Invites.Address) is { } tunnel
+            ? new { state = tunnel.State.ToString().ToLowerInvariant(), at = tunnel.At, text = TunnelCheck.Text(tunnel, French) }
+            : null,
+    };
 
     private static object View(GuestInvite invite, string? address) => new
     {
         id = invite.Id, name = invite.Name, created = invite.Created, used = invite.Used, ends = invite.Used + GuestInvites.Unused,
         opened = invite.Device is not null, device = invite.DeviceName, link = GuestInvites.Link(address, invite.Code),
     };
+
+    /// <summary>
+    /// The address of the links tried as a visitor from the Internet would (<see cref="TunnelCheck"/>), unless its last
+    /// try still holds (<see cref="TunnelCheck.Stale"/>): what it gave. Null without an address, or before any try when
+    /// this Jellyfin's own card cannot be read.
+    /// </summary>
+    private static async Task<TunnelCheck.Result?> TunnelAsync(IReadOnlyList<string> roots, string? address, TimeSpan fresh, TimeSpan retry, CancellationToken cancellationToken)
+    {
+        if (address is null || !TunnelCheck.Stale(TunnelCheck.Last(address), DateTimeOffset.UtcNow, fresh, retry))
+        {
+            return TunnelCheck.Last(address);
+        }
+
+        await Trying.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // Tried meanwhile by another request.
+            var last = TunnelCheck.Last(address);
+            if (!TunnelCheck.Stale(last, DateTimeOffset.UtcNow, fresh, retry))
+            {
+                return last;
+            }
+
+            // A redirection is no answer from this server: never followed.
+            using var client = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
+            var (status, text) = await JellyfinLoopback.CallAsync(client, roots, HttpMethod.Get, "System/Info/Public", [], null, cancellationToken).ConfigureAwait(false);
+            if ((status == (int)HttpStatusCode.OK ? TunnelCheck.ServerId(text) : null) is not { } id)
+            {
+                return last;
+            }
+
+            var result = await TunnelCheck.RunAsync(client, address, id, DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
+            TunnelCheck.Keep(result);
+            return result;
+        }
+        finally
+        {
+            Trying.Release();
+        }
+    }
 
     /// <summary>
     /// Jellyfin's API key for the plugin, kept to delete the accounts of links gone unused while no administrator is

@@ -114,6 +114,50 @@ public static partial class GuestRoutes
     public static bool IsId(string? value) => value is not null && Regex.IsMatch(value, "^(?:" + Id + ")$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     /// <summary>
+    /// The header Tailscale puts on every request Funnel brings in from the Internet (Tailscale 1.72 and later), once it
+    /// took away any the visitor sent: what <see cref="TunnelGuard"/> knows them by. A device of the house that sends
+    /// it itself only keeps itself to what a guest may reach.
+    /// </summary>
+    public const string FunnelHeader = "Tailscale-Funnel-Request";
+
+    /// <summary>What a request that came through Funnel may reach.</summary>
+    public enum Tunnel
+    {
+        /// <summary>Not for the Internet: 404, before Jellyfin sees it.</summary>
+        None,
+        /// <summary>Mira web itself: the page, its manifest, its files.</summary>
+        Page,
+        /// <summary>The gateway, which lets through a guest's routes only (<see cref="For"/>).</summary>
+        Gateway,
+        /// <summary>Jellyfin's WebSocket, which answers at any path: at the gateway's, and for a guest's session only.</summary>
+        Socket,
+    }
+
+    /// <summary>
+    /// What a request that came through Funnel may reach, whatever Funnel itself lets through: by its method, its path
+    /// as Jellyfin's server read it (decoded, without « . » nor « .. »), the server's base URL first (« » or
+    /// « /jellyfin »), and whether it asks for another protocol (a WebSocket). Only what a guest's page needs.
+    /// </summary>
+    public static Tunnel ThroughTunnel(string method, string path, string baseUrl, bool upgrade)
+    {
+        var mira = baseUrl.TrimEnd('/') + "/Mira";
+        if (!path.StartsWith(mira, StringComparison.OrdinalIgnoreCase))
+        {
+            return Tunnel.None;
+        }
+
+        var rest = path[mira.Length..];
+        if (rest.StartsWith("/guest/", StringComparison.OrdinalIgnoreCase))
+        {
+            return upgrade ? Tunnel.Socket : Tunnel.Gateway;
+        }
+
+        var read = method.Equals("GET", StringComparison.OrdinalIgnoreCase) || method.Equals("HEAD", StringComparison.OrdinalIgnoreCase);
+        var page = rest is "" or "/" || rest.Equals("/manifest.webmanifest", StringComparison.OrdinalIgnoreCase) || rest.StartsWith("/v/", StringComparison.OrdinalIgnoreCase);
+        return read && !upgrade && page ? Tunnel.Page : Tunnel.None;
+    }
+
+    /// <summary>
     /// An HLS playlist as the guest's page must read it: every address from this server's root
     /// (<paramref name="root"/>, its base URL, « » or « /jellyfin ») made to go through the gateway, those Mira's own
     /// playlists write (<see cref="HlsPlaylists"/>) and any Jellyfin would; relative addresses already do.
