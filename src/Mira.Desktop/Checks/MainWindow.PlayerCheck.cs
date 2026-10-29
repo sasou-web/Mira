@@ -79,6 +79,15 @@ public partial class MainWindow
             Require(Math.Abs(_mpv.Number("audio-delay") - .2) < .001 && Equals(AudioDelayReset.Content, DelayLabel(.2)), "audio timing buttons reach mpv and show the new offset");
             AudioDelay_Click(new Button { Tag = "0" }, new());
             Require(Math.Abs(_mpv.Number("audio-delay")) < .001 && _audioDelay == 0, "audio delay reset");
+            // « Sortie audio »: channels and passthrough reach mpv while a video plays; an unplugged device leaves Windows' own.
+            _settings.AudioChannels = "5.1,stereo"; _settings.AudioPassthrough = Mira.Core.AudioOutput.Hdmi; _settings.AudioDevice = "wasapi/{unplugged}";
+            var plugged = _mpv.Audio(_settings);
+            Require(!plugged && _mpv.Get("audio-device") == Mira.Core.AudioOutput.Default && (_mpv.Get("audio-channels") ?? "").StartsWith("5.1", StringComparison.Ordinal) && _mpv.Get("audio-spdif") == "ac3,eac3,dts-hd,truehd",
+                $"« Sortie audio » reaches mpv: device {_mpv.Get("audio-device")}, channels {_mpv.Get("audio-channels")}, passthrough {_mpv.Get("audio-spdif")}");
+            _settings.AudioChannels = Mira.Core.AudioOutput.AutoChannels; _settings.AudioPassthrough = Mira.Core.AudioOutput.Off; _settings.AudioDevice = Mira.Core.AudioOutput.Default;
+            Require(_mpv.Audio(_settings) && _mpv.Get("audio-channels") == "auto-safe" && _mpv.Get("audio-spdif") == "", $"« Sortie audio » back to mpv's own: channels {_mpv.Get("audio-channels")}, passthrough “{_mpv.Get("audio-spdif")}”");
+            checks.Add($"INFO audio devices on this PC: {_mpv.AudioDevices().Count}; output {AudioOutputInfo()}");
+            await RunSoundTestCheckAsync(output, checks, Require, Until);
             // The runner's software rendering may drop frames and put the player on a lighter level: judged on the level it is on.
             Require((_mpv.Get("video-sync") == "display-resample") == (_picture != Mira.Core.PictureQuality.Standard) && (_mpv.Get("deband") == "yes") == (_picture != Mira.Core.PictureQuality.Standard), $"« Image » {_picture} (chosen {_settings.Picture}) reaches mpv: video-sync {_mpv.Get("video-sync")}, deband {_mpv.Get("deband")}");
             var panel = (FrameworkElement)PlayerOptionsPopup.Child;

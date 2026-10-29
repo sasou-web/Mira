@@ -78,7 +78,7 @@ public partial class MainWindow
         || _settings.TorLinkPath != TorLinkPathBox.Text.Trim() || _settings.TorLinkMoviesFolder != TorLinkMoviesBox.Text.Trim()
         || _settings.TorLinkSeriesFolder != TorLinkSeriesBox.Text.Trim() || _settings.TorLinkAnimeFolder != TorLinkAnimeBox.Text.Trim()
         || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true) || _settings.EpisodeNotices != (EpisodeNoticesCheck.IsChecked == true)
-        || Choice(MiraLanguageChoice) is { Length: > 0 } language && language != ShownLanguage;
+        || AudioSettingsChanged() || Choice(MiraLanguageChoice) is { Length: > 0 } language && language != ShownLanguage;
     private bool _settingsBusy;
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
@@ -104,7 +104,7 @@ public partial class MainWindow
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
-        DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowOfflineSettings();
+        DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowOfflineSettings();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
         _settingsBusy = false; LanguageChoice_Changed(this, null!);
@@ -127,7 +127,7 @@ public partial class MainWindow
         SettingsSectionTitle.Text = tab switch { "subtitles" => L("Audio & sous-titres", "Audio & subtitles"), "appearance" => L("Apparence", "Appearance"), "server" => L("Jellyfin & synchronisation", "Jellyfin & sync"), "torlink" => "TorLink", "updates" => L("Mises à jour", "Updates"), "report" => L("Ton bilan", "Your recap"), _ => L("Lecture", "Playback") };
         SettingsSectionDescription.Text = tab switch
         {
-            "subtitles" => L("Les bonnes langues, dès le premier épisode.", "The right languages, from the very first episode."),
+            "subtitles" => L("Où part le son, et les bonnes langues dès le premier épisode.", "Where the sound goes, and the right languages from the very first episode."),
             "appearance" => L("Ajuste le confort de navigation à tes habitudes.", "Make browsing work the way you like."),
             "server" => L("Ta bibliothèque et ta progression, toujours à portée de main.", "Your library and your progress, always at hand."),
             "torlink" => L("Tes téléchargements rangés dans Jellyfin, sans rien déplacer à la main.", "Your downloads filed in Jellyfin, without moving anything by hand."),
@@ -208,6 +208,7 @@ public partial class MainWindow
         _settings.AudioLanguage = AudioLanguageBox.Text.Trim(); _settings.SubtitleLanguage = SubtitleLanguageBox.Text.Trim();
         _settings.SubtitleSize = (int)SubtitleSizeSlider.Value; _settings.SubtitleBackground = SubtitleBackgroundCheck.IsChecked == true; _settings.SubtitleBold = SubtitleBoldCheck.IsChecked == true;
         _settings.SubtitleColor = Choice(SubtitleColorChoice) is { Length: > 0 } colour ? colour : SubtitleStyle.White; _settings.SubtitleHeight = SubtitleHeight(); _settings.MpvPath = MpvPathBox.Text.Trim();
+        ApplyAudioSettings();
         // Switching automatic placement back on starts from now: downloads finished meanwhile stay listed, to import by hand.
         var automaticAgain = !_settings.TorLinkAutoImport && TorLinkAutoImportCheck.IsChecked == true;
         _settings.TorLinkAutoImport = TorLinkAutoImportCheck.IsChecked == true; _settings.TorLinkKeepShared = TorLinkKeepSharedCheck.IsChecked == true;

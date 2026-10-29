@@ -107,6 +107,7 @@ public partial class MainWindow
             ResetMarkers();
             _mpv = new MpvEngine(_videoHandle, _settings, picture: PictureForPlayback());
             if (_audioDelay != 0) _mpv.Set("audio-delay", _audioDelay.ToString(CultureInfo.InvariantCulture));
+            SayAudioMissing();
             // Kept to reopen the stream at its position after the PC slept (MainWindow.Power.cs) or a cut (MainWindow.PlayerStream.cs).
             // Someone starting a playback has the PC awake: no earlier sleep is left to handle.
             _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
