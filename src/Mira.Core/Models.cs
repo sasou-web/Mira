@@ -280,6 +280,11 @@ public sealed class PlayerSettings
     /// <summary>Checks GitHub for new versions, downloads them and installs them when Mira closes. On the Mac: asks GitHub at
     /// each launch and says when one is out (« Rechercher les nouvelles versions »).</summary>
     public bool AutoUpdate { get; set; } = true;
+    /// <summary>
+    /// « Tailscale intégré » signed in from this device: its node starts with Mira and stops with it. False (default)
+    /// until the person signs in, and again once they sign out: before that, nothing goes to Tailscale.
+    /// </summary>
+    public bool Tailnet { get; set; }
     /// <summary>TorLink folder; empty: found through its shortcuts.</summary>
     public string TorLinkPath { get; set; } = "";
     public bool TorLinkAutoImport { get; set; } = true;

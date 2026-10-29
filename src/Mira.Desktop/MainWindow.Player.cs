@@ -177,7 +177,7 @@ public partial class MainWindow
         if (!_demo && _client is not null && _stream is { } stream)
         {
             // Subtitles fetched from Jellyfin take the token in their header too (its file on this PC opens without it).
-            _mpv.Set("http-header-fields", "Authorization: " + _client.AuthorizationHeader.Replace(",", "\\,"));
+            _mpv.SetAuthorization(_client.AuthorizationHeader);
             // External subtitles supplied by Jellyfin may not share the video's filename; a conversion's come when chosen.
             if (!stream.Converted)
                 foreach (var (track, path) in ServerStreams.Beside(stream.Source, converted: false))
@@ -538,6 +538,8 @@ public partial class MainWindow
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
             _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
             await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
+            // After the last reports to Jellyfin, which may go through it; before an update replaces its file.
+            await AttemptAsync(StopTailnetAsync);
             Attempt(() => _videoHost?.Dispose()); await AttemptAsync(ApplyUpdateAtCloseAsync);
         }
         finally { _ = Dispatcher.BeginInvoke(Close); }

@@ -211,11 +211,13 @@ jobs:
           }
   # Mira for Windows against a real Jellyfin 12.1 on the runner, beside the build (tools/server-check.ps1): sign-in,
   # Home, a film streamed then converted, Jellyfin stopped under it and started again, « Garder sur ce PC » played
-  # without Jellyfin, « Regarder ensemble » with a second device, « Mettre à la Corbeille ». Jellyfin is compiled from
-  # its sources once and kept (actions/cache); the test media are those of Mira web's checks (tools/web/media.sh).
+  # without Jellyfin, « Regarder ensemble » with a second device, « Mettre à la Corbeille »; then « Tailscale intégré »
+  # on a Tailscale network of the runner's own (mira-testnet), whose « Jellyfin PC » is that Jellyfin. Jellyfin is
+  # compiled from its sources once and kept (actions/cache); the test media are those of Mira web's checks
+  # (tools/web/media.sh).
   server:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
     steps:
@@ -247,6 +249,22 @@ jobs:
       - name: Test media
         shell: bash
         run: tools/web/media.sh "$PWD/.artifacts/media" > /dev/null
+      # Built-in Tailscale's node, carried by Mira as packages carry it, and the test tailnet (src/Mira.Tailscale).
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: src/Mira.Tailscale/go.mod
+          cache-dependency-path: |
+            src/Mira.Tailscale/go.sum
+            tools/tailscale/winres/go.sum
+      - name: Built-in Tailscale's node and the test tailnet
+        shell: pwsh
+        run: |
+          node tools/tailscale/build.mjs windows/amd64 .artifacts/tailscale/windows-amd64
+          if ($LASTEXITCODE -ne 0) { throw "The node did not build ($LASTEXITCODE)." }
+          Push-Location src/Mira.Tailscale
+          go build -trimpath -tags ((Get-Content build-tags.txt -Raw).Trim()) -o ../../.artifacts/tailscale/mira-testnet.exe ./cmd/mira-testnet
+          if ($LASTEXITCODE -ne 0) { throw "mira-testnet did not build ($LASTEXITCODE)." }
+          Pop-Location
       - name: Build Mira for Windows
         run: |
           dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
@@ -255,12 +273,14 @@ jobs:
         with:
           path: .artifacts/server-work/libmpv.7z
           key: libmpv-${{ hashFiles('src/Mira.Core/MpvPackage.cs') }}
-      - name: Mira against Jellyfin
+      - name: Mira against Jellyfin, then through Built-in Tailscale
         shell: pwsh
-        run: ./tools/server-check.ps1 -Jellyfin .artifacts/jf
+        run: ./tools/server-check.ps1 -Jellyfin .artifacts/jf -Testnet .artifacts/tailscale/mira-testnet.exe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: Mira-server-check
-          path: .artifacts/server/*.png
+          path: |
+            .artifacts/server/*.png
+            .artifacts/server/tailnet/*.png
           retention-days: 7

@@ -140,7 +140,7 @@ public partial class MainWindow
         var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "report" => ReportSettings, _ => PlaybackSettings };
         SmoothScroll.Jump(SettingsScroll); Motion.Reveal(body, 230, 7);
         WatchViewers(tab == "server");
-        if (tab == "server") { _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
+        if (tab == "server") { _ = ReadTailscaleAppAsync(); _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
         if (tab == "report") _ = ShowReportAsync();
     }
     private void LanguageChoice_Changed(object sender, SelectionChangedEventArgs e)

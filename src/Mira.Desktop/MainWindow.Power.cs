@@ -117,6 +117,8 @@ public partial class MainWindow
     {
         if (!_asleep) return;
         _asleep = false;
+        // « Tailscale intégré » looks at the network afresh first: Jellyfin may be behind it.
+        _ = RebindTailnetAsync();
         if (_closing || !_playing || _mpv is null || !IsStream(_playLocation)) return;
         var generation = _playGeneration; var client = _client;
         _wake = WakeState.Waiting; SetPlayerLoading(true);

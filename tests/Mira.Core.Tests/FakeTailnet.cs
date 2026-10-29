@@ -12,6 +12,9 @@ using System.Text.Json.Nodes;
 ///   --log-upload           says it could upload logs to Tailscale
 ///   --crash-once &lt;file&gt;    ends right after answering start, the first time only (the file remembers)
 ///   --silent               ends before its first line, as when an antivirus stops it at once
+///   --state &lt;state&gt;        the state its saved state gives at start: running (signed in before), expired, machine-auth
+///   --login-waits          gives the login page but stays signed out, as while the person signs in in the browser
+///   --key-expiry &lt;date&gt;    when its key expires once signed in
 /// </summary>
 internal static class FakeTailnet
 {
@@ -39,12 +42,16 @@ internal static class FakeTailnet
         // What the real helper never writes, as its log lines hide login pages: written here so that Mira's own hiding shows.
         Console.Error.WriteLine("control: visit " + Page + " to log in");
         Console.Error.Flush();
-        var self = new { id = "n0", hostName = "mira-test", dnsName = "mira-test.tail1234.ts.net", ips = new[] { "100.64.0.9" }, online = true };
+        var expiry = Option("--key-expiry", "");
+        var self = new { id = "n0", hostName = "mira-test", dnsName = "mira-test.tail1234.ts.net", ips = new[] { "100.64.0.9" }, online = true, keyExpiry = expiry.Length > 0 ? expiry : null };
         object[] peers =
         [
             new { id = "n1", hostName = "DESKTOP-JELLYFIN", dnsName = "desktop-jellyfin.tail1234.ts.net", ips = new[] { "100.64.0.2", "fd7a:115c:a1e0::2" }, os = "windows", online = true },
             new { id = "n2", hostName = "nas", dnsName = "nas.tail1234.ts.net", ips = new[] { "100.64.0.3" }, os = "linux", online = false, lastSeen = "2026-10-29T10:00:00Z" },
         ];
+        var running = new { state = "running", self, user = "ogsas@example.com", tailnet = "ogsas@example.com", magicDNSSuffix = "tail1234.ts.net", peers };
+        // The state its saved state gives at start (--state running: signed in before; expired, machine-auth).
+        var first = Option("--state", "needs-login");
         while (await input.ReadLineAsync() is { } line)
         {
             var request = JsonNode.Parse(line)!.AsObject();
@@ -56,13 +63,13 @@ internal static class FakeTailnet
                     if (key.Length != 32 || string.IsNullOrEmpty((string?)request["proxyUser"]) || string.IsNullOrEmpty((string?)request["proxyPassword"]) || string.IsNullOrEmpty((string?)request["dir"]))
                     { Send(new { id, ok = false, code = "protocol", error = "start: missing key, folder or proxy credentials" }); break; }
                     Send(new { @event = "proxy", address = ProxyAddress });
-                    Send(new { @event = "status", status = new { state = "needs-login", authURL = Page } });
+                    Send(new { @event = "status", status = first == "running" ? running : (object)new { state = first, authURL = Page } });
                     Send(new { id, ok = true });
                     if (crashMarker.Length > 0 && !File.Exists(crashMarker)) { File.WriteAllText(crashMarker, "crashed"); return 3; }
                     break;
                 case "login":
                     Send(new { id, ok = true, url = Page });
-                    Send(new { @event = "status", status = new { state = "running", self, user = "ogsas@example.com", tailnet = "ogsas@example.com", magicDNSSuffix = "tail1234.ts.net", peers } });
+                    if (!args.Contains("--login-waits")) Send(new { @event = "status", status = running });
                     break;
                 case "probe":
                     var address = (string?)request["address"];

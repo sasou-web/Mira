@@ -24,6 +24,22 @@ public static class TailnetText
         "Not at home? Mira can join your Tailscale network itself and find your Jellyfin there, without the Tailscale app.");
     public static string Console => L("Ouvrir la console de Tailscale", "Open Tailscale’s admin console");
     public static string ReopenPage => L("Rouvrir la page de connexion", "Open the sign-in page again");
+    public static string Retry => L("Réessayer", "Try again");
+
+    /// <summary>What a sign-in or sign-out says beside its button (<see cref="BuiltInTailnet"/>).</summary>
+    public static string PageOpened => L("La page de connexion de Tailscale s’est ouverte dans ton navigateur : connecte-toi avec ton compte Tailscale, celui du PC de Jellyfin.",
+        "Tailscale’s sign-in page opened in your browser: sign in with your Tailscale account, the one of Jellyfin’s PC.");
+    public static string Connected => L("Connecté à ton réseau Tailscale.", "Connected to your Tailscale network.");
+    public static string NotStarted => L($"{Name} n’a pas pu démarrer : réessaie dans un instant.", $"{Name} couldn’t start: try again in a moment.");
+    public static string NoAnswer => L("Tailscale ne répond pas : vérifie la connexion à Internet, puis réessaie.", "Tailscale isn’t answering: check the Internet connection, then try again.");
+    public static string SigningOut => L("Déconnexion de Tailscale…", "Signing out of Tailscale…");
+    public static string SignedOut => L("Déconnecté, et ses clés effacées de cet appareil. Il reste dans la console de Tailscale, « Logged out », jusqu’à ce que tu l’y supprimes.",
+        "Signed out, and its keys erased from this device. It stays in Tailscale’s admin console, “Logged out”, until you remove it there.");
+    public static string SignedOutHere => L("Déconnecté de cet appareil et ses clés effacées, mais Tailscale ne l’a pas su (pas de réseau) : supprime cet appareil dans la console de Tailscale.",
+        "Signed out on this device and its keys erased, but Tailscale didn’t hear of it (no network): remove this device in Tailscale’s admin console.");
+    public static string NotErased(string why, string folder) => L($"{Name} ne démarrera plus avec Mira, mais ses fichiers n’ont pas pu être effacés ({why}) : supprime le dossier {folder}.",
+        $"{Name} won’t start with Mira any more, but its files couldn’t be erased ({why}): delete the folder {folder}.");
+    public static string NoFolder(string why) => L($"Mira ne peut pas créer le dossier de {Name} ({why}).", $"Mira can’t create {Name}’s folder ({why}).");
 
     /// <summary>How Mira reaches its Jellyfin.</summary>
     public static string Direct => L("À la maison (direct)", "At home (direct)");

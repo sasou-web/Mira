@@ -23,6 +23,7 @@ internal static class PortableTests
         await GuestLinkTests.RunAsync(run);
         await TailnetTests.RunAsync(run);
         await TailnetProcessTests.RunAsync(run);
+        await BuiltInTailnetTests.RunAsync(run);
         await UpdateTests.RunAsync(run);
         await TailnetExecutableTests.RunAsync(run);
         await LanguageTests.RunAsync(run);
