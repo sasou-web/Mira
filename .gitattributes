@@ -19,6 +19,8 @@
 go.mod text eol=lf
 go.sum text eol=lf
 src/Mira.Tailscale/build-tags.txt text eol=lf
+*.h text eol=lf
+*.modulemap text eol=lf
 # Embedded in Mira.dll: one line ending on every PC, so that two builds of a commit match.
 *.conf text eol=lf
 src/Mira.Desktop/Assets/TorLink/** text=auto eol=lf
