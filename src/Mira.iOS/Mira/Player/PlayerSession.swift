@@ -583,7 +583,7 @@ final class PlayerSession: NSObject {
 
     private func loadArtwork() {
         guard let art = Artwork.of(item, .wide) ?? Artwork.of(item, .poster) else { return }
-        let url = client.imageURL(art, width: 640)
+        let url = client.imageURL(art, width: 640, scale: 1)
         let id = item.id
         Task {
             guard let answer = try? await JellyfinClient.session.data(from: url), item.id == id, let current = player.currentItem else { return }

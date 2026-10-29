@@ -70,11 +70,14 @@ struct JellyfinTests {
         #expect(!anonymous.authorization.contains("Token"))
     }
 
-    @Test("Adresse d'une image : largeur par pas de 80 pixels, étiquette, sans jeton")
+    @Test("Adresse d'une image : largeur en pixels de l'écran par pas de 80, étiquette, sans jeton")
     func imageAddress() {
-        let url = client.imageURL(Artwork(itemId: "abc", type: "Primary", tag: "t1"), width: 301)
-        #expect(url.absoluteString == "http://nas:8096/Items/abc/Images/Primary?maxWidth=320&quality=85&tag=t1")
-        let backdrop = client.imageURL(Artwork(itemId: "abc", type: "Backdrop", tag: "t2"), width: 5000, quality: 90)
+        let url = client.imageURL(Artwork(itemId: "abc", type: "Primary", tag: "t1"), width: 301, scale: 1)
+        #expect(url.absoluteString == "http://nas:8096/Items/abc/Images/Primary?maxWidth=320&quality=90&tag=t1")
+        // A 120-point poster on a 3× screen is 360 pixels wide.
+        let poster = client.imageURL(Artwork(itemId: "abc", type: "Primary", tag: "t1"), width: 120, scale: 3)
+        #expect(poster.absoluteString == "http://nas:8096/Items/abc/Images/Primary?maxWidth=400&quality=90&tag=t1")
+        let backdrop = client.imageURL(Artwork(itemId: "abc", type: "Backdrop", tag: "t2"), width: 5000, scale: 3, quality: 90)
         #expect(backdrop.absoluteString == "http://nas:8096/Items/abc/Images/Backdrop/0?maxWidth=3840&quality=90&tag=t2")
     }
 

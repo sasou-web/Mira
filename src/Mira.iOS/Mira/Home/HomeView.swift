@@ -175,6 +175,7 @@ struct WideCard: View {
     let item: Item
     let client: JellyfinClient
     let width: CGFloat
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let art = Artwork.of(item, .wide)
@@ -182,7 +183,7 @@ struct WideCard: View {
         let detail = item.isEpisode ? [ItemText.episodeCode(item), item.name ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
             : (ItemText.remaining(item) ?? ItemText.meta(item))
         VStack(alignment: .leading, spacing: 8) {
-            RemoteImage(url: art.map { client.imageURL($0, width: width) }, blurHash: art?.blurHash, label: title, width: width)
+            RemoteImage(url: art.map { client.imageURL($0, width: width, scale: displayScale) }, blurHash: art?.blurHash, label: title, width: width)
                 .frame(width: width, height: width * 9 / 16)
                 .overlay(alignment: .bottom) {
                     let progress = ItemText.progress(item)
@@ -208,12 +209,13 @@ struct PosterCard: View {
     let item: Item
     let client: JellyfinClient
     let width: CGFloat
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let art = Artwork.of(item, .poster)
         let name = item.name ?? ""
         VStack(alignment: .leading, spacing: 8) {
-            RemoteImage(url: art.map { client.imageURL($0, width: width) }, blurHash: art?.blurHash, label: name, width: width)
+            RemoteImage(url: art.map { client.imageURL($0, width: width, scale: displayScale) }, blurHash: art?.blurHash, label: name, width: width)
                 .frame(width: width, height: width * 3 / 2)
                 .overlay(alignment: .topTrailing) {
                     if item.userData?.played == true {
@@ -271,6 +273,7 @@ struct BannerView: View {
     let size: CGSize
     let zoom: Namespace.ID
     @Environment(AppModel.self) private var app
+    @Environment(\.displayScale) private var displayScale
     @State private var current: String?
 
     var body: some View {
@@ -313,7 +316,7 @@ struct BannerView: View {
         let logo = Artwork.of(item, .logo)
         let width = size.width
         return ZStack(alignment: .bottomLeading) {
-            RemoteImage(url: art.map { client.imageURL($0, width: width * 1.4) }, blurHash: art?.blurHash, width: width * 1.4)
+            RemoteImage(url: art.map { client.imageURL($0, width: width, scale: displayScale) }, blurHash: art?.blurHash, width: width)
                 .frame(width: width, height: height)
                 .matchedTransitionSource(id: "banner-\(item.id)", in: zoom)
             LinearGradient(stops: [
@@ -326,7 +329,7 @@ struct BannerView: View {
             .allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 10) {
                 if let logo {
-                    LogoImage(url: client.imageURL(logo, width: 300, quality: 90), name: item.name ?? "")
+                    LogoImage(url: client.imageURL(logo, width: 300, scale: displayScale), name: item.name ?? "")
                         .frame(maxWidth: min(300, width * 0.7), maxHeight: 96, alignment: .bottomLeading)
                 } else {
                     Text(item.name ?? "").font(MiraFont.extraBold(34, .largeTitle)).foregroundStyle(Palette.ink).lineLimit(2)

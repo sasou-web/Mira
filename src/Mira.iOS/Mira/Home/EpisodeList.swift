@@ -78,6 +78,7 @@ struct EpisodeList: View {
 struct EpisodeRow: View {
     let episode: Item
     @Environment(AppModel.self) private var app
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let width: CGFloat = 150
@@ -88,7 +89,7 @@ struct EpisodeRow: View {
                 ZStack {
                     if let client = app.client {
                         let art = Artwork.of(episode, .wide)
-                        RemoteImage(url: art.map { client.imageURL($0, width: width) }, blurHash: art?.blurHash, label: episode.name ?? "", width: width)
+                        RemoteImage(url: art.map { client.imageURL($0, width: width, scale: displayScale) }, blurHash: art?.blurHash, label: episode.name ?? "", width: width)
                     }
                     Image(systemName: "play.fill")
                         .font(.footnote.weight(.bold))

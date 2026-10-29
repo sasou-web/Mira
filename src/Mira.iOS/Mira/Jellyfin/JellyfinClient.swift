@@ -152,10 +152,10 @@ struct JellyfinClient: Sendable {
 
     // MARK: Pictures
 
-    /// A picture of Jellyfin at the width it is shown, in steps of 80 pixels so that the server keeps fewer sizes.
-    /// Pictures need no token.
-    func imageURL(_ art: Artwork, width: CGFloat, quality: Int = 85) -> URL {
-        let pixels = min(3840, Int((width / 80).rounded(.up)) * 80)
+    /// A picture of Jellyfin at the width it is shown, `width` points on a screen of `scale` pixels per point, in steps
+    /// of 80 pixels so that the server keeps fewer sizes. Pictures need no token.
+    func imageURL(_ art: Artwork, width: CGFloat, scale: CGFloat, quality: Int = 90) -> URL {
+        let pixels = min(3840, Int((width * max(1, scale) / 80).rounded(.up)) * 80)
         let path = art.type == "Backdrop" ? "Items/\(art.itemId)/Images/Backdrop/0" : "Items/\(art.itemId)/Images/\(art.type)"
         return url(path, ["maxWidth": String(pixels), "quality": String(quality), "tag": art.tag])
     }

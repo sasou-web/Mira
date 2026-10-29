@@ -6,6 +6,7 @@ import SwiftUI
 struct TitleView: View {
     let route: TitleRoute
     @Environment(AppModel.self) private var app
+    @Environment(\.displayScale) private var displayScale
     @State private var item: Item
     @State private var width: CGFloat = 402
     /// What Play plays: the title, or a series' next episode.
@@ -92,7 +93,7 @@ struct TitleView: View {
     @ViewBuilder private var artwork: some View {
         let height = min(width * 9 / 16 + 60, 520)
         if let client = app.client, let art = Artwork.of(item, .backdrop) ?? Artwork.of(item, .wide) {
-            RemoteImage(url: client.imageURL(art, width: width), blurHash: art.blurHash, width: width)
+            RemoteImage(url: client.imageURL(art, width: width, scale: displayScale), blurHash: art.blurHash, width: width)
                 .frame(width: width, height: height)
                 .overlay {
                     LinearGradient(stops: [
