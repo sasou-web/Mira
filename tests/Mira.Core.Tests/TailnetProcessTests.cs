@@ -110,6 +110,8 @@ internal static class TailnetProcessTests
             var nas = new TailnetDevice { HostName = "nas", LastSeen = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero) };
             Assert(TailnetText.Problem(TailnetCodes.PeerOffline, nas)!.StartsWith("nas n’est pas connecté à Tailscale (vu pour la dernière fois le 1 octobre à ", StringComparison.Ordinal), "An offline device: " + TailnetText.Problem(TailnetCodes.PeerOffline, nas));
             Assert(TailnetText.Problem(TailnetCodes.PeerOffline)!.StartsWith("Le PC de Jellyfin n’est pas connecté", StringComparison.Ordinal), "An offline device Tailscale does not name");
+            Assert(TailnetText.Problem(TailnetCodes.Expired) == "La connexion de Tailscale intégré a expiré : « Se connecter à Tailscale » dans les Réglages." && TailnetText.Problem(TailnetCodes.NeedsLogin) != TailnetText.Problem(TailnetCodes.Expired),
+                "An expired sign-in said as one never made, or the button not named as it is: " + TailnetText.Problem(TailnetCodes.Expired));
             Assert(TailnetText.State(TailnetHelper.Off, null) == "Pas connecté." && TailnetText.State(TailnetHelper.Failed, null, "Bloqué.") == "Bloqué.", "Not started, or why it cannot be");
             Assert(TailnetText.State(TailnetHelper.Running, new() { State = TailnetStates.Running, User = "ogsas@example.com" }) == "Connecté : ogsas@example.com.", "Signed in");
             Assert(TailnetText.State(TailnetHelper.Running, new() { State = TailnetStates.Running, Offline = true }).Contains("sans réseau"), "Signed in without a network");
