@@ -247,8 +247,7 @@ final class MiraUITests: XCTestCase {
 
         // Paused, the controls stay.
         let play = app.buttons["player.play"]
-        if !play.exists { tapPicture(app) }
-        XCTAssertTrue(play.waitForExistence(timeout: 5), "The player shows no Play button")
+        XCTAssertTrue(reveal(play, app), "The player shows no Play button")
         if play.label == "Pause" { play.tap() }
         settle()
         capture("31-player")
@@ -297,20 +296,26 @@ final class MiraUITests: XCTestCase {
     @MainActor
     private func closePlayer(_ app: XCUIApplication, folded: String? = nil) {
         let minimize = app.buttons["player.minimize"]
-        if !minimize.waitForExistence(timeout: 2) { tapPicture(app) }
-        XCTAssertTrue(minimize.waitForExistence(timeout: 5), "The player shows no Reduce button")
+        XCTAssertTrue(reveal(minimize, app), "The player shows no Reduce button")
         minimize.tap()
         XCUIDevice.shared.orientation = .portrait
+        // Back upright, the tab bar may fold again a moment later: the bar is read once it has settled.
+        settle()
+        if let folded { capture(folded) }
         let close = app.buttons["mini.close"]
-        if !close.waitForExistence(timeout: 4) {
-            if let folded {
-                settle()
-                capture(folded)
-            }
-            app.swipeDown()
-        }
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "Reducing the player showed no bar over the tabs")
+        for _ in 0..<2 where !close.waitForExistence(timeout: 3) { app.swipeDown() }
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "Reducing the player showed no bar over the tabs")
         close.tap()
+    }
+
+    /// The controls hide while the title plays: a tap on the picture brings them back, `element` with them.
+    @MainActor
+    private func reveal(_ element: XCUIElement, _ app: XCUIApplication) -> Bool {
+        for _ in 0..<3 {
+            if element.waitForExistence(timeout: 1.5) { return true }
+            tapPicture(app)
+        }
+        return element.waitForExistence(timeout: 2)
     }
 
     /// A tap in the middle of the picture, with the controls hidden: they come back.
