@@ -111,11 +111,23 @@ enum PlaybackPlan {
 
     // MARK: Where a title starts
 
-    /// Where a title starts (ticks): where it was left, unless asked from the start or it was nearly done.
-    static func startTicks(_ item: Item, fromStart: Bool) -> Int64 {
+    /// Under this much watched (seconds), a title resumes exactly where it was left (resume.json).
+    static let resumeBackFrom: Double = 30
+
+    /// « Resume a little earlier »: `back` seconds before where the title was left, to pick up the thread rather than
+    /// land mid-sentence; exactly there under 30 s (resumeBack of Mira web, PlaybackSession.ResumeBack of Core).
+    static func resumeBack(_ position: Double, back: Double) -> Double {
+        back > 0 && position >= resumeBackFrom ? max(0, position - back) : position
+    }
+
+    /// Where a title starts (ticks): where it was left, `back` seconds before, unless asked from the start, resuming
+    /// is off, or it was nearly done.
+    static func startTicks(_ item: Item, fromStart: Bool, resume: Bool = true, back: Int = 0) -> Int64 {
         let progress = ItemText.progress(item)
-        guard !fromStart, progress > 0, progress < 0.95 else { return 0 }
-        return item.userData?.playbackPositionTicks ?? 0
+        guard !fromStart, resume, progress > 0, progress < 0.95, let position = item.userData?.playbackPositionTicks else { return 0 }
+        let seconds = Double(position) / Double(ItemText.ticksPerSecond)
+        let at = resumeBack(seconds, back: Double(back))
+        return at == seconds ? position : Int64((at * Double(ItemText.ticksPerSecond)).rounded())
     }
 
     private static func encode(_ text: String) -> String {

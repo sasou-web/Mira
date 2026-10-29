@@ -6,6 +6,8 @@ struct SearchView: View {
     @Environment(AppModel.self) private var app
     @State private var text = ""
     @State private var titles: [Item] = []
+    /// How many movies and shows Jellyfin found: more than shown, « Show more » asks for the next ones.
+    @State private var titlesTotal = 0
     @State private var episodes: [Item] = []
     @State private var searched: String?
     @State private var searching = false
@@ -112,11 +114,25 @@ struct SearchView: View {
                 EmptyState(symbol: "magnifyingglass", title: Text("Nothing found for “\(term)”"), text: Text("Check the spelling, or try another word of the title."))
             }
         } else {
+            // While the next letters are asked, the last results stay, dimmed, rather than a wheel at every letter.
+            VStack(alignment: .leading, spacing: 24) { found(client) }
+                .opacity(searched == term ? 1 : 0.45)
+                .animation(.easeOut(duration: 0.15), value: searched == term)
+        }
+    }
+
+    @ViewBuilder private func found(_ client: JellyfinClient) -> some View {
+        Group {
             if !titles.isEmpty {
                 let layout = poster
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Movies and shows").font(MiraFont.section).foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
-                        .padding(.horizontal, 16)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Movies and shows").font(MiraFont.section).foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
+                        Spacer()
+                        Text(verbatim: titlesTotal.formatted()).font(MiraFont.footnote).foregroundStyle(Palette.muted)
+                            .accessibilityLabel(Text("\(titlesTotal) results"))
+                    }
+                    .padding(.horizontal, 16)
                     LazyVGrid(columns: Array(repeating: GridItem(.fixed(layout.width), spacing: 12, alignment: .top), count: layout.count), alignment: .leading, spacing: 18) {
                         ForEach(titles) { item in
                             NavigationLink(value: TitleRoute(item: item, source: "search-\(item.id)")) {
@@ -130,6 +146,16 @@ struct SearchView: View {
                     }
                     .padding(.horizontal, 16)
                     .accessibilityIdentifier("search.titles")
+                    if titles.count < titlesTotal {
+                        Button {
+                            Task { await more() }
+                        } label: {
+                            Text("Show more").font(MiraFont.callout).padding(.horizontal, 8)
+                        }
+                        .buttonStyle(.glass)
+                        .disabled(searching)
+                        .frame(maxWidth: .infinity)
+                    }
                 }
             }
             if !episodes.isEmpty {
@@ -172,6 +198,7 @@ struct SearchView: View {
             let (page, list) = try await (found, parts)
             guard asked == term else { return }
             titles = page.items ?? []
+            titlesTotal = page.totalRecordCount ?? titles.count
             episodes = list
             failure = nil
             searched = asked
@@ -185,6 +212,19 @@ struct SearchView: View {
             failure = error
             searched = asked
         }
+    }
+
+    private func more() async {
+        guard let client = app.client, !searching else { return }
+        let asked = term
+        var query = BrowseQuery(types: "Movie,Series")
+        query.sort = .title
+        query.search = asked
+        searching = true
+        defer { searching = false }
+        guard let page = try? await client.browse(query, start: titles.count, limit: 48), asked == term else { return }
+        let known = Set(titles.map(\.id))
+        titles += (page.items ?? []).filter { !known.contains($0.id) }
     }
 
     private func remember(_ entry: String) {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// A title's page: its artwork, what it is, how far it was watched, its summary, Play in Apple's player, and the
 /// languages to play it in (Apple's player cannot change a conversion's audio, as on Mira web). A series plays its
@@ -9,6 +10,12 @@ struct TitleView: View {
     @Environment(\.displayScale) private var displayScale
     @State private var item: Item
     @State private var width: CGFloat = 402
+    /// Scrolled past the picture: the bar then shows the title's name and its own edge, which over the picture
+    /// would only veil it.
+    @State private var pastArtwork = false
+    /// Jellyfin answered for this title (its files, its next episode): until then Play and the languages keep their
+    /// place without changing the page's height.
+    @State private var loaded = false
     /// What Play plays: the title, or a series' next episode.
     @State private var next: Item?
     @State private var audioIndex: Int?
@@ -26,8 +33,27 @@ struct TitleView: View {
             VStack(alignment: .leading, spacing: 0) {
                 artwork
                 VStack(alignment: .leading, spacing: 14) {
-                    if item.isEpisode, let series = item.seriesName {
-                        Text(series).font(MiraFont.headline).foregroundStyle(Palette.muted)
+                    if !hasBackdrop, let client = app.client, let poster = Artwork.of(item, .poster) {
+                        // No wide picture in Jellyfin (a home video, a film without metadata): its poster, as on the
+                        // wide page of Mira web.
+                        RemoteImage(url: client.imageURL(poster, width: 140, scale: displayScale), blurHash: poster.blurHash, label: item.name ?? "", width: 140)
+                            .frame(width: 140, height: 210)
+                            .clipShape(.rect(cornerRadius: 12, style: .continuous))
+                            .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.06)) }
+                            .accessibilityHidden(true)
+                    }
+                    if item.isEpisode, let series = item.seriesName, let seriesId = item.seriesId {
+                        // The series' page, from one of its episodes.
+                        NavigationLink(value: TitleRoute(item: Item(id: seriesId, name: series, type: "Series"), source: "series-\(seriesId)")) {
+                            HStack(spacing: 4) {
+                                Text(verbatim: series)
+                                Image(systemName: "chevron.right").font(.caption.weight(.bold)).accessibilityHidden(true)
+                            }
+                            .font(MiraFont.headline)
+                            .foregroundStyle(Palette.muted)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(Text("Opens the show"))
                     }
                     Text(heading)
                         .font(MiraFont.title)
@@ -35,7 +61,7 @@ struct TitleView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier("title.name")
-                    let meta = ItemText.meta(item)
+                    let meta = [ItemText.meta(item), ItemText.ratings(item)].filter { !$0.isEmpty }.joined(separator: " · ")
                     if !meta.isEmpty {
                         Text(meta).font(MiraFont.subheadline).foregroundStyle(Palette.muted)
                     }
@@ -58,6 +84,26 @@ struct TitleView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     }
+                    if let genres = item.genres, !genres.isEmpty, !item.isEpisode {
+                        // Each genre opens Movies or Shows with only that genre, as on Mira web.
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(genres, id: \.self) { genre in
+                                    NavigationLink(value: GenreRoute(kind: item.isSeries ? .shows : .movies, genre: genre)) {
+                                        Text(verbatim: genre)
+                                            .font(MiraFont.callout)
+                                            .foregroundStyle(Palette.ink)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 8)
+                                            .background(Palette.raised, in: .capsule)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                        .accessibilityLabel(Text("Genres"))
+                    }
                     if let playable { TogetherSection(item: playable).padding(.top, 8) }
                     if item.isSeries {
                         EpisodeList(series: item, next: next).padding(.top, 18)
@@ -71,17 +117,40 @@ struct TitleView: View {
         }
         .scrollIndicators(.hidden)
         .ignoresSafeArea(edges: .top)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top > artworkHeight - 110
+        } action: { _, past in
+            withAnimation(.easeOut(duration: 0.2)) { pastArtwork = past }
+        }
+        .scrollEdgeEffectHidden(!pastArtwork, for: .top)
         .background(Palette.bg)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .navigationTitle(item.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: "\(route.item.id)-\(app.playback)") {
-            guard let client = app.client else { return }
-            do {
-                item = try await client.item(route.item.id)
-                if item.isSeries { next = try await client.nextUp(series: item.id) }
-            } catch JellyfinError.unauthorized { app.sessionEnded() } catch {}
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(verbatim: item.name ?? "")
+                    .font(MiraFont.headline)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    .opacity(pastArtwork ? 1 : 0)
+                    .accessibilityHidden(!pastArtwork)
+            }
         }
+        .navigationDestination(for: GenreRoute.self) { route in LibraryView(kind: route.kind, genre: route.genre) }
+        .task(id: route.item.id) { await load() }
+        // A title stopped or marked: read again in place, what is shown stays until the new answer.
+        .onChange(of: app.playback) { Task { await load() } }
+    }
+
+    private func load() async {
+        guard let client = app.client else { return }
+        do {
+            let fresh = try await client.item(route.item.id)
+            if fresh.isSeries { next = try await client.nextUp(series: fresh.id) }
+            item = fresh
+            loaded = true
+        } catch JellyfinError.unauthorized { app.sessionEnded() } catch {}
     }
 
     private var heading: String {
@@ -89,23 +158,56 @@ struct TitleView: View {
         return [ItemText.episodeCode(item), item.name ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
-    /// The backdrop, under the status bar, fading into the page.
+    /// The bars' height over the page: the status bar and the navigation bar's back button.
+    private var bars: CGFloat {
+        _ = width
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        return max(20, scene?.keyWindow?.safeAreaInsets.top ?? 0) + 44
+    }
+
+    /// The picture whole (16:9 across the page, never wider than 560 points tall), under the bars.
+    private var pictureHeight: CGFloat { min(width * 9 / 16, 560 - bars) }
+
+    /// A wide picture of the title (an episode's own, when its series has no backdrop); never a poster cut to 16:9.
+    private var heroArt: Artwork? { Artwork.of(item, .backdrop) ?? (item.isEpisode ? Artwork.of(item, .wide) : nil) }
+
+    private var hasBackdrop: Bool { heroArt != nil }
+
+    private var artworkHeight: CGFloat { hasBackdrop ? bars + pictureHeight : bars + 8 }
+
+    /// The backdrop whole, just under the bars, never cut by them: above it, the same picture blurred carries on
+    /// behind the bars; under it, it fades into the page. Pulled down, both grow.
     @ViewBuilder private var artwork: some View {
-        let height = min(width * 9 / 16 + 60, 520)
-        if let client = app.client, let art = Artwork.of(item, .backdrop) ?? Artwork.of(item, .wide) {
-            RemoteImage(url: client.imageURL(art, width: width, scale: displayScale), blurHash: art.blurHash, width: width)
-                .frame(width: width, height: height)
-                .overlay {
-                    LinearGradient(stops: [
-                        .init(color: .black.opacity(0.45), location: 0),
-                        .init(color: .clear, location: 0.3),
-                        .init(color: Palette.bg.opacity(0.6), location: 0.75),
-                        .init(color: Palette.bg, location: 1),
-                    ], startPoint: .top, endPoint: .bottom)
-                }
-                .accessibilityHidden(true)
+        let height = artworkHeight
+        if let client = app.client, let art = heroArt {
+            let url = client.imageURL(art, width: width, scale: displayScale)
+            ZStack(alignment: .bottom) {
+                RemoteImage(url: url, blurHash: art.blurHash, width: width)
+                    .frame(width: width, height: height)
+                    .blur(radius: 30, opaque: true)
+                    .overlay(Color.black.opacity(0.25))
+                RemoteImage(url: url, blurHash: art.blurHash, width: width)
+                    .frame(width: width, height: pictureHeight)
+                    .mask {
+                        LinearGradient(stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .black, location: 0.18),
+                        ], startPoint: .top, endPoint: .bottom)
+                    }
+            }
+            .frame(width: width, height: height)
+            .overlay {
+                LinearGradient(stops: [
+                    .init(color: .clear, location: 0.55),
+                    .init(color: Palette.bg.opacity(0.6), location: 0.8),
+                    .init(color: Palette.bg, location: 1),
+                ], startPoint: .top, endPoint: .bottom)
+            }
+            .clipped()
+            .stretchesWhenPulled(height: height)
+            .accessibilityHidden(true)
         } else {
-            Color.clear.frame(height: 110)
+            Color.clear.frame(height: height)
         }
     }
 
@@ -140,10 +242,35 @@ struct TitleView: View {
                 }
                 if let source = playable.mediaSources?.first {
                     ChipRow {
-                        TrackMenus(source: source, audioIndex: $audioIndex, subtitleIndex: $subtitleIndex)
+                        // What will play: chosen here, else the series' last tracks or the languages of Settings.
+                        let preferences = app.preferences
+                        let auto = TrackChoice.choose(source, memory: preferences.tracks(for: playable.seriesId),
+                                                      audioOrder: preferences.audioOrder, subtitleOrder: preferences.subtitleOrder)
+                        TrackMenus(source: source, audioIndex: Binding(get: { audioIndex ?? auto.audio }, set: { index in
+                            audioIndex = index
+                            remember(playable, source, audio: index, subtitle: subtitleIndex ?? auto.subtitle)
+                        }), subtitleIndex: Binding(get: { subtitleIndex ?? auto.subtitle }, set: { index in
+                            subtitleIndex = index
+                            remember(playable, source, audio: audioIndex ?? auto.audio, subtitle: index)
+                        }))
                     }
+                } else if !loaded {
+                    TrackPlaceholder()
                 }
                 SleepMenu(episode: playable.isEpisode)
+            } else if !loaded {
+                // A series' next episode not known yet: Play holds its place, then says which episode.
+                Button {} label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill")
+                        Text("Play").font(MiraFont.headline)
+                    }
+                    .foregroundStyle(Palette.onAccent)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .disabled(true)
+                TrackPlaceholder()
             }
         }
         .frame(maxWidth: 420, alignment: .leading)
@@ -179,6 +306,12 @@ struct TitleView: View {
         app.play(playable, fromStart: fromStart, audioIndex: audioIndex, subtitleIndex: subtitleIndex)
     }
 
+    /// Tracks chosen for an episode: the series' next episodes start with the same languages, on every device.
+    private func remember(_ playable: Item, _ source: MediaSource, audio: Int?, subtitle: Int?) {
+        guard let series = playable.seriesId else { return }
+        app.preferences.remember(TrackChoice.memory(source, audio: audio, subtitle: subtitle), for: series)
+    }
+
     /// The group's title, where the group is: Jellyfin holds the others until this iPhone is ready.
     private func joinGroupTitle() {
         guard let queue = app.together.queue, let client = app.client else { return }
@@ -199,6 +332,23 @@ struct TitleView: View {
             return resume ? String(localized: "Resume \(code)") : String(localized: "Watch \(code)")
         }
         return resume ? String(localized: "Resume") : String(localized: "Play")
+    }
+}
+
+/// Movies or Shows with one genre only, opened from a title's page.
+struct GenreRoute: Hashable {
+    let kind: LibraryView.Kind
+    let genre: String
+}
+
+/// The place of Audio and Subtitles while Jellyfin has not said the file's tracks: two grey chips of their size.
+struct TrackPlaceholder: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Capsule().fill(Palette.raised).frame(width: 128, height: 44)
+            Capsule().fill(Palette.raised).frame(width: 150, height: 44)
+        }
+        .accessibilityHidden(true)
     }
 }
 

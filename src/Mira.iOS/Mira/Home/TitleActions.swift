@@ -5,6 +5,8 @@ import SwiftUI
 struct TitleActions: View {
     @Binding var item: Item
     @Environment(AppModel.self) private var app
+    /// Touched here: the only change that is felt (not a page read again after the player closed).
+    @State private var touched = 0
 
     var body: some View {
         let favorite = item.userData?.isFavorite == true
@@ -27,7 +29,7 @@ struct TitleActions: View {
             .accessibilityIdentifier("title.watched")
             .accessibilityAddTraits(played ? .isSelected : [])
         }
-        .sensoryFeedback(.selection, trigger: item.userData)
+        .sensoryFeedback(.selection, trigger: touched)
     }
 
     private func update(played: Bool? = nil, favorite: Bool? = nil) {
@@ -39,21 +41,31 @@ struct TitleActions: View {
         if let favorite { data.isFavorite = favorite }
         let target = item
         item.userData = data
+        touched += 1
         Task { await app.set(target, played: played, favorite: favorite) }
     }
 }
 
 extension View {
     /// The long press of a card or an episode, as Mira web's: mark it watched or not, add it to favorites or not.
-    func titleMenu(_ item: Item) -> some View { modifier(TitleMenu(item: item)) }
+    func titleMenu(_ item: Item, inContinueWatching: Bool = false) -> some View { modifier(TitleMenu(item: item, inContinueWatching: inContinueWatching)) }
 }
 
 private struct TitleMenu: ViewModifier {
     let item: Item
+    let inContinueWatching: Bool
     @Environment(AppModel.self) private var app
 
     func body(content: Content) -> some View {
         content.contextMenu {
+            if inContinueWatching {
+                // Until it is played again, on every device (its resume point goes too), as on Mira web.
+                Button {
+                    Task { await app.hideFromContinueWatching(item) }
+                } label: {
+                    Label("Remove from Continue watching", systemImage: "minus.circle")
+                }
+            }
             let played = item.userData?.played == true
             let favorite = item.userData?.isFavorite == true
             Button {

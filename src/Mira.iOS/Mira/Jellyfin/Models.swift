@@ -9,6 +9,8 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var collectionType: String?
     var productionYear: Int?
     var runTimeTicks: Int64?
+    /// When Jellyfin added it (fields=DateCreated): the mark of « New episode ».
+    var dateCreated: String?
     var overview: String?
     var genres: [String]?
     var officialRating: String?
@@ -32,9 +34,16 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var seriesPrimaryImageTag: String?
     var userData: UserData?
     var mediaSources: [MediaSource]?
+    /// The file's chapters (Items/{id} only): their titles name openings and credits (Timeline).
+    var chapters: [Chapter]?
 
     var isEpisode: Bool { type == "Episode" }
     var isSeries: Bool { type == "Series" }
+}
+
+struct Chapter: Codable, Sendable, Hashable {
+    var name: String?
+    var startPositionTicks: Int64?
 }
 
 struct UserData: Codable, Sendable, Hashable {
@@ -130,6 +139,14 @@ enum ItemText {
     static func progress(_ item: Item) -> Double {
         guard item.userData?.played != true, let total = item.runTimeTicks, let done = item.userData?.playbackPositionTicks, total > 0, done > 0 else { return 0 }
         return min(1, Double(done) / Double(total))
+    }
+
+    /// « ★ 7.8 · PG-13 »: Jellyfin's community rating and the age rating, on a title's page.
+    static func ratings(_ item: Item) -> String {
+        var parts: [String] = []
+        if let rating = item.communityRating, rating > 0 { parts.append("★ " + rating.formatted(.number.precision(.fractionLength(1)))) }
+        if let official = item.officialRating, !official.isEmpty { parts.append(official) }
+        return parts.joined(separator: " · ")
     }
 
     /// « 2024 · 2 h 05 · Animation, Adventure » for a film, the seasons for a series.

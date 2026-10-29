@@ -87,6 +87,20 @@ targets:
         buildPhase: resources
       - path: ../../tests/fixtures/syncplay.json
         buildPhase: resources
+      - path: ../../tests/fixtures/choices.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/resume.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/chapters.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/home.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/report.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/seasons.json
+        buildPhase: resources
+      - path: ../../tests/fixtures/new-episodes.json
+        buildPhase: resources
     dependencies:
       - target: Mira
     settings:

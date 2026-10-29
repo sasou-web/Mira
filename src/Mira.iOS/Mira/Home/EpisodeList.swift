@@ -11,6 +11,9 @@ struct EpisodeList: View {
     @State private var season: String?
     @State private var episodes: [Item] = []
     @State private var failed = false
+    /// A season chosen by hand: the episode to watch next no longer moves the list.
+    @State private var picked = false
+    @State private var marking = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -20,6 +23,7 @@ struct EpisodeList: View {
                         ForEach(seasons) { entry in
                             let chosen = entry.id == season
                             Button {
+                                picked = true
                                 season = entry.id
                             } label: {
                                 Text(verbatim: entry.name ?? "")
@@ -39,6 +43,26 @@ struct EpisodeList: View {
             } else if let only = seasons.first?.name {
                 Text(verbatim: only).font(MiraFont.section).foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
             }
+            // « Mark the season as watched »: only beside another season (with one, the series' own button does it).
+            if seasons.count > 1, !episodes.isEmpty {
+                let mark = SeasonMark.of(episodes)
+                Button {
+                    Task { await markSeason(mark) }
+                } label: {
+                    Group {
+                        if mark.played {
+                            Label("Mark the season as unwatched", systemImage: "arrow.uturn.backward.circle")
+                        } else {
+                            Label("Mark the season as watched", systemImage: "checkmark.circle")
+                        }
+                    }
+                    .font(MiraFont.callout)
+                    .foregroundStyle(Palette.ink)
+                }
+                .buttonStyle(.plain)
+                .disabled(marking)
+                .accessibilityIdentifier("series.markSeason")
+            }
             if failed && episodes.isEmpty {
                 Text(verbatim: Messages.text(JellyfinError.unreachable)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
             }
@@ -48,8 +72,28 @@ struct EpisodeList: View {
                 }
             }
         }
-        .task(id: "\(series.id)-\(app.playback)") { await loadSeasons() }
+        .task(id: series.id) { await loadSeasons() }
         .task(id: season) { await loadEpisodes() }
+        // A title stopped or marked: the season shown is read again in place (same episodes, same rows).
+        .onChange(of: app.playback) { Task { await loadEpisodes() } }
+        // The episode to watch next, known after the seasons: its season comes first.
+        .onChange(of: next?.seasonId) { _, id in
+            if !picked, let id, seasons.contains(where: { $0.id == id }) { season = id }
+        }
+    }
+
+    private func markSeason(_ mark: SeasonMark) async {
+        guard let client = app.client else { return }
+        marking = true
+        defer { marking = false }
+        do {
+            for id in mark.ids { try await client.setPlayed(id, !mark.played) }
+        } catch JellyfinError.unauthorized {
+            app.sessionEnded()
+        } catch {
+            app.actionMessage = Messages.text(error)
+        }
+        app.playbackChanged()
     }
 
     private func loadSeasons() async {
@@ -149,5 +193,20 @@ struct EpisodeRow: View {
         if let left = ItemText.remaining(episode) { return left }
         guard let ticks = episode.runTimeTicks, ticks > 0 else { return nil }
         return ItemText.duration(seconds: ticks / ItemText.ticksPerSecond)
+    }
+}
+
+/// What « Mark the season as watched » marks: the season as Jellyfin holds it (one call, every episode with it), else
+/// each episode (split between two of Jellyfin's seasons); `played`: all its episodes are watched, and the button
+/// offers « unwatched » (seasonMark of Mira web, EpisodePages of Core, cases of tests/fixtures/seasons.json).
+struct SeasonMark: Equatable {
+    let ids: [String]
+    let played: Bool
+
+    /// `episodes`: those of one season.
+    static func of(_ episodes: [Item]) -> SeasonMark {
+        let held = Set(episodes.map(\.seasonId))
+        let ids = held.count == 1 && episodes.first?.seasonId != nil ? [episodes[0].seasonId!] : episodes.map(\.id)
+        return SeasonMark(ids: ids, played: !episodes.isEmpty && episodes.allSatisfy { $0.userData?.played == true })
     }
 }

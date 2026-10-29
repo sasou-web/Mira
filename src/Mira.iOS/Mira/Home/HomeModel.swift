@@ -11,16 +11,30 @@ struct HomeContent: Codable, Sendable, Equatable {
     var favorites: [Item] = []
     /// The series of the first titles of Continue watching, for their artwork in the banner.
     var series: [String: Item] = [:]
+    /// The account's libraries, and the latest titles of those whose row is shown (« New in … », HomeLayout).
+    var libraries: [HomeLibrary] = []
+    var libraryRows: [String: [Item]] = [:]
 
-    var continueWatching: [Item] { HomeContent.orderContinue(resume: resume, next: next, history: history) }
+    /// Continue watching, without the films and series taken out of it (`hidden`: their ids, or their series', with
+    /// when, in ms), unless played again since (withoutHidden of Mira web).
+    func continueWatching(hidden: [String: Double] = [:]) -> [Item] {
+        let ordered = HomeContent.orderContinue(resume: resume, next: next, history: history)
+        guard !hidden.isEmpty else { return ordered }
+        func group(_ item: Item) -> String { item.seriesId ?? item.id }
+        func played(_ item: Item) -> Double { (item.userData?.lastPlayedDate.flatMap(HomeContent.parseDate)?.timeIntervalSince1970 ?? 0) * 1000 }
+        return ordered.filter { item in
+            guard let when = hidden[group(item)], when > 0 else { return true }
+            return played(item) > when || history.contains { group($0) == group(item) && played($0) > when }
+        }
+    }
 
-    var isEmpty: Bool { continueWatching.isEmpty && latest.isEmpty && favorites.isEmpty }
+    func isEmpty(hidden: [String: Double]) -> Bool { continueWatching(hidden: hidden).isEmpty && latest.isEmpty && favorites.isEmpty }
 
     /// The banner: the first two titles of Continue watching (under their series' artwork), then the latest additions,
     /// six at most, only those with a picture to show.
-    var banner: [BannerEntry] {
+    func banner(hidden: [String: Double]) -> [BannerEntry] {
         var entries: [BannerEntry] = [], seen = Set<String>()
-        for play in continueWatching.prefix(2) {
+        for play in continueWatching(hidden: hidden).prefix(2) {
             let item = play.isEpisode ? (play.seriesId.flatMap { series[$0] } ?? play) : play
             if Artwork.of(item, .backdrop) != nil, seen.insert(item.id).inserted { entries.append(BannerEntry(item: item, play: play)) }
         }
@@ -49,12 +63,15 @@ struct HomeContent: Codable, Sendable, Equatable {
 
     /// Jellyfin's dates: « 2026-10-27T21:14:03.1234567Z », seven decimals that ISO8601DateFormatter does not read.
     static func parseDate(_ text: String) -> Date? {
-        var text = text
+        // Jellyfin writes seven digits of a second, which the ISO 8601 parser refuses: read apart, then added back
+        // (episodes added within the same second are told apart by them).
+        var text = text, fraction = 0.0
         if let dot = text.firstIndex(of: ".") {
             let end = text[dot...].firstIndex { $0 == "Z" || $0 == "+" || $0 == "-" } ?? text.endIndex
+            fraction = Double("0" + text[dot..<end]) ?? 0
             text.removeSubrange(dot..<end)
         }
-        return try? Date(text, strategy: .iso8601)
+        return (try? Date(text, strategy: .iso8601))?.addingTimeInterval(fraction)
     }
 }
 
@@ -83,7 +100,8 @@ final class HomeModel {
         if content == nil { content = HomeCache.load(userId: userId) }
     }
 
-    func load(_ client: JellyfinClient, onUnauthorized: () -> Void) async {
+    /// `rows`: Home's rows on this iPhone (HomeLayout): only the libraries whose row is shown are asked.
+    func load(_ client: JellyfinClient, rows: String, onUnauthorized: () -> Void) async {
         if content == nil { state = .loading }
         do {
             async let resume = client.resume()
@@ -91,8 +109,17 @@ final class HomeModel {
             async let history = client.history()
             async let latest = client.browse()
             async let favorites = client.browse(favorites: true)
+            async let libraries = client.homeLibraries()
             var fresh = try await HomeContent(resume: resume, next: next, history: history.filter { $0.userData?.lastPlayedDate != nil },
                                               latest: latest, favorites: favorites)
+            fresh.libraries = (try? await libraries) ?? content?.libraries ?? []
+            let wanted = HomeLayout.rows(rows, libraries: fresh.libraries).compactMap { $0.shown ? $0.library : nil }
+            fresh.libraryRows = await withTaskGroup(of: (String, [Item]?).self) { group in
+                for id in wanted { group.addTask { (id, try? await client.browse(library: id)) } }
+                var found: [String: [Item]] = [:]
+                for await (id, items) in group { if let items { found[id] = items } }
+                return found
+            }
             var seriesIds: [String] = []
             for id in (fresh.resume + fresh.next).compactMap(\.seriesId) where !seriesIds.contains(id) && seriesIds.count < 4 { seriesIds.append(id) }
             fresh.series = await withTaskGroup(of: Item?.self) { group in

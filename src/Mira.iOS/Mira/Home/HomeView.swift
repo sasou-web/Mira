@@ -13,11 +13,15 @@ struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var model = HomeModel()
     @State private var size = CGSize(width: 402, height: 874)
+    /// On screen: Continue watching follows a title stopped at once; otherwise once Home shows again.
+    @State private var shown = false
+    @State private var stale = false
     @Namespace private var zoom
 
     var body: some View {
         let content = model.content
-        let banner = content?.banner ?? []
+        let hidden = app.preferences.hidden
+        let banner = content?.banner(hidden: hidden) ?? []
         // Home runs under the status bar (the banner's picture reaches the top edge); a header without a banner, and
         // everything scrolled up, keeps clear of it, and a shade under the clock keeps the clock readable.
         let top = statusBar
@@ -39,7 +43,7 @@ struct HomeView: View {
                     }
                     HomeGroup()
                     rows(content, client)
-                    if content.isEmpty {
+                    if content.isEmpty(hidden: hidden) {
                         EmptyState(symbol: "film.stack", title: Text("Your library is empty"), text: Text("Movies and shows you add to Jellyfin will show up here."))
                     }
                 } else if case let .failed(error) = model.state {
@@ -88,7 +92,16 @@ struct HomeView: View {
             if phase == .active, model.isStale { Task { await load() } }
         }
         // A title stopped or the next episode started: Continue watching moves.
-        .onChange(of: app.playback) { Task { await load() } }
+        .onChange(of: app.playback) {
+            if shown { Task { await load() } } else { stale = true }
+        }
+        // Home's rows changed in Settings: a library's row shown is asked.
+        .onChange(of: app.preferences.homeRows) { stale = true }
+        .onAppear {
+            shown = true
+            if stale { stale = false; Task { await load() } }
+        }
+        .onDisappear { shown = false }
         .accessibilityIdentifier("home")
     }
 
@@ -101,37 +114,42 @@ struct HomeView: View {
 
     private func load() async {
         guard let client = app.client else { return }
-        await model.load(client) { app.sessionEnded() }
+        await model.load(client, rows: app.preferences.homeRows) { app.sessionEnded() }
         await app.together.refresh()
     }
 
+    /// Home's rows in the order and choice of Settings (HomeLayout); an empty row is left out.
     @ViewBuilder private func rows(_ content: HomeContent, _ client: JellyfinClient) -> some View {
-        let continuing = content.continueWatching
-        if !continuing.isEmpty {
-            CardRow(title: "Continue watching", items: continuing) { item in
-                NavigationLink(value: TitleRoute(item: item, source: "continue-\(item.id)")) {
-                    WideCard(item: item, client: client, width: wideWidth)
-                        .matchedTransitionSource(id: "continue-\(item.id)", in: zoom)
+        let continuing = content.continueWatching(hidden: app.preferences.hidden)
+        ForEach(HomeLayout.rows(app.preferences.homeRows, libraries: content.libraries).filter(\.shown)) { row in
+            switch row.key {
+            case HomeLayout.continueKey:
+                if !continuing.isEmpty {
+                    CardRow(title: row.title, items: continuing) { item in
+                        NavigationLink(value: TitleRoute(item: item, source: "continue-\(item.id)")) {
+                            WideCard(item: item, client: client, width: wideWidth)
+                                .matchedTransitionSource(id: "continue-\(item.id)", in: zoom)
+                        }
+                        .buttonStyle(.plain)
+                        .titleMenu(item, inContinueWatching: true)
+                    }
                 }
-                .buttonStyle(.plain)
-                .titleMenu(item)
+            case HomeLayout.latestKey:
+                posters(row, content.latest, client)
+            case HomeLayout.favoritesKey:
+                posters(row, content.favorites, client)
+            default:
+                posters(row, row.library.flatMap { content.libraryRows[$0] } ?? [], client)
             }
         }
-        if !content.latest.isEmpty {
-            CardRow(title: "Recently added", items: content.latest) { item in
-                NavigationLink(value: TitleRoute(item: item, source: "latest-\(item.id)")) {
+    }
+
+    @ViewBuilder private func posters(_ row: HomeLayout.Row, _ items: [Item], _ client: JellyfinClient) -> some View {
+        if !items.isEmpty {
+            CardRow(title: row.title, items: items) { item in
+                NavigationLink(value: TitleRoute(item: item, source: "\(row.key)-\(item.id)")) {
                     PosterCard(item: item, client: client, width: posterWidth)
-                        .matchedTransitionSource(id: "latest-\(item.id)", in: zoom)
-                }
-                .buttonStyle(.plain)
-                .titleMenu(item)
-            }
-        }
-        if !content.favorites.isEmpty {
-            CardRow(title: "Your favorites", items: content.favorites) { item in
-                NavigationLink(value: TitleRoute(item: item, source: "favorite-\(item.id)")) {
-                    PosterCard(item: item, client: client, width: posterWidth)
-                        .matchedTransitionSource(id: "favorite-\(item.id)", in: zoom)
+                        .matchedTransitionSource(id: "\(row.key)-\(item.id)", in: zoom)
                 }
                 .buttonStyle(.plain)
                 .titleMenu(item)
@@ -146,13 +164,13 @@ struct HomeView: View {
 
 /// A row of cards that scrolls sideways, stopping on a card.
 struct CardRow<Card: View>: View {
-    let title: LocalizedStringKey
+    let title: String
     let items: [Item]
     @ViewBuilder let card: (Item) -> Card
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
+            Text(verbatim: title)
                 .font(MiraFont.section)
                 .foregroundStyle(Palette.ink)
                 .padding(.horizontal, 16)
@@ -235,7 +253,7 @@ struct PosterCard: View {
                 .clipShape(.rect(cornerRadius: 12, style: .continuous))
                 .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.06)) }
             VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(MiraFont.subheadline).foregroundStyle(Palette.ink).lineLimit(2, reservesSpace: true)
+                Text(name).font(MiraFont.subheadline).foregroundStyle(Palette.ink).lineLimit(2)
                 if let year = item.productionYear {
                     Text(verbatim: String(year)).font(MiraFont.footnote).foregroundStyle(Palette.muted)
                 }
@@ -274,25 +292,32 @@ struct BannerView: View {
     let zoom: Namespace.ID
     @Environment(AppModel.self) private var app
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.scenePhase) private var scenePhase
     @State private var current: String?
+    /// On screen (not under a title's page): only then does the banner turn by itself.
+    @State private var shown = false
 
     var body: some View {
         let height = min(size.width * 1.2, max(420, size.height * 0.62))
-        VStack(spacing: 12) {
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 0) {
-                    ForEach(entries) { entry in
-                        slide(entry, height: height)
-                            .containerRelativeFrame(.horizontal)
-                            .id(entry.id)
-                    }
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 0) {
+                ForEach(entries) { entry in
+                    slide(entry, height: height)
+                        .containerRelativeFrame(.horizontal)
+                        .id(entry.id)
                 }
-                .scrollTargetLayout()
             }
-            .scrollIndicators(.hidden)
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: $current)
-            .frame(height: height)
+            .scrollTargetLayout()
+        }
+        .scrollIndicators(.hidden)
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $current)
+        .scrollClipDisabled()
+        .frame(height: height)
+        // Where the banner is: on the picture's fade, under the buttons, as on Mira web.
+        .overlay(alignment: .bottom) {
             if entries.count > 1 {
                 HStack(spacing: 6) {
                     ForEach(entries) { entry in
@@ -302,12 +327,23 @@ struct BannerView: View {
                     }
                 }
                 .animation(.snappy, value: current)
-                .frame(maxWidth: .infinity)
+                .padding(.bottom, 10)
+                .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Featured"))
+        .onAppear { shown = true }
+        .onDisappear { shown = false }
+        // As on Mira web: the next one every 9 s, counted again after a swipe; never with Reduce Motion or VoiceOver.
+        .task(id: "\(current ?? "")-\(shown)-\(scenePhase == .active)") {
+            guard shown, scenePhase == .active, !reduceMotion, !voiceOver, entries.count > 1 else { return }
+            try? await Task.sleep(for: .seconds(9))
+            guard !Task.isCancelled else { return }
+            let index = entries.firstIndex { $0.id == (current ?? entries.first?.id) } ?? 0
+            withAnimation(.smooth(duration: 0.7)) { current = entries[(index + 1) % entries.count].id }
+        }
     }
 
     private func slide(_ entry: BannerEntry, height: CGFloat) -> some View {
@@ -315,18 +351,32 @@ struct BannerView: View {
         let art = Artwork.of(item, .backdrop)
         let logo = Artwork.of(item, .logo)
         let width = size.width
+        // A 16:9 picture filling a taller slide is drawn wider than the screen: asked at that width, 1920 pixels at
+        // most (Jellyfin's backdrops are 1920 or 3840 wide; beyond, three times the weight for nothing seen).
+        let drawn = min(max(width * 1.4, height * 16 / 9), 1920 / max(1, displayScale))
         return ZStack(alignment: .bottomLeading) {
-            RemoteImage(url: art.map { client.imageURL($0, width: width, scale: displayScale) }, blurHash: art?.blurHash, width: width)
+            RemoteImage(url: art.map { client.imageURL($0, width: drawn, scale: displayScale) }, blurHash: art?.blurHash, width: drawn)
+                .frame(width: width * 1.4, height: height)
+                // Swiped sideways, the picture moves a little slower than its slide (it is wider than the slide, so
+                // no edge ever shows).
+                .scrollTransition(axis: .horizontal) { content, phase in
+                    content.offset(x: phase.value * -width * 0.2)
+                }
                 .frame(width: width, height: height)
+                .overlay {
+                    LinearGradient(stops: [
+                        .init(color: .black.opacity(0.3), location: 0),
+                        .init(color: .clear, location: 0.14),
+                        .init(color: .clear, location: 0.4),
+                        .init(color: Palette.bg.opacity(0.7), location: 0.7),
+                        .init(color: Palette.bg.opacity(0.94), location: 0.9),
+                        .init(color: Palette.bg, location: 1),
+                    ], startPoint: .top, endPoint: .bottom)
+                    .allowsHitTesting(false)
+                }
+                // Home pulled down to refresh: the picture fills what opens above it.
+                .stretchesWhenPulled(height: height)
                 .matchedTransitionSource(id: "banner-\(item.id)", in: zoom)
-            LinearGradient(stops: [
-                .init(color: .black.opacity(0.5), location: 0),
-                .init(color: .clear, location: 0.2),
-                .init(color: .clear, location: 0.42),
-                .init(color: Palette.bg.opacity(0.85), location: 0.78),
-                .init(color: Palette.bg, location: 1),
-            ], startPoint: .top, endPoint: .bottom)
-            .allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 10) {
                 if let logo {
                     LogoImage(url: client.imageURL(logo, width: 300, scale: displayScale), name: item.name ?? "")
@@ -335,6 +385,7 @@ struct BannerView: View {
                     Text(item.name ?? "").font(MiraFont.extraBold(34, .largeTitle)).foregroundStyle(Palette.ink).lineLimit(2)
                 }
                 Text(ItemText.meta(item)).font(MiraFont.subheadline).foregroundStyle(Palette.muted).lineLimit(1)
+                    .shadow(color: .black.opacity(0.6), radius: 6)
                 ChipRow {
                     if let play = entry.play {
                         Button {
@@ -363,10 +414,11 @@ struct BannerView: View {
                 .padding(.top, 4)
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 18)
+            .padding(.bottom, entries.count > 1 ? 32 : 18)
         }
         .frame(width: width, height: height)
-        .clipped()
+        // Cut at the sides and the bottom only: pulled down, the picture grows above the slide.
+        .mask(alignment: .bottom) { Rectangle().frame(width: width, height: height + 2000) }
     }
 
     private func playLabel(_ entry: BannerEntry) -> String {

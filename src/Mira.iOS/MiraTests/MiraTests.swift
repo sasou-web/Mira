@@ -146,7 +146,8 @@ struct HomeTests {
     func dates() throws {
         let date = try #require(HomeContent.parseDate("2026-10-27T21:14:03.1234567Z"))
         let expected = try Date("2026-10-27T21:14:03Z", strategy: .iso8601)
-        #expect(date == expected)
+        // The fraction kept: two episodes added within the same second keep their order.
+        #expect(abs(date.timeIntervalSince(expected) - 0.1234567) < 0.000_01)
         #expect(HomeContent.parseDate("2026-10-27T21:14:03+02:00") != nil)
         #expect(HomeContent.parseDate("hier") == nil)
     }
@@ -164,7 +165,7 @@ struct HomeTests {
             return film
         }
         let content = HomeContent(resume: [episode], latest: [series] + latest, series: ["s": series])
-        let banner = content.banner
+        let banner = content.banner(hidden: [:])
         #expect(banner.map(\.id) == ["s", "f0", "f2", "f3", "f4", "f5"])
         #expect(banner.first?.play?.id == "e1")
     }
