@@ -19,6 +19,9 @@
       <pe-file path="Mira.Core.dll" product-name="Mira" product-version="${version}">
         <authenticode-sign />
       </pe-file>
+      <pe-file path="mira-tailscale.exe" product-name="Mira" product-version="${version}">
+        <authenticode-sign />
+      </pe-file>
     </directory>
     <directory path="Portable">
       <pe-file path="Mira.exe" product-name="Mira" product-version="${version}">

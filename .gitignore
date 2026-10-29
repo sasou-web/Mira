@@ -30,3 +30,5 @@ dist/
 src/Mira.iOS/*.xcodeproj/
 src/Mira.iOS/Mira/Info.plist
 xcuserdata/
+# The Windows file properties of mira-tailscale.exe, written by tools/tailscale/build.mjs for its build only.
+src/Mira.Tailscale/cmd/mira-tailscale/*.syso

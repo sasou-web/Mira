@@ -75,13 +75,13 @@ function Start-ReleaseWorkflow([string]$workflow, [string]$tag, [string]$commit,
 function Get-ReleaseState([string]$tag) {
     [string](Get-Native { gh release view $tag --repo $repository --json isDraft,targetCommitish --jq '[(.isDraft | tostring), .targetCommitish] | @tsv' })
 }
-# Mira's own files of the application folder, taken out of the archive to check their signatures.
+# Mira's own files of the application folder (its Tailscale node included), taken out of the archive to check their signatures.
 function Expand-Checked([string]$archive, [string]$folder) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     New-Item -ItemType Directory -Path $folder -Force | Out-Null
     $zip = [IO.Compression.ZipFile]::OpenRead($archive)
     try {
-        foreach ($name in @('Mira.exe', 'Mira.dll', 'Mira.Core.dll')) {
+        foreach ($name in @('Mira.exe', 'Mira.dll', 'Mira.Core.dll', 'mira-tailscale.exe')) {
             $entry = $zip.Entries | Where-Object { ($_.FullName -replace '\\', '/') -eq "Mira/$name" } | Select-Object -First 1
             if (-not $entry) { throw "Mira/$name manque dans $([IO.Path]::GetFileName($archive))." }
             [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $folder $name), $true)

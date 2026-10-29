@@ -34,6 +34,37 @@ public sealed class LocalProfile
     public void SaveConnection(Connection connection) => AtomicWrite("session.protected",
         ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(connection, Json.Options), null, DataProtectionScope.CurrentUser));
     public void ClearConnection() { var path = Path.Combine(DirectoryPath, "session.protected"); if (File.Exists(path)) File.Delete(path); }
+    /// <summary>The folder of « Tailscale intégré »: its node's state, encrypted with <see cref="TailnetKey"/>.</summary>
+    public string TailnetDirectory => Path.Combine(DirectoryPath, "tailscale");
+    /// <summary>
+    /// The key that encrypts the node's state (its identity on your Tailscale network): 32 random bytes kept with DPAPI
+    /// for this Windows account, as the session is. Made the first time; one this account cannot read (another
+    /// account's, damaged) is replaced, and the node then signs in again. Null when the file is there but cannot be read
+    /// now (held by another program): replacing it would lose the node for nothing.
+    /// </summary>
+    public byte[]? TailnetKey()
+    {
+        var path = Path.Combine(DirectoryPath, "tailscale.protected");
+        try
+        {
+            var key = ProtectedData.Unprotect(File.ReadAllBytes(path), TailnetEntropy, DataProtectionScope.CurrentUser);
+            if (key.Length == 32) return key;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or CryptographicException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+        var made = RandomNumberGenerator.GetBytes(32);
+        AtomicWrite("tailscale.protected", ProtectedData.Protect(made, TailnetEntropy, DataProtectionScope.CurrentUser));
+        return made;
+    }
+    /// <summary>« Se déconnecter de Tailscale » or a new start: the node's key and state leave this PC.</summary>
+    public void ForgetTailnet()
+    {
+        var path = Path.Combine(DirectoryPath, "tailscale.protected");
+        if (File.Exists(path)) File.Delete(path);
+        if (Directory.Exists(TailnetDirectory)) Directory.Delete(TailnetDirectory, recursive: true);
+    }
+    /// <summary>Ties the key to this use: DPAPI data of the same account made for something else does not decrypt it.</summary>
+    private static readonly byte[] TailnetEntropy = Encoding.UTF8.GetBytes("Mira tailnet state key v1");
     /// <summary>True when settings.json exists but could not be read: the defaults are used instead, and replace it on the next save.</summary>
     public bool SettingsUnreadable { get; private set; }
     /// <summary>The copy of that unreadable file kept beside it (settings.json.bad-…); null when it could not be copied either.</summary>
