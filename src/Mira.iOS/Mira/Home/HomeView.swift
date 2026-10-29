@@ -121,7 +121,7 @@ struct HomeView: View {
     /// Home's rows in the order and choice of Settings (HomeLayout); an empty row is left out.
     @ViewBuilder private func rows(_ content: HomeContent, _ client: JellyfinClient) -> some View {
         let continuing = content.continueWatching(hidden: app.preferences.hidden)
-        ForEach(HomeLayout.rows(app.preferences.homeRows, libraries: content.libraries).filter(\.shown)) { row in
+        ForEach(HomeLayout.rows(app.preferences.homeRows, libraries: content.libraries).filter { $0.shown && !HomeLayout.notOnIPhone.contains($0.key) }) { row in
             switch row.key {
             case HomeLayout.continueKey:
                 if !continuing.isEmpty {
