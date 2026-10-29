@@ -243,6 +243,26 @@
         }
       }
     },
+    "%lld new episodes, starting at %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld nouveaux épisodes, dès %2$@"
+          }
+        }
+      }
+    },
+    "%lld new episodes: %@ to %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld nouveaux épisodes : %2$@ à %3$@"
+          }
+        }
+      }
+    },
     "%lld people": {
       "localizations": {
         "en": {
@@ -393,6 +413,16 @@
         }
       }
     },
+    "%lld shows you follow have new episodes.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld séries que tu suis ont de nouveaux épisodes."
+          }
+        }
+      }
+    },
     "10 seconds into the end credits when they are marked, otherwise at the end of the episode. A button offers it sooner.": {
       "localizations": {
         "fr": {
@@ -479,6 +509,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toutes les années"
+          }
+        }
+      }
+    },
+    "And %lld other shows you follow have new episodes.": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "And one other show you follow has a new episode."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "And %lld other shows you follow have new episodes."
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Et une autre série que tu suis a un nouvel épisode."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Et %lld autres séries que tu suis ont de nouveaux épisodes."
+                }
+              }
+            }
           }
         }
       }
@@ -1380,6 +1450,26 @@
         }
       }
     },
+    "New episode: %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouvel épisode : %@"
+          }
+        }
+      }
+    },
+    "New episodes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveaux épisodes"
+          }
+        }
+      }
+    },
     "New in %@": {
       "localizations": {
         "fr": {
@@ -1896,6 +1986,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cherche dans ta bibliothèque"
+          }
+        }
+      }
+    },
+    "See": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voir"
           }
         }
       }

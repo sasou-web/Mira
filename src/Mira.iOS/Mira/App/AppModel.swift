@@ -34,6 +34,8 @@ final class AppModel {
     /// Settings, some of them kept on the account's Jellyfin too (choices).
     let preferences: Preferences
     let choices: ChoicesSync
+    /// What is new in the series followed, said when Mira opens (NewEpisodes).
+    let newEpisodes = NewEpisodesWatch()
     /// Why Jellyfin refused to mark a title watched or a favorite.
     var actionMessage: String?
     /// Bumped when a title stops or another one starts, or is marked watched or a favorite: every page reads Jellyfin again.
@@ -63,6 +65,12 @@ final class AppModel {
         together.app = self
         preferences.use(account: session?.userId)
         preferences.onChange = { [weak self] in self?.choices.soon { [weak self] in self?.client } }
+    }
+
+    /// What is new in the series followed: at the start, and back after 15 minutes away.
+    func lookForNewEpisodes(comingBack: Bool = false) async {
+        guard let client, let account = session?.userId else { return }
+        await newEpisodes.look(client, account: account, comingBack: comingBack)
     }
 
     /// The account's choices compared with its Jellyfin: at the start, and back on the screen after a while.
@@ -165,7 +173,9 @@ final class AppModel {
             HomeCache.clear(userId: session.userId)
             RecentSearches.clear(session.userId)
             preferences.forget(account: session.userId)
+            NewEpisodesWatch.forget(account: session.userId)
         }
+        newEpisodes.dismiss()
         choices.stop()
         SessionStore.delete()
         session = nil
@@ -180,6 +190,8 @@ final class AppModel {
         HomeCache.clear(userId: session.userId)
         RecentSearches.clear(session.userId)
         preferences.forget(account: session.userId)
+        NewEpisodesWatch.forget(account: session.userId)
+        newEpisodes.dismiss()
         choices.stop()
         SessionStore.delete()
         notice = String(localized: "Your session on Jellyfin has ended. Sign in again.")

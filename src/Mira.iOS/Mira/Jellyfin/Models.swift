@@ -9,6 +9,8 @@ struct Item: Codable, Sendable, Identifiable, Hashable {
     var collectionType: String?
     var productionYear: Int?
     var runTimeTicks: Int64?
+    /// When Jellyfin added it (fields=DateCreated): the mark of « New episode ».
+    var dateCreated: String?
     var overview: String?
     var genres: [String]?
     var officialRating: String?
