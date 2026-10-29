@@ -242,7 +242,7 @@ func (r *Relay) failed(w http.ResponseWriter, req *http.Request, err error) {
 	w.Header().Set(ProxyHeader, code)
 	w.Header().Set("Cache-Control", "no-store")
 	status := http.StatusBadGateway
-	if code == "timeout" {
+	if code == CodeTimeout {
 		status = http.StatusGatewayTimeout
 	}
 	http.Error(w, "Mira relay: "+code, status)
@@ -258,16 +258,16 @@ func relayCode(err error) string {
 	var hostname x509.HostnameError
 	var invalid x509.CertificateInvalidError
 	if errors.As(err, &certificate) || errors.As(err, &unknown) || errors.As(err, &hostname) || errors.As(err, &invalid) {
-		return "certificate"
+		return CodeCertificate
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return "timeout"
+		return CodeTimeout
 	}
 	var timeout interface{ Timeout() bool }
 	if errors.As(err, &timeout) && timeout.Timeout() {
-		return "timeout"
+		return CodeTimeout
 	}
-	return "unreachable"
+	return CodeUnreachable
 }
 
 // The server a request goes to, as its path named it.

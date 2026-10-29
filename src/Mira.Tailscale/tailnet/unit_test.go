@@ -14,14 +14,14 @@ import (
 
 func TestHostname(t *testing.T) {
 	for in, want := range map[string]string{
-		"Mira-MacBook Air de Ogsas": "mira-macbook-air-de-ogsas",
-		"Mira-DESKTOP-INVEFQH":      "mira-desktop-invefqh",
-		"  Mira  --  PC  ":          "mira-pc",
-		"Mira-Élodie’s Mac":         "mira-elodie-s-mac",
-		"MacBook Air de Zoë":        "macbook-air-de-zoe",
-		"":                          "mira",
-		"---":                       "mira",
-		strings.Repeat("a", 80):     strings.Repeat("a", 63),
+		"Mira-MacBook Air de Ogsas":              "mira-macbook-air-de-ogsas",
+		"Mira-DESKTOP-INVEFQH":                   "mira-desktop-invefqh",
+		"  Mira  --  PC  ":                       "mira-pc",
+		"Mira-Élodie’s Mac":                      "mira-elodie-s-mac",
+		"MacBook Air de Zoë":                     "macbook-air-de-zoe",
+		"":                                       "mira",
+		"---":                                    "mira",
+		strings.Repeat("a", 80):                  strings.Repeat("a", 63),
 		"Mira-" + strings.Repeat("b", 57) + " c": "mira-" + strings.Repeat("b", 57),
 	} {
 		if got := Hostname(in); got != want {
@@ -32,9 +32,11 @@ func TestHostname(t *testing.T) {
 
 func TestRedact(t *testing.T) {
 	for in, want := range map[string]string{
-		"To start this tsnet server, go to: https://login.tailscale.com/a/1a2b3c4d5e": "To start this tsnet server, go to: <login page>",
-		"authURL=http://127.0.0.1:18090/auth/0123456789abcdef0123 (wait)":            "authURL=<login page> (wait)",
-		"peer 100.64.0.1 at https://example.com/about":                               "peer 100.64.0.1 at https://example.com/about",
+		"To start this tsnet server, go to: https://login.tailscale.com/a/1a2b3c4d5e":                              "To start this tsnet server, go to: <login page>",
+		"authURL=http://127.0.0.1:18090/auth/0123456789abcdef0123 (wait)":                                          "authURL=<login page> (wait)",
+		"peer 100.64.0.1 at https://example.com/about":                                                             "peer 100.64.0.1 at https://example.com/about",
+		`tshttpproxy: using proxy "http://jo:s3cret@10.0.0.1:3128" for URL: "https://controlplane.tailscale.com/"`: `tshttpproxy: using proxy "http://<credentials>@10.0.0.1:3128" for URL: "https://controlplane.tailscale.com/"`,
+		"socks5://user@127.0.0.1:1080 and mailto:jo@example.com":                                                   "socks5://<credentials>@127.0.0.1:1080 and mailto:jo@example.com",
 	} {
 		if got := Redact(in); got != want {
 			t.Errorf("Redact(%q) = %q, want %q", in, got, want)
@@ -152,11 +154,11 @@ func TestResolve(t *testing.T) {
 		{"desktop-invefqh", "tcp6", "fd7a:115c:a1e0::1", "a"},
 		{"nas", "tcp", "fd7a:115c:a1e0::2", "b"},
 		{"nas", "tcp4", "", ""},
-		{"100.64.0.9", "tcp", "", ""},       // this node
-		{"mira-mac", "tcp", "", ""},         // this node
-		{"192.168.1.198", "tcp", "", ""},    // the home network
-		{"127.0.0.1", "tcp", "", ""},        // this computer
-		{"example.com", "tcp", "", ""},      // the Internet
+		{"100.64.0.9", "tcp", "", ""},    // this node
+		{"mira-mac", "tcp", "", ""},      // this node
+		{"192.168.1.198", "tcp", "", ""}, // the home network
+		{"127.0.0.1", "tcp", "", ""},     // this computer
+		{"example.com", "tcp", "", ""},   // the Internet
 		{"desktop-invefqh.local", "tcp", "", ""},
 		{"", "tcp", "", ""},
 	} {

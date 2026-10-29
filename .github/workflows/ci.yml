@@ -34,6 +34,39 @@ jobs:
         run: dotnet build tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore
       - name: Tests free of WPF (Linux)
         run: dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-build
+  # Mira's own Tailscale node (src/Mira.Tailscale), built with the tags of the helper the apps ship (logs to Tailscale
+  # compiled out): its tests start a whole Tailscale network in the process (control, relay, the Jellyfin PC) and sign
+  # a node in as the apps do; then the helper is built for Windows and Mac.
+  tailscale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/Mira.Tailscale
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: src/Mira.Tailscale/go.mod
+          cache-dependency-path: src/Mira.Tailscale/go.sum
+      - name: Format
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "Not formatted by gofmt: $unformatted"; exit 1; fi
+      - name: go.mod and go.sum as go mod tidy writes them
+        run: go mod tidy -diff
+      - name: Vet
+        run: go vet -tags "$(cat build-tags.txt)" ./...
+      - name: Tests (a Tailscale network in the process)
+        run: go test -race -tags "$(cat build-tags.txt)" ./...
+      - name: Helper for Windows and Mac
+        run: |
+          for target in windows/amd64 windows/arm64 darwin/arm64; do
+            GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build -trimpath -tags "$(cat build-tags.txt)" -o /dev/null ./cmd/mira-tailscale
+            echo "mira-tailscale builds for $target"
+          done
   build:
     runs-on: windows-latest
     timeout-minutes: 15

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -76,6 +77,9 @@ type message struct {
 
 func main() {
 	logs := newLogger(os.Stderr)
+	// What Tailscale writes with the standard logger (the system's proxy, for one) goes the same way, redacted.
+	log.SetFlags(0)
+	log.SetOutput(logs)
 	out := newOutput(os.Stdout)
 	h := &helper{out: out, logf: logs.logf}
 	uploads := buildfeatures.HasLogTail
@@ -97,7 +101,7 @@ func main() {
 		}
 		var req request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			out.send(message{Event: "error", Code: "protocol", Error: "not a request: " + err.Error()})
+			out.send(message{Event: "error", Code: tailnet.CodeProtocol, Error: "not a request: " + err.Error()})
 			continue
 		}
 		if req.Op == "quit" {
@@ -181,7 +185,7 @@ func (h *helper) handle(req request) {
 		reply = answer(req.ID, nil)
 	default:
 		reply = answer(req.ID, fmt.Errorf("unknown op %q", req.Op))
-		reply.Code = "protocol"
+		reply.Code = tailnet.CodeProtocol
 	}
 	h.out.send(reply)
 }
@@ -392,6 +396,12 @@ func newLogger(w io.Writer) *logger {
 		}
 	}()
 	return l
+}
+
+// Write takes the standard logger's lines.
+func (l *logger) Write(p []byte) (int, error) {
+	l.logf("%s", p)
+	return len(p), nil
 }
 
 func (l *logger) logf(format string, args ...any) {
