@@ -22,6 +22,8 @@ public static class TailnetText
     /// <summary>The login screen when nothing was found: Jellyfin may be on the person's Tailscale.</summary>
     public static string AwayFromHome => L("Pas chez toi ? Mira peut rejoindre ton réseau Tailscale lui-même et y trouver ton Jellyfin, sans l’app Tailscale.",
         "Not at home? Mira can join your Tailscale network itself and find your Jellyfin there, without the Tailscale app.");
+    /// <summary>The node's state line where the Tailscale app is connected and the node was never signed in: the app already does it.</summary>
+    public static string AppHere => L("L’app Tailscale est connectée sur cet appareil : Mira passe par elle.", "The Tailscale app is connected on this device: Mira goes through it.");
     public static string Console => L("Ouvrir la console de Tailscale", "Open Tailscale’s admin console");
     public static string ReopenPage => L("Rouvrir la page de connexion", "Open the sign-in page again");
     public static string Retry => L("Réessayer", "Try again");

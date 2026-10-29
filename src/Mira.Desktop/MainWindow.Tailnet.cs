@@ -154,7 +154,8 @@ public partial class MainWindow
         var tailnet = _tailnet; var helper = tailnet?.Helper ?? TailnetHelper.Off; var state = tailnet?.State;
         var signedIn = _settings.Tailnet; var signingIn = tailnet?.SigningIn == true; var page = tailnet?.Page;
         TailnetTitle.Text = TailnetText.Name;
-        TailnetState.Text = TailnetLine();
+        // The Tailscale app connected here (Jellyfin's PC): said, rather than « Pas connecté ».
+        TailnetState.Text = _tailscaleAppHere && !signedIn && !signingIn ? TailnetText.AppHere : TailnetLine();
         TailnetWayText.Text = TailnetWay() is { } way ? TailnetText.Path(way) : "";
         TailnetWayText.Visibility = TailnetWayText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         TailnetAbout.Text = TailnetText.Purpose + " " + TailnetText.Privacy;
