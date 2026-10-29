@@ -12,6 +12,9 @@ struct LoginView: View {
     @State private var message: String?
     /// The warning about a password sent in clear over the Internet was shown: a second tap sends it.
     @State private var plainWarned = false
+    /// The server lets a device sign in with a code (Quick Connect), and the code is shown.
+    @State private var quickConnect = false
+    @State private var withCode = false
     @FocusState private var focus: Field?
 
     enum Field: Hashable { case address, username, password }
@@ -102,8 +105,10 @@ struct LoginView: View {
         do {
             let found = try await JellyfinClient.discover(address)
             plainWarned = false
+            withCode = false
             server = found
             focus = username.isEmpty ? .username : .password
+            quickConnect = await JellyfinClient(server: found.address, device: app.device).quickConnectEnabled()
         } catch is CancellationError {
         } catch {
             message = Messages.text(error)
@@ -125,6 +130,8 @@ struct LoginView: View {
                 }
                 Spacer(minLength: 8)
                 Button("Change") {
+                    withCode = false
+                    quickConnect = false
                     self.server = nil
                     password = ""
                     message = nil
@@ -176,7 +183,24 @@ struct LoginView: View {
             .disabled(busy || username.trimmingCharacters(in: .whitespaces).isEmpty)
             .accessibilityIdentifier("login.signin")
             .padding(.top, 6)
+            if withCode {
+                CodeSignIn(server: server, typed: address) { withCode = false }
+                    .padding(.top, 6)
+                    .transition(.opacity)
+            } else if quickConnect {
+                Button {
+                    focus = nil
+                    withCode = true
+                } label: {
+                    Label("Sign in with a code", systemImage: "number.square")
+                        .font(MiraFont.callout)
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("login.withCode")
+            }
         }
+        .animation(.snappy, value: withCode)
     }
 
     private func signIn(_ server: ServerInfo) async {

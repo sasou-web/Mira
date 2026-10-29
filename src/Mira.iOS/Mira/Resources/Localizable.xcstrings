@@ -1450,6 +1450,16 @@
         }
       }
     },
+    "New code": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau code"
+          }
+        }
+      }
+    },
     "New episode: %@": {
       "localizations": {
         "fr": {
@@ -1606,6 +1616,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "OK"
+          }
+        }
+      }
+    },
+    "On a device already signed in to your account: in Mira, Settings, Authorize a device; in Jellyfin, your profile, Quick Connect. Enter this code there.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur un appareil déjà connecté à ton compte : dans Mira, Réglages, Autoriser un appareil ; dans Jellyfin, ton profil, Quick Connect. Tapes-y ce code."
           }
         }
       }
@@ -2130,6 +2150,16 @@
         }
       }
     },
+    "Sign in with a code": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter avec un code"
+          }
+        }
+      }
+    },
     "Sign out": {
       "localizations": {
         "fr": {
@@ -2446,6 +2476,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cette adresse passe par Internet, en http:// : rien n’y est chiffré, et ton mot de passe y passerait lisible par n’importe qui sur le trajet. Utilise plutôt son adresse https:// ou Tailscale, ou touche « Se connecter quand même »."
+          }
+        }
+      }
+    },
+    "This code expired. Ask for a new one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce code a expiré. Demandes-en un nouveau."
           }
         }
       }
