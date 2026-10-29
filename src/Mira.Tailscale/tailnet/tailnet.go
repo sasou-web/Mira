@@ -73,6 +73,8 @@ type Node struct {
 	nextSub int
 	authURL []chan string // Login calls waiting for a login page
 	closed  bool
+	// conns are the connections Dial made, idle or not: those of a device that goes offline are closed (dropGone).
+	conns map[*deviceConn]struct{}
 }
 
 // Start starts a node and returns once it runs, logged in or not: it keeps connecting in the background, and Status,

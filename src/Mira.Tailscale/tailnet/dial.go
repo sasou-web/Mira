@@ -8,6 +8,8 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -113,9 +115,97 @@ func (n *Node) Dial(ctx context.Context, network, address string) (net.Conn, err
 	}
 	conn, err := n.dialTCP(dialCtx, netip.AddrPortFrom(ip, uint16(port)))
 	if err == nil {
-		return conn, nil
+		return n.keep(conn, dev.ID), nil
 	}
 	return nil, n.explain(err, dev)
+}
+
+// deviceConn is a connection Dial made to a device of the tailnet. A device switched off or asleep never answers on it
+// again: a request waiting there would wait until whoever made it gave up, and one kept idle in a pool (the relay's, the
+// proxy's) would hang the next request when the device is back. So the node closes it as soon as the device goes
+// offline or leaves the tailnet; reading or writing it then fails with CodePeerOffline, and a new Dial says why.
+type deviceConn struct {
+	net.Conn
+	node    *Node
+	device  string // the device's ID
+	once    sync.Once
+	dropped atomic.Bool
+}
+
+func (n *Node) keep(conn net.Conn, device string) net.Conn {
+	c := &deviceConn{Conn: conn, node: n, device: device}
+	n.mu.Lock()
+	if n.conns == nil {
+		n.conns = map[*deviceConn]struct{}{}
+	}
+	n.conns[c] = struct{}{}
+	n.mu.Unlock()
+	return c
+}
+
+// dropGone closes the connections to the devices online in prev and no longer in next: offline, or gone from the
+// tailnet. A connection made while its device was already offline (a direct path, which Dial tries) is left to itself.
+func (n *Node) dropGone(prev, next Status) {
+	online := map[string]bool{}
+	for _, d := range next.Peers {
+		if d.Online {
+			online[d.ID] = true
+		}
+	}
+	gone := map[string]bool{}
+	for _, d := range prev.Peers {
+		if d.Online && !online[d.ID] {
+			gone[d.ID] = true
+		}
+	}
+	if len(gone) == 0 {
+		return
+	}
+	n.mu.Lock()
+	var doomed []*deviceConn
+	for c := range n.conns {
+		if gone[c.device] {
+			doomed = append(doomed, c)
+		}
+	}
+	n.mu.Unlock()
+	for _, c := range doomed {
+		c.dropped.Store(true)
+		c.Close()
+	}
+}
+
+func (c *deviceConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if err != nil && c.dropped.Load() {
+		err = newError(CodePeerOffline, err)
+	}
+	return n, err
+}
+
+func (c *deviceConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	if err != nil && c.dropped.Load() {
+		err = newError(CodePeerOffline, err)
+	}
+	return n, err
+}
+
+// CloseWrite ends the sending half, as the connection under it does (a tunnel of the proxy ends each way on its own).
+func (c *deviceConn) CloseWrite() error {
+	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return nil
+}
+
+func (c *deviceConn) Close() error {
+	c.once.Do(func() {
+		c.node.mu.Lock()
+		delete(c.node.conns, c)
+		c.node.mu.Unlock()
+	})
+	return c.Conn.Close()
 }
 
 // Probe tells whether address answers over the tailnet, and if not, why (an *Error): nothing goes to it but a TCP
