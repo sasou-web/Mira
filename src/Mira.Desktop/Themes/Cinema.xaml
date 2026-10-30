@@ -44,7 +44,7 @@
   <SolidColorBrush x:Key="Scrim" Color="#F4070708" po:Freeze="True"/>
   <!-- Keyboard focus ring; Windows' highlight colour in high contrast (MainWindow). -->
   <SolidColorBrush x:Key="FocusRing" Color="#F5F5F7"/>
-  <FontFamily x:Key="AppFont">pack://application:,,,/Assets/Fonts/#Nunito Sans</FontFamily>
+  <FontFamily x:Key="AppFont">pack://application:,,,/Assets/Fonts/#Nunito</FontFamily>
   <SolidColorBrush x:Key="Accent" Color="#F5F5F7"/>
   <Style TargetType="Window"><Setter Property="FontFamily" Value="{StaticResource AppFont}"/></Style>
   <!-- Shown only when focus arrives from the keyboard; mouse clicks no longer leave a white outline. -->

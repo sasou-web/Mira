@@ -1,9 +1,9 @@
-/* Mira web: the look of Mira on Windows and Mac (deep blacks, off-white accent, Nunito Sans), made for touch. */
+/* Mira web: the look of Mira on Windows and Mac (deep blacks, off-white accent, Nunito), made for touch. */
 
-@font-face { font-family: 'Nunito Sans'; font-weight: 400; font-display: swap; src: url('fonts/nunito-sans-400.woff2') format('woff2'); }
-@font-face { font-family: 'Nunito Sans'; font-weight: 600; font-display: swap; src: url('fonts/nunito-sans-600.woff2') format('woff2'); }
-@font-face { font-family: 'Nunito Sans'; font-weight: 700; font-display: swap; src: url('fonts/nunito-sans-700.woff2') format('woff2'); }
-@font-face { font-family: 'Nunito Sans'; font-weight: 800; font-display: swap; src: url('fonts/nunito-sans-800.woff2') format('woff2'); }
+@font-face { font-family: 'Nunito'; font-weight: 400; font-display: swap; src: url('fonts/nunito-400.woff2') format('woff2'); }
+@font-face { font-family: 'Nunito'; font-weight: 600; font-display: swap; src: url('fonts/nunito-600.woff2') format('woff2'); }
+@font-face { font-family: 'Nunito'; font-weight: 700; font-display: swap; src: url('fonts/nunito-700.woff2') format('woff2'); }
+@font-face { font-family: 'Nunito'; font-weight: 800; font-display: swap; src: url('fonts/nunito-800.woff2') format('woff2'); }
 
 :root {
   color-scheme: dark;
@@ -56,7 +56,7 @@
 html {
   background: var(--bg);
   color: var(--ink);
-  font: 400 calc(15px * var(--text))/1.47 'Nunito Sans', -apple-system, system-ui, sans-serif;
+  font: 400 calc(15px * var(--text))/1.47 'Nunito', -apple-system, system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
@@ -861,7 +861,7 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .player video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 /* The box follows the picture: Safari draws subtitles at its bottom, on the picture rather than under the home bar. */
 .player.fitted video { margin: auto; width: min(100%, calc(100dvh * var(--ratio))); height: min(100%, calc(100vw / var(--ratio))); }
-.player video::cue { font-family: 'Nunito Sans', system-ui, sans-serif; font-weight: 700; background: rgba(0, 0, 0, 0.55); font-size: var(--cue, 100%); }
+.player video::cue { font-family: 'Nunito', system-ui, sans-serif; font-weight: 700; background: rgba(0, 0, 0, 0.55); font-size: var(--cue, 100%); }
 .player .layer { position: absolute; inset: 0; transition: opacity var(--slow) linear; }
 /* Hidden controls fade out, but not the spinner, which stays where the play button is. */
 .controls > *, .controls::before { transition: opacity var(--slow) linear; }

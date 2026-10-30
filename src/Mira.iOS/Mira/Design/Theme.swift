@@ -25,12 +25,12 @@ extension Color {
     }
 }
 
-/// Nunito Sans, Mira's typeface (the Latin subset of Mira web), scaled with Dynamic Type from each text style's size.
+/// Nunito, Mira's typeface (the Latin subset of Mira web), scaled with Dynamic Type from each text style's size.
 enum MiraFont {
-    static func regular(_ size: CGFloat, _ style: Font.TextStyle) -> Font { .custom("NunitoSans-Regular", size: size, relativeTo: style) }
-    static func semibold(_ size: CGFloat, _ style: Font.TextStyle) -> Font { .custom("NunitoSans-SemiBold", size: size, relativeTo: style) }
-    static func bold(_ size: CGFloat, _ style: Font.TextStyle) -> Font { .custom("NunitoSans-Bold", size: size, relativeTo: style) }
-    static func extraBold(_ size: CGFloat, _ style: Font.TextStyle) -> Font { .custom("NunitoSans-ExtraBold", size: size, relativeTo: style) }
+    static func regular(_ size: CGFloat, _ style: Font.TextStyle) -> Font { .custom("Nunito-Regular", size: size, relativeTo: style) }
+    static func semibold(_ size: CGFloat, _ style: Font.TextStyle) -> Font { .custom("Nunito-SemiBold", size: size, relativeTo: style) }
+    static func bold(_ size: CGFloat, _ style: Font.TextStyle) -> Font { .custom("Nunito-Bold", size: size, relativeTo: style) }
+    static func extraBold(_ size: CGFloat, _ style: Font.TextStyle) -> Font { .custom("Nunito-ExtraBold", size: size, relativeTo: style) }
 
     static let largeTitle = extraBold(34, .largeTitle)
     static let title = extraBold(28, .title)
@@ -41,13 +41,13 @@ enum MiraFont {
     static let subheadline = semibold(15, .subheadline)
     static let footnote = semibold(13, .footnote)
 
-    /// The navigation bars' titles in Nunito Sans too. Only their text: the bars keep the system's Liquid Glass.
+    /// The navigation bars' titles in Nunito too. Only their text: the bars keep the system's Liquid Glass.
     @MainActor static func applyToNavigationBars() {
         let bar = UINavigationBar.appearance()
-        if let large = UIFont(name: "NunitoSans-ExtraBold", size: 34) {
+        if let large = UIFont(name: "Nunito-ExtraBold", size: 34) {
             bar.largeTitleTextAttributes = [.font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: large)]
         }
-        if let inline = UIFont(name: "NunitoSans-Bold", size: 17) {
+        if let inline = UIFont(name: "Nunito-Bold", size: 17) {
             bar.titleTextAttributes = [.font: UIFontMetrics(forTextStyle: .headline).scaledFont(for: inline)]
         }
     }

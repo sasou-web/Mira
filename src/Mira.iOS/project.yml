@@ -61,10 +61,10 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         UIAppFonts:
-          - NunitoSans-Regular.ttf
-          - NunitoSans-SemiBold.ttf
-          - NunitoSans-Bold.ttf
-          - NunitoSans-ExtraBold.ttf
+          - Nunito-Regular.ttf
+          - Nunito-SemiBold.ttf
+          - Nunito-Bold.ttf
+          - Nunito-ExtraBold.ttf
         # Jellyfin at home and over Tailscale answers in plain HTTP (http://192.168.1.20:8096, http://100.x.y.z:8096):
         # Tailscale already encrypts, and Mira warns before a password goes in clear over the Internet.
         NSAppTransportSecurity:

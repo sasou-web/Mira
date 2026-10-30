@@ -1,4 +1,3 @@
-Nunito Sans
-https://github.com/googlefonts/NunitoSans
-Revision: 058bd7a2f33d6ad5ef1df985b3db403622016a8c
-Unmodified official static font files. SIL Open Font License 1.1.
+Nunito
+https://github.com/google/fonts/tree/6157dfaa640ca5738b4d1a7070fe389c3036d7fc/ofl/nunito
+Static instances (400, 600, 700, 800) of the official variable font, cut by tools/fonts.py. SIL Open Font License 1.1.

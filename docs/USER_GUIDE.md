@@ -28,7 +28,7 @@ Le moteur vidéo mpv s’installe depuis l’installateur (case cochée par déf
 - Cadre natif Windows 11 : coins arrondis, contour fin et ombre système, avec les animations Windows d’ouverture, de fermeture, de réduction et de restauration (si « Effets d’animation » est activé dans Windows).
 - Fenêtre : Mira se rouvre centrée, à la taille où tu l’as laissée, agrandie si elle l’était. La première fois, ou sur un écran trop petit (1080p à 125 ou 150 %), elle prend au plus 90 % de l’écran. Agrandie, tout reste dans la partie visible de l’écran, sous Windows 10 comme 11 ; la lecture plein écran reste bord à bord.
 - La barre de gauche garde le même aspect sur toutes les pages : sur l’accueil, le bandeau passe dessous ; ailleurs, elle est sur le fond de la page ouverte.
-- Interface cinéma : typographie Nunito Sans embarquée, commandes blanches, rail transparent et fonds panoramiques Jellyfin. Les accents du bandeau suivent la couleur dominante de chaque image. Monogramme Mira et famille d’icônes vectorielles aux courbes arrondies ; boutons de navigation en carré adouci.
+- Interface cinéma : typographie Nunito embarquée (coins arrondis), commandes blanches, rail transparent et fonds panoramiques Jellyfin. Les accents du bandeau suivent la couleur dominante de chaque image. Monogramme Mira et famille d’icônes vectorielles aux courbes arrondies ; boutons de navigation en carré adouci.
 - Carrousel automatique : fondu entre les titres toutes les 6,5 secondes, indicateurs arrondis qui progressent entre les pixels, sélection manuelle. La rotation se suspend pendant les interactions, dans les autres écrans et lorsque la fenêtre est inactive.
 - Défilement progressif, y compris au-dessus de « Continuer à regarder ». Maj + molette et les flèches déplacent la rangée horizontalement.
 - Survol intégré aux affiches : anneau lumineux et zoom de 2,5 % animés ensemble, sans délai. Le survol suit aussi les cartes qui défilent sous une souris immobile ; une entrée ou sortie rapide reprend à la position visuelle actuelle, sans saut.
@@ -136,4 +136,4 @@ TorLink a été vérifié avec sa version 1.1.1 et des téléchargements termin�
 
 Le logo et les icônes actuels sont dessinés dans `Views/Icon.cs`, sans dépendance externe. Les SVG Phosphor de l’ancienne interface restent archivés sous licence MIT dans `Assets/Phosphor`.
 
-La police [Nunito Sans](https://github.com/googlefonts/NunitoSans) est embarquée sous SIL Open Font License 1.1. Les sources, révisions et notices sont conservées dans `Assets/Fonts` et reproduites par `tools/import-font.ps1`.
+La police [Nunito](https://github.com/googlefonts/nunito) est embarquée sous SIL Open Font License 1.1 : quatre graisses tirées de sa version variable de Google Fonts par `tools/fonts.py`, qui écrit aussi celles de l’iPhone et de Mira web. Licence et source dans `Assets/Fonts`.
