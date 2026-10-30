@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Films or Shows: the whole library in a grid of posters, a page of 60 at a time as it scrolls, with Mira web's sorts
 /// and filters (library.js), and its libraries side by side when there are several of the kind (Shows | Anime).
@@ -28,6 +29,13 @@ struct LibraryView: View {
     }
 
     private var title: LocalizedStringKey { kind == .movies ? "Movies" : "Shows" }
+
+    /// The status bar's height (0 when hidden, in landscape), read again whenever the page's width changes.
+    private var statusBar: CGFloat {
+        _ = width
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        return scene?.keyWindow?.safeAreaInsets.top ?? 0
+    }
     private var collection: String { kind == .movies ? "movies" : "tvshows" }
 
     var body: some View {
@@ -51,10 +59,24 @@ struct LibraryView: View {
         }
         .scrollIndicators(.hidden)
         .foldsTabBar()
+        // No header: the tab bar already names the page, and a bar with its blur only hid the posters. The sort
+        // button floats alone at the top right; a shade under the status bar keeps the time readable over a poster.
+        .scrollEdgeEffectHidden(true, for: .top)
+        .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+        .overlay(alignment: .top) {
+            LinearGradient(colors: [Palette.bg.opacity(0.85), Palette.bg.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(height: statusBar + 12)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .background(Palette.bg)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // The title stays the page's name for the back button's menu, never shown in the bar.
+            ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1).accessibilityHidden(true) }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker("Sort by", selection: $query.sort) {

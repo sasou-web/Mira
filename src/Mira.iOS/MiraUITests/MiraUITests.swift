@@ -124,6 +124,12 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Sprite Fright, 2021"].waitForExistence(timeout: 5), "Movies shows no grid of films")
         settle()
         capture("07-movies")
+        // Scrolled: no header over the posters, only the sort button.
+        app.swipeUp()
+        settle()
+        capture("07b-movies-scrolled")
+        app.swipeDown()
+        app.swipeDown()
         app.buttons["library.favorites"].tap()
         XCTAssertTrue(app.staticTexts["3 movies"].waitForExistence(timeout: 10), "Favorites does not keep only the 3 favorite films")
 
