@@ -174,17 +174,52 @@ public partial class MainWindow
         UpdateHeroClock(); await RefreshAsync();
         await closing; UpdateNavigation(); UpdateHeroClock();
     }
+    private Button? _railActive;
     private void UpdateNavigation()
     {
         var guide = GuideOverlay.IsHitTestVisible && GuideOverlay.Visibility == Visibility.Visible;
         var settings = !guide && SettingsOverlay.IsHitTestVisible && SettingsOverlay.Visibility == Visibility.Visible;
         var torlink = !guide && !settings && TorLinkOverlay.IsHitTestVisible && TorLinkOverlay.Visibility == Visibility.Visible;
+        Button? shown = null;
         foreach (var button in new[] { HomeNav, SearchNav, MoviesNav, SeriesNav, LibraryNav, OfflineNav, TorLinkNav, GuideNav, SettingsNav })
         {
             var active = guide ? button == GuideNav : settings ? button == SettingsNav : torlink ? button == TorLinkNav : button.Tag?.ToString() == _catalog.View;
-            button.Background = active ? Palette.Get("Text") : Brushes.Transparent;
-            button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextTertiary");
+            if (active) shown = button;
+            // Contrast themes keep the tile on the button itself: the sliding one is drawn in Mira's colours.
+            button.Background = active && HighContrast ? Palette.Get("Text") : Brushes.Transparent;
+            Ink(button, active ? Palette.Get("OnAccent") : Palette.Get("TextTertiary"), button != _railActive && (active || button == _railActive));
         }
+        MoveRailIndicator(shown);
+    }
+    private static bool HighContrast => SystemParameters.HighContrast;
+    /// <summary>The icon's ink, turned in step with the tile sliding under it.</summary>
+    private static void Ink(Button button, Brush target, bool animate)
+    {
+        if (!animate || Motion.Reduced || target is not SolidColorBrush to || button.Foreground is not SolidColorBrush from) { button.Foreground = target; return; }
+        if (from.Color == to.Color) return;
+        var ink = new SolidColorBrush(from.Color); button.Foreground = ink;
+        ink.BeginAnimation(SolidColorBrush.ColorProperty, new System.Windows.Media.Animation.ColorAnimation(to.Color, TimeSpan.FromMilliseconds(220)) { EasingFunction = Motion.Enter });
+    }
+    private void MoveRailIndicator(Button? active)
+    {
+        var move = (TranslateTransform)RailIndicator.RenderTransform;
+        if (active is null || !active.IsVisible || HighContrast) { _railActive = active; Motion.Fade(RailIndicator, 0, 140); return; }
+        RailBody.UpdateLayout();
+        var at = active.TranslatePoint(new Point(), RailBody);
+        RailIndicator.Width = active.ActualWidth; RailIndicator.Height = active.ActualHeight;
+        var first = RailIndicator.Opacity < .01 || _railActive is null;
+        if (first || Motion.Reduced)
+        {
+            move.BeginAnimation(TranslateTransform.XProperty, null); move.BeginAnimation(TranslateTransform.YProperty, null);
+            move.X = at.X; move.Y = at.Y; Motion.Fade(RailIndicator, 1, 160);
+        }
+        else if (active != _railActive)
+        {
+            Motion.Animate(move, TranslateTransform.XProperty, at.X, 320, ease: Motion.Glide);
+            Motion.Animate(move, TranslateTransform.YProperty, at.Y, 320, ease: Motion.Glide);
+            Motion.Fade(RailIndicator, 1, 120);
+        }
+        _railActive = active;
     }
     private void RenderLibrary()
     {
@@ -523,6 +558,8 @@ public partial class MainWindow
         try { var item = hero.SeriesId is { } seriesId && _client is { } client ? await LoadHeroSeriesAsync(client, seriesId) ?? hero : hero; await ToggleFavoriteAsync(item); if (_hero.Id == hero.Id) RenderHero(hero); }
         finally { HeroFavorite.IsEnabled = true; }
     }
+    /// <summary>The countdown bar follows the notice's rounded corners (ClipToBounds clips a rectangle: the bar showed past them).</summary>
+    private void NoticeBody_SizeChanged(object sender, SizeChangedEventArgs e) => NoticeBody.Clip = new RectangleGeometry(new Rect(e.NewSize), 15, 15);
     private void DismissNotice_Click(object sender, RoutedEventArgs e) => HideNotice();
     private void Combo_PreviewClick(object sender, MouseButtonEventArgs e) => ((ComboBox)sender).Focus();
 }

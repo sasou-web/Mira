@@ -79,7 +79,7 @@ public partial class MainWindow
                 await RunTorLinkActionAsync("trust");
                 Require(string.Equals(_settings.TorLinkPath, detected.Root, StringComparison.OrdinalIgnoreCase) && _torlinkInstallation is { Detected: false }, "the confirmation is remembered as the chosen folder");
             }
-            Require(TorLinkOverlay.Visibility == Visibility.Visible && TorLinkNav.Background is SolidColorBrush { Color.R: 0xF4 }, "the rail opens the TorLink page and marks it active");
+            Require(TorLinkOverlay.Visibility == Visibility.Visible && _railActive == TorLinkNav, "the rail opens the TorLink page and marks it active");
             await Until(() => _torlinkTerminal?.State == TerminalState.Running, 25, "TorLink did not start in the page");
             var terminal = _torlinkTerminal ?? throw new InvalidOperationException("No terminal");
             var installation = _torlinkInstallation ?? throw new InvalidOperationException("No installation");

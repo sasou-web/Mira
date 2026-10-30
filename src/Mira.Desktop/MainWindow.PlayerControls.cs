@@ -315,7 +315,7 @@ public partial class MainWindow
         if (mini && !wasMini && _loaded) _ = RefreshMiniResumeAsync();
     }
     private async void StopPlayer_Click(object sender, RoutedEventArgs e)
-    { await StopPlaybackAsync(); ReturnToLibrary(); if (!_demo) await RefreshAsync(quiet: true); else RenderDemo(); }
+    { await LeavePlayerAsync(); if (!_demo) await RefreshAsync(quiet: true); else RenderDemo(); }
     private void Mute_Click(object sender, RoutedEventArgs e)
     {
         if (_mpv is null) return;
