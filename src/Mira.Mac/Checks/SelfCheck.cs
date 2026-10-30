@@ -81,6 +81,26 @@ public static class SelfCheck
             Check(shown && midway > 0 && midway < CardRow.Step - 1 && Math.Abs(row.Offset - CardRow.Step) < 1, "rangée : défilement fluide d’environ trois affiches", $"flèches {shown}, {midway:0} px à 50 ms, {row.Offset:0} px à la fin");
             rowWindow.Close();
 
+            // The page scrolls whatever the pointer is over: a row given a swipe down with a little sideways, and a pointer
+            // left captured by a press whose release never came (a menu, the player gone from under it).
+            var mouse = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+            void Wheel(Control source, Point at, Vector delta) => source.RaiseEvent(new PointerWheelEventArgs(source, mouse, (Visual?)TopLevel.GetTopLevel(source) ?? window, at, 0, PointerPointProperties.None, KeyModifiers.None, delta));
+            var swiped = new CardRow("Contrôle", Enumerable.Range(0, 24).Select(_ => (Control)new Button { Width = 176, Height = 40 }));
+            var swipedPage = new ScrollViewer { Content = new StackPanel { Children = { swiped, new Border { Height = 1200 } } } };
+            var swipeWindow = new Window { Width = 1100, Height = 300, Content = swipedPage };
+            swipeWindow.Show(); await Task.Delay(400);
+            Wheel(swiped.GetVisualDescendants().OfType<Button>().Last(), default, new Vector(-.2, -1));
+            Check(swipedPage.Offset.Y > 0 && swiped.Offset < 1, "rangée : un glissement vers le bas fait défiler la page", $"page {swipedPage.Offset.Y:0} px, rangée {swiped.Offset:0} px");
+            swipeWindow.Close();
+            if (home.FindDescendantOfType<ScrollViewer>() is { } homeScroll)
+            {
+                homeScroll.Offset = default; await Task.Delay(200);
+                mouse.Capture((Control)window.Content!);
+                Wheel((Control)window.Content!, new Point(window.Bounds.Width / 2, window.Bounds.Height * .6), new Vector(0, -1));
+                Check(homeScroll.Offset.Y > 0 && mouse.Captured is null, "accueil : la page défile après une capture restée sans bouton", $"page {homeScroll.Offset.Y:0} px, capture {mouse.Captured?.GetType().Name ?? "aucune"}");
+                homeScroll.Offset = default;
+            }
+
             // —— Films, search ——
             window.Go("Movie");
             Check(await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15), "films : grille", $"{(window.Current as BrowsePage)?.Items.Count} films");

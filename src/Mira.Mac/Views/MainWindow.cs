@@ -130,6 +130,11 @@ public sealed partial class MainWindow : Window
         AddHandler(KeyDownEvent, (_, e) => { if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
         PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsXButton1Pressed) Back(); };
+        // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
+        // double click) left the pointer captured by what remained: every turn of the wheel went there, never to the page.
+        AddHandler(PointerMovedEvent, (_, e) => Unstick(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerWheelChangedEvent, OnWheel, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        MenuBase.ClosedEvent.AddClassHandler<MenuBase>((_, _) => Dispatcher.UIThread.Post(ReleasePointer));
         Closing += OnClosing;
         Opened += async (_, _) => await StartAsync();
     }
@@ -544,11 +549,31 @@ public sealed partial class MainWindow : Window
         // The group plays on without this Mac.
         Group.SetAway(true);
         _overlay.Children.Remove(player);
+        ReleasePointer();
         if (WindowState == WindowState.FullScreen) WindowState = WindowState.Normal;
         Profile.SaveSettings(Settings);
         Focus();
         await RefreshPagesAsync();
     }
+    // —— Pointer ——
+    private IPointer? _mouse;
+    /// <summary>A mouse capture that outlived its press: no button is down any more.</summary>
+    private static bool Stale(PointerEventArgs e) => e.Pointer is { Type: PointerType.Mouse, Captured: not null }
+        && e.GetCurrentPoint(null).Properties is { IsLeftButtonPressed: false, IsRightButtonPressed: false, IsMiddleButtonPressed: false };
+    private void Unstick(PointerEventArgs e) { _mouse = e.Pointer; if (Stale(e)) e.Pointer.Capture(null); }
+    private void OnWheel(object? sender, PointerWheelEventArgs e)
+    {
+        _mouse = e.Pointer;
+        if (!Stale(e)) return;
+        e.Pointer.Capture(null);
+        // This turn of the wheel goes where the pointer is, as the next ones will.
+        var at = e.GetPosition(this);
+        if (this.InputHitTest(at) is not Avalonia.Interactivity.Interactive under) return;
+        e.Handled = true;
+        under.RaiseEvent(new PointerWheelEventArgs(under, e.Pointer, this, at, e.Timestamp, e.GetCurrentPoint(this).Properties, e.KeyModifiers, e.Delta));
+    }
+    /// <summary>A menu closed or the player gone: no capture left behind, even one outside this window (a menu's).</summary>
+    internal void ReleasePointer() { if (_mouse?.Captured is not null) _mouse.Capture(null); }
     /// <summary>After a playback or a change elsewhere, the page on screen redraws its marks.</summary>
     public async Task RefreshPagesAsync(bool fromServer = false)
     {
