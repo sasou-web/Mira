@@ -16,7 +16,7 @@
 
 ## Why Mira?
 
-[Jellyfin](https://jellyfin.org) keeps your films and series on your PC and serves them anywhere. Mira is the pleasant way to watch them. The interface is in French for now.
+[Jellyfin](https://jellyfin.org) keeps your films and series on your PC and serves them anywhere. Mira is the pleasant way to watch them, in English or in French.
 
 - **Beautiful from the start.** Posters, large artwork, summaries, cast, sagas: your library looks like a streaming service.
 - **Pick up where you left off.** On the PC, the Mac or the phone, « Continuer à regarder » takes you back to the right minute, and the next episode follows on its own.
