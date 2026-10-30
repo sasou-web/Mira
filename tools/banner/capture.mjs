@@ -1,7 +1,8 @@
 // The captures of a release's banner (tools/banner/banner.mjs): the screens of Mira web that this version changed,
-// listed in tools/banner/scenes.json, on the library of tools/gallery/setup.mjs (free films). A phone scene is a whole
+// listed in tools/banner/scenes.json, on the library of tools/banner/media.sh (the README's). A phone scene is a whole
 // iPhone 17 Pro screen (402 × 874 points, ×3, as tools/gallery/web.mjs); a screen scene, Mira web in a computer's
-// window (1440 × 900, ×2). Each scene also gives the box of what changed (focus), magnified on the banner.
+// window (1440 × 900, ×2). Each scene also gives the box of what changed (focus), lit on the banner; then backdrops
+// of a few titles, still-1.jpg to still-N.jpg, among which the banner takes its light.
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/banner/capture.mjs <x.y.z> <url of /Mira/> <user> <password> <folder>
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -104,8 +105,8 @@ const scenes = {
   async profiles(page) {
     const { session, find } = await titles(page);
     const users = await api(page, 'GET', 'Users');
-    const faces = [['Sintel (2010)', 'Primary', { x: 0.5, y: 0.25, size: 0.55 }], ['Spring (2019)', 'Primary', { x: 0.5, y: 0.3, size: 0.55 }],
-      ['Sprite Fright (2021)', 'Primary', { x: 0.5, y: 0.3, size: 0.55 }], ['Wing It! (2023)', 'Primary', { x: 0.5, y: 0.3, size: 0.55 }]];
+    const faces = [['Arcane (2021)', 'Backdrop', { x: 0.5, y: 0.4, size: 0.8 }], ['Klaus (2019)', 'Backdrop', { x: 0.45, y: 0.4, size: 0.8 }],
+      ['Nimona (2023)', 'Backdrop', { x: 0.55, y: 0.4, size: 0.8 }], ['Spirited Away (2001)', 'Backdrop', { x: 0.5, y: 0.4, size: 0.8 }]];
     const names = ['Léa', 'Sam', 'Noé'];
     for (const name of names) {
       if (users.some((u) => u.Name === name)) continue;
@@ -173,13 +174,18 @@ try {
       console.log(`${name}.png`);
     } finally { await context.close(); }
   }
-  // A film's backdrop for the banner's light.
+  // Backdrops for the banner's light: the version picks one.
   const { context, page } = await open('phone');
   try {
     const { find } = await titles(page);
-    const film = find('Sintel (2010)') ?? find('Spring (2019)');
-    const still = film && await page.request.get(new URL(`../Items/${film.Id}/Images/Backdrop?maxWidth=1600&quality=90`, base).href);
-    if (still?.ok()) writeFileSync(join(out, 'still.jpg'), await still.body());
+    let n = 0;
+    for (const name of ['Arcane (2021)', 'Spider-Man Across the Spider-Verse (2023)', 'Klaus (2019)', 'Spirited Away (2001)', 'The Wild Robot (2024)',
+      'Puss in Boots The Last Wish (2022)', 'Nimona (2023)', 'Your Name. (2016)']) {
+      const title = find(name);
+      const still = title && await page.request.get(new URL(`../Items/${title.Id}/Images/Backdrop?maxWidth=2400&quality=90`, base).href);
+      if (still?.ok()) writeFileSync(join(out, `still-${++n}.jpg`), await still.body());
+      else console.log(`::warning::no backdrop for ${name}`);
+    }
   } finally { await context.close(); }
   writeFileSync(join(out, 'banner.json'), `${JSON.stringify(listed, null, 2)}\n`);
   if (errors.length) console.log(`::warning::page errors: ${errors.join(' | ')}`);

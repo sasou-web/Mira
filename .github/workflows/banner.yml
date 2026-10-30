@@ -1,6 +1,6 @@
 name: Release banner
 # The banner at the head of a release's page (tools/banner/): Mira web captured in Chromium, signed in to a real
-# Jellyfin 12.1 whose library holds free films (tools/gallery/media.sh) with their TMDb artwork, on the screens that
+# Jellyfin 12.1 whose library is the README's (tools/banner/media.sh) with its TMDb artwork, on the screens that
 # tools/banner/scenes.json lists for the version; then the banner drawn around them. Run on request (Run workflow)
 # from the release's preparation branch: docs/releases/<version>.jpg is committed to it, to reach main and the
 # release's tag through its pull request; from main, only kept as an artifact.
@@ -46,15 +46,14 @@ jobs:
         run: |
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
           tools/web/package.sh "$version" http://127.0.0.1:8765
-      - name: Free films
+      - name: The library
         run: |
           command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
-          tools/gallery/media.sh "$PWD/.artifacts/media"
-          # Only films under a Creative Commons licence (Blender's, Sita Sings the Blues) and Pioneer One: the public
-          # domain films' posters on TMDb are often later prints with rights of their own.
-          rm -rf .artifacts/media/Films/*\(19[0-9][0-9]\)
-          echo "MIRA_GALLERY_TITLES=$(( $(ls .artifacts/media/Films | wc -l) + 7 ))" >> "$GITHUB_ENV"
-          ls .artifacts/media/Films
+          tools/banner/media.sh "$PWD/.artifacts/media"
+          # Every film, series and episode, for setup.mjs to wait for the whole scan.
+          echo "MIRA_GALLERY_TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+          echo "MIRA_GALLERY_TRACES=$PWD/tools/banner/traces.json" >> "$GITHUB_ENV"
+          du -sh .artifacts/media
       - name: Jellyfin 12.1, its library, Mira web installed from the repository
         run: |
           (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)

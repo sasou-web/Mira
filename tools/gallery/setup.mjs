@@ -2,7 +2,9 @@
 // Films and Séries libraries of tools/gallery/media.sh scanned with their TMDb artwork, then a viewer's traces (titles
 // started, seen, favourites) for « Continuer à regarder », and Mira web installed from a repository when one is given.
 //   node tools/gallery/setup.mjs <server> <media folder as the server sees it> <user> <password> [repository url]
-// MIRA_GALLERY_ARTWORK=0: no wait for TMDb's artwork (a machine without the Internet).
+// MIRA_GALLERY_ARTWORK=0: no wait for TMDb's artwork (a machine without the Internet). MIRA_GALLERY_TRACES: a JSON file
+// of the traces of another library (tools/banner/traces.json), in place of those below.
+import { readFileSync } from 'node:fs';
 const [server, media, user, password, repository] = process.argv.slice(2);
 if (!password) { console.error('usage: setup.mjs <server> <media> <user> <password> [repository]'); process.exit(2); }
 const base = server.replace(/\/$/, '');
@@ -85,7 +87,7 @@ const byFile = (name) => items.find((x) => x.Path?.replace(/\\/g, '/').split('/'
 const series = items.find((x) => x.Type === 'Series');
 const ticks = (item, share) => Math.round((item.RunTimeTicks ?? 0) * share);
 const hour = 3_600_000;
-const traces = [
+const traces = process.env.MIRA_GALLERY_TRACES ? JSON.parse(readFileSync(process.env.MIRA_GALLERY_TRACES, 'utf8')) : [
   ['Spring (2019)', { share: 0.42, favorite: true, ago: 1 }],
   ['Metropolis (1927)', { share: 0.61, ago: 26 }],
   ['Tears of Steel (2012)', { share: 0.18, ago: 50 }],
