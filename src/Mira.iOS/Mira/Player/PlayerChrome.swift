@@ -479,7 +479,7 @@ private struct Overlays: View {
 
     var body: some View {
         ZStack {
-            if let flash = model.skipFlash { SkipCircle(flash: flash) }
+            if let flash = model.skipFlash { SkipBadge(flash: flash).transition(.opacity.combined(with: .scale(scale: 0.9))) }
             VStack(spacing: 10) {
                 if let level = model.level {
                     LevelBar(level: level).transition(.opacity.combined(with: .move(edge: .top)))
@@ -521,6 +521,7 @@ private struct Overlays: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: model.level)
+        .animation(.easeOut(duration: 0.18), value: model.skipFlash != nil)
         .animation(.easeOut(duration: 0.2), value: model.boosted)
         .animation(.easeOut(duration: 0.2), value: model.groupLine)
         .animation(.spring(duration: 0.3), value: model.passage)
@@ -528,49 +529,49 @@ private struct Overlays: View {
     }
 }
 
-/// The circles of a double tap on one side, as YouTube draws them: « 10 s », « 20 s »… while the taps go on.
-private struct SkipCircle: View {
+/// A double tap on one side: a small dark pill on that side, « 10 s », « 20 s »… while the taps go on. No circle
+/// over the picture.
+private struct SkipBadge: View {
     let flash: PlayerModel.SkipFlash
-    @State private var grown = false
 
     var body: some View {
         GeometryReader { box in
-            let side = box.size.height * 1.15
-            // The middle of the part of the circle on the screen.
-            let middle = flash.forward ? box.size.width - side * 0.21 : side * 0.21
-            ZStack(alignment: .leading) {
-                Circle()
-                    .fill(.white.opacity(0.12))
-                    .frame(width: side, height: side)
-                    .offset(x: flash.forward ? box.size.width - side * 0.42 : -side * 0.58)
-                Circle()
-                    .fill(.white.opacity(0.18))
-                    .frame(width: 90, height: 90)
-                    .scaleEffect(grown ? 1.7 : 0.6)
-                    .opacity(grown ? 0 : 1)
-                    .offset(x: middle - 45)
-                VStack(spacing: 6) {
-                    Image(systemName: flash.forward ? "forward.fill" : "backward.fill")
-                        .font(.system(size: 22, weight: .bold))
-                        .symbolEffect(.bounce, value: flash.tap)
-                    Text("\(flash.seconds) s")
-                        .font(MiraFont.subheadline)
-                        .monospacedDigit()
-                }
-                .frame(width: 120)
-                .offset(x: middle - 60)
+            Label {
+                Text("\(flash.seconds) s")
+                    .font(MiraFont.subheadline)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+            } icon: {
+                Image(systemName: flash.forward ? "forward.fill" : "backward.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .symbolEffect(.bounce, value: flash.tap)
             }
-            .frame(width: box.size.width, height: box.size.height, alignment: .leading)
-            .clipped()
+            .labelStyle(SkipLabelStyle(forward: flash.forward))
+            .padding(.horizontal, 14)
+            .frame(height: 36)
+            .glassEffect(.regular.tint(.black.opacity(0.4)), in: .capsule)
+            .position(x: box.size.width * (flash.forward ? 0.8 : 0.2), y: box.size.height / 2)
         }
-        .ignoresSafeArea()
         .allowsHitTesting(false)
-        .onAppear { withAnimation(.easeOut(duration: 0.6)) { grown = true } }
-        .onChange(of: flash.tap) {
-            grown = false
-            withAnimation(.easeOut(duration: 0.6)) { grown = true }
-        }
+        .animation(.snappy(duration: 0.2), value: flash.seconds)
         .accessibilityHidden(true)
+    }
+}
+
+/// The arrows on the side the title goes: after « 10 s » forward, before it back.
+private struct SkipLabelStyle: LabelStyle {
+    let forward: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 7) {
+            if forward {
+                configuration.title
+                configuration.icon
+            } else {
+                configuration.icon
+                configuration.title
+            }
+        }
     }
 }
 
