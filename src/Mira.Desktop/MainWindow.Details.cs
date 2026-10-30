@@ -296,13 +296,34 @@ public partial class MainWindow
         DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
         _detailNext ??= target;
     }
+    /// <summary>
+    /// A film's page leads with its Lecture: a large button (what it plays, then the time left under it) and the
+    /// progress as wide as it, on a taller picture. A series keeps its row as it is, its episodes doing the leading.
+    /// </summary>
+    private void ShapeDetailPlay(bool film)
+    {
+        DetailHero.Height = film ? 470 : 410;
+        DetailPlay.Padding = film ? new Thickness(32, 15, 36, 15) : new Thickness(25, 13, 25, 13);
+        DetailPlay.MinWidth = film ? 250 : 0;
+        Motion.SetRadius(DetailPlay, new CornerRadius(film ? 14 : 6));
+        DetailProgress.Width = film ? double.NaN : 300; DetailProgress.HorizontalAlignment = film ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+    }
+    private static StackPanel FilmPlayLabel(string label, string? detail)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal }; panel.Children.Add(new Icon { Kind = "play", Width = 24, Height = 24, VerticalAlignment = VerticalAlignment.Center });
+        var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock { Text = label, FontSize = 18, FontWeight = FontWeights.Bold });
+        if (detail is not null) text.Children.Add(new TextBlock { Text = detail, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Opacity = .72, Margin = new Thickness(0, 1, 0, 0) });
+        panel.Children.Add(text); return panel;
+    }
     /// <summary>Lecture's label: what it plays, or, in a group, that it starts it for everyone (or joins its title).</summary>
     private void ShowDetailPlayLabel(MediaItem item)
     {
+        ShapeDetailPlay(item.Type == "Movie");
         if (item.Type == "Series") { DetailProgress.Visibility = Visibility.Collapsed; UpdateDetailPlayLabel(); return; }
         var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
-        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(item, "") ?? (resume ? L("Reprendre", "Resume") : item.UserData.Played ? L("Revoir", "Watch again") : L("Regarder", "Watch")),
-            resume && !InGroup ? MediaQuality.Left(item) : null);
+        DetailPlay.Content = FilmPlayLabel(GroupPlayLabel(item, "") ?? (resume ? L("Reprendre", "Resume") : item.UserData.Played ? L("Revoir", "Watch again") : L("Regarder", "Watch")),
+            resume && !InGroup ? MediaQuality.Left(item) : item.DurationLabel is { Length: > 0 } length ? length : null);
         DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
         DetailProgress.Progress = item.Progress; DetailProgress.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
     }
