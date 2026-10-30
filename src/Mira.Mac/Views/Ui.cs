@@ -379,6 +379,15 @@ public sealed class CardRow : StackPanel
         Children.Add(header); Children.Add(_scroll);
         _scroll.ScrollChanged += (_, _) => UpdateArrows();
         _scroll.SizeChanged += (_, _) => UpdateArrows();
+        // A trackpad's swipe down carries a little sideways: over a row, the row took all of it and the page stood still.
+        _scroll.AddHandler(PointerWheelChangedEvent, (_, e) =>
+        {
+            if (Math.Abs(e.Delta.Y) <= Math.Abs(e.Delta.X) || e.KeyModifiers == Avalonia.Input.KeyModifiers.Shift) return;
+            if (Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<ScrollViewer>(this) is not { } page) return;
+            e.Handled = true;
+            // As Avalonia's own wheel step for a page (ScrollContentPresenter: 50 per unit).
+            page.Offset = new Vector(page.Offset.X, Math.Clamp(page.Offset.Y - e.Delta.Y * 50, 0, Math.Max(0, page.Extent.Height - page.Viewport.Height)));
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
     }
     private double Maximum => Math.Max(0, _scroll.Extent.Width - _scroll.Viewport.Width);
     /// <summary>For the self-check: whether the arrows show, and how far the row has moved.</summary>
