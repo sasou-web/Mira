@@ -20,7 +20,7 @@ public sealed class DetailPage : Page
     private MediaItem _item;
     private readonly Image _backdrop = new() { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top, Opacity = 0 };
     private readonly Grid _header = new() { ClipToBounds = true };
-    private readonly StackPanel _top = new() { Spacing = 18, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(56, 0, 56, 34), MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly StackPanel _top = new() { Spacing = 18, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(56 + MainWindow.RailWidth, 0, 56, 34), MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _body = new() { Spacing = 36, Margin = new Thickness(56, 8, 56, 64) };
     private readonly ComboBox _seasons = new() { MinWidth = 200 };
     private readonly StackPanel _episodes = new() { Spacing = 10 };
@@ -50,7 +50,7 @@ public sealed class DetailPage : Page
     public IReadOnlyList<MediaItem> Episodes => _allEpisodes;
     public IEnumerable<string> SeasonLabels => _seasons.Items.OfType<ComboBoxItem>().Select(x => x.Content as string ?? "");
 
-    public DetailPage(MainWindow shell, MediaItem item, MediaItem? atEpisode = null) : base(shell)
+    public DetailPage(MainWindow shell, MediaItem item, MediaItem? atEpisode = null) : base(shell, underRail: true)
     {
         _item = item; _found = atEpisode;
         _backdrop.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(380) }];
@@ -59,10 +59,12 @@ public sealed class DetailPage : Page
         _header.Children.Add(new Border { Background = Gradient(0, 0.5, 1, 0.5, ("#F2070708", 0), ("#A0070708", 0.45), ("#20070708", 0.8)) });
         _header.Children.Add(new Border { Background = Gradient(0.5, 0, 0.5, 1, ("#00070708", 0.35), ("#FF070708", 1)) });
         var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => Shell.Back(), "icon", 24);
-        back.HorizontalAlignment = HorizontalAlignment.Left; back.VerticalAlignment = VerticalAlignment.Top; back.Margin = new Thickness(40, 26 + shell.TitleBarInset, 0, 0);
+        back.HorizontalAlignment = HorizontalAlignment.Left; back.VerticalAlignment = VerticalAlignment.Top; back.Margin = new Thickness(40 + MainWindow.RailWidth, 26 + shell.TitleBarInset, 0, 0);
         back.Width = back.Height = 46; back.Background = Ui.Brush("#66000000");
         _header.Children.Add(_top); _header.Children.Add(back);
         var page = new StackPanel();
+        // The picture runs under the rail, as on Windows; the text keeps clear of it.
+        _body.Margin += new Thickness(MainWindow.RailWidth, 0, 0, 0);
         page.Children.Add(_header); page.Children.Add(_body);
         Content = new ScrollViewer { Content = page };
         SizeChanged += (_, e) => _header.Height = Math.Clamp(e.NewSize.Height * 0.66, 430, 720);

@@ -24,9 +24,9 @@ public sealed class HomePage : Page
     private readonly EmptyState _empty = new() { Margin = new Thickness(56, 120, 56, 60) };
     private readonly Grid _hero = new() { ClipToBounds = true };
     private readonly Image _heroImage = new() { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top };
-    private readonly StackPanel _heroText = new() { Spacing = 18, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(56, 0, 40, 66), MaxWidth = 720 };
+    private readonly StackPanel _heroText = new() { Spacing = 18, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(56 + MainWindow.RailWidth, 0, 40, 66), MaxWidth = 720 };
     private readonly StackPanel _heroSide = new() { Spacing = 14, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 56, 70), Width = 420 };
-    private readonly StackPanel _dots = new() { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 26) };
+    private readonly StackPanel _dots = new() { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(MainWindow.RailWidth, 0, 0, 26) };
     private readonly DispatcherTimer _rotate = new() { Interval = TimeSpan.FromSeconds(9) };
     private readonly ScrollViewer _scroll;
     private List<MediaItem> _heroItems = [];
@@ -42,7 +42,7 @@ public sealed class HomePage : Page
     public IReadOnlyList<MediaItem> Continue { get; private set; } = [];
     public IReadOnlyList<MediaItem> Latest { get; private set; } = [];
 
-    public HomePage(MainWindow shell) : base(shell)
+    public HomePage(MainWindow shell) : base(shell, underRail: true)
     {
         _heroImage.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(420) }];
         _hero.Children.Add(new Border { Background = Ui.Brush("#0E0E10") });
@@ -65,6 +65,8 @@ public sealed class HomePage : Page
             Child = new DockPanel { Children = { _groupJoin, groupText } }
         };
         _groupFor = Shell.Group.Active ? Shell.Group.Group?.GroupId : null;
+        // The banner runs under the rail; the rest of the page starts beside it.
+        foreach (var part in new Control[] { _groupLine, _empty, _rows }) part.Margin += new Thickness(MainWindow.RailWidth, 0, 0, 0);
         var page = new StackPanel { Spacing = 8 };
         page.Children.Add(_hero); page.Children.Add(_groupLine); page.Children.Add(_empty); page.Children.Add(_rows);
         _scroll = new ScrollViewer { Content = page };
@@ -251,7 +253,7 @@ public sealed class HomePage : Page
         if (Shell.Session is not { } session) return;
         _heroText.Children.Clear(); _heroSide.Children.Clear(); _dots.Children.Clear();
         // Without a banner, the group's line keeps clear of the window's buttons.
-        _hero.IsVisible = _heroItems.Count > 0; _groupLine.Margin = new Thickness(56, _hero.IsVisible ? 0 : 44 + Shell.TitleBarInset, 56, 30);
+        _hero.IsVisible = _heroItems.Count > 0; _groupLine.Margin = new Thickness(56 + MainWindow.RailWidth, _hero.IsVisible ? 0 : 44 + Shell.TitleBarInset, 56, 30);
         if (_heroItems.Count == 0) { _heroImage.Source = null; return; }
         _heroIndex = (index % _heroItems.Count + _heroItems.Count) % _heroItems.Count;
         var item = _heroItems[_heroIndex];
