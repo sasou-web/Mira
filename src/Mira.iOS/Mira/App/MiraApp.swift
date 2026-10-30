@@ -25,9 +25,14 @@ struct MiraApp: App {
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         guard UIDevice.current.userInterfaceIdiom == .phone else { return .all }
-        var top = window?.rootViewController
-        while let next = top?.presentedViewController { top = next }
-        guard let player = top as? PlayerController, !player.isBeingDismissed else { return .portrait }
+        // The player wherever it is: under a menu or AirPlay's list it still says how the screen turns.
+        var player = PlayerController.current.flatMap { $0.presentingViewController != nil ? $0 : nil }
+        var next = window?.rootViewController
+        while let controller = next {
+            if let found = controller as? PlayerController { player = found }
+            next = controller.presentedViewController
+        }
+        guard let player, !player.isBeingDismissed else { return .portrait }
         return player.supportedInterfaceOrientations
     }
 }

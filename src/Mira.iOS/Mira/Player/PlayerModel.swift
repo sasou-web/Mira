@@ -134,6 +134,11 @@ final class PlayerModel {
         regions.values.contains { $0.insetBy(dx: -4, dy: -4).contains(point) }
     }
 
+    /// A touch at this point lands on that control.
+    func onControl(_ point: CGPoint, in name: String) -> Bool {
+        regions[name]?.insetBy(dx: -4, dy: -4).contains(point) ?? false
+    }
+
     struct Level: Equatable {
         enum Kind { case brightness, volume }
         let kind: Kind
