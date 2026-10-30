@@ -7,6 +7,7 @@
     <a href="https://github.com/sasou-web/Mira/releases/tag/v0.8.7"><strong>Download for Windows</strong></a> ·
     <a href="INSTALLATION-MAC.md">Mac</a> ·
     <a href="INSTALLATION-WEB.md">iPhone and Android</a> ·
+    <a href="https://discord.gg/Bh3F6PDUvB">Discord</a> ·
     <a href="../README.md">Français</a>
   </p>
 </div>
@@ -83,6 +84,7 @@ Mira **0.8.7** is a preview: it is used every day, but some things are still mis
 - [Every feature and shortcut (French)](USER_GUIDE.md)
 - [Release history](../CHANGELOG.md)
 - [Report a bug](https://github.com/sasou-web/Mira/issues/new/choose) or [a vulnerability](../SECURITY.md)
+- [Talk about Mira on Discord](https://discord.gg/Bh3F6PDUvB): help, ideas, new releases
 
 ## Code signing policy
 
