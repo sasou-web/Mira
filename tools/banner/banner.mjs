@@ -36,7 +36,7 @@ const still = stills.length ? stills[Math.floor(random() * stills.length)] : nul
 const W = 1200, H = 600, PHONE = 236, SIDE = 0.86;
 const order = [shots[1], shots[0], shots[2]].filter(Boolean);
 const centre = { x: between(812, 842), y: H / 2 + between(-6, 10) };
-const spread = between(150, 172), turn = between(5, 8.5), drop = between(14, 34);
+const spread = between(184, 196), turn = between(4, 7), drop = between(14, 34);
 const place = order.length === 1 ? [[0, 0, 0, 1]] : order.length === 2 ? [[-spread / 2, drop / 2, -turn, SIDE], [spread / 2, 0, 0, 1]]
   : [[-spread, drop, -turn, SIDE], [0, 0, 0, 1], [spread, -drop * 0.6, turn, SIDE]];
 const front = order.length === 2 ? 1 : Math.min(1, order.length - 1);

@@ -106,7 +106,7 @@ const scenes = {
     const { session, find } = await titles(page);
     const users = await api(page, 'GET', 'Users');
     const faces = [['Arcane (2021)', 'Backdrop', { x: 0.5, y: 0.4, size: 0.8 }], ['Klaus (2019)', 'Backdrop', { x: 0.45, y: 0.4, size: 0.8 }],
-      ['Nimona (2023)', 'Backdrop', { x: 0.55, y: 0.4, size: 0.8 }], ['Spirited Away (2001)', 'Backdrop', { x: 0.5, y: 0.4, size: 0.8 }]];
+      ['Nimona (2023)', 'Backdrop', { x: 0.55, y: 0.4, size: 0.8 }], ['Puss in Boots The Last Wish (2022)', 'Backdrop', { x: 0.6, y: 0.4, size: 0.8 }]];
     const names = ['Léa', 'Sam', 'Noé'];
     for (const name of names) {
       if (users.some((u) => u.Name === name)) continue;
@@ -186,7 +186,8 @@ try {
   try {
     const { find } = await titles(page);
     let n = 0;
-    for (const name of ['Arcane (2021)', 'Spider-Man Across the Spider-Verse (2023)', 'Klaus (2019)', 'Spirited Away (2001)', 'The Wild Robot (2024)',
+    // Not Spirited Away: its first backdrop on TMDb is a photo of Hayao Miyazaki.
+    for (const name of ['Arcane (2021)', 'Spider-Man Across the Spider-Verse (2023)', 'Klaus (2019)', 'Coco (2017)', 'The Wild Robot (2024)',
       'Puss in Boots The Last Wish (2022)', 'Nimona (2023)', 'Your Name. (2016)']) {
       const title = find(name);
       const still = title && await page.request.get(new URL(`../Items/${title.Id}/Images/Backdrop?maxWidth=2400&quality=90`, base).href);
