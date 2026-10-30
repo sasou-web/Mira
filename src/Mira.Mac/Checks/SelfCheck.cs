@@ -119,6 +119,10 @@ public static class SelfCheck
             await Task.Delay(1200); Capture(window, output, "06-series");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
+            // « Titres à corriger », as on Windows: the mock's titles have no ids from a metadata source.
+            if (mock is not null)
+                Check(await Until(() => window.Current is SettingsPage { Fix.Count: > 0, Fix.Section.IsVisible: true }, 10), "réglages : titres à corriger", $"{(window.Current as SettingsPage)?.Fix.Count} titres");
+            if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Fix.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
 
             // —— Téléchargements: sent to the PC of Jellyfin ——
             if (mock is not null)
