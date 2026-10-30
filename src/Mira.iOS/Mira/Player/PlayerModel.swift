@@ -181,10 +181,11 @@ final class PlayerModel {
     }
 
     /// The controls go by themselves 4 s after the last touch while the title plays; never with VoiceOver, never while
-    /// a menu is open or the finger is on the timeline.
+    /// a menu is open or the finger is on the timeline, never under the UI tests (`-mira-controls-stay`), which read
+    /// them at their own pace: a button found, then gone before the tap, and the tap lands on the picture.
     func scheduleHide() {
         hideTask?.cancel()
-        guard playing, !scrubbing, !held, !UIAccessibility.isVoiceOverRunning else { return }
+        guard playing, !scrubbing, !held, !UIAccessibility.isVoiceOverRunning, !Self.controlsStay else { return }
         hideTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(4))
             guard let self, !Task.isCancelled, self.playing, !self.scrubbing, !self.held else { return }
@@ -249,6 +250,7 @@ final class PlayerModel {
     }
 
     static let speeds: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
+    private static let controlsStay = ProcessInfo.processInfo.arguments.contains("-mira-controls-stay")
 }
 
 #if DEBUG
