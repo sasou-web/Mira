@@ -170,6 +170,20 @@ public static class SelfCheck
                     ScreenColour(Path.Combine(output, "08b-player-menu.png"));
                     Check(chips >= 6 && (menu is null || Unnamed(menu).Count == 0), "lecteur : menu « ⋮ » en pastilles, comme sous Windows", $"{chips} pastilles");
                     player.MoreButton.Flyout.Hide();
+                    // « Chercher des sous-titres… », as on Windows: offered with an extension, its results in the menu of the tracks.
+                    if (await Until(() => player.CanSearchSubtitles, 5))
+                    {
+                        player.TracksButton.Flyout!.ShowAt(player.TracksButton);
+                        await Task.Delay(300);
+                        player.SearchSubtitles();
+                        var found = await Until(() => player.SubtitlesFound > 0, 5);
+                        await Task.Delay(500);
+                        var tracksMenu = (player.TracksButton.Flyout as Flyout)?.Content as Control;
+                        ScreenColour(Path.Combine(output, "08e-subtitle-search.png"));
+                        Check(found && (tracksMenu is null || Unnamed(tracksMenu).Count == 0), "lecteur : chercher des sous-titres", $"{player.SubtitlesFound} trouvés");
+                        player.TracksButton.Flyout.Hide();
+                    }
+                    else Check(false, "lecteur : « Chercher des sous-titres… » proposé");
                     // The mini-player, as on Windows: Échap shrinks it to a corner, the rail works around it, I brings it back.
                     Key(window, Avalonia.Input.Key.Escape);
                     window.Go("Movie");

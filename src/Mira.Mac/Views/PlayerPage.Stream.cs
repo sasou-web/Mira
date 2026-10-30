@@ -279,6 +279,7 @@ public sealed partial class PlayerPage
         foreach (var track in (_mpv?.Tracks() ?? []).Where(t => t.Type == "sub" && !converted.Fetched(t.Id)))
             subtitles.Children.Add(Entry(track.Label, track.Details, track.Id == sid, () => ChooseTrack("sid", track.Id)));
         subtitles.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync()));
+        AddSubtitleSearch(subtitles);
         return Ui.Row(18, audio, subtitles);
     }
     /// <summary>A track of a conversion chosen: text subtitles at once; another audio track or pictures, another conversion from where it is.</summary>

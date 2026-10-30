@@ -115,7 +115,7 @@ public sealed partial class PlayerPage : UserControl
         _more = Ui.IconButton("more", L("Vitesse, sous-titres et minuterie", "Speed, subtitles and sleep timer"), () => { }, "player", 22);
         _tracks.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
         _more.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
-        ((Flyout)_tracks.Flyout).Opening += (_, _) => ((Flyout)_tracks.Flyout).Content = TracksMenu();
+        ((Flyout)_tracks.Flyout).Opening += (_, _) => { _subtitleView = false; ((Flyout)_tracks.Flyout).Content = TracksMenu(); };
         ((Flyout)_more.Flyout).Opening += (_, _) => ((Flyout)_more.Flyout).Content = MoreMenu();
         var play = new Button { Content = _pauseIcon, Classes = { "player" } }; play.Click += (_, _) => TogglePause();
         ToolTip.SetTip(play, L("Lecture / pause · Espace", "Play / pause · Space"));
@@ -253,6 +253,7 @@ public sealed partial class PlayerPage : UserControl
             _session.LastReport = DateTimeOffset.Now;
             _tick.Start();
             _ = LoadMarkersAsync(session, item, generation);
+            _ = LoadSubtitleSearchAsync(session, generation);
             return true;
         }
         catch (Exception ex) when (Errors.Expected(ex) || ex is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
@@ -582,6 +583,7 @@ public sealed partial class PlayerPage : UserControl
     // —— Menus ——
     private Control TracksMenu()
     {
+        if (_subtitleView) return SubtitleSearchMenu();
         if (_converted is { } converted) return ConvertedTracksMenu(converted);
         var tracks = _mpv?.Tracks() ?? [];
         var current = (Audio: _mpv?.Get("aid"), Sub: _mpv?.Get("sid"));
@@ -592,7 +594,7 @@ public sealed partial class PlayerPage : UserControl
             if (off) list.Children.Add(Entry(L("Désactivés", "Off"), null, selected is "no" or null, () => ChooseTrack("sid", "no")));
             foreach (var track in tracks.Where(x => x.Type == type))
                 list.Children.Add(Entry(track.Label, track.Details, selected == track.Id, () => ChooseTrack(type == "audio" ? "aid" : "sid", track.Id)));
-            if (type == "sub") list.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync()));
+            if (type == "sub") { list.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync())); AddSubtitleSearch(list); }
             return list;
         }
         return Ui.Row(18, Column(L("AUDIO", "AUDIO"), "audio", current.Audio, false), Column(L("SOUS-TITRES", "SUBTITLES"), "sub", current.Sub, true));
