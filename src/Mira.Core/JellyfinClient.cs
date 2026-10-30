@@ -114,7 +114,7 @@ public sealed class JellyfinClient : IDisposable
         return await response.Content.ReadFromJsonAsync<T>(Json.Options, ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
     }
     public Task<ItemsResult> ResumeAsync(CancellationToken ct = default) => GetAsync<ItemsResult>(
-        $"UserItems/Resume?userId={Connection.UserId}&limit=16&mediaTypes=Video&fields=Overview,Genres&enableImageTypes=Primary,Backdrop,Thumb", ct);
+        $"UserItems/Resume?userId={Connection.UserId}&limit=16&mediaTypes=Video&fields=Overview,Genres&enableImageTypes=Primary,Backdrop,Thumb,Logo", ct);
     public Task<ItemsResult> NextUpAsync(CancellationToken ct = default) => GetAsync<ItemsResult>(
         $"Shows/NextUp?userId={Connection.UserId}&limit=16&fields=Overview,Genres", ct);
     public const int PageSize = 60;
