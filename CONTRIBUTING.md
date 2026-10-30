@@ -33,7 +33,7 @@ Utiliser un profil `--data` séparé et des médias de test. Ne pas inclure de d
 ./tools/capture-gallery.ps1
 ```
 
-Avant une release, ajouter l’entrée de la version dans `src/Mira.Core/WhatsNew.json` : une phrase de résumé et deux à cinq points courts, avec une icône de Mira. Les tests le vérifient. Ce texte s’affiche dans Mira après la mise à jour ; `package.ps1` (et `release.ps1`) en tirent aussi `.artifacts/release-notes-<version>.md`, le texte de la page de release sur GitHub. Le détail reste dans `CHANGELOG.md`.
+Avant une release, ajouter l’entrée de la version dans `src/Mira.Core/WhatsNew.json` : une phrase de résumé et deux à cinq points courts, avec une icône de Mira. Les tests le vérifient. Ce texte s’affiche dans Mira après la mise à jour ; `package.ps1` (et `release.ps1`) en tirent aussi `.artifacts/release-notes-<version>.md`, le texte de la page de release sur GitHub, qui est en anglais (écris d’abord l’anglais de chaque point). Le détail reste dans `CHANGELOG.md`.
 
 Les fichiers de release sont produits dans `dist/packages`, depuis des dossiers neufs, sans toucher au profil d’une installation locale : archive, exécutable portable et, si [Inno Setup 6](https://jrsoftware.org/isinfo.php) est installé (ou indiqué par `-Iscc`), l’installateur décrit par `installer/Mira.iss`. Aucun ne contient libmpv. Le script de captures génère un profil temporaire et exporte les vues publiques dans `docs/screenshots`.
 

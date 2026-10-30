@@ -162,17 +162,19 @@ internal static class UpdateTests
                 Assert(string.Join(" ", shown.Where(x => x.Items.Any(i => i.Web)).Select(x => x.Version)) == Names(row.GetProperty("phone")), $"Mira web, since {seen} up to {current}");
             }
             var notes = WhatsNew.ReleaseNotes(all[0]); var unsigned = WhatsNew.ReleaseNotes(all[0], signed: false);
-            Assert(notes.StartsWith("**Mira** est un client Jellyfin") && notes.Contains("\n\n" + all[0].Summary + "\n\n") && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains("/docs/INSTALLATION-WEB.md")
-                && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Contains("**Code signing policy**") && notes.Contains("certificate by [SignPath Foundation]") && notes.Contains("#politique-de-signature-du-code") && notes.Length < 2000, "Release notes (" + notes.Length + "):\n" + notes);
-            Assert(unsigned.Contains("**Code signing policy**") && unsigned.Contains("ne sont pas signés") && !unsigned.Contains("certificate by") && unsigned.Contains("#politique-de-signature-du-code"), "Release notes, unsigned:\n" + unsigned);
+            Assert(notes.StartsWith("**Mira** is a cinema-style Jellyfin client") && notes.Contains("\n\n" + all[0].EnglishSummary + "\n\n") && all[0].Items.All(x => notes.Contains($"**{x.EnglishTitle}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains("/docs/INSTALLATION-WEB.md")
+                && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Contains("**Code signing policy**") && notes.Contains("certificate by [SignPath Foundation]") && notes.Contains("#code-signing-policy") && notes.Length < 2000, "Release notes (" + notes.Length + "):\n" + notes);
+            Assert(unsigned.Contains("**Code signing policy**") && unsigned.Contains("are not signed") && !unsigned.Contains("certificate by") && unsigned.Contains("#code-signing-policy"), "Release notes, unsigned:\n" + unsigned);
             // The banner on top, from the tag (tools/banner, docs/releases), the rest unchanged.
             var banner = WhatsNew.ReleaseNotes(all[0], signed: false, banner: true);
             var image = $"![Mira {all[0].Version}](https://raw.githubusercontent.com/sasou-web/Mira/v{all[0].Version}/docs/releases/{all[0].Version}.jpg)\n\n";
             Assert(banner == image + unsigned, "Release notes with the banner:\n" + banner);
-            // Mira in English: the screen after an update speaks English, the release page stays French (Mira.Release runs in English).
+            // Mira in English: the screen after an update speaks English, the release page is always English (Mira.Release runs in English, and so does the page).
             Lang.Use(Lang.English);
             var point = all[0].Items[0];
             Assert(all[0].Summary == all[0].EnglishSummary && point.Title == point.EnglishTitle && point.Text == point.EnglishText && WhatsNew.ReleaseNotes(all[0]) == notes, "What’s new in English");
+            Lang.Use(Lang.French);
+            Assert(WhatsNew.ReleaseNotes(all[0]) == notes, "Release notes do not depend on Mira’s language");
             Lang.Use(Lang.French);
             Assert(WhatsNew.Parse("""[{"version":"0.5.4","summary":"Quatre","items":[{"icon":"check","title":"Titre","text":"Texte"}]}]""")[0] is { EnglishSummary: "Quatre", Items: [{ EnglishTitle: "Titre", EnglishText: "Texte" }] }, "Without English, the French");
             return Task.CompletedTask;
