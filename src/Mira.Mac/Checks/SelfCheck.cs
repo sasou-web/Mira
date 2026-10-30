@@ -253,7 +253,7 @@ public static class SelfCheck
     private static void Key(MainWindow window, Key key) => window.Player?.HandleKey(new KeyEventArgs { Key = key, RoutedEvent = InputElement.KeyDownEvent });
 
     /// <summary>The window as Avalonia draws it (without mpv's picture, which only reaches the screen).</summary>
-    private static void CaptureWindow(Window window, string output, string name)
+    internal static void CaptureWindow(Window window, string output, string name)
     {
         var scaling = window.RenderScaling;
         var size = new PixelSize((int)(window.Bounds.Width * scaling), (int)(window.Bounds.Height * scaling));

@@ -118,6 +118,30 @@ jobs:
           MIRA_TAILNET_HELPER="$PWD/dist/mac/Mira.app/Contents/MacOS/mira-tailscale" MIRA_TAILNET_TESTNET="$RUNNER_TEMP/mira-testnet" \
           MIRA_TAILNET_MPV="$(brew --prefix)/lib/libmpv.dylib" MIRA_TAILNET_VERSION="$VERSION" \
             dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore -- --filter "Tailscale intégré"
+      # Built-in Tailscale in Mira itself (src/Mira.Mac/Checks/TailnetCheck.cs): Mira.app as it ships signs in to the test
+      # network from its login page, then to the self-check's stand-in Jellyfin, which Mira serves on a port the network's
+      # Jellyfin PC forwards; Home and a film through the node, the PC off then on. Started again on the same profile, the
+      # node starts with Mira, then « Se déconnecter de Tailscale » erases it.
+      - name: Built-in Tailscale in Mira (sign-in, playback, PC off, started again, signed out)
+        run: |
+          port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+          "$RUNNER_TEMP/mira-testnet" -addr 127.0.0.1:0 -forward "8096=127.0.0.1:$port" -info "$RUNNER_TEMP/testnet.json" > .artifacts/testnet.log 2>&1 &
+          testnet=$!
+          for i in $(seq 1 60); do [ -s "$RUNNER_TEMP/testnet.json" ] && break; sleep 1; done
+          control=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["control"])' "$RUNNER_TEMP/testnet.json")
+          app=dist/mac/Mira.app/Contents/MacOS/Mira
+          status=0
+          for run in 1 2; do
+            "$app" --data "$PWD/.artifacts/tailnet-profile" --tailnet-check "$PWD/.artifacts/tailnet" --tailnet-control "$control" --mock-port "$port" \
+              --media "$PWD/.artifacts/media/test.mkv" > ".artifacts/tailnet-$run.log" 2>&1 &
+            pid=$!
+            for i in $(seq 1 300); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+            if kill -0 $pid 2>/dev/null; then echo "tailnet check (run $run) still running after 5 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
+            [ $status -eq 0 ] || { tail -60 ".artifacts/tailnet-$run.log"; break; }
+          done
+          cat .artifacts/tailnet/result.txt .artifacts/tailnet/result-again.txt 2>/dev/null || true
+          kill $testnet 2>/dev/null || true
+          exit $status
       # The renderer alone, for a diagnosis: which OpenGL this Mac gives Mira, and whether mpv's picture reaches the screen.
       - name: Video probe
         if: always()
@@ -131,7 +155,7 @@ jobs:
       - name: Capture previews in the log
         if: always()
         run: |
-          for file in .artifacts/check/*.png .artifacts/dmg/dmg-*.png; do
+          for file in .artifacts/check/*.png .artifacts/dmg/dmg-*.png .artifacts/tailnet/*.png; do
             [ -f "$file" ] || continue
             name=$(basename "$file" .png); small=".artifacts/$name.jpg"
             sips -s format jpeg -s formatOptions 45 -Z 720 "$file" --out "$small" >/dev/null
@@ -146,6 +170,9 @@ jobs:
             .artifacts/check
             .artifacts/check.log
             .artifacts/dmg
+            .artifacts/tailnet
+            .artifacts/tailnet-*.log
+            .artifacts/testnet.log
           retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

@@ -106,6 +106,8 @@ public sealed partial class PlayerPage
         var stream = await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(_session.Position, audio, burn, memory), _shell.Settings.AudioLanguage, FileHere);
         if (generation != _generation || _stopped || _mpv is null || !ReferenceEquals(before, _stream)) return false;
         if (!always && !stream.Converted && !before.Converted && stream.Location == before.Location) { EndReopenLoading(); return false; }
+        // The way to it closed meanwhile (Mira's Tailscale node signed out, its device gone): thrown before anything here changes.
+        if (Uri.TryCreate(stream.Location, UriKind.Absolute, out var url)) _mpv.Network.ForPlayer(url);
         // Where it is now: it played on while Jellyfin answered.
         var position = _loaded ? Reported(_mpv.Number("time-pos", _session.Position)) : _session.Position;
         _reloadTracks = !stream.Converted && stream.Location == before.Location ? ids : null;

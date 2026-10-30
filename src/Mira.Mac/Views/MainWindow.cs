@@ -56,6 +56,8 @@ public sealed class MainWindow : Window
     public PlayerPage? Player { get; private set; }
     /// <summary>« Regarder ensemble »: the group this Mac is in, whatever plays.</summary>
     public WatchGroup Group { get; }
+    /// <summary>« Tailscale intégré »: Mira's own node on the person's Tailscale network, for Jellyfin away from home.</summary>
+    public BuiltInTailscale Tailnet { get; }
     /// <summary>Top room left for the macOS window buttons, which sit over Mira's own content.</summary>
     public double TitleBarInset { get; }
     /// <summary>When the window last came to the front (Environment.TickCount64): its click shows the player's controls, never pauses.</summary>
@@ -70,6 +72,7 @@ public sealed class MainWindow : Window
         Group = new WatchGroup(this);
         Group.Changed += () => { Player?.RefreshMenus(); Player?.ShowGroup(); if (Current is DetailPage detail) detail.ShowTogether(); else if (Current is HomePage home) home.GroupChanged(); };
         Group.Member += said => { if (Player is { } player) player.ShowMember(said); else Notice(said + "."); };
+        Tailnet = new BuiltInTailscale(this);
         Title = "Mira"; MinWidth = 960; MinHeight = 600;
         Width = Settings.WindowWidth > 0 ? Settings.WindowWidth : 1440; Height = Settings.WindowHeight > 0 ? Settings.WindowHeight : 900;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -165,13 +168,20 @@ public sealed class MainWindow : Window
     }
     private void HideNotice() { _toastTimer.Stop(); _toast.Opacity = 0; DispatcherTimer.RunOnce(() => { if (_toast.Opacity == 0) _toast.IsVisible = false; }, TimeSpan.FromMilliseconds(200)); }
     public string? NoticeText => _toast.IsVisible ? _toastText.Text : null;
+    /// <summary>The button of the notice shown (the checks).</summary>
+    public string? NoticeAction => _toast.IsVisible && _toastAction.IsVisible ? _toastAction.Content as string : null;
 
     private async Task StartAsync()
     {
         if (Args.Contains("--self-check")) { await Checks.SelfCheck.RunAsync(this); return; }
+        // The check of « Tailscale intégré »: its stand-in Jellyfin served before anything asks it.
+        var tailnetCheck = Args.Contains("--tailnet-check") ? new Checks.TailnetCheck(this) : null;
+        // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.
+        await Tailnet.StartWithMiraAsync();
         // Off the interface thread: after an update, macOS may ask before Mira reads its keychain.
         if (await Task.Run(Profile.LoadConnection) is { } connection) await ActivateAsync(connection);
         else ShowLogin();
+        if (tailnetCheck is not null) { await tailnetCheck.RunAsync(); return; }
         // Once, beside what the opening already said (a cache recreated) rather than in its place.
         if (Profile.SettingsUnreadable)
         {
@@ -436,8 +446,8 @@ public sealed class MainWindow : Window
         page.Opacity = 0;
         page.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
         Dispatcher.UIThread.Post(() => page.Opacity = 1, DispatcherPriority.Loaded);
-        try { await page.LoadAsync(); }
-        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
+        try { await page.LoadAsync(); _unanswered = false; }
+        catch (Exception ex) when (Errors.Expected(ex)) { Say(ex); }
     }
     private void Light(string rail)
     {
@@ -515,9 +525,30 @@ public sealed class MainWindow : Window
         Session?.Forget();
         if (Current is { } page)
         {
-            try { await page.RefreshAsync(); }
-            catch (Exception ex) when (Errors.Expected(ex)) { if (!fromServer) Notice(Errors.Friendly(ex)); }
+            try { await page.RefreshAsync(); _unanswered = false; }
+            catch (Exception ex) when (Errors.Expected(ex)) { if (!fromServer) Say(ex); }
         }
+    }
+    /// <summary>A page Jellyfin did not answer since: « Tailscale intégré » joining the tailnet brings it again (<see cref="TailnetJoined"/>).</summary>
+    private bool _unanswered;
+    /// <summary>The page shown could not load from Jellyfin, since it last did (the checks).</summary>
+    public bool Unanswered => _unanswered;
+    /// <summary>
+    /// An error at the bottom of the window: through « Tailscale intégré », why Jellyfin was not reached (its PC off, the
+    /// node signed out…) with the button that helps (BuiltInTailscale.Says); otherwise in Mira's words.
+    /// </summary>
+    public void Say(Exception error)
+    {
+        if (error is HttpRequestException or OperationCanceledException or TimeoutException) _unanswered = true;
+        if (Tailnet.Says(Session?.Connection.Server, error) is { } said) Notice(said.Text, said.Action, said.Act, sticky: said.Action is not null);
+        else Notice(Errors.Friendly(error));
+    }
+    /// <summary>« Tailscale intégré » joined the tailnet (started, back from no network): the page Jellyfin did not answer loads again.</summary>
+    public void TailnetJoined()
+    {
+        if (!_unanswered || Session is null) return;
+        _unanswered = false;
+        _ = RefreshPagesAsync(fromServer: true);
     }
 
     // —— Shared actions ——
@@ -657,6 +688,8 @@ public sealed class MainWindow : Window
             await AttemptAsync(StopPlaybackAsync);
             Attempt(() => Profile.SaveSettings(Settings));
             await AttemptAsync(CloseSessionAsync);
+            // After the last reports to Jellyfin, which may go through it.
+            await AttemptAsync(Tailnet.DisposeAsync);
         }
         finally { Close(); }
         void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }

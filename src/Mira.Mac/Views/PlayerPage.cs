@@ -232,8 +232,11 @@ public sealed partial class PlayerPage : UserControl
         catch (Exception ex) when (Errors.Expected(ex) || ex is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
         {
             await StopAsync();
-            _shell.Notice(ex is IOException or FileNotFoundException ? ex.Message : ex is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException
-                ? L("La lecture n’a pas pu démarrer : le moteur mpv de Mira.app ne s’est pas chargé.", "Playback couldn’t start: Mira.app’s mpv engine didn’t load.") : Errors.Friendly(ex));
+            if (ex is IOException or FileNotFoundException) _shell.Notice(ex.Message);
+            else if (ex is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
+                _shell.Notice(L("La lecture n’a pas pu démarrer : le moteur mpv de Mira.app ne s’est pas chargé.", "Playback couldn’t start: Mira.app’s mpv engine didn’t load."));
+            // Jellyfin not reached: through « Tailscale intégré », why, with what helps.
+            else _shell.Say(ex);
             return false;
         }
     }

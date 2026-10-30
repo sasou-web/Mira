@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mira.Core;
+using Mira.Core.Tailscale;
 using static Mira.Core.Lang;
 
 namespace Mira.Mac.Services;
@@ -94,6 +95,8 @@ public static class Errors
         UnauthorizedAccessException => ex.Message,
         UserInputException => ex.Message,
         ServerDiscoveryException => ex.Message,
+        // Through « Tailscale intégré »: why the node could not reach Jellyfin's PC (MainWindow.Say says it with its device).
+        _ when TailnetNetwork.Find(ex) is { } node && TailnetText.Problem(node.Code) is { } said => said,
         OperationCanceledException or TimeoutException => L("Jellyfin met trop de temps à répondre.", "Jellyfin is taking too long to answer."),
         HttpRequestException h when h.StatusCode is not null => h.Message,
         HttpRequestException => L("Le serveur Jellyfin est momentanément inaccessible.", "Can’t reach the Jellyfin server right now."),

@@ -80,6 +80,12 @@ public sealed class MockJellyfin : HttpMessageHandler
             lock (Reports) Reports.Add((path switch { "Sessions/Playing" => "start", "Sessions/Playing/Progress" => "progress", _ => "stop" }, body));
             return new HttpResponseMessage(HttpStatusCode.NoContent);
         }
+        // Reached over a network (TailnetBench: through Mira's Tailscale node): the sign-in, and the file as it is streamed.
+        if (path == "System/Info/Public") return Json(new { Id = "check-server", ServerName = "Jellyfin du contrôle", Version = "10.10.7", ProductName = "Jellyfin Server" });
+        if (path == "System/Ping") return Json("Jellyfin Server");
+        if (request.Method == HttpMethod.Post && path == "Users/AuthenticateByName") return Json(new { AccessToken = "check-token", ServerId = "check-server", User = new { Id = UserId, Name = "Contrôle" } });
+        if (path == "Playback/BitrateTest") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[Math.Clamp(int.TryParse(query["size"], out var size) ? size : 0, 0, 10_000_000)]) };
+        if (path.StartsWith("Videos/") && path.EndsWith("/stream")) return await FileAsync(request, path.Split('/')[1].StartsWith("series") ? _short : _media, cancellationToken);
         // An administrator, whose PC of Jellyfin runs Mira for Windows: « Téléchargements » through the relay of the extension.
         if (path == "Users/Me") return Json(new { Id = UserId, Name = "Contrôle", Policy = new { IsAdministrator = true } });
         if (path.StartsWith("Mira/torlink")) return await RelayAsync(request, path, cancellationToken);
@@ -154,6 +160,24 @@ public sealed class MockJellyfin : HttpMessageHandler
             downloads = new[] { new { id = "download-1", name = "Ciel.Ouvert.2023.MULTI.1080p.WEB-DL.x264-GRP", status = "downloading", progress = 41, speed = 2 * MiB, peers = 12, size = 29 * GiB / 10, downloaded = 12 * GiB / 10, eta = 750L } },
             placed = new[] { new { id = "placed-1", title = "Les heures bleues", status = "rangé dans Films", itemId = "movie-1", ok = true } }
         });
+    }
+    /// <summary>A video as Jellyfin streams the file as it is (Videos/{id}/stream?static=true): whole, or the range mpv asks for.</summary>
+    private static async Task<HttpResponseMessage> FileAsync(HttpRequestMessage request, string file, CancellationToken ct)
+    {
+        var bytes = await File.ReadAllBytesAsync(file, ct);
+        HttpResponseMessage response;
+        if (request.Headers.Range?.Ranges.FirstOrDefault() is not { } range) response = new(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
+        else
+        {
+            // « bytes=a-b », « bytes=a- », or the last n bytes (« bytes=-n »).
+            long from = range.From ?? Math.Max(0, bytes.Length - (range.To ?? 0)), to = range.From is not null && range.To is { } end ? Math.Min(end, bytes.Length - 1) : bytes.Length - 1;
+            if (from >= bytes.Length || from > to) return new HttpResponseMessage(HttpStatusCode.RequestedRangeNotSatisfiable);
+            response = new(HttpStatusCode.PartialContent) { Content = new ByteArrayContent(bytes, (int)from, (int)(to - from + 1)) };
+            response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(from, to, bytes.Length);
+        }
+        response.Content.Headers.ContentType = new("video/x-matroska");
+        response.Headers.AcceptRanges.Add("bytes");
+        return response;
     }
     private static HttpResponseMessage Items(IEnumerable<object> items) { var list = items.ToList(); return Json(new { Items = list, TotalRecordCount = list.Count }); }
     private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
