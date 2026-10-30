@@ -55,11 +55,13 @@ for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 't
   await call('POST', `Library/VirtualFolders?name=${encodeURIComponent(name)}&collectionType=${type}&paths=${encodeURIComponent(path)}&refreshLibrary=true`,
     { token, body: { LibraryOptions: { AutomaticallyAddToCollection: type === 'movies', PreferredMetadataLanguage: 'fr', MetadataCountryCode: 'FR' } } });
 }
+// Every film, episode and series of media.sh; fewer when a caller keeps only some (MIRA_GALLERY_TITLES).
+const titleCount = Number(process.env.MIRA_GALLERY_TITLES ?? 32);
 const query = `Items?userId=${userId}&recursive=true&includeItemTypes=Movie,Series,Episode`;
 let scans = 0;
 await until('the library scan', async () => {
   const result = await call('GET', query, { token });
-  if ((result.Items ?? []).length >= 32) return true;
+  if ((result.Items ?? []).length >= titleCount) return true;
   if (scans++ % 10 === 0) await call('POST', 'Library/Refresh', { token });
   return false;
 }, 300);

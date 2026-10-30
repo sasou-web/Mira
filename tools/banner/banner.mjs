@@ -60,12 +60,12 @@ function detail(shot, at, size) {
 
 let stage = '', details = '';
 if (layout === 'columns') {
-  // Tilted columns of phones running off the edge, the main capture in the middle one.
+  // Tilted columns of phones running off the edge, each capture once, the main one in the middle column.
   const angle = side * between(9, 15);
-  const order = [...phones.slice(1), phones[0], ...phones.slice(1)];
-  const columns = [0, 1, 2].map((c) => [order[(c * 2) % order.length], order[(c * 2 + 1) % order.length]]);
-  columns[1] = [phones[0], phones[1 % phones.length]];
-  const lift = [between(-150, -60), between(-260, -200), between(-120, 0)];
+  const rest = phones.slice(1);
+  const columns = [[], [phones[0]], []];
+  rest.forEach((s, i) => columns[[0, 2, 1][i % 3]].push(s));
+  const lift = [between(40, 140), between(-260, -180), between(-60, 60)];
   stage = `<div class="tilt" style="left:${between(470, 520)}px;top:${between(-40, 20)}px;transform:rotate(${angle}deg)">${
     columns.map((column, c) => `<div class="column" style="left:${c * 250}px;top:${lift[c]}px">${column.map((s) => phoneHtml(s, 230, 'position:relative;margin-bottom:22px')).join('')}</div>`).join('')}</div>`;
   const focused = shots.filter((s) => s.focus).slice(0, 2);
@@ -86,7 +86,7 @@ if (layout === 'columns') {
   stage = `<div class="desk" style="transform:perspective(1600px) rotateY(${-between(14, 20)}deg) rotateX(${between(3, 6)}deg)">${screenHtml(screen, 760)}</div>`
     + (phone ? phoneHtml(phone, 200, `position:absolute;left:${between(1000, 1040)}px;top:${between(210, 250)}px;z-index:4;transform:rotate(${between(4, 8)}deg)`) : '');
   const focused = shots.filter((s) => s.focus).slice(0, 2);
-  details = focused.map((s, i) => detail(s, { x: i ? 900 : 470, y: i ? 60 : 400, r: i ? 2 : -2 }, 300)).join('');
+  details = focused.map((s, i) => detail(s, { x: i ? between(940, 990) : between(470, 500), y: i ? between(30, 60) : between(410, 440), r: (i ? 1 : -1) * between(1, 3) }, 250)).join('');
 }
 
 // The player's bar of Mira along the bottom: one chapter per changed screen, played up to the version's own place.
@@ -127,7 +127,7 @@ body { position: relative; font-family: Nunito, sans-serif; color: #f4f4f5; }
 .brand svg { width: 44px; height: 44px; }
 .version { font-weight: 800; font-size: 168px; line-height: 0.86; letter-spacing: -6px; margin: 14px 0 0 -6px;
   font-variant-numeric: tabular-nums; text-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
-.bar { position: absolute; left: 72px; right: 72px; bottom: 44px; z-index: 8; display: flex; gap: 4px; height: 5px; }
+.bar { position: absolute; left: 72px; width: 400px; bottom: 44px; z-index: 8; display: flex; gap: 4px; height: 5px; }
 .bar i { flex: 1; border-radius: 3px; background: rgba(255, 255, 255, 0.22); overflow: hidden; position: relative; }
 .bar i b { position: absolute; inset: 0 auto 0 0; background: #f5f5f7; }
 .knob { position: absolute; bottom: 38.5px; width: 16px; height: 16px; border-radius: 50%; background: #f5f5f7; z-index: 9;
@@ -143,7 +143,7 @@ body { position: relative; font-family: Nunito, sans-serif; color: #f4f4f5; }
   const fill = Math.max(0, Math.min(1, played * chapters - i));
   return `<i><b style="width:${fill * 100}%"></b></i>`;
 }).join('')}</div>
-<div class="knob" style="left:${72 + played * (W - 144) - 8}px"></div>
+<div class="knob" style="left:${72 + played * 400 - 8}px"></div>
 </body></html>`;
 
 const { chromium } = await import(process.env.PLAYWRIGHT ?? 'playwright');

@@ -94,8 +94,10 @@ const titles = async (page) => {
 const scenes = {
   // Films: the genres in chips, and the film started on top.
   async films(page) {
-    await page.locator('.tabbar a[data-tab="films"], .rail a[data-tab="films"]').first().click(); await settle(page);
-    return box(page, ['.genre-chips', '.pickup']);
+    await page.locator('.tabbar a[data-tab="films"], .rail a[data-tab="films"]').first().click();
+    await page.locator('.genre-chips:not([hidden]) .chip').first().waitFor({ timeout: 10000 }).catch(() => console.log('::warning::no genre chips'));
+    await settle(page);
+    return box(page, ['.genre-chips:not([hidden])', '.pickup']);
   },
   async 'films-wide'(page) { return scenes.films(page); },
   // Profiles with their photos.
@@ -119,12 +121,13 @@ const scenes = {
     return box(page, ['.profile-item']);
   },
   // A notice: the new card, with its icon, its close button and its time left.
-  // A film of the grid put in the favourites from its menu (a right click opens the long press's), on Films.
+  // A title of the Home's rows put in the favourites from its menu (a right click opens the long press's).
   async notice(page) {
-    await page.locator('.tabbar a[data-tab="films"]').click(); await settle(page);
-    const card = page.locator('.grid .card').nth(1);
+    await settle(page);
+    await page.evaluate(() => scrollBy(0, 420)); await settle(page);
+    const card = page.locator('.row .card').nth(1);
     const id = await card.evaluate((c) => c.getAttribute('href')?.match(/titre\/([^/?]+)/)?.[1] ?? null).catch(() => null);
-    if (id) { await api(page, 'DELETE', `UserFavoriteItems/${id}`); await page.reload(); await settle(page); }
+    if (id) { await api(page, 'DELETE', `UserFavoriteItems/${id}`); await page.reload(); await settle(page); await page.evaluate(() => scrollBy(0, 420)); await settle(page); }
     await card.click({ button: 'right' }); await page.waitForTimeout(500);
     await page.getByRole('menuitem', { name: /Ajouter aux favoris/ }).first().click();
     await page.locator('.toast').waitFor({ timeout: 5000 });
