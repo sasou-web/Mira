@@ -284,7 +284,9 @@ public partial class MainWindow
     /// </summary>
     private async Task<bool> AskGroupAsync(MediaItem item, bool fromStart, bool completePrevious, bool chosen)
     {
-        if (chosen && Together.AsksToReplace(_group, _groupQueue, item.Id)) { _ = OfferReplaceAsync(item, fromStart); return true; }
+        // The same title chosen again while « Remplacer » is offered for it: that is the answer.
+        if (chosen && _replaceOffered is { } offered && offered.Id == item.Id && DateTimeOffset.UtcNow <= offered.Until) { _replaceOffered = null; HideNotice(); }
+        else if (chosen && Together.AsksToReplace(_group, _groupQueue, item.Id)) { _ = OfferReplaceAsync(item, fromStart); return true; }
         if (_groupQueue?.ItemId == item.Id)
         {
             // Every device reaches the end of an episode: the next one is put on once. The player closed on the
@@ -305,6 +307,7 @@ public partial class MainWindow
     /// « Remplacer « Dune » pour tout le groupe ? », with « Remplacer »: the title the group has on (named by one request)
     /// is replaced for everyone only once asked.
     /// </summary>
+    private (string Id, DateTimeOffset Until)? _replaceOffered;
     private async Task OfferReplaceAsync(MediaItem item, bool fromStart)
     {
         if (_client is not { } client || _groupQueue is not { } queue) return;
@@ -312,6 +315,7 @@ public partial class MainWindow
         try { name = Together.TitleName(await client.ItemAsync(queue.ItemId, _connectionLifetime.Token)); }
         catch (Exception ex) when (IsExpected(ex)) { }
         if (!ReferenceEquals(client, _client) || !ReferenceEquals(queue, _groupQueue) || _group is null) return;
+        _replaceOffered = (item.Id, DateTimeOffset.UtcNow.AddMinutes(2));
         SetNotice(Together.ReplaceQuestion(name) + L(" Le groupe le regarde en ce moment.", " The group is watching it right now."), L("Remplacer", "Replace"), () => _ = PlayAsync(item, fromStart: fromStart));
     }
     private async Task LeaveEmptyPlayerAsync()
