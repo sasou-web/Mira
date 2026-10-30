@@ -1,12 +1,12 @@
 name: Presentation video library
-# TEMPORARY (never merged): the presentation video's footage. Mira for Windows and the iPhone app, each used for real
-# (the mouse and keyboard of --demo-tour, the touches of MiraTour.testTour) on a real Jellyfin 12.1 holding the README's
-# library with its TMDb artwork (presentation/media.sh, library.mjs), filmed (ffmpeg gdigrab, simctl recordVideo) and
-# committed to this branch with each step's time.
+# TEMPORARY (never merged): the presentation video's pictures. Mira for Windows and the iPhone app on a real Jellyfin
+# 12.1 holding the README's library with its TMDb artwork (presentation/media.sh, library.mjs): each page of the window
+# drawn whole at twice its size (--demo-shots), the iPhone's screen after each slow drag (MiraTour.testShots), committed
+# to this branch for a montage at 60 frames a second (the runners film at 3 to 15).
 on:
   push:
     branches: [claude/project-thread-dqmaw4]
-    paths: [presentation/*.sh, presentation/*.mjs, .github/workflows/presentation.yml, src/Mira.Desktop/Checks/MainWindow.DemoTour.cs, src/Mira.iOS/MiraUITests/MiraTour.swift]
+    paths: [presentation/*.sh, presentation/*.mjs, .github/workflows/presentation.yml, src/Mira.Desktop/Checks/MainWindow.DemoShots.cs, src/Mira.iOS/MiraUITests/MiraTour.swift]
   workflow_dispatch:
 permissions:
   contents: read
@@ -64,7 +64,7 @@ jobs:
         run: |
           dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
           dotnet build src/Mira.Desktop/Mira.Desktop.csproj -c Release --no-restore
-      - name: Film the tour
+      - name: The pictures
         shell: pwsh
         env:
           MIRA_GALLERY_SERVER: http://127.0.0.1:8096
@@ -73,22 +73,13 @@ jobs:
         run: |
           $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
           $out = Join-Path $PWD '.artifacts/out'; New-Item -ItemType Directory -Force -Path $out | Out-Null
-          $profile = Join-Path $PWD '.artifacts/tour-profile'
+          $profile = Join-Path $PWD '.artifacts/shots-profile'
           & ./tools/mpv-engine.ps1 -Work .artifacts/mpv -ProfileFolder $profile
-          # Everything else out of the way: a dark, empty desktop behind the window.
-          Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.ProcessName -notin 'explorer' } | ForEach-Object { Write-Output "window: $($_.ProcessName)" }
-          $info = New-Object System.Diagnostics.ProcessStartInfo 'ffmpeg', '-loglevel error -y -f gdigrab -framerate 30 -draw_mouse 1 -i desktop -c:v libx264 -preset ultrafast -crf 14 -pix_fmt yuv444p .artifacts/out/windows.mkv'
-          $info.UseShellExecute = $false; $info.RedirectStandardInput = $true
-          $recorder = [Diagnostics.Process]::Start($info)
-          "$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" | Set-Content (Join-Path $out 'windows-start.txt')
-          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--demo-tour', "`"$out`"") -PassThru
-          $done = $run.WaitForExit(420000)
-          $recorder.StandardInput.Write('q'); $recorder.StandardInput.Close(); $recorder.WaitForExit(60000) | Out-Null
-          if (-not $done) { $run.Kill() }
-          Get-Content (Join-Path $out 'tour-result.txt') -Raw
-          ffmpeg -loglevel error -y -i .artifacts/out/windows.mkv -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart .artifacts/out/windows.mp4
-          if (Test-Path .artifacts/out/windows.mp4) { Remove-Item .artifacts/out/windows.mkv }
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--demo-shots', "`"$out`"") -PassThru
+          if (-not $run.WaitForExit(1500000)) { $run.Kill() }
+          Get-Content (Join-Path $out 'demo-shots-result.txt') -Raw
           Get-ChildItem $out | Format-Table Name, Length
+          if (-not (Select-String -Path (Join-Path $out 'demo-shots-result.txt') -Pattern '^PASS' -Quiet)) { exit 1 }
       - name: Jellyfin log
         if: failure()
         shell: pwsh
@@ -96,7 +87,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: tour-windows
+          name: shots-windows
           path: .artifacts/out/*
           retention-days: 3
 
@@ -149,30 +140,36 @@ jobs:
           xcrun simctl boot "$udid"; xcrun simctl bootstatus "$udid"
           xcrun simctl ui "$udid" appearance dark
           xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
-      - name: Film the tour
+      - name: The pictures
         env:
           UDID: ${{ steps.simulator.outputs.udid }}
         run: |
-          mkdir -p .artifacts/out
+          mkdir -p .artifacts/out .artifacts/attachments
           xcodebuild build-for-testing -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" -derivedDataPath .artifacts/dd > .artifacts/build.log 2>&1 || { tail -40 .artifacts/build.log; exit 1; }
-          xcrun simctl io "$UDID" recordVideo --codec h264 --force .artifacts/out/iphone.mov > .artifacts/record.log 2>&1 &
-          rec=$!; sleep 2; python3 -c 'import time; print(int(time.time()*1000))' > .artifacts/out/iphone-start.txt
           status=0
-          TEST_RUNNER_MIRA_TOUR=1 xcodebuild test-without-building -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" -derivedDataPath .artifacts/dd \
-            -only-testing:MiraUITests/MiraTour/testTour > .artifacts/tour.log 2>&1 || status=$?
-          kill -INT $rec; wait $rec || true
-          grep -o "MIRA-TOUR .*" .artifacts/tour.log | sort -u -k3n > .artifacts/out/iphone-steps.txt || true
-          cat .artifacts/out/iphone-steps.txt; cat .artifacts/record.log
-          grep -E "error:|Test Case|\*\* TEST" .artifacts/tour.log | tail -20
-          ffmpeg -loglevel error -y -i .artifacts/out/iphone.mov -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart .artifacts/out/iphone.mp4 && rm .artifacts/out/iphone.mov
+          TEST_RUNNER_MIRA_SHOTS=1 xcodebuild test-without-building -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" -derivedDataPath .artifacts/dd \
+            -resultBundlePath .artifacts/shots.xcresult -only-testing:MiraUITests/MiraTour/testShots > .artifacts/shots.log 2>&1 || status=$?
+          grep -o "MIRA-TOUR .*" .artifacts/shots.log | sort -u -k3n > .artifacts/out/iphone-steps.txt || true
+          grep -E "error:|Test Case|\*\* TEST" .artifacts/shots.log | tail -20
+          xcrun xcresulttool export attachments --path .artifacts/shots.xcresult --output-path .artifacts/attachments
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          root = ".artifacts/attachments"
+          for test in json.load(open(os.path.join(root, "manifest.json"))):
+              for attachment in test.get("attachments", []):
+                  name = attachment.get("suggestedHumanReadableName", "").split("_")[0]
+                  if re.fullmatch(r"shot-[a-z0-9-]+", name) and attachment["exportedFileName"].endswith(".png"):
+                      subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "95", os.path.join(root, attachment["exportedFileName"]), "--out", os.path.join(".artifacts/out", name[5:] + ".jpg")], check=True, capture_output=True)
+          PY
           ls -la .artifacts/out
+          exit $status
       - name: Jellyfin log
         if: failure()
         run: tail -80 .artifacts/jellyfin.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: tour-iphone
+          name: shots-iphone
           path: .artifacts/out/*
           retention-days: 3
 
@@ -187,14 +184,14 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: tour-*
-          path: presentation/tour
+          pattern: shots-*
+          path: presentation/shots
       - name: Commit
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
-          find presentation/tour -type f -size +95M -print -delete
-          ls -laR presentation/tour
-          git add -f presentation/tour
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Presentation: the tours, filmed" || exit 0
+          find presentation/shots -type f -size +95M -print -delete
+          ls -laR presentation/shots
+          git add -f presentation/shots
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Presentation: the pictures" || exit 0
           git push origin "HEAD:$BRANCH"

@@ -15,6 +15,7 @@ public partial class MainWindow
         if (_args.Contains("--public-gallery")) await RunPublicGalleryAsync();
         else if (_args.Contains("--readme-gallery")) await RunReadmeGalleryAsync();
         else if (_args.Contains("--demo-tour")) await RunDemoTourAsync();
+        else if (_args.Contains("--demo-shots")) await RunDemoShotsAsync();
         else if (_args.Contains("--visual-check")) await RunVisualCheckAsync();
         else if (_args.Contains("--player-check")) await RunPlayerCheckAsync();
         else if (_args.Contains("--windows-check")) await RunWindowsCheckAsync();

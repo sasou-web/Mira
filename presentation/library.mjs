@@ -49,6 +49,8 @@ const find = (type, name) => items.find((x) => x.Type === type && x.Name.toLower
 const ep = (season, number) => items.find((x) => x.Type === 'Episode' && x.SeriesName === 'Arcane' && x.ParentIndexNumber === season && x.IndexNumber === number);
 const min = (m) => Math.round(m * 60 * 1e7);
 const data = (item, body) => item ? call('POST', `UserItems/${item.Id}/UserData?userId=${uid}`, { token, body }) : console.log('missing title');
+// Spring, the film played in the video, picks up at its first bright shot (first: the oldest of « Continue watching »).
+await data(find('Movie', 'Spring'), { PlaybackPositionTicks: Math.round(52 * 1e7) });
 for (let e = 1; e <= 9; e++) await data(ep(1, e), { Played: true });
 for (let e = 1; e <= 3; e++) await data(ep(2, e), { Played: true });
 await data(ep(2, 4), { PlaybackPositionTicks: min(23) });

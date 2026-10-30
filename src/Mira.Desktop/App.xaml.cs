@@ -29,7 +29,7 @@ public partial class App : Application
 #if !MIRA_VALIDATION
         // A package: the validation harnesses are not in it (Mira.Desktop.csproj), and their options open nothing.
         if (args.Any(x => x is "--visual-check" or "--player-check" or "--windows-check" or "--torlink-check" or "--public-gallery"
-            or "--readme-gallery" or "--demo-tour" or "--server-check" or "--tailnet-check" or "--qa-window" or "--perf-probe" or "--test-media" or "--loop-test-media" or "--tailnet-control")) { Shutdown(2); return; }
+            or "--readme-gallery" or "--demo-tour" or "--demo-shots" or "--server-check" or "--tailnet-check" or "--qa-window" or "--perf-probe" or "--test-media" or "--loop-test-media" or "--tailnet-control")) { Shutdown(2); return; }
 #endif
         // The downloaded version replacing the old files: no window, no profile, no single-instance lock.
         if (args.FirstOrDefault() == "--apply-update") { Shutdown(UpdateApplier.Run(args)); return; }
