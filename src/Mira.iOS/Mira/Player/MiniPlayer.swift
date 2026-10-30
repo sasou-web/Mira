@@ -1,15 +1,14 @@
 import AVFoundation
 import SwiftUI
 
-/// The player reduced (a sweep down, or its chevron), as YouTube does: the title goes on in a bar over the tabs (the
-/// tab view's bottom accessory, in Liquid Glass), its picture live, how far it is in a ring around play; a tap brings
-/// the full player back, × stops it. Beside a folded tab bar (inline), only the picture, the title and play.
+/// The player reduced (a sweep down, or its chevron), as YouTube does: the title goes on in a bar over the tabs
+/// (MiraTabBar, which gives it its glass), its picture live, how far it is in a ring around play; a tap brings the full
+/// player back, × stops it. Beside a folded tab bar (inline), only the picture, the title and play.
 struct MiniPlayer: View {
     let session: PlayerSession
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
+    let inline: Bool
 
     private var model: PlayerModel { session.model }
-    private var inline: Bool { placement == .inline }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -107,19 +106,5 @@ private struct MiniPicture: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: PlayerVideoView, coordinator: ()) {
         uiView.playerLayer.player = nil
-    }
-}
-
-extension View {
-    /// The reduced player over the tabs, while there is one (iOS 26.1: the accessory shown and hidden).
-    @ViewBuilder
-    func miniPlayer(_ session: PlayerSession?) -> some View {
-        if #available(iOS 26.1, *) {
-            tabViewBottomAccessory(isEnabled: session != nil) {
-                if let session { MiniPlayer(session: session) }
-            }
-        } else {
-            self
-        }
     }
 }
