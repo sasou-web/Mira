@@ -199,7 +199,23 @@ public sealed class DetailPage : Page
             fix.Padding = new Thickness(15, 11);
             actions.Children.Add(fix);
         }
+        // Lecture keeps its words; the others are round icons, their label in their tooltip, as on Windows.
+        foreach (var button in actions.Children.OfType<Button>().Skip(1).Where(x => !ReferenceEquals(x, _offlineButton))) Round(button);
         _top.Children.Add(actions);
+        // How far the film was watched, under its actions, as on Windows and Mira web.
+        if (_item.Type != "Series" && _item.Progress > 0 && !_item.UserData.Played)
+            _top.Children.Add(new ProgressLine { Value = _item.Progress, Width = 300, Height = 5, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, Margin = new Thickness(2, 6, 0, 0) });
+    }
+
+    private static void Round(Button button)
+    {
+        if (button.Content is StackPanel panel && panel.Children.OfType<TextBlock>().FirstOrDefault() is { } label)
+        {
+            if (ToolTip.GetTip(button) is null) ToolTip.SetTip(button, label.Text);
+            label.IsVisible = false;
+        }
+        button.Width = button.Height = 46; button.Padding = new Thickness(0); button.CornerRadius = new CornerRadius(23);
+        button.HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center; button.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
     }
 
     // —— « Garder sur ce Mac », as Windows' « Garder sur ce PC » ——
@@ -392,14 +408,29 @@ public sealed class DetailPage : Page
         _body.Children.Clear();
         var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,48,*") };
         var left = new StackPanel { Spacing = 18 };
-        if (!string.IsNullOrWhiteSpace(_item.Overview)) left.Children.Add(new TextBlock { Text = OverviewText.Plain(_item.Overview), FontSize = 16, LineHeight = 26, Foreground = Ui.Brush("#C9C9CF"), TextWrapping = TextWrapping.Wrap });
+        if (!string.IsNullOrWhiteSpace(_item.Overview))
+        {
+            // Three lines, « Lire la suite » for the rest of a long summary.
+            var overview = new TextBlock { Text = OverviewText.Plain(_item.Overview), FontSize = 16, LineHeight = 26, Foreground = Ui.Brush("#C9C9CF"), TextWrapping = TextWrapping.Wrap, MaxLines = 3, TextTrimming = TextTrimming.WordEllipsis };
+            left.Children.Add(overview);
+            if (overview.Text.Length > 300)
+            {
+                var more = new Button { Classes = { "quiet" }, Content = L("Lire la suite", "Read more"), Padding = new Thickness(0, 4), Margin = new Thickness(0, -10, 0, 0), FontWeight = FontWeight.SemiBold };
+                more.Click += (_, _) =>
+                {
+                    var open = overview.MaxLines == 3;
+                    overview.MaxLines = open ? 0 : 3; more.Content = open ? L("Réduire", "Show less") : L("Lire la suite", "Read more");
+                };
+                left.Children.Add(more);
+            }
+        }
         columns.Children.Add(left);
         var side = new StackPanel { Spacing = 22 }; Grid.SetColumn(side, 2);
         // Each genre: Films or Séries (as the title is) filtered on it, as in Mira web.
         if (_item.Genres.Length > 0) side.Children.Add(Section(L("GENRES", "GENRES"), Links(_item.Genres.Select<string, (string, string, Action?)>(genre => (genre,
             L($"Les {(_item.Type == "Series" ? "séries" : "films")} « {genre} » de ta bibliothèque", $"The {genre} {(_item.Type == "Series" ? "shows" : "movies")} of your library"),
             () => Shell.OpenGenre(genre, _item.Type))))));
-        if (_item.CastPeople.Length > 0) side.Children.Add(Section(L("AVEC", "STARRING"), People(_item.CastPeople, director: false)));
+        if (_item.CastPeople.Length > 0) side.Children.Add(Section(L("AVEC", "STARRING"), Cast(_item.CastPeople)));
         if (_item.DirectorPeople.Length > 0) side.Children.Add(Section(L("RÉALISATION", _item.DirectorPeople.Length > 1 ? "DIRECTORS" : "DIRECTOR"), People(_item.DirectorPeople, director: true)));
         var studios = _item.Studios.Where(x => x.Name.Trim().Length > 0).Take(3).ToList();
         if (studios.Count > 0) side.Children.Add(Section("STUDIO", Links(studios.Select(studio => (studio.Name, L($"Les titres de {studio.Name} dans ta bibliothèque", $"Titles from {studio.Name} in your library"),
@@ -409,6 +440,18 @@ public sealed class DetailPage : Page
         if (_item.Type == "Series") _body.Children.Add(EpisodeSection());
     }
     private static Control Section(string title, Control content) => Ui.Column(8, new TextBlock { Text = title, Classes = { "label" } }, content);
+    /// <summary>Four names, then « +N » that names the others.</summary>
+    private Control Cast(PersonInfo[] people)
+    {
+        var box = new ContentControl { Content = People(people.Take(4), director: false) };
+        if (people.Length <= 4) return box;
+        var more = new Button { Classes = { "quiet" }, Content = $"+{people.Length - 4}", Padding = new Thickness(4, 0), Foreground = Ui.Muted };
+        ToolTip.SetTip(more, L("Voir toute la distribution", "See the whole cast"));
+        Avalonia.Automation.AutomationProperties.SetName(more, L($"{people.Length - 4} de plus : voir toute la distribution", $"{people.Length - 4} more: see the whole cast"));
+        more.Click += (_, _) => box.Content = People(people, director: false);
+        ((WrapPanel)box.Content).Children.Add(more);
+        return box;
+    }
     /// <summary>Names as links to their titles in the library; plain text for a person Jellyfin gave no id.</summary>
     private Control People(IEnumerable<PersonInfo> people, bool director) => Links(people.Select(person => (person.Name,
         director ? L($"Les titres réalisés par {person.Name}", $"Titles directed by {person.Name}") : L($"Les titres avec {person.Name}", $"Titles with {person.Name}"),

@@ -16,6 +16,13 @@ public sealed class ActionRow : Panel
     public static readonly DependencyProperty ShrinkProperty = DependencyProperty.RegisterAttached("Shrink", typeof(int), typeof(ActionRow), new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsParentMeasure));
     public static int GetShrink(DependencyObject element) => (int)element.GetValue(ShrinkProperty);
     public static void SetShrink(DependencyObject element, int value) => element.SetValue(ShrinkProperty, value);
+    /// <summary>
+    /// Every button after the first one round, its icon alone and its label in its tooltip, whatever the width: a title's
+    /// page, where Lecture alone keeps its words.
+    /// </summary>
+    public static readonly DependencyProperty IconsOnlyProperty = DependencyProperty.Register(nameof(IconsOnly), typeof(bool), typeof(ActionRow), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsMeasure));
+    public bool IconsOnly { get => (bool)GetValue(IconsOnlyProperty); set => SetValue(IconsOnlyProperty, value); }
+    private const double Round = 46;
     /// <summary>The padding of an icon alone, as the page's buttons that never have a label (« … »).</summary>
     private static readonly Thickness IconOnly = new(15, 13, 15, 13);
     /// <summary>What a button had before it lost its label: its padding, and whether its tooltip is the label Mira gave it.</summary>
@@ -32,6 +39,16 @@ public sealed class ActionRow : Panel
         var infinite = new Size(double.PositiveInfinity, availableSize.Height);
         var shown = InternalChildren.OfType<UIElement>().Where(x => x.Visibility != Visibility.Collapsed).ToList();
         double width = 0, height = 0;
+        if (IconsOnly)
+        {
+            foreach (var child in shown)
+            {
+                if (child is Button button && !ReferenceEquals(child, InternalChildren[0])) MakeRound(button);
+                child.Measure(infinite); width += child.DesiredSize.Width; height = Math.Max(height, child.DesiredSize.Height);
+            }
+            LabelledWidth = width;
+            return new Size(Math.Min(width, availableSize.Width), height);
+        }
         foreach (var child in shown) { if (child is Button button) Show(button, true); child.Measure(infinite); width += child.DesiredSize.Width; }
         LabelledWidth = width;
         if (width > availableSize.Width)
@@ -57,6 +74,14 @@ public sealed class ActionRow : Panel
         return finalSize;
     }
 
+    /// <summary>A round button of its icon alone: its label, when it has one, goes to its tooltip.</summary>
+    private static void MakeRound(Button button)
+    {
+        Show(button, false);
+        button.Width = button.Height = Round; button.Padding = new Thickness(0);
+        button.HorizontalContentAlignment = HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
+        Motion.SetRadius(button, new CornerRadius(Round / 2));
+    }
     /// <summary>Shows or hides the label of a button that has one, and marks the way down to it for measuring again.</summary>
     private static void Show(Button button, bool label)
     {

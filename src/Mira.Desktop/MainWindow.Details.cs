@@ -48,18 +48,18 @@ public partial class MainWindow
         StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = Visibility.Collapsed;
         _extras = []; ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
-        DetailBackdropPrevious.Source = null;
+        DetailBackdropPrevious.Source = null; DetailPosterImage.ImageSource = null; DetailPoster.Visibility = Visibility.Collapsed;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
         if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), true), animate: false);
         RenderDetailText(item); EpisodesPanel.Children.Clear(); _calendar = ([], []); _calendarOpen = false; RenderCalendar();
         _seasonBusy = true; SeasonSelector.Items.Clear(); _seasonBusy = false;
-        EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
+        EpisodesHead.Visibility = EpisodeHeading.Visibility = SeasonSelector.Visibility = item.Type == "Series" ? Visibility.Visible : Visibility.Collapsed;
         if (item.Type == "Series") EpisodesPanel.Children.Add(new TextBlock { Text = L("Chargement des épisodes…", "Loading episodes…"), Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 20, 0, 20) });
         Motion.Reveal(DetailOverlay, 300, 14); UpdateHeroClock();
         // Focus moves into the page: Enter plays, Tab stays inside, Escape goes back.
         _ = Dispatcher.BeginInvoke(() => { if (version == _detailVersion) DetailPlay.Focus(); }, System.Windows.Threading.DispatcherPriority.Input);
         var tasks = new List<Task>();
-        if (_images is not null) tasks.Add(LoadDetailBackdropAsync(item, version));
+        if (_images is not null) { tasks.Add(LoadDetailBackdropAsync(item, version)); tasks.Add(LoadDetailPosterAsync(item, version)); }
         if (_metadata is not null)
         {
             tasks.Add(LoadDetailMetadataAsync(item, version));
@@ -82,6 +82,23 @@ public partial class MainWindow
         var tasks = new List<Task> { LoadDetailMetadataAsync(item, version) };
         if (item.Type == "Series") { tasks.Add(LoadDetailEpisodesAsync(item, version)); tasks.Add(LoadCalendarAsync(item, version)); }
         await Task.WhenAll(tasks);
+    }
+    /// <summary>The poster beside the title, from the card's own image; only where the window leaves the title room.</summary>
+    private async Task LoadDetailPosterAsync(MediaItem item, int version)
+    {
+        if (_images is not { } cache) return;
+        var poster = await cache.GetAsync(item, targetWidth: cache.Pixels(150));
+        if (version != _detailVersion || poster is null) return;
+        DetailPosterImage.ImageSource = poster; ShowDetailPoster();
+    }
+    private void DetailHero_SizeChanged(object sender, SizeChangedEventArgs e) => ShowDetailPoster();
+    private void ShowDetailPoster() => DetailPoster.Visibility = DetailPosterImage.ImageSource is not null && DetailHero.ActualWidth >= 900 ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>« Lire la suite »: the whole summary, then three lines again.</summary>
+    private void DetailOverviewMore_Click(object sender, RoutedEventArgs e)
+    {
+        var open = double.IsPositiveInfinity(DetailOverview.MaxHeight);
+        DetailOverview.MaxHeight = open ? 72 : double.PositiveInfinity;
+        DetailOverviewMore.Content = open ? L("Lire la suite", "Read more") : L("Réduire", "Show less");
     }
     /// <summary>New artwork fades in over the previous one instead of flashing through black.</summary>
     private void SetDetailBackdrop(ImageSource? image, bool animate)
@@ -274,17 +291,20 @@ public partial class MainWindow
         if (target is null) { DetailPlay.Content = ActionLabel("play", _episodes.Count > 0 ? L("Revoir depuis le début", "Watch again from the beginning") : L("Regarder", "Watch")); DetailRestart.Visibility = Visibility.Collapsed; return; }
         var resume = target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
         var code = $"S{target.ParentIndexNumber ?? 1:00} E{target.IndexNumber ?? 1:00}";
-        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(target, code) ?? L($"{(resume ? "Reprendre" : "Regarder")} · {code}", $"{(resume ? "Resume" : "Watch")} · {code}"));
+        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(target, code) ?? L($"{(resume ? "Reprendre" : "Regarder")} · {code}", $"{(resume ? "Resume" : "Watch")} · {code}"),
+            resume && !InGroup ? MediaQuality.Left(target) : null);
         DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
         _detailNext ??= target;
     }
     /// <summary>Lecture's label: what it plays, or, in a group, that it starts it for everyone (or joins its title).</summary>
     private void ShowDetailPlayLabel(MediaItem item)
     {
-        if (item.Type == "Series") { UpdateDetailPlayLabel(); return; }
+        if (item.Type == "Series") { DetailProgress.Visibility = Visibility.Collapsed; UpdateDetailPlayLabel(); return; }
         var resume = item.Progress > 0 && !item.UserData.Played && _settings.RememberPosition;
-        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(item, "") ?? (resume ? L("Reprendre", "Resume") : item.UserData.Played ? L("Revoir", "Watch again") : L("Regarder", "Watch")));
+        DetailPlay.Content = ActionLabel("play", GroupPlayLabel(item, "") ?? (resume ? L("Reprendre", "Resume") : item.UserData.Played ? L("Revoir", "Watch again") : L("Regarder", "Watch")),
+            resume && !InGroup ? MediaQuality.Left(item) : null);
         DetailRestart.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
+        DetailProgress.Progress = item.Progress; DetailProgress.Visibility = resume ? Visibility.Visible : Visibility.Collapsed;
     }
     /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>
     private string? GroupPlayLabel(MediaItem target, string code) =>
@@ -296,8 +316,11 @@ public partial class MainWindow
         DetailType.Text = item.ProductionYear is { } year ? $"{kind}  ·  {year}" : kind;
         RenderDetailMeta();
         DetailOverview.Text = OverviewText.Plain(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title."));
+        // Three lines of the page's width hold about 300 characters: a longer summary gets « Lire la suite ».
+        DetailOverview.MaxHeight = 72; DetailOverviewMore.Content = L("Lire la suite", "Read more");
+        DetailOverviewMore.Visibility = DetailOverview.Text.Length > 300 ? Visibility.Visible : Visibility.Collapsed;
         ShowGenres(item);
-        ShowPeople(DetailCast, item.CastPeople, false); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowPeople(DetailCast, item.CastPeople, false, first: 4); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         var studios = item.Studios.Where(x => x.Name.Trim().Length > 0).Take(3).ToList();
         ShowLinks(DetailStudios, studios.Select(x => (x.Name, L($"Les titres de {x.Name} dans ta bibliothèque", $"Titles from {x.Name} in your library"),
@@ -319,8 +342,14 @@ public partial class MainWindow
         DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is { } rating and > 0 ? $"★ {Number(rating, "0.0")}" : "", item.OfficialRating ?? "",
             file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
     }
-    private static StackPanel ActionLabel(string icon, string label)
-    { var panel = new StackPanel { Orientation = Orientation.Horizontal }; panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18 }); panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) }); return panel; }
+    /// <param name="detail">Said lighter after the label: « 1 h 27 restantes » beside Reprendre.</param>
+    private static StackPanel ActionLabel(string icon, string label, string? detail = null)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal }; panel.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18 });
+        var text = new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) };
+        if (detail is not null) text.Inlines.Add(new System.Windows.Documents.Run("  ·  " + detail) { FontWeight = FontWeights.Normal, FontSize = 12.5 });
+        panel.Children.Add(text); return panel;
+    }
     private void Season_Changed(object sender, SelectionChangedEventArgs e) { if (!_seasonBusy) { RenderEpisodes(); ShowOfflineButton(); Motion.Reveal(EpisodesPanel, 220, 7); } }
     private void RenderEpisodes()
     {
@@ -449,10 +478,22 @@ public partial class MainWindow
         if (!cached && image.Source is not null) Motion.Fade(image, 1, 240, 0, Motion.Soft);
     }
     /// <summary>Each name a link to this person's titles in the library.</summary>
-    private void ShowPeople(TextBlock target, IReadOnlyList<PersonInfo> people, bool directed) =>
-        ShowLinks(target, people.Select(person => (person.Name,
+    /// <param name="first">How many are named at first; « +N » then names the others.</param>
+    private void ShowPeople(TextBlock target, IReadOnlyList<PersonInfo> people, bool directed, int first = int.MaxValue)
+    {
+        ShowLinks(target, people.Take(first).Select(person => (person.Name,
             L((directed ? "Les titres réalisés par " : "Les titres avec ") + person.Name + " dans ta bibliothèque", (directed ? "Titles directed by " : "Titles with ") + person.Name + " in your library"),
             person.Id is { Length: > 0 } ? () => ShowPersonAsync(person, directed) : (Func<Task>?)null)).ToList());
+        if (people.Count <= first) return;
+        var more = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run($"  +{people.Count - first}"))
+        {
+            Foreground = Palette.Get("Muted"), TextDecorations = null, Cursor = Cursors.Hand,
+            ToolTip = L("Voir toute la distribution", "See the whole cast"), FocusVisualStyle = (Style)FindResource("KeyboardFocus")
+        };
+        System.Windows.Automation.AutomationProperties.SetName(more, L($"{people.Count - first} de plus : voir toute la distribution", $"{people.Count - first} more: see the whole cast"));
+        more.Click += (_, _) => ShowPeople(target, people, directed);
+        target.Inlines.Add(more);
+    }
     /// <summary>Its genres, each one Films or Séries (as the title is) filtered on it, as in Mira web.</summary>
     private void ShowGenres(MediaItem item)
     {

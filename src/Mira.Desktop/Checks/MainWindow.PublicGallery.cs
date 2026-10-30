@@ -38,8 +38,8 @@ public partial class MainWindow
             await Page("library", "05-favorites", favorites: true);
             await ShowDetailsAsync(_demoItems!.First(x => x.Type == "Movie"));
             await CaptureAsync(output, "06-film-details");
-            // Every button a title's page can have, at Mira's smallest window: one line that never cuts a button off,
-            // labels given up from the least needed ones only when they do not fit; with fewer buttons, every label back.
+            // Every button a title's page can have, at Mira's smallest window: one line that never cuts a button off;
+            // Lecture keeps its words, the others are round icons named for the Narrator and in their tooltip.
             // (A runner's screen is too small for a wide window: Windows keeps a window within it.)
             ShowEveryDetailAction();
             Width = 960; Height = 600; await CaptureAsync(output, "06-film-actions-minimum");
@@ -49,14 +49,13 @@ public partial class MainWindow
                 foreach (var action in actions)
                     if (action.TranslatePoint(new Point(action.ActualWidth, 0), DetailActions).X > DetailActions.ActualWidth + 1)
                         throw new InvalidOperationException($"« {Accessible.ContentText(action.Content)} » is cut off on the title page {when}.");
-                if (DetailActions.LabelledWidth <= DetailActions.ActualWidth && actions.FirstOrDefault(x => !ActionRow.ShowsLabel(x)) is { } shrunk)
-                    throw new InvalidOperationException($"« {Accessible.ContentText(shrunk.Content)} » lost its label {when}, with room for it.");
+                if (!ActionRow.ShowsLabel(DetailPlay)) throw new InvalidOperationException($"Lecture lost its label {when}.");
+                if (actions.Skip(1).FirstOrDefault(x => ActionRow.ShowsLabel(x) && x.Content is Panel || Accessible.ContentText(x.Content).Length == 0 && x.ToolTip is null) is { } odd)
+                    throw new InvalidOperationException($"A button of the title page is not a named round icon {when}: « {Accessible.ContentText(odd.Content)} ».");
             }
             AssertActions("at 960 px");
             TogetherButton.Visibility = OfflineButton.Visibility = FollowButton.Visibility = Visibility.Collapsed;
             await CaptureAsync(output, "06-film-actions-fewer"); AssertActions("with four buttons at 960 px");
-            if (DetailActions.Children.OfType<Button>().FirstOrDefault(x => x.IsVisible && !ActionRow.ShowsLabel(x)) is { } bare)
-                throw new InvalidOperationException($"« {Accessible.ContentText(bare.Content)} » did not get its label back.");
             Width = 1440; Height = 960;
             Settings_Click(this, new()); await CaptureAsync(output, "07-playback-settings");
             // A switch applies on its own, with no button to press: in the settings a moment later, and back the same way.
