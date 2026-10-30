@@ -229,16 +229,12 @@ public sealed partial class PlayerPage
         _buffering = buffering; _spinner.IsVisible = buffering;
     }
 
-    /// <summary>« Qualité » in the menu: the choices of Réglages, and what Jellyfin sends now.</summary>
-    private Control QualityColumn(ServerStream stream)
+    /// <summary>« Qualité » in ⋮: the choices of Réglages as chips, four to a row as on Windows, and what Jellyfin sends now.</summary>
+    private IEnumerable<Control> QualityChoices(ServerStream stream)
     {
-        var column = new StackPanel { Spacing = 2, MinWidth = 200, MaxWidth = 240 };
-        column.Children.Add(new TextBlock { Text = L("QUALITÉ", "QUALITY"), Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
         var current = StreamQuality.Known(_shell.Settings.Quality);
-        foreach (var (key, label, _, details) in StreamQuality.Choices)
-            column.Children.Add(Entry(label, details, key == current, () => _ = ChooseQualityAsync(key)));
-        column.Children.Add(new TextBlock { Text = StreamQuality.Describe(stream), FontSize = 12, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 6, 0, 0) });
-        return column;
+        yield return Chips(StreamQuality.Choices.Select(x => (x.Short, $"{x.Label} · {x.Details}", x.Key == current, (Action)(() => _ = ChooseQualityAsync(x.Key)))), 4);
+        yield return MenuNote(StreamQuality.Describe(stream));
     }
     /// <summary>Another quality, kept in the settings: the title goes on from where it is on the stream it gives.</summary>
     private async Task ChooseQualityAsync(string quality)
