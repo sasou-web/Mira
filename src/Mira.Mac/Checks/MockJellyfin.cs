@@ -91,6 +91,17 @@ public sealed class MockJellyfin : HttpMessageHandler
         if (path.StartsWith("Mira/torlink")) return await RelayAsync(request, path, cancellationToken);
         if (path.StartsWith("UserPlayedItems/") || path.StartsWith("UserFavoriteItems/")) return Json(new { });
         if (request.Method == HttpMethod.Post && path == "Sessions/Logout") return new HttpResponseMessage(HttpStatusCode.NoContent);
+        // « En ce moment sur Jellyfin »: a friend's iPhone, converted, that takes « Arrêter ».
+        if (path == "Sessions") return Json(new object[]
+        {
+            new
+            {
+                Id = "session-phone", UserName = "Marc", DeviceName = "iPhone", Client = "Mira", DeviceId = "phone", RemoteEndPoint = "100.101.102.103", SupportsRemoteControl = true,
+                NowPlayingItem = new { Type = "Movie", Name = "Brume basse", RunTimeTicks = 6_000_000_000L },
+                PlayState = new { PositionTicks = 1_200_000_000L, IsPaused = false, PlayMethod = "Transcode" },
+                TranscodingInfo = new { IsVideoDirect = false, IsAudioDirect = true, VideoCodec = "h264", AudioCodec = "aac", Bitrate = 4_000_000, TranscodeReasons = new[] { "ContainerBitrateExceedsLimit" }, HardwareAccelerationType = "videotoolbox" }
+            }
+        });
         if (path.Contains("/Images/")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(await ImageAsync(path)) };
         if (path == "UserItems/Resume") return Items(_movies.Where(x => Id(x) == "movie-1"));
         if (path == "Shows/NextUp") return Items(query["seriesId"] is { } series ? _episodes.GetValueOrDefault(series)?.Take(1) ?? [] : _episodes["series-1"].Take(1));
