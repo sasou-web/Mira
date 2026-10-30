@@ -93,6 +93,21 @@ Le serveur Jellyfin reste lancé : il gère la bibliothèque, les affiches, les 
 
 La zone de notification permet de masquer puis de retrouver Mira sans arrêter la lecture. Le bouton × de la fenêtre quitte l’application. Les commandes de la barre des tâches et la fiche multimédia Windows apparaissent pendant la lecture ; leur présentation dépend de Windows.
 
+## Loin de chez toi, sans l’app Tailscale
+
+Sur un PC où l’app Tailscale n’est pas installée (un portable que tu emportes, le PC d’un proche), **Tailscale intégré** fait entrer Mira dans ton réseau Tailscale, comme un appareil de plus, pour joindre ton Jellyfin hors de chez toi. Le PC de Jellyfin garde la vraie app Tailscale : sur lui, comme sur tout PC où l’app Tailscale est connectée, Mira ne s’en sert pas.
+
+1. À l’écran de connexion, tape l’adresse Tailscale du PC de Jellyfin (`100.x.y.z`, ou son nom dans Tailscale). Mira propose **Tailscale intégré** ; il le propose aussi quand il ne trouve aucun serveur. Tant qu’il n’est pas connecté, **Se connecter** à Jellyfin est refusé avec la raison.
+2. **Se connecter à Tailscale** : la page de connexion de Tailscale s’ouvre dans ton navigateur. Connecte-toi avec le compte Tailscale du PC de Jellyfin. Si ton réseau Tailscale fait approuver chaque nouvel appareil, approuve `mira-<nom du PC>` dans sa console (**Ouvrir la console de Tailscale**).
+3. Si Windows demande d’autoriser « Mira (Tailscale) » sur ses réseaux, accepte : la connexion directe est plus rapide. Refuser marche aussi, par un relais de Tailscale.
+4. Connecte-toi à Jellyfin comme d’habitude.
+
+Ensuite, Mira rejoint ton réseau Tailscale à chaque ouverture, avant de demander quoi que ce soit à Jellyfin, et le quitte à sa fermeture (même arrêté par le Gestionnaire des tâches). **Réglages → Jellyfin** dit son état, par où passe Mira (**À la maison (direct)**, **Par l’app Tailscale** ou **Par Tailscale intégré**) et ce que Tailscale en voit. À la maison, Mira joint Jellyfin en direct.
+
+- **Se déconnecter de Tailscale** (même endroit) le dit à Tailscale, puis efface de ce PC la clé et l’état de Tailscale intégré. L’appareil reste dans la [console de Tailscale](https://login.tailscale.com/admin/machines), « Logged out », jusqu’à ce que tu l’y supprimes.
+- Sa connexion expire comme celle de tout appareil Tailscale (180 jours par défaut) : Mira prévient deux semaines avant ; dans la console, **Disable key expiry** (menu `⋯` de l’appareil) l’évite.
+- Vie privée : rien ne part vers Tailscale avant **Se connecter à Tailscale**. Ensuite, comme pour l’app Tailscale, ses serveurs voient le compte choisi, le nom de l’appareil, son système et ses adresses IP (publique et locales, pour la connexion directe) ; tes vidéos restent chiffrées de bout en bout, en direct ou par un relais de Tailscale. Mira n’envoie aucun journal à Tailscale ; le sien, `data\tailscale\mira-tailscale.log`, ne garde aucune page de connexion. Détails dans [SECURITY.md](../SECURITY.md#tailscale-intégré-windows).
+
 ## TorLink
 
 TorLink est un client de téléchargement en terminal ([projet indépendant](https://github.com/baairon/torlink), licence MIT), publié sur npm (`npx torlnk`). Sur le PC de Jellyfin, la page **Téléchargements** du rail s’en sert avec l’écran de Mira web : cherche un titre, Mira met en avant la meilleure version de chaque film ou épisode, **Télécharger** le confie à TorLink, et la colonne de droite montre la progression, le débit et le temps restant (**Pause**, **Reprendre**, **Annuler**), puis ce qui part vers Jellyfin (**Dossier**, **Réessayer**, **Classer**). Le bouton **Terminal** affiche l’interface de TorLink elle-même (et **Écran de Mira** y revient) ; Mira se souvient du choix.
@@ -141,6 +156,10 @@ Pour passer d’une copie portable à l’installateur en gardant sa session : i
 | Symptôme | Vérification |
 | --- | --- |
 | Jellyfin injoignable hors de chez soi | L’adresse du guide (192.168…) ne marche que sur le réseau de la maison. Installer Tailscale sur ce PC et sur l’appareil, avec le même compte, puis **Guide** (**?** à gauche) **→ Mira sur ton téléphone → Tout préparer**, et scanner le QR code (ou entrer l’adresse Tailscale dans l’application Jellyfin). Ouvrir la box (redirection de port) exposerait Jellyfin à tout Internet : c’est déconseillé. |
+| Jellyfin injoignable depuis un PC sans l’app Tailscale | **Tailscale intégré** (section [Loin de chez toi, sans l’app Tailscale](#loin-de-chez-toi-sans-lapp-tailscale)) : à l’écran de connexion, avec l’adresse Tailscale du PC de Jellyfin, ou **Réglages → Jellyfin → Se connecter à Tailscale**. |
+| « … n’est pas connecté à Tailscale : il est éteint, en veille ou sans Internet » | Le PC de Jellyfin a quitté Tailscale : l’allumer ou le réveiller (lignes suivantes : veille, session, connexion expirée). Mira rejoue l’Accueil dès qu’il revient. |
+| « En attente d’approbation dans la console de Tailscale » | Ton réseau Tailscale fait approuver chaque nouvel appareil : **Ouvrir la console de Tailscale**, puis approuver `mira-<nom du PC>`. |
+| « Sécurité Windows bloque mira-tailscale.exe » ou « Tailscale intégré s’arrête dès son lancement » | Un antivirus bloque le Tailscale intégré de Mira (**Sécurité Windows → Historique de protection**). L’app Tailscale fait la même chose : l’installer sur ce PC ([tailscale.com/download](https://tailscale.com/download)) ; Mira passe alors par elle. |
 | Injoignable hors de chez soi après un redémarrage du PC serveur, jusqu’à l’ouverture de ta session | Tailscale attend ta session : **Garder Tailscale connecté** sur la carte « Mira sur ton téléphone » du guide, ou clic droit sur l’icône de Tailscale → **Preferences** → **Run unattended**. |
 | Injoignable après un moment sans utiliser le PC serveur | Il s’est mis en veille : Tailscale ne sait pas le réveiller. **Pas de veille sur secteur** sur la carte « Mira sur ton téléphone » du guide, ou Paramètres → Système → Alimentation, mise en veille sur secteur : **Jamais** (pour un portable, fermer l’écran : **Ne rien faire** sur secteur). Pendant une lecture sur un autre appareil, Mira garde le PC éveillé tant qu’il est ouvert. |
 | Injoignable hors de chez soi, Tailscale demande de te reconnecter sur le PC serveur | Sa connexion à Tailscale a expiré (tous les 180 jours, par défaut) : se reconnecter dans le menu de Tailscale, puis sur https://login.tailscale.com/admin/machines, menu `⋯` de ce PC → **Disable key expiry**. Mira prévient deux semaines avant. |

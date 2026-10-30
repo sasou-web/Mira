@@ -24,8 +24,9 @@ Mira.Desktop (WPF)
   │   ├─ ServerSetup : « Installer Jellyfin sur ce PC », de l’écran de connexion jusqu’à la bibliothèque
   │   ├─ Guide : bienvenue, guide de démarrage, carte « Mira sur ton téléphone » (Tout préparer, QR code), nouveautés
   │   ├─ MiraWeb : installation vérifiée de Mira web, dépôt avancé au démarrage
+  │   ├─ Tailnet : « Tailscale intégré » (BuiltInTailnet de Core) : carte de l’écran de connexion, Réglages → Jellyfin, avis, nœud démarré avec Mira et arrêté avec elle
   │   └─ TorLink : page Téléchargements (liste des téléchargeurs, TorLink activé ou non), téléchargements terminés, liste « Vers Jellyfin »
-  ├─ Checks : harnais de contrôle lancés par RunRequestedCheckAsync (--visual-check, --public-gallery, --player-check, --qa-window, --perf-probe, --windows-check, --torlink-check, --server-check), absents des paquets (MiraValidation=false)
+  ├─ Checks : harnais de contrôle lancés par RunRequestedCheckAsync (--visual-check, --public-gallery, --player-check, --qa-window, --perf-probe, --windows-check, --torlink-check, --server-check, --tailnet-check), absents des paquets (MiraValidation=false)
   ├─ Themes/Cinema.xaml : composants, couleurs nommées, focus et contrôles sombres
   ├─ Views : famille vectorielle Mira, export du logo, cartes, transitions, défilement progressif, Timeline, Accessible (noms et annonces pour le Narrateur)
   ├─ Playback/MpvEngine : `MpvClient` de Core, rendu dans un HWND enfant, recherche du moteur (choisi, installé par Mira, connu)
@@ -35,15 +36,17 @@ Mira.Desktop (WPF)
   ├─ Playback/VideoHost : surface native de la vidéo
   ├─ TorLink : pseudo-console Windows, recherche et installation de TorLink (TorLinkInstallation, TorLinkSetup), terminal WebView2 + xterm.js (Assets/TorLink, intégrés en ressources)
   └─ Services
-      ├─ LocalProfile (session DPAPI, réglages), ImageCache, MetadataCache, ArtworkAccent, AppFiles, DemoLibrary
+      ├─ LocalProfile (session DPAPI, réglages, clé d’état de Tailscale intégré), ImageCache, MetadataCache, ArtworkAccent, AppFiles, DemoLibrary
       ├─ Updater, UpdateApplier, UpdateLock, PortableExtraction : mises à jour signées et leur application
       ├─ InstanceActivation, Screens, WindowsIdentity, ShellRegistration, WindowsIntegration : place dans Windows
+      ├─ TailnetExecutable, ChildProcesses : mira-tailscale.exe vérifié par son empreinte (extrait du portable), lié à Mira par un objet job
       └─ JellyfinInstaller, JellyfinAutostart : installateur de Jellyfin, service et pare-feu (élévation par Windows PowerShell)
           │
 Mira.Core (commun à Windows et Mac, sans WPF)
   ├─ JellyfinClient : requêtes HTTP, métadonnées, lecture, WebSocket, Mira web dans Jellyfin, déconnexion
   ├─ ServerAddress : adresse saisie → adresses candidates, informations publiques, version minimale, avertissement HTTP
   ├─ ServerSearch : serveur proposé à la connexion (ce PC, découverte de Jellyfin sur le réseau, appareils Tailscale)
+  ├─ Tailscale/ : « Tailscale intégré » — TailnetProcess (mira-tailscale lancé, vérifié, relancé après une erreur, journal local), BuiltInTailnet (connexion par la page de Tailscale, démarrage avec l’app, déconnexion, avis dits une fois ; commun à Windows et Mac), TailnetNetwork et TailnetRoute (chemin de chaque connexion : direct ou par le nœud, cas communs `tests/fixtures/tailnet.json`), TailnetText
   ├─ LibraryStore, AccountData : cache SQLite, progression locale et file persistante ; fichiers d’un compte
   ├─ SyncService, Cadence : livraison ordonnée, coalescence, reprise après erreur ; rythme des appels
   ├─ Subtitles/ : sous-titres automatiques — SubtitleText (SRT, WebVTT, ASS lus en cues, encodage deviné, réécriture SRT), SubtitleMatch (note d’un sous-titre proposé par une source pour un fichier vidéo, vérification d’un fichier téléchargé contre la durée de la vidéo), cas communs `tests/fixtures/subtitle-match.json`
@@ -71,6 +74,12 @@ Mira.Core (commun à Windows et Mac, sans WPF)
 ```
 
 Une application native C# / WPF permet de compiler et de livrer immédiatement sur le PC Windows équipé de .NET. libmpv est appelé directement par son API C ; aucun terminal, processus mpv externe ou lecteur HTML n’est utilisé pour la vidéo. Le rendu dispose de sa propre surface native. Une surface HwndSource transparente, possédée par la fenêtre et non activable, superpose les commandes au HWND vidéo. Elle reste ouverte lorsque les panneaux s'effacent : le fond d'alpha 1/255 conserve la réception de la souris, et WPF gère son curseur. Elle se ferme à la désactivation et à l'arrêt. Elle n'utilise pas Popup pour cette grande surface : WPF limite les Popup à 75 % de l'aire du moniteur. Seuls les menus de réglages restent des Popup. La source est créée masquée, puis montrée sans activation pour éviter un transfert de focus et une boucle de fermeture/réouverture.
+
+## Tailscale intégré
+
+`src/Mira.Tailscale` (Go, tsnet de Tailscale 1.104.4) est le nœud Tailscale de Mira, en espace utilisateur : `cmd/mira-tailscale` pour Windows et Mac, lancé par l’app et piloté en lignes JSON sur son entrée et sa sortie ; `cmd/mira-testnet`, un réseau Tailscale de test (coordination, relais, « PC de Jellyfin ») pour les contrôles. `tools/tailscale/build.mjs` le compile aux mêmes octets partout, sans l’envoi de journaux à Tailscale (`ts_omit_logtail`).
+
+Sous Windows, `BuiltInTailnet` (Core) le démarre à **Se connecter à Tailscale**, puis à chaque ouverture de Mira, avant la première requête à Jellyfin. `TailnetNetwork.Default` est le gestionnaire HTTP de `JellyfinClient`, `ServerAddress` et `ServerSearch` : une connexion vers une adresse du réseau Tailscale (100.x, nom MagicDNS, nom court d’un appareil) passe par le proxy HTTP du nœud (`CONNECT`, `ConnectCallback`), sur `127.0.0.1` avec des identifiants tirés à chaque lancement, et mpv aussi (`http-proxy`) ; le reste va en direct, comme tout ce que l’app Tailscale connectée sur ce PC joint déjà (`TailnetRoute.Choose`). Un refus du nœud revient avec sa raison (en-tête `X-Mira-Tailscale`), en `TailnetException` sous l’exception de `HttpClient` (`TailnetNetwork.Explain`), et l’avis la dit dans les mots de Mira (PC de Jellyfin éteint, Jellyfin arrêté sur lui, connexion expirée).
 
 ## Mira pour Mac
 
