@@ -281,7 +281,7 @@ public partial class MainWindow
             queue.Add(new($"d:{download.Id}", $"d|{download.Status}|{pending is null}", Shown(download.Name).Title, line, download.Progress, () => ServerDownloadRow(download, pending is null)));
         }
         // On this PC, « Vers Jellyfin » is TorLink's page's own list (RenderLocalPlaced): its folder, a retry, another library.
-        var placed = _serverLocal ? new List<ServerRowData>() : status.Placed.Select(x => new ServerRowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(x.Status), null, () => ServerPlacedRow(x))).ToList();
+        var placed = _serverLocal ? new List<ServerRowData>() : status.Placed.Select(x => new ServerRowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(RemoteLines.Placed(x.Status)), null, () => ServerPlacedRow(x))).ToList();
         var follows = ServerFollowRows(status.Follows, now);
         UpdateServerRows(ServerQueue, queue);
         UpdateServerRows(ServerFollows, follows);
@@ -419,7 +419,7 @@ public partial class MainWindow
             buttons.Children.Add(Named(RowButton(L("Voir", "View"), "play", () => OpenTorLinkItemAsync(id)), L($"Voir « {placed.Title} »", $"View “{placed.Title}”")));
             actions.Children.Add(buttons);
         }
-        return ServerRowView(placed.Ok ? "check" : "warning", placed.Ok ? "Success" : "Warning", placed.Title, Sentence(placed.Status), null, false, actions);
+        return ServerRowView(placed.Ok ? "check" : "warning", placed.Ok ? "Success" : "Warning", placed.Title, Sentence(RemoteLines.Placed(placed.Status)), null, false, actions);
     }
 
     private static Button Named(Button button, string name) { AutomationProperties.SetName(button, name); return button; }

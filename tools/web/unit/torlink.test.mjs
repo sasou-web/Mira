@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import {
   kindLabel, cleanQuery, infoHash, displayName, cleanName, size, speed, agentLine, hitLine, requestLine, downloadLine, controllable, remaining, timeLeft,
-  followNote, followLine, pickLine, takenLine,
+  followNote, followLine, pickLine, takenLine, placedLine,
 } from '../../../src/Mira.Web/js/torlink.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/torlink-remote.json', import.meta.url), 'utf8'));
@@ -84,6 +84,7 @@ test('the lines Mira for Windows and Mac write too (tests/fixtures/torlink-lines
   for (const [follow, text] of lines.follows) assert.equal(followLine(follow, now), text, `follow ${JSON.stringify(follow)}`);
   for (const [pick, text] of lines.picks) assert.equal(pickLine(pick, now), text, `pick ${JSON.stringify(pick)}`);
   for (const [taken, text] of lines.taken) assert.equal(takenLine(taken, now), text, `taken ${JSON.stringify(taken)}`);
+  for (const [status, text] of lines.placed) assert.equal(placedLine(status), text, `placed ${status}`);
 });
 
 test('the same lines in English', () => {

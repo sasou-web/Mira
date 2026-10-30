@@ -8,6 +8,28 @@ namespace Mira.Core.TorLink;
 /// </summary>
 public static class RemoteLines
 {
+    /// <summary>
+    /// What Mira for Windows on the server PC says of a title it placed (TorLinkPlacement.StatusOf), in its own language:
+    /// read back in this one when it is one of those fixed words, as it is else.
+    /// </summary>
+    public static string Placed(string status)
+    {
+        foreach (var (french, english) in PlacedWords)
+            if (status.Equals(french, StringComparison.OrdinalIgnoreCase) || status.Equals(english, StringComparison.OrdinalIgnoreCase)) return L(french, english);
+        foreach (var (french, english) in new[] { ("pas remplacé : ", "not replaced: ") })
+        {
+            if (status.StartsWith(french, StringComparison.OrdinalIgnoreCase)) return L(french, english) + status[french.Length..];
+            if (status.StartsWith(english, StringComparison.OrdinalIgnoreCase)) return L(french, english) + status[english.Length..];
+        }
+        return status;
+    }
+    private static readonly (string French, string English)[] PlacedWords =
+    [
+        ("meilleure version en place, l’ancienne dans la Corbeille", "better version in place, the old one in the Recycle Bin"), ("en attente des fichiers", "waiting for the files"),
+        ("dossier de bibliothèque à choisir", "library folder to choose"), ("rangement en cours…", "sorting…"), ("disponible dans Jellyfin", "available in Jellyfin"),
+        ("Jellyfin l’ajoute", "Jellyfin is adding it"), ("rangé", "in place"), ("rangé en partie", "partly in place"), ("déjà dans la bibliothèque", "already in the library"),
+        ("échec", "failed"), ("ignoré", "skipped")
+    ];
     /// <summary>What a title found in a category is, on its card: « Film », « Série », « Anime »; empty when unknown.</summary>
     public static string KindLabel(string? key) => key switch { "movies" => L("Film", "Movie"), "tv" => L("Série", "Show"), "anime" => L("Anime", "Anime"), _ => "" };
 

@@ -65,6 +65,7 @@ public static class SelfCheck
             var home = (HomePage)window.Current!;
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
+            home.ScrollToEnd(); await Task.Delay(800); Capture(window, output, "02b-home-grid"); home.ScrollToHome();
             // A row's arrows only when it goes past the window, and a press glides about three posters along, not a page.
             Check(home.GetVisualDescendants().OfType<CardRow>().All(x => x.GetVisualDescendants().OfType<ScrollViewer>().First() is var s && x.ArrowsShown == s.Extent.Width > s.Viewport.Width + 1), "accueil : flèches des rangées seulement si elles débordent");
             var row = new CardRow("Contrôle", Enumerable.Range(0, 24).Select(_ => (Control)new Border { Width = 176, Height = 40 }));
@@ -90,6 +91,8 @@ public static class SelfCheck
             ((BrowsePage)window.Current!).Search(word);
             Check(await Until(() => window.Current is BrowsePage search && search.Items.Any(x => x.Id == movie.Id), 15), "recherche", $"« {word} »");
             await Task.Delay(800); Capture(window, output, "04-search");
+            // ⌘A in a field: the text stays readable on its selection.
+            ((BrowsePage)window.Current!).SelectSearch(); await Task.Delay(300); Capture(window, output, "04b-search-selected");
             ((BrowsePage)window.Current!).Search("zqxwv");
             Check(await Until(() => window.Current is BrowsePage { Empty.IsVisible: true, Items.Count: 0 } nothing && nothing.Empty.Title.Contains("zqxwv"), 15), "recherche sans résultat : l’état vide le dit",
                 $"{(window.Current as BrowsePage)?.Empty.Title} · {(window.Current as BrowsePage)?.Empty.ActionLabel}");

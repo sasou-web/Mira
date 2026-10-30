@@ -99,5 +99,13 @@
  "taken": [
   [{"episode": "S01E13", "name": "x", "at": "2026-10-15T10:00:00Z"}, "S01E13 · pris il y a 2 h"],
   [{"episode": "S01E14", "name": "x", "at": "2026-10-15T11:59:30Z"}, "S01E14 · pris à l’instant"]
+ ],
+ "placed": [
+  ["available in Jellyfin", "disponible dans Jellyfin"],
+  ["disponible dans Jellyfin", "disponible dans Jellyfin"],
+  ["Jellyfin is adding it", "Jellyfin l’ajoute"],
+  ["in place", "rangé"],
+  ["not replaced: the file is open", "pas remplacé : the file is open"],
+  ["Rangé à la main", "Rangé à la main"]
  ]
 }
