@@ -10,6 +10,8 @@ namespace Mira.Desktop.Views;
 
 public sealed class MediaCard : Button
 {
+    /// <summary>A poster's corners: Mira's squircle, rounder than the 5 they were so a poster reads as an object rather than a crop.</summary>
+    public const double PosterRadius = 11;
     public MediaItem Item { get; }
     public string RenderKey { get; }
     public ImageSource? ImageSource => _image.Source;
@@ -72,7 +74,7 @@ public sealed class MediaCard : Button
             _hover.Children.Add(new Border { Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(90, 0, 0, 0), 90) });
             _hover.Children.Add(new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), Background = Palette.Get("Accent"), Child = new Icon { Kind = "play", Width = 19, Height = 19, Foreground = Brushes.Black } });
         }
-        _hover.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(5) });
+        _hover.Children.Add(new Squircle { BorderBrush = new SolidColorBrush(Color.FromArgb(235, 245, 245, 247)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(PosterRadius), Depth = 0 });
         _visual.Children.Add(_hover);
         FocusVisualStyle = null; Accessible.SetOwnFocusRing(this, true); // the ring above is the focus indicator
         MouseEnter += (_, _) => HoverEntered?.Invoke(this);
@@ -118,7 +120,7 @@ public sealed class MediaCard : Button
     {
         if (Math.Abs(Width - width) < .01 && _visual.Clip is not null) return;
         Width = width; _visual.Width = width; _visual.Height = _wide ? width * 9 / 16 : width * 1.48;
-        _visual.Clip = new RectangleGeometry(new Rect(0, 0, width, _visual.Height), 5, 5);
+        _visual.Clip = Squircle.Geometry(new Rect(0, 0, width, _visual.Height), PosterRadius);
         if (_progress is not null) _progress.Width = Math.Max(2, width * Item.Progress);
     }
     /// <summary>Its artwork was asked for (posters of the grid wait until they come near the visible part of the page).</summary>

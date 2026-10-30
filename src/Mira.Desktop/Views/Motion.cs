@@ -77,7 +77,7 @@ public static class Motion
     public static bool GetInteractive(DependencyObject value) => (bool)value.GetValue(InteractiveProperty);
     public static void SetInteractive(DependencyObject value, bool enabled) => value.SetValue(InteractiveProperty, enabled);
     /// <summary>Corner radius of the default button template (and of its hover wash).</summary>
-    public static readonly DependencyProperty RadiusProperty = DependencyProperty.RegisterAttached("Radius", typeof(CornerRadius), typeof(Motion), new FrameworkPropertyMetadata(new CornerRadius(6)));
+    public static readonly DependencyProperty RadiusProperty = DependencyProperty.RegisterAttached("Radius", typeof(CornerRadius), typeof(Motion), new FrameworkPropertyMetadata(new CornerRadius(10)));
     public static CornerRadius GetRadius(DependencyObject value) => (CornerRadius)value.GetValue(RadiusProperty);
     public static void SetRadius(DependencyObject value, CornerRadius radius) => value.SetValue(RadiusProperty, radius);
     /// <summary>Icon buttons also grow slightly under the pointer. Text buttons keep a fixed size:
@@ -131,7 +131,7 @@ public static class Motion
         void Update(bool animate)
         {
             check.ApplyTemplate();
-            if (check.Template.FindName("Track", check) is not Border track || check.Template.FindName("Dot", check) is not System.Windows.Shapes.Ellipse dot) return;
+            if (check.Template.FindName("Track", check) is not Squircle track || check.Template.FindName("Dot", check) is not System.Windows.Shapes.Ellipse dot) return;
             var enabled = check.IsChecked == true;
             var move = dot.RenderTransform as TranslateTransform ?? new TranslateTransform(); dot.RenderTransform = move;
             var color = enabled ? Color.FromRgb(245, 245, 247) : Color.FromRgb(64, 64, 69);

@@ -74,13 +74,13 @@ public sealed class ActionRow : Panel
         return finalSize;
     }
 
-    /// <summary>A round button of its icon alone: its label, when it has one, goes to its tooltip.</summary>
+    /// <summary>A squircle button of its icon alone: its label, when it has one, goes to its tooltip.</summary>
     private static void MakeRound(Button button)
     {
         Show(button, false);
         button.Width = button.Height = Round; button.Padding = new Thickness(0);
         button.HorizontalContentAlignment = HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
-        Motion.SetRadius(button, new CornerRadius(Round / 2));
+        Motion.SetRadius(button, new CornerRadius(Round * .32));
     }
     /// <summary>Shows or hides the label of a button that has one, and marks the way down to it for measuring again.</summary>
     private static void Show(Button button, bool label)
