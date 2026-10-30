@@ -48,13 +48,13 @@ jobs:
         run: |
           [[ "$RELEASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "release: vX.Y.Z expected, got '$RELEASE'" >&2; exit 1; }
           [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "commit: 40 hexadecimal characters expected, got '$COMMIT'" >&2; exit 1; }
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The draft's commit for a release; otherwise the event's own.
           ref: ${{ inputs.commit }}
           persist-credentials: false
       # The Go of src/Mira.Tailscale, for Built-in Tailscale and the stand-in Tailscale network of the tests.
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: src/Mira.Tailscale/go.mod
           cache-dependency-path: src/Mira.Tailscale/go.sum
@@ -193,7 +193,7 @@ jobs:
             data=$(base64 -i "$small" | tr -d '\n'); parts=$(( (${#data} + 3999) / 4000 ))
             for ((i = 0; i < parts; i++)); do echo "MIRA-PREVIEW $name $((i + 1))/$parts ${data:$((i * 4000)):4000}"; done
           done
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: Mira-ios-check
@@ -226,7 +226,7 @@ jobs:
           (cd .artifacts/ipa && zip -qry "../../dist/ios/$ipa" Payload)
           (cd dist/ios && shasum -a 256 "$ipa" > "$ipa.sha256" && cat "$ipa.sha256")
           ls -la dist/ios
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Mira-ios
           path: |
@@ -242,7 +242,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: Mira-ios
           path: ios
