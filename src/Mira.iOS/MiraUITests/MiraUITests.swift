@@ -331,7 +331,9 @@ final class MiraUITests: XCTestCase {
     @MainActor
     private func launch(language: String, locale: String, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-mira-reset", "-AppleLanguages", "(\(language))", "-AppleLocale", locale] + extra
+        // The player's controls stay up: they hide 4 s after a touch, less than XCTest may take between finding a
+        // button and tapping it while a video plays.
+        app.launchArguments = ["-mira-reset", "-mira-controls-stay", "-AppleLanguages", "(\(language))", "-AppleLocale", locale] + extra
         app.launch()
         return app
     }
