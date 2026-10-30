@@ -6,7 +6,7 @@
       "x": 0,
       "y": 168,
       "width": 402,
-      "height": 254.328125
+      "height": 281.921875
     },
     "captureWidth": 402
   },
@@ -31,27 +31,5 @@
       "height": 84
     },
     "captureWidth": 402
-  },
-  {
-    "file": "home.png",
-    "kind": "phone",
-    "focus": {
-      "x": 245,
-      "y": 436.546875,
-      "width": 157,
-      "height": 88
-    },
-    "captureWidth": 402
-  },
-  {
-    "file": "films-wide.png",
-    "kind": "screen",
-    "focus": {
-      "x": 78,
-      "y": 106,
-      "width": 1362,
-      "height": 260
-    },
-    "captureWidth": 1440
   }
 ]
