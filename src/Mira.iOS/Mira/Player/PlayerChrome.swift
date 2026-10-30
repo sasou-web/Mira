@@ -254,9 +254,9 @@ private struct CenterControls: View {
     let shown: Bool
 
     var body: some View {
-        HStack(spacing: 44) {
+        HStack(spacing: 40) {
             if shown {
-                RoundButton(symbol: "gobackward.10", label: "Back 10 seconds", id: "player.back10", size: 58, glyph: 24) {
+                RoundButton(symbol: "gobackward.10", label: "Back 10 seconds", id: "player.back10", size: 46, glyph: 19) {
                     model.actions?.skip(-10)
                 }
                 .transition(.opacity)
@@ -266,25 +266,25 @@ private struct CenterControls: View {
                     ProgressView()
                         .controlSize(.large)
                         .tint(.white)
-                        .frame(width: 78, height: 78)
+                        .frame(width: 62, height: 62)
                         .accessibilityLabel(Text("Loading"))
                 } else if shown {
-                    RoundButton(symbol: model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", id: "player.play", size: 78, glyph: 32) {
+                    RoundButton(symbol: model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", id: "player.play", size: 62, glyph: 25) {
                         model.actions?.togglePlay()
                     }
                     .contentTransition(.symbolEffect(.replace))
                     .transition(.opacity)
                 }
             }
-            .frame(width: 78, height: 78)
+            .frame(width: 62, height: 62)
             if shown {
-                RoundButton(symbol: "goforward.10", label: "Forward 10 seconds", id: "player.forward10", size: 58, glyph: 24) {
+                RoundButton(symbol: "goforward.10", label: "Forward 10 seconds", id: "player.forward10", size: 46, glyph: 19) {
                     model.actions?.skip(10)
                 }
                 .transition(.opacity)
             }
         }
-        .frame(height: 78)
+        .frame(height: 62)
         .region("center", model, when: shown)
     }
 }

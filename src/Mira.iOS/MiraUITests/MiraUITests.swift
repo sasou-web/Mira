@@ -237,7 +237,7 @@ final class MiraUITests: XCTestCase {
         movies.tap()
         let sintel = app.buttons["Sintel, 2010"].firstMatch
         XCTAssertTrue(sintel.waitForExistence(timeout: 15), "No card for Sintel")
-        sintel.tap()
+        tapCard(app, sintel)
         let start = app.buttons["title.play"]
         XCTAssertTrue(start.waitForExistence(timeout: 10), "Sintel's page has no Play")
         start.tap()
