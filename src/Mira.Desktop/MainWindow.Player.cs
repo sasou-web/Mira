@@ -18,6 +18,11 @@ public partial class MainWindow
     private readonly DispatcherTimer _playerTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private MpvEngine? _mpv;
     private VideoHost? _videoHost;
+    /// <summary>
+    /// The engine last released: mpv takes a few hundred milliseconds to end (its threads, its video window), off the UI
+    /// thread so the library moves meanwhile; the next engine, and closing, wait for it.
+    /// </summary>
+    private Task _engineReleased = Task.CompletedTask;
     private IntPtr _videoHandle;
     /// <summary>What plays, where it is and what Jellyfin was told (Mira.Core, tested without the window).</summary>
     private readonly PlaybackSession _session = new();
@@ -105,6 +110,7 @@ public partial class MainWindow
                 VideoContainer.Children.Add(_videoHost); _videoHandle = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
             }
             ResetMarkers();
+            await _engineReleased;
             _mpv = new MpvEngine(_videoHandle, _settings, picture: PictureForPlayback());
             if (_audioDelay != 0) _mpv.Set("audio-delay", _audioDelay.ToString(CultureInfo.InvariantCulture));
             SayAudioMissing();
@@ -361,7 +367,7 @@ public partial class MainWindow
             }
         }
         // Whatever failed above, the engine is released: it would otherwise play on behind the library.
-        finally { _loaded = false; if (_mpv is not null) { _settings.Volume = _mpv.Level; _mpv.Dispose(); _mpv = null; } }
+        finally { _loaded = false; if (_mpv is { } engine) { _settings.Volume = engine.Level; _mpv = null; _engineReleased = Task.Run(engine.Dispose); } }
         if (hadPlayback && !_closing) RenderAfterUserDataChange();
     }
     private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false) => (await EpisodeContextAsync(current, quiet)).Next;
@@ -389,14 +395,33 @@ public partial class MainWindow
     }
     private void BackFromPlayer_Click(object sender, RoutedEventArgs e)
     { if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayer(true); }
-    private void ReturnToLibrary()
+    /// <summary>
+    /// Leaving the player for the library: still and silent at once, then the black of the player fades over the page it
+    /// goes back to (the video is a window of its own, which no opacity reaches: it leaves first), the engine released after.
+    /// </summary>
+    private async Task LeavePlayerAsync()
+    {
+        if (!_miniPlayer && !_fullscreen && !Motion.Reduced && PlayerShell.Visibility == Visibility.Visible && _mpv is { } mpv)
+        {
+            mpv.Set("pause", "yes"); mpv.Set("mute", "yes");
+            ClosePlayerPopups(); VideoContainer.Visibility = Visibility.Hidden;
+            LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Visible;
+            RestoreDetailPage(refresh: false);
+            Motion.Fade(PlayerShell, 0, 240, 1, Motion.EaseOut); await Task.Delay(240);
+            await StopPlaybackAsync(); ReturnToLibrary(reveal: false);
+        }
+        else { await StopPlaybackAsync(); ReturnToLibrary(); }
+        PlayerShell.BeginAnimation(OpacityProperty, null); PlayerShell.Opacity = 1;
+        if (PlayerError.Visibility != Visibility.Visible) VideoContainer.Visibility = Visibility.Visible;
+    }
+    private void ReturnToLibrary(bool reveal = true)
     {
         if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); _sleep.Clear();
         // The group plays on without this PC.
         SetGroupAway(true);
         PlayerShell.Visibility = Visibility.Collapsed; LibraryShell.Visibility = NavigationRail.Visibility = Visibility.Visible;
         TitleBar.Visibility = Visibility.Visible;
-        Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
+        if (reveal) Motion.Reveal(LibraryScroll); RestoreDetailPage(); UpdateHeroClock(); ShowPendingUpdateNotice();
     }
     private MediaItem? _returnToDetail;
     /// <summary>Playback started from a title page comes back to that page, with progress and watched marks refreshed.</summary>
@@ -537,7 +562,7 @@ public partial class MainWindow
             Attempt(() => { _windows?.Dispose(); _windows = null; });
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
             _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
-            await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
+            await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(() => _engineReleased); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
             // After the last reports to Jellyfin, which may go through it; before an update replaces its file.
             await AttemptAsync(StopTailnetAsync);
             Attempt(() => _videoHost?.Dispose()); await AttemptAsync(ApplyUpdateAtCloseAsync);
