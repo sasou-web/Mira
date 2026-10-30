@@ -1,3 +1,1 @@
-{
-  "0.8.8": ["films", "profiles", "notice", "home", "films-wide"]
-}
+{ "0.8.8": ["films", "profiles", "notice"] }

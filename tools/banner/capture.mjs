@@ -126,11 +126,18 @@ const scenes = {
   async notice(page) {
     await settle(page);
     await page.evaluate(() => scrollBy(0, 420)); await settle(page);
-    const card = page.locator('.row .card').nth(1);
-    const id = await card.evaluate((c) => c.getAttribute('href')?.match(/titre\/([^/?]+)/)?.[1] ?? null).catch(() => null);
-    if (id) { await api(page, 'DELETE', `UserFavoriteItems/${id}`); await page.reload(); await settle(page); await page.evaluate(() => scrollBy(0, 420)); await settle(page); }
-    await card.click({ button: 'right' }); await page.waitForTimeout(500);
-    await page.getByRole('menuitem', { name: /Ajouter aux favoris/ }).first().click();
+    // The first card from the second on whose menu offers it (a favourite's offers to remove it).
+    let id = null;
+    for (let i = 1; i < 8; i++) {
+      const card = page.locator('.row .card').nth(i);
+      await card.click({ button: 'right' }); await page.waitForTimeout(500);
+      const add = page.getByRole('menuitem', { name: /Ajouter aux favoris/ }).first();
+      if (await add.isVisible()) {
+        id = await card.evaluate((c) => (c.getAttribute('href') ?? c.querySelector('a')?.getAttribute('href'))?.match(/titre\/([^/?]+)/)?.[1] ?? null).catch(() => null);
+        await add.click(); break;
+      }
+      await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+    }
     await page.locator('.toast').waitFor({ timeout: 5000 });
     await page.locator('.toast').hover().catch(() => {});
     await page.waitForTimeout(700);
