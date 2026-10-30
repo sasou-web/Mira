@@ -1,0 +1,57 @@
+[
+  {
+    "file": "films.png",
+    "kind": "phone",
+    "focus": {
+      "x": 6,
+      "y": 168,
+      "width": 390,
+      "height": 196.328125
+    },
+    "captureWidth": 402
+  },
+  {
+    "file": "profiles.png",
+    "kind": "phone",
+    "focus": {
+      "x": 6,
+      "y": 313.59375,
+      "width": 390,
+      "height": 279
+    },
+    "captureWidth": 402
+  },
+  {
+    "file": "notice.png",
+    "kind": "phone",
+    "focus": {
+      "x": 6,
+      "y": 698,
+      "width": 390,
+      "height": 84
+    },
+    "captureWidth": 402
+  },
+  {
+    "file": "home.png",
+    "kind": "phone",
+    "focus": {
+      "x": 245,
+      "y": 436.546875,
+      "width": 157,
+      "height": 88
+    },
+    "captureWidth": 402
+  },
+  {
+    "file": "films-wide.png",
+    "kind": "screen",
+    "focus": {
+      "x": 110,
+      "y": 106,
+      "width": 1308,
+      "height": 210
+    },
+    "captureWidth": 1440
+  }
+]
