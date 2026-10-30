@@ -7,6 +7,8 @@
 import { readFileSync } from 'node:fs';
 const [server, media, user, password, repository] = process.argv.slice(2);
 if (!password) { console.error('usage: setup.mjs <server> <media> <user> <password> [repository]'); process.exit(2); }
+// The captures' language: GALLERY_LANGUAGE=en for English (metadata, library names), French otherwise.
+const english = process.env.GALLERY_LANGUAGE === 'en';
 const base = server.replace(/\/$/, '');
 const authorization = (token) => `MediaBrowser Client="Mira gallery", Device="CI", DeviceId="mira-gallery", Version="1.0"${token ? `, Token="${token}"` : ''}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -39,7 +41,7 @@ const info = await until('Jellyfin', async () => { const value = await call('GET
 if (!info) process.exit(1);
 console.log(`Jellyfin ${info.Version}`);
 if (!info.StartupWizardCompleted) {
-  await call('POST', 'Startup/Configuration', { body: { UICulture: 'fr-FR', MetadataCountryCode: 'FR', PreferredMetadataLanguage: 'fr' } });
+  await call('POST', 'Startup/Configuration', { body: { UICulture: english ? 'en-US' : 'fr-FR', MetadataCountryCode: english ? 'US' : 'FR', PreferredMetadataLanguage: english ? 'en' : 'fr' } });
   await call('GET', 'Startup/User');
   await call('POST', 'Startup/User', { body: { Name: user, Password: password } });
   await call('POST', 'Startup/RemoteAccess', { body: { EnableRemoteAccess: true, EnableAutomaticPortMapping: false } });
@@ -49,13 +51,13 @@ const signIn = await call('POST', 'Users/AuthenticateByName', { body: { Username
 const token = signIn.AccessToken, userId = signIn.User.Id;
 
 const folders = await call('GET', 'Library/VirtualFolders', { token });
-for (const [name, type, folder] of [['Films', 'movies', 'Films'], ['Séries', 'tvshows', 'Séries']]) {
+for (const [name, type, folder] of [['Films', 'movies', 'Films'], [english ? 'Series' : 'Séries', 'tvshows', 'Séries']]) {
   if (folders.some((f) => f.Name === name)) continue;
   const separator = media.includes('\\') ? '\\' : '/';
   const path = `${media.replace(/[\\/]$/, '')}${separator}${folder}`;
   // As Mira for Windows sets up Jellyfin (JellyfinSetup.ConfigureAsync): films gathered into sagas.
   await call('POST', `Library/VirtualFolders?name=${encodeURIComponent(name)}&collectionType=${type}&paths=${encodeURIComponent(path)}&refreshLibrary=true`,
-    { token, body: { LibraryOptions: { AutomaticallyAddToCollection: type === 'movies', PreferredMetadataLanguage: 'fr', MetadataCountryCode: 'FR' } } });
+    { token, body: { LibraryOptions: { AutomaticallyAddToCollection: type === 'movies', PreferredMetadataLanguage: english ? 'en' : 'fr', MetadataCountryCode: english ? 'US' : 'FR' } } });
 }
 // Every film, episode and series of media.sh; fewer when a caller keeps only some (MIRA_GALLERY_TITLES).
 const titleCount = Number(process.env.MIRA_GALLERY_TITLES ?? 32);

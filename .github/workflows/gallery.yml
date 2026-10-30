@@ -6,6 +6,12 @@ name: README captures
 # request: its own commit would start it again.
 on:
   workflow_dispatch:
+    inputs:
+      language:
+        description: Language of the captures (en or fr)
+        default: en
+        type: choice
+        options: [en, fr]
 permissions:
   contents: read
 concurrency:
@@ -16,6 +22,7 @@ env:
   JELLYFIN_IMAGE: jellyfin/jellyfin:12.1.20260915-010956
   GALLERY_USER: Camille
   GALLERY_PASSWORD: mira-gallery
+  GALLERY_LANGUAGE: ${{ inputs.language || 'en' }}
 jobs:
   windows:
     runs-on: windows-latest
@@ -67,8 +74,8 @@ jobs:
           $output = Join-Path $PWD '.artifacts/gallery'
           $profile = Join-Path $PWD '.artifacts/gallery-profile'
           $env:MIRA_GALLERY_USER = $env:GALLERY_USER; $env:MIRA_GALLERY_PASSWORD = $env:GALLERY_PASSWORD
-          # In French, as the README's text: the runner's Windows is in English, which Mira would follow.
-          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', 'fr', '--readme-gallery', "`"$output`"") -PassThru
+          # In the language asked for (en by default, fr for docs/README.fr.md): the runner's Windows is in English, which Mira would otherwise follow.
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--language', $env:GALLERY_LANGUAGE, '--readme-gallery', "`"$output`"") -PassThru
           if (-not $run.WaitForExit(300000)) { $run.Kill(); throw 'The captures did not finish within 5 minutes.' }
           $result = Get-Content -LiteralPath (Join-Path $output 'gallery-result.txt') -Raw
           Write-Output $result
