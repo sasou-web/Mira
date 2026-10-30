@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Le logo d’une série sur l’Accueil du Mac, même pour un épisode en cours** : dans le bandeau, un épisode à reprendre montrait le nom de la série en texte au lieu de son logo, parce que Mira ne demandait pas les logos avec la liste « Reprendre ». Mira pour Windows le retrouvait déjà ; il est maintenant demandé à Jellyfin dès cette liste. Jamais essayé sur un vrai Mac.
 - **La barre d’onglets de l’iPhone, nette et fluide** : l’onglet ouvert montre toujours son nom (**Films** ne restait qu’une icône quand le nom ne tenait pas) ; le carré clair garde la même largeur d’un onglet à l’autre et glisse d’un seul ressort sous les icônes, sans se dédoubler ni sauter en passant de **Films** à **Séries** ; seule l’icône de l’onglet ouvert rebondit, et la page arrive en fondu rapide. Aux plus grandes tailles de texte, tous les onglets passent aux icônes, quel que soit celui qui est ouvert. Pas encore essayé sur un vrai iPhone.
 
 ## 0.8.7 — 2026-10-30
