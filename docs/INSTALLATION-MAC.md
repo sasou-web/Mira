@@ -31,9 +31,25 @@ Cette commande retire seulement la marque « téléchargé depuis Internet » de
 
 ## Première connexion
 
-Saisis l’adresse de ton serveur Jellyfin (par exemple `192.168.1.20` ou `nas:8096`), ton nom d’utilisateur et ton mot de passe. Mira trouve seule le bon port et le bon protocole. Hors de chez toi, utilise l’adresse Tailscale du serveur (`100.x.y.z`) ; le guide de Mira sur Windows explique comment l’obtenir.
+Saisis l’adresse de ton serveur Jellyfin (par exemple `192.168.1.20` ou `nas:8096`), ton nom d’utilisateur et ton mot de passe. Mira trouve seule le bon port et le bon protocole. Hors de chez toi, utilise l’adresse Tailscale du serveur (`100.x.y.z`) ou son nom sur Tailscale ; sans l’app Tailscale sur ce Mac, **Tailscale intégré** (ci-dessous) le joint quand même.
 
 Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin. Son code d’accès va dans le trousseau de ton Mac (élément « Mira »), le reste dans `~/Library/Application Support/Mira`, lisible par ton compte macOS uniquement. **Se déconnecter** (Réglages → Compte) efface les deux et ferme aussi la session sur Jellyfin ; avec **Effacer aussi les données de ce compte sur ce Mac**, le cache et les affiches de ce compte quittent le Mac.
+
+## Tailscale intégré : ton Jellyfin loin de chez toi, sans l’app Tailscale
+
+Si ton Jellyfin est sur Tailscale (le PC où il tourne a l’app Tailscale) et que ce Mac ne l’a pas, Mira rejoint ton réseau Tailscale elle-même, comme un appareil de plus, seulement quand elle est ouverte. Rien à installer : le nœud Tailscale de Mira (`mira-tailscale`) est dans Mira.app.
+
+1. Sur l’écran de connexion, tape l’adresse Tailscale du serveur (`100.x.y.z`) ou son nom, ou laisse Mira chercher : sous le champ, Mira propose **Se connecter à Tailscale** (« Ce serveur est sur Tailscale », ou « Pas chez toi ? » quand elle ne trouve rien).
+2. Clique sur **Se connecter à Tailscale** : ton navigateur ouvre la page de connexion de Tailscale. Connecte-toi avec le compte de ton réseau Tailscale, celui du PC de Jellyfin.
+3. De retour dans Mira, la ligne dit « Tailscale intégré · Connecté » : connecte-toi à Jellyfin comme d’habitude. Sans adresse tapée, Mira cherche à nouveau ton serveur parmi tes appareils Tailscale et le propose.
+
+Ensuite, le nœud démarre avec Mira et s’arrête avec elle. **Réglages → Tailscale intégré** dit son état et par où Mira joint Jellyfin (en direct à la maison, par l’app Tailscale, ou par Tailscale intégré). Quand Jellyfin ne répond pas, Mira dit pourquoi : PC de Jellyfin éteint ou en veille (par son nom sur Tailscale), connexion à Tailscale expirée…, avec le bouton qui aide. Si l’app Tailscale est connectée sur ce Mac, Mira passe par elle et ne propose pas Tailscale intégré.
+
+- **Dans ta console Tailscale**, l’appareil s’appelle « Mira-<nom de ce Mac> ». Sa connexion expire après 180 jours (réglage par défaut de Tailscale) : Mira te prévient deux semaines avant. Pour ne plus avoir à te reconnecter, choisis **Disable key expiry** dans le menu ⋯ de cet appareil, dans la [console](https://login.tailscale.com/admin/machines).
+- **Pare-feu de macOS** : s’il est activé, macOS peut demander d’autoriser « mira-tailscale » à accepter des connexions entrantes. Accepte : la connexion directe est plus rapide. Refuser marche aussi, par un relais de Tailscale.
+- **« macOS bloque mira-tailscale »** : la marque « téléchargé depuis Internet » est restée sur Mira.app. Dans **Réglages → Tailscale intégré**, clique sur **Copier la commande**, colle-la dans le Terminal, puis relance Mira : c’est la commande `xattr` de l’installation, avec l’emplacement de ton Mira. Mira ne retire jamais cette marque elle-même.
+- **Ce que voit Tailscale** : rien avant **Se connecter à Tailscale**. Ensuite, comme pour l’app Tailscale, le compte choisi dans le navigateur, le nom de l’appareil, son système et ses adresses IP (publique et locales, pour la connexion directe) vont aux serveurs de Tailscale. Tes vidéos restent chiffrées de bout en bout, en direct ou par un relais de Tailscale. Mira n’envoie aucun journal à Tailscale.
+- **Où c’est gardé** : l’identité du nœud est dans `~/Library/Application Support/Mira/tailscale`, chiffrée par une clé rangée dans le trousseau (élément « Mira (Tailscale) »). **Se déconnecter de Tailscale** le dit à Tailscale (l’appareil reste dans ta console, « Logged out », jusqu’à ce que tu l’y supprimes), puis efface la clé et le dossier.
 
 ## Raccourcis
 
@@ -52,7 +68,7 @@ Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ou
 
 ## Mises à jour
 
-Mira vérifie à chaque lancement si une nouvelle version existe pour Mac et propose de la télécharger. Remplace alors l’ancienne Mira dans Applications par la nouvelle ; tes réglages et ta session restent en place. L’autorisation de la première fois est à refaire pour chaque nouvelle version. Au premier lancement de la nouvelle version, macOS peut aussi demander ton mot de passe pour la laisser lire la session rangée dans le trousseau : choisis **Toujours autoriser**. Si tu refuses, Mira te demande simplement de te reconnecter.
+Mira vérifie à chaque lancement si une nouvelle version existe pour Mac et propose de la télécharger. Remplace alors l’ancienne Mira dans Applications par la nouvelle ; tes réglages et ta session restent en place. L’autorisation de la première fois est à refaire pour chaque nouvelle version. Au premier lancement de la nouvelle version, macOS peut aussi demander ton mot de passe pour la laisser lire la session et la clé de Tailscale intégré rangées dans le trousseau : choisis **Toujours autoriser**. Si tu refuses, Mira te demande simplement de te reconnecter à Jellyfin, et Tailscale intégré attend : **Réessayer** dans ses Réglages repose la question.
 
 Pour que Mira ne contacte plus GitHub à chaque lancement, désactive **Réglages → Mira → Rechercher les nouvelles versions** ; le bouton **Rechercher une mise à jour** reste disponible.
 
@@ -73,4 +89,4 @@ TorLink tourne sur le PC Windows de Jellyfin : depuis le Mac, la page **Téléch
 
 - **Pas d’image, mais le son** : dans le Terminal, `MIRA_SOFTWARE_VIDEO=1 /Applications/Mira.app/Contents/MacOS/Mira` lance Mira avec l’affichage vidéo logiciel. S’il fonctionne, signale-le dans une [issue](https://github.com/sasou-web/Mira/issues).
 - **Pour un rapport détaillé** : `MIRA_MPV_LOG=$HOME/Desktop/mpv.log /Applications/Mira.app/Contents/MacOS/Mira` écrit le journal du lecteur sur le bureau ; joins-le à l’issue.
-- **Repartir de zéro** : déconnecte-toi d’abord (Réglages → Compte), puis quitte Mira et supprime le dossier `~/Library/Application Support/Mira`. Sans déconnexion, supprime aussi l’élément « Mira » dans Trousseaux d’accès.
+- **Repartir de zéro** : déconnecte-toi d’abord (Réglages → Compte), puis quitte Mira et supprime le dossier `~/Library/Application Support/Mira`. Sans déconnexion, supprime aussi les éléments « Mira » et « Mira (Tailscale) » dans Trousseaux d’accès, et l’appareil « Mira-<nom de ce Mac> » dans la console de Tailscale.

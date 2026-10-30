@@ -4,13 +4,13 @@ Ce qui vérifie Mira, où ça tourne et comment le lancer. Les derniers résulta
 
 | Suite | Système | Ce qu’elle couvre | CI |
 | --- | --- | --- | --- |
-| `tests/Mira.Core.Tests` | tout système (.NET 10) | tout ce qui se passe de WPF | `ci.yml`, sous Linux |
+| `tests/Mira.Core.Tests` | tout système (.NET 10) | tout ce qui se passe de WPF | `ci.yml`, sous Linux ; ses tests « Tailscale intégré » aussi dans `mac.yml`, avec le nœud signé de Mira.app |
 | `tests/Mira.Tests` | Windows | la suite précédente, puis l’app Windows | `ci.yml`, sous Windows |
 | `tools/web/unit` | Node.js 22 ou plus | les décisions du lecteur de Mira web, sans navigateur | `web.yml` |
 | `tools/web/check.mjs` | Chromium (Playwright) + Jellyfin | Mira web de bout en bout, sur Jellyfin 10.9, 10.10, 12.1, 12.4 et `latest` (le lundi) | `web.yml` |
 | `tools/web/safari.mjs` | Safari sur Mac + Jellyfin | lecture HLS et lecteur d’Apple | `web.yml` |
 | harnais de `Mira.exe` | Windows | captures, vrai lecteur, intégration Windows, TorLink | `ci.yml` (galerie seulement) |
-| harnais de Mira.app | Mac | chaque écran et la lecture | `mac.yml` |
+| harnais de Mira.app | Mac | chaque écran et la lecture ; « Tailscale intégré » sur un réseau Tailscale de test | `mac.yml` |
 
 ## Les deux projets de tests .NET
 
@@ -81,7 +81,8 @@ Ils sont dans `src/Mira.Desktop/Checks` et ne tournent qu’avec un profil isol�
 | `Mira.exe … --windows-check <dossier>` | session multimédia de Windows et vrai mpv (`failure.txt` si la fenêtre ne se crée pas) |
 | `tools/torlink-check.ps1 [-Executable dist/Mira/Mira.exe]` | TorLink réel dans Mira, téléchargements fictifs rangés dans une bibliothèque isolée |
 | `tools/update-check.ps1` | mises à jour de bout en bout (archive, portable, installateur) avec un flux local et une clé d’essai |
-| `Mira --data <profil> --self-check <dossier> --mock --media <vidéo> --short <vidéo>` (Mac) | chaque écran et la lecture, contre un Jellyfin simulé (`results.txt`), chaque écran capturé lu comme VoiceOver (aucun bouton, champ ou liste sans nom) ; marche aussi sous Linux (`xvfb-run`, `libmpv2`) ; `--video-probe <vidéo>` diagnostique le rendu |
+| `Mira --data <profil> --self-check <dossier> --mock --media <vidéo> --short <vidéo>` (Mac) | chaque écran et la lecture, contre un Jellyfin simulé (`results.txt`), chaque écran capturé lu comme VoiceOver (aucun bouton, champ ou liste sans nom), `mira-tailscale` dans Mira.app et une quarantaine de Gatekeeper reconnue ; marche aussi sous Linux (`xvfb-run`, `libmpv2`) ; `--video-probe <vidéo>` diagnostique le rendu |
+| `Mira --data <profil> --tailnet-check <dossier> --tailnet-control <adresse> --mock-port <port> --media <vidéo>` (Mac) | « Tailscale intégré » de bout en bout dans Mira.app telle qu’elle est livrée, sur le réseau de test de `mira-testnet` lancé avec `-forward 8096=127.0.0.1:<port>` : le « PC de Jellyfin » y renvoie son port 8096 vers `--mock-port`, où le contrôle sert le Jellyfin simulé du self-check. Un profil jamais connecté : offre de l’écran de connexion pour l’adresse Tailscale du PC, connexion à Jellyfin refusée avec sa raison tant que le nœud ne l’est pas, « Se connecter à Tailscale » (sa page ouverte par le contrôle, ce qui connecte le nœud), clé du nœud lisible par ce compte seul, aucune page de connexion dans son journal, PC parmi les appareils du nœud, Accueil et un film par le nœud (proxy de mpv), PC éteint (avis à son nom) puis rallumé ; relancé sur le même profil : nœud démarré avec Mira, Accueil par lui, Réglages, « Se déconnecter de Tailscale » (clé et dossier effacés, serveur dit sur Tailscale avec « Se connecter à Tailscale »). `mac.yml` le lance deux fois (`result.txt` puis `result-again.txt`, captures `tailnet-*.png` dans l’artefact `Mira-mac-check`) ; marche aussi sous Linux (`xvfb-run`, `libmpv2`, un `mira-tailscale` de la même version à côté de `Mira.dll`). Ni le vrai Tailscale, ni le trousseau (clé dans un fichier du profil), ni Gatekeeper, ni l’invite du pare-feu de macOS |
 
 `--visual-check` demande un profil avec une session protégée valide, ou `--demo`. Le contrôle de TorLink ouvre une fenêtre visible et n’envoie de vraies touches que si elle a le premier plan ; il ne touche ni à l’état réel de TorLink ni à Jellyfin. Avec une vidéo chapitrée, le contrôle du lecteur vérifie aussi les passages à sauter :
 
