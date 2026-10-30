@@ -249,6 +249,11 @@ public sealed class PlayerSettings
     public bool HardwareDecoding { get; set; } = true;
     /// <summary>« Image » of Mira for Windows and Mac (<see cref="PictureQuality"/>): « standard », « cinema » or « max ».</summary>
     public string Picture { get; set; } = PictureQuality.Cinema;
+    /// <summary>
+    /// Mira for Mac: how far it went to get the picture back after mpv drew it grey (0: never; 1: screen colours off;
+    /// 2: and hardware decoding; 3: drawn without OpenGL). Kept for the next playbacks until « Image » is chosen again.
+    /// </summary>
+    public int VideoRepair { get; set; }
     /// <summary>« Sortie audio » of Mira for Windows (<see cref="AudioOutput"/>): mpv's device name, « auto » for Windows' default.</summary>
     public string AudioDevice { get; set; } = AudioOutput.Default;
     /// <summary>The device's name as Windows gave it, shown while it is unplugged.</summary>

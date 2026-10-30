@@ -218,6 +218,25 @@ public static class SelfCheck
                 await Task.Delay(1500);
                 var colour = ScreenColour(Path.Combine(output, $"08-player-{(software ? "software" : "opengl")}.png"));
                 Check(colour is null || colour > 0.2, $"image visible à l’écran ({renderer})", colour is null ? "capture d’écran indisponible" : $"{colour:P0} de pixels colorés au centre");
+                if (!software)
+                {
+                    // A grey picture (a friend's Mac, 0.8.7), made here by mpv's contrast: the player takes its steps back
+                    // until it draws without OpenGL, the video still playing.
+                    if (player.Surface is not Playback.VideoView) Check(true, "image grise : réparée", "pas de rendu OpenGL ici : non mesurable");
+                    // Without sound, the video let go during the move would end the file: a Mac always has a sound output.
+                    else if (string.IsNullOrEmpty(engine.Get("current-ao"))) Check(true, "image grise : réparée", "pas de sortie audio sur cette machine : non mesurable");
+                    else
+                    {
+                        engine.Set("loop-file", "inf"); engine.Set("contrast", "-100"); engine.Set("brightness", "50");
+                        var repaired = await Until(() => player.Surface is Playback.SoftwareVideoView, 45);
+                        var frames = player.Surface?.Frames ?? 0;
+                        engine.Set("contrast", "0"); engine.Set("brightness", "0");
+                        var drawing = repaired && await Until(() => player.Surface?.Frames > frames + 12, 10);
+                        Check(repaired && drawing && window.Settings.VideoRepair == 3 && !(player.InfoText() ?? "").Contains("OpenGL ·"),
+                            "image grise : réparée", $"étape {window.Settings.VideoRepair}, {player.Surface?.GetType().Name}, {player.Surface?.Frames} images");
+                        engine.Set("loop-file", "no"); window.Settings.VideoRepair = 0;
+                    }
+                }
                 if (software)
                 {
                     // « ⋮ » as on Windows: its sections and their choices as chips, on the screen (a menu is a window of its own).

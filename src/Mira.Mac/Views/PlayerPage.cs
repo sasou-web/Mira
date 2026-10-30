@@ -305,7 +305,11 @@ public sealed partial class PlayerPage : UserControl
             Dispatcher.UIThread.Post(() => _ = EndedAsync(ended, generation));
         };
         player.Error += message => _session.Failure = message;
-        IVideoSurface surface = Environment.GetEnvironmentVariable("MIRA_SOFTWARE_VIDEO") is { Length: > 0 } ? new SoftwareVideoView() : new VideoView();
+        // A Mac whose OpenGL drew the picture grey before: what brought it back (PlayerPage.Picture.cs).
+        var repair = _shell.Settings.VideoRepair;
+        IVideoSurface surface = Environment.GetEnvironmentVariable("MIRA_SOFTWARE_VIDEO") is { Length: > 0 } || repair >= 3 ? new SoftwareVideoView() : new VideoView();
+        if (repair >= 1) Repair(player, surface, repair);
+        _greyFlat = 0;
         if (!await AttachAsync(surface, player) && surface is VideoView gl)
         {
             VideoFallback = gl.Problem ?? (gl.Initialized ? L("contexte de rendu mpv non créé", "mpv render context not created") : L("OpenGL indisponible dans cette fenêtre", "OpenGL unavailable in this window"));
@@ -457,7 +461,7 @@ public sealed partial class PlayerPage : UserControl
             var paused = mpv.Flag("pause");
             SleepGuard.Set(!paused);
             if (paused != _session.Paused) { _session.Paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _session.LastReport = DateTimeOffset.MinValue; GroupPauseChanged(paused); }
-            WatchGroupStall(mpv); WatchPicture(mpv, paused);
+            WatchGroupStall(mpv); WatchPicture(mpv, paused); WatchGrey(mpv, paused);
             _timeline.SetPlayback(_session.Position, _session.Duration, mpv.Number("demuxer-cache-time", 0));
             ShowTime(_session.Position); MiniProgress();
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";

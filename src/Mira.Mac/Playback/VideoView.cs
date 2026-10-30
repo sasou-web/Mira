@@ -95,6 +95,14 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
     /// <summary>Why mpv could not draw here, when it could not.</summary>
     public string? Problem { get; private set; }
     protected override void OnOpenGlDeinit(GlInterface gl) => FreeContext();
+    /// <summary>mpv's render context is there: freed once the view left the window (OnOpenGlDeinit).</summary>
+    public bool Drawing => _context != IntPtr.Zero;
+    /// <summary>
+    /// The screen's colour profile no longer handed to mpv, the one it has taken back: one of the repairs of a grey
+    /// picture (PlayerPage.Picture.cs).
+    /// </summary>
+    public void DropColours() => _noColours = true;
+    private volatile bool _noColours;
     private void FreeContext()
     {
         if (_context != IntPtr.Zero) { MpvRender.Free(_library, _context); _context = IntPtr.Zero; }
@@ -121,7 +129,38 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
         if (MpvRender.Render(player, _context, parameters) >= 0) Interlocked.Increment(ref _frames);
         // mpv unbinds the framebuffer when it is done; Avalonia shows the one bound on return (black otherwise).
         gl.BindFramebuffer(GlConsts.GL_FRAMEBUFFER, fb);
+        if (_lookWanted) { _lookWanted = false; Look(gl, width, height); }
     }
+    private volatile bool _lookWanted;
+    private IntPtr _readPixels;
+    /// <summary>Asks for a look at the next frame mpv draws (<see cref="Flat"/>).</summary>
+    public void LookNextFrame() => _lookWanted = true;
+    /// <summary>
+    /// The last frame looked at was a single colour other than black (its rows from a fifth to two thirds of the
+    /// height, above the subtitles), and how many looks so far: what a Mac whose OpenGL lost the picture shows, grey.
+    /// </summary>
+    public (bool Flat, int Looks) Flat => (_flat, Volatile.Read(ref _looks));
+    private volatile bool _flat;
+    private int _looks;
+    private void Look(GlInterface gl, int width, int height)
+    {
+        if (_readPixels == IntPtr.Zero) _readPixels = gl.GetProcAddress("glReadPixels");
+        if (_readPixels == IntPtr.Zero || width < 16 || height < 16) return;
+        var read = (delegate* unmanaged[Cdecl]<int, int, int, int, int, int, void*, void>)_readPixels;
+        var row = new byte[width * 4];
+        Span<int> low = [255, 255, 255], high = [0, 0, 0];
+        fixed (byte* pixels = row)
+            for (var line = 0; line < 6; line++)
+            {
+                // OpenGL counts rows from the bottom: a third to four fifths from there.
+                read(0, height / 3 + line * (height * 7 / 15) / 5, width, 1, GlRgba, GlUnsignedByte, pixels);
+                for (var x = 0; x < row.Length; x += 4)
+                    for (var c = 0; c < 3; c++) { low[c] = Math.Min(low[c], row[x + c]); high[c] = Math.Max(high[c], row[x + c]); }
+            }
+        _flat = high[0] - low[0] <= 6 && high[1] - low[1] <= 6 && high[2] - low[2] <= 6 && high[0] + high[1] + high[2] > 3 * 40;
+        Interlocked.Increment(ref _looks);
+    }
+    private const int GlRgba = 0x1908, GlUnsignedByte = 0x1401;
     /// <summary>The screen whose colour profile mpv has (0: none yet), and when the view last looked.</summary>
     private uint _profileDisplay; private long _profileCheckedAt = long.MinValue / 2;
     /// <summary>The name of the screen's colour profile mpv converts to (« Infos de lecture »); empty when it has none.</summary>
@@ -132,6 +171,12 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
     /// </summary>
     private void ShowColours(MpvPlayer player)
     {
+        if (_noColours)
+        {
+            // Taken back on the thread that draws, as mpv's render context wants.
+            if (ColourProfile.Length > 0) { MpvRender.SetIccProfile(player, _context, []); ColourProfile = ""; }
+            return;
+        }
         if (!OperatingSystem.IsMacOS() || Environment.TickCount64 - _profileCheckedAt < 2000) return;
         _profileCheckedAt = Environment.TickCount64;
         var display = DisplayProfile.DisplayOf(this);

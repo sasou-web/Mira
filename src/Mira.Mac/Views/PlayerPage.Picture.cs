@@ -43,6 +43,68 @@ public sealed partial class PlayerPage
         _shell.Notice(L($"Image passée en « {PictureQuality.Label(lower)} » : ce Mac perdait des images. Jusqu’à la fermeture de Mira (Réglages → Lecture → Image).",
             $"Picture set to “{PictureQuality.Label(lower)}”: this Mac was dropping frames. Until Mira quits (Settings → Playback → Picture)."));
     }
+    // —— A grey picture ——
+    // A Mac where mpv's OpenGL picture came out a single grey while the sound and the bar went on (0.8.7, a friend's
+    // Mac): the view looks at a frame each second (VideoView.Flat), and four flat ones in a row while it plays take a
+    // step back from what OpenGL does there: the screen's colour profile and debanding, then hardware decoding, then
+    // no OpenGL at all (SoftwareVideoView). The step is kept (PlayerSettings.VideoRepair) until « Image » is chosen again.
+    private long _greyLookAt; private int _greyLooks, _greyFlat;
+    private bool _repairing;
+    /// <summary>Each tick of a loaded playback: a look at the picture once a second while it plays.</summary>
+    private void WatchGrey(MpvPlayer mpv, bool paused)
+    {
+        if (_surface is not VideoView view || _repairing || paused || mpv.Flag("seeking") || mpv.Flag("paused-for-cache")) return;
+        var (flat, looks) = view.Flat;
+        if (looks != _greyLooks) { _greyLooks = looks; _greyFlat = flat ? _greyFlat + 1 : 0; }
+        if (_greyFlat >= 4) { _greyFlat = 0; _ = RepairAsync(mpv, view); return; }
+        if (Environment.TickCount64 - _greyLookAt < 1000) return;
+        _greyLookAt = Environment.TickCount64;
+        view.LookNextFrame();
+    }
+    /// <summary>The steps up to <paramref name="level"/> that need no other view, on a player about to play or playing.</summary>
+    private static void Repair(MpvPlayer mpv, IVideoSurface surface, int level)
+    {
+        if (level >= 1)
+        {
+            mpv.Set("icc-profile-auto", "no"); mpv.Set("deband", "no");
+            if (surface is VideoView view) view.DropColours();
+        }
+        if (level >= 2) mpv.Set("hwdec", "no");
+    }
+    private async Task RepairAsync(MpvPlayer mpv, VideoView view)
+    {
+        var level = Math.Min(3, _shell.Settings.VideoRepair + 1);
+        _shell.Settings.VideoRepair = level;
+        System.Diagnostics.Trace.WriteLine($"Mira: grey picture, repair {level}");
+        // The next looks after the change has reached the screen.
+        _greyLookAt = Environment.TickCount64 + 1500;
+        if (level < 3) { Repair(mpv, view, level); return; }
+        _repairing = true;
+        try { await DrawWithoutOpenGlAsync(mpv, view); }
+        finally { _repairing = false; }
+    }
+    /// <summary>
+    /// The playing video moved to <see cref="SoftwareVideoView"/>, paused meanwhile: the video track let go first (mpv
+    /// would otherwise lose its output with the OpenGL context and drop the video for good), the context freed with the
+    /// view, the other one made, then the track taken again at the same place.
+    /// </summary>
+    private async Task DrawWithoutOpenGlAsync(MpvPlayer mpv, VideoView view)
+    {
+        var track = mpv.Get("vid") is { Length: > 0 } and not "no" and not "auto" and var id ? id : "1";
+        var paused = mpv.Flag("pause");
+        mpv.Set("pause", "yes"); mpv.Set("vid", "no");
+        await DetachAsync(view);
+        for (var i = 0; i < 40 && view.Drawing; i++) await Task.Delay(50);
+        if (_mpv != mpv || _stopped || view.Drawing) return;
+        var software = new SoftwareVideoView();
+        try { if (!await AttachAsync(software, mpv)) return; }
+        catch (InvalidOperationException) { return; }
+        mpv.Set("vid", track);
+        if (!paused) mpv.Set("pause", "no");
+        _shell.Notice(L("L’image restait grise : la vidéo s’affiche maintenant sans OpenGL. Jusqu’à un nouveau choix dans Réglages → Lecture → Image.",
+            "The picture stayed grey: the video is now drawn without OpenGL. Until Settings → Playback → Picture is chosen again."));
+    }
+
     /// <summary>
     /// « Informations » of the ⋮ menu, as on Windows: what mpv plays and how it draws it, to tell a stream converted by
     /// Jellyfin (« Qualité » above says it), a Mac without OpenGL or without its screen's colours from a file of poor quality.
@@ -61,8 +123,15 @@ public sealed partial class PlayerPage
         var drawing = _surface is VideoView gl ? $"OpenGL{(gl.Renderer.Length > 0 ? " · " + gl.Renderer : "")}" : L("logiciel (sans OpenGL)", "software (no OpenGL)");
         if (shownWidth > 0 && shownHeight > 0) drawing += $" · {shownWidth:0} × {shownHeight:0}";
         var colours = _surface is VideoView { ColourProfile.Length: > 0 } view ? L($"profil de l’écran ({view.ColourProfile})", $"screen profile ({view.ColourProfile})") : L("non gérées", "not managed");
-        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}",
-            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}");
+        var repair = _shell.Settings.VideoRepair switch
+        {
+            1 => L("\nRéparé  image grise : profil de l’écran et lissage coupés", "\nRepaired  grey picture: screen profile and smoothing off"),
+            2 => L("\nRéparé  image grise : profil de l’écran, lissage et décodage matériel coupés", "\nRepaired  grey picture: screen profile, smoothing and hardware decoding off"),
+            >= 3 => L("\nRéparé  image grise : rendu sans OpenGL", "\nRepaired  grey picture: drawn without OpenGL"),
+            _ => ""
+        };
+        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}{repair}",
+            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{repair}");
     }
     /// <summary>The level playing, said in « Informations ».</summary>
     private string PictureInfo => PictureQuality.Label(_picture) + (_picture != PictureQuality.Known(_shell.Settings.Picture) ? L(" (allégée)", " (lightened)") : "");
