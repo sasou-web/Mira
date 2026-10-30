@@ -238,6 +238,26 @@ public static class SelfCheck
                 await window.StopPlaybackAsync();
             }
 
+            // —— « Garder sur ce Mac »: the file copied, listed, played from this Mac, then removed ——
+            if (mock is not null)
+            {
+                await window.KeepOfflineAsync([movie]);
+                var copied = await Until(() => window.KeptCopy(movie.Id) is not null, 30);
+                var copy = window.KeptCopy(movie.Id);
+                Check(copied && window.Offers("offline"), "garder sur ce Mac : le film copié", copy?.VideoPath ?? window.NoticeText ?? "");
+                if (copy is not null)
+                {
+                    window.Go("offline");
+                    Check(await Until(() => window.Current is OfflinePage { Count: 1 }, 5), "garder sur ce Mac : la page « Sur ce Mac »", $"{(window.Current as OfflinePage)?.Count} titres");
+                    await Task.Delay(800); Capture(window, output, "09-offline");
+                    await window.PlayAsync(movie);
+                    Check(await Until(() => window.Player is { IsFileLoaded: true }, 20) && window.Player?.Location == copy.VideoPath, "garder sur ce Mac : lu depuis ce Mac", window.Player?.Location ?? "lecteur fermé");
+                    await window.StopPlaybackAsync();
+                    await window.ForgetOfflineAsync([copy]);
+                    Check(await Until(() => !File.Exists(copy.VideoPath) && !window.Offers("offline"), 10), "garder sur ce Mac : retiré");
+                }
+            }
+
             // —— Sign-out ——
             if (mock is not null)
             {

@@ -127,7 +127,17 @@ public sealed class MockJellyfin : HttpMessageHandler
             return Items(people.Where(x => x.Item2.Contains(query["searchTerm"] ?? "", StringComparison.CurrentCultureIgnoreCase))
                 .Select(x => (object)new { Id = x.Item1, Name = x.Item2, Type = "Person", ImageTags = new Dictionary<string, string> { ["Primary"] = "p" + x.Item1 } }));
         }
-        if (path.StartsWith("Items/") && path.Split('/').Length == 2) return Find(path.Split('/')[1]) is { } item ? Json(item) : new HttpResponseMessage(HttpStatusCode.NotFound);
+        // A title alone comes with its file, as Jellyfin gives it (« Garder sur ce Mac » reads its size).
+        if (path.StartsWith("Items/") && path.Split('/').Length == 2)
+        {
+            if (Find(path.Split('/')[1]) is not { } item) return new HttpResponseMessage(HttpStatusCode.NotFound);
+            if (Type(item) is not ("Movie" or "Episode")) return Json(item);
+            var node = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(item))!.AsObject();
+            var file = Id(item).StartsWith("series") ? _short : _media;
+            node["MediaSources"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["Id"] = "source-" + Id(item), ["Container"] = Path.GetExtension(file).TrimStart('.'), ["Size"] = new FileInfo(file).Length, ["Protocol"] = "File", ["Path"] = file, ["MediaStreams"] = new System.Text.Json.Nodes.JsonArray() });
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json") };
+        }
+        if (path.StartsWith("Items/") && path.EndsWith("/Download")) return await FileAsync(request, path.Split('/')[1].StartsWith("series") ? _short : _media, cancellationToken);
         if (path == "Items")
         {
             IEnumerable<object> items = All;
