@@ -7,6 +7,7 @@
     <a href="https://github.com/sasou-web/Mira/releases/tag/v0.8.7"><img src="https://img.shields.io/badge/version-0.8.7_préversion-e8e8ed?style=flat-square" alt="Version 0.8.7, préversion" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-e8e8ed?style=flat-square" alt="Licence MIT" /></a>
     <a href="https://github.com/sasou-web/Mira/actions/workflows/ci.yml"><img src="https://github.com/sasou-web/Mira/actions/workflows/ci.yml/badge.svg" alt="Compilation et tests" /></a>
+    <a href="https://discord.gg/Bh3F6PDUvB"><img src="https://img.shields.io/badge/discord-rejoindre-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Rejoindre le Discord de Mira" /></a>
   </p>
   <p>
     <a href="https://github.com/sasou-web/Mira/releases/tag/v0.8.7"><strong>Télécharger pour Windows</strong></a> ·

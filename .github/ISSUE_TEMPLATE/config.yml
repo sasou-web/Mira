@@ -3,3 +3,9 @@ contact_links:
   - name: Documentation et installation
     url: https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION.md
     about: Vérifier les prérequis et les solutions aux problèmes courants.
+  - name: Question or help
+    url: https://github.com/sasou-web/Mira/discussions/categories/q-a
+    about: Ask in Discussions (Q&A). Issues are for bugs and feature requests.
+  - name: Chat on Discord
+    url: https://discord.gg/Bh3F6PDUvB
+    about: Talk about Mira and Jellyfin with other users.
