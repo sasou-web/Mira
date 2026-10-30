@@ -41,7 +41,7 @@ public sealed class MainWindow : Window
     private readonly Grid _root = new();
     private readonly ContentControl _host = new();
     private readonly Panel _overlay = new();
-    private readonly StackPanel _railItems = new() { Spacing = 10, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly StackPanel _railItems = new() { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Border _rail;
     private readonly Border _toast;
     private readonly TextBlock _toastText = new() { FontSize = 14, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 520 };
@@ -49,7 +49,7 @@ public sealed class MainWindow : Window
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(6) };
     /// <summary>Jellyfin's change notifications come in bursts (a scan, a playback elsewhere): one refresh after the last.</summary>
     private readonly DispatcherTimer _serverChanged = new() { Interval = TimeSpan.FromSeconds(2) };
-    private readonly TextBlock _avatar = new() { FontSize = 15, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _avatar = new() { FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#DEDEE4"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly List<Page> _history = [];
     private readonly Dictionary<string, Button> _railButtons = [];
     private Action? _toastClick;
@@ -60,6 +60,8 @@ public sealed class MainWindow : Window
     public BuiltInTailscale Tailnet { get; }
     /// <summary>Top room left for the macOS window buttons, which sit over Mira's own content.</summary>
     public double TitleBarInset { get; }
+    /// <summary>Wide enough for the traffic lights above the brand, close to Windows' 68.</summary>
+    private const double RailWidth = 76;
     /// <summary>When the window last came to the front (Environment.TickCount64): its click shows the player's controls, never pauses.</summary>
     public long ActivatedAt { get; private set; } = long.MinValue / 2;
 
@@ -95,7 +97,7 @@ public sealed class MainWindow : Window
         if (TitleBarInset > 0)
         {
             // The strip where the title bar was: drags the window, and a double click zooms it, as on any Mac window.
-            var strip = new Border { Height = TitleBarInset, VerticalAlignment = VerticalAlignment.Top, Background = Brushes.Transparent, Margin = new Thickness(84, 0, 0, 0) };
+            var strip = new Border { Height = TitleBarInset, VerticalAlignment = VerticalAlignment.Top, Background = Brushes.Transparent, Margin = new Thickness(RailWidth, 0, 0, 0) };
             strip.PointerPressed += (_, e) =>
             {
                 if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
@@ -114,6 +116,9 @@ public sealed class MainWindow : Window
             // An account made administrator (or no longer) since the sign-in: Téléchargements comes or goes when Mira is back in front.
             if (Session is { } session && DateTimeOffset.UtcNow - _rightsAsked > TimeSpan.FromMinutes(1)) _ = OfferDownloadsAsync(session);
         };
+        // The player takes its keys before the control that has the focus: Space never clicks again the last button pressed,
+        // and the arrows never move a slider or a page behind the video.
+        AddHandler(KeyDownEvent, (_, e) => { if (Player is { } player) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
         PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsXButton1Pressed) Back(); };
         Closing += OnClosing;
@@ -122,23 +127,24 @@ public sealed class MainWindow : Window
 
     private Border BuildRail()
     {
-        var brand = new Icon("brand", 34) { Foreground = Ui.Ink, Margin = new Thickness(0, 6, 0, 22) };
+        var brand = new Icon("brand", 32) { Foreground = Ui.Ink, Margin = new Thickness(0, 14, 0, 26) };
         foreach (var (key, icon, tip) in new[] { ("home", "home", L("Accueil", "Home")), ("search", "search", L("Rechercher · ⌘F", "Search · ⌘F")), ("Movie", "film", L("Films", "Movies")), ("Series", "series", L("Séries", "Shows")), ("library", "library", L("Toute la bibliothèque", "Whole library")), ("downloads", "download", L("Télécharger sur le PC serveur", "Download to the server PC")) })
         {
-            var button = Ui.IconButton(icon, tip, () => NavigateRoot(key), "rail", 23);
+            var button = Ui.IconButton(icon, tip, () => NavigateRoot(key), "rail", 22);
             _railButtons[key] = button; _railItems.Children.Add(button);
         }
         // Shown once Jellyfin says this account administers it, as its relay requires.
         _railButtons["downloads"].IsVisible = false;
-        var settings = Ui.IconButton("settings", L("Réglages · ⌘,", "Settings · ⌘,"), () => NavigateRoot("settings"), "rail", 23);
+        var settings = Ui.IconButton("settings", L("Réglages · ⌘,", "Settings · ⌘,"), () => NavigateRoot("settings"), "rail", 22);
         _railButtons["settings"] = settings;
-        var avatar = new Border { Width = 38, Height = 38, CornerRadius = new CornerRadius(19), Background = Ui.Brush("#2A2A2E"), Child = _avatar, Margin = new Thickness(0, 6, 0, 0) };
+        var avatar = new Border { Width = 29, Height = 29, CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3D3D43"), Child = _avatar, Margin = new Thickness(0, 12, 0, 0) };
         ToolTip.SetTip(avatar, L("Compte Jellyfin", "Jellyfin account"));
         var bottom = Ui.Column(8, settings, avatar); bottom.HorizontalAlignment = HorizontalAlignment.Center;
-        var dock = new DockPanel { Margin = new Thickness(0, 18 + TitleBarInset, 0, 22) };
+        var dock = new DockPanel { Margin = new Thickness(0, TitleBarInset, 0, 18) };
         DockPanel.SetDock(brand, Dock.Top); DockPanel.SetDock(bottom, Dock.Bottom);
         dock.Children.Add(brand); dock.Children.Add(bottom); dock.Children.Add(_railItems);
-        return new Border { Width = 84, Background = Ui.Brush("#0A0A0B"), BorderBrush = Ui.Brush("#151517"), BorderThickness = new Thickness(0, 0, 1, 0), Child = dock };
+        // As on Windows: the rail is the window itself (no panel of its own, no edge), only the chosen page is lit.
+        return new Border { Width = RailWidth, Background = Brushes.Transparent, Child = dock };
     }
     private Border BuildToast()
     {
@@ -166,7 +172,7 @@ public sealed class MainWindow : Window
         _toast.IsVisible = true; _toast.Opacity = 1;
         _toastTimer.Stop(); _toastTimer.Interval = TimeSpan.FromSeconds(sticky ? 30 : action is null ? 5 : 9); _toastTimer.Start();
     }
-    private void HideNotice() { _toastTimer.Stop(); _toast.Opacity = 0; DispatcherTimer.RunOnce(() => { if (_toast.Opacity == 0) _toast.IsVisible = false; }, TimeSpan.FromMilliseconds(200)); }
+    public void HideNotice() { _toastTimer.Stop(); _toast.Opacity = 0; DispatcherTimer.RunOnce(() => { if (_toast.Opacity == 0) _toast.IsVisible = false; }, TimeSpan.FromMilliseconds(200)); }
     public string? NoticeText => _toast.IsVisible ? _toastText.Text : null;
     /// <summary>The button of the notice shown (the checks).</summary>
     public string? NoticeAction => _toast.IsVisible && _toastAction.IsVisible ? _toastAction.Content as string : null;
@@ -490,6 +496,7 @@ public sealed class MainWindow : Window
             try { if (item.Type == "Series") item = await PlayerPage.EpisodeOfAsync(session, item); }
             catch (Exception ex) when (Errors.Expected(ex)) { Notice(ex is IOException ? ex.Message : Errors.Friendly(ex)); return; }
             // Another title than the one the group has on: asked first, rather than changed for everyone unannounced.
+            if (Group.ConfirmReplace(item, fromStart)) return;
             if (Together.AsksToReplace(Group.Group, Group.Queue, item.Id)) { _ = Group.OfferReplaceAsync(item, fromStart); return; }
             if (await Group.AskAsync(item, fromStart)) return;
             groupStart = Group.Queue?.StartTicks ?? 0;
@@ -664,7 +671,7 @@ public sealed class MainWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (Player is { } player) { player.HandleKey(e); return; }
+        if (Player is not null) return;
         var command = e.KeyModifiers.HasFlag(KeyModifiers.Meta) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (e.Key == Key.Escape || command && e.Key == Key.OemOpenBrackets) { if (Back()) e.Handled = true; return; }
         if (command && e.Key is Key.F or Key.K) { NavigateRoot("search"); e.Handled = true; return; }

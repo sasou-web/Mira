@@ -254,7 +254,20 @@ public sealed class WatchGroup
         try { name = Together.TitleName(await session.Client.ItemAsync(queue.ItemId, session.Lifetime)); }
         catch (Exception ex) when (Errors.Expected(ex)) { }
         if (!Active || !ReferenceEquals(queue, Queue)) return;
+        _offered = (item.Id, DateTimeOffset.UtcNow.AddSeconds(30));
         _shell.Notice(Together.ReplaceQuestion(name) + L(" Le groupe le regarde en ce moment.", " The group is watching it right now."), L("Remplacer", "Replace"), () => _ = AskAsync(item, fromStart), sticky: true);
+    }
+    private (string Id, DateTimeOffset Until)? _offered;
+    /// <summary>
+    /// The same title chosen again while « Remplacer » is offered for it (half a minute, the time the notice stays):
+    /// that is the answer, as on Windows.
+    /// </summary>
+    public bool ConfirmReplace(MediaItem item, bool fromStart)
+    {
+        if (_offered is not { } offered || offered.Id != item.Id || DateTimeOffset.UtcNow > offered.Until) return false;
+        _offered = null; _shell.HideNotice();
+        _ = AskAsync(item, fromStart);
+        return true;
     }
     /// <summary>« Créer un groupe » (<paramref name="made"/>) or « Rejoindre … »: done once Jellyfin says GroupJoined.</summary>
     public async Task EnterAsync(Func<JellyfinClient, CancellationToken, Task> start, bool invite = false, bool made = false)
