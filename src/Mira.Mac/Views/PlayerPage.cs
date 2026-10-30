@@ -290,6 +290,9 @@ public sealed partial class PlayerPage : UserControl
     private async Task OpenEngineAsync()
     {
         await ReleaseEngineAsync();
+        // The player laid out and drawn once before its view is: a copy kept on this Mac opens without waiting for
+        // Jellyfin, right after the player joined the window, and mpv's view attached then crashed the app (mac.yml).
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
         var player = new MpvPlayer(_shell.Settings, picture: PictureForPlayback());
         _mpv = player;
         player.FileLoaded += FileLoaded;
