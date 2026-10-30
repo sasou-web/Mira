@@ -5,7 +5,10 @@ import AppKit
 
 let arguments = CommandLine.arguments
 guard arguments.count == 3 else { FileHandle.standardError.write("usage: icon-shown.swift <app> <file.png>\n".data(using: .utf8)!); exit(2) }
-let icon = NSWorkspace.shared.icon(forFile: arguments[1])
+// An absolute path: given a relative one, NSWorkspace answers with the icon of an unknown document.
+let app = URL(fileURLWithPath: arguments[1]).standardizedFileURL.path
+guard FileManager.default.fileExists(atPath: app) else { FileHandle.standardError.write("\(app): not found\n".data(using: .utf8)!); exit(1) }
+let icon = NSWorkspace.shared.icon(forFile: app)
 var rect = NSRect(x: 0, y: 0, width: 512, height: 512)
 guard let image = icon.cgImage(forProposedRect: &rect, context: nil, hints: nil),
       let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else { exit(1) }
