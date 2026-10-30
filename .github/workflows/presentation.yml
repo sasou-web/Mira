@@ -1,0 +1,47 @@
+name: Presentation video library
+# TEMPORARY (never merged): the README's library scanned by a Jellyfin 12.1 with TMDb, its metadata and artwork
+# exported and committed to this branch, with the soundtrack ogsas chose, for the presentation video.
+on:
+  push:
+    branches: [claude/project-thread-dqmaw4]
+    paths: [presentation/*.sh, presentation/*.mjs, .github/workflows/presentation.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  JELLYFIN_IMAGE: jellyfin/jellyfin:12.1.20260915-010956
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Soundtrack
+        continue-on-error: true
+        run: |
+          pipx install yt-dlp >/dev/null 2>&1 || pip install --user yt-dlp
+          mkdir -p presentation/export
+          yt-dlp -f bestaudio -x --audio-format m4a -o "presentation/export/music.%(ext)s" "https://www.youtube.com/watch?v=FrD01XVOl80" 2>&1 | tail -20
+          yt-dlp --skip-download --print "%(title)s | %(uploader)s | %(duration)s s" "https://www.youtube.com/watch?v=FrD01XVOl80" > presentation/export/music.txt 2>&1 || true
+          cat presentation/export/music.txt
+      - name: The library
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          presentation/media.sh "$PWD/.artifacts/media"
+          echo "TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+      - name: Jellyfin with TMDb, exported
+        run: |
+          mkdir -p .artifacts/jf-config .artifacts/jf-cache
+          docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
+          node presentation/export.mjs http://127.0.0.1:8096 presentation/export
+          du -sh presentation/export
+      - name: Commit
+        env:
+          TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git add -f presentation/export
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Presentation: the library's metadata and artwork"
+          git push "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:$BRANCH"
