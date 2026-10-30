@@ -158,6 +158,17 @@ public static class SelfCheck
                 await Task.Delay(1500);
                 var colour = ScreenColour(Path.Combine(output, $"08-player-{(software ? "software" : "opengl")}.png"));
                 Check(colour is null || colour > 0.2, $"image visible à l’écran ({renderer})", colour is null ? "capture d’écran indisponible" : $"{colour:P0} de pixels colorés au centre");
+                if (software)
+                {
+                    // « ⋮ » as on Windows: its sections and their choices as chips, on the screen (a menu is a window of its own).
+                    player.MoreButton.Flyout!.ShowAt(player.MoreButton);
+                    await Task.Delay(600);
+                    var menu = (player.MoreButton.Flyout as Flyout)?.Content as Control;
+                    var chips = menu?.GetVisualDescendants().OfType<Button>().Count(x => x.Classes.Contains("menuchip")) ?? 0;
+                    ScreenColour(Path.Combine(output, "08b-player-menu.png"));
+                    Check(chips >= 6 && (menu is null || Unnamed(menu).Count == 0), "lecteur : menu « ⋮ » en pastilles, comme sous Windows", $"{chips} pastilles");
+                    player.MoreButton.Flyout.Hide();
+                }
                 Key(window, Avalonia.Input.Key.Space);
                 Check(await Until(() => engine.Flag("pause"), 3), $"pause ({renderer})");
                 await window.StopPlaybackAsync();
