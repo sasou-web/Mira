@@ -230,7 +230,7 @@ public sealed class DownloadsPage : Page
     private async Task TickAsync()
     {
         // Not under the player, nor while Mira is in the Dock.
-        if (Shell.Player is not null || Shell.WindowState == WindowState.Minimized) return;
+        if (Shell.Watching || Shell.WindowState == WindowState.Minimized) return;
         await LoadStatusAsync();
     }
 

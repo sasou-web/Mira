@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Microsoft.Data.Sqlite;
 using Mira.Core;
 using Mira.Mac.Playback;
@@ -58,6 +59,8 @@ public sealed class MainWindow : Window
     private readonly Dictionary<string, Button> _railButtons = [];
     private Action? _toastClick;
     public PlayerPage? Player { get; private set; }
+    /// <summary>The player over the whole window; the mini-player leaves the library usable.</summary>
+    public bool Watching => Player is { IsMini: false };
     /// <summary>« Regarder ensemble »: the group this Mac is in, whatever plays.</summary>
     public WatchGroup Group { get; }
     /// <summary>« Tailscale intégré »: Mira's own node on the person's Tailscale network, for Jellyfin away from home.</summary>
@@ -123,7 +126,8 @@ public sealed class MainWindow : Window
         };
         // The player takes its keys before the control that has the focus: Space never clicks again the last button pressed,
         // and the arrows never move a slider or a page behind the video.
-        AddHandler(KeyDownEvent, (_, e) => { if (Player is { } player) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // The mini-player takes its keys only when it has the focus: the library around it keeps its own.
+        AddHandler(KeyDownEvent, (_, e) => { if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
         PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsXButton1Pressed) Back(); };
         Closing += OnClosing;
@@ -279,7 +283,7 @@ public sealed class MainWindow : Window
     /// </summary>
     public void FindBetter(MediaItem item)
     {
-        if (Session is null || Player is not null) return;
+        if (Session is null || Watching) return;
         _ = NavigateAsync(new DownloadsPage(this, item));
     }
     /// <summary>Whether the rail offers an entry now (the self-check).</summary>
@@ -434,7 +438,7 @@ public sealed class MainWindow : Window
     private void NavigateRoot(string key)
     {
         if (Session is null) return;
-        if (Player is not null) return;
+        if (Watching) return;
         // The rail starts a new history, as on the Windows app.
         _history.Clear();
         Page page = key switch
@@ -467,7 +471,7 @@ public sealed class MainWindow : Window
     /// <summary>One step back: the player first, then the previous page.</summary>
     public bool Back()
     {
-        if (Player is not null) { _ = StopPlaybackAsync(); return true; }
+        if (Player is { IsMini: false } player) { player.SetMini(true); return true; }
         if (_history.Count == 0) return false;
         var previous = _history[^1]; _history.RemoveAt(_history.Count - 1);
         _host.Content = previous; Light(previous.Rail);
@@ -518,6 +522,12 @@ public sealed class MainWindow : Window
         await player.StopAsync();
         await CloseOverlayPlayerAsync(player);
     }
+    /// <summary>The player shrunk or expanded: the page under it redraws its progress, the keyboard goes back to it.</summary>
+    internal void MiniChanged(PlayerPage player)
+    {
+        if (player != Player) return;
+        if (player.IsMini) { Focus(); _ = RefreshPagesAsync(); }
+    }
     internal async Task CloseOverlayPlayerAsync(PlayerPage player)
     {
         if (Player != player) return;
@@ -533,7 +543,7 @@ public sealed class MainWindow : Window
     /// <summary>After a playback or a change elsewhere, the page on screen redraws its marks.</summary>
     public async Task RefreshPagesAsync(bool fromServer = false)
     {
-        if (Player is not null && fromServer) return;
+        if (Watching && fromServer) return;
         Session?.Forget();
         if (Current is { } page)
         {
@@ -676,11 +686,13 @@ public sealed class MainWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (Player is not null) return;
+        if (Watching) return;
         var command = e.KeyModifiers.HasFlag(KeyModifiers.Meta) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (e.Key == Key.Escape || command && e.Key == Key.OemOpenBrackets) { if (Back()) e.Handled = true; return; }
         if (command && e.Key is Key.F or Key.K) { NavigateRoot("search"); e.Handled = true; return; }
-        if (command && e.Key == Key.OemComma) { NavigateRoot("settings"); e.Handled = true; }
+        if (command && e.Key == Key.OemComma) { NavigateRoot("settings"); e.Handled = true; return; }
+        // I brings the mini-player back over the window, as on Windows; never while typing.
+        if (e.Key == Key.I && e.KeyModifiers == KeyModifiers.None && Player is { IsMini: true } mini && e.Source is not TextBox) { mini.SetMini(false); e.Handled = true; }
     }
     private bool _closing;
     /// <summary>From the first close request: the window is hidden and the session is being closed.</summary>

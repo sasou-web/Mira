@@ -57,7 +57,7 @@ public sealed partial class PlayerPage
     }
     private void ToggleEpisodes()
     {
-        if (!_episodesButton.IsVisible || !_episodesButton.IsEnabled || _episodesButton.Flyout is not Flyout flyout) return;
+        if (_mini || !_episodesButton.IsVisible || !_episodesButton.IsEnabled || _episodesButton.Flyout is not Flyout flyout) return;
         if (flyout.IsOpen) flyout.Hide(); else { ShowControls(); flyout.ShowAt(_episodesButton); }
     }
     /// <summary>Opens on the page of the episode playing; the arrows go from season to season (100 episodes at most).</summary>

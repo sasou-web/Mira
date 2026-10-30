@@ -170,6 +170,14 @@ public static class SelfCheck
                     ScreenColour(Path.Combine(output, "08b-player-menu.png"));
                     Check(chips >= 6 && (menu is null || Unnamed(menu).Count == 0), "lecteur : menu « ⋮ » en pastilles, comme sous Windows", $"{chips} pastilles");
                     player.MoreButton.Flyout.Hide();
+                    // The mini-player, as on Windows: Échap shrinks it to a corner, the rail works around it, I brings it back.
+                    Key(window, Avalonia.Input.Key.Escape);
+                    window.Go("Movie");
+                    await Task.Delay(1200);
+                    ScreenColour(Path.Combine(output, "08d-mini-player.png"));
+                    Check(player.IsMini && window.Player == player && player.Bounds.Width < 400 && window.Current is BrowsePage, "mini-lecteur : la bibliothèque autour", $"{player.Bounds.Width:0} × {player.Bounds.Height:0}, page {window.Current?.GetType().Name}");
+                    Key(window, Avalonia.Input.Key.I);
+                    Check(await Until(() => !player.IsMini && player.Bounds.Width > 800, 3), "mini-lecteur : agrandi par I", $"{player.Bounds.Width:0}");
                 }
                 Key(window, Avalonia.Input.Key.Space);
                 Check(await Until(() => engine.Flag("pause"), 3), $"pause ({renderer})");
