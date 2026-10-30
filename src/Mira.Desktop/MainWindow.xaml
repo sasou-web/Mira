@@ -507,7 +507,9 @@
    <Viewbox x:Name="LoginScroll" Margin="24,84,24,20" Stretch="Uniform" StretchDirection="DownOnly" TextOptions.TextFormattingMode="Ideal"><Grid>
     <v:Squircle x:Name="LoginPanel" Width="420" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="34,30" Background="{StaticResource Sheet}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="20">
      <StackPanel>
-      <TextBlock Text="{v:L 'Se connecter', 'Sign in'}" FontSize="30" FontWeight="Bold" Margin="0,0,0,24"/>
+      <TextBlock x:Name="LoginHeading" Text="{v:L 'Se connecter', 'Sign in'}" FontSize="30" FontWeight="Bold" Margin="0,0,0,24"/>
+      <!-- Opened from the rail while signed in: who is connected, the form below then signs in another account. -->
+      <TextBlock x:Name="LoginSignedIn" Visibility="Collapsed" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" LineHeight="21" Margin="0,-14,0,24"/>
       <TextBlock Text="{v:L 'Serveur Jellyfin', 'Jellyfin server'}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,7"/>
       <Grid><TextBox x:Name="ServerBox" Height="42" Padding="38,11,12,9" FontSize="13" KeyDown="Login_KeyDown" TextChanged="ServerBox_TextChanged" AutomationProperties.Name="{v:L 'Serveur Jellyfin', 'Jellyfin server'}" ToolTip="{v:L 'Une adresse IP, un nom (nas:8096) ou l’adresse de la page web de Jellyfin', 'An IP address, a name (nas:8096) or the address of Jellyfin’s web page'}"/><v:Icon Kind="server" Width="17" Height="17" Foreground="{DynamicResource Faint}" HorizontalAlignment="Left" Margin="13,0,0,0" IsHitTestVisible="False"/><TextBlock x:Name="ServerPlaceholder" Text="{v:L '192.168.1.20 ou 100.x.y.z', '192.168.1.20 or 100.x.y.z'}" Margin="39,0,0,0" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Faint}" IsHitTestVisible="False"/></Grid>
       <!-- The server found on this PC, the home network or Tailscale (MainWindow.ServerSearch.cs), and the others found. -->
