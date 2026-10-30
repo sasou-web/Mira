@@ -35,7 +35,7 @@ public abstract class Page : UserControl
 /// Mira's window: the rail of the Windows app on the left, the current page beside it, the player above everything
 /// while it plays. Pages are kept in a history that Échap, ⌘[ and the back button walk.
 /// </summary>
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     public Profile Profile { get; }
     public PlayerSettings Settings { get; }
@@ -137,13 +137,15 @@ public sealed class MainWindow : Window
     private Border BuildRail()
     {
         var brand = new Icon("brand", 32) { Foreground = Ui.Ink, Margin = new Thickness(0, 14, 0, 26) };
-        foreach (var (key, icon, tip) in new[] { ("home", "home", L("Accueil", "Home")), ("search", "search", L("Rechercher · ⌘F", "Search · ⌘F")), ("Movie", "film", L("Films", "Movies")), ("Series", "series", L("Séries", "Shows")), ("library", "library", L("Toute la bibliothèque", "Whole library")), ("downloads", "download", L("Télécharger sur le PC serveur", "Download to the server PC")) })
+        foreach (var (key, icon, tip) in new[] { ("home", "home", L("Accueil", "Home")), ("search", "search", L("Rechercher · ⌘F", "Search · ⌘F")), ("Movie", "film", L("Films", "Movies")), ("Series", "series", L("Séries", "Shows")), ("library", "library", L("Toute la bibliothèque", "Whole library")), ("offline", "laptop", L("Sur ce Mac · les titres gardés pour les regarder sans connexion", "On this Mac · titles kept to watch offline")), ("downloads", "download", L("Télécharger sur le PC serveur", "Download to the server PC")) })
         {
             var button = Ui.IconButton(icon, tip, () => NavigateRoot(key), "rail", 22);
             _railButtons[key] = button; _railItems.Children.Add(button);
         }
         // Shown once Jellyfin says this account administers it, as its relay requires.
         _railButtons["downloads"].IsVisible = false;
+        // Shown once this account keeps a title on this Mac.
+        _railButtons["offline"].IsVisible = false;
         var settings = Ui.IconButton("settings", L("Réglages · ⌘,", "Settings · ⌘,"), () => NavigateRoot("settings"), "rail", 22);
         _railButtons["settings"] = settings;
         var avatar = new Border { Width = 29, Height = 29, CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3D3D43"), Child = _avatar, Margin = new Thickness(0, 12, 0, 0) };
@@ -254,6 +256,7 @@ public sealed class MainWindow : Window
         _ = OfferDownloadsAsync(Session);
         CollectionRights = TitleCollections.Rights.None;
         _ = LoadCollectionRightsAsync(Session);
+        _ = LoadOfflineAsync(Session);
         _history.Clear();
         await NavigateAsync(new HomePage(this));
         if (Session.Store.DamagedCopy is not null) Notice(L("Le cache local de ce compte était illisible : il a été recréé.", "This account’s local cache couldn’t be read: it was created again."));
@@ -416,7 +419,11 @@ public sealed class MainWindow : Window
         await Task.Run(Profile.ClearConnection);
         // Then Jellyfin, a few seconds at most: an unreachable server never holds the sign-out.
         var closed = session is not null && await session.SignOutAsync();
+        var roots = OfflineRoots;
+        ForgetOfflineState();
         var erased = erase && session is not null ? await AccountData.EraseAsync(Profile.DirectoryPath, session.Connection) : (bool?)null;
+        // The titles kept on this Mac go with the rest of the account's data.
+        if (erased is not null && session is not null) erased = await Task.Run(() => OfflineCopies.Erase(roots, session.Connection)) && erased.Value;
         var message = session is null ? null : AccountData.SignedOut(L("ce Mac", "this Mac"), closed, erased);
         // What is left to do on Jellyfin stays on the sign-in page; a toast would leave after a few seconds.
         ShowLogin(closed ? null : message);
@@ -427,6 +434,7 @@ public sealed class MainWindow : Window
     private async Task CloseSessionAsync()
     {
         Group.Gone(); _listening = false; _choicesSoon.Stop();
+        ForgetOfflineState();
         if (Session is { } session) { Session = null; await session.DisposeAsync(); }
     }
 
@@ -448,6 +456,7 @@ public sealed class MainWindow : Window
             "Movie" => new BrowsePage(this, BrowseKind.Movies),
             "Series" => new BrowsePage(this, BrowseKind.Series),
             "library" => new BrowsePage(this, BrowseKind.All),
+            "offline" => new OfflinePage(this),
             "downloads" => new DownloadsPage(this),
             _ => new SettingsPage(this)
         };
@@ -623,6 +632,7 @@ public sealed class MainWindow : Window
             Add(L("Ajouter à une collection…", "Add to collection…"), () => _ = CollectAsync(item));
             if (Current is BrowsePage { Saga: { } shown }) Add(L("Retirer de la collection", "Remove from collection"), () => _ = PutInCollectionAsync(item, shown, false));
         }
+        if (OfflineMenuItem(item) is { } offline) menu.Items.Add(offline);
         if (item.Type is "Movie" or "Episode" && Offers("downloads")) Add(L("Chercher une meilleure version", "Find a better version"), () => FindBetter(item));
         return menu;
     }

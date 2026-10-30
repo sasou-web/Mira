@@ -79,6 +79,9 @@ public sealed class SettingsPage : Page
         DrawHome();
         if (shell.Session is { } account) _ = LoadLibrariesAsync(account.Client);
 
+        // « Sur ce Mac »: where the titles kept to watch offline go, and all of them removed at once.
+        page.Children.Add(Section(L("Sur ce Mac", "On this Mac"), OfflineRows()));
+
         page.Children.Add(Section(L("Langues", "Languages"),
             AppLanguage(settings),
             Choice(L("Audio", "Audio"), Audio, settings.AudioLanguage, v => settings.AudioLanguage = v),
@@ -249,6 +252,41 @@ public sealed class SettingsPage : Page
         return button;
     }
 
+    private Control[] OfflineRows()
+    {
+        var folder = new TextBlock { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+        var kept = new TextBlock { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap };
+        var choose = Ui.Action(L("Choisir…", "Choose…"), null, "", () => _ = ChooseOfflineFolderAsync());
+        Avalonia.Automation.AutomationProperties.SetName(choose, L("Choisir le dossier des titres gardés sur ce Mac", "Choose the folder for titles kept on this Mac"));
+        var clear = Ui.Action(L("Tout retirer", "Remove all"), null, "", Shell.AskForgetAllOffline);
+        Avalonia.Automation.AutomationProperties.SetName(clear, L("Retirer de ce Mac tous les titres gardés", "Remove every title kept on this Mac"));
+        void Show()
+        {
+            folder.Text = Shell.OfflineFolder;
+            var done = Shell.OfflineCopiesKept.Where(x => x.Complete).ToList();
+            kept.Text = L("Sur la fiche d’un film ou d’une série, « Garder sur ce Mac » garde son fichier d’origine ici, pour le regarder sans connexion. Ils sont dans « Sur ce Mac », dans la barre de gauche.", "On a movie’s or a show’s page, “Keep on this Mac” keeps its original file here, to watch it offline. They’re under “On this Mac” in the sidebar.")
+                + (done.Count > 0 ? L($" Ici : {Lang.Count(done.Count, "titre", "titres", "", "")}, {OfflineCopies.SizeText(done.Sum(x => x.Size))}.", $" Here: {Lang.Count(done.Count, "", "", "title", "titles")}, {OfflineCopies.SizeText(done.Sum(x => x.Size))}.") : "");
+            clear.IsVisible = Shell.OfflineCopiesKept.Count > 0;
+        }
+        Show();
+        AttachedToVisualTree += (_, _) => Shell.OfflineUpdated += Show;
+        DetachedFromVisualTree += (_, _) => Shell.OfflineUpdated -= Show;
+        var where = new DockPanel();
+        choose.VerticalAlignment = VerticalAlignment.Center; DockPanel.SetDock(choose, Dock.Right); where.Children.Add(choose);
+        var text = Ui.Column(3, new TextBlock { Text = L("Dossier", "Folder"), FontSize = 15, FontWeight = FontWeight.SemiBold }, folder); text.Margin = new Thickness(0, 0, 24, 0);
+        where.Children.Add(text);
+        var all = new DockPanel();
+        clear.VerticalAlignment = VerticalAlignment.Center; DockPanel.SetDock(clear, Dock.Right); all.Children.Add(clear);
+        var about = Ui.Column(3, new TextBlock { Text = L("Titres gardés", "Kept titles"), FontSize = 15, FontWeight = FontWeight.SemiBold }, kept); about.Margin = new Thickness(0, 0, 24, 0);
+        all.Children.Add(about);
+        return [where, all];
+    }
+    private async Task ChooseOfflineFolderAsync()
+    {
+        var start = Directory.Exists(Shell.OfflineFolder) ? await Shell.StorageProvider.TryGetFolderFromPathAsync(new Uri(Shell.OfflineFolder)) : null;
+        var folders = await Shell.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions { Title = L("Dossier des titres gardés sur ce Mac", "Folder for titles kept on this Mac"), AllowMultiple = false, SuggestedStartLocation = start });
+        if (folders.Count > 0 && Avalonia.Platform.Storage.StorageProviderExtensions.TryGetLocalPath(folders[0]) is { } path) Shell.ChooseOfflineFolder(path);
+    }
     private static Control Section(string title, params Control[] rows)
     {
         var list = new StackPanel { Spacing = 1 };

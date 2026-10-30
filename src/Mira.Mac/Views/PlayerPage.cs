@@ -90,6 +90,10 @@ public sealed partial class PlayerPage : UserControl
     public double Position => _session.Position;
     public MediaItem? Item => _session.Item;
     public MediaItem? NextItem => _skips.Next;
+    /// <summary>What mpv opened: Jellyfin's address, or a file of this Mac (a copy kept, Jellyfin on this Mac).</summary>
+    public string? Location => _stream?.Location;
+    /// <summary>The copy kept on this Mac playing, for its subtitle files.</summary>
+    private OfflineCopy? _playingCopy;
     public string Volume => _volumeText.Text ?? "";
 
     public PlayerPage(MainWindow shell)
@@ -236,9 +240,12 @@ public sealed partial class PlayerPage : UserControl
             var start = groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart, back: _shell.Settings.ResumeBack);
             // Jellyfin on this same Mac: its file directly; otherwise the file as it is, or Jellyfin's conversion under the
             // quality chosen (PlayerPage.Stream.cs).
-            var stream = await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(session, item)), _shell.Settings.AudioLanguage, FileHere);
+            // Kept on this Mac (« Garder sur ce Mac »): its file, with or without Jellyfin; the progress goes as usual.
+            var kept = _shell.KeptCopy(item.Id);
+            var stream = kept is not null ? new ServerStream(kept.Source ?? new MediaSource(), Guid.NewGuid().ToString("N"), kept.VideoPath, null, false, null, null, 0, [])
+                : await ServerStreams.OpenAsync(session.Client, _shell.Speed, _shell.Settings.Quality, item, new StreamWish(start, Memory: await SeriesMemoryAsync(session, item)), _shell.Settings.AudioLanguage, FileHere);
             if (generation != _generation) return false;
-            UseStream(stream);
+            UseStream(stream); _playingCopy = kept;
             _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
             _title.Text = item.DisplayTitle; _subtitle.Text = PlayerText.Subtitle(item);
             _next.IsEnabled = false; ShowEpisodeButtons(item);
@@ -375,7 +382,7 @@ public sealed partial class PlayerPage : UserControl
     {
         if (_shell.Session is not { } session || current.SeriesId is null) return null;
         try { var episodes = (await session.EpisodesAsync(current.SeriesId)).Items; var index = episodes.FindIndex(x => x.Id == current.Id); return index >= 0 ? episodes.ElementAtOrDefault(index + 1) : null; }
-        catch (Exception ex) when (Errors.Expected(ex)) { return null; }
+        catch (Exception ex) when (Errors.Expected(ex)) { return OfflineCopies.NextEpisode(_shell.OfflineCopiesKept, current)?.Item; }
     }
     /// <summary>The next episode in this same player: the window stays as it is (fullscreen included).</summary>
     private async Task PlayNextAsync(MediaItem next, bool completed = false)
@@ -423,7 +430,10 @@ public sealed partial class PlayerPage : UserControl
         // through Built-in Tailscale its proxy's credentials (MpvClient.SetAuthorization keeps them).
         _mpv.SetAuthorization(session.Client.AuthorizationHeader);
         // External subtitles supplied by Jellyfin; a conversion's come when chosen.
-        if (!stream.Converted)
+        // The subtitle files kept beside a copy.
+        if (_playingCopy is { } copy && copy.Item.Id == _session.Item.Id)
+            foreach (var subtitle in copy.Subtitles) _mpv.TryCommand("sub-add", Path.Combine(copy.Folder, subtitle.File), "auto", subtitle.Title ?? "", subtitle.Language ?? "");
+        else if (!stream.Converted)
             foreach (var (track, path) in ServerStreams.Beside(stream.Source, converted: false))
                 _mpv.TryCommand("sub-add", session.Client.ServerUri(path).AbsoluteUri, "auto", track.DisplayTitle ?? "", track.Language ?? "");
         await ChooseStartTracksAsync(session, reopened, generation);
@@ -617,7 +627,8 @@ public sealed partial class PlayerPage : UserControl
         menu.Children.Add(MenuHeading(L("VITESSE", "SPEED")));
         menu.Children.Add(Chips(new[] { 0.75, 1, 1.25, 1.5, 2 }.Select(value => (PlayerText.Speed(value), L("Vitesse ", "Speed ") + PlayerText.Speed(value), Math.Abs(speed - value) < .01,
             (Action)(() => _mpv?.Set("speed", value.ToString(CultureInfo.InvariantCulture))))), 0));
-        if (_stream is { } stream) { menu.Children.Add(MenuHeading(L("QUALITÉ", "QUALITY"))); menu.Children.AddRange(QualityChoices(stream)); }
+        // A copy kept on this Mac plays its own file: no quality to choose.
+        if (_stream is { } stream && _playingCopy is null) { menu.Children.Add(MenuHeading(L("QUALITÉ", "QUALITY"))); menu.Children.AddRange(QualityChoices(stream)); }
         menu.Children.Add(MenuHeading(L("MINUTERIE", "SLEEP TIMER")));
         void Sleep(int? minutes)
         {
@@ -772,7 +783,8 @@ public sealed partial class PlayerPage : UserControl
                 _skips.Next = index >= 0 ? episodes.ElementAtOrDefault(index + 1) : null;
                 _subtitle.Text = PlayerText.Subtitle(item, episodes);
             }
-            catch (Exception ex) when (Errors.Expected(ex)) { }
+            // Without Jellyfin: the next episode kept on this Mac, if there is one.
+            catch (Exception ex) when (Errors.Expected(ex)) { _skips.Next ??= OfflineCopies.NextEpisode(_shell.OfflineCopiesKept, item)?.Item; }
         }
         if (generation != _generation) return;
         _next.IsEnabled = _skips.Next is not null;

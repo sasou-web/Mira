@@ -68,7 +68,12 @@ public sealed class DetailPage : Page
         page.Children.Add(_header); page.Children.Add(_body);
         Content = new ScrollViewer { Content = page };
         SizeChanged += (_, e) => _header.Height = Math.Clamp(e.NewSize.Height * 0.66, 430, 720);
-        _seasons.SelectionChanged += (_, _) => { if (!_filling) RenderEpisodes(); };
+        _seasons.SelectionChanged += (_, _) => { if (!_filling) { RenderEpisodes(); ShowOffline(); } };
+        // « Garder sur ce Mac »: the button and the episodes follow the copies as they come.
+        void OfflineUpdated() { ShowOffline(); if (_item.Type == "Series" && _allEpisodes.Count > 0) RenderEpisodes(); }
+        void OfflineProgressed() => ShowOffline();
+        AttachedToVisualTree += (_, _) => { Shell.OfflineUpdated += OfflineUpdated; Shell.OfflineProgressed += OfflineProgressed; };
+        DetachedFromVisualTree += (_, _) => { Shell.OfflineUpdated -= OfflineUpdated; Shell.OfflineProgressed -= OfflineProgressed; };
         _seasonMark.Click += (_, _) => _ = MarkSeasonAsync();
         Avalonia.Automation.AutomationProperties.SetName(_seasons, L("Saison", "Season"));
     }
@@ -169,6 +174,9 @@ public sealed class DetailPage : Page
         }
         actions.Children.Add(Ui.Action(_item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"), _item.UserData.IsFavorite ? "heart-filled" : "heart", _item.UserData.IsFavorite ? "on" : "", () => _ = Shell.SetFavoriteAsync(_item, !_item.UserData.IsFavorite)));
         actions.Children.Add(Ui.Action(_item.UserData.Played ? L("Vu", "Watched") : L("Marquer comme vu", "Mark as watched"), "check", _item.UserData.Played ? "on" : "", () => _ = Shell.SetPlayedAsync(_item, !_item.UserData.Played)));
+        _offlineButton = new Button { Padding = new Thickness(15, 11) };
+        _offlineButton.Click += (_, _) => OfflineClicked();
+        actions.Children.Add(_offlineButton); ShowOffline();
         var group = Shell.Group.Active ? Shell.Group.Group : null;
         Button? together = null;
         together = Ui.Action(group is null ? L("Regarder ensemble", "Watch together") : L("Ensemble · ", "Together · ") + Together.People(Math.Max(1, group.Participants.Count)), "users", group is null ? "" : "on", () => _ = TogetherMenuAsync(together!));
@@ -190,6 +198,66 @@ public sealed class DetailPage : Page
             actions.Children.Add(fix);
         }
         _top.Children.Add(actions);
+    }
+
+    // —— « Garder sur ce Mac », as Windows' « Garder sur ce PC » ——
+    private Button? _offlineButton;
+    /// <summary>What the button acts on: the film, or every episode of the season shown (not only a slice of a long one).</summary>
+    private List<MediaItem> OfflineTargets()
+    {
+        if (_item.Type == "Series")
+        {
+            var season = ((_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage)?.Season ?? 1;
+            return _allEpisodes.Where(x => (x.ParentIndexNumber ?? 1) == season && MainWindow.CanKeep(x)).ToList();
+        }
+        return MainWindow.CanKeep(_item) ? [_item] : [];
+    }
+    private int SeasonShown() => ((_seasons.SelectedItem as ComboBoxItem)?.Tag as EpisodePage)?.Season ?? 1;
+    /// <summary>Keep the film or the season shown; how far it is; or, kept, a click to remove it.</summary>
+    private void ShowOffline()
+    {
+        if (_offlineButton is not { } button) return;
+        var targets = OfflineTargets();
+        button.IsVisible = targets.Count > 0 && Shell.Session is not null;
+        if (!button.IsVisible) return;
+        var copies = targets.Select(x => Shell.CopyOf(x.Id)).OfType<OfflineCopy>().ToList();
+        var complete = copies.Count(x => x.Complete);
+        string icon, label, tip;
+        if (copies.Count == 0)
+        {
+            (icon, label) = ("download", "");
+            tip = _item.Type == "Series" ? L($"Garder la saison {SeasonShown()} sur ce Mac ({Lang.Count(targets.Count, "épisode", "épisodes", "episode", "episodes")}), pour la regarder sans connexion", $"Keep season {SeasonShown()} on this Mac ({Lang.Count(targets.Count, "épisode", "épisodes", "episode", "episodes")}), to watch it offline") : L("Garder ce film sur ce Mac, pour le regarder sans connexion", "Keep this movie on this Mac, to watch it offline");
+        }
+        else if (complete == targets.Count) { (icon, label) = ("check", L("Sur ce Mac", "On this Mac")); tip = L($"Sur ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Clique pour le retirer", $"On this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}. Click to remove it"); }
+        else
+        {
+            icon = "download";
+            var running = copies.FirstOrDefault(x => !x.Complete && Shell.CopyState(x.Item.Id) is { } state && state.Any(char.IsDigit));
+            label = _item.Type == "Series" ? $"{complete}/{targets.Count}" + (running is null ? "" : " · " + Shell.CopyState(running.Item.Id)) : Shell.CopyState(_item.Id) ?? "";
+            tip = L("Arrive sur ce Mac. Clique pour l’arrêter", "Coming to this Mac. Click to stop it");
+        }
+        var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 9 };
+        content.Children.Add(new Icon(icon, 18) { VerticalAlignment = VerticalAlignment.Center });
+        if (label.Length > 0) content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        button.Content = content; button.Classes.Set("on", complete > 0 && complete == targets.Count);
+        ToolTip.SetTip(button, tip);
+        Avalonia.Automation.AutomationProperties.SetName(button, label.Length > 0 ? label + ". " + tip : tip);
+    }
+    private void OfflineClicked()
+    {
+        if (_offlineButton is not { } button) return;
+        var targets = OfflineTargets(); if (targets.Count == 0) return;
+        var copies = targets.Select(x => Shell.CopyOf(x.Id)).OfType<OfflineCopy>().ToList();
+        if (copies.Count == 0) { _ = Shell.KeepOfflineAsync(targets); return; }
+        var menu = new ContextMenu();
+        void Add(string label, Action action) { var entry = new MenuItem { Header = label }; entry.Click += (_, _) => action(); menu.Items.Add(entry); }
+        var missing = targets.Count - copies.Count;
+        if (missing > 0) Add(L($"Garder {(missing == 1 ? "l’épisode qui manque" : $"les {missing} épisodes qui manquent")}", $"Keep {(missing == 1 ? "the missing episode" : $"the {missing} missing episodes")}"), () => _ = Shell.KeepOfflineAsync(targets));
+        var paused = copies.Where(x => Shell.CopyPaused(x.Item.Id)).ToList();
+        if (paused.Count > 0) Add(L("Reprendre", "Resume"), () => Shell.ResumeOffline(paused));
+        var whole = _item.Type == "Series" ? L("la saison", "the season") : L("le film", "the movie");
+        Add(copies.All(x => x.Complete) ? L($"Retirer {whole} de ce Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}", $"Remove {whole} from this Mac · {OfflineCopies.SizeText(copies.Sum(x => x.Size))}") : L("Arrêter et retirer de ce Mac", "Stop and remove from this Mac"), () => _ = Shell.ForgetOfflineAsync(copies));
+        Ui.OpenUnder(menu, button);
     }
 
     /// <summary>« Nouveaux épisodes »: for an administrator, when the extension follows series.</summary>
@@ -526,6 +594,8 @@ public sealed class DetailPage : Page
         var state = episode.UserData.Played ? L("✓ Vu", "✓ Watched") : isNext ? episode.Progress > 0 ? L("En cours", "In progress") : L("À suivre", "Up next") : null;
         var status = Ui.Column(8, new TextBlock { Text = episode.DurationLabel, FontSize = 12.5, Foreground = Ui.Muted, HorizontalAlignment = HorizontalAlignment.Right });
         if (state is not null) status.Children.Add(new TextBlock { Text = state, FontSize = 12, Foreground = Ui.Brush(episode.UserData.Played ? "#A0C7A8" : "#DADAE0"), HorizontalAlignment = HorizontalAlignment.Right });
+        // « Sur ce Mac », « 42 % », « En attente »: a copy kept on this Mac.
+        if (Shell.CopyState(episode.Id) is { } kept) status.Children.Add(new TextBlock { Text = kept, FontSize = 12, Foreground = Ui.Brush("#DADAE0"), HorizontalAlignment = HorizontalAlignment.Right });
         status.VerticalAlignment = VerticalAlignment.Center; status.Width = 90;
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         grid.Children.Add(art); Grid.SetColumn(copy, 1); grid.Children.Add(copy); Grid.SetColumn(status, 2); grid.Children.Add(status);
