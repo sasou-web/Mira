@@ -95,6 +95,9 @@
     <Style Selector="Button.pill:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#F0202024"/><Setter Property="Foreground" Value="White"/></Style>
 
     <Style Selector="TextBox">
+      <!-- Selected text: macOS's blue under white ink (the theme's accent, white, hid the text it selected). -->
+      <Setter Property="SelectionBrush" Value="#3F6FB5"/>
+      <Setter Property="SelectionForegroundBrush" Value="#FFFFFF"/>
       <Setter Property="Background" Value="#161618"/>
       <Setter Property="BorderBrush" Value="#2A2A2E"/>
       <Setter Property="CornerRadius" Value="8"/>

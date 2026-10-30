@@ -8,7 +8,7 @@ import { tr, trn } from '../i18n.js';
 import { sheet, toast, errorState, emptyState } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
 import { session, temp } from '../session.js';
-import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable, followLine, followNote, pickLine, takenLine } from '../torlink.js';
+import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable, followLine, followNote, pickLine, takenLine, placedLine } from '../torlink.js';
 import { followedSheet } from '../follow.js';
 import { groupReleases, parseRelease, qualityLine, warning, readableName } from '../releases.js';
 import { ownedLookups, ownedLine, lookupKey } from '../owned.js';
@@ -126,7 +126,7 @@ export function create({ query }) {
       ...(follow.picks ?? []).map((pick) => ({ key: `fp:${pick.id}`, ...named(pick.name), line: pickLine(pick, now), failed: pick.state === 'failed', pick })),
     ]);
     update(followsList, followsTitle, followed, followRow);
-    const placed = latest.placed.map((x) => ({ key: `p:${x.id}`, name: x.title, line: x.status, placed: x }));
+    const placed = latest.placed.map((x) => ({ key: `p:${x.id}`, name: x.title, line: placedLine(x.status), placed: x }));
     update(placedList, placedTitle, placedOpen ? placed : placed.slice(0, PLACED_SHOWN), placedRow);
     placedMore.hidden = placed.length <= PLACED_SHOWN;
     placedMore.setAttribute('aria-expanded', String(placedOpen));

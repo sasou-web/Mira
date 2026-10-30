@@ -116,6 +116,26 @@ export function agentLine(agent, now = Date.now()) {
 }
 
 /** A search result: « 1,4 Go · 120 sources · YTS »; nothing of sources for a site that does not count them (SubsPlease). */
+// What Mira for Windows on the server PC says of a title it placed, in its own language (RemoteLines.Placed of Mira.Core):
+// read back in this page's when it is one of those fixed words, as it is else.
+const PLACED = [
+  ['meilleure version en place, l’ancienne dans la Corbeille', 'better version in place, the old one in the Recycle Bin'], ['en attente des fichiers', 'waiting for the files'],
+  ['dossier de bibliothèque à choisir', 'library folder to choose'], ['rangement en cours…', 'sorting…'], ['disponible dans Jellyfin', 'available in Jellyfin'],
+  ['Jellyfin l’ajoute', 'Jellyfin is adding it'], ['rangé', 'in place'], ['rangé en partie', 'partly in place'], ['déjà dans la bibliothèque', 'already in the library'],
+  ['échec', 'failed'], ['ignoré', 'skipped'],
+];
+export function placedLine(status = '') {
+  const pick = (pair) => pair[language() === 'fr' ? 0 : 1];
+  const lower = status.toLowerCase();
+  const word = PLACED.find((pair) => pair.some((x) => x.toLowerCase() === lower));
+  if (word) return pick(word);
+  for (const pair of [['pas remplacé : ', 'not replaced: ']]) {
+    const prefix = pair.find((x) => lower.startsWith(x.toLowerCase()));
+    if (prefix) return pick(pair) + status.slice(prefix.length);
+  }
+  return status;
+}
+
 export function hitLine(hit) {
   const seeders = Math.max(0, Number(hit?.seeders) || 0);
   const sources = !reportsHealth(hit?.source) && seeders === 0 ? '' : seeders === 0 ? tr('aucune source') : trn(seeders, '{n} source', '{n} sources');

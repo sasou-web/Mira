@@ -317,7 +317,7 @@ public sealed class DownloadsPage : Page
             var line = pending is not null && RemoteLines.ActionLine(pending.Action) is { } asked ? asked : RemoteLines.Download(download);
             queue.Add(new($"d:{download.Id}", $"d|{download.Status}|{pending is null}", Shown(download.Name).Title, line, download.Progress, () => DownloadRow(download, pending is null)));
         }
-        var placed = status.Placed.Select(x => new RowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(x.Status), null, () => PlacedRow(x))).ToList();
+        var placed = status.Placed.Select(x => new RowData($"p:{x.Id}", $"p|{x.ItemId}|{x.Ok}", x.Title, Sentence(RemoteLines.Placed(x.Status)), null, () => PlacedRow(x))).ToList();
         var follows = FollowRows(status.Follows, now);
         UpdateRows(_queue, queue); UpdateRows(_follows, follows); UpdateRows(_placed, placed);
         foreach (var key in _rows.Keys.Except(queue.Concat(follows).Concat(placed).Select(x => x.Key)).ToList()) _rows.Remove(key);
@@ -447,7 +447,7 @@ public sealed class DownloadsPage : Page
             buttons.Children.Add(SmallButton(L("Voir", "View"), "play", () => _ = OpenAsync(id), L($"Voir « {placed.Title} »", $"View “{placed.Title}”")));
             actions.Children.Add(buttons);
         }
-        return RowView(placed.Ok ? "check" : "warning", placed.Ok ? Success : Warning, placed.Title, Sentence(placed.Status), null, false, actions);
+        return RowView(placed.Ok ? "check" : "warning", placed.Ok ? Success : Warning, placed.Title, Sentence(RemoteLines.Placed(placed.Status)), null, false, actions);
     }
 
     // —— « Suivre une série »: the series followed, their releases chosen ——

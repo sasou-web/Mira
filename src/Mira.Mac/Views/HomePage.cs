@@ -122,6 +122,7 @@ public sealed class HomePage : Page
             return (merged, history, Errors.TryCache(store.HiddenFromResume) ?? []);
         });
         var row = ContinueWatching.WithoutHidden(ContinueWatching.Order(merged, next.Result.Items, history), hidden, history);
+        _latestTotal = latest.Result.TotalRecordCount;
         Render(session, row, latest.Result.Items, favorites.Result.Items, views, shelves);
     }
     private static async Task<T?> TryAsync<T>(Func<Task<T>> load) where T : class
@@ -144,9 +145,11 @@ public sealed class HomePage : Page
                 HomeLayout.Collections => shelves.GetValueOrDefault(HomeLayout.Collections) ?? [],
                 _ => shelves.GetValueOrDefault(row.LibraryId ?? "") ?? []
             };
-            if (items.Count == 0) continue;
+            // « Ajoutés récemment » is the grid under the rows, as on Windows: it goes on with « Afficher plus ».
+            if (items.Count == 0 || row.Key == HomeLayout.Latest) continue;
             _rows.Children.Add(new CardRow(row.Title, row.Key == HomeLayout.Continue ? items.Select(x => (Control)Cards.Wide(x, session.Images, Shell.Open, 320, Shell.Menu)) : items.Select(Poster)));
         }
+        if (latest.Count > 0 && HomeLayout.Rows(Shell.Settings.HomeRows, libraries).Any(x => x.Key == HomeLayout.Latest && x.Shown)) _rows.Children.Add(LatestGrid(session, latest));
         if (resume.Count == 0 && latest.Count == 0 && favorites.Count == 0 && shelves.Values.All(x => x.Count == 0))
             _empty.Show("folder", L("Ta bibliothèque est vide", "Your library is empty"), L("Range tes films et séries dans les dossiers de Jellyfin : ils apparaîtront ici.", "Put your movies and shows in Jellyfin’s folders: they’ll show up here."),
                 L("Actualiser", "Refresh"), () => _ = Shell.RefreshPagesAsync());
@@ -157,6 +160,45 @@ public sealed class HomePage : Page
         _heroItems = heroes; ShowHero(0);
         _rotate.Stop(); if (heroes.Count > 1 && IsAttachedToVisualTree()) _rotate.Start();
     }
+    /// <summary>The latest titles in a grid of posters, 30 more at each « Afficher plus de titres » while Jellyfin has more.</summary>
+    private Control LatestGrid(Session session, List<MediaItem> latest)
+    {
+        var grid = new CardGrid { MinItemWidth = 180 };
+        foreach (var item in latest) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu));
+        var title = new DockPanel { Margin = new Thickness(0, 0, 6, 22) };
+        var count = new TextBlock { FontSize = 12, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
+        void Counted() => count.Text = Lang.Count(Math.Max(_latestTotal, grid.Children.Count), "titre", "titres", "title", "titles");
+        Counted();
+        DockPanel.SetDock(count, Dock.Right); title.Children.Add(count); title.Children.Add(Ui.SectionTitle(L("Ajoutés récemment", "Recently added")));
+        Button? more = null;
+        more = Ui.Action(L("Afficher plus de titres", "Show more titles"), null, "", () => _ = MoreAsync());
+        more.HorizontalAlignment = HorizontalAlignment.Center; more.Margin = new Thickness(0, 26, 0, 0);
+        more.IsVisible = grid.Children.Count < _latestTotal;
+        async Task MoreAsync()
+        {
+            if (!ReferenceEquals(session, Shell.Session)) return;
+            more!.IsEnabled = false;
+            try
+            {
+                var next = await session.Client.BrowseAsync(start: grid.Children.Count, limit: 30, ct: session.Lifetime);
+                await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(next.Items)));
+                foreach (var item in next.Items) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu));
+                _latestTotal = next.Items.Count == 0 ? grid.Children.Count : next.TotalRecordCount;
+                Counted();
+                more.IsVisible = grid.Children.Count < _latestTotal;
+            }
+            catch (OperationCanceledException) when (session.Lifetime.IsCancellationRequested) { }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+            finally { more.IsEnabled = true; }
+        }
+        var section = Ui.Column(0, title, grid, more);
+        section.Margin = new Thickness(56, 0, 56, 0);
+        return section;
+    }
+    private int _latestTotal;
+    /// <summary>Down to the grid (the self-check's capture).</summary>
+    public void ScrollToEnd() => _scroll.ScrollToEnd();
+    public void ScrollToHome() => _scroll.ScrollToHome();
     private bool IsAttachedToVisualTree() => this.GetVisualRoot() is not null;
 
     private async Task LoadGroupsAsync(Session session)

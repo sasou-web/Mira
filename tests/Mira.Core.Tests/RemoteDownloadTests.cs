@@ -111,6 +111,7 @@ internal static class RemoteDownloadTests
             foreach (var pair in root.GetProperty("followNotes").EnumerateArray()) Assert(RemoteLines.FollowNote(Maybe<FollowNote>(pair[0])) == pair[1].GetString(), $"Note {pair[0]}: {RemoteLines.FollowNote(Maybe<FollowNote>(pair[0]))}");
             foreach (var pair in root.GetProperty("follows").EnumerateArray()) Assert(RemoteLines.Follow(Read<RelayFollow>(pair[0]), now) == pair[1].GetString(), $"Follow {pair[0]}: {RemoteLines.Follow(Read<RelayFollow>(pair[0]), now)}");
             foreach (var pair in root.GetProperty("picks").EnumerateArray()) Assert(RemoteLines.Pick(Read<RelayPick>(pair[0]), now) == pair[1].GetString(), $"Pick {pair[0]}: {RemoteLines.Pick(Read<RelayPick>(pair[0]), now)}");
+            foreach (var pair in root.GetProperty("placed").EnumerateArray()) Assert(RemoteLines.Placed(pair[0].GetString()!) == pair[1].GetString(), $"Placed {pair[0]}: {RemoteLines.Placed(pair[0].GetString()!)}");
             foreach (var pair in root.GetProperty("taken").EnumerateArray()) Assert(RemoteLines.Taken(Read<RelayTaken>(pair[0]), now) == pair[1].GetString(), $"Taken {pair[0]}: {RemoteLines.Taken(Read<RelayTaken>(pair[0]), now)}");
             var download = new RelayDownload(Hash, "Dune", "paused", 10, 0, 0, Eta: 60);
             // Why a download failed: in queue.json, never in TorLink's API; taken from there for the failed ones listed live.
