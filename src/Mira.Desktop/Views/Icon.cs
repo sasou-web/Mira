@@ -57,13 +57,14 @@ public sealed class Icon : FrameworkElement
             if (solid is not null) dc.DrawGeometry(Foreground, RoundPen(Foreground, 1), solid);
             var geometry = Shapes.GetValueOrDefault(Kind) ?? (solid is null ? Shapes["info"] : null);
             var filled = Kind is "play" or "pause";
-            if (geometry is not null && Kind is "home" or "film" or "series" or "library" or "settings")
+            // Closed glyphs get a faint fill of their own ink: a little volume, as duotone icons have.
+            if (geometry is not null && Kind is "home" or "film" or "series" or "library" or "settings" or "heart" or "info" or "help" or "bookmark" or "phone" or "laptop" or "calendar")
             {
                 // Alpha in the brush avoids an offscreen opacity layer for these tiny glyphs.
                 if (Foreground is SolidColorBrush ink)
-                { var color = ink.Color; color.A = (byte)(color.A * .09); var wash = new SolidColorBrush(color); wash.Freeze(); dc.DrawGeometry(wash, null, geometry); }
+                { var color = ink.Color; color.A = (byte)(color.A * .15); var wash = new SolidColorBrush(color); wash.Freeze(); dc.DrawGeometry(wash, null, geometry); }
             }
-            if (geometry is not null) dc.DrawGeometry(filled ? Foreground : null, filled ? null : RoundPen(Foreground, Kind == "next-episode" ? 2.3 : 1.85), geometry);
+            if (geometry is not null) dc.DrawGeometry(filled ? Foreground : null, filled ? null : RoundPen(Foreground, Kind == "next-episode" ? 2.3 : 2), geometry);
             if (Kind is "rewind" or "forward")
             {
                 var text = new FormattedText("10", System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,

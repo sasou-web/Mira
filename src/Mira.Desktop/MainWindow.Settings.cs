@@ -126,7 +126,7 @@ public partial class MainWindow
     {
         foreach (var (panel, nav, empty) in new[] { (SharingSettings, SharingSettingsNav, SharingEmpty), (CareSettings, CareSettingsNav, CareEmpty) })
         {
-            var any = panel.Children.OfType<Border>().Any(x => x.Visibility == Visibility.Visible);
+            var any = panel.Children.OfType<FrameworkElement>().Where(x => x is Border or Squircle).Any(x => x.Visibility == Visibility.Visible);
             nav.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
             empty.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
         }
@@ -136,8 +136,8 @@ public partial class MainWindow
     {
         if (_settingsGroupsWatched) return;
         _settingsGroupsWatched = true;
-        var visibility = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(VisibilityProperty, typeof(Border));
-        foreach (var row in SharingSettings.Children.OfType<Border>().Concat(CareSettings.Children.OfType<Border>())) visibility.AddValueChanged(row, (_, _) => ShowSettingsGroups());
+        var visibility = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(VisibilityProperty, typeof(UIElement));
+        foreach (var row in SharingSettings.Children.OfType<FrameworkElement>().Concat(CareSettings.Children.OfType<FrameworkElement>()).Where(x => x is Border or Squircle)) visibility.AddValueChanged(row, (_, _) => ShowSettingsGroups());
     }
     private void SelectSettingsTab(string tab)
     {

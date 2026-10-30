@@ -44,7 +44,7 @@ public partial class MainWindow
             Settings_Click(this, new()); await CaptureAsync(output, "04-playback-settings");
             SelectSettingsTab("subtitles"); await CaptureAsync(output, "05-subtitle-settings");
             SelectSettingsTab("appearance"); await CaptureAsync(output, "06-appearance-settings");
-            if (HeroAutoPlayCheck.IsChecked == true && (HeroAutoPlayCheck.Template.FindName("Track", HeroAutoPlayCheck) as Border)?.Background is SolidColorBrush switchBrush && switchBrush.Color.R != 245) throw new InvalidOperationException("Enabled switch looks disabled.");
+            if (HeroAutoPlayCheck.IsChecked == true && (HeroAutoPlayCheck.Template.FindName("Track", HeroAutoPlayCheck) as Squircle)?.Background is SolidColorBrush switchBrush && switchBrush.Color.R != 245) throw new InvalidOperationException("Enabled switch looks disabled.");
             SelectSettingsTab("server"); await CaptureAsync(output, "07-server-settings");
             SettingsOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; await RefreshAsync();
             Width = 1920; Height = 1080; await SettleVisualAsync(); await CaptureAsync(output, "08-home-wide");
