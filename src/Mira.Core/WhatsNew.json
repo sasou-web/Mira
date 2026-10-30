@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.8.8",
+    "summary": "Profils et photo, la police Nunito, des pages plus claires, et Mira pour Mac qui se met à jour seule.",
+    "en": { "summary": "Profiles and photos, the Nunito font, clearer pages, and Mira for Mac that updates itself." },
+    "items": [
+      { "icon": "users", "title": "Des profils et ta photo", "text": "Réglages → Profils : les comptes de ton Jellyfin avec leur photo, un profil en un prénom ; ta photo partout.", "web": true,
+        "en": { "title": "Profiles and your photo", "text": "Settings → Profiles: your Jellyfin’s accounts with their photos, a profile from a first name; your photo everywhere." } },
+      { "icon": "sparkle", "title": "Nunito et des avis plus visibles", "text": "Une police plus ronde dans toutes les apps ; avis en cartes plus grandes, avec une croix.", "web": true,
+        "en": { "title": "Nunito and bigger notices", "text": "A rounder font in every app; notices as bigger cards, with a close button." } },
+      { "icon": "film", "title": "Films, Séries et Réglages rangés", "text": "Genres en puces, titre à reprendre en tête ; Réglages en groupes ; fiche plus compacte sur Windows et Mac.", "web": true,
+        "en": { "title": "Films, Shows and Settings tidied", "text": "Genre chips, the title to pick up first; Settings in groups; a tighter title page on Windows and Mac." } },
+      { "icon": "refresh", "title": "Mira pour Mac se met à jour seule", "text": "Comme sous Windows, avec une vraie icône macOS 26 et l’image qui revient si elle grisait. Jamais essayée sur un vrai Mac.",
+        "en": { "title": "Mira for Mac updates itself", "text": "As on Windows, with a real macOS 26 icon and the picture back if it went grey. Never tried on a real Mac." } },
+      { "icon": "phone", "title": "iPhone : onglets, lecteur, sous-titres", "text": "Barre d’onglets fluide, menus du lecteur et PiP plus sûrs, sous-titres à l’heure avec un décalage réglable.",
+        "en": { "title": "iPhone: tabs, player, subtitles", "text": "A smooth tab bar, steadier player menus and PiP, subtitles in time with an adjustable delay." } }
+    ]
+  },
+  {
     "version": "0.8.7",
     "summary": "Mira pour Mac comme sous Windows, le lecteur de Mira sur iPhone et Tailscale intégré.",
     "en": { "summary": "Mira for Mac like on Windows, Mira’s own player on iPhone, and Built-in Tailscale." },
