@@ -67,6 +67,8 @@ struct MainView: View {
     /// A tab touched again while open: its pages start over from the first.
     @State private var restarts: [Section: Int] = [:]
     @State private var keyboard = false
+    /// The tab whose page has come in: a new tab's page fades in, quickly, instead of replacing the other at once.
+    @State private var entered = Section.home
 
     var body: some View {
         TabView(selection: $section) {
@@ -89,7 +91,10 @@ struct MainView: View {
         .animation(.easeOut(duration: 0.2), value: keyboard)
         .modifier(KeyboardWatch(shown: $keyboard))
         .environment(bar)
-        .onChange(of: section) { bar.folded = false }
+        .onChange(of: section) { _, now in
+            bar.folded = false
+            withAnimation(.easeOut(duration: 0.2)) { entered = now }
+        }
         .overlay(alignment: .top) { NoticeToast() }
         .overlay(alignment: .top) { NewEpisodesBanner() }
         .onChange(of: phase) {
@@ -126,6 +131,7 @@ struct MainView: View {
     private func stack(_ tab: Section, @ViewBuilder _ root: () -> some View) -> some View {
         NavigationStack { root() }
             .toolbar(.hidden, for: .tabBar)
+            .opacity(entered == tab || section != tab ? 1 : 0)
             .id(restarts[tab, default: 0])
     }
 }

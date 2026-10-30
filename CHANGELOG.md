@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **La barre d’onglets de l’iPhone, nette et fluide** : l’onglet ouvert montre toujours son nom (**Films** ne restait qu’une icône quand le nom ne tenait pas) ; le carré clair garde la même largeur d’un onglet à l’autre et glisse d’un seul ressort sous les icônes, sans se dédoubler ni sauter en passant de **Films** à **Séries** ; seule l’icône de l’onglet ouvert rebondit, et la page arrive en fondu rapide. Aux plus grandes tailles de texte, tous les onglets passent aux icônes, quel que soit celui qui est ouvert. Pas encore essayé sur un vrai iPhone.
+
 ## 0.8.7 — 2026-10-30
 
 Mira pour Mac au niveau de Windows, le lecteur de Mira sur iPhone, et Tailscale intégré sur Windows, Mac, iPhone et iPad pour joindre ton Jellyfin loin de chez toi.
