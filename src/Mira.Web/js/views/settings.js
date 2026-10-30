@@ -6,6 +6,7 @@ import { tr, trn, trc, number, LANGUAGES, browserLanguage } from '../i18n.js';
 import { sheet, toast } from '../components.js';
 import { resetScreens, replaceRoute } from '../app.js';
 import { installHint } from './login.js';
+import { photoSheet } from './profiles.js';
 import { appleNative } from '../player/video.js';
 import { AUDIO_LANGUAGES, SUBTITLE_LANGUAGES } from '../player/tracks.js';
 import { RESUME_BACK } from '../player/stream.js';
@@ -79,7 +80,10 @@ export function create() {
     // Drawn again after a choice: the keyboard stays on the line it was on.
     keepFocus(el, () => clear(el).append(
       h('div', { class: 'page', style: { paddingBottom: '16px' } }, h('h1', { class: 'page-title' }, tr('Réglages'))),
-      h('div', { class: 'profile' }, avatar, h('div', {},
+      h('div', { class: 'profile' }, user ? h('button', {
+        class: 'avatar-button', 'aria-label': user.PrimaryImageTag ? tr('Changer ta photo') : tr('Ajouter ta photo'),
+        on: { click: () => photoSheet(user, reloadUser) },
+      }, avatar, h('span', { class: 'avatar-edit', 'aria-hidden': 'true' }, icon('pencil', { size: 14 }))) : avatar, h('div', {},
         h('div', { class: 'h3' }, current.userName ?? ''),
         h('div', { class: 'meta' }, current.serverName ? tr('Serveur « {name} »', { name: current.serverName }) : tr('Serveur Jellyfin')))),
       h('div', { class: 'group' },
@@ -89,6 +93,11 @@ export function create() {
         user?.Policy?.IsAdministrator
           ? h('a', { class: 'item', href: '#/en-ce-moment' }, icon('server'),
             h('span', { class: 'grow' }, tr('En ce moment sur Jellyfin'), h('span', { class: 'sub' }, tr('Qui regarde quoi, et si Jellyfin doit convertir.'))), icon('right', { size: 20 }))
+          : null,
+        // « Profils »: an account for someone of the house or a friend, each one's photo.
+        user?.Policy?.IsAdministrator
+          ? h('a', { class: 'item', href: '#/profils' }, icon('users'),
+            h('span', { class: 'grow' }, tr('Profils'), h('span', { class: 'sub' }, tr('Un compte pour chaque personne de la maison ou un ami, avec sa photo.'))), icon('right', { size: 20 }))
           : null,
         // Titles Jellyfin recognized badly, to identify again: what only an administrator may change.
         user?.Policy?.IsAdministrator
@@ -303,6 +312,8 @@ export function create() {
   }
 
   let photo = null;
+  // The photo just changed: Jellyfin's new tag, for the picture of this screen.
+  const reloadUser = () => api.me().then((me) => { user = me; render(); }, () => {});
   render();
   // A choice brought from another device by Jellyfin (account-choices.js) shows at once.
   settingsChanged.addEventListener('change', () => { if (el.isConnected) render(); });

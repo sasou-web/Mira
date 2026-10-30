@@ -189,7 +189,7 @@ export const url = (path, params) => `${base}/${path}${query(params)}`;
  * session's token unless `token` says otherwise (null: none), and only once the server is known to be the session's
  * (trustServer).
  */
-export async function request(method, path, { params, body, plain, signal, timeout = 20000, keepalive = false, token = session.current?.token } = {}) {
+export async function request(method, path, { params, body, plain, type, signal, timeout = 20000, keepalive = false, token = session.current?.token } = {}) {
   if (token && token === session.current?.token) {
     // A report sent as Mira may go away (keepalive) does not wait for a new check: a server found yours a while ago
     // still is, unless the network may have changed since (a silence, a return: recheckServer).
@@ -212,7 +212,7 @@ export async function request(method, path, { params, body, plain, signal, timeo
         Authorization: authorization(token), Accept: 'application/json',
         // Mira's own routes answer their errors in Mira's language.
         ...(path.startsWith('Mira/') ? { 'Accept-Language': language() } : {}),
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : plain !== undefined ? { 'Content-Type': 'text/plain' } : {}),
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : plain !== undefined ? { 'Content-Type': type ?? 'text/plain' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : plain,
     });
@@ -410,9 +410,9 @@ export const api = {
    * Approves another device's code for this account: true when it was; 404 for a code Jellyfin does not know. Asked
    * first whether Quick Connect is on: turned off, Jellyfin answers 401, which would end this session (request).
    */
-  async approveCode(code) {
+  async approveCode(code, userId = user()) {
     if (!await this.quickConnectEnabled()) throw new ApiError(403, tr('Quick Connect est désactivé sur ce serveur : active-le dans le tableau de bord de Jellyfin (Général).'));
-    return post('QuickConnect/Authorize', undefined, { code, userId: user() });
+    return post('QuickConnect/Authorize', undefined, { code, userId });
   },
   /**
    * Signed out here at once; Jellyfin is told with the token that was used, so a new sign-in is never undone, and
@@ -428,6 +428,26 @@ export const api = {
     }).catch(() => {});
   },
   me: () => get('Users/Me'),
+  // Profiles (« Profils », views/profiles.js): every account, for an administrator; a new one made as Mira for Windows
+  // makes a friend's (profiles.js), and each one's photo. An account may change its own photo; another's, only an
+  // administrator. The route of Jellyfin 10.9 still answers on 12.1 (checked): its body is the picture in base64.
+  users: () => get('Users').then((r) => (Array.isArray(r) ? r : [])),
+  virtualFolders: () => get('Library/VirtualFolders').then((r) => (Array.isArray(r) ? r : [])),
+  async createProfile(name, password, policyOf) {
+    const made = await post('Users/New', { Name: name, Password: password });
+    try {
+      const account = await get(`Users/${encodeURIComponent(made.Id)}`);
+      await post(`Users/${encodeURIComponent(made.Id)}/Policy`, policyOf(account.Policy));
+    } catch (error) {
+      // An account that sees everything must not stay behind.
+      await request('DELETE', `Users/${encodeURIComponent(made.Id)}`).catch(() => {});
+      throw error;
+    }
+    return made;
+  },
+  setPhoto: (userId, jpeg) => request('POST', `Users/${encodeURIComponent(userId)}/Images/Primary`, { plain: jpeg, type: 'image/jpeg', timeout: 30000 }),
+  removePhoto: (userId) => request('DELETE', `Users/${encodeURIComponent(userId)}/Images/Primary`),
+  photoUrl: (userId, tag, size) => `${base}/Users/${encodeURIComponent(userId)}/Images/Primary?maxWidth=${size}&tag=${encodeURIComponent(tag)}&quality=90`,
   /** Whether this account administers Jellyfin, asked once per session (« Identifier… », « Titres à corriger »). */
   isAdministrator() {
     const token = session.current?.token;

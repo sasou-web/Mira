@@ -70,7 +70,7 @@ struct JellyfinClient: Sendable {
     /// Sent on the way to the server taken now (Way); found cut, another way is looked for, and a request that may be
     /// sent twice (reading, deleting) goes once more on it.
     @discardableResult
-    func send(_ method: String, _ path: String, _ query: [String: String?] = [:], body: Data? = nil, timeout: TimeInterval? = nil) async throws -> Data {
+    func send(_ method: String, _ path: String, _ query: [String: String?] = [:], body: Data? = nil, contentType: String = "application/json", timeout: TimeInterval? = nil) async throws -> Data {
         var again = ["GET", "HEAD", "DELETE"].contains(method)
         while true {
             var request = URLRequest(url: await Way.shared.map(url(path, query)))
@@ -80,7 +80,7 @@ struct JellyfinClient: Sendable {
             request.setValue(Bundle.main.preferredLocalizations.first ?? "en", forHTTPHeaderField: "Accept-Language")
             if let body {
                 request.httpBody = body
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue(contentType, forHTTPHeaderField: "Content-Type")
             }
             if let timeout { request.timeoutInterval = timeout }
             let (data, response): (Data, URLResponse)

@@ -1,3 +1,4 @@
+import PhotosUI
 import SafariServices
 import SwiftUI
 import UIKit
@@ -13,6 +14,9 @@ struct SettingsView: View {
     @State private var quickConnect = false
     @State private var approving = false
     @State private var web: WebPage?
+    @State private var photo: PhotosPickerItem?
+    @State private var sendingPhoto = false
+    @State private var photoFailure: String?
 
     var body: some View {
         @Bindable var preferences = app.preferences
@@ -20,7 +24,22 @@ struct SettingsView: View {
             if let session = app.session {
                 Section {
                     HStack(spacing: 14) {
-                        Avatar(name: session.userName, url: me?.primaryImageTag.map { app.client?.url("Users/\(session.userId)/Images/Primary", ["maxWidth": "180", "tag": $0]) } ?? nil)
+                        PhotosPicker(selection: $photo, matching: .images, photoLibrary: .shared()) {
+                            Avatar(name: session.userName, url: me?.primaryImageTag.map { app.client?.url("Users/\(session.userId)/Images/Primary", ["maxWidth": "180", "tag": $0]) } ?? nil)
+                                .overlay(alignment: .bottomTrailing) {
+                                    Image(systemName: sendingPhoto ? "ellipsis" : "pencil")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(Palette.onAccent)
+                                        .frame(width: 22, height: 22)
+                                        .background(Palette.accent, in: .circle)
+                                        .overlay(Circle().stroke(Palette.surface, lineWidth: 3))
+                                        .offset(x: 2, y: 2)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(sendingPhoto)
+                        .accessibilityLabel(me?.primaryImageTag == nil ? Text("Add your photo") : Text("Change your photo"))
+                        .accessibilityIdentifier("settings.photo")
                         VStack(alignment: .leading, spacing: 2) {
                             Text(verbatim: session.userName).font(MiraFont.headline).foregroundStyle(Palette.ink)
                             Text("Server “\(session.serverName)”").font(MiraFont.footnote).foregroundStyle(Palette.muted)
@@ -29,7 +48,10 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.vertical, 4)
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .contain)
+                    if let photoFailure {
+                        Text(verbatim: photoFailure).font(MiraFont.footnote).foregroundStyle(Palette.danger)
+                    }
                     NavigationLink {
                         ReportView()
                     } label: {
@@ -43,6 +65,7 @@ struct SettingsView: View {
 
                 if me?.isAdministrator == true {
                     Section {
+                        admin("Profiles", "An account for each person in the house or a friend, with their photo.", symbol: "person.2", route: "profils")
                         admin("Now on Jellyfin", "Who watches what, and whether Jellyfin converts it.", symbol: "server.rack", route: "en-ce-moment")
                         admin("Titles to fix", "Those Jellyfin didn’t recognize, without a poster or twice.", symbol: "exclamationmark.triangle", route: "a-corriger")
                         admin("Automatic subtitles", "Jellyfin looks for each new title’s subtitles and syncs them to the video.", symbol: "captions.bubble", route: "sous-titres-auto")
@@ -176,6 +199,11 @@ struct SettingsView: View {
         .sheet(item: $web) { page in SafariPage(url: page.url).ignoresSafeArea() }
         .task { await load() }
         .refreshable { await load() }
+        .onChange(of: photo) { _, item in
+            guard let item else { return }
+            photo = nil
+            Task { await send(item) }
+        }
     }
 
     private func load() async {
@@ -186,6 +214,24 @@ struct SettingsView: View {
         me = await account
         jellyfinVersion = await info?.version
         quickConnect = await quick
+    }
+
+    /// The picture chosen, made a square JPEG of 512 px (AccountPhoto) and given to Jellyfin: the account's photo on
+    /// every device. Nothing else of it leaves the iPhone (no place, no date: the JPEG is drawn anew).
+    private func send(_ item: PhotosPickerItem) async {
+        guard let client = app.client else { return }
+        sendingPhoto = true; photoFailure = nil
+        defer { sendingPhoto = false }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self), let jpeg = AccountPhoto.square(data) else {
+                photoFailure = String(localized: "This picture won’t open. Choose another photo.")
+                return
+            }
+            try await client.setPhoto(jpeg)
+            me = try? await client.me()
+        } catch {
+            photoFailure = error.localizedDescription
+        }
     }
 
     private func row(_ title: LocalizedStringKey, _ detail: LocalizedStringKey, symbol: String? = nil) -> some View {
@@ -359,7 +405,33 @@ extension JellyfinClient {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) == "true"
     }
 
+    /// The account's photo: a JPEG, sent in base64 as Jellyfin takes it (the route of 10.9, still answered by 12.1;
+    /// any account may change its own).
+    func setPhoto(_ jpeg: Data) async throws {
+        try await send("POST", "Users/\(userId)/Images/Primary", body: jpeg.base64EncodedData(), contentType: "image/jpeg", timeout: 30)
+    }
+
     func approveCode(_ code: String) async throws {
         try await send("POST", "QuickConnect/Authorize", ["code": code, "userId": userId])
+    }
+}
+
+/// A photo for the account: cut square around its middle, at most 512 px, drawn upright (UIImage follows the camera's
+/// orientation) into a new JPEG.
+enum AccountPhoto {
+    static let side: CGFloat = 512
+
+    static func square(_ data: Data) -> Data? {
+        guard let image = UIImage(data: data), image.size.width > 0, image.size.height > 0 else { return nil }
+        let shortest = min(image.size.width, image.size.height)
+        let size = min(side, shortest * image.scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1; format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size), format: format)
+        let scale = size / shortest
+        let drawn = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        return renderer.jpegData(withCompressionQuality: 0.9) { _ in
+            image.draw(in: CGRect(x: (size - drawn.width) / 2, y: (size - drawn.height) / 2, width: drawn.width, height: drawn.height))
+        }
     }
 }
