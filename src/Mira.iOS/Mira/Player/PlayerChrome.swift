@@ -143,7 +143,6 @@ private struct TracksMenu: View {
             ToolIcon(symbol: model.subtitleIndex >= 0 ? "captions.bubble.fill" : "captions.bubble")
         }
         .menuOrder(.fixed)
-        .simultaneousGesture(TapGesture().onEnded { model.touched(holding: true) })
         .accessibilityLabel(Text("Audio and subtitles"))
         .accessibilityIdentifier("player.tracks")
     }
@@ -221,7 +220,6 @@ private struct MoreMenu: View {
             ToolIcon(symbol: "gearshape.fill")
         }
         .menuOrder(.fixed)
-        .simultaneousGesture(TapGesture().onEnded { model.touched(holding: true) })
         .accessibilityLabel(Text("Speed, quality and sleep timer"))
         .accessibilityIdentifier("player.more")
     }

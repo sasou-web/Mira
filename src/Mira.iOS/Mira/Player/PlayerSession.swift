@@ -703,9 +703,9 @@ final class PlayerSession: NSObject {
         controller.giveBrightnessBack()
         let failure = failure
         if failure != nil { app?.retryItem = item }
-        // The picture stays on the player while it slides away; emptied once it is gone (no black frame going down).
+        // The picture stays on the player while it fades away; emptied once it is gone (no black frame going).
         if controller.presentingViewController != nil && !controller.isBeingDismissed {
-            controller.dismiss(animated: true) { [weak self] in
+            controller.leave { [weak self] in
                 self?.player.replaceCurrentItem(with: nil)
                 self?.app?.playerMessage = failure
             }
@@ -1069,7 +1069,7 @@ extension PlayerSession: PlayerActions {
         minimized = true
         model.hideControls()
         app?.playerMinimized(self, true)
-        controller.dismiss(animated: true)
+        controller.leave()
     }
 
     func leaveGroup() {
@@ -1080,11 +1080,12 @@ extension PlayerSession: PlayerActions {
 extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         inPictureInPicture = true
+        model.hideControls()
     }
 
     /// In its window, the title leaves the player: the app is free under it.
     func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        if controller.presentingViewController != nil && !controller.isBeingDismissed { controller.dismiss(animated: true) }
+        controller.leave()
     }
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
@@ -1106,11 +1107,23 @@ extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
             app?.playerMinimized(self, false)
         }
         controller.prepareToShow()
+        model.hideControls()
         guard let top = Self.topController() else {
             completionHandler(true)
             return
         }
-        top.present(controller, animated: true) { completionHandler(true) }
+        // No slide: the player is there at once, turned sideways, and the small window flies back into a picture that
+        // holds still (into one that slides and turns, it jumped).
+        top.present(controller, animated: false) { [weak self] in
+            guard let self else {
+                completionHandler(true)
+                return
+            }
+            self.controller.whenSettled {
+                completionHandler(true)
+                self.model.showControls()
+            }
+        }
     }
 }
 
