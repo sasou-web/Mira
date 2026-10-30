@@ -625,6 +625,7 @@ public sealed partial class PlayerPage : UserControl
             DockPanel.SetDock(leave, Dock.Right); line.Children.Add(leave); line.Children.Add(people);
             menu.Children.Add(line);
         }
+        if (PlaybackInfo() is { } info) { menu.Children.Add(MenuHeading(L("INFORMATIONS", "INFORMATION"))); menu.Children.Add(info); }
         menu.Children.Add(new Border { Height = 1, Background = Ui.Brush("#24FFFFFF"), Margin = new Thickness(10, 2, 10, 6) });
         Button? value = null;
         value = Chip(PlayerText.Delay(delay), L("Remettre à zéro", "Reset"), false, () => Shift(0));

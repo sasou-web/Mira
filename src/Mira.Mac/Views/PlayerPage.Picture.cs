@@ -1,3 +1,6 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
 using Mira.Core;
 using Mira.Mac.Playback;
 using static Mira.Core.Lang;
@@ -40,6 +43,27 @@ public sealed partial class PlayerPage
         _shell.Notice(L($"Image passée en « {PictureQuality.Label(lower)} » : ce Mac perdait des images. Jusqu’à la fermeture de Mira (Réglages → Lecture → Image).",
             $"Picture set to “{PictureQuality.Label(lower)}”: this Mac was dropping frames. Until Mira quits (Settings → Playback → Picture)."));
     }
-    /// <summary>The level playing, said in « Infos de lecture ».</summary>
+    /// <summary>
+    /// « Informations » of the ⋮ menu, as on Windows: what mpv plays and how it draws it, to tell a stream converted by
+    /// Jellyfin (« Qualité » above says it), a Mac without OpenGL or without its screen's colours from a file of poor quality.
+    /// </summary>
+    private Control? PlaybackInfo() => InfoText() is { } lines
+        ? new TextBlock { Text = lines, FontSize = 12, LineHeight = 18, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 0, 10, 8) }
+        : null;
+    /// <summary>The lines of « Informations »; null before the file is loaded.</summary>
+    public string? InfoText()
+    {
+        if (_mpv is not { } mpv || !_loaded) return null;
+        var width = mpv.Number("width"); var height = mpv.Number("height");
+        var video = string.Join(" · ", new[] { PlayerText.Codec(mpv.Get("video-format")), width > 0 && height > 0 ? $"{width:0} × {height:0}" : null, mpv.Get("video-params/pixelformat") is { Length: > 0 } format && format.Contains("10") ? L("10 bits", "10-bit") : null }.OfType<string>());
+        var decoding = mpv.Get("hwdec-current") is { Length: > 0 } hwdec and not "no" ? L($"matériel ({hwdec})", $"hardware ({hwdec})") : L("logiciel", "software");
+        var shownWidth = mpv.Number("osd-width"); var shownHeight = mpv.Number("osd-height");
+        var drawing = _surface is VideoView gl ? $"OpenGL{(gl.Renderer.Length > 0 ? " · " + gl.Renderer : "")}" : L("logiciel (sans OpenGL)", "software (no OpenGL)");
+        if (shownWidth > 0 && shownHeight > 0) drawing += $" · {shownWidth:0} × {shownHeight:0}";
+        var colours = _surface is VideoView { ColourProfile.Length: > 0 } view ? L($"profil de l’écran ({view.ColourProfile})", $"screen profile ({view.ColourProfile})") : L("non gérées", "not managed");
+        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}",
+            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}");
+    }
+    /// <summary>The level playing, said in « Informations ».</summary>
     private string PictureInfo => PictureQuality.Label(_picture) + (_picture != PictureQuality.Known(_shell.Settings.Picture) ? L(" (allégée)", " (lightened)") : "");
 }
