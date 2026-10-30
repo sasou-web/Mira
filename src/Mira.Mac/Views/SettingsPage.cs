@@ -36,6 +36,9 @@ public sealed class SettingsPage : Page
             Row(L("Effacer aussi les données de ce compte sur ce Mac", "Also erase this account’s data on this Mac"),
                 L("En te déconnectant : le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.",
                     "When you sign out: your library’s cache, the posters and any progress not yet sent to Jellyfin. Your settings stay."), erase)));
+        // « Tailscale intégré »: how Mira reaches Jellyfin away from home without the Tailscale app.
+        Tailnet = new TailnetSection(shell, Section);
+        page.Children.Add(Tailnet.Section);
         // « Ton bilan »: the month or the year, from Jellyfin's record of what was played to the end.
         page.Children.Add(Section(L("Ton bilan", "Your recap"), Report()));
         // Quick Connect: shown once Jellyfin says it lets devices in by a code.
@@ -83,6 +86,8 @@ public sealed class SettingsPage : Page
             Row(L("Projet", "Project"), L("Le code, les nouveautés et les versions pour Windows et Mac.", "The code, what’s new and the versions for Windows and Mac."), Ui.Action(L("Ouvrir GitHub", "Open GitHub"), "globe", "", () => Updates.Open(Updates.Project)))));
         Content = new ScrollViewer { Content = page };
     }
+    /// <summary>« Tailscale intégré », its node and the way to Jellyfin.</summary>
+    public TailnetSection Tailnet { get; }
     private void Save() { Shell.Profile.SaveSettings(Shell.Settings); Shell.ChoicesChanged(); }
     /// <summary>
     /// « Langue de Mira »: the Mac's language, English or French. Mira opens in it next time (its texts are written as it

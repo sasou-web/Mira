@@ -28,9 +28,10 @@ public partial class App : Application
             { Checks.VideoProbe.Start(desktop, args[probe + 1], args.Contains("--software")); base.OnFrameworkInitializationCompleted(); return; }
             // --data <folder>: another profile (the self-check uses a fresh one).
             var data = Array.IndexOf(args, "--data") is var index and >= 0 && index + 1 < args.Length ? Path.GetFullPath(args[index + 1]) : null;
-            // The session's token goes to the login keychain. The self-check keeps it in its profile's file, so that no keychain
-            // question can hold its sign-in on a Mac nobody watches (GitHub's); it checks the keychain apart, with a time limit.
-            var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") ? new Keychain() : null;
+            // The session's token goes to the login keychain. The checks keep it in their profile's file, so that no keychain
+            // question can hold their sign-in on a Mac nobody watches (GitHub's); the self-check checks the keychain apart,
+            // with a time limit. The key of « Tailscale intégré » goes the same way (Profile.TailnetKey).
+            var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") && !args.Contains("--tailnet-check") ? new Keychain() : null;
             var window = new MainWindow(args, new Profile(data, tokens));
             desktop.MainWindow = window;
             NameMenu();
@@ -55,8 +56,8 @@ public partial class App : Application
     {
         if (desktop.MainWindow is not MainWindow window) return;
         ErrorLog.Append(window.Profile.DirectoryPath, e.Exception);
-        // The self-check fails on it, with the stack in its log.
-        if (window.Args.Contains("--self-check")) return;
+        // The checks fail on it, with the stack in their log.
+        if (window.Args.Contains("--self-check") || window.Args.Contains("--tailnet-check")) return;
         e.Handled = true;
         // Closing, or not open yet: nothing is left to retry from, and a hidden window would keep Mira running. It ends.
         if (window.IsClosing || !window.IsVisible) { desktop.Shutdown(1); return; }
