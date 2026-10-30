@@ -4,9 +4,9 @@ name: Mac build
 on:
   push:
     branches: [main]
-    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", ".github/workflows/mac.yml"]
+    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
   pull_request:
-    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", ".github/workflows/mac.yml"]
+    paths: ["src/Mira.Mac/**", "src/Mira.Core/**", "src/Mira.Tailscale/**", "tools/mac/**", "tools/tailscale/**", "tests/Mira.Core.Tests/*Tailnet*", ".github/workflows/mac.yml"]
   # No "release: published": GitHub runs nothing for a draft, and an immutable release takes no file once published.
   workflow_dispatch:
     inputs:

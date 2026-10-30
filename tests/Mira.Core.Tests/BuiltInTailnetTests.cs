@@ -12,8 +12,8 @@ using static TestSupport;
 
 /// <summary>
 /// BuiltInTailnet, « Tailscale intégré » as Mira for Windows and Mac drive it, against the helper's stand-in
-/// (FakeTailnet); with MIRA_TAILNET_HELPER and MIRA_TAILNET_TESTNET (the tailscale job of ci.yml), with the real helper on
-/// a Tailscale network of its own too.
+/// (FakeTailnet); with MIRA_TAILNET_HELPER and MIRA_TAILNET_TESTNET (the tailscale job of ci.yml; mac.yml with the node of
+/// Mira.app, its version in MIRA_TAILNET_VERSION), with the real helper on a Tailscale network of its own too.
 /// </summary>
 internal static class BuiltInTailnetTests
 {
@@ -150,9 +150,9 @@ internal static class BuiltInTailnetTests
     }
 
     /// <summary>
-    /// The controller of the apps with the real helper (built with version « test ») on mira-testnet's network, whose
-    /// Jellyfin PC exposes a small HTTP server on its port 8096: the sign-in by the login page, Mira's requests through
-    /// the network it was given, the node started again with the app on its saved state, then signed out.
+    /// The controller of the apps with the real helper (version « test », or MIRA_TAILNET_VERSION) on mira-testnet's
+    /// network, whose Jellyfin PC exposes a small HTTP server on its port 8096: the sign-in by the login page, Mira's
+    /// requests through the network it was given, the node started again with the app on its saved state, then signed out.
     /// </summary>
     private static async Task RealNodeAsync(TestRun run, string helper, string testnet)
     {
@@ -178,13 +178,15 @@ internal static class BuiltInTailnetTests
             var control = info.RootElement.GetProperty("control").GetString()!;
             var ip = info.RootElement.GetProperty("jellyfin").GetProperty("ips")[0].GetString()!;
             var key = RandomNumberGenerator.GetBytes(32); var forgotten = 0;
+            // A helper runs only for an app of its own version: « test » (ci.yml), or Mira's for Mira.app's (mac.yml).
+            var version = Environment.GetEnvironmentVariable("MIRA_TAILNET_VERSION") is { Length: > 0 } given ? given : "test";
             // The person's browser: opening the test network's login page logs the node in.
             using var browser = new HttpClient(new SocketsHttpHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(30) };
             var opened = new List<Task<HttpResponseMessage>>();
             var network = new TailnetNetwork(() => [IPAddress.Parse("192.168.1.20")], "mira-pc");
             BuiltInTailnet Make() => new(new()
             {
-                Locate = () => (helper, null), Directory = directory, StateKey = () => key, AppVersion = "test", ControlUrl = control, Network = network,
+                Locate = () => (helper, null), Directory = directory, StateKey = () => key, AppVersion = version, ControlUrl = control, Network = network,
                 Forget = () => { Interlocked.Increment(ref forgotten); Directory.Delete(directory, recursive: true); },
                 Open = page => { lock (opened) opened.Add(browser.GetAsync(page)); },
             });
