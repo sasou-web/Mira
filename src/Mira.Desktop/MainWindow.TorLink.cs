@@ -609,7 +609,7 @@ public partial class MainWindow
     {
         if (_client is not { } client) return;
         try { await ShowDetailsAsync(await client.ItemAsync(id)); }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
 
     private static void OpenInExplorer(string folder, string? file)

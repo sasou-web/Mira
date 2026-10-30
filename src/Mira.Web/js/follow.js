@@ -32,7 +32,7 @@ function explain(error) {
 
 /** Runs one of the relay's calls, says how it went, then `done()` (the screen reads the series again). */
 async function run(call, said, done) {
-  try { await call(); toast(said); } catch (error) { toast(explain(error)); }
+  try { await call(); toast(said); } catch (error) { toast(explain(error), { tone: 'error' }); }
   done?.();
 }
 

@@ -221,10 +221,10 @@ export function create({ id, query }) {
     }
     let groups;
     try { groups = await together.groups(); } catch (error) {
-      toast(error?.status === 403 ? tr('Jellyfin ne permet pas à ce compte de regarder ensemble (tableau de bord → Utilisateurs → SyncPlay).') : error.message);
+      toast(error?.status === 403 ? tr('Jellyfin ne permet pas à ce compte de regarder ensemble (tableau de bord → Utilisateurs → SyncPlay).') : error.message, { tone: 'error' });
       return;
     }
-    const enter = async (run) => { try { await run(); } catch (error) { toast(error?.message || tr('Le groupe n’a pas pu être rejoint.')); } };
+    const enter = async (run) => { try { await run(); } catch (error) { toast(error?.message || tr('Le groupe n’a pas pu être rejoint.'), { tone: 'error' }); } };
     sheet({
       title: tr('Regarder ensemble'),
       body: about(tr('Regardez le même titre au même moment, chacun chez soi. Crée un groupe et envoie le lien d’invitation, ou rejoins celui d’un ami. Pause, lecture et déplacements sont partagés.')),
@@ -519,10 +519,10 @@ export function create({ id, query }) {
     marking = true; update();
     try {
       for (const id of ids) await api.setPlayed(id, played);
-      toast(played ? tr('Saison marquée comme vue.') : tr('Saison marquée comme non vue.'));
+      toast(played ? tr('Saison marquée comme vue.') : tr('Saison marquée comme non vue.'), { tone: 'done' });
     } catch (error) {
       for (const e of episodes) if (before.has(e.Id)) e.UserData = before.get(e.Id);
-      toast(error.message);
+      toast(error.message, { tone: 'error' });
     } finally { marking = false; }
     // This page follows what Jellyfin says now (where the series picks up), and so do the series' poster and
     // Continuer à regarder on the other screens.
@@ -673,7 +673,7 @@ export function create({ id, query }) {
     } catch (error) {
       if (seq !== loadSeq) return;
       if (!item) clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, () => load())));
-      else toast(error.message);
+      else toast(error.message, { tone: 'error' });
     }
   }
 

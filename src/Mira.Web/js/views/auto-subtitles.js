@@ -60,7 +60,7 @@ export function create() {
       state = { ...state, settings: await api.setAutoSubtitles(changes) };
       render();
       if (said) toast(said);
-    } catch (error) { toast(error.message); load(); }
+    } catch (error) { toast(error.message, { tone: 'error' }); load(); }
   }
 
   function toggle(on, label, sub, run) {
@@ -200,7 +200,7 @@ export function create() {
       toast(added ? trn(added, '{n} recherche ajoutée.', '{n} recherches ajoutées.') : tr('Rien à ajouter : tout est déjà en attente ou fait.'));
       state = { ...state, waiting };
       render();
-    } catch (error) { toast(error.message); }
+    } catch (error) { toast(error.message, { tone: 'error' }); }
   }
 
   load();

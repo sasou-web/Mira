@@ -10,4 +10,10 @@ namespace Mira.Desktop.Views;
 internal static class Palette
 {
     public static Brush Get(string key) => Application.Current?.TryFindResource(key) as Brush ?? Brushes.Gray;
+    /// <summary>One of the palette's colours, see-through (alpha 0-255): the tile of a notice tinted by its state.</summary>
+    public static Brush Tint(string key, byte alpha)
+    {
+        if (Get(key) is not SolidColorBrush solid) return Brushes.Transparent;
+        var brush = new SolidColorBrush(Color.FromArgb(alpha, solid.Color.R, solid.Color.G, solid.Color.B)); brush.Freeze(); return brush;
+    }
 }

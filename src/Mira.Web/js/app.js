@@ -386,7 +386,7 @@ function serverUp() {
   // Even a short silence, never shown, may have left a screen on its error: every screen is asked again.
   if (!wasDown) return;
   wasDown = false;
-  if (!unseen && Date.now() - netShownAt > 3000) toast(tr('Connexion au serveur rétablie.'));
+  if (!unseen && Date.now() - netShownAt > 3000) toast(tr('Connexion au serveur rétablie.'), { tone: 'done', symbol: 'server' });
   current?.refresh?.();
   checkForUpdate();
 }
@@ -630,7 +630,7 @@ function start() {
       if (Date.now() - hiddenAt > 15 * 60_000) lookForNews();
     }
   });
-  addEventListener('offline', () => { if (netbar.hidden) toast(tr('Plus de connexion : Mira reprendra dès le retour du réseau.')); });
+  addEventListener('offline', () => { if (netbar.hidden) toast(tr('Plus de connexion : Mira reprendra dès le retour du réseau.'), { tone: 'error', symbol: 'offline' }); });
   addEventListener('online', () => { if (probeTimer) { clearTimeout(probeTimer); probeDelay = 500; probe(); } else current?.refresh?.(); });
   onReachable((up, reason) => (up ? serverUp() : serverDown(reason)));
   onForeignServer((yes) => (yes ? showForeign() : hideForeign()));

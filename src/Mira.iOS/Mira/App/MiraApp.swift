@@ -222,7 +222,7 @@ enum Messages {
     }
 }
 
-/// A line of « Watch together » said for a few seconds over the top of the app: someone came or went, the group ended.
+/// A notice (« Watch together », a device authorized…) said for a few seconds over the top of the app: someone came or went, the group ended.
 struct NoticeToast: View {
     @Environment(AppModel.self) private var app
 
@@ -230,23 +230,33 @@ struct NoticeToast: View {
         let notice = app.together.notice
         ZStack {
             if let notice {
-                Text(verbatim: notice)
-                    .font(MiraFont.callout)
-                    .foregroundStyle(Palette.ink)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
-                    .glassEffect(.regular, in: .capsule)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 6)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .accessibilityIdentifier("notice")
-                    .onTapGesture { app.together.notice = nil }
-                    .task(id: notice) {
-                        AccessibilityNotification.Announcement(notice).post()
-                        try? await Task.sleep(for: .seconds(4))
-                        if app.together.notice == notice { app.together.notice = nil }
-                    }
+                // A card as on Mira web and the computers: its icon in a tile, the text beside it.
+                HStack(spacing: 12) {
+                    Image(systemName: "info")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Palette.ink)
+                        .frame(width: 40, height: 40)
+                        .background(.white.opacity(0.1), in: .rect(cornerRadius: 12))
+                        .accessibilityHidden(true)
+                    Text(verbatim: notice)
+                        .font(MiraFont.headline)
+                        .foregroundStyle(Palette.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(12)
+                .frame(minHeight: 64)
+                .accessibilityElement(children: .combine)
+                .glassEffect(.regular, in: .rect(cornerRadius: 20))
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .accessibilityIdentifier("notice")
+                .onTapGesture { app.together.notice = nil }
+                .task(id: notice) {
+                    AccessibilityNotification.Announcement(notice).post()
+                    try? await Task.sleep(for: .seconds(4))
+                    if app.together.notice == notice { app.together.notice = nil }
+                }
             }
         }
         .animation(.spring(duration: 0.35), value: notice)

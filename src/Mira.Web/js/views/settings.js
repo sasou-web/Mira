@@ -201,7 +201,7 @@ export function create() {
         .map(([value, label, sub]) => ({ label, sub, selected: value === chosen, run: () => {
           if (value === chosen) return;
           // Without the site's storage the choice would be gone after the reload.
-          if (storageBlocked()) { toast(tr('Ce navigateur bloque le stockage du site : Mira ne peut pas garder ce choix.')); return; }
+          if (storageBlocked()) { toast(tr('Ce navigateur bloque le stockage du site : Mira ne peut pas garder ce choix.'), { tone: 'error' }); return; }
           settings.set('language', value);
           location.reload();
         } })),
@@ -297,7 +297,7 @@ export function create() {
         try {
           await api.approveCode(code);
           close();
-          toast(tr('Appareil autorisé : il se connecte à ton compte.'));
+          toast(tr('Appareil autorisé : il se connecte à ton compte.'), { tone: 'done' });
         } catch (error) {
           errorBox.textContent = error.status === 404 ? tr('Code inconnu ou expiré. Vérifie-le, ou demandes-en un nouveau sur l’appareil.')
             : error.message;

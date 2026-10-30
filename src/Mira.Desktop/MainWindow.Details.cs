@@ -108,7 +108,7 @@ public partial class MainWindow
             _detail = full; RenderDetailText(full); UpdateDetailPlayLabel();
             await Task.WhenAll(LoadExtrasAsync(full, version), LoadStudioTitlesAsync(full, version));
         }
-        catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion) SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion) SetError(Friendly(ex)); }
     }
     /// <summary>The « Bonus » row: making-of, deleted scenes, textless credits, played from their card. Optional, as the similar titles.</summary>
     private async Task LoadExtrasAsync(MediaItem item, int version)
@@ -419,7 +419,7 @@ public partial class MainWindow
             RenderEpisodes();
             if (!_demo) { await RefreshDetailAsync(); await RefreshAsync(quiet: true); }
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); if (_detail?.Id == series.Id) await RefreshDetailAsync(); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); if (_detail?.Id == series.Id) await RefreshDetailAsync(); }
         finally { SeasonMarkButton.IsEnabled = true; }
     }
     private ContextMenu EpisodeMenu(MediaItem episode)
@@ -502,7 +502,7 @@ public partial class MainWindow
             _metadata?.Clear();
             if (left) RenderLibrary();
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
     private async void Favorite_Click(object sender, RoutedEventArgs e)
     {

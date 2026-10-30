@@ -181,7 +181,7 @@ public partial class MainWindow
         MediaItem item;
         // The single-item request: its file and its picture.
         try { item = await client.ItemAsync(title.Id, _connectionLifetime.Token); }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return; }
         _upgrade = item; _upgradeSent = false;
         await ShowTorLinkAsync();
         if (!_serverScreen)

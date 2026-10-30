@@ -408,7 +408,7 @@ public partial class MainWindow
     private void CopyPhoneAddress_Click(object sender, RoutedEventArgs e)
     {
         if (_phone is not { } facts) return;
-        try { Clipboard.SetText(PhoneSetup.Address(facts)); SetNotice(L("Adresse copiée.", "Address copied.")); }
+        try { Clipboard.SetText(PhoneSetup.Address(facts)); SetDone(L("Adresse copiée.", "Address copied.")); }
         catch (System.Runtime.InteropServices.ExternalException) { SetNotice(L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again.")); }
     }
     /// <summary>Jellyfin's page and the address for TVs and consoles: this PC's network address when Jellyfin runs here.</summary>
@@ -477,7 +477,7 @@ public partial class MainWindow
     private void CopyRemoteAddress_Click(object sender, RoutedEventArgs e)
     {
         if (_remoteAddress is null) return;
-        try { Clipboard.SetText(_remoteAddress); SetNotice(L("Adresse copiée.", "Address copied.")); }
+        try { Clipboard.SetText(_remoteAddress); SetDone(L("Adresse copiée.", "Address copied.")); }
         catch (System.Runtime.InteropServices.ExternalException) { SetNotice(L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again.")); }
     }
     /// <summary>Jellyfin's own web page, signed in with the same account: its dashboard holds the libraries, users and network.</summary>

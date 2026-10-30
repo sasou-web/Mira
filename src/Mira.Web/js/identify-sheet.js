@@ -37,7 +37,7 @@ async function refresh(item, changed) {
     // Queued by Jellyfin: a film takes a few seconds, a series longer.
     setTimeout(() => changed?.(false), 6000);
     setTimeout(() => changed?.(false), 20000);
-  } catch (error) { toast(error.status === 403 ? tr('Seul un administrateur de Jellyfin peut faire ça.') : error.message); }
+  } catch (error) { toast(error.status === 403 ? tr('Seul un administrateur de Jellyfin peut faire ça.') : error.message, { tone: 'error' }); }
 }
 
 /**
@@ -115,7 +115,7 @@ export function identifySheet(item, changed) {
     try {
       await api.applyMatch(item.Id, match);
       close();
-      toast(tr('« {chosen} » : Jellyfin a mis à jour sa fiche.', { chosen }));
+      toast(tr('« {chosen} » : Jellyfin a mis à jour sa fiche.', { chosen }), { tone: 'done' });
       changed?.(true);
     } catch (error) {
       status.textContent = error.status === 403 ? tr('Seul un administrateur de Jellyfin peut faire ça.') : error.message;

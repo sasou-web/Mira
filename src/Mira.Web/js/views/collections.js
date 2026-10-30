@@ -35,7 +35,7 @@ export function create() {
         h('header', { class: 'collections-head' }, h('div', {}, h('h1', { class: 'page-title' }, tr('Collections')), count), add),
         grid ?? emptyState({ symbol: 'stack', title: tr('Aucune collection'), text: tr('Rassemble des films et des séries depuis leur menu (appui long ou clic droit) : « Ajouter à une collection… ».') })));
     } catch (error) {
-      if (quiet && grid?.isConnected) toast(error.message);
+      if (quiet && grid?.isConnected) toast(error.message, { tone: 'error' });
       else clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, () => load())));
     }
   }

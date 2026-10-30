@@ -57,7 +57,7 @@ public partial class MainWindow
             }
         }
         catch (OperationCanceledException) when (_connectionLifetime.IsCancellationRequested) { }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
 
     // —— « Identifier… » ——

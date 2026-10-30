@@ -125,7 +125,7 @@ export function create({ type, query }) {
   function loadOptions() {
     options ??= Promise.all([api.filters(type), api.years(type)])
       .then(([filters, years]) => ({ genres: (filters?.Genres ?? []).map((g) => g.Name), years: (years?.Items ?? []).map((y) => y.Name).filter(Boolean) }))
-      .catch((error) => { options = null; toast(error.message); return null; });
+      .catch((error) => { options = null; toast(error.message, { tone: 'error' }); return null; });
     return options;
   }
   async function pickGenre() {

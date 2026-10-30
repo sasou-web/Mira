@@ -221,7 +221,7 @@ public sealed class WatchGroup
             if (_shell.Player is { } open) await open.PlayForGroupAsync(item, next.StartTicks);
             else await _shell.PlayAsync(item, groupStart: next.StartTicks);
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
     /// <summary>
     /// Lecture in a group: Jellyfin puts the title on for every device, this one included (QueueAsync). True when the
@@ -239,7 +239,7 @@ public sealed class WatchGroup
         var start = PlaybackSession.StartAt(item, remember: _shell.Settings.RememberPosition && !fromStart, back: _shell.Settings.ResumeBack);
         try { await session.Client.SyncQueueAsync(item.Id, Ticks(start), session.Lifetime); }
         catch (UnauthorizedAccessException) { _shell.Notice(NoSyncPlay); }
-        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         return true;
     }
 
@@ -285,7 +285,7 @@ public sealed class WatchGroup
             else if (Group is { } group) _shell.Notice(L($"Tu es dans « {group.GroupName} » : Lecture lance le titre pour tout le groupe, au même moment chez chacun.", $"You’re in “{group.GroupName}”: Play starts the title for the whole group, at the same moment for everyone."));
         }
         catch (UnauthorizedAccessException) { _shell.Notice(NoSyncPlay); }
-        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { _shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         finally { if (ReferenceEquals(_joined, joined)) _joined = null; }
     }
     /// <summary>

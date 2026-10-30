@@ -117,7 +117,7 @@ function groupUpdate({ Type: type, Data: data }) {
     // Jellyfin let this device go (its session ended): back in the group, or out of it when there is none to go back to.
     case 'NotInGroup': case 'GroupDoesNotExist': if (group) recover(); else gone(); break;
     case 'StateUpdate': if (group) { group.State = data?.State ?? group.State; changed(); } break;
-    case 'LibraryAccessDenied': toast(tr('Un membre du groupe n’a pas accès à ce titre dans Jellyfin.')); break;
+    case 'LibraryAccessDenied': toast(tr('Un membre du groupe n’a pas accès à ce titre dans Jellyfin.'), { tone: 'error', symbol: 'users' }); break;
     case 'PlayQueue': playQueue(data); break;
     default: break;
   }
@@ -279,13 +279,13 @@ export const together = {
         if (!group || isGuest()) return;
         // Every device reaches the end of an episode: the next one is put on once.
         if (queue?.itemId === itemId && hooks.itemId() !== itemId) return;
-        api.syncQueue(itemId, startTicks).catch((error) => toast(error.message));
+        api.syncQueue(itemId, startTicks).catch((error) => toast(error.message, { tone: 'error' }));
       },
       pause: () => { if (group) send('Pause').catch(() => {}); },
       unpause: () => {
         if (!group) return;
         // The group made again has no title (Jellyfin ended the old one with it): the one here is put on, from here.
-        if (!queue && hooks.itemId() && !isGuest()) { api.syncQueue(hooks.itemId(), Math.round(hooks.position() * 1e7)).catch((error) => toast(error.message)); return; }
+        if (!queue && hooks.itemId() && !isGuest()) { api.syncQueue(hooks.itemId(), Math.round(hooks.position() * 1e7)).catch((error) => toast(error.message, { tone: 'error' })); return; }
         send('Unpause').catch(() => {});
       },
       seek: (seconds) => { if (group) send('Seek', { PositionTicks: Math.max(0, Math.round(seconds * 1e7)) }).catch(() => {}); },

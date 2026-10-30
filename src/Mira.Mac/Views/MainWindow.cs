@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Transformation;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Data.Sqlite;
@@ -13,6 +14,9 @@ using Mira.Mac.Services;
 using static Mira.Core.Lang;
 
 namespace Mira.Mac.Views;
+
+/// <summary>What a notice says, drawn by the icon in its tile: news, something done, a failure.</summary>
+public enum NoticeTone { Info, Done, Error }
 
 /// <summary>A screen of the library: home, a grid, a title page, the settings.</summary>
 public abstract class Page : UserControl
@@ -49,8 +53,11 @@ public sealed partial class MainWindow : Window
     private readonly StackPanel _railItems = new() { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Border _rail;
     private readonly Border _toast;
-    private readonly TextBlock _toastText = new() { FontSize = 14, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 520 };
-    private readonly Button _toastAction = new() { Classes = { "quiet" }, Padding = new Thickness(12, 6), Margin = new Thickness(12, 0, 0, 0) };
+    private readonly TextBlock _toastText = new() { FontSize = 14, FontWeight = FontWeight.SemiBold, LineHeight = 20, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+    private readonly Button _toastAction = new() { Classes = { "primary" }, Padding = new Thickness(16, 8), Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
+    private readonly Icon _toastIcon = new("info", 21);
+    private readonly Border _toastTile = new() { Width = 40, Height = 40, CornerRadius = new CornerRadius(12), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 13, 0) };
+    private readonly Border _toastTime = new() { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = Ui.Brush("#3D3D43"), RenderTransformOrigin = new RelativePoint(0, 0.5, RelativeUnit.Relative), IsHitTestVisible = false };
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(6) };
     /// <summary>Jellyfin's change notifications come in bursts (a scan, a playback elsewhere): one refresh after the last.</summary>
     private readonly DispatcherTimer _serverChanged = new() { Interval = TimeSpan.FromSeconds(2) };
@@ -163,31 +170,59 @@ public sealed partial class MainWindow : Window
         // As on Windows: the rail is the window itself (no panel of its own, no edge), only the chosen page is lit.
         return new Border { Width = RailWidth, Background = Brushes.Transparent, Child = dock };
     }
+    // A notice: a card at the bottom of the window, its icon in a tile, its button, a close button, and the time it has left under it.
     private Border BuildToast()
     {
         _toastAction.Click += (_, _) => { var click = _toastClick; HideNotice(); click?.Invoke(); };
-        var row = new DockPanel();
-        DockPanel.SetDock(_toastAction, Dock.Right);
-        row.Children.Add(_toastAction); row.Children.Add(_toastText);
-        return new Border
+        _toastTile.Child = _toastIcon;
+        var close = Ui.IconButton("close", L("Masquer le message", "Hide the message"), HideNotice, "icon", 16);
+        close.VerticalAlignment = VerticalAlignment.Center;
+        var row = new DockPanel { Margin = new Thickness(12, 11, 8, 11) };
+        DockPanel.SetDock(_toastTile, Dock.Left); DockPanel.SetDock(close, Dock.Right); DockPanel.SetDock(_toastAction, Dock.Right);
+        row.Children.Add(_toastTile); row.Children.Add(close); row.Children.Add(_toastAction); row.Children.Add(_toastText);
+        var card = new Grid(); card.Children.Add(row); card.Children.Add(_toastTime);
+        var toast = new Border
         {
-            Background = Ui.Brush("#F21A1A1D"), BorderBrush = Ui.Brush("#2E2E33"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(18, 12), Margin = new Thickness(0, 0, 0, 28), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom,
-            Child = row, IsVisible = false, Opacity = 0, MaxWidth = 720,
+            Background = Ui.Brush("#F21A1A1D"), BorderBrush = Ui.Brush("#3D3D43"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(16), ClipToBounds = true,
+            Margin = new Thickness(0, 0, 0, 28), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom,
+            Child = card, IsVisible = false, Opacity = 0, MinWidth = 380, MaxWidth = 580, MinHeight = 64,
             Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }]
         };
+        // Held under the pointer: it waits, and leaves a moment after the pointer does.
+        toast.PointerEntered += (_, _) => { if (_toastTimer.IsEnabled) { _toastTimer.Stop(); RunNoticeTime(null); } };
+        toast.PointerExited += (_, _) => { if (toast.IsVisible && !_toastSticky) { _toastTimer.Interval = TimeSpan.FromSeconds(3); _toastTimer.Start(); RunNoticeTime(_toastTimer.Interval); } };
+        return toast;
     }
+    private bool _toastSticky;
+    /// <summary>The line under the notice empties as its time runs out (none for a notice that waits).</summary>
+    private void RunNoticeTime(TimeSpan? left)
+    {
+        _toastTime.Transitions = null;
+        _toastTime.RenderTransform = TransformOperations.Parse("scaleX(1)");
+        _toastTime.IsVisible = left is not null;
+        if (left is not { } time) return;
+        DispatcherTimer.RunOnce(() =>
+        {
+            _toastTime.Transitions = [new TransformOperationsTransition { Property = RenderTransformProperty, Duration = time }];
+            _toastTime.RenderTransform = TransformOperations.Parse("scaleX(0)");
+        }, TimeSpan.FromMilliseconds(16));
+    }
+    private static readonly IBrush NoticeDanger = Ui.Brush("#F3AD99"), NoticeDangerTile = Ui.Brush("#2EF3AD99"), NoticeTile = Ui.Brush("#30FFFFFF"), NoticeOnAccent = Ui.Brush("#111113"), NoticeAccent = Ui.Brush("#F5F5F7");
 
     /// <summary>
     /// A short message at the bottom of the window, with an optional action (« Réessayer », « Installer »…); one marked
     /// <paramref name="sticky"/> stays half a minute, time to read it and choose (« Rejoindre » of an invitation).
     /// </summary>
-    public void Notice(string text, string? action = null, Action? click = null, bool sticky = false)
+    public void Notice(string text, string? action = null, Action? click = null, bool sticky = false, NoticeTone tone = NoticeTone.Info)
     {
-        _toastText.Text = text; _toastClick = click;
+        _toastText.Text = text; _toastClick = click; _toastSticky = sticky;
         _toastAction.Content = action; _toastAction.IsVisible = action is not null;
+        _toastIcon.Kind = tone switch { NoticeTone.Done => "check", NoticeTone.Error => "warning", _ => "info" };
+        _toastIcon.Foreground = tone switch { NoticeTone.Done => NoticeOnAccent, NoticeTone.Error => NoticeDanger, _ => Ui.Ink };
+        _toastTile.Background = tone switch { NoticeTone.Done => NoticeAccent, NoticeTone.Error => NoticeDangerTile, _ => NoticeTile };
         _toast.IsVisible = true; _toast.Opacity = 1;
         _toastTimer.Stop(); _toastTimer.Interval = TimeSpan.FromSeconds(sticky ? 30 : action is null ? 5 : 9); _toastTimer.Start();
+        RunNoticeTime(sticky ? null : _toastTimer.Interval);
     }
     public void HideNotice() { _toastTimer.Stop(); _toast.Opacity = 0; DispatcherTimer.RunOnce(() => { if (_toast.Opacity == 0) _toast.IsVisible = false; }, TimeSpan.FromMilliseconds(200)); }
     public string? NoticeText => _toast.IsVisible ? _toastText.Text : null;
@@ -371,7 +406,7 @@ public sealed partial class MainWindow : Window
         List<Together.Group> groups;
         try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
         catch (UnauthorizedAccessException) { Notice(WatchGroup.NoSyncPlay); return; }
-        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); return; }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
         if (!ReferenceEquals(session, Session)) return;
         var answer = Together.Answer(invite, groups, session.Connection.Server, Group.Active ? Group.Group?.GroupId : null);
         Activate();
@@ -599,7 +634,7 @@ public sealed partial class MainWindow : Window
     {
         if (error is HttpRequestException or OperationCanceledException or TimeoutException) _unanswered = true;
         if (Tailnet.Says(Session?.Connection.Server, error) is { } said) Notice(said.Text, said.Action, said.Act, sticky: said.Action is not null);
-        else Notice(Errors.Friendly(error));
+        else Notice(Errors.Friendly(error), tone: NoticeTone.Error);
     }
     /// <summary>« Tailscale intégré » joined the tailnet (started, back from no network): the page Jellyfin did not answer loads again.</summary>
     public void TailnetJoined()
@@ -618,10 +653,10 @@ public sealed partial class MainWindow : Window
             await session.Client.SetPlayedAsync(item.Id, played);
             await Task.Run(() => session.Store.ForgetProgress(item.Id));
             item.UserData.Played = played; item.UserData.PlaybackPositionTicks = 0;
-            Notice(played ? L($"« {item.DisplayTitle} » marqué comme vu.", $"“{item.DisplayTitle}” marked as watched.") : L($"« {item.DisplayTitle} » marqué comme non vu.", $"“{item.DisplayTitle}” marked as unwatched."));
+            Notice(played ? L($"« {item.DisplayTitle} » marqué comme vu.", $"“{item.DisplayTitle}” marked as watched.") : L($"« {item.DisplayTitle} » marqué comme non vu.", $"“{item.DisplayTitle}” marked as unwatched."), tone: NoticeTone.Done);
             await RefreshPagesAsync();
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
     public async Task SetFavoriteAsync(MediaItem item, bool favorite)
     {
@@ -630,10 +665,10 @@ public sealed partial class MainWindow : Window
         {
             await session.Client.SetFavoriteAsync(item.Id, favorite);
             item.UserData.IsFavorite = favorite;
-            Notice(favorite ? L($"« {item.DisplayTitle} » est dans tes favoris.", $"“{item.DisplayTitle}” is in your favorites.") : L($"« {item.DisplayTitle} » n’est plus dans tes favoris.", $"“{item.DisplayTitle}” is no longer in your favorites."));
+            Notice(favorite ? L($"« {item.DisplayTitle} » est dans tes favoris.", $"“{item.DisplayTitle}” is in your favorites.") : L($"« {item.DisplayTitle} » n’est plus dans tes favoris.", $"“{item.DisplayTitle}” is no longer in your favorites."), tone: NoticeTone.Done);
             await RefreshPagesAsync();
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
     /// <summary>The right-click menu of a card.</summary>
     public ContextMenu Menu(MediaItem item)
@@ -705,7 +740,7 @@ public sealed partial class MainWindow : Window
             if (Current is BrowsePage { Saga: { } shown } && shown.Id == collection.Id) { Back(); return; }
             await RefreshPagesAsync();
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
     /// <summary>A title taken out of a collection from its page (« Annuler » puts it back), or put back.</summary>
     private async Task PutInCollectionAsync(MediaItem item, MediaItem collection, bool inside)
@@ -718,7 +753,7 @@ public sealed partial class MainWindow : Window
             else Notice(TitleCollections.Removed(collection.Name), L("Annuler", "Undo"), () => _ = PutInCollectionAsync(item, collection, true));
             await RefreshPagesAsync();
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

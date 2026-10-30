@@ -35,7 +35,7 @@ export function create({ id }) {
         person.Overview ? h('div', { style: { paddingBottom: '20px' } }, overview(person.Overview)) : null,
         grid ?? emptyState({ symbol: 'person', title: tr('Aucun titre'), text: tr('Aucun film ni série de ta bibliothèque ne cite cette personne.') })));
     } catch (error) {
-      if (quiet && grid?.isConnected) toast(error.message);
+      if (quiet && grid?.isConnected) toast(error.message, { tone: 'error' });
       else clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, () => load())));
     }
   }

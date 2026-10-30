@@ -84,7 +84,7 @@ public partial class MainWindow
             SetNotice(L("Jellyfin redémarre…", "Jellyfin is restarting…"), null, null, sticky: true);
             await client.RestartAsync();
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return; }
         var limit = DateTime.UtcNow + TimeSpan.FromSeconds(90);
         await Task.Delay(TimeSpan.FromSeconds(2));
         while (DateTime.UtcNow < limit && ReferenceEquals(client, _client))

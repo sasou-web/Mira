@@ -190,7 +190,7 @@ public sealed class HomePage : Page
                 more.IsVisible = grid.Children.Count < _latestTotal;
             }
             catch (OperationCanceledException) when (session.Lifetime.IsCancellationRequested) { }
-            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
             finally { more.IsEnabled = true; }
         }
         var section = Ui.Column(0, title, grid, more);
@@ -238,7 +238,7 @@ public sealed class HomePage : Page
             List<Together.Group> groups;
             try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
             catch (UnauthorizedAccessException) { Shell.Notice(WatchGroup.NoSyncPlay); return; }
-            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
             if (!ReferenceEquals(session, Shell.Session)) return;
             _groups = groups; ShowGroupLine();
             if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { Shell.Notice(L("Ce groupe n’existe plus.", "This group no longer exists.")); return; }

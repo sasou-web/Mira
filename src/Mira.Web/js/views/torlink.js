@@ -236,7 +236,7 @@ export function create({ query }) {
     try {
       await api.torlinkControl(download.id, action);
       toast(ACTIONS[action]);
-    } catch (error) { toast(explain(error)); }
+    } catch (error) { toast(explain(error), { tone: 'error' }); }
     load();
   }
 
@@ -488,7 +488,7 @@ export function create({ query }) {
       if (!listTitle.hidden && listTitle.getBoundingClientRect().top < 0) listTitle.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       return true;
     } catch (error) {
-      toast(explain(error));
+      toast(explain(error), { tone: 'error' });
       return false;
     }
   }

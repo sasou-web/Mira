@@ -50,7 +50,7 @@ export function create() {
       clear(el).append(back, head, ...(parts.length ? parts.flat() : [list.length ? emptyState({ symbol: 'calendar', title: tr('Rien d’annoncé'), text: tr('Aucun nouvel épisode annoncé pour tes séries, et aucun ne manque.') })
         : emptyState({ symbol: 'calendar', title: tr('Rien d’annoncé'), text: tr('Jellyfin ne connaît que les épisodes de tes fichiers. Son extension TheTVDB lui apprend ceux qui manquent et les prochains, avec leur date : un administrateur l’active dans Mira pour Windows, Réglages → Jellyfin.') })]));
     } catch (error) {
-      if (quiet && shown) toast(error.message);
+      if (quiet && shown) toast(error.message, { tone: 'error' });
       else clear(el).append(back, head, h('div', { class: 'page' }, errorState(error, () => load())));
     }
   }
