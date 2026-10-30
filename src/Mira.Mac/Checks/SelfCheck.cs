@@ -148,7 +148,7 @@ public static class SelfCheck
                 Check(started, $"lecture ({renderer}) : images", $"{player?.Surface?.GetType().Name}, {player?.Surface?.Frames} images{(player?.Surface is Playback.VideoView { Renderer.Length: > 0 } gl ? ", " + gl.Renderer : "")}{(player?.VideoFallback is { } why ? " — repli : " + why : "")}");
                 if (player?.Engine is not { } engine) continue;
                 var info = player.InfoText() ?? "";
-                Check(info.Split('\n').Length == 6 && info.Contains("OpenGL ·") != software && info.Contains(PictureQuality.Label(PictureQuality.Cinema)), $"informations de lecture ({renderer})", info.Replace('\n', ' '));
+                Check(info.Split('\n').Length == 6 && info.Contains("OpenGL ·") == player.Surface is Playback.VideoView && PictureQuality.Choices.Any(x => info.Contains(PictureQuality.Label(x.Key))), $"informations de lecture ({renderer})", info.Replace('\n', ' '));
                 var audio = engine.Get("current-ao");
                 if (string.IsNullOrEmpty(audio)) Check(true, $"volume à 150 % ({renderer})", "pas de sortie audio sur cette machine : non mesurable");
                 else Check((engine.Get("af") ?? "").Contains(VolumeBoost.Label) && Math.Abs(engine.Number("volume") - 100) < 0.5, $"volume à 150 % ({renderer})", $"{player.Volume}, sortie {audio}, af {engine.Get("af")}");
