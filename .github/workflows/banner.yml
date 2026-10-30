@@ -10,9 +10,6 @@ on:
       version:
         description: Version (x.y.z) whose banner to draw
         required: true
-  push: # TEMPORARY, the mockup's runs: removed before the pull request
-    branches: [claude/project-thread-vpze1u]
-    paths: [tools/banner/**, .github/workflows/banner.yml]
 permissions:
   contents: read
 concurrency:
@@ -35,7 +32,7 @@ jobs:
           persist-credentials: false
       - name: Version
         env:
-          VERSION: ${{ inputs.version || '0.8.8' }}
+          VERSION: ${{ inputs.version }}
         run: |
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Not a version: $VERSION"; exit 1; }
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -88,7 +85,6 @@ jobs:
           TOKEN: ${{ github.token }}
         run: |
           git add "docs/releases/$VERSION.jpg"
-          mkdir -p .banner-captures && cp .artifacts/banner/* .banner-captures/ && git add -f .banner-captures # TEMPORARY
           if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Draw the banner of Mira $VERSION"
           git push "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:$BRANCH"

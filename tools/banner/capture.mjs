@@ -172,7 +172,7 @@ try {
     const { context, page } = await open(kind);
     try {
       const focus = await scene(page);
-      if (!focus) console.log(`::warning::${name}: nothing to magnify`);
+      if (!focus) console.log(`::warning::${name}: nothing lit`);
       // The notice is already on screen: no wait that would let it go.
       if (name !== 'notice') await settle(page);
       await page.screenshot({ path: join(out, `${name}.png`) });

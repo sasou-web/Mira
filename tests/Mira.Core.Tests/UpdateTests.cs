@@ -165,6 +165,10 @@ internal static class UpdateTests
             Assert(notes.StartsWith("**Mira** est un client Jellyfin") && notes.Contains("\n\n" + all[0].Summary + "\n\n") && all[0].Items.All(x => notes.Contains($"**{x.Title}**")) && notes.Contains($"Mira-{all[0].Version}-win-x64-setup.exe") && notes.Contains($"Mira-{all[0].Version}-mac-arm64.dmg") && notes.Contains("/docs/INSTALLATION-WEB.md")
                 && notes.Contains($"/blob/v{all[0].Version}/CHANGELOG.md") && notes.Contains("**Code signing policy**") && notes.Contains("certificate by [SignPath Foundation]") && notes.Contains("#politique-de-signature-du-code") && notes.Length < 2000, "Release notes (" + notes.Length + "):\n" + notes);
             Assert(unsigned.Contains("**Code signing policy**") && unsigned.Contains("ne sont pas signés") && !unsigned.Contains("certificate by") && unsigned.Contains("#politique-de-signature-du-code"), "Release notes, unsigned:\n" + unsigned);
+            // The banner on top, from the tag (tools/banner, docs/releases), the rest unchanged.
+            var banner = WhatsNew.ReleaseNotes(all[0], signed: false, banner: true);
+            var image = $"![Mira {all[0].Version}](https://raw.githubusercontent.com/sasou-web/Mira/v{all[0].Version}/docs/releases/{all[0].Version}.jpg)\n\n";
+            Assert(banner == image + unsigned, "Release notes with the banner:\n" + banner);
             // Mira in English: the screen after an update speaks English, the release page stays French (Mira.Release runs in English).
             Lang.Use(Lang.English);
             var point = all[0].Items[0];

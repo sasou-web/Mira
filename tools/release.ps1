@@ -168,6 +168,9 @@ try {
     $notes = Join-Path $workspace ".artifacts/release-notes-$version.md"
     Remove-Item -LiteralPath $notes -ErrorAction SilentlyContinue
     $notesOptions = @(); if ($Unsigned) { $notesOptions += '--unsigned' }
+    # The banner on top of the page (tools/banner), committed by banner.yml on the preparation branch.
+    if (Test-Path -LiteralPath (Join-Path $workspace "docs/releases/$version.jpg")) { $notesOptions += '--banner' }
+    else { Write-Warning "Pas de bannière pour $version (docs/releases/$version.jpg) : la release paraîtra sans. Elle se fait sur la branche de préparation : tools/banner/scenes.json, puis banner.yml (Run workflow)." }
     Invoke-Native 'Mira.Release notes' { dotnet run --project $tool -c Release -- notes --version $version --out $notes @notesOptions }
 
     # A run still going from an earlier attempt would attach its own files to the new draft.

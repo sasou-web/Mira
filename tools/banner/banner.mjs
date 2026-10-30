@@ -39,7 +39,7 @@ const centre = { x: between(812, 842), y: H / 2 + between(-6, 10) };
 const spread = between(184, 196), turn = between(4, 7), drop = between(14, 34);
 const place = order.length === 1 ? [[0, 0, 0, 1]] : order.length === 2 ? [[-spread / 2, drop / 2, -turn, SIDE], [spread / 2, 0, 0, 1]]
   : [[-spread, drop, -turn, SIDE], [0, 0, 0, 1], [spread, -drop * 0.6, turn, SIDE]];
-const front = order.length === 2 ? 1 : Math.min(1, order.length - 1);
+const front = Math.min(1, order.length - 1);
 
 // What changed stays lit, the rest of the screen sinks a little. In cqw, a hundredth of the phone's width: the screen
 // is 93.6 wide, 3.2 in from the edge.
@@ -57,7 +57,6 @@ const phones = order.map((shot, i) => {
 
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>
 @font-face { font-family: Nunito; font-weight: 800; src: url(${font(800)}) format('woff2'); }
-@font-face { font-family: Nunito; font-weight: 700; src: url(${font(700)}) format('woff2'); }
 * { box-sizing: border-box; margin: 0; }
 html, body { width: ${W}px; height: ${H}px; background: #070708; overflow: hidden; }
 body { position: relative; font-family: Nunito, sans-serif; color: #f4f4f5; }
