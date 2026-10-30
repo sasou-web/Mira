@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **La page défile de nouveau sur Mac** : après la fermeture du lecteur ou d’un menu (clic droit sur un épisode), la page pouvait ne plus défiler du tout, jusqu’au clic suivant ; au-dessus d’une rangée d’affiches, un glissement vers le bas sur le pavé tactile faisait parfois bouger la rangée de quelques pixels au lieu de la page. Jamais essayé sur un vrai Mac.
+
 ## 0.8.7 — 2026-10-30
 
 Mira pour Mac au niveau de Windows, le lecteur de Mira sur iPhone, et Tailscale intégré sur Windows, Mac, iPhone et iPad pour joindre ton Jellyfin loin de chez toi.
