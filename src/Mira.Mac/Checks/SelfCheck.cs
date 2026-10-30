@@ -83,6 +83,7 @@ public static class SelfCheck
             Check(await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15), "films : grille", $"{(window.Current as BrowsePage)?.Items.Count} films");
             var movie = ((BrowsePage)window.Current!).Items.FirstOrDefault(x => x.Id == "movie-1") ?? ((BrowsePage)window.Current!).Items.First();
             await Task.Delay(1000); Capture(window, output, "03-films");
+            if (window.Current is BrowsePage films) { films.ToggleFilters(); await Task.Delay(500); Capture(window, output, "03b-films-filtres"); films.ToggleFilters(); }
             window.Go("search");
             await Until(() => window.Current is BrowsePage, 5);
             var word = movie.Name.Split(' ').OrderByDescending(x => x.Length).First();

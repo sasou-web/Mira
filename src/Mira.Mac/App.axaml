@@ -64,15 +64,15 @@
     <Style Selector="Button.primary"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
     <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <!-- A choice that is on (« Dans tes favoris », « Vu », « Ensemble · 2 personnes »): white, the size of the buttons beside it. -->
-    <Style Selector="Button.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <Style Selector="Button.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
-    <Style Selector="Button.on:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
     <!-- Menus: the Windows app's (Menu, Line), rounded, with room around each line. -->
     <Style Selector="ContextMenu"><Setter Property="Background" Value="#F5141417"/><Setter Property="BorderBrush" Value="#29292D"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="6"/><Setter Property="MinWidth" Value="220"/></Style>
     <Style Selector="ContextMenu MenuItem"><Setter Property="Padding" Value="12,9"/><Setter Property="FontSize" Value="14"/><Setter Property="CornerRadius" Value="6"/></Style>
     <Style Selector="Button.quiet"><Setter Property="Background" Value="Transparent"/></Style>
     <Style Selector="Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1E1E21"/></Style>
+    <!-- A choice that is on (« Dans tes favoris », « Vu », « Ensemble · 2 personnes »): white, the size of the buttons beside it. -->
+    <Style Selector="Button.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
+    <Style Selector="Button.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
+    <Style Selector="Button.on:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
     <Style Selector="Button.icon"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="CornerRadius" Value="20"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
     <Style Selector="Button.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#26FFFFFF"/></Style>
     <Style Selector="Button.rail"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="Width" Value="52"/><Setter Property="Height" Value="52"/><Setter Property="CornerRadius" Value="14"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Foreground" Value="#9A9AA1"/></Style>
