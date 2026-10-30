@@ -27,10 +27,12 @@ public static class SmoothScroll
         if (e.Handled || sender is not ScrollViewer outer) return;
         var horizontal = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         var target = outer;
+        // The innermost list under the pointer that can still move that way: a list of the settings or of a sheet inside
+        // the page scrolls first, and the page takes over at its end.
         for (var node = e.OriginalSource as DependencyObject; node is not null && node != outer; node = Parent(node))
         {
             if (node is ComboBox || node is TextBoxBase) return;
-            if (horizontal && node is ScrollViewer nested && nested.ScrollableWidth > 0) { target = nested; break; }
+            if (node is ScrollViewer nested && (horizontal ? nested.ScrollableWidth > 0 : CanMove(nested, e.Delta))) { target = nested; break; }
         }
         if (horizontal && target.ScrollableWidth <= 0) return;
         var pixels = SystemParameters.WheelScrollLines < 0 ? outer.ViewportHeight * .85 : Math.Max(1, SystemParameters.WheelScrollLines) * 36;
@@ -38,6 +40,7 @@ public static class SmoothScroll
         // Handle in the tunneling phase, before a horizontal child consumes vertical wheel input.
         e.Handled = true;
     }
+    private static bool CanMove(ScrollViewer viewer, int delta) => viewer.ScrollableHeight > 0 && (delta > 0 ? viewer.VerticalOffset > .5 : viewer.VerticalOffset < viewer.ScrollableHeight - .5);
     private static DependencyObject? Parent(DependencyObject node) => node is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
     public static void By(ScrollViewer viewer, double pixels, bool horizontal = false) => Drivers.GetValue(viewer, v => new Driver(v)).Add(pixels, horizontal);
     public static void Cancel(ScrollViewer viewer) { if (Drivers.TryGetValue(viewer, out var driver)) driver.Stop(); }
