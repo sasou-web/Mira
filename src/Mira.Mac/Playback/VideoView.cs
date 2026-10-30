@@ -28,12 +28,13 @@ public interface IVideoSurface
 /// <summary>mpv's render API (libmpv/render.h): the few calls and structures Mira uses.</summary>
 internal static unsafe class MpvRender
 {
-    public const int ParamInvalid = 0, ParamApiType = 1, ParamOpenGlInit = 2, ParamOpenGlFbo = 3, ParamFlipY = 4,
+    public const int ParamInvalid = 0, ParamApiType = 1, ParamOpenGlInit = 2, ParamOpenGlFbo = 3, ParamFlipY = 4, ParamIccProfile = 6,
         ParamSwSize = 17, ParamSwFormat = 18, ParamSwStride = 19, ParamSwPointer = 20;
     [StructLayout(LayoutKind.Sequential)] public struct Param { public int Type; public IntPtr Data; }
     // get_proc_address, its context, and the extra_exts field of libmpv 1.x (null, ignored by 2.x).
     [StructLayout(LayoutKind.Sequential)] public struct OpenGlInit { public IntPtr GetProcAddress; public IntPtr Context; public IntPtr ExtraExtensions; }
     [StructLayout(LayoutKind.Sequential)] public struct Fbo { public int Id; public int Width; public int Height; public int InternalFormat; }
+    [StructLayout(LayoutKind.Sequential)] public struct ByteArray { public IntPtr Data; public nuint Size; }
 
     public static IntPtr Create(MpvPlayer player, Param* parameters)
     {
@@ -45,6 +46,16 @@ internal static unsafe class MpvRender
     }
     public static void SetUpdateCallback(MpvPlayer player, IntPtr context, delegate* unmanaged[Cdecl]<IntPtr, void> callback, IntPtr state) =>
         ((delegate* unmanaged[Cdecl]<IntPtr, delegate* unmanaged[Cdecl]<IntPtr, void>, IntPtr, void>)player.Export("mpv_render_context_set_update_callback"))(context, callback, state);
+    /// <summary>The display's ICC profile for icc-profile-auto (mpv copies it); empty: none.</summary>
+    public static int SetIccProfile(MpvPlayer player, IntPtr context, byte[] profile)
+    {
+        fixed (byte* data = profile)
+        {
+            var bytes = new ByteArray { Data = (IntPtr)data, Size = (nuint)profile.Length };
+            var parameter = new Param { Type = ParamIccProfile, Data = (IntPtr)(&bytes) };
+            return ((delegate* unmanaged[Cdecl]<IntPtr, Param, int>)player.Export("mpv_render_context_set_parameter"))(context, parameter);
+        }
+    }
     public static int Render(MpvPlayer player, IntPtr context, Param* parameters) =>
         ((delegate* unmanaged[Cdecl]<IntPtr, Param*, int>)player.Export("mpv_render_context_render"))(context, parameters);
     public static void Free(IntPtr library, IntPtr context) =>
@@ -100,6 +111,7 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
             return;
         }
         if (_context == IntPtr.Zero && !CreateContext(player)) { gl.ClearColor(0, 0, 0, 1); gl.Clear(GlConsts.GL_COLOR_BUFFER_BIT); return; }
+        ShowColours(player);
         var fbo = new MpvRender.Fbo { Id = fb, Width = width, Height = height };
         var flip = 1;
         var parameters = stackalloc MpvRender.Param[3];
@@ -109,6 +121,24 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
         if (MpvRender.Render(player, _context, parameters) >= 0) Interlocked.Increment(ref _frames);
         // mpv unbinds the framebuffer when it is done; Avalonia shows the one bound on return (black otherwise).
         gl.BindFramebuffer(GlConsts.GL_FRAMEBUFFER, fb);
+    }
+    /// <summary>The screen whose colour profile mpv has (0: none yet), and when the view last looked.</summary>
+    private uint _profileDisplay; private long _profileCheckedAt = long.MinValue / 2;
+    /// <summary>The name of the screen's colour profile mpv converts to (« Infos de lecture »); empty when it has none.</summary>
+    public string ColourProfile { get; private set; } = "";
+    /// <summary>
+    /// The colour profile of the screen showing the view, handed to mpv (icc-profile-auto): at the first frame, then
+    /// when the window goes to another screen (looked at every 2 s). Not on Linux, where the checks run.
+    /// </summary>
+    private void ShowColours(MpvPlayer player)
+    {
+        if (!OperatingSystem.IsMacOS() || Environment.TickCount64 - _profileCheckedAt < 2000) return;
+        _profileCheckedAt = Environment.TickCount64;
+        var display = DisplayProfile.DisplayOf(this);
+        if (display == _profileDisplay) return;
+        _profileDisplay = display;
+        if (DisplayProfile.Read(display) is not { } profile) { ColourProfile = ""; return; }
+        ColourProfile = MpvRender.SetIccProfile(player, _context, profile.Data) >= 0 ? profile.Name : "";
     }
     /// <summary>The OpenGL renderer, as the driver names it (diagnostics, self-check).</summary>
     public string Renderer { get; private set; } = "";

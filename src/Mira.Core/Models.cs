@@ -247,7 +247,7 @@ public sealed class PlayerSettings
     public static string DefaultAudioLanguage => L("jpn,ja,fre,fra,fr,eng,en", "jpn,ja,eng,en,fre,fra,fr");
     public static string DefaultSubtitleLanguage => L("fre,fra,fr,eng,en", "eng,en,fre,fra,fr");
     public bool HardwareDecoding { get; set; } = true;
-    /// <summary>« Image » of Mira for Windows (<see cref="PictureQuality"/>): « standard », « cinema » or « max ».</summary>
+    /// <summary>« Image » of Mira for Windows and Mac (<see cref="PictureQuality"/>): « standard », « cinema » or « max ».</summary>
     public string Picture { get; set; } = PictureQuality.Cinema;
     /// <summary>« Sortie audio » of Mira for Windows (<see cref="AudioOutput"/>): mpv's device name, « auto » for Windows' default.</summary>
     public string AudioDevice { get; set; } = AudioOutput.Default;

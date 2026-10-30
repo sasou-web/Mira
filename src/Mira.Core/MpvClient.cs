@@ -74,7 +74,7 @@ public abstract unsafe class MpvClient : IDisposable
         if (_setOption(_handle, n, v) < 0) throw new IOException(L($"Option mpv indisponible : {name}.", $"mpv option unavailable: {name}."));
     }
     /// <summary>An option an older mpv, chosen by hand, may not know: left out rather than stopping the playback.</summary>
-    private bool TryOption(string name, string value)
+    protected bool TryOption(string name, string value)
     {
         using var n = new Utf8(name); using var v = new Utf8(value);
         return _setOption(_handle, n, v) >= 0;
@@ -100,18 +100,18 @@ public abstract unsafe class MpvClient : IDisposable
             if ((value ?? Get($"option-info/{name}/default-value")) is { } text) Set(name, text);
     }
     /// <summary>« Image » (<see cref="PictureQuality"/>) before the playback starts; an option this mpv does not know is left out.</summary>
-    protected void PictureOptions(string? level)
+    protected void PictureOptions(string? level, bool displaySync = true)
     {
-        foreach (var (name, value) in PictureQuality.Options(level))
+        foreach (var (name, value) in PictureQuality.Options(level, displaySync))
             if (value is not null) TryOption(name, value);
     }
     /// <summary>
     /// « Image » changed while a video plays (only ever to a lighter level: <see cref="PictureWatch"/>): each option set
     /// again, mpv's own default where the level sets none.
     /// </summary>
-    public void Picture(string? level)
+    public void Picture(string? level, bool displaySync = true)
     {
-        foreach (var (name, value) in PictureQuality.Options(level))
+        foreach (var (name, value) in PictureQuality.Options(level, displaySync))
             if ((value ?? Get($"option-info/{name}/default-value")) is { } text) Set(name, text);
     }
     /// <summary>The mpv output whose devices Mira lists (« wasapi » on Windows); none, only the system's default device.</summary>

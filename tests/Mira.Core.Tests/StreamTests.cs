@@ -44,6 +44,10 @@ internal static class StreamTests
             Assert(cinema["video-sync"] == "display-resample" && cinema["interpolation"] == "yes" && cinema["tscale"] == "oversample" && cinema["deband"] == "yes" && cinema["scale"] is null, "« Cinéma »: frames timed to the screen, interpolation, deband, mpv's scaling");
             Assert(best["scale"] == "ewa_lanczossharp" && best["video-sync"] == "display-resample" && best["deband"] == "yes", "« Maximale »: « Cinéma » and the high-quality profile");
             Assert(standard.Select(x => x.Name).SequenceEqual(cinema.Keys) && cinema.Keys.SequenceEqual(best.Keys), "Every level names every option, so going down puts each one back");
+            var mac = PictureQuality.Options(PictureQuality.Best, displaySync: false).ToDictionary(x => x.Name, x => x.Value);
+            Assert(mac["video-sync"] is null && mac["interpolation"] is null && mac["tscale"] is null && mac["deband"] == "yes" && mac["scale"] == "ewa_lanczossharp" && mac.Keys.SequenceEqual(best.Keys),
+                "Mac (render API, the screen's refresh unknown): no display timing nor interpolation, the rest of the level");
+            Assert(PictureQuality.MacChoices.Select(x => x.Key).SequenceEqual(PictureQuality.Choices.Select(x => x.Key)) && PictureQuality.MacChoices.Select(x => x.Label).SequenceEqual(PictureQuality.Choices.Select(x => x.Label)), "Same levels and names on Mac");
             var watch = new PictureWatch(); var t = new DateTimeOffset(2026, 10, 28, 20, 0, 0, TimeSpan.Zero);
             bool Feed(double seconds, long drops, bool steady = true) => watch.Struggling(t.AddSeconds(seconds), drops, steady);
             Assert(!Feed(0, 0, steady: false) && !Feed(1, 40) && !Feed(2.9, 80), "Drops in the seconds after a pause, seek or resize do not count");

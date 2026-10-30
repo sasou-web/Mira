@@ -28,9 +28,10 @@ public sealed class MpvPlayer : MpvClient
         return candidates.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p) && File.Exists(p));
     }
 
-    public MpvPlayer(PlayerSettings settings, bool silent = false) : this(settings, silent, FindLibrary(settings.MpvPath)) { }
+    /// <param name="picture">« Image » (<see cref="PictureQuality"/>) of this playback; null for mpv's own rendering (checks).</param>
+    public MpvPlayer(PlayerSettings settings, bool silent = false, string? picture = null) : this(settings, silent, picture, FindLibrary(settings.MpvPath)) { }
     // The library stays loaded after the playback: unloading a dylib that registered Objective-C classes is unsafe.
-    private MpvPlayer(PlayerSettings settings, bool silent, string? path)
+    private MpvPlayer(PlayerSettings settings, bool silent, string? picture, string? path)
         : base(path ?? "", NativeLibrary.Load(path ?? throw new FileNotFoundException("Le moteur de lecture mpv est introuvable dans Mira.app.")), unload: false)
     {
         try
@@ -42,6 +43,12 @@ public sealed class MpvPlayer : MpvClient
             // A log of mpv's own messages, when asked for: MIRA_MPV_LOG=/path/to/mpv.log.
             if (Environment.GetEnvironmentVariable("MIRA_MPV_LOG") is { Length: > 0 } log) { Option("log-file", log); Option("msg-level", "all=v"); }
             Option("hwdec", settings.HardwareDecoding ? "auto-safe" : "no");
+            // The colours of the screen: mpv converts the video to the display's own profile, which the view hands it
+            // (VideoView.ShowColours). Its frames reach the screen untouched by macOS, so without it the BT.709 of a film
+            // is stretched over a wide-gamut (P3) screen: faces red, colours too strong. An mpv without colour management
+            // (no lcms2) simply does not know the option.
+            if (OperatingSystem.IsMacOS()) TryOption("icc-profile-auto", "yes");
+            if (picture is not null) PictureOptions(picture, displaySync: false);
             PlayerOptions(settings);
             // Extra mpv options for a diagnosis, MIRA_MPV_OPTIONS="name=value;name=value".
             foreach (var pair in (Environment.GetEnvironmentVariable("MIRA_MPV_OPTIONS") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
