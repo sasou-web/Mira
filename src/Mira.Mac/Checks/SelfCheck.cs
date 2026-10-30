@@ -124,6 +124,17 @@ public static class SelfCheck
                 Check(await Until(() => window.Current is SettingsPage { Fix.Count: > 0, Fix.Section.IsVisible: true }, 10), "réglages : titres à corriger", $"{(window.Current as SettingsPage)?.Fix.Count} titres");
             if (mock is not null)
                 Check(await Until(() => window.Current is SettingsPage { Viewing.Count: > 0 }, 10), "réglages : en ce moment sur Jellyfin", $"{(window.Current as SettingsPage)?.Viewing.Count} lectures");
+            // « Ajouter un ami », as on Windows: the account sees only the library chosen and downloads nothing.
+            if (mock is not null && await Until(() => window.Current is SettingsPage { Friend.Libraries: 2 }, 10) && window.Current is SettingsPage withFriend)
+            {
+                withFriend.Friend.CreateForCheck("Marc");
+                var made = await Until(() => withFriend.Friend.Made == "Marc", 10);
+                var policy = mock.FriendPolicy ?? "";
+                Check(made && policy.Contains("\"EnableAllFolders\":false") && policy.Contains("view-movies") && !policy.Contains("view-series") && policy.Contains("\"EnableContentDownloading\":false"),
+                    "réglages : ajouter un ami", policy);
+                withFriend.Friend.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07c-settings-friend");
+            }
+            else if (mock is not null) Check(false, "réglages : ajouter un ami", "section absente");
             if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Viewing.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
 
             // —— Téléchargements: sent to the PC of Jellyfin ——
