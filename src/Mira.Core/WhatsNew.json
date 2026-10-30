@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.8.7",
+    "summary": "Mira pour Mac comme sous Windows, le lecteur de Mira sur iPhone et Tailscale intégré.",
+    "en": { "summary": "Mira for Mac like on Windows, Mira’s own player on iPhone, and Built-in Tailscale." },
+    "items": [
+      { "icon": "server", "title": "Tailscale intégré", "text": "Ton Jellyfin loin de chez toi sans l’app Tailscale, sur Windows, Mac, iPhone et iPad : Se connecter à Tailscale, une seule fois.",
+        "en": { "title": "Built-in Tailscale", "text": "Your Jellyfin away from home without the Tailscale app, on Windows, Mac, iPhone and iPad: Sign in to Tailscale, once." } },
+      { "icon": "film", "title": "Mira pour Mac refaite", "text": "Rail, pages et lecteur de Windows ; Épisodes, mini-lecteur, Garder sur ce Mac, Ajouter un ami. Jamais essayée sur un vrai Mac.",
+        "en": { "title": "Mira for Mac, redone", "text": "Windows’ rail, pages and player; Episodes, mini-player, Keep on this Mac, Add a friend. Never tried on a real Mac." } },
+      { "icon": "sparkle", "title": "Une image plus juste sur Mac", "text": "Les couleurs suivent le profil de ton écran ; Réglages → Lecture → Image, et ⋮ → Informations.",
+        "en": { "title": "Truer picture on Mac", "text": "Colours follow your screen’s profile; Settings → Playback → Picture, and ⋮ → Info." } },
+      { "icon": "play", "title": "Le lecteur de Mira sur iPhone", "text": "Commandes sur l’image, double toucher ±10 s, aperçus sur la barre, réduit au-dessus des onglets. Jamais essayé sur un vrai iPhone.",
+        "en": { "title": "Mira’s own player on iPhone", "text": "Controls over the picture, double tap ±10 s, previews on the bar, shrunk above the tabs. Never tried on a real iPhone." } },
+      { "icon": "check", "title": "Des résumés lisibles", "text": "Les balises HTML de certains résumés, surtout d’animes, ne s’affichent plus ; les paragraphes restent.", "web": true,
+        "en": { "title": "Readable summaries", "text": "HTML tags in some summaries, anime above all, no longer show; paragraphs stay." } }
+    ]
+  },
+  {
     "version": "0.8.6",
     "summary": "L’app iPhone, sous-titres automatiques, collections, meilleures versions et épisodes à venir.",
     "en": { "summary": "The iPhone app, automatic subtitles, collections, better versions and upcoming episodes." },
