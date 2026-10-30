@@ -23,7 +23,13 @@ public static class Motion
     /// <summary>Gentler landing for pointer feedback: a cubic curve covers most of a short hover in its
     /// first frames and then crawls, which reads as a jump followed by a second, slower movement.</summary>
     public static readonly QuadraticEase Soft = new() { EasingMode = EasingMode.EaseOut };
-    static Motion() { Ease.Freeze(); EaseOut.Freeze(); Soft.Freeze(); }
+    /// <summary>Entrances: fast start, long soft landing, so a page answers at once and settles without a visible stop.</summary>
+    public static readonly ExponentialEase Enter = new() { EasingMode = EasingMode.EaseOut, Exponent = 5 };
+    /// <summary>Exits: a short lift-off, gone quickly, so the next page is not kept waiting.</summary>
+    public static readonly CubicEase Exit = new() { EasingMode = EasingMode.EaseIn };
+    /// <summary>Movements across the screen (the rail's tile): a gentle start and a long landing.</summary>
+    public static readonly BackEase Glide = new() { EasingMode = EasingMode.EaseOut, Amplitude = .18 };
+    static Motion() { Ease.Freeze(); EaseOut.Freeze(); Soft.Freeze(); Enter.Freeze(); Exit.Freeze(); Glide.Freeze(); }
     public static void Animate(Animatable target, DependencyProperty property, double value, int ms = 220, double? from = null, IEasingFunction? ease = null)
     {
         var animation = new DoubleAnimation { To = value, From = from, Duration = TimeSpan.FromMilliseconds(Reduced ? 0 : ms), EasingFunction = ease ?? Ease };
@@ -40,7 +46,7 @@ public static class Motion
         target.SetValue(VisibilityVersionProperty, (int)target.GetValue(VisibilityVersionProperty) + 1);
         target.Visibility = Visibility.Visible; target.IsHitTestVisible = true;
         var move = target.RenderTransform as TranslateTransform ?? new TranslateTransform(); target.RenderTransform = move;
-        if (Reduced || delay <= 0) { Animate(move, TranslateTransform.YProperty, 0, ms, Reduced ? 0 : distance); Fade(target, 1, ms, Reduced ? 1 : 0); return; }
+        if (Reduced || delay <= 0) { Animate(move, TranslateTransform.YProperty, 0, ms + 60, Reduced ? 0 : distance, Enter); Fade(target, 1, ms, Reduced ? 1 : 0, Enter); return; }
         move.BeginAnimation(TranslateTransform.YProperty, Delayed(distance, 0, delay, ms), HandoffBehavior.SnapshotAndReplace);
         target.BeginAnimation(UIElement.OpacityProperty, Delayed(0, 1, delay, ms), HandoffBehavior.SnapshotAndReplace);
     }
@@ -62,7 +68,7 @@ public static class Motion
     {
         if (target.Visibility != Visibility.Visible) return;
         var version = (int)target.GetValue(VisibilityVersionProperty) + 1; target.SetValue(VisibilityVersionProperty, version);
-        target.IsHitTestVisible = false; Fade(target, 0, ms);
+        target.IsHitTestVisible = false; Fade(target, 0, ms, ease: Exit);
         if (!Reduced) await Task.Delay(ms);
         // Only the latest transition may finish when navigation changes rapidly.
         if (version == (int)target.GetValue(VisibilityVersionProperty)) target.Visibility = Visibility.Collapsed;
