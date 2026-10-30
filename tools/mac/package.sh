@@ -78,11 +78,12 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/Mira.icns"
 XCODE=$(xcode-select -p)
 ACTOOL=$(xcrun actool --version 2>/dev/null | tr -d '\n' | grep -Eo 'short-bundle-version[^0-9]*[0-9]+' | grep -Eo '[0-9]+$' || true)
 if [ "${ACTOOL:-0}" -lt 26 ]; then
-  XCODE=$(ls -d /Applications/Xcode_26*.app /Applications/Xcode-26*.app 2>/dev/null | sort -V | tail -1)
+  # (ls fails on a pattern that matches nothing: pipefail would stop the script there.)
+  XCODE=$( (ls -d /Applications/Xcode_2[6-9]*.app /Applications/Xcode-2[6-9]*.app 2>/dev/null || true) | sort -V | tail -1)
   [ -n "$XCODE" ] || { echo "Xcode 26 or later is needed for the icon of macOS 26 (actool)" >&2; exit 1; }
   XCODE="$XCODE/Contents/Developer"
 fi
-echo "actool: $XCODE"
+echo "actool: $XCODE (selected Xcode: actool ${ACTOOL:-?})"
 mkdir -p "$OUT/icon"
 DEVELOPER_DIR="$XCODE" xcrun actool "$ROOT/src/Mira.Mac/Icon/Mira.icon" --compile "$OUT/icon" --app-icon Mira \
   --platform macosx --target-device mac --minimum-deployment-target "$MINIMUM" \
