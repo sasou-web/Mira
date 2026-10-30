@@ -176,7 +176,7 @@ final class PlayerController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     /// One tap shows or hides the controls; two quick ones on a side skip 10 s there, and each more tap on that side
-    /// while the circles show skips 10 s more. The middle has no double tap: it answers at once.
+    /// while its pill shows skips 10 s more. The middle has no double tap: it answers at once.
     @objc private func tapped(_ tap: UITapGestureRecognizer) {
         if model.locked {
             model.showLockHint()

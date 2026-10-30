@@ -263,7 +263,7 @@ final class MiraUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 1)
         }
 
-        // A double tap on the right: 10 s forward, the circles of YouTube.
+        // A double tap on the right: 10 s forward, its pill on that side.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).doubleTap()
         capture("34-player-skip")
         Thread.sleep(forTimeInterval: 1.5)

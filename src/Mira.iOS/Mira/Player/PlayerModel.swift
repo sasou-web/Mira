@@ -82,7 +82,7 @@ final class PlayerModel {
     var previewSize = CGSize(width: 16, height: 9)
     /// Brightness or volume, as the finger sweeps one side of the picture: 0 to 1.
     var level: Level?
-    /// The circles of a double tap: which side, how many seconds so far.
+    /// The pill of a double tap: which side, how many seconds so far.
     var skipFlash: SkipFlash?
     /// Twice as fast while held down.
     var boosted = false
@@ -143,7 +143,7 @@ final class PlayerModel {
     struct SkipFlash: Equatable {
         let forward: Bool
         let seconds: Int
-        /// Bumped by each tap, so that the circles start again.
+        /// Bumped by each tap, so that the arrows bounce again.
         let tap: Int
     }
 
@@ -202,7 +202,7 @@ final class PlayerModel {
         }
     }
 
-    /// One more tap of a double tap: 10 s more each, the circles on that side.
+    /// One more tap of a double tap: 10 s more each, the pill on that side.
     func flash(forward: Bool) {
         let seconds = skipFlash.map { $0.forward == forward ? $0.seconds + 10 : 10 } ?? 10
         skipFlash = SkipFlash(forward: forward, seconds: seconds, tap: (skipFlash?.tap ?? 0) + 1)
