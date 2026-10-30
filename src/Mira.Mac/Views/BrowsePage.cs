@@ -31,7 +31,7 @@ public sealed class BrowsePage : Page
     private readonly WrapPanel _studios = new() { ItemSpacing = 10, LineSpacing = 10 };
     private readonly StackPanel _studiosSection = new() { Spacing = 16, IsVisible = false, Margin = new Thickness(0, 0, 0, 30) };
     private List<MediaItem> _foundStudios = [];
-    private readonly CardGrid _grid = new();
+    private readonly CardGrid _grid = new() { MinItemWidth = 180 };
     /// <summary>« Personnes »: the actors and directors a search finds, as in Mira web.</summary>
     private readonly WrapPanel _people = new() { ItemSpacing = 18, LineSpacing = 18 };
     private readonly StackPanel _peopleSection = new() { Spacing = 16, IsVisible = false, Margin = new Thickness(0, 0, 0, 30) };
@@ -42,12 +42,16 @@ public sealed class BrowsePage : Page
         _sagasSection = new() { Spacing = 16, IsVisible = false, Margin = new Thickness(0, 30, 0, 0) };
     private List<MediaItem> _foundEpisodes = [], _foundSagas = [];
     private readonly ScrollViewer _scroll;
-    private readonly TextBlock _count = new() { FontSize = 14, Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 6) };
+    private readonly TextBlock _count = new() { FontSize = 12, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
     private readonly TextBox _search = new() { Watermark = L("Un film, une série, un acteur…", "A movie, a show, an actor…"), FontSize = 18, Padding = new Thickness(18, 14) };
-    private readonly ComboBox _genre = new(), _year = new(), _state = new(), _sort = new(), _library = new() { IsVisible = false };
+    private readonly ComboBox _genre = new(), _year = new(), _state = new(), _sort = new(), _library = new();
     /// <summary>The libraries of this kind (Séries and Animes), when there are several: one at a time, or all of them.</summary>
     private List<LibrarySection> _libraries = [];
-    private readonly Button _favorites, _reset;
+    private readonly Button _favorites, _reset, _filtersToggle;
+    private readonly Border _filters;
+    private readonly Control _libraryField;
+    private readonly TextBlock _gridTitle = Ui.SectionTitle("");
+    private bool _filtersOpen;
     private readonly EmptyState _empty = new() { Margin = new Thickness(0, 56, 0, 40) };
     private readonly DispatcherTimer _typing = new() { Interval = TimeSpan.FromMilliseconds(320) };
     private readonly List<MediaItem> _items = [];
@@ -75,22 +79,48 @@ public sealed class BrowsePage : Page
         _kind = kind; _person = person; _director = director; _saga = saga; _studio = studio; _openGenre = genre;
         var title = person is not null ? Catalog.PersonText(person.Name, director) : saga is not null ? saga.Name : studio is not null ? studio.Name
             : kind switch { BrowseKind.Movies => L("Films", "Movies"), BrowseKind.Series => L("Séries", "Shows"), BrowseKind.Search => L("Rechercher", "Search"), _ => L("Bibliothèque", "Library") };
-        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
-        DockPanel.SetDock(_count, Dock.Right); header.Children.Add(_count);
-        header.Children.Add(Ui.Heading(title, 32, 1, FontWeight.SemiBold));
+        // As on Windows: the page's title and a line under it, the tools (« Filtrer », « Trier par », Favoris,
+        // Actualiser), the filters folded in a card until asked for, then the grid under its own title and count.
+        var header = Ui.Column(8, Ui.Heading(title, 32, 1, FontWeight.SemiBold));
+        header.Margin = new Thickness(0, 0, 0, 28);
+        var description = Description;
+        if (description.Length > 0) header.Children.Add(new TextBlock { Text = description, FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap });
 
-        _favorites = Ui.Action(L("Favoris", "Favorites"), "heart", "chip", () => { _favoritesOnly = !_favoritesOnly; _favorites!.Classes.Set("on", _favoritesOnly); _ = ReloadAsync(); });
-        _reset = Ui.Action(L("Réinitialiser", "Reset"), "refresh", "chip quiet", Reset);
-        Fill(_state, L("Tous", "All"), L("Non vus", "Unwatched"), L("Vus", "Watched"));
-        Fill(_sort, saga is not null ? L("Ordre de sortie", "Release order") : studio is not null ? L("Plus récents", "Newest") : L("Ajouts récents", "Recently added"), L("Titre", "Title"), L("Année", "Year"), L("Note", "Rating"), L("Derniers vus", "Last watched"));
-        _genre.PlaceholderText = L("Genre", "Genre"); _year.PlaceholderText = L("Année", "Year");
-        foreach (var (box, name) in new[] { (_library, L("Bibliothèque", "Library")), (_genre, L("Genre", "Genre")), (_year, L("Année", "Year")), (_state, L("État", "Status")), (_sort, L("Tri", "Sort")) })
+        _favorites = Ui.Action(L("Favoris", "Favorites"), "heart", "quiet", () => { _favoritesOnly = !_favoritesOnly; ShowTools(); _ = ReloadAsync(); });
+        ToolTip.SetTip(_favorites, L("Afficher seulement tes favoris", "Show only your favorites"));
+        _reset = Ui.Action(L("Réinitialiser", "Reset"), null, "quiet", Reset);
+        _reset.VerticalAlignment = VerticalAlignment.Bottom;
+        _filtersToggle = Ui.Action(L("Filtrer", "Filter"), "sliders", "quiet", ToggleFilters);
+        ToolTip.SetTip(_filtersToggle, L("Genre, année, progression, bibliothèque", "Genre, year, progress, library"));
+        var refresh = Ui.Action(L("Actualiser", "Refresh"), "refresh", "quiet", () => _ = ReloadAsync(keep: true));
+        Fill(_state, L("Tout", "All"), L("Non vus", "Unwatched"), L("Déjà vus", "Watched"));
+        Fill(_sort, saga is not null ? L("Ordre de sortie", "Release order") : studio is not null ? L("Plus récents", "Newest") : L("Ajout récent", "Recently added"), L("Titre A → Z", "Title A → Z"), L("Année", "Year"), L("Note", "Rating"), L("Dernière lecture", "Last played"));
+        _sort.Width = 190;
+        foreach (var (box, name) in new[] { (_library, L("Bibliothèque", "Library")), (_genre, L("Genre", "Genre")), (_year, L("Année", "Year")), (_state, L("Progression", "Progress")), (_sort, L("Trier par", "Sort by")) })
         {
             Avalonia.Automation.AutomationProperties.SetName(box, name);
-            box.SelectionChanged += (_, _) => { if (!_filling) _ = ReloadAsync(); };
+            box.SelectionChanged += (_, _) => { if (!_filling) { ShowTools(); _ = ReloadAsync(); } };
         }
-        var filters = new WrapPanel { ItemSpacing = 10, LineSpacing = 10, Margin = new Thickness(0, 0, 0, 26) };
-        filters.Children.AddRange([_library, _genre, _year, _state, _sort, _favorites, _reset]);
+        var tools = new DockPanel { Margin = new Thickness(0, 0, 0, 18) };
+        DockPanel.SetDock(refresh, Dock.Right); DockPanel.SetDock(_favorites, Dock.Right);
+        _favorites.Margin = new Thickness(0, 0, 12, 0);
+        tools.Children.Add(refresh); tools.Children.Add(_favorites);
+        tools.Children.Add(Ui.Row(0, _filtersToggle, new TextBlock { Text = L("Trier par", "Sort by"), Foreground = Ui.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(22, 0, 10, 0) }, _sort));
+        Control Labelled(string label, ComboBox box)
+        {
+            box.HorizontalAlignment = HorizontalAlignment.Stretch;
+            return Ui.Column(9, new TextBlock { Text = label, FontSize = 13, Margin = new Thickness(1, 0, 0, 0) }, box);
+        }
+        var fields = new Grid { ColumnDefinitions = new ColumnDefinitions("*,0.75*,*,1.25*,Auto") };
+        var cells = new[] { Labelled(L("Genre", "Genre"), _genre), Labelled(L("Année", "Year"), _year), Labelled(L("Progression", "Progress"), _state), _libraryField = Labelled(L("Bibliothèque", "Library"), _library), _reset };
+        for (var i = 0; i < cells.Length; i++) { Grid.SetColumn(cells[i], i); if (i < 4) cells[i].Margin = new Thickness(0, 0, 16, 0); fields.Children.Add(cells[i]); }
+        _filters = new Border
+        {
+            IsVisible = false, Background = Ui.Brush("#111112"), BorderBrush = Ui.Brush("#29292D"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(20, 16, 20, 20), Margin = new Thickness(0, 0, 0, 26), Child = fields
+        };
+        var gridHeader = new DockPanel { Margin = new Thickness(0, 0, 6, 22) };
+        DockPanel.SetDock(_count, Dock.Right); gridHeader.Children.Add(_count); gridHeader.Children.Add(_gridTitle);
 
         var page = new StackPanel { Margin = new Thickness(56, 44 + shell.TitleBarInset, 56, 60) };
         page.Children.Add(header);
@@ -103,7 +133,7 @@ public sealed class BrowsePage : Page
             page.Children.Add(_search);
             AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() => _search.Focus(), DispatcherPriority.Input);
         }
-        else page.Children.Add(filters);
+        else { page.Children.Add(tools); page.Children.Add(_filters); }
         if (person is not null)
         {
             var chip = Ui.Action(Catalog.PersonText(person.Name, director), "close", "chip on", () => Shell.Back());
@@ -136,6 +166,7 @@ public sealed class BrowsePage : Page
         _studiosSection.Children.Add(Ui.SectionTitle(L("Studios", "Studios")));
         _studiosSection.Children.Add(_studios);
         page.Children.Add(_studiosSection);
+        if (kind != BrowseKind.Search) page.Children.Add(gridHeader);
         page.Children.Add(_grid);
         _episodesSection.Children.Add(Ui.SectionTitle(L("Épisodes", "Episodes")));
         _episodesSection.Children.Add(_episodes);
@@ -157,13 +188,33 @@ public sealed class BrowsePage : Page
         PersonId: _person?.Id, StudioId: _studio?.Id);
     private string? Library => _saga?.Id ?? (_library.SelectedIndex > 0 && _library.SelectedIndex <= _libraries.Count ? _libraries[_library.SelectedIndex - 1].Id : null);
     private bool Filtered => _library.SelectedIndex > 0 || _genre.SelectedIndex > 0 || _year.SelectedIndex > 0 || _state.SelectedIndex > 0 || _sort.SelectedIndex > 0 || _favoritesOnly;
+    /// <summary>« Filtres · 2 » while two filters narrow the list (Catalog.FilterCount, as on Windows), Favoris and the card's state.</summary>
+    private int FilterCount => (_genre.SelectedIndex > 0 ? 1 : 0) + (_year.SelectedIndex > 0 ? 1 : 0) + (_state.SelectedIndex > 0 ? 1 : 0) + (_library.SelectedIndex > 0 ? 1 : 0);
+    private string Description => _person is not null || _saga is not null || _studio is not null ? ""
+        : _kind == BrowseKind.Search ? L("Un film, une série, un épisode, une collection, un acteur ou un studio de ta bibliothèque.", "A movie, a show, an episode, a collection, an actor or a studio from your library.")
+        : L("Trouve ta prochaine séance dans ta bibliothèque.", "Find your next show in your library.");
+    /// <summary>« Filtrer »: the card of filters shown or folded (the self-check).</summary>
+    public void ToggleFilters() { _filtersOpen = !_filtersOpen; ShowTools(); }
+    private void ShowTools()
+    {
+        if (_kind == BrowseKind.Search) return;
+        var count = FilterCount;
+        if (((StackPanel)_filtersToggle.Content!).Children.OfType<TextBlock>().FirstOrDefault() is { } label) label.Text = Catalog.FiltersLabel(count);
+        Avalonia.Automation.AutomationProperties.SetName(_filtersToggle, Catalog.FiltersLabel(count));
+        _filtersToggle.Classes.Set("on", _filtersOpen);
+        _filters.IsVisible = _filtersOpen;
+        _reset.IsVisible = count > 0;
+        _favorites.Classes.Set("on", _favoritesOnly);
+        if (((StackPanel)_favorites.Content!).Children.OfType<Icon>().FirstOrDefault() is { } heart) heart.Kind = _favoritesOnly ? "heart-filled" : "heart";
+        _gridTitle.Text = _person is not null ? Catalog.PersonText(_person.Name, _director) : _studio?.Name ?? _saga?.Name ?? (_favoritesOnly ? L("Tes favoris", "Your favorites") : L("Tous les titres", "All titles"));
+    }
     private void Reset()
     {
         _filling = true;
         if (_library.ItemCount > 0) _library.SelectedIndex = 0;
         _genre.SelectedIndex = 0; _year.SelectedIndex = 0; _state.SelectedIndex = 0; _sort.SelectedIndex = 0;
-        _filling = false; _favoritesOnly = false; _favorites.Classes.Set("on", false);
-        _ = ReloadAsync();
+        _filling = false; _favoritesOnly = false;
+        ShowTools(); _ = ReloadAsync();
     }
 
     public override async Task LoadAsync()
@@ -180,7 +231,7 @@ public sealed class BrowsePage : Page
                 _libraries = (await libraries).Where(x => kinds.Contains(x.CollectionType)).ToList();
                 _filling = true;
                 _library.Items.Add(L("Toutes les bibliothèques", "All libraries")); foreach (var library in _libraries) _library.Items.Add(library.Name);
-                _library.SelectedIndex = 0; _library.IsVisible = _person is null && _saga is null && _studio is null && _libraries.Count > 1;
+                _library.SelectedIndex = 0; _libraryField.IsVisible = _person is null && _saga is null && _studio is null && _libraries.Count > 1;
                 _filling = false;
             }
             catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; }
@@ -203,7 +254,7 @@ public sealed class BrowsePage : Page
     private async Task ReloadAsync(bool keep = false)
     {
         if (Shell.Session is not { } session) return;
-        _reset.IsVisible = Filtered;
+        ShowTools();
         var search = _search.Text?.Trim() ?? "";
         if (_kind == BrowseKind.Search && search.Length == 0) { _items.Clear(); _grid.Children.Clear(); ShowPeople([]); ShowStudios([]); ShowFound([], []); _count.Text = ""; _empty.Show("search", L("Que veux-tu regarder ?", "What do you want to watch?"), L("Cherche un film, une série, un épisode, une saga, un acteur ou un studio de ta bibliothèque.", "Find a movie, show, episode, collection, actor or studio in your library.")); return; }
         _request?.Cancel(); _request = new CancellationTokenSource();
