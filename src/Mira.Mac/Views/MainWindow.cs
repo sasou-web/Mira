@@ -247,7 +247,7 @@ public sealed partial class MainWindow : Window
                 + (Profile.SettingsCopy is { } copy ? L($" L’ancien fichier est gardé sous le nom {Path.GetFileName(copy)}.", $" The old file is kept as {Path.GetFileName(copy)}.") : "");
             Notice(NoticeText is { } shown ? shown + "\n" + said : said);
         }
-        _ = Updates.CheckAsync(this);
+        _ = Updates.StartAsync(this);
     }
 
     // —— Account ——
@@ -786,6 +786,8 @@ public sealed partial class MainWindow : Window
             await AttemptAsync(CloseSessionAsync);
             // After the last reports to Jellyfin, which may go through it.
             await AttemptAsync(Tailnet.DisposeAsync);
+            // Last: the new version waiting beside this one replaces it once this process has ended.
+            Attempt(() => Updates.InstallAtQuit(this));
         }
         finally { Close(); }
         void Attempt(Action step) { try { step(); } catch (Exception ex) { ErrorLog.Append(Profile.DirectoryPath, ex); } }
