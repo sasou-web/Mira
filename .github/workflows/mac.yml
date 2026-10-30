@@ -71,6 +71,12 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: tools/mac/package.sh "$VERSION"
+      # Mira's icon as this macOS (15) shows it, for its preview below; the job « icon » does the same on macOS 26.
+      - name: Icon on macOS 15
+        run: |
+          mkdir -p .artifacts/icon
+          swift tools/mac/icon-shown.swift dist/mac/Mira.app .artifacts/icon/icon-macos15.png
+          assetutil --info dist/mac/Mira.app/Contents/Resources/Assets.car | grep -E '"(AssetType|Name|RenditionName)"' | sort | uniq -c
       # The disk image's window as Finder opens it, in dark then light appearance, for its previews below: the picture,
       # the icons' places and the labels Finder writes over the picture (their colour follows the appearance).
       - name: Disk image window
@@ -175,7 +181,7 @@ jobs:
       - name: Capture previews in the log
         if: always()
         run: |
-          for file in .artifacts/check/*.png .artifacts/dmg/dmg-*.png .artifacts/tailnet/*.png; do
+          for file in .artifacts/check/*.png .artifacts/dmg/dmg-*.png .artifacts/tailnet/*.png .artifacts/icon/*.png; do
             [ -f "$file" ] || continue
             name=$(basename "$file" .png); small=".artifacts/$name.jpg"
             sips -s format jpeg -s formatOptions 45 -Z 720 "$file" --out "$small" >/dev/null
@@ -190,6 +196,7 @@ jobs:
             .artifacts/check
             .artifacts/check.log
             .artifacts/dmg
+            .artifacts/icon
             .artifacts/tailnet
             .artifacts/tailnet-*.log
             .artifacts/testnet.log
@@ -201,6 +208,30 @@ jobs:
             dist/mac/*.dmg
             dist/mac/*.dmg.sha256
           retention-days: 14
+  icon:
+    # Mira's icon as macOS 26 shows it, from the disk image built above: drawn by macOS from Mira.icon (Assets.car), never
+    # on the grey tile macOS 26 gives an icon it does not recognise. Lines read: MIRA-PREVIEW <name> <part>/<parts> <base64>.
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Mira-mac-arm64
+          path: mac
+      - name: Icon on macOS 26
+        run: |
+          sw_vers
+          volume=$(hdiutil attach mac/*.dmg | awk -F '\t' '/\/Volumes\// { print $NF }')
+          mkdir -p icon
+          swift tools/mac/icon-shown.swift "$volume/Mira.app" icon/icon-macos26.png
+          hdiutil detach "$volume" || hdiutil detach -force "$volume"
+          sips -s format jpeg -s formatOptions 70 icon/icon-macos26.png --out icon/icon-macos26.jpg >/dev/null
+          data=$(base64 -i icon/icon-macos26.jpg | tr -d '\n'); parts=$(( (${#data} + 3999) / 4000 ))
+          for ((i = 0; i < parts; i++)); do echo "MIRA-PREVIEW icon-macos26 $((i + 1))/$parts ${data:$((i * 4000)):4000}"; done
   release:
     # The draft tools/release.ps1 made gets its Mac disk image here, built from the draft's commit and checked above.
     if: inputs.release != ''

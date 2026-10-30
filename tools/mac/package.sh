@@ -39,6 +39,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>io.github.sasou-web.mira</string>
   <key>CFBundleExecutable</key><string>Mira</string>
   <key>CFBundleIconFile</key><string>Mira</string>
+  <key>CFBundleIconName</key><string>Mira</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
@@ -63,13 +64,33 @@ mkdir -p "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/fr.lproj"
 printf '"NSLocalNetworkUsageDescription" = "%s";\n' "Mira finds your Jellyfin server on your network and plays your library from it." > "$APP/Contents/Resources/en.lproj/InfoPlist.strings"
 printf '"NSLocalNetworkUsageDescription" = "%s";\n' "Mira trouve ton serveur Jellyfin sur ton réseau et y lit ta bibliothèque." > "$APP/Contents/Resources/fr.lproj/InfoPlist.strings"
 
-# 3. The icon, from the 1024 px mark.
+# 3. The icon. macOS 26 reads Assets.car (CFBundleIconName): Mira.icon, Icon Composer's format, which only Xcode 26's
+# actool compiles; macOS 26 draws its shape and glass, and would put any other icon on a grey tile. macOS 15 reads
+# Mira.icns (CFBundleIconFile), from the icon drawn on Apple's grid. Both come from tools/mac/icon.mjs.
 ICONSET="$OUT/Mira.iconset"; mkdir -p "$ICONSET"
 for size in 16 32 128 256 512; do
-  sips -z $size $size "$ROOT/src/Mira.Mac/Assets/AppIcon.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
-  sips -z $((size * 2)) $((size * 2)) "$ROOT/src/Mira.Mac/Assets/AppIcon.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+  sips -z $size $size "$ROOT/src/Mira.Mac/Icon/Mira.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+  sips -z $((size * 2)) $((size * 2)) "$ROOT/src/Mira.Mac/Icon/Mira.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/Mira.icns"
+# The Xcode that has actool 26 or later: the selected one, otherwise the most recent Xcode 26 of this Mac (GitHub's
+# macos-15 keeps Xcode 16 selected).
+XCODE=$(xcode-select -p)
+ACTOOL=$(xcrun actool --version 2>/dev/null | tr -d '\n' | grep -Eo 'short-bundle-version[^0-9]*[0-9]+' | grep -Eo '[0-9]+$' || true)
+if [ "${ACTOOL:-0}" -lt 26 ]; then
+  XCODE=$(ls -d /Applications/Xcode_26*.app /Applications/Xcode-26*.app 2>/dev/null | sort -V | tail -1)
+  [ -n "$XCODE" ] || { echo "Xcode 26 or later is needed for the icon of macOS 26 (actool)" >&2; exit 1; }
+  XCODE="$XCODE/Contents/Developer"
+fi
+echo "actool: $XCODE"
+mkdir -p "$OUT/icon"
+DEVELOPER_DIR="$XCODE" xcrun actool "$ROOT/src/Mira.Mac/Icon/Mira.icon" --compile "$OUT/icon" --app-icon Mira \
+  --platform macosx --target-device mac --minimum-deployment-target "$MINIMUM" \
+  --output-partial-info-plist "$OUT/icon/partial.plist" --output-format human-readable-text --errors --warnings
+# Assets.car only: actool's own Mira.icns is for its own grid, not macOS 15's.
+[ -f "$OUT/icon/Assets.car" ] || { echo "actool made no Assets.car" >&2; ls -l "$OUT/icon" >&2; exit 1; }
+cp "$OUT/icon/Assets.car" "$APP/Contents/Resources/Assets.car"
+cat "$OUT/icon/partial.plist"
 
 # 4. libmpv and every library it needs, from Homebrew, rewritten to load from Contents/Frameworks.
 cp "$BREW/lib/libmpv.2.dylib" "$APP/Contents/Frameworks/"

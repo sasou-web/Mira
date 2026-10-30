@@ -97,7 +97,7 @@ Mira.Mac (Avalonia)
   │   ├─ SoftwareVideoView : repli en rendu logiciel, sur son propre fil
   │   └─ Timeline : barre de progression découpée par chapitres
   ├─ Services : Profile (Application Support), Keychain et KeychainVault (jeton de session et clé de Tailscale intégré dans un seul élément du trousseau), Session, Images, SleepGuard (écran allumé pendant la lecture), Updates (mise à jour automatique depuis GitHub), TailnetExecutable (mira-tailscale dans Mira.app, blocage de Gatekeeper)
-  └─ Checks : --self-check (chaque écran et la lecture, avec un Jellyfin réel ou simulé), --tailnet-check (Tailscale intégré sur un réseau Tailscale de test), --video-probe, --export-icon
+  └─ Checks : --self-check (chaque écran et la lecture, avec un Jellyfin réel ou simulé), --tailnet-check (Tailscale intégré sur un réseau Tailscale de test), --video-probe
 ```
 
 Sur Mac, mpv n’a pas de fenêtre à lui : `vo=libmpv`, et Mira dessine chaque image dans un `OpenGlControlBase`. Le contexte de rendu de mpv doit exister avant l’ouverture d’un fichier (sinon mpv lit sans image), mpv délie le framebuffer à la fin de son dessin (Mira le relie, sinon Avalonia affiche du noir) et il est libéré, contexte OpenGL actif, quand la vue quitte la fenêtre, avant `mpv_terminate_destroy`. Avec un OpenGL logiciel (Mesa llvmpipe), mpv dessine du noir dans ses tampons en virgule flottante : Mira passe alors aux tampons 8 bits. Sans OpenGL, la vue logicielle prend le relais.
