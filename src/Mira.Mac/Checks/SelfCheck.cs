@@ -117,8 +117,11 @@ public static class SelfCheck
             if (window.Current is DetailPage { Episodes.Count: > 100 } longSeries)
                 Check(longSeries.SeasonLabels.Any(x => x.Contains("1–100")) && longSeries.SeasonLabels.Count() > 1, "longue saison par tranches", string.Join(" | ", longSeries.SeasonLabels));
             await Task.Delay(1200); Capture(window, output, "06-series");
+            SettingsPage.OpenAt("playback");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
+            // The categories, as on Windows: those of the server's account hold its sections.
+            (window.Current as SettingsPage)?.Show("server");
             // « Titres à corriger », as on Windows: the mock's titles have no ids from a metadata source.
             if (mock is not null)
                 Check(await Until(() => window.Current is SettingsPage { Fix.Count: > 0, Fix.Section.IsVisible: true }, 10), "réglages : titres à corriger", $"{(window.Current as SettingsPage)?.Fix.Count} titres");
@@ -138,13 +141,14 @@ public static class SelfCheck
             // « Sortie audio », as on Windows: the devices mpv lists, and « Tester » made and played here.
             if (window.Current is SettingsPage withAudio)
             {
+                withAudio.Show("audio");
                 Check(await Until(() => withAudio.AudioDevices >= 0, 15), "réglages : sortie audio", $"{withAudio.AudioDevices} sorties");
                 withAudio.TestSoundForCheck();
                 var heard = await Until(() => withAudio.SoundTested is not null && !File.Exists(Path.Combine(Path.GetTempPath(), "Mira-sound-test.wav")), 15);
                 Check(heard && withAudio.SoundTested!.Contains(AudioOutput.TestSound(window.Settings.AudioChannels).Speakers[^1]), "réglages : tester la sortie audio", withAudio.SoundTested ?? "rien");
                 withAudio.AudioOutputRow.BringIntoView(); await Task.Delay(500); Capture(window, output, "07d-settings-audio");
             }
-            if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Viewing.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
+            if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Show("server"); withFix.Viewing.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
 
             // —— Téléchargements: sent to the PC of Jellyfin ——
             if (mock is not null)

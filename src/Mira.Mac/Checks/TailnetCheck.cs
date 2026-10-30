@@ -133,6 +133,7 @@ public sealed class TailnetCheck
             Require(tailscale.Current?.State == TailnetStates.Running && TailnetNetwork.Default.Choose(ip).Path == TailnetPath.Node,
                 again ? "the node started with Mira, before Jellyfin was asked anything: Home loads through it at once" : $"Home shows the server's titles ({((HomePage)window.Current!).Latest.Count}) through the node");
             await Shot(again ? "tailnet-home-again" : "tailnet-home");
+            SettingsPage.OpenAt("server");
             window.Go("settings");
             await Until("Réglages", () => window.Current is SettingsPage { Tailnet.Shown: { Visible: true, Way.Length: > 0 } }, 10);
             var shown = ((SettingsPage)window.Current!).Tailnet.Shown;
