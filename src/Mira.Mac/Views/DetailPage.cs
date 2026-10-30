@@ -181,8 +181,10 @@ public sealed class DetailPage : Page
         }
         if (_admin && _item.Type is "Movie" or "Series")
         {
+            // « ⋮ » as on Windows: what an administrator rarely needs stays out of the row of actions.
             Button? fix = null;
-            fix = Ui.Action(L("Corriger", "Fix"), "search", "", () => FixMenu(fix!));
+            fix = Ui.IconButton("more", L("Identifier le titre, actualiser ses informations", "Identify the title, refresh its details"), () => FixMenu(fix!), "", 18, L("Plus d’actions sur ce titre", "More actions for this title"));
+            fix.Padding = new Thickness(15, 11);
             actions.Children.Add(fix);
         }
         _top.Children.Add(actions);
@@ -228,7 +230,7 @@ public sealed class DetailPage : Page
         Add(L("Ne plus suivre", "Stop following"), () => _ = Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")));
         Ui.OpenUnder(menu, button);
     }
-    /// <summary>An administrator of Jellyfin: « Corriger » offers « Identifier… », « Actualiser les métadonnées » and, for a film, « Chercher une meilleure version ».</summary>
+    /// <summary>An administrator of Jellyfin: « ⋮ » offers « Identifier… », « Actualiser les métadonnées » and, for a film, « Chercher une meilleure version ».</summary>
     private bool _admin;
     private async Task CheckAdministratorAsync(Session session)
     {
