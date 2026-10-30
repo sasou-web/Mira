@@ -316,13 +316,21 @@ public partial class MainWindow : Window
             if (ReferenceEquals(store, _store)) { _catalog.RecentPlayback = history ?? []; _catalog.HiddenResume = hidden ?? []; }
             if (cached is not null && ReferenceEquals(store, _store)) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; _catalog.Resume = cachedResume ?? []; _catalog.Loading = false; RenderLibrary(); }
             await RefreshAsync();
-            var libraries = await _client.LibrariesAsync(); LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
+            // Signed out, or another account, while the first page loaded: this one stops here (_client may be null).
+            if (!ReferenceEquals(_client, client)) return;
+            var libraries = await client.LibrariesAsync();
+            if (!ReferenceEquals(_client, client)) return;
+            LibrariesPanel.Children.Clear(); _homeLibraries = libraries;
             _filterBusy = true; LibraryFilter.Items.Clear(); LibraryFilter.Items.Add(new ComboBoxItem { Content = L("Toutes les bibliothèques", "All libraries"), Tag = "" }); LibraryFilter.SelectedIndex = 0;
             foreach (var library in libraries.Where(x => !LibrarySection.Groups(x.CollectionType))) AddLibraryButton(library.Name, library.Id);
             _filterBusy = false;
-            PopulateFilters(await _client.FiltersAsync());
+            var filters = await client.FiltersAsync();
+            if (!ReferenceEquals(_client, client)) return;
+            PopulateFilters(filters);
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
+        // A client disposed by a sign-out meanwhile fails its request: nothing to say then.
+        catch (Exception ex) when (IsExpected(ex) || (!ReferenceEquals(_client, client) && ex is ObjectDisposedException or OperationCanceledException)) { if (ReferenceEquals(_client, client)) SetError(Friendly(ex)); }
+        if (!ReferenceEquals(_client, client)) return;
         SyncChanged();
         // Said once the first refresh is done, which would otherwise hide it at once.
         if (damaged) SetNotice(L("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.", "This account’s local cache couldn’t be read: it was rebuilt. Progress reports that hadn’t been sent yet are lost."), null, null, sticky: true);
