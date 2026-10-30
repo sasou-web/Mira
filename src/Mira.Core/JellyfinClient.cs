@@ -1532,6 +1532,35 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
+    // —— This account's photo (Réglages, the rail): Jellyfin keeps one picture per account, shown on every device ——
+    /// <summary>This account's photo, at most <paramref name="width"/> pixels wide; null when it has none.</summary>
+    public async Task<byte[]?> PhotoAsync(int width, CancellationToken ct = default)
+    {
+        using var me = await _http.GetAsync("Users/Me", ct);
+        await CheckAsync(me);
+        var tag = JsonNode.Parse(await me.Content.ReadAsStringAsync(ct))?["PrimaryImageTag"] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+        if (string.IsNullOrEmpty(tag)) return null;
+        using var response = await _http.GetAsync($"Users/{Uri.EscapeDataString(Connection.UserId)}/Images/Primary?maxWidth={width}&tag={Uri.EscapeDataString(tag)}&quality=90", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+    /// <summary>
+    /// A new photo for this account: a JPEG, sent in base64 as Jellyfin takes it (the route of 10.9, still answered by
+    /// 12.1, checked; any account may change its own).
+    /// </summary>
+    public async Task SetPhotoAsync(byte[] jpeg, CancellationToken ct = default)
+    {
+        using var content = new StringContent(Convert.ToBase64String(jpeg), Encoding.ASCII, "image/jpeg");
+        content.Headers.ContentType = new("image/jpeg");
+        using var response = await _http.PostAsync($"Users/{Uri.EscapeDataString(Connection.UserId)}/Images/Primary", content, ct);
+        await CheckAsync(response);
+    }
+    public async Task RemovePhotoAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync($"Users/{Uri.EscapeDataString(Connection.UserId)}/Images/Primary", ct);
+        if (response.StatusCode != HttpStatusCode.NotFound) await CheckAsync(response);
+    }
     // « Regarder ensemble », Jellyfin's SyncPlay (Together): Unauthorized when Jellyfin does not let this account use it.
     public async Task<(long Sent, long Received, long ServerIn, long ServerOut)?> UtcTimeAsync(CancellationToken ct = default)
     {

@@ -36,6 +36,8 @@ public sealed partial class SettingsPage : Page
             Row(L("Effacer aussi les données de ce compte sur ce Mac", "Also erase this account’s data on this Mac"),
                 L("En te déconnectant : le cache de ta bibliothèque, les affiches et les progressions pas encore envoyées à Jellyfin. Tes réglages restent.",
                     "When you sign out: your library’s cache, the posters and any progress not yet sent to Jellyfin. Your settings stay."), erase)));
+        // This account's photo, as on Windows: kept by Jellyfin, on every device.
+        if (connection is not null) Tab("server").Children.Add(Section(L("Ta photo", "Your photo"), PhotoRow()));
         // « Tailscale intégré »: how Mira reaches Jellyfin away from home without the Tailscale app.
         Tailnet = new TailnetSection(shell, Section);
         Tab("server").Children.Add(Tailnet.Section);
@@ -303,6 +305,39 @@ public sealed partial class SettingsPage : Page
             list.Children.Add(new Border { Background = Ui.Brush("#111113"), CornerRadius = radius, Padding = new Thickness(22, 16), Child = rows[i] });
         }
         return Ui.Column(12, Ui.Heading(title, 19, 2), list);
+    }
+    /// <summary>The photo, « Choisir une photo… » and « Retirer »; what Jellyfin answered said below them.</summary>
+    private Control PhotoRow()
+    {
+        var picture = new Avalonia.Controls.Shapes.Ellipse { Width = 64, Height = 64 };
+        var letter = new TextBlock { Text = Shell.Session?.Connection.UserName is { Length: > 0 } name ? name[..1].ToUpperInvariant() : "?", FontSize = 24, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var face = new Grid { Width = 64, Height = 64, Margin = new Thickness(0, 0, 18, 0), VerticalAlignment = VerticalAlignment.Top, Children = { new Border { CornerRadius = new CornerRadius(32), Background = Ui.Brush("#3D3D43") }, letter, picture } };
+        var status = new TextBlock { FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        Button? choose = null, remove = null;
+        async Task Run(Func<Task<string?>> change)
+        {
+            choose!.IsEnabled = remove!.IsEnabled = false; status.Text = L("Envoi à Jellyfin…", "Sending to Jellyfin…"); status.IsVisible = true;
+            var said = await change();
+            choose.IsEnabled = remove.IsEnabled = true; status.Text = said ?? ""; status.IsVisible = said is not null;
+        }
+        choose = Ui.Action(L("Choisir une photo…", "Choose a photo…"), null, "", () => _ = Run(Shell.ChoosePhotoAsync));
+        remove = Ui.Action(L("Retirer", "Remove"), null, "quiet", () => _ = Run(Shell.RemovePhotoAsync));
+        Avalonia.Automation.AutomationProperties.SetName(remove, L("Retirer ta photo", "Remove your photo"));
+        void Show()
+        {
+            picture.Fill = Shell.Photo is { } photo ? new ImageBrush(photo) { Stretch = Stretch.UniformToFill } : null;
+            picture.IsVisible = remove.IsVisible = Shell.Photo is not null;
+        }
+        Shell.PhotoChanged += Show;
+        DetachedFromVisualTree += (_, _) => Shell.PhotoChanged -= Show;
+        Show();
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Margin = new Thickness(0, 12, 0, 0), Children = { choose, remove } };
+        var text = Ui.Column(3, new TextBlock { Text = L("Ta photo", "Your photo"), FontSize = 15, FontWeight = FontWeight.SemiBold },
+            new TextBlock { Text = L("Gardée sur ton Jellyfin : elle te suit sur ton téléphone, ton PC et dans Jellyfin. Mira la recadre au carré.", "Kept on your Jellyfin: it follows you on your phone, your PC and in Jellyfin. Mira crops it square."), FontSize = 13, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
+            buttons, status);
+        var dock = new DockPanel();
+        DockPanel.SetDock(face, Dock.Left); dock.Children.Add(face); dock.Children.Add(text);
+        return dock;
     }
     private static Control Row(string title, string detail, Control? action)
     {

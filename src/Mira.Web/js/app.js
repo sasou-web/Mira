@@ -51,6 +51,8 @@ const ROUTES = [
   { pattern: /^\/invite$/, bare: true, open: true, guest: true, load: () => import('./views/guest.js') },
   // « Inviter par lien », the host's side (an administrator): the links made, from Réglages or « Inviter quelqu'un ».
   { pattern: /^\/invites$/, load: () => import('./views/guests.js') },
+  // « Profils »: the accounts of this Jellyfin, a new one, each one's photo (administrators).
+  { pattern: /^\/profils$/, load: () => import('./views/profiles.js') },
   { pattern: /^\/connexion$/, bare: true, open: true, load: () => import('./views/login.js') },
   // Opened from Réglages, a screen of its own like the others; opened by Mira for Windows, before any sign-in, alone.
   { pattern: /^\/partager$/, bare: () => !session.current, open: true, load: () => import('./views/share.js') },

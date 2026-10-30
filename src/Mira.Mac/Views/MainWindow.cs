@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(6) };
     /// <summary>Jellyfin's change notifications come in bursts (a scan, a playback elsewhere): one refresh after the last.</summary>
     private readonly DispatcherTimer _serverChanged = new() { Interval = TimeSpan.FromSeconds(2) };
+    private readonly Avalonia.Controls.Shapes.Ellipse _avatarPhoto = new() { IsVisible = false };
     private readonly TextBlock _avatar = new() { FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#DEDEE4"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly List<Page> _history = [];
     private readonly Dictionary<string, Button> _railButtons = [];
@@ -153,7 +154,7 @@ public sealed partial class MainWindow : Window
         _railButtons["offline"].IsVisible = false;
         var settings = Ui.IconButton("settings", L("Réglages · ⌘,", "Settings · ⌘,"), () => NavigateRoot("settings"), "rail", 22);
         _railButtons["settings"] = settings;
-        var avatar = new Border { Width = 29, Height = 29, CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3D3D43"), Child = _avatar, Margin = new Thickness(0, 12, 0, 0) };
+        var avatar = new Grid { Width = 29, Height = 29, Margin = new Thickness(0, 12, 0, 0), Children = { new Border { CornerRadius = new CornerRadius(10), Background = Ui.Brush("#3D3D43"), Child = _avatar }, _avatarPhoto } };
         ToolTip.SetTip(avatar, L("Compte Jellyfin", "Jellyfin account"));
         var bottom = Ui.Column(8, settings, avatar); bottom.HorizontalAlignment = HorizontalAlignment.Center;
         var dock = new DockPanel { Margin = new Thickness(0, TitleBarInset, 0, 18) };
@@ -256,6 +257,7 @@ public sealed partial class MainWindow : Window
             session.Listen(() => Dispatcher.UIThread.Post(Changed), Listening, (type, data) => Dispatcher.UIThread.Post(() => Group.Message(session, type, data)));
         }
         _avatar.Text = connection.UserName.Length > 0 ? connection.UserName[..1].ToUpperInvariant() : "?";
+        SetPhoto(null); _ = ShowPhotoAsync();
         _overlay.Children.Clear(); _rail.IsVisible = true;
         _railButtons["downloads"].IsVisible = false;
         _ = OfferDownloadsAsync(Session);
@@ -418,7 +420,7 @@ public sealed partial class MainWindow : Window
     {
         await StopPlaybackAsync();
         Group.Gone();
-        var session = Session; Session = null;
+        var session = Session; Session = null; SetPhoto(null);
         // Off this Mac first, so that quitting while Jellyfin is asked leaves no session saved; the keychain may ask the
         // person, never on the UI thread.
         await Task.Run(Profile.ClearConnection);

@@ -3689,6 +3689,56 @@
           }
         }
       }
+    },
+    "Add your photo": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter ta photo"
+          }
+        }
+      }
+    },
+    "Change your photo": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changer ta photo"
+          }
+        }
+      }
+    },
+    "This picture won’t open. Choose another photo.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette image ne s’ouvre pas. Choisis une autre photo."
+          }
+        }
+      }
+    },
+    "Profiles": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profils"
+          }
+        }
+      }
+    },
+    "An account for each person in the house or a friend, with their photo.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un compte pour chaque personne de la maison ou un ami, avec sa photo."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

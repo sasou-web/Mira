@@ -205,7 +205,7 @@ public partial class MainWindow : Window
         await DisconnectServicesAsync();
         _demo = true; LoginOverlay.Visibility = Visibility.Collapsed; DemoBadge.Visibility = Visibility.Visible;
         ServerLabel.Text = L("Mode démonstration", "Demo mode"); SyncLabel.Text = L("○  Données fictives · rien n’est envoyé", "○  Made-up data · nothing is sent");
-        AvatarLetter.Text = "M";
+        AvatarLetter.Text = "M"; SetPhoto(null);
         LibrariesPanel.Children.Clear(); AddLibraryButton(L("Films & séries", "Movies & shows"), null);
         _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
         PopulateFilters(new CatalogFilters { Genres = DemoLibrary.Items().SelectMany(x => x.Genres).Distinct().ToArray(), Years = DemoLibrary.Items().Select(x => x.ProductionYear ?? 0).Where(x => x > 0).Distinct().ToArray() });
@@ -306,7 +306,7 @@ public partial class MainWindow : Window
         if (_invite is not null) _ = OfferInviteAsync();
         _ = LoadOfflineAsync(client);
         if (!_args.Contains("--visual-check")) _ = MarkLibraryFoldersAsync(client, _connectionLifetime.Token);
-        ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant();
+        ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant(); SetPhoto(null); _ = ShowPhotoAsync();
         SettingsServerAddress.Text = connection.Server;
         LoginOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";
         try
@@ -359,7 +359,7 @@ public partial class MainWindow : Window
         _metadata = null; ClosePreview(); ++_detailVersion; ++_heroVersion; _hero = null;
         _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); _choicesSoon.Stop(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
-        _client?.Dispose(); _client = null; _images = null; _store = null; _listening = false;
+        _client?.Dispose(); _client = null; SetPhoto(null); _images = null; _store = null; _listening = false;
         _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _homeLibraries = [];
         // Another account, the demo or none: this one's offline state is not theirs.
         _offlineShown = false; OfflineBadge.Visibility = Visibility.Collapsed;
