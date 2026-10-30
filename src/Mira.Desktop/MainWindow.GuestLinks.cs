@@ -222,7 +222,7 @@ public partial class MainWindow
     {
         await CloseInviteAsync();
         Settings_Click(this, new());
-        SelectSettingsTab("server");
+        SelectSettingsTab("sharing");
         await _guestShowing;
         if (GuestRow.Visibility != Visibility.Visible || SettingsOverlay.Visibility != Visibility.Visible) return;
         GuestRow.BringIntoView();

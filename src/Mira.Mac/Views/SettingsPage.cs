@@ -46,21 +46,21 @@ public sealed partial class SettingsPage : Page
         // Quick Connect: shown once Jellyfin says it lets devices in by a code.
         var devices = Section(L("Autoriser un appareil", "Allow a device"), ApproveDevice());
         devices.IsVisible = false;
-        Tab("server").Children.Add(devices);
+        Tab("sharing").Children.Add(devices);
         if (shell.Session is { } session) _ = ShowWhenEnabledAsync(session.Client, devices);
         // « Ajouter un ami »: an account of their own, as on Windows, for an administrator.
         Friend = new FriendsSection(shell, Section);
-        Tab("server").Children.Add(Friend.Section);
+        Tab("sharing").Children.Add(Friend.Section);
         // « Liens d'invités »: an administrator's links for guests without an account (shown once Jellyfin's extension answers).
-        Tab("server").Children.Add(new GuestLinksSection(shell, Section).Section);
+        Tab("sharing").Children.Add(new GuestLinksSection(shell, Section).Section);
         // « Sous-titres automatiques »: the extension's search and alignment of subtitles, for an administrator.
-        Tab("server").Children.Add(new AutoSubtitlesSection(shell, Section).Section);
+        Tab("care").Children.Add(new AutoSubtitlesSection(shell, Section).Section);
         // « En ce moment sur Jellyfin »: who plays what, as on Windows.
         Viewing = new ViewersSection(shell, Section);
         Tab("server").Children.Add(Viewing.Section);
         // « Titres à corriger »: what Jellyfin did not recognize, for an administrator, as on Windows.
         Fix = new FixTitlesSection(shell, Section);
-        Tab("server").Children.Add(Fix.Section);
+        Tab("care").Children.Add(Fix.Section);
 
         Tab("playback").Children.Add(Section(L("Lecture", "Playback"),
             Toggle(L("Reprendre là où tu t’es arrêté", "Resume where you left off"), L("Sinon, chaque titre repart du début.", "Otherwise, every title starts from the beginning."), settings.RememberPosition, v => settings.RememberPosition = v),

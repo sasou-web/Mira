@@ -104,6 +104,9 @@ public partial class MainWindow
         TorLinkPathBox.Text = _settings.TorLinkPath; TorLinkMoviesBox.Text = _settings.TorLinkMoviesFolder;
         TorLinkSeriesBox.Text = _settings.TorLinkSeriesFolder; TorLinkAnimeBox.Text = _settings.TorLinkAnimeFolder;
         TorLinkSettingsNav.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
+        WatchSettingsGroups(); ShowSettingsGroups();
+        // What « Entretien » holds, read now: its tab is listed only once one of them shows.
+        _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync();
         DescribeTorLinkSettings(); _friendShowing = ShowFriendAsync(); _ = ShowPhotoAsync(); _guestShowing = ShowGuestLinksAsync(); _ = ShowApproveDeviceAsync(); _ = ShowSagasAsync(); _ = ShowTrickplaySettingAsync(); _ = ShowGpuAsync(); _ = ShowAudioSettingsAsync(); _jellyfinHereShowing = ShowJellyfinHereAsync(); ShowOfflineSettings();
         AutoUpdateCheck.IsChecked = _settings.AutoUpdate; ShowUpdateState();
         Motion.Reveal(SettingsOverlay, 260, 0); Motion.Reveal(SettingsContent, 260, 10); _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(GuideOverlay); UpdateHeroClock();
@@ -115,21 +118,46 @@ public partial class MainWindow
     private static string SettingsApplyAtOnce => L("Chaque changement s’applique et s’enregistre tout de suite.", "Each change applies and is saved at once.");
     private static void SelectChoice(ComboBox box, string value) => box.SelectedItem = box.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == value) ?? box.Items.OfType<ComboBoxItem>().Last();
     private void SettingsTab_Click(object sender, RoutedEventArgs e) => SelectSettingsTab((string)((Button)sender).Tag);
+    /// <summary>
+    /// « Amis & invités » and « Entretien » hold only what an administrator sees: listed while one of their rows shows,
+    /// and said empty otherwise. Each row's visibility, set as Jellyfin answers, draws them again.
+    /// </summary>
+    private void ShowSettingsGroups()
+    {
+        foreach (var (panel, nav, empty) in new[] { (SharingSettings, SharingSettingsNav, SharingEmpty), (CareSettings, CareSettingsNav, CareEmpty) })
+        {
+            var any = panel.Children.OfType<Border>().Any(x => x.Visibility == Visibility.Visible);
+            nav.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+            empty.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+    private bool _settingsGroupsWatched;
+    private void WatchSettingsGroups()
+    {
+        if (_settingsGroupsWatched) return;
+        _settingsGroupsWatched = true;
+        var visibility = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(VisibilityProperty, typeof(Border));
+        foreach (var row in SharingSettings.Children.OfType<Border>().Concat(CareSettings.Children.OfType<Border>())) visibility.AddValueChanged(row, (_, _) => ShowSettingsGroups());
+    }
     private void SelectSettingsTab(string tab)
     {
         PlaybackSettings.Visibility = tab == "playback" ? Visibility.Visible : Visibility.Collapsed;
         SubtitleSettings.Visibility = tab == "subtitles" ? Visibility.Visible : Visibility.Collapsed;
         AppearanceSettings.Visibility = tab == "appearance" ? Visibility.Visible : Visibility.Collapsed;
         ServerSettings.Visibility = tab == "server" ? Visibility.Visible : Visibility.Collapsed;
+        SharingSettings.Visibility = tab == "sharing" ? Visibility.Visible : Visibility.Collapsed;
+        CareSettings.Visibility = tab == "care" ? Visibility.Visible : Visibility.Collapsed;
         TorLinkSettings.Visibility = tab == "torlink" ? Visibility.Visible : Visibility.Collapsed;
         UpdateSettings.Visibility = tab == "updates" ? Visibility.Visible : Visibility.Collapsed;
         ReportSettings.Visibility = tab == "report" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsSectionTitle.Text = tab switch { "subtitles" => L("Audio & sous-titres", "Audio & subtitles"), "appearance" => L("Apparence", "Appearance"), "server" => L("Jellyfin & synchronisation", "Jellyfin & sync"), "torlink" => "TorLink", "updates" => L("Mises à jour", "Updates"), "report" => L("Ton bilan", "Your recap"), _ => L("Lecture", "Playback") };
+        SettingsSectionTitle.Text = tab switch { "subtitles" => L("Audio & sous-titres", "Audio & subtitles"), "appearance" => L("Apparence", "Appearance"), "server" => "Jellyfin", "sharing" => L("Amis & invités", "Friends & guests"), "care" => L("Entretien", "Maintenance"), "torlink" => "TorLink", "updates" => L("Mises à jour", "Updates"), "report" => L("Ton bilan", "Your recap"), _ => L("Lecture", "Playback") };
         SettingsSectionDescription.Text = tab switch
         {
             "subtitles" => L("Où part le son, et les bonnes langues dès le premier épisode.", "Where the sound goes, and the right languages from the very first episode."),
             "appearance" => L("Ajuste le confort de navigation à tes habitudes.", "Make browsing work the way you like."),
             "server" => L("Ta bibliothèque et ta progression, toujours à portée de main.", "Your library and your progress, always at hand."),
+            "sharing" => L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in."),
+            "care" => L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres, épisodes manquants, Jellyfin sur ce PC.", "What keeps your library in shape: titles to fix, subtitles, missing episodes, Jellyfin on this PC."),
             "torlink" => L("Tes téléchargements rangés dans Jellyfin, sans rien déplacer à la main.", "Your downloads filed in Jellyfin, without moving anything by hand."),
             "updates" => L("Les nouvelles versions de Mira, installées sans y penser.", "New versions of Mira, installed without a thought."),
             "report" => L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices."),
@@ -137,10 +165,12 @@ public partial class MainWindow
         };
         foreach (var button in SettingsNavigation.Children.OfType<Button>()) { var active = button.Tag?.ToString() == tab; button.Background = active ? Palette.Get("Text") : Brushes.Transparent; button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextBody"); }
         SettingsScroll.ScrollToTop();
-        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "report" => ReportSettings, _ => PlaybackSettings };
+        var body = tab switch { "subtitles" => SubtitleSettings, "appearance" => AppearanceSettings, "server" => ServerSettings, "sharing" => SharingSettings, "care" => CareSettings, "torlink" => TorLinkSettings, "updates" => UpdateSettings, "report" => ReportSettings, _ => PlaybackSettings };
         SmoothScroll.Jump(SettingsScroll); Motion.Reveal(body, 230, 7);
         WatchViewers(tab == "server");
-        if (tab == "server") { _ = ReadTailscaleAppAsync(); _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
+        if (tab == "server") _ = ReadTailscaleAppAsync();
+        if (tab == "care") { _ = ShowFailuresAsync(); _ = ShowFixAsync(); _ = ShowAutoSubtitlesAsync(); _ = ShowTvdbAsync(); }
+        ShowSettingsGroups();
         if (tab == "report") _ = ShowReportAsync();
     }
     private void LanguageChoice_Changed(object sender, SelectionChangedEventArgs e)
