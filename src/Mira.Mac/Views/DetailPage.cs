@@ -48,6 +48,8 @@ public sealed class DetailPage : Page
     public override string Rail => "";
     public MediaItem Item => _item;
     public IReadOnlyList<MediaItem> Episodes => _allEpisodes;
+    /// <summary>For the self-check: the list of episodes on the page, as many rows as the season shown.</summary>
+    public bool EpisodesShown => TopLevel.GetTopLevel(_episodes) is not null && _episodes.Children.Count > 0;
     public IEnumerable<string> SeasonLabels => _seasons.Items.OfType<ComboBoxItem>().Select(x => x.Content as string ?? "");
 
     public DetailPage(MainWindow shell, MediaItem item, MediaItem? atEpisode = null) : base(shell, underRail: true)
@@ -450,11 +452,10 @@ public sealed class DetailPage : Page
         RenderEpisodes();
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
         DockPanel.SetDock(_seasons, Dock.Right); DockPanel.SetDock(_seasonMark, Dock.Right);
-        if (_seasons.Parent is Panel old) old.Children.Remove(_seasons);
-        if (_seasonMark.Parent is Panel holding) holding.Children.Remove(_seasonMark);
+        // Kept from one refresh to the next (after the player, a title marked watched): each leaves the section it was in,
+        // the heading too, or adding it again throws and the page is left without its episodes, nothing to scroll.
+        foreach (var kept in new Control[] { _seasons, _seasonMark, _episodeHeading, _episodes, _calendar }) (kept.Parent as Panel)?.Children.Remove(kept);
         header.Children.Add(_seasons); header.Children.Add(_seasonMark); header.Children.Add(_episodeHeading);
-        if (_episodes.Parent is Panel holder) holder.Children.Remove(_episodes);
-        if (_calendar.Parent is Panel calendarHolder) calendarHolder.Children.Remove(_calendar);
         return Ui.Column(14, header, _calendar, _episodes);
     }
     private void RenderEpisodes()
