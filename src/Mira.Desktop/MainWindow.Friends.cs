@@ -131,7 +131,7 @@ public partial class MainWindow
     {
         await CloseInviteAsync();
         Settings_Click(this, new());
-        SelectSettingsTab("server");
+        SelectSettingsTab("sharing");
         await _friendShowing;
         if (FriendRow.Visibility != Visibility.Visible || SettingsOverlay.Visibility != Visibility.Visible) return;
         FriendRow.BringIntoView();

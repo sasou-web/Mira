@@ -148,7 +148,7 @@ public static class SelfCheck
             SettingsPage.OpenAt("playback");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
-            // The categories, as on Windows: those of the server's account hold its sections.
+            // The categories, as on Windows: those of the server's account hold its sections (friends and guests, maintenance apart).
             (window.Current as SettingsPage)?.Show("server");
             // « Titres à corriger », as on Windows: the mock's titles have no ids from a metadata source.
             if (mock is not null)
@@ -158,7 +158,7 @@ public static class SelfCheck
             // « Ajouter un ami », as on Windows: the account sees only the library chosen and downloads nothing.
             if (mock is not null && await Until(() => window.Current is SettingsPage { Friend.Libraries: 2 }, 10) && window.Current is SettingsPage withFriend)
             {
-                withFriend.Friend.CreateForCheck("Marc");
+                withFriend.Show("sharing"); withFriend.Friend.CreateForCheck("Marc");
                 var made = await Until(() => withFriend.Friend.Made == "Marc", 10);
                 var policy = mock.FriendPolicy ?? "";
                 Check(made && policy.Contains("\"EnableAllFolders\":false") && policy.Contains("view-movies") && !policy.Contains("view-series") && policy.Contains("\"EnableContentDownloading\":false"),
@@ -176,7 +176,7 @@ public static class SelfCheck
                 Check(heard && withAudio.SoundTested!.Contains(AudioOutput.TestSound(window.Settings.AudioChannels).Speakers[^1]), "réglages : tester la sortie audio", withAudio.SoundTested ?? "rien");
                 withAudio.AudioOutputRow.BringIntoView(); await Task.Delay(500); Capture(window, output, "07d-settings-audio");
             }
-            if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Show("server"); withFix.Viewing.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
+            if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Show("care"); withFix.Fix.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
 
             // —— Téléchargements: sent to the PC of Jellyfin ——
             if (mock is not null)

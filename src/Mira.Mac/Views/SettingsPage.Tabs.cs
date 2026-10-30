@@ -15,7 +15,9 @@ public sealed partial class SettingsPage
         ("playback", L("Lecture", "Playback")),
         ("audio", L("Audio et sous-titres", "Audio & subtitles")),
         ("appearance", L("Apparence", "Appearance")),
-        ("server", L("Jellyfin et synchronisation", "Jellyfin & sync")),
+        ("server", "Jellyfin"),
+        ("sharing", L("Amis et invités", "Friends & guests")),
+        ("care", L("Entretien", "Maintenance")),
         ("report", L("Ton bilan", "Your recap")),
         ("updates", L("Mises à jour", "Updates")),
     ];
@@ -24,7 +26,7 @@ public sealed partial class SettingsPage
     private readonly Dictionary<string, Button> _tabButtons = [];
     private readonly ScrollViewer _tabScroll = new();
 
-    /// <summary>The category shown: « playback », « audio », « appearance », « server », « report » or « updates ».</summary>
+    /// <summary>The category shown: « playback », « audio », « appearance », « server », « sharing », « care », « report » or « updates ».</summary>
     public string CurrentTab { get; private set; } = _lastTab;
 
     private Control Layout(MainWindow shell)
@@ -36,6 +38,13 @@ public sealed partial class SettingsPage
             button.Click += (_, _) => Show(key);
             _tabButtons[key] = button; list.Children.Add(button);
         }
+        // « Amis et invités » and « Entretien » hold only what an administrator sees: listed while one of their sections shows.
+        foreach (var key in new[] { "sharing", "care" })
+        {
+            void Listed() => _tabButtons[key].IsVisible = _tabs[key].Children.Any(x => x.IsVisible);
+            foreach (var section in _tabs[key].Children) section.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) Listed(); };
+            Listed();
+        }
         list.Children.Add(new TextBlock { Text = $"Mira {Mira.Mac.Services.Updates.Current} · Jellyfin + mpv", FontSize = 11, Foreground = Ui.Faint, Margin = new Thickness(16, 20, 0, 0) });
         var body = new DockPanel { Margin = new Thickness(56, 44 + shell.TitleBarInset, 56, 0) };
         var heading = Ui.Column(4, Ui.Heading(L("Réglages", "Settings"), 32, 1, FontWeight.SemiBold),
@@ -44,7 +53,7 @@ public sealed partial class SettingsPage
         DockPanel.SetDock(heading, Dock.Top); body.Children.Add(heading);
         DockPanel.SetDock(list, Dock.Left); body.Children.Add(list);
         body.Children.Add(_tabScroll);
-        Show(_tabs.ContainsKey(_lastTab) ? _lastTab : "playback");
+        Show(_tabs.ContainsKey(_lastTab) && _tabButtons[_lastTab].IsVisible ? _lastTab : "playback");
         return body;
     }
     /// <summary>The category the next Réglages opens on (a notice that names a setting).</summary>

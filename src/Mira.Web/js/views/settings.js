@@ -76,6 +76,7 @@ export function create() {
       else photo.textContent = initials(current.userName);
     }
     const avatar = photo;
+    const admin = Boolean(user?.Policy?.IsAdministrator);
 
     // Drawn again after a choice: the keyboard stays on the line it was on.
     keepFocus(el, () => clear(el).append(
@@ -88,37 +89,7 @@ export function create() {
         h('div', { class: 'meta' }, current.serverName ? tr('Serveur « {name} »', { name: current.serverName }) : tr('Serveur Jellyfin')))),
       h('div', { class: 'group' },
         h('button', { class: 'item', on: { click: showReport } }, icon('history'),
-          h('span', { class: 'grow' }, tr('Ton bilan'), h('span', { class: 'sub' }, tr('Ce que tu as regardé ce mois-ci et cette année.'))), icon('right', { size: 20 })),
-        // An administrator sees every session (another account only its own): who plays what, and how.
-        user?.Policy?.IsAdministrator
-          ? h('a', { class: 'item', href: '#/en-ce-moment' }, icon('server'),
-            h('span', { class: 'grow' }, tr('En ce moment sur Jellyfin'), h('span', { class: 'sub' }, tr('Qui regarde quoi, et si Jellyfin doit convertir.'))), icon('right', { size: 20 }))
-          : null,
-        // « Profils »: an account for someone of the house or a friend, each one's photo.
-        user?.Policy?.IsAdministrator
-          ? h('a', { class: 'item', href: '#/profils' }, icon('users'),
-            h('span', { class: 'grow' }, tr('Profils'), h('span', { class: 'sub' }, tr('Un compte pour chaque personne de la maison ou un ami, avec sa photo.'))), icon('right', { size: 20 }))
-          : null,
-        // Titles Jellyfin recognized badly, to identify again: what only an administrator may change.
-        user?.Policy?.IsAdministrator
-          ? h('a', { class: 'item', href: '#/a-corriger' }, icon('warning'),
-            h('span', { class: 'grow' }, tr('Titres à corriger'), h('span', { class: 'sub' }, tr('Ceux que Jellyfin n’a pas reconnus, sans affiche ou en double.'))), icon('right', { size: 20 }))
-          : null,
-        // « Sous-titres automatiques »: the extension's settings, which only an administrator may change.
-        user?.Policy?.IsAdministrator
-          ? h('a', { class: 'item', href: '#/sous-titres-auto' }, icon('subtitles'),
-            h('span', { class: 'grow' }, tr('Sous-titres automatiques'), h('span', { class: 'sub' }, tr('Jellyfin cherche les sous-titres de chaque titre qui arrive et les recale sur la vidéo.'))), icon('right', { size: 20 }))
-          : null,
-        // « Inviter par lien »: an account for each link, which only an administrator can make.
-        user?.Policy?.IsAdministrator
-          ? h('a', { class: 'item', href: '#/invites' }, icon('link'),
-            h('span', { class: 'grow' }, tr('Liens d’invités'), h('span', { class: 'sub' }, tr('Regarder ensemble avec quelqu’un sans compte ni Tailscale.'))), icon('right', { size: 20 }))
-          : null,
-        // TorLink on the PC of Jellyfin, sent from here: only an administrator, as for Jellyfin's own dashboard.
-        user?.Policy?.IsAdministrator
-          ? h('a', { class: 'item', href: '#/telecharger' }, icon('download'),
-            h('span', { class: 'grow' }, tr('Télécharger sur le PC serveur'), h('span', { class: 'sub' }, tr('Cherche un titre : TorLink le télécharge là-bas, Mira le range dans ta bibliothèque.'))), icon('right', { size: 20 }))
-          : null),
+          h('span', { class: 'grow' }, tr('Ton bilan'), h('span', { class: 'sub' }, tr('Ce que tu as regardé ce mois-ci et cette année.'))), icon('right', { size: 20 }))),
 
       h('h2', { class: 'label group-title' }, trc('settings', 'Lecture')),
       h('div', { class: 'group' },
@@ -176,6 +147,31 @@ export function create() {
           : null,
         h('a', { class: 'item', href: '#/partager' }, icon('qr'),
           h('span', { class: 'grow' }, tr('Ouvrir sur un autre appareil'), h('span', { class: 'sub' }, tr('Un QR code et l’adresse de Mira sur ton réseau.'))), icon('right', { size: 20 }))),
+
+      // What only an administrator of Jellyfin may do, apart from the person's own settings: who they share with, and the
+      // care of the library.
+      admin ? h('h2', { class: 'label group-title' }, tr('Amis et invités')) : null,
+      admin ? h('div', { class: 'group' },
+        // « Profils »: an account for someone of the house or a friend, each one's photo.
+        h('a', { class: 'item', href: '#/profils' }, icon('users'),
+          h('span', { class: 'grow' }, tr('Profils'), h('span', { class: 'sub' }, tr('Un compte pour chaque personne de la maison ou un ami, avec sa photo.'))), icon('right', { size: 20 })),
+        // « Inviter par lien »: an account for each link, which only an administrator can make.
+        h('a', { class: 'item', href: '#/invites' }, icon('link'),
+          h('span', { class: 'grow' }, tr('Liens d’invités'), h('span', { class: 'sub' }, tr('Regarder ensemble avec quelqu’un sans compte ni Tailscale.'))), icon('right', { size: 20 }))) : null,
+      admin ? h('h2', { class: 'label group-title' }, tr('Entretien')) : null,
+      admin ? h('div', { class: 'group' },
+        // An administrator sees every session (another account only its own): who plays what, and how.
+        h('a', { class: 'item', href: '#/en-ce-moment' }, icon('server'),
+          h('span', { class: 'grow' }, tr('En ce moment sur Jellyfin'), h('span', { class: 'sub' }, tr('Qui regarde quoi, et si Jellyfin doit convertir.'))), icon('right', { size: 20 })),
+        // Titles Jellyfin recognized badly, to identify again: what only an administrator may change.
+        h('a', { class: 'item', href: '#/a-corriger' }, icon('warning'),
+          h('span', { class: 'grow' }, tr('Titres à corriger'), h('span', { class: 'sub' }, tr('Ceux que Jellyfin n’a pas reconnus, sans affiche ou en double.'))), icon('right', { size: 20 })),
+        // « Sous-titres automatiques »: the extension's settings, which only an administrator may change.
+        h('a', { class: 'item', href: '#/sous-titres-auto' }, icon('subtitles'),
+          h('span', { class: 'grow' }, tr('Sous-titres automatiques'), h('span', { class: 'sub' }, tr('Jellyfin cherche les sous-titres de chaque titre qui arrive et les recale sur la vidéo.'))), icon('right', { size: 20 })),
+        // TorLink on the PC of Jellyfin, sent from here: only an administrator, as for Jellyfin's own dashboard.
+        h('a', { class: 'item', href: '#/telecharger' }, icon('download'),
+          h('span', { class: 'grow' }, tr('Télécharger sur le PC serveur'), h('span', { class: 'sub' }, tr('Cherche un titre : TorLink le télécharge là-bas, Mira le range dans ta bibliothèque.'))), icon('right', { size: 20 }))) : null,
 
       h('h2', { class: 'label group-title' }, tr('Compte')),
       h('div', { class: 'group' },

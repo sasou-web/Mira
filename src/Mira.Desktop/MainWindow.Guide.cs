@@ -450,7 +450,8 @@ public partial class MainWindow
     private void GuideGrid_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         var width = GuideGrid.ActualWidth;
-        if (width > 0) GuideGrid.ItemWidth = width >= 1000 ? Math.Floor(width / 2) : width;
+        if (width <= 0) return;
+        foreach (var card in GuideGrid.Children.OfType<FrameworkElement>()) card.Width = Math.Max(0, (card == GuidePhone || width < 1000 ? width : Math.Floor(width / 2)) - card.Margin.Left - card.Margin.Right);
     }
     private void ShowGuideFoldersHint(string text) { GuideFoldersHint.Text = text; GuideFoldersHint.Visibility = Visibility.Visible; }
     private UIElement FolderRow(string library, string location, bool here)

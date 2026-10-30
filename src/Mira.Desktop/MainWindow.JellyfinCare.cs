@@ -92,7 +92,7 @@ public partial class MainWindow
     private async void OpenJellyfinHere()
     {
         Settings_Click(this, new());
-        SelectSettingsTab("server");
+        SelectSettingsTab("care");
         await _jellyfinHereShowing;
         if (JellyfinHereRow.Visibility == Visibility.Visible && SettingsOverlay.Visibility == Visibility.Visible) JellyfinHereRow.BringIntoView();
     }

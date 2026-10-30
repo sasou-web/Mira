@@ -2,6 +2,9 @@
 export default {
   // components.js: notices
   'Fermer cet avis': 'Dismiss this notice',
+  // views/settings.js: the administrator's groups
+  'Amis et invités': 'Friends & guests',
+  'Entretien': 'Maintenance',
   // dom.js
   '{m} min': '{m} min',
   '{h} h {mm}': '{h}h {mm}m',
