@@ -44,6 +44,7 @@ public sealed partial class PlayerPage : UserControl
     private readonly Slider _volume = new() { Minimum = 0, Maximum = VolumeBoost.Maximum, SmallChange = 5, LargeChange = 5, Width = 112, Focusable = false, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _volumeText = new() { FontSize = 12, Width = 40, Foreground = Ui.TextTertiary, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
     private readonly Button _next, _tracks, _more, _skip, _skipCancel;
+    private readonly StackPanel _skipHost;
     private readonly TextBlock _skipText = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly LoadingArc _spinner = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromMilliseconds(100) };
@@ -99,7 +100,8 @@ public sealed partial class PlayerPage : UserControl
         _root.Children.Add(StatusPill());
 
         // Top: back to the library only; the title sits in the bottom bar, as on Windows.
-        var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => _ = _shell.StopPlaybackAsync(), "player", 22);
+        // « Retour » keeps the film going in the mini-player, as on Windows; « Fermer » there stops it.
+        var back = Ui.IconButton("back", L("Retour · Échap", "Back · Esc"), () => SetMini(true), "player", 22);
         back.HorizontalAlignment = HorizontalAlignment.Left;
         _top = new Border
         {
@@ -145,7 +147,8 @@ public sealed partial class PlayerPage : UserControl
         // Bottom bar, as on Windows: title and episode on the left, chapter and time on the right, the timeline, then
         // play, next episode and volume on the left, the menus and fullscreen on the right.
         var left = Ui.Row(6, play, _previous, _next, volumeGroup);
-        var right = Ui.Row(6, _episodesButton, _more, _tracks, fullscreen);
+        var miniButton = Ui.IconButton("mini", L("Mini-lecteur · I", "Mini player · I"), () => SetMini(true), "player", 22);
+        var right = Ui.Row(6, _episodesButton, _more, _tracks, miniButton, fullscreen);
         var transport = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(-8, 2, -8, 0), Height = 44 };
         left.VerticalAlignment = right.VerticalAlignment = VerticalAlignment.Center;
         transport.Children.Add(left); Grid.SetColumn(right, 2); transport.Children.Add(right);
@@ -169,9 +172,9 @@ public sealed partial class PlayerPage : UserControl
         _skipCancel = new Button { Classes = { "pill" }, Content = L("Annuler", "Cancel"), IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
         _skipCancel.Click += (_, _) => { _skipText.Text = _skips.Cancel(); _skipCancel.IsVisible = false; };
         ToolTip.SetTip(_skipCancel, L("Rester sur cet épisode", "Stay on this episode"));
-        var skipHost = Ui.Row(0, _skipCancel, _skip);
-        skipHost.HorizontalAlignment = HorizontalAlignment.Right; skipHost.VerticalAlignment = VerticalAlignment.Bottom; skipHost.Margin = new Thickness(0, 0, 36, 150);
-        _root.Children.Add(skipHost);
+        _skipHost = Ui.Row(0, _skipCancel, _skip);
+        _skipHost.HorizontalAlignment = HorizontalAlignment.Right; _skipHost.VerticalAlignment = VerticalAlignment.Bottom; _skipHost.Margin = new Thickness(0, 0, 36, 150);
+        _root.Children.Add(_skipHost);
         // « Regarder ensemble »: what the group is doing, top center, under the title (ShowGroup).
         _groupPill = new Border
         {
@@ -182,7 +185,7 @@ public sealed partial class PlayerPage : UserControl
         };
         AutomationProperties.SetLiveSetting(_groupText, AutomationLiveSetting.Polite);
         _root.Children.Add(_groupPill);
-        Content = _root;
+        Content = BuildMini(_root);
 
         _tick.Tick += (_, _) => Tick();
         _hide.Tick += (_, _) => { _hide.Stop(); SetControls(false); };
@@ -195,11 +198,15 @@ public sealed partial class PlayerPage : UserControl
             _click.Stop();
             // The click that brings Mira to the front, or one in the band of a bar while the controls are hidden (the
             // shown bars take their clicks): the controls show, the film never pauses.
-            if (Environment.TickCount64 - _shell.ActivatedAt < 400 || InBarBand(e.GetPosition(_chrome))) { ShowControls(); return; }
+            if (Environment.TickCount64 - _shell.ActivatedAt < 400 || !_mini && InBarBand(e.GetPosition(_chrome))) { ShowControls(); return; }
+            if (_mini) { MiniPressed(e); return; }
             // A double click toggles fullscreen; a single one, after a short wait, pauses or resumes.
             if (e.ClickCount >= 2) ToggleFullscreen(); else _click.Start();
         };
         PointerMoved += (_, _) => ShowControls();
+        _videoHost.PointerMoved += (_, e) => { if (_mini) MiniMoved(e); };
+        _videoHost.PointerReleased += (_, e) => { if (_mini) MiniReleased(e); };
+        PointerExited += (_, _) => { if (_mini) ShowMiniControls(false); };
         _initializing = true; _volume.Value = VolumeBoost.Clamp(shell.Settings.Volume); _initializing = false;
         if (_volume.Value > 0) _lastAudible = _volume.Value;
         ShowVolume();
@@ -440,7 +447,7 @@ public sealed partial class PlayerPage : UserControl
             if (paused != _session.Paused) { _session.Paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _session.LastReport = DateTimeOffset.MinValue; GroupPauseChanged(paused); }
             WatchGroupStall(mpv); WatchPicture(mpv, paused);
             _timeline.SetPlayback(_session.Position, _session.Duration, mpv.Number("demuxer-cache-time", 0));
-            ShowTime(_session.Position);
+            ShowTime(_session.Position); MiniProgress();
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
@@ -534,6 +541,8 @@ public sealed partial class PlayerPage : UserControl
     }
     private void SetControls(bool shown)
     {
+        // The mini-player: its own controls while the pointer is on it.
+        if (_mini) { ShowMiniControls(shown && IsPointerOver || _session.Paused); _controlsShown = shown; return; }
         // The controls stay while a menu is open or the bar is being dragged.
         if (!shown && (_timeline.Dragging || _tracks.Flyout?.IsOpen == true || _more.Flyout?.IsOpen == true || _episodesButton.Flyout?.IsOpen == true || _bottom.IsPointerOver)) { _hide.Start(); return; }
         _controlsShown = shown;
@@ -559,10 +568,12 @@ public sealed partial class PlayerPage : UserControl
             case Key.N: if (_skips.Next is { } next) _ = PlayNextAsync(next); break;
             case Key.P: if (_previous.IsVisible && _previous.IsEnabled) PlayPrevious(); break;
             case Key.E: ToggleEpisodes(); break;
-            case Key.Escape:
-                if (_shell.WindowState == WindowState.FullScreen) ToggleFullscreen(); else _ = _shell.StopPlaybackAsync();
+            case Key.I: SetMini(!_mini); break;
+            // In the mini-player, Échap and ⌘[ are the library's.
+            case Key.Escape when !_mini:
+                if (_shell.WindowState == WindowState.FullScreen) ToggleFullscreen(); else SetMini(true);
                 break;
-            case Key.OemOpenBrackets when command: _ = _shell.StopPlaybackAsync(); break;
+            case Key.OemOpenBrackets when command && !_mini: SetMini(true); break;
             default: return;
         }
         e.Handled = true;
@@ -809,8 +820,8 @@ public sealed partial class PlayerPage : UserControl
         // Playback time drives the countdown, so pausing pauses it too.
         if (_skips.Due(_session.Position) is { } next) { _ = PlayNextAsync(next, completed: true); return; }
         if (_skips.CountdownText(_session.Position) is { } label) _skipText.Text = label;
-        _skipCancel.IsVisible = _skips.Counting;
-        _skip.IsVisible = _skips.Active is not null && (_controlsShown || _skips.Counting || !_session.Paused);
+        _skipCancel.IsVisible = _skips.Counting && !_mini;
+        _skip.IsVisible = !_mini && _skips.Active is not null && (_controlsShown || _skips.Counting || !_session.Paused);
     }
     private void Skip()
     {
@@ -830,7 +841,7 @@ public sealed partial class PlayerPage : UserControl
         var status = Group.Active && Group.Group is { } group && _shell.Session is { } session ? Together.GroupStatus(group, session.Connection.UserName, !_loaded || _groupReadyPending || _groupStallSince is not null) : null;
         var said = status is not null && DateTimeOffset.UtcNow < _groupMemberUntil ? _groupMember : null;
         if (status is not null) { _groupText.Text = said ?? status.Text; _groupPill.IsVisible = true; }
-        _groupPill.Opacity = status is not null && (said is not null || status.Alert || _controlsShown) ? 1 : 0;
+        _groupPill.Opacity = !_mini && status is not null && (said is not null || status.Alert || _controlsShown) ? 1 : 0;
     }
     public void ShowMember(string said) { _groupMember = said; _groupMemberUntil = DateTimeOffset.UtcNow.AddSeconds(4); ShowGroup(); }
     /// <summary>A command of the group, for the title playing here only: the Stop sent on joining names none.</summary>
