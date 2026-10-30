@@ -22,6 +22,8 @@ if (!info.StartupWizardCompleted) {
   await call('POST', 'Startup/Complete');
 }
 const admin = (await call('POST', 'Users/AuthenticateByName', { body: { Username: 'owner', Pw: 'owner-pass-x' } })).AccessToken;
+const config = await call('GET', 'System/Configuration', { token: admin });
+await call('POST', 'System/Configuration', { token: admin, body: { ...config, ServerName: 'Home Cinema' } });
 const users = await call('GET', 'Users', { token: admin });
 if (!users.some((u) => u.Name === 'Sam')) await call('POST', 'Users/New', { token: admin, body: { Name: 'Sam', Password: 'mira-demo' } });
 const s = await call('POST', 'Users/AuthenticateByName', { body: { Username: 'Sam', Pw: 'mira-demo' } });

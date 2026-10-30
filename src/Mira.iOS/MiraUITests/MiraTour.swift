@@ -13,13 +13,13 @@ final class MiraTour: XCTestCase {
         app.launch()
         let address = app.textFields["login.address"]
         XCTAssertTrue(address.waitForExistence(timeout: 15))
-        address.tap(); address.typeText("127.0.0.1:8096")
+        focus(address); address.typeText("127.0.0.1:8096")
         app.buttons["login.continue"].tap()
         let username = app.textFields["login.username"]
         XCTAssertTrue(username.waitForExistence(timeout: 20))
-        username.tap(); username.typeText("Sam\n")
+        focus(username); username.typeText("Sam\n")
         let password = app.secureTextFields["login.password"]
-        password.tap(); password.typeText("mira-demo")
+        focus(password); password.typeText("mira-demo")
         app.buttons["login.signin"].tap()
         _ = app.staticTexts["Continue watching"].waitForExistence(timeout: 30)
         let notNow = app.buttons.matching(NSPredicate(format: "label IN %@", ["Not Now", "Pas maintenant"])).firstMatch
@@ -80,6 +80,15 @@ final class MiraTour: XCTestCase {
             wait(0.6)
         }
         button.tap()
+    }
+    @MainActor
+    private func focus(_ field: XCUIElement) {
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        for _ in 0..<4 {
+            if focused.evaluate(with: field) { return }
+            field.tap()
+            if XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 2) == .completed { return }
+        }
     }
     private func step(_ name: String) { print("MIRA-TOUR \(name) \(Int(Date().timeIntervalSince1970 * 1000))") }
     private func wait(_ seconds: Double) { Thread.sleep(forTimeInterval: seconds) }

@@ -34,20 +34,14 @@ jobs:
           dotnet-version: 10.0.x
       - name: ffmpeg
         run: choco install ffmpeg -y --no-progress
-      - name: Soundtrack (one more try)
-        continue-on-error: true
-        shell: bash
-        run: |
-          mkdir -p .artifacts/out
-          pip install -q yt-dlp && (winget install --id DenoLand.Deno -e --silent --accept-source-agreements --accept-package-agreements >/dev/null 2>&1 || true)
-          python -m yt_dlp -f bestaudio -x --audio-format m4a -o ".artifacts/out/music.%(ext)s" "https://www.youtube.com/watch?v=FrD01XVOl80" 2>&1 | tail -5
       - name: Jellyfin 12.1 from its sources
         working-directory: .artifacts/jellyfin-src
         run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
       - name: The library, Spring and Sprite Fright for real
         shell: bash
         run: |
-          presentation/media.sh "$PWD/.artifacts/media"
+          # A Windows path for ffmpeg: MSYS leaves a path with an apostrophe (Howl's) unconverted.
+          presentation/media.sh "$(cygpath -m "$PWD/.artifacts/media")"
           for f in "Spring (2019)/spring" "Sprite Fright (2021)/sprite-fright"; do
             dir=".artifacts/media/Films/${f%/*}"; rm -f "$dir"/*.mkv
             curl -fsSL --retry 3 -o "$dir/${f%/*}.mp4" "https://github.com/lakson-llc/kyte-demo-media/releases/download/v1/${f#*/}.mp4"
@@ -127,12 +121,6 @@ jobs:
           cache-dependency-path: src/Mira.Tailscale/go.sum
       - name: Tools
         run: brew install xcodegen ffmpeg
-      - name: Soundtrack (one more try)
-        continue-on-error: true
-        run: |
-          mkdir -p .artifacts/out
-          brew install yt-dlp deno >/dev/null 2>&1 || true
-          yt-dlp -f bestaudio -x --audio-format m4a -o ".artifacts/out/music.%(ext)s" "https://www.youtube.com/watch?v=FrD01XVOl80" 2>&1 | tail -5
       - name: Jellyfin 12.1 and the library
         run: |
           (cd .artifacts/jellyfin-src && dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q)
