@@ -1056,13 +1056,9 @@ extension PlayerSession: PlayerActions {
         pip.startPictureInPicture()
     }
 
-    /// Reduced to the bar over the tabs (iOS 26.1 and later); before, Picture in Picture when it can, else closed.
+    /// Reduced to the bar over the tabs (MiraTabBar).
     func minimize() {
         guard !closed else { return }
-        guard #available(iOS 26.1, *) else {
-            if pip?.isPictureInPicturePossible == true { pip?.startPictureInPicture() } else { close() }
-            return
-        }
         minimizing = true
         minimized = true
         model.hideControls()

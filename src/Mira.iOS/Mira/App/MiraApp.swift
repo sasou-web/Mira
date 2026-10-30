@@ -71,7 +71,7 @@ struct MainView: View {
         // for the bar themselves (foldsTabBar).
         .overlay(alignment: .bottom) {
             if !keyboard {
-                MiraTabBar(section: $section) { restarts[$0, default: 0] += 1 }
+                MiraTabBar(section: $section, player: app.minimizedPlayer) { restarts[$0, default: 0] += 1 }
                     // Like iOS's own bar, it stops growing with the text, past which a long press shows it larger.
                     .dynamicTypeSize(...DynamicTypeSize.xLarge)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -81,7 +81,6 @@ struct MainView: View {
         .modifier(KeyboardWatch(shown: $keyboard))
         .environment(bar)
         .onChange(of: section) { bar.folded = false }
-        .miniPlayer(app.minimizedPlayer)
         .overlay(alignment: .top) { NoticeToast() }
         .overlay(alignment: .top) { NewEpisodesBanner() }
         .onChange(of: phase) {

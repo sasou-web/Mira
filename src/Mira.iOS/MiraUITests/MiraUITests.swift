@@ -232,7 +232,7 @@ final class MiraUITests: XCTestCase {
         signIn(app, password: "mira")
         XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 20), "Home never showed Continue watching")
         dismissSavePassword(app)
-        let movies = app.tabBars.buttons["Movies"]
+        let movies = app.buttons["tab.movies"]
         XCTAssertTrue(movies.waitForExistence(timeout: 5), "No Movies tab")
         movies.tap()
         let sintel = app.buttons["Sintel, 2010"].firstMatch
@@ -291,8 +291,9 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/Stopped", item: Self.sintel, timeout: 20), "Closing the bar did not stop Sintel")
     }
 
-    /// Reduces Mira's player to the bar over the tabs, then closes it there. Scrolled down, the tab bar is folded and
-    /// the bar sits beside it (captured as `folded`): scrolling back up unfolds both.
+    /// Reduces Mira's player to the bar over the tabs, then closes it there. With `folded`, the page is scrolled down
+    /// first: the tab bar folds and the reduced player goes between the open tab and Search (captured as `folded`);
+    /// scrolling back up unfolds both.
     @MainActor
     private func closePlayer(_ app: XCUIApplication, folded: String? = nil) {
         // Paused first: the clip of the stand-in Jellyfin lasts 10 s for a title of 12 min, and a title that ends before
@@ -303,12 +304,19 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(reveal(minimize, app), "The player shows no Reduce button")
         minimize.tap()
         XCUIDevice.shared.orientation = .portrait
-        // Back upright, the tab bar may fold again a moment later: the bar is read once it has settled.
         settle()
-        if let folded { capture(folded) }
+        let bar = app.descendants(matching: .any)["mini"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 10), "Reducing the player showed no bar over the tabs")
+        if let folded {
+            app.swipeUp()
+            settle()
+            XCTAssertTrue(bar.exists, "The reduced player left as the tab bar folded")
+            capture(folded)
+            app.swipeDown()
+        }
         let close = app.buttons["mini.close"]
         for _ in 0..<2 where !close.waitForExistence(timeout: 3) { app.swipeDown() }
-        XCTAssertTrue(close.waitForExistence(timeout: 5), "Reducing the player showed no bar over the tabs")
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "The reduced player has no close button")
         close.tap()
     }
 

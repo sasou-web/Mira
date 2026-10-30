@@ -6,9 +6,12 @@ import UIKit
 /// name that slides to the next with a spring while its icon bounces; Search on its own on the right, as in iOS's own
 /// bar. Scrolling a page down folds it to the open tab and Search, scrolling up or back to the top unfolds it. The open
 /// tab touched again goes back to its first page. Its size stops at a large text size (MainView), past which a long
-/// press on a tab shows it larger, as with iOS's own bar.
+/// press on a tab shows it larger, as with iOS's own bar. The player reduced (MiniPlayer) sits over the tabs, and
+/// between the open tab and Search while the bar is folded.
 struct MiraTabBar: View {
     @Binding var section: MainView.Section
+    /// The player reduced to a bar, if there is one.
+    let player: PlayerSession?
     /// The open tab, touched again.
     let reselect: (MainView.Section) -> Void
     @Environment(TabBarModel.self) private var model
@@ -32,21 +35,37 @@ struct MiraTabBar: View {
 
     var body: some View {
         GlassEffectContainer(spacing: 12) {
-            HStack(spacing: 12) {
-                // The open tab's name while it fits; at the largest text sizes, the icons alone.
-                ViewThatFits(in: .horizontal) {
-                    tabs(named: true)
-                    tabs(named: false)
+            VStack(spacing: 10) {
+                if let player, !model.folded {
+                    reduced(player, inline: false)
                 }
-                Spacer(minLength: 0)
-                search
+                HStack(spacing: 12) {
+                    if let player, model.folded {
+                        // Folded, the open tab's icon alone, to leave the reduced player its title.
+                        tabs(named: false)
+                        reduced(player, inline: true)
+                    } else {
+                        // The open tab's name while it fits; at the largest text sizes, the icons alone.
+                        ViewThatFits(in: .horizontal) {
+                            tabs(named: true)
+                            tabs(named: false)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    search
+                }
             }
         }
         .padding(.horizontal, 20)
         .padding(.bottom, -8)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.room = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+            // Folded, the bar may be lower (the reduced player beside the open tab): the pages keep the room they had,
+            // or a page would grow and shrink at its end as it scrolls, folding and unfolding the bar.
+            if !model.folded || height > model.room { model.room = height }
+        }
         .onDisappear { model.room = 0 }
         .animation(.spring(response: 0.38, dampingFraction: 0.8), value: model.folded)
+        .animation(.spring(response: 0.38, dampingFraction: 0.8), value: player == nil)
         .sensoryFeedback(.selection, trigger: section)
     }
 
@@ -89,6 +108,14 @@ struct MiraTabBar: View {
         }
         .padding(6)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: side * 0.35 + 6, style: .continuous))
+    }
+
+    /// The reduced player, in the same glass as the tabs, its height theirs.
+    private func reduced(_ player: PlayerSession, inline: Bool) -> some View {
+        MiniPlayer(session: player, inline: inline)
+            .frame(minHeight: side + 12)
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: side * 0.35 + 6, style: .continuous))
+            .glassEffectID("player", in: lens)
     }
 
     private var search: some View {
