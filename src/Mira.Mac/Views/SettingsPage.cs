@@ -46,6 +46,9 @@ public sealed class SettingsPage : Page
         devices.IsVisible = false;
         page.Children.Add(devices);
         if (shell.Session is { } session) _ = ShowWhenEnabledAsync(session.Client, devices);
+        // « Ajouter un ami »: an account of their own, as on Windows, for an administrator.
+        Friend = new FriendsSection(shell, Section);
+        page.Children.Add(Friend.Section);
         // « Liens d'invités »: an administrator's links for guests without an account (shown once Jellyfin's extension answers).
         page.Children.Add(new GuestLinksSection(shell, Section).Section);
         // « Sous-titres automatiques »: the extension's search and alignment of subtitles, for an administrator.
@@ -101,6 +104,7 @@ public sealed class SettingsPage : Page
     /// <summary>« Tailscale intégré », its node and the way to Jellyfin.</summary>
     public TailnetSection Tailnet { get; }
     public FixTitlesSection Fix { get; }
+    public FriendsSection Friend { get; }
     public ViewersSection Viewing { get; }
     private void Save() { Shell.Profile.SaveSettings(Shell.Settings); Shell.ChoicesChanged(); }
     /// <summary>
