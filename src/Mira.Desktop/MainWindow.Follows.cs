@@ -148,7 +148,7 @@ public partial class MainWindow
     {
         var follow = _detailFollow;
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
-        panel.Children.Add(new Icon { Kind = follow is null ? "plus" : "check", Width = 18, Height = 18 });
+        panel.Children.Add(new Icon { Kind = "calendar", Width = 18, Height = 18 });
         var label = follow is null ? L("Nouveaux épisodes", "New episodes") : L("Épisodes suivis", "Episodes followed");
         panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) });
         var tip = follow is null ? L("Le PC serveur cherche les nouveaux épisodes et les télécharge tout seul, avec TorLink", "The server PC looks for new episodes and downloads them on its own, with TorLink")
