@@ -1,0 +1,90 @@
+name: Release banner
+# The banner at the head of a release's page (tools/banner/): Mira web captured in Chromium, signed in to a real
+# Jellyfin 12.1 whose library is the README's (tools/banner/media.sh) with its TMDb artwork, on the screens that
+# tools/banner/scenes.json lists for the version; then the banner drawn around them. Run on request (Run workflow)
+# from the release's preparation branch: docs/releases/<version>.jpg is committed to it, to reach main and the
+# release's tag through its pull request; from main, only kept as an artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version (x.y.z) whose banner to draw
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: banner-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  JELLYFIN_IMAGE: jellyfin/jellyfin:12.1.20260915-010956
+  GALLERY_USER: Camille
+  GALLERY_PASSWORD: mira-gallery
+jobs:
+  banner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Not a version: $VERSION"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Package the plugin and a local repository
+        run: |
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
+          tools/web/package.sh "$version" http://127.0.0.1:8765
+      - name: The library
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          tools/banner/media.sh "$PWD/.artifacts/media"
+          # Every film, series and episode, for setup.mjs to wait for the whole scan.
+          echo "MIRA_GALLERY_TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+          echo "MIRA_GALLERY_TRACES=$PWD/tools/banner/traces.json" >> "$GITHUB_ENV"
+          du -sh .artifacts/media
+      - name: Jellyfin 12.1, its library, Mira web installed from the repository
+        run: |
+          (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          mkdir -p .artifacts/jf-config .artifacts/jf-cache
+          docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
+          node tools/gallery/setup.mjs http://127.0.0.1:8096 /media "$GALLERY_USER" "$GALLERY_PASSWORD" http://127.0.0.1:8765/jellyfin-manifest.json
+      - name: Capture the scenes, draw the banner
+        run: |
+          npm install --silent --no-audit --no-fund --prefix .artifacts/pw playwright@1.56.1
+          npx --prefix .artifacts/pw playwright install --with-deps chromium >/dev/null
+          export PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs"
+          node tools/banner/capture.mjs "$VERSION" http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/banner
+          mkdir -p docs/releases
+          node tools/banner/banner.mjs "$VERSION" .artifacts/banner "docs/releases/$VERSION.jpg"
+          ls -la docs/releases
+      - name: Jellyfin log
+        if: failure()
+        run: docker logs jellyfin 2>&1 | tail -80
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: banner
+          path: |
+            .artifacts/banner
+            docs/releases/*.jpg
+          retention-days: 7
+      - name: Commit
+        # Only on another branch than main: main takes it through a pull request.
+        if: github.ref_name != 'main'
+        env:
+          BRANCH: ${{ github.ref_name }}
+          TOKEN: ${{ github.token }}
+        run: |
+          git add "docs/releases/$VERSION.jpg"
+          if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Draw the banner of Mira $VERSION"
+          git push "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:$BRANCH"

@@ -63,10 +63,12 @@ public static class WhatsNew
     /// <summary>The release page's text on GitHub, in French like the README: what Mira is (SignPath Foundation wants the download page to describe the
     /// program), the summary, the highlights, how to install on Windows, on a Mac and on a phone, where the details are, and
     /// the "Code signing policy" line it asks for on every download page, with its credit only when the Windows files carry
-    /// its signature (<paramref name="signed"/>).</summary>
-    public static string ReleaseNotes(ReleaseHighlights release, bool signed = true)
+    /// its signature (<paramref name="signed"/>). With <paramref name="banner"/>, the version's banner on top
+    /// (docs/releases/x.y.z.jpg, drawn by tools/banner), shown from the release's tag, which never changes.</summary>
+    public static string ReleaseNotes(ReleaseHighlights release, bool signed = true, bool banner = false)
     {
         var text = new StringBuilder();
+        if (banner) text.Append("![Mira ").Append(release.Version).Append("](").Append(BannerUrl(release.Version)).Append(")\n\n");
         text.Append("**Mira** est un client Jellyfin « cinéma » : une app Windows avec mpv intégré, sa version Mac, et Mira web pour iPhone, iPad et Android, servie par ton serveur Jellyfin.\n\n");
         text.Append(release.FrenchSummary).Append("\n\n");
         foreach (var item in release.Items) text.Append("- **").Append(item.FrenchTitle).Append("** — ").Append(item.FrenchText).Append('\n');
@@ -82,6 +84,8 @@ public static class WhatsNew
         text.Append("le détail est dans la [politique de signature du code](https://github.com/sasou-web/Mira#politique-de-signature-du-code).\n");
         return text.ToString();
     }
+    /// <summary>Where GitHub serves a version's banner: the file at its tag.</summary>
+    public static string BannerUrl(string version) => $"https://raw.githubusercontent.com/sasou-web/Mira/v{version}/docs/releases/{version}.jpg";
     private static Version Trim(Version version) => new(version.Major, version.Minor, Math.Max(0, version.Build));
     private static string Embedded()
     {

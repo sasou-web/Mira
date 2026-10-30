@@ -1,0 +1,13 @@
+[
+  ["Arcane S01E01", { "played": true, "ago": 30 }],
+  ["Arcane S01E02", { "played": true, "ago": 28 }],
+  ["Arcane S01E03", { "share": 0.32, "ago": 1 }],
+  ["Spider-Man Across the Spider-Verse (2023)", { "share": 0.41, "favorite": true, "ago": 20 }],
+  ["Klaus (2019)", { "share": 0.64, "ago": 44 }],
+  ["The Mitchells vs. the Machines (2021)", { "share": 0.22, "ago": 70 }],
+  ["Your Name. (2016)", { "played": true, "ago": 90 }],
+  ["Spider-Man Into the Spider-Verse (2018)", { "played": true, "ago": 120 }],
+  ["Spirited Away (2001)", { "played": true, "favorite": true, "ago": 160 }],
+  ["The Wild Robot (2024)", { "favorite": true }],
+  ["Nimona (2023)", { "favorite": true }]
+]
