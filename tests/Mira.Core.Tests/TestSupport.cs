@@ -145,7 +145,9 @@ sealed class TokenStandIn : Mira.Mac.Services.ITokenStore
     public bool RefuseDelete { get; set; }
     public bool Missing { get; private set; }
     public bool Store(string account, string token, string label = "Mira") { if (Refuse || RefuseStore) return false; Tokens[account] = token; Labels[account] = label; return true; }
-    public string? Read(string account) { Missing = !Refuse && !Tokens.ContainsKey(account); return Refuse ? null : Tokens.GetValueOrDefault(account); }
+    /// <summary>The accounts read, in order: each read of an item macOS no longer trusts is a question.</summary>
+    public List<string> Reads { get; } = [];
+    public string? Read(string account) { Reads.Add(account); Missing = !Refuse && !Tokens.ContainsKey(account); return Refuse ? null : Tokens.GetValueOrDefault(account); }
     public bool Delete(string account) { if (Refuse || RefuseDelete) return false; Tokens.Remove(account); return true; }
 }
 sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
