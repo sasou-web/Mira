@@ -3,10 +3,10 @@
     "file": "films.png",
     "kind": "phone",
     "focus": {
-      "x": 6,
+      "x": 0,
       "y": 168,
-      "width": 390,
-      "height": 196.328125
+      "width": 402,
+      "height": 254.328125
     },
     "captureWidth": 402
   },
@@ -47,10 +47,10 @@
     "file": "films-wide.png",
     "kind": "screen",
     "focus": {
-      "x": 110,
+      "x": 78,
       "y": 106,
-      "width": 1308,
-      "height": 210
+      "width": 1362,
+      "height": 260
     },
     "captureWidth": 1440
   }
