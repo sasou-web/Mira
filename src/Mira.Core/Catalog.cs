@@ -95,6 +95,21 @@ public sealed class Catalog
         TotalCount = result.TotalRecordCount;
     }
     /// <summary>« Continuer à regarder »: Jellyfin's resume and next-up rows with what this PC played, without what was taken out.</summary>
+    /// <summary>
+    /// On top of Films, the film last started; on top of Séries, the episode the show last watched picks up at: each page
+    /// its own way back in. Only on the whole list (no search, filter, favourites or person), never on Home, which has its row.
+    /// </summary>
+    public MediaItem? PickUp(string search, CatalogQuery query) =>
+        View is not ("Movie" or "Series") || search.Length > 0 || Favorites || Person is not null || Studio is not null || Saga is not null || FilterCount(query) > 0 ? null
+        : ContinueRow().FirstOrDefault(x => x.Type == (View == "Movie" ? "Movie" : "Episode"));
+    /// <summary>« À REPRENDRE », « À SUIVRE » (an episode not begun yet) above its title.</summary>
+    public static string PickUpLabel(MediaItem item) => item.Progress > 0 ? L("À REPRENDRE", "PICK UP WHERE YOU LEFT") : L("À SUIVRE", "UP NEXT");
+    /// <summary>« 2023 · 2 h 20 · 1 h 27 restantes », « S02 E04 · L’épisode · 12 min restantes ».</summary>
+    public static string PickUpLine(MediaItem item) => string.Join("  ·  ", new[]
+    {
+        item.Type == "Episode" ? $"S{item.ParentIndexNumber ?? 1:00} E{item.IndexNumber ?? 1:00}" : item.ProductionYear?.ToString() ?? "",
+        item.Type == "Episode" ? item.Name : item.DurationLabel, MediaQuality.Left(item) ?? ""
+    }.Where(x => x.Length > 0));
     public List<MediaItem> ContinueRow() => ContinueWatching.WithoutHidden(ContinueWatching.Order(Resume, NextUp, RecentPlayback), HiddenResume, RecentPlayback);
     /// <summary>
     /// The titles of the banner: those of the row, then the latest, one per series, five at most. A title taken out of

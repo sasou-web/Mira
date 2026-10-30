@@ -1,8 +1,9 @@
 // Films or Séries: the whole library in a grid, loaded as you scroll, with Mira's filters and sorts.
 import { api, GRID_FIELDS } from '../api.js';
-import { h, icon, clear, append, keepFocus } from '../dom.js';
+import { h, icon, clear, append, keepFocus, progress, remaining, duration, seconds, episodeCode } from '../dom.js';
 import { tr, trn } from '../i18n.js';
-import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast, reconcile, cardSig } from '../components.js';
+import { posterCard, skeletonGrid, emptyState, errorState, sheet, changes, toast, reconcile, cardSig, titleHref, playHref } from '../components.js';
+import { artFor, picture } from '../images.js';
 import { session } from '../session.js';
 import { calendar, today } from '../calendar.js';
 
@@ -59,13 +60,16 @@ export function create({ type, query }) {
 
   const shelves = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': tr('Bibliothèque') });
   const chips = h('div', { class: 'chips', role: 'toolbar', 'aria-label': tr('Filtres') });
+  // The genres one touch away (the same choice as « Genre »), and on top the title to pick up: each tab its own way in.
+  const genres = h('div', { class: 'chips genre-chips', role: 'group', 'aria-label': tr('Genres'), hidden: true });
+  const pickup = h('div', { class: 'pickup-slot' });
   const count = h('div', { class: 'library-count', 'aria-live': 'polite' });
   const grid = h('div', { class: 'grid' });
   const sentinel = h('div', { class: 'sentinel' });
   const body = h('div', { class: 'library-grid' }, grid, sentinel);
   const el = h('div', { class: 'view library' },
     h('header', { class: 'library-head' }, h('h1', { class: 'page-title' }, movies ? tr('Films') : tr('Séries')), shelves),
-    h('div', { class: 'library-filters' }, chips), count, body);
+    h('div', { class: 'library-filters' }, chips), genres, pickup, count, body);
 
   // Séries: « À venir » once Jellyfin knows of episodes coming or missing (its TheTVDB extension: calendar.js).
   let upcoming = false;
@@ -102,6 +106,47 @@ export function create({ type, query }) {
       chip(tr('Favoris'), { on: state.favorite, run: () => apply({ favorite: !state.favorite }) }),
       filtered() ? h('button', { class: 'chip', on: { click: () => apply(noFilters) } }, icon('close', { size: 16 }), tr('Réinitialiser')) : null,
     ]));
+  }
+
+  /** « Tous », then each genre of the tab, the one chosen lit. */
+  async function renderGenres() {
+    const { genres: names } = await loadOptions() ?? {};
+    genres.hidden = !names?.length;
+    if (genres.hidden) return;
+    keepFocus(genres, () => clear(genres).append(...['', ...names].map((g) =>
+      h('button', { class: ['chip', state.genre === g && 'on'], 'aria-pressed': String(state.genre === g), on: { click: () => { if (state.genre !== g) apply({ genre: g }); } } }, g || tr('Tous')))));
+  }
+
+  /**
+   * Films: the film last started; Séries: the episode last begun, else the next one to watch. Only on the whole tab,
+   * no filter on (as Mira.Core Catalog.PickUp).
+   */
+  let pickedUp = '';
+  async function renderPickUp() {
+    if (filtered()) { clear(pickup); pickedUp = ''; return; }
+    let item = null;
+    try {
+      const resume = (await api.resume(12))?.Items ?? [];
+      item = resume.find((x) => x.Type === (movies ? 'Movie' : 'Episode') && progress(x) > 0) ?? null;
+      if (!item && !movies) item = (await api.nextUp(1))?.Items?.[0] ?? null;
+    } catch { return; }
+    if (filtered()) return;
+    const sig = item ? `${item.Id}:${item.UserData?.PlaybackPositionTicks ?? 0}` : '';
+    if (sig === pickedUp) return;
+    pickedUp = sig;
+    if (!item) { clear(pickup); return; }
+    const episode = item.Type === 'Episode';
+    const line = [episode ? episodeCode(item) : item.ProductionYear, episode ? item.Name : item.RunTimeTicks ? duration(seconds(item.RunTimeTicks)) : '', remaining(item)].filter(Boolean).join(' · ');
+    const name = episode ? item.SeriesName ?? item.Name : item.Name;
+    clear(pickup).append(h('section', { class: 'pickup', 'aria-label': name },
+      picture(artFor(item, 'backdrop'), { kind: 'backdrop', width: innerWidth > 900 ? 1280 : 800, label: '' }),
+      h('div', { class: 'pickup-body' },
+        h('div', { class: 'pickup-label' }, progress(item) > 0 ? tr('À reprendre') : tr('À suivre')),
+        h('h2', { class: 'pickup-title' }, name),
+        h('div', { class: 'pickup-line' }, line),
+        h('div', { class: 'pickup-actions' },
+          h('a', { class: 'btn primary', href: playHref(item) }, icon('play', { size: 20 }), progress(item) > 0 ? tr('Reprendre') : tr('Lecture')),
+          h('a', { class: 'round solid', href: titleHref(item), 'aria-label': tr('Plus d’infos sur {name}', { name }) }, icon('info'))))));
   }
 
   /** « Tout | Séries | Animes »: only with several libraries of this kind. A view rather than a filter: kept by Réinitialiser. */
@@ -157,7 +202,7 @@ export function create({ type, query }) {
 
   function apply(change) {
     Object.assign(state, change);
-    renderShelves(); renderChips();
+    renderShelves(); renderChips(); renderGenres(); renderPickUp();
     reset();
     scrollTo({ top: 0 });
   }
@@ -332,13 +377,13 @@ export function create({ type, query }) {
   };
   changes.addEventListener('item', onChange);
 
-  renderShelves(); renderChips();
+  renderShelves(); renderChips(); renderGenres(); renderPickUp();
   loadShelves(); loadUpcoming();
   reset();
   return {
     el, title: movies ? tr('Films') : tr('Séries'), keep: true, ready,
     enter() {
-      loadUpcoming();
+      loadUpcoming(); renderPickUp();
       if (stale || Date.now() - loadedAt > 10 * 60_000) refresh();
       else requestAnimationFrame(keepLoading);
     },

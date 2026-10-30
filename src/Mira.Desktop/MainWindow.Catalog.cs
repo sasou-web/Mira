@@ -138,6 +138,7 @@ public partial class MainWindow
         if (count > 0) { FiltersToggle.Background = Palette.Get("Text"); FiltersToggle.Foreground = FiltersIcon.Foreground = Palette.Get("OnAccent"); }
         else { FiltersToggle.ClearValue(BackgroundProperty); FiltersToggle.ClearValue(ForegroundProperty); FiltersIcon.ClearValue(Views.Icon.ForegroundProperty); }
         System.Windows.Automation.AutomationProperties.SetName(FiltersToggle, (count > 0 ? FiltersText.Text : L("Filtrer", "Filter")) + (_filtersOpen ? L(", ouverts", ", open") : ""));
+        RenderGenreChips();
     }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing && !_filterBusy) await RefreshAsync(); }
     private async void LibraryFilter_Changed(object sender, SelectionChangedEventArgs e)
@@ -196,7 +197,7 @@ public partial class MainWindow
         var row = _catalog.ContinueRow();
         ResumeSection.Visibility = home && row.Count > 0 && HomeShows(HomeLayout.Continue) ? Visibility.Visible : Visibility.Collapsed;
         NextUpSection.Visibility = Visibility.Collapsed;
-        RenderShelves(home); ShowHomeGroup();
+        RenderShelves(home); ShowHomeGroup(); RenderPickUp(search);
         RenderPeople(search); RenderStudios(search); RenderFound(search);
         // « Ajoutés récemment » put away (Réglages → Apparence): the home page ends with its rows. A search that found
         // only people, episodes or sagas shows them alone.
