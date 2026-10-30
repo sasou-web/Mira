@@ -38,7 +38,7 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(waitForReport("/Start", item: Self.tearsOfSteel, timeout: 30), "Jellyfin never heard that playback started")
         Thread.sleep(forTimeInterval: 1.5)
         capture("05-player")
-        closePlayer(app, folded: "05d-mini-folded")
+        closePlayer(app)
         XCTAssertTrue(waitForReport("/Stopped", item: Self.tearsOfSteel, timeout: 20), "Jellyfin never heard that playback stopped")
         XCTAssertTrue(app.buttons["title.play"].waitForExistence(timeout: 10), "Closing the player did not lead back to the title page")
         // Favorite, then not: Jellyfin is told each time, and the page reads it back.
@@ -287,15 +287,21 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(bar.waitForExistence(timeout: 10), "Reducing the player showed no bar over the tabs")
         settle()
         capture("39-player-reduced")
-        app.buttons["mini.close"].tap()
+        // Home scrolled down: the tab bar folds to its open tab, the reduced player beside it; back at the top, over it.
+        app.buttons["tab.home"].tap()
+        app.swipeUp()
+        settle()
+        XCTAssertTrue(bar.exists, "The reduced player left as the tab bar folded")
+        capture("39b-player-folded")
+        let close = app.buttons["mini.close"]
+        for _ in 0..<3 where !close.waitForExistence(timeout: 3) { app.swipeDown() }
+        close.tap()
         XCTAssertTrue(waitForReport("/Stopped", item: Self.sintel, timeout: 20), "Closing the bar did not stop Sintel")
     }
 
-    /// Reduces Mira's player to the bar over the tabs, then closes it there. With `folded`, the page is scrolled down
-    /// first: the tab bar folds and the reduced player goes between the open tab and Search (captured as `folded`);
-    /// scrolling back up unfolds both.
+    /// Reduces Mira's player to the bar over the tabs, then closes it there.
     @MainActor
-    private func closePlayer(_ app: XCUIApplication, folded: String? = nil) {
+    private func closePlayer(_ app: XCUIApplication) {
         // Paused first: the clip of the stand-in Jellyfin lasts 10 s for a title of 12 min, and a title that ends before
         // 90 % is a cut, which closes the player with « Can't play this title ».
         let play = app.buttons["player.play"]
@@ -307,13 +313,6 @@ final class MiraUITests: XCTestCase {
         settle()
         let bar = app.descendants(matching: .any)["mini"]
         XCTAssertTrue(bar.waitForExistence(timeout: 10), "Reducing the player showed no bar over the tabs")
-        if let folded {
-            app.swipeUp()
-            settle()
-            XCTAssertTrue(bar.exists, "The reduced player left as the tab bar folded")
-            capture(folded)
-            app.swipeDown()
-        }
         let close = app.buttons["mini.close"]
         for _ in 0..<2 where !close.waitForExistence(timeout: 3) { app.swipeDown() }
         XCTAssertTrue(close.waitForExistence(timeout: 5), "The reduced player has no close button")
