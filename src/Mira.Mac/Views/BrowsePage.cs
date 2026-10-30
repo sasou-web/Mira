@@ -53,6 +53,11 @@ public sealed class BrowsePage : Page
     private readonly TextBlock _gridTitle = Ui.SectionTitle("");
     private bool _filtersOpen;
     private readonly EmptyState _empty = new() { Margin = new Thickness(0, 56, 0, 40) };
+    /// <summary>Films and Séries: their genres as chips (the same choice as Genre), and on top the title to pick up, as on Windows.</summary>
+    private readonly StackPanel _genreChips = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+    private readonly ScrollViewer _genreRow;
+    private readonly Border _pickUp = new() { IsVisible = false, Height = 210, CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 0, 0, 34), Background = Ui.Brush("#111112"), ClipToBounds = true };
+    private MediaItem? _pickUpItem;
     private readonly DispatcherTimer _typing = new() { Interval = TimeSpan.FromMilliseconds(320) };
     private readonly List<MediaItem> _items = [];
     private int _total, _version;
@@ -136,6 +141,8 @@ public sealed class BrowsePage : Page
             AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() => _search.Focus(), DispatcherPriority.Input);
         }
         else { page.Children.Add(tools); page.Children.Add(_filters); }
+        _genreRow = new ScrollViewer { Content = _genreChips, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(0, 0, 0, 24), IsVisible = false };
+        if (kind is BrowseKind.Movies or BrowseKind.Series && person is null && saga is null && studio is null) { page.Children.Add(_genreRow); page.Children.Add(_pickUp); }
         if (person is not null)
         {
             var chip = Ui.Action(Catalog.PersonText(person.Name, director), "close", "chip on", () => Shell.Back());
@@ -200,6 +207,7 @@ public sealed class BrowsePage : Page
     private void ShowTools()
     {
         if (_kind == BrowseKind.Search) return;
+        ShowGenreChips(); if (FilterCount > 0 || _favoritesOnly) _pickUp.IsVisible = false; else if (_pickUpItem is not null) _pickUp.IsVisible = true;
         var count = FilterCount;
         if (((StackPanel)_filtersToggle.Content!).Children.OfType<TextBlock>().FirstOrDefault() is { } label) label.Text = Catalog.FiltersLabel(count);
         Avalonia.Automation.AutomationProperties.SetName(_filtersToggle, Catalog.FiltersLabel(count));
@@ -246,12 +254,74 @@ public sealed class BrowsePage : Page
                 _genre.SelectedIndex = 0; _year.SelectedIndex = 0;
                 if (_openGenre is { } opened) { if (!_genre.Items.Contains(opened)) _genre.Items.Add(opened); _genre.SelectedItem = opened; }
                 _filling = false;
+                BuildGenreChips();
             }
             catch (Exception ex) when (Errors.Expected(ex)) { _filling = false; }
         }
         await ReloadAsync();
+        await LoadPickUpAsync();
     }
-    public override Task RefreshAsync() => ReloadAsync(keep: true);
+    public override async Task RefreshAsync() { await ReloadAsync(keep: true); await LoadPickUpAsync(); }
+
+    /// <summary>« Tous », then each genre: a click is the choice of Genre under « Filtrer ».</summary>
+    private void BuildGenreChips()
+    {
+        _genreChips.Children.Clear();
+        for (var i = 0; i < _genre.ItemCount; i++)
+        {
+            var index = i; var name = i == 0 ? L("Tous", "All") : _genre.Items[i] as string ?? "";
+            var chip = new Button { Content = name, Classes = { "chip" } };
+            chip.Click += (_, _) => _genre.SelectedIndex = index;
+            _genreChips.Children.Add(chip);
+        }
+        _genreRow.IsVisible = _genre.ItemCount > 1 && _kind is BrowseKind.Movies or BrowseKind.Series;
+        ShowGenreChips();
+    }
+    private void ShowGenreChips()
+    {
+        for (var i = 0; i < _genreChips.Children.Count; i++)
+        {
+            var chip = (Button)_genreChips.Children[i]; var on = i == Math.Max(0, _genre.SelectedIndex);
+            chip.Classes.Set("on", on);
+            Avalonia.Automation.AutomationProperties.SetName(chip, on ? L($"{chip.Content}, affiché", $"{chip.Content}, shown") : chip.Content as string);
+        }
+    }
+    /// <summary>The film last started, or the episode a show is at (Catalog.PickUp): on the whole list only, as on Windows.</summary>
+    private async Task LoadPickUpAsync()
+    {
+        if (Shell.Session is not { } session || _kind is not (BrowseKind.Movies or BrowseKind.Series) || _person is not null || _saga is not null || _studio is not null) return;
+        MediaItem? item = null;
+        if (!_favoritesOnly && Library is null)
+        {
+            try
+            {
+                var resuming = session.Client.ResumeAsync(); var next = _kind == BrowseKind.Series ? session.Client.NextUpAsync() : null;
+                var catalog = new Catalog { View = _kind == BrowseKind.Movies ? "Movie" : "Series", Resume = (await resuming).Items, NextUp = next is null ? [] : (await next).Items };
+                await Task.Run(() => Errors.TryCache(() => { session.Store.ApplyLocalProgress(catalog.Resume); session.Store.ApplyLocalProgress(catalog.NextUp); }));
+                item = catalog.PickUp("", Query);
+            }
+            catch (Exception ex) when (Errors.Expected(ex)) { }
+        }
+        if (!ReferenceEquals(session, Shell.Session)) return;
+        _pickUp.IsVisible = item is not null;
+        if (item is null || item.Id == _pickUpItem?.Id && item.UserData.PlaybackPositionTicks == _pickUpItem.UserData.PlaybackPositionTicks) { _pickUpItem = item; return; }
+        _pickUpItem = item;
+        var image = new Image { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top };
+        var gradient = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative) };
+        gradient.GradientStops.Add(new GradientStop(Color.Parse("#F2070708"), 0)); gradient.GradientStops.Add(new GradientStop(Color.Parse("#A6070708"), 0.45)); gradient.GradientStops.Add(new GradientStop(Color.Parse("#14070708"), 1));
+        var shade = new Border { Background = gradient };
+        var resume = item.Progress > 0;
+        var actions = Ui.Row(12, Ui.Action(resume ? L("Reprendre", "Resume") : L("Regarder", "Watch"), "play", "primary", () => _ = Shell.PlayAsync(item)),
+            Ui.IconButton("info", L("Voir la fiche", "See the title page"), () => Shell.Open(item), "icon", 19));
+        var body = Ui.Column(6,
+            new TextBlock { Text = Catalog.PickUpLabel(item), FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = Ui.Brush("#DEDEE4") },
+            new TextBlock { Text = item.Type == "Episode" ? item.SeriesName ?? item.Name : item.Name, FontSize = 28, FontWeight = FontWeight.Bold, TextTrimming = TextTrimming.CharacterEllipsis },
+            new TextBlock { Text = Catalog.PickUpLine(item), Foreground = Ui.Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 12) }, actions);
+        body.VerticalAlignment = VerticalAlignment.Center; body.Margin = new Thickness(32, 0); body.MaxWidth = 720; body.HorizontalAlignment = HorizontalAlignment.Left;
+        _pickUp.Child = new Grid { Children = { image, shade, body } };
+        Avalonia.Automation.AutomationProperties.SetName(_pickUp, Catalog.PickUpLabel(item));
+        image.Source = await session.Images.BackdropAsync(item, 1280);
+    }
 
     private async Task ReloadAsync(bool keep = false)
     {

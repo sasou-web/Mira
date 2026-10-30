@@ -178,7 +178,7 @@ try {
     await page.locator('#view .library .state .btn').click().catch(() => {}); await settled();
     const back = await titlesShown().count();
     check('films : « Favoris » vide, le filtre nommé et retiré par son bouton', empty.title === 'Aucun film en favori' && empty.button === 'Retirer « Favoris »' && empty.count === 'Favoris'
-      && back >= 4 && !(await page.locator('#view .library .chip.on').count()), `« ${empty.title} », « ${empty.button} », compte « ${empty.count} » ; ${back} films ensuite`);
+      && back >= 4 && !(await page.locator('#view .library-filters .chip.on').count()), `« ${empty.title} », « ${empty.button} », compte « ${empty.count} » ; ${back} films ensuite`);
   } else skip('films : « Favoris » vide', `${favourites ?? '?'} film(s) en favori sur ce compte`);
 
   await page.locator('.tabbar a[data-tab="search"]').click(); await wait(800);
@@ -2391,10 +2391,10 @@ try {
 check('invité : aucune erreur JavaScript', !guestErrors.length, guestErrors.join(' | ') || 'aucune');
 await hostCtx.close(); await guestCtx.close();
 
-// A computer (a mouse, no touch): a right click opens the menu by the pointer, not a sheet in the middle. And
+// A computer (a mouse, no touch): a right click opens the menu by the pointer (under it, or above it near the bottom), not a sheet in the middle. And
 // « Télécharger » before Mira has ever come on the PC of Jellyfin (the fake agent below is not there yet): one message,
 // the field and « Coller un lien magnet » off.
-const deskContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'fr-FR' });
+const deskContext = await browser.newContext({ viewport: { width: 1280, height: 1000 }, locale: 'fr-FR' });
 await watchPolicy(deskContext, 'ordinateur');
 const kp2 = await deskContext.newPage();
 const deskErrors = [];
@@ -2409,13 +2409,14 @@ try {
   await kp2.mouse.click(click.x, click.y, { button: 'right' }); await kp2.waitForTimeout(600);
   const menu = await kp2.evaluate(() => {
     const panel = document.querySelector('.sheet-layer .sheet'), r = panel?.getBoundingClientRect();
-    return panel ? { anchored: panel.parentElement.classList.contains('anchored'), x: Math.round(r.left), y: Math.round(r.top), right: r.right <= innerWidth, bottom: r.bottom <= innerHeight, items: panel.querySelectorAll('.sheet-item').length } : null;
+    return panel ? { anchored: panel.parentElement.classList.contains('anchored'), x: Math.round(r.left), y: Math.round(r.top), end: Math.round(r.bottom), right: r.right <= innerWidth, bottom: r.bottom <= innerHeight, items: panel.querySelectorAll('.sheet-item').length } : null;
   });
   await kp2.screenshot({ path: `${out}/12-right-click.png` });
-  await kp2.mouse.click(5, 790); await kp2.waitForTimeout(400);
+  await kp2.mouse.click(5, 990); await kp2.waitForTimeout(400);
+  const closed = await kp2.locator('.sheet-layer').count() === 0;
   check('ordinateur : clic droit = menu près du pointeur, dans la fenêtre, fermé par un clic à côté',
-    menu?.anchored && Math.abs(menu.x - click.x) <= 2 && Math.abs(menu.y - click.y) <= 2 && menu.right && menu.bottom && menu.items >= 3 && await kp2.locator('.sheet-layer').count() === 0,
-    menu ? `${menu.anchored ? 'menu' : 'feuille'} à ${menu.x},${menu.y} pour un clic à ${click.x},${click.y}, ${menu.items} choix` : 'rien d’ouvert');
+    menu?.anchored && Math.abs(menu.x - click.x) <= 2 && (Math.abs(menu.y - click.y) <= 2 || Math.abs(menu.end - click.y) <= 2) && menu.right && menu.bottom && menu.items >= 3 && closed,
+    menu ? `${menu.anchored ? 'menu' : 'feuille'} de ${menu.x},${menu.y} à ${menu.end} pour un clic à ${click.x},${click.y}, ${menu.items} choix${menu.right && menu.bottom ? '' : ', hors de la fenêtre'}${closed ? '' : ', resté ouvert'}` : 'rien d’ouvert');
   const agentSeen = await kp2.evaluate(async () => {
     const s = JSON.parse(localStorage.getItem('mira.session'));
     const r = await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Mira/torlink`, { headers: { Authorization: `MediaBrowser Token="${s.token}"` } });

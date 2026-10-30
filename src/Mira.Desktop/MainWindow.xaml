@@ -35,8 +35,16 @@
         <Button x:Name="FiltersReset" Grid.Column="4" VerticalAlignment="Bottom" Content="{v:L 'Réinitialiser', 'Reset'}" Style="{StaticResource Quiet}" Click="ResetFilters_Click"/>
        </Grid>
       </Border>
+      <!-- Films and Séries: their genres one click away, as chips (the same choice as Genre under « Filtrer »). -->
+      <ScrollViewer x:Name="GenreChipsScroll" Style="{StaticResource {x:Type ScrollViewer}}" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,0,0,24" Visibility="Collapsed"><StackPanel x:Name="GenreChips" Orientation="Horizontal" v:Accessible.ArrowKeys="True"/></ScrollViewer>
      </StackPanel>
      <StackPanel x:Name="LibraryRows" Margin="110,0,40,42">
+      <!-- On top of Films the film last started, of Séries the episode to pick up (Catalog.PickUp): each page its own way back in. -->
+      <Border x:Name="PickUp" Visibility="Collapsed" Height="210" CornerRadius="16" Margin="0,0,0,34" Background="{StaticResource Surface}">
+       <Grid><Border CornerRadius="16"><Border.Background><ImageBrush x:Name="PickUpImage" Stretch="UniformToFill" AlignmentY="Top"/></Border.Background></Border><Border CornerRadius="16"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#F2070708"/><GradientStop Color="#A6070708" Offset="0.45"/><GradientStop Color="#14070708" Offset="1"/></LinearGradientBrush></Border.Background></Border>
+        <StackPanel VerticalAlignment="Center" Margin="32,0,32,0" MaxWidth="720" HorizontalAlignment="Left"><TextBlock x:Name="PickUpLabel" Foreground="{StaticResource TextBody}" FontSize="11" FontWeight="SemiBold"/><TextBlock x:Name="PickUpTitle" FontSize="28" FontWeight="Bold" Margin="0,8,0,0" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="PickUpLine" Foreground="{StaticResource TextSecondary}" Margin="0,6,0,18" TextTrimming="CharacterEllipsis"/><StackPanel Orientation="Horizontal"><Button x:Name="PickUpPlay" Style="{StaticResource Primary}" Padding="22,11" Click="PickUpPlay_Click"/><Button Style="{StaticResource IconButton}" Width="44" Height="44" v:Motion.Radius="22" Margin="12,0,0,0" Click="PickUpDetails_Click" ToolTip="{v:L 'Voir la fiche', 'See the title page'}" AutomationProperties.Name="{v:L 'Voir la fiche', 'See the title page'}"><v:Icon Kind="info" Width="19" Height="19"/></Button></StackPanel></StackPanel>
+       </Grid>
+      </Border>
       <!-- « Regarder ensemble »: a group open on Jellyfin, joined from Home (ShowHomeGroup, MainWindow.Together.cs). -->
       <Border x:Name="HomeGroup" Visibility="Collapsed" HorizontalAlignment="Left" MaxWidth="760" Margin="0,0,0,30" Padding="18,10,10,10" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12">
        <DockPanel><Button x:Name="HomeGroupJoin" DockPanel.Dock="Right" Style="{StaticResource Primary}" Padding="20,9" Margin="18,0,0,0" Click="HomeGroupJoin_Click" Content="{v:L 'Rejoindre', 'Join'}"/><v:Icon Kind="users" Width="20" Height="20" Margin="0,0,14,0" Foreground="{DynamicResource Muted}"/><TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Muted}"><Run x:Name="HomeGroupName" Foreground="{StaticResource Text}" FontWeight="SemiBold"/><Run x:Name="HomeGroupPeople"/></TextBlock></DockPanel>

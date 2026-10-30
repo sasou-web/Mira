@@ -44,6 +44,14 @@ internal static class LibraryTests
             catalog.Remember(playing);
             Assert(catalog.Resume[0] == playing && catalog.RecentPlayback[0] == playing && catalog.ContinueRow().Any(x => x.Id == "d"), "Lecture : en tête de « Continuer à regarder ».");
             Assert(catalog.HeroCandidates(catalog.ContinueRow())[0].Id == "d", "Bandeau : la rangée d’abord.");
+            var hour = TimeSpan.FromHours(1).Ticks;
+            var episode = new MediaItem { Id = "e", Name = "Le retour", Type = "Episode", SeriesId = "s", ParentIndexNumber = 2, IndexNumber = 4, RunTimeTicks = hour, UserData = new() { PlaybackPositionTicks = hour / 2 } };
+            var film = new MediaItem { Id = "f", Name = "Film", Type = "Movie", ProductionYear = 2023, RunTimeTicks = 2 * hour + hour / 3, UserData = new() { PlaybackPositionTicks = hour - hour / 4 } };
+            var pages = new Catalog { View = "Movie", Resume = [episode, film] };
+            Assert(pages.PickUp("", new CatalogQuery()) == film && Catalog.PickUpLabel(film) == "À REPRENDRE" && Catalog.PickUpLine(film) == "2023  ·  2 h 20  ·  1 h 35 restantes", "Films : le film commencé en tête.");
+            pages.View = "Series";
+            Assert(pages.PickUp("", new CatalogQuery()) == episode && Catalog.PickUpLine(episode) == "S02 E04  ·  Le retour  ·  30 min restantes", "Séries : l’épisode à reprendre en tête.");
+            Assert(pages.PickUp("x", new CatalogQuery()) is null && pages.PickUp("", new CatalogQuery(Genre: "Drame")) is null && new Catalog { Resume = [film] }.PickUp("", new CatalogQuery()) is null, "Ni recherche, ni filtre, ni Accueil.");
 
             var empty = catalog.Empty("", new CatalogQuery(), demo: false);
             Assert(empty.Icon == "sliders" && empty.Reset && !empty.Guide, "Bibliothèque choisie : un filtre.");

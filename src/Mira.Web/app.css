@@ -658,6 +658,22 @@ html:not(.touch) .episode:active, .episode.pressed { background: var(--surface);
 @media (pointer: coarse) { .segmented button { height: 40px; } }
 .library-filters { position: sticky; top: var(--bar); z-index: 30; background: var(--bg); padding: 8px var(--gutter) 12px; }
 .library-count { color: var(--faint); font-size: calc(13px * var(--text)); padding: 0 var(--gutter) 12px; min-height: calc(13px * 1.47 + 12px); }
+/* Films and Séries: their genres one touch away, and the title to pick up on top (views/library.js). */
+.genre-chips { margin: 0; padding-top: 0; padding-bottom: 14px; }
+.genre-chips .chip { min-height: 34px; padding-inline: 14px; font-size: calc(13px * var(--text)); }
+.pickup-slot:empty { display: none; }
+.pickup-slot { padding: 0 var(--gutter) 22px; }
+.pickup { position: relative; border-radius: 18px; overflow: hidden; min-height: 190px; display: flex; align-items: flex-end; background: var(--surface); }
+.pickup > .art { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; }
+.pickup > .art img { width: 100%; height: 100%; object-fit: cover; object-position: center 25%; }
+.pickup::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(7, 7, 8, 0.94), rgba(7, 7, 8, 0.6) 50%, rgba(7, 7, 8, 0.08)); }
+.pickup-body { position: relative; z-index: 1; padding: 22px 24px; display: grid; justify-items: start; gap: 6px; max-width: 640px; }
+.pickup-label { font-size: calc(11px * var(--text)); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.pickup-title { margin: 0; font-size: calc(24px * var(--text)); font-weight: 800; line-height: 1.15; }
+.pickup-line { color: var(--muted); font-size: calc(14px * var(--text)); }
+.pickup-actions { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+@media (max-width: 699px) { .pickup { min-height: 170px; } .pickup::after { background: linear-gradient(0deg, rgba(7, 7, 8, 0.95), rgba(7, 7, 8, 0.55) 60%, rgba(7, 7, 8, 0.15)); } .pickup-body { padding: 18px; } }
+@media (forced-colors: active) { .pickup { border: 1px solid ButtonText; } }
 .library-grid { padding: 0 var(--gutter) 24px; }
 .sentinel { height: 1px; }
 
