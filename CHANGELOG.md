@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Texte lisse sous Windows** : depuis la police Nunito, les lettres avaient des bords en escalier, surtout les grands titres. Mira pour Windows dessine maintenant son texte en mode « Ideal » de WPF, lissé dans les deux sens, au lieu du mode « Display », pensé pour les polices Windows à hinting.
 - **Plus de plantage silencieux à la connexion (Windows)** : se déconnecter, ou changer de compte, pendant que l'Accueil se chargeait laissait Mira relire les bibliothèques sur une connexion fermée (NullReferenceException dans `errors.log`, vu deux fois sur le PC d'ogsas le 2026-10-27). Mira s'arrête maintenant là, sans erreur.
 - **Des icônes distinctes sur la fiche (Windows)** : **Ajouter aux favoris** et **Nouveaux épisodes** avaient tous deux un « + », et une série suivie montrait la même coche que **Marquer comme vu**. Favori a le cœur de l'Accueil, **Nouveaux épisodes** un calendrier.
 
