@@ -184,7 +184,7 @@ public sealed class Catalog
             (search.Length == 0 || x.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase))).ToList();
         if (View != "home")
         {
-            items = items.Where(x => (query.Genre is null || x.Genres.Contains(query.Genre)) && (query.Year is null || x.ProductionYear == query.Year) && (query.Played is null || x.UserData.Played == query.Played)).ToList();
+            items = items.Where(x => (query.Genre is null || GenreGroups.Has(x.Genres, query.Genre)) && (query.Year is null || x.ProductionYear == query.Year) && (query.Played is null || x.UserData.Played == query.Played)).ToList();
             items = query.Sort switch
             {
                 "title" => items.OrderBy(x => x.Name).ToList(),

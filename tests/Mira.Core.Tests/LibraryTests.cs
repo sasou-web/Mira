@@ -18,6 +18,16 @@ internal static class LibraryTests
         var Test = run.Test;
         var testRoot = run.Root;
         LibraryStore Store(string name) => new(testRoot, name);
+        await Test("Genres : français et anglais de Jellyfin réunis, les plus fréquents d’abord, filtre par chacun de leurs noms", () =>
+        {
+            var groups = GenreGroups.FromTitles([["Comédie", "Drame"], ["Comedy"], ["Drama", "Science-Fiction"], ["Sci-Fi"], ["Comedy", "Animation"], ["Action & Adventure"], ["Action"]]);
+            Assert(groups[0] is { Label: "Comédie", Value: "Comedy|Comédie", Count: 3 } && groups[1] is { Label: "Drame", Count: 2 } && groups[2] is { Label: "Science-Fiction", Value: "Sci-Fi|Science-Fiction", Count: 2 }, "Groupes : " + string.Join(", ", groups));
+            Assert(groups.Count(x => x.Label.StartsWith("Action")) == 2, "« Action » et « Action & Aventure » restent deux genres.");
+            Assert(GenreGroups.Has(["Comedy"], "Comedy|Comédie") && !GenreGroups.Has(["Drama"], "Comedy|Comédie"), "Filtre d’un groupe.");
+            Assert(GenreGroups.Of("Horreur", ["Horror", "Drama"]) is { Value: "Horreur|Horror", Label: "Horreur" } && GenreGroups.Of("Isekai", []) is { Value: "Isekai", Label: "Isekai" }, "Genre d’une fiche.");
+            Assert(GenreGroups.FromNames(["Western", "Action", "Action"]).Select(x => x.Label).SequenceEqual(["Action", "Western"]), "Liste des filtres, par nom.");
+            return Task.CompletedTask;
+        });
         await Test("Catalogue : titres de la page, pages ajoutées sans doublon, vu et favori partout, page vide et démo", () =>
         {
             MediaItem Film(string id, bool favorite = false, long position = 0) => new() { Id = id, Name = id, Type = "Movie", RunTimeTicks = 1000, UserData = new() { IsFavorite = favorite, PlaybackPositionTicks = position } };

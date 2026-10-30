@@ -299,7 +299,7 @@ public partial class MainWindow : Window
         _images = new ImageCache(_client, _profile.DirectoryPath); FitArtwork(_images); _sync = sync;
         _metadata = new MetadataCache(_client); ++_heroVersion;
         _sync.Changed += SyncChanged;
-        _connectionLifetime = new(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
+        _connectionLifetime = new(); _pageGenres.Clear(); _pageGenresAsked.Clear(); _listening = false; _lastRefresh = DateTimeOffset.MinValue; _offlineSince = null;
         if (!_args.Contains("--visual-check")) _ = ListenSafelyAsync(_client, _connectionLifetime.Token);
         if (!_args.Contains("--visual-check")) { StartEpisodeNotices(); ChoicesChanged(); }
         // Opened from a mira:// link before this account was: asked now.

@@ -14,6 +14,10 @@ public static class SmoothScroll
     public static readonly DependencyProperty EnabledProperty = DependencyProperty.RegisterAttached("Enabled", typeof(bool), typeof(SmoothScroll), new PropertyMetadata(false, EnabledChanged));
     public static bool GetEnabled(DependencyObject obj) => (bool)obj.GetValue(EnabledProperty);
     public static void SetEnabled(DependencyObject obj, bool value) => obj.SetValue(EnabledProperty, value);
+    /// <summary>A row that scrolls sideways only (genre chips): the wheel moves it along until its end, then the page.</summary>
+    public static readonly DependencyProperty AcrossProperty = DependencyProperty.RegisterAttached("Across", typeof(bool), typeof(SmoothScroll), new PropertyMetadata(false));
+    public static bool GetAcross(DependencyObject obj) => (bool)obj.GetValue(AcrossProperty);
+    public static void SetAcross(DependencyObject obj, bool value) => obj.SetValue(AcrossProperty, value);
     private static readonly ConditionalWeakTable<ScrollViewer, Driver> Drivers = new();
     private static void EnabledChanged(DependencyObject obj, DependencyPropertyChangedEventArgs e)
     {
@@ -32,6 +36,8 @@ public static class SmoothScroll
         for (var node = e.OriginalSource as DependencyObject; node is not null && node != outer; node = Parent(node))
         {
             if (node is ComboBox || node is TextBoxBase) return;
+            if (!horizontal && node is ScrollViewer row && GetAcross(row) && (e.Delta > 0 ? row.HorizontalOffset > .5 : row.HorizontalOffset < row.ScrollableWidth - .5))
+            { By(row, -e.Delta / 120d * 160, true); e.Handled = true; return; }
             if (node is ScrollViewer nested && (horizontal ? nested.ScrollableWidth > 0 : CanMove(nested, e.Delta))) { target = nested; break; }
         }
         if (horizontal && target.ScrollableWidth <= 0) return;
