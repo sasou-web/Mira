@@ -17,6 +17,7 @@ env:
   HOMEBREW_NO_ANALYTICS: "1"
 jobs:
   windows:
+    if: ${{ !contains(github.event.head_commit.message, '[iphone only]') }}
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -152,6 +153,7 @@ jobs:
         env:
           UDID: ${{ steps.simulator.outputs.udid }}
         run: |
+          mkdir -p .artifacts/out
           xcodebuild build-for-testing -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" -derivedDataPath .artifacts/dd > .artifacts/build.log 2>&1 || { tail -40 .artifacts/build.log; exit 1; }
           xcrun simctl io "$UDID" recordVideo --codec h264 --force .artifacts/out/iphone.mov > .artifacts/record.log 2>&1 &
           rec=$!; sleep 2; python3 -c 'import time; print(int(time.time()*1000))' > .artifacts/out/iphone-start.txt
