@@ -1,47 +1,210 @@
 name: Presentation video library
-# TEMPORARY (never merged): the README's library scanned by a Jellyfin 12.1 with TMDb, its metadata and artwork
-# exported and committed to this branch, with the soundtrack ogsas chose, for the presentation video.
+# TEMPORARY (never merged): the presentation video's footage. Mira for Windows and the iPhone app, each used for real
+# (the mouse and keyboard of --demo-tour, the touches of MiraTour.testTour) on a real Jellyfin 12.1 holding the README's
+# library with its TMDb artwork (presentation/media.sh, library.mjs), filmed (ffmpeg gdigrab, simctl recordVideo) and
+# committed to this branch with each step's time.
 on:
   push:
     branches: [claude/project-thread-dqmaw4]
-    paths: [presentation/*.sh, presentation/*.mjs, .github/workflows/presentation.yml]
+    paths: [presentation/*.sh, presentation/*.mjs, .github/workflows/presentation.yml, src/Mira.Desktop/Checks/MainWindow.DemoTour.cs, src/Mira.iOS/MiraUITests/MiraTour.swift]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 env:
-  JELLYFIN_IMAGE: jellyfin/jellyfin:12.1.20260915-010956
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  HOMEBREW_NO_ANALYTICS: "1"
 jobs:
-  export:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Soundtrack
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: jellyfin/jellyfin
+          ref: v12.1
+          path: .artifacts/jellyfin-src
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+      - name: ffmpeg
+        run: choco install ffmpeg -y --no-progress
+      - name: Soundtrack (one more try)
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p .artifacts/out
+          pip install -q yt-dlp && (winget install --id DenoLand.Deno -e --silent --accept-source-agreements --accept-package-agreements >/dev/null 2>&1 || true)
+          python -m yt_dlp -f bestaudio -x --audio-format m4a -o ".artifacts/out/music.%(ext)s" "https://www.youtube.com/watch?v=FrD01XVOl80" 2>&1 | tail -5
+      - name: Jellyfin 12.1 from its sources
+        working-directory: .artifacts/jellyfin-src
+        run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
+      - name: The library, Spring and Sprite Fright for real
+        shell: bash
+        run: |
+          presentation/media.sh "$PWD/.artifacts/media"
+          for f in "Spring (2019)/spring" "Sprite Fright (2021)/sprite-fright"; do
+            dir=".artifacts/media/Films/${f%/*}"; rm -f "$dir"/*.mkv
+            curl -fsSL --retry 3 -o "$dir/${f%/*}.mp4" "https://github.com/lakson-llc/kyte-demo-media/releases/download/v1/${f#*/}.mp4"
+          done
+          echo "TITLES=$(( $(find .artifacts/media -name '*.mkv' -o -name '*.mp4' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
+      - name: Jellyfin, its library and a viewer's traces
+        shell: pwsh
+        run: |
+          $j = Join-Path $PWD '.artifacts/jf-data'
+          foreach ($d in 'data', 'cache', 'config', 'log') { New-Item -ItemType Directory -Force -Path (Join-Path $j $d) | Out-Null }
+          $ffmpeg = (Get-Command ffmpeg).Source
+          Start-Process -FilePath dotnet -ArgumentList @('.artifacts/jf/jellyfin.dll', '--datadir', "$j/data", '--cachedir', "$j/cache", '--configdir', "$j/config", '--logdir', "$j/log", '--nowebclient', '--ffmpeg', $ffmpeg) -WindowStyle Hidden
+          node presentation/library.mjs http://127.0.0.1:8096 (Join-Path $PWD '.artifacts/media/Films') (Join-Path $PWD '.artifacts/media/Séries')
+          if ($LASTEXITCODE -ne 0) { throw 'Jellyfin setup failed.' }
+      - name: Screen of 1920 × 1080
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+      - name: Build Mira for Windows
+        run: |
+          dotnet restore src/Mira.Desktop/Mira.Desktop.csproj --configfile NuGet.Config
+          dotnet build src/Mira.Desktop/Mira.Desktop.csproj -c Release --no-restore
+      - name: Film the tour
+        shell: pwsh
+        env:
+          MIRA_GALLERY_SERVER: http://127.0.0.1:8096
+          MIRA_GALLERY_USER: Sam
+          MIRA_GALLERY_PASSWORD: mira-demo
+        run: |
+          $exe = 'src/Mira.Desktop/bin/Release/net10.0-windows10.0.19041.0/Mira.exe'
+          $out = Join-Path $PWD '.artifacts/out'; New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $profile = Join-Path $PWD '.artifacts/tour-profile'
+          & ./tools/mpv-engine.ps1 -Work .artifacts/mpv -ProfileFolder $profile
+          # Everything else out of the way: a dark, empty desktop behind the window.
+          Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.ProcessName -notin 'explorer' } | ForEach-Object { Write-Output "window: $($_.ProcessName)" }
+          $info = New-Object System.Diagnostics.ProcessStartInfo 'ffmpeg', '-loglevel error -y -f gdigrab -framerate 30 -draw_mouse 1 -i desktop -c:v libx264 -preset ultrafast -crf 14 -pix_fmt yuv444p .artifacts/out/windows.mkv'
+          $info.UseShellExecute = $false; $info.RedirectStandardInput = $true
+          $recorder = [Diagnostics.Process]::Start($info)
+          "$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" | Set-Content (Join-Path $out 'windows-start.txt')
+          $run = Start-Process -FilePath $exe -ArgumentList @('--data', "`"$profile`"", '--demo-tour', "`"$out`"") -PassThru
+          $done = $run.WaitForExit(420000)
+          $recorder.StandardInput.Write('q'); $recorder.StandardInput.Close(); $recorder.WaitForExit(60000) | Out-Null
+          if (-not $done) { $run.Kill() }
+          Get-Content (Join-Path $out 'tour-result.txt') -Raw
+          ffmpeg -loglevel error -y -i .artifacts/out/windows.mkv -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart .artifacts/out/windows.mp4
+          if (Test-Path .artifacts/out/windows.mp4) { Remove-Item .artifacts/out/windows.mkv }
+          Get-ChildItem $out | Format-Table Name, Length
+      - name: Jellyfin log
+        if: failure()
+        shell: pwsh
+        run: Get-ChildItem .artifacts/jf-data/log -Filter *.log | ForEach-Object { Get-Content $_.FullName -Tail 60 }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: tour-windows
+          path: .artifacts/out/*
+          retention-days: 3
+
+  iphone:
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: jellyfin/jellyfin
+          ref: v12.1
+          path: .artifacts/jellyfin-src
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: src/Mira.Tailscale/go.mod
+          cache-dependency-path: src/Mira.Tailscale/go.sum
+      - name: Tools
+        run: brew install xcodegen ffmpeg
+      - name: Soundtrack (one more try)
         continue-on-error: true
         run: |
-          pipx install yt-dlp >/dev/null 2>&1 || pip install --user yt-dlp
-          mkdir -p presentation/export
-          yt-dlp -f bestaudio -x --audio-format m4a -o "presentation/export/music.%(ext)s" "https://www.youtube.com/watch?v=FrD01XVOl80" 2>&1 | tail -20
-          yt-dlp --skip-download --print "%(title)s | %(uploader)s | %(duration)s s" "https://www.youtube.com/watch?v=FrD01XVOl80" > presentation/export/music.txt 2>&1 || true
-          cat presentation/export/music.txt
-      - name: The library
+          mkdir -p .artifacts/out
+          brew install yt-dlp deno >/dev/null 2>&1 || true
+          yt-dlp -f bestaudio -x --audio-format m4a -o ".artifacts/out/music.%(ext)s" "https://www.youtube.com/watch?v=FrD01XVOl80" 2>&1 | tail -5
+      - name: Jellyfin 12.1 and the library
         run: |
-          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          (cd .artifacts/jellyfin-src && dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q)
           presentation/media.sh "$PWD/.artifacts/media"
-          echo "TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))" >> "$GITHUB_ENV"
-      - name: Jellyfin with TMDb, exported
+          export TITLES=$(( $(find .artifacts/media -name '*.mkv' | wc -l) + $(ls .artifacts/media/Séries | wc -l) ))
+          j="$PWD/.artifacts/jf-data"; mkdir -p "$j"/{data,cache,config,log}
+          nohup dotnet .artifacts/jf/jellyfin.dll --datadir "$j/data" --cachedir "$j/cache" --configdir "$j/config" --logdir "$j/log" --nowebclient --ffmpeg "$(command -v ffmpeg)" > .artifacts/jellyfin.log 2>&1 &
+          node presentation/library.mjs http://127.0.0.1:8096 "$PWD/.artifacts/media/Films" "$PWD/.artifacts/media/Séries"
+      - name: The app
         run: |
-          mkdir -p .artifacts/jf-config .artifacts/jf-cache
-          docker run -d --name jellyfin --network host -v "$PWD/.artifacts/media:/media:ro" -v "$PWD/.artifacts/jf-config:/config" -v "$PWD/.artifacts/jf-cache:/cache" "$JELLYFIN_IMAGE"
-          node presentation/export.mjs http://127.0.0.1:8096 presentation/export
-          du -sh presentation/export
+          tools/ios/tailscale.sh
+          (cd src/Mira.iOS && xcodegen generate)
+      - name: Simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          found = []
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              if "iOS" not in runtime: continue
+              version = tuple(int(x) for x in runtime.rsplit("iOS-", 1)[1].split("-"))
+              found += [(version, d["udid"]) for d in devices if d["name"] == "iPhone 17 Pro"]
+          print(max(found)[1])')
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"; xcrun simctl bootstatus "$udid"
+          xcrun simctl ui "$udid" appearance dark
+          xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+      - name: Film the tour
+        env:
+          UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          xcodebuild build-for-testing -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" -derivedDataPath .artifacts/dd > .artifacts/build.log 2>&1 || { tail -40 .artifacts/build.log; exit 1; }
+          xcrun simctl io "$UDID" recordVideo --codec h264 --force .artifacts/out/iphone.mov > .artifacts/record.log 2>&1 &
+          rec=$!; sleep 2; python3 -c 'import time; print(int(time.time()*1000))' > .artifacts/out/iphone-start.txt
+          status=0
+          TEST_RUNNER_MIRA_TOUR=1 xcodebuild test-without-building -project src/Mira.iOS/Mira.xcodeproj -scheme Mira -destination "id=$UDID" -derivedDataPath .artifacts/dd \
+            -only-testing:MiraUITests/MiraTour/testTour > .artifacts/tour.log 2>&1 || status=$?
+          kill -INT $rec; wait $rec || true
+          grep -o "MIRA-TOUR .*" .artifacts/tour.log | sort -u -k3n > .artifacts/out/iphone-steps.txt || true
+          cat .artifacts/out/iphone-steps.txt; cat .artifacts/record.log
+          grep -E "error:|Test Case|\*\* TEST" .artifacts/tour.log | tail -20
+          ffmpeg -loglevel error -y -i .artifacts/out/iphone.mov -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart .artifacts/out/iphone.mp4 && rm .artifacts/out/iphone.mov
+          ls -la .artifacts/out
+      - name: Jellyfin log
+        if: failure()
+        run: tail -80 .artifacts/jellyfin.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: tour-iphone
+          path: .artifacts/out/*
+          retention-days: 3
+
+  commit:
+    needs: [windows, iphone]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: tour-*
+          path: presentation/tour
       - name: Commit
         env:
-          TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
         run: |
-          git add -f presentation/export
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Presentation: the library's metadata and artwork"
-          git push "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:$BRANCH"
+          find presentation/tour -type f -size +95M -print -delete
+          ls -laR presentation/tour
+          git add -f presentation/tour
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Presentation: the tours, filmed" || exit 0
+          git push origin "HEAD:$BRANCH"
