@@ -105,6 +105,8 @@ jobs:
           if kill -0 $pid 2>/dev/null; then echo "self-check still running after 5 minutes"; kill $pid; status=1; else wait $pid || status=$?; fi
           cat .artifacts/check/results.txt 2>/dev/null || tail -40 .artifacts/check.log
           echo "— Avalonia et OpenGL :"; grep -a -i -E "opengl|gpu|metal|render|exception" .artifacts/check.log | head -30 || true
+          # A crash (139 = segmentation fault) says nothing in results.txt: the end of the log and the crashed thread.
+          if [ "$status" -gt 128 ]; then echo "— fin du journal :"; tail -60 .artifacts/check.log; sleep 10; python3 tools/mac/crash-report.py Mira || true; fi
           exit $status
       # Built-in Tailscale: the node of Mira.app as it ships (signed with it, this version) joins mira-testnet's Tailscale
       # network and reaches its Jellyfin, as on Linux in ci.yml (tests/Mira.Core.Tests): sign-in through the login page,
