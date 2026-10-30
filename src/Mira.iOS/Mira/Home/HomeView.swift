@@ -352,11 +352,11 @@ struct BannerView: View {
         // Where the banner is: on the picture's fade, under the buttons, as on Mira web.
         .overlay(alignment: .bottom) {
             if entries.count > 1 {
-                HStack(spacing: 6) {
+                HStack(spacing: 7) {
                     ForEach(entries) { entry in
                         Capsule()
                             .fill(entry.id == (current ?? entries.first?.id) ? Palette.accent : Palette.faint.opacity(0.5))
-                            .frame(width: entry.id == (current ?? entries.first?.id) ? 18 : 6, height: 6)
+                            .frame(width: entry.id == (current ?? entries.first?.id) ? 26 : 8, height: 8)
                     }
                 }
                 .animation(.snappy, value: current)

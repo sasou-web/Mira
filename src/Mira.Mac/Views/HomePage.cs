@@ -287,7 +287,7 @@ public sealed class HomePage : Page
         for (var i = 0; i < _heroItems.Count && _heroItems.Count > 1; i++)
         {
             var target = i;
-            var dot = new Button { Width = 46, Height = 14, Padding = new Thickness(0), Background = Brushes.Transparent, Content = new Border { Height = 3, CornerRadius = new CornerRadius(2), Background = Ui.Brush(i == _heroIndex ? "#F5F5F7" : "#55FFFFFF") } };
+            var dot = new Button { Width = 52, Height = 20, Padding = new Thickness(0), Background = Brushes.Transparent, Content = new Border { Height = 8, CornerRadius = new CornerRadius(4), Background = Ui.Brush(i == _heroIndex ? "#F5F5F7" : "#55FFFFFF") } };
             ToolTip.SetTip(dot, _heroItems[i].DisplayTitle);
             Avalonia.Automation.AutomationProperties.SetName(dot, L($"Afficher « {_heroItems[i].DisplayTitle} »{(i == _heroIndex ? ", affiché" : "")}", $"Show “{_heroItems[i].DisplayTitle}”{(i == _heroIndex ? ", shown" : "")}"));
             dot.Click += (_, _) => { ShowHero(target); _rotate.Stop(); _rotate.Start(); };

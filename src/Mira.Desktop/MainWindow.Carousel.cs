@@ -94,8 +94,8 @@ public partial class MainWindow
         for (var i = 0; i < _heroCandidates.Count; i++)
         {
             var candidate = _heroCandidates[i];
-            var track = new CarouselProgress { Width = 42, Height = 3, Accent = _heroAccent }; _heroSegments.Add(track);
-            var button = new Button { Content = track, Style = (Style)FindResource("Quiet"), Width = 52, Height = 30, Padding = new Thickness(5, 10, 5, 10), BorderThickness = new Thickness(0), ToolTip = candidate.DisplayTitle };
+            var track = new CarouselProgress { Width = 48, Height = 8, Accent = _heroAccent }; _heroSegments.Add(track);
+            var button = new Button { Content = track, Style = (Style)FindResource("Quiet"), Width = 58, Height = 32, Padding = new Thickness(5, 12, 5, 12), BorderThickness = new Thickness(0), ToolTip = candidate.DisplayTitle };
             Motion.SetRadius(button, new CornerRadius(15));
             System.Windows.Automation.AutomationProperties.SetName(button, L("À l’affiche : ", "Featured: ") + candidate.DisplayTitle);
             button.Click += (_, _) => { _heroReady = SelectHeroAsync(candidate); }; HeroDots.Children.Add(button);
