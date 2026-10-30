@@ -49,6 +49,8 @@ public static class SelfCheck
             window.Settings.AutoNext = true; window.Settings.RememberPosition = true; window.Settings.Volume = 150;
 
             // —— Sign-in ——
+            // The sign-in page, seen as it opens (the mock signs in without it).
+            if (mock is not null) { window.ShowLogin(); await Until(() => window.Login is not null, 5); await Task.Delay(3000); Capture(window, output, "01-login"); }
             if (mock is not null) await window.ActivateAsync(new Connection(MockJellyfin.Server, MockJellyfin.UserId, "Contrôle", "check-token", window.Profile.DeviceId), mock);
             else
             {

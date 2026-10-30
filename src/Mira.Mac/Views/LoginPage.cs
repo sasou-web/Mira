@@ -14,9 +14,9 @@ namespace Mira.Mac.Views;
 public sealed class LoginPage : UserControl
 {
     private readonly MainWindow _shell;
-    private readonly TextBox _server = new() { Watermark = L("Adresse du serveur (ex. 192.168.1.20)", "Server address (e.g. 192.168.1.20)") };
-    private readonly TextBox _user = new() { Watermark = L("Nom d’utilisateur", "User name") };
-    private readonly TextBox _password = new() { Watermark = L("Mot de passe", "Password"), PasswordChar = '•', RevealPassword = false };
+    private readonly TextBox _server = new() { Watermark = "192.168.1.20:8096" };
+    private readonly TextBox _user = new();
+    private readonly TextBox _password = new() { PasswordChar = '•', RevealPassword = false };
     private readonly Button _connect;
     private readonly TextBlock _error = new() { Foreground = Ui.Brush("#F0B4A7"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     /// <summary>The server found on this Mac, the home network or Tailscale (<see cref="ServerSearch"/>), and the others found.</summary>
@@ -55,17 +55,25 @@ public sealed class LoginPage : UserControl
         _server.TextChanged += (_, _) => { ServerTyped(); RenderTailnet(); if (_warned is not null && !_busy && _server.Text != _warned) { _warned = null; Label.Text = L("Se connecter", "Sign in"); _error.IsVisible = false; } };
         if (error is not null) ShowError(error);
 
+        // As on Windows: « Se connecter », each field named above it, the address explained by its own hint.
+        foreach (var (box, name) in new[] { (_server, L("Serveur Jellyfin", "Jellyfin server")), (_user, L("Nom d’utilisateur", "Username")), (_password, L("Mot de passe", "Password")) })
+            Avalonia.Automation.AutomationProperties.SetName(box, name);
+        ToolTip.SetTip(_server, L("Une adresse IP, un nom (nas:8096) ou l’adresse de la page web de Jellyfin. Chez toi, l’adresse du PC qui l’héberge suffit ; ailleurs, celle que Tailscale lui donne.",
+            "An IP address, a name (nas:8096) or the address of Jellyfin’s web page. At home, the address of the PC it runs on is enough; elsewhere, the one Tailscale gives it."));
         var form = Ui.Column(14,
-            new Icon("brand", 52) { Foreground = Ui.Ink, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 10) },
-            Ui.Heading(L("Connexion à Jellyfin", "Sign in to Jellyfin"), 28, 1),
-            Ui.Text(L("Mira lit ta bibliothèque Jellyfin. Chez toi, l’adresse du PC qui l’héberge suffit ; ailleurs, celle que Tailscale lui donne.", "Mira plays your Jellyfin library. At home, the address of the PC it runs on is enough; elsewhere, the one Tailscale gives it."), 14.5, color: Ui.Muted),
-            Spaced(_server, 10), _found, _choices, _searchAgain, _tailnet, _user, _password, _error, Spaced(_connect, 6),
+            Spaced(Ui.Heading(L("Se connecter", "Sign in"), 30, 1, FontWeight.Bold), 0, 10),
+            Field(L("Serveur Jellyfin", "Jellyfin server"), _server), _found, _choices, _searchAgain, _tailnet,
+            Field(L("Nom d’utilisateur", "Username"), _user), Field(L("Mot de passe", "Password"), _password), _error, Spaced(_connect, 8),
             Ui.Text(L("Ton mot de passe n’est jamais enregistré : Mira garde seulement la session ouverte par Jellyfin.", "Your password is never saved: Mira only keeps the session Jellyfin opened."), 12.5, color: Ui.Faint));
         form.Width = 420;
         Content = new Grid
         {
             Background = new RadialGradientBrush { Center = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), GradientOrigin = new RelativePoint(0.3, 0.2, RelativeUnit.Relative), RadiusX = new RelativeScalar(0.9, RelativeUnit.Relative), RadiusY = new RelativeScalar(0.9, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#1A1D22"), 0), new GradientStop(Color.Parse("#070708"), 1) } },
-            Children = { new Border { Child = form, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(40), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#C00E0E10"), BorderBrush = Ui.Brush("#1F1F23"), BorderThickness = new Thickness(1) } }
+            Children =
+            {
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(38, 40 + _shell.TitleBarInset, 0, 0), IsHitTestVisible = false,
+                    Children = { new Icon("brand", 31) { Foreground = Ui.Ink }, new TextBlock { Text = "mira", FontSize = 25, FontWeight = FontWeight.ExtraBold, VerticalAlignment = VerticalAlignment.Center } } },
+                new Border { Child = form, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(40), CornerRadius = new CornerRadius(18), Background = Ui.Brush("#C00E0E10"), BorderBrush = Ui.Brush("#1F1F23"), BorderThickness = new Thickness(1) } }
         };
         AttachedToVisualTree += (_, _) =>
         {
@@ -76,7 +84,9 @@ public sealed class LoginPage : UserControl
         };
         DetachedFromVisualTree += (_, _) => _shell.Tailnet.Changed -= RenderTailnet;
     }
-    private static Control Spaced(Control control, double top) { control.Margin = new Thickness(0, top, 0, 0); return control; }
+    private static Control Spaced(Control control, double top, double bottom = 0) { control.Margin = new Thickness(0, top, 0, bottom); return control; }
+    private static Control Field(string label, TextBox box) =>
+        Ui.Column(7, new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Ui.TextTertiary }, box);
     private void ShowError(string text) { _error.Text = text; _error.IsVisible = true; }
 
     /// <summary>Fills the form and signs in, as a click on « Se connecter » would (the self-check).</summary>
