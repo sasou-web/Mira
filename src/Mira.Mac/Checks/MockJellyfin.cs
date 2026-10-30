@@ -106,6 +106,10 @@ public sealed class MockJellyfin : HttpMessageHandler
             return Json(new { PlaySessionId = "session-" + id, MediaSources = new[] { new { Id = "source-" + id, Protocol = "File", Path = file, MediaStreams = Array.Empty<object>() } } });
         }
         if (path.StartsWith("MediaSegments/")) return Json(new { Items = Array.Empty<object>() });
+        // « Chercher des sous-titres… »: an extension, and what it finds.
+        if (path == "Libraries/AvailableOptions") return Json(new { SubtitleFetchers = new[] { new { Name = "Open Subtitles" } } });
+        if (path.StartsWith("Items/") && path.Contains("/RemoteSearch/Subtitles/"))
+            return Json(new object[] { new { Id = "sub-1", Name = "Les.heures.bleues.2025.1080p.WEB", ProviderName = "Open Subtitles", Format = "srt", ThreeLetterISOLanguageName = path.Split('/')[^1], DownloadCount = 1200, IsHashMatch = true }, new { Id = "sub-2", Name = "Les heures bleues (2025)", ProviderName = "Open Subtitles", Format = "srt", ThreeLetterISOLanguageName = path.Split('/')[^1], DownloadCount = 40 } });
         if (path == "Persons")
         {
             var people = new[] { ("actor-1", "Jeanne Essai"), ("actor-2", "Paul Témoin"), ("director-1", "Réa Lisatrice") };
