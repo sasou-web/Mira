@@ -256,7 +256,7 @@ public sealed partial class PlayerPage : UserControl
     private async Task OpenEngineAsync()
     {
         await ReleaseEngineAsync();
-        var player = new MpvPlayer(_shell.Settings);
+        var player = new MpvPlayer(_shell.Settings, picture: PictureForPlayback());
         _mpv = player;
         player.FileLoaded += FileLoaded;
         player.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
@@ -419,7 +419,7 @@ public sealed partial class PlayerPage : UserControl
             var paused = mpv.Flag("pause");
             SleepGuard.Set(!paused);
             if (paused != _session.Paused) { _session.Paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _session.LastReport = DateTimeOffset.MinValue; GroupPauseChanged(paused); }
-            WatchGroupStall(mpv);
+            WatchGroupStall(mpv); WatchPicture(mpv, paused);
             _timeline.SetPlayback(_session.Position, _session.Duration, mpv.Number("demuxer-cache-time", 0));
             _time.Text = $"{Timeline.Clock(_session.Position)} / {Timeline.Clock(_session.Duration)}";
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";

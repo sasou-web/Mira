@@ -1,7 +1,7 @@
 namespace Mira.Core;
 
 /// <summary>
-/// « Image » of Mira for Windows (Réglages → Lecture): how mpv draws the video. « Standard » is mpv's own; « Cinéma »
+/// « Image » of Mira for Windows and Mac (Réglages → Lecture): how mpv draws the video. « Standard » is mpv's own; « Cinéma »
 /// (default) times each frame to the screen (a 24 images/s film on a 60 Hz screen without judder) and smooths banding,
 /// cheap enough for a laptop's integrated graphics; « Maximale » adds mpv's high-quality scaling (its
 /// <c>high-quality</c> profile), for a graphics card. Applied when a playback starts: <c>interpolation</c> sizes the
@@ -16,6 +16,16 @@ public static class PictureQuality
         (Cinema, L("Cinéma", "Cinema"), L("Mouvements fluides sur tout écran, sans bandes dans les dégradés", "Smooth motion on any screen, no banding in gradients")),
         (Best, L("Maximale", "Maximum"), L("Cinéma, avec la mise à l’échelle la plus fine : pour une vraie carte graphique", "Cinema, with the finest scaling: for a dedicated graphics card")),
     ];
+    /// <summary>
+    /// The same levels on a Mac (<see cref="Options"/> without <c>displaySync</c>): mpv draws into Mira's own view there,
+    /// without knowing the screen's refresh, so « Cinéma » keeps the frames' own timing.
+    /// </summary>
+    public static IReadOnlyList<(string Key, string Label, string Details)> MacChoices =>
+    [
+        (Standard, L("Standard", "Standard"), L("Le rendu d’origine de mpv, le plus léger", "mpv’s own rendering, the lightest")),
+        (Cinema, L("Cinéma", "Cinema"), L("Sans bandes dans les dégradés (ciel, ombres, fondus)", "No banding in gradients (skies, shadows, fades)")),
+        (Best, L("Maximale", "Maximum"), L("Cinéma, avec la mise à l’échelle la plus fine", "Cinema, with the finest scaling")),
+    ];
     /// <summary>A saved choice Mira knows, else « Cinéma ».</summary>
     public static string Known(string? choice) => Choices.Any(x => x.Key == choice) ? choice! : Cinema;
     public static string Label(string? choice) => Choices.First(x => x.Key == Known(choice)).Label;
@@ -24,19 +34,21 @@ public static class PictureQuality
 
     /// <summary>
     /// mpv's options for a level, each option any level sets: its value there, or null for mpv's own default (so going
-    /// down a level while a video plays puts each one back).
+    /// down a level while a video plays puts each one back). Without <paramref name="displaySync"/> (a Mac: mpv's render
+    /// API does not know the screen's refresh, and would fall back to the audio's timing with a warning), frames keep
+    /// their own timing, without interpolation.
     /// </summary>
-    public static IReadOnlyList<(string Name, string? Value)> Options(string? choice)
+    public static IReadOnlyList<(string Name, string? Value)> Options(string? choice, bool displaySync = true)
     {
         var level = Known(choice);
-        bool cinema = level != Standard, best = level == Best;
+        bool cinema = level != Standard, best = level == Best, timed = cinema && displaySync;
         return
         [
             // Frames timed to the screen's refresh, the audio resampled by at most 1 % to follow: no frame shown twice
             // as long as the next (24 on 60 Hz). Interpolation blends only the frames that fall between two refreshes.
-            ("video-sync", cinema ? "display-resample" : null),
-            ("interpolation", cinema ? "yes" : null),
-            ("tscale", cinema ? "oversample" : null),
+            ("video-sync", timed ? "display-resample" : null),
+            ("interpolation", timed ? "yes" : null),
+            ("tscale", timed ? "oversample" : null),
             ("deband", cinema ? "yes" : null),
             // mpv's high-quality profile (etc/builtin.conf).
             ("scale", best ? "ewa_lanczossharp" : null),
