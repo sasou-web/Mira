@@ -250,7 +250,11 @@ public static class SelfCheck
                     window.Go("offline");
                     Check(await Until(() => window.Current is OfflinePage { Count: 1 }, 5), "garder sur ce Mac : la page « Sur ce Mac »", $"{(window.Current as OfflinePage)?.Count} titres");
                     await Task.Delay(800); Capture(window, output, "09-offline");
+                    Console.WriteLine("garder sur ce Mac : lecture (vidéo en logiciel)");
+                    Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", "1");
                     await window.PlayAsync(movie);
+                    Console.WriteLine("garder sur ce Mac : lecteur ouvert");
+                    Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);
                     Check(await Until(() => window.Player is { IsFileLoaded: true }, 20) && window.Player?.Location == copy.VideoPath, "garder sur ce Mac : lu depuis ce Mac", window.Player?.Location ?? "lecteur fermé");
                     await window.StopPlaybackAsync();
                     await window.ForgetOfflineAsync([copy]);
