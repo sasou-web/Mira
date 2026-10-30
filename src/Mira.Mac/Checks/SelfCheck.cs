@@ -191,6 +191,20 @@ public static class SelfCheck
                 await window.PlayAsync(episodes[0], fromStart: true);
                 var next = episodes[1].Id;
                 Check(await Until(() => window.Player?.Item?.Id == next, 60), "épisode suivant automatique", $"{episodes[0].Name} → {window.Player?.Item?.Name ?? window.NoticeText ?? "lecteur fermé"}");
+                // « Épisodes » and « Épisode précédent », as on Windows: the season in a menu over the bar, P back to the one before.
+                if (window.Player is { } player && await Until(() => player.PreviousButton.IsEnabled && player.EpisodesButton.IsEnabled, 15))
+                {
+                    player.EpisodesButton.Flyout!.ShowAt(player.EpisodesButton);
+                    await Task.Delay(800);
+                    var menu = (player.EpisodesButton.Flyout as Flyout)?.Content as Control;
+                    var rows = menu?.GetVisualDescendants().OfType<Button>().Count(x => x.Tag is string) ?? 0;
+                    ScreenColour(Path.Combine(output, "08c-player-episodes.png"));
+                    Check(rows >= 2 && (menu is null || Unnamed(menu).Count == 0), "lecteur : menu « Épisodes »", $"{rows} épisodes");
+                    player.EpisodesButton.Flyout.Hide();
+                    Key(window, Avalonia.Input.Key.P);
+                    Check(await Until(() => window.Player?.Item?.Id == episodes[0].Id, 30), "lecteur : épisode précédent (P)", window.Player?.Item?.Name ?? window.NoticeText ?? "lecteur fermé");
+                }
+                else Check(false, "lecteur : épisode précédent et « Épisodes » disponibles");
                 await window.StopPlaybackAsync();
             }
 

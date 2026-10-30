@@ -108,6 +108,7 @@ public sealed partial class PlayerPage : UserControl
         };
 
         _next = Ui.IconButton("next-episode", L("Épisode suivant · N", "Next episode · N"), () => { if (_skips.Next is { } next) _ = PlayNextAsync(next); }, "player", 22);
+        BuildEpisodeButtons();
         _tracks = Ui.IconButton("subtitles", L("Audio et sous-titres", "Audio and subtitles"), () => { }, "player", 22);
         _more = Ui.IconButton("more", L("Vitesse, sous-titres et minuterie", "Speed, subtitles and sleep timer"), () => { }, "player", 22);
         _tracks.Flyout = new Flyout { Placement = PlacementMode.TopEdgeAlignedRight, ShowMode = FlyoutShowMode.Standard };
@@ -143,8 +144,8 @@ public sealed partial class PlayerPage : UserControl
 
         // Bottom bar, as on Windows: title and episode on the left, chapter and time on the right, the timeline, then
         // play, next episode and volume on the left, the menus and fullscreen on the right.
-        var left = Ui.Row(6, play, _next, volumeGroup);
-        var right = Ui.Row(6, _more, _tracks, fullscreen);
+        var left = Ui.Row(6, play, _previous, _next, volumeGroup);
+        var right = Ui.Row(6, _episodesButton, _more, _tracks, fullscreen);
         var transport = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(-8, 2, -8, 0), Height = 44 };
         left.VerticalAlignment = right.VerticalAlignment = VerticalAlignment.Center;
         transport.Children.Add(left); Grid.SetColumn(right, 2); transport.Children.Add(right);
@@ -233,7 +234,7 @@ public sealed partial class PlayerPage : UserControl
             UseStream(stream);
             _session.Begin(item, stream.Source, stream.PlaySessionId, start, stream.PlayMethod);
             _title.Text = item.DisplayTitle; _subtitle.Text = PlayerText.Subtitle(item);
-            _next.IsEnabled = false;
+            _next.IsEnabled = false; ShowEpisodeButtons(item);
 
             await OpenEngineAsync();
             if (_mpv is null || generation != _generation) return false;
@@ -534,7 +535,7 @@ public sealed partial class PlayerPage : UserControl
     private void SetControls(bool shown)
     {
         // The controls stay while a menu is open or the bar is being dragged.
-        if (!shown && (_timeline.Dragging || _tracks.Flyout?.IsOpen == true || _more.Flyout?.IsOpen == true || _bottom.IsPointerOver)) { _hide.Start(); return; }
+        if (!shown && (_timeline.Dragging || _tracks.Flyout?.IsOpen == true || _more.Flyout?.IsOpen == true || _episodesButton.Flyout?.IsOpen == true || _bottom.IsPointerOver)) { _hide.Start(); return; }
         _controlsShown = shown;
         _top.Opacity = _bottom.Opacity = shown ? 1 : 0;
         _top.IsHitTestVisible = _bottom.IsHitTestVisible = shown;
@@ -556,6 +557,8 @@ public sealed partial class PlayerPage : UserControl
             case Key.F: ToggleFullscreen(); break;
             case Key.S: if (_skips.Active is not null) Skip(); break;
             case Key.N: if (_skips.Next is { } next) _ = PlayNextAsync(next); break;
+            case Key.P: if (_previous.IsVisible && _previous.IsEnabled) PlayPrevious(); break;
+            case Key.E: ToggleEpisodes(); break;
             case Key.Escape:
                 if (_shell.WindowState == WindowState.FullScreen) ToggleFullscreen(); else _ = _shell.StopPlaybackAsync();
                 break;
@@ -759,6 +762,7 @@ public sealed partial class PlayerPage : UserControl
         }
         if (generation != _generation) return;
         _next.IsEnabled = _skips.Next is not null;
+        if (_session.Item is { } current) SetEpisodes(current);
         ToolTip.SetTip(_next, _skips.Next is not { } next ? L("Dernier épisode disponible", "Last episode available") : L("Épisode suivant · ", "Next episode · ") + PlayerText.Subtitle(next, _episodes));
         Rebuild();
     }

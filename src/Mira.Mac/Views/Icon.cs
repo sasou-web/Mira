@@ -28,6 +28,7 @@ public sealed class Icon : Control
     {
         ["volume"] = Speaker, ["volume-low"] = Speaker, ["mute"] = Speaker,
         ["next-episode"] = Shape(IconPaths.NextEpisode),
+        ["previous-episode"] = Shape(IconPaths.PreviousEpisode),
         ["more"] = Shape(IconPaths.More),
         ["heart-filled"] = Shape(IconPaths.Heart)
     };
@@ -50,7 +51,7 @@ public sealed class Icon : Control
             var geometry = Shapes.GetValueOrDefault(Kind) ?? (solid is null ? Shapes["info"] : null);
             if (geometry is null) return;
             var filled = Kind is "play" or "pause";
-            context.DrawGeometry(filled ? ink : null, filled ? null : Round(ink, Kind == "next-episode" ? 2.3 : 1.85), geometry);
+            context.DrawGeometry(filled ? ink : null, filled ? null : Round(ink, Kind is "next-episode" or "previous-episode" ? 2.3 : 1.85), geometry);
         }
     }
     private static Pen Round(IBrush brush, double width) => new(brush, width, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
