@@ -124,9 +124,16 @@ internal static class BuiltInTailnetTests
             var (offline, _, _, _) = Make("builtin-offline", ["--silent"]);
             offline.SignedIn = true;
             Assert(await offline.SignOutAsync() == TailnetText.SignedOutHere && !offline.SignedIn, "Signed out without Tailscale told, not said so");
-            var (stuck, _, _, _) = Make("builtin-stuck", [], forget: () => throw new IOException("fichier utilisé"));
+            var tries = 0;
+            var (stuck, _, _, _) = Make("builtin-stuck", [], forget: () => { tries++; throw new IOException("fichier utilisé"); });
             stuck.SignedIn = true;
             Assert(await stuck.SignOutAsync() is { } said && said.Contains("fichier utilisé") && said.Contains("builtin-stuck") && !stuck.SignedIn, "Files left behind are not said, with their folder");
+            Assert(tries == BuiltInTailnet.ForgetAttempts, $"Files held are tried {tries} times");
+            // An antivirus reading a file the node just wrote: erased a moment later, nothing said of it.
+            var held = 0;
+            var (busy, _, _, _) = Make("builtin-busy", [], forget: () => { if (held++ == 0) throw new UnauthorizedAccessException("lu par l’antivirus"); });
+            busy.SignedIn = true;
+            Assert(await busy.SignOutAsync() == TailnetText.SignedOutHere && held == 2, "A file held a moment is said left behind");
             foreach (var code in TailnetCodes.All)
                 Assert(BuiltInTailnet.Remedy(code) == code switch
                 {
@@ -214,7 +221,7 @@ internal static class BuiltInTailnetTests
                     lock (opened) Assert(opened.Count == 1, "Started again, a login page opened");
                     Assert(await again.Node!.ProbeAsync("jellyfin-pc:8096", TimeSpan.FromSeconds(20)) is null, "Started again, the Jellyfin PC does not answer");
                     Assert(!File.ReadAllText(log).Contains("/auth/", StringComparison.Ordinal), "The node's log shows a login page");
-                    Assert(await again.SignOutAsync() == TailnetText.SignedOut, "Signed out, not said as told to Tailscale");
+                    Assert(await again.SignOutAsync() is var said && said == TailnetText.SignedOut, "Signed out, not said as told to Tailscale: " + said);
                     Assert(!again.SignedIn && again.Node is null && forgotten == 1 && !Directory.Exists(directory) && network.Choose(ip).Path == TailnetPath.Direct,
                         "Signed out, the node stays used, or its state on this device");
                 }

@@ -63,6 +63,9 @@ public sealed class BuiltInTailnet : IAsyncDisposable
         public TimeSpan StateWait { get; init; } = TimeSpan.FromSeconds(15);
     }
 
+    /// <summary>Tries at erasing the node's key and state when signed out: again after half a second, then after one more.</summary>
+    public const int ForgetAttempts = 3;
+
     private readonly Options _options;
     private Task<TailnetProcess?>? _preparing;
     /// <summary>Changes as the node stops (signed out, the app closing): a node made meanwhile is not used.</summary>
@@ -157,8 +160,17 @@ public sealed class BuiltInTailnet : IAsyncDisposable
             catch (ObjectDisposedException) { }
         await StopAsync();
         SignedIn = false; SigningIn = false; Page = null; _lastState = null; _expirySaid = false;
-        try { await Task.Run(_options.Forget); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return TailnetText.NotErased(ex.Message, _options.Directory); }
+        try
+        {
+            // A file held a moment by another program (an antivirus reading what the node just wrote): tried again shortly.
+            for (var attempt = 1; ; attempt++)
+                try { await Task.Run(_options.Forget); break; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (attempt == ForgetAttempts) return TailnetText.NotErased(ex.Message, _options.Directory);
+                    await Task.Delay(TimeSpan.FromMilliseconds(500 * attempt));
+                }
+        }
         finally { Changed?.Invoke(); }
         return told ? TailnetText.SignedOut : TailnetText.SignedOutHere;
     }
