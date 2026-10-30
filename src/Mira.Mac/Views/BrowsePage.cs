@@ -77,7 +77,7 @@ public sealed class BrowsePage : Page
             : kind switch { BrowseKind.Movies => L("Films", "Movies"), BrowseKind.Series => L("Séries", "Shows"), BrowseKind.Search => L("Rechercher", "Search"), _ => L("Bibliothèque", "Library") };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
         DockPanel.SetDock(_count, Dock.Right); header.Children.Add(_count);
-        header.Children.Add(Ui.Heading(title, 34, 1, FontWeight.ExtraBold));
+        header.Children.Add(Ui.Heading(title, 32, 1, FontWeight.SemiBold));
 
         _favorites = Ui.Action(L("Favoris", "Favorites"), "heart", "chip", () => { _favoritesOnly = !_favoritesOnly; _favorites!.Classes.Set("on", _favoritesOnly); _ = ReloadAsync(); });
         _reset = Ui.Action(L("Réinitialiser", "Reset"), "refresh", "chip quiet", Reset);
@@ -130,16 +130,16 @@ public sealed class BrowsePage : Page
             page.Children.Add(line);
         }
         page.Children.Add(_empty);
-        _peopleSection.Children.Add(Ui.Heading(L("Personnes", "People"), 22, 2));
+        _peopleSection.Children.Add(Ui.SectionTitle(L("Personnes", "People")));
         _peopleSection.Children.Add(_people);
         page.Children.Add(_peopleSection);
-        _studiosSection.Children.Add(Ui.Heading(L("Studios", "Studios"), 22, 2));
+        _studiosSection.Children.Add(Ui.SectionTitle(L("Studios", "Studios")));
         _studiosSection.Children.Add(_studios);
         page.Children.Add(_studiosSection);
         page.Children.Add(_grid);
-        _episodesSection.Children.Add(Ui.Heading(L("Épisodes", "Episodes"), 22, 2));
+        _episodesSection.Children.Add(Ui.SectionTitle(L("Épisodes", "Episodes")));
         _episodesSection.Children.Add(_episodes);
-        _sagasSection.Children.Add(Ui.Heading(L("Collections", "Collections"), 22, 2));
+        _sagasSection.Children.Add(Ui.SectionTitle(L("Collections", "Collections")));
         _sagasSection.Children.Add(_sagas);
         page.Children.Add(_episodesSection); page.Children.Add(_sagasSection);
         _scroll = new ScrollViewer { Content = page };

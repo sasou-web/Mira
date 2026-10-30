@@ -97,7 +97,7 @@ public sealed class DownloadsPage : Page
         };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 26) };
         DockPanel.SetDock(pill, Dock.Right); header.Children.Add(pill);
-        header.Children.Add(Ui.Column(0, Ui.Heading(L("Téléchargements", "Downloads"), 34, 1, FontWeight.ExtraBold), _subtitle));
+        header.Children.Add(Ui.Column(0, Ui.Heading(L("Téléchargements", "Downloads"), 32, 1, FontWeight.SemiBold), _subtitle));
 
         // —— Left: the search, a magnet link, the results ——
         _query.InnerLeftContent = new Icon("search", 17) { Foreground = Ui.Faint, Margin = new Thickness(14, 0, 0, 0), IsHitTestVisible = false };

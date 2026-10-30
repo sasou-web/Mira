@@ -105,7 +105,12 @@ public sealed class MainWindow : Window
         _toastTimer.Tick += (_, _) => HideNotice();
         _serverChanged.Tick += (_, _) => { _serverChanged.Stop(); _ = RefreshPagesAsync(fromServer: true); };
         _choicesSoon.Tick += async (_, _) => { _choicesSoon.Stop(); await SyncChoicesAsync(); };
-        Activated += (_, _) => { ActivatedAt = Environment.TickCount64; if (DateTimeOffset.UtcNow - _choicesAsked > TimeSpan.FromMinutes(1)) ChoicesChanged(); };
+        Activated += (_, _) =>
+        {
+            ActivatedAt = Environment.TickCount64; if (DateTimeOffset.UtcNow - _choicesAsked > TimeSpan.FromMinutes(1)) ChoicesChanged();
+            // An account made administrator (or no longer) since the sign-in: Téléchargements comes or goes when Mira is back in front.
+            if (Session is { } session && DateTimeOffset.UtcNow - _rightsAsked > TimeSpan.FromMinutes(1)) _ = OfferDownloadsAsync(session);
+        };
         KeyDown += OnKeyDown;
         PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsXButton1Pressed) Back(); };
         Closing += OnClosing;
@@ -238,11 +243,15 @@ public sealed class MainWindow : Window
     /// </summary>
     private async Task OfferDownloadsAsync(Session session)
     {
-        bool? admin = null;
+        _rightsAsked = DateTimeOffset.UtcNow;
+        bool? admin;
+        // Unreachable or unread: the entry stays as it was, asked again the next time Mira comes in front.
         try { admin = await session.Client.IsAdministratorAsync(session.Lifetime); }
-        catch (Exception ex) when (Errors.Expected(ex)) { }
-        if (ReferenceEquals(session, Session)) _railButtons["downloads"].IsVisible = admin == true;
+        catch (Exception ex) when (Errors.Expected(ex)) { _rightsAsked = DateTimeOffset.MinValue; return; }
+        if (admin is null) _rightsAsked = DateTimeOffset.MinValue;
+        else if (ReferenceEquals(session, Session)) _railButtons["downloads"].IsVisible = admin == true;
     }
+    private DateTimeOffset _rightsAsked;
     /// <summary>
     /// « Chercher une meilleure version » of a film or an episode (an administrator): Téléchargements, its search made, only
     /// the versions better than its file; the one chosen replaces it on the PC of Jellyfin, never kept beside it.
