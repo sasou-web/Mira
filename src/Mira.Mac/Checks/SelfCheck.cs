@@ -135,6 +135,15 @@ public static class SelfCheck
                 withFriend.Friend.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07c-settings-friend");
             }
             else if (mock is not null) Check(false, "réglages : ajouter un ami", "section absente");
+            // « Sortie audio », as on Windows: the devices mpv lists, and « Tester » made and played here.
+            if (window.Current is SettingsPage withAudio)
+            {
+                Check(await Until(() => withAudio.AudioDevices >= 0, 15), "réglages : sortie audio", $"{withAudio.AudioDevices} sorties");
+                withAudio.TestSoundForCheck();
+                var heard = await Until(() => withAudio.SoundTested is not null && !File.Exists(Path.Combine(Path.GetTempPath(), "Mira-sound-test.wav")), 15);
+                Check(heard && withAudio.SoundTested!.Contains(AudioOutput.TestSound(window.Settings.AudioChannels).Speakers[^1]), "réglages : tester la sortie audio", withAudio.SoundTested ?? "rien");
+                withAudio.AudioOutputRow.BringIntoView(); await Task.Delay(500); Capture(window, output, "07d-settings-audio");
+            }
             if (window.Current is SettingsPage { Fix.Section.IsVisible: true } withFix) { withFix.Viewing.Section.BringIntoView(); await Task.Delay(500); Capture(window, output, "07b-settings-fix"); }
 
             // —— Téléchargements: sent to the PC of Jellyfin ——

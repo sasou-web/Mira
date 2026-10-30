@@ -33,6 +33,21 @@ public static class AudioOutput
         (Optical, L("Câble optique", "Optical cable"), L("Dolby Digital et DTS envoyés tels quels", "Dolby Digital and DTS sent as they are")),
         (Hdmi, "HDMI", L("Aussi Dolby TrueHD, Atmos et DTS-HD", "Also Dolby TrueHD, Atmos and DTS-HD")),
     ];
+    /// <summary>The same choices on a Mac, whose « Automatique » is the layout of Configuration audio et MIDI.</summary>
+    public static IReadOnlyList<(string Key, string Label, string Details)> MacChannelChoices =>
+    [
+        (AutoChannels, L("Automatique", "Automatic"), L("Ce que macOS règle pour cette sortie (Configuration audio et MIDI)", "What macOS sets for this output (Audio MIDI Setup)")),
+        .. ChannelChoices.Skip(1),
+    ];
+    /// <summary>
+    /// On a Mac, mpv hands the amplifier only what fits an S/PDIF frame (its Core Audio output in exclusive mode): Dolby
+    /// Digital and the DTS core, over an optical cable or HDMI alike; Dolby TrueHD and DTS-HD stay decoded by Mira.
+    /// </summary>
+    public static IReadOnlyList<(string Key, string Label, string Details)> MacPassthroughChoices =>
+    [
+        PassthroughChoices[0],
+        (Optical, L("Dolby Digital et DTS", "Dolby Digital and DTS"), L("Envoyés tels quels à l’ampli, par câble optique ou HDMI ; TrueHD et DTS-HD restent décodés par Mira", "Sent as they are to the amplifier, over optical or HDMI; TrueHD and DTS-HD are still decoded by Mira")),
+    ];
     public static string KnownChannels(string? choice) => ChannelChoices.Any(x => x.Key == choice) ? choice! : AutoChannels;
     public static string KnownPassthrough(string? choice) => PassthroughChoices.Any(x => x.Key == choice) ? choice! : Off;
     /// <summary>mpv's <c>audio-spdif</c>: an optical (S/PDIF) cable carries only Dolby Digital and the DTS core.</summary>

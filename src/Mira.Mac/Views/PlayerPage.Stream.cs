@@ -265,6 +265,7 @@ public sealed partial class PlayerPage
             var index = ConvertedTracks.Index(track);
             audio.Children.Add(Entry(track.Label, track.Details, index == stream.Audio, () => _ = ChooseConvertedAsync(audio: index)));
         }
+        AddAudioDevices(audio);
         var subtitles = new StackPanel { Spacing = 2, MinWidth = 240 };
         subtitles.Children.Add(new TextBlock { Text = L("SOUS-TITRES", "SUBTITLES"), Classes = { "label" }, Margin = new Thickness(10, 0, 0, 8) });
         subtitles.Children.Add(Entry(L("Désactivés", "Off"), null, shown is null && !converted.ShowsOther(sid), () => _ = ChooseConvertedAsync(text: -1)));

@@ -418,6 +418,7 @@ public sealed partial class PlayerPage : UserControl
         var generation = _generation;
         var reopened = _reloading; _reloading = false; _recoveryLoad = false; _starvedSince = null; _buffering = false; ShowStatus(null);
         _loaded = true; _spinner.IsVisible = false;
+        SayAudioMissing();
         _session.Paused = mpv.Flag("pause"); _session.Duration = mpv.Number("duration", _session.Duration); _session.Position = mpv.Number("time-pos", _session.Position);
         _skips.FileChapters = mpv.Chapters(); Rebuild();
         ShowControls();
@@ -605,6 +606,7 @@ public sealed partial class PlayerPage : UserControl
             foreach (var track in tracks.Where(x => x.Type == type))
                 list.Children.Add(Entry(track.Label, track.Details, selected == track.Id, () => ChooseTrack(type == "audio" ? "aid" : "sid", track.Id)));
             if (type == "sub") { list.Children.Add(Entry(L("Charger un fichier…", "Load a file…"), null, false, () => _ = LoadSubtitleAsync())); AddSubtitleSearch(list); }
+            else AddAudioDevices(list);
             return list;
         }
         return Ui.Row(18, Column(L("AUDIO", "AUDIO"), "audio", current.Audio, false), Column(L("SOUS-TITRES", "SUBTITLES"), "sub", current.Sub, true));
