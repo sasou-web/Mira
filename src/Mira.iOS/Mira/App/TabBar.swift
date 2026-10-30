@@ -33,6 +33,15 @@ struct MiraTabBar: View {
         Entry(section: .settings, name: "Settings", symbol: "gearshape.fill", id: "tab.settings"),
     ]
 
+    /// The widest name with its icon, as the open tab shows it: the open tab keeps this width whichever it is, so the
+    /// bar keeps its size and only the light squircle moves from one tab to the next.
+    @State private var named: CGFloat = 0
+    /// The bar's width, Search comprised.
+    @State private var width: CGFloat = 0
+    /// Each tab's bounces, counted when it opens (only the tab that opens bounces, not the one left).
+    @State private var bounces: [MainView.Section: Int] = [:]
+    private let spring = Animation.spring(response: 0.42, dampingFraction: 0.82)
+
     var body: some View {
         GlassEffectContainer(spacing: 12) {
             VStack(spacing: 10) {
@@ -45,11 +54,9 @@ struct MiraTabBar: View {
                         tabs(named: false)
                         reduced(player, inline: true)
                     } else {
-                        // The open tab's name while it fits; at the largest text sizes, the icons alone.
-                        ViewThatFits(in: .horizontal) {
-                            tabs(named: true)
-                            tabs(named: false)
-                        }
+                        // The names while the widest fits, whichever tab is open; at the largest text sizes, the icons
+                        // alone. Decided by the widest name, never by the open tab's: a tab change never changes it.
+                        tabs(named: namesFit)
                         Spacer(minLength: 0)
                     }
                     search
@@ -58,56 +65,84 @@ struct MiraTabBar: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, -8)
+        .background(alignment: .leading) {
+            // The widest open tab, measured out of sight.
+            ZStack { ForEach(Self.entries) { label($0, chosen: true, named: true) } }
+                .fixedSize()
+                .hidden()
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { named = $0 }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
             // Folded, the bar may be lower (the reduced player beside the open tab): the pages keep the room they had,
             // or a page would grow and shrink at its end as it scrolls, folding and unfolding the bar.
             if !model.folded || height > model.room { model.room = height }
         }
         .onDisappear { model.room = 0 }
-        .animation(.spring(response: 0.38, dampingFraction: 0.8), value: model.folded)
-        .animation(.spring(response: 0.38, dampingFraction: 0.8), value: player == nil)
+        .onChange(of: section) { _, now in bounces[now, default: 0] += 1 }
+        .animation(spring, value: section)
+        .animation(spring, value: model.folded)
+        .animation(spring, value: player == nil)
         .sensoryFeedback(.selection, trigger: section)
     }
 
+    /// Whether the four tabs fit with the widest name beside Search.
+    private var namesFit: Bool {
+        guard named > 0, width > 0 else { return true }
+        let others = CGFloat(Self.entries.count - 1)
+        let tabs = 12 + others * 4 + others * side + named
+        return tabs + 12 + side + 12 <= width - 40
+    }
+
     private func tabs(named: Bool) -> some View {
-        HStack(spacing: 4) {
-            ForEach(Self.entries) { entry in
+        let shown = Self.entries.filter { section == $0.section || !model.folded }
+        let open = shown.firstIndex { $0.section == section }
+        let wide = named ? max(self.named, side) : side
+        return HStack(spacing: 4) {
+            ForEach(shown) { entry in
                 let chosen = section == entry.section
-                if chosen || !model.folded {
-                    Button {
-                        touch(entry.section)
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: entry.symbol)
-                                .font(.body.weight(.bold))
-                                .symbolEffect(.bounce.up.byLayer, value: chosen)
-                            if chosen && named {
-                                Text(entry.name).font(MiraFont.extraBold(14, .footnote)).lineLimit(1).fixedSize()
-                            }
-                        }
-                        .foregroundStyle(chosen ? Palette.onAccent : Palette.ink.opacity(0.75))
-                        .padding(.horizontal, chosen && named ? 16 : 0)
-                        .frame(minWidth: side, minHeight: side)
-                        .background {
-                            if chosen {
-                                RoundedRectangle(cornerRadius: side * 0.35, style: .continuous)
-                                    .fill(Palette.accent)
-                                    .matchedGeometryEffect(id: "lens", in: lens)
-                            }
-                        }
+                Button {
+                    touch(entry.section)
+                } label: {
+                    label(entry, chosen: chosen, named: named)
+                        .frame(width: chosen ? wide : side, height: side)
                         .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text(entry.name))
-                    .accessibilityAddTraits(chosen ? .isSelected : [])
-                    .accessibilityIdentifier(entry.id)
-                    .accessibilityShowsLargeContentViewer { Label { Text(entry.name) } icon: { Image(systemName: entry.symbol) } }
-                    .transition(.opacity.combined(with: .scale(scale: 0.6)))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(entry.name))
+                .accessibilityAddTraits(chosen ? .isSelected : [])
+                .accessibilityIdentifier(entry.id)
+                .accessibilityShowsLargeContentViewer { Label { Text(entry.name) } icon: { Image(systemName: entry.symbol) } }
+                .transition(.opacity.combined(with: .scale(scale: 0.6)))
+            }
+        }
+        .background(alignment: .leading) {
+            // One squircle that slides under the tabs, the same spring as the tabs' widths: never one squircle fading
+            // out while another fades in.
+            if let open {
+                RoundedRectangle(cornerRadius: side * 0.35, style: .continuous)
+                    .fill(Palette.accent)
+                    .frame(width: wide, height: side)
+                    .offset(x: CGFloat(open) * (side + 4))
+                    .transition(.opacity)
             }
         }
         .padding(6)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: side * 0.35 + 6, style: .continuous))
+    }
+
+    private func label(_ entry: Entry, chosen: Bool, named: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: entry.symbol)
+                .font(.body.weight(.bold))
+                .symbolEffect(.bounce.up.byLayer, value: bounces[entry.section, default: 0])
+            if chosen && named {
+                Text(entry.name).font(MiraFont.extraBold(14, .footnote)).lineLimit(1).fixedSize()
+                    .transition(.opacity.combined(with: .scale(scale: 0.85, anchor: .leading)))
+            }
+        }
+        .padding(.horizontal, chosen && named ? 14 : 0)
+        .foregroundStyle(chosen ? Palette.onAccent : Palette.ink.opacity(0.75))
     }
 
     /// The reduced player, in the same glass as the tabs, its height theirs.
@@ -149,7 +184,9 @@ struct MiraTabBar: View {
         if tab == section {
             reselect(tab)
         } else {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) { section = tab }
+            // Not in an animation: the pages change at once, only the bar moves (its own animation), or the new page
+            // would animate from the old one's layout.
+            section = tab
         }
     }
 }
