@@ -19,7 +19,7 @@ internal static partial class DisplayProfile
     [LibraryImport(CoreFoundation)] private static partial IntPtr CFDataGetBytePtr(IntPtr data);
     [LibraryImport(CoreFoundation)] private static partial void CFRelease(IntPtr value);
     [LibraryImport(CoreFoundation)] private static partial nint CFStringGetLength(IntPtr value);
-    [LibraryImport(CoreFoundation)] [return: MarshalAs(UnmanagedType.U1)] private static partial bool CFStringGetCString(IntPtr value, byte[] buffer, nint size, uint encoding);
+    [LibraryImport(CoreFoundation)][return: MarshalAs(UnmanagedType.U1)] private static partial bool CFStringGetCString(IntPtr value, byte[] buffer, nint size, uint encoding);
     private const uint Utf8 = 0x08000100;
 
     /// <summary>The screen showing <paramref name="view"/> (Avalonia names it by its CGDirectDisplayID), else the main one.</summary>
