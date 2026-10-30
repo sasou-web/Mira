@@ -1,7 +1,7 @@
 [
   {
     "version": "0.8.8",
-    "summary": "Profils et photo, la police Nunito, des pages plus claires, et Mira pour Mac qui se met à jour seule.",
+    "summary": "Profils et photo, police Nunito, pages plus claires, et Mira pour Mac qui se met à jour seule.",
     "en": { "summary": "Profiles and photos, the Nunito font, clearer pages, and Mira for Mac that updates itself." },
     "items": [
       { "icon": "users", "title": "Des profils et ta photo", "text": "Réglages → Profils : les comptes de ton Jellyfin avec leur photo, un profil en un prénom ; ta photo partout.", "web": true,
