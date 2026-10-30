@@ -67,7 +67,7 @@ public static class Ui
     public static Button IconButton(string icon, string tip, Action click, string classes = "icon", double size = 22, string? name = null)
     {
         var button = new Button { Content = new Icon(icon, size) };
-        button.Classes.AddRange(classes.Split(' '));
+        button.Classes.AddRange(classes.Split(' ', StringSplitOptions.RemoveEmptyEntries));
         ToolTip.SetTip(button, tip);
         var parts = tip.Split(" · ", 2);
         Avalonia.Automation.AutomationProperties.SetName(button, name ?? parts[0]);
