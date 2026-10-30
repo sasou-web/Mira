@@ -336,6 +336,9 @@ internal static class LibraryTests
                 && MediaQuality.EndsAt(resumed, now, resume: false) == "Fin à 0 h 12", "End: " + MediaQuality.EndsAt(resumed, now, resume: true));
             Assert(MediaQuality.EndsAt(new MediaItem(), now, false) is null && MediaQuality.EndsAt(null, now, false) is null
                 && MediaQuality.EndsAt(film with { UserData = new() { PlaybackPositionTicks = film.RunTimeTicks!.Value } }, now, true) is null, "An end without a length, or past it");
+            // 82 min long, begun at 60: what is left, beside Reprendre.
+            Assert(MediaQuality.Left(resumed) == "22 min restantes" && MediaQuality.Left(film) is null
+                && MediaQuality.Left(film with { UserData = new() { PlaybackPositionTicks = TimeSpan.FromMinutes(5).Ticks } }) == "1 h 17 restantes", "Left: " + MediaQuality.Left(resumed));
             return Task.CompletedTask;
         });
         await Test("Fiche : la rangée « Bonus » lit les vidéos des dossiers Extras, nommées comme sur Mira web (tests/fixtures/extras.json)", async () =>

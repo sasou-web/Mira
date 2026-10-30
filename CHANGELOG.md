@@ -11,6 +11,7 @@
 - **Une nouvelle police, plus ronde** (Windows, Mac, Mira web, iPhone) : Mira passe de Nunito Sans à **Nunito**, la même famille aux terminaisons arrondies, toujours embarquée dans l’app et servie par ton Jellyfin, rien n’est chargé ailleurs.
 - **Le bandeau de l’Accueil se voit mieux** (Windows, Mac, Mira web, iPhone) : ses pilules passent de 3 à 8 points de haut sous Windows et Mac, et de 6 à 8 sur le téléphone. Sous Windows, le logo Mira en haut du rail n’est plus un bouton : **Accueil**, juste dessous, y mène déjà.
 - **Des avis plus visibles** (Mira web, Windows, Mac, iPhone) : les messages qui montent en bas de l’écran sont des cartes plus grandes, avec une icône (une coche pour ce qui est fait, un triangle rouge pour une erreur), un texte plus gros, leur bouton bien visible, une croix pour les fermer et une ligne qui montre le temps qui leur reste ; ils attendent tant que la souris est dessus.
+- **La fiche d’un titre plus compacte** (Windows, Mac) : l’affiche à côté du titre (sous Windows, dans une fenêtre assez large) ; **Reprendre** dit le temps qui reste ; favori, vu, regarder ensemble, garder sur ce PC et les autres actions deviennent des boutons ronds, leur nom au survol ; le résumé tient sur trois lignes, **Lire la suite** pour le reste ; genres, acteurs (quatre, puis **+N**), réalisation et studio sur une ligne chacun. La fiche d’un film n’a plus la forme d’une série : plus d’en-tête d’épisodes vide, et la barre de progression sous ses boutons quand il est commencé.
 
 ## 0.8.7 — 2026-10-30
 

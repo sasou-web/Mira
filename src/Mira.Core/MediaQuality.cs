@@ -39,4 +39,14 @@ public static class MediaQuality
         var end = now + TimeSpan.FromTicks(left);
         return IsFrench ? string.Create(CultureInfo.InvariantCulture, $"Fin à {end.Hour} h {end.Minute:00}") : "Ends at " + Time(end);
     }
+    /// <summary>« 1 h 27 restantes », « 42 min restantes » (« 1h 27m left »): beside Reprendre, what is left of a title begun.</summary>
+    public static string? Left(MediaItem? item)
+    {
+        if (item?.RunTimeTicks is not > 0 || item.UserData.PlaybackPositionTicks <= 0) return null;
+        var minutes = (int)Math.Ceiling(TimeSpan.FromTicks(item.RunTimeTicks.Value - item.UserData.PlaybackPositionTicks).TotalMinutes);
+        if (minutes <= 0) return null;
+        return minutes >= 60
+            ? L($"{minutes / 60} h {minutes % 60:00} restantes", $"{minutes / 60}h {minutes % 60:00}m left")
+            : L($"{minutes} min restantes", $"{minutes} min left");
+    }
 }
