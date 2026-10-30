@@ -52,10 +52,14 @@ public partial class MainWindow
     private async Task ShowGenreAsync(string genre, string type)
     {
         ResetFilters(); _catalog.View = type == "Series" ? "Series" : "Movie";
+        // Its names in every language Jellyfin knows it by: « Comédie » finds the titles under « Comedy » too.
+        var known = GenreFilter.Items.OfType<ComboBoxItem>().SelectMany(x => (x.Tag?.ToString() ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries))
+            .Concat(_pageGenres.Values.SelectMany(x => x).SelectMany(x => x.Value.Split('|')));
+        var group = GenreGroups.Of(genre, known);
         _filterBusy = true;
-        if (GenreFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == genre) is not { } choice)
-            GenreFilter.Items.Add(choice = new ComboBoxItem { Content = genre, Tag = genre });
-        GenreFilter.SelectedItem = choice; _filterBusy = false; _filtersOpen = true;
+        if (GenreFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == group.Value) is not { } choice)
+            GenreFilter.Items.Add(choice = new ComboBoxItem { Content = group.Label, Tag = group.Value });
+        GenreFilter.SelectedItem = choice; _filterBusy = false;
         await NavigateLibraryAsync();
     }
     /// <summary>A collection (a saga, or one made by hand) found by a search or on Home: the library with its titles in the order they came out, the search kept to come back to.</summary>
@@ -96,7 +100,7 @@ public partial class MainWindow
     {
         _filterBusy = true;
         GenreFilter.Items.Clear(); GenreFilter.Items.Add(new ComboBoxItem { Content = L("Tous", "All"), Tag = "" });
-        foreach (var genre in filters.Genres.Order(StringComparer.CurrentCultureIgnoreCase)) GenreFilter.Items.Add(new ComboBoxItem { Content = genre, Tag = genre });
+        foreach (var genre in GenreGroups.FromNames(filters.Genres)) GenreFilter.Items.Add(new ComboBoxItem { Content = genre.Label, Tag = genre.Value });
         YearFilter.Items.Clear(); YearFilter.Items.Add(new ComboBoxItem { Content = L("Toutes", "All"), Tag = "" });
         foreach (var year in filters.Years.OrderDescending()) YearFilter.Items.Add(new ComboBoxItem { Content = year.ToString(), Tag = year.ToString() });
         GenreFilter.SelectedIndex = YearFilter.SelectedIndex = 0; _filterBusy = false;
@@ -188,6 +192,9 @@ public partial class MainWindow
         UpdateNavigation();
         PageTitle.Text = _catalog.PageTitle;
         CatalogDescription.Text = _catalog.Description;
+        // Films and Séries: the title, its tools and its genres, without a sentence between them.
+        var bare = _catalog.View is "Movie" or "Series" && _catalog.Person is null && _catalog.Studio is null && _catalog.Saga is null;
+        CatalogDescription.Visibility = bare ? Visibility.Collapsed : Visibility.Visible; PageTitle.Margin = new Thickness(0, 0, 0, bare ? 26 : 0);
         Hero.Visibility = home && _catalog.Items.Count + _catalog.Resume.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         CatalogHeader.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
         // « Sur ce PC » lists the copies as they are: no search or filter of Jellyfin's. Recherche has its field alone.

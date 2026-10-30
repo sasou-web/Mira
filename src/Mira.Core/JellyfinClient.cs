@@ -180,6 +180,9 @@ public sealed class JellyfinClient : IDisposable
     public async Task<List<MediaItem>> SearchOthersAsync(string type, string search, CancellationToken ct = default) =>
         (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&recursive=true&includeItemTypes={type}&searchTerm={Uri.EscapeDataString(search)}&limit=12" +
             "&fields=Overview,Genres,ChildCount,RecursiveItemCount&enableImages=true" + (type == "Episode" ? "&isMissing=false" : ""), ct)).Items;
+    /// <summary>The genres of every film or every series (one list per title), for the chips of Films and Séries.</summary>
+    public async Task<IReadOnlyList<string[]>> TitleGenresAsync(string type, CancellationToken ct = default) =>
+        (await GetAsync<ItemsResult>($"Items?userId={Connection.UserId}&includeItemTypes={type}&recursive=true&fields=Genres&enableImages=false&enableUserData=false&enableTotalRecordCount=false", ct)).Items.Select(x => x.Genres).ToList();
     public async Task<CatalogFilters> FiltersAsync(CancellationToken ct = default)
     {
         // The legacy Filters endpoint only examines immediate children of the user root.

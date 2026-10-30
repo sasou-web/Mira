@@ -3,6 +3,7 @@
 ## Non publié
 
 - **Texte lisse sous Windows** : depuis la police Nunito, les lettres avaient des bords en escalier, surtout les grands titres. Mira pour Windows dessine maintenant son texte en mode « Ideal » de WPF, lissé dans les deux sens, au lieu du mode « Display », pensé pour les polices Windows à hinting.
+- **Séries et Films plus clairs (Windows)** : Jellyfin garde un genre sous chacun de ses noms, d'où **Comédie** à côté de **Comedy**, et la page Séries montrait aussi les genres des films. Les noms d'un même genre sont réunis (filtrer en prend tous les noms), la page ne montre que ses propres genres, les huit plus fréquents, puis **Plus de genres** ; la molette fait défiler la ligne. Plus de phrase sous le titre de ces deux pages, plus de liseré de l'image aux coins de **Reprendre**, et des pilules du carrousel plus discrètes.
 - **Plus de plantage silencieux à la connexion (Windows)** : se déconnecter, ou changer de compte, pendant que l'Accueil se chargeait laissait Mira relire les bibliothèques sur une connexion fermée (NullReferenceException dans `errors.log`, vu deux fois sur le PC d'ogsas le 2026-10-27). Mira s'arrête maintenant là, sans erreur.
 - **Des icônes distinctes sur la fiche (Windows)** : **Ajouter aux favoris** et **Nouveaux épisodes** avaient tous deux un « + », et une série suivie montrait la même coche que **Marquer comme vu**. Favori a le cœur de l'Accueil, **Nouveaux épisodes** un calendrier.
 
