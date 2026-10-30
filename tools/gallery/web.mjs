@@ -7,12 +7,14 @@ if (!out) { console.error('usage: web.mjs <url /Mira/> <user> <password> <folder
 mkdirSync(out, { recursive: true });
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
 const browser = await chromium.launch();
+// The captures' language: English with GALLERY_LANGUAGE=en (the README is English first), French otherwise (docs/README.fr.md).
+const english = process.env.GALLERY_LANGUAGE === 'en';
 // The whole screen of an iPhone 17 Pro (402 × 874 points, ×3), as opened from its home screen: no Safari bars, the page
 // under the status bar and the home indicator (black-translucent), kept clear by the safe areas iOS gives it. Still
 // images: the Home's banner does not turn between two captures.
 const context = await browser.newContext({
   ...devices['iPhone 15 Pro'], viewport: { width: 402, height: 874 }, screen: { width: 402, height: 874 }, deviceScaleFactor: 3,
-  locale: 'fr-FR', reducedMotion: 'reduce',
+  locale: english ? 'en-US' : 'fr-FR', reducedMotion: 'reduce',
 });
 // As opened from the iPhone's home screen, the way Mira web is meant to be used: no invitation to add it there.
 await context.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
@@ -38,14 +40,14 @@ const api = (path) => page.evaluate(async (p) => {
 
 try {
   await page.goto(base); await wait(1500);
-  if (await page.locator('.users').count()) await page.getByRole('button', { name: 'Autre compte' }).click();
+  if (await page.locator('.users').count()) await page.getByRole('button', { name: /^(Autre compte|Other account)$/ }).click();
   await page.fill('#login-name', user); await page.fill('#login-password', password);
-  await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
+  await page.getByRole('button', { name: /^(Se connecter|Sign in)$/ }).click();
   await page.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   await wait(3000);
   // Whatever greets a first visit (« Nouveau dans Mira », an invitation) is closed: the captures show the app itself.
-  for (const name of ['Fermer', 'Plus tard', 'Pas maintenant', 'OK']) {
-    const button = page.getByRole('button', { name, exact: true });
+  for (const name of [/^(Fermer|Close)$/, /^(Plus tard|Later)$/, /^(Pas maintenant|Not now)$/, /^OK$/]) {
+    const button = page.getByRole('button', { name });
     if (await button.count() && await button.first().isVisible()) await button.first().click().catch(() => {});
   }
   await shot('web-home');
