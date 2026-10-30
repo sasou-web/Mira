@@ -139,8 +139,26 @@ public partial class MainWindow
         var visibility = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(VisibilityProperty, typeof(UIElement));
         foreach (var row in SharingSettings.Children.OfType<FrameworkElement>().Concat(CareSettings.Children.OfType<FrameworkElement>()).Where(x => x is Border or Squircle)) visibility.AddValueChanged(row, (_, _) => ShowSettingsGroups());
     }
+    /// <summary>A section's lines at most 940 wide, beside its list: a description across a whole screen is hard to follow.</summary>
+    private void SettingsScroll_SizeChanged(object sender, SizeChangedEventArgs e) => SettingsPage.Width = Math.Max(0, Math.Min(940, e.NewSize.Width - 8));
+    private bool _settingsNavDrawn;
+    /// <summary>Each section of the list with its icon, read by its text (Accessible.ContentName).</summary>
+    private void DrawSettingsNavigation()
+    {
+        if (_settingsNavDrawn) return; _settingsNavDrawn = true;
+        foreach (var button in SettingsNavigation.Children.OfType<Button>())
+        {
+            if (button.Content is not string label) continue;
+            var icon = button.Tag?.ToString() switch { "subtitles" => "subtitles", "appearance" => "sparkle", "server" => "server", "sharing" => "users", "care" => "sliders", "report" => "clock", "torlink" => "download", "updates" => "refresh", _ => "play" };
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(new Icon { Kind = icon, Width = 19, Height = 19, Margin = new Thickness(0, 0, 13, 0) });
+            row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+            button.Content = row; System.Windows.Automation.AutomationProperties.SetName(button, label);
+        }
+    }
     private void SelectSettingsTab(string tab)
     {
+        DrawSettingsNavigation();
         PlaybackSettings.Visibility = tab == "playback" ? Visibility.Visible : Visibility.Collapsed;
         SubtitleSettings.Visibility = tab == "subtitles" ? Visibility.Visible : Visibility.Collapsed;
         AppearanceSettings.Visibility = tab == "appearance" ? Visibility.Visible : Visibility.Collapsed;

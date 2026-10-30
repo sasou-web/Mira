@@ -94,6 +94,33 @@ public partial class MainWindow
     private async Task CloseGuideAsync() { await Motion.HideAsync(GuideOverlay); UpdateNavigation(); UpdateHeroClock(); }
     /// <summary>Once, right after the first connection or the Jellyfin setup, with what is relevant at that moment.</summary>
     private void OfferGuide(string intro) { if (!_settings.GuideSeen) OpenGuide(intro); }
+    /// <summary>The keyboard shortcuts as keycaps beside what they do, two by row on a wide guide: read at a glance.</summary>
+    private void DrawGuideShortcuts()
+    {
+        if (GuideShortcuts.Children.Count > 0) return;
+        (string[] Keys, string Text)[] shortcuts =
+        [
+            (["Ctrl", "K"], L("chercher", "search")), (["Ctrl", L("1 à 5", "1 to 5")], L("pages du rail", "sidebar pages")),
+            ([L("Espace", "Space")], L("lecture ou pause", "play or pause")), (["←", "→"], L("10 s en arrière, en avant", "10 s back, forward")),
+            (["F"], L("plein écran", "full screen")), (["S"], L("passer le générique", "skip the intro")),
+            (["I"], L("mini-lecteur", "mini player")), (["N"], L("épisode suivant", "next episode")),
+            ([L("Échap", "Esc")], L("revenir en arrière", "go back")), (["F1"], L("ce guide", "this guide")),
+        ];
+        foreach (var (keys, text) in shortcuts)
+        {
+            var row = new DockPanel { Width = 205, Margin = new Thickness(0, 0, 10, 10) };
+            foreach (var key in keys)
+                row.Children.Add(new Squircle
+                {
+                    MinWidth = 30, Height = 28, CornerRadius = new CornerRadius(8), Padding = new Thickness(9, 0, 9, 1), Margin = new Thickness(0, 0, 5, 0),
+                    Background = Palette.Get("Raised2"), BorderBrush = Palette.Get("LineStrong"), BorderThickness = new Thickness(1),
+                    Child = new TextBlock { Text = key, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+                });
+            row.Children.Add(new TextBlock { Text = text, FontSize = 13.5, Foreground = Palette.Get("TextSecondary"), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(6, 0, 0, 0) });
+            System.Windows.Automation.AutomationProperties.SetName(row, string.Join(" + ", keys) + " : " + text);
+            GuideShortcuts.Children.Add(row);
+        }
+    }
     private async void OpenGuide(string? intro = null)
     {
         if (LoginOverlay.Visibility == Visibility.Visible || WelcomeOverlay.Visibility == Visibility.Visible || _playing && !_miniPlayer) return;
@@ -102,6 +129,7 @@ public partial class MainWindow
         ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(TorLinkOverlay);
         GuideIntro.Text = intro ?? L("L’essentiel pour bien démarrer.", "The essentials to get you started.");
         GuideTorLink.Visibility = _torlinkEnabled ? Visibility.Visible : Visibility.Collapsed;
+        DrawGuideShortcuts();
         DescribeServerForGuide();
         SmoothScroll.Jump(GuideScroll);
         Motion.Reveal(GuideOverlay, 260, 0); Motion.Reveal(GuideContent, 300, 10);
