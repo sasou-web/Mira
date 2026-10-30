@@ -164,7 +164,8 @@ public partial class MainWindow
 
             // « Regarder ensemble » with another device of the account: its requests made here, as Mira web makes them.
             await Until("Jellyfin's WebSocket open again", () => _listening, 90);
-            friend = await Friend.StartAsync(client.Connection.Server, user, password);
+            // Jellyfin answers its ping a moment before it signs anyone in (503 « Jellyfin démarre »): asked again until it does.
+            friend = await UntilServer("the second device signs in", async () => await Friend.StartAsync(client.Connection.Server, user, password), 60);
             await Until("the second device listens", () => friend.Listening, 30);
             await EnterGroupAsync(c => c.SyncNewAsync(Together.GroupName(c.Connection.UserName)), invite: false, made: true);
             Require(_group is not null, "« Créer un groupe » makes a SyncPlay group on Jellyfin");
