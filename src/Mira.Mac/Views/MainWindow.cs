@@ -17,7 +17,11 @@ namespace Mira.Mac.Views;
 public abstract class Page : UserControl
 {
     protected MainWindow Shell { get; }
-    protected Page(MainWindow shell) => Shell = shell;
+    /// <summary>
+    /// <paramref name="underRail"/>: the page's picture runs under the rail, as on Windows (home, title page), and the
+    /// page keeps its text clear of it (<see cref="MainWindow.RailWidth"/>); the others start beside it.
+    /// </summary>
+    protected Page(MainWindow shell, bool underRail = false) { Shell = shell; if (!underRail) Margin = new Thickness(MainWindow.RailWidth, 0, 0, 0); }
     /// <summary>The rail entry lit while this page shows.</summary>
     public virtual string Rail => "";
     /// <summary>Fills the page; called once, when it first shows.</summary>
@@ -61,7 +65,7 @@ public sealed class MainWindow : Window
     /// <summary>Top room left for the macOS window buttons, which sit over Mira's own content.</summary>
     public double TitleBarInset { get; }
     /// <summary>Wide enough for the traffic lights above the brand, close to Windows' 68.</summary>
-    private const double RailWidth = 76;
+    public const double RailWidth = 76;
     /// <summary>When the window last came to the front (Environment.TickCount64): its click shows the player's controls, never pauses.</summary>
     public long ActivatedAt { get; private set; } = long.MinValue / 2;
 
@@ -88,9 +92,10 @@ public sealed class MainWindow : Window
             TitleBarInset = 30;
         }
         _root.ColumnDefinitions = new ColumnDefinitions("Auto,*");
+        // The pages take the whole width, under the rail (Page): a picture runs to the window's edge, as on Windows.
+        Grid.SetColumnSpan(_host, 2); _root.Children.Add(_host);
         _rail = BuildRail();
         _root.Children.Add(_rail);
-        Grid.SetColumn(_host, 1); _root.Children.Add(_host);
         Grid.SetColumnSpan(_overlay, 2); _root.Children.Add(_overlay);
         _toast = BuildToast();
         Grid.SetColumnSpan(_toast, 2); _root.Children.Add(_toast);
