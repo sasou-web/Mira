@@ -242,7 +242,7 @@ public partial class MainWindow
             if (!_demo && _sync is not null && _session.Reported && Cadence.ProgressDue(changed, paused, _session.LastReport, DateTimeOffset.Now))
             { _session.LastReport = DateTimeOffset.Now; await _sync.RecordAsync("progress", Report()); }
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
         finally { _tickBusy = false; }
     }
     private PlaybackReport Report() => _session.Report(_mpv?.Level ?? _settings.Volume, _mpv?.Flag("mute") ?? false);
@@ -378,7 +378,7 @@ public partial class MainWindow
         {
             // Without Jellyfin, the next episode kept on this PC.
             if (OfflineCopies.NextEpisode(_offline, current) is { } kept) return (kept.Item, []);
-            if (!quiet) SetNotice(Friendly(ex));
+            if (!quiet) SetError(Friendly(ex));
             return (null, []);
         }
     }

@@ -315,7 +315,7 @@ export function create({ id, query }) {
   function updateTime() {
     if (scrubbing) return;
     // « Minuterie »: the minutes are over, the film pauses where it is (Apple's player too).
-    if (sleep.due(Date.now()) && !video.paused) { video.pause(); toast(tr('Minuterie : lecture en pause.')); }
+    if (sleep.due(Date.now()) && !video.paused) { video.pause(); toast(tr('Minuterie : lecture en pause.'), { symbol: 'clock' }); }
     const end = total || video.duration || 0, at = position();
     markers(at, end);
     if (native) return;
@@ -790,7 +790,7 @@ export function create({ id, query }) {
         video.webkitSetPresentationMode(video.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture');
       } else if (document.pictureInPictureElement) await document.exitPictureInPicture();
       else await video.requestPictureInPicture();
-    } catch { toast(tr('L’image dans l’image n’est pas disponible ici.')); }
+    } catch { toast(tr('L’image dans l’image n’est pas disponible ici.'), { tone: 'error' }); }
   }
   function fullscreen() {
     // iPhone: iOS's own player, with its controls, AirPlay and subtitles. Elsewhere: the whole player, turned to

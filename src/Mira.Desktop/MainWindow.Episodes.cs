@@ -76,7 +76,7 @@ public partial class MainWindow
         RestoreFromWindows();
         if (_playing || !ReferenceEquals(client, _client)) return;
         try { await ShowDetailsAsync(await client.ItemAsync(seriesId)); }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
     /// <summary>Windows shows a notification's picture from its file, as long as it stays in the notification centre (3 days).</summary>
     private void ForgetOldNoticeImages()

@@ -58,7 +58,7 @@ export function create({ id }) {
         saga.Overview ? h('div', { style: { paddingBottom: '20px' } }, overview(saga.Overview)) : null,
         grid ?? emptyState({ symbol: 'stack', title: tr('Aucun titre'), text: tr('Cette collection est vide. Ajoute-y un film ou une série depuis son menu (appui long ou clic droit).') })));
     } catch (error) {
-      if (quiet && grid?.isConnected) toast(error.message);
+      if (quiet && grid?.isConnected) toast(error.message, { tone: 'error' });
       else clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, () => load())));
     }
   }

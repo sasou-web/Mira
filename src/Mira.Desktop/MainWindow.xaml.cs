@@ -322,7 +322,7 @@ public partial class MainWindow : Window
             _filterBusy = false;
             PopulateFilters(await _client.FiltersAsync());
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
         SyncChanged();
         // Said once the first refresh is done, which would otherwise hide it at once.
         if (damaged) SetNotice(L("Le cache local de ce compte était illisible : il a été recréé. Les envois de progression qui n’étaient pas encore partis sont perdus.", "This account’s local cache couldn’t be read: it was rebuilt. Progress reports that hadn’t been sent yet are lost."), null, null, sticky: true);
@@ -413,7 +413,7 @@ public partial class MainWindow : Window
         }
         // Only Mira's own cancellation (another account, closing): HttpClient's 12 s limit is one too, and must be said.
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
         finally { _scanning = false; SpinRefresh(false); RefreshLabel.Text = L("Actualiser", "Refresh"); }
     }
     private async void LoadMore_Click(object sender, RoutedEventArgs e) => await RefreshAsync(more: true);
@@ -549,10 +549,16 @@ public partial class MainWindow : Window
     /// <summary>The message on screen stays until closed (see <see cref="SetNotice(string, string?, Action?, bool?)"/>).</summary>
     private bool _noticeSticky;
     private void SetNotice(string message) => SetNotice(message, null, null);
+    /// <summary>A failure: the same notice, under a warning in the danger colour.</summary>
+    private void SetError(string message) => SetNotice(message, null, null, tone: NoticeTone.Error);
+    /// <summary>Something done (a link copied): the same notice, under a check.</summary>
+    private void SetDone(string message) => SetNotice(message, null, null, tone: NoticeTone.Done);
+    private enum NoticeTone { Info, Done, Error }
+    private NoticeTone _noticeTone;
     /// <summary>Said under a message still on screen, which keeps its button, instead of replacing it.</summary>
     private void AddNotice(string message)
     {
-        if (Notice.Visibility == Visibility.Visible && Notice.IsHitTestVisible && NoticeText.Text.Length > 0) SetNotice(NoticeText.Text + "\n" + message, NoticeAction.Content as string, _noticeAction, _noticeSticky);
+        if (Notice.Visibility == Visibility.Visible && Notice.IsHitTestVisible && NoticeText.Text.Length > 0) SetNotice(NoticeText.Text + "\n" + message, NoticeAction.Content as string, _noticeAction, _noticeSticky, _noticeTone);
         else SetNotice(message);
     }
     /// <summary>
@@ -562,9 +568,10 @@ public partial class MainWindow : Window
     /// it is used or closed, as does one marked <paramref name="sticky"/> (an error that matters); sticky false lets a
     /// message with a button leave all the same (« Annuler »).
     /// </summary>
-    private void SetNotice(string message, string? action, Action? onAction, bool? sticky = null)
+    private void SetNotice(string message, string? action, Action? onAction, bool? sticky = null, NoticeTone tone = NoticeTone.Info)
     {
         _noticeAction = onAction; NoticeAction.Content = action;
+        ShowNoticeTone(_noticeTone = tone);
         NoticeAction.Visibility = onAction is null ? Visibility.Collapsed : Visibility.Visible;
         // Shown before its text changes, so that a screen reader finds it there.
         if (Notice.Visibility != Visibility.Visible || !Notice.IsHitTestVisible) Motion.Reveal(Notice, 220, 10);
@@ -572,6 +579,7 @@ public partial class MainWindow : Window
         _noticeSticky = sticky ?? onAction is not null;
         _noticeTimer.Stop();
         if (!_noticeSticky) { _noticeTimer.Interval = Legibility.NoticeDuration(message); _noticeTimer.Start(); }
+        RunNoticeTime();
         Accessible.Say(NoticeText);
     }
     /// <param name="transientOnly">Leaves a message that stays until closed (an update ready, an error with « Réessayer »).</param>
@@ -581,7 +589,22 @@ public partial class MainWindow : Window
         _noticeTimer.Stop(); _noticeSticky = false; if (Notice.Visibility == Visibility.Visible) _ = Motion.HideAsync(Notice, 180);
     }
     private void NoticeAction_Click(object sender, RoutedEventArgs e) { var action = _noticeAction; HideNotice(); action?.Invoke(); }
-    private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver || Notice.IsKeyboardFocusWithin) return; HideNotice(); }
+    // Held under the pointer or the focus: the timer starts again, and so does the line that shows it.
+    private void NoticeTick(object? sender, EventArgs e) { if (Notice.IsMouseOver || Notice.IsKeyboardFocusWithin) { RunNoticeTime(); return; } HideNotice(); }
+    private void ShowNoticeTone(NoticeTone tone)
+    {
+        NoticeIcon.Kind = tone switch { NoticeTone.Done => "check", NoticeTone.Error => "warning", _ => "info" };
+        NoticeIcon.Foreground = tone switch { NoticeTone.Done => Palette.Get("OnAccent"), NoticeTone.Error => Palette.Get("Danger"), _ => Palette.Get("Text") };
+        NoticeTile.Background = tone switch { NoticeTone.Done => Palette.Get("Accent"), NoticeTone.Error => Palette.Tint("Danger", 0x2E), _ => Palette.Get("Hairline") };
+    }
+    /// <summary>The line under a notice that leaves on its own empties as its time runs out; not drawn with reduced motion.</summary>
+    private void RunNoticeTime()
+    {
+        var scale = (ScaleTransform)NoticeTime.RenderTransform;
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NoticeTime.Visibility = _noticeSticky || Motion.Reduced ? Visibility.Collapsed : Visibility.Visible;
+        if (NoticeTime.Visibility == Visibility.Visible) scale.BeginAnimation(ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0, _noticeTimer.Interval));
+    }
     private static bool IsExpected(Exception e) => ExpectedErrors.Are(e);
     private static string Friendly(Exception ex) => ex switch
     {

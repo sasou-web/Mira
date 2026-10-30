@@ -67,7 +67,7 @@ export function create() {
     });
   }
   async function revoke(invite) {
-    try { await api.revokeInvite(invite.id); toast(tr('Lien de {name} retiré.', { name: invite.name })); } catch (error) { if (error.status !== 404) toast(error.message); }
+    try { await api.revokeInvite(invite.id); toast(tr('Lien de {name} retiré.', { name: invite.name })); } catch (error) { if (error.status !== 404) toast(error.message, { tone: 'error' }); }
     load();
   }
 

@@ -422,7 +422,7 @@ public partial class MainWindow
             if (store is not null) await Task.Run(() => store.HideFromResume(group, null));
             if (ticks > 0 && client is not null) await client.SetPlaybackPositionAsync(item.Id, ticks);
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
         ChoicesChanged();
         RenderLibrary(); await RefreshAsync(quiet: true);
     }
@@ -492,7 +492,7 @@ public partial class MainWindow
             RenderAfterUserDataChange();
             if (!_demo) await RefreshAsync(quiet: true);
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
     /// <summary>Redraws whatever shows watched or favourite state after a change made in Mira.</summary>
     private void RenderAfterUserDataChange()

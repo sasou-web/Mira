@@ -47,7 +47,7 @@ public partial class MainWindow
             }
             UpdateWindowsPlayback();
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
     private void SetWindowsPause(bool paused)
     {

@@ -135,7 +135,7 @@ public partial class MainWindow
             return true;
         }
         catch (OperationCanceledException) when (_connectionLifetime.IsCancellationRequested) { return false; }
-        catch (Exception ex) when (IsExpected(ex)) { if (quiet) SayInCollections(Friendly(ex), error: true); else SetNotice(Friendly(ex)); return false; }
+        catch (Exception ex) when (IsExpected(ex)) { if (quiet) SayInCollections(Friendly(ex), error: true); else SetError(Friendly(ex)); return false; }
     }
 
     // —— A collection's name: a new one, or one renamed ——
@@ -214,7 +214,7 @@ public partial class MainWindow
             _ = RefreshAsync(quiet: true);
         }
         catch (OperationCanceledException) when (_connectionLifetime.IsCancellationRequested) { }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
 
     private void OpenCollectionOverlay()

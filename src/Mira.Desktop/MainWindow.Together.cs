@@ -275,7 +275,7 @@ public partial class MainWindow
             var completes = _groupCompletes == item.Id; _groupCompletes = null;
             await PlayAsync(item, keepMini: _playing && _miniPlayer, completePrevious: completes, groupStart: next.StartTicks);
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
     /// <summary>
     /// Lecture in a group: Jellyfin puts the title on for every device, this one included (GroupQueueAsync). True when
@@ -298,7 +298,7 @@ public partial class MainWindow
         if (completePrevious) _groupCompletes = item.Id;
         try { await _client!.SyncQueueAsync(item.Id, Ticks(start), _connectionLifetime.Token); }
         catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
         // An episode that ended waits in the player for the next one, unless Jellyfin never sends it.
         if (PlayerShell.Visibility == Visibility.Visible && !_playing) { SetPlayerLoading(true); _ = LeaveEmptyPlayerAsync(); }
         return true;
@@ -420,7 +420,7 @@ public partial class MainWindow
             List<Together.Group> groups;
             try { groups = await client.SyncGroupsAsync(_connectionLifetime.Token); }
             catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); return; }
-            catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
+            catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return; }
             if (!ReferenceEquals(client, _client) || DetailOverlay.Visibility != Visibility.Visible) return;
             foreach (var g in groups)
                 menu.Items.Add(MenuAction(L($"Rejoindre « {g.GroupName} » · {Together.People(Math.Max(1, g.Participants.Count))}", $"Join “{g.GroupName}” · {Together.People(Math.Max(1, g.Participants.Count))}"), "users", () => EnterGroupAsync(c => c.SyncJoinAsync(g.GroupId), invite: false)));
@@ -448,7 +448,7 @@ public partial class MainWindow
             else if (_group is { } joinedGroup) SetNotice(L($"Tu es dans « {joinedGroup.GroupName} » : Regarder lance le titre pour tout le groupe, au même moment chez chacun.", $"You’re in “{joinedGroup.GroupName}”: Watch starts the title for the whole group, at the same moment for everyone."));
         }
         catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
         finally { if (ReferenceEquals(_groupJoined, joined)) _groupJoined = null; }
     }
     private async Task LeaveGroupAsync()
@@ -491,7 +491,7 @@ public partial class MainWindow
     }
     private void InviteCopy_Click(object sender, RoutedEventArgs e)
     {
-        try { Clipboard.SetText(InviteLink.Text); SetNotice(L("Lien copié : envoie-le à ton ami.", "Link copied: send it to your friend.")); }
+        try { Clipboard.SetText(InviteLink.Text); SetDone(L("Lien copié : envoie-le à ton ami.", "Link copied: send it to your friend.")); }
         catch (System.Runtime.InteropServices.ExternalException) { SetNotice(L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again.")); }
     }
     private async void InviteClose_Click(object sender, RoutedEventArgs e) => await CloseInviteAsync();
@@ -526,7 +526,7 @@ public partial class MainWindow
         List<Together.Group> groups;
         try { groups = await client.SyncGroupsAsync(_connectionLifetime.Token); }
         catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); return; }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return; }
         if (!ReferenceEquals(client, _client)) return;
         var answer = Together.Answer(invite, groups, client.Connection.Server, _group?.GroupId);
         RestoreFromWindows();
@@ -615,7 +615,7 @@ public partial class MainWindow
             List<Together.Group> groups;
             try { groups = await client.SyncGroupsAsync(_connectionLifetime.Token); }
             catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); return; }
-            catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); return; }
+            catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return; }
             if (!ReferenceEquals(client, _client)) return;
             _homeGroups = (client, groups); ShowHomeGroup();
             if (groups.FirstOrDefault(g => Together.SameGroup(g.GroupId, id)) is not { } group) { SetNotice(L("Ce groupe n’existe plus.", "This group no longer exists.")); return; }

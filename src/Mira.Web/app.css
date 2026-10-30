@@ -450,13 +450,27 @@ html:not(.touch) .letter:active, .letter.pressed { transform: scale(0.94); }
 @keyframes sink { to { transform: translateY(16px); opacity: 0; } }
 
 .toast-layer { position: fixed; z-index: 95; left: 0; right: 0; bottom: calc(var(--tabbar) + 12px); display: grid; justify-items: center; pointer-events: none; padding: 0 16px; }
+/* A notice: a card above the tab bar, its icon in a tile, a close button, and the time it has left drawn under it. */
 .toast {
-  pointer-events: auto; display: flex; align-items: center; gap: 12px; max-width: 520px; padding: 12px 14px 12px 16px;
-  border-radius: var(--r-m); background: var(--raised-2); color: var(--ink); box-shadow: var(--shadow); font-size: calc(14px * var(--text)); font-weight: 600;
+  position: relative; overflow: hidden; pointer-events: auto; display: flex; align-items: center; gap: 12px;
+  width: min(100%, 520px); min-height: 64px; padding: 12px 8px 12px 12px;
+  border-radius: 18px; background: var(--raised-2); color: var(--ink); box-shadow: var(--shadow), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  font-size: calc(15px * var(--text)); font-weight: 700; line-height: 1.35;
   animation: rise var(--slow) var(--ios);
 }
 .toast.leaving { animation: sink 200ms ease-in forwards; }
-.toast button { color: var(--accent); font-weight: 800; padding: 4px 6px; }
+.toast-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: rgba(255, 255, 255, 0.08); color: var(--ink); }
+.toast-icon .icon { width: 22px; height: 22px; }
+.toast.done .toast-icon { background: var(--accent); color: var(--on-accent); }
+.toast.error .toast-icon { background: rgba(255, 107, 95, 0.16); color: var(--danger); }
+.toast-text { flex: 1; min-width: 0; padding: 2px 0; }
+.toast-action { flex: none; padding: 9px 14px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: calc(14px * var(--text)); }
+.toast-close { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-full); color: var(--muted); }
+.toast-close .icon { width: 18px; height: 18px; }
+.toast-time { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, 0.28); transform-origin: left; animation: toast-time linear forwards; }
+.toast.held .toast-time { animation-play-state: paused; }
+@keyframes toast-time { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (hover: hover) { .toast-close:hover { background: rgba(255, 255, 255, 0.08); color: var(--ink); } }
 
 /* Jellyfin away (PC off or starting): said above the tab bar while Mira asks again; notices then rise above it. */
 .netbar {
@@ -998,4 +1012,6 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
   /* What says « loading » keeps turning, as iOS's own indicators do. */
   .spinner, .pull.busy .icon { animation-duration: 0.8s !important; animation-iteration-count: infinite !important; }
+  /* The notice's time left would empty at once: it is not drawn. */
+  .toast-time { display: none; }
 }

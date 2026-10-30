@@ -31,7 +31,7 @@ export function create({ id }) {
         h('div', { style: { padding: '0 0 16px' } }, h('p', { class: 'label' }, tr('Studio')), h('h1', { class: 'page-title' }, studio.Name), count),
         grid ?? emptyState({ symbol: 'films', title: tr('Aucun titre'), text: tr('Aucun film ni série de ta bibliothèque ne vient de ce studio.') })));
     } catch (error) {
-      if (quiet && grid?.isConnected) toast(error.message);
+      if (quiet && grid?.isConnected) toast(error.message, { tone: 'error' });
       else clear(el).append(back, h('div', { class: 'page', style: { paddingTop: '30vh' } }, errorState(error, () => load())));
     }
   }

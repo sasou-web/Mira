@@ -194,13 +194,18 @@ export function spinner(label = tr('Chargement')) { return h('div', { class: 'st
  */
 const overlayHost = () => document.fullscreenElement ?? document.webkitFullscreenElement ?? document.body;
 
-/** A notice at the bottom of the screen, with an optional action (« Annuler »). */
-export function toast(text, { action = null, duration = 4000 } = {}) {
+const TONES = { info: 'info', done: 'check', error: 'warning' };
+/**
+ * A notice at the bottom of the screen: a card with its icon (tone: info, done, error), an optional action
+ * (« Annuler »), a close button and, under it, the time it has left. Hovering or focusing it holds it.
+ */
+export function toast(text, { action = null, duration = 4000, tone = 'info', symbol = null } = {}) {
   let layer = document.querySelector('.toast-layer');
   if (!layer) layer = h('div', { class: 'toast-layer', role: 'status', 'aria-live': 'polite' });
   if (layer.parentNode !== overlayHost()) overlayHost().append(layer);
   clear(layer);
-  let timer = 0;
+  const wait = action ? Math.max(duration, 6000) : duration;
+  let timer = 0; let left = wait; let since = 0;
   // It sinks away rather than vanishing; a swipe down sends it away sooner.
   const close = () => {
     clearTimeout(timer);
@@ -209,13 +214,22 @@ export function toast(text, { action = null, duration = 4000 } = {}) {
     note.addEventListener('animationend', () => note.remove(), { once: true });
     setTimeout(() => note.remove(), 400);
   };
-  const note = h('div', { class: 'toast' }, h('span', {}, text),
-    action ? h('button', { on: { click: () => { close(); action.run(); } } }, action.label) : null);
+  const run = () => { since = Date.now(); timer = setTimeout(close, left); note.classList.remove('held'); };
+  const hold = () => { if (!since) return; clearTimeout(timer); left = Math.max(1200, left - (Date.now() - since)); since = 0; note.classList.add('held'); };
+  const note = h('div', { class: ['toast', tone] },
+    h('span', { class: 'toast-icon' }, icon(symbol ?? TONES[tone] ?? 'info')),
+    h('span', { class: 'toast-text' }, text),
+    action ? h('button', { class: 'toast-action', on: { click: () => { close(); action.run(); } } }, action.label) : null,
+    h('button', { class: 'toast-close', 'aria-label': tr('Fermer cet avis'), on: { click: close } }, icon('close')),
+    h('i', { class: 'toast-time', 'aria-hidden': 'true', style: { animationDuration: `${wait}ms` } }));
   let startY = null;
   note.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
   note.addEventListener('touchmove', (e) => { if (startY != null && e.touches[0].clientY - startY > 24) { startY = null; close(); } }, { passive: true });
+  for (const name of ['mouseenter', 'focusin']) note.addEventListener(name, hold);
+  note.addEventListener('mouseleave', () => { if (!note.contains(document.activeElement)) run(); });
+  note.addEventListener('focusout', (e) => { if (!note.contains(e.relatedTarget) && !note.matches(':hover')) run(); });
   layer.append(note);
-  timer = setTimeout(close, action ? Math.max(duration, 6000) : duration);
+  run();
   return close;
 }
 
@@ -449,12 +463,12 @@ export async function setPlayed(item, played, { quiet = false } = {}) {
   try {
     await api.setPlayed(item.Id, played);
     changed(item, { played });
-    if (!quiet) toast(played ? tr('Marqué comme vu.') : tr('Marqué comme non vu.'));
+    if (!quiet) toast(played ? tr('Marqué comme vu.') : tr('Marqué comme non vu.'), { tone: 'done' });
     return true;
   } catch (error) {
     // Only what this call changed goes back, and only if nothing changed it since.
     if (item.UserData?.Played === played) item.UserData = { ...item.UserData, Played: before?.Played, PlaybackPositionTicks: before?.PlaybackPositionTicks };
-    toast(error.message);
+    toast(error.message, { tone: 'error' });
     return false;
   }
 }
@@ -465,11 +479,11 @@ export async function setFavorite(item, favorite, { quiet = false } = {}) {
   try {
     await api.setFavorite(item.Id, favorite);
     changed(item, { favorite });
-    if (!quiet) toast(favorite ? tr('Ajouté à tes favoris.') : tr('Retiré de tes favoris.'));
+    if (!quiet) toast(favorite ? tr('Ajouté à tes favoris.') : tr('Retiré de tes favoris.'), { tone: 'done', symbol: favorite ? 'heart-fill' : 'heart' });
     return true;
   } catch (error) {
     if (item.UserData?.IsFavorite === favorite) item.UserData = { ...item.UserData, IsFavorite: before?.IsFavorite };
-    toast(error.message);
+    toast(error.message, { tone: 'error' });
     return false;
   }
 }

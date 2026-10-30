@@ -83,7 +83,7 @@ public partial class MainWindow
                 L("Mettre à la Corbeille", "Move to Recycle Bin"), () => _ = RecycleAsync(client, item, target), sticky: true);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-        catch (Exception ex) when (IsExpected(ex)) { SetNotice(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
     }
 
     private async Task RecycleAsync(JellyfinClient client, MediaItem item, string target)

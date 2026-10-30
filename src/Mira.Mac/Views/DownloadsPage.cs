@@ -207,7 +207,7 @@ public sealed class DownloadsPage : Page
         if (_session is not { } session) return;
         MediaItem item;
         try { item = await session.Client.ItemAsync(wanted.Id, session.Lifetime); }
-        catch (Exception ex) when (Errors.Expected(ex)) { if (!session.Lifetime.IsCancellationRequested) Shell.Notice(Errors.Friendly(ex)); return; }
+        catch (Exception ex) when (Errors.Expected(ex)) { if (!session.Lifetime.IsCancellationRequested) Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
         _upgrade = item; _upgradeSent = false;
         _upgradeTitle.Text = L($"Meilleure version de « {TitleUpgrade.Title(item)} »", $"Better version of “{TitleUpgrade.Title(item)}”");
         _upgradeLine.Text = L($"Actuellement : {TitleUpgrade.Line(TitleUpgrade.Current(item))}. Seules les versions meilleures sont montrées. Une fois téléchargée et vérifiée (même durée, lisible par Jellyfin), la nouvelle prend la place de l’ancienne, qui part à la Corbeille du PC serveur.",
@@ -522,7 +522,7 @@ public sealed class DownloadsPage : Page
     {
         if (_session is not { } session) return;
         try { await action(session.Client); Shell.Notice(done); }
-        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         await LoadStatusAsync();
     }
 
@@ -538,7 +538,7 @@ public sealed class DownloadsPage : Page
                 null => L("Cet épisode n’est plus en attente.", "This episode is no longer waiting.")
             });
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         await LoadStatusAsync();
     }
 
@@ -547,7 +547,7 @@ public sealed class DownloadsPage : Page
     {
         if (_session is not { } session) return;
         try { Shell.Open(await session.ItemAsync(id)); }
-        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
 
     private async Task CancelRequestAsync(RelayRequest request)
@@ -562,7 +562,7 @@ public sealed class DownloadsPage : Page
                 null => L("Cette demande n’est plus là.", "This request is no longer there.")
             });
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         await LoadStatusAsync();
     }
 
@@ -574,7 +574,7 @@ public sealed class DownloadsPage : Page
             await session.Client.TorLinkControlAsync(download.Id, action, session.Lifetime);
             if (RemoteLines.ActionLine(action) is { } said) Shell.Notice(said);
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         await LoadStatusAsync();
     }
 
@@ -788,7 +788,7 @@ public sealed class DownloadsPage : Page
             if (replace is not null) _upgradeSent = true;
             await SentAsync(replace is not null);
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { button.IsEnabled = true; Shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { button.IsEnabled = true; Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
     }
 
     /// <summary>Its row, with its progress, is at the top of the right column.</summary>

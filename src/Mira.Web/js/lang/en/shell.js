@@ -1,5 +1,7 @@
 // English of Mira web, keyed by the French text of the code (see ../../i18n.js): the shell, the account, Réglages.
 export default {
+  // components.js: notices
+  'Fermer cet avis': 'Dismiss this notice',
   // dom.js
   '{m} min': '{m} min',
   '{h} h {mm}': '{h}h {mm}m',

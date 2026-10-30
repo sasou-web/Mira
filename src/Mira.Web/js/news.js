@@ -22,13 +22,13 @@ function show({ notices, more, series }) {
   if (!notices.length) return;
   if (notices.length === 1 && !more) {
     const [notice] = notices;
-    toast(`${notice.title} · ${notice.text}`, { action: { label: tr('Voir'), run: () => open(notice) }, duration: 8000 });
+    toast(`${notice.title} · ${notice.text}`, { action: { label: tr('Voir'), run: () => open(notice) }, duration: 8000, symbol: 'series' });
     return;
   }
   // Several series: the three latest in a sheet (the others show their count of episodes to watch on their card).
   const items = notices.map((notice) => ({ label: notice.title, sub: notice.text, symbol: 'series', run: () => open(notice) }));
   toast(tr('{n} séries que tu suis ont de nouveaux épisodes.', { n: series }), {
-    duration: 8000, action: { label: tr('Voir'), run: () => sheet({ title: tr('Nouveaux épisodes'), items }) },
+    duration: 8000, symbol: 'series', action: { label: tr('Voir'), run: () => sheet({ title: tr('Nouveaux épisodes'), items }) },
   });
 }
 

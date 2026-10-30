@@ -285,7 +285,7 @@ public sealed class DetailPage : Page
         async Task Run(Func<Task> action, string done)
         {
             try { await action(); Shell.Notice(done); }
-            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
             await LoadFollowAsync(session);
         }
         if (_follow is not { } follow)
@@ -335,7 +335,7 @@ public sealed class DetailPage : Page
                 if (ReferenceEquals(session, Shell.Session) && Shell.Current == this) await RefreshAsync();
             }
             catch (OperationCanceledException) when (session.Lifetime.IsCancellationRequested) { }
-            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         };
         menu.Items.Add(identify); menu.Items.Add(refresh);
         if (_item.Type == "Movie" && Shell.Offers("downloads"))
@@ -375,7 +375,7 @@ public sealed class DetailPage : Page
             List<Together.Group> groups;
             try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
             catch (UnauthorizedAccessException) { Shell.Notice(WatchGroup.NoSyncPlay); return; }
-            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
+            catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
             if (!ReferenceEquals(session, Shell.Session) || Shell.Current != this) return;
             // Nothing to join: a menu of one line would only stand in the way of the group.
             if (groups.Count == 0) { _ = CreateGroupAsync(); return; }
@@ -572,7 +572,7 @@ public sealed class DetailPage : Page
             await Task.Run(() => { foreach (var episode in episodes) session.Store.ForgetProgress(episode.Id); });
             Shell.Notice(played ? L("Saison marquée comme vue.", "Season marked as watched.") : L("Saison marquée comme non vue.", "Season marked as unwatched."));
         }
-        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); }
+        catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex), tone: NoticeTone.Error); }
         finally { _marking = false; _seasonMark.IsEnabled = true; }
         await Shell.RefreshPagesAsync();
     }

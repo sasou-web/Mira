@@ -21,7 +21,7 @@ function explain(error) {
 /** The collections of a film or series: a tick on those that hold it (a tap takes it out), then « Nouvelle collection… ». */
 export async function collectionSheet(item) {
   let list, holding;
-  try { [list, holding] = await Promise.all([api.collections(), api.collectionsOf(item.Id).catch(() => null)]); } catch (error) { toast(explain(error)); return; }
+  try { [list, holding] = await Promise.all([api.collections(), api.collectionsOf(item.Id).catch(() => null)]); } catch (error) { toast(explain(error), { tone: 'error' }); return; }
   const items = sortedCollections(list).map((collection) => {
     const inside = holding?.has(collection.Id) ?? false;
     return {
@@ -46,7 +46,7 @@ async function put(item, collection, inside) {
     toast(inside ? tr('Ajouté à « {name} ».', { name: collection.Name }) : tr('Retiré de « {name} ».', { name: collection.Name }), {
       action: inside ? { label: tr('Voir'), run: () => { location.hash = `#/saga/${collection.Id}`; } } : { label: trc('undo', 'Annuler'), run: () => put(item, collection, true) },
     });
-  } catch (error) { toast(explain(error)); }
+  } catch (error) { toast(explain(error), { tone: 'error' }); }
 }
 
 async function create(item, name) {
@@ -54,13 +54,13 @@ async function create(item, name) {
     const id = await api.createCollection(name, [item.Id]);
     said({ collection: id, item: item.Id });
     toast(tr('Collection « {name} » créée avec « {title} ».', { name, title: item.Name }), id ? { action: { label: tr('Voir'), run: () => { location.hash = `#/saga/${id}`; } } } : {});
-  } catch (error) { toast(explain(error)); }
+  } catch (error) { toast(explain(error), { tone: 'error' }); }
 }
 
 /** « Nouvelle collection » of the collections' page: an empty one, filled from the menus of its titles. */
 export async function newCollection() {
   let list;
-  try { list = await api.collections(); } catch (error) { toast(explain(error)); return; }
+  try { list = await api.collections(); } catch (error) { toast(explain(error), { tone: 'error' }); return; }
   nameSheet({
     title: tr('Nouvelle collection'), collections: list, save: tr('Créer'),
     done: async (name) => {
@@ -68,7 +68,7 @@ export async function newCollection() {
         const id = await api.createCollection(name, []);
         said({ collection: id });
         toast(tr('Collection « {name} » créée. Ajoute-y un film ou une série depuis son menu.', { name }), id ? { action: { label: tr('Voir'), run: () => { location.hash = `#/saga/${id}`; } } } : {});
-      } catch (error) { toast(explain(error)); }
+      } catch (error) { toast(explain(error), { tone: 'error' }); }
     },
   });
 }
@@ -115,7 +115,7 @@ export async function collectionActions(collection, { renamed, gone }) {
 
 async function rename(collection, renamed) {
   let list;
-  try { list = await api.collections(); } catch (error) { toast(explain(error)); return; }
+  try { list = await api.collections(); } catch (error) { toast(explain(error), { tone: 'error' }); return; }
   nameSheet({
     title: tr('Renommer la collection'), collections: list, value: collection.Name, renamed: collection.Id, save: tr('Renommer'),
     done: async (name) => {
@@ -123,9 +123,9 @@ async function rename(collection, renamed) {
       try {
         await api.renameCollection(collection.Id, name);
         said({ collection: collection.Id });
-        toast(tr('Collection renommée « {name} ».', { name }));
+        toast(tr('Collection renommée « {name} ».', { name }), { tone: 'done' });
         renamed?.(name);
-      } catch (error) { toast(explain(error)); }
+      } catch (error) { toast(explain(error), { tone: 'error' }); }
     },
   });
 }
@@ -142,7 +142,7 @@ function askDelete(collection, gone) {
           said({ collection: collection.Id, deleted: true });
           toast(tr('Collection « {name} » supprimée. Ses titres restent dans ta bibliothèque.', { name: collection.Name }));
           gone?.();
-        } catch (error) { toast(explain(error)); }
+        } catch (error) { toast(explain(error), { tone: 'error' }); }
       },
     }],
   });
