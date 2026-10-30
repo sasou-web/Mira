@@ -65,6 +65,18 @@ public static class SelfCheck
             var home = (HomePage)window.Current!;
             if (mock is not null) Check(home.Continue.Any(x => x.Id == "movie-1"), "accueil : continuer à regarder", string.Join(", ", home.Continue.Select(x => x.Name)));
             await Task.Delay(1500); Capture(window, output, "02-home");
+            // A row's arrows only when it goes past the window, and a press glides about three posters along, not a page.
+            Check(home.GetVisualDescendants().OfType<CardRow>().All(x => x.GetVisualDescendants().OfType<ScrollViewer>().First() is var s && x.ArrowsShown == s.Extent.Width > s.Viewport.Width + 1), "accueil : flèches des rangées seulement si elles débordent");
+            var row = new CardRow("Contrôle", Enumerable.Range(0, 24).Select(_ => (Control)new Border { Width = 176, Height = 40 }));
+            var rowWindow = new Window { Width = 1100, Height = 200, Content = row };
+            rowWindow.Show();
+            await Task.Delay(400);
+            var shown = row.ArrowsShown;
+            row.Glide(1);
+            await Task.Delay(50); var midway = row.Offset;
+            await Task.Delay(1000);
+            Check(shown && midway > 0 && midway < CardRow.Step - 1 && Math.Abs(row.Offset - CardRow.Step) < 1, "rangée : défilement fluide d’environ trois affiches", $"flèches {shown}, {midway:0} px à 50 ms, {row.Offset:0} px à la fin");
+            rowWindow.Close();
 
             // —— Films, search ——
             window.Go("Movie");

@@ -15,7 +15,7 @@ namespace Mira.Mac.Views;
 /// <summary>Small builders for the interface, written in code like the Windows app's dynamic parts.</summary>
 public static class Ui
 {
-    public static readonly IBrush Muted = Brush("#A2A2A6"), Faint = Brush("#8A8A90"), Ink = Brush("#F4F4F5"), Raised = Brush("#1B1B1D");
+    public static readonly IBrush Muted = Brush("#A2A2A6"), Faint = Brush("#8A8A90"), Ink = Brush("#F4F4F5"), Raised = Brush("#1B1B1D"), TextTertiary = Brush("#B6B6BD");
     public static SolidColorBrush Brush(string color) => new(Color.Parse(color));
 
     public static TextBlock Text(string text, double size = 14, FontWeight weight = FontWeight.Normal, IBrush? color = null, string? classes = null)
@@ -30,6 +30,13 @@ public static class Ui
     {
         var block = Text(text, size, weight);
         Avalonia.Automation.AutomationProperties.SetHeadingLevel(block, level);
+        return block;
+    }
+    /// <summary>A row's or a group's title, as Windows draws them: large, light and quieter than the titles of the cards under it.</summary>
+    public static TextBlock SectionTitle(string text)
+    {
+        var block = new TextBlock { Text = text, FontSize = 24, FontWeight = FontWeight.Normal, Foreground = TextTertiary, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        Avalonia.Automation.AutomationProperties.SetHeadingLevel(block, 2);
         return block;
     }
     public static StackPanel Stack(Orientation orientation, double spacing, params Control[] children)
@@ -67,6 +74,12 @@ public static class Ui
         if (parts.Length > 1) Avalonia.Automation.AutomationProperties.SetHelpText(button, parts[1]);
         button.Click += (_, _) => click();
         return button;
+    }
+    /// <summary>A button's menu, opened under it from its left edge (not where the pointer happens to be).</summary>
+    public static void OpenUnder(ContextMenu menu, Control button)
+    {
+        menu.PlacementTarget = button; menu.Placement = PlacementMode.BottomEdgeAlignedLeft; menu.VerticalOffset = 6;
+        menu.Open(button);
     }
     /// <summary>A small rounded tag (« 2025 », « 1 h 58 », « ★ 8.1 »).</summary>
     public static Border Tag(string text) => new()
@@ -334,11 +347,21 @@ public sealed class AspectBox(double ratio) : Decorator
     }
 }
 
-/// <summary>A titled horizontal row of cards, scrolled with the trackpad or its arrows.</summary>
+/// <summary>
+/// A titled horizontal row of cards, scrolled with the trackpad or its arrows: shown only when the row goes past the
+/// window, each dimmed at its end, a press gliding about three posters along (as on Windows), never a whole page at once.
+/// </summary>
 public sealed class CardRow : StackPanel
 {
+    /// <summary>How far an arrow goes: Windows' step, kept short of the row's width on a small window.</summary>
+    public const double Step = 624;
     private readonly StackPanel _items = new() { Orientation = Orientation.Horizontal, Spacing = 18 };
     private readonly ScrollViewer _scroll;
+    private readonly StackPanel _arrows;
+    private readonly Button _previous, _next;
+    private readonly ScrollMotion _motion = new();
+    private bool _running;
+    private TimeSpan? _last;
     public CardRow(string title, IEnumerable<Control> cards, double sidePadding = 56)
     {
         Spacing = 16;
@@ -346,18 +369,42 @@ public sealed class CardRow : StackPanel
         _items.Margin = new Thickness(sidePadding, 4, sidePadding, 8);
         _scroll = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _items };
         var header = new DockPanel { Margin = new Thickness(sidePadding, 0, sidePadding - 8, 0) };
-        var arrows = Ui.Row(4, Ui.IconButton("back", L("Précédents", "Previous"), () => Page(-1), "icon", 18, L($"Précédents dans « {title} »", $"Previous in “{title}”")),
-            Ui.IconButton("next", L("Suivants", "Next"), () => Page(1), "icon", 18, L($"Suivants dans « {title} »", $"Next in “{title}”")));
-        DockPanel.SetDock(arrows, Dock.Right); header.Children.Add(arrows);
-        var heading = new TextBlock { Text = title, FontSize = 21, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
-        Avalonia.Automation.AutomationProperties.SetHeadingLevel(heading, 2);
+        _previous = Ui.IconButton("back", L("Titres précédents", "Previous titles"), () => Glide(-1), "icon", 17, L($"Titres précédents dans « {title} »", $"Previous titles in “{title}”"));
+        _next = Ui.IconButton("next", L("Titres suivants", "Next titles"), () => Glide(1), "icon", 17, L($"Titres suivants dans « {title} »", $"Next titles in “{title}”"));
+        _arrows = Ui.Row(2, _previous, _next);
+        _arrows.IsVisible = false;
+        DockPanel.SetDock(_arrows, Dock.Right); header.Children.Add(_arrows);
+        var heading = Ui.SectionTitle(title);
         header.Children.Add(heading);
         Children.Add(header); Children.Add(_scroll);
+        _scroll.ScrollChanged += (_, _) => UpdateArrows();
+        _scroll.SizeChanged += (_, _) => UpdateArrows();
     }
-    private void Page(int direction)
+    private double Maximum => Math.Max(0, _scroll.Extent.Width - _scroll.Viewport.Width);
+    /// <summary>For the self-check: whether the arrows show, and how far the row has moved.</summary>
+    public bool ArrowsShown => _arrows.IsVisible;
+    public double Offset => _scroll.Offset.X;
+    /// <summary>The arrows only for a row wider than the window; the one at an end dimmed.</summary>
+    private void UpdateArrows()
     {
-        var target = Math.Clamp(_scroll.Offset.X + direction * Math.Max(200, _scroll.Viewport.Width - 160), 0, Math.Max(0, _scroll.Extent.Width - _scroll.Viewport.Width));
-        _scroll.Offset = new Vector(target, 0);
+        _arrows.IsVisible = Maximum > 1;
+        _previous.IsEnabled = _scroll.Offset.X > 1; _next.IsEnabled = _scroll.Offset.X < Maximum - 1;
+    }
+    /// <summary>Eased to the next posters (<see cref="ScrollMotion"/>, the Windows rows'), frame by frame; a press while moving adds to it.</summary>
+    public void Glide(int direction)
+    {
+        if (!_running) _motion.Reset(_scroll.Offset.X);
+        _motion.Add(direction * Math.Min(Step, Math.Max(200, _scroll.Viewport.Width - 160)), Maximum);
+        if (_running || !_motion.Moving || TopLevel.GetTopLevel(this) is not { } top) return;
+        _running = true; _last = null;
+        top.RequestAnimationFrame(Frame);
+    }
+    private void Frame(TimeSpan now)
+    {
+        var seconds = _last is { } last ? (now - last).TotalSeconds : 1 / 60d; _last = now;
+        _scroll.Offset = new Vector(_motion.Step(Math.Min(.1, seconds), Maximum), 0);
+        if (_motion.Moving && TopLevel.GetTopLevel(this) is { } top) top.RequestAnimationFrame(Frame);
+        else _running = false;
     }
 }
 

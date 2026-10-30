@@ -24,7 +24,7 @@ public sealed class SettingsPage : Page
     {
         var settings = shell.Settings;
         var page = new StackPanel { Spacing = 34, Margin = new Thickness(56, 44 + shell.TitleBarInset, 56, 60), MaxWidth = 860, HorizontalAlignment = HorizontalAlignment.Left };
-        page.Children.Add(Ui.Heading(L("Réglages", "Settings"), 34, 1, FontWeight.ExtraBold));
+        page.Children.Add(Ui.Heading(L("Réglages", "Settings"), 32, 1, FontWeight.SemiBold));
 
         var connection = shell.Session?.Connection;
         // Read when « Se déconnecter » is clicked, never kept: each sign-out asks anew.

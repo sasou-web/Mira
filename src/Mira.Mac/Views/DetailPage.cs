@@ -24,7 +24,7 @@ public sealed class DetailPage : Page
     private readonly StackPanel _body = new() { Spacing = 36, Margin = new Thickness(56, 8, 56, 64) };
     private readonly ComboBox _seasons = new() { MinWidth = 200 };
     private readonly StackPanel _episodes = new() { Spacing = 10 };
-    private readonly TextBlock _episodeHeading = new() { FontSize = 21, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _episodeHeading = new() { FontSize = 24, FontWeight = FontWeight.Normal, Foreground = Ui.TextTertiary, VerticalAlignment = VerticalAlignment.Center };
     /// <summary>« Marquer la saison comme vue », beside the season list when the series has another season.</summary>
     private readonly Button _seasonMark = new() { Classes = { "chip", "quiet" }, IsVisible = false, Margin = new Thickness(0, 0, 10, 0) };
     private bool _marking;
@@ -135,7 +135,7 @@ public sealed class DetailPage : Page
         var logo = _top.Children.Count > 1 && _top.Children[1] is Image ? _top.Children[1] : null;
         _top.Children.Clear();
         _top.Children.Add(new TextBlock { Text = (Ui.Kind(_item) + (_item.ProductionYear is { } y ? " · " + y : "")).ToUpperInvariant(), Classes = { "label" }, FontSize = 12.5, Foreground = Ui.Brush("#D0D0D6") });
-        var name = new TextBlock { Text = _item.Name, FontSize = 54, FontWeight = FontWeight.ExtraBold, TextWrapping = TextWrapping.Wrap, LineHeight = 60 };
+        var name = new TextBlock { Text = _item.Name, FontSize = 45, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap, LineHeight = 49 };
         Avalonia.Automation.AutomationProperties.SetHeadingLevel(name, 1);
         _top.Children.Add(logo ?? name);
         var meta = new List<string>();
@@ -165,16 +165,16 @@ public sealed class DetailPage : Page
             actions.Children.Add(Ui.Action(GroupPlayLabel(_item, "") ?? (resume ? L("Reprendre · ", "Resume · ") + Ui.Remaining(_item).ToLowerInvariant() : L("Lecture", "Play")), "play", "primary", () => _ = Shell.PlayAsync(_item)));
             if (resume) actions.Children.Add(Ui.Action(L("Depuis le début", "From the beginning"), "refresh", "", () => _ = Shell.PlayAsync(_item, fromStart: true)));
         }
-        actions.Children.Add(Ui.Action(_item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"), _item.UserData.IsFavorite ? "heart-filled" : "heart", "", () => _ = Shell.SetFavoriteAsync(_item, !_item.UserData.IsFavorite)));
-        actions.Children.Add(Ui.Action(_item.UserData.Played ? L("Vu", "Watched") : L("Marquer comme vu", "Mark as watched"), "check", _item.UserData.Played ? "chip on" : "", () => _ = Shell.SetPlayedAsync(_item, !_item.UserData.Played)));
+        actions.Children.Add(Ui.Action(_item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"), _item.UserData.IsFavorite ? "heart-filled" : "heart", _item.UserData.IsFavorite ? "on" : "", () => _ = Shell.SetFavoriteAsync(_item, !_item.UserData.IsFavorite)));
+        actions.Children.Add(Ui.Action(_item.UserData.Played ? L("Vu", "Watched") : L("Marquer comme vu", "Mark as watched"), "check", _item.UserData.Played ? "on" : "", () => _ = Shell.SetPlayedAsync(_item, !_item.UserData.Played)));
         var group = Shell.Group.Active ? Shell.Group.Group : null;
         Button? together = null;
-        together = Ui.Action(group is null ? L("Regarder ensemble", "Watch together") : L("Ensemble · ", "Together · ") + Together.People(Math.Max(1, group.Participants.Count)), "users", group is null ? "" : "chip on", () => _ = TogetherMenuAsync(together!));
+        together = Ui.Action(group is null ? L("Regarder ensemble", "Watch together") : L("Ensemble · ", "Together · ") + Together.People(Math.Max(1, group.Participants.Count)), "users", group is null ? "" : "on", () => _ = TogetherMenuAsync(together!));
         actions.Children.Add(together);
         if (_followKnown)
         {
             Button? follow = null;
-            follow = Ui.Action(_follow is null ? L("Nouveaux épisodes", "New episodes") : L("Épisodes suivis", "Episodes followed"), _follow is null ? "plus" : "check", _follow is null ? "" : "chip on", () => FollowMenu(follow!));
+            follow = Ui.Action(_follow is null ? L("Nouveaux épisodes", "New episodes") : L("Épisodes suivis", "Episodes followed"), _follow is null ? "plus" : "check", _follow is null ? "" : "on", () => FollowMenu(follow!));
             ToolTip.SetTip(follow, _follow is null ? L("Le PC serveur cherche les nouveaux épisodes et les télécharge tout seul, avec TorLink", "The server PC looks for new episodes and downloads them on its own, with TorLink")
                 : string.Join(" · ", new[] { RemoteLines.FollowNote(_follow.Note), RemoteLines.Follow(_follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0)));
             actions.Children.Add(follow);
@@ -226,7 +226,7 @@ public sealed class DetailPage : Page
         Add(L("Chercher maintenant", "Search now"), () => _ = Run(() => session.Client.TorLinkCheckFollowAsync(follow.Id, session.Lifetime), L($"Le PC serveur cherche les nouveaux épisodes de « {follow.Name} ».", $"The server PC is looking for new episodes of “{follow.Name}”.")));
         Add(L("Voir dans Téléchargements", "See in Downloads"), () => Shell.Go("downloads"));
         Add(L("Ne plus suivre", "Stop following"), () => _ = Run(() => session.Client.TorLinkUnfollowAsync(follow.Id, session.Lifetime), L($"« {follow.Name} » n’est plus suivie.", $"No longer following “{follow.Name}”.")));
-        menu.Open(button);
+        Ui.OpenUnder(menu, button);
     }
     /// <summary>An administrator of Jellyfin: « Corriger » offers « Identifier… », « Actualiser les métadonnées » and, for a film, « Chercher une meilleure version ».</summary>
     private bool _admin;
@@ -270,7 +270,7 @@ public sealed class DetailPage : Page
             better.Click += (_, _) => Shell.FindBetter(_item);
             menu.Items.Add(better);
         }
-        menu.Open(button);
+        Ui.OpenUnder(menu, button);
     }
     /// <summary>« Lancer pour le groupe », « Reprendre pour le groupe à 42 min », « Regarder avec le groupe » (Together.GroupPlayLabel); null outside a group.</summary>
     private string? GroupPlayLabel(MediaItem target, string code) =>
@@ -278,6 +278,7 @@ public sealed class DetailPage : Page
     /// <summary>The group changed: the button says so.</summary>
     public void ShowTogether() => RenderTop();
     /// <summary>« Regarder ensemble »: the group this Mac is in and « Quitter », or the groups to join and « Créer un groupe ».</summary>
+    private Task CreateGroupAsync() => Shell.Group.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct), invite: true, made: true);
     private async Task TogetherMenuAsync(Button button)
     {
         if (Shell.Session is not { } session) return;
@@ -302,12 +303,14 @@ public sealed class DetailPage : Page
             catch (UnauthorizedAccessException) { Shell.Notice(WatchGroup.NoSyncPlay); return; }
             catch (Exception ex) when (Errors.Expected(ex)) { Shell.Notice(Errors.Friendly(ex)); return; }
             if (!ReferenceEquals(session, Shell.Session) || Shell.Current != this) return;
+            // Nothing to join: a menu of one line would only stand in the way of the group.
+            if (groups.Count == 0) { _ = CreateGroupAsync(); return; }
             foreach (var g in groups)
                 Add(L($"Rejoindre « {g.GroupName} »", $"Join “{g.GroupName}”") + $" · {Together.People(Math.Max(1, g.Participants.Count))}", () => _ = watch.EnterAsync((client, ct) => client.SyncJoinAsync(g.GroupId, ct)));
             if (groups.Count > 0) menu.Items.Add(new Separator());
-            Add(L("Créer un groupe et inviter…", "Create a group and invite…"), () => _ = watch.EnterAsync((client, ct) => client.SyncNewAsync(Together.GroupName(client.Connection.UserName), ct), invite: true, made: true));
+            Add(L("Créer un groupe et inviter…", "Create a group and invite…"), () => _ = CreateGroupAsync());
         }
-        menu.Open(button);
+        Ui.OpenUnder(menu, button);
     }
 
     private void RenderBody(Session session)
@@ -336,7 +339,7 @@ public sealed class DetailPage : Page
     private Control People(IEnumerable<PersonInfo> people, bool director) => Links(people.Select(person => (person.Name,
         director ? L($"Les titres réalisés par {person.Name}", $"Titles directed by {person.Name}") : L($"Les titres avec {person.Name}", $"Titles with {person.Name}"),
         person.Id is { Length: > 0 } ? () => Shell.OpenPerson(person, director) : (Action?)null)));
-    /// <summary>Names as links (a person's, a studio's, a genre's titles), separated by commas; plain text when there is nothing to open.</summary>
+    /// <summary>Names as links (a person's, a studio's, a genre's titles), separated by « · » as on Windows; plain text when there is nothing to open.</summary>
     private static Control Links(IEnumerable<(string Name, string Tip, Action? Open)> links)
     {
         var panel = new WrapPanel { ItemSpacing = 4, LineSpacing = 6 };
@@ -353,7 +356,7 @@ public sealed class DetailPage : Page
                 name = link;
             }
             else name = new TextBlock { Text = text, FontSize = 15 };
-            panel.Children.Add(last ? name : Ui.Row(0, name, new TextBlock { Text = ",", FontSize = 15, Margin = new Thickness(0, 0, 4, 0) }));
+            panel.Children.Add(last ? name : Ui.Row(0, name, new TextBlock { Text = "·", FontSize = 15, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) }));
         }
         return panel;
     }
