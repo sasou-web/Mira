@@ -5,7 +5,12 @@ namespace Mira.Mac;
 public static class Program
 {
     [STAThread]
-    public static int Main(string[] args) { System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.ConsoleTraceListener()); return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args); }
+    public static int Main(string[] args)
+    {
+        // mac.yml: the update of a copy of Mira.app from the disk image just built, without a window.
+        if (args is ["--update-check", var image, var folder]) return Services.Updates.Check(image, folder);
+        System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.ConsoleTraceListener()); return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
 
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>()
         .UsePlatformDetect()

@@ -190,6 +190,24 @@ public static class Updates
         using var shell = Process.Start(start);
     }
 
+    /// <summary>
+    /// The check of mac.yml, run from a copy of Mira.app: the disk image just built staged beside it as an update to this
+    /// same version (mounted, copied, checked), then the swap script started for this process, which ends at once. The
+    /// workflow then reads the result file in <paramref name="folder"/>.
+    /// </summary>
+    public static int Check(string image, string folder)
+    {
+        if (SystemLanguage.Bundle() is not { } bundle) { Console.Error.WriteLine("Not run from Mira.app"); return 2; }
+        if (MacInstall.Problem(bundle) is not MacInstallProblem.None and var problem) { Console.Error.WriteLine($"Can't replace {bundle}: {problem}"); return 1; }
+        try { Stage(folder, bundle, image, Current); }
+        catch (UpdateException ex) { Console.Error.WriteLine(ex.Message); return 1; }
+        Console.WriteLine($"Staged {MacInstall.Staging(bundle)}");
+        var start = new ProcessStartInfo("/bin/sh") { UseShellExecute = false };
+        foreach (var argument in MacInstall.Arguments(Environment.ProcessId, bundle, Path.Combine(folder, MacInstall.ResultName), Current, null)) start.ArgumentList.Add(argument);
+        using var shell = Process.Start(start);
+        return shell is null ? 1 : 0;
+    }
+
     private static string? Failed(string folder)
     {
         try { return File.ReadAllText(Path.Combine(folder, FailedName)).Trim(); }

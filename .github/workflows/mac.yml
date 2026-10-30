@@ -91,6 +91,24 @@ jobs:
           done
           killall Finder 2>/dev/null || true
           hdiutil detach "$volume" || hdiutil detach -force "$volume"
+      # The automatic update on a real Mac: a copy of Mira.app, marked, replaced by the one of the disk image just built
+      # (mounted read-only, copied beside it, bundle id, version and signature checked), by the script that swaps them
+      # once Mira has quit. The copy must then be the image's, signature intact, nothing left beside it.
+      - name: Automatic update (disk image to Mira.app)
+        run: |
+          work="$RUNNER_TEMP/update-check"; rm -rf "$work"; mkdir -p "$work/Applications" "$work/updates"
+          app="$work/Applications/Mira.app"
+          ditto dist/mac/Mira.app "$app"
+          touch "$app/Contents/mira-old-copy"
+          "$app/Contents/MacOS/Mira" --update-check "$(ls "$PWD"/dist/mac/*.dmg)" "$work/updates"
+          for i in $(seq 1 60); do [ -f "$work/updates/mac-result" ] && break; sleep 1; done
+          echo "Result: $(cat "$work/updates/mac-result" 2>/dev/null)"
+          grep -q '^done ' "$work/updates/mac-result"
+          test ! -e "$app/Contents/mira-old-copy"
+          test ! -e "$work/Applications/.Mira.app.update" && test ! -e "$work/Applications/.Mira.app.old"
+          codesign --verify --deep --strict "$app"
+          if hdiutil info | grep -q "$work"; then echo "disk image left mounted"; exit 1; fi
+          ls -la "$work/Applications"
       # The app itself, on this Mac: every screen against a stand-in Jellyfin, then playback in OpenGL and in software.
       - name: Self-check
         run: |
