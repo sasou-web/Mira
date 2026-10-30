@@ -50,6 +50,9 @@ public sealed class SettingsPage : Page
         page.Children.Add(new GuestLinksSection(shell, Section).Section);
         // « Sous-titres automatiques »: the extension's search and alignment of subtitles, for an administrator.
         page.Children.Add(new AutoSubtitlesSection(shell, Section).Section);
+        // « Titres à corriger »: what Jellyfin did not recognize, for an administrator, as on Windows.
+        Fix = new FixTitlesSection(shell, Section);
+        page.Children.Add(Fix.Section);
 
         page.Children.Add(Section(L("Lecture", "Playback"),
             Toggle(L("Reprendre là où tu t’es arrêté", "Resume where you left off"), L("Sinon, chaque titre repart du début.", "Otherwise, every title starts from the beginning."), settings.RememberPosition, v => settings.RememberPosition = v),
@@ -91,6 +94,7 @@ public sealed class SettingsPage : Page
     }
     /// <summary>« Tailscale intégré », its node and the way to Jellyfin.</summary>
     public TailnetSection Tailnet { get; }
+    public FixTitlesSection Fix { get; }
     private void Save() { Shell.Profile.SaveSettings(Shell.Settings); Shell.ChoicesChanged(); }
     /// <summary>
     /// « Langue de Mira »: the Mac's language, English or French. Mira opens in it next time (its texts are written as it
