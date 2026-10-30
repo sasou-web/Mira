@@ -139,6 +139,12 @@ public static class SelfCheck
             if (window.Current is DetailPage { Episodes.Count: > 100 } longSeries)
                 Check(longSeries.SeasonLabels.Any(x => x.Contains("1–100")) && longSeries.SeasonLabels.Count() > 1, "longue saison par tranches", string.Join(" | ", longSeries.SeasonLabels));
             await Task.Delay(1200); Capture(window, output, "06-series");
+            // Refreshed as after the player or a title marked watched: the episodes stay, and the page with them scrolls.
+            if (window.Current is DetailPage seriesPage)
+            {
+                await seriesPage.RefreshAsync(); await seriesPage.RefreshAsync();
+                Check(seriesPage.EpisodesShown, "fiche d’une série : épisodes gardés après une actualisation");
+            }
             SettingsPage.OpenAt("playback");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
