@@ -22,6 +22,12 @@ final class PlayerSession: NSObject {
     private var inband = false
     private var bitrate: Int?
     private var miraHls: Bool?
+    /// The subtitles' delay chosen in the player (seconds); kept from one episode to the next, until it closes.
+    private var subtitleDelay: Double = 0
+    /// The text subtitle Mira draws itself while shifted, read once: « item/source/index ».
+    private var drawn: (key: String, cues: SubtitleCues)?
+    /// AirPlay was on at the last look: the television draws Apple's subtitles, never Mira's.
+    private var wasExternal = false
     private let device: PlaybackProfile.Device
 
     let player: AVPlayer
@@ -93,6 +99,10 @@ final class PlayerSession: NSObject {
         controller = PlayerController(model: model, player: player)
         super.init()
         model.actions = self
+        model.videoTime = { [weak player] in
+            let seconds = player?.currentTime().seconds ?? 0
+            return seconds.isFinite ? seconds : 0
+        }
         model.onScrub = { [weak self] seconds in self?.showThumbnail(seconds) }
         controller.onDismissed = { [weak self] in self?.dismissed() }
         player.allowsExternalPlayback = true
@@ -305,6 +315,10 @@ final class PlayerSession: NSObject {
         let stalled = status == .waitingToPlayAtSpecifiedRate && (reason == .toMinimizeStalls || reason == .evaluatingBufferingRate)
         model.set(\.loading, !waitingForServer && (!ready || stalled))
         let television = AVAudioSession.sharedInstance().currentRoute.outputs.first { $0.portType == .airPlay }?.portName
+        if player.isExternalPlaybackActive != wasExternal {
+            wasExternal = player.isExternalPlaybackActive
+            if subtitleDelay != 0 && inband { Task { await chooseSubtitles() } }
+        }
         model.set(\.externalName, player.isExternalPlaybackActive ? television ?? String(localized: "AirPlay") : nil)
         let sleep = app?.sleep
         model.set(\.sleep, sleep?.status(Date()))
@@ -322,14 +336,44 @@ final class PlayerSession: NSObject {
         guard let source, let group = try? await asset.loadMediaSelectionGroup(for: .legible), player.currentItem === current else { return }
         guard let index = subtitleIndex, index >= 0, let stream = source.subtitles.first(where: { $0.index == index }) else {
             if group.allowsEmptySelection { current.select(nil, in: group) }
+            model.drawnSubtitles = nil
             return
         }
+        // Shifted: Mira draws them itself, from the whole track, Apple's off. Not in Picture in Picture nor on an
+        // AirPlay television, which only show Apple's.
+        if subtitleDelay != 0, !inPictureInPicture, !player.isExternalPlaybackActive, stream.isTextSubtitleStream == true,
+           let cues = await loadCues(index), player.currentItem === current, subtitleIndex == index {
+            if group.allowsEmptySelection { current.select(nil, in: group) }
+            model.drawnSubtitles = cues
+            return
+        }
+        guard player.currentItem === current, subtitleIndex == index else { return }
+        model.drawnSubtitles = nil
         let name = TrackNames.menuNames(source)[index]
         let language = TrackNames.language(stream.language)
         let option = group.options.first { $0.displayName == name }
             ?? group.options.first { language != nil && $0.displayName == language }
             ?? group.options.first { $0.extendedLanguageTag?.lowercased().hasPrefix(String((stream.language ?? "-").prefix(2)).lowercased()) == true }
         if let option { current.select(option, in: group) }
+    }
+
+    /// The whole text subtitle, as WebVTT from Jellyfin, read once per track; nil when Jellyfin does not give it.
+    private func loadCues(_ index: Int) async -> SubtitleCues? {
+        guard let sourceId = source?.id else { return nil }
+        let key = "\(item.id)/\(sourceId)/\(index)"
+        if let drawn, drawn.key == key { return drawn.cues }
+        guard let data = try? await client.send("GET", "Videos/\(item.id)/\(sourceId)/Subtitles/\(index)/0/Stream.vtt"),
+              let text = String(data: data, encoding: .utf8) else { return nil }
+        let cues = SubtitleCues(webVTT: text)
+        guard !cues.cues.isEmpty else { return nil }
+        drawn = (key, cues)
+        return cues
+    }
+
+    /// The subtitles chosen can be shifted: text ones, in the stream (Mira can read them whole).
+    private func updateShiftable() {
+        let chosen = source?.subtitles.first { $0.index == subtitleIndex }
+        model.canShiftSubtitles = inband && chosen?.isTextSubtitleStream == true
     }
 
     // MARK: What the controls say
@@ -353,6 +397,7 @@ final class PlayerSession: NSObject {
         model.subtitles = subtitles.map { PlayerTrack(index: $0.index, name: subtitleNames[$0.index] ?? "") }
         model.audioIndex = audioIndex
         model.subtitleIndex = subtitleIndex ?? -1
+        updateShiftable()
         switch playMethod {
         case "DirectPlay": model.qualityNow = String(localized: "Original file")
         case "DirectStream": model.qualityNow = String(localized: "Original quality")
@@ -984,6 +1029,7 @@ extension PlayerSession: PlayerActions {
         subtitleIndex = index
         model.subtitleIndex = index
         rememberTracks()
+        updateShiftable()
         if inband && !burned && (index < 0 || target?.isTextSubtitleStream == true) {
             Task { await chooseSubtitles() }
             Task { await report(.progress) }
@@ -1009,6 +1055,14 @@ extension PlayerSession: PlayerActions {
         model.speed = speed
         player.defaultRate = speed
         if player.rate > 0 { player.rate = speed }
+    }
+
+    func setSubtitleDelay(_ seconds: Double) {
+        let value = min(60, max(-60, (seconds * 10).rounded() / 10))
+        guard value != subtitleDelay, !closed else { return }
+        subtitleDelay = value
+        model.subtitleDelay = value
+        Task { await chooseSubtitles() }
     }
 
     func boost(_ on: Bool) {
@@ -1081,6 +1135,8 @@ extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         inPictureInPicture = true
         model.hideControls()
+        // Its window shows only Apple's subtitles: those, unshifted, while it is there.
+        if subtitleDelay != 0 && inband { Task { await chooseSubtitles() } }
     }
 
     /// In its window, the title leaves the player: the app is free under it.
@@ -1090,6 +1146,7 @@ extension PlayerSession: @preconcurrency AVPictureInPictureControllerDelegate {
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         inPictureInPicture = false
+        if subtitleDelay != 0 && inband { Task { await chooseSubtitles() } }
         // Closed from its window, not brought back into the app: the title stops there.
         if !restoring && controller.presentingViewController == nil && !minimized { close() }
         restoring = false

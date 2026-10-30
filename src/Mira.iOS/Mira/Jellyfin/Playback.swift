@@ -121,8 +121,9 @@ extension JellyfinClient {
     /// Jellyfin's Mira extension answers here (it serves Mira web): its HLS playlists then time the subtitles of a
     /// conversion right for Apple's player.
     func hasMiraExtension() async -> Bool {
-        var request = URLRequest(url: await Way.shared.map(server.appending(path: "Mira/")), timeoutInterval: 6)
-        request.httpMethod = "HEAD"
+        // A GET: Jellyfin answers 405 to a HEAD on its controllers, the extension's page among them (12.1), and the
+        // subtitles of every conversion came 10 s late.
+        let request = URLRequest(url: await Way.shared.map(server.appending(path: "Mira/")), timeoutInterval: 6)
         guard let answer = try? await Self.session.data(for: request) else { return false }
         return (answer.1 as? HTTPURLResponse)?.statusCode == 200
     }

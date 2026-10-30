@@ -14,6 +14,7 @@ struct PlayerChrome: View {
         ZStack {
             if let name = model.externalName { ExternalScreen(name: name) }
             Scrims().opacity(shown ? 1 : 0).allowsHitTesting(false)
+            DrawnSubtitles(model: model, shown: shown)
             if shown {
                 VStack(spacing: 0) {
                     TopBar(model: model)
@@ -56,6 +57,38 @@ private struct Scrims: View {
             }
         }
         .ignoresSafeArea()
+    }
+}
+
+/// The subtitles while they are shifted: drawn by Mira over the picture, at the video's time minus the delay, low on
+/// the screen and above the timeline while the controls show. Apple's player draws them otherwise.
+private struct DrawnSubtitles: View {
+    @Bindable var model: PlayerModel
+    let shown: Bool
+
+    var body: some View {
+        if let cues = model.drawnSubtitles {
+            GeometryReader { box in
+                TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+                    let at = (model.videoTime?() ?? model.time) - model.subtitleDelay
+                    if let text = cues.text(at: at) {
+                        Text(verbatim: text)
+                            .font(.system(size: max(15, min(box.size.width, box.size.height * 16 / 9) * 0.028), weight: .semibold))
+                            .multilineTextAlignment(.center)
+                            .shadow(color: .black.opacity(0.9), radius: 2, y: 1)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(.black.opacity(0.45), in: .rect(cornerRadius: 6))
+                            .frame(maxWidth: box.size.width * 0.86)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .padding(.bottom, shown ? 96 : 24)
+                    }
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .animation(.easeOut(duration: 0.2), value: shown)
+        }
     }
 }
 
@@ -137,6 +170,32 @@ private struct TracksMenu: View {
                             Text(verbatim: track.name)
                         }
                     }
+                }
+            }
+            // Half a second at a time, as on Windows and Mac; the menu stays open between taps.
+            if model.canShiftSubtitles && model.subtitleIndex >= 0 {
+                Section {
+                    ControlGroup {
+                        Button {
+                            model.actions?.setSubtitleDelay(model.subtitleDelay - 0.5)
+                        } label: {
+                            Label("Earlier", systemImage: "minus")
+                        }
+                        Button {
+                            model.actions?.setSubtitleDelay(0)
+                        } label: {
+                            Text(verbatim: SubtitleCues.delayName(model.subtitleDelay))
+                        }
+                        .accessibilityLabel(Text("Reset the subtitle delay"))
+                        Button {
+                            model.actions?.setSubtitleDelay(model.subtitleDelay + 0.5)
+                        } label: {
+                            Label("Later", systemImage: "plus")
+                        }
+                    }
+                    .menuActionDismissBehavior(.disabled)
+                } header: {
+                    Text("Subtitle delay")
                 }
             }
         } label: {

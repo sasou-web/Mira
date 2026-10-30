@@ -990,6 +990,16 @@
       },
       "comment": "An episode's number: É5 in French"
     },
+    "Earlier": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus tôt"
+          }
+        }
+      }
+    },
     "End of the episode": {
       "localizations": {
         "fr": {
@@ -1056,6 +1066,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "vu pour la dernière fois %@"
+          }
+        }
+      }
+    },
+    "Later": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus tard"
           }
         }
       }
@@ -1186,6 +1206,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Joins ton Jellyfin ailleurs qu’à la maison sans l’app Tailscale : Mira rejoint elle-même ton réseau Tailscale, seulement quand elle est ouverte. À la maison, elle passe en direct."
+          }
+        }
+      }
+    },
+    "Reset the subtitle delay": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réinitialiser le décalage des sous-titres"
           }
         }
       }
@@ -2696,6 +2726,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arrêt à la fin de l’épisode"
+          }
+        }
+      }
+    },
+    "Subtitle delay": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Décalage des sous-titres"
           }
         }
       }

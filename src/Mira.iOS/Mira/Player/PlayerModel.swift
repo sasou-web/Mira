@@ -13,6 +13,8 @@ protocol PlayerActions: AnyObject {
     func selectAudio(_ index: Int)
     func selectSubtitles(_ index: Int)
     func setSpeed(_ speed: Float)
+    /// The subtitles later (positive) or earlier, in seconds; 0 for Apple's own drawing of them again.
+    func setSubtitleDelay(_ seconds: Double)
     /// Held down on the picture: twice as fast while the finger stays.
     func boost(_ on: Bool)
     func setQuality(_ quality: String)
@@ -101,6 +103,11 @@ final class PlayerModel {
     var quality = "auto"
     /// What the quality is now: « Original file », « Converted · 8 Mb/s ».
     var qualityNow: String?
+    /// The subtitles' delay (seconds, later when positive), and whether the chosen ones can be shifted (text ones).
+    var subtitleDelay: Double = 0
+    var canShiftSubtitles = false
+    /// The subtitles Mira draws itself while they are shifted; nil when Apple's player draws them.
+    var drawnSubtitles: SubtitleCues?
     var sleep: SleepTimer.Status?
     /// The sleep timer's choice: minutes, 0 for the end of the episode, -1 when off.
     var sleepChoice = -1
@@ -112,6 +119,8 @@ final class PlayerModel {
     var landscape = false
 
     @ObservationIgnored weak var actions: PlayerActions?
+    /// Where the video is now (seconds), read as often as the drawn subtitles need it.
+    @ObservationIgnored var videoTime: (() -> Double)?
     /// The controls appeared or went: the status bar and the home bar follow them.
     @ObservationIgnored var onControls: (() -> Void)?
     /// The finger moved on the timeline: the thumbnail of that moment.
