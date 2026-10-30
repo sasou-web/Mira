@@ -10,7 +10,7 @@ using static Mira.Core.Lang;
 namespace Mira.Mac.Views;
 
 /// <summary>Réglages: the account, playback, languages and subtitles, and the version of Mira and its updates.</summary>
-public sealed class SettingsPage : Page
+public sealed partial class SettingsPage : Page
 {
     public override string Rail => "settings";
     // Built with the page: the language is set once Mira opens.
@@ -91,6 +91,9 @@ public sealed class SettingsPage : Page
             Choice(L("Sous-titres", "Subtitles"), Subtitles, settings.SubtitleLanguage, v => settings.SubtitleLanguage = v)));
 
         page.Children.Add(Section(L("Sous-titres", "Subtitles"), SubtitleRows(settings)));
+
+        // « Sortie audio », as on Windows: the device, its channels, the amplifier, and « Tester ».
+        page.Children.Add(Section(L("Sortie audio", "Audio output"), AudioRows(settings)));
 
         page.Children.Add(Section("Mira",
             Row($"Version {Updates.Current}", L("Mira pour Mac (Apple Silicon).", "Mira for Mac (Apple silicon)."), Ui.Action(L("Rechercher une mise à jour", "Check for updates"), "download", "", () => _ = Updates.CheckAsync(Shell, asked: true))),
