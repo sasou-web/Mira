@@ -81,6 +81,8 @@ Une application native C# / WPF permet de compiler et de livrer immédiatement s
 
 Sous Windows, `BuiltInTailnet` (Core) le démarre à **Se connecter à Tailscale**, puis à chaque ouverture de Mira, avant la première requête à Jellyfin. `TailnetNetwork.Default` est le gestionnaire HTTP de `JellyfinClient`, `ServerAddress` et `ServerSearch` : une connexion vers une adresse du réseau Tailscale (100.x, nom MagicDNS, nom court d’un appareil) passe par le proxy HTTP du nœud (`CONNECT`, `ConnectCallback`), sur `127.0.0.1` avec des identifiants tirés à chaque lancement, et mpv aussi (`http-proxy`) ; le reste va en direct, comme tout ce que l’app Tailscale connectée sur ce PC joint déjà (`TailnetRoute.Choose`). Un refus du nœud revient avec sa raison (en-tête `X-Mira-Tailscale`), en `TailnetException` sous l’exception de `HttpClient` (`TailnetNetwork.Explain`), et l’avis la dit dans les mots de Mira (PC de Jellyfin éteint, Jellyfin arrêté sur lui, connexion expirée).
 
+Sur Mac, `tools/mac/package.sh` compile `mira-tailscale` pour darwin/arm64 à la version de Mira, le met à côté de Mira dans `Contents/MacOS`, le contrôle contre le macOS minimum, le signe avec le paquet et le lance une fois (sa première ligne : cette version, aucun journal envoyé). `BuiltInTailscale` (`src/Mira.Mac/Views`) pilote le même `BuiltInTailnet` : nœud démarré avant la première requête à Jellyfin, arrêté à la fermeture après les derniers rapports, réseau regardé à neuf quand l’horloge saute (veille) et 2 s après un changement d’adresse (`NetworkChange`). La clé qui chiffre son état est un élément à part du trousseau, « Mira (Tailscale) », sinon un fichier 0600 tant que le trousseau la refuse ; une clé illisible n’est jamais remplacée (`Profile.TailnetKey`). `TailnetExecutable` reconnaît la quarantaine de Gatekeeper restée sur Mira.app et donne la commande `xattr` à taper. Les erreurs de Jellyfin passent par `MainWindow.Say` (raison du nœud et son bouton) ; la page restée sans réponse se recharge quand le nœud rejoint le réseau. `--tailnet-check` (`Checks/TailnetCheck.cs`) le contrôle de bout en bout dans `mac.yml`, avec Mira.app sur le réseau de `mira-testnet`.
+
 ## Mira pour Mac
 
 `src/Mira.Mac` est une application Avalonia 11 pour macOS (Apple Silicon), à part : l’application Windows n’en dépend pas et n’est pas modifiée. Elle partage tout Mira.Core (client Jellyfin, cache SQLite et file d’envoi, reprise, marqueurs de passages, épisodes par tranches, volume au-delà de 100 %).
@@ -88,14 +90,14 @@ Sous Windows, `BuiltInTailnet` (Core) le démarre à **Se connecter à Tailscale
 ```text
 Mira.Mac (Avalonia)
   ├─ MainWindow : barre latérale, historique des pages, notifications, compte
-  ├─ Views : Login, Home, Browse (films, séries, bibliothèque, recherche, une personne), Detail, Downloads (envoyés au PC serveur), Settings, Player
+  ├─ Views : Login, Home, Browse (films, séries, bibliothèque, recherche, une personne), Detail, Downloads (envoyés au PC serveur), Settings, Player ; BuiltInTailscale (Tailscale intégré : son nœud, ses avis, le chemin vers Jellyfin) et TailnetSection (ses Réglages)
   ├─ Playback
   │   ├─ MpvPlayer : `MpvClient` de Core, libmpv chargée depuis Mira.app/Contents/Frameworks, rendu par l’API de rendu de mpv
   │   ├─ VideoView : l’image dessinée par mpv avec OpenGL dans la fenêtre (API de rendu de libmpv)
   │   ├─ SoftwareVideoView : repli en rendu logiciel, sur son propre fil
   │   └─ Timeline : barre de progression découpée par chapitres
-  ├─ Services : Profile (Application Support), Keychain (jeton de session dans le trousseau), Session, Images, SleepGuard (écran allumé pendant la lecture), Updates (version Mac sur GitHub)
-  └─ Checks : --self-check (chaque écran et la lecture, avec un Jellyfin réel ou simulé), --video-probe, --export-icon
+  ├─ Services : Profile (Application Support), Keychain (jeton de session et clé de Tailscale intégré dans le trousseau), Session, Images, SleepGuard (écran allumé pendant la lecture), Updates (version Mac sur GitHub), TailnetExecutable (mira-tailscale dans Mira.app, blocage de Gatekeeper)
+  └─ Checks : --self-check (chaque écran et la lecture, avec un Jellyfin réel ou simulé), --tailnet-check (Tailscale intégré sur un réseau Tailscale de test), --video-probe, --export-icon
 ```
 
 Sur Mac, mpv n’a pas de fenêtre à lui : `vo=libmpv`, et Mira dessine chaque image dans un `OpenGlControlBase`. Le contexte de rendu de mpv doit exister avant l’ouverture d’un fichier (sinon mpv lit sans image), mpv délie le framebuffer à la fin de son dessin (Mira le relie, sinon Avalonia affiche du noir) et il est libéré, contexte OpenGL actif, quand la vue quitte la fenêtre, avant `mpv_terminate_destroy`. Avec un OpenGL logiciel (Mesa llvmpipe), mpv dessine du noir dans ses tampons en virgule flottante : Mira passe alors aux tampons 8 bits. Sans OpenGL, la vue logicielle prend le relais.
