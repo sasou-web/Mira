@@ -100,8 +100,8 @@ public sealed partial class SettingsPage : Page
         Tab("updates").Children.Add(Section("Mira",
             Row($"Version {Updates.Current}", L("Mira pour Mac (Apple Silicon).", "Mira for Mac (Apple silicon)."), Ui.Action(L("Rechercher une mise à jour", "Check for updates"), "download", "", () => _ = Updates.CheckAsync(Shell, asked: true))),
             // Switched back on: GitHub is asked now rather than at the next launch, as on Windows.
-            Toggle(L("Rechercher les nouvelles versions", "Look for new versions"), L("À chaque ouverture, Mira demande à GitHub s’il existe une nouvelle version. Sinon, seulement quand tu cliques sur « Rechercher une mise à jour ».",
-                    "Each time it opens, Mira asks GitHub whether there’s a new version. Otherwise, only when you click “Check for updates”."),
+            Toggle(L("Rechercher les nouvelles versions", "Look for new versions"), L("À l’ouverture puis toutes les six heures, Mira demande à GitHub s’il existe une nouvelle version, la télécharge, vérifie sa signature et l’installe quand tu quittes Mira. Sinon, seulement quand tu cliques sur « Rechercher une mise à jour ».",
+                    "When it opens and then every six hours, Mira asks GitHub whether there’s a new version, downloads it, checks its signature and installs it when you quit Mira. Otherwise, only when you click “Check for updates”."),
                 settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }),
             Row(L("Projet", "Project"), L("Le code, les nouveautés et les versions pour Windows et Mac.", "The code, what’s new and the versions for Windows and Mac."), Ui.Action(L("Ouvrir GitHub", "Open GitHub"), "globe", "", () => Updates.Open(Updates.Project)))));
         Content = Layout(shell);
@@ -128,7 +128,7 @@ public sealed partial class SettingsPage : Page
             string Said(string french, string english) => chosen == French ? french : english;
             var text = Said("Mira passera en français à sa prochaine ouverture.", "Mira will be in English the next time it opens.");
             // Opened again once this Mira has quit, which saves the settings and closes the session as any quit does.
-            if (SystemLanguage.Bundle() is { } bundle) Shell.Notice(text, Said("Relancer", "Relaunch"), () => { if (SystemLanguage.RelaunchAfterExit(bundle)) Shell.Close(); });
+            if (SystemLanguage.Bundle() is { } bundle) Shell.Notice(text, Said("Relancer", "Relaunch"), () => { if (Updates.RelaunchAfterInstall() || SystemLanguage.RelaunchAfterExit(bundle)) Shell.Close(); });
             else Shell.Notice(text);
         }, L("Appliquée à la prochaine ouverture de Mira.", "Applies the next time Mira opens."));
     }

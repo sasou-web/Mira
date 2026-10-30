@@ -95,7 +95,7 @@ public sealed class UpdateClient : IDisposable
     }
 
     /// <summary>The newest signed release above the running version, with the file for <paramref name="kind"/>
-    /// ("installer", "portable" or "zip"); null when Mira is up to date.</summary>
+    /// ("installer", "portable" or "zip" on Windows, "mac" on a Mac); null when Mira is up to date.</summary>
     public async Task<UpdateOffer?> CheckAsync(string kind, CancellationToken ct = default)
     {
         var json = Encoding.UTF8.GetString(await GetBytesAsync(_feed, 4 << 20, "application/vnd.github+json", ct).ConfigureAwait(false));
@@ -110,7 +110,8 @@ public sealed class UpdateClient : IDisposable
                 throw new UpdateException(L($"La version {release.Version.ToString(3)} n’est pas signée par Mira : elle n’est pas installée.", $"Version {release.Version.ToString(3)} isn’t signed by Mira: it isn’t installed."));
             var manifest = UpdateManifest.Parse(manifestBytes);
             if (manifest.Version != release.Version) throw new UpdateException(L($"La release {release.Tag} annonce une autre version : elle n’est pas installée.", $"Release {release.Tag} announces another version: it isn’t installed."));
-            var file = manifest.Files.FirstOrDefault(f => f.Kind == kind) ?? throw new UpdateException(L($"La version {release.Version.ToString(3)} ne fournit pas de fichier pour ce type d’installation.", $"Version {release.Version.ToString(3)} has no file for this kind of installation."));
+            // The Mac disk image is among the "others", which Windows copies up to 0.7.4 never read.
+            var file = manifest.Files.Concat(manifest.Others).FirstOrDefault(f => f.Kind == kind) ?? throw new UpdateException(L($"La version {release.Version.ToString(3)} ne fournit pas de fichier pour ce type d’installation.", $"Version {release.Version.ToString(3)} has no file for this kind of installation."));
             var asset = release.Asset(file.Name) ?? throw new UpdateException(L($"Le fichier {file.Name} manque dans la release {release.Tag}.", $"The file {file.Name} is missing from release {release.Tag}."));
             if (asset.Size != file.Size) throw new UpdateException(L($"Le fichier {file.Name} ne correspond pas à la version signée.", $"The file {file.Name} doesn’t match the signed version."));
             return new UpdateOffer(release.Version, release.Tag, release.Page, file, asset.Url);

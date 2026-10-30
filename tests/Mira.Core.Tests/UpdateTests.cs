@@ -196,6 +196,71 @@ internal static class UpdateTests
             }
             return Task.CompletedTask;
         });
+        await Test("Mises à jour Mac : l’image disque signée est proposée depuis « others », vérifiée au téléchargement", async () =>
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            byte[] zip = Encoding.UTF8.GetBytes("archive"), dmg = Encoding.UTF8.GetBytes("image disque du Mac");
+            string Sha(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            var dmgName = UpdateManifest.OtherName("mac", new Version(0, 8, 8));
+            var manifest = new UpdateManifest("Mira", new Version(0, 8, 8), [new("zip", "Mira-0.8.8-win-x64.zip", zip.Length, Sha(zip))]) { Others = [new("mac", dmgName, dmg.Length, Sha(dmg))] }.ToJson();
+            var files = new Dictionary<string, byte[]> { ["mira-update.json"] = manifest, ["mira-update.json.sig"] = Encoding.ASCII.GetBytes(UpdateSignature.Encode(UpdateSignature.Sign(manifest, key))), [dmgName] = dmg };
+            var release = new
+            {
+                tag_name = "v0.8.8", draft = false, html_url = "https://github.com/sasou-web/Mira/releases/tag/v0.8.8",
+                assets = files.Select(f => new { name = f.Key, size = f.Value.Length, browser_download_url = $"https://github.com/sasou-web/Mira/releases/download/v0.8.8/{f.Key}" }).ToArray()
+            };
+            using var handler = new Handler(request =>
+            {
+                var url = request.RequestUri!;
+                if (url.Host == "api.github.com") return Task.FromResult(JsonResponse(new[] { release }));
+                return Task.FromResult(files.TryGetValue(Path.GetFileName(url.AbsolutePath), out var bytes) ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) } : new HttpResponseMessage(HttpStatusCode.NotFound));
+            });
+            using var client = new UpdateClient(new Version(0, 8, 7), [UpdateSignature.PublicKey(key)], handler: handler);
+            var offer = await client.CheckAsync("mac");
+            Assert(offer is { File.Kind: "mac" } && offer.File.Name == dmgName, "The Mac disk image of the signed manifest is not offered");
+            var folder = Path.Combine(testRoot, "update-mac");
+            Assert(File.ReadAllBytes(await client.DownloadAsync(offer!, folder)).SequenceEqual(dmg), "The disk image is not downloaded");
+            File.Delete(Path.Combine(folder, dmgName)); files[dmgName] = Encoding.UTF8.GetBytes("image disque du Maq");
+            var refused = false;
+            try { await client.DownloadAsync(offer!, folder); } catch (UpdateException) { refused = true; }
+            Assert(refused && !File.Exists(Path.Combine(folder, dmgName)), "A disk image that does not match the signature was kept");
+        });
+        await Test("Mises à jour Mac : le script remplace Mira.app après sa fermeture, et laisse l’ancienne quand la nouvelle manque", async () =>
+        {
+            if (OperatingSystem.IsWindows()) return;
+            var root = Path.Combine(testRoot, "mac-install", "Applications"); Directory.CreateDirectory(root);
+            var app = Path.Combine(root, "Mira.app");
+            void Bundle(string path, string version) { Directory.CreateDirectory(Path.Combine(path, "Contents", "MacOS")); File.WriteAllText(Path.Combine(path, "Contents", "version"), version); }
+            Bundle(app, "0.8.7"); Bundle(MacInstall.Staging(app), "0.8.8");
+            Assert(MacInstall.Staging(app) == Path.Combine(root, ".Mira.app.update") && MacInstall.Previous(app) == Path.Combine(root, ".Mira.app.old"), "Staging beside the bundle");
+            Assert(MacInstall.Problem(app) == MacInstallProblem.None, "A writable bundle can't be replaced");
+            Assert(MacInstall.Problem("/private/var/folders/x/AppTranslocation/1234/d/Mira.app") == MacInstallProblem.Translocated, "A translocated copy");
+            // Mira still running: the script waits for it.
+            using var mira = Process.Start(new ProcessStartInfo("/bin/sleep", "1") { UseShellExecute = false })!;
+            async Task Swap(int process, string opener)
+            {
+                var start = new ProcessStartInfo("/bin/sh") { UseShellExecute = false };
+                foreach (var argument in MacInstall.Arguments(process, app, Path.Combine(root, MacInstall.ResultName), new Version(0, 8, 8), opener)) start.ArgumentList.Add(argument);
+                using var shell = Process.Start(start)!;
+                await shell.WaitForExitAsync();
+            }
+            var watch = Stopwatch.StartNew();
+            await Swap(mira.Id, "/bin/true");
+            Assert(watch.Elapsed > TimeSpan.FromMilliseconds(500) && mira.HasExited, "The swap did not wait for Mira to quit");
+            Assert(File.ReadAllText(Path.Combine(app, "Contents", "version")) == "0.8.8" && !Directory.Exists(MacInstall.Staging(app)) && !Directory.Exists(MacInstall.Previous(app)), "The new bundle is not in place");
+            Assert(MacInstall.ReadResult(root) is { Installed: true, Version: { Major: 0, Minor: 8, Build: 8 } } && MacInstall.ReadResult(root) is null, "The result is not read, once");
+            // Nothing staged: the bundle stays as it is.
+            await Swap(mira.Id, "");
+            Assert(File.ReadAllText(Path.Combine(app, "Contents", "version")) == "0.8.8" && MacInstall.ReadResult(root) is { Installed: false, Step: "missing" }, "A missing new version was not reported, or broke the bundle");
+            // A folder this account can't write to (not for root, who writes anywhere).
+            if (Environment.UserName != "root")
+            {
+                var locked = Path.Combine(testRoot, "mac-install", "Locked"); Bundle(Path.Combine(locked, "Mira.app"), "0.8.7");
+                File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+                try { Assert(MacInstall.Problem(Path.Combine(locked, "Mira.app")) == MacInstallProblem.ReadOnly, "A read-only folder can be replaced"); }
+                finally { File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+            }
+        });
         await Test("Mises à jour : la version signée la plus récente est proposée, jamais une antérieure ; téléchargement vérifié", async () =>
         {
             using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256); using var other = ECDsa.Create(ECCurve.NamedCurves.nistP256);
