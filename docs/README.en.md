@@ -62,7 +62,7 @@ Mira web is served by your own Jellyfin server: nothing to get from the App Stor
 | --- | --- | --- |
 | **Windows** 10 or 11 (x64) | `Mira-0.8.6-win-x64-setup.exe` | Run the installer, connect your Jellyfin server, or let Mira install one. [Guide (French)](INSTALLATION.md) |
 | **Mac** with Apple silicon, macOS 15 or later | `Mira-0.8.6-mac-arm64.dmg` | Drag Mira to Applications, allow it once (it is not signed by Apple). [Guide (French)](INSTALLATION-MAC.md) |
-| **iPhone, iPad** (trial) | AltStore Classic, iOS 26 | The native app: library, search, Apple’s player (Picture in Picture, AirPlay), sleep timer and Watch together. Installed with your free Apple ID, refreshed each week by the server PC. [Guide (French)](INSTALLATION-IOS.md) |
+| **iPhone, iPad** (trial) | AltStore Classic, iOS 26 | The native app: library, search, its own player (Picture in Picture, AirPlay), sleep timer, Watch together and, away from home, Built-in Tailscale. Installed with your free Apple ID, refreshed each week by the server PC. [Guide (French)](INSTALLATION-IOS.md) |
 | **iPhone, iPad, Android** | Nothing to download | In Mira for Windows: **Guide → Mira sur ton téléphone → Tout préparer**, then scan the QR code. [Guide (French)](INSTALLATION-WEB.md) |
 
 Every file is in the [0.8.6 release](https://github.com/sasou-web/Mira/releases/tag/v0.8.6). You need a Jellyfin 10.9 or later server (Mira web is tried on 10.9, 10.10, 12.1 and 12.4 at every change; on 10.9 and 10.10, a film’s page has no row for its saga and an ASS subtitle keeps its style marks). Until the Windows files are signed, SmartScreen may show a warning: **More info → Run anyway**. Mira then updates itself.
