@@ -26,7 +26,28 @@ env:
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
 jobs:
+  icon-car:
+    # Mira's icon for macOS 26 (tools/mac/icon-car.sh): Xcode 26's actool only works on macOS 26.
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - name: Assets.car
+        run: |
+          sw_vers; xcodebuild -version
+          tools/mac/icon-car.sh "$RUNNER_TEMP/icon"
+          assetutil --info "$RUNNER_TEMP/icon/Assets.car" | grep -E '"(AssetType|Name|Idiom)"' | sort | uniq -c
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Mira-mac-icon
+          path: ${{ runner.temp }}/icon/Assets.car
+          if-no-files-found: error
+          retention-days: 1
   build:
+    needs: icon-car
     # Apple Silicon. The libraries come from Homebrew, built for this macOS: Mira needs it or later (tools/mac/package.sh
     # checks it against the minimum it declares).
     runs-on: macos-15
@@ -67,11 +88,16 @@ jobs:
           if [ -n "$RELEASE" ]; then version="${RELEASE#v}"
           else version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Mac/Mira.Mac.csproj); fi
           echo "version=$version" >> "$GITHUB_OUTPUT"; echo "Mira $version"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Mira-mac-icon
+          path: ${{ runner.temp }}/icon
       - name: Package Mira.app and the disk image
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          MIRA_ASSETS_CAR: ${{ runner.temp }}/icon/Assets.car
         run: tools/mac/package.sh "$VERSION"
-      # Mira's icon as this macOS (15) shows it, for its preview below; the job « icon » does the same on macOS 26.
+      # Mira's icon as this macOS (15) shows it, for its preview below; the job « icon-check » does the same on macOS 26.
       - name: Icon on macOS 15
         run: |
           mkdir -p .artifacts/icon
@@ -208,7 +234,7 @@ jobs:
             dist/mac/*.dmg
             dist/mac/*.dmg.sha256
           retention-days: 14
-  icon:
+  icon-check:
     # Mira's icon as macOS 26 shows it, from the disk image built above: drawn by macOS from Mira.icon (Assets.car), never
     # on the grey tile macOS 26 gives an icon it does not recognise. Lines read: MIRA-PREVIEW <name> <part>/<parts> <base64>.
     needs: build
