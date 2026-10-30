@@ -23,14 +23,14 @@ public sealed partial class SettingsPage : Page
     public SettingsPage(MainWindow shell) : base(shell)
     {
         var settings = shell.Settings;
-        var page = new StackPanel { Spacing = 34, Margin = new Thickness(56, 44 + shell.TitleBarInset, 56, 60), MaxWidth = 860, HorizontalAlignment = HorizontalAlignment.Left };
-        page.Children.Add(Ui.Heading(L("Réglages", "Settings"), 32, 1, FontWeight.SemiBold));
+        StackPanel Tab(string key) => _tabs[key];
+        foreach (var (key, _) in Tabs) _tabs[key] = new StackPanel { Spacing = 34 };
 
         var connection = shell.Session?.Connection;
         // Read when « Se déconnecter » is clicked, never kept: each sign-out asks anew.
         var erase = new ToggleSwitch { IsChecked = false, OnContent = null, OffContent = null, MinWidth = 0 };
         Avalonia.Automation.AutomationProperties.SetName(erase, L("Effacer aussi les données de ce compte sur ce Mac", "Also erase this account’s data on this Mac"));
-        page.Children.Add(Section(L("Compte", "Account"),
+        Tab("server").Children.Add(Section(L("Compte", "Account"),
             Row(L("Serveur Jellyfin", "Jellyfin server"), connection?.Server ?? "—", null),
             Row(L("Utilisateur", "User"), connection?.UserName ?? "—", SignOut(erase)),
             Row(L("Effacer aussi les données de ce compte sur ce Mac", "Also erase this account’s data on this Mac"),
@@ -38,29 +38,29 @@ public sealed partial class SettingsPage : Page
                     "When you sign out: your library’s cache, the posters and any progress not yet sent to Jellyfin. Your settings stay."), erase)));
         // « Tailscale intégré »: how Mira reaches Jellyfin away from home without the Tailscale app.
         Tailnet = new TailnetSection(shell, Section);
-        page.Children.Add(Tailnet.Section);
+        Tab("server").Children.Add(Tailnet.Section);
         // « Ton bilan »: the month or the year, from Jellyfin's record of what was played to the end.
-        page.Children.Add(Section(L("Ton bilan", "Your recap"), Report()));
+        Tab("report").Children.Add(Section(L("Ton bilan", "Your recap"), Report()));
         // Quick Connect: shown once Jellyfin says it lets devices in by a code.
         var devices = Section(L("Autoriser un appareil", "Allow a device"), ApproveDevice());
         devices.IsVisible = false;
-        page.Children.Add(devices);
+        Tab("server").Children.Add(devices);
         if (shell.Session is { } session) _ = ShowWhenEnabledAsync(session.Client, devices);
         // « Ajouter un ami »: an account of their own, as on Windows, for an administrator.
         Friend = new FriendsSection(shell, Section);
-        page.Children.Add(Friend.Section);
+        Tab("server").Children.Add(Friend.Section);
         // « Liens d'invités »: an administrator's links for guests without an account (shown once Jellyfin's extension answers).
-        page.Children.Add(new GuestLinksSection(shell, Section).Section);
+        Tab("server").Children.Add(new GuestLinksSection(shell, Section).Section);
         // « Sous-titres automatiques »: the extension's search and alignment of subtitles, for an administrator.
-        page.Children.Add(new AutoSubtitlesSection(shell, Section).Section);
+        Tab("server").Children.Add(new AutoSubtitlesSection(shell, Section).Section);
         // « En ce moment sur Jellyfin »: who plays what, as on Windows.
         Viewing = new ViewersSection(shell, Section);
-        page.Children.Add(Viewing.Section);
+        Tab("server").Children.Add(Viewing.Section);
         // « Titres à corriger »: what Jellyfin did not recognize, for an administrator, as on Windows.
         Fix = new FixTitlesSection(shell, Section);
-        page.Children.Add(Fix.Section);
+        Tab("server").Children.Add(Fix.Section);
 
-        page.Children.Add(Section(L("Lecture", "Playback"),
+        Tab("playback").Children.Add(Section(L("Lecture", "Playback"),
             Toggle(L("Reprendre là où tu t’es arrêté", "Resume where you left off"), L("Sinon, chaque titre repart du début.", "Otherwise, every title starts from the beginning."), settings.RememberPosition, v => settings.RememberPosition = v),
             Choice(L("Reprendre un peu avant", "Resume a little earlier"), PlaybackSession.ResumeBackChoices.Select(x => (x > 0 ? L($"{x} s avant", $"{x} s earlier") : L("Non", "No"), x.ToString(CultureInfo.InvariantCulture))).ToArray(),
                 settings.ResumeBack.ToString(CultureInfo.InvariantCulture), v => settings.ResumeBack = int.Parse(v, CultureInfo.InvariantCulture),
@@ -78,31 +78,31 @@ public sealed partial class SettingsPage : Page
             Toggle(L("Décodage matériel", "Hardware decoding"), L("Utilise la puce du Mac pour décoder la vidéo : moins de chauffe, plus d’autonomie.", "Uses the Mac’s chip to decode the video: less heat, longer battery life."), settings.HardwareDecoding, v => settings.HardwareDecoding = v)));
 
         // « Accueil à ta main »: the libraries come from Jellyfin, for their « Nouveau dans … ».
-        page.Children.Add(_home);
+        Tab("appearance").Children.Add(_home);
         DrawHome();
         if (shell.Session is { } account) _ = LoadLibrariesAsync(account.Client);
 
         // « Sur ce Mac »: where the titles kept to watch offline go, and all of them removed at once.
-        page.Children.Add(Section(L("Sur ce Mac", "On this Mac"), OfflineRows()));
+        Tab("playback").Children.Add(Section(L("Sur ce Mac", "On this Mac"), OfflineRows()));
 
-        page.Children.Add(Section(L("Langues", "Languages"),
-            AppLanguage(settings),
+        Tab("appearance").Children.Insert(0, Section(L("Langue", "Language"), AppLanguage(settings)));
+        Tab("audio").Children.Add(Section(L("Langues des pistes", "Track languages"),
             Choice(L("Audio", "Audio"), Audio, settings.AudioLanguage, v => settings.AudioLanguage = v),
             Choice(L("Sous-titres", "Subtitles"), Subtitles, settings.SubtitleLanguage, v => settings.SubtitleLanguage = v)));
 
-        page.Children.Add(Section(L("Sous-titres", "Subtitles"), SubtitleRows(settings)));
+        Tab("audio").Children.Add(Section(L("Sous-titres", "Subtitles"), SubtitleRows(settings)));
 
         // « Sortie audio », as on Windows: the device, its channels, the amplifier, and « Tester ».
-        page.Children.Add(Section(L("Sortie audio", "Audio output"), AudioRows(settings)));
+        Tab("audio").Children.Add(Section(L("Sortie audio", "Audio output"), AudioRows(settings)));
 
-        page.Children.Add(Section("Mira",
+        Tab("updates").Children.Add(Section("Mira",
             Row($"Version {Updates.Current}", L("Mira pour Mac (Apple Silicon).", "Mira for Mac (Apple silicon)."), Ui.Action(L("Rechercher une mise à jour", "Check for updates"), "download", "", () => _ = Updates.CheckAsync(Shell, asked: true))),
             // Switched back on: GitHub is asked now rather than at the next launch, as on Windows.
             Toggle(L("Rechercher les nouvelles versions", "Look for new versions"), L("À chaque ouverture, Mira demande à GitHub s’il existe une nouvelle version. Sinon, seulement quand tu cliques sur « Rechercher une mise à jour ».",
                     "Each time it opens, Mira asks GitHub whether there’s a new version. Otherwise, only when you click “Check for updates”."),
                 settings.AutoUpdate, v => { var again = v && !settings.AutoUpdate; settings.AutoUpdate = v; if (again) _ = Updates.CheckAsync(Shell); }),
             Row(L("Projet", "Project"), L("Le code, les nouveautés et les versions pour Windows et Mac.", "The code, what’s new and the versions for Windows and Mac."), Ui.Action(L("Ouvrir GitHub", "Open GitHub"), "globe", "", () => Updates.Open(Updates.Project)))));
-        Content = new ScrollViewer { Content = page };
+        Content = Layout(shell);
     }
     /// <summary>« Tailscale intégré », its node and the way to Jellyfin.</summary>
     public TailnetSection Tailnet { get; }
