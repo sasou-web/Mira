@@ -141,6 +141,20 @@ const scenes = {
   async home(page) { await settle(page); return box(page, ['.hero .dots'], 40); },
 };
 
+// Jellyfin lists a genre (Items/Filters2, the Films page's chips) only once a library scan has gone past the
+// metadata TMDb gave: one more scan, then wait for the genres.
+{
+  const server = new URL('..', base).href;
+  const header = (token) => ({ 'Content-Type': 'application/json', Authorization: `MediaBrowser Client="banner", Device="banner", DeviceId="banner-setup", Version="1"${token ? `, Token="${token}"` : ''}` });
+  const signed = await (await fetch(`${server}Users/AuthenticateByName`, { method: 'POST', headers: header(), body: JSON.stringify({ Username: user, Pw: password }) })).json();
+  await fetch(`${server}Library/Refresh`, { method: 'POST', headers: header(signed.AccessToken) });
+  let genres = 0;
+  for (const limit = Date.now() + 180_000; Date.now() < limit && !genres; await new Promise((r) => setTimeout(r, 3000))) {
+    const filters = await (await fetch(`${server}Items/Filters2?userId=${signed.User.Id}&includeItemTypes=Movie&recursive=true`, { headers: header(signed.AccessToken) })).json();
+    genres = filters.Genres?.length ?? 0;
+  }
+  console.log(genres ? `${genres} genres` : '::warning::no genre listed by Jellyfin');
+}
 const listed = [], after = [];
 try {
   for (const name of wanted) {
