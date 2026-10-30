@@ -615,5 +615,34 @@ internal static class ConnectionTests
             Assert(profile.TailnetKey() is { Length: 32 } fourth && keychain.Tokens[account] == Convert.ToBase64String(fourth), "A damaged key was not replaced");
             return Task.CompletedTask;
         });
+        await Test("Mac : un seul élément du trousseau pour la session et Tailscale intégré, repris des deux d’avant", () =>
+        {
+            var folder = Path.Combine(testRoot, "mac-vault"); var keychain = new TokenStandIn();
+            var tailnet = Path.Combine(folder, "tailscale"); var key = Convert.ToBase64String(new byte[32].Select((_, i) => (byte)i).ToArray());
+            // As an earlier version left them: the bare token in « Mira », the node's key in « Mira (Tailscale) ».
+            keychain.Tokens[folder] = "token-1"; keychain.Tokens[tailnet] = key;
+            var connection = new Connection("http://nas:8096/", "user", "Alice", "", "device");
+            File.WriteAllBytes(Path.Combine(Directory.CreateDirectory(folder).FullName, "session.json"), JsonSerializer.SerializeToUtf8Bytes(connection, Mira.Core.Json.Options));
+            var profile = new Mira.Mac.Services.Profile(folder, new Mira.Mac.Services.KeychainVault(keychain, folder));
+            Assert(profile.LoadConnection()?.Token == "token-1" && Convert.ToBase64String(profile.TailnetKey()!) == key, "Secrets of the earlier items not read");
+            Assert(!keychain.Tokens.ContainsKey(tailnet) && keychain.Tokens.Keys.Single() == folder, "The earlier Tailscale item was left");
+            // The next version: one item read, once, whatever is asked for.
+            keychain.Reads.Clear();
+            var next = new Mira.Mac.Services.Profile(folder, new Mira.Mac.Services.KeychainVault(keychain, folder));
+            Assert(next.LoadConnection()?.Token == "token-1" && Convert.ToBase64String(next.TailnetKey()!) == key && next.LoadConnection()?.Token == "token-1", "Secrets not read back from the one item");
+            Assert(keychain.Reads.SequenceEqual([folder]), $"The keychain was read more than once: {string.Join(", ", keychain.Reads)}");
+            // Unreadable (question declined): nothing written over the other secret, nothing new made.
+            keychain.Refuse = true;
+            var refused = new Mira.Mac.Services.Profile(folder, new Mira.Mac.Services.KeychainVault(keychain, folder));
+            Assert(refused.LoadConnection() is null && refused.TailnetKey() is null, "A secret was replaced while the item was unreadable");
+            keychain.Refuse = false;
+            // Signing out of one leaves the other.
+            next.ClearConnection();
+            var after = new Mira.Mac.Services.KeychainVault(keychain, folder);
+            Assert(after.Read(folder) is null && after.Missing && after.Read(tailnet) == key, "Signing out of Jellyfin took the node's key, or kept the token");
+            next.ForgetTailnet();
+            Assert(keychain.Tokens.Count == 0, "Item left once both secrets were gone");
+            return Task.CompletedTask;
+        });
     }
 }
