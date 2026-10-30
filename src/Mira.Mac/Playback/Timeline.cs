@@ -19,7 +19,7 @@ public sealed class Timeline : Control
     private IReadOnlyList<ChapterMark> _chapters = [];
     private static readonly IBrush Rest = new SolidColorBrush(Color.FromArgb(72, 255, 255, 255)), Buffer = new SolidColorBrush(Color.FromArgb(110, 255, 255, 255)),
         Played = new SolidColorBrush(Color.Parse("#F5F5F7")), Label = new SolidColorBrush(Color.Parse("#E6141416"));
-    private static readonly Typeface Face = new(new FontFamily("avares://Mira/Assets/Fonts#Nunito Sans"), FontStyle.Normal, FontWeight.SemiBold);
+    private static readonly Typeface Face = new(new FontFamily("avares://Mira/Assets/Fonts#Nunito"), FontStyle.Normal, FontWeight.SemiBold);
     /// <summary>A position chosen with the pointer (pressed or dragged), in seconds.</summary>
     public event Action<double>? Seek;
     public bool Dragging => _dragging;

@@ -19,7 +19,7 @@ public partial class MainWindow
         {
             BrandAssets.Export(output);
             if (!_startupComplete || StartupVeil.Visibility != Visibility.Collapsed) throw new InvalidOperationException("Startup veil did not release the interface.");
-            if (!new Typeface(FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal).TryGetGlyphTypeface(out var glyphs) || !glyphs.FontUri.ToString().Contains("NunitoSans", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Bundled font was not resolved.");
+            if (!new Typeface(FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal).TryGetGlyphTypeface(out var glyphs) || !glyphs.FontUri.ToString().Contains("Nunito-", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Bundled font was not resolved.");
             if (_catalog.Items.Count == 0) { await CaptureAsync(output, "00-empty"); await File.WriteAllTextAsync(Path.Combine(output, "connection-check.txt"), NoticeText.Text + "\n" + LoginError.Text + "\n" + SyncLabel.Text); throw new InvalidOperationException("Visual check requires a connected library or --demo."); }
             Width = 1440; Height = 900;
             await SettleVisualAsync(); await CaptureAsync(output, "01-home");

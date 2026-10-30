@@ -114,7 +114,7 @@ Mira.iOS (SwiftUI)
   ├─ Jellyfin : JellyfinClient (requêtes par le chemin vers Jellyfin, en-tête Authorization), ServerAddress, Models, Playback
   ├─ Home, Library, Login, Settings, Together (SyncPlay), Player (lecteur de Mira sur AVPlayer : PlayerSession, PlayerController, PlayerChrome, MiniPlayer, Trickplay ; cascade, passages, minuterie)
   ├─ Tailscale : Tailnet (Tailscale intégré : marche, arrêt, connexion), TailscaleLibrary (le nœud en C), Way et WayPlan (chemin vers Jellyfin), NetworkWatch, TailscaleViews
-  └─ Design : Palette (jetons de Mira web), Nunito Sans, RemoteImage (images à la taille affichée, BlurHash en attendant)
+  └─ Design : Palette (jetons de Mira web), Nunito, RemoteImage (images à la taille affichée, BlurHash en attendant)
 ```
 
 **Tailscale intégré.** Loin de la maison, l’iPhone joint Jellyfin par le réseau Tailscale de la personne sans l’app Tailscale. Apple réserve les VPN (Network Extension) aux comptes développeur payants, donc pas à AltStore Classic : Mira rejoint le réseau lui-même, comme un appareil de plus, en espace utilisateur. `src/Mira.Tailscale/ios` en fait une bibliothèque C (`tools/ios/tailscale.sh` : c-archive Go pour l’iPhone et son simulateur, réunis en `MiraTailscale.xcframework`, mêmes options que Windows et Mac, journaux jamais envoyés à Tailscale). Ses fonctions prennent et rendent du JSON : `MiraTailscaleStart`, `Status`, `Check`, `Network`, `Login`, `Logout`, `Stop`.
@@ -288,7 +288,7 @@ Une fenêtre de 1480 × 930 ne tient pas sur un écran 1080p à 125 % (environ 1
 
 La barre de navigation est transparente. Toutes les pages qui se superposent à la bibliothèque (fiche, Téléchargements, Réglages, Guide) couvrent aussi sa zone, avec leur propre fond : elle ne laisse jamais voir une autre page derrière. Sur l’accueil, le bandeau passe dessous.
 
-Nunito Sans est embarquée en quatre graisses, sans téléchargement au lancement. La palette générale est blanche sur noir. Le bandeau extrait sa couleur d’une miniature de 64 × 48 pixels : les pixels transparents, presque blancs/noirs ou neutres sont exclus, puis un histogramme pondéré choisit la famille chromatique dominante. La teinte est éclaircie pour les contrôles ; une image neutre conserve du blanc. Les résultats sont mémorisés par image et la couleur change par fondu.
+Nunito est embarquée en quatre graisses, sans téléchargement au lancement. La palette générale est blanche sur noir. Le bandeau extrait sa couleur d’une miniature de 64 × 48 pixels : les pixels transparents, presque blancs/noirs ou neutres sont exclus, puis un histogramme pondéré choisit la famille chromatique dominante. La teinte est éclaircie pour les contrôles ; une image neutre conserve du blanc. Les résultats sont mémorisés par image et la couleur change par fondu.
 
 ## TorLink
 
