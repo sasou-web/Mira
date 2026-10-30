@@ -77,7 +77,7 @@ public sealed partial class TailnetProcess : IAsyncDisposable
     private Launch? _launch;
     private long _nextId;
     private int _crashes, _silent;
-    private bool _wanted, _disposed;
+    private bool _wanted, _disposed, _logClosed;
     private CancellationTokenSource? _wait;
 
     public TailnetProcess(Options options) => _options = options;
@@ -145,7 +145,10 @@ public sealed partial class TailnetProcess : IAsyncDisposable
     /// <summary>Makes the node look at the network afresh: after the computer woke up, or changed networks.</summary>
     public Task RebindAsync(CancellationToken ct = default) => RequestAsync("rebind", null, TimeSpan.FromSeconds(15), ct);
 
-    /// <summary>Ends the helper: asked to quit, then ended after 5 seconds. Its node keeps its state for the next time.</summary>
+    /// <summary>
+    /// Ends the helper: asked to quit, then ended after 5 seconds. Its node keeps its state for the next time; once this
+    /// returns, neither the helper nor its log writes there any more.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         Launch? launch;
@@ -155,7 +158,14 @@ public sealed partial class TailnetProcess : IAsyncDisposable
             _disposed = true; _wanted = false; _wait?.Cancel(); launch = _launch; _launch = null;
         }
         _life.Cancel();
-        if (launch is not null) await EndAsync(launch, quit: true).ConfigureAwait(false);
+        if (launch is not null)
+        {
+            await EndAsync(launch, quit: true).ConfigureAwait(false);
+            // Its last words logged before the log closes.
+            await Task.WhenAny(launch.Reading, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
+        }
+        // Nothing writes into the node's folder any more: the app can erase it at once (« Se déconnecter de Tailscale »).
+        lock (_logGate) _logClosed = true;
         bool had;
         lock (_gate) { had = Proxy is not null; Status = null; Proxy = null; }
         if (had) ProxyChanged?.Invoke(null);
@@ -173,6 +183,8 @@ public sealed partial class TailnetProcess : IAsyncDisposable
         public TaskCompletionSource<JsonElement> Hello { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public DateTimeOffset Started { get; } = DateTimeOffset.UtcNow;
         public bool Ending { get; set; }
+        /// <summary>Its output and error read to their end: done once it ended and what it said is in the log.</summary>
+        public Task Reading { get; set; } = Task.CompletedTask;
     }
 
     private async Task LaunchAsync(CancellationToken ct)
@@ -239,8 +251,7 @@ public sealed partial class TailnetProcess : IAsyncDisposable
         // Not tied to Mira's life, the helper still ends with its input when Mira does.
         try { _options.Started?.Invoke(process); }
         catch (Exception ex) { Log("not tied to Mira's life: " + ex.Message); }
-        _ = Task.Run(() => ReadAsync(launch));
-        _ = Task.Run(() => ReadErrorsAsync(launch));
+        launch.Reading = Task.WhenAll(Task.Run(() => ReadAsync(launch)), Task.Run(() => ReadErrorsAsync(launch)));
         return launch;
     }
 
@@ -399,7 +410,12 @@ public sealed partial class TailnetProcess : IAsyncDisposable
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException) { }
         try { await launch.Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
-        catch (TimeoutException) { try { launch.Process.Kill(); Log("ended by Mira after 5 s"); } catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { } }
+        catch (TimeoutException)
+        {
+            try { launch.Process.Kill(); Log("ended by Mira after 5 s"); } catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { }
+            // Killing is not done yet: its files are free once it is gone.
+            try { await launch.Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch (TimeoutException) { }
+        }
     }
 
     private void Set(TailnetHelper helper, TailnetException? failure, DateTimeOffset? next)
@@ -436,6 +452,7 @@ public sealed partial class TailnetProcess : IAsyncDisposable
         line = Redact(line);
         lock (_logGate)
         {
+            if (_logClosed) return;
             try
             {
                 var file = new FileInfo(_options.LogFile);

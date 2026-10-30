@@ -51,14 +51,19 @@ internal static class TailnetProcessTests
             await WaitUntil(() => helper.Status?.State == TailnetStates.NeedsLogin);
 
             var process = started!;
+            var logFile = Path.Combine(folder, "tailscale.log");
             await helper.DisposeAsync();
+            // Its end in the log before DisposeAsync returns, then nothing: the app can erase the node's folder at once.
+            var log = await File.ReadAllTextAsync(logFile);
+            File.Delete(logFile);
+            await Task.Delay(300);
+            Assert(log.Contains("Mira: ended (code 0)") && !File.Exists(logFile), "The helper's log is written after it was stopped");
             Assert(helper.Helper == TailnetHelper.Stopped && helper.Proxy is null && helper.Status is null, "The stopped helper still shows a proxy or a status");
             await WaitUntil(() => process.HasExited);
             Assert(process.ExitCode == 0, "The helper did not end by itself on « quit »");
             try { await helper.LoginAsync(); throw new Exception("A login was asked of a stopped helper"); }
             catch (TailnetException ex) when (ex.Code == TailnetCodes.Helper) { }
             lock (statuses) Assert(statuses.Contains(TailnetStates.Running), "No status change was told");
-            var log = await File.ReadAllTextAsync(Path.Combine(folder, "tailscale.log"));
             Assert(log.Contains("<login page>") && !log.Contains("1a2b3c4d5e"), "A login page reached the log");
         });
 
