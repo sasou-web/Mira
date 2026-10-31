@@ -39,7 +39,7 @@ public partial class MainWindow
             await ShowDetailsAsync(_demoItems!.First(x => x.Type == "Movie"));
             await CaptureAsync(output, "06-film-details");
             // Every button a title's page can have, at Mira's smallest window: one line that never cuts a button off;
-            // Lecture keeps its words, the others are round icons named for the Narrator and in their tooltip.
+            // Lecture and « Regarder ensemble » keep their words, the others are round icons named for the Narrator and in their tooltip (or their word when on).
             // (A runner's screen is too small for a wide window: Windows keeps a window within it.)
             ShowEveryDetailAction();
             Width = 960; Height = 600; await CaptureAsync(output, "06-film-actions-minimum");
@@ -50,7 +50,7 @@ public partial class MainWindow
                     if (action.TranslatePoint(new Point(action.ActualWidth, 0), DetailActions).X > DetailActions.ActualWidth + 1)
                         throw new InvalidOperationException($"« {Accessible.ContentText(action.Content)} » is cut off on the title page {when}.");
                 if (!ActionRow.ShowsLabel(DetailPlay)) throw new InvalidOperationException($"Lecture lost its label {when}.");
-                if (actions.Skip(1).FirstOrDefault(x => ActionRow.ShowsLabel(x) && x.Content is Panel || Accessible.ContentText(x.Content).Length == 0 && x.ToolTip is null) is { } odd)
+                if (actions.Skip(1).FirstOrDefault(x => ActionRow.ShowsLabel(x) && x.Content is Panel && !ActionRow.GetKeep(x) || Accessible.ContentText(x.Content).Length == 0 && x.ToolTip is null) is { } odd)
                     throw new InvalidOperationException($"A button of the title page is not a named round icon {when}: « {Accessible.ContentText(odd.Content)} ».");
             }
             AssertActions("at 960 px");
@@ -165,7 +165,7 @@ public partial class MainWindow
     private void ShowEveryDetailAction()
     {
         DetailPlay.Content = ActionLabel("play", L("Reprendre", "Resume")); DetailRestart.Visibility = Visibility.Visible;
-        TogetherButton.Content = ActionLabel("users", L("Regarder ensemble", "Watch together"));
+        TogetherButton.Content = ActionLabel("users", L("Regarder ensemble", "Watch together")); ShowState(TogetherButton, false);
         OfflineButton.Content = ActionLabel("check", L("Sur ce PC", "On this PC")); OfflineButton.ToolTip = L("Sur ce PC · 4,2 Go. Clique pour le retirer", "On this PC · 4.2 GB. Click to remove it");
         _detailFollow = null; DescribeFollowButton();
         TogetherButton.Visibility = OfflineButton.Visibility = FilesButton.Visibility = FollowButton.Visibility = Visibility.Visible;

@@ -48,7 +48,7 @@ public partial class MainWindow
         StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = Visibility.Collapsed;
         _extras = []; ExtrasCards.Children.Clear(); ExtrasSection.Visibility = Visibility.Collapsed;
         AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); SmoothScroll.Jump(DetailScroll);
-        DetailBackdropPrevious.Source = null; DetailPosterImage.ImageSource = null; DetailPoster.Visibility = Visibility.Collapsed;
+        DetailBackdropPrevious.Source = null; DetailLogo.Source = null; DetailLogo.Visibility = Visibility.Collapsed; DetailTitle.Visibility = Visibility.Visible;
         SetDetailBackdrop(previewArt ?? (_hero?.Id == item.Id || _hero?.SeriesId == item.Id ? HeroImage.Source : null), animate: false);
         if (_demo) SetDetailBackdrop(DemoLibrary.Artwork(Math.Max(0, _catalog.Items.FindIndex(x => x.Id == item.Id)), true), animate: false);
         RenderDetailText(item); EpisodesPanel.Children.Clear(); _calendar = ([], []); _calendarOpen = false; RenderCalendar();
@@ -59,7 +59,7 @@ public partial class MainWindow
         // Focus moves into the page: Enter plays, Tab stays inside, Escape goes back.
         _ = Dispatcher.BeginInvoke(() => { if (version == _detailVersion) DetailPlay.Focus(); }, System.Windows.Threading.DispatcherPriority.Input);
         var tasks = new List<Task>();
-        if (_images is not null) { tasks.Add(LoadDetailBackdropAsync(item, version)); tasks.Add(LoadDetailPosterAsync(item, version)); }
+        if (_images is not null) { tasks.Add(LoadDetailBackdropAsync(item, version)); tasks.Add(LoadDetailLogoAsync(item, version)); }
         if (_metadata is not null)
         {
             tasks.Add(LoadDetailMetadataAsync(item, version));
@@ -83,16 +83,28 @@ public partial class MainWindow
         if (item.Type == "Series") { tasks.Add(LoadDetailEpisodesAsync(item, version)); tasks.Add(LoadCalendarAsync(item, version)); }
         await Task.WhenAll(tasks);
     }
-    /// <summary>The poster beside the title, from the card's own image; only where the window leaves the title room.</summary>
-    private async Task LoadDetailPosterAsync(MediaItem item, int version)
+    /// <summary>Its logo from Jellyfin in place of its name, when it has one of its own (a film's, a series').</summary>
+    private async Task LoadDetailLogoAsync(MediaItem item, int version)
     {
-        if (_images is not { } cache) return;
-        var poster = await cache.GetAsync(item, targetWidth: cache.Pixels(150));
-        if (version != _detailVersion || poster is null) return;
-        DetailPosterImage.ImageSource = poster; ShowDetailPoster();
+        if (_images is not { } cache || !item.ImageTags.ContainsKey("Logo") || DetailLogo.Source is not null) return;
+        var logo = await cache.LogoAsync(item);
+        if (version != _detailVersion || logo is null || DetailLogo.Source is not null) return;
+        DetailLogo.Source = logo; AutomationProperties.SetName(DetailLogo, item.DisplayTitle);
+        DetailLogo.Visibility = Visibility.Visible; DetailTitle.Visibility = Visibility.Collapsed;
+        Motion.Fade(DetailLogo, 1, 320, 0, Motion.Soft);
     }
-    private void DetailHero_SizeChanged(object sender, SizeChangedEventArgs e) => ShowDetailPoster();
-    private void ShowDetailPoster() => DetailPoster.Visibility = DetailPosterImage.ImageSource is not null && DetailHero.ActualWidth >= 900 ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>
+    /// The picture as tall as the window for a film, most of it for a series (its episodes lead below the picture); never
+    /// shorter than what sits on it (a summary opened, a narrow window).
+    /// </summary>
+    private void SizeDetailHero()
+    {
+        var view = DetailScroll.ActualHeight > 0 ? DetailScroll.ActualHeight : LayoutHeight;
+        var wanted = _detail?.Type == "Series" ? Math.Max(470, view * .72) : Math.Max(470, view);
+        DetailHero.Height = Math.Max(wanted, DetailHeroText.ActualHeight + DetailHeroText.Margin.Bottom + 110);
+    }
+    private void DetailScroll_SizeChanged(object sender, SizeChangedEventArgs e) { if (e.HeightChanged) SizeDetailHero(); }
+    private void DetailHeroText_SizeChanged(object sender, SizeChangedEventArgs e) { if (e.HeightChanged) SizeDetailHero(); }
     /// <summary>« Lire la suite »: the whole summary, then three lines again.</summary>
     private void DetailOverviewMore_Click(object sender, RoutedEventArgs e)
     {
@@ -123,6 +135,7 @@ public partial class MainWindow
             // A favourite toggled while this request was in flight wins over the older server answer.
             if (_favoriteOverride is { } pending && pending.Id == full.Id) full.UserData.IsFavorite = pending.Favorite;
             _detail = full; RenderDetailText(full); UpdateDetailPlayLabel();
+            _ = LoadDetailLogoAsync(full, version);
             await Task.WhenAll(LoadExtrasAsync(full, version), LoadStudioTitlesAsync(full, version));
         }
         catch (Exception ex) when (IsExpected(ex)) { if (version == _detailVersion) SetError(Friendly(ex)); }
@@ -302,7 +315,7 @@ public partial class MainWindow
     /// </summary>
     private void ShapeDetailPlay(bool film)
     {
-        DetailHero.Height = film ? 470 : 410;
+        SizeDetailHero();
         DetailPlay.Padding = film ? new Thickness(32, 15, 36, 15) : new Thickness(25, 13, 25, 13);
         DetailPlay.MinWidth = film ? 250 : 0;
         Motion.SetRadius(DetailPlay, new CornerRadius(film ? 14 : 6));
@@ -339,9 +352,10 @@ public partial class MainWindow
         DetailOverview.Text = OverviewText.Plain(item.Overview ?? L("Aucun résumé disponible pour ce titre.", "No summary available for this title."));
         // Three lines of the page's width hold about 300 characters: a longer summary gets « Lire la suite ».
         DetailOverview.MaxHeight = 72; DetailOverviewMore.Content = L("Lire la suite", "Read more");
-        DetailOverviewMore.Visibility = DetailOverview.Text.Length > 300 ? Visibility.Visible : Visibility.Collapsed;
-        ShowGenres(item);
-        ShowPeople(DetailCast, item.CastPeople, false, first: 4); DetailCastBlock.Visibility = item.Cast.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        DetailOverviewMore.Visibility = DetailOverview.Text.Length > 260 ? Visibility.Visible : Visibility.Collapsed;
+        var tagline = item.Taglines?.Select(x => x.Trim()).FirstOrDefault(x => x.Length > 0);
+        DetailTagline.Text = tagline ?? ""; DetailTagline.Visibility = tagline is null ? Visibility.Collapsed : Visibility.Visible;
+        ShowGenres(item); ShowCast(item);
         ShowPeople(DetailDirectors, item.DirectorPeople, true); DetailDirectorsBlock.Visibility = item.Directors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         var studios = item.Studios.Where(x => x.Name.Trim().Length > 0).Take(3).ToList();
         ShowLinks(DetailStudios, studios.Select(x => (x.Name, L($"Les titres de {x.Name} dans ta bibliothèque", $"Titles from {x.Name} in your library"),
@@ -349,8 +363,13 @@ public partial class MainWindow
         DetailStudiosBlock.Visibility = studios.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowDetailPlayLabel(item);
         DetailRestart.Content ??= ActionLabel("refresh", L("Depuis le début", "From the beginning"));
-        FavoriteButton.Content = ActionLabel(item.UserData.IsFavorite ? "heart-fill" : "heart", item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"));
-        WatchedButton.Content = ActionLabel(item.UserData.Played ? "refresh" : "check", item.UserData.Played ? L("Marquer comme non vu", "Mark as unwatched") : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"));
+        var favorite = item.UserData.IsFavorite;
+        FavoriteButton.Content = ActionLabel(favorite ? "heart-fill" : "heart", favorite ? L("Favori", "Favorite") : L("Ajouter aux favoris", "Add to favorites"));
+        ShowState(FavoriteButton, favorite, favorite ? L("Dans tes favoris. Clique pour le retirer", "In your favorites. Click to remove it") : null);
+        var played = item.UserData.Played;
+        WatchedButton.Content = ActionLabel("check", played ? item.Type == "Series" ? L("Vue", "Watched") : L("Vu", "Watched")
+            : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"));
+        ShowState(WatchedButton, played, played ? L("Vu. Clique pour le marquer comme non vu", "Watched. Click to mark it as unwatched") : null);
         ShowTogetherButton(); ShowOfflineButton(); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item);
     }
     /// <summary>Length and ratings, then the picture of the file Lecture plays and when it ends (the episode it picks up at, on a series).</summary>
@@ -362,6 +381,36 @@ public partial class MainWindow
         var resume = target is not null && target.Progress > 0 && !target.UserData.Played && _settings.RememberPosition;
         DetailMeta.Text = string.Join("  ·  ", new[] { item.Subtitle, item.CommunityRating is { } rating and > 0 ? $"★ {Number(rating, "0.0")}" : "", item.OfficialRating ?? "",
             file ?? "", MediaQuality.EndsAt(target, DateTime.Now, resume) ?? "" }.Where(x => x.Length > 0));
+    }
+    /// <summary>
+    /// A button of the page on or off, each state seen at a glance: on, a white outline and its word kept beside its icon
+    /// (« Favori », « Suivie »), also once the row is short of room for words; off, the plain button, its icon alone.
+    /// </summary>
+    /// <param name="tip">Said by its tooltip and to the Narrator when on: what it is and what a click does.</param>
+    private void ShowState(Button button, bool on, string? tip = null)
+    {
+        if (on) { button.BorderBrush = Palette.Get("Text"); button.BorderThickness = new Thickness(1.5); }
+        else { button.ClearValue(Control.BorderBrushProperty); button.ClearValue(Control.BorderThicknessProperty); }
+        if (!ReferenceEquals(button, TogetherButton)) ActionRow.SetKeep(button, on);
+        button.ToolTip = tip;
+        if (on && tip is not null) AutomationProperties.SetName(button, tip); else button.ClearValue(AutomationProperties.NameProperty);
+    }
+    /// <summary>A green dot: on and live (a group, a series followed).</summary>
+    private static System.Windows.Shapes.Ellipse LiveDot() => new() { Width = 8, Height = 8, Fill = Palette.Get("Success"), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+    /// <summary>The cast with their photos under the picture; each one their titles in the library.</summary>
+    private void ShowCast(MediaItem item)
+    {
+        DetailCastCards.Children.Clear();
+        foreach (var person in item.CastPeople)
+        {
+            var photo = person.PrimaryImageTag is { } tag ? new Dictionary<string, string> { ["Primary"] = tag } : [];
+            var card = new PersonCard(new MediaItem { Id = person.Id ?? "", Name = person.Name, Type = "Person", ImageTags = photo }, person.Role);
+            if (person.Id is { Length: > 0 }) card.Click += async (_, _) => await ShowPersonAsync(person, false);
+            else { card.Focusable = false; card.IsHitTestVisible = false; }
+            DetailCastCards.Children.Add(card);
+            if (_images is { } images && person.Id is { Length: > 0 }) _ = card.LoadImageAsync(images);
+        }
+        DetailCastSection.Visibility = DetailCastCards.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
     /// <param name="detail">Said lighter after the label: « 1 h 27 restantes » beside Reprendre.</param>
     private static StackPanel ActionLabel(string icon, string label, string? detail = null)

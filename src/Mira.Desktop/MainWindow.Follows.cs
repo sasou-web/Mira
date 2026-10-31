@@ -144,28 +144,52 @@ public partial class MainWindow
         FollowButton.Visibility = Visibility.Visible;
     }
 
+    /// <summary>« Suivre… » off, « Suivie » on (outlined, a live dot): the state of the series seen at a glance.</summary>
     private void DescribeFollowButton()
     {
         var follow = _detailFollow;
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
         panel.Children.Add(new Icon { Kind = "calendar", Width = 18, Height = 18 });
-        var label = follow is null ? L("Nouveaux épisodes", "New episodes") : L("Épisodes suivis", "Episodes followed");
+        var label = follow is null ? L("Suivre…", "Follow…") : L("Suivie", "Following");
         panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) });
-        var tip = follow is null ? L("Le PC serveur cherche les nouveaux épisodes et les télécharge tout seul, avec TorLink", "The server PC looks for new episodes and downloads them on its own, with TorLink")
-            : string.Join(" · ", new[] { RemoteLines.FollowNote(follow.Note), RemoteLines.Follow(follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0));
-        FollowButton.Content = panel; FollowButton.ToolTip = tip;
-        AutomationProperties.SetName(FollowButton, label + ". " + tip);
+        if (follow is not null) panel.Children.Add(LiveDot());
+        var tip = follow is null ? L("Suivre les nouveaux épisodes : le PC serveur les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: the server PC looks for them and downloads them on its own, with TorLink")
+            : string.Join(" · ", new[] { L("Suivie", "Following"), RemoteLines.FollowNote(follow.Note), RemoteLines.Follow(follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0));
+        FollowButton.Content = panel;
+        ShowState(FollowButton, follow is not null, tip);
+        if (follow is null) AutomationProperties.SetName(FollowButton, tip);
     }
 
-    private void Follow_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Following downloads on its own from then on: asked first on Mira's card, saying what happens; once followed, its
+    /// menu (search now, Downloads, stop, asked again).
+    /// </summary>
+    private async void Follow_Click(object sender, RoutedEventArgs e)
     {
         if (_detail is not { } item) return;
-        if (_detailFollow is not { } follow) { _ = FollowSeriesAsync(item); return; }
+        if (_detailFollow is not { } follow)
+        {
+            if (await ConfirmAsync(L($"Suivre « {item.Name} » ?", $"Follow “{item.Name}”?"),
+                L("Le PC serveur cherchera ses nouveaux épisodes toutes les 6 h et les téléchargera avec TorLink. Chacun attend 10 min dans Téléchargements, le temps de l’annuler.",
+                    "The server PC will look for its new episodes every 6 hours and download them with TorLink. Each one waits 10 min in Downloads, time to cancel it."),
+                L("Suivre la série", "Follow the series"), L("Annuler", "Cancel")) && _detail?.Id == item.Id)
+                await FollowSeriesAsync(item);
+            return;
+        }
         var menu = new ContextMenu { PlacementTarget = FollowButton, Placement = PlacementMode.Bottom };
         menu.Items.Add(MenuAction(L("Chercher maintenant", "Search now"), "refresh", () => CheckFollowNowAsync(follow)));
         menu.Items.Add(MenuAction(L("Voir dans Téléchargements", "See in Downloads"), "download", ShowTorLinkAsync));
-        menu.Items.Add(MenuAction(L("Ne plus suivre", "Stop following"), "close", async () => { await UnfollowAsync(follow); if (_detail?.Id == item.Id) await ShowFollowButtonAsync(item); }));
+        menu.Items.Add(MenuAction(L("Ne plus suivre…", "Stop following…"), "close", () => UnfollowAskedAsync(item, follow)));
         menu.IsOpen = true;
+    }
+    /// <summary>« Ne plus suivre » asked once more: the episodes already there stay.</summary>
+    private async Task UnfollowAskedAsync(MediaItem item, RelayFollow follow)
+    {
+        if (!await ConfirmAsync(L($"Ne plus suivre « {item.Name} » ?", $"Stop following “{item.Name}”?"),
+            L("Le PC serveur ne cherchera plus ses nouveaux épisodes. Ceux déjà dans ta bibliothèque restent.", "The server PC will stop looking for its new episodes. Those already in your library stay."),
+            L("Ne plus suivre", "Stop following"), L("Continuer à suivre", "Keep following"))) return;
+        await UnfollowAsync(follow);
+        if (_detail?.Id == item.Id) await ShowFollowButtonAsync(item);
     }
 
     private async Task FollowSeriesAsync(MediaItem item)
