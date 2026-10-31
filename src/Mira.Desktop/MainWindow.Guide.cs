@@ -93,7 +93,7 @@ public partial class MainWindow
     // The guide, from the ? of the rail, F1, an empty library, or once after the first connection.
     private void Guide_Click(object sender, RoutedEventArgs e) => OpenGuide();
     private async void CloseGuide_Click(object sender, RoutedEventArgs e) => await CloseGuideAsync();
-    private async Task CloseGuideAsync() { await Motion.HideAsync(GuideOverlay); UpdateNavigation(); UpdateHeroClock(); }
+    private async Task CloseGuideAsync() { await Motion.HideAsync(GuideOverlay); UpdateNavigation(); UpdateHeroClock(); GiveFocusBack(ref _guideOrigin); }
     /// <summary>Once, right after the first connection or the Jellyfin setup, with what is relevant at that moment.</summary>
     private void OfferGuide(string intro) { if (!_settings.GuideSeen) OpenGuide(intro); }
     /// <summary>The keyboard shortcuts as keycaps beside what they do, two by row on a wide guide: read at a glance.</summary>
@@ -129,6 +129,7 @@ public partial class MainWindow
     {
         if (LoginOverlay.Visibility == Visibility.Visible || WelcomeOverlay.Visibility == Visibility.Visible || _playing && !_miniPlayer) return;
         _settings.GuideSeen = true;
+        RememberFocus(ref _guideOrigin, GuideOverlay);
         if (SettingsOverlay.Visibility == Visibility.Visible) { AutoSaveSettings(); _ = Motion.HideAsync(SettingsOverlay); }
         ClosePreview(); ++_detailVersion; _returnToDetail = null; _ = Motion.HideAsync(DetailOverlay); _ = Motion.HideAsync(TorLinkOverlay);
         GuideIntro.Text = intro ?? L("L’essentiel pour bien démarrer.", "The essentials to get you started.");
