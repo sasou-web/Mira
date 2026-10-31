@@ -26,6 +26,25 @@ public static class PartyPage
     public static string Link(string origin, string code) => origin.TrimEnd('/') + "/Mira/party/" + code;
 
     /// <summary>
+    /// The address a request reached this Jellyfin at. Tailscale Serve and Funnel speak plain HTTP to Jellyfin from this
+    /// computer and keep the asked name in <c>Host</c>: the request alone says « http://pc.tailnet.ts.net », a port no one
+    /// listens to (the friend's Mira timed out there). Behind them (a loopback caller, <c>X-Forwarded-Proto: https</c>), the
+    /// origin is https at the forwarded name; anyone else's forwarded headers are never read.
+    /// </summary>
+    public static string Origin(bool loopback, string? forwardedProto, string? forwardedHost, string scheme, string host, string pathBase)
+    {
+        if (loopback && string.Equals(forwardedProto?.Trim(), "https", StringComparison.OrdinalIgnoreCase)
+            && (string.IsNullOrWhiteSpace(forwardedHost) ? host : forwardedHost.Trim()) is { Length: > 0 } name
+            && Uri.TryCreate("https://" + name, UriKind.Absolute, out var https) && https.Authority.Equals(name, StringComparison.OrdinalIgnoreCase)
+            && https.AbsolutePath == "/" && https.UserInfo.Length == 0)
+        {
+            return "https://" + https.Authority + pathBase;
+        }
+
+        return $"{scheme}://{host}{pathBase}";
+    }
+
+    /// <summary>
     /// The link Mira's apps open: the party's code, the address it was opened at, and this Jellyfin's id, by which an app
     /// signed in to it finds it whatever address it reaches it at.
     /// </summary>

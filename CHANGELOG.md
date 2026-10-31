@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Party ouverte dans Mira chez un ami (Windows, Mac, extension)** : par Tailscale Funnel, la page de la party donnait aux apps une adresse en `http://…ts.net` (port 80, où rien n’écoute) : la fenêtre de Mira restait sur « ERR_CONNECTION_TIMED_OUT » alors que le navigateur, qui passe en https tout seul, y arrivait. La page donne maintenant l’adresse en https derrière Tailscale (en-têtes de Serve et Funnel, lus seulement depuis ce PC), et Mira corrige aussi les liens des anciennes extensions. Si la fenêtre n’arrive quand même pas à joindre la party, elle s’ouvre dans le navigateur au bout de 15 secondes au plus, avec un avis.
 - **Page Recherche plus nette (Windows)** : plus de phrase sous le titre qui répétait le champ et se coupait dans une fenêtre étroite ; le champ suit la largeur de la fenêtre (760 au plus) et son texte d’aide ne passe plus sous le curseur.
 - **Plus de contour blanc après Alt+Tab (Windows)** : en revenant dans Mira, Windows remettait l’anneau du clavier autour du bouton choisi (« Revoir » de la fiche, par exemple). Il ne revient plus qu’après une vraie touche Tab.
 - **Texte net sous Windows (ClearType)** : le texte de Mira pour Windows restait lissé en gris, flou et en escalier à côté des autres apps. Le cadre de la fenêtre (ombre et coins arrondis de Windows) fait passer WPF en niveaux de gris pour toute la fenêtre ; chaque texte demande maintenant ClearType, sauf sur les commandes du lecteur, posées sur la vidéo.
