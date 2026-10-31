@@ -24,7 +24,9 @@ public sealed class Icon : FrameworkElement
         ["restore"] = "M8 7V5Q8 3 10 3H19Q21 3 21 5V14Q21 16 19 16H17 M6 8H14Q17 8 17 11V18Q17 21 14 21H6Q3 21 3 18V11Q3 8 6 8Z",
         ["mini"] = "M9 20H7Q3 20 3 16V8Q3 4 7 4H17Q21 4 21 8V10 M14 13H19Q21 13 21 15V18Q21 20 19 20H14Q12 20 12 18V15Q12 13 14 13Z",
         ["help"] = "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M9.4 9.4Q9.6 7 12 7Q14.6 7 14.6 9.4Q14.6 11.1 12.8 11.9Q12 12.3 12 13.4V13.8 M12 17V17.15",
-        ["phone"] = "M9 2.5H15Q18 2.5 18 5.5V18.5Q18 21.5 15 21.5H9Q6 21.5 6 18.5V5.5Q6 2.5 9 2.5Z M11 18.2H13"
+        ["phone"] = "M9 2.5H15Q18 2.5 18 5.5V18.5Q18 21.5 15 21.5H9Q6 21.5 6 18.5V5.5Q6 2.5 9 2.5Z M11 18.2H13",
+        ["eye"] = "M2 12Q6.5 5 12 5Q17.5 5 22 12Q17.5 19 12 19Q6.5 19 2 12Z M15 12A3 3 0 1 1 9 12A3 3 0 1 1 15 12",
+        ["eye-off"] = "M2 12Q6.5 5 12 5Q17.5 5 22 12Q17.5 19 12 19Q6.5 19 2 12Z M15 12A3 3 0 1 1 9 12A3 3 0 1 1 15 12 M4 4L20 20"
     }).ToDictionary(x => x.Key, x => Shape(x.Value));
     /// <summary>True for a kind this family draws (used to check the icons named in WhatsNew.json).</summary>
     public static bool Draws(string kind) => kind == "brand" || Shapes.ContainsKey(kind) || Solids.ContainsKey(kind);
