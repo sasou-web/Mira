@@ -294,7 +294,7 @@ public partial class MainWindow : Window
         if (!ReferenceEquals(_client, client)) { await sync.DisposeAsync(); client.Dispose(); return; }
         _store = store;
         var damaged = _store.DamagedCopy is not null;
-        _catalog.Clear(); _episodes = []; _detail = null; _detailTrail.Clear(); _hero = null; _returnToDetail = null; _seasonThumbs.Clear();
+        _catalog.Clear(); _pages.Clear(); _episodes = []; _detail = null; _detailTrail.Clear(); _hero = null; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
         // Never leave the previous account's posters on screen while this one loads.
         _catalog.Loading = true; RenderLibrary();
@@ -371,21 +371,20 @@ public partial class MainWindow : Window
         _connectionLifetime.Cancel(); _browseCancellation?.Cancel(); StopEpisodeNotices(); _choicesSoon.Stop(); GroupGone(); ForgetOfflineState();
         if (_sync is not null) { _sync.Changed -= SyncChanged; await _sync.DisposeAsync(); _sync = null; }
         _client?.Dispose(); _client = null; SetPhoto(null); _images = null; _store = null; _listening = false;
-        _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _homeLibraries = [];
+        _catalog.RecentPlayback = []; _catalog.HiddenResume = []; _catalog.Shelves = []; _homeLibraries = []; _pages.Clear();
         // Another account, the demo or none: this one's offline state is not theirs.
         _offlineShown = false; OfflineBadge.Visibility = Visibility.Collapsed;
     }
     private void AddLibraryButton(string name, string? id)
     {
         var button = new Button { Content = name, Style = (Style)FindResource("NavButton"), ToolTip = name };
-        button.Click += async (_, _) => { _catalog.View = "library"; ResetFilters(); _filterBusy = true; _catalog.ParentId = id; LibraryFilter.SelectedItem = LibraryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == (id ?? "")); _filterBusy = false; await NavigateLibraryAsync(); };
+        button.Click += async (_, _) => await GoToPageAsync("library", id);
         LibrariesPanel.Children.Add(button);
         if (id is not null) LibraryFilter.Items.Add(new ComboBoxItem { Content = name, Tag = id });
     }
     private async void Navigate_Click(object sender, RoutedEventArgs e)
     {
-        _catalog.View = (string)((Button)sender).Tag; ResetFilters(); _filtersOpen = false;
-        await NavigateLibraryAsync();
+        await GoToPageAsync((string)((Button)sender).Tag);
     }
     private void Search_Changed(object sender, TextChangedEventArgs e)
     {

@@ -33,7 +33,7 @@ public partial class MainWindow
         if (person.Id is not { Length: > 0 } id) return;
         var from = search is null ? _detail : null; var view = _catalog.View;
         _personFromPlace = from is null ? (0, []) : (DetailScroll.VerticalOffset, [.. _detailTrail.Pages]);
-        ResetFilters();
+        KeepPage(); ResetFilters();
         (_catalog.Person, _personFrom, _personSearch, _personReturnView, _catalog.View) = ((id, person.Name, directed), from, search, view, "library");
         ShowPersonFilter();
         await NavigateLibraryAsync();
@@ -46,7 +46,7 @@ public partial class MainWindow
     {
         var from = search is null ? _detail : null; var view = _catalog.View;
         _personFromPlace = from is null ? (0, []) : (DetailScroll.VerticalOffset, [.. _detailTrail.Pages]);
-        ResetFilters();
+        KeepPage(); ResetFilters();
         (_catalog.Studio, _personFrom, _personSearch, _personReturnView, _catalog.View) = ((id, name), from, search, view, "library");
         _filterBusy = true; SortFilter.SelectedItem = SortFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "year") ?? SortFilter.SelectedItem; _filterBusy = false;
         ShowPersonFilter();
@@ -55,7 +55,7 @@ public partial class MainWindow
     /// <summary>A genre clicked on a title page: Films or Séries (as the title is) filtered on it, as Mira web.</summary>
     private async Task ShowGenreAsync(string genre, string type)
     {
-        ResetFilters(); _catalog.View = type == "Series" ? "Series" : "Movie";
+        KeepPage(); ResetFilters(); _catalog.View = type == "Series" ? "Series" : "Movie";
         // Its names in every language Jellyfin knows it by: « Comédie » finds the titles under « Comedy » too.
         var known = GenreFilter.Items.OfType<ComboBoxItem>().SelectMany(x => (x.Tag?.ToString() ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries))
             .Concat(_pageGenres.Values.SelectMany(x => x).SelectMany(x => x.Value.Split('|')));
@@ -70,7 +70,7 @@ public partial class MainWindow
     private async Task ShowSagaAsync(MediaItem saga, string search)
     {
         var view = _catalog.View;
-        ResetFilters();
+        KeepPage(); ResetFilters();
         (_catalog.Saga, _personSearch, _personReturnView, _catalog.View) = ((saga.Id, saga.Name), search, view, "library");
         ShowPersonFilter();
         await NavigateLibraryAsync();
@@ -80,8 +80,11 @@ public partial class MainWindow
     {
         var title = _personFrom; var search = _personSearch; var view = _personReturnView;
         ResetFilters(); _catalog.View = view;
+        // The list the title was found in, scrolled where it was.
+        var recalled = _pages.Recall(PageMemory.KeyOf(_catalog), again: false);
+        if (recalled is not null) Restore(recalled);
         if (search is not null) { _filterBusy = true; SearchBox.Text = search; _filterBusy = false; }
-        await NavigateLibraryAsync();
+        await NavigateLibraryAsync(recalled);
         if (title is not null) { _detailTrail.Replace(_personFromPlace.Trail); await ShowDetailsAsync(title, returnTo: _personFromPlace.Offset); }
     }
     private async void PersonFilter_Click(object sender, RoutedEventArgs e)
@@ -154,13 +157,14 @@ public partial class MainWindow
     /// <summary>Recherche, a page of its own: what was typed there stays (Ctrl+K selects it); filters of another page do not follow.</summary>
     private async void SearchNav_Click(object sender, RoutedEventArgs e)
     {
-        if (_catalog.View != "search") { ResetFilters(); _filtersOpen = false; }
         // Shown before the page is drawn (it may wait for the cache): the field takes the first letter typed.
-        _catalog.View = "search"; CatalogHeader.Visibility = SearchField.Visibility = Visibility.Visible;
-        var work = NavigateLibraryAsync(); SearchBox.Focus(); SearchBox.SelectAll(); await work;
+        var work = GoToPageAsync("search", keepSearch: _catalog.View == "search");
+        CatalogHeader.Visibility = SearchField.Visibility = Visibility.Visible;
+        SearchBox.Focus(); SearchBox.SelectAll(); await work;
     }
     private int _navigationVersion;
-    private async Task NavigateLibraryAsync()
+    /// <param name="recalled">The page as it was left (<see cref="PageMemory"/>): its titles and scroll at once, then refreshed quietly.</param>
+    private async Task NavigateLibraryAsync(PageMemory.State? recalled = null)
     {
         if (SettingsOverlay.Visibility == Visibility.Visible) AutoSaveSettings();
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
@@ -169,13 +173,16 @@ public partial class MainWindow
         _catalog.Loading = true; var navigation = ++_navigationVersion;
         var key = _catalog.Key(SearchBox.Text.Trim(), CurrentQuery()); var page = _catalog.View == "home" ? "home" : key;
         // Read off the UI thread: a page of hundreds of titles takes tens of milliseconds to decode.
-        var cached = _store is { } store && !_catalog.AwaitsSearch(SearchBox.Text.Trim()) ? await Task.Run(() => TryCache(() => store.Load<ItemsResult>(page))) : null;
+        var cached = recalled is null && _store is { } store && !_catalog.AwaitsSearch(SearchBox.Text.Trim()) ? await Task.Run(() => TryCache(() => store.Load<ItemsResult>(page))) : null;
         // Another page was chosen meanwhile: it shows instead.
         if (navigation != _navigationVersion) { await closing; return; }
-        _catalog.Items = cached?.Items ?? []; _catalog.TotalCount = cached?.TotalRecordCount ?? 0;
-        if (cached is not null || _demo) _catalog.Loading = false;
-        RenderLibrary(); SmoothScroll.Jump(LibraryScroll); Motion.Reveal(LibraryScroll, 260, 10);
-        UpdateHeroClock(); await RefreshAsync();
+        _catalog.Items = recalled?.Items ?? cached?.Items ?? []; _catalog.TotalCount = recalled?.TotalCount ?? cached?.TotalRecordCount ?? 0;
+        if (recalled is not null || cached is not null || _demo) _catalog.Loading = false;
+        RenderLibrary();
+        if (recalled is not null) ScrollBack(recalled.Offset); else SmoothScroll.Jump(LibraryScroll);
+        Motion.Reveal(LibraryScroll, 260, 10);
+        // Back to a page left: every title already loaded is asked again, without the spinner, and it stays where it was.
+        UpdateHeroClock(); await RefreshAsync(quiet: recalled is not null);
         await closing; UpdateNavigation(); UpdateHeroClock();
     }
     private Button? _railActive;

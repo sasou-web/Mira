@@ -51,6 +51,30 @@ internal static class LibraryTests
             Assert(trail.Count == TitleTrail.Limit && trail.Back() is { Item.Id: "t34" }, "Pile gardée pendant les titres d’une personne, rendue au retour.");
             return Task.CompletedTask;
         });
+        await Test("Pages gardées : Films → Accueil → Films revient où il était, sauf un second clic ; pas les titres d’une personne", () =>
+        {
+            var memory = new PageMemory(); var catalog = new Catalog { View = "Movie" };
+            PageMemory.State Left(double offset) => new("Comedy|Comédie", "Comédie", "2020", "", "recent", "", true, true, "", [new() { Id = "a" }, new() { Id = "b" }], 120, offset);
+            var films = PageMemory.KeyOf(catalog);
+            memory.Keep(films, Left(1840), loading: false);
+            Assert(memory.Recall(films, again: false) is { Offset: 1840, TotalCount: 120, Favorites: true, Genre: "Comedy|Comédie" } kept && kept.Items.Count == 2, "Films repris tel quel.");
+            Assert(memory.Recall("home", again: false) is null, "Accueil jamais quitté : rien.");
+            Assert(memory.Recall(films, again: true) is null && memory.Recall(films, again: false) is null, "Second clic sur Films à l’écran : en haut, oublié.");
+            memory.Keep(films, Left(300), loading: true);
+            Assert(memory.Recall(films, again: false) is null, "Page encore en chargement : pas gardée.");
+            catalog.View = "library"; catalog.ParentId = "anime";
+            Assert(PageMemory.KeyOf(catalog) == "library:anime", "Une bibliothèque du rail.");
+            catalog.Person = ("p", "Hayao Miyazaki", true);
+            Assert(PageMemory.KeyOf(catalog) is null, "Titres d’une personne : pas une page du rail.");
+            catalog.Person = null; catalog.View = "offline";
+            Assert(PageMemory.KeyOf(catalog) is null, "Sur ce PC : lu à l’instant.");
+            var items = new List<MediaItem> { new() { Id = "x" } };
+            memory.Keep("Series", Left(10) with { Items = items }, loading: false); items.Clear();
+            Assert(memory.Recall("Series", again: false)?.Items.Count == 1, "Titres copiés, pas partagés avec la page.");
+            memory.Clear();
+            Assert(memory.Recall("Series", again: false) is null, "Autre compte : tout oublié.");
+            return Task.CompletedTask;
+        });
         await Test("Catalogue : titres de la page, pages ajoutées sans doublon, vu et favori partout, page vide et démo", () =>
         {
             MediaItem Film(string id, bool favorite = false, long position = 0) => new() { Id = id, Name = id, Type = "Movie", RunTimeTicks = 1000, UserData = new() { IsFavorite = favorite, PlaybackPositionTicks = position } };
