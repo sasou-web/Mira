@@ -2,7 +2,7 @@
 
 ## Non publié
 
-- **Party d’un ami qui ne s’ouvrait pas dans Mira (Windows)** : quand la fenêtre de Mira n’arrive pas à joindre la party (« ERR_CONNECTION_TIMED_OUT » alors que le navigateur y arrive), elle s’ouvre dans le navigateur au bout de 15 secondes au plus, avec un avis, au lieu de la page d’erreur.
+- **Party ouverte dans Mira chez un ami (Windows, Mac, extension)** : par Tailscale Funnel, la page de la party donnait aux apps une adresse en `http://…ts.net` (port 80, où rien n’écoute) : la fenêtre de Mira restait sur « ERR_CONNECTION_TIMED_OUT » alors que le navigateur, qui passe en https tout seul, y arrivait. La page donne maintenant l’adresse en https derrière Tailscale (en-têtes de Serve et Funnel, lus seulement depuis ce PC), et Mira corrige aussi les liens des anciennes extensions. Si la fenêtre n’arrive quand même pas à joindre la party, elle s’ouvre dans le navigateur au bout de 15 secondes au plus, avec un avis.
 - **Page Recherche plus nette (Windows)** : plus de phrase sous le titre qui répétait le champ et se coupait dans une fenêtre étroite ; le champ suit la largeur de la fenêtre (760 au plus) et son texte d’aide ne passe plus sous le curseur.
 
 ## 0.8.9 — 2026-10-31
