@@ -534,7 +534,12 @@
       <TextBlock Text="{v:L 'Nom d’utilisateur', 'Username'}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,7"/>
       <TextBox x:Name="UsernameBox" Height="42" FontSize="13" Margin="0,0,0,16" KeyDown="Login_KeyDown" AutomationProperties.Name="{v:L 'Nom d’utilisateur', 'Username'}"/>
       <TextBlock Text="{v:L 'Mot de passe', 'Password'}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,7"/>
-      <PasswordBox x:Name="PasswordBox" Height="42" FontSize="13" KeyDown="Login_KeyDown" AutomationProperties.Name="{v:L 'Mot de passe', 'Password'}"/>
+      <Grid>
+       <PasswordBox x:Name="PasswordBox" Height="42" FontSize="13" Padding="14,12,48,12" KeyDown="Login_KeyDown" AutomationProperties.Name="{v:L 'Mot de passe', 'Password'}"/>
+       <TextBox x:Name="PasswordBoxPlain" Height="42" FontSize="13" Padding="14,12,48,12" Visibility="Collapsed" KeyDown="Login_KeyDown" AutomationProperties.Name="{v:L 'Mot de passe', 'Password'}"/>
+       <Button x:Name="PasswordBoxEye" Style="{StaticResource IconButton}" Width="36" Height="36" HorizontalAlignment="Right" Margin="0,0,3,0" AutomationProperties.Name="{v:L 'Afficher le mot de passe', 'Show password'}" ToolTip="{v:L 'Afficher le mot de passe', 'Show password'}"><v:Icon x:Name="PasswordBoxEyeIcon" Kind="eye" Width="18" Height="18" Foreground="{StaticResource TextSecondary}"/></Button>
+      </Grid>
+      <TextBlock x:Name="PasswordBoxCaps" Text="{v:L 'Verr. Maj est activé', 'Caps Lock is on'}" FontSize="12" Foreground="{StaticResource Warning}" Margin="0,8,0,0" Visibility="Collapsed" v:Accessible.Announce="Polite"/>
       <TextBlock x:Name="LoginError" Foreground="{StaticResource Danger}" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0" v:Accessible.Announce="Assertive"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
       <Button x:Name="ConnectButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="Connect_Click" Height="44" Margin="0,22,0,0" AutomationProperties.Name="{Binding Text, ElementName=ConnectText}"><StackPanel Orientation="Horizontal"><TextBlock x:Name="ConnectText" Text="{v:L 'Se connecter', 'Sign in'}" FontSize="13"/><v:Icon Kind="next" Width="16" Height="16" Margin="10,0,0,0"/></StackPanel></Button>
       <Button x:Name="ServerSetupLink" Content="{v:L 'Installer Jellyfin', 'Install Jellyfin'}" Style="{StaticResource Quiet}" Click="ServerSetupOpen_Click" FontSize="12" Foreground="{StaticResource TextTertiary}" Height="38" Margin="0,10,0,0" ToolTip="{v:L 'Pas encore de serveur : Mira installe Jellyfin sur ce PC', 'No server yet: Mira installs Jellyfin on this PC'}"/>
@@ -551,7 +556,12 @@
       <TextBlock Text="{v:L 'Nom d’utilisateur', 'Username'}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,7"/>
       <TextBox x:Name="SetupUserBox" Height="42" FontSize="13" Margin="0,0,0,16" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="{v:L 'Nom d’utilisateur', 'Username'}"/>
       <TextBlock Text="{v:L 'Mot de passe', 'Password'}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,7"/>
-      <PasswordBox x:Name="SetupPasswordBox" Height="42" FontSize="13" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="{v:L 'Mot de passe', 'Password'}"/>
+      <Grid>
+       <PasswordBox x:Name="SetupPasswordBox" Height="42" FontSize="13" Padding="14,12,48,12" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="{v:L 'Mot de passe', 'Password'}"/>
+       <TextBox x:Name="SetupPasswordBoxPlain" Height="42" FontSize="13" Padding="14,12,48,12" Visibility="Collapsed" KeyDown="ServerSetup_KeyDown" AutomationProperties.Name="{v:L 'Mot de passe', 'Password'}"/>
+       <Button x:Name="SetupPasswordBoxEye" Style="{StaticResource IconButton}" Width="36" Height="36" HorizontalAlignment="Right" Margin="0,0,3,0" AutomationProperties.Name="{v:L 'Afficher le mot de passe', 'Show password'}" ToolTip="{v:L 'Afficher le mot de passe', 'Show password'}"><v:Icon x:Name="SetupPasswordBoxEyeIcon" Kind="eye" Width="18" Height="18" Foreground="{StaticResource TextSecondary}"/></Button>
+      </Grid>
+      <TextBlock x:Name="SetupPasswordBoxCaps" Text="{v:L 'Verr. Maj est activé', 'Caps Lock is on'}" FontSize="12" Foreground="{StaticResource Warning}" Margin="0,8,0,0" Visibility="Collapsed" v:Accessible.Announce="Polite"/>
       <TextBlock x:Name="SetupStatus" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0" Foreground="{StaticResource TextSecondary}" v:Accessible.Announce="Polite"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
       <Button x:Name="SetupStartButton" Style="{StaticResource Primary}" v:Motion.Radius="9" Click="ServerSetupStart_Click" Height="44" Margin="0,22,0,0" AutomationProperties.Name="{Binding Text, ElementName=SetupStartText}"><TextBlock x:Name="SetupStartText" Text="{v:L 'Installer', 'Install'}" FontSize="13"/></Button>
       <Button x:Name="SetupBackButton" Content="{v:L 'Retour', 'Back'}" Style="{StaticResource Quiet}" Click="ServerSetupBack_Click" FontSize="12" Foreground="{StaticResource TextTertiary}" Margin="0,10,0,0" Height="38"/>

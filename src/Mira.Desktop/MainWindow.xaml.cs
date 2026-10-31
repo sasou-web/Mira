@@ -56,6 +56,8 @@ public partial class MainWindow : Window
         // Before the pages load: they read these colours once.
         FollowHighContrast(); _textScale = TextScale();
         InitializeComponent();
+        Views.PasswordReveal.Attach(PasswordBox, PasswordBoxPlain, PasswordBoxEye, PasswordBoxEyeIcon, PasswordBoxCaps);
+        Views.PasswordReveal.Attach(SetupPasswordBox, SetupPasswordBoxPlain, SetupPasswordBoxEye, SetupPasswordBoxEyeIcon, SetupPasswordBoxCaps);
         // After InitializeComponent: the XAML's 1480 × 930 would otherwise replace the size chosen here.
         FitToScreen();
         InitializeFilters();
