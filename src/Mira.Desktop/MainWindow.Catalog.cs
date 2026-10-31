@@ -227,8 +227,9 @@ public partial class MainWindow
         UpdateNavigation();
         PageTitle.Text = _catalog.PageTitle;
         CatalogDescription.Text = _catalog.Description;
-        // Films and Séries: the title, its tools and its genres, without a sentence between them.
-        var bare = _catalog.View is "Movie" or "Series" && _catalog.Person is null && _catalog.Studio is null && _catalog.Saga is null;
+        // Films and Séries: the title, its tools and its genres, without a sentence between them. Recherche: its field
+        // says it, and the empty page below too.
+        var bare = _catalog.View is "Movie" or "Series" && _catalog.Person is null && _catalog.Studio is null && _catalog.Saga is null || _catalog.View == "search";
         CatalogDescription.Visibility = bare ? Visibility.Collapsed : Visibility.Visible; PageTitle.Margin = new Thickness(0, 0, 0, bare ? 26 : 0);
         Hero.Visibility = home && _catalog.Items.Count + _catalog.Resume.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         CatalogHeader.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
