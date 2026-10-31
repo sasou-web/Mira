@@ -10,7 +10,7 @@ namespace Mira.Desktop;
 /// </summary>
 public partial class MainWindow
 {
-    private bool _loadingMore, _moreFailed, _moreExhausted, _moreScheduled;
+    private bool _loadingMore, _moreFailed, _moreExhausted, _moreScheduled, _listRefreshing;
 
     /// <summary>The grid has more titles on Jellyfin than on screen, and nothing else is being asked for it.</summary>
     private bool GridHasMore => !_demo && _catalog.View != "offline" && !_catalog.Loading && PosterCards.Visibility == Visibility.Visible
@@ -34,7 +34,7 @@ public partial class MainWindow
 
     private void LoadMoreIfNear()
     {
-        if (_loadingMore || _moreFailed || _moreExhausted || !GridHasMore || !PosterCards.IsVisible || LibraryScroll.ActualHeight <= 0) return;
+        if (_listRefreshing || _loadingMore || _moreFailed || _moreExhausted || !GridHasMore || !PosterCards.IsVisible || LibraryScroll.ActualHeight <= 0) return;
         if (!PosterCards.IsDescendantOf(LibraryScroll)) return;
         var bottom = PosterCards.TransformToAncestor(LibraryScroll).Transform(new Point(0, PosterCards.ActualHeight)).Y;
         // Within a screen below the window: the next page is there before the reader reaches the end.
