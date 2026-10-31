@@ -54,6 +54,12 @@ public static class Accessible
         Visit(root);
         return found;
     }
+    /// <summary>False from the moment the window goes to the background until Tab is pressed in it again: coming back by
+    /// Alt+Tab, WPF puts the keyboard ring back on the focused button, which nobody asked for (KeyboardFocus hides it).</summary>
+    public static readonly DependencyProperty FocusRingShownProperty = DependencyProperty.RegisterAttached("FocusRingShown", typeof(bool), typeof(Accessible),
+        new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.Inherits));
+    public static bool GetFocusRingShown(DependencyObject element) => (bool)element.GetValue(FocusRingShownProperty);
+    public static void SetFocusRingShown(DependencyObject element, bool value) => element.SetValue(FocusRingShownProperty, value);
     /// <summary>Set on a control that draws its own keyboard focus (the ring of a card): <see cref="WithoutFocusRing"/> takes its word for it.</summary>
     public static readonly DependencyProperty OwnFocusRingProperty = DependencyProperty.RegisterAttached("OwnFocusRing", typeof(bool), typeof(Accessible), new PropertyMetadata(false));
     public static bool GetOwnFocusRing(DependencyObject element) => (bool)element.GetValue(OwnFocusRingProperty);

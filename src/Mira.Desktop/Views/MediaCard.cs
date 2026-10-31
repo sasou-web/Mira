@@ -81,7 +81,7 @@ public sealed class MediaCard : Button
         MouseMove += (_, _) => HoverEntered?.Invoke(this);
         MouseLeave += (_, _) => HoverLeft?.Invoke(this);
         // Focus from a mouse click must not leave a highlight behind once the pointer moves on.
-        GotKeyboardFocus += (_, _) => { if (InputManager.Current.MostRecentInputDevice is KeyboardDevice) FocusEntered?.Invoke(this); };
+        GotKeyboardFocus += (_, _) => { if (InputManager.Current.MostRecentInputDevice is KeyboardDevice && Accessible.GetFocusRingShown(this)) FocusEntered?.Invoke(this); };
         LostKeyboardFocus += (_, _) => { if (!IsMouseOver) HoverLeft?.Invoke(this); };
         if (item.Progress > 0 && !item.UserData.Played && (wide || settings.ShowProgress))
         {
