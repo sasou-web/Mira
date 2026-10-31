@@ -106,6 +106,15 @@ Ensuite, Mira rejoint ton réseau Tailscale à chaque ouverture, avant de demand
 
 - **Se déconnecter de Tailscale** (même endroit) le dit à Tailscale, puis efface de ce PC la clé et l’état de Tailscale intégré. L’appareil reste dans la [console de Tailscale](https://login.tailscale.com/admin/machines), « Logged out », jusqu’à ce que tu l’y supprimes.
 - Sa connexion expire comme celle de tout appareil Tailscale (180 jours par défaut) : Mira prévient deux semaines avant ; dans la console, **Disable key expiry** (menu `⋯` de l’appareil) l’évite.
+- Pendant une panne du serveur de coordination de Tailscale (comme le 30 octobre 2026 au soir), Tailscale intégré ne peut pas démarrer, sauf si ton réseau Tailscale autorise le cache de la liste des appareils. Pour ça, une fois, dans la [politique de ton réseau](https://login.tailscale.com/admin/acls/file), ajoute (ou complète) :
+
+  ```json
+  "nodeAttrs": [
+    { "target": ["autogroup:member", "autogroup:tagged"], "attr": ["cache-network-maps"] },
+  ],
+  ```
+
+  Un appareil déjà connecté une fois redémarre alors depuis la liste gardée sur lui et joint ton Jellyfin malgré la panne ; une toute première connexion attend que Tailscale revienne. La liste (noms, adresses et clés publiques des appareils) reste dans le dossier de Tailscale intégré, sur l’appareil. Détails : [Client-side netmap caching](https://tailscale.com/docs/reference/client-side-netmap-caching).
 - Vie privée : rien ne part vers Tailscale avant **Se connecter à Tailscale**. Ensuite, comme pour l’app Tailscale, ses serveurs voient le compte choisi, le nom de l’appareil, son système et ses adresses IP (publique et locales, pour la connexion directe) ; tes vidéos restent chiffrées de bout en bout, en direct ou par un relais de Tailscale. Mira n’envoie aucun journal à Tailscale ; le sien, `data\tailscale\mira-tailscale.log`, ne garde aucune page de connexion. Détails dans [SECURITY.md](../SECURITY.md#tailscale-intégré-windows).
 
 ## TorLink
