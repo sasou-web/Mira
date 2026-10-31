@@ -145,6 +145,13 @@ const scenes = {
     if (id) after.push(() => api(page, 'DELETE', `UserFavoriteItems/${id}`).catch(() => {}));
     return focus;
   },
+  // « Ta party »: the account's one link to watch together.
+  async party(page) {
+    await page.goto(`${base}#/invites`);
+    await page.locator('.party-card').waitFor({ timeout: 15000 }).catch(() => console.log('::warning::no party card'));
+    await settle(page);
+    return box(page, ['.party-card']);
+  },
   // The Home's banner and its pills.
   async home(page) { await settle(page); return box(page, ['.hero .dots'], 40); },
 };

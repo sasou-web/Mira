@@ -2,6 +2,10 @@
 
 ## Non publié
 
+## 0.8.9 — 2026-10-31
+
+Ta party : un lien pour regarder ensemble, un PC de Jellyfin qui se règle seul, Windows plus net.
+
 - **Ta party sur l’app iPhone** : « Open in Mira » d’un lien de party ouvre l’app et te fait entrer dans le groupe de l’hôte (ou attend qu’il l’ouvre, 10 minutes au plus) ; un lien d’un autre Jellyfin s’ouvre dans Safari, comme invité.
 - **Ta party sous Windows et Mac** : « Inviter quelqu’un » donne ton lien de party ; sur le PC de Jellyfin, Mira ouvre Tailscale Funnel tout seul (à la connexion d’un administrateur et quand tu invites), pour que le lien marche partout ; Tailscale ne demande qu’une fois d’autoriser Funnel sur ton compte, Mira ouvre sa page. Un lien de party ouvert dans Mira (« Open in Mira ») te fait entrer tout de suite dans le groupe de l’hôte, ou attend qu’il l’ouvre ; la party d’un autre Jellyfin (celui d’un ami) s’ouvre comme invité, dans une fenêtre de Mira sous Windows, dans le navigateur sur Mac.
 - **Ta party : un seul lien pour regarder ensemble (extension, Mira web)** : chaque compte a son lien de party, le même d'une soirée à l'autre (`/Mira/party/<code>`). Ouvert, il montre qui invite et ce qu'il regarde (carte Discord, iMessage, WhatsApp avec l'affiche), puis **Open in Mira** ou **Watch in the browser** : sans compte, un invité est créé pour cet appareil (son prénom, retrouvé à chaque retour), qui entre dans le groupe de l'hôte ; avec un compte de ce Jellyfin, Mira web va droit au groupe. Par Tailscale Funnel quand il est ouvert, sinon à l'adresse Tailscale du serveur (fabriquée par le serveur, plus par l'appareil qui invite). Refaire le lien coupe l'ancien et ses invités. Ce que regarde l'hôte apparaît dans la carte du lien : à qui a le lien seulement.
