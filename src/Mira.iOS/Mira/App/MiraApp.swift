@@ -195,7 +195,7 @@ enum Messages {
         case .approval:
             String(localized: "Built-in Tailscale is waiting for this iPhone to be approved in Tailscale’s admin console.")
         case .starting:
-            String(localized: "Built-in Tailscale is connecting. Try again in a moment.")
+            String(localized: "Built-in Tailscale is connecting. Try again in a moment; if it lasts, Tailscale’s servers may be down (status.tailscale.com).")
         case .offline:
             String(localized: "Built-in Tailscale can’t reach Tailscale. Check this iPhone’s connection.")
         case let .serverOffline(name):

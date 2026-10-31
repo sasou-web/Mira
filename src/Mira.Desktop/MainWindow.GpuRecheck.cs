@@ -8,7 +8,8 @@ namespace Mira.Desktop;
 /// The graphics card Jellyfin converts with, tried again once Jellyfin or a card's driver has changed
 /// (<see cref="GpuRecheck"/>): two minutes after the start, then every half hour while Mira runs, for an administrator
 /// of a Jellyfin on this PC (Mira reads this PC's drivers), never while anyone watches. Two failed tries put Jellyfin
-/// back on the processor, and Mira says so.
+/// back on the processor, and Mira says so. A Jellyfin on the processor, with a card here it could use, gets the card
+/// tried by Mira itself (<see cref="GpuRecheck.TriesFirst"/>): kept and said when it converts, put back silently otherwise.
 /// </summary>
 public partial class MainWindow
 {
@@ -31,7 +32,8 @@ public partial class MainWindow
             var server = new Uri(client.Connection.Server);
             if (!server.IsLoopback && !await Task.Run(() => LocalNetwork.IsThisPc(server.Host))) return;
             // Read first: an account that is not an administrator, or a Jellyfin on the processor, has nothing to try.
-            if (await client.HardwareAccelerationAsync(ct) is not { } kind || kind == GpuEncoding.None) return;
+            if (await client.HardwareAccelerationAsync(ct) is not { } kind) return;
+            if (kind == GpuEncoding.None) { await TryGpuFirstAsync(client, ct); return; }
             var fingerprint = GpuRecheck.Fingerprint(await client.ServerVersionAsync(ct), await Task.Run(GraphicsCards.Drivers));
             // Nothing changed since the last try that converted: Jellyfin's sessions are not even read.
             if (fingerprint is null || fingerprint == _settings.GpuCheckedFor) return;
@@ -58,6 +60,26 @@ public partial class MainWindow
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex) when (IsExpected(ex)) { }
         finally { _gpuRechecking = false; }
+    }
+
+    /// <summary>
+    /// Jellyfin on the processor: each card of this PC tried on a title (<see cref="GpuEncoding.EnableAsync"/>), the
+    /// first that converts kept. Tried once for this Jellyfin and these drivers; nothing to convert yet tries again later.
+    /// </summary>
+    private async Task TryGpuFirstAsync(JellyfinClient client, CancellationToken ct)
+    {
+        var cards = GpuEncoding.Candidates(await Task.Run(GraphicsCards.Names));
+        var fingerprint = GpuRecheck.Fingerprint(await client.ServerVersionAsync(ct), await Task.Run(GraphicsCards.Drivers));
+        if (_gpuBusy || !GpuRecheck.TriesFirst(_settings.GpuKeptOff, cards.Count, fingerprint, _settings.GpuTriedFor, watching: (await client.ViewersAsync(ct)).Count > 0)) return;
+        _gpuBusy = true;
+        (GpuOutcome Outcome, GpuEncoding.Card? Card) tried;
+        try { tried = await GpuEncoding.EnableAsync(client, cards, TimeSpan.FromSeconds(30), ct); }
+        finally { _gpuBusy = false; }
+        if (tried.Outcome == GpuOutcome.NothingToTry || !ReferenceEquals(client, _client)) return;
+        _settings.GpuTriedFor = fingerprint!;
+        if (tried is (GpuOutcome.Done, { } card)) { _settings.GpuCheckedFor = fingerprint!; _settings.GpuFailures = 0; AddNotice(GpuRecheck.TurnedOn(card.Name)); }
+        TrySaveSettings();
+        if (SettingsOverlay.Visibility == System.Windows.Visibility.Visible) _ = ShowGpuAsync();
     }
 
     /// <summary>A card just kept by « Utiliser la carte graphique » holds for this Jellyfin and these drivers: not tried again.</summary>

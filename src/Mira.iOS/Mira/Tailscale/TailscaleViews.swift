@@ -43,6 +43,14 @@ struct TailnetRows: View {
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("tailscale.starting")
+                if tailnet.slow {
+                    Text("Tailscale’s servers aren’t answering. Mira keeps trying: nothing to change on this iPhone. If it lasts, Tailscale may be having an outage.")
+                        .font(MiraFont.footnote).foregroundStyle(Palette.warning).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("tailscale.slow")
+                    Link(destination: URL(string: "https://status.tailscale.com")!) {
+                        Label("Open Tailscale’s status page", systemImage: "arrow.up.forward.app").font(MiraFont.body)
+                    }
+                }
             case .signIn:
                 Button {
                     Task { await tailnet.signIn() }

@@ -34,8 +34,10 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// The reminder once a backup is due (<see cref="JellyfinBackups.Reminds"/>), else the notice of a newer Jellyfin,
-    /// once per version; never over another notice on screen: the next look says it.
+    /// Once a backup is due (<see cref="JellyfinBackups.Reminds"/>), Jellyfin backed up by Mira itself while nobody
+    /// watches (looked at again every 6 hours otherwise), its own folder then kept to its newest archives; the reminder
+    /// only when that failed. Else the notice of a newer Jellyfin, once per version; never over another notice on
+    /// screen: the next look says it.
     /// </summary>
     private async Task CareForJellyfinAsync()
     {
@@ -44,6 +46,12 @@ public partial class MainWindow
         try
         {
             if (!await JellyfinOnThisPcAsync(client) || await client.IsAdministratorAsync(ct) != true) return;
+            // The timeline's previews, once per server, the light way (key frames only, idle priority): made by Jellyfin's
+            // nightly task and after each scan, never started now.
+            if (_settings.TrickplayAutoFor != client.Connection.Server && await client.TrickplayEnabledAsync(ct) is { } previews)
+            {
+                if (previews || await client.EnableTrickplayAsync(now: false, ct)) { _settings.TrickplayAutoFor = client.Connection.Server; TrySaveSettings(); }
+            }
             var now = DateTimeOffset.Now;
             if (await client.BackupsAsync(ct) is { } backups && ReferenceEquals(client, _client))
             {
@@ -51,9 +59,14 @@ public partial class MainWindow
                 if (_settings.JellyfinBackupWatchedSince is null) { _settings.JellyfinBackupWatchedSince = now; TrySaveSettings(); }
                 if (JellyfinBackups.Reminds(_newestBackup?.Created, _settings.JellyfinBackupWatchedSince.Value, _settings.JellyfinBackupRemindedAt, now))
                 {
-                    if (NoticeShown) return;
+                    if (NoticeShown || _jellyfinBusy || (await client.ViewersAsync(ct)).Count > 0) return;
                     _settings.JellyfinBackupRemindedAt = now; TrySaveSettings();
-                    SetNotice(JellyfinBackups.Reminder(_newestBackup, now), L("Sauvegarder", "Back up"), () => _ = BackUpFromNoticeAsync(client));
+                    SetJellyfinBusy(true);
+                    JellyfinBackup? made;
+                    try { made = await BackUpJellyfinAsync(client, ct); }
+                    finally { SetJellyfinBusy(false); }
+                    // Said as it goes (« Sauvegarde de Jellyfin… », then where it is, or why not: tried again a week later).
+                    if (made is not null && Path.GetDirectoryName(made.Path) is { Length: > 0 } own) await Task.Run(() => JellyfinBackups.Prune(own));
                     return;
                 }
             }
@@ -178,13 +191,6 @@ public partial class MainWindow
     private async void JellyfinBackup_Click(object sender, RoutedEventArgs e)
     {
         if (_jellyfinBusy || _client is not { } client) return;
-        SetJellyfinBusy(true);
-        try { await BackUpJellyfinAsync(client, _connectionLifetime.Token); }
-        finally { SetJellyfinBusy(false); }
-    }
-    private async Task BackUpFromNoticeAsync(JellyfinClient client)
-    {
-        if (_jellyfinBusy || !ReferenceEquals(client, _client)) return;
         SetJellyfinBusy(true);
         try { await BackUpJellyfinAsync(client, _connectionLifetime.Token); }
         finally { SetJellyfinBusy(false); }

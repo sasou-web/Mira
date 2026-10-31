@@ -22,6 +22,7 @@ var kept = []featuretags.FeatureTag{
 	"tailnetlock",  // joining a tailnet that uses Tailnet Lock
 	"ace",          // reaching Tailscale through its alternate endpoints, where it asks to
 	"gro",          // faster reception (video)
+	"cachenetmap",  // starting from the last network map while Tailscale's coordination server is down (an outage)
 	"serve",        // required by tsnet's code, never used
 	"acme",         // required by tsnet's code, never used
 }

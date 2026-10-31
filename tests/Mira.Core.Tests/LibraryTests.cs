@@ -908,6 +908,9 @@ internal static class LibraryTests
                  {"Name":"Musique","CollectionType":"music","ItemId":"m1","LibraryOptions":{"EnableTrickplayImageExtraction":false}}]
                 """)!.AsArray();
             var posted = new List<System.Text.Json.Nodes.JsonNode>(); var started = new List<string>(); var state = "Idle";
+            // Jellyfin 12.1's defaults, cut down: the enum as a name.
+            var configuration = System.Text.Json.Nodes.JsonNode.Parse("""{"ServerName":"vm","TrickplayOptions":{"EnableHwAcceleration":false,"EnableKeyFrameOnlyExtraction":false,"ScanBehavior":"NonBlocking","ProcessPriority":"BelowNormal","Interval":10000,"WidthResolutions":[320],"ProcessThreads":1}}""")!.AsObject();
+            var saves = 0;
             using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device"), new Handler(async request =>
             {
                 var path = request.RequestUri!.PathAndQuery;
@@ -919,6 +922,8 @@ internal static class LibraryTests
                     folders.First(x => (string?)x!["ItemId"] == (string?)body["Id"])!["LibraryOptions"] = body["LibraryOptions"]!.DeepClone();
                     return new HttpResponseMessage(HttpStatusCode.NoContent);
                 }
+                if (path == "/System/Configuration" && request.Method == HttpMethod.Get) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(configuration.ToJsonString(), Encoding.UTF8, "application/json") };
+                if (path == "/System/Configuration" && request.Method == HttpMethod.Post) { configuration = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync())!.AsObject(); saves++; return new HttpResponseMessage(HttpStatusCode.NoContent); }
                 // As Jellyfin 12.1 lists its tasks, cut down.
                 if (path == "/ScheduledTasks?isHidden=false") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($$"""[{"Name":"Scan Media Library","Key":"RefreshLibrary","Id":"a1","State":"Idle"},{"Name":"Generate Trickplay Images","Key":"RefreshTrickplayImages","Id":"t1","State":"{{state}}"{{(state == "Running" ? ",\"CurrentProgressPercentage\":42.5" : "")}}}]""") };
                 if (path.StartsWith("/ScheduledTasks/Running/", StringComparison.Ordinal) && request.Method == HttpMethod.Post) { started.Add(path); state = "Running"; return new HttpResponseMessage(HttpStatusCode.NoContent); }
@@ -929,6 +934,16 @@ internal static class LibraryTests
                 && (bool?)posted[0]["LibraryOptions"]!["AutomaticallyAddToCollection"] == true && started.SequenceEqual(["/ScheduledTasks/Running/t1"]), "Films only, then the task: " + string.Join(" ", started));
             Assert(await client.TrickplayEnabledAsync() == true && await client.TrickplayProgressAsync() == .425, "On, the task running");
             Assert(await client.EnableTrickplayAsync() && posted.Count == 1 && started.Count == 1, "Running: not started twice");
+            // The light way: key frames only, idle priority, the rest kept; sent once, whatever Jellyfin writes the enum as.
+            var light = configuration["TrickplayOptions"]!;
+            Assert(saves == 1 && (bool?)light["EnableKeyFrameOnlyExtraction"] == true && (string?)light["ProcessPriority"] == "Idle" && (int?)light["ProcessThreads"] == 1
+                && (int?)light["Interval"] == 10000 && (string?)configuration["ServerName"] == "vm", "Light: " + light.ToJsonString());
+            var numbered = System.Text.Json.Nodes.JsonNode.Parse("""{"TrickplayOptions":{"ProcessPriority":16384,"ProcessThreads":4}}""")!.AsObject();
+            Assert(JellyfinClient.LightTrickplay(numbered) && (int?)numbered["TrickplayOptions"]!["ProcessPriority"] == 64 && (int?)numbered["TrickplayOptions"]!["ProcessThreads"] == 1
+                && !JellyfinClient.LightTrickplay(numbered) && !JellyfinClient.LightTrickplay(new System.Text.Json.Nodes.JsonObject()), "As a number, then nothing left; before 10.9, nothing");
+            // Turned on by Mira itself: the task left to its night.
+            folders[0]!["LibraryOptions"]!["EnableTrickplayImageExtraction"] = false; state = "Idle";
+            Assert(await client.EnableTrickplayAsync(now: false) && posted.Count == 2 && started.Count == 1, "Not started now");
         });
         await Test("Nouveaux épisodes : séries suivies seulement, une notice par série, marque = date de Jellyfin", async () =>
         {
@@ -1294,6 +1309,10 @@ internal static class LibraryTests
             var notice = GpuRecheck.Notice("nvenc");
             Assert(notice.Contains("(NVIDIA)", StringComparison.Ordinal) && notice.Contains("processeur", StringComparison.Ordinal) && notice.Contains("Utiliser la carte graphique", StringComparison.Ordinal), notice);
             Assert(GpuRecheck.FirstLook < GpuRecheck.Retry && GpuRecheck.FailuresBeforeProcessor == 2, "Timing");
+            // On the processor: tried by Mira itself once per Jellyfin and drivers, never while watching, never once the person went back.
+            Assert(GpuRecheck.TriesFirst(false, 1, before, "", false) && !GpuRecheck.TriesFirst(false, 1, before, before, false) && GpuRecheck.TriesFirst(false, 1, newDriver, before, false)
+                && !GpuRecheck.TriesFirst(false, 1, before, "", true) && !GpuRecheck.TriesFirst(true, 1, before, "", false) && !GpuRecheck.TriesFirst(false, 0, before, "", false)
+                && !GpuRecheck.TriesFirst(false, 1, null, "", false) && GpuRecheck.TurnedOn("Intel(R) UHD Graphics").Contains("Intel(R) UHD Graphics", StringComparison.Ordinal), "Tried by itself");
             // Jellyfin's version, as 12.1 gives it, camelCase while it starts.
             var info = """{"LocalAddress":"http://127.0.0.1:8096","ServerName":"vm","Version":"12.1.0","Id":"5c63"}""";
             using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>

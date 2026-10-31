@@ -97,12 +97,24 @@ public static partial class JellyfinBackups
         var target = Path.Combine(folder, name); var part = target + ".part";
         try { File.Copy(archive, part, overwrite: true); File.Move(part, target, overwrite: true); }
         catch { try { File.Delete(part); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } throw; }
-        foreach (var old in Superseded(Directory.EnumerateFiles(folder).Select(Path.GetFileName).OfType<string>()))
-        {
-            try { File.Delete(Path.Combine(folder, old)); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        }
+        Prune(folder);
         return target;
+    }
+    /// <summary>
+    /// The archives of <paramref name="folder"/> beyond the <see cref="CopiesKept"/> newest removed, as far as Windows
+    /// lets Mira: the person's folder, or Jellyfin's own after a backup Mira made by itself (a month each, they pile up).
+    /// </summary>
+    public static void Prune(string folder)
+    {
+        try
+        {
+            foreach (var old in Superseded(Directory.EnumerateFiles(folder).Select(Path.GetFileName).OfType<string>()))
+            {
+                try { File.Delete(Path.Combine(folder, old)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
     [GeneratedRegex(@"^jellyfin-backup-\d{14}\.zip$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)] private static partial Regex ArchiveName();
 }

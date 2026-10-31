@@ -3,7 +3,7 @@ namespace Mira.Core;
 /// <summary>
 /// « Mira sur ton téléphone », in the guide of Mira for Windows: what stands between a Jellyfin and a phone that opens
 /// Mira web, at home and away, as steps in the order they matter. Each is done, done by « Tout préparer » (one click,
-/// one consent of Windows), or left to the person (an app to install, another account); and the address the QR code
+/// one consent of Windows, asked only for the firewall and Jellyfin's service), or left to the person (an app to install, another account); and the address the QR code
 /// gives. The guide reads the facts; this says what they mean, so that the tests can check every case.
 /// </summary>
 public static class PhoneSetup
@@ -21,14 +21,15 @@ public static class PhoneSetup
     /// PC, which the firewall is opened for. <paramref name="Answering"/>: Jellyfin answers (it may be restarting, or
     /// stopped). <paramref name="NetworkKept"/>: Windows did not let « Passer en privé » make the public network
     /// (<see cref="JellyfinFirewall.Reach.Public"/>) private. <paramref name="Down"/>: what a Jellyfin on this PC that
-    /// does not answer is (<see cref="LocalJellyfin.Judge"/>). <paramref name="Node"/>: Tailscale on this PC, read by its
+    /// does not answer is (<see cref="LocalJellyfin.Judge"/>). <paramref name="UnattendedKept"/>, <paramref name="SleepKept"/>:
+    /// « Tout préparer » tried, and Tailscale or Windows did not take it: the person's then, never tried again in a loop. <paramref name="Node"/>: Tailscale on this PC, read by its
     /// command line (<see cref="TailscaleNode"/>). <paramref name="Power"/>: Windows' power plan on mains power
     /// (<see cref="ServerSleep"/>). Null: not known, or not readable with this account.
     /// </summary>
     public sealed record Facts(string Server, bool Local, bool? Web, string? Home, bool? Admin = null, string? Tailnet = null, bool? TailnetAllowed = null,
         JellyfinFirewall.Reach? Firewall = null, JellyfinFirewall.RuleState MiraRule = JellyfinFirewall.RuleState.Missing, JellyfinStartup.State? Boot = null,
         bool Program = true, bool Answering = true, bool NetworkKept = false, LocalJellyfin.Verdict Down = LocalJellyfin.Verdict.Unknown,
-        TailscaleNode.State? Node = null, ServerSleep.Plan? Power = null);
+        TailscaleNode.State? Node = null, ServerSleep.Plan? Power = null, bool UnattendedKept = false, bool SleepKept = false);
 
     public static IReadOnlyList<Step> Steps(Facts facts)
     {
@@ -110,17 +111,18 @@ public static class PhoneSetup
             (_, null) when facts.Admin != false => new("tailscale", Mark.Note, L("Tailscale dans Jellyfin", "Tailscale in Jellyfin"), facts.Answering ? L("Vérification…", "Checking…") : L("Vérifié dès que Jellyfin répond.", "Checked as soon as Jellyfin answers.")),
             _ => new("tailscale", Mark.Yours, L("Autoriser Tailscale dans Jellyfin", "Allow Tailscale in Jellyfin"), L("Il faut le compte administrateur de Jellyfin : connecte Mira avec celui-ci.", "This needs Jellyfin’s administrator account: sign Mira in with it.")),
         });
-        // Tailscale on this PC, once it has its address: connected without a Windows session, and this PC's connection
-        // not about to expire. Both are the person's: « Tout préparer » never changes Tailscale; « Run unattended » has
-        // its own button, which runs Tailscale's command line, in the person's rights.
+        // Tailscale on this PC, once it has its address: connected without a Windows session (« Run unattended », set by
+        // « Tout préparer » through Tailscale's command line, in the person's rights, no consent of Windows), and this PC's
+        // connection not about to expire (the person's: only Tailscale's page turns expiry off).
         if (facts.Tailnet is not null && facts.Node is { } node)
         {
             steps.Add(node.Unattended switch
             {
                 true => new("unattended", Mark.Done, L("Tailscale reste connecté sans ta session", "Tailscale stays connected without your session"), L("Après un redémarrage, il se reconnecte sans attendre que tu ouvres ta session.", "After a restart, it reconnects without waiting for you to sign in to Windows.")),
-                false => new("unattended", Mark.Yours, L("Tailscale se coupe sans ta session", "Tailscale disconnects without your session"),
-                    L($"Après un redémarrage (une mise à jour de Windows la nuit, par exemple), ton téléphone ne trouve plus ce PC tant que tu n’as pas ouvert ta session. Mira peut le régler ; sinon, {TailscaleNode.WhereUnattended}.", $"After a restart (a Windows update at night, for example), your phone can’t find this PC until you sign in to Windows. Mira can set this; otherwise, {TailscaleNode.WhereUnattended}."),
-                    TailscaleNode.KeepConnected),
+                false when facts.UnattendedKept => new("unattended", Mark.Yours, L("Tailscale se coupe sans ta session", "Tailscale disconnects without your session"),
+                    L($"Tailscale n’a pas pris le réglage de Mira : {TailscaleNode.WhereUnattended}. Sinon, après un redémarrage, ton téléphone ne trouve plus ce PC tant que tu n’as pas ouvert ta session.", $"Tailscale didn’t take Mira’s setting: {TailscaleNode.WhereUnattended}. Otherwise, after a restart, your phone can’t find this PC until you sign in to Windows.")),
+                false => new("unattended", Mark.ToDo, L("Garder Tailscale connecté sans ta session", "Keep Tailscale connected without your session"),
+                    L("Après un redémarrage (une mise à jour de Windows la nuit, par exemple), ton téléphone trouvera ce PC sans attendre que tu ouvres ta session.", "After a restart (a Windows update at night, for example), your phone will find this PC without waiting for you to sign in to Windows.")),
                 null => new("unattended", Mark.Note, L("Tailscale sans ta session", "Tailscale without your session"),
                     L($"Mira ne peut pas lire les réglages de Tailscale. Pour que ton téléphone trouve ce PC après un redémarrage, avant que tu ouvres ta session, {TailscaleNode.WhereUnattended}.", $"Mira can’t read Tailscale’s settings. For your phone to find this PC after a restart, before you sign in to Windows, {TailscaleNode.WhereUnattended}.")),
             });
@@ -141,11 +143,14 @@ public static class PhoneSetup
             { HasService: true } => new("boot", Mark.ToDo, L("Disponible dès l’allumage du PC", "Available as soon as the PC turns on"), L("Jellyfin démarrera avec Windows, sans attendre ta session, et repartira après une erreur.", "Jellyfin will start with Windows, without waiting for your session, and restart after an error.")),
             _ => new("boot", Mark.Note, L("Jellyfin démarre avec ta session", "Jellyfin starts with your session"), L("Ton téléphone le trouve une fois ta session Windows ouverte sur ce PC.", "Your phone finds it once you’ve signed in to Windows on this PC.")),
         });
-        // Asleep, the PC answers no one: changed only by the person's own button, never by « Tout préparer ».
+        // Asleep, the PC answers no one: « Tout préparer » keeps it awake on mains power (powercfg, the person's rights),
+        // never on battery; what Windows does not take is the person's.
         if (facts.Power is { } power)
         {
             var (title, text) = ServerSleep.Says(power);
-            steps.Add(ServerSleep.Sleeps(power) ? new("sleep", Mark.Yours, title, text, ServerSleep.NeverOnMains) : new("sleep", Mark.Done, title, text));
+            steps.Add(!ServerSleep.Sleeps(power) ? new("sleep", Mark.Done, title, text)
+                : facts.SleepKept ? new("sleep", Mark.Yours, title, L($"Windows n’a pas pris le réglage de Mira : {ServerSleep.WhereNever}.", $"Windows didn’t take Mira’s setting: {ServerSleep.WhereNever}."))
+                : new("sleep", Mark.ToDo, title, text));
         }
         return steps;
     }
