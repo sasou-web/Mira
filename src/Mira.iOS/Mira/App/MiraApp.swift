@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var phase
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ZStack {
@@ -52,6 +53,10 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: app.session?.userId)
+        // A party link (mira://party/…): into the host's group, or its page in Safari as a guest.
+        .onOpenURL { url in
+            Task { if let web = await app.together.openParty(url) { openURL(web) } }
+        }
         .onChange(of: phase) {
             switch phase {
             case .active: app.foreground()
