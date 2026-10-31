@@ -71,10 +71,10 @@ public partial class MainWindow : Window
         InitializeHeroClock();
         InitializeSnapLayouts();
         // Windows' text size is read again each time Mira comes back to the front: changed in Settings meanwhile.
-        Activated += (_, _) => { UpdateHeroClock(); _textScale = TextScale(); if (UpdateZoom()) FitPages(); }; Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); };
+        Activated += (_, _) => { UpdateHeroClock(); _textScale = TextScale(); if (UpdateZoom()) FitPages(); }; Deactivated += (_, _) => { UpdateHeroClock(); ClosePreview(); Accessible.SetFocusRingShown(this, false); };
         // Windows' animation effects turned on or off: the banner's rotation follows at once.
         SystemParameters.StaticPropertyChanged += (_, e) => { if (e.PropertyName == nameof(SystemParameters.ClientAreaAnimation)) UpdateHeroClock(); };
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Tab) _keyboardNavigation = true; };
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Tab) { _keyboardNavigation = true; Accessible.SetFocusRingShown(this, true); } };
         PreviewMouseDown += (_, e) =>
         {
             _keyboardNavigation = false;

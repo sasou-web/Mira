@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Plus de contour blanc après Alt+Tab (Windows)** : en revenant dans Mira, Windows remettait l’anneau du clavier autour du bouton choisi (« Revoir » de la fiche, par exemple). Il ne revient plus qu’après une vraie touche Tab.
+
 ## 0.8.9 — 2026-10-31
 
 Ta party : un lien pour regarder ensemble, un PC de Jellyfin qui se règle seul, Windows plus net.

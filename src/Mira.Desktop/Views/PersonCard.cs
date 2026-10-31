@@ -37,7 +37,7 @@ public sealed class PersonCard : Button
         // The ring is the hover and keyboard focus indicator, as on the posters.
         FocusVisualStyle = null; Accessible.SetOwnFocusRing(this, true);
         MouseEnter += (_, _) => _ring.Opacity = 1; MouseLeave += (_, _) => { if (!IsKeyboardFocused) _ring.Opacity = 0; };
-        GotKeyboardFocus += (_, _) => _ring.Opacity = 1; LostKeyboardFocus += (_, _) => { if (!IsMouseOver) _ring.Opacity = 0; };
+        GotKeyboardFocus += (_, _) => { if (IsMouseOver || Accessible.GetFocusRingShown(this)) _ring.Opacity = 1; }; LostKeyboardFocus += (_, _) => { if (!IsMouseOver) _ring.Opacity = 0; };
     }
     /// <summary>Their photo, decoded at the size shown, when Jellyfin has one; the initials stay otherwise.</summary>
     public async Task LoadImageAsync(ImageCache images)
