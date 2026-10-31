@@ -8,7 +8,7 @@ namespace Mira.Desktop;
 /// <summary>
 /// « Accueil à ta main » (<see cref="HomeLayout"/>, as on Mac and in Mira web): the home page's rows in the order chosen
 /// in Réglages → Apparence, each shown or not. Continuer à regarder, Tes favoris, Collections and « Nouveau dans … » (a
-/// library's latest titles) are rows; « Ajoutés récemment » is the grid that goes on with « Afficher plus », so it stays below them.
+/// library's latest titles) are rows; « Ajoutés récemment » is the grid that goes on as it scrolls, so it stays below them.
 /// </summary>
 public partial class MainWindow
 {

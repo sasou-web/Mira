@@ -264,7 +264,7 @@ public partial class MainWindow
         if (empty && EmptyState.Visibility != Visibility.Visible) Motion.Reveal(EmptyState, 260, 8); else if (!empty) EmptyState.Visibility = Visibility.Collapsed;
         ShowSkeleton(grid && _catalog.Loading);
         if (_catalog.Loading) ItemCount.Text = L("Chargement…", "Loading…");
-        LoadMore.Visibility = grid && !_demo && !_catalog.Loading && _catalog.Items.Count < _catalog.TotalCount ? Visibility.Visible : Visibility.Collapsed;
+        UpdateGridMore();
         UpdateResumeArrows(); UpdateHeroClock();
         if (!_startupComplete && !_catalog.Loading && (_catalog.Items.Count > 0 || _catalog.Resume.Count > 0)) _ = RevealStartupAsync();
     }
@@ -318,14 +318,16 @@ public partial class MainWindow
         var (columns, width) = PosterLayout(available);
         CatalogSkeleton.Children.Clear();
         for (var i = 0; i < columns * 2; i++)
-        {
-            var card = new StackPanel { Width = width, Margin = new Thickness(0, 0, 22, 30) };
-            card.Children.Add(new Squircle { Height = width * 1.48, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(MediaCard.PosterRadius) });
-            card.Children.Add(new Border { Height = 12, Width = width * .72, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Raised"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 16, 0, 0) });
-            card.Children.Add(new Border { Height = 9, Width = width * .42, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 12, 0, 20) });
-            CatalogSkeleton.Children.Add(card);
-        }
+            CatalogSkeleton.Children.Add(SkeletonCard(width));
         if (CatalogSkeleton.Visibility != Visibility.Visible) { CatalogSkeleton.Visibility = Visibility.Visible; Motion.Pulse(CatalogSkeleton, true); }
+    }
+    private static StackPanel SkeletonCard(double width)
+    {
+        var card = new StackPanel { Width = width, Margin = new Thickness(0, 0, 22, 30) };
+        card.Children.Add(new Squircle { Height = width * 1.48, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(MediaCard.PosterRadius) });
+        card.Children.Add(new Border { Height = 12, Width = width * .72, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Raised"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 16, 0, 0) });
+        card.Children.Add(new Border { Height = 9, Width = width * .42, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 12, 0, 20) });
+        return card;
     }
     private void DescribeEmptyState(string search)
     {
@@ -383,7 +385,7 @@ public partial class MainWindow
     }
     /// <summary>
     /// Asks for the artwork of the posters on screen or within a screen of it, in either direction. The others wait:
-    /// a grid of hundreds of titles (« Afficher plus ») would otherwise download and decode them all at once.
+    /// a grid of hundreds of titles (pages loaded as it scrolls) would otherwise download and decode them all at once.
     /// </summary>
     private void LoadVisibleArtwork()
     {
@@ -499,7 +501,7 @@ public partial class MainWindow
         var available = PosterCards.ActualWidth; if (available < 200) return;
         var (_, width) = PosterLayout(available);
         foreach (var card in PosterCards.Children.OfType<MediaCard>()) card.Resize(width);
-        foreach (var card in CatalogSkeleton.Children.OfType<StackPanel>())
+        foreach (var card in CatalogSkeleton.Children.OfType<StackPanel>().Concat(MoreSkeleton.Children.OfType<StackPanel>()))
         {
             card.Width = width;
             if (card.Children is [Squircle art, Border title, Border detail]) { art.Height = width * 1.48; title.Width = width * .72; detail.Width = width * .42; }
@@ -518,7 +520,7 @@ public partial class MainWindow
         if (Math.Abs(e.VerticalChange) + Math.Abs(e.HorizontalChange) > 0) NoteScroll();
         UpdateResumeArrows();
         // The page itself (not the resume row inside it) moved or changed size: other posters may now be near the screen.
-        if (e.OriginalSource == LibraryScroll) { ScheduleVisibleArtwork(); if (e.VerticalChange != 0 || e.ViewportHeightChange != 0) UpdateHeroClock(); }
+        if (e.OriginalSource == LibraryScroll) { ScheduleVisibleArtwork(); ScheduleMoreCheck(); if (e.VerticalChange != 0 || e.ViewportHeightChange != 0) UpdateHeroClock(); }
     }
     /// <summary>The page to open for an item: an episode opens its series.</summary>
     private async Task<MediaItem> PageItemAsync(MediaItem item)

@@ -427,14 +427,16 @@ public partial class MainWindow : Window
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
         finally { _scanning = false; SpinRefresh(false); RefreshLabel.Text = L("Actualiser", "Refresh"); }
     }
-    private async void LoadMore_Click(object sender, RoutedEventArgs e) => await RefreshAsync(more: true);
-    private async Task RefreshAsync(bool more = false, bool quiet = false)
+    /// <returns>True when Jellyfin did not answer (the grid's next page then offers « Réessayer »).</returns>
+    private async Task<bool> RefreshAsync(bool more = false, bool quiet = false)
     {
         _searchTimer.Stop();
-        if (_demo) { RenderDemo(); return; }
+        // A new list, or the same one asked again: its grid may go on loading as it scrolls.
+        if (!more) ResetGridMore();
+        if (_demo) { RenderDemo(); return false; }
         // « Sur ce PC » asks Jellyfin nothing; a copy waiting for it is tried again.
-        if (_catalog.View == "offline") { await ShowOfflinePageAsync(); PumpOffline(); return; }
-        if (_client is null || _store is null) return;
+        if (_catalog.View == "offline") { await ShowOfflinePageAsync(); PumpOffline(); return false; }
+        if (_client is null || _store is null) return false;
         _browseCancellation?.Cancel(); _browseCancellation = new CancellationTokenSource();
         var ct = _browseCancellation.Token; var version = ++_viewVersion;
         var search = SearchBox.Text.Trim(); var home = _catalog.IsHome(search);
@@ -442,7 +444,7 @@ public partial class MainWindow : Window
         if (_catalog.AwaitsSearch(search) && !more)
         {
             _catalog.Receive(new ItemsResult(), false); (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = ([], [], [], []);
-            _catalog.Loading = false; RenderLibrary(); return;
+            _catalog.Loading = false; RenderLibrary(); return false;
         }
         var filters = home ? new CatalogQuery() : CurrentQuery();
         var key = _catalog.Key(search, filters);
@@ -451,7 +453,7 @@ public partial class MainWindow : Window
         if (home && !more) _ = LoadHomeGroupsAsync(client);
         // Collections made by hand: what a card's menu offers.
         if (!more) _ = LoadCollectionRightsAsync(client);
-        LoadMore.IsEnabled = false; var startOffset = LibraryScroll.VerticalOffset; var started = DateTimeOffset.UtcNow;
+        var startOffset = LibraryScroll.VerticalOffset; var started = DateTimeOffset.UtcNow;
         if (!quiet && !more) { SyncLabel.Text = L("↻  Actualisation…", "↻  Refreshing…"); SpinRefresh(true); }
         try
         {
@@ -474,7 +476,7 @@ public partial class MainWindow : Window
             }
             var found = await Bonus(people); var foundStudios = await Bonus(studios); var foundEpisodes = await Bonus(episodes); var foundSagas = await Bonus(sagas);
             if (home) { await Task.WhenAll(resume!, next!, shelving!); await _seasonThumbs.LoadAsync(client, resume!.Result.Items.Concat(next!.Result.Items), ct); }
-            ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
+            ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return false;
             var resumeItems = home ? resume!.Result.Items : null;
             var shelves = home ? shelving!.Result : null;
             List<MediaItem>? recent = null; var seasonThumbs = _seasonThumbs.Snapshot();
@@ -485,7 +487,7 @@ public partial class MainWindow : Window
                 if (resumeItems is not null) { recent = store.RecentPlayback(); resumeItems = store.MergeResume(resumeItems, recent); _seasonThumbs.Apply(resumeItems, seasonThumbs); store.ApplyLocalProgress(resumeItems); store.ApplyLocalProgress(next!.Result.Items); foreach (var shelf in shelves!.Values) store.ApplyLocalProgress(shelf); store.Save("home", result); store.Save("resume", resumeItems); }
                 else if (!more && search.Length == 0) store.Save(key, result);
             }), CancellationToken.None);
-            ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return;
+            ct.ThrowIfCancellationRequested(); if (version != _viewVersion) return false;
             _catalog.Receive(result, more);
             if (!more) (_catalog.People, _catalog.Studios, _catalog.Episodes, _catalog.Sagas) = (found, foundStudios, foundEpisodes, foundSagas);
             if (home) { _catalog.Resume = resumeItems!; _catalog.NextUp = next!.Result.Items; _catalog.Shelves = shelves!; _catalog.RecentPlayback = ContinueWatching.History(_catalog.RecentPlayback.Concat(recent ?? [])); }
@@ -502,7 +504,7 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) when (ct.IsCancellationRequested || quiet && !_catalog.Loading) { }
         catch (Exception ex) when (IsExpected(ex))
         {
-            if (version != _viewVersion) return;
+            if (version != _viewVersion) return false;
             if (ex is UnauthorizedAccessException)
             {
                 ServerBox.Text = client.Connection.Server; UsernameBox.Text = client.Connection.UserName; LoginError.Text = Friendly(ex);
@@ -513,7 +515,7 @@ public partial class MainWindow : Window
             else
             {
                 var cached = more ? null : await Task.Run(() => TryCache(() => { var page = store.Load<ItemsResult>(home ? "home" : key); if (page is not null) TryCache(() => store.ApplyLocalProgress(page.Items)); return page; }));
-                if (version != _viewVersion) return;
+                if (version != _viewVersion) return false;
                 if (cached is not null) { _catalog.Items = cached.Items; _catalog.TotalCount = cached.TotalRecordCount; }
                 // Kept until a refresh, or a report delivered after this failure, reaches Jellyfin again: the sync
                 // status no longer replaces it.
@@ -525,8 +527,10 @@ public partial class MainWindow : Window
                 SyncChanged();
                 _catalog.Loading = false; RenderLibrary();
             }
+            return true;
         }
-        finally { if (version == _viewVersion) { LoadMore.IsEnabled = true; SpinRefresh(false); } }
+        finally { if (version == _viewVersion) SpinRefresh(false); }
+        return false;
     }
     /// <summary>The refresh icon turns while a requested refresh is running.</summary>
     private void SpinRefresh(bool active)

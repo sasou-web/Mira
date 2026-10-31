@@ -88,7 +88,7 @@ public sealed class Catalog
     {
         Items = []; Resume = []; NextUp = []; RecentPlayback = []; HiddenResume = []; People = []; Studios = []; Episodes = []; Sagas = []; TotalCount = 0;
     }
-    /// <summary>A page from Jellyfin: the first replaces the list, the next ones (« Afficher plus ») add what is new.</summary>
+    /// <summary>A page from Jellyfin: the first replaces the list, the next ones (loaded as the grid scrolls) add what is new.</summary>
     public void Receive(ItemsResult result, bool more)
     {
         if (more) Items.AddRange(result.Items.Where(x => Items.All(old => old.Id != x.Id))); else Items = result.Items;
