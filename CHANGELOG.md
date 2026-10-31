@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Texte net sous Windows (ClearType)** : le texte de Mira pour Windows restait lissé en gris, flou et en escalier à côté des autres apps. Le cadre de la fenêtre (ombre et coins arrondis de Windows) fait passer WPF en niveaux de gris pour toute la fenêtre ; chaque texte demande maintenant ClearType, sauf sur les commandes du lecteur, posées sur la vidéo.
+
 ## 0.8.9 — 2026-10-31
 
 Ta party : un lien pour regarder ensemble, un PC de Jellyfin qui se règle seul, Windows plus net.

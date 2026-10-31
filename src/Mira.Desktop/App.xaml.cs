@@ -22,6 +22,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        Views.ClearText.Register();
         // A mira:// link (« Ouvrir dans Mira » of Mira web, registered by WindowsIdentity): a web page wrote it, so nothing
         // else of that command line is read, and the link itself only ever offers to join a group (MainWindow.OpenLink).
         var args = e.Args; string? link = null;
