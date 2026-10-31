@@ -76,7 +76,7 @@ public partial class MainWindow
         var row = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
         var badge = new Border
         {
-            Width = 40, Height = 40, CornerRadius = new CornerRadius(11), Background = Palette.Get("Raised"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 16, 0),
+            Width = 40, Height = 40, CornerRadius = Palette.Card, Background = Palette.Get("Raised"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 16, 0),
             Child = new Icon { Kind = Views.Icon.Draws(item.Icon) ? item.Icon : "sparkle", Width = 20, Height = 20, Foreground = Palette.Get("Text") }
         };
         DockPanel.SetDock(badge, Dock.Left); row.Children.Add(badge);
@@ -116,7 +116,7 @@ public partial class MainWindow
             foreach (var key in keys)
                 row.Children.Add(new Squircle
                 {
-                    MinWidth = 30, Height = 28, CornerRadius = new CornerRadius(8), Padding = new Thickness(9, 0, 9, 1), Margin = new Thickness(0, 0, 5, 0),
+                    MinWidth = 30, Height = 28, CornerRadius = Palette.Small, Padding = new Thickness(9, 0, 9, 1), Margin = new Thickness(0, 0, 5, 0),
                     Background = Palette.Get("Raised2"), BorderBrush = Palette.Get("LineStrong"), BorderThickness = new Thickness(1),
                     Child = new TextBlock { Text = key, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("Text"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
                 });

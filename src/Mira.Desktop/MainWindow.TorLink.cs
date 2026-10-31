@@ -589,7 +589,7 @@ public partial class MainWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.Children.Add(new Icon { Kind = icon, Width = 18, Height = 18, Foreground = Palette.Get(color), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 1, 0, 0) });
         Grid.SetColumn(content, 1); grid.Children.Add(content);
-        var row = new Border { Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(9), Padding = new Thickness(14, 12, 12, 10), Margin = new Thickness(0, 0, 0, 8), Child = grid, ContextMenu = menu };
+        var row = new Border { Background = Palette.Get("Surface"), CornerRadius = Palette.Control, Padding = new Thickness(14, 12, 12, 10), Margin = new Thickness(0, 0, 0, 8), Child = grid, ContextMenu = menu };
         AutomationProperties.SetName(row, name);
         return row;
     }

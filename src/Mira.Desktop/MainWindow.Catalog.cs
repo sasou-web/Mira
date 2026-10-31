@@ -324,7 +324,7 @@ public partial class MainWindow
     private static StackPanel SkeletonCard(double width)
     {
         var card = new StackPanel { Width = width, Margin = new Thickness(0, 0, 22, 30) };
-        card.Children.Add(new Squircle { Height = width * 1.48, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(MediaCard.PosterRadius) });
+        card.Children.Add(new Squircle { Height = width * 1.48, Background = Palette.Get("Surface"), CornerRadius = Palette.Card });
         card.Children.Add(new Border { Height = 12, Width = width * .72, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Raised"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 16, 0, 0) });
         card.Children.Add(new Border { Height = 9, Width = width * .42, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 12, 0, 20) });
         return card;
@@ -479,7 +479,7 @@ public partial class MainWindow
         return entry;
     }
     private static void AddPill(Panel panel, string text, string color = "TextBody") => panel.Children.Add(new Border
-    { CornerRadius = new CornerRadius(4), Background = Brush("#3D555559"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 7, 4), Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get(color) } });
+    { CornerRadius = Palette.Small, Background = Brush("#3D555559"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 7, 4), Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get(color) } });
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e) { UpdateZoom(); FitPages(); }
     /// <summary>The banner and the posters, sized for the page as it lays out (smaller than the window once zoomed).</summary>
     private void FitPages()

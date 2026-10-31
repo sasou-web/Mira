@@ -10,6 +10,11 @@ namespace Mira.Desktop.Views;
 internal static class Palette
 {
     public static Brush Get(string key) => Application.Current?.TryFindResource(key) as Brush ?? Brushes.Gray;
+    public static CornerRadius Small => Radius("RadiusSmall");
+    public static CornerRadius Control => Radius("RadiusControl");
+    public static CornerRadius Card => Radius("RadiusCard");
+    public static CornerRadius Sheet => Radius("RadiusSheet");
+    private static CornerRadius Radius(string key) => Application.Current?.TryFindResource(key) is CornerRadius radius ? radius : new CornerRadius(10);
     /// <summary>One of the palette's colours, see-through (alpha 0-255): the tile of a notice tinted by its state.</summary>
     public static Brush Tint(string key, byte alpha)
     {
