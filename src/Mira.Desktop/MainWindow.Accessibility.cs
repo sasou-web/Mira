@@ -54,7 +54,7 @@ public partial class MainWindow
         _zoom = zoom;
         var scale = zoom == 1 ? Transform.Identity : new ScaleTransform(zoom, zoom);
         if (scale.CanFreeze) scale.Freeze();
-        foreach (var page in new FrameworkElement[] { LibraryShell, NavigationRail, TorLinkOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, WhatsNewOverlay, InviteOverlay, IdentifyOverlay, CollectionOverlay, Notice })
+        foreach (var page in new FrameworkElement[] { LibraryShell, NavigationRail, TorLinkOverlay, DetailOverlay, SettingsOverlay, GuideOverlay, LoginOverlay, WelcomeOverlay, WhatsNewOverlay, InviteOverlay, IdentifyOverlay, CollectionOverlay, ConfirmOverlay, Notice })
             page.LayoutTransform = scale;
         // Artwork shown larger is decoded larger, so that it stays sharp.
         if (_images is { } cache) FitArtwork(cache);
@@ -70,7 +70,7 @@ public partial class MainWindow
         var index = key is >= Key.D1 and <= Key.D5 ? key - Key.D1 : key is >= Key.NumPad1 and <= Key.NumPad5 ? key - Key.NumPad1 : -1;
         if (index < 0) return false;
         // Not from a screen drawn over the rail (sign-in, welcome, what's new), where a click could not reach it either.
-        if (!NavigationRail.IsVisible || LoginOverlay.Visibility == Visibility.Visible || WelcomeOverlay.Visibility == Visibility.Visible || WhatsNewOverlay.Visibility == Visibility.Visible || InviteOverlay.Visibility == Visibility.Visible || IdentifyOverlay.Visibility == Visibility.Visible || CollectionOverlay.Visibility == Visibility.Visible) return false;
+        if (!NavigationRail.IsVisible || LoginOverlay.Visibility == Visibility.Visible || WelcomeOverlay.Visibility == Visibility.Visible || WhatsNewOverlay.Visibility == Visibility.Visible || InviteOverlay.Visibility == Visibility.Visible || IdentifyOverlay.Visibility == Visibility.Visible || CollectionOverlay.Visibility == Visibility.Visible || ConfirmOverlay.Visibility == Visibility.Visible) return false;
         var button = new[] { HomeNav, MoviesNav, SeriesNav, LibraryNav, TorLinkNav }[index];
         if (!button.IsVisible || !button.IsEnabled) return false;
         button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, button)); button.Focus();
