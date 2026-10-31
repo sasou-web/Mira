@@ -88,6 +88,8 @@ internal static class PlayerTests
             // A party link (its page's « Open in Mira »): the code and its Jellyfin, never a group yet.
             var partyLink = Mira.Jellyfin.PartyPage.AppLink("https://jellyfin-pc.tail1234.ts.net", "AbCdEfGhIjKlMnOpQr_-12", "0123456789abcdef0123456789abcdef");
             Assert(Together.ParseAppLink(partyLink) == new Together.Invitation("", "https://jellyfin-pc.tail1234.ts.net", null, "AbCdEfGhIjKlMnOpQr_-12"), $"Party link: {partyLink}");
+            Assert(Together.ParseAppLink("mira://party/AbCdEfGhIjKlMnOpQr_-12?server=http%3A%2F%2Fpc.tail1234.ts.net")?.Server == "https://pc.tail1234.ts.net"
+                && Together.ParseAppLink("mira://party/AbCdEfGhIjKlMnOpQr_-12?server=http%3A%2F%2Fpc.tail1234.ts.net%3A8096")?.Server == "http://pc.tail1234.ts.net:8096", "A Funnel name in http on port 80: https; its Jellyfin port stays");
             Assert(Together.ParseAppLink("mira://party/short?server=http%3A%2F%2F192.168.1.2%3A8096") is null, "Party code too short");
             Assert(Together.ParseAppLink("mira://party/AbCdEfGhIjKlMnOpQr_-12?server=file%3A%2F%2F%2Fetc") is null, "Party on no Jellyfin");
             Assert(Together.PartyWebLink("http://192.168.1.2:8096/", "AbCdEfGhIjKlMnOpQr_-12") == "http://192.168.1.2:8096/Mira/#/party/AbCdEfGhIjKlMnOpQr_-12", "Party in Mira web");

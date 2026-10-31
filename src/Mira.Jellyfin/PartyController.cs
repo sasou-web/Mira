@@ -211,7 +211,13 @@ public sealed class PartyController : ControllerBase
     /// </summary>
     private string Origin() => Request.Headers.ContainsKey(GuestRoutes.FunnelHeader) && Invites.Address is { } address
         ? address
-        : $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        : Asked();
+
+    /// <summary>The address the request names, https behind Tailscale Serve or Funnel (<see cref="PartyPage.Origin"/>).</summary>
+    private string Asked() => PartyPage.Origin(
+        HttpContext.Connection.RemoteIpAddress is { } remote && IPAddress.IsLoopback(remote),
+        Request.Headers["X-Forwarded-Proto"].FirstOrDefault(), Request.Headers["X-Forwarded-Host"].FirstOrDefault(),
+        Request.Scheme, Request.Host.ToString(), Request.PathBase);
 
     /// <summary>This computer's address on its own network, as Jellyfin gives it.</summary>
     private string Home()
@@ -228,7 +234,7 @@ public sealed class PartyController : ControllerBase
             // No address for its own network.
         }
 
-        return $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        return Asked();
     }
 
     private static IEnumerable<IPAddress> OwnAddresses()

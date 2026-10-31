@@ -21,6 +21,8 @@ public sealed class PartyWindow : Window
     private readonly string _userData;
     private readonly WebView2 _view = new() { DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 14, 14, 16) };
     private WindowState _before = WindowState.Normal;
+    private System.Windows.Threading.DispatcherTimer? _arrival;
+    private bool _arrived;
 
     /// <summary>The window of a party already open: a second link to it comes back here.</summary>
     public static PartyWindow? Open { get; private set; }
@@ -33,7 +35,7 @@ public sealed class PartyWindow : Window
         AutomationProperties.SetName(_view, L("Party Mira", "Mira party"));
         Content = _view;
         Loaded += async (_, _) => await StartAsync();
-        Closed += (_, _) => { if (ReferenceEquals(Open, this)) Open = null; _view.Dispose(); };
+        Closed += (_, _) => { _arrival?.Stop(); if (ReferenceEquals(Open, this)) Open = null; _view.Dispose(); };
     }
 
     /// <summary>Opens the party at <paramref name="page"/> (Mira web's #/party/… on its server), or shows it when open.</summary>
@@ -73,6 +75,18 @@ public sealed class PartyWindow : Window
             core.DownloadStarting += (_, e) => e.Cancel = true;
             core.DocumentTitleChanged += (_, _) => Title = string.IsNullOrWhiteSpace(core.DocumentTitle) ? L("Party Mira", "Mira party") : core.DocumentTitle;
             core.ContainsFullScreenElementChanged += (_, _) => FullScreen(core.ContainsFullScreenElement);
+            // The browser can reach a party this window can't (its own secure DNS, while WebView2 asks Windows, whose
+            // MagicDNS gives a tailnet address for a Funnel name): until the party's page has come once, a failure or
+            // a page that doesn't come goes to the browser instead of an error page.
+            core.NavigationCompleted += (_, e) =>
+            {
+                if (_arrived) return;
+                if (e.IsSuccess) { _arrived = true; _arrival?.Stop(); return; }
+                if (e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled) ToBrowser();
+            };
+            _arrival = new System.Windows.Threading.DispatcherTimer { Interval = Arrival };
+            _arrival.Tick += (_, _) => { _arrival.Stop(); if (!_arrived) ToBrowser(); };
+            _arrival.Start();
             core.Navigate(_page.AbsoluteUri);
         }
         catch (Exception ex) when (ex is WebView2RuntimeNotFoundException or COMException or IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
@@ -81,6 +95,18 @@ public sealed class PartyWindow : Window
             Close();
             Browse(_page.AbsoluteUri);
         }
+    }
+
+    /// <summary>How long the party's page may take to come the first time before the browser takes over.</summary>
+    private static readonly TimeSpan Arrival = TimeSpan.FromSeconds(15);
+
+    private void ToBrowser()
+    {
+        if (_arrived) return;
+        _arrived = true; _arrival?.Stop();
+        _fallback?.Invoke(L("Mira n’a pas pu joindre cette party : elle s’ouvre dans ton navigateur.", "Mira couldn’t reach this party: it opens in your browser."));
+        Close();
+        Browse(_page.AbsoluteUri);
     }
 
     private bool SameOrigin(Uri to) =>

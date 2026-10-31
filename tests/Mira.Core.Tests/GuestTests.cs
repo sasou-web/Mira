@@ -297,6 +297,11 @@ internal static class GuestTests
                 && PartyPage.Description("ogsas", new("Dune", Item)) == "ogsas is watching Dune. Join in Mira.", "The card's line");
             Assert(PartyPage.Link("https://pc.tail.ts.net", "abc") == "https://pc.tail.ts.net/Mira/party/abc"
                 && PartyPage.AppLink("http://100.1.2.3:8096/", "abc", "srv") == "mira://party/abc?server=http%3A%2F%2F100.1.2.3%3A8096&id=srv", "Links");
+            Assert(PartyPage.Origin(true, "https", "pc.tail.ts.net", "http", "pc.tail.ts.net", "") == "https://pc.tail.ts.net"
+                && PartyPage.Origin(true, "https", null, "http", "pc.tail.ts.net", "/jf") == "https://pc.tail.ts.net/jf", "Behind Tailscale Serve or Funnel: https, never port 80");
+            Assert(PartyPage.Origin(false, "https", "evil.example", "http", "192.168.1.2:8096", "") == "http://192.168.1.2:8096"
+                && PartyPage.Origin(true, null, "pc.tail.ts.net", "http", "127.0.0.1:8096", "") == "http://127.0.0.1:8096"
+                && PartyPage.Origin(true, "https", "a/b@c", "http", "127.0.0.1:8096", "") == "http://127.0.0.1:8096", "Anyone else's forwarded headers, or a strange name: the request's own address");
             Assert(PartyPage.Render("<p title=\"{{a}}\">{{a}} {{b}}</p>", new Dictionary<string, string?> { ["a"] = "<x\" & y>", ["b"] = null }) == "<p title=\"&lt;x&quot; &amp; y&gt;\">&lt;x&quot; &amp; y&gt; </p>", "Written for HTML");
             Assert(PartyPage.TailnetAddress([IPAddress.Parse("192.168.1.2"), IPAddress.Parse("100.63.1.1"), IPAddress.Parse("100.114.247.13")]) == "100.114.247.13"
                 && PartyPage.TailnetAddress([IPAddress.Parse("100.128.0.1")]) is null, "Tailscale's range only");

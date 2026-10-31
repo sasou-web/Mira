@@ -226,6 +226,10 @@ public static class Together
         if (!Uri.TryCreate(server, UriKind.Absolute, out var address) || address.Scheme is not ("http" or "https") || address.UserInfo.Length > 0 || address.Query.Length > 0 || address.Fragment.Length > 0) return null;
         if (host is not null && (host.Length is 0 or > 128 || host.Any(char.IsControl))) return null;
         var at = address.GetLeftPart(UriPartial.Authority) + address.AbsolutePath.TrimEnd('/');
+        // A party page of an older Mira behind Tailscale Serve or Funnel named itself http on port 80, where nothing
+        // listens: a *.ts.net name answers in https there.
+        if (party && address.Scheme == "http" && address.IsDefaultPort && address.Host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase))
+            at = "https://" + address.Host + address.AbsolutePath.TrimEnd('/');
         return party ? new("", at, null, group) : new(group, at, host);
     }
     /// <summary>The code of a party link (Mira.Jellyfin PartyController): 22 characters of base64url.</summary>
