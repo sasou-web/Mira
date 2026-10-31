@@ -524,6 +524,7 @@ public partial class MainWindow
     {
         if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.IsOpen = false; return true; }
         if (PlayerErrorShown) { PlayerErrorBack_Click(this, new()); return true; }
+        if (ConfirmOverlay.Visibility == Visibility.Visible && ConfirmOverlay.IsHitTestVisible) { Answer(false); return true; }
         if (WhatsNewOverlay.Visibility == Visibility.Visible && WhatsNewOverlay.IsHitTestVisible) { _ = CloseWhatsNewAsync(); return true; }
         if (InviteOverlay.Visibility == Visibility.Visible && InviteOverlay.IsHitTestVisible) { _ = CloseInviteAsync(); return true; }
         if (IdentifyOverlay.Visibility == Visibility.Visible && IdentifyOverlay.IsHitTestVisible) { _ = CloseIdentifyAsync(); return true; }
