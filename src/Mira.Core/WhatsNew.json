@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.8.9",
+    "summary": "Un PC de Jellyfin qui se règle seul, Tailscale intégré plus solide, Mira pour Windows plus nette.",
+    "en": { "summary": "A Jellyfin PC that sets itself up, sturdier Built-in Tailscale, and a sharper Mira for Windows." },
+    "items": [
+      { "icon": "server", "title": "Le PC de Jellyfin se règle seul", "text": "Tout préparer garde Tailscale et le PC éveillé ; carte graphique, sauvegarde, aperçus et redémarrages faits par Mira.",
+        "en": { "title": "The Jellyfin PC sets itself up", "text": "Set everything up keeps Tailscale on and the PC awake; Mira turns on the graphics card, backups, previews and restarts." } },
+      { "icon": "refresh", "title": "Tailscale intégré pendant une panne", "text": "Mira dit quand les serveurs de Tailscale ne répondent pas, et peut démarrer sans eux.",
+        "en": { "title": "Built-in Tailscale through an outage", "text": "Mira says when Tailscale’s servers aren’t answering, and can start without them." } },
+      { "icon": "sparkle", "title": "Mira pour Windows plus nette", "text": "Texte lisse, formes en squircle, transitions douces, Réglages et Guide plus clairs, grand bouton Regarder.",
+        "en": { "title": "A sharper Mira for Windows", "text": "Smooth text, squircle shapes, gentler transitions, clearer Settings and Guide, a big Watch button." } },
+      { "icon": "film", "title": "Films, Séries et Recherche rangés", "text": "Genres réunis sous un seul nom, les titres d’abord dans la Recherche ; plus d’en-tête flou sur iPhone.",
+        "en": { "title": "Films, Shows and Search tidied", "text": "Genres merged under one name, titles first in Search; no blurred header on iPhone." } }
+    ]
+  },
+  {
     "version": "0.8.8",
     "summary": "Profils et photo, police Nunito, pages plus claires, et Mira pour Mac qui se met à jour seule.",
     "en": { "summary": "Profiles and photos, the Nunito font, clearer pages, and Mira for Mac that updates itself." },
