@@ -403,7 +403,11 @@ public partial class MainWindow
     private void ShowTogetherButton()
     {
         TogetherButton.Visibility = _demo ? Visibility.Collapsed : Visibility.Visible;
-        TogetherButton.Content = ActionLabel("users", _group is { } group ? L("Ensemble · ", "Together · ") + Together.People(Math.Max(1, group.Participants.Count)) : L("Regarder ensemble", "Watch together"));
+        if (_group is not { } group) { TogetherButton.Content = ActionLabel("users", L("Regarder ensemble", "Watch together")); ShowState(TogetherButton, false, L("Regarder ce titre au même moment que d’autres comptes de ce Jellyfin, chacun chez soi", "Watch this title at the same moment as other accounts on this Jellyfin, each at home")); return; }
+        // In a group: its count and a live dot, outlined as every button that is on.
+        var label = ActionLabel("users", L("En groupe · ", "In a group · ") + Together.People(Math.Max(1, group.Participants.Count))); label.Children.Add(LiveDot());
+        TogetherButton.Content = label;
+        ShowState(TogetherButton, true, L($"En groupe · {Together.GroupText(group)}. Clique pour inviter ou quitter le groupe", $"In a group · {Together.GroupText(group)}. Click to invite or leave the group"));
     }
     private async void Together_Click(object sender, RoutedEventArgs e)
     {

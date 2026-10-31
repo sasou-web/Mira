@@ -9,7 +9,7 @@ namespace Mira.Desktop.Views;
 
 /// <summary>
 /// An actor or director found by a search (« Personnes »): their photo in a circle, their initials without one, and
-/// their name under it. A click shows their titles.
+/// their name under it, and on a title's page the part they play. A click shows their titles.
 /// </summary>
 public sealed class PersonCard : Button
 {
@@ -17,7 +17,7 @@ public sealed class PersonCard : Button
     public MediaItem Person { get; }
     private readonly Ellipse _photo = new() { Width = Size, Height = Size, Opacity = 0 };
     private readonly Ellipse _ring = new() { Width = Size, Height = Size, StrokeThickness = 2, Opacity = 0, IsHitTestVisible = false };
-    public PersonCard(MediaItem person)
+    public PersonCard(MediaItem person, string? role = null)
     {
         Person = person;
         Style = (Style)Application.Current.FindResource("Quiet");
@@ -33,6 +33,8 @@ public sealed class PersonCard : Button
         var root = new StackPanel();
         root.Children.Add(circle);
         root.Children.Add(new TextBlock { Text = person.Name, FontSize = 13.5, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 38, LineHeight = 19, Margin = new Thickness(0, 10, 0, 0), Foreground = Palette.Get("Text") });
+        if (role?.Trim() is { Length: > 0 } part)
+            root.Children.Add(new TextBlock { Text = part, FontSize = 12.5, FontWeight = FontWeights.Normal, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0), Foreground = Palette.Get("Muted") });
         Content = root;
         // The ring is the hover and keyboard focus indicator, as on the posters.
         FocusVisualStyle = null; Accessible.SetOwnFocusRing(this, true);

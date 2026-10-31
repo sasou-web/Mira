@@ -71,6 +71,9 @@ public sealed record MediaItem
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? ProviderIds { get; init; }
+    /// <summary>Its catchphrases (« Girls meet Jazz! »), returned by the single-item request only; the first one shows under the title.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Taglines { get; init; }
     /// <summary>Cast and crew, returned by the single-item request only.</summary>
     public List<PersonInfo> People { get; init; } = [];
     /// <summary>Who made it (« Studio Ghibli », « MAPPA »), returned by the single-item request only.</summary>
@@ -111,6 +114,9 @@ public sealed record PersonInfo
     public string? Id { get; init; }
     public string Name { get; init; } = "";
     public string? Role { get; init; }
+    /// <summary>Their photo on Jellyfin (Items/{Id}/Images/Primary), when it has one.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PrimaryImageTag { get; init; }
     /// <summary>"Actor", "Director", "Writer", "Producer", "GuestStar"…</summary>
     public string? Type { get; init; }
 }

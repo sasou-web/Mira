@@ -18,6 +18,13 @@ public sealed class ActionRow : Panel
     public static int GetShrink(DependencyObject element) => (int)element.GetValue(ShrinkProperty);
     public static void SetShrink(DependencyObject element, int value) => element.SetValue(ShrinkProperty, value);
     /// <summary>
+    /// A button that keeps its label in an <see cref="IconsOnly"/> row (« Regarder ensemble », or « Favori » once on), as
+    /// long as the row fits; short of room, it goes round too, the smallest <see cref="ShrinkProperty"/> first.
+    /// </summary>
+    public static readonly DependencyProperty KeepProperty = DependencyProperty.RegisterAttached("Keep", typeof(bool), typeof(ActionRow), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsParentMeasure));
+    public static bool GetKeep(DependencyObject element) => (bool)element.GetValue(KeepProperty);
+    public static void SetKeep(DependencyObject element, bool value) => element.SetValue(KeepProperty, value);
+    /// <summary>
     /// Every button after the first one round, its icon alone and its label in its tooltip, whatever the width: a title's
     /// page, where Lecture alone keeps its words.
     /// </summary>
@@ -56,10 +63,18 @@ public sealed class ActionRow : Panel
         {
             foreach (var child in shown)
             {
-                if (child is Button button && !ReferenceEquals(child, InternalChildren[0])) MakeRound(button);
+                if (child is Button button && !ReferenceEquals(child, InternalChildren[0])) { if (GetKeep(button)) MakeLabelled(button); else MakeRound(button); }
                 child.Measure(infinite); width += child.DesiredSize.Width; height = Math.Max(height, child.DesiredSize.Height);
             }
             LabelledWidth = width;
+            if (width > availableSize.Width)
+                foreach (var button in shown.OfType<Button>().Where(x => !ReferenceEquals(x, InternalChildren[0]) && GetKeep(x)).OrderBy(GetShrink))
+                {
+                    var before = button.DesiredSize.Width;
+                    MakeRound(button); button.Measure(infinite);
+                    width -= before - button.DesiredSize.Width;
+                    if (width <= availableSize.Width) break;
+                }
             return new Size(Math.Min(width, availableSize.Width), height);
         }
         foreach (var child in shown) { if (child is Button button) Show(button, true); child.Measure(infinite); width += child.DesiredSize.Width; }
@@ -92,6 +107,14 @@ public sealed class ActionRow : Panel
     {
         Show(button, false);
         button.Width = button.Height = Round; button.Padding = new Thickness(0);
+        button.HorizontalContentAlignment = HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
+        Motion.SetRadius(button, new CornerRadius(Round * .32));
+    }
+    /// <summary>A kept button of an icons-only row: its label beside its icon, as tall and as rounded as the round ones.</summary>
+    private static void MakeLabelled(Button button)
+    {
+        Show(button, true);
+        button.ClearValue(FrameworkElement.WidthProperty); button.Height = Round;
         button.HorizontalContentAlignment = HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
         Motion.SetRadius(button, new CornerRadius(Round * .32));
     }
