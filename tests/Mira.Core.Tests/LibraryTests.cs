@@ -1294,6 +1294,10 @@ internal static class LibraryTests
             var notice = GpuRecheck.Notice("nvenc");
             Assert(notice.Contains("(NVIDIA)", StringComparison.Ordinal) && notice.Contains("processeur", StringComparison.Ordinal) && notice.Contains("Utiliser la carte graphique", StringComparison.Ordinal), notice);
             Assert(GpuRecheck.FirstLook < GpuRecheck.Retry && GpuRecheck.FailuresBeforeProcessor == 2, "Timing");
+            // On the processor: tried by Mira itself once per Jellyfin and drivers, never while watching, never once the person went back.
+            Assert(GpuRecheck.TriesFirst(false, 1, before, "", false) && !GpuRecheck.TriesFirst(false, 1, before, before, false) && GpuRecheck.TriesFirst(false, 1, newDriver, before, false)
+                && !GpuRecheck.TriesFirst(false, 1, before, "", true) && !GpuRecheck.TriesFirst(true, 1, before, "", false) && !GpuRecheck.TriesFirst(false, 0, before, "", false)
+                && !GpuRecheck.TriesFirst(false, 1, null, "", false) && GpuRecheck.TurnedOn("Intel(R) UHD Graphics").Contains("Intel(R) UHD Graphics", StringComparison.Ordinal), "Tried by itself");
             // Jellyfin's version, as 12.1 gives it, camelCase while it starts.
             var info = """{"LocalAddress":"http://127.0.0.1:8096","ServerName":"vm","Version":"12.1.0","Id":"5c63"}""";
             using var client = new JellyfinClient(new("http://localhost/", "user-1", "Alice", "secret", "device-1"), new Handler(request =>

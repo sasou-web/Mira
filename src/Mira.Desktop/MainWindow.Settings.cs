@@ -465,6 +465,7 @@ public partial class MainWindow
     private async void Gpu_Click(object sender, RoutedEventArgs e)
     {
         if (_client is not { } client || _gpuBusy || _gpuCards.Count == 0) return;
+        _settings.GpuKeptOff = false; TrySaveSettings();
         _gpuBusy = true; GpuButton.IsEnabled = false; GpuStatus.Text = L("Essai de conversion sur la carte graphique…", "Trying a conversion on the graphics card…");
         var ct = _connectionLifetime.Token;
         try
@@ -490,7 +491,8 @@ public partial class MainWindow
         var ct = _connectionLifetime.Token;
         try
         {
-            if (await client.SetHardwareAccelerationAsync(GpuEncoding.None, ct)) ShowGpuState(L("Jellyfin convertit de nouveau avec le processeur.", "Jellyfin converts with the processor again."), false);
+            // The person's choice: Mira never tries the card by itself again (« Utiliser la carte graphique » still does).
+            if (await client.SetHardwareAccelerationAsync(GpuEncoding.None, ct)) { _settings.GpuKeptOff = true; TrySaveSettings(); ShowGpuState(L("Jellyfin convertit de nouveau avec le processeur.", "Jellyfin converts with the processor again."), false); }
             else GpuStatus.Text = L("Seul un administrateur de Jellyfin peut changer ce réglage.", "Only a Jellyfin administrator can change this setting.");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
