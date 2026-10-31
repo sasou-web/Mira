@@ -142,6 +142,11 @@ internal static class JellyfinCareTests
                 try { JellyfinBackups.Copy(archive, Path.Combine(root, "debranchee")); } catch (DirectoryNotFoundException ex) { missing = ex.Message.Contains("débranché", StringComparison.Ordinal); }
                 Assert(missing, "dossier absent");
                 Assert(JellyfinBackups.Superseded(["jellyfin-backup-20261001080000.zip", "x.zip", "JELLYFIN-BACKUP-20260101000000.ZIP"], keep: 1).SequenceEqual(["JELLYFIN-BACKUP-20260101000000.ZIP"]), "plus anciennes");
+                // Jellyfin's own folder, after a backup Mira made by itself: its newest archives kept, nothing else touched; a folder gone says nothing.
+                foreach (var day in new[] { "20260601", "20260701", "20260801", "20260901" }) File.WriteAllText(Path.Combine(jellyfin, $"jellyfin-backup-{day}080000.zip"), day);
+                JellyfinBackups.Prune(jellyfin); JellyfinBackups.Prune(Path.Combine(root, "partie"));
+                left = Directory.EnumerateFiles(jellyfin).Select(Path.GetFileName).Order(StringComparer.Ordinal).ToList();
+                Assert(string.Join(" ", left) == "jellyfin-backup-20260801080000.zip jellyfin-backup-20260901080000.zip jellyfin-backup-20261027075228.zip", "élaguée : " + string.Join(" ", left));
             }
             finally { Directory.Delete(root, recursive: true); }
             return Task.CompletedTask;
