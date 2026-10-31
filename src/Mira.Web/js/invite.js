@@ -1,14 +1,14 @@
-// « Inviter quelqu'un » in a group of « Regarder ensemble »: a link that opens Mira web on the group (#/ensemble/<id>,
-// views/join.js), to send to a friend, with what the friend needs: an account of this Jellyfin, Tailscale away from home.
-// It names the group's host, so that it still finds the group once made again (together.js), or waits for it. For
-// someone without an account, an administrator makes a link of « Inviter par lien » here too (guests.js).
+// « Inviter quelqu'un » in a group of « Regarder ensemble »: « Ta party », the one link of this account (the extension's
+// PartyController), the same every evening, for anyone: a friend with Mira's app opens it there, anyone else in their
+// browser, with or without an account here. Where the extension has no party links yet (an older one), the group's
+// link as before (#/ensemble/<id>, views/join.js): an account of this Jellyfin, Tailscale away from home.
 import { api, base, isTailnet } from './api.js';
 import { h, icon } from './dom.js';
 import { tr } from './i18n.js';
 import { sheet, toast } from './components.js';
 import { inviteLink, inviteSteps, groupHost, groupLabel } from './player/sync.js';
 import { phoneAddress, copy } from './views/share.js';
-import { mayInvite, newLinkForm } from './guests.js';
+import { mayInvite } from './guests.js';
 
 /** This Jellyfin at an address a friend can open: this page's on Tailscale, else the home network's (never localhost). */
 async function friendServer() {
@@ -16,35 +16,48 @@ async function friendServer() {
   return (await phoneAddress()).replace(/\/Mira\/?$/i, '');
 }
 
+/** A link ready to send: the address, Copier, and Partager where the browser can share. */
+export function partyBox(link) {
+  const text = tr('Regarde avec moi sur Mira');
+  return h('div', { class: 'invite-box' },
+    h('p', { class: 'invite-link' }, link),
+    h('div', { class: 'invite-actions' },
+      h('button', {
+        class: 'btn small primary',
+        on: { click: async () => toast(await copy(link) ? tr('Lien copié : envoie-le à tes amis.') : tr('Copie impossible ici : touche longuement le lien pour le sélectionner.')) },
+      }, icon('link', { size: 16 }), tr('Copier le lien')),
+      typeof navigator.share === 'function'
+        ? h('button', { class: 'btn small', on: { click: () => navigator.share({ title: 'Mira', text, url: link }).catch(() => {}) } }, icon('share', { size: 16 }), tr('Partager'))
+        : null));
+}
+
+/** Where the party link works, said under it: everywhere, or what is missing for that. */
+export function partyReach(party, admin) {
+  if (party.reach === 'internet') return h('p', { class: 'invite-note' }, party.note);
+  return h('p', { class: 'invite-note warn' }, party.note, admin ? [' ', h('a', { href: '#/invites' }, tr('Ouvrir à Internet'))] : null);
+}
+
 export async function inviteSheet(group) {
   if (!group) return;
+  const party = await api.party().catch(() => null);
+  if (party?.link) {
+    const admin = await mayInvite();
+    sheet({
+      title: tr('Inviter quelqu’un'),
+      body: h('div', { class: 'invite' },
+        h('p', { class: 'invite-lead' }, tr('Ton lien de party, le même à chaque fois : qui l’ouvre rejoint ton groupe, dans l’app Mira ou dans son navigateur, sans compte à créer.')),
+        partyBox(party.link),
+        partyReach(party, admin)),
+    });
+    return;
+  }
   const link = inviteLink(await friendServer(), group.GroupId, groupHost(group.GroupName));
   const name = groupLabel(group.GroupName);
-  const guests = h('div', { class: 'invite-guests' });
-  const share = typeof navigator.share === 'function'
-    ? h('button', { class: 'btn small', on: { click: () => navigator.share({ title: name, text: tr('Regarde avec moi sur Mira : {name}', { name }), url: link }).catch(() => {}) } },
-      icon('share', { size: 16 }), tr('Partager'))
-    : null;
   sheet({
     title: tr('Inviter quelqu’un'),
     body: h('div', { class: 'invite' },
       h('p', { class: 'invite-lead' }, tr('Envoie ce lien à ton ami pour qu’il rejoigne « {name} ».', { name })),
-      h('p', { class: 'invite-link' }, link),
-      h('div', { class: 'invite-actions' },
-        h('button', {
-          class: 'btn small primary',
-          on: { click: async () => toast(await copy(link) ? tr('Lien copié : envoie-le à ton ami.') : tr('Copie impossible ici : touche longuement le lien pour le sélectionner.')) },
-        }, icon('link', { size: 16 }), tr('Copier le lien')),
-        share),
-      h('ol', { class: 'invite-steps' }, inviteSteps(link).map((step) => h('li', {}, step))),
-      guests),
+      partyBox(link),
+      h('ol', { class: 'invite-steps' }, inviteSteps(link).map((step) => h('li', {}, step)))),
   });
-  // Someone without an account here: a link of their own, made by an administrator.
-  if (await mayInvite()) {
-    const listing = await api.invites().catch(() => null);
-    guests.append(h('h3', { class: 'label' }, tr('Sans compte ni Tailscale ?')),
-      listing?.address
-        ? newLinkForm()
-        : h('p', { class: 'invite-lead' }, tr('Crée un lien pour quelqu’un sans compte depuis Réglages → Liens d’invités.')));
-  }
 }

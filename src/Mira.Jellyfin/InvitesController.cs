@@ -135,7 +135,8 @@ public sealed class InvitesController : ControllerBase
     private static object View(GuestInvite invite, string? address) => new
     {
         id = invite.Id, name = invite.Name, created = invite.Created, used = invite.Used, ends = invite.Used + GuestInvites.Unused,
-        opened = invite.Device is not null, device = invite.DeviceName, link = GuestInvites.Link(address, invite.Code),
+        opened = invite.Device is not null, device = invite.DeviceName, link = invite.Party is null ? GuestInvites.Link(address, invite.Code) : null,
+        party = invite.Party is not null,
     };
 
     /// <summary>

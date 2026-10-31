@@ -353,6 +353,10 @@ export const api = {
     if (!response.ok) throw new ApiError(response.status, tr('Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.'));
     return response.json();
   },
+  /** « Ta party », the host's side: { code, link, appLink, reach: internet|tailnet|home, note, tunnel, guests }. */
+  party: () => get('Mira/party', null, { timeout: 20000 }),
+  /** The party link made again: the old one stops, its guests go. */
+  newParty: () => post('Mira/party/new', {}, null, { timeout: 20000 }),
   // « Inviter par lien », the host's side (an administrator): the links made, one more, one taken back, and the
   // address on the Internet they start with (Tailscale Funnel's).
   /** { address, invites: [{ id, name, created, used, ends, opened, device, link }] }. */

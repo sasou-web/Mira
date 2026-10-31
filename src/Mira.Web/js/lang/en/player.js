@@ -157,10 +157,8 @@ export default {
   'Là où il en est.': 'Where the group is.',
 
   // invite.js
-  'Regarde avec moi sur Mira : {name}': 'Watch with me on Mira: {name}',
   Partager: 'Share',
   'Envoie ce lien à ton ami pour qu’il rejoigne « {name} ».': 'Send this link to your friend so they can join “{name}”.',
-  'Lien copié : envoie-le à ton ami.': 'Link copied: send it to your friend.',
   'Copie impossible ici : touche longuement le lien pour le sélectionner.': 'Can’t copy here: touch and hold the link to select it.',
   'Copier le lien': 'Copy link',
 };
