@@ -22,7 +22,7 @@ public sealed class PlayerOverlay : FrameworkElement
     public FrameworkElement? Child
     {
         get => _child;
-        set { if (_child is not null) RemoveLogicalChild(_child); _child = value; if (value is not null) AddLogicalChild(value); }
+        set { if (_child is not null) RemoveLogicalChild(_child); _child = value; if (value is not null) { AddLogicalChild(value); Views.ClearText.SetLayered(value, true); } }
     }
     protected override IEnumerator LogicalChildren => new[] { Child }.GetEnumerator();
     public static readonly DependencyProperty PlacementTargetProperty = DependencyProperty.Register(nameof(PlacementTarget), typeof(FrameworkElement), typeof(PlayerOverlay));
