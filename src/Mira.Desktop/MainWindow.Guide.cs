@@ -104,7 +104,9 @@ public partial class MainWindow
         [
             (["Ctrl", "K"], L("chercher", "search")), (["Ctrl", L("1 à 5", "1 to 5")], L("pages du rail", "sidebar pages")),
             ([L("Espace", "Space")], L("lecture ou pause", "play or pause")), (["←", "→"], L("10 s en arrière, en avant", "10 s back, forward")),
-            (["F"], L("plein écran", "full screen")), (["S"], L("passer le générique", "skip the intro")),
+            (["Shift", "← →"], L("1 min en arrière, en avant", "1 min back, forward")), (["0", L("à", "to") + " 9"], L("aller à 0 – 90 %", "jump to 0 – 90 %")),
+            (["F", "F11"], L("plein écran", "full screen")), (["C"], L("sous-titres", "subtitles")),
+            (["S"], L("passer le générique", "skip the intro")),
             (["I"], L("mini-lecteur", "mini player")), (["N"], L("épisode suivant", "next episode")),
             ([L("Échap", "Esc")], L("revenir en arrière", "go back")), (["F1"], L("ce guide", "this guide")),
         ];

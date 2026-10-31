@@ -200,8 +200,11 @@ public partial class MainWindow
     /// replay its action on Space, and a clicked slider no longer swallows the arrows.</summary>
     private void Player_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Handled || !_playing || PlayerOptionsPopup.IsOpen || Keyboard.Modifiers != ModifierKeys.None || FromTorLinkTerminal(e)) return;
-        if (e.OriginalSource is TextBoxBase or System.Windows.Controls.PasswordBox or ComboBox or ComboBoxItem) return;
+        if (e.Handled || !_playing || PlayerOptionsPopup.IsOpen || FromTorLinkTerminal(e)) return;
+        // Shift + ← / →: a longer jump (one minute). Ctrl and Alt keep their meaning (Ctrl + 1 to 5 are the rail's pages).
+        if (Keyboard.Modifiers == ModifierKeys.Shift && e.Key is Key.Left or Key.Right && !IsTyping(e)) { SeekRelative(e.Key == Key.Left ? -LongJump : LongJump); ShowPlayerControls(); e.Handled = true; return; }
+        if (Keyboard.Modifiers != ModifierKeys.None) return;
+        if (IsTyping(e)) return;
         // While browsing with the mini-player, the library keeps its keys unless the player has focus.
         if (_miniPlayer && !ReferenceEquals(sender, PlayerSurface) && !IsInPlayer(e.OriginalSource as DependencyObject)) return;
         switch (e.Key)
@@ -213,7 +216,10 @@ public partial class MainWindow
             case Key.Up: ChangeVolume(5); break;
             case Key.Down: ChangeVolume(-5); break;
             case Key.M: if (!e.IsRepeat) Mute_Click(this, new()); break;
-            case Key.F: if (!e.IsRepeat) ToggleFullscreen(); break;
+            case Key.F or Key.F11: if (!e.IsRepeat) ToggleFullscreen(); break;
+            case Key.C: if (!e.IsRepeat) ToggleSubtitles(); break;
+            // 0 to 9 (top row or numeric keypad): jump to 0 to 90 % of the title.
+            case >= Key.D0 and <= Key.D9 or >= Key.NumPad0 and <= Key.NumPad9: if (!e.IsRepeat) SeekToTenth(e.Key >= Key.NumPad0 ? e.Key - Key.NumPad0 : e.Key - Key.D0); break;
             case Key.S: if (!SkipAvailable) return; if (!e.IsRepeat) Skip_Click(this, new()); e.Handled = true; return;
             case Key.N: if (!NextButton.IsEnabled) return; if (!e.IsRepeat) Next_Click(this, new()); e.Handled = true; return;
             case Key.P: if (!PreviousButton.IsEnabled || PreviousButton.Visibility != Visibility.Visible) return; if (!e.IsRepeat) Previous_Click(this, new()); e.Handled = true; return;
@@ -221,6 +227,66 @@ public partial class MainWindow
             default: return;
         }
         ShowPlayerControls(); e.Handled = true;
+    }
+    private const double LongJump = 60;
+    private static bool IsTyping(KeyEventArgs e) => e.OriginalSource is TextBoxBase or System.Windows.Controls.PasswordBox or ComboBox or ComboBoxItem;
+    /// <summary>The wheel over the picture changes the volume, as over the speaker.</summary>
+    private void PlayerSurface_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || !_playing || _miniPlayer || PlayerOptionsPopup.IsOpen || e.Delta == 0) return;
+        ChangeVolume(e.Delta > 0 ? 5 : -5); ShowPlayerControls(); e.Handled = true;
+    }
+    /// <summary>0 to 9: jumps to that tenth of the title (0 = the start).</summary>
+    private void SeekToTenth(int tenth)
+    {
+        if (_mpv is null || !_loaded || _session.Duration <= 0) return;
+        var target = Math.Min(_session.Duration * tenth / 10, Math.Max(0, _session.Duration - .5));
+        if (!TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
+        HoldPosition(target); ShowSeekPill($"{tenth * 10} %"); ShowPlayerControls();
+    }
+    private string? _subtitlesBeforeOff; private int? _convertedBeforeOff;
+    /// <summary>C: subtitles off, and on again with the track that was showing (else the first one).</summary>
+    private void ToggleSubtitles()
+    {
+        if (_mpv is null || !_loaded) return;
+        if (_converted is { } converted)
+        {
+            var sid = _mpv.Get("sid"); var shown = converted.Shown(sid);
+            if (shown is not null || converted.Stream.Burned is not null || converted.ShowsOther(sid))
+            {
+                _convertedBeforeOff = shown; _subtitlesBeforeOff = shown is null && sid is not (null or "no" or "" or "false") ? sid : null;
+                if (shown is null && _subtitlesBeforeOff is not null) _mpv.Set("sid", "no"); else _ = ChooseConvertedAsync(text: -1);
+                ShowSeekPill(L("Sous-titres désactivés", "Subtitles off"));
+                return;
+            }
+            if (_subtitlesBeforeOff is not null) { _mpv.Set("sid", _subtitlesBeforeOff); ShowSeekPill(L("Sous-titres activés", "Subtitles on")); return; }
+            var first = _convertedBeforeOff ?? converted.Subtitles.Select(ConvertedTracks.Index).FirstOrDefault(i => !converted.IsPicture(i) && converted.Path(i) is not null, -1);
+            if (first < 0) { ShowSeekPill(L("Aucun sous-titre", "No subtitles")); return; }
+            _ = ChooseConvertedAsync(text: first); ShowSeekPill(L("Sous-titres activés", "Subtitles on"));
+            return;
+        }
+        var current = _mpv.Get("sid") ?? "no";
+        if (current is not ("no" or "" or "false")) { _subtitlesBeforeOff = current; _mpv.Set("sid", "no"); ShowSeekPill(L("Sous-titres désactivés", "Subtitles off")); RememberTracks(); return; }
+        var back = _subtitlesBeforeOff ?? _mpv.Tracks().FirstOrDefault(t => t.Type == "sub")?.Id;
+        if (back is null) { ShowSeekPill(L("Aucun sous-titre", "No subtitles")); return; }
+        _mpv.Set("sid", back); ShowSeekPill(L("Sous-titres activés", "Subtitles on")); RememberTracks();
+    }
+    private DispatcherTimer? _seekPillHide; private double _seekPillTotal;
+    /// <summary>A short pill in the middle of the picture: the jump (« +10 s », adding up while the key repeats), the tenth, the subtitles.</summary>
+    private void ShowSeekPill(string text)
+    {
+        if (_miniPlayer) return;
+        SeekPillText.Text = text;
+        if (SeekPill.Visibility != Visibility.Visible) Motion.Reveal(SeekPill, 160, 4);
+        if (_seekPillHide is null) { _seekPillHide = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) }; _seekPillHide.Tick += (_, _) => { _seekPillHide.Stop(); _seekPillTotal = 0; SeekPill.Visibility = Visibility.Collapsed; }; }
+        _seekPillHide.Stop(); _seekPillHide.Start();
+    }
+    /// <summary>« ±10 s », the sum of the jumps made within the same second.</summary>
+    private void ShowSeekPill(double seconds)
+    {
+        if (_seekPillHide is not { IsEnabled: true } || Math.Sign(_seekPillTotal) != Math.Sign(seconds)) _seekPillTotal = 0;
+        _seekPillTotal += seconds;
+        ShowSeekPill((_seekPillTotal < 0 ? "−" : "+") + Math.Abs(_seekPillTotal).ToString("0", CultureInfo.InvariantCulture) + " s");
     }
     private bool IsInPlayer(DependencyObject? node)
     {
@@ -246,6 +312,10 @@ public partial class MainWindow
             case "mira-pause": Pause_Click(this, new()); break;
             case "mira-seek-back": SeekRelative(-10); ShowPlayerControls(); break;
             case "mira-seek-forward": SeekRelative(10); ShowPlayerControls(); break;
+            case "mira-seek-back-long": SeekRelative(-LongJump); ShowPlayerControls(); break;
+            case "mira-seek-forward-long": SeekRelative(LongJump); ShowPlayerControls(); break;
+            case "mira-subtitles": ToggleSubtitles(); break;
+            case var tenth when tenth.StartsWith("mira-tenth-", StringComparison.Ordinal) && tenth.Length == 12 && char.IsAsciiDigit(tenth[^1]): SeekToTenth(tenth[^1] - '0'); break;
             case "mira-volume-up": ShowPlayerControls(); ChangeVolume(5); break;
             case "mira-volume-down": ShowPlayerControls(); ChangeVolume(-5); break;
             case "mira-mute": Mute_Click(this, new()); break;

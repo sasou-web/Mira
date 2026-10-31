@@ -457,7 +457,7 @@ public partial class MainWindow
         // Absolute target from the last requested position: repeated presses add up, and the bar moves at once.
         var target = Math.Clamp(_session.Position + seconds, 0, _session.Duration > 0 ? Math.Max(0, _session.Duration - .5) : double.MaxValue);
         if (!TryCommand("seek", target.ToString(CultureInfo.InvariantCulture), "absolute+exact")) return;
-        HoldPosition(target);
+        HoldPosition(target); ShowSeekPill(seconds);
     }
     /// <summary>mpv may report the pre-seek time for a poll or two; keep the requested time meanwhile.</summary>
     private void HoldPosition(double target)
@@ -486,7 +486,7 @@ public partial class MainWindow
         PlayerWindowChrome.Visibility = _fullscreen ? Visibility.Collapsed : Visibility.Visible;
         PlayerHeaderBody.Margin = new Thickness(24, _fullscreen ? 22 : 42, 24, 22);
         Motion.Swap(FullscreenIcon, _fullscreen ? "collapse" : "fullscreen");
-        FullscreenButton.ToolTip = _fullscreen ? L("Quitter le plein écran · Échap", "Exit full screen · Esc") : L("Plein écran · F", "Full screen · F");
+        FullscreenButton.ToolTip = _fullscreen ? L("Quitter le plein écran · Échap", "Exit full screen · Esc") : L("Plein écran · F ou F11", "Full screen · F or F11");
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls();
     }
     /// <summary>The player check's screen, off view: 1600 × 900, or the monitor when smaller (Windows caps a window to it).</summary>

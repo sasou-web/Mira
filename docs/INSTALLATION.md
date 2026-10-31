@@ -83,9 +83,12 @@ Le serveur Jellyfin reste lancé : il gère la bibliothèque, les affiches, les 
 | Passer d’une affiche à sa voisine | Flèches, sur une rangée ou une grille d’affiches |
 | Lecture / pause | Espace / K |
 | Reculer / avancer de 10 secondes | ← / →, J / L |
-| Volume (jusqu’à 200 %) | ↑ / ↓, molette sur le haut-parleur |
+| Reculer / avancer d’une minute | Maj + ← / Maj + → |
+| Aller à 0, 10 … 90 % du titre | 0 à 9 (rangée du haut ou pavé numérique) |
+| Sous-titres : couper / remettre | C |
+| Volume (jusqu’à 200 %) | ↑ / ↓, molette sur l’image ou sur le haut-parleur |
 | Couper le son | M |
-| Plein écran | F / double-clic sur la vidéo |
+| Plein écran | F / F11 / double-clic sur la vidéo |
 | Mini-lecteur / agrandir | I |
 | Passage disponible : opening, ending, suivant | S |
 | Épisode suivant | N |
