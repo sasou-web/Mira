@@ -4,25 +4,25 @@
        the Mac (App.axaml). Frozen brushes are shared and never changed in place; Muted, Faint and FocusRing are not
        frozen: high contrast replaces them (MainWindow.Accessibility), so they are read as DynamicResource. -->
   <!-- Surfaces, darkest first: the window, panels and rows, fields and lists, raised tiles, buttons, lines. -->
-  <SolidColorBrush x:Key="Bg" Color="#070708"/>
-  <SolidColorBrush x:Key="Surface" Color="#111112"/>
-  <SolidColorBrush x:Key="Field" Color="#111113" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Raised" Color="#1B1B1F" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Raised2" Color="#232327" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Line" Color="#29292D" po:Freeze="True"/>
-  <SolidColorBrush x:Key="LineStrong" Color="#3D3D43" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Bg" Color="#080808"/>
+  <SolidColorBrush x:Key="Surface" Color="#111111"/>
+  <SolidColorBrush x:Key="Field" Color="#121212" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Raised" Color="#1C1C1C" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Raised2" Color="#242424" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Line" Color="#2A2A2A" po:Freeze="True"/>
+  <SolidColorBrush x:Key="LineStrong" Color="#3F3F3F" po:Freeze="True"/>
   <!-- Ink, lightest first. Every text one reads at 4.5:1 or more on Mira's surfaces (AccessibilityTests); Dim is for
        glyphs and dots only, never for text. -->
-  <SolidColorBrush x:Key="Text" Color="#F5F5F7" po:Freeze="True"/>
-  <SolidColorBrush x:Key="TextBody" Color="#DEDEE4" po:Freeze="True"/>
-  <SolidColorBrush x:Key="TextSecondary" Color="#C5C5CA" po:Freeze="True"/>
-  <SolidColorBrush x:Key="TextTertiary" Color="#B6B6BD" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Muted" Color="#A2A2A6"/>
-  <!-- Small labels and hints: the dimmest text that still reads at 4.5:1 on Mira's surfaces (5.5:1 on #101012). -->
-  <SolidColorBrush x:Key="Faint" Color="#8A8A90"/>
-  <SolidColorBrush x:Key="Dim" Color="#737379" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Text" Color="#F5F5F5" po:Freeze="True"/>
+  <SolidColorBrush x:Key="TextBody" Color="#E0E0E0" po:Freeze="True"/>
+  <SolidColorBrush x:Key="TextSecondary" Color="#C7C7C7" po:Freeze="True"/>
+  <SolidColorBrush x:Key="TextTertiary" Color="#B9B9B9" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Muted" Color="#A3A3A3"/>
+  <!-- Small labels and hints: the dimmest text that still reads at 4.5:1 on Mira's surfaces (5.5:1 on #111111). -->
+  <SolidColorBrush x:Key="Faint" Color="#8C8C8C"/>
+  <SolidColorBrush x:Key="Dim" Color="#757575" po:Freeze="True"/>
   <!-- The ink of a light button (Accent behind it). -->
-  <SolidColorBrush x:Key="OnAccent" Color="#111113" po:Freeze="True"/>
+  <SolidColorBrush x:Key="OnAccent" Color="#121212" po:Freeze="True"/>
   <!-- States: done, waiting or offline, failed. The warning has its own text, surface and line for the offline badge. -->
   <SolidColorBrush x:Key="Success" Color="#86C6A2" po:Freeze="True"/>
   <SolidColorBrush x:Key="Warning" Color="#D5B787" po:Freeze="True"/>
@@ -37,15 +37,15 @@
   <SolidColorBrush x:Key="Hairline" Color="#30FFFFFF" po:Freeze="True"/>
   <SolidColorBrush x:Key="HairlineStrong" Color="#5CFFFFFF" po:Freeze="True"/>
   <SolidColorBrush x:Key="Wash" Color="#24FFFFFF" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Menu" Color="#F5141417" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Toast" Color="#F0222227" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Pill" Color="#E0151517" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Sheet" Color="#F0101012" po:Freeze="True"/>
-  <SolidColorBrush x:Key="Scrim" Color="#F4070708" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Menu" Color="#F5151515" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Toast" Color="#F0242424" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Pill" Color="#E0161616" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Sheet" Color="#F0111111" po:Freeze="True"/>
+  <SolidColorBrush x:Key="Scrim" Color="#F4080808" po:Freeze="True"/>
   <!-- Keyboard focus ring; Windows' highlight colour in high contrast (MainWindow). -->
-  <SolidColorBrush x:Key="FocusRing" Color="#F5F5F7"/>
+  <SolidColorBrush x:Key="FocusRing" Color="#F5F5F5"/>
   <FontFamily x:Key="AppFont">pack://application:,,,/Assets/Fonts/#Nunito</FontFamily>
-  <SolidColorBrush x:Key="Accent" Color="#F5F5F7"/>
+  <SolidColorBrush x:Key="Accent" Color="#F5F5F5"/>
   <!-- Text in Ideal mode, grayscale: Nunito carries no hinting, and Display mode (GDI-classic metrics, no vertical
        anti-aliasing) drew its curves in steps, worst on titles. Popups are windows of their own: same setters. -->
   <Style TargetType="Window"><Setter Property="FontFamily" Value="{StaticResource AppFont}"/><Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/></Style>

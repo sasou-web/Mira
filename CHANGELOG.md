@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Des gris plus propres (Windows)** : plus de reflet en dégradé sur les grandes surfaces (cartes d’épisodes, panneaux des Réglages…), qui faisait des paliers visibles sur un écran OLED, et des gris neutres, sans la teinte bleue d’avant. Les petits boutons gardent leur reflet, chaque forme son liseré clair.
 - **Party ouverte dans Mira chez un ami (Windows, Mac, extension)** : par Tailscale Funnel, la page de la party donnait aux apps une adresse en `http://…ts.net` (port 80, où rien n’écoute) : la fenêtre de Mira restait sur « ERR_CONNECTION_TIMED_OUT » alors que le navigateur, qui passe en https tout seul, y arrivait. La page donne maintenant l’adresse en https derrière Tailscale (en-têtes de Serve et Funnel, lus seulement depuis ce PC), et Mira corrige aussi les liens des anciennes extensions. Si la fenêtre n’arrive quand même pas à joindre la party, elle s’ouvre dans le navigateur au bout de 15 secondes au plus, avec un avis.
 - **Plus de ligne claire sous le carrousel (Windows)** : en arrivant sur l’Accueil ou en actualisant, une ligne fine et claire passait sous le carrousel (et sous le fond d’une fiche) le temps que la page glisse en place. L’image s’arrête maintenant juste au-dessus du bord, où le dégradé est déjà opaque.
 - **Page Recherche plus nette (Windows)** : plus de phrase sous le titre qui répétait le champ et se coupait dans une fenêtre étroite ; le champ suit la largeur de la fenêtre (760 au plus) et son texte d’aide ne passe plus sous le curseur.
