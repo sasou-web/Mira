@@ -49,6 +49,18 @@ public static class GpuRecheck
         _ => (Verdict.TryAgain, failures + 1),
     };
 
+    /// <summary>
+    /// Jellyfin on the processor, and this PC has a card it could convert with: tried by Mira itself, once for this
+    /// Jellyfin and these drivers, never while anyone watches, never once the person went back to the processor.
+    /// </summary>
+    public static bool TriesFirst(bool keptOff, int cards, string? fingerprint, string triedFor, bool watching) =>
+        !keptOff && cards > 0 && fingerprint is not null && fingerprint != triedFor && !watching;
+
+    /// <summary>What Mira says once it turned the card on by itself.</summary>
+    public static string TurnedOn(string card) =>
+        L($"Jellyfin convertit maintenant les vidéos avec ta {card} : Mira l’a essayée sur un de tes titres. Les conversions pour ton téléphone vont plus vite et laissent le processeur libre. Pour revenir au processeur : Réglages → Jellyfin.",
+        $"Jellyfin now converts videos with your {card}: Mira tried it on one of your titles. Conversions for your phone are faster and leave the processor free. To go back to the processor: Settings → Jellyfin.");
+
     /// <summary>What Mira says once Jellyfin is back on the processor.</summary>
     public static string Notice(string kind) =>
         L($"Depuis la mise à jour de Jellyfin ou du pilote de ta carte graphique ({GpuEncoding.Maker(kind)}), elle n’a pas réussi deux essais de conversion : "

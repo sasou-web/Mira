@@ -43,6 +43,14 @@ struct TailnetRows: View {
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("tailscale.starting")
+                if tailnet.slow {
+                    Text("Tailscale’s servers aren’t answering. Mira keeps trying: nothing to change on this iPhone. If it lasts, Tailscale may be having an outage.")
+                        .font(MiraFont.footnote).foregroundStyle(Palette.warning).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("tailscale.slow")
+                    Link(destination: URL(string: "https://status.tailscale.com")!) {
+                        Label("Open Tailscale’s status page", systemImage: "arrow.up.forward.app").font(MiraFont.body)
+                    }
+                }
             case .signIn:
                 Button {
                     Task { await tailnet.signIn() }
@@ -83,6 +91,9 @@ struct TailnetRows: View {
                     SettingsRow(pc.online ? "PC with Jellyfin online" : "PC with Jellyfin offline", verbatim: pcLine(pc),
                                 symbol: pc.online ? "desktopcomputer" : "desktopcomputer.trianglebadge.exclamationmark")
                 }
+                if tailnet.status.outageCache != true {
+                    OutageRows()
+                }
             case let .failed(message):
                 SettingsRow("Built-in Tailscale couldn’t start", verbatim: message, symbol: "exclamationmark.triangle")
                 Button("Try again") { Task { await tailnet.start() } }.font(MiraFont.body)
@@ -121,6 +132,38 @@ struct TailnetRows: View {
     /// The device of the network the way to Jellyfin goes to, or the one at the server's address.
     private func jellyfinPC(_ status: TailnetStatus) -> WayPlan.Peer? {
         WayPlan.device(of: [app.way?.address, app.session?.server].compactMap { $0 }, in: status.peers ?? [])
+    }
+}
+
+/// On a network whose policy doesn't let Built-in Tailscale start during an outage of Tailscale: the one setting, for its
+/// administrator (the same as Windows and Mac, `TailnetText.OutageSetting` of Core), gone by itself once the policy has it.
+struct OutageRows: View {
+    @State private var copied = false
+
+    static let setting = """
+        "nodeAttrs": [
+          { "target": ["autogroup:member", "autogroup:tagged"], "attr": ["cache-network-maps"] },
+        ],
+
+        """
+
+    var body: some View {
+        Text("For Built-in Tailscale to keep working during a Tailscale outage, your Tailscale network must allow it, once (its administrator): copy the setting, open the network’s policy in JSON, paste it right after the first “{”, then Save. Already a “nodeAttrs”? Paste only its middle line inside it. Mira notices by itself.")
+            .font(MiraFont.footnote).foregroundStyle(Palette.warning).fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("tailscale.outage")
+        Button {
+            UIPasteboard.general.string = Self.setting
+            copied = true
+        } label: {
+            if copied {
+                Label("Setting copied", systemImage: "checkmark").font(MiraFont.body)
+            } else {
+                Label("Copy the setting", systemImage: "doc.on.doc").font(MiraFont.body)
+            }
+        }
+        Link(destination: URL(string: "https://login.tailscale.com/admin/acls/file")!) {
+            Label("Open the network’s policy", systemImage: "arrow.up.forward.app").font(MiraFont.body)
+        }
     }
 }
 

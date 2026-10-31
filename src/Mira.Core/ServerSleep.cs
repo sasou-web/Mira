@@ -3,7 +3,7 @@ namespace Mira.Core;
 /// <summary>
 /// The PC Jellyfin runs on, asleep: unreachable, from home too, and Tailscale cannot wake it. What Windows' power plan
 /// does on mains power (sleep after some idle time, hibernation, closing a laptop's lid) is said on the phone's card,
-/// with « Pas de veille sur secteur » at the person's choice, never on battery; and while Mira runs, even minimized,
+/// set by « Tout préparer » (« Pas de veille sur secteur »), never on battery; and while Mira runs, even minimized,
 /// the PC is kept awake as long as another device plays from Jellyfin. Jellyfin 12.1 does neither. Decided here, so
 /// that the tests check every case; read and set by Mira for Windows.
 /// </summary>
@@ -16,6 +16,9 @@ public static class ServerSleep
     /// </summary>
     public sealed record Plan(int Standby, int Hibernate, int? LidAction, bool Battery);
     public static string NeverOnMains => L("Pas de veille sur secteur", "No sleep when plugged in");
+
+    /// <summary>Where to set it when Windows does not take Mira's change.</summary>
+    public static string WhereNever => L("dans Paramètres → Système → Alimentation, choisis « Jamais » pour la mise en veille sur secteur", "in Settings → System → Power, choose “Never” for sleep when plugged in");
 
     public static bool Sleeps(Plan plan) => plan.Standby > 0 || plan.Hibernate > 0 || plan.LidAction is > 0;
 
@@ -41,7 +44,7 @@ public static class ServerSleep
                 "Asleep, it can’t be reached: away from home, your phone no longer finds it, and Tailscale can’t wake it up.")
             + (lid && (plan.Standby > 0 || plan.Hibernate > 0) ? (plan.LidAction == 3 ? L(" Fermer son écran l’éteint aussi.", " Closing its lid shuts it down too.") : L(" Fermer son écran l’endort aussi.", " Closing its lid puts it to sleep too.")) : "")
             + L(" Tant que Mira est ouvert, même réduit, il le garde éveillé pendant qu’un autre appareil regarde un film.", " While Mira is open, even minimized, it keeps it awake while another device watches a movie.")
-            + L($" « {NeverOnMains} » le garde éveillé tout le temps quand il est branché", $" “{NeverOnMains}” keeps it awake all the time while it’s plugged in")
+            + L(" « Tout préparer » le garde éveillé tout le temps quand il est branché", " “Set everything up” keeps it awake all the time while it’s plugged in")
             + (lid ? L(", écran fermé compris", ", lid closed included") : "") + (plan.Battery ? L(", jamais sur batterie.", ", never on battery.") : ".");
         return (title, text);
     }

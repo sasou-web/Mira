@@ -15,13 +15,16 @@ struct TailnetStatus: Codable, Sendable, Hashable {
     var user: String?
     var tailnet: String?
     var peers: [WayPlan.Peer]?
+    /// Whether the network's policy lets the node keep its list of devices, to start from it during an outage of Tailscale
+    /// (the « cache-network-maps » attribute).
+    var outageCache: Bool?
     /// http://127.0.0.1:<port>/<secret>: requests to the network's devices, through the node.
     var relay: String?
     /// Why it could not start.
     var error: TailnetFailure?
 
     enum CodingKeys: String, CodingKey {
-        case state, offline, device = "self", user, tailnet, peers, relay, error
+        case state, offline, device = "self", user, tailnet, peers, outageCache, relay, error
     }
 
     static let off = TailnetStatus(state: "off")

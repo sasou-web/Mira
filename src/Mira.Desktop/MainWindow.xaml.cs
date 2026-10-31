@@ -306,6 +306,7 @@ public partial class MainWindow : Window
         if (_invite is not null) _ = OfferInviteAsync();
         _ = LoadOfflineAsync(client);
         if (!_args.Contains("--visual-check")) _ = MarkLibraryFoldersAsync(client, _connectionLifetime.Token);
+        if (!_args.Any(x => x.EndsWith("-check", StringComparison.Ordinal))) _ = KeepFunnelOpenAsync(client, _connectionLifetime.Token);
         ServerLabel.Text = connection.UserName + " · Jellyfin"; AvatarLetter.Text = connection.UserName[..1].ToUpperInvariant(); SetPhoto(null); _ = ShowPhotoAsync();
         SettingsServerAddress.Text = connection.Server;
         LoginOverlay.Visibility = Visibility.Collapsed; _catalog.View = "home"; _catalog.ParentId = null; SearchBox.Text = "";

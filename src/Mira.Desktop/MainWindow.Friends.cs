@@ -144,6 +144,9 @@ public partial class MainWindow
         bool? admin = null;
         try { admin = await client.IsAdministratorAsync(); }
         catch (Exception ex) when (IsExpected(ex)) { }
-        if (admin == true && ReferenceEquals(client, _client) && InviteOverlay.Visibility == Visibility.Visible) InviteAddFriend.Visibility = InviteGuestLink.Visibility = Visibility.Visible;
+        if (admin != true || !ReferenceEquals(client, _client) || InviteOverlay.Visibility != Visibility.Visible) return;
+        InviteGuestLink.Content = L("Lien sans compte", "Link without an account");
+        InviteGuestLink.ToolTip = L("Un lien pour quelqu’un sans compte ni Tailscale, dans les réglages de Mira", "A link for someone with no account and no Tailscale, in Mira’s settings");
+        InviteAddFriend.Visibility = InviteGuestLink.Visibility = Visibility.Visible;
     }
 }

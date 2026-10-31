@@ -85,6 +85,15 @@ internal static class PlayerTests
             foreach (var bad in root.GetProperty("badAppLinks").EnumerateArray())
                 Assert(Together.ParseAppLink(bad.GetString()) is null, $"Refused: {bad.GetString()}");
             Assert(Together.ParseAppLink(null) is null, "No link");
+            // A party link (its page's « Open in Mira »): the code and its Jellyfin, never a group yet.
+            var partyLink = Mira.Jellyfin.PartyPage.AppLink("https://jellyfin-pc.tail1234.ts.net", "AbCdEfGhIjKlMnOpQr_-12", "0123456789abcdef0123456789abcdef");
+            Assert(Together.ParseAppLink(partyLink) == new Together.Invitation("", "https://jellyfin-pc.tail1234.ts.net", null, "AbCdEfGhIjKlMnOpQr_-12"), $"Party link: {partyLink}");
+            Assert(Together.ParseAppLink("mira://party/short?server=http%3A%2F%2F192.168.1.2%3A8096") is null, "Party code too short");
+            Assert(Together.ParseAppLink("mira://party/AbCdEfGhIjKlMnOpQr_-12?server=file%3A%2F%2F%2Fetc") is null, "Party on no Jellyfin");
+            Assert(Together.PartyWebLink("http://192.168.1.2:8096/", "AbCdEfGhIjKlMnOpQr_-12") == "http://192.168.1.2:8096/Mira/#/party/AbCdEfGhIjKlMnOpQr_-12", "Party in Mira web");
+            var partyGroups = new List<Together.Group> { new("74644121-30f5-4334-a8a1-4638f0060cd6", "Groupe de ogsas", ["ogsas"], "Idle") };
+            Assert(Together.Answer(Together.PartyInvitation("http://192.168.1.2:8096", "ogsas"), partyGroups, "http://192.168.1.2:8096", null) is { Kind: Together.InviteKind.Join, Group.GroupId: "74644121-30f5-4334-a8a1-4638f0060cd6" }, "Party: the host's group");
+            Assert(Together.Answer(Together.PartyInvitation("http://192.168.1.2:8096", "ogsas"), [], "http://192.168.1.2:8096", null).Kind == Together.InviteKind.Waiting, "Party: waits for the host's group");
             // Found among the groups of this Jellyfin, whatever address it is reached at; else another Jellyfin, or gone.
             var invite = new Together.Invitation("7464412130f54334a8a14638f0060cd6", "http://100.101.102.103:8096");
             List<Together.Group> groups = [new("74644121-30f5-4334-a8a1-4638f0060cd6", "Groupe de mira", ["mira"], "Idle")];

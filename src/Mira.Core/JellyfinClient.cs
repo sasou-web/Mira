@@ -716,11 +716,24 @@ public sealed class JellyfinClient : IDisposable
         await LibraryOptionsAsync(["movies", "tvshows"], ct) is { Count: > 0 } libraries && libraries.All(x => Trickplay(x.Options) is not null)
             ? libraries.All(x => Trickplay(x.Options) == true) : null;
     /// <summary>
-    /// Turns that option on in every film and series library, their other options kept, then starts Jellyfin's task that
-    /// makes the pictures (« Generate Trickplay Images », run every night afterwards). False when refused.
+    /// Turns that option on in every film and series library, their other options kept, the pictures made the light way
+    /// (<see cref="LightTrickplay"/>), then, with <paramref name="now"/>, starts Jellyfin's task that makes them
+    /// (« Generate Trickplay Images », run every night anyway, and for each new title after a scan). False when refused.
     /// </summary>
-    public async Task<bool> EnableTrickplayAsync(CancellationToken ct = default)
+    public async Task<bool> EnableTrickplayAsync(bool now = true, CancellationToken ct = default)
     {
+        using (var read = await _http.GetAsync("System/Configuration", ct))
+        {
+            if (read.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+            await CheckAsync(read);
+            if (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) is JsonObject configuration && LightTrickplay(configuration))
+            {
+                using var content = new StringContent(configuration.ToJsonString(), Encoding.UTF8, "application/json");
+                using var saved = await _http.PostAsync("System/Configuration", content, ct);
+                if (saved.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
+                await CheckAsync(saved);
+            }
+        }
         if (await LibraryOptionsAsync(["movies", "tvshows"], ct) is not { } libraries) return false;
         foreach (var (id, options) in libraries)
         {
@@ -731,7 +744,7 @@ public sealed class JellyfinClient : IDisposable
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return false;
             await CheckAsync(response);
         }
-        if (await ScheduledTaskAsync("RefreshTrickplayImages", ct) is { Id: { } task, Running: false })
+        if (now && await ScheduledTaskAsync("RefreshTrickplayImages", ct) is { Id: { } task, Running: false })
         {
             using var started = await _http.PostAsync($"ScheduledTasks/Running/{Uri.EscapeDataString(task)}", null, ct);
             await CheckAsync(started);
@@ -754,6 +767,27 @@ public sealed class JellyfinClient : IDisposable
         var progress = task["CurrentProgressPercentage"] is JsonValue percent && percent.TryGetValue<double>(out var share) ? Math.Clamp(share / 100, 0, 1) : (double?)null;
         var ended = task["LastExecutionResult"] is JsonObject last && last["EndTimeUtc"] is JsonValue end && end.TryGetValue<string>(out var at) ? at : null;
         return (task["Id"] is JsonValue id && id.TryGetValue<string>(out var text) ? text : null, running, progress, ended);
+    }
+    /// <summary>
+    /// Jellyfin's trickplay settings (<c>TrickplayOptions</c> of System/Configuration) made light for the server: only
+    /// the video's key frames read (nothing decoded between them, many times faster), ffmpeg at Windows' idle priority
+    /// on one thread, at the 320 px width Jellyfin makes by default. Left as they are when Jellyfin has none (before
+    /// 10.9). Whether anything changed.
+    /// </summary>
+    public static bool LightTrickplay(JsonObject configuration)
+    {
+        if (configuration["TrickplayOptions"] is not JsonObject options) return false;
+        var changed = false;
+        void Set(string name, JsonNode value)
+        {
+            if (JsonNode.DeepEquals(options[name], value)) return;
+            options[name] = value; changed = true;
+        }
+        Set("EnableKeyFrameOnlyExtraction", true);
+        // As Jellyfin writes it: a name, or ProcessPriorityClass's number (Idle = 64).
+        Set("ProcessPriority", options["ProcessPriority"] is JsonValue priority && priority.TryGetValue<int>(out _) ? 64 : "Idle");
+        Set("ProcessThreads", 1);
+        return changed;
     }
     private static bool? Trickplay(JsonObject? options) =>
         options?["EnableTrickplayImageExtraction"] is JsonValue value && value.TryGetValue<bool>(out var on) ? on : null;
@@ -872,6 +906,31 @@ public sealed class JellyfinClient : IDisposable
         if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return false;
         await CheckAsync(response);
         return true;
+    }
+    /// <summary>
+    /// Your party: the link that brings anyone into this account's group (GET Mira/party; POST Mira/party/new with
+    /// <paramref name="fresh"/>, the old one stopped). Null when the extension is older than it.
+    /// </summary>
+    public async Task<PartyLink?> PartyAsync(bool fresh = false, CancellationToken ct = default)
+    {
+        using var response = fresh ? await _http.PostAsync("Mira/party/new", null, ct) : await _http.GetAsync("Mira/party", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckInvitesAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<PartyLink>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    /// <summary>
+    /// Whose party a code is on this Jellyfin (GET Mira/party/&lt;code&gt;, JSON): their name, or null when it is not one
+    /// of this server's (another Jellyfin's, or made anew since).
+    /// </summary>
+    public async Task<string?> PartyHostAsync(string code, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"Mira/party/{Uri.EscapeDataString(code)}");
+        request.Headers.Accept.ParseAdd("application/json");
+        using var response = await _http.SendAsync(request, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        return body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("host", out var host) && host.ValueKind == JsonValueKind.String && host.GetString() is { Length: > 0 } name ? name : null;
     }
     /// <summary>« Inviter par lien » (an administrator): the links made, and the address they start with (GET Mira/invites).</summary>
     public async Task<GuestLinkList> GuestLinksAsync(CancellationToken ct = default)

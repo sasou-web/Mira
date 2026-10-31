@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var phase
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ZStack {
@@ -52,6 +53,10 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: app.session?.userId)
+        // A party link (mira://party/…): into the host's group, or its page in Safari as a guest.
+        .onOpenURL { url in
+            Task { if let web = await app.together.openParty(url) { openURL(web) } }
+        }
         .onChange(of: phase) {
             switch phase {
             case .active: app.foreground()
@@ -190,7 +195,7 @@ enum Messages {
         case .approval:
             String(localized: "Built-in Tailscale is waiting for this iPhone to be approved in Tailscale’s admin console.")
         case .starting:
-            String(localized: "Built-in Tailscale is connecting. Try again in a moment.")
+            String(localized: "Built-in Tailscale is connecting. Try again in a moment; if it lasts, Tailscale’s servers may be down (status.tailscale.com).")
         case .offline:
             String(localized: "Built-in Tailscale can’t reach Tailscale. Check this iPhone’s connection.")
         case let .serverOffline(name):

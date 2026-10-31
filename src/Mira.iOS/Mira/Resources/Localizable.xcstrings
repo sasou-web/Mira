@@ -753,16 +753,6 @@
         }
       }
     },
-    "Built-in Tailscale is connecting. Try again in a moment.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tailscale intégré se connecte. Réessaie dans un instant."
-          }
-        }
-      }
-    },
     "Built-in Tailscale is signed out: sign in again in Settings.": {
       "localizations": {
         "fr": {
@@ -3776,6 +3766,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un compte pour chaque personne de la maison ou un ami, avec sa photo."
+          }
+        }
+      }
+    },
+    "Built-in Tailscale is connecting. Try again in a moment; if it lasts, Tailscale’s servers may be down (status.tailscale.com).": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale intégré se connecte. Réessaie dans un instant ; si ça dure, les serveurs de Tailscale sont peut-être en panne (status.tailscale.com)."
+          }
+        }
+      }
+    },
+    "Tailscale’s servers didn’t answer. Try again in a moment; if it lasts, see status.tailscale.com.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les serveurs de Tailscale n’ont pas répondu. Réessaie dans un instant ; si ça dure, regarde status.tailscale.com."
+          }
+        }
+      }
+    },
+    "Tailscale’s servers aren’t answering. Mira keeps trying: nothing to change on this iPhone. If it lasts, Tailscale may be having an outage.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les serveurs de Tailscale ne répondent pas. Mira continue d’essayer : rien à changer sur cet iPhone. Si ça dure, Tailscale a peut-être une panne."
+          }
+        }
+      }
+    },
+    "Open Tailscale’s status page": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir la page d’état de Tailscale"
+          }
+        }
+      }
+    },
+    "For Built-in Tailscale to keep working during a Tailscale outage, your Tailscale network must allow it, once (its administrator): copy the setting, open the network’s policy in JSON, paste it right after the first “{”, then Save. Already a “nodeAttrs”? Paste only its middle line inside it. Mira notices by itself.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour que Tailscale intégré marche même pendant une panne de Tailscale, ton réseau Tailscale doit l’autoriser, une fois (son administrateur) : copie le réglage, ouvre la politique du réseau en JSON, colle-le juste après la première « { », puis Save. Déjà un « nodeAttrs » ? Colle seulement sa ligne du milieu dedans. Mira le voit toute seule."
+          }
+        }
+      }
+    },
+    "Setting copied": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglage copié"
+          }
+        }
+      }
+    },
+    "Copy the setting": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier le réglage"
+          }
+        }
+      }
+    },
+    "Open the network’s policy": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir la politique du réseau"
+          }
+        }
+      }
+    },
+    "Mira can’t open this link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne sait pas ouvrir ce lien."
+          }
+        }
+      }
+    },
+    "This is your own party link: send it to whoever wants to join you.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "C’est ton propre lien de party : envoie-le à ceux qui veulent te rejoindre."
+          }
+        }
+      }
+    },
+    "Jellyfin doesn’t let this account watch together.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne permet pas à ce compte de regarder ensemble."
+          }
+        }
+      }
+    },
+    "Waiting for %@ to open their group…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente que %@ ouvre son groupe…"
+          }
+        }
+      }
+    },
+    "%@ hasn’t opened their group yet: open the link again once they have.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas encore ouvert son groupe : rouvre le lien quand ce sera fait."
           }
         }
       }

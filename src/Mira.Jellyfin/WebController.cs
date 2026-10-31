@@ -51,7 +51,7 @@ public sealed class WebController : ControllerBase
     {
         var files = WebFiles.Current;
         // The page itself is only served at /Mira/, with its security policy.
-        return path == "index.html" ? NotFound() : Serve(files, path, files.Immutable && revision == files.Revision ? AssetCache : NoCache);
+        return path is "index.html" or "party.html" ? NotFound() : Serve(files, path, files.Immutable && revision == files.Revision ? AssetCache : NoCache);
     }
 
     private const string AssetCache = "public, max-age=31536000, immutable";

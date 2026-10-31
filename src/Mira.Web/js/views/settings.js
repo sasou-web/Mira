@@ -155,9 +155,9 @@ export function create() {
         // « Profils »: an account for someone of the house or a friend, each one's photo.
         h('a', { class: 'item', href: '#/profils' }, icon('users'),
           h('span', { class: 'grow' }, tr('Profils'), h('span', { class: 'sub' }, tr('Un compte pour chaque personne de la maison ou un ami, avec sa photo.'))), icon('right', { size: 20 })),
-        // « Inviter par lien »: an account for each link, which only an administrator can make.
+        // « Ta party »: one link to watch together, its guests, and its address on the Internet.
         h('a', { class: 'item', href: '#/invites' }, icon('link'),
-          h('span', { class: 'grow' }, tr('Liens d’invités'), h('span', { class: 'sub' }, tr('Regarder ensemble avec quelqu’un sans compte ni Tailscale.'))), icon('right', { size: 20 }))) : null,
+          h('span', { class: 'grow' }, tr('Ta party'), h('span', { class: 'sub' }, tr('Un seul lien pour regarder ensemble, avec ou sans compte.'))), icon('right', { size: 20 }))) : null,
       admin ? h('h2', { class: 'label group-title' }, tr('Entretien')) : null,
       admin ? h('div', { class: 'group' },
         // An administrator sees every session (another account only its own): who plays what, and how.

@@ -18,10 +18,15 @@ final class Tailnet {
     private(set) var signingIn = false
     /// Why the last sign-in or sign-out failed.
     var failure: String?
+    /// Connecting for longer than Tailscale ever takes: its coordination server isn't answering (an outage at Tailscale's,
+    /// or a network that blocks it). The node keeps trying.
+    private(set) var slow = false
 
     @ObservationIgnored private var watching: Task<Void, Never>?
     @ObservationIgnored private var page: SignInPage?
     @ObservationIgnored private var leftAt: Date?
+    /// When the node began connecting, while it does.
+    @ObservationIgnored private var startingSince: Date?
     /// What Way was last told, in order: a newer state never goes before an older one.
     @ObservationIgnored private var pushing: Task<Void, Never>?
 
@@ -173,6 +178,7 @@ final class Tailnet {
                 try? await Task.sleep(for: .seconds(pause))
                 guard !Task.isCancelled, let self, self.status.state != "off" else { return }
                 self.apply(await TailscaleLibrary.status())
+                self.notice()
             }
         }
     }
@@ -180,8 +186,20 @@ final class Tailnet {
     private func apply(_ status: TailnetStatus) {
         guard status != self.status else { return }
         self.status = status
+        notice()
         push()
     }
+
+    /// Starting, or connecting again, for over 20 s: said, instead of a spinner that never ends.
+    private func notice() {
+        let connecting = enabled && phase == .starting && status.state != "off"
+        if !connecting { startingSince = nil } else if startingSince == nil { startingSince = Date() }
+        let late = startingSince.map { Date().timeIntervalSince($0) > Self.patience } ?? false
+        if late != slow { slow = late }
+    }
+
+    /// How long Tailscale may take to connect before Mira says its servers aren't answering.
+    static let patience: TimeInterval = 20
 
     /// Way hears of each change, in order.
     private func push() {
@@ -197,8 +215,10 @@ final class Tailnet {
     static func text(_ error: Error) -> String {
         guard let failure = error as? TailnetFailure else { return String(localized: "Tailscale didn’t answer. Check this iPhone’s connection, then try again.") }
         switch failure.code {
-        case "offline", "timeout", "tailscale":
+        case "offline":
             return String(localized: "Tailscale didn’t answer. Check this iPhone’s connection, then try again.")
+        case "timeout", "tailscale":
+            return String(localized: "Tailscale’s servers didn’t answer. Try again in a moment; if it lasts, see status.tailscale.com.")
         case "login":
             return String(localized: "Tailscale didn’t give a sign-in page. Try again in a moment.")
         case "keychain":

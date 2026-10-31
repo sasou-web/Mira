@@ -153,7 +153,8 @@ public static partial class GuestRoutes
         }
 
         var read = method.Equals("GET", StringComparison.OrdinalIgnoreCase) || method.Equals("HEAD", StringComparison.OrdinalIgnoreCase);
-        var page = rest is "" or "/" || rest.Equals("/manifest.webmanifest", StringComparison.OrdinalIgnoreCase) || rest.StartsWith("/v/", StringComparison.OrdinalIgnoreCase);
+        var page = rest is "" or "/" || rest.Equals("/manifest.webmanifest", StringComparison.OrdinalIgnoreCase) || rest.StartsWith("/v/", StringComparison.OrdinalIgnoreCase)
+            || PartyPath().IsMatch(rest);
         return read && !upgrade && page ? Tunnel.Page : Tunnel.None;
     }
 
@@ -310,4 +311,8 @@ public static partial class GuestRoutes
 
         return null;
     }
+
+    /// <summary>A party link's page and its card's image (« Ta party »), never the host's own calls.</summary>
+    [GeneratedRegex("^/party/[A-Za-z0-9_-]{22}(?:/image)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex PartyPath();
 }

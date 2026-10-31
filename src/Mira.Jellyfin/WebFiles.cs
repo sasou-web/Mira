@@ -50,7 +50,7 @@ public sealed class WebFiles
             }
 
             // Pages that name the assets carry the revision; text files are otherwise served as they are.
-            var bytes = path is "index.html" or "manifest.webmanifest"
+            var bytes = path is "index.html" or "manifest.webmanifest" or "party.html"
                 ? Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(content)
                     .Replace(RevisionMark, Revision, StringComparison.Ordinal).Replace(VersionMark, Version, StringComparison.Ordinal))
                 : content;

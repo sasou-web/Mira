@@ -12,6 +12,7 @@ import (
 	"tailscale.com/health"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/tailcfg/nodecap"
 )
 
 // The node's states, as Status.State gives them.
@@ -45,6 +46,9 @@ type Status struct {
 	MagicDNSSuffix string    `json:"magicDNSSuffix,omitempty"`
 	Peers          []Device  `json:"peers,omitempty"`
 	Warnings       []Warning `json:"warnings,omitempty"`
+	// OutageCache is whether the tailnet's policy lets this node keep its network map on disk (the
+	// « cache-network-maps » node attribute), so that it starts from it while Tailscale's coordination server is down.
+	OutageCache bool `json:"outageCache,omitempty"`
 }
 
 // Device is one device of the tailnet.
@@ -159,6 +163,7 @@ func convertStatus(st *ipnstate.Status, warnings map[string]Warning, now time.Ti
 		if p, ok := st.User[st.Self.UserID]; ok {
 			s.User = p.LoginName
 		}
+		s.OutageCache = st.Self.HasCap(nodecap.CacheNetworkMaps) && !st.Self.HasCap(nodecap.DisableCacheNetworkMaps)
 	}
 	if st.CurrentTailnet != nil {
 		s.Tailnet = st.CurrentTailnet.Name
