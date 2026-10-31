@@ -57,12 +57,12 @@ public sealed class Timeline : RangeBase
         // Jellyfin's trickplay picture of the moment pointed at, when it made them (SetPreview).
         _previewImage = new Image { Stretch = Stretch.UniformToFill };
         RenderOptions.SetBitmapScalingMode(_previewImage, BitmapScalingMode.HighQuality);
-        _preview = new Border { Child = _previewImage, Background = Palette.Get("Raised"), CornerRadius = new CornerRadius(4), Margin = new Thickness(-6, 2, -6, 5), ClipToBounds = true, Visibility = Visibility.Collapsed };
+        _preview = new Border { Child = _previewImage, Background = Palette.Get("Raised"), CornerRadius = Palette.Small, Margin = new Thickness(-6, 2, -6, 5), ClipToBounds = true, Visibility = Visibility.Collapsed };
         var text = new StackPanel(); text.Children.Add(_preview); text.Children.Add(_bubbleTitle); text.Children.Add(_bubbleTime);
         _bubble = new Border
         {
             Child = text, Background = Palette.Get("Menu"), BorderBrush = Palette.Get("Hairline"),
-            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7), Padding = new Thickness(10, 4, 10, 5), IsHitTestVisible = false, Opacity = 0
+            BorderThickness = new Thickness(1), CornerRadius = Palette.Small, Padding = new Thickness(10, 4, 10, 5), IsHitTestVisible = false, Opacity = 0
         };
         AddVisualChild(_bubble);
         IsVisibleChanged += (_, _) => { if (IsVisible) Attach(); else Detach(); };

@@ -102,7 +102,7 @@ public partial class MainWindow
     private Button MatchRow(JellyfinClient client, RemoteMatch match, int version)
     {
         var poster = new Image { Width = 56, Height = 84, Stretch = Stretch.UniformToFill };
-        var frame = new Border { Width = 56, Height = 84, CornerRadius = new CornerRadius(6), Background = Palette.Get("Raised2"), ClipToBounds = true, Child = poster, VerticalAlignment = VerticalAlignment.Top };
+        var frame = new Border { Width = 56, Height = 84, CornerRadius = Palette.Small, Background = Palette.Get("Raised2"), ClipToBounds = true, Child = poster, VerticalAlignment = VerticalAlignment.Top };
         var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0) };
         text.Children.Add(new TextBlock { Text = match.Name, FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
         if (TitleIdentity.Line(match) is { Length: > 0 } line) text.Children.Add(new TextBlock { Text = line, FontSize = 12, Foreground = Palette.Get("Muted"), Margin = new Thickness(0, 3, 0, 0) });

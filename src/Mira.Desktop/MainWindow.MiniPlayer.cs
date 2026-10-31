@@ -10,7 +10,7 @@ namespace Mira.Desktop;
 /// corner on release. Pushed past the right edge it tucks away behind a small handle.</summary>
 public partial class MainWindow
 {
-    private const double MiniWidth = 384, MiniHeight = 216, MiniRadius = 12, MiniGap = 20, RailWidth = 68, TitleHeight = 34;
+    private const double MiniWidth = 384, MiniHeight = 216, MiniRadius = 11, MiniGap = 20, RailWidth = 68, TitleHeight = 34;
     private bool _miniRight = true, _miniBottom = true, _miniStowed, _miniDragging, _miniAnimating;
     private Point? _miniPress, _tabPress;
     private Point _miniGrab, _miniTopLeft;

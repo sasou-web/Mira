@@ -608,7 +608,7 @@ public partial class MainWindow
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
         if (group.Label.Length > 0)
         {
-            var episode = new Border { CornerRadius = new CornerRadius(4), Background = Palette.Get("Raised"), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = group.Label, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextBody") } };
+            var episode = new Border { CornerRadius = Palette.Small, Background = Palette.Get("Raised"), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = group.Label, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("TextBody") } };
             DockPanel.SetDock(episode, Dock.Right); head.Children.Add(episode);
         }
         if (RemoteLines.KindLabel(group.Category) is { Length: > 0 } kind)
@@ -638,7 +638,7 @@ public partial class MainWindow
             };
             panel.Children.Add(toggle); panel.Children.Add(others);
         }
-        var card = new Border { Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(12), Padding = new Thickness(18, 16, 18, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel };
+        var card = new Border { Background = Palette.Get("Surface"), CornerRadius = Palette.Card, Padding = new Thickness(18, 16, 18, 14), Margin = new Thickness(0, 0, 0, 12), Child = panel };
         AutomationProperties.SetName(card, string.Join(" · ", new[] { group.Title, group.Label, RemoteLines.KindLabel(group.Category) }.Where(x => x.Length > 0)));
         return card;
     }
@@ -652,7 +652,7 @@ public partial class MainWindow
         var text = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
         var quality = new WrapPanel();
         quality.Children.Add(new TextBlock { Text = ReleaseRanking.QualityLine(entry.Release) is { Length: > 0 } line ? line : L("Qualité non précisée", "Quality not given"), FontSize = 13.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        if (best) quality.Children.Add(new Border { CornerRadius = new CornerRadius(4), Background = Palette.Get("Accent"), Padding = new Thickness(7, 2, 7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = L("Meilleur choix", "Best pick"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("OnAccent") } });
+        if (best) quality.Children.Add(new Border { CornerRadius = Palette.Small, Background = Palette.Get("Accent"), Padding = new Thickness(7, 2, 7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = L("Meilleur choix", "Best pick"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Palette.Get("OnAccent") } });
         text.Children.Add(quality);
         text.Children.Add(new TextBlock { Text = RemoteLines.Hit(hit), FontSize = 12, Foreground = Palette.Get("TextSecondary"), Margin = new Thickness(0, 4, 0, 0) });
         text.Children.Add(new TextBlock { Text = hit.Name, FontSize = 11.5, LineHeight = 16, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, MaxHeight = 33, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0), ToolTip = hit.Name });
