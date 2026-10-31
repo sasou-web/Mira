@@ -140,6 +140,8 @@ public sealed class PartyController : ControllerBase
             ["title"] = party is null ? "Mira" : PartyPage.Title,
             ["description"] = party is null ? "This party link no longer works." : PartyPage.Description(party.HostName, watching),
             ["image"] = image,
+            // The page's own picture from its own address: Funnel's or not, never another origin than the page's.
+            ["picture"] = new Uri(image).PathAndQuery,
             ["url"] = party is null ? "" : PartyPage.Link(origin, party.Code),
             ["host"] = party?.HostName,
             ["watching"] = watching?.Title,
