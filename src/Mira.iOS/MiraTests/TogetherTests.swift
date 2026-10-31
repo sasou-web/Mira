@@ -102,4 +102,20 @@ struct TogetherTests {
             #expect(SyncRules.asksToReplace(group, queue, itemId: entry[2] as! String) == entry[3] as? Bool, "\(entry)")
         }
     }
+
+    @Test("Un lien de party : son code et son Jellyfin, rien d'autre")
+    func partyLinks() throws {
+        let link = try #require(URL(string: "mira://party/AbCdEfGhIjKlMnOpQr_-12?server=https%3A%2F%2Fjellyfin-pc.tail1234.ts.net&id=0123456789abcdef0123456789abcdef"))
+        let party = try #require(SyncRules.partyLink(link))
+        #expect(party.code == "AbCdEfGhIjKlMnOpQr_-12")
+        #expect(party.server.absoluteString == "https://jellyfin-pc.tail1234.ts.net")
+        #expect(SyncRules.partyWebLink(server: party.server, code: party.code)?.absoluteString == "https://jellyfin-pc.tail1234.ts.net/Mira/#/party/AbCdEfGhIjKlMnOpQr_-12")
+        for bad in ["mira://party/short?server=http%3A%2F%2F192.168.1.2%3A8096",
+                    "mira://party/AbCdEfGhIjKlMnOpQr_-12?server=file%3A%2F%2F%2Fetc",
+                    "mira://party/AbCdEfGhIjKlMnOpQr_-12",
+                    "https://party/AbCdEfGhIjKlMnOpQr_-12?server=http%3A%2F%2F192.168.1.2%3A8096"] {
+            let url = try #require(URL(string: bad))
+            #expect(SyncRules.partyLink(url) == nil, "\(bad)")
+        }
+    }
 }

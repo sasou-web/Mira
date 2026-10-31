@@ -204,7 +204,7 @@ public static class Together
     public static string AppLink(string server, string groupId, string? host = null) =>
         "mira://ensemble/" + Uri.EscapeDataString(groupId) + "?server=" + Uri.EscapeDataString(server.TrimEnd('/')) + (string.IsNullOrEmpty(host) ? "" : "&hote=" + Uri.EscapeDataString(host));
     /// <summary>A group of a Jellyfin, at the address the invitation gives for it, and who made it when the link says.</summary>
-    public sealed record Invitation(string GroupId, string Server, string? Host = null);
+    public sealed record Invitation(string GroupId, string Server, string? Host = null, string? Party = null);
     /// <summary>
     /// An <see cref="AppLink"/>, from a web page: a group id (a GUID) and a Jellyfin at an http(s) address, nothing else
     /// (no other scheme, no user name in the address), and maybe its host (a name, without control characters). Null for
@@ -212,9 +212,11 @@ public static class Together
     /// </summary>
     public static Invitation? ParseAppLink(string? text)
     {
-        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri) || uri.Scheme != "mira" || !uri.Host.Equals("ensemble", StringComparison.OrdinalIgnoreCase)) return null;
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri) || uri.Scheme != "mira") return null;
+        var party = uri.Host.Equals("party", StringComparison.OrdinalIgnoreCase);
+        if (!party && !uri.Host.Equals("ensemble", StringComparison.OrdinalIgnoreCase)) return null;
         var group = Uri.UnescapeDataString(uri.AbsolutePath.Trim('/'));
-        if (!Guid.TryParse(group, out _) || group.Length is not (32 or 36)) return null;
+        if (party ? !IsPartyCode(group) : !Guid.TryParse(group, out _) || group.Length is not (32 or 36)) return null;
         string? server = null, host = null;
         foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -223,7 +225,30 @@ public static class Together
         }
         if (!Uri.TryCreate(server, UriKind.Absolute, out var address) || address.Scheme is not ("http" or "https") || address.UserInfo.Length > 0 || address.Query.Length > 0 || address.Fragment.Length > 0) return null;
         if (host is not null && (host.Length is 0 or > 128 || host.Any(char.IsControl))) return null;
-        return new(group, address.GetLeftPart(UriPartial.Authority) + address.AbsolutePath.TrimEnd('/'), host);
+        var at = address.GetLeftPart(UriPartial.Authority) + address.AbsolutePath.TrimEnd('/');
+        return party ? new("", at, null, group) : new(group, at, host);
+    }
+    /// <summary>The code of a party link (Mira.Jellyfin PartyController): 22 characters of base64url.</summary>
+    public static bool IsPartyCode(string? code) => code is { Length: 22 } && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+    /// <summary>A party in Mira web, as a guest joins it without an account (#/party/&lt;code&gt;).</summary>
+    public static string PartyWebLink(string server, string code) => server.TrimEnd('/') + "/Mira/#/party/" + Uri.EscapeDataString(code);
+    /// <summary>
+    /// The party of a host, once its Jellyfin said who (<paramref name="host"/>): their group, found by its name
+    /// (<see cref="FindGroup"/>), on the Jellyfin this app is signed in to.
+    /// </summary>
+    public static Invitation PartyInvitation(string server, string host) => new("", server.TrimEnd('/'), host);
+    /// <summary>What a party link does, said where it is shared; the extension's note on who it reaches after it.</summary>
+    public static List<string> PartySteps(string? note)
+    {
+        var steps = new List<string>
+        {
+            L("Qui l’ouvre te rejoint : pas de compte, rien à régler. Avec Mira sur son ordinateur ou son iPhone, le lien s’y ouvre.",
+                "Whoever opens it joins you: no account, nothing to set up. With Mira on their computer or iPhone, the link opens there."),
+            L("C’est toujours le même lien : garde-le dans ta conversation. « Faire un nouveau lien » (Réglages de Mira web → Ta party) arrête l’ancien.",
+                "It’s always the same link: keep it in your chat. “Make a new link” (Mira web settings → Your party) stops the old one."),
+        };
+        if (!string.IsNullOrWhiteSpace(note)) steps.Add(note);
+        return steps;
     }
     /// <summary>Jellyfin writes a group's id with or without dashes.</summary>
     public static bool SameGroup(string a, string b) => string.Equals(a.Replace("-", ""), b.Replace("-", ""), StringComparison.OrdinalIgnoreCase);

@@ -19,8 +19,6 @@ namespace Mira.Jellyfin;
 [Route("Mira/invites")]
 public sealed class InvitesController : ControllerBase
 {
-    // The name Jellyfin's dashboard shows for the plugin's API key (Tableau de bord → Clés API).
-    private const string KeyName = "Mira";
     // The address tried again after this long when only Mira answered there, after this long otherwise (Funnel's
     // certificate on its way, Funnel opened again); one try at a time.
     private static readonly TimeSpan TunnelFresh = TimeSpan.FromHours(6), TunnelRetry = TimeSpan.FromMinutes(1);
@@ -72,42 +70,25 @@ public sealed class InvitesController : ControllerBase
         var admin = Admin();
         using var client = _clients.CreateClient();
         var (meStatus, meText) = await Call(client, HttpMethod.Get, "Users/Me", admin, null, cancellationToken).ConfigureAwait(false);
-        var (usersStatus, usersText) = await Call(client, HttpMethod.Get, "Users", admin, null, cancellationToken).ConfigureAwait(false);
         var me = meStatus == (int)HttpStatusCode.OK ? Parse(meText) : null;
-        var users = usersStatus == (int)HttpStatusCode.OK ? Parse(usersText) as JsonArray : null;
-        if (me?["Id"] is null || users is null)
+        if (me?["Id"] is null)
         {
             return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas répondu. Réessaie dans un instant.");
         }
 
-        var taken = users.Select(x => Text(x?["Name"])).OfType<string>();
-        var name = GuestRoutes.GuestName(body?.Name, French ? "Invité" : "Guest", taken);
-        if (name is null)
+        var (made, userId, name, password) = await GuestAccounts.CreateAsync(client, Roots(), admin, body?.Name, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
+        switch (made)
         {
-            return Refuse(StatusCodes.Status400BadRequest, "Son prénom ne peut contenir que des lettres, des chiffres, des espaces et ces signes : - _ ' . @ +");
+            case GuestAccounts.Made.NoAnswer:
+                return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas répondu. Réessaie dans un instant.");
+            case GuestAccounts.Made.BadName:
+                return Refuse(StatusCodes.Status400BadRequest, "Son prénom ne peut contenir que des lettres, des chiffres, des espaces et ces signes : - _ ' . @ +");
+            case GuestAccounts.Made.Failed:
+                return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas créé le compte de l’invité.");
         }
 
-        var password = GuestRoutes.NewPassword();
-        var (madeStatus, madeText) = await Call(client, HttpMethod.Post, "Users/New", admin, JsonSerializer.Serialize(new { Name = name, Password = password }), cancellationToken).ConfigureAwait(false);
-        var userId = madeStatus == (int)HttpStatusCode.OK ? Text(Parse(madeText)?["Id"]) : null;
-        if (userId is null)
-        {
-            return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas créé le compte de l’invité.");
-        }
-
-        // A new account sees every library and downloads (Jellyfin 12.1): its policy is read, made a guest's, sent back whole.
-        var (userStatus, userText) = await Call(client, HttpMethod.Get, $"Users/{userId}", admin, null, cancellationToken).ConfigureAwait(false);
-        var policy = userStatus == (int)HttpStatusCode.OK ? Parse(userText)?["Policy"] as JsonObject : null;
-        var (policyStatus, _) = policy is null ? ((int)HttpStatusCode.BadGateway, "")
-            : await Call(client, HttpMethod.Post, $"Users/{userId}/Policy", admin, GuestRoutes.Policy(policy).ToJsonString(), cancellationToken).ConfigureAwait(false);
-        if (policyStatus is not ((int)HttpStatusCode.OK or (int)HttpStatusCode.NoContent))
-        {
-            await Call(client, HttpMethod.Delete, $"Users/{userId}", admin, null, CancellationToken.None).ConfigureAwait(false);
-            return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas créé le compte de l’invité.");
-        }
-
-        await KeepKeyAsync(client, admin, cancellationToken).ConfigureAwait(false);
-        var invite = Invites.Add(name, userId, password, Text(me["Id"])!, Text(me["Name"]) ?? "");
+        await GuestAccounts.KeepKeyAsync(client, Roots(), admin, cancellationToken).ConfigureAwait(false);
+        var invite = Invites.Add(name!, userId!, password!, GuestAccounts.Text(me["Id"])!, GuestAccounts.Text(me["Name"]) ?? "");
         return Answer(View(invite, Invites.Address));
     }
 
@@ -154,7 +135,8 @@ public sealed class InvitesController : ControllerBase
     private static object View(GuestInvite invite, string? address) => new
     {
         id = invite.Id, name = invite.Name, created = invite.Created, used = invite.Used, ends = invite.Used + GuestInvites.Unused,
-        opened = invite.Device is not null, device = invite.DeviceName, link = GuestInvites.Link(address, invite.Code),
+        opened = invite.Device is not null, device = invite.DeviceName, link = invite.Party is null ? GuestInvites.Link(address, invite.Code) : null,
+        party = invite.Party is not null,
     };
 
     /// <summary>
@@ -162,7 +144,7 @@ public sealed class InvitesController : ControllerBase
     /// try still holds (<see cref="TunnelCheck.Stale"/>): what it gave. Null without an address, or before any try when
     /// this Jellyfin's own card cannot be read.
     /// </summary>
-    private static async Task<TunnelCheck.Result?> TunnelAsync(IReadOnlyList<string> roots, string? address, TimeSpan fresh, TimeSpan retry, CancellationToken cancellationToken)
+    internal static async Task<TunnelCheck.Result?> TunnelAsync(IReadOnlyList<string> roots, string? address, TimeSpan fresh, TimeSpan retry, CancellationToken cancellationToken)
     {
         if (address is null || !TunnelCheck.Stale(TunnelCheck.Last(address), DateTimeOffset.UtcNow, fresh, retry))
         {
@@ -197,63 +179,13 @@ public sealed class InvitesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Jellyfin's API key for the plugin, kept to delete the accounts of links gone unused while no administrator is
-    /// there: made once, with this administrator's session, and made again if the dashboard deleted it.
-    /// </summary>
-    private async Task KeepKeyAsync(HttpClient client, IReadOnlyList<(string, string)> admin, CancellationToken cancellationToken)
-    {
-        static IEnumerable<JsonNode> Keys(string text) => Parse(text)?["Items"] is JsonArray items ? items.OfType<JsonNode>() : [];
-        var (status, text) = await Call(client, HttpMethod.Get, "Auth/Keys", admin, null, cancellationToken).ConfigureAwait(false);
-        if (status != (int)HttpStatusCode.OK || (Invites.Key is { } kept && Keys(text).Any(x => Text(x["AccessToken"]) == kept)))
-        {
-            return;
-        }
-
-        var before = Keys(text).Select(x => Text(x["AccessToken"])).ToHashSet();
-        await Call(client, HttpMethod.Post, $"Auth/Keys?app={KeyName}", admin, null, cancellationToken).ConfigureAwait(false);
-        (status, text) = await Call(client, HttpMethod.Get, "Auth/Keys", admin, null, cancellationToken).ConfigureAwait(false);
-        var made = status == (int)HttpStatusCode.OK
-            ? Keys(text).Where(x => Text(x["AppName"]) == KeyName && !before.Contains(Text(x["AccessToken"]))).Select(x => Text(x["AccessToken"])).FirstOrDefault()
-            : null;
-        if (made is not null)
-        {
-            Invites.Key = made;
-        }
-    }
-
     /// <summary>The administrator's own session, as this request carried it: what the plugin's calls to Jellyfin use.</summary>
-    private IReadOnlyList<(string, string)> Admin()
-    {
-        var headers = new List<(string, string)>();
-        foreach (var name in new[] { "Authorization", "X-Emby-Authorization", "X-Emby-Token", "X-MediaBrowser-Token" })
-        {
-            if (Request.Headers.TryGetValue(name, out var value) && !string.IsNullOrEmpty(value))
-            {
-                headers.Add((name, value.ToString()));
-            }
-        }
-
-        var key = Request.Query.FirstOrDefault(x => x.Key.Equals("ApiKey", StringComparison.OrdinalIgnoreCase) || x.Key.Equals("api_key", StringComparison.OrdinalIgnoreCase)).Value.ToString();
-        // Jellyfin 12.1 reads a session from Authorization or the query, no longer from X-Emby-Token.
-        if (!string.IsNullOrEmpty(key) && !headers.Any(x => x.Item1 == "Authorization"))
-        {
-            headers.Add(("Authorization", $"MediaBrowser Token=\"{key}\""));
-        }
-
-        return headers;
-    }
+    private IReadOnlyList<(string, string)> Admin() => GuestAccounts.SessionOf(Request);
 
     private Task<(int Status, string Text)> Call(HttpClient client, HttpMethod method, string path, IEnumerable<(string, string)> headers, string? json, CancellationToken cancellationToken) =>
         JellyfinLoopback.CallAsync(client, Roots(), method, path, headers, json, cancellationToken);
 
-    private static JsonNode? Parse(string text)
-    {
-        try { return JsonNode.Parse(text); }
-        catch (JsonException) { return null; }
-    }
-
-    private static string? Text(JsonNode? value) => value is JsonValue v && v.TryGetValue<string>(out var text) ? text : null;
+    private static JsonNode? Parse(string text) => GuestAccounts.Parse(text);
 
     private async Task<T?> ReadAsync<T>(CancellationToken cancellationToken)
         where T : class
@@ -315,7 +247,7 @@ internal static class GuestCleanup
         try
         {
             using var client = clients.CreateClient();
-            await SweepAsync(client, JellyfinLoopback.Roots(host, pathBase), [("Authorization", $"MediaBrowser Token=\"{key}\"")], CancellationToken.None).ConfigureAwait(false);
+            await SweepAsync(client, JellyfinLoopback.Roots(host, pathBase), GuestAccounts.WithKey(key), CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or InvalidOperationException)
         {

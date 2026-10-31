@@ -2083,16 +2083,15 @@ try {
   await ta.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await ta.waitForTimeout(2500);
   await line(ta).click(); await ta.waitForTimeout(800);
   await ta.locator('.sheet-item', { hasText: 'Créer un groupe' }).click();
-  // A new group is empty: its invitation opens at once, with the link to send.
+  // A new group is empty: its invitation opens at once, with this account's party link to send (« Ta party »).
   await ta.locator('.invite-link').waitFor({ timeout: 10000 }).catch(() => {});
   const link = (await ta.locator('.invite-link').innerText().catch(() => '')).trim();
-  const steps = await ta.locator('.invite-steps li').count();
   await ta.keyboard.press('Escape'); await ta.waitForTimeout(500);
   const created = (await line(ta).innerText()).replace(/\s+/g, ' ').trim();
   const groupId = (await ta.evaluate(() => JSON.parse(sessionStorage.getItem('mira.together') || 'null')?.id).catch(() => null)) ?? '';
-  // The friend opens it signed out (here, on this address: the link's own is the server's on the network): Mira asks to
-  // sign in, says why, then is in the group.
-  await tb.goto(`${base}${link.slice(link.indexOf('#'))}`); await tb.waitForTimeout(1500);
+  // A friend with an account opens the group's own link signed out (what Mira's apps before party links sent, still
+  // valid): Mira asks to sign in, says why, then is in the group.
+  await tb.goto(`${base}#/ensemble/${groupId}?hote=${encodeURIComponent(user)}`); await tb.waitForTimeout(1500);
   const invitedLead = (await tb.locator('.lead').first().innerText().catch(() => '')).trim();
   if (await tb.locator('.users').count()) await tb.getByRole('button', { name: 'Autre compte' }).click();
   await tb.fill('#login-name', 'Ami Mira'); await tb.fill('#login-password', 'ami-check');
@@ -2102,11 +2101,11 @@ try {
   await tb.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await tb.waitForTimeout(2500);
   await tb.waitForFunction(() => /2 personnes/.test([...document.querySelectorAll('#view .group-line')].map((x) => x.textContent).join(' ')), null, { timeout: 10000 }).catch(() => {});
   const joinedLine = (await line(tb).innerText()).replace(/\s+/g, ' ').trim();
-  check('ensemble : un groupe créé, son lien d’invitation ouvert sur l’autre téléphone, connexion puis dans le groupe',
-    /Ensemble : Groupe de .+ · 1 personne/.test(created) && groupId && link.endsWith(`/Mira/#/ensemble/${groupId}?hote=${encodeURIComponent(user)}`) && steps >= 3
+  check('ensemble : un groupe créé, le lien de party proposé ; le lien du groupe ouvert sur l’autre téléphone, connexion puis dans le groupe',
+    /Ensemble : Groupe de .+ · 1 personne/.test(created) && groupId && /\/Mira\/party\/[A-Za-z0-9_-]{22}$/.test(link)
       && invitedLead.startsWith(`${user} t’invite à regarder ensemble`) && /^Tu es dans « Groupe de .+ »$/.test(joinPage) && /Ensemble : Groupe de .+ · 2 personnes/.test(joinedLine)
       && created.includes('Personne d’autre pour l’instant') && (joinedLine.includes(`${user} et Ami Mira`) || joinedLine.includes(`Ami Mira et ${user}`)),
-    `« ${created} » ; lien ${link || 'absent'} (${steps} étapes) ; « ${invitedLead} » ; « ${joinPage} » ; « ${joinedLine} »`);
+    `« ${created} » ; lien ${link || 'absent'} ; « ${invitedLead} » ; « ${joinPage} » ; « ${joinedLine} »`);
   // A busy server takes two requests sent at once in either order: a Buffering taken after the Ready sent just behind it
   // would hold the group for this phone (for good on Jellyfin 10.x, 30 s on 12.x). Here each Buffering of the first
   // phone reaches Jellyfin 0.8 s late: Mira sends them one at a time, in order.
@@ -2268,7 +2267,7 @@ try {
   await tb.evaluate((id) => { location.hash = `#/ensemble/${id}`; }, groupId);
   await tb.waitForFunction(() => /pas pu être rejoint/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
   const oldLink = (await tb.locator('#view .lead').innerText().catch(() => '')).trim();
-  await tb.evaluate((hash) => { location.hash = hash; }, link.slice(link.indexOf('#')));
+  await tb.evaluate((hash) => { location.hash = hash; }, `#/ensemble/${groupId}?hote=${encodeURIComponent(user)}`);
   await tb.waitForFunction(() => /pas encore lancé/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
   const waitingPage = (await tb.locator('#view h1').innerText().catch(() => '')).trim();
   await tb.screenshot({ path: `${out}/24-together-waiting.png` });
@@ -2288,13 +2287,13 @@ try {
 }
 await togetherA.close(); await togetherB.close();
 
-// « Inviter par lien » (an administrator): a link for someone without an account, made from « Liens d'invités » (the
-// address of the links first, the one Tailscale Funnel gives: here a made-up one, the link is opened on this address).
-// The guest's phone opens it: Mira reloads on the extension's gateway, joins the host's group and stays there (any
-// other screen leads back to it); Lecture on the host's plays on both. Taken back, the guest is out at once, and the
-// link no longer opens. Everything the guest's phone asks, its WebSocket included, comes as through Tailscale Funnel
-// (the header Tailscale puts on each request): the extension's guard (TunnelGuard) lets through Mira web, the gateway
-// and the guest's own WebSocket, and nothing else.
+// « Ta party »: the host's one link (Réglages → Ta party; the address of the links first, the one Tailscale Funnel
+// gives: here a made-up one, the link is opened on this address). Its page shows who invites; « Watch in the browser »
+// on the guest's phone asks a name, then Mira reloads on the extension's gateway, joins the host's group and stays there
+// (any other screen leads back to it); Lecture on the host's plays on both. Removed, the guest is out at once; a new
+// link, and the old one no longer opens. Everything the guest's phone asks, its WebSocket included, comes as through
+// Tailscale Funnel (the header Tailscale puts on each request): the extension's guard (TunnelGuard) lets through Mira
+// web, the party's page, the gateway and the guest's own WebSocket, and nothing else.
 const FUNNEL = { 'Tailscale-Funnel-Request': '?1' };
 const hostCtx = await newContext('invité (hôte)'), guestCtx = await newContext('invité', 'fr-FR', { extraHTTPHeaders: FUNNEL });
 // One request as Funnel hands it on, its path as written: its status, 101 for a WebSocket opened (closed at once).
@@ -2321,35 +2320,40 @@ try {
     await addressInput.fill('https://mira-check.tail0000.ts.net');
     await inviter.getByRole('button', { name: 'Enregistrer' }).click(); await inviter.waitForTimeout(1000);
   }
-  await inviter.fill('.guests-page input[type=text]', 'Léa');
-  await inviter.getByRole('button', { name: 'Créer le lien' }).click();
-  await inviter.locator('.guests-page .invite-link').waitFor({ timeout: 10000 }).catch(() => {});
+  await inviter.evaluate(() => { location.hash = '#/invites'; }); await inviter.waitForTimeout(2000);
   const guestLink = (await inviter.locator('.guests-page .invite-link').innerText().catch(() => '')).trim();
-  const listed = (await inviter.locator('.guests-page .item', { hasText: 'Léa' }).innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
   await inviter.screenshot({ path: `${out}/32-guest-link.png` });
-  check('invité : un lien fait depuis « Liens d’invités », listé, pas encore ouvert',
-    /^https:\/\/[^/]+\/Mira\/#\/invite\/[A-Za-z0-9_-]{22}$/.test(guestLink) && listed.includes('Pas encore ouvert'), `${guestLink || 'pas de lien'} ; « ${listed} »`);
+  const code = guestLink.split('/').pop();
+  check('invité : le lien de party de l’hôte, sur l’adresse de Funnel',
+    /^https:\/\/[^/]+\/Mira\/party\/[A-Za-z0-9_-]{22}$/.test(guestLink), guestLink || 'pas de lien');
   const film = (await asHost('Items?recursive=true&includeItemTypes=Movie&searchTerm=Lueur')).Items[0];
   await inviter.evaluate((id) => { location.hash = `#/titre/${id}`; }, film.Id); await inviter.waitForTimeout(2500);
   await inviter.locator('#view .group-line').click(); await inviter.waitForTimeout(800);
   await inviter.locator('.sheet-item', { hasText: 'Créer un groupe' }).click();
   await inviter.locator('.invite-link').first().waitFor({ timeout: 10000 }).catch(() => {});
   await inviter.keyboard.press('Escape'); await inviter.waitForTimeout(500);
-  const guestHash = guestLink.slice(guestLink.indexOf('#'));
-  await invitee.goto(`${base}${guestHash}`);
+  // The party's page (through Funnel), then Mira web as its « Watch in the browser » opens it, here on this address.
+  await invitee.goto(`${base}party/${code}`);
+  const card = await invitee.evaluate(() => ({ title: document.querySelector('meta[property="og:title"]')?.content, web: document.querySelector('.party-web')?.href, lead: document.querySelector('.party-lead')?.textContent }));
+  await invitee.screenshot({ path: `${out}/33-party-page.png` });
+  await invitee.goto(`${base}#/party/${code}`);
+  await invitee.locator('#party-name').waitFor({ timeout: 10000 }).catch(() => {});
+  await invitee.fill('#party-name', 'Léa');
+  await invitee.getByRole('button', { name: 'Rejoindre la party' }).click();
   await invitee.waitForFunction(() => /Tu es dans/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
   const guestPage = (await invitee.locator('#view h1').innerText().catch(() => '')).trim();
   const guestSession = await invitee.evaluate(() => JSON.parse(localStorage.getItem('mira.session') ?? 'null'));
-  await invitee.screenshot({ path: `${out}/33-guest-joined.png` });
+  await invitee.screenshot({ path: `${out}/33b-guest-joined.png` });
   await invitee.evaluate(() => { location.hash = '#/reglages'; }); await invitee.waitForTimeout(1000);
   const confined = await invitee.evaluate(() => location.hash);
   // Through the gateway, the guest's session sees the host's group only and nothing of the library's lists.
   const gateway = (path) => invitee.evaluate(async ([p, t]) => (await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Mira/guest/${p}`, {
     headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${t}"` } })).status, [path, guestSession?.token ?? '']);
   const [usersStatus, itemsStatus] = [await gateway('Users'), await gateway('Items')];
-  check('invité : le lien ouvert sur un autre téléphone, sans compte, entre dans le groupe de l’hôte et y reste',
-    /^Tu es dans « Groupe de .+ »$/.test(guestPage) && guestSession?.guest === true && confined === '#/ensemble' && usersStatus === 404 && itemsStatus === 404,
-    `« ${guestPage} » ; session ${guestSession?.guest ? 'd’invité' : 'ordinaire'} ; #/reglages → ${confined} ; Users ${usersStatus}, Items ${itemsStatus}`);
+  check('invité : la page de la party, puis sans compte, un prénom, dans le groupe de l’hôte et y reste',
+    card.title === 'Join the Mira party' && card.web?.endsWith(`/Mira/#/party/${code}`) && card.lead?.startsWith(user)
+      && /^Tu es dans « Groupe de .+ »$/.test(guestPage) && guestSession?.guest === true && guestSession?.userName === 'Léa' && confined === '#/ensemble' && usersStatus === 404 && itemsStatus === 404,
+    `carte « ${card.title} » (${card.lead}), ${card.web} ; « ${guestPage} » ; ${guestSession?.userName} ; session ${guestSession?.guest ? 'd’invité' : 'ordinaire'} ; #/reglages → ${confined} ; Users ${usersStatus}, Items ${itemsStatus}`);
   await inviter.evaluate((id) => { location.hash = `#/lecture/${id}?debut=1`; }, film.Id);
   const guestFollowed = await invitee.waitForFunction((id) => location.hash.startsWith(`#/lecture/${id}`), film.Id, { timeout: 20000 }).then(() => true, () => false);
   for (const p of [inviter, invitee]) await p.waitForFunction(() => { const v = document.querySelector('video'); return v && !v.paused && v.currentTime > 1; }, null, { timeout: 25000 }).catch(() => {});
@@ -2365,25 +2369,28 @@ try {
   const root = new URL(base).pathname.replace(/\/Mira\/?.*$/i, '');
   const hostToken = await inviter.evaluate(() => JSON.parse(localStorage.getItem('mira.session')).token);
   const outside = [];
-  for (const path of ['/System/Info/Public', '/Mira/%2e%2e/System/Info/Public', '/web/', '/Users/Public', '/Mira/invites', '/Mira/torlink']) outside.push([path, await throughFunnel(root + path)]);
-  const [page, door] = [await throughFunnel(`${root}/Mira/`), await throughFunnel(`${root}/Mira/guest/System/Info/Public`)];
+  for (const path of ['/System/Info/Public', '/Mira/%2e%2e/System/Info/Public', '/web/', '/Users/Public', '/Mira/invites', '/Mira/torlink', '/Mira/party', '/Mira/party/new']) outside.push([path, await throughFunnel(root + path)]);
+  const [page, door, party] = [await throughFunnel(`${root}/Mira/`), await throughFunnel(`${root}/Mira/guest/System/Info/Public`), await throughFunnel(`${root}/Mira/party/${code}`)];
   const [hostSocket, elsewhere] = [await throughFunnel(`${root}/Mira/guest/socket?ApiKey=${hostToken}&deviceId=check`, SOCKET), await throughFunnel(`${root}/socket?ApiKey=${hostToken}&deviceId=check`, SOCKET)];
   check('invité : par Tailscale Funnel, seulement Mira web et la passerelle',
-    outside.every(([, status]) => status === 404) && page === 200 && door === 200 && hostSocket === 404 && elsewhere === 404,
-    `${outside.map(([path, status]) => `${path} ${status}`).join(', ')} ; page ${page}, passerelle ${door} ; WebSocket de l’hôte ${hostSocket}, ailleurs ${elsewhere}`);
+    outside.every(([, status]) => status === 404) && page === 200 && door === 200 && party === 200 && hostSocket === 404 && elsewhere === 404,
+    `${outside.map(([path, status]) => `${path} ${status}`).join(', ')} ; page ${page}, passerelle ${door}, party ${party} ; WebSocket de l’hôte ${hostSocket}, ailleurs ${elsewhere}`);
   await inviter.evaluate(() => { location.hash = '#/invites'; }); await inviter.waitForTimeout(2000);
-  await inviter.getByRole('button', { name: 'Retirer le lien de Léa' }).click(); await inviter.waitForTimeout(600);
-  await inviter.locator('.sheet-item', { hasText: 'Retirer le lien' }).click();
+  await inviter.getByRole('button', { name: 'Retirer Léa' }).click(); await inviter.waitForTimeout(600);
+  await inviter.locator('.sheet-item', { hasText: 'Retirer' }).click();
   await invitee.waitForFunction(() => /finie/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
   const endedPage = (await invitee.locator('#view h1').innerText().catch(() => '')).trim();
   await invitee.screenshot({ path: `${out}/34-guest-ended.png` });
   const oldToken = await invitee.evaluate(async (t) => (await fetch(`${location.pathname.replace(/\/Mira\/?.*$/i, '')}/Mira/guest/Users/Me`, { headers: { Authorization: `MediaBrowser Client="check", Device="check", DeviceId="check", Version="1", Token="${t}"` } })).status, guestSession?.token ?? '');
-  await invitee.goto(`${base}${guestHash}`);
-  await invitee.waitForFunction(() => /pas marché/.test(document.querySelector('#view h1')?.textContent ?? ''), null, { timeout: 10000 }).catch(() => {});
-  const reopened = (await invitee.locator('#view .lead').first().innerText().catch(() => '')).trim();
-  check('invité : le lien retiré, l’invité est dehors tout de suite et le lien ne marche plus',
-    invite?.opened && endedPage === 'La soirée est finie pour ce lien' && oldToken === 401 && /ne marche plus/.test(reopened),
-    `${invite?.opened ? `ouvert sur ${invite.device}` : 'jamais ouvert'} ; « ${endedPage} » ; ancienne session : ${oldToken} ; rouvert : « ${reopened} »`);
+  // A new link: the old one's page says the party is over.
+  await inviter.getByRole('button', { name: 'Faire un nouveau lien' }).click(); await inviter.waitForTimeout(600);
+  await inviter.locator('.sheet-item', { hasText: 'Faire un nouveau lien' }).click(); await inviter.waitForTimeout(2000);
+  const newLink = (await inviter.locator('.guests-page .invite-link').innerText().catch(() => '')).trim();
+  await invitee.goto(`${base}party/${code}`);
+  const over = await invitee.evaluate(() => document.querySelector('.party')?.dataset.state);
+  check('invité : retiré, l’invité est dehors tout de suite ; un nouveau lien, l’ancien ne marche plus',
+    invite?.opened && invite?.party && endedPage === 'La soirée est finie pour ce lien' && oldToken === 401 && newLink !== guestLink && /\/Mira\/party\//.test(newLink) && over === 'gone',
+    `${invite?.opened ? `ouvert sur ${invite.device}` : 'jamais ouvert'} ; « ${endedPage} » ; ancienne session : ${oldToken} ; nouveau lien ${newLink} ; ancien : ${over}`);
   await asHost('SyncPlay/Leave', 'POST').catch(() => null);
 } catch (error) {
   check('invité : déroulé', false, error.message.split('\n')[0]);

@@ -3849,6 +3849,56 @@
           }
         }
       }
+    },
+    "Mira can’t open this link.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mira ne sait pas ouvrir ce lien."
+          }
+        }
+      }
+    },
+    "This is your own party link: send it to whoever wants to join you.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "C’est ton propre lien de party : envoie-le à ceux qui veulent te rejoindre."
+          }
+        }
+      }
+    },
+    "Jellyfin doesn’t let this account watch together.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin ne permet pas à ce compte de regarder ensemble."
+          }
+        }
+      }
+    },
+    "Waiting for %@ to open their group…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente que %@ ouvre son groupe…"
+          }
+        }
+      }
+    },
+    "%@ hasn’t opened their group yet: open the link again once they have.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas encore ouvert son groupe : rouvre le lien quand ce sera fait."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

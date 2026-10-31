@@ -49,6 +49,9 @@ const ROUTES = [
   // no longer works.
   { pattern: /^\/invite\/([A-Za-z0-9_-]{22})$/, bare: true, open: true, guest: true, load: () => import('./views/guest.js'), args: (m) => ({ code: m[1] }) },
   { pattern: /^\/invite$/, bare: true, open: true, guest: true, load: () => import('./views/guest.js') },
+  // « Ta party »: the one link of a host (/Mira/party/<code>, « Watch in the browser »): a guest of its own for this
+  // device, or the host's group straight away for an account of this Jellyfin.
+  { pattern: /^\/party\/([A-Za-z0-9_-]{22})$/, bare: true, open: true, guest: true, load: () => import('./views/guest.js'), args: (m) => ({ party: m[1] }) },
   // « Inviter par lien », the host's side (an administrator): the links made, from Réglages or « Inviter quelqu'un ».
   { pattern: /^\/invites$/, load: () => import('./views/guests.js') },
   // « Profils »: the accounts of this Jellyfin, a new one, each one's photo (administrators).

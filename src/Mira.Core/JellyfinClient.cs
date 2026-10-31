@@ -907,6 +907,31 @@ public sealed class JellyfinClient : IDisposable
         await CheckAsync(response);
         return true;
     }
+    /// <summary>
+    /// Your party: the link that brings anyone into this account's group (GET Mira/party; POST Mira/party/new with
+    /// <paramref name="fresh"/>, the old one stopped). Null when the extension is older than it.
+    /// </summary>
+    public async Task<PartyLink?> PartyAsync(bool fresh = false, CancellationToken ct = default)
+    {
+        using var response = fresh ? await _http.PostAsync("Mira/party/new", null, ct) : await _http.GetAsync("Mira/party", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckInvitesAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<PartyLink>(ct) ?? throw new IOException(L("Réponse Jellyfin vide.", "Empty answer from Jellyfin."));
+    }
+    /// <summary>
+    /// Whose party a code is on this Jellyfin (GET Mira/party/&lt;code&gt;, JSON): their name, or null when it is not one
+    /// of this server's (another Jellyfin's, or made anew since).
+    /// </summary>
+    public async Task<string?> PartyHostAsync(string code, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"Mira/party/{Uri.EscapeDataString(code)}");
+        request.Headers.Accept.ParseAdd("application/json");
+        using var response = await _http.SendAsync(request, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await CheckAsync(response);
+        using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        return body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("host", out var host) && host.ValueKind == JsonValueKind.String && host.GetString() is { Length: > 0 } name ? name : null;
+    }
     /// <summary>« Inviter par lien » (an administrator): the links made, and the address they start with (GET Mira/invites).</summary>
     public async Task<GuestLinkList> GuestLinksAsync(CancellationToken ct = default)
     {

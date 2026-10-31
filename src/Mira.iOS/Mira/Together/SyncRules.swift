@@ -122,6 +122,25 @@ enum SyncRules {
         groupHost(name).map(groupName) ?? name ?? ""
     }
 
+    /// A party link (mira://party/<code>?server=…, its page's « Open in Mira »): the code (22 characters of base64url)
+    /// and its Jellyfin at an http(s) address, nothing else; nil for anything else. As Together.ParseAppLink of Core.
+    static func partyLink(_ url: URL) -> (code: String, server: URL)? {
+        guard url.scheme == "mira", url.host()?.lowercased() == "party" else { return nil }
+        let code = url.path().trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard code.count == 22, code.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else { return nil }
+        guard let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "server" })?.value,
+              let server = URL(string: value), ["http", "https"].contains(server.scheme ?? ""), server.host() != nil,
+              server.user() == nil, server.query() == nil, server.fragment() == nil else { return nil }
+        return (code, server)
+    }
+
+    /// The party in Mira web, as a guest joins it without an account (#/party/<code>).
+    static func partyWebLink(server: URL, code: String) -> URL? {
+        var base = server.absoluteString
+        while base.hasSuffix("/") { base.removeLast() }
+        return URL(string: base + "/Mira/#/party/" + code)
+    }
+
     /// Jellyfin writes a group's id with or without dashes.
     static func sameGroup(_ a: String?, _ b: String?) -> Bool {
         (a ?? "").replacingOccurrences(of: "-", with: "").lowercased() == (b ?? "").replacingOccurrences(of: "-", with: "").lowercased()

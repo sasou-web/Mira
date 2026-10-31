@@ -247,5 +247,67 @@ internal static class GuestTests
             Assert(fresh.All().Count == 0 && Directory.GetFiles(Path.GetDirectoryName(file)!, "Mira.invites.json.bad-*").Length == 1, "Unreadable file put aside");
             return Task.CompletedTask;
         });
+
+        await Test("Ta party : un lien par hôte, un invité par appareil, refait = les anciens partent", () =>
+        {
+            var now = new DateTimeOffset(2026, 10, 31, 1, 0, 0, TimeSpan.Zero);
+            var file = Path.Combine(run.Root, "party", "Mira.invites.json");
+            var invites = new GuestInvites(file, () => now);
+            var party = invites.PartyOf("host-id", "ogsas");
+            Assert(GuestRoutes.IsCode(party.Code) && invites.PartyOf("host-id", "ogsas").Code == party.Code, "The same link each time");
+            Assert(invites.PartyOf("other", "Rayro").Code != party.Code, "One per host");
+            Assert(new GuestInvites(file, () => now).Party(party.Code) is { HostName: "ogsas" }, "Kept through a restart");
+            Assert(invites.Party("x") is null && invites.Party(GuestRoutes.NewCode()) is null, "Any other code: none");
+
+            Assert(invites.OpenParty(party.Code, "device-a", "1.2.3.4") is { Result: GuestInvites.Opening.Join, Invite: null, Party.HostId: "host-id" }, "A new device: a guest to make");
+            var lea = invites.Add("Léa", Item, "secret", "host-id", "ogsas", party.Code, "device-a");
+            Assert(invites.OpenParty(party.Code, "device-a", "1.2.3.4") is { Result: GuestInvites.Opening.Opened, Invite.Id: var id } && id == lea.Id, "The same device: its guest again");
+            Assert(invites.OpenParty(party.Code, "device-b", "1.2.3.4").Result == GuestInvites.Opening.Join, "Another device: one more guest");
+            Assert(invites.Opened(lea.Id, "device-b", "Chrome", "t") == false && invites.Opened(lea.Id, "device-a", "iPhone", "token-a"), "A guest stays its device's");
+            Assert(invites.Guests(party.Code).Count == 1 && invites.Guests(invites.PartyOf("other", "Rayro").Code).Count == 0, "Guests of each party");
+            Assert(invites.OpenParty(GuestRoutes.NewCode(), "device-a", "1.2.3.4").Result == GuestInvites.Opening.Unknown, "Unknown party");
+
+            for (var i = 1; i < GuestInvites.MaxPartyGuests; i++) invites.Add($"G{i}", Guid.NewGuid().ToString("N"), "s", "host-id", "ogsas", party.Code, $"device-{i}");
+            Assert(invites.OpenParty(party.Code, "device-z", "4.4.4.4").Result == GuestInvites.Opening.Full, "Full");
+
+            // Made again: the old link stops, its guests' accounts go.
+            var again = invites.NewParty("host-id", "ogsas");
+            Assert(again.Code != party.Code && invites.Party(party.Code) is null && invites.ByToken("token-a") is null && invites.Guests(again.Code).Count == 0, "Old link and guests gone");
+            Assert(invites.Sweep().Count == GuestInvites.MaxPartyGuests && invites.Sweep().Contains(Item), "Their accounts to delete");
+            Assert(invites.PartyOf("host-id", "ogsas-renamed") is { HostName: "ogsas-renamed" } p && p.Code == again.Code, "A host renamed keeps the link");
+            return Task.CompletedTask;
+        });
+
+        await Test("Ta party : la page, sa carte et le lien des apps", () =>
+        {
+            Assert(GuestRoutes.ThroughTunnel("GET", "/Mira/party/" + GuestRoutes.NewCode(), "", false) == GuestRoutes.Tunnel.Page
+                && GuestRoutes.ThroughTunnel("GET", "/Mira/party/" + GuestRoutes.NewCode() + "/image", "", false) == GuestRoutes.Tunnel.Page, "The page and its image through Funnel");
+            foreach (var path in new[] { "/Mira/party", "/Mira/party/", "/Mira/party/new", "/Mira/party/" + GuestRoutes.NewCode() + "/x", "/Mira/party/../invites" })
+                Assert(GuestRoutes.ThroughTunnel("GET", path, "", false) == GuestRoutes.Tunnel.None, $"{path} let through");
+            Assert(GuestRoutes.ThroughTunnel("POST", "/Mira/party/new", "", false) == GuestRoutes.Tunnel.None, "Never the host's own calls");
+
+            var sessions = JsonNode.Parse($$"""
+                [ { "UserId": "{{Source}}", "NowPlayingItem": { "Id": "{{Item}}", "Name": "Other" } },
+                  { "UserId": "{{Dashed}}" },
+                  { "UserId": "{{Item}}", "NowPlayingItem": { "Id": "{{Source}}", "Type": "Episode", "Name": "Welcome", "SeriesName": "Arcane", "SeriesId": "{{Dashed}}", "ParentIndexNumber": 1, "IndexNumber": 3 } } ]
+                """);
+            Assert(PartyPage.WatchingOf(sessions, Dashed) == new PartyPage.Watching("Arcane · S1 E3", Dashed), $"An episode: {PartyPage.WatchingOf(sessions, Dashed)}");
+            Assert(PartyPage.WatchingOf(sessions, Source) == new PartyPage.Watching("Other", Item) && PartyPage.WatchingOf(sessions, "nobody") is null && PartyPage.WatchingOf(null, Item) is null, "A film, nothing");
+            Assert(PartyPage.Description("ogsas", null) == "ogsas invites you to watch together in Mira."
+                && PartyPage.Description("ogsas", new("Dune", Item)) == "ogsas is watching Dune. Join in Mira.", "The card's line");
+            Assert(PartyPage.Link("https://pc.tail.ts.net", "abc") == "https://pc.tail.ts.net/Mira/party/abc"
+                && PartyPage.AppLink("http://100.1.2.3:8096/", "abc", "srv") == "mira://party/abc?server=http%3A%2F%2F100.1.2.3%3A8096&id=srv", "Links");
+            Assert(PartyPage.Render("<p title=\"{{a}}\">{{a}} {{b}}</p>", new Dictionary<string, string?> { ["a"] = "<x\" & y>", ["b"] = null }) == "<p title=\"&lt;x&quot; &amp; y&gt;\">&lt;x&quot; &amp; y&gt; </p>", "Written for HTML");
+            Assert(PartyPage.TailnetAddress([IPAddress.Parse("192.168.1.2"), IPAddress.Parse("100.63.1.1"), IPAddress.Parse("100.114.247.13")]) == "100.114.247.13"
+                && PartyPage.TailnetAddress([IPAddress.Parse("100.128.0.1")]) is null, "Tailscale's range only");
+
+            var repository = new DirectoryInfo(AppContext.BaseDirectory);
+            while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "Mira.sln"))) repository = repository.Parent;
+            var files = WebFiles.FromFolder(Path.Combine((repository ?? new DirectoryInfo(Environment.CurrentDirectory)).FullName, "src", "Mira.Web"));
+            Assert(files.TryGet("party.html", out var page) && System.Text.Encoding.UTF8.GetString(page.Content) is var html
+                && html.Contains($"v/{files.Revision}/js/party.js", StringComparison.Ordinal) && html.Contains("{{description}}", StringComparison.Ordinal)
+                && ContentPolicy.StyleHashes(html).Count == 1, "The template, its revision written");
+            return Task.CompletedTask;
+        });
     }
 }

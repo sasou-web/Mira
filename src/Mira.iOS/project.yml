@@ -70,6 +70,10 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         NSLocalNetworkUsageDescription: Mira connects to your Jellyfin server on your home network.
+        # « Open in Mira » of a party link's page (mira://party/<code>?server=…), as on Windows and Mac.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.miracinema.Mira
+            CFBundleURLSchemes: [mira]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.miracinema.Mira
