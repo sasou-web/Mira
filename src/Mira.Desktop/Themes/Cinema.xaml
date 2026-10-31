@@ -50,7 +50,7 @@
        anti-aliasing) drew its curves in steps, worst on titles. Popups are windows of their own: same setters. -->
   <Style TargetType="Window"><Setter Property="FontFamily" Value="{StaticResource AppFont}"/><Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/><Setter Property="TextOptions.TextRenderingMode" Value="Grayscale"/></Style>
   <!-- Shown only when focus arrives from the keyboard; mouse clicks no longer leave a white outline. -->
-  <Style x:Key="KeyboardFocus"><Setter Property="Control.Template"><Setter.Value><ControlTemplate><v:Squircle Margin="-3" CornerRadius="9" BorderBrush="{DynamicResource FocusRing}" BorderThickness="2" SnapsToDevicePixels="True"/></ControlTemplate></Setter.Value></Setter></Style>
+  <Style x:Key="KeyboardFocus"><Setter Property="Control.Template"><Setter.Value><ControlTemplate><v:Squircle x:Name="Ring" Margin="-3" CornerRadius="9" BorderBrush="{DynamicResource FocusRing}" BorderThickness="2" SnapsToDevicePixels="True"/><ControlTemplate.Triggers><Trigger Property="v:Accessible.FocusRingShown" Value="False"><Setter TargetName="Ring" Property="Visibility" Value="Hidden"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
   <!-- Named for screen readers after their text, also when it sits beside an icon (« Plus d’infos »); an explicit name wins. -->
   <Style TargetType="Button"><Setter Property="v:Motion.Interactive" Value="True"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/><Setter Property="ToolTipService.InitialShowDelay" Value="650"/>
     <Setter Property="AutomationProperties.Name" Value="{Binding Content, RelativeSource={RelativeSource Self}, Converter={x:Static v:Accessible.ContentName}}"/>
