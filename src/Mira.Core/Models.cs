@@ -327,6 +327,12 @@ public sealed class PlayerSettings
     /// </summary>
     public string GpuCheckedFor { get; set; } = "";
     public int GpuFailures { get; set; }
+    /// <summary>
+    /// The fingerprint for which Mira last tried the card by itself (Jellyfin on the processor), and whether the person
+    /// put Jellyfin back on the processor (« Revenir au processeur »): then never tried by itself again.
+    /// </summary>
+    public string GpuTriedFor { get; set; } = "";
+    public bool GpuKeptOff { get; set; }
     /// <summary>The window's size (outside fullscreen and the mini-player) and state when Mira last closed; 0: never saved.</summary>
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }
