@@ -320,7 +320,7 @@ public partial class MainWindow
         for (var i = 0; i < columns * 2; i++)
         {
             var card = new StackPanel { Width = width, Margin = new Thickness(0, 0, 22, 30) };
-            card.Children.Add(new Border { Height = width * 1.48, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(5) });
+            card.Children.Add(new Squircle { Height = width * 1.48, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(MediaCard.PosterRadius) });
             card.Children.Add(new Border { Height = 12, Width = width * .72, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Raised"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 16, 0, 0) });
             card.Children.Add(new Border { Height = 9, Width = width * .42, HorizontalAlignment = HorizontalAlignment.Left, Background = Palette.Get("Surface"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 12, 0, 20) });
             CatalogSkeleton.Children.Add(card);
@@ -499,7 +499,11 @@ public partial class MainWindow
         var available = PosterCards.ActualWidth; if (available < 200) return;
         var (_, width) = PosterLayout(available);
         foreach (var card in PosterCards.Children.OfType<MediaCard>()) card.Resize(width);
-        foreach (var card in CatalogSkeleton.Children.OfType<Border>()) { card.Width = width; card.Height = width * 1.48; }
+        foreach (var card in CatalogSkeleton.Children.OfType<StackPanel>())
+        {
+            card.Width = width;
+            if (card.Children is [Squircle art, Border title, Border detail]) { art.Height = width * 1.48; title.Width = width * .72; detail.Width = width * .42; }
+        }
     }
     /// <summary>Columns and card width of a row of posters filling <paramref name="available"/>, at the chosen density.</summary>
     private (int Columns, double Width) PosterLayout(double available)
