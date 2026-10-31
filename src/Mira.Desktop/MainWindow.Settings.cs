@@ -421,7 +421,7 @@ public partial class MainWindow
         var ct = _connectionLifetime.Token;
         try
         {
-            if (!await client.EnableTrickplayAsync(ct)) { TrickplayStatus.Text = L("Seul un administrateur de Jellyfin peut changer ce réglage.", "Only a Jellyfin administrator can change this setting."); return; }
+            if (!await client.EnableTrickplayAsync(ct: ct)) { TrickplayStatus.Text = L("Seul un administrateur de Jellyfin peut changer ce réglage.", "Only a Jellyfin administrator can change this setting."); return; }
             TrickplayButton.Visibility = Visibility.Collapsed;
             TrickplayStatus.Text = await client.TrickplayProgressAsync(ct) is { } share ? TrickplayRunning(share) : TrickplayOn;
         }

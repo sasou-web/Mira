@@ -46,6 +46,12 @@ public partial class MainWindow
         try
         {
             if (!await JellyfinOnThisPcAsync(client) || await client.IsAdministratorAsync(ct) != true) return;
+            // The timeline's previews, once per server, the light way (key frames only, idle priority): made by Jellyfin's
+            // nightly task and after each scan, never started now.
+            if (_settings.TrickplayAutoFor != client.Connection.Server && await client.TrickplayEnabledAsync(ct) is { } previews)
+            {
+                if (previews || await client.EnableTrickplayAsync(now: false, ct)) { _settings.TrickplayAutoFor = client.Connection.Server; TrySaveSettings(); }
+            }
             var now = DateTimeOffset.Now;
             if (await client.BackupsAsync(ct) is { } backups && ReferenceEquals(client, _client))
             {
