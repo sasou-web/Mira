@@ -323,15 +323,17 @@ export const api = {
   /**
    * « Inviter par lien »: the link's code (#/invite/<code>) opened for this device, which it serves from now on. A
    * session of the guest's account, kept as any other with what says it is one: the gateway is then this page's
-   * Jellyfin (base). Refused ({ error }) for a link taken back or already used on another device.
+   * Jellyfin (base). Refused ({ error }) for a link taken back or already used on another device. « Ta party »: a party
+   * link's code ({ party, guest }: the guest's own name), which makes a guest of its own for this device, the same one
+   * each time this device comes back.
    */
-  async openInvite(code) {
+  async openInvite(code, { party, guest } = {}) {
     let response;
     try {
       response = await fetch(`${root}/Mira/guest/open`, {
         method: 'POST', cache: 'no-store',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Accept-Language': language() },
-        body: JSON.stringify({ code, device: device.id, name: device.name }),
+        body: JSON.stringify(party ? { party, guest, device: device.id, name: device.name } : { code, device: device.id, name: device.name }),
       });
     } catch { throw new ApiError(0, UNREACHABLE); }
     const answer = await response.json().catch(() => null);
@@ -342,6 +344,14 @@ export const api = {
     session.set({ guest: true, userId: answer.userId, userName: answer.userName, token: answer.token, serverId: answer.serverId, serverName: '', host: answer.host });
     settings.set('seenVersion', VERSION);
     return answer;
+  },
+  /** « Ta party »: who hosts a party link ({ host, serverId, watching }), for anyone who has it. */
+  async partyInfo(code) {
+    let response;
+    try { response = await fetch(`${root}/Mira/party/${encodeURIComponent(code)}`, { cache: 'no-store', headers: { Accept: 'application/json' } }); }
+    catch { throw new ApiError(0, UNREACHABLE); }
+    if (!response.ok) throw new ApiError(response.status, tr('Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.'));
+    return response.json();
   },
   // « Inviter par lien », the host's side (an administrator): the links made, one more, one taken back, and the
   // address on the Internet they start with (Tailscale Funnel's).

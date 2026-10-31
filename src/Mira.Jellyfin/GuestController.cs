@@ -68,19 +68,60 @@ public sealed partial class GuestController : ControllerBase
             return BadRequest();
         }
 
-        var (result, invite) = Plugin.Invites.Open(body.Code, device, ClientAddress());
-        switch (result)
-        {
-            case GuestInvites.Opening.TooMany:
-                return Refuse(StatusCodes.Status429TooManyRequests, "Trop d’essais : attends une minute.");
-            case GuestInvites.Opening.Unknown:
-                return Refuse(StatusCodes.Status404NotFound, "Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.");
-            case GuestInvites.Opening.OtherDevice:
-                return Refuse(StatusCodes.Status403Forbidden, "Ce lien sert déjà sur un autre appareil : demande-en un nouveau à la personne qui t’a invité.");
-        }
-
+        GuestInvite? invite;
         var name = DeviceName(body.Name);
         using var client = _clients.CreateClient();
+        if (body.Party is not null)
+        {
+            // « Ta party »: one link for everyone, a guest of its own for each device that opens it.
+            var (opening, mine, party) = Plugin.Invites.OpenParty(body.Party, device, ClientAddress());
+            switch (opening)
+            {
+                case GuestInvites.Opening.TooMany:
+                    return Refuse(StatusCodes.Status429TooManyRequests, "Trop d’essais : attends une minute.");
+                case GuestInvites.Opening.Unknown:
+                    return Refuse(StatusCodes.Status404NotFound, "Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.");
+                case GuestInvites.Opening.Full:
+                    return Refuse(StatusCodes.Status409Conflict, "Cette party est pleine : demande à la personne qui t’a invité de faire de la place.");
+                case GuestInvites.Opening.Join:
+                    if (Plugin.Invites.Key is not { } key)
+                    {
+                        return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas ouvert la séance. Réessaie dans un instant.");
+                    }
+
+                    var (made, guestId, guestName, password) = await GuestAccounts.CreateAsync(client, Roots(), GuestAccounts.WithKey(key), body.Guest, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
+                    if (made == GuestAccounts.Made.BadName)
+                    {
+                        (made, guestId, guestName, password) = await GuestAccounts.CreateAsync(client, Roots(), GuestAccounts.WithKey(key), null, French ? "Invité" : "Guest", cancellationToken).ConfigureAwait(false);
+                    }
+
+                    if (made != GuestAccounts.Made.Done)
+                    {
+                        return Refuse(StatusCodes.Status502BadGateway, "Jellyfin n’a pas ouvert la séance. Réessaie dans un instant.");
+                    }
+
+                    mine = Plugin.Invites.Add(guestName!, guestId!, password!, party!.HostId, party.HostName, party.Code, device);
+                    break;
+            }
+
+            invite = mine;
+        }
+        else
+        {
+            var (result, single) = Plugin.Invites.Open(body.Code, device, ClientAddress());
+            switch (result)
+            {
+                case GuestInvites.Opening.TooMany:
+                    return Refuse(StatusCodes.Status429TooManyRequests, "Trop d’essais : attends une minute.");
+                case GuestInvites.Opening.Unknown:
+                    return Refuse(StatusCodes.Status404NotFound, "Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.");
+                case GuestInvites.Opening.OtherDevice:
+                    return Refuse(StatusCodes.Status403Forbidden, "Ce lien sert déjà sur un autre appareil : demande-en un nouveau à la personne qui t’a invité.");
+            }
+
+            invite = single;
+        }
+
         var (status, text) = await JellyfinLoopback.CallAsync(client, Roots(), HttpMethod.Post, "Users/AuthenticateByName",
             [("Authorization", Authorization(name, device, null))], JsonSerializer.Serialize(new { Username = invite!.Name, Pw = invite.Password }), cancellationToken).ConfigureAwait(false);
         string? token = null, userId = null, serverId = null;
@@ -422,5 +463,6 @@ public sealed partial class GuestController : ControllerBase
 
     private static readonly JsonSerializerOptions JsonWeb = new(JsonSerializerDefaults.Web);
 
-    private sealed record OpenBody(string? Code, string? Device, string? Name);
+    /// <summary>A link's code, or a party link's (<see cref="Party"/>), the device, its name, and the guest's own name for a party.</summary>
+    private sealed record OpenBody(string? Code, string? Device, string? Name, string? Party = null, string? Guest = null);
 }

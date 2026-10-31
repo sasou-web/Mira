@@ -18,6 +18,8 @@ public sealed class GuestInvites
     public static readonly TimeSpan Unused = TimeSpan.FromDays(7);
     /// <summary>Links at once: each is an account on Jellyfin.</summary>
     public const int MaxInvites = 20;
+    /// <summary>Devices one party link lets in at once (each its own guest account).</summary>
+    public const int MaxPartyGuests = 12;
     /// <summary>Openings of a link tried from one address, then from all, within a minute.</summary>
     public const int TriesPerAddress = 10, TriesInAll = 60;
     // A link in use is written down again at most this often: its last use only moves its end.
@@ -113,8 +115,11 @@ public sealed class GuestInvites
         get { lock (_gate) { return _store.Invites.Count; } }
     }
 
-    /// <summary>A new link, its account made (<paramref name="userId"/>, <paramref name="password"/>).</summary>
-    public GuestInvite Add(string name, string userId, string password, string hostId, string hostName)
+    /// <summary>
+    /// A new link, its account made (<paramref name="userId"/>, <paramref name="password"/>); for a guest come by a
+    /// party link, that link's code and the device it is for, from the start.
+    /// </summary>
+    public GuestInvite Add(string name, string userId, string password, string hostId, string hostName, string? party = null, string? device = null)
     {
         lock (_gate)
         {
@@ -123,7 +128,7 @@ public sealed class GuestInvites
             {
                 Id = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6)).ToLowerInvariant(),
                 Code = GuestRoutes.NewCode(), Name = name, UserId = userId, Password = password, HostId = hostId, HostName = hostName,
-                Created = now, Used = now,
+                Created = now, Used = now, Party = party, Device = device,
             };
             _store.Invites.Add(invite);
             Save();
@@ -183,7 +188,117 @@ public sealed class GuestInvites
         }
     }
 
-    public enum Opening { Opened, Unknown, OtherDevice, TooMany }
+    /// <summary>
+    /// « Ta party »: the one link of a host (<paramref name="hostId"/>), made the first time it is asked for, the same
+    /// afterwards, whoever opens it: each device that opens it gets a guest of its own (<see cref="OpenParty"/>).
+    /// </summary>
+    public GuestParty PartyOf(string hostId, string hostName)
+    {
+        lock (_gate)
+        {
+            var party = _store.Parties.FirstOrDefault(x => x.HostId == hostId);
+            if (party is null)
+            {
+                party = new GuestParty { Code = GuestRoutes.NewCode(), HostId = hostId, HostName = hostName, Created = _now() };
+                _store.Parties.Add(party);
+                Save();
+            }
+            else if (party.HostName != hostName)
+            {
+                // Renamed on Jellyfin: their groups carry the new name.
+                party.HostName = hostName;
+                Save();
+            }
+
+            return party.Copy();
+        }
+    }
+
+    /// <summary>
+    /// A host's party link made again: the old one stops at once, and the guests it let in go, with their accounts.
+    /// </summary>
+    public GuestParty NewParty(string hostId, string hostName)
+    {
+        lock (_gate)
+        {
+            var old = _store.Parties.FirstOrDefault(x => x.HostId == hostId);
+            if (old is not null)
+            {
+                _store.Parties.Remove(old);
+                foreach (var guest in _store.Invites.Where(x => x.Party is not null && Same(x.Party, old.Code)).ToList())
+                {
+                    _store.Invites.Remove(guest);
+                    _store.Gone.Add(guest.UserId);
+                }
+            }
+
+            var party = new GuestParty { Code = GuestRoutes.NewCode(), HostId = hostId, HostName = hostName, Created = _now() };
+            _store.Parties.Add(party);
+            Save();
+            return party.Copy();
+        }
+    }
+
+    /// <summary>The party of a code; null for any other code.</summary>
+    public GuestParty? Party(string? code)
+    {
+        if (!GuestRoutes.IsCode(code))
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            return _store.Parties.FirstOrDefault(x => Same(x.Code, code!))?.Copy();
+        }
+    }
+
+    /// <summary>The guests a party link let in, the newest first.</summary>
+    public IReadOnlyList<GuestInvite> Guests(string partyCode)
+    {
+        lock (_gate)
+        {
+            return [.. _store.Invites.Where(x => x.Party is not null && Same(x.Party, partyCode)).OrderByDescending(x => x.Created).Select(x => x.Copy())];
+        }
+    }
+
+    /// <summary>
+    /// A party link opened by a device: its guest when this device came before (<see cref="Opening.Opened"/>), else a
+    /// guest to make (<see cref="Opening.Join"/>, the party given), unless the code is no party, the party is full,
+    /// every link is taken, or too many tries came within a minute.
+    /// </summary>
+    public (Opening Result, GuestInvite? Invite, GuestParty? Party) OpenParty(string? code, string device, string from)
+    {
+        lock (_gate)
+        {
+            var now = _now();
+            if (!Try(from, now))
+            {
+                return (Opening.TooMany, null, null);
+            }
+
+            var party = GuestRoutes.IsCode(code) ? _store.Parties.FirstOrDefault(x => Same(x.Code, code!)) : null;
+            if (party is null)
+            {
+                return (Opening.Unknown, null, null);
+            }
+
+            var mine = _store.Invites.FirstOrDefault(x => x.Party is not null && Same(x.Party, party.Code) && x.Device == device && now - x.Used < Unused);
+            if (mine is not null)
+            {
+                return (Opening.Opened, mine.Copy(), party.Copy());
+            }
+
+            if (_store.Invites.Count >= MaxInvites || _store.Invites.Count(x => x.Party is not null && Same(x.Party, party.Code)) >= MaxPartyGuests)
+            {
+                return (Opening.Full, null, party.Copy());
+            }
+
+            return (Opening.Join, null, party.Copy());
+        }
+    }
+
+    public enum Opening { Opened, Unknown, OtherDevice, TooMany, Join, Full }
 
     /// <summary>
     /// A link opened by a device: refused when its code is no link (or one gone unused), when it already served another
@@ -313,6 +428,7 @@ public sealed class GuestInvites
             _store = JsonSerializer.Deserialize<Store>(File.ReadAllText(_file), Json) ?? new Store();
             _store.Gone.RemoveAll(x => !GuestRoutes.IsId(x));
             _store.Invites.RemoveAll(x => string.IsNullOrEmpty(x.Id) || !GuestRoutes.IsId(x.UserId) || !GuestRoutes.IsCode(x.Code));
+            _store.Parties.RemoveAll(x => !GuestRoutes.IsCode(x.Code) || string.IsNullOrEmpty(x.HostId));
         }
         catch (Exception error) when (error is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -348,6 +464,8 @@ public sealed class GuestInvites
         public string? Address { get; set; }
         public string? Key { get; set; }
         public List<GuestInvite> Invites { get; set; } = [];
+        /// <summary>Each host's party link (<see cref="PartyOf"/>).</summary>
+        public List<GuestParty> Parties { get; set; } = [];
         /// <summary>Accounts of links taken back or gone unused, still on Jellyfin until deleted there.</summary>
         public List<string> Gone { get; set; } = [];
     }
@@ -373,6 +491,20 @@ public sealed class GuestInvite
     public string? DeviceName { get; set; }
     /// <summary>The hash of the session Jellyfin gave that device (<see cref="GuestRoutes.TokenHash"/>).</summary>
     public string? Token { get; set; }
+    /// <summary>The code of the party link that let this guest in; null for a link of its own.</summary>
+    public string? Party { get; set; }
 
     public GuestInvite Copy() => (GuestInvite)MemberwiseClone();
+}
+
+/// <summary>A host's party link (see <see cref="GuestInvites.PartyOf"/>).</summary>
+public sealed class GuestParty
+{
+    public string Code { get; set; } = "";
+    /// <summary>The account that hosts: its groups are the ones the party's guests see and join.</summary>
+    public string HostId { get; set; } = "";
+    public string HostName { get; set; } = "";
+    public DateTimeOffset Created { get; set; }
+
+    public GuestParty Copy() => (GuestParty)MemberwiseClone();
 }

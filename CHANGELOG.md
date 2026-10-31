@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Ta party : un seul lien pour regarder ensemble (extension, Mira web)** : chaque compte a son lien de party, le même d'une soirée à l'autre (`/Mira/party/<code>`). Ouvert, il montre qui invite et ce qu'il regarde (carte Discord, iMessage, WhatsApp avec l'affiche), puis **Open in Mira** ou **Watch in the browser** : sans compte, un invité est créé pour cet appareil (son prénom, retrouvé à chaque retour), qui entre dans le groupe de l'hôte ; avec un compte de ce Jellyfin, Mira web va droit au groupe. Par Tailscale Funnel quand il est ouvert, sinon à l'adresse Tailscale du serveur (fabriquée par le serveur, plus par l'appareil qui invite). Refaire le lien coupe l'ancien et ses invités. Ce que regarde l'hôte apparaît dans la carte du lien : à qui a le lien seulement.
 - **Le bouton Regarder ensemble ne déborde plus (Windows)** : après avoir quitté un groupe, le bouton rond de la fiche gardait le libellé « Watch together » coupé à côté de son icône. La rangée de boutons se remesure maintenant dès qu'un bouton change de texte (vaut aussi pour Favori et Vu).
 - **Le bouton du compte dit qui est connecté (Windows)** : ouvert depuis le rail, l'écran s'appelle **Ton compte** et dit sous quel nom tu es connecté, au lieu de **Se connecter** comme si tu ne l'étais pas.
 - **Recherche : les titres d'abord (Windows)** : les films et séries trouvés viennent en premier, puis les personnes, studios, épisodes et collections ; le champ s'aligne sur le titre de la page au lieu de flotter au milieu.

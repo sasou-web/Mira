@@ -1,0 +1,18 @@
+/* « Ta party »: the page of a party link (party.html), on Mira web's tokens (app.css). */
+.party { min-height: 100dvh; box-sizing: border-box; display: grid; align-content: center; justify-items: center; gap: 24px; padding: calc(var(--top) + 32px) 24px calc(var(--bottom) + 32px); text-align: center; }
+.party .mark { width: 64px; height: 64px; }
+.party-open, .party-gone { display: grid; justify-items: center; gap: 16px; width: 100%; max-width: 380px; }
+.party[data-state="gone"] .party-open, .party:not([data-state="gone"]) .party-gone { display: none; }
+.party-kicker { color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
+.party h1 { font-size: 28px; font-weight: 800; line-height: 1.2; margin: 0; }
+.party .lead { color: var(--muted); font-size: 16px; line-height: 1.45; margin: 0; }
+.party-now { display: flex; align-items: center; gap: 16px; margin: 4px 0; padding: 12px; width: 100%; box-sizing: border-box; border-radius: var(--r-m); background: var(--surface); text-align: left; }
+.party[data-watching=""] .party-now { display: none; }
+.party-now img { width: 60px; height: 90px; object-fit: cover; border-radius: var(--r-s); background: var(--raised); flex: none; }
+.party-now figcaption { display: grid; gap: 4px; min-width: 0; }
+.party-now span { color: var(--muted); font-size: 13px; }
+.party-now strong { font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
+.party-ways { display: grid; gap: 12px; width: 100%; margin-top: 8px; }
+.party-hint { color: var(--warning); font-size: 14px; line-height: 1.4; margin: 0; }
+.party-get { margin: 8px 0 0; font-size: 14px; }
+.party-get a { color: var(--muted); }

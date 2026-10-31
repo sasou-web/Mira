@@ -26,6 +26,10 @@ export default {
   // views/guest.js
   'Ce lien ne marche plus : demande-en un nouveau à la personne qui t’a invité.': 'This link no longer works: ask the person who invited you for a new one.',
   'Tu entres dans la soirée…': 'Joining the watch party…',
+  'Ton prénom': 'Your name',
+  'Rejoins la party': 'Join the party',
+  'Ton prénom, pour que le groupe sache qui est là. Pas de compte à créer.': 'Your name, so the group knows who’s here. No account to create.',
+  'Rejoindre la party': 'Join the party',
   'Le lien n’a pas marché': 'The link didn’t work',
   'Ce lien est pour ton invité': 'This link is for your guest',
   'Tu es déjà connecté à Mira ici. Envoie ce lien à la personne que tu invites : il ne sert qu’à un seul appareil.':

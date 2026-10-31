@@ -39,6 +39,13 @@ internal static class RelayText
         ["Son prénom ne peut contenir que des lettres, des chiffres, des espaces et ces signes : - _ ' . @ +"] = "Their name can only contain letters, digits, spaces and these signs: - _ ' . @ +",
         ["Jellyfin n’a pas créé le compte de l’invité."] = "Jellyfin didn’t create the guest’s account.",
         ["L’adresse doit commencer par https:// et finir par le nom de l’ordinateur."] = "The address must start with https:// and end with the computer’s name.",
+        // « Ta party » (PartyController, GuestController).
+        ["Cette party est pleine : demande à la personne qui t’a invité de faire de la place."] = "This party is full: ask the person who invited you to make room.",
+        ["Un administrateur de ce Jellyfin doit d’abord ouvrir Regarder ensemble dans Mira une fois."] = "An administrator of this Jellyfin must first open Watch together in Mira once.",
+        ["Un invité ne peut pas inviter."] = "A guest can’t invite others.",
+        ["Ce lien ouvre ta party depuis Internet, pour tout le monde."] = "This link opens your party from the Internet, for everyone.",
+        ["Ce lien ne marche que pour ceux qui ont Tailscale sur ton réseau : ouvre Tailscale Funnel sur le PC de Jellyfin (Mira pour Windows le fait) pour qu’il marche partout."] = "This link only works for people on your Tailscale network: open Tailscale Funnel on the Jellyfin PC (Mira for Windows does it) so it works everywhere.",
+        ["Ce lien ne marche qu’à la maison : ouvre Tailscale Funnel sur le PC de Jellyfin (Mira pour Windows le fait) pour qu’il marche partout."] = "This link only works at home: open Tailscale Funnel on the Jellyfin PC (Mira for Windows does it) so it works everywhere.",
     };
 
     /// <summary>Whether the request asks for French: the first of French and English among its languages, by preference.</summary>
