@@ -46,8 +46,8 @@ public partial class MainWindow
     /// <summary>
     /// The same day rather than after Jellyfin's next restart: where Jellyfin serves an older Mira web, its « Update
     /// Plugins » task is run now (it installs the new version beside the served one, which then waits for a restart),
-    /// then « Redémarrer Jellyfin » is offered once nobody watches anything on it, this PC included: read again every
-    /// five minutes meanwhile. Jellyfin's rules stand: a plugin disabled or kept from updating gets nothing.
+    /// then Jellyfin is restarted by Mira itself once nobody watches anything on it, this PC included (a few seconds:
+    /// read again every five minutes meanwhile), and Mira says so. Jellyfin's rules stand: a plugin disabled or kept from updating gets nothing.
     /// </summary>
     private async Task BringMiraWebNowAsync(JellyfinClient client, Version version, string done)
     {
@@ -66,22 +66,20 @@ public partial class MainWindow
             if (!ReferenceEquals(client, _client)) return;
         }
         if (!ReferenceEquals(client, _client)) return;
-        SetNotice(L($"Mira web {waiting.ToString(3)} est prêt sur Jellyfin : ton téléphone l’aura dès que Jellyfin redémarre, en quelques secondes. Personne ne regarde en ce moment.", $"Mira web {waiting.ToString(3)} is ready on Jellyfin: your phone gets it as soon as Jellyfin restarts, in a few seconds. Nobody is watching right now."),
-            L("Redémarrer Jellyfin", "Restart Jellyfin"), () => _ = RestartForMiraWebAsync(client, version, done));
+        await RestartForMiraWebAsync(client, version, done);
     }
 
-    /// <summary>« Redémarrer Jellyfin », unless someone started watching since; then Jellyfin waited for until it serves the new version.</summary>
+    /// <summary>Jellyfin restarted, unless someone started watching since; then Jellyfin waited for until it serves the new version.</summary>
     private async Task RestartForMiraWebAsync(JellyfinClient client, Version version, string done)
     {
         try
         {
             if ((await client.ViewersAsync()).Count > 0)
             {
-                SetNotice(L("Quelqu’un regarde sur Jellyfin en ce moment : Mira te proposera de le redémarrer quand ce sera fini.", "Someone is watching on Jellyfin right now: Mira will offer to restart it once they’re done."));
                 await BringMiraWebNowAsync(client, version, done);
                 return;
             }
-            SetNotice(L("Jellyfin redémarre…", "Jellyfin is restarting…"), null, null, sticky: true);
+            SetNotice(L("Nouvelle version de Mira web : Jellyfin redémarre quelques secondes, personne ne regarde…", "A new Mira web: Jellyfin is restarting for a few seconds, nobody is watching…"), null, null, sticky: true);
             await client.RestartAsync();
         }
         catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return; }
