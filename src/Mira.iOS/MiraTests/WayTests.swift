@@ -220,6 +220,10 @@ struct WayPlanTests {
         let status = try JSONDecoder().decode(TailnetStatus.self, from: Data(json.utf8))
         #expect(status.device?.label == "mira-iphone")
         #expect(status.user == "ogsas@example.com")
+        // Without « cache-network-maps » in the network's policy: the setting shows (OutageRows).
+        #expect(status.outageCache == nil)
+        #expect(try JSONDecoder().decode(TailnetStatus.self, from: Data(#"{"state":"running","outageCache":true}"#.utf8)).outageCache == true)
+        #expect(OutageRows.setting.contains(#""attr": ["cache-network-maps"]"#))
         let tailnet = WayPlan.Tailnet(status, enabled: true)
         #expect(tailnet.running && tailnet.online)
         #expect(tailnet.relay == Home.relay)

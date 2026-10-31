@@ -108,6 +108,13 @@ public partial class MainWindow
     }
 
     private void TailnetConsole_Click(object sender, RoutedEventArgs e) => OpenWebPage(TailscaleNode.Machines);
+    private void TailnetPolicy_Click(object sender, RoutedEventArgs e) => OpenWebPage(TailscaleNode.Policy);
+    /// <summary>The setting that lets the node start during an outage of Tailscale, for the tailnet's policy (TailnetText.Outage).</summary>
+    private void TailnetOutageCopy_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(TailnetText.OutageSetting.Replace("\n", Environment.NewLine, StringComparison.Ordinal)); TailnetSay(TailnetText.OutageCopied); }
+        catch (System.Runtime.InteropServices.ExternalException) { TailnetSay(L("Le presse-papiers est occupé : réessaie.", "The clipboard is busy: try again.")); }
+    }
 
     /// <summary>On the UI thread, as the node changes: what follows from it, said once (BuiltInTailnet.Update), then shown.</summary>
     private void TailnetChanged()
@@ -159,6 +166,11 @@ public partial class MainWindow
         TailnetWayText.Text = TailnetWay() is { } way ? TailnetText.Path(way) : "";
         TailnetWayText.Visibility = TailnetWayText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         TailnetAbout.Text = TailnetText.Purpose + " " + TailnetText.Privacy;
+        // On a tailnet that doesn't let it start during an outage of Tailscale: the setting, gone once the policy has it.
+        TailnetOutage.Visibility = tailnet?.AsksOutageCache == true ? Visibility.Visible : Visibility.Collapsed;
+        TailnetOutageText.Text = TailnetText.Outage;
+        TailnetOutageCopyButton.Content = TailnetText.CopyOutage;
+        TailnetPolicyButton.Content = TailnetText.OpenPolicy;
         var stopped = signedIn && helper is TailnetHelper.Off or TailnetHelper.Stopped or TailnetHelper.Failed or TailnetHelper.Restarting;
         var needsLogin = state is TailnetStates.NeedsLogin or TailnetStates.Expired;
         TailnetSignInButton.Content = signingIn && page is not null ? TailnetText.ReopenPage : stopped ? TailnetText.Retry : TailnetText.SignIn;

@@ -25,6 +25,8 @@ public static class TailscaleNode
     public const int WarnDays = 14;
     /// <summary>Tailscale's admin console, where each machine's menu has « Disable key expiry ».</summary>
     public const string Machines = "https://login.tailscale.com/admin/machines";
+    /// <summary>The tailnet's policy, in the console's JSON editor (TailnetText.Outage).</summary>
+    public const string Policy = "https://login.tailscale.com/admin/acls/file";
     public static string KeepConnected => L("Garder Tailscale connecté", "Keep Tailscale connected");
     public static string OpenMachines => L("Ouvrir la page de Tailscale", "Open Tailscale’s page");
     /// <summary>Where the person ticks it, when Mira cannot.</summary>

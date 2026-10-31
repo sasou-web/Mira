@@ -13,7 +13,7 @@ import (
 
 // TestControlOutage is an outage of Tailscale's coordination server (2026-10-30): a node that joined once, granted
 // « cache-network-maps » by the tailnet's policy, starts again from its saved network map and reaches Jellyfin; without
-// that attribute it keeps connecting.
+// that attribute it keeps connecting. Status.OutageCache says which.
 func TestControlOutage(t *testing.T) {
 	if testing.Short() {
 		t.Skip("starts a Tailscale network")
@@ -46,6 +46,10 @@ func TestControlOutage(t *testing.T) {
 				t.Fatal(err)
 			}
 			waitFor(t, node, "the Jellyfin PC online", online)
+			// What the apps read to offer the attribute, or not.
+			if st := node.Status(); st.OutageCache != cached {
+				t.Fatalf("outageCache %v with the attribute %v", st.OutageCache, cached)
+			}
 			node.Close()
 
 			tn.SetControlDown(true)

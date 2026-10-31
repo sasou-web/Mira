@@ -20,6 +20,8 @@ public sealed record TailnetStatus
     public string? MagicDnsSuffix { get; init; }
     public IReadOnlyList<TailnetDevice> Peers { get; init; } = [];
     public IReadOnlyList<TailnetWarning> Warnings { get; init; } = [];
+    /// <summary>Whether the tailnet's policy lets the node keep its network map, to start from it during an outage of Tailscale.</summary>
+    public bool OutageCache { get; init; }
     /// <summary>The device a server address leads to: one of its Tailscale IPs, its MagicDNS name or its short name.</summary>
     public TailnetDevice? Peer(string host)
     {
