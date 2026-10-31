@@ -93,7 +93,7 @@
    <playback:PlayerOverlay x:Name="PlayerOverlayLayer" PlacementTarget="{Binding ElementName=PlayerShell}">
     <!-- The decorator gives the separate overlay window an adorner layer for keyboard focus rings. -->
     <AdornerDecorator>
-    <Grid x:Name="PlayerSurface" Background="#01000000" Focusable="True" FocusVisualStyle="{x:Null}" ClipToBounds="True" Cursor="Arrow" TextElement.FontFamily="{StaticResource AppFont}" MouseMove="PlayerSurface_MouseMove" MouseLeave="PlayerSurface_MouseLeave" MouseLeftButtonDown="PlayerSurface_MouseDown" MouseLeftButtonUp="PlayerSurface_MouseUp" PreviewKeyDown="Player_PreviewKeyDown" KeyDown="Window_KeyDown">
+    <Grid x:Name="PlayerSurface" Background="#01000000" Focusable="True" FocusVisualStyle="{x:Null}" ClipToBounds="True" Cursor="Arrow" TextElement.FontFamily="{StaticResource AppFont}" MouseMove="PlayerSurface_MouseMove" MouseLeave="PlayerSurface_MouseLeave" MouseLeftButtonDown="PlayerSurface_MouseDown" MouseLeftButtonUp="PlayerSurface_MouseUp" PreviewKeyDown="Player_PreviewKeyDown" MouseWheel="PlayerSurface_MouseWheel" KeyDown="Window_KeyDown">
     <!-- Top: back to the library, or the mini-player's title and buttons. The title of a full player sits in the bottom bar.
          The shades take no clicks, but a click in the band of a bar never pauses (InBarBand). -->
     <Grid x:Name="PlayerHeader" Height="108" VerticalAlignment="Top">
@@ -141,6 +141,10 @@
     <!-- « Regarder ensemble »: what the group is doing, top center (UpdateGroupPill). -->
     <v:Squircle x:Name="GroupPill" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="120,44,120,0" Padding="13,8,16,8" CornerRadius="18" Background="{StaticResource Pill}" BorderBrush="{StaticResource Hairline}" BorderThickness="1">
      <StackPanel Orientation="Horizontal"><v:Icon Kind="users" Width="16" Height="16" Foreground="White" VerticalAlignment="Center"/><TextBlock x:Name="GroupPillText" Foreground="White" FontSize="13" Margin="9,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" v:Accessible.Announce="Polite"/></StackPanel>
+    </v:Squircle>
+    <!-- The jump just made (+10 s, 40 %) or the subtitles switched with C, in the middle of the picture (ShowSeekPill). -->
+    <v:Squircle x:Name="SeekPill" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="18,10" CornerRadius="20" Background="{StaticResource Pill}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" IsHitTestVisible="False">
+     <TextBlock x:Name="SeekPillText" Foreground="White" FontSize="16" FontWeight="SemiBold" v:Accessible.Announce="Polite"/>
     </v:Squircle>
     <Border x:Name="MiniOutline" Visibility="Collapsed" BorderBrush="{StaticResource Hairline}" BorderThickness="1" CornerRadius="12" IsHitTestVisible="False"/>
     <Grid x:Name="PlayerWindowChrome" Height="34" VerticalAlignment="Top" Background="Transparent" MouseLeftButtonDown="PlayerChrome_MouseDown">
