@@ -41,6 +41,19 @@ internal static class TailnetTests
             Assert(TailnetCodes.All.Distinct().Count() == TailnetCodes.All.Count, "A code twice");
             return Task.CompletedTask;
         });
+        await Test("Tailscale intégré : le réglage contre les pannes de Tailscale est proposé tant que le réseau ne l’accorde pas", () =>
+        {
+            var repository = Repository() ?? throw new Exception("Repository not found from " + AppContext.BaseDirectory);
+            var go = File.ReadAllText(Path.Combine(repository, "src", "Mira.Tailscale", "tailnet", "status.go"));
+            Assert(go.Contains("`json:\"outageCache,omitempty\"`", StringComparison.Ordinal), "status.go no longer says outageCache");
+            Assert(JsonSerializer.Deserialize<TailnetStatus>("""{"state":"running","outageCache":true}""", Json.Options)!.OutageCache, "outageCache misread");
+            Assert(!JsonSerializer.Deserialize<TailnetStatus>("""{"state":"running"}""", Json.Options)!.OutageCache, "Granted without the attribute");
+            // What Mira copies is what docs/INSTALLATION.md gives, and the attribute Tailscale reads.
+            var docs = File.ReadAllText(Path.Combine(repository, "docs", "INSTALLATION.md")).Replace("\r\n", "\n");
+            Assert(docs.Contains(string.Join("\n", TailnetText.OutageSetting.TrimEnd('\n').Split('\n').Select(x => "  " + x)), StringComparison.Ordinal), "Not the setting of docs/INSTALLATION.md");
+            Assert(TailnetText.OutageSetting.Contains("\"cache-network-maps\"", StringComparison.Ordinal), "Not Tailscale's attribute");
+            return Task.CompletedTask;
+        });
         await Test("Tailscale intégré : un échec du nœud est une erreur réseau attendue", () =>
         {
             var failure = new TailnetException(TailnetCodes.PeerOffline);

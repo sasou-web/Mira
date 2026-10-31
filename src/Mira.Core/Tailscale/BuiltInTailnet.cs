@@ -93,6 +93,8 @@ public sealed class BuiltInTailnet : IAsyncDisposable
     public TailnetHelper Helper => Node?.Helper ?? TailnetHelper.Off;
     /// <summary>The node's state (<see cref="TailnetStates"/>) while its helper runs; null otherwise.</summary>
     public string? State => Node is { Helper: TailnetHelper.Running } node ? node.Status?.State : null;
+    /// <summary>On the tailnet, whose policy does not let it start during an outage of Tailscale: <see cref="TailnetText.Outage"/> shows.</summary>
+    public bool AsksOutageCache => State == TailnetStates.Running && Node?.Status is { OutageCache: false };
 
     /// <summary>At the app's start: signed in before, the node starts now (the network waits for it).</summary>
     public async Task StartWithAppAsync()
