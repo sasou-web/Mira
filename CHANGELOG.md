@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **« Tout préparer » règle aussi Tailscale et la veille (Windows)** : sur le PC de Jellyfin, le même bouton garde maintenant Tailscale connecté sans ta session (« Run unattended ») et le PC éveillé sur secteur (jamais sur batterie), au lieu de deux boutons à part. Aucune autorisation de Windows en plus ; si Tailscale ou Windows refuse, la carte dit où le régler.
 - **Tailscale intégré dit quand les serveurs de Tailscale ne répondent pas (iPhone, Windows, Mac)** : pendant une panne de Tailscale (incident du 30 octobre 2026 au soir), l'iPhone tournait sur « Connexion à Tailscale… » sans fin et accusait la connexion du téléphone. Au bout de 20 s, Mira dit maintenant que ce sont les serveurs de Tailscale qui ne répondent pas, qu'elle continue d'essayer, avec un lien vers leur page d'état ; même phrase dans l'avis d'une requête refusée, et sous Windows et Mac.
 - **Le bouton Regarder ensemble ne déborde plus (Windows)** : après avoir quitté un groupe, le bouton rond de la fiche gardait le libellé « Watch together » coupé à côté de son icône. La rangée de boutons se remesure maintenant dès qu'un bouton change de texte (vaut aussi pour Favori et Vu).
 - **Le bouton du compte dit qui est connecté (Windows)** : ouvert depuis le rail, l'écran s'appelle **Ton compte** et dit sous quel nom tu es connecté, au lieu de **Se connecter** comme si tu ne l'étais pas.

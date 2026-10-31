@@ -30,6 +30,8 @@ public partial class MainWindow
     /// every click.
     /// </summary>
     private JellyfinFirewall.PublicNetwork? _keptPublic;
+    // « Tout préparer » tried these, and Tailscale or Windows did not take them: said as the person's until Mira restarts.
+    private bool _unattendedKept, _sleepKept;
 
     /// <summary>On opening: the welcome on a new profile, the main points after an update, or nothing.</summary>
     private void ShowStartupScreen()
@@ -188,7 +190,7 @@ public partial class MainWindow
         var down = local && !answering ? (await ReadLocalJellyfinAsync(server)).Verdict : LocalJellyfin.Verdict.Unknown;
         if (version != _phoneVersion) return;
         _phone = new(server, local, web, home, admin, tailnet, allowed, firewall, rule, boot, Program: program is not null, Answering: answering,
-            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic, Down: down, Node: node, Power: power);
+            NetworkKept: firewall?.Public is { } counted && counted == _keptPublic, Down: down, Node: node, Power: power, UnattendedKept: _unattendedKept, SleepKept: _sleepKept);
         ShowPhone(_phone);
         if (!answering) _ = WaitForJellyfinAsync(client, version);
     }
@@ -301,22 +303,7 @@ public partial class MainWindow
                 if (step.Key == "tailscale") OpenWebPage("https://tailscale.com/download/windows");
                 else if (step.Key == "web" && action == LocalJellyfin.Start && _client is { } client) { button.IsEnabled = false; await StartJellyfinAsync(client); }
                 else if (step.Key == "web" && action == LocalJellyfin.OpenLog) { OpenJellyfinLog(); _ = DescribePhoneAsync(); }
-                // « Run unattended », as Tailscale's menu does; where to tick it when Tailscale does not take it.
-                else if (step.Key == "unattended")
-                {
-                    button.IsEnabled = false;
-                    if (!await Task.Run(TailscaleCli.KeepConnected)) SetNotice(L($"Tailscale n’a pas pris ce réglage : {TailscaleNode.WhereUnattended}.", $"Tailscale didn’t take this setting: {TailscaleNode.WhereUnattended}."));
-                    if (!_preparing) _ = DescribePhoneAsync();
-                }
                 else if (step.Key == "keyexpiry") OpenWebPage(TailscaleNode.Machines);
-                // « Pas de veille sur secteur », on mains power only: where to set it when Windows does not take it.
-                else if (step.Key == "sleep")
-                {
-                    button.IsEnabled = false;
-                    if (!await Task.Run(PowerPlan.NeverOnMains))
-                        SetNotice(L("Windows n’a pas changé la mise en veille : dans Paramètres → Système → Alimentation, choisis « Jamais » pour la mise en veille sur secteur.", "Windows didn’t change sleep: in Settings → System → Power, choose “Never” for sleep when plugged in."));
-                    if (!_preparing) _ = DescribePhoneAsync();
-                }
                 // « Passer en privé »: the person says the public network is home's.
                 else if (step.Key == "firewall") await PreparePhoneAsync(privateNetwork: true);
             };
@@ -369,6 +356,18 @@ public partial class MainWindow
                 ShowPhoneStatus(L("Jellyfin accepte tes appareils Tailscale…", "Letting your Tailscale devices into Jellyfin…"));
                 try { if (!await client.AllowTailnetAsync()) problems.Add(L("Il faut le compte administrateur de Jellyfin pour autoriser Tailscale.", "Allowing Tailscale needs Jellyfin’s administrator account.")); }
                 catch (Exception ex) when (IsExpected(ex)) { problems.Add(Friendly(ex)); }
+            }
+            // In the person's rights, no consent of Windows: « Run unattended », as Tailscale's menu does, and no sleep on
+            // mains power (never on battery). What they do not take is the person's, said with where to set it.
+            if (PhoneSetup.Is(steps, "unattended", PhoneSetup.Mark.ToDo))
+            {
+                ShowPhoneStatus(L("Tailscale reste connecté sans ta session…", "Keeping Tailscale connected without your session…"));
+                if (!await Task.Run(TailscaleCli.KeepConnected)) { _unattendedKept = true; problems.Add(L($"Tailscale n’a pas pris ce réglage : {TailscaleNode.WhereUnattended}.", $"Tailscale didn’t take this setting: {TailscaleNode.WhereUnattended}.")); }
+            }
+            if (PhoneSetup.Is(steps, "sleep", PhoneSetup.Mark.ToDo))
+            {
+                ShowPhoneStatus(L("Ce PC reste éveillé sur secteur…", "Keeping this PC awake when plugged in…"));
+                if (!await Task.Run(PowerPlan.NeverOnMains)) { _sleepKept = true; problems.Add(L($"Windows n’a pas changé la mise en veille : {ServerSleep.WhereNever}.", $"Windows didn’t change sleep: {ServerSleep.WhereNever}.")); }
             }
             if (PhoneSetup.Is(steps, "web", PhoneSetup.Mark.ToDo))
             {
