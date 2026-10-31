@@ -247,7 +247,7 @@ internal static class GuestTests
             Assert(fresh.All().Count == 0 && Directory.GetFiles(Path.GetDirectoryName(file)!, "Mira.invites.json.bad-*").Length == 1, "Unreadable file put aside");
             return Task.CompletedTask;
         });
-    
+
         await Test("Ta party : un lien par hôte, un invité par appareil, refait = les anciens partent", () =>
         {
             var now = new DateTimeOffset(2026, 10, 31, 1, 0, 0, TimeSpan.Zero);
@@ -309,5 +309,5 @@ internal static class GuestTests
                 && ContentPolicy.StyleHashes(html).Count == 1, "The template, its revision written");
             return Task.CompletedTask;
         });
-}
+    }
 }
