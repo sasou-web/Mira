@@ -24,7 +24,7 @@ public partial class MainWindow
     private static void FollowHighContrast()
     {
         if (!SystemParameters.HighContrast || Application.Current is not { } app) return;
-        app.Resources["Muted"] = Frozen("#E4E4E7"); app.Resources["Faint"] = Frozen("#D4D4D9");
+        app.Resources["Muted"] = Frozen("#E5E5E5"); app.Resources["Faint"] = Frozen("#D6D6D6");
         app.Resources["FocusRing"] = SystemColors.HighlightBrush;
     }
 

@@ -30,6 +30,7 @@ public sealed class Squircle : Decorator
 
     private static readonly Brush Sheen = Frozen(new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(22, 255, 255, 255), 0), new(Color.FromArgb(0, 255, 255, 255), .55), new(Color.FromArgb(18, 0, 0, 0), 1) }, 90));
     private static readonly Brush Rim = Frozen(new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(46, 255, 255, 255), 0), new(Color.FromArgb(0, 255, 255, 255), .45) }, 90));
+    private const double SheenHeight = 56;
     private static T Frozen<T>(T value) where T : Freezable { value.Freeze(); return value; }
 
     private Geometry? _shape; private Size _shapeSize; private double _shapeRadius = -1;
@@ -63,7 +64,9 @@ public sealed class Squircle : Decorator
         if (Depth > 0 && Background is { } filled and not ImageBrush && !Transparent(filled))
         {
             dc.PushOpacity(Math.Min(1, Depth));
-            dc.DrawGeometry(Sheen, null, shape);
+            // The sheen only on a small shape (a button, a pill): down a tall card, its dark gradient moves one grey
+            // level every few pixels and shows as steps (banding, plain on an OLED screen); the bright top edge stays.
+            if (size.Height <= SheenHeight) dc.DrawGeometry(Sheen, null, shape);
             dc.DrawGeometry(null, new Pen(Rim, 1), Geometry(new Rect(size).Inset(.5), Math.Max(0, radius - .5)));
             dc.Pop();
         }

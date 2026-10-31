@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Des gris plus propres (Windows)** : plus de reflet en dégradé sur les grandes surfaces (cartes d’épisodes, panneaux des Réglages…), qui faisait des paliers visibles sur un écran OLED, et des gris neutres, sans la teinte bleue d’avant. Les petits boutons gardent leur reflet, chaque forme son liseré clair.
 - **Chargement de la bibliothèque plus fidèle (Windows)** : les cartes grises du chargement avaient des coins moins arrondis que les vraies affiches (un saut à l’arrivée) et gardaient leur largeur quand on redimensionnait la fenêtre. Elles ont maintenant les mêmes coins et suivent la largeur comme les affiches.
 - **Un avis avec un bouton ne disparaît plus (Windows)** : « Redémarrer » pour une mise à jour, « Mettre à la Corbeille »… : quand un autre avis arrivait, il remplaçait celui qui avait un bouton, qui était perdu. L’avis avec bouton attend maintenant sous le nouveau (5 au plus) et revient dès que l’autre part, jusqu’à ce que tu l’utilises ou le fermes.
 - **Nom entier d'un titre coupé (Windows)** : sur une carte, un titre trop long finit par « … » et on ne pouvait pas le lire en entier. Une infobulle donne maintenant le nom complet, seulement quand il est vraiment coupé.
