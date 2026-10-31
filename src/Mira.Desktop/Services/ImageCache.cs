@@ -53,9 +53,7 @@ public sealed class ImageCache
     public void ReleaseMemory() => Memory.Clear();
     public Task<BitmapSource?> GetAsync(MediaItem item, bool backdrop = false, int? targetWidth = null)
     {
-        var image = backdrop ? Artwork.Backdrop(item)
-            : item.Type == "Episode" && item.SeriesId is not null ? new ImageRef(item.SeriesId, "Primary", item.SeriesPrimaryImageTag ?? "")
-            : new ImageRef(item.Id, "Primary", item.ImageTags.GetValueOrDefault("Primary") ?? "");
+        var image = backdrop ? Artwork.Backdrop(item) : Artwork.Poster(item);
         return Load(image, targetWidth ?? (backdrop ? BackdropPixels : Pixels(PosterWidth)));
     }
     /// <summary>A wide card: for an episode, art of its season or of the episode itself before the series' (see Artwork.Landscape).</summary>

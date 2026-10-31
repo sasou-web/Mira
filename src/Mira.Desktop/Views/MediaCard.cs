@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using Mira.Core;
 using Mira.Desktop.Services;
 
@@ -45,6 +46,13 @@ public sealed class MediaCard : Button
         placeholder.Children.Add(new Icon { Kind = wide ? "play" : "film", Width = 30, Height = 30, Foreground = new SolidColorBrush(Color.FromRgb(78, 78, 87)), Margin = new Thickness(0, 0, 0, 15) });
         placeholder.Children.Add(new TextBlock { Text = item.DisplayTitle, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = Palette.Get("Faint"), FontSize = 13 });
         _visual.Children.Add(placeholder);
+        // Jellyfin's BlurHash of the image, until the image itself fades in over it (as on Mira web and the iPhone).
+        if (!demo && Blur(item, wide) is { } blur)
+        {
+            placeholder.Visibility = Visibility.Collapsed;
+            var soft = new Image { Source = blur, Stretch = Stretch.Fill, SnapsToDevicePixels = false, UseLayoutRounding = false, IsHitTestVisible = false };
+            RenderOptions.SetBitmapScalingMode(soft, BitmapScalingMode.Linear); _visual.Children.Add(soft);
+        }
         _image = new Image
         {
             Source = demo ? DemoLibrary.Artwork(index, wide) : null, Stretch = Stretch.UniformToFill,
@@ -137,6 +145,19 @@ public sealed class MediaCard : Button
         var request = wide ? images.LandscapeAsync(Item, width) : images.GetAsync(Item, false, width); var cached = request.IsCompletedSuccessfully;
         var bitmap = await request;
         if (bitmap is not null) { var initial = _image.Source is null; _image.Source = bitmap; if (initial && IsVisible && !cached && !HoverVisible) Motion.Fade(_image, 1, 180, 0, Motion.Soft); }
+    }
+    /// <summary>Decoded placeholders, kept by hash: the same poster comes back on every page, and each takes a few kilobytes.</summary>
+    private static readonly Dictionary<string, BitmapSource> Blurs = [];
+    private static BitmapSource? Blur(MediaItem item, bool wide)
+    {
+        if (BlurHash.Of(item, wide ? Artwork.Landscape(item) : Artwork.Poster(item)) is not { } hash) return null;
+        var (width, height) = BlurHash.Size(wide ? 16 / 9d : 1 / 1.48);
+        var key = $"{hash}|{width}|{height}";
+        if (Blurs.TryGetValue(key, out var known)) return known;
+        if (BlurHash.Decode(hash, width, height) is not { } pixels) return null;
+        var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4); bitmap.Freeze();
+        if (Blurs.Count >= 600) Blurs.Clear();
+        return Blurs[key] = bitmap;
     }
     public static string Key(MediaItem item, PlayerSettings settings) => string.Join('|', item.Id, item.Name, item.Overview, item.ProductionYear, item.Subtitle, item.UserData.Played, item.EpisodesToWatch, item.UserData.IsFavorite, item.UserData.PlaybackPositionTicks, string.Join(',', item.ImageTags.Values), string.Join(',', item.BackdropImageTags), item.SeasonThumbImageTag, settings.ShowProgress);
 }

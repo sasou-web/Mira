@@ -704,6 +704,31 @@ internal static class LibraryTests
             Assert(items[0].UserData.PlaybackPositionTicks == 300 && items[1].UserData.PlaybackPositionTicks == 0 && store.PendingCount == 1, "Pending position lost, or delivered one kept");
             return Task.CompletedTask;
         });
+        await Test("Aperçu flou : BlurHash de Jellyfin décodé comme Mira web, affiche de la série pour un épisode, texte illisible refusé", () =>
+        {
+            static string Rgb(byte[]? bgra) => bgra is null ? "null" : string.Join(",", Enumerable.Range(0, bgra.Length / 4).SelectMany(i => new[] { bgra[i * 4 + 2], bgra[i * 4 + 1], bgra[i * 4] }));
+            // Pixels given by blurhash.js of Mira web for the same hashes and sizes (±1 for rounding).
+            (string Hash, int W, int H, int[] Rgb)[] cases =
+            [
+                ("LEHV6nWB2yk8pyo0adR*.7kCMdnj", 4, 3, [135, 164, 177, 161, 173, 177, 181, 180, 171, 160, 172, 174, 124, 154, 169, 148, 148, 154, 164, 145, 134, 146, 152, 155, 124, 144, 154, 144, 134, 132, 163, 130, 104, 148, 140, 134]),
+                ("L6PZfSi_.AyE_3t7t7R**0o#DgR4", 3, 4, [229, 228, 226, 227, 226, 223, 226, 226, 223, 228, 226, 226, 222, 216, 210, 223, 221, 217, 226, 222, 223, 215, 203, 193, 219, 214, 208, 221, 218, 218, 215, 209, 202, 219, 216, 211]),
+                ("00Kb0K", 2, 2, [178, 98, 157, 178, 98, 157, 178, 98, 157, 178, 98, 157]),
+            ];
+            foreach (var (hash, w, h, expected) in cases)
+            {
+                var got = BlurHash.Decode(hash, w, h);
+                Assert(got is not null && got.Length == w * h * 4 && Enumerable.Range(0, w * h).All(i => got[i * 4 + 3] == 255), hash + " : taille ou alpha.");
+                var rgb = Rgb(got).Split(',').Select(int.Parse).ToArray();
+                Assert(rgb.Zip(expected).All(x => Math.Abs(x.First - x.Second) <= 1), hash + " : " + Rgb(got));
+            }
+            Assert(BlurHash.Decode("", 4, 3) is null && BlurHash.Decode("LEHV6nWB2yk8pyo0adR*.7kCMdn", 4, 3) is null && BlurHash.Decode("LEHV6nWB2yk8pyo0adR*.7kCMdn\"", 4, 3) is null && BlurHash.Decode("00Kb0K", 0, 3) is null, "Texte illisible ou taille nulle.");
+            Assert(BlurHash.Size(1 / 1.48) == (22, 32) && BlurHash.Size(16 / 9d) == (32, 18) && BlurHash.Size(double.NaN) == (32, 32), "Tailles décodées.");
+            var episode = JsonSerializer.Deserialize<MediaItem>("""{"Id":"e","Type":"Episode","SeriesId":"s","SeriesPrimaryImageTag":"sp","ImageTags":{"Primary":"own"},"ImageBlurHashes":{"Primary":{"own":"00Kb0K","sp":"LEHV6nWB2yk8pyo0adR*.7kCMdnj"}}}""", Json.Options)!;
+            Assert(Artwork.Poster(episode) == new ImageRef("s", "Primary", "sp") && BlurHash.Of(episode, Artwork.Poster(episode)) == "LEHV6nWB2yk8pyo0adR*.7kCMdnj", "Épisode : affiche et aperçu de sa série.");
+            var film = new MediaItem { Id = "f", ImageTags = new() { ["Primary"] = "p" } };
+            Assert(Artwork.Poster(film) == new ImageRef("f", "Primary", "p") && BlurHash.Of(film, Artwork.Poster(film)) is null && BlurHash.Of(episode, new ImageRef("e", "Backdrop", "x")) is null, "Sans aperçu : rien.");
+            return Task.CompletedTask;
+        });
         await Test("Continuer à regarder : un épisode montre sa saison ou lui-même, pas l’image d’une autre saison", async () =>
         {
             // A series whose seasons look nothing alike: its backdrop shows one season, the episode belongs to another.
