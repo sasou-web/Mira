@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Page Recherche plus nette (Windows)** : plus de phrase sous le titre qui répétait le champ et se coupait dans une fenêtre étroite ; le champ suit la largeur de la fenêtre (760 au plus) et son texte d’aide ne passe plus sous le curseur.
+
 ## 0.8.9 — 2026-10-31
 
 Ta party : un lien pour regarder ensemble, un PC de Jellyfin qui se règle seul, Windows plus net.
