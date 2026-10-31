@@ -2,6 +2,10 @@
 
 ## Non publié
 
+## 0.9.0 — 2026-10-31
+
+Mira pour Windows plus soignée : fiche cinéma, pages qui gardent leur place, raccourcis du lecteur.
+
 - **Les pages gardent leur place (Windows)** : Films → Accueil → Films revenait en haut, filtres effacés, une seule page de titres rechargée. Films, Séries, la bibliothèque, chaque bibliothèque, l’Accueil et Recherche reviennent maintenant où tu les avais laissés (défilement, filtres, recherche tapée, titres déjà chargés), puis s’actualisent sans bouger ; pareil en sortant des Réglages ou en revenant des titres d’un acteur. Un second clic sur la page déjà affichée la reprend en haut.
 - **Affiches floues avant l’image (Windows)** : le temps qu’une affiche arrive, la carte montrait un aplat gris avec le titre. Elle montre maintenant l’aperçu flou que Jellyfin envoie déjà avec chaque image (BlurHash, décodé sur le PC, rien de demandé ailleurs), comme Mira web et l’app iPhone, puis l’image apparaît en fondu par-dessus.
 - **Fiche d’un film plus cinéma (Windows)** : l’image remplit toute la fenêtre (les trois quarts pour une série, dont les épisodes suivent), le logo du titre quand Jellyfin en a un, sinon son nom en grand, son accroche, le résumé et les boutons posés sur l’image ; la distribution en photos dessous. Les boutons montrent leur état d’un coup d’œil : allumés, ils prennent un contour blanc et leur mot (« Favori », « Vu », « Suivie ») ; « Regarder ensemble » garde son nom à côté de Lecture, avec « En groupe » et un point vert dans un groupe. Suivre une série demande maintenant une confirmation (et « Ne plus suivre » aussi), qui dit ce que le PC serveur va faire.

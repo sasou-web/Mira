@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.9.0",
+    "summary": "Mira pour Windows plus soignée : fiche cinéma, pages qui gardent leur place, lecteur à raccourcis.",
+    "en": { "summary": "A more polished Mira for Windows: cinema title page, pages that keep their place, player shortcuts." },
+    "items": [
+      { "icon": "film", "title": "Une fiche plus cinéma", "text": "L’image remplit la fenêtre, le logo du titre, des boutons qui montrent leur état, un suivi de série confirmé.",
+        "en": { "title": "A more cinematic title page", "text": "The image fills the window, the title’s logo, buttons that show their state, a confirmed series follow." } },
+      { "icon": "refresh", "title": "Les pages gardent leur place", "text": "Films, Séries et Recherche reviennent où tu les as laissés, et la grille se charge en défilant.",
+        "en": { "title": "Pages keep their place", "text": "Films, Shows and Search come back where you left them, and the grid loads as you scroll." } },
+      { "icon": "play", "title": "Plus de raccourcis dans le lecteur", "text": "C pour les sous-titres, 0 à 9 pour se placer, Maj + flèches, molette pour le volume, F11.",
+        "en": { "title": "More player shortcuts", "text": "C for subtitles, 0 to 9 to jump, Shift + arrows, wheel for volume, F11." } },
+      { "icon": "sparkle", "title": "Un rendu plus propre", "text": "Gris neutres sans paliers sur OLED, aperçu flou des affiches, coins unifiés, texte net.",
+        "en": { "title": "A cleaner look", "text": "Neutral greys without banding on OLED, blurred poster previews, shared corners, sharp text." } },
+      { "icon": "users", "title": "Party ouverte dans Mira", "text": "Chez un ami, « Open in Mira » arrive enfin sur la party (mets à jour l’extension du serveur).",
+        "en": { "title": "Party opens in Mira", "text": "On a friend’s server, “Open in Mira” now reaches the party (update the server’s extension)." } }
+    ]
+  },
+  {
     "version": "0.8.9",
     "summary": "Ta party : un lien pour regarder ensemble, un PC de Jellyfin qui se règle seul, Windows plus net.",
     "en": { "summary": "Your party: one link to watch together, a Jellyfin PC that sets itself up, a sharper Windows app." },
