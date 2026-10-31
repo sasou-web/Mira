@@ -25,10 +25,18 @@ public partial class MainWindow
     { if (DetailTarget() is { } target) await PlayAsync(target, fromStart: true, chosen: true); }
     /// <summary>What Lecture plays: the film, or the episode the series picks up at.</summary>
     private MediaItem? DetailTarget() => _detailNext is { } next && _detail?.Type == "Series" ? next : _detail;
-    private async void CloseDetails_Click(object sender, RoutedEventArgs e) => await CloseDetailsAsync();
+    private async void CloseDetails_Click(object sender, RoutedEventArgs e) => await BackFromDetailsAsync();
+    /// <summary>The title pages left for a similar title, the saga or the studio, to come back to.</summary>
+    private readonly TitleTrail _detailTrail = new();
+    /// <summary>« Retour » on a title page: the page it was opened from (a similar title…), where it was scrolled; else it closes.</summary>
+    private async Task BackFromDetailsAsync()
+    {
+        if (_detailTrail.Back() is { } page) await ShowDetailsAsync(page.Item, returnTo: page.Offset);
+        else await CloseDetailsAsync();
+    }
     private async Task CloseDetailsAsync()
     {
-        ++_detailVersion; _returnToDetail = null;
+        ++_detailVersion; _returnToDetail = null; _detailTrail.Clear();
         await Motion.HideAsync(DetailOverlay, 170); UpdateHeroClock();
         // Back to the card that opened the page, so keyboard users keep their place.
         if (_detailOrigin is UIElement { IsVisible: true } origin) origin.Focus();
@@ -38,11 +46,19 @@ public partial class MainWindow
     private MediaItem? _detailEpisode;
     private bool _detailEpisodeShown;
     /// <param name="atEpisode">The series' page opened at this episode (found by a search).</param>
-    private async Task ShowDetailsAsync(MediaItem item, MediaItem? atEpisode = null)
+    /// <param name="returnTo">Coming back to this page with « Retour » (<see cref="_detailTrail"/>): scrolled back there once it is drawn.</param>
+    private async Task ShowDetailsAsync(MediaItem item, MediaItem? atEpisode = null, double? returnTo = null)
     {
         var version = ++_detailVersion; (_detailEpisode, _detailEpisodeShown) = (atEpisode, false);
         var previewArt = _hoverCard?.Item.Id == item.Id ? _hoverCard.ImageSource : null;
+        var left = returnTo is null ? null : _detail;
         if (DetailOverlay.Visibility != Visibility.Visible) _detailOrigin = Keyboard.FocusedElement;
+        // A page opened from the open one (similar title, saga, studio) keeps it to come back to; a page opened anew starts the trail again.
+        if (returnTo is null)
+        {
+            if (DetailOverlay.Visibility == Visibility.Visible && DetailOverlay.IsHitTestVisible && _detail is { } current) _detailTrail.Leave(current, DetailScroll.VerticalOffset, item);
+            else _detailTrail.Clear();
+        }
         ClosePreview(); _detail = item; _episodes = []; _detailNext = null; _detailFile = null; _favoriteOverride = null; _similar = []; _saga = null; _studioTitles = null;
         SimilarCards.Children.Clear(); SimilarSection.Visibility = Visibility.Collapsed; SagaCards.Children.Clear(); SagaSection.Visibility = Visibility.Collapsed;
         StudioCards.Children.Clear(); StudioSection.Visibility = Visibility.Collapsed; SeasonMarkButton.Visibility = Visibility.Collapsed;
@@ -72,6 +88,20 @@ public partial class MainWindow
             _similar = (_demoItems ?? DemoLibrary.Items()).Where(x => x.Id != item.Id && x.Genres.Intersect(item.Genres).Any()).ToList(); RenderSimilar();
         }
         await Task.WhenAll(tasks);
+        if (returnTo is { } offset && version == _detailVersion) await Dispatcher.InvokeAsync(() => ReturnToPlace(version, offset, left), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+    /// <summary>
+    /// Back on a page left for another: where it was scrolled, and the keyboard on the card that was opened from it
+    /// (Enter would open it again). Neither if the person already moved while the rows came in.
+    /// </summary>
+    private void ReturnToPlace(int version, double offset, MediaItem? left)
+    {
+        if (version != _detailVersion || DetailOverlay.Visibility != Visibility.Visible) return;
+        if (DetailScroll.VerticalOffset < 1 && offset > 0) { SmoothScroll.Jump(DetailScroll, offset); DetailScroll.UpdateLayout(); }
+        if (left is null || !ReferenceEquals(Keyboard.FocusedElement, DetailPlay) || InputManager.Current.MostRecentInputDevice is not KeyboardDevice) return;
+        var card = SagaCards.Children.OfType<MediaCard>().Concat(StudioCards.Children.OfType<MediaCard>()).Concat(SimilarCards.Children.OfType<MediaCard>())
+            .FirstOrDefault(x => x.Item.Id == left.Id || x.Item.Id == left.SeriesId);
+        card?.Focus();
     }
     /// <summary>Reloads progress and watched marks of the open page (after playback) without moving it.</summary>
     private async Task RefreshDetailAsync()

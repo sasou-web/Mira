@@ -19,6 +19,8 @@ public partial class MainWindow
         Choice(WatchedFilter) switch { "played" => true, "unplayed" => false, _ => null }, _catalog.Sort(Choice(SortFilter)), _catalog.Person?.Id, _catalog.Studio?.Id);
     /// <summary>The title page a person's titles were chosen from (<see cref="Catalog.Person"/>).</summary>
     private MediaItem? _personFrom;
+    /// <summary>Where that page was scrolled, and the pages it was itself reached from (<see cref="TitleTrail"/>): « Retour » gives them back.</summary>
+    private (double Offset, List<(MediaItem Item, double Offset)> Trail) _personFromPlace = (0, []);
     /// <summary>The search a person or a saga was found by (« Personnes », « Sagas »): taken back when their titles are left.</summary>
     private string? _personSearch;
     private string _personReturnView = "home";
@@ -30,6 +32,7 @@ public partial class MainWindow
     {
         if (person.Id is not { Length: > 0 } id) return;
         var from = search is null ? _detail : null; var view = _catalog.View;
+        _personFromPlace = from is null ? (0, []) : (DetailScroll.VerticalOffset, [.. _detailTrail.Pages]);
         ResetFilters();
         (_catalog.Person, _personFrom, _personSearch, _personReturnView, _catalog.View) = ((id, person.Name, directed), from, search, view, "library");
         ShowPersonFilter();
@@ -42,6 +45,7 @@ public partial class MainWindow
     private async Task ShowStudioAsync(string id, string name, string? search = null)
     {
         var from = search is null ? _detail : null; var view = _catalog.View;
+        _personFromPlace = from is null ? (0, []) : (DetailScroll.VerticalOffset, [.. _detailTrail.Pages]);
         ResetFilters();
         (_catalog.Studio, _personFrom, _personSearch, _personReturnView, _catalog.View) = ((id, name), from, search, view, "library");
         _filterBusy = true; SortFilter.SelectedItem = SortFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "year") ?? SortFilter.SelectedItem; _filterBusy = false;
@@ -78,7 +82,7 @@ public partial class MainWindow
         ResetFilters(); _catalog.View = view;
         if (search is not null) { _filterBusy = true; SearchBox.Text = search; _filterBusy = false; }
         await NavigateLibraryAsync();
-        if (title is not null) await ShowDetailsAsync(title);
+        if (title is not null) { _detailTrail.Replace(_personFromPlace.Trail); await ShowDetailsAsync(title, returnTo: _personFromPlace.Offset); }
     }
     private async void PersonFilter_Click(object sender, RoutedEventArgs e)
     {
