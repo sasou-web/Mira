@@ -27,6 +27,10 @@ public static class Artwork
         }
         return Backdrop(item);
     }
+    /// <summary>A poster: an episode shows its series' poster, anything else its own.</summary>
+    public static ImageRef Poster(MediaItem item) => item.Type == "Episode" && item.SeriesId is not null
+        ? new(item.SeriesId, "Primary", item.SeriesPrimaryImageTag ?? "")
+        : new(item.Id, "Primary", Tag(item.ImageTags, "Primary") ?? "");
     /// <summary>A large background (the home banner, a title page): the item's backdrop, else its closest parent's, else its thumbnail.</summary>
     public static ImageRef Backdrop(MediaItem item)
     {

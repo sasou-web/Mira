@@ -42,6 +42,9 @@ public sealed record MediaItem
     public string? ParentBackdropItemId { get; init; }
     public string[] ParentBackdropImageTags { get; init; } = [];
     public string? SeriesPrimaryImageTag { get; init; }
+    /// <summary>The BlurHash of each image, by type then tag (« Primary » → « tag » → « LEHV6n… »), parents' images included: the placeholder of <see cref="BlurHash"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, Dictionary<string, string>>? ImageBlurHashes { get; init; }
     public string? ParentLogoItemId { get; init; }
     public string? ParentLogoImageTag { get; init; }
     /// <summary>The thumbnail of the episode's season, filled in by Mira (Jellyfin does not send it with the episode).</summary>
