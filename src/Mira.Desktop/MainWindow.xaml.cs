@@ -432,7 +432,7 @@ public partial class MainWindow : Window
     {
         _searchTimer.Stop();
         // A new list, or the same one asked again: its grid may go on loading as it scrolls.
-        if (!more) ResetGridMore();
+        if (!more) { ResetGridMore(); _listRefreshing = false; }
         if (_demo) { RenderDemo(); return false; }
         // « Sur ce PC » asks Jellyfin nothing; a copy waiting for it is tried again.
         if (_catalog.View == "offline") { await ShowOfflinePageAsync(); PumpOffline(); return false; }
@@ -453,6 +453,8 @@ public partial class MainWindow : Window
         if (home && !more) _ = LoadHomeGroupsAsync(client);
         // Collections made by hand: what a card's menu offers.
         if (!more) _ = LoadCollectionRightsAsync(client);
+        // A whole list asked for (a page, or a quiet refresh of every page loaded): no next page meanwhile, it would cancel it.
+        if (!more) _listRefreshing = true;
         var startOffset = LibraryScroll.VerticalOffset; var started = DateTimeOffset.UtcNow;
         if (!quiet && !more) { SyncLabel.Text = L("↻  Actualisation…", "↻  Refreshing…"); SpinRefresh(true); }
         try
@@ -529,7 +531,7 @@ public partial class MainWindow : Window
             }
             return true;
         }
-        finally { if (version == _viewVersion) SpinRefresh(false); }
+        finally { if (version == _viewVersion) { _listRefreshing = false; SpinRefresh(false); } }
         return false;
     }
     /// <summary>The refresh icon turns while a requested refresh is running.</summary>
