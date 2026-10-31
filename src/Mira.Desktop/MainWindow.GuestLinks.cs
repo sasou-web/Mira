@@ -135,7 +135,7 @@ public partial class MainWindow
         var question = invite.Opened
             ? L($"{invite.Name} sort du groupe tout de suite et ne pourra plus revenir avec ce lien. Son compte est supprimé de Jellyfin.", $"{invite.Name} leaves the group right away and can’t come back with this link. Their account is deleted from Jellyfin.")
             : L($"Le lien de {invite.Name} ne marchera plus. Son compte est supprimé de Jellyfin.", $"{invite.Name}’s link will stop working. Their account is deleted from Jellyfin.");
-        if (MessageBox.Show(this, question, L("Retirer ce lien ?", "Take back this link?"), MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+        if (!await ConfirmAsync(L("Retirer ce lien ?", "Take back this link?"), question, L("Retirer", "Take back"), L("Garder", "Keep"))) return;
         _guestBusy = true;
         var ct = _connectionLifetime.Token;
         try
