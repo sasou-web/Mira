@@ -28,6 +28,19 @@ public static class TailnetText
     public static string ReopenPage => L("Rouvrir la page de connexion", "Open the sign-in page again");
     public static string Retry => L("Réessayer", "Try again");
 
+    /// <summary>
+    /// Running on a tailnet whose policy does not grant « cache-network-maps » (<see cref="TailnetStatus.OutageCache"/>):
+    /// the one setting that lets the node start while Tailscale's coordination server is down, for its administrator.
+    /// Gone by itself once granted.
+    /// </summary>
+    public static string Outage => L("Pour que Tailscale intégré marche même pendant une panne de Tailscale, ton réseau Tailscale doit l’autoriser, une fois (son administrateur) : copie le réglage, ouvre la politique du réseau en JSON, colle-le juste après la première « { », puis Save. Déjà un « nodeAttrs » ? Colle seulement sa ligne du milieu dedans. Mira le voit toute seule.",
+        "For Built-in Tailscale to keep working during a Tailscale outage, your Tailscale network must allow it, once (its administrator): copy the setting, open the network’s policy in JSON, paste it right after the first “{”, then Save. Already a “nodeAttrs”? Paste only its middle line inside it. Mira notices by itself.");
+    public static string CopyOutage => L("Copier le réglage", "Copy the setting");
+    public static string OpenPolicy => L("Ouvrir la politique du réseau", "Open the network’s policy");
+    public static string OutageCopied => L("Réglage copié : colle-le dans la politique du réseau, puis Save.", "Setting copied: paste it in the network’s policy, then Save.");
+    /// <summary>The setting <see cref="Outage"/> copies, as Tailscale's policy file (HuJSON) takes it.</summary>
+    public const string OutageSetting = "\"nodeAttrs\": [\n  { \"target\": [\"autogroup:member\", \"autogroup:tagged\"], \"attr\": [\"cache-network-maps\"] },\n],\n";
+
     /// <summary>What a sign-in or sign-out says beside its button (<see cref="BuiltInTailnet"/>).</summary>
     public static string PageOpened => L("La page de connexion de Tailscale s’est ouverte dans ton navigateur : connecte-toi avec ton compte Tailscale, celui du PC de Jellyfin.",
         "Tailscale’s sign-in page opened in your browser: sign in with your Tailscale account, the one of Jellyfin’s PC.");

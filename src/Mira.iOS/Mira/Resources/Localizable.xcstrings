@@ -3809,6 +3809,46 @@
           }
         }
       }
+    },
+    "For Built-in Tailscale to keep working during a Tailscale outage, your Tailscale network must allow it, once (its administrator): copy the setting, open the network’s policy in JSON, paste it right after the first “{”, then Save. Already a “nodeAttrs”? Paste only its middle line inside it. Mira notices by itself.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour que Tailscale intégré marche même pendant une panne de Tailscale, ton réseau Tailscale doit l’autoriser, une fois (son administrateur) : copie le réglage, ouvre la politique du réseau en JSON, colle-le juste après la première « { », puis Save. Déjà un « nodeAttrs » ? Colle seulement sa ligne du milieu dedans. Mira le voit toute seule."
+          }
+        }
+      }
+    },
+    "Setting copied": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglage copié"
+          }
+        }
+      }
+    },
+    "Copy the setting": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier le réglage"
+          }
+        }
+      }
+    },
+    "Open the network’s policy": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir la politique du réseau"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
