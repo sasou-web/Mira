@@ -1,0 +1,1844 @@
+{
+  "pages": {
+    "home": {
+      "content": "home-content.jpg",
+      "width": 1920,
+      "height": 3241,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "chrome": "home-chrome.png",
+      "cards": [
+        {
+          "name": "Paint the Town Blue",
+          "type": "Episode",
+          "rect": {
+            "x": 110,
+            "y": 804,
+            "w": 290,
+            "h": 221
+          }
+        },
+        {
+          "name": "Spider-Man: Across the Spider-Verse",
+          "type": "Movie",
+          "rect": {
+            "x": 422,
+            "y": 804,
+            "w": 290,
+            "h": 221
+          }
+        },
+        {
+          "name": "Spring",
+          "type": "Movie",
+          "rect": {
+            "x": 734,
+            "y": 804,
+            "w": 290,
+            "h": 221
+          }
+        },
+        {
+          "name": "The Wild Robot",
+          "type": "Movie",
+          "rect": {
+            "x": 1046,
+            "y": 804,
+            "w": 290,
+            "h": 221
+          }
+        },
+        {
+          "name": "Your Name.",
+          "type": "Movie",
+          "rect": {
+            "x": 1358,
+            "y": 804,
+            "w": 290,
+            "h": 221
+          }
+        },
+        {
+          "name": "Arcane",
+          "type": "Series",
+          "rect": {
+            "x": 110,
+            "y": 1108,
+            "w": 192,
+            "h": 361
+          }
+        },
+        {
+          "name": "Flow",
+          "type": "Movie",
+          "rect": {
+            "x": 324,
+            "y": 1108,
+            "w": 192,
+            "h": 361
+          }
+        },
+        {
+          "name": "Klaus",
+          "type": "Movie",
+          "rect": {
+            "x": 538,
+            "y": 1108,
+            "w": 192,
+            "h": 361
+          }
+        },
+        {
+          "name": "Spirited Away",
+          "type": "Movie",
+          "rect": {
+            "x": 752,
+            "y": 1108,
+            "w": 192,
+            "h": 361
+          }
+        },
+        {
+          "name": "Love, Death \u0026 Robots",
+          "type": "Series",
+          "rect": {
+            "x": 110,
+            "y": 1583,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "INVINCIBLE",
+          "type": "Series",
+          "rect": {
+            "x": 333,
+            "y": 1583,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "BLUE EYE SAMURAI",
+          "type": "Series",
+          "rect": {
+            "x": 556,
+            "y": 1583,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Arcane",
+          "type": "Series",
+          "rect": {
+            "x": 779,
+            "y": 1583,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Sprite Fright",
+          "type": "Movie",
+          "rect": {
+            "x": 1002,
+            "y": 1583,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spring",
+          "type": "Movie",
+          "rect": {
+            "x": 1225,
+            "y": 1583,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Suzume",
+          "type": "Movie",
+          "rect": {
+            "x": 1448,
+            "y": 1583,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Flow",
+          "type": "Movie",
+          "rect": {
+            "x": 1671,
+            "y": 1583,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "The Boy and the Heron",
+          "type": "Movie",
+          "rect": {
+            "x": 110,
+            "y": 1987,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "My Neighbor Totoro",
+          "type": "Movie",
+          "rect": {
+            "x": 333,
+            "y": 1987,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Howl\u0027s Moving Castle",
+          "type": "Movie",
+          "rect": {
+            "x": 556,
+            "y": 1987,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Coco",
+          "type": "Movie",
+          "rect": {
+            "x": 779,
+            "y": 1987,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Puss in Boots: The Last Wish",
+          "type": "Movie",
+          "rect": {
+            "x": 1002,
+            "y": 1987,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Klaus",
+          "type": "Movie",
+          "rect": {
+            "x": 1225,
+            "y": 1987,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Wolfwalkers",
+          "type": "Movie",
+          "rect": {
+            "x": 1448,
+            "y": 1987,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "The Wild Robot",
+          "type": "Movie",
+          "rect": {
+            "x": 1671,
+            "y": 1987,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spirited Away",
+          "type": "Movie",
+          "rect": {
+            "x": 110,
+            "y": 2391,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "The Mitchells vs. the Machines",
+          "type": "Movie",
+          "rect": {
+            "x": 333,
+            "y": 2391,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Isle of Dogs",
+          "type": "Movie",
+          "rect": {
+            "x": 556,
+            "y": 2391,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Robot Dreams",
+          "type": "Movie",
+          "rect": {
+            "x": 779,
+            "y": 2391,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Nimona",
+          "type": "Movie",
+          "rect": {
+            "x": 1002,
+            "y": 2391,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Teenage Mutant Ninja Turtles: Mutant Mayhem",
+          "type": "Movie",
+          "rect": {
+            "x": 1225,
+            "y": 2391,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Princess Mononoke",
+          "type": "Movie",
+          "rect": {
+            "x": 1448,
+            "y": 2391,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spider-Man: Across the Spider-Verse",
+          "type": "Movie",
+          "rect": {
+            "x": 1671,
+            "y": 2391,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spider-Man: Into the Spider-Verse",
+          "type": "Movie",
+          "rect": {
+            "x": 110,
+            "y": 2795,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Your Name.",
+          "type": "Movie",
+          "rect": {
+            "x": 333,
+            "y": 2795,
+            "w": 201,
+            "h": 374
+          }
+        }
+      ],
+      "hovers": [
+        {
+          "name": "Resume",
+          "rect": {
+            "x": 98,
+            "y": 616,
+            "w": 189,
+            "h": 71
+          },
+          "file": "home-hover-00.jpg"
+        },
+        {
+          "name": "Paint the Town Blue",
+          "rect": {
+            "x": 98,
+            "y": 792,
+            "w": 314,
+            "h": 245
+          },
+          "file": "home-hover-01.jpg"
+        },
+        {
+          "name": "Spider-Man: Across the Spider-Verse",
+          "rect": {
+            "x": 410,
+            "y": 792,
+            "w": 314,
+            "h": 245
+          },
+          "file": "home-hover-02.jpg"
+        },
+        {
+          "name": "Spring",
+          "rect": {
+            "x": 722,
+            "y": 792,
+            "w": 314,
+            "h": 245
+          },
+          "file": "home-hover-03.jpg"
+        },
+        {
+          "name": "The Wild Robot",
+          "rect": {
+            "x": 1034,
+            "y": 792,
+            "w": 314,
+            "h": 245
+          },
+          "file": "home-hover-04.jpg"
+        },
+        {
+          "name": "Your Name.",
+          "rect": {
+            "x": 1346,
+            "y": 792,
+            "w": 314,
+            "h": 245
+          },
+          "file": "home-hover-05.jpg"
+        },
+        {
+          "name": "Arcane",
+          "rect": {
+            "x": 98,
+            "y": 1096,
+            "w": 216,
+            "h": 385
+          },
+          "file": "home-hover-06.jpg"
+        },
+        {
+          "name": "Flow",
+          "rect": {
+            "x": 312,
+            "y": 1096,
+            "w": 216,
+            "h": 385
+          },
+          "file": "home-hover-07.jpg"
+        },
+        {
+          "name": "Klaus",
+          "rect": {
+            "x": 526,
+            "y": 1096,
+            "w": 216,
+            "h": 385
+          },
+          "file": "home-hover-08.jpg"
+        },
+        {
+          "name": "Spirited Away",
+          "rect": {
+            "x": 740,
+            "y": 1096,
+            "w": 216,
+            "h": 385
+          },
+          "file": "home-hover-09.jpg"
+        },
+        {
+          "name": "Love, Death \u0026 Robots",
+          "rect": {
+            "x": 98,
+            "y": 1571,
+            "w": 225,
+            "h": 398
+          },
+          "file": "home-hover-10.jpg"
+        },
+        {
+          "name": "INVINCIBLE",
+          "rect": {
+            "x": 321,
+            "y": 1571,
+            "w": 225,
+            "h": 398
+          },
+          "file": "home-hover-11.jpg"
+        },
+        {
+          "name": "BLUE EYE SAMURAI",
+          "rect": {
+            "x": 544,
+            "y": 1571,
+            "w": 225,
+            "h": 398
+          },
+          "file": "home-hover-12.jpg"
+        },
+        {
+          "name": "Arcane",
+          "rect": {
+            "x": 767,
+            "y": 1571,
+            "w": 225,
+            "h": 398
+          },
+          "file": "home-hover-13.jpg"
+        }
+      ],
+      "banners": [
+        {
+          "name": "Spider-Man: Across the Spider-Verse",
+          "file": "home-banner-1.jpg"
+        },
+        {
+          "name": "Spring",
+          "file": "home-banner-2.jpg"
+        },
+        {
+          "name": "The Wild Robot",
+          "file": "home-banner-3.jpg"
+        }
+      ],
+      "banner": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 756
+      }
+    },
+    "series": {
+      "content": "series-content.jpg",
+      "width": 1920,
+      "height": 1080,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "chrome": "series-chrome.png",
+      "cards": [
+        {
+          "name": "Love, Death \u0026 Robots",
+          "type": "Series",
+          "rect": {
+            "x": 110,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "INVINCIBLE",
+          "type": "Series",
+          "rect": {
+            "x": 333,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "BLUE EYE SAMURAI",
+          "type": "Series",
+          "rect": {
+            "x": 556,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Arcane",
+          "type": "Series",
+          "rect": {
+            "x": 779,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        }
+      ],
+      "hovers": [
+        {
+          "name": "Love, Death \u0026 Robots",
+          "rect": {
+            "x": 98,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "series-hover-00.jpg"
+        },
+        {
+          "name": "INVINCIBLE",
+          "rect": {
+            "x": 321,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "series-hover-01.jpg"
+        },
+        {
+          "name": "BLUE EYE SAMURAI",
+          "rect": {
+            "x": 544,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "series-hover-02.jpg"
+        },
+        {
+          "name": "Arcane",
+          "rect": {
+            "x": 767,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "series-hover-03.jpg"
+        }
+      ]
+    },
+    "arcane": {
+      "content": "arcane-content.jpg",
+      "width": 1920,
+      "height": 2818,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "chrome": "arcane-chrome.png",
+      "cards": [
+        {
+          "name": "BLUE EYE SAMURAI",
+          "type": "Series",
+          "rect": {
+            "x": 112,
+            "y": 1844,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Love, Death \u0026 Robots",
+          "type": "Series",
+          "rect": {
+            "x": 332,
+            "y": 1844,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "BLUE EYE SAMURAI",
+          "type": "Series",
+          "rect": {
+            "x": 112,
+            "y": 2368,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Love, Death \u0026 Robots",
+          "type": "Series",
+          "rect": {
+            "x": 332,
+            "y": 2368,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "INVINCIBLE",
+          "type": "Series",
+          "rect": {
+            "x": 552,
+            "y": 2368,
+            "w": 198,
+            "h": 370
+          }
+        }
+      ],
+      "hovers": [
+        {
+          "name": "Resume \u00B7 S02 E04",
+          "rect": {
+            "x": 280,
+            "y": 321,
+            "w": 297,
+            "h": 71
+          },
+          "file": "arcane-hover-00.jpg"
+        },
+        {
+          "name": "Episode 1: Heavy Is the Crown, 40 min, watched",
+          "rect": {
+            "x": 100,
+            "y": 590,
+            "w": 1788,
+            "h": 146
+          },
+          "file": "arcane-hover-01.jpg"
+        },
+        {
+          "name": "Episode 2: Watch It All Burn, 40 min, watched",
+          "rect": {
+            "x": 100,
+            "y": 721,
+            "w": 1788,
+            "h": 146
+          },
+          "file": "arcane-hover-02.jpg"
+        },
+        {
+          "name": "Episode 3: Finally Got the Name Right, 40 min, watched",
+          "rect": {
+            "x": 100,
+            "y": 852,
+            "w": 1788,
+            "h": 146
+          },
+          "file": "arcane-hover-03.jpg"
+        },
+        {
+          "name": "Episode 4: Paint the Town Blue, 40 min, up next",
+          "rect": {
+            "x": 100,
+            "y": 983,
+            "w": 1788,
+            "h": 146
+          },
+          "file": "arcane-hover-04.jpg"
+        },
+        {
+          "name": "BLUE EYE SAMURAI",
+          "rect": {
+            "x": 100,
+            "y": 1832,
+            "w": 222,
+            "h": 394
+          },
+          "file": "arcane-hover-05.jpg"
+        },
+        {
+          "name": "Love, Death \u0026 Robots",
+          "rect": {
+            "x": 320,
+            "y": 1832,
+            "w": 222,
+            "h": 394
+          },
+          "file": "arcane-hover-06.jpg"
+        },
+        {
+          "name": "BLUE EYE SAMURAI",
+          "rect": {
+            "x": 100,
+            "y": 2356,
+            "w": 222,
+            "h": 394
+          },
+          "file": "arcane-hover-07.jpg"
+        },
+        {
+          "name": "Love, Death \u0026 Robots",
+          "rect": {
+            "x": 320,
+            "y": 2356,
+            "w": 222,
+            "h": 394
+          },
+          "file": "arcane-hover-08.jpg"
+        },
+        {
+          "name": "INVINCIBLE",
+          "rect": {
+            "x": 540,
+            "y": 2356,
+            "w": 222,
+            "h": 394
+          },
+          "file": "arcane-hover-09.jpg"
+        }
+      ]
+    },
+    "movies": {
+      "content": "movies-content.jpg",
+      "width": 1920,
+      "height": 1829,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "chrome": "movies-chrome.png",
+      "cards": [
+        {
+          "name": "Sprite Fright",
+          "type": "Movie",
+          "rect": {
+            "x": 110,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spring",
+          "type": "Movie",
+          "rect": {
+            "x": 333,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Suzume",
+          "type": "Movie",
+          "rect": {
+            "x": 556,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Flow",
+          "type": "Movie",
+          "rect": {
+            "x": 779,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "The Boy and the Heron",
+          "type": "Movie",
+          "rect": {
+            "x": 1002,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "My Neighbor Totoro",
+          "type": "Movie",
+          "rect": {
+            "x": 1225,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Howl\u0027s Moving Castle",
+          "type": "Movie",
+          "rect": {
+            "x": 1448,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Coco",
+          "type": "Movie",
+          "rect": {
+            "x": 1671,
+            "y": 575,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Puss in Boots: The Last Wish",
+          "type": "Movie",
+          "rect": {
+            "x": 110,
+            "y": 979,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Klaus",
+          "type": "Movie",
+          "rect": {
+            "x": 333,
+            "y": 979,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Wolfwalkers",
+          "type": "Movie",
+          "rect": {
+            "x": 556,
+            "y": 979,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "The Wild Robot",
+          "type": "Movie",
+          "rect": {
+            "x": 779,
+            "y": 979,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spirited Away",
+          "type": "Movie",
+          "rect": {
+            "x": 1002,
+            "y": 979,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "The Mitchells vs. the Machines",
+          "type": "Movie",
+          "rect": {
+            "x": 1225,
+            "y": 979,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Isle of Dogs",
+          "type": "Movie",
+          "rect": {
+            "x": 1448,
+            "y": 979,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Robot Dreams",
+          "type": "Movie",
+          "rect": {
+            "x": 1671,
+            "y": 979,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Nimona",
+          "type": "Movie",
+          "rect": {
+            "x": 110,
+            "y": 1383,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Teenage Mutant Ninja Turtles: Mutant Mayhem",
+          "type": "Movie",
+          "rect": {
+            "x": 333,
+            "y": 1383,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Princess Mononoke",
+          "type": "Movie",
+          "rect": {
+            "x": 556,
+            "y": 1383,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spider-Man: Across the Spider-Verse",
+          "type": "Movie",
+          "rect": {
+            "x": 779,
+            "y": 1383,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spider-Man: Into the Spider-Verse",
+          "type": "Movie",
+          "rect": {
+            "x": 1002,
+            "y": 1383,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Your Name.",
+          "type": "Movie",
+          "rect": {
+            "x": 1225,
+            "y": 1383,
+            "w": 201,
+            "h": 374
+          }
+        }
+      ],
+      "hovers": [
+        {
+          "name": "Sprite Fright",
+          "rect": {
+            "x": 98,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-00.jpg"
+        },
+        {
+          "name": "Spring",
+          "rect": {
+            "x": 321,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-01.jpg"
+        },
+        {
+          "name": "Suzume",
+          "rect": {
+            "x": 544,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-02.jpg"
+        },
+        {
+          "name": "Flow",
+          "rect": {
+            "x": 767,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-03.jpg"
+        },
+        {
+          "name": "The Boy and the Heron",
+          "rect": {
+            "x": 990,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-04.jpg"
+        },
+        {
+          "name": "My Neighbor Totoro",
+          "rect": {
+            "x": 1213,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-05.jpg"
+        },
+        {
+          "name": "Howl\u0027s Moving Castle",
+          "rect": {
+            "x": 1436,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-06.jpg"
+        },
+        {
+          "name": "Coco",
+          "rect": {
+            "x": 1659,
+            "y": 563,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-07.jpg"
+        },
+        {
+          "name": "Puss in Boots: The Last Wish",
+          "rect": {
+            "x": 98,
+            "y": 967,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-08.jpg"
+        },
+        {
+          "name": "Klaus",
+          "rect": {
+            "x": 321,
+            "y": 967,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-09.jpg"
+        },
+        {
+          "name": "Wolfwalkers",
+          "rect": {
+            "x": 544,
+            "y": 967,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-10.jpg"
+        },
+        {
+          "name": "The Wild Robot",
+          "rect": {
+            "x": 767,
+            "y": 967,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-11.jpg"
+        },
+        {
+          "name": "Spirited Away",
+          "rect": {
+            "x": 990,
+            "y": 967,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-12.jpg"
+        },
+        {
+          "name": "The Mitchells vs. the Machines",
+          "rect": {
+            "x": 1213,
+            "y": 967,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-13.jpg"
+        },
+        {
+          "name": "Isle of Dogs",
+          "rect": {
+            "x": 1436,
+            "y": 967,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-14.jpg"
+        },
+        {
+          "name": "Robot Dreams",
+          "rect": {
+            "x": 1659,
+            "y": 967,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-15.jpg"
+        },
+        {
+          "name": "Nimona",
+          "rect": {
+            "x": 98,
+            "y": 1371,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-16.jpg"
+        },
+        {
+          "name": "Teenage Mutant Ninja Turtles: Mutant Mayhem",
+          "rect": {
+            "x": 321,
+            "y": 1371,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-17.jpg"
+        },
+        {
+          "name": "Princess Mononoke",
+          "rect": {
+            "x": 544,
+            "y": 1371,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-18.jpg"
+        },
+        {
+          "name": "Spider-Man: Across the Spider-Verse",
+          "rect": {
+            "x": 767,
+            "y": 1371,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-19.jpg"
+        },
+        {
+          "name": "Spider-Man: Into the Spider-Verse",
+          "rect": {
+            "x": 990,
+            "y": 1371,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-20.jpg"
+        },
+        {
+          "name": "Your Name.",
+          "rect": {
+            "x": 1213,
+            "y": 1371,
+            "w": 225,
+            "h": 398
+          },
+          "file": "movies-hover-21.jpg"
+        }
+      ]
+    },
+    "verse": {
+      "content": "verse-content.jpg",
+      "width": 1920,
+      "height": 1572,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "chrome": "verse-chrome.png",
+      "cards": [
+        {
+          "name": "The Mitchells vs. the Machines",
+          "type": "Movie",
+          "rect": {
+            "x": 112,
+            "y": 634,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Spider-Man: Into the Spider-Verse",
+          "type": "Movie",
+          "rect": {
+            "x": 332,
+            "y": 634,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Teenage Mutant Ninja Turtles: Mutant Mayhem",
+          "type": "Movie",
+          "rect": {
+            "x": 112,
+            "y": 1122,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Nimona",
+          "type": "Movie",
+          "rect": {
+            "x": 332,
+            "y": 1122,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "The Mitchells vs. the Machines",
+          "type": "Movie",
+          "rect": {
+            "x": 552,
+            "y": 1122,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "The Wild Robot",
+          "type": "Movie",
+          "rect": {
+            "x": 772,
+            "y": 1122,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Robot Dreams",
+          "type": "Movie",
+          "rect": {
+            "x": 992,
+            "y": 1122,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Puss in Boots: The Last Wish",
+          "type": "Movie",
+          "rect": {
+            "x": 1212,
+            "y": 1122,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Wolfwalkers",
+          "type": "Movie",
+          "rect": {
+            "x": 1432,
+            "y": 1122,
+            "w": 198,
+            "h": 370
+          }
+        }
+      ],
+      "hovers": [
+        {
+          "name": "Resume",
+          "rect": {
+            "x": 280,
+            "y": 298,
+            "w": 238,
+            "h": 71
+          },
+          "file": "verse-hover-00.jpg"
+        },
+        {
+          "name": "The Mitchells vs. the Machines",
+          "rect": {
+            "x": 100,
+            "y": 622,
+            "w": 222,
+            "h": 394
+          },
+          "file": "verse-hover-01.jpg"
+        },
+        {
+          "name": "Spider-Man: Into the Spider-Verse",
+          "rect": {
+            "x": 320,
+            "y": 622,
+            "w": 222,
+            "h": 394
+          },
+          "file": "verse-hover-02.jpg"
+        },
+        {
+          "name": "Teenage Mutant Ninja Turtles: Mutant Mayhem",
+          "rect": {
+            "x": 100,
+            "y": 1110,
+            "w": 222,
+            "h": 394
+          },
+          "file": "verse-hover-03.jpg"
+        },
+        {
+          "name": "Nimona",
+          "rect": {
+            "x": 320,
+            "y": 1110,
+            "w": 222,
+            "h": 394
+          },
+          "file": "verse-hover-04.jpg"
+        },
+        {
+          "name": "The Mitchells vs. the Machines",
+          "rect": {
+            "x": 540,
+            "y": 1110,
+            "w": 222,
+            "h": 394
+          },
+          "file": "verse-hover-05.jpg"
+        }
+      ]
+    },
+    "spring": {
+      "content": "spring-content.jpg",
+      "width": 1920,
+      "height": 1540,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "chrome": "spring-chrome.png",
+      "cards": [
+        {
+          "name": "Sprite Fright",
+          "type": "Movie",
+          "rect": {
+            "x": 112,
+            "y": 602,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Flow",
+          "type": "Movie",
+          "rect": {
+            "x": 112,
+            "y": 1090,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Howl\u0027s Moving Castle",
+          "type": "Movie",
+          "rect": {
+            "x": 332,
+            "y": 1090,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Sprite Fright",
+          "type": "Movie",
+          "rect": {
+            "x": 552,
+            "y": 1090,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Nimona",
+          "type": "Movie",
+          "rect": {
+            "x": 772,
+            "y": 1090,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Suzume",
+          "type": "Movie",
+          "rect": {
+            "x": 992,
+            "y": 1090,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Puss in Boots: The Last Wish",
+          "type": "Movie",
+          "rect": {
+            "x": 1212,
+            "y": 1090,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Wolfwalkers",
+          "type": "Movie",
+          "rect": {
+            "x": 1432,
+            "y": 1090,
+            "w": 198,
+            "h": 370
+          }
+        },
+        {
+          "name": "Princess Mononoke",
+          "type": "Movie",
+          "rect": {
+            "x": 1652,
+            "y": 1090,
+            "w": 198,
+            "h": 370
+          }
+        }
+      ],
+      "hovers": [
+        {
+          "name": "Resume",
+          "rect": {
+            "x": 280,
+            "y": 298,
+            "w": 225,
+            "h": 71
+          },
+          "file": "spring-hover-00.jpg"
+        },
+        {
+          "name": "Sprite Fright",
+          "rect": {
+            "x": 100,
+            "y": 590,
+            "w": 222,
+            "h": 394
+          },
+          "file": "spring-hover-01.jpg"
+        },
+        {
+          "name": "Flow",
+          "rect": {
+            "x": 100,
+            "y": 1078,
+            "w": 222,
+            "h": 394
+          },
+          "file": "spring-hover-02.jpg"
+        },
+        {
+          "name": "Howl\u0027s Moving Castle",
+          "rect": {
+            "x": 320,
+            "y": 1078,
+            "w": 222,
+            "h": 394
+          },
+          "file": "spring-hover-03.jpg"
+        }
+      ]
+    },
+    "search": {
+      "content": "search-content.jpg",
+      "width": 1920,
+      "height": 1080,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "chrome": "search-chrome.png",
+      "cards": [
+        {
+          "name": "Spider-Man: Across the Spider-Verse",
+          "type": "Movie",
+          "rect": {
+            "x": 110,
+            "y": 294,
+            "w": 201,
+            "h": 374
+          }
+        },
+        {
+          "name": "Spider-Man: Into the Spider-Verse",
+          "type": "Movie",
+          "rect": {
+            "x": 333,
+            "y": 294,
+            "w": 201,
+            "h": 374
+          }
+        }
+      ],
+      "hovers": [
+        {
+          "name": "Spider-Man: Across the Spider-Verse",
+          "rect": {
+            "x": 98,
+            "y": 282,
+            "w": 225,
+            "h": 398
+          },
+          "file": "search-hover-00.jpg"
+        },
+        {
+          "name": "Spider-Man: Into the Spider-Verse",
+          "rect": {
+            "x": 321,
+            "y": 282,
+            "w": 225,
+            "h": 398
+          },
+          "file": "search-hover-01.jpg"
+        }
+      ],
+      "empty": {
+        "content": "search-empty.jpg",
+        "width": 1920,
+        "height": 1080
+      },
+      "typing": [
+        {
+          "text": "s",
+          "file": "search-type-1.jpg"
+        },
+        {
+          "text": "sp",
+          "file": "search-type-2.jpg"
+        },
+        {
+          "text": "spi",
+          "file": "search-type-3.jpg"
+        },
+        {
+          "text": "spid",
+          "file": "search-type-4.jpg"
+        },
+        {
+          "text": "spide",
+          "file": "search-type-5.jpg"
+        },
+        {
+          "text": "spider",
+          "file": "search-type-6.jpg"
+        }
+      ],
+      "field": {
+        "x": 612,
+        "y": 158,
+        "w": 760,
+        "h": 52
+      }
+    }
+  },
+  "window": {
+    "width": 1920,
+    "height": 1080,
+    "scale": 2
+  },
+  "nav": {
+    "home": {
+      "x": 10,
+      "y": 76,
+      "w": 48,
+      "h": 46
+    },
+    "search": {
+      "x": 10,
+      "y": 130,
+      "w": 48,
+      "h": 46
+    },
+    "movies": {
+      "x": 10,
+      "y": 184,
+      "w": 48,
+      "h": 46
+    },
+    "series": {
+      "x": 10,
+      "y": 238,
+      "w": 48,
+      "h": 46
+    }
+  },
+  "player": {
+    "duration": 464.120458,
+    "seekBar": {
+      "x": 24,
+      "y": 996,
+      "w": 1872,
+      "h": 24
+    },
+    "playing": [
+      {
+        "file": "player-00.png",
+        "position": 46.375,
+        "fraction": null
+      },
+      {
+        "file": "player-01.png",
+        "position": 46.625,
+        "fraction": null
+      },
+      {
+        "file": "player-02.png",
+        "position": 46.958333,
+        "fraction": null
+      },
+      {
+        "file": "player-03.png",
+        "position": 47.25,
+        "fraction": null
+      },
+      {
+        "file": "player-04.png",
+        "position": 47.5,
+        "fraction": null
+      },
+      {
+        "file": "player-05.png",
+        "position": 47.75,
+        "fraction": null
+      },
+      {
+        "file": "player-06.png",
+        "position": 48.083333,
+        "fraction": null
+      }
+    ],
+    "scrub": [
+      {
+        "file": "player-scrub-00.png",
+        "position": 48.5,
+        "fraction": 0.1
+      },
+      {
+        "file": "player-scrub-01.png",
+        "position": 48.708333,
+        "fraction": 0.145625
+      },
+      {
+        "file": "player-scrub-02.png",
+        "position": 48.958333,
+        "fraction": 0.19125
+      },
+      {
+        "file": "player-scrub-03.png",
+        "position": 49.208333,
+        "fraction": 0.236875
+      },
+      {
+        "file": "player-scrub-04.png",
+        "position": 49.375,
+        "fraction": 0.2825
+      },
+      {
+        "file": "player-scrub-05.png",
+        "position": 49.625,
+        "fraction": 0.328125
+      },
+      {
+        "file": "player-scrub-06.png",
+        "position": 49.875,
+        "fraction": 0.37375
+      },
+      {
+        "file": "player-scrub-07.png",
+        "position": 50.125,
+        "fraction": 0.41937499999999994
+      },
+      {
+        "file": "player-scrub-08.png",
+        "position": 50.375,
+        "fraction": 0.46499999999999997
+      },
+      {
+        "file": "player-scrub-09.png",
+        "position": 50.625,
+        "fraction": 0.510625
+      },
+      {
+        "file": "player-scrub-10.png",
+        "position": 50.875,
+        "fraction": 0.55625
+      },
+      {
+        "file": "player-scrub-11.png",
+        "position": 51.125,
+        "fraction": 0.6018749999999999
+      },
+      {
+        "file": "player-scrub-12.png",
+        "position": 51.375,
+        "fraction": 0.6475
+      },
+      {
+        "file": "player-scrub-13.png",
+        "position": 51.583333,
+        "fraction": 0.693125
+      },
+      {
+        "file": "player-scrub-14.png",
+        "position": 51.833333,
+        "fraction": 0.7387499999999999
+      },
+      {
+        "file": "player-scrub-15.png",
+        "position": 52.083333,
+        "fraction": 0.7843749999999999
+      },
+      {
+        "file": "player-scrub-16.png",
+        "position": 52.333333,
+        "fraction": 0.83
+      }
+    ],
+    "after": [
+      {
+        "file": "player-after-00.png",
+        "position": 385.666667,
+        "fraction": null
+      },
+      {
+        "file": "player-after-01.png",
+        "position": 385.916667,
+        "fraction": null
+      },
+      {
+        "file": "player-after-02.png",
+        "position": 386.208333,
+        "fraction": null
+      },
+      {
+        "file": "player-after-03.png",
+        "position": 386.541667,
+        "fraction": null
+      },
+      {
+        "file": "player-after-04.png",
+        "position": 386.791667,
+        "fraction": null
+      }
+    ]
+  }
+}
