@@ -21,6 +21,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"tailscale.com/net/netns"
 	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
+	"tailscale.com/tailcfg/nodecap"
 	"tailscale.com/tsnet"
 	"tailscale.com/tstest/integration/testcontrol"
 	"tailscale.com/types/key"
@@ -59,6 +61,9 @@ type Options struct {
 	Login string
 	// Approval makes new devices wait for POST /mira/approve, as a tailnet that approves its devices does.
 	Approval bool
+	// CacheNetmaps grants every node « cache-network-maps », as the tailnet policy's nodeAttrs do: a node keeps its
+	// network map on disk and starts from it while the coordination server is down (SetControlDown).
+	CacheNetmaps bool
 	// Dir keeps the Jellyfin PC's state: a temporary folder by default.
 	Dir string
 	// Logf receives the network's diagnostics; nil drops them.
@@ -73,6 +78,7 @@ type Net struct {
 	base     string
 	tb       *bench
 	tempDir  string
+	down     atomic.Bool // the coordination server answers 503, as during an outage at Tailscale's
 	mu       sync.Mutex
 	pc       *tsnet.Server
 	pcKey    key.NodePublic
@@ -142,12 +148,22 @@ func Start(opts Options) (*Net, error) {
 		ExplicitBaseURL:    n.base,
 		Logf:               logger.WithPrefix(opts.Logf, "control: "),
 	}
+	if opts.CacheNetmaps {
+		n.control.DefaultNodeCapabilities = &tailcfg.NodeCapMap{nodecap.CacheNetworkMaps: []tailcfg.RawMessage{}}
+	}
 	// A node that logs in again after its key expired gets a new key, which the test coordination server gives the old
 	// key's expiry: a new key starts afresh, as on Tailscale's.
 	n.control.SetOnMapRequest(func(k key.NodePublic) { go n.unexpire(k) })
 	mux := http.NewServeMux()
+	control := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if n.down.Load() {
+			http.Error(w, "the coordination server is down", http.StatusServiceUnavailable)
+			return
+		}
+		n.control.ServeHTTP(w, r)
+	})
 	for _, path := range []string{"/key", "/machine/", "/ts2021", "/generate_204"} {
-		mux.Handle(path, n.control)
+		mux.Handle(path, control)
 	}
 	mux.HandleFunc("/auth/", n.serveLogin)
 	mux.HandleFunc("/mira/", n.serveBench)
@@ -171,6 +187,10 @@ func Start(opts Options) (*Net, error) {
 
 // ControlURL is the coordination server's address, for Config.ControlURL.
 func (n *Net) ControlURL() string { return n.base }
+
+// SetControlDown makes the coordination server answer 503 to every new request, as during an outage at Tailscale's;
+// the connections it holds already stay open.
+func (n *Net) SetControlDown(down bool) { n.down.Store(down) }
 
 // Control is the test coordination server.
 func (n *Net) Control() *testcontrol.Server { return n.control }
