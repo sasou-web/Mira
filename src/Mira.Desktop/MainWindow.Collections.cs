@@ -219,6 +219,7 @@ public partial class MainWindow
 
     private void OpenCollectionOverlay()
     {
+        RememberFocus(ref _collectionOrigin, CollectionOverlay);
         Motion.Reveal(CollectionOverlay, 260, 0); Motion.Reveal(CollectionCard, 360, 16);
         _ = Dispatcher.BeginInvoke(() =>
         {
@@ -237,5 +238,6 @@ public partial class MainWindow
     {
         ++_collectionVersion;
         await Motion.HideAsync(CollectionOverlay);
+        GiveFocusBack(ref _collectionOrigin);
     }
 }

@@ -16,7 +16,15 @@ namespace Mira.Desktop;
 
 public partial class MainWindow
 {
-    private async Task CloseSettingsAnimatedAsync() { AutoSaveSettings(); await Motion.HideAsync(SettingsOverlay); UpdateNavigation(); UpdateHeroClock(); }
+    private async Task CloseSettingsAnimatedAsync() { AutoSaveSettings(); await Motion.HideAsync(SettingsOverlay); UpdateNavigation(); UpdateHeroClock(); GiveFocusBack(ref _settingsOrigin); }
+    /// <summary>What had the keyboard focus when a page opened (settings, guide, collections): it gets it back on closing.</summary>
+    private IInputElement? _settingsOrigin, _guideOrigin, _collectionOrigin;
+    private static void RememberFocus(ref IInputElement? origin, UIElement page) { if (page.Visibility != Visibility.Visible) origin = Keyboard.FocusedElement; }
+    private static void GiveFocusBack(ref IInputElement? origin)
+    {
+        if (origin is UIElement { IsVisible: true } element) element.Focus();
+        origin = null;
+    }
     /// <summary>
     /// Leaving the settings keeps what was still waiting: a field left with the text being typed, a change of the last
     /// moments (each change is applied on its own, <see cref="WatchSettingChanges"/>).
@@ -84,6 +92,7 @@ public partial class MainWindow
     {
         // The gear clicked again while the page is open refills it from the saved settings: what was changed is kept first.
         AutoSaveSettings();
+        RememberFocus(ref _settingsOrigin, SettingsOverlay);
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
         _settingsBusy = true;
         HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip; RememberCheck.IsChecked = _settings.RememberPosition;
