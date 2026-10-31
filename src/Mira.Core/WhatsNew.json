@@ -1,9 +1,11 @@
 [
   {
     "version": "0.8.9",
-    "summary": "Un PC de Jellyfin qui se règle seul, Tailscale intégré plus solide, Mira pour Windows plus nette.",
-    "en": { "summary": "A Jellyfin PC that sets itself up, sturdier Built-in Tailscale, and a sharper Mira for Windows." },
+    "summary": "Ta party : un lien pour regarder ensemble, un PC de Jellyfin qui se règle seul, Windows plus net.",
+    "en": { "summary": "Your party: one link to watch together, a Jellyfin PC that sets itself up, a sharper Windows app." },
     "items": [
+      { "icon": "users", "title": "Ta party", "text": "Un seul lien pour regarder ensemble, avec une carte dans Discord, qui marche aussi depuis le Jellyfin d’un ami.", "web": true,
+        "en": { "title": "Your party", "text": "One link to watch together, with a card in Discord, that works from a friend’s Jellyfin too." } },
       { "icon": "server", "title": "Le PC de Jellyfin se règle seul", "text": "Tout préparer garde Tailscale et le PC éveillé ; carte graphique, sauvegarde, aperçus et redémarrages faits par Mira.",
         "en": { "title": "The Jellyfin PC sets itself up", "text": "Set everything up keeps Tailscale on and the PC awake; Mira turns on the graphics card, backups, previews and restarts." } },
       { "icon": "refresh", "title": "Tailscale intégré pendant une panne", "text": "Mira dit quand les serveurs de Tailscale ne répondent pas, et peut démarrer sans eux.",
