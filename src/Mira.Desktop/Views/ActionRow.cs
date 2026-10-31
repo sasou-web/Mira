@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -33,6 +34,18 @@ public sealed class ActionRow : Panel
     public static bool ShowsLabel(Button button) => !Compact.TryGetValue(button, out _);
     /// <summary>The width the row takes with every label, at its last measure.</summary>
     public double LabelledWidth { get; private set; }
+
+    // A button given new content (« Regarder ensemble » after « Ensemble · 2 personnes ») keeps its size when it is round:
+    // the row would never measure it again, and its new label would show, cut, in the circle.
+    private static readonly DependencyPropertyDescriptor ContentChange = DependencyPropertyDescriptor.FromProperty(ContentControl.ContentProperty, typeof(Button));
+
+    protected override void OnVisualChildrenChanged(DependencyObject visualAdded, DependencyObject visualRemoved)
+    {
+        base.OnVisualChildrenChanged(visualAdded, visualRemoved);
+        if (visualRemoved is Button removed) ContentChange.RemoveValueChanged(removed, ContentChanged);
+        if (visualAdded is Button added) ContentChange.AddValueChanged(added, ContentChanged);
+    }
+    private void ContentChanged(object? sender, EventArgs e) => InvalidateMeasure();
 
     protected override Size MeasureOverride(Size availableSize)
     {

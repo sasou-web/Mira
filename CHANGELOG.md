@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- **Le bouton Regarder ensemble ne déborde plus (Windows)** : après avoir quitté un groupe, le bouton rond de la fiche gardait le libellé « Watch together » coupé à côté de son icône. La rangée de boutons se remesure maintenant dès qu'un bouton change de texte (vaut aussi pour Favori et Vu).
 - **Le bouton du compte dit qui est connecté (Windows)** : ouvert depuis le rail, l'écran s'appelle **Ton compte** et dit sous quel nom tu es connecté, au lieu de **Se connecter** comme si tu ne l'étais pas.
 - **Recherche : les titres d'abord (Windows)** : les films et séries trouvés viennent en premier, puis les personnes, studios, épisodes et collections ; le champ s'aligne sur le titre de la page au lieu de flotter au milieu.
 - **Réglages et Guide plus clairs (Windows)** : un seul titre par page (**Réglages** en tête de la liste, la section ouverte en tête de la page) au lieu de deux qui prenaient 200 pixels, une icône devant chaque section, les flèches pour passer de l'une à l'autre, des lignes de 940 pixels au plus au lieu de toute la largeur, et la phrase « Chaque changement s'applique… » sous la liste plutôt que par-dessus la fin de la page. Dans le Guide, les raccourcis clavier sont dessinés en touches, deux par ligne, avec **Échap** et **F1**.
