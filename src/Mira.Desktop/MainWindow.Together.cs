@@ -476,8 +476,37 @@ public partial class MainWindow
             InviteSteps.Children.Add(new TextBlock { Text = $"{i + 1}. {steps[i]}", FontSize = 13, LineHeight = 19, Foreground = Palette.Get("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
         InviteCopy.Content = ActionLabel("link", L("Copier le lien", "Copy link"));
         Motion.Reveal(InviteOverlay, 260, 0); Motion.Reveal(InviteCard, 360, 16);
-        _ = ShowInviteAddFriendAsync(client);
+        InviteAddFriend.Visibility = Visibility.Collapsed; InviteGuestLink.Visibility = Visibility.Collapsed;
+        _ = ShowPartyAsync(client);
         _ = Dispatcher.BeginInvoke(() => InviteCopy.Focus(), DispatcherPriority.Input);
+    }
+    /// <summary>
+    /// The invitation as your party link once the extension gives it (one link, anyone who opens it joins you); an older
+    /// extension, or none for this account, keeps the group's link and « Ajouter un ami ».
+    /// </summary>
+    private async Task ShowPartyAsync(JellyfinClient client, bool opened = false)
+    {
+        PartyLink? party = null;
+        try { party = await client.PartyAsync(ct: _connectionLifetime.Token); }
+        catch (Exception ex) when (IsExpected(ex)) { }
+        if (!ReferenceEquals(client, _client) || InviteOverlay.Visibility != Visibility.Visible) return;
+        if (party is null) { await ShowInviteAddFriendAsync(client); return; }
+        InviteLead.Text = L("Envoie ce lien : qui l’ouvre te rejoint, sur son téléphone, son ordinateur ou dans Mira.", "Send this link: whoever opens it joins you, on their phone, their computer or in Mira.");
+        InviteLink.Text = party.Link;
+        InviteSteps.Children.Clear();
+        var steps = Together.PartySteps(party.Note);
+        for (var i = 0; i < steps.Count; i++)
+            InviteSteps.Children.Add(new TextBlock { Text = $"{i + 1}. {steps[i]}", FontSize = 13, LineHeight = 19, Foreground = Palette.Get(party.Reach != "internet" && i == steps.Count - 1 ? "Warning" : "Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+        if (party.Reach == "internet") return;
+        // On the PC of Jellyfin, Funnel opens by itself, and the link that works everywhere replaces this one.
+        if (!opened && await KeepFunnelOpenAsync(client, _connectionLifetime.Token))
+        {
+            await ShowPartyAsync(client, opened: true);
+            return;
+        }
+        InviteGuestLink.Content = L("Faire marcher le lien partout", "Make the link work everywhere");
+        InviteGuestLink.ToolTip = L("Tailscale Funnel, dans les réglages de Mira", "Tailscale Funnel, in Mira’s settings");
+        InviteGuestLink.Visibility = Visibility.Visible;
     }
     /// <summary>
     /// Where a friend reaches this Jellyfin: on this PC, its Tailscale address when there is one (at home and away),
@@ -512,6 +541,11 @@ public partial class MainWindow
     private async Task OfferInviteAsync()
     {
         if (_invite is not { } invite) return;
+        if (invite.Party is { } code)
+        {
+            await OfferPartyAsync(invite, code);
+            return;
+        }
         if (_client is not { } client || _demo)
         {
             if (LoginOverlay.Visibility != Visibility.Visible) return;
@@ -537,6 +571,48 @@ public partial class MainWindow
         else if (answer.Kind == Together.InviteKind.Waiting)
             SetNotice(answer.Text, L("Attendre", "Wait"), () => WaitForInvite(client, invite));
         else SetNotice(answer.Text);
+    }
+    /// <summary>
+    /// A party link (mira://party/…, from its page): on the Jellyfin this app is signed in to, straight into the host's
+    /// group, or waiting for it to open; anywhere else (another Jellyfin, no account here), Mira web as their guest.
+    /// </summary>
+    private async Task OfferPartyAsync(Together.Invitation invite, string code)
+    {
+        var web = Together.PartyWebLink(invite.Server, code);
+        if (_client is not { } client || _demo)
+        {
+            if (LoginOverlay.Visibility != Visibility.Visible && _client is null) return;
+            _invite = null;
+            EnterParty(web);
+            return;
+        }
+        for (var i = 0; !_listening && i < 40 && ReferenceEquals(client, _client); i++) await Task.Delay(250);
+        if (!ReferenceEquals(client, _client) || !ReferenceEquals(_invite, invite)) return;
+        _invite = null;
+        string? host;
+        // Not answered by this app's own Jellyfin: the party is on its own server anyway.
+        try { host = await client.PartyHostAsync(code, _connectionLifetime.Token); }
+        catch (Exception ex) when (IsExpected(ex)) { host = null; }
+        if (!ReferenceEquals(client, _client)) return;
+        RestoreFromWindows();
+        if (host is null) { EnterParty(web); return; }
+        if (host == client.Connection.UserName) { SetNotice(L("C’est ton propre lien de party : envoie-le à ceux qui veulent te rejoindre.", "This is your own party link: send it to whoever wants to join you.")); return; }
+        var party = Together.PartyInvitation(client.Connection.Server, host);
+        List<Together.Group> groups;
+        try { groups = await client.SyncGroupsAsync(_connectionLifetime.Token); }
+        catch (UnauthorizedAccessException) { SetNotice(NoSyncPlay); return; }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return; }
+        if (!ReferenceEquals(client, _client)) return;
+        var answer = Together.Answer(party, groups, client.Connection.Server, _group?.GroupId);
+        if (answer is { Kind: Together.InviteKind.Join, Group: { } group }) await EnterGroupAsync(c => c.SyncJoinAsync(group.GroupId), invite: false);
+        else if (answer.Kind == Together.InviteKind.Waiting) WaitForInvite(client, party);
+        else SetNotice(answer.Text);
+    }
+    /// <summary>A friend's party on their own Jellyfin: Mira web as their guest, in a window of Mira.</summary>
+    private void EnterParty(string web)
+    {
+        if (!Uri.TryCreate(web, UriKind.Absolute, out var page)) return;
+        PartyWindow.Enter(page, System.IO.Path.Combine(_profile.DirectoryPath, "party-web"), text => SetNotice(text));
     }
     /// <summary>
     /// « Attendre »: the group of an invitation joined as soon as its host opens it (Jellyfin's groups read every few

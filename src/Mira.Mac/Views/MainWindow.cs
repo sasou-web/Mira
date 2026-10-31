@@ -394,6 +394,11 @@ public sealed partial class MainWindow : Window
     private async Task OfferInviteAsync()
     {
         if (_invite is not { } invite) return;
+        if (invite.Party is { } code)
+        {
+            await OfferPartyAsync(invite, code);
+            return;
+        }
         if (Session is not { } session)
         {
             if (Login is not { } login) return;
@@ -416,6 +421,42 @@ public sealed partial class MainWindow : Window
             Notice(answer.Text, L("Ouvrir dans le navigateur", "Open in the browser"), () => Updates.Open(new Uri(Together.InviteLink(invite.Server, invite.GroupId, invite.Host)), plainHttp: true), sticky: true);
         else if (answer.Kind == Together.InviteKind.Waiting)
             Notice(answer.Text, L("Attendre", "Wait"), () => WaitForInvite(session, invite), sticky: true);
+        else Notice(answer.Text);
+    }
+    /// <summary>
+    /// A party link (mira://party/…, from its page): on the Jellyfin this app is signed in to, straight into the host's
+    /// group, or waiting for it to open; anywhere else (another Jellyfin, no account here), Mira web as their guest.
+    /// </summary>
+    private async Task OfferPartyAsync(Together.Invitation invite, string code)
+    {
+        var web = new Uri(Together.PartyWebLink(invite.Server, code));
+        if (Session is not { } session)
+        {
+            if (Login is null) return;
+            _invite = null;
+            Updates.Open(web, plainHttp: true);
+            return;
+        }
+        for (var i = 0; !_listening && i < 40 && ReferenceEquals(session, Session); i++) await Task.Delay(250);
+        if (!ReferenceEquals(session, Session) || !ReferenceEquals(_invite, invite)) return;
+        _invite = null;
+        string? host;
+        // Not answered by this app's own Jellyfin: the party is on its own server anyway.
+        try { host = await session.Client.PartyHostAsync(code, session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { host = null; }
+        if (!ReferenceEquals(session, Session)) return;
+        Activate();
+        if (host is null) { Updates.Open(web, plainHttp: true); return; }
+        if (host == session.Connection.UserName) { Notice(L("C’est ton propre lien de party : envoie-le à ceux qui veulent te rejoindre.", "This is your own party link: send it to whoever wants to join you.")); return; }
+        var party = Together.PartyInvitation(session.Connection.Server, host);
+        List<Together.Group> groups;
+        try { groups = await session.Client.SyncGroupsAsync(session.Lifetime); }
+        catch (UnauthorizedAccessException) { Notice(WatchGroup.NoSyncPlay); return; }
+        catch (Exception ex) when (Errors.Expected(ex)) { Notice(Errors.Friendly(ex), tone: NoticeTone.Error); return; }
+        if (!ReferenceEquals(session, Session)) return;
+        var answer = Together.Answer(party, groups, session.Connection.Server, Group.Active ? Group.Group?.GroupId : null);
+        if (answer is { Kind: Together.InviteKind.Join, Group: { } group }) await Group.EnterAsync((client, ct) => client.SyncJoinAsync(group.GroupId, ct));
+        else if (answer.Kind == Together.InviteKind.Waiting) WaitForInvite(session, party);
         else Notice(answer.Text);
     }
     /// <summary>An invitation waited for (« Attendre »): its group joined once its host opens it.</summary>

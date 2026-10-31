@@ -142,3 +142,14 @@ public sealed record GuestLinkList(
 public sealed record GuestTunnel(
     [property: JsonPropertyName("state")] string State,
     [property: JsonPropertyName("text")] string? Text);
+
+/// <summary>
+/// Your party (Mira.Jellyfin PartyController, GET Mira/party): the one link of this account to watch together, and who
+/// it reaches (« internet » through Funnel, « tailnet », « home »), said in <c>Note</c>.
+/// </summary>
+public sealed record PartyLink(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("link")] string Link,
+    [property: JsonPropertyName("appLink")] string? AppLink,
+    [property: JsonPropertyName("reach")] string? Reach,
+    [property: JsonPropertyName("note")] string? Note);

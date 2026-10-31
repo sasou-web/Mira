@@ -289,7 +289,8 @@ public sealed class WatchGroup
         finally { if (ReferenceEquals(_joined, joined)) _joined = null; }
     }
     /// <summary>
-    /// « Inviter quelqu'un »: the link that opens Mira web on the group. A Jellyfin on this Mac is given at its
+    /// « Inviter quelqu'un »: your party link (one link, anyone who opens it joins you), or with an older extension the
+    /// link that opens Mira web on the group. A Jellyfin on this Mac is given at its
     /// Tailscale address when there is one; another keeps the address this Mac reaches it at.
     /// </summary>
     public async Task InviteAsync()
@@ -297,8 +298,18 @@ public sealed class WatchGroup
         if (!Active || Group is not { } group || _session is not { } session) return;
         var server = session.Connection.Server;
         var here = Uri.TryCreate(server, UriKind.Absolute, out var uri) && LocalNetwork.IsThisPc(uri.Host);
+        PartyLink? party = null;
+        try { party = await session.Client.PartyAsync(ct: session.Lifetime); }
+        catch (Exception ex) when (Errors.Expected(ex)) { }
+        if (!ReferenceEquals(session, _shell.Session)) return;
+        if (party is not null)
+        {
+            var lead = L("Envoie ce lien : qui l’ouvre te rejoint, sur son téléphone, son ordinateur ou dans Mira.", "Send this link: whoever opens it joins you, on their phone, their computer or in Mira.");
+            await new InviteWindow(lead, party.Link, Together.PartySteps(party.Note), text => _shell.Notice(text)).ShowDialog(_shell);
+            return;
+        }
         var link = Together.InviteLink(Together.InviteServer(server, here, here ? LocalNetwork.ThisPcOnTailnet() : null, here ? LocalNetwork.ThisPc() : null), group.GroupId, Together.GroupHost(group.GroupName));
-        await new InviteWindow(group, link, text => _shell.Notice(text)).ShowDialog(_shell);
+        await new InviteWindow(L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”."), link, Together.InviteSteps(link), text => _shell.Notice(text)).ShowDialog(_shell);
     }
     /// <summary>The account Jellyfin does not let watch together (403 on its groups): Home asks no more.</summary>
     private Session? _refused;

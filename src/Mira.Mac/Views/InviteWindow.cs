@@ -9,20 +9,19 @@ using static Mira.Core.Lang;
 namespace Mira.Mac.Views;
 
 /// <summary>
-/// « Inviter quelqu'un » in a group of « Regarder ensemble »: the link that opens Mira web on the group (#/ensemble/…),
+/// « Inviter quelqu'un » in a group of « Regarder ensemble »: your party link, or the link that opens Mira web on the group (#/ensemble/…),
 /// to send to a friend, with what the friend needs (an account of this Jellyfin, Tailscale away from home). The same
 /// words as Windows and Mira web (<see cref="Together.InviteSteps"/>).
 /// </summary>
 public sealed class InviteWindow : Window
 {
-    public InviteWindow(Together.Group group, string link, Action<string> notice)
+    public InviteWindow(string lead, string link, IReadOnlyList<string> list, Action<string> notice)
     {
         Title = L("Inviter quelqu’un", "Invite someone"); Width = 560; SizeToContent = SizeToContent.Height; CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var field = new TextBox { Text = link, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 14, FontWeight = FontWeight.SemiBold };
         Avalonia.Automation.AutomationProperties.SetName(field, L("Lien d’invitation", "Invite link"));
         var steps = new StackPanel { Spacing = 10 };
-        var list = Together.InviteSteps(link);
         for (var i = 0; i < list.Count; i++) steps.Children.Add(Ui.Text($"{i + 1}. {list[i]}", 13.5, color: Ui.Muted));
         foreach (var step in steps.Children.OfType<TextBlock>()) { step.TextWrapping = TextWrapping.Wrap; step.LineHeight = 20; }
         var copy = Ui.Action(L("Copier le lien", "Copy the link"), "link", "primary", async () =>
@@ -38,7 +37,7 @@ public sealed class InviteWindow : Window
             Padding = new Thickness(32, 28),
             Child = Ui.Column(16,
                 Ui.Text(L("Inviter quelqu’un", "Invite someone"), 26, FontWeight.Bold),
-                new TextBlock { Text = L($"Envoie ce lien à ton ami pour qu’il rejoigne « {group.GroupName} ».", $"Send this link to your friend so they can join “{group.GroupName}”."), FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
+                new TextBlock { Text = lead, FontSize = 14, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
                 field, steps,
                 new DockPanel { Children = { close, copy } }),
         };

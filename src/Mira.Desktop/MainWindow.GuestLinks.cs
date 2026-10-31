@@ -229,4 +229,57 @@ public partial class MainWindow
         if (GuestForm.Visibility == Visibility.Visible) GuestNameBox.Focus();
         else if (GuestAddressPanel.Visibility == Visibility.Visible) GuestAddressBox.Focus();
     }
+
+    /// <summary>Tailscale's page to allow Funnel on the tailnet, offered once per session when it asks for it.</summary>
+    private bool _funnelAsked;
+    /// <summary>
+    /// Party links that work everywhere, with nothing to set up: on the PC of Jellyfin, an administrator's account,
+    /// Funnel opened for /Mira by itself (at sign-in and when a party is shared) and its address given to the
+    /// extension. When Tailscale first wants Funnel allowed on the tailnet (its admin's one-time consent, which no
+    /// program may give), its page is offered once, then Funnel opens as soon as it is allowed. True once it serves Mira.
+    /// </summary>
+    private async Task<bool> KeepFunnelOpenAsync(JellyfinClient client, CancellationToken ct)
+    {
+        try
+        {
+            if (!await JellyfinOnThisPcAsync(client) || await client.IsAdministratorAsync(ct) != true) return false;
+            var list = await client.GuestLinksAsync(ct);
+            var port = Uri.TryCreate(client.Connection.Server, UriKind.Absolute, out var server) && server.Scheme == Uri.UriSchemeHttp ? server.Port : 8096;
+            var (serves, address) = await Task.Run(TailscaleCli.Funnel, ct);
+            string? page = null;
+            if (!serves && TailscaleCli.Read().Readable) (serves, address, page) = await Task.Run(() => TailscaleCli.OpenFunnel(port), ct);
+            if (!ReferenceEquals(client, _client)) return false;
+            if (serves && address is not null)
+            {
+                if (!string.Equals(list.Address?.TrimEnd('/'), address.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) await client.SetGuestAddressAsync(address, ct);
+                return true;
+            }
+            if (page is null || _funnelAsked) return false;
+            _funnelAsked = true;
+            SetNotice(L("Pour que tes liens de party marchent partout, Tailscale demande d’autoriser Funnel une fois sur ton compte.", "For your party links to work everywhere, Tailscale asks you to allow Funnel once on your account."),
+                L("Autoriser", "Allow"), () => { OpenWebPage(page); _ = AwaitFunnelAsync(client, port, ct); });
+            return false;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { return false; }
+        catch (Exception ex) when (IsExpected(ex)) { return false; }
+    }
+    /// <summary>Funnel allowed on Tailscale's page: opened here as soon as it is (every 5 s, 10 minutes at most).</summary>
+    private async Task AwaitFunnelAsync(JellyfinClient client, int port, CancellationToken ct)
+    {
+        try
+        {
+            for (var i = 0; i < 120 && ReferenceEquals(client, _client); i++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                var (serves, address, _) = await Task.Run(() => TailscaleCli.OpenFunnel(port), ct);
+                if (!serves || address is null) continue;
+                await client.SetGuestAddressAsync(address, ct);
+                SetDone(L("Funnel est ouvert : tes liens de party marchent partout.", "Funnel is open: your party links work everywhere."));
+                if (InviteOverlay.Visibility == Visibility.Visible) await ShowPartyAsync(client, opened: true);
+                return;
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (IsExpected(ex)) { }
+    }
 }
