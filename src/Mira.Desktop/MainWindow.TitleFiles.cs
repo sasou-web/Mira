@@ -99,7 +99,8 @@ public partial class MainWindow
         // Jellyfin's own folder monitor would see it too; said at once all the same, as a deletion.
         await client.ReportMediaChangedAsync([], [target]);
         _catalog.Forget(item.Id); RenderLibrary();
-        if (_detail?.Id == item.Id && DetailOverlay.Visibility == Visibility.Visible) await CloseDetailsAsync();
+        _detailTrail.Forget(item.Id);
+        if (_detail?.Id == item.Id && DetailOverlay.Visibility == Visibility.Visible) await BackFromDetailsAsync();
         SetNotice(L($"« {item.DisplayTitle} » est dans la Corbeille. Jellyfin le retire de la bibliothèque dans une minute environ.", $"“{item.DisplayTitle}” is in the Recycle Bin. Jellyfin removes it from the library in about a minute."));
     }
 }

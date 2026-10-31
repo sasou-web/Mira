@@ -294,7 +294,7 @@ public partial class MainWindow : Window
         if (!ReferenceEquals(_client, client)) { await sync.DisposeAsync(); client.Dispose(); return; }
         _store = store;
         var damaged = _store.DamagedCopy is not null;
-        _catalog.Clear(); _episodes = []; _detail = null; _hero = null; _returnToDetail = null; _seasonThumbs.Clear();
+        _catalog.Clear(); _episodes = []; _detail = null; _detailTrail.Clear(); _hero = null; _returnToDetail = null; _seasonThumbs.Clear();
         LibrariesPanel.Children.Clear(); DetailOverlay.Visibility = Visibility.Collapsed;
         // Never leave the previous account's posters on screen while this one loads.
         _catalog.Loading = true; RenderLibrary();

@@ -28,6 +28,29 @@ internal static class LibraryTests
             Assert(GenreGroups.FromNames(["Western", "Action", "Action"]).Select(x => x.Label).SequenceEqual(["Action", "Western"]), "Liste des filtres, par nom.");
             return Task.CompletedTask;
         });
+        await Test("Fiches : Retour d’un titre similaire à la fiche d’avant, à sa place ; un titre déjà ouvert n’est pas empilé deux fois", () =>
+        {
+            MediaItem Title(string id) => new() { Id = id, Name = id, Type = "Movie" };
+            var trail = new TitleTrail();
+            trail.Leave(Title("a"), 820, Title("b")); trail.Leave(Title("b"), 0, Title("c"));
+            Assert(trail.Back() is { Item.Id: "b", Offset: 0 } && trail.Back() is { Item.Id: "a", Offset: 820 } && trail.Back() is null, "A → B → C, puis Retour : B, A, puis fermée.");
+            trail.Leave(Title("a"), 100, Title("b")); trail.Leave(Title("b"), 0, Title("c")); trail.Leave(Title("c"), 0, Title("a"));
+            Assert(trail.Count == 0, "A → B → C → A : retour à A, rien à empiler.");
+            trail.Leave(Title("a"), 0, Title("b")); trail.Leave(Title("b"), 0, Title("c")); trail.Leave(Title("c"), 0, Title("b"));
+            Assert(trail.Count == 1 && trail.Pages[0].Item.Id == "a", "A → B → C → B : la pile revient à [A].");
+            trail.Leave(Title("a"), 0, Title("a"));
+            Assert(trail.Count == 1, "La même fiche rouverte (actualisée) n’empile rien.");
+            trail.Leave(Title("b"), -5, Title("c"));
+            Assert(trail.Pages[^1].Offset == 0, "Défilement négatif ramené à 0.");
+            trail.Forget("a");
+            Assert(trail.Count == 1 && trail.Pages[0].Item.Id == "b", "Titre mis à la Corbeille : retiré de la pile.");
+            trail.Clear();
+            for (var i = 0; i < TitleTrail.Limit + 5; i++) trail.Leave(Title($"t{i}"), i, Title($"t{i + 1}"));
+            Assert(trail.Count == TitleTrail.Limit && trail.Pages[0].Item.Id == "t5", "Au-delà de la limite, les plus anciennes partent.");
+            var kept = trail.Pages.ToList(); trail.Clear(); trail.Replace(kept);
+            Assert(trail.Count == TitleTrail.Limit && trail.Back() is { Item.Id: "t34" }, "Pile gardée pendant les titres d’une personne, rendue au retour.");
+            return Task.CompletedTask;
+        });
         await Test("Catalogue : titres de la page, pages ajoutées sans doublon, vu et favori partout, page vide et démo", () =>
         {
             MediaItem Film(string id, bool favorite = false, long position = 0) => new() { Id = id, Name = id, Type = "Movie", RunTimeTicks = 1000, UserData = new() { IsFavorite = favorite, PlaybackPositionTicks = position } };
