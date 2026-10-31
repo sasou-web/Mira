@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Plus de ligne claire sous le carrousel (Windows)** : en arrivant sur l’Accueil ou en actualisant, une ligne fine et claire passait sous le carrousel (et sous le fond d’une fiche) le temps que la page glisse en place. L’image s’arrête maintenant juste au-dessus du bord, où le dégradé est déjà opaque.
+
 - **Page Recherche plus nette (Windows)** : plus de phrase sous le titre qui répétait le champ et se coupait dans une fenêtre étroite ; le champ suit la largeur de la fenêtre (760 au plus) et son texte d’aide ne passe plus sous le curseur.
 - **Plus de contour blanc après Alt+Tab (Windows)** : en revenant dans Mira, Windows remettait l’anneau du clavier autour du bouton choisi (« Revoir » de la fiche, par exemple). Il ne revient plus qu’après une vraie touche Tab.
 - **Texte net sous Windows (ClearType)** : le texte de Mira pour Windows restait lissé en gris, flou et en escalier à côté des autres apps. Le cadre de la fenêtre (ombre et coins arrondis de Windows) fait passer WPF en niveaux de gris pour toute la fenêtre ; chaque texte demande maintenant ClearType, sauf sur les commandes du lecteur, posées sur la vidéo.
