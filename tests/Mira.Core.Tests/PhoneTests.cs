@@ -308,7 +308,7 @@ internal static class PhoneTests
                 && TailscaleNode.Parse(Status(""), null, now) is { Readable: true, Unattended: null } && TailscaleNode.Parse(Status(""), "Access denied", now).Unattended is null
                 && TailscaleNode.Parse(Status(""), """{"ForceDaemon":true}""", now).Unattended is null, "Unreadable");
 
-            // The card: its own step once Tailscale has its address; never « Tout préparer »'s, which never changes Tailscale.
+            // The card: its own step once Tailscale has its address, done by « Tout préparer » without Windows' consent; the person's once Tailscale refused it.
             const string server = "http://127.0.0.1:8096", tailnet = "http://100.101.102.103:8096";
             var ready = new PhoneSetup.Facts(server, true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, Tailnet: tailnet, TailnetAllowed: true,
                 Firewall: new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Private), Boot: new(true, true, false, true));
@@ -318,8 +318,10 @@ internal static class PhoneTests
             var steps = PhoneSetup.Steps(ready with { Node = kept });
             Assert(Marks(steps) == "web:Done firewall:Done tailscale:Done unattended:Done boot:Done" && steps.Single(x => x.Key == "boot").Title == "Disponible dès l’allumage du PC", "Unattended: " + Marks(steps));
             steps = PhoneSetup.Steps(ready with { Node = never });
-            Assert(Step(ready with { Node = never }, "unattended") is { Mark: PhoneSetup.Mark.Yours, Action: "Garder Tailscale connecté" } off && off.Text.Contains("Run unattended")
-                && !PhoneSetup.CanPrepare(steps) && steps.Single(x => x.Key == "boot") is { Mark: PhoneSetup.Mark.Done } boot && !boot.Title.StartsWith("Disponible"), "Attended: " + Marks(steps));
+            Assert(Step(ready with { Node = never }, "unattended") is { Mark: PhoneSetup.Mark.ToDo, Action: null, Title: "Garder Tailscale connecté sans ta session" }
+                && PhoneSetup.CanPrepare(steps) && !PhoneSetup.NeedsWindows(steps)
+                && Step(ready with { Node = never, UnattendedKept = true }, "unattended") is { Mark: PhoneSetup.Mark.Yours, Action: null } off && off.Text.Contains("Run unattended")
+                && !PhoneSetup.CanPrepare(PhoneSetup.Steps(ready with { Node = never, UnattendedKept = true })) && steps.Single(x => x.Key == "boot") is { Mark: PhoneSetup.Mark.Done } boot && !boot.Title.StartsWith("Disponible"), "Attended: " + Marks(steps));
             Assert(Step(ready with { Node = TailscaleNode.Unreadable }, "unattended") is { Mark: PhoneSetup.Mark.Note, Action: null } note && note.Text.Contains("Run unattended"), "Its command line missing");
             Assert(Step(ready with { Node = soon }, "keyexpiry") is { Mark: PhoneSetup.Mark.Yours, Action: "Ouvrir la page de Tailscale" } expiring && expiring.Title.EndsWith("expire le 28 octobre")
                 && expiring.Text.Contains("« DESKTOP-INVEFQH »") && expiring.Text.Contains("Disable key expiry")
@@ -329,7 +331,7 @@ internal static class PhoneTests
                 && Marks(PhoneSetup.Steps(ready with { Local = false, Node = never })) == "web:Done elsewhere:Note", "Without Tailscale here");
             return Task.CompletedTask;
         });
-        await Test("Veille du PC serveur : dite sur la carte, « Pas de veille sur secteur » au choix, PC gardé éveillé pendant une lecture ailleurs", () =>
+        await Test("Veille du PC serveur : dite sur la carte, « Tout préparer » le garde éveillé sur secteur, PC gardé éveillé pendant une lecture ailleurs", () =>
         {
             // Windows' defaults on a laptop: sleep after 30 min, hibernation after it, the lid sleeps it; a desktop has neither lid nor battery.
             ServerSleep.Plan laptop = new(1800, 10800, 1, true), desktop = new(3600, 0, null, false), never = new(0, 0, 0, true);
@@ -345,11 +347,13 @@ internal static class PhoneTests
             Assert(!ServerSleep.Sleeps(never) && ServerSleep.Says(never) is ("Ce PC reste éveillé sur secteur", var awake) && awake.Contains("branché")
                 && !ServerSleep.Says(new(0, 0, null, false)).Text.Contains("branché"), "Never on mains power");
 
-            // The card: the person's own button, never « Tout préparer »'s; nothing without the plan read.
+            // The card: « Tout préparer »'s, without Windows' consent; the person's once Windows refused it; nothing without the plan read.
             var ready = new PhoneSetup.Facts("http://127.0.0.1:8096", true, Web: true, Home: "http://192.168.1.20:8096", Admin: true, Tailnet: "http://100.101.102.103:8096", TailnetAllowed: true,
                 Firewall: new(JellyfinFirewall.Verdict.Open, JellyfinFirewall.Private), Boot: new(true, true, false, true));
             var steps = PhoneSetup.Steps(ready with { Power = laptop });
-            Assert(steps[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Yours, Action: "Pas de veille sur secteur" } && !PhoneSetup.CanPrepare(steps) && !PhoneSetup.NeedsWindows(steps), "Sleeping: the person's");
+            Assert(steps[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.ToDo, Action: null } && PhoneSetup.CanPrepare(steps) && !PhoneSetup.NeedsWindows(steps), "Sleeping: « Tout préparer »'s");
+            Assert(PhoneSetup.Steps(ready with { Power = laptop, SleepKept = true }) is var kept && kept[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Yours, Action: null } refused
+                && refused.Text.Contains("Jamais") && !PhoneSetup.CanPrepare(kept), "Refused by Windows: the person's");
             Assert(PhoneSetup.Steps(ready with { Power = never })[^1] is { Key: "sleep", Mark: PhoneSetup.Mark.Done, Action: null } && PhoneSetup.Steps(ready).All(x => x.Key != "sleep")
                 && PhoneSetup.Steps(ready with { Local = false, Power = laptop }).All(x => x.Key != "sleep"), "Awake, not read, another computer's");
 
