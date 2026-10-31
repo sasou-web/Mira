@@ -567,7 +567,7 @@ public partial class MainWindow : Window
     /// <summary>Said under a message still on screen, which keeps its button, instead of replacing it.</summary>
     private void AddNotice(string message)
     {
-        if (Notice.Visibility == Visibility.Visible && Notice.IsHitTestVisible && NoticeText.Text.Length > 0) SetNotice(NoticeText.Text + "\n" + message, NoticeAction.Content as string, _noticeAction, _noticeSticky, _noticeTone);
+        if (Notice.Visibility == Visibility.Visible && Notice.IsHitTestVisible && NoticeText.Text.Length > 0) ShowNotice(NoticeText.Text + "\n" + message, NoticeAction.Content as string, _noticeAction, _noticeSticky, _noticeTone);
         else SetNotice(message);
     }
     /// <summary>
@@ -578,6 +578,20 @@ public partial class MainWindow : Window
     /// message with a button leave all the same (« Annuler »).
     /// </summary>
     private void SetNotice(string message, string? action, Action? onAction, bool? sticky = null, NoticeTone tone = NoticeTone.Info)
+    {
+        // A message with a button that stays (« Redémarrer ») is not lost under the next one: it waits its turn.
+        if (Notice.Visibility == Visibility.Visible && Notice.IsHitTestVisible && _noticeSticky && _noticeAction is not null && NoticeAction.Content is string label && NoticeText.Text != message)
+        {
+            _parkedNotices.RemoveAll(parked => parked.Message == message);
+            _parkedNotices.Add(new(NoticeText.Text, label, _noticeAction, _noticeTone));
+            if (_parkedNotices.Count > 5) _parkedNotices.RemoveAt(0);
+        }
+        else _parkedNotices.RemoveAll(parked => parked.Message == message);
+        ShowNotice(message, action, onAction, sticky, tone);
+    }
+    private readonly List<ParkedNotice> _parkedNotices = [];
+    private sealed record ParkedNotice(string Message, string Action, Action OnAction, NoticeTone Tone);
+    private void ShowNotice(string message, string? action, Action? onAction, bool? sticky, NoticeTone tone)
     {
         _noticeAction = onAction; NoticeAction.Content = action;
         ShowNoticeTone(_noticeTone = tone);
@@ -595,6 +609,13 @@ public partial class MainWindow : Window
     private void HideNotice(bool transientOnly = false)
     {
         if (transientOnly && _noticeSticky) return;
+        if (_parkedNotices.Count > 0)
+        {
+            // The message that was waiting under this one comes back, with its button.
+            var next = _parkedNotices[^1]; _parkedNotices.RemoveAt(_parkedNotices.Count - 1);
+            ShowNotice(next.Message, next.Action, next.OnAction, true, next.Tone);
+            return;
+        }
         _noticeTimer.Stop(); _noticeSticky = false; if (Notice.Visibility == Visibility.Visible) _ = Motion.HideAsync(Notice, 180);
     }
     private void NoticeAction_Click(object sender, RoutedEventArgs e) { var action = _noticeAction; HideNotice(); action?.Invoke(); }
