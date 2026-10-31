@@ -376,7 +376,11 @@ final class MiraUITests: XCTestCase {
         for _ in 0..<4 where !(way.exists && way.isHittable) { app.swipeUp() }
         XCTAssertTrue(way.waitForExistence(timeout: 10), "Settings does not say how Mira reaches Jellyfin")
         XCTAssertTrue(way.label.contains("Through Built-in Tailscale"), "The way to Jellyfin: \(way.label)")
-        XCTAssertTrue(app.staticTexts["PC with Jellyfin online"].waitForExistence(timeout: 15), "Settings does not show the PC with Jellyfin online")
+        // The PC's row is above the way, past the outage setting and Sign out: scrolled to the way, the list may have
+        // left it off screen, where a lazy list doesn't draw it. Back up a little until it is there.
+        let online = app.staticTexts["PC with Jellyfin online"]
+        for _ in 0..<4 where !online.waitForExistence(timeout: 3) { app.swipeDown(velocity: .slow) }
+        XCTAssertTrue(online.waitForExistence(timeout: 15), "Settings does not show the PC with Jellyfin online")
         settle()
         capture("45-tailscale-settings")
         bench(control, "/mira/jellyfin?online=0")
