@@ -234,6 +234,7 @@ public partial class MainWindow
     }
     private void RenderLibrary()
     {
+        using var timed = FrameProbe.Time("RenderLibrary");
         var search = SearchBox.Text.Trim(); var home = _catalog.IsHome(search);
         UpdateNavigation();
         PageTitle.Text = _catalog.PageTitle;
@@ -358,14 +359,14 @@ public partial class MainWindow
     private void AddCards(Panel panel, List<MediaItem> items, bool wide, bool found = false)
     {
         // One lookup table instead of a scan of every card for every item.
-        var existing = new Dictionary<string, MediaCard>();
+        var existing = new Dictionary<string, MediaCard>(); var made = 0;
         foreach (var known in panel.Children.OfType<MediaCard>()) existing.TryAdd(known.RenderKey, known);
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i]; var key = MediaCard.Key(item, _settings);
             if (!existing.Remove(key, out var card))
             {
-                card = new MediaCard(item, wide, i, _settings, _demo);
+                card = new MediaCard(item, wide, i, _settings, _demo); ++made;
                 card.Click += async (_, _) =>
                 {
                     ClosePreview();
@@ -384,6 +385,7 @@ public partial class MainWindow
             else if (panel.Children.IndexOf(card) != i) { panel.Children.Remove(card); panel.Children.Insert(i, card); }
         }
         while (panel.Children.Count > items.Count) panel.Children.RemoveAt(panel.Children.Count - 1);
+        if (made > 0) FrameProbe.Mark($"{made} new card{(made > 1 ? "s" : "")} in {panel.Name}");
         NoteScroll();
         if (panel == PosterCards) ScheduleVisibleArtwork();
     }

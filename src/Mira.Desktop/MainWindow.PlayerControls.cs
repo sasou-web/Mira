@@ -9,6 +9,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Mira.Core;
+using Mira.Desktop.Services;
 using Mira.Desktop.Playback;
 using Mira.Desktop.Views;
 
@@ -360,6 +361,8 @@ public partial class MainWindow
     private void SetMiniPlayer(bool mini, bool preserveFullscreen = false)
     {
         if (!_playing) return;
+        if (mini != _miniPlayer) FrameProbe.Begin(mini ? "reduce" : "expand");
+        using var timed = FrameProbe.Time("SetMiniPlayer");
         if (_fullscreen && !preserveFullscreen) ToggleFullscreen();
         PlayerOptionsPopup.IsOpen = false; ClosePreview();
         var wasMini = _miniPlayer; _miniPlayer = mini;
@@ -387,7 +390,7 @@ public partial class MainWindow
         if (mini && !wasMini && _loaded) _ = RefreshMiniResumeAsync();
     }
     private async void StopPlayer_Click(object sender, RoutedEventArgs e)
-    { await LeavePlayerAsync(); if (!_demo) await RefreshAsync(quiet: true); else RenderDemo(); }
+    { await LeavePlayerAsync(); if (!_demo) await RefreshAsync(quiet: true); else RenderDemo(); FrameProbe.Mark("refreshed"); }
     private void Mute_Click(object sender, RoutedEventArgs e)
     {
         if (_mpv is null) return;

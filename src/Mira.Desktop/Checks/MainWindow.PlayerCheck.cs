@@ -20,6 +20,7 @@ public partial class MainWindow
         { var timer = Stopwatch.StartNew(); while (!predicate()) { if (timer.Elapsed.TotalSeconds > 8) throw new TimeoutException("Native player did not become ready."); await Task.Delay(50); } }
         try
         {
+            FrameProbe.Forced = _args.Contains("--perf-probe");
             if (!_demo || _testMedia is null) throw new InvalidOperationException("Player checks require --demo and --test-media, with an isolated --data profile.");
             _settings.Volume = 0; _settings.AutoNext = false; _settings.AutoSkip = false; VolumeSlider.Value = 0;
             await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded);
@@ -112,6 +113,15 @@ public partial class MainWindow
             await PlayAsync(DemoLibrary.Items()[0], keepMini: true); await Until(() => _loaded);
             _mpv!.Set("pause", "yes");
             Require(_miniPlayer && !_fullscreen && LibraryShell.IsVisible, "next video preserves mini-player browsing mode");
+            if (FrameProbe.Forced)
+            {
+                // Leaving the player, as a person does it: playing, then reduced; playing, then stopped (frames, work).
+                SetMiniPlayer(false); _mpv!.Set("pause", "no"); await Task.Delay(1500);
+                SetMiniPlayer(true); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
+                SetMiniPlayer(false); await Task.Delay(1500);
+                StopPlayer_Click(this, new()); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
+                await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded); _mpv!.Set("pause", "yes"); SetMiniPlayer(true);
+            }
             await StopPlaybackAsync(); ReturnToLibrary();
             Require(!_playing && _mpv is null && LibraryShell.IsVisible && !PlayerOverlayLayer.IsOpen, "stop releases mpv and closes player overlays");
             await RunCompletionChecksAsync(Require);
