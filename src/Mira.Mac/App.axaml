@@ -113,7 +113,8 @@
       <Setter Property="Padding" Value="14,11"/>
       <Setter Property="FontSize" Value="15"/>
     </Style>
-    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement"><Setter Property="Background" Value="#1A1A1C"/><Setter Property="BorderBrush" Value="#8A8A92"/></Style>
+    <!-- Being typed in: flat, one step lighter, a quiet grey edge (FieldFocus of Windows, --field-focus of Mira web). -->
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement"><Setter Property="Background" Value="#1B1B1D"/><Setter Property="BorderBrush" Value="#6A6A70"/></Style>
     <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement"><Setter Property="Background" Value="#1A1A1C"/></Style>
     <Style Selector="ComboBox">
       <Setter Property="Background" Value="#1B1B1D"/>
