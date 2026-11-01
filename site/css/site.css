@@ -438,6 +438,11 @@ body::after {
 .room .needs { grid-area: needs; align-self: start; color: var(--faint); font-size: 14px; font-weight: 600; }
 .room > p:not([class]) { grid-area: text; color: var(--muted); font-size: 16px; text-wrap: pretty; }
 .room > div { grid-area: go; }
+/* A command to copy as it is: one selection takes all of it, and it breaks only on a narrow screen. */
+.room .command {
+  padding: 1px 7px; border-radius: 6px; background: var(--raised); color: var(--ink);
+  font: 600 0.875em/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
 .room .button { width: 100%; }
 /* Your room keeps the bright button; the others step back. */
 .rooms:has(.mine) .room:not(.mine) .button.primary { background: var(--raised-2); color: var(--ink); box-shadow: none; }

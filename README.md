@@ -68,7 +68,7 @@ Mira web is served by your own Jellyfin server: nothing to get from the App Stor
 | On | What you need | How |
 | --- | --- | --- |
 | **Windows** 10 or 11 (x64) | `Mira-0.9.0-win-x64-setup.exe` | Run the installer, connect your Jellyfin server, or let Mira install one. [Guide (French)](docs/INSTALLATION.md) |
-| **Mac** with Apple silicon, macOS 15 or later | `Mira-0.9.0-mac-arm64.dmg` | Drag Mira to Applications, allow it once (it is not signed by Apple). [Guide (French)](docs/INSTALLATION-MAC.md) |
+| **Mac** with Apple silicon, macOS 15 or later | `Mira-0.9.0-mac-arm64.dmg` | Drag Mira to Applications, allow it once (it is not signed by Apple). Or with [Homebrew](https://github.com/sasou-web/homebrew-mira): `brew install --cask sasou-web/mira/mira`. [Guide (French)](docs/INSTALLATION-MAC.md) |
 | **iPhone, iPad** (trial) | AltStore Classic, iOS 26 | The native app: library, search, its own player (Picture in Picture, AirPlay), sleep timer, Watch together and, away from home, Built-in Tailscale. Installed with your free Apple ID, refreshed each week by the server PC. [Guide (French)](docs/INSTALLATION-IOS.md) |
 | **iPhone, iPad, Android** | Nothing to download | In Mira for Windows: **Guide → Mira on your phone → Set everything up**, then scan the QR code. [Guide (French)](docs/INSTALLATION-WEB.md) |
 
