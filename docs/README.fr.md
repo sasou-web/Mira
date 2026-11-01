@@ -72,7 +72,7 @@ Mira web est servie par ton propre serveur Jellyfin : rien à télécharger sur 
 | Sur | Ce qu’il faut | Comment |
 | --- | --- | --- |
 | **Windows** 10 ou 11 (x64) | `Mira-0.9.0-win-x64-setup.exe` | Lance l’installateur, connecte ton serveur Jellyfin, ou laisse Mira l’installer. [Guide](INSTALLATION.md) |
-| **Mac** à puce Apple, macOS 15 ou plus | `Mira-0.9.0-mac-arm64.dmg` | Glisse Mira dans Applications, autorise-la une fois (elle n’est pas signée par Apple). [Guide](INSTALLATION-MAC.md) |
+| **Mac** à puce Apple, macOS 15 ou plus | `Mira-0.9.0-mac-arm64.dmg` | Glisse Mira dans Applications, autorise-la une fois (elle n’est pas signée par Apple). Ou avec [Homebrew](https://github.com/sasou-web/homebrew-mira) : `brew install --cask sasou-web/mira/mira`. [Guide](INSTALLATION-MAC.md) |
 | **iPhone, iPad** (essai) | AltStore Classic, iOS 26 | L’app native : bibliothèque, recherche, son propre lecteur (Image dans l’image, AirPlay), Minuterie, Regarder ensemble et, loin de la maison, Tailscale intégré. Installée avec ton identifiant Apple gratuit, rafraîchie chaque semaine par le PC serveur. [Guide](INSTALLATION-IOS.md) |
 | **iPhone, iPad, Android** | Rien à télécharger | Dans Mira pour Windows : **Guide → Mira sur ton téléphone → Tout préparer**, puis scanne le QR code. [Guide](INSTALLATION-WEB.md) |
 

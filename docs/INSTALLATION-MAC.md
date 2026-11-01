@@ -13,6 +13,16 @@ Mira pour Mac lit ta bibliothèque Jellyfin avec le même lecteur mpv que la ver
 2. Ouvre l’image disque et fais glisser **Mira** sur **Applications**.
 3. Ouvre Mira depuis Applications. macOS l’arrête la première fois (voir ci-dessous) ; c’est normal.
 
+### Ou avec Homebrew
+
+Si tu as [Homebrew](https://brew.sh), une commande dans le **Terminal** remplace les étapes 1 et 2 :
+
+```
+brew install --cask sasou-web/mira/mira
+```
+
+Elle vient du tap de Mira ([sasou-web/homebrew-mira](https://github.com/sasou-web/homebrew-mira)), pas du catalogue officiel de Homebrew, qui n’accepte que les apps notarisées par Apple. Homebrew vérifie l’empreinte de l’image (la même que son `.sha256`) et garde la protection de macOS : la première ouverture se fait comme ci-dessous. Mira se met ensuite à jour toute seule ; `brew uninstall --cask --zap mira` la retire avec ses réglages.
+
 ### Autoriser Mira la première fois
 
 Mira n’est pas signée par un compte développeur Apple payant : macOS ne peut pas la vérifier et refuse de l’ouvrir au premier lancement. À faire une seule fois :
