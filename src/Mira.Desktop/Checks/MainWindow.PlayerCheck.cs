@@ -44,13 +44,13 @@ public partial class MainWindow
             SetMiniPlayer(false); await Task.Delay(120);
             Require(!_miniPlayer && !LibraryShell.IsVisible && PlayerShell.ActualWidth > 900, "expanded player restores its full layout");
             SetVolumeReveal(true); UpdateLayout(); await Task.Delay(260);
-            double Middle(FrameworkElement element) => element.TranslatePoint(new Point(0, element.ActualHeight / 2), PlayerSurface).Y;
+            double Middle(FrameworkElement element) => InSurface(element, new Point(0, element.ActualHeight / 2)).Y;
             var volumeCenter = Middle(MuteButton);
             Require(Math.Abs(volumeCenter - Middle(VolumeSlider)) < 1 && Math.Abs(volumeCenter - Middle(PauseButton)) < 1 && Math.Abs(volumeCenter - Middle(PlayerMoreButton)) < 1 && Math.Abs(volumeCenter - Middle(FullscreenButton)) < 1,
                 "play, volume, slider, menus and fullscreen share one vertical center");
             SetVolumeReveal(false);
             var playGlyph = FindVisual<Views.Icon>(PauseButton)!;
-            Require(playGlyph.TranslatePoint(new Point(0, playGlyph.ActualHeight), PlayerSurface).Y <= PlayerSurface.Height - 20, "bottom controls stay inside the video with breathing room");
+            Require(InSurface(playGlyph, new Point(0, playGlyph.ActualHeight)).Y <= PlayerSurface.Height - 20, "bottom controls stay inside the video with breathing room");
             var original = new Rect(Left, Top, Width, Height);
             ToggleFullscreen(); await Task.Delay(200);
             var pixels = _fullscreenWindow!.WindowPixels();
@@ -95,7 +95,7 @@ public partial class MainWindow
             var panelPixels = new Size(panel.ActualWidth * dpi.DpiScaleX, panel.ActualHeight * dpi.DpiScaleY);
             var shellPixels = new Size(PlayerShell.ActualWidth * dpi.DpiScaleX, PlayerShell.ActualHeight * dpi.DpiScaleY);
             var placement = PlayerOptionsPopup.CustomPopupPlacementCallback(panelPixels, shellPixels, new())[0].Point;
-            var moreRight = PlayerMoreButton.TranslatePoint(new Point(PlayerMoreButton.ActualWidth, 0), PlayerSurface).X * dpi.DpiScaleX;
+            var moreRight = InSurface(PlayerMoreButton, new Point(PlayerMoreButton.ActualWidth, 0)).X * dpi.DpiScaleX;
             Require(Math.Abs(placement.X + panelPixels.Width - moreRight) < 1 && placement.Y >= 0 && placement.Y + panelPixels.Height < shellPixels.Height, "the ⋮ menu aligns on its button inside the player at current DPI");
             PlayerOptionsPopup.IsOpen = false;
             var messageSeen = false; _mpv.Message += message => { if (message == "mira-fullscreen") messageSeen = true; };
