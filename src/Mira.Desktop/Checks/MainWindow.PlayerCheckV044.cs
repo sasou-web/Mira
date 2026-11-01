@@ -43,13 +43,14 @@ public partial class MainWindow
             checks.Add($"INFO render tier {RenderCapability.Tier >> 16}; main {mainTarget.RenderMode}; overlay {overlayTarget.RenderMode}; overlay layered {((GetWindowLong(PlayerOverlayLayer.Handle, -20) & 0x80000) != 0)}");
             checks.Add($"INFO main window animation {await MeasureFpsAsync(probe)}");
             ((Panel)Root).Children.Remove(probe);
-            checks.Add($"INFO overlay animation {PlayerSurface.ActualWidth:0}x{PlayerSurface.ActualHeight:0} DIP: {await MeasureFpsAsync((UIElement)PauseButton.Template.FindName("Hover", PauseButton))}");
+            checks.Add($"INFO controls' window animation {PlayerSurface.ActualWidth:0}x{PlayerSurface.ActualHeight:0} DIP: {await MeasureFpsAsync((UIElement)PlayerBackButton.Template.FindName("Hover", PlayerBackButton))}");
+            checks.Add($"INFO buttons' row animation {PlayerTransport.ActualWidth:0}x{PlayerTransport.ActualHeight:0} DIP: {await MeasureFpsAsync((UIElement)PauseButton.Template.FindName("Hover", PauseButton))}");
             // Mouse moves arrive at 125–1000 Hz; each one calls ShowPlayerControls.
             var moves = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(4) };
             var moved = 0; moves.Tick += (_, _) => { ++moved; ShowPlayerControls(); }; moves.Start();
             var withMoves = await MeasureFpsAsync((UIElement)PauseButton.Template.FindName("Hover", PauseButton));
             moves.Stop(); _lastPlayerInteraction = DateTimeOffset.UtcNow.AddSeconds(30);
-            checks.Add($"INFO overlay animation while the pointer moves ({moved} moves): {withMoves}");
+            checks.Add($"INFO buttons' row animation while the pointer moves ({moved} moves): {withMoves}");
             var sw = System.Diagnostics.Stopwatch.StartNew(); for (var i = 0; i < 200; i++) mpv.Number("time-pos"); var poll = sw.Elapsed.TotalMilliseconds / 200;
             mpv.Set("pause", "no"); await Task.Delay(300);
             var worst = 0d; sw.Restart(); for (var i = 0; i < 200; i++) { var one = System.Diagnostics.Stopwatch.StartNew(); mpv.Number("time-pos"); worst = Math.Max(worst, one.Elapsed.TotalMilliseconds); await Task.Yield(); }
@@ -130,7 +131,7 @@ public partial class MainWindow
         require(Near(PlayerShell.Margin, corner) && MiniFrame.IsVisible && PlayerShell.Clip is not null && MiniOutline.IsVisible, "mini-player rests rounded and shadowed in the bottom-right corner");
         CaptureElement(output, "mini-player", PlayerSurface);
         if (_args.Contains("--perf-probe")) { ShowPlayerControls(); _lastPlayerInteraction = DateTimeOffset.UtcNow.AddSeconds(30); await Task.Delay(300); }
-        if (_args.Contains("--perf-probe")) checks.Add($"INFO mini overlay animation {PlayerSurface.ActualWidth:0}x{PlayerSurface.ActualHeight:0} DIP: {await MeasureFpsAsync((UIElement)PauseButton.Template.FindName("Hover", PauseButton))}");
+        if (_args.Contains("--perf-probe")) checks.Add($"INFO mini buttons' row animation {PlayerTransport.ActualWidth:0}x{PlayerTransport.ActualHeight:0} DIP: {await MeasureFpsAsync((UIElement)PauseButton.Template.FindName("Hover", PauseButton))}");
         var bounds = MiniBounds();
         PlaceMini(new Point(bounds.Left + 30, bounds.Top + 20)); _miniTrail.Clear(); _miniDragging = true; EndMiniDrag(); await Task.Delay(500);
         require(!_miniRight && !_miniBottom && Near(PlayerShell.Margin, MiniCorner(false, false)) && ReferenceEquals(engine, _mpv), "a released mini-player glides to the nearest corner");
@@ -183,7 +184,7 @@ public partial class MainWindow
     }
     /// <summary>Renders overlay controls for review, over a neutral grey or over a video frame letterboxed like mpv
     /// does (the native video is not part of WPF).</summary>
-    private static void CaptureElement(string directory, string name, FrameworkElement element, BitmapSource? background = null)
+    private void CaptureElement(string directory, string name, FrameworkElement element, BitmapSource? background = null)
     {
         var dpi = VisualTreeHelper.GetDpi(element); var size = new Size(element.ActualWidth, element.ActualHeight);
         var visual = new DrawingVisual();
@@ -197,6 +198,9 @@ public partial class MainWindow
                 dc.DrawImage(background, new Rect(new Point((size.Width - frame.Width) / 2, (size.Height - frame.Height) / 2), frame));
             }
             dc.DrawRectangle(new VisualBrush(element), null, new Rect(size));
+            // The buttons' row lives in a window of its own, over its slot in the surface.
+            if (ReferenceEquals(element, PlayerSurface) && PlayerTransport.IsVisible)
+                dc.DrawRectangle(new VisualBrush(PlayerTransport), null, new Rect(InSurface(PlayerTransport, new Point()), PlayerTransport.RenderSize));
         }
         var bitmap = new RenderTargetBitmap((int)Math.Ceiling(size.Width * dpi.DpiScaleX), (int)Math.Ceiling(size.Height * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
         bitmap.Render(visual);

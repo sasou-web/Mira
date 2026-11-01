@@ -33,6 +33,11 @@ public sealed class PlayerOverlay : FrameworkElement
     /// pause and play flash) gets a window of its own size rather than repainting one the size of the video.
     /// </summary>
     public Size Box { get; set; } = Size.Empty;
+    /// <summary>
+    /// When set, the window covers only this part of the target (in its units, from its top left corner), and takes
+    /// input there. Empty: closed to the pointer and drawn nowhere until the next reposition.
+    /// </summary>
+    public Func<Rect>? Region { get; set; }
     public bool IsOpen
     {
         get => _source is not null;
@@ -76,12 +81,20 @@ public sealed class PlayerOverlay : FrameworkElement
         return activating;
     }
     private Rect _placed = Rect.Empty;
-    public void Reposition()
+    /// <returns>True when the window moved or changed size, which puts it above its siblings.</returns>
+    public bool Reposition()
     {
-        if (_source is null || Child is null || !PlacementTarget.IsVisible) return;
+        if (_source is null || Child is null || !PlacementTarget.IsVisible) return false;
         var parent = GetParent(_source.Handle);
         var rect = Bounds(parent);
-        if (Box.IsEmpty) { Child.Width = PlacementTarget.ActualWidth; Child.Height = PlacementTarget.ActualHeight; }
+        if (Region?.Invoke() is { } region)
+        {
+            if (region.Width <= 0 || region.Height <= 0) region = new Rect(0, 0, 1, 1);
+            Child.Width = region.Width; Child.Height = region.Height;
+            var scale = rect.Width / Math.Max(1, PlacementTarget.ActualWidth);
+            rect = new Rect(Math.Round(rect.X + region.X * scale), Math.Round(rect.Y + region.Y * scale), Math.Ceiling(region.Width * scale), Math.Ceiling(region.Height * scale));
+        }
+        else if (Box.IsEmpty) { Child.Width = PlacementTarget.ActualWidth; Child.Height = PlacementTarget.ActualHeight; }
         else
         {
             Child.Width = Box.Width; Child.Height = Box.Height;
@@ -90,10 +103,17 @@ public sealed class PlayerOverlay : FrameworkElement
             rect = new Rect(Math.Round(rect.X + (rect.Width - size.Width) / 2), Math.Round(rect.Y + (rect.Height - size.Height) / 2), size.Width, size.Height);
         }
         // Moving a per-pixel transparent window makes Windows recompose it: skip calls that change nothing.
-        if (rect == _placed) return;
+        if (rect == _placed) return false;
         _placed = rect;
         // Above the video's own window (HWND_TOP), shown, never activated.
         SetWindowPos(_source.Handle, IntPtr.Zero, (int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height, 0x0050);
+        return true;
+    }
+    /// <summary>Back above its sibling windows (another overlay that moved went to the top), without moving.</summary>
+    public void Raise()
+    {
+        // HWND_TOP, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE.
+        if (_source is not null) SetWindowPos(_source.Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0013);
     }
     /// <summary>The placement target in the parent window's client coordinates, in physical pixels.</summary>
     private Rect Bounds(IntPtr parent)

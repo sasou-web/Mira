@@ -18,7 +18,7 @@ public partial class MainWindow
         var mpv = _mpv!;
         // Keeps the controls on screen for the whole sequence: idling would fade them out between steps.
         void Hold() { ShowPlayerControls(); _lastPlayerInteraction = DateTimeOffset.UtcNow.AddSeconds(30); }
-        Point At(FrameworkElement element, double x = 0, double y = 0) => element.TranslatePoint(new Point(x, y), PlayerSurface);
+        Point At(FrameworkElement element, double x = 0, double y = 0) => InSurface(element, new Point(x, y));
         Hold(); UpdateLayout(); await Task.Delay(260);
 
         var titleTop = At(PlayingTitle).Y; var barTop = At(SeekBar).Y; var rowTop = At(PauseButton).Y;

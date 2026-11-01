@@ -20,6 +20,13 @@ public partial class MainWindow
         var above = false;
         for (var next = GetWindow(overlay, 2); next != IntPtr.Zero; next = GetWindow(next, 2)) if (next == _videoHost?.Handle) { above = true; break; }
         require(above, "the controls' window sits above the video's");
+        var row = TransportLayer.Handle; var rowAbove = false;
+        for (var next = GetWindow(row, 2); next != IntPtr.Zero; next = GetWindow(next, 2)) if (next == overlay) { rowAbove = true; break; }
+        GetWindowRect(row, out var rowRect); GetWindowRect(overlay, out var whole);
+        var slot = PlayerTransportSlot.PointToScreen(new Point());
+        require(row != IntPtr.Zero && GetParent(row) == window && (GetWindowLong(row, -20) & 0x80000) != 0 && rowAbove && Math.Abs(rowRect.Left - slot.X) <= 1 && Math.Abs(rowRect.Top - slot.Y) <= 1
+            && (rowRect.Bottom - rowRect.Top) * 4 < whole.Bottom - whole.Top,
+            $"the buttons' row has a layered window of its own size, over its slot and above the controls' ({rowRect.Right - rowRect.Left} × {rowRect.Bottom - rowRect.Top} px of {whole.Right - whole.Left} × {whole.Bottom - whole.Top})");
 
         mpv.Set("pause", "yes"); await Task.Delay(250); mpv.Poll();
         HidePlayerControls(); await Task.Delay(450);
@@ -33,8 +40,8 @@ public partial class MainWindow
         require(changed > .04, $"a capture of the window shows the controls over the video ({changed:P0} of the bottom bar changes when they show)");
 
         // The bands of the bars, shaded or hidden, never pause; the picture between them does.
-        Point Middle(FrameworkElement element) => element.TranslatePoint(new Point(element.ActualWidth / 2, element.ActualHeight / 2), PlayerSurface);
-        var title = PlayingTitle.TranslatePoint(new Point(0, -6), PlayerSurface);
+        Point Middle(FrameworkElement element) => InSurface(element, new Point(element.ActualWidth / 2, element.ActualHeight / 2));
+        var title = InSurface(PlayingTitle, new Point(0, -6));
         require(InBarBand(Middle(PlayerTracksButton)) && InBarBand(Middle(SeekBar)) && InBarBand(Middle(PauseButton)) && InBarBand(new Point(PlayerSurface.ActualWidth / 2, title.Y))
             && InBarBand(Middle(PlayerBackButton)) && InBarBand(new Point(PlayerSurface.ActualWidth / 2, 20)) && !InBarBand(new Point(PlayerSurface.ActualWidth / 2, PlayerSurface.ActualHeight / 2)),
             "a click in the band of the top or bottom bar never pauses, one on the picture between them does");

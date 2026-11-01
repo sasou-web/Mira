@@ -44,6 +44,7 @@ public partial class MainWindow
         SeekBar.SeekStarted += () => { _seeking = true; ShowPlayerControls(); };
         SeekBar.Seeking += Scrub;
         SeekBar.SeekCompleted += SeekTo;
+        InitializeTransportLayer();
         PlayerOptionsPopup.CustomPopupPlacementCallback = (size, target, _) => [new CustomPopupPlacement(MenuPlacement(size, target), PopupPrimaryAxis.None)];
         LocationChanged += (_, _) => PositionPlayerControls();
         StateChanged += (_, _) => { PositionPlayerControls(); UpdatePlayerControls(); };
@@ -58,7 +59,7 @@ public partial class MainWindow
     {
         var dpi = VisualTreeHelper.GetDpi(PlayerShell);
         var anchor = _menuAnchor ?? PlayerTracksButton;
-        var corner = anchor.IsVisible ? anchor.TranslatePoint(new Point(anchor.ActualWidth, 0), PlayerSurface) : new Point(PlayerSurface.ActualWidth - 16, PlayerSurface.ActualHeight - 60);
+        var corner = anchor.IsVisible ? InSurface(anchor, new Point(anchor.ActualWidth, 0)) : new Point(PlayerSurface.ActualWidth - 16, PlayerSurface.ActualHeight - 60);
         var margin = 12 * dpi.DpiScaleX;
         var x = Math.Clamp(corner.X * dpi.DpiScaleX - size.Width, margin, Math.Max(margin, target.Width - size.Width - margin));
         var y = Math.Max(12 * dpi.DpiScaleY, corner.Y * dpi.DpiScaleY - size.Height);
@@ -81,7 +82,7 @@ public partial class MainWindow
                 PlayerSurface.Width = size.Width; PlayerSurface.Height = size.Height;
                 var clip = new RectangleGeometry(new Rect(size), radius, radius); clip.Freeze(); PlayerSurface.Clip = clip;
             }
-            PlayerOverlayLayer.Reposition(); PlayStateLayer.Reposition();
+            RepositionPlayerLayers();
             if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.HorizontalOffset = .01; PlayerOptionsPopup.HorizontalOffset = 0; }
         }, DispatcherPriority.Render);
     }
@@ -114,7 +115,7 @@ public partial class MainWindow
     {
         if (!_playing || WindowState == WindowState.Minimized || (_miniPlayer && !MiniSettled)) return false;
         // Called on every mouse move: layout changes position the overlay themselves, so only a new window needs it.
-        if (!PlayerOverlayLayer.IsOpen) { PositionPlayerControls(); PlayerOverlayLayer.IsOpen = true; }
+        if (!PlayerOverlayLayer.IsOpen) { PositionPlayerControls(); PlayerOverlayLayer.IsOpen = true; TransportLayer.IsOpen = true; }
         return true;
     }
     /// <summary>Mira went to the background: its menu closes and the controls fade, the pointer stays visible over it.</summary>
@@ -126,7 +127,7 @@ public partial class MainWindow
     }
     private void SetPlayerPanels(bool visible, int duration)
     {
-        foreach (var panel in new UIElement[] { PlayerHeader, PlayerControls, PlayerWindowChrome })
+        foreach (var panel in new UIElement[] { PlayerHeader, PlayerControls, PlayerTransport, PlayerWindowChrome })
         { panel.IsHitTestVisible = visible; Motion.Fade(panel, visible ? 1 : 0, duration); }
         if (!visible) { _volumeHide.Stop(); SetVolumeReveal(false); }
         SeekBar.Live = visible; UpdateSkip();
@@ -136,7 +137,7 @@ public partial class MainWindow
         _surfaceClick.Stop(); _lastSurfacePoint = null;
         // Opened again later, the surface starts as nothing shows it now: controls hidden.
         if (_controlsVisible) { _controlsVisible = false; SetPlayerPanels(false, 0); }
-        PlayerOverlayLayer.IsOpen = PlayerOptionsPopup.IsOpen = false; HidePlayState();
+        PlayerOverlayLayer.IsOpen = TransportLayer.IsOpen = PlayerOptionsPopup.IsOpen = false; HidePlayState();
         _volumeHide.Stop(); SetVolumeReveal(false);
         PlayerSurface.Cursor = Cursors.Arrow;
     }
@@ -147,9 +148,9 @@ public partial class MainWindow
         // Also when playback started with Mira in the background (the next episode, the group).
         OpenPlayerSurface();
         if (!PlayerInFront) { if (_controlsVisible || PlayerOptionsPopup.IsOpen) LeavePlayerControls(); return; }
-        if (!_loaded || _seeking || PlayerOptionsPopup.IsOpen || VolumeSlider.IsMouseCaptureWithin || (_keyboardNavigation && (PlayerControls.IsKeyboardFocusWithin || PlayerHeader.IsKeyboardFocusWithin))) return;
+        if (!_loaded || _seeking || PlayerOptionsPopup.IsOpen || VolumeSlider.IsMouseCaptureWithin || (_keyboardNavigation && (PlayerControls.IsKeyboardFocusWithin || PlayerTransport.IsKeyboardFocusWithin || PlayerHeader.IsKeyboardFocusWithin))) return;
         var idle = DateTimeOffset.UtcNow - _lastPlayerInteraction;
-        if (_miniPlayer) { if (!PlayerSurface.IsMouseOver && idle > MiniIdle) HidePlayerControls(); return; }
+        if (_miniPlayer) { if (!PlayerSurface.IsMouseOver && !PlayerTransport.IsMouseOver && idle > MiniIdle) HidePlayerControls(); return; }
         // While playing, a pointer resting on the controls keeps them. Once paused they leave anyway.
         if (!_session.Paused && _controlsVisible && (PointerOnBars() || SkipButton.IsMouseOver)) return;
         if (idle > (_session.Paused ? PausedIdle : PlayingIdle)) HidePlayerControls();
@@ -164,7 +165,7 @@ public partial class MainWindow
     }
     private void PlayerSurface_MouseLeave(object sender, MouseEventArgs e) => _lastSurfacePoint = null;
     /// <summary>The pointer rests on the bottom bar (from just above the title) or on the top band.</summary>
-    private bool PointerOnBars() => PlayerSurface.IsMouseOver && InBarBand(Mouse.GetPosition(PlayerSurface));
+    private bool PointerOnBars() => PlayerTransport.IsMouseOver || PlayerSurface.IsMouseOver && InBarBand(Mouse.GetPosition(PlayerSurface));
     /// <summary>
     /// The bands of the top and bottom bars, shown or not: from just above the title to the bottom, from the top to just
     /// under the back button. The shades take no clicks, so the band is measured.
@@ -181,7 +182,7 @@ public partial class MainWindow
     /// </summary>
     private void PlayerSurface_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        var activating = PlayerOverlayLayer.TakeActivatingClick();
+        var activating = (ReferenceEquals(sender, PlayerTransport) ? TransportLayer : PlayerOverlayLayer).TakeActivatingClick();
         if (_miniPlayer) { MiniPointerDown(e, activating); return; }
         if (e.OriginalSource != PlayerSurface) return;
         PlayerSurface.Focus(); ShowPlayerControls(); e.Handled = true;
@@ -206,7 +207,7 @@ public partial class MainWindow
         if (Keyboard.Modifiers != ModifierKeys.None) return;
         if (IsTyping(e)) return;
         // While browsing with the mini-player, the library keeps its keys unless the player has focus.
-        if (_miniPlayer && !ReferenceEquals(sender, PlayerSurface) && !IsInPlayer(e.OriginalSource as DependencyObject)) return;
+        if (_miniPlayer && !ReferenceEquals(sender, PlayerSurface) && !ReferenceEquals(sender, PlayerTransport) && !IsInPlayer(e.OriginalSource as DependencyObject)) return;
         switch (e.Key)
         {
             case Key.Space or Key.K: if (!e.IsRepeat) Pause_Click(this, new()); break;
@@ -292,7 +293,7 @@ public partial class MainWindow
     private bool IsInPlayer(DependencyObject? node)
     {
         for (; node is not null; node = (node is Visual ? VisualTreeHelper.GetParent(node) : null) ?? LogicalTreeHelper.GetParent(node))
-            if (ReferenceEquals(node, PlayerShell) || ReferenceEquals(node, PlayerSurface)) return true;
+            if (ReferenceEquals(node, PlayerShell) || ReferenceEquals(node, PlayerSurface) || ReferenceEquals(node, PlayerTransport)) return true;
         return false;
     }
     private void ChangeVolume(double delta)
@@ -375,7 +376,7 @@ public partial class MainWindow
         // The mini-player shows its title at the top and keeps only play / pause, centred under the timeline.
         PlayerInfo.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
         MiniTitle.Visibility = MiniExpandButton.Visibility = MiniCloseButton.Visibility = MiniOutline.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
-        PlayerTransport.Height = mini ? 36 : 44; PlayerTransport.Margin = new Thickness(-8, mini ? 0 : 2, -8, 0);
+        PlayerTransport.Height = PlayerTransportSlot.Height = mini ? 36 : 44; PlayerTransportSlot.Margin = new Thickness(-8, mini ? 0 : 2, -8, 0);
         Grid.SetColumnSpan(PlayerLeftGroup, mini ? 3 : 1); PlayerLeftGroup.HorizontalAlignment = mini ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         foreach (var control in new FrameworkElement[] { PlayerBackButton, PlayerVolumeGroup, PlayerRightGroup }) control.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
         NextButton.Visibility = PreviousButton.Visibility = PlayerEpisodesButton.Visibility = !mini && !_demo && _session.Item?.Type == "Episode" ? Visibility.Visible : Visibility.Collapsed;
