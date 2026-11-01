@@ -117,9 +117,12 @@ public partial class MainWindow
             {
                 // Leaving the player, as a person does it: playing, then reduced; playing, then stopped (frames, work).
                 SetMiniPlayer(false); _mpv!.Set("pause", "no"); await Task.Delay(1500);
-                SetMiniPlayer(true); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
-                SetMiniPlayer(false); await Task.Delay(1500);
+                SetMiniPlayerSmoothly(true); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
+                Require(_miniPlayer && !_morphing && VideoContainer.IsVisible && PlayerShell.Opacity == 1 && _morphLayer?.Visibility != Visibility.Visible, "reduced smoothly: the video back in the mini-player, the still gone");
+                SetMiniPlayerSmoothly(false); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
+                Require(!_miniPlayer && !_morphing && VideoContainer.IsVisible && !LibraryShell.IsVisible && PlayerShell.ActualWidth > 900, "expanded smoothly: the whole player back, the page under it hidden");
                 StopPlayer_Click(this, new()); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
+                Require(!_playing && _mpv is null && !_morphing && LibraryShell.IsVisible && _morphLayer?.Visibility != Visibility.Visible, "closed smoothly: the page back, the still gone");
                 await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded); _mpv!.Set("pause", "yes"); SetMiniPlayer(true);
             }
             await StopPlaybackAsync(); ReturnToLibrary();

@@ -82,7 +82,7 @@ public partial class MainWindow
     {
         if (!IsMiniBackground(e.OriginalSource as DependencyObject)) return;
         PlayerSurface.Focus(); e.Handled = true;
-        if (e.ClickCount == 2 && !activating) { _miniPress = null; _surfaceClick.Stop(); SetMiniPlayer(false); return; }
+        if (e.ClickCount == 2 && !activating) { _miniPress = null; _surfaceClick.Stop(); SetMiniPlayerSmoothly(false); return; }
         _miniPress = Mouse.GetPosition(Root); _miniPressPauses = !activating && !InBarBand(e.GetPosition(PlayerSurface));
     }
     private void MiniPointerUp(MouseButtonEventArgs e)

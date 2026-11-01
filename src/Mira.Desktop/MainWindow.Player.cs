@@ -394,28 +394,14 @@ public partial class MainWindow
         if (next is not null) await PlayAsync(next, _miniPlayer, completePrevious: _skips.ToNext && _skips.Active is not null); else PlayingSubtitle.Text = L("Aucun épisode suivant disponible.", "No next episode available.");
     }
     private void BackFromPlayer_Click(object sender, RoutedEventArgs e)
-    { if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayer(true); }
-    /// <summary>
-    /// Leaving the player for the library: still and silent at once, then the black of the player fades over the page it
-    /// goes back to (the video is a window of its own, which no opacity reaches: it leaves first), the engine released after.
-    /// </summary>
+    { if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayerSmoothly(true); }
+    /// <summary>Leaving the player for the library: the picture shrinks and fades over the page (<see cref="ClosePlayerSmoothlyAsync"/>).</summary>
     private async Task LeavePlayerAsync()
     {
         FrameProbe.Begin("stop");
-        if (!_miniPlayer && !_fullscreen && !Motion.Reduced && PlayerShell.Visibility == Visibility.Visible && _mpv is { } mpv)
-        {
-            mpv.Set("pause", "yes"); mpv.Set("mute", "yes");
-            ClosePlayerPopups(); VideoContainer.Visibility = Visibility.Hidden;
-            LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Visible;
-            using (FrameProbe.Time("RestoreDetailPage")) RestoreDetailPage(refresh: false);
-            Motion.Fade(PlayerShell, 0, 240, 1, Motion.EaseOut); await Task.Delay(240);
-            FrameProbe.Mark("faded");
-            await StopPlaybackAsync(); FrameProbe.Mark("stopped");
-            using (FrameProbe.Time("ReturnToLibrary")) ReturnToLibrary(reveal: false);
-        }
-        else { await StopPlaybackAsync(); ReturnToLibrary(); }
-        PlayerShell.BeginAnimation(OpacityProperty, null); PlayerShell.Opacity = 1;
-        if (PlayerError.Visibility != Visibility.Visible) VideoContainer.Visibility = Visibility.Visible;
+        if (await ClosePlayerSmoothlyAsync()) return;
+        if (_morphing) { ++_morphVersion; EndMorph(); }
+        await StopPlaybackAsync(); ReturnToLibrary();
     }
     private void ReturnToLibrary(bool reveal = true)
     {
@@ -519,7 +505,7 @@ public partial class MainWindow
         if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { OpenGuide(); e.Handled = true; return; }
         if (e.OriginalSource is TextBox or System.Windows.Controls.PasswordBox || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.
-        if (e.Key == Key.I && !e.IsRepeat) { SetMiniPlayer(!_miniPlayer); e.Handled = true; }
+        if (e.Key == Key.I && !e.IsRepeat) { SetMiniPlayerSmoothly(!_miniPlayer); e.Handled = true; }
     }
     /// <summary>Alt+← or the "back" key. WPF reports Alt+← as Key.System; keys forwarded by WebView2 carry the arrow itself.</summary>
     private static bool IsBackKey(KeyEventArgs e) => e.Key == Key.BrowserBack || Keyboard.Modifiers == ModifierKeys.Alt && (e.SystemKey == Key.Left || e.Key == Key.Left);
