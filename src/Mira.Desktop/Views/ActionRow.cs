@@ -32,6 +32,8 @@ public sealed class ActionRow : Panel
     public static readonly DependencyProperty IconsOnlyProperty = DependencyProperty.Register(nameof(IconsOnly), typeof(bool), typeof(ActionRow), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsMeasure));
     public bool IconsOnly { get => (bool)GetValue(IconsOnlyProperty); set => SetValue(IconsOnlyProperty, value); }
     private const double Round = 46;
+    /// <summary>The corners of every button of the row, Lecture's too: one curve along the whole line.</summary>
+    public static readonly CornerRadius Corners = new(Round * .32);
     /// <summary>The padding of an icon alone, as the page's buttons that never have a label (« … »).</summary>
     private static readonly Thickness IconOnly = new(15, 13, 15, 13);
     /// <summary>What a button had before it lost its label: its padding, and whether its tooltip is the label Mira gave it.</summary>
@@ -158,7 +160,7 @@ public sealed class ActionRow : Panel
         Show(button, false);
         button.Width = button.Height = Round; button.Padding = new Thickness(0);
         button.HorizontalContentAlignment = HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
-        Motion.SetRadius(button, new CornerRadius(Round * .32));
+        Motion.SetRadius(button, Corners);
     }
     /// <summary>A kept button of an icons-only row: its label beside its icon, as tall and as rounded as the round ones.</summary>
     private static void MakeLabelled(Button button)
@@ -166,7 +168,7 @@ public sealed class ActionRow : Panel
         Show(button, true);
         button.ClearValue(FrameworkElement.WidthProperty); button.Height = Round;
         button.HorizontalContentAlignment = Growing.TryGetValue(button, out _) ? HorizontalAlignment.Left : HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
-        Motion.SetRadius(button, new CornerRadius(Round * .32));
+        Motion.SetRadius(button, Corners);
     }
     /// <summary>Shows or hides the label of a button that has one, and marks the way down to it for measuring again.</summary>
     private static void Show(Button button, bool label)
