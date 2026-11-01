@@ -25,7 +25,7 @@ public partial class MainWindow
     {
         if (!SystemParameters.HighContrast || Application.Current is not { } app) return;
         app.Resources["Muted"] = Frozen("#E5E5E5"); app.Resources["Faint"] = Frozen("#D6D6D6");
-        app.Resources["FocusRing"] = SystemColors.HighlightBrush;
+        app.Resources["FocusRing"] = SystemColors.HighlightBrush; app.Resources["FieldFocus"] = SystemColors.HighlightBrush;
     }
 
     /// <summary>Windows' « Taille du texte » (Accessibility, Text size), from 1 to 2.25; 1 when it cannot be read.</summary>
