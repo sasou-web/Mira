@@ -805,8 +805,9 @@ try {
     const moved = now.t - before - (Date.now() - at) / 1000;
     const ok3 = Math.abs(moved) < 3 && !now.idle;
     said.push(ok3 ? 'double toucher sur la barre : pas de saut' : `double toucher sur la barre : ${moved.toFixed(1)} s`);
-    const heading = await center('.p-top .p-title');
-    await page.touchscreen.tap(heading.x, heading.y); await wait(400);
+    // Beside the title's text: the text itself is a link to the title page (below).
+    const heading = await page.locator('.p-top .p-title').boundingBox();
+    await page.touchscreen.tap(heading.x + heading.width - 3, heading.y + heading.height / 2); await wait(400);
     now = await state();
     const ok4 = !now.idle;
     said.push(ok4 ? 'titre : commandes gardées' : 'titre : commandes cachées');
@@ -818,7 +819,15 @@ try {
     return { ok: ok1 && ok2 && ok3 && ok4 && ok5, said };
   })().catch((error) => ({ ok: false, said: [error.message] }));
   check('lecteur : les barres du haut et du bas prennent leurs touchers, l’image entre elles cache les commandes', bands.ok, bands.said.join(' ; '));
-  await page.locator('.p-top button[aria-label="Retour"]').click({ force: true }); await wait(1500);
+  // The title is a link to its page: the player closes there, its progress kept (Mira web has no mini-player).
+  const playedId = noVp9Copy ? film.Id : anime.Id;
+  const headingLink = await page.evaluate(() => [...document.querySelectorAll('.p-top .p-title a')].map((a) => [a.textContent, a.getAttribute('href') ?? '']));
+  await page.locator('.p-top .p-title strong a').click({ force: true });
+  const titled = await page.waitForFunction((id) => location.hash === `#/titre/${id}` && !document.querySelector('.player'), playedId, { timeout: 8000 }).then(() => true, () => false);
+  await wait(1200);
+  check('lecteur : le titre et la ligne dessous mènent à la fiche, le lecteur fermé',
+    titled && headingLink.length === 2 && headingLink.every(([text, href]) => !text || href === `#/titre/${playedId}`),
+    `${headingLink.map(([text, href]) => `« ${text} » → ${href || 'rien'}`).join(', ')} ; puis ${(await page.evaluate(() => location.hash)).split('?')[0]}`);
 
   // Passages the file's chapters name, with no segment provider on Jellyfin (Chapitres Web: « Avant-générique » 0-4 s,
   // « Opening » 4-14 s): the opening is offered as it starts; with « Passer les intros et les récaps », jumped over by

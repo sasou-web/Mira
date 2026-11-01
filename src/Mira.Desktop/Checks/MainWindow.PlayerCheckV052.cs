@@ -22,7 +22,7 @@ public partial class MainWindow
         Hold(); UpdateLayout(); await Task.Delay(260);
 
         var titleTop = At(PlayingTitle).Y; var barTop = At(SeekBar).Y; var rowTop = At(PauseButton).Y;
-        require(PlayingTitle.Text.Length > 0 && PlayingSubtitle.Text.Length > 0 && titleTop < barTop && barTop < rowTop && At(PositionText).Y < barTop,
+        require(PlayingTitle.Content is string { Length: > 0 } && PlayingSubtitle.Content is string { Length: > 0 } && titleTop < barTop && barTop < rowTop && At(PositionText).Y < barTop,
             "the title, its second line and the time sit above the timeline, the buttons below it");
         var textLeft = At(PlayingTitle).X; var timeRight = At(DurationText, DurationText.ActualWidth).X;
         var playGlyph = FindVisual<Icon>(PauseButton)!; var lastGlyph = FindVisual<Icon>(FullscreenButton)!;
