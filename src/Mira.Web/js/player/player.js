@@ -9,7 +9,7 @@ import { tr, number } from '../i18n.js';
 import { settings, device, session } from '../session.js';
 import { artFor, imageUrl, picture } from '../images.js';
 import { sheet, toast, changed, titleHref } from '../components.js';
-import { goBack } from '../app.js';
+import { goBack, replaceRoute } from '../app.js';
 import { deviceProfile, lastResortProfile, useHlsJs, audioTracks as switchesAudio } from './profile.js';
 import { sharedVideo, appleNative } from './video.js';
 import { trackText, trackMemory, chosenTracks, startTracks, fileTextSubtitles, carriedIndex } from './tracks.js';
@@ -124,7 +124,29 @@ export function create({ id, query }) {
   const presentation = () => video.webkitPresentationMode ?? (video.webkitDisplayingFullscreen ? 'fullscreen' : 'inline');
 
   // ---------- Elements ----------
-  const title = h('div', { class: 'p-title' }, h('strong', {}, ''), h('span', {}, ''));
+  // The title and the line under it open their page (the series, or the film; the episode in its season), as on
+  // Windows and Mac. Mira web has no mini-player: playback stops there, its progress kept, as Back does.
+  const titleLink = h('a', { class: 'p-link', on: { click: (e) => leaveTo(e, titleLink) } });
+  const lineLink = h('a', { class: 'p-link', on: { click: (e) => leaveTo(e, lineLink) } });
+  const title = h('div', { class: 'p-title' }, h('strong', {}, titleLink), h('span', {}, lineLink));
+  /** The name and the line of what plays (or is about to), each a link to its page; plain text for a guest, who has no pages. */
+  function showHeading(it, line) {
+    titleLink.textContent = it.Type === 'Episode' ? it.SeriesName ?? it.Name ?? '' : it.Name ?? '';
+    lineLink.textContent = line;
+    const guest = isGuest();
+    const page = it.Type === 'Episode' && it.SeriesId ? `#/titre/${it.SeriesId}` : titleHref(it);
+    for (const [link, href] of [[titleLink, page], [lineLink, titleHref(it)]]) {
+      if (guest || !line && link === lineLink) { link.removeAttribute('href'); link.removeAttribute('title'); continue; }
+      link.href = href;
+      link.title = it.Type === 'Episode' ? (link === titleLink ? tr('Voir la série') : tr('Voir l’épisode dans sa saison')) : tr('Voir la fiche');
+    }
+  }
+  /** A link of the heading: the title page in place of the player (Back still leads where it did before it). */
+  function leaveTo(e, link) {
+    e.preventDefault(); e.stopPropagation();
+    const href = link.getAttribute('href');
+    if (href) close({ to: href });
+  }
   const airplay = h('button', { class: 'round flat', 'aria-label': 'AirPlay', hidden: true, on: { click: () => video.webkitShowPlaybackTargetPicker?.() } }, icon('airplay'));
   const pip = h('button', { class: 'round flat', 'aria-label': tr('Image dans l’image'), hidden: !pipSupported(), on: { click: togglePip } }, icon('pip'));
   const tracksButton = h('button', { class: 'round flat', 'aria-label': tr('Audio et sous-titres'), on: { click: tracksSheet } }, icon('subtitles'));
@@ -462,8 +484,7 @@ export function create({ id, query }) {
     // The episode that ends stops at once, and the next one's name is there while it loads.
     if (!video.ended) quietPause();
     busy.hidden = false;
-    title.firstChild.textContent = upcoming.SeriesName ?? '';
-    title.lastChild.textContent = `${episodeCode(upcoming)} · ${upcoming.Name ?? ''}`;
+    showHeading(upcoming, `${episodeCode(upcoming)} · ${upcoming.Name ?? ''}`);
     played.style.width = '0%'; knob.style.left = '0%'; now.textContent = '0:00'; left.textContent = '';
     await stop();
     if (disposed || closing) return;
@@ -1168,7 +1189,8 @@ export function create({ id, query }) {
    * Back to the title page, from Retour or from Apple's player once closed: at once, the stop going to Jellyfin on its
    * way (its report is built before anything changes, and sent even if the page goes).
    */
-  function close({ landing = false } = {}) {
+  /** @param to a title page to open in place of the player (its heading's links), rather than going back. */
+  function close({ landing = false, to = '' } = {}) {
     if (closing) return;
     closing = true;
     // The timer was for this sitting: the next title starts without it.
@@ -1182,6 +1204,7 @@ export function create({ id, query }) {
     const back = isGuest() ? '#/ensemble' : item ? titleHref(item) : '#/';
     // Closed from Apple's player: its picture shrinks back onto the page first, then Mira leaves (unless something
     // else moved Mira meanwhile).
+    if (to) { replaceRoute(to); return; }
     if (!landing) { goBack(back); return; }
     const at = location.hash;
     setTimeout(() => { if (!disposed && location.hash === at) goBack(back); }, 450);
@@ -1236,8 +1259,7 @@ export function create({ id, query }) {
       if (disposed || closing || attempt !== beginning) return;
       item = found;
       document.title = `${item.Type === 'Episode' ? item.SeriesName : item.Name} · Mira`;
-      title.firstChild.textContent = item.Type === 'Episode' ? item.SeriesName ?? item.Name : item.Name;
-      title.lastChild.textContent = item.Type === 'Episode' ? `${episodeCode(item)} · ${item.Name ?? ''}` : [item.ProductionYear, item.OfficialRating].filter(Boolean).join(' · ');
+      showHeading(item, item.Type === 'Episode' ? `${episodeCode(item)} · ${item.Name ?? ''}` : [item.ProductionYear, item.OfficialRating].filter(Boolean).join(' · '));
       chapters = item.Chapters ?? [];
       // The group's title starts where the group does; any other one, chosen here, is put on for the group from where
       // it would start.

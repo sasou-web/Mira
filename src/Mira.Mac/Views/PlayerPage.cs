@@ -157,7 +157,7 @@ public sealed partial class PlayerPage : UserControl
         left.VerticalAlignment = right.VerticalAlignment = VerticalAlignment.Center;
         transport.Children.Add(left); Grid.SetColumn(right, 2); transport.Children.Add(right);
         var info = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 5) };
-        var heading = Ui.Column(0, _title, _subtitle); heading.VerticalAlignment = VerticalAlignment.Bottom; heading.Margin = new Thickness(0, 0, 32, 0);
+        var heading = Ui.Column(0, Heading(_title, episodeLine: false), Heading(_subtitle, episodeLine: true)); heading.VerticalAlignment = VerticalAlignment.Bottom; heading.Margin = new Thickness(0, 0, 32, 0);
         info.Children.Add(heading);
         var time = Ui.Row(0, _position, new TextBlock { Text = " / ", FontSize = 13, Foreground = Ui.Faint }, _duration);
         time.HorizontalAlignment = HorizontalAlignment.Right; time.Margin = new Thickness(0, 2, 0, 0);

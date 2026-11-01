@@ -3,6 +3,7 @@
 export default {
   // player/player.js
   'Lecteur vidéo': 'Video player',
+  'Voir l’épisode dans sa saison': 'View the episode in its season',
   'Image dans l’image': 'Picture in Picture',
   'Audio et sous-titres': 'Audio & subtitles',
   'Vitesse, qualité et minuterie': 'Speed, quality and sleep timer',
