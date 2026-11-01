@@ -114,7 +114,7 @@ public partial class MainWindow
     /// </summary>
     private bool OpenPlayerSurface()
     {
-        if (!_playing || WindowState == WindowState.Minimized || (_miniPlayer && !MiniSettled)) return false;
+        if (!_playing || _morphing || WindowState == WindowState.Minimized || (_miniPlayer && !MiniSettled)) return false;
         // Called on every mouse move: layout changes position the overlay themselves, so only a new window needs it.
         if (!PlayerOverlayLayer.IsOpen) { PositionPlayerControls(); PlayerOverlayLayer.IsOpen = true; TransportLayer.IsOpen = true; }
         return true;
@@ -145,7 +145,7 @@ public partial class MainWindow
     private void UpdatePlayerControls()
     {
         if (!_playing || WindowState == WindowState.Minimized) { ClosePlayerPopups(); return; }
-        if (_miniPlayer && !MiniSettled) { if (PlayerOverlayLayer.IsOpen) ClosePlayerPopups(); return; }
+        if (_morphing || _miniPlayer && !MiniSettled) { if (PlayerOverlayLayer.IsOpen) ClosePlayerPopups(); return; }
         // Also when playback started with Mira in the background (the next episode, the group).
         OpenPlayerSurface();
         if (!PlayerInFront) { if (_controlsVisible || PlayerOptionsPopup.IsOpen) LeavePlayerControls(); return; }
@@ -310,8 +310,8 @@ public partial class MainWindow
         {
             case "mira-motion": ShowPlayerControls(); break;
             case "mira-fullscreen": ToggleFullscreen(); break;
-            case "mira-back": if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayer(true); break;
-            case "mira-mini": SetMiniPlayer(!_miniPlayer); break;
+            case "mira-back": if (_fullscreen) ToggleFullscreen(); else if (!_miniPlayer) SetMiniPlayerSmoothly(true); break;
+            case "mira-mini": SetMiniPlayerSmoothly(!_miniPlayer); break;
             case "mira-pause": Pause_Click(this, new()); break;
             case "mira-seek-back": SeekRelative(-10); ShowPlayerControls(); break;
             case "mira-seek-forward": SeekRelative(10); ShowPlayerControls(); break;
@@ -356,13 +356,11 @@ public partial class MainWindow
         try { _mpv?.Command(arguments); return _mpv is not null; }
         catch (IOException) { return false; }
     }
-    private void MiniPlayer_Click(object sender, RoutedEventArgs e) => SetMiniPlayer(!_miniPlayer);
-    private void ExpandPlayer_Click(object sender, RoutedEventArgs e) => SetMiniPlayer(false);
+    private void MiniPlayer_Click(object sender, RoutedEventArgs e) => SetMiniPlayerSmoothly(!_miniPlayer);
+    private void ExpandPlayer_Click(object sender, RoutedEventArgs e) => SetMiniPlayerSmoothly(false);
     private void SetMiniPlayer(bool mini, bool preserveFullscreen = false)
     {
         if (!_playing) return;
-        if (mini != _miniPlayer) FrameProbe.Begin(mini ? "reduce" : "expand");
-        using var timed = FrameProbe.Time("SetMiniPlayer");
         if (_fullscreen && !preserveFullscreen) ToggleFullscreen();
         PlayerOptionsPopup.IsOpen = false; ClosePreview();
         var wasMini = _miniPlayer; _miniPlayer = mini;

@@ -168,6 +168,53 @@ public abstract unsafe class MpvClient : IDisposable
         }
         finally { foreach (var p in pointers) Marshal.FreeCoTaskMem(p); Marshal.FreeHGlobal(array); }
     }
+    [StructLayout(LayoutKind.Sequential)] private struct Node { public IntPtr Value; public int Format; }
+    [StructLayout(LayoutKind.Sequential)] private struct NodeList { public int Count; public IntPtr Values; public IntPtr Keys; }
+    [StructLayout(LayoutKind.Sequential)] private struct ByteArray { public IntPtr Data; public nuint Size; }
+    /// <summary>
+    /// The picture as mpv shows it in its window (scaled, subtitles drawn, colours as on screen), in rows of 32-bit BGR
+    /// pixels (mpv's « bgr0 »); null when this mpv cannot (an older one, nothing shown yet). A copy of the window's size:
+    /// a few milliseconds, more on a 4K screen.
+    /// </summary>
+    public (int Width, int Height, int Stride, byte[] Pixels)? WindowPicture()
+    {
+        if (_handle == IntPtr.Zero || !NativeLibrary.TryGetExport(_library, "mpv_command_ret", out var ret) || !NativeLibrary.TryGetExport(_library, "mpv_free_node_contents", out var free)) return null;
+        var command = (delegate* unmanaged[Cdecl]<IntPtr, IntPtr, Node*, int>)ret; var release = (delegate* unmanaged[Cdecl]<Node*, void>)free;
+        string[] arguments = ["screenshot-raw", "window"];
+        var pointers = arguments.Select(Marshal.StringToCoTaskMemUTF8).ToArray();
+        var array = Marshal.AllocHGlobal((pointers.Length + 1) * IntPtr.Size);
+        Node result = default;
+        try
+        {
+            for (var i = 0; i < pointers.Length; i++) Marshal.WriteIntPtr(array, i * IntPtr.Size, pointers[i]);
+            Marshal.WriteIntPtr(array, pointers.Length * IntPtr.Size, IntPtr.Zero);
+            if (command(_handle, array, &result) < 0) return null;
+            try
+            {
+                const int Text = 1, Integer = 4, Map = 8, Bytes = 9;
+                if (result.Format != Map || result.Value == IntPtr.Zero) return null;
+                var list = (NodeList*)result.Value; long width = 0, height = 0, stride = 0; string? format = null; ByteArray* data = null;
+                for (var i = 0; i < list->Count; i++)
+                {
+                    var node = ((Node*)list->Values)[i]; var key = Marshal.PtrToStringUTF8(((IntPtr*)list->Keys)[i]);
+                    switch (key, node.Format)
+                    {
+                        case ("w", Integer): width = (long)node.Value; break;
+                        case ("h", Integer): height = (long)node.Value; break;
+                        case ("stride", Integer): stride = (long)node.Value; break;
+                        case ("format", Text): format = Marshal.PtrToStringUTF8(node.Value); break;
+                        case ("data", Bytes): data = (ByteArray*)node.Value; break;
+                    }
+                }
+                if (format is not ("bgr0" or "bgra") || width <= 0 || height <= 0 || stride < width * 4 || data is null || (long)data->Size < stride * height) return null;
+                var pixels = new byte[stride * height];
+                Marshal.Copy(data->Data, pixels, 0, pixels.Length);
+                return ((int)width, (int)height, (int)stride, pixels);
+            }
+            finally { release(&result); }
+        }
+        finally { foreach (var p in pointers) Marshal.FreeCoTaskMem(p); Marshal.FreeHGlobal(array); }
+    }
     /// <summary>The way mpv's requests go: Mira's Tailscale node for a device of the tailnet, straight otherwise.</summary>
     public TailnetNetwork Network { get; init; } = TailnetNetwork.Default;
     /// <summary>The node's proxy credentials, sent ahead with each request of the open file (http:// only).</summary>
