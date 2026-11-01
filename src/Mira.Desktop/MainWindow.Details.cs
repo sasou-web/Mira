@@ -348,7 +348,8 @@ public partial class MainWindow
         SizeDetailHero();
         DetailPlay.Padding = film ? new Thickness(32, 15, 36, 15) : new Thickness(25, 13, 25, 13);
         DetailPlay.MinWidth = film ? 250 : 0;
-        Motion.SetRadius(DetailPlay, film ? Palette.Card : Palette.Small);
+        // The same corners as the buttons beside it (they were 11 for a film, 6 for a series: tighter than the rest).
+        Motion.SetRadius(DetailPlay, ActionRow.Corners);
         DetailProgress.Width = film ? double.NaN : 300; DetailProgress.HorizontalAlignment = film ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
     }
     private static StackPanel FilmPlayLabel(string label, string? detail)
