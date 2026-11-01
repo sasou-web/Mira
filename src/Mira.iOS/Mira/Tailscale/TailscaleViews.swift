@@ -136,19 +136,16 @@ struct TailnetRows: View {
 }
 
 /// On a network whose policy doesn't let Built-in Tailscale start during an outage of Tailscale: the one setting, for its
-/// administrator (the same as Windows and Mac, `TailnetText.OutageSetting` of Core), gone by itself once the policy has it.
+/// administrator (the same as Windows and Mac, `TailnetText.OutageSetting` of Core), gone by itself once the policy has it;
+/// rare, the node asking Tailscale for it (capability version 149, tools/tailscale/backport.mjs).
 struct OutageRows: View {
     @State private var copied = false
 
-    static let setting = """
-        "nodeAttrs": [
-          { "target": ["autogroup:member", "autogroup:tagged"], "attr": ["cache-network-maps"] },
-        ],
-
-        """
+    /// One entry of the policy's « nodeAttrs »: a second whole « nodeAttrs » beside Funnel's is refused by Tailscale.
+    static let setting = #"{ "target": ["autogroup:member", "autogroup:tagged"], "attr": ["cache-network-maps"] },"#
 
     var body: some View {
-        Text("For Built-in Tailscale to keep working during a Tailscale outage, your Tailscale network must allow it, once (its administrator): copy the setting, open the network’s policy in JSON, paste it right after the first “{”, then Save. Already a “nodeAttrs”? Paste only its middle line inside it. Mira notices by itself.")
+        Text("Tailscale usually lets Built-in Tailscale work during its outages by itself. If this note stays, your network’s administrator can allow it, once: copy the line, open the network’s policy, find “\"nodeAttrs\": [” and paste the line just below it, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. Mira notices by itself.")
             .font(MiraFont.footnote).foregroundStyle(Palette.warning).fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("tailscale.outage")
         Button {
@@ -156,9 +153,9 @@ struct OutageRows: View {
             copied = true
         } label: {
             if copied {
-                Label("Setting copied", systemImage: "checkmark").font(MiraFont.body)
+                Label("Line copied", systemImage: "checkmark").font(MiraFont.body)
             } else {
-                Label("Copy the setting", systemImage: "doc.on.doc").font(MiraFont.body)
+                Label("Copy the line", systemImage: "doc.on.doc").font(MiraFont.body)
             }
         }
         Link(destination: URL(string: "https://login.tailscale.com/admin/acls/file")!) {

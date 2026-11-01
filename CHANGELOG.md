@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Tailscale intégré tient pendant les pannes de Tailscale sans rien coller** : le nœud de Mira (Windows, Mac, iPhone) demande lui-même à Tailscale le cache de la liste des appareils (version de protocole 149, reprise de la branche principale de Tailscale avant sa publication), au lieu d’une ligne à coller dans la politique du réseau. Si un réseau le refuse quand même, la carte de secours ne copie plus qu’une ligne, à mettre dans le `nodeAttrs` déjà là (un second était refusé : « duplicate name »).
+
 ## 0.9.0 — 2026-10-31
 
 Mira pour Windows plus soignée : fiche cinéma, pages qui gardent leur place, raccourcis du lecteur.

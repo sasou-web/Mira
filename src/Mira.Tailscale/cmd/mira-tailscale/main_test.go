@@ -164,7 +164,7 @@ func TestHelper(t *testing.T) {
 
 	c := startChild(t)
 	hello := c.next("hello", func(m message) bool { return m.Event == "hello" })
-	if hello.Protocol != protocol || hello.Version != "dev" || hello.Tailscale == "" || !strings.HasPrefix(hello.Go, "go") || hello.LogUpload == nil || *hello.LogUpload {
+	if hello.Protocol != protocol || hello.Version != "dev" || hello.Tailscale == "" || hello.CapVer < 148 || !strings.HasPrefix(hello.Go, "go") || hello.LogUpload == nil || *hello.LogUpload {
 		t.Fatalf("hello: %+v", hello)
 	}
 
