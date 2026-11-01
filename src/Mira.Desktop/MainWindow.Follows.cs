@@ -26,6 +26,8 @@ public partial class MainWindow
     private readonly HashSet<string> _remoteFollowing = [];
     /// <summary>The series shown on its page, as the relay follows it; null when it does not.</summary>
     private RelayFollow? _detailFollow;
+    /// <summary>The series whose « Suivre… » the page shows, or asks about.</summary>
+    private string? _followShownFor;
 
     // ---- On the PC of Jellyfin: checking a series ------------------------------------------------------------
 
@@ -128,16 +130,18 @@ public partial class MainWindow
     /// <summary>« Nouveaux épisodes », for an administrator, on a series' page, when the extension knows how to follow it.</summary>
     private async Task ShowFollowButtonAsync(MediaItem item)
     {
-        FollowButton.Visibility = Visibility.Collapsed; _detailFollow = null;
-        if (_demo || item.Type != "Series" || _client is not { } client) return;
+        // Drawn again for the same series (after « Vu »), the button stays while Mira asks again: the row does not jump.
+        if (_followShownFor != item.Id) { FollowButton.Visibility = Visibility.Collapsed; _detailFollow = null; _followShownFor = item.Id; }
+        void Hide() { if (_detail?.Id == item.Id) { FollowButton.Visibility = Visibility.Collapsed; _detailFollow = null; } }
+        if (_demo || item.Type != "Series" || _client is not { } client) { Hide(); return; }
         var ct = _connectionLifetime.Token;
         List<RelayFollow> follows;
         try
         {
-            if (await client.IsAdministratorAsync(ct) != true) return;
+            if (await client.IsAdministratorAsync(ct) != true) { Hide(); return; }
             follows = await client.TorLinkFollowsAsync(ct);
         }
-        catch (Exception ex) when (IsExpected(ex)) { return; }
+        catch (Exception ex) when (IsExpected(ex)) { Hide(); return; }
         if (_detail?.Id != item.Id || !ReferenceEquals(client, _client)) return;
         _detailFollow = follows.FirstOrDefault(x => string.Equals(x.SeriesId, item.Id, StringComparison.OrdinalIgnoreCase));
         DescribeFollowButton();
@@ -148,14 +152,18 @@ public partial class MainWindow
     private void DescribeFollowButton()
     {
         var follow = _detailFollow;
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
-        panel.Children.Add(new Icon { Kind = "calendar", Width = 18, Height = 18 });
         var label = follow is null ? L("Suivre…", "Follow…") : L("Suivie", "Following");
-        panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) });
-        if (follow is not null) panel.Children.Add(LiveDot());
+        // The same state drawn again keeps its content: the button does not flicker.
+        if (FollowButton.Content is not StackPanel { Children: [Icon _, TextBlock text, ..] } shown || text.Text != label || shown.Children.Count != (follow is null ? 2 : 3))
+        {
+            var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            panel.Children.Add(new Icon { Kind = "calendar", Width = 18, Height = 18 });
+            panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(9, 0, 0, 0) });
+            if (follow is not null) panel.Children.Add(LiveDot());
+            FollowButton.Content = panel;
+        }
         var tip = follow is null ? L("Suivre les nouveaux épisodes : le PC serveur les cherche et les télécharge tout seul, avec TorLink", "Follow new episodes: the server PC looks for them and downloads them on its own, with TorLink")
             : string.Join(" · ", new[] { L("Suivie", "Following"), RemoteLines.FollowNote(follow.Note), RemoteLines.Follow(follow, DateTimeOffset.UtcNow) }.Where(x => x.Length > 0));
-        FollowButton.Content = panel;
         ShowState(FollowButton, follow is not null, tip);
         if (follow is null) AutomationProperties.SetName(FollowButton, tip);
     }

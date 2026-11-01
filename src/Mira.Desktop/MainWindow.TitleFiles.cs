@@ -25,16 +25,17 @@ public partial class MainWindow
     /// </summary>
     private async Task ShowFilesButtonAsync(MediaItem item)
     {
-        FilesButton.Visibility = Visibility.Collapsed; _titleMore = (item.Id, false, false);
-        if (_demo || _client is not { } client) return;
+        // Drawn again for the same title (after « Vu »), « … » stays while Mira asks again: the row does not jump.
+        if (_titleMore.Id != item.Id) { FilesButton.Visibility = Visibility.Collapsed; _titleMore = (item.Id, false, false); }
+        if (_demo || _client is not { } client) { FilesButton.Visibility = Visibility.Collapsed; return; }
         bool files = false, admin = false;
         try { files = TitleFiles.Location(item) is not null && await JellyfinOnThisPcAsync(client); }
         catch (Exception ex) when (IsExpected(ex)) { }
         try { admin = item.Type is "Movie" or "Series" && await IsAdministratorAsync(client); }
         catch (Exception ex) when (IsExpected(ex)) { }
-        if (_detail?.Id != item.Id || !(files || admin)) return;
+        if (_detail?.Id != item.Id) return;
         _titleMore = (item.Id, files, admin);
-        FilesButton.Visibility = Visibility.Visible;
+        FilesButton.Visibility = files || admin ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Files_Click(object sender, RoutedEventArgs e)

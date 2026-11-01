@@ -113,6 +113,43 @@ public sealed class DetailPage : Page
         if (!_admin) _ = CheckAdministratorAsync(session);
         if (_item.Type == "Series" && SeriesTarget is { } target && _targetFile?.Id != target.Id) await LoadTargetFileAsync(session, target);
     }
+    private static string FavoriteLabel(bool on) => on ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites");
+    private static string WatchedLabel(bool on) => on ? L("Vu", "Watched") : L("Marquer comme vu", "Mark as watched");
+    /// <summary>
+    /// Favori and Vu change at the click, in place (the button's colours ease, its icon and words change), before Jellyfin
+    /// answers; the page drawn again afterwards shows the same state, and a refusal puts the button back.
+    /// </summary>
+    private static void Flip(Button button, string icon, string label, bool on)
+    {
+        if (button.Content is StackPanel { Children: [Icon glyph, TextBlock text] }) { glyph.Kind = icon; text.Text = label; }
+        button.Classes.Set("on", on);
+        Avalonia.Automation.AutomationProperties.SetName(button, label);
+    }
+    private bool _favoriteBusy, _watchedBusy;
+    private async Task FlipFavoriteAsync(Button button)
+    {
+        if (_favoriteBusy) return; _favoriteBusy = true;
+        var item = _item; var want = !item.UserData.IsFavorite;
+        try
+        {
+            Flip(button, want ? "heart-filled" : "heart", FavoriteLabel(want), want);
+            await Shell.SetFavoriteAsync(item, want);
+            if (item.UserData.IsFavorite != want && ReferenceEquals(item, _item)) RenderTop();
+        }
+        finally { _favoriteBusy = false; }
+    }
+    private async Task FlipWatchedAsync(Button button)
+    {
+        if (_watchedBusy) return; _watchedBusy = true;
+        var item = _item; var want = !item.UserData.Played;
+        try
+        {
+            Flip(button, "check", WatchedLabel(want), want);
+            await Shell.SetPlayedAsync(item, want);
+            if (item.UserData.Played != want && ReferenceEquals(item, _item)) RenderTop();
+        }
+        finally { _watchedBusy = false; }
+    }
     private async Task LoadTargetFileAsync(Session session, MediaItem episode)
     {
         try
@@ -174,8 +211,10 @@ public sealed class DetailPage : Page
             actions.Children.Add(Ui.Action(GroupPlayLabel(_item, "") ?? (resume ? L("Reprendre · ", "Resume · ") + Ui.Remaining(_item).ToLowerInvariant() : L("Lecture", "Play")), "play", "primary", () => _ = Shell.PlayAsync(_item)));
             if (resume) actions.Children.Add(Ui.Action(L("Depuis le début", "From the beginning"), "refresh", "", () => _ = Shell.PlayAsync(_item, fromStart: true)));
         }
-        actions.Children.Add(Ui.Action(_item.UserData.IsFavorite ? L("Dans tes favoris", "In your favorites") : L("Ajouter aux favoris", "Add to favorites"), _item.UserData.IsFavorite ? "heart-filled" : "heart", _item.UserData.IsFavorite ? "on" : "", () => _ = Shell.SetFavoriteAsync(_item, !_item.UserData.IsFavorite)));
-        actions.Children.Add(Ui.Action(_item.UserData.Played ? L("Vu", "Watched") : L("Marquer comme vu", "Mark as watched"), "check", _item.UserData.Played ? "on" : "", () => _ = Shell.SetPlayedAsync(_item, !_item.UserData.Played)));
+        Button? favorite = null, watched = null;
+        favorite = Ui.Action(FavoriteLabel(_item.UserData.IsFavorite), _item.UserData.IsFavorite ? "heart-filled" : "heart", _item.UserData.IsFavorite ? "state on" : "state", () => _ = FlipFavoriteAsync(favorite!));
+        watched = Ui.Action(WatchedLabel(_item.UserData.Played), "check", _item.UserData.Played ? "state on" : "state", () => _ = FlipWatchedAsync(watched!));
+        actions.Children.Add(favorite); actions.Children.Add(watched);
         _offlineButton = new Button { Padding = new Thickness(15, 11) };
         _offlineButton.Click += (_, _) => OfflineClicked();
         actions.Children.Add(_offlineButton); ShowOffline();

@@ -71,6 +71,8 @@
     <Style Selector="Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1E1E21"/></Style>
     <!-- A choice that is on (« Dans tes favoris », « Vu », « Ensemble · 2 personnes »): white, the size of the buttons beside it. -->
     <Style Selector="Button.on"><Setter Property="Background" Value="#F5F5F7"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
+    <!-- Favori and Vu on a title's page turn on and off in place: their colours ease instead of snapping. -->
+    <Style Selector="Button.state /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions"><Transitions><BrushTransition Property="Background" Duration="0:0:0.22" Easing="CubicEaseOut"/><BrushTransition Property="Foreground" Duration="0:0:0.22" Easing="CubicEaseOut"/></Transitions></Setter></Style>
     <Style Selector="Button.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
     <Style Selector="Button.on:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DADADF"/><Setter Property="Foreground" Value="#0B0B0C"/></Style>
     <Style Selector="Button.icon"><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="0"/><Setter Property="Width" Value="40"/><Setter Property="Height" Value="40"/><Setter Property="CornerRadius" Value="20"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
