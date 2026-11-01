@@ -31,15 +31,19 @@ public static class TailnetText
     /// <summary>
     /// Running on a tailnet whose policy does not grant « cache-network-maps » (<see cref="TailnetStatus.OutageCache"/>):
     /// the one setting that lets the node start while Tailscale's coordination server is down, for its administrator.
-    /// Gone by itself once granted.
+    /// Rare: the node says capability version 149, which asks Tailscale for it (tools/tailscale/backport.mjs). Gone by
+    /// itself once granted.
     /// </summary>
-    public static string Outage => L("Pour que Tailscale intégré marche même pendant une panne de Tailscale, ton réseau Tailscale doit l’autoriser, une fois (son administrateur) : copie le réglage, ouvre la politique du réseau en JSON, colle-le juste après la première « { », puis Save. Déjà un « nodeAttrs » ? Colle seulement sa ligne du milieu dedans. Mira le voit toute seule.",
-        "For Built-in Tailscale to keep working during a Tailscale outage, your Tailscale network must allow it, once (its administrator): copy the setting, open the network’s policy in JSON, paste it right after the first “{”, then Save. Already a “nodeAttrs”? Paste only its middle line inside it. Mira notices by itself.");
-    public static string CopyOutage => L("Copier le réglage", "Copy the setting");
+    public static string Outage => L("D’habitude, Tailscale laisse de lui-même Tailscale intégré marcher pendant ses pannes. Si cet avis reste, l’administrateur de ton réseau peut l’autoriser, une fois : copie la ligne, ouvre la politique du réseau, cherche « \"nodeAttrs\": [ » et colle la ligne juste dessous, puis Save. Pas de « nodeAttrs » ? Écris « \"nodeAttrs\": [ ], » juste après la première « { » et colle la ligne entre les crochets. Mira le voit toute seule.",
+        "Tailscale usually lets Built-in Tailscale work during its outages by itself. If this note stays, your network’s administrator can allow it, once: copy the line, open the network’s policy, find “\"nodeAttrs\": [” and paste the line just below it, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. Mira notices by itself.");
+    public static string CopyOutage => L("Copier la ligne", "Copy the line");
     public static string OpenPolicy => L("Ouvrir la politique du réseau", "Open the network’s policy");
-    public static string OutageCopied => L("Réglage copié : colle-le dans la politique du réseau, puis Save.", "Setting copied: paste it in the network’s policy, then Save.");
-    /// <summary>The setting <see cref="Outage"/> copies, as Tailscale's policy file (HuJSON) takes it.</summary>
-    public const string OutageSetting = "\"nodeAttrs\": [\n  { \"target\": [\"autogroup:member\", \"autogroup:tagged\"], \"attr\": [\"cache-network-maps\"] },\n],\n";
+    public static string OutageCopied => L("Ligne copiée : colle-la sous « \"nodeAttrs\": [ » dans la politique du réseau, puis Save.", "Line copied: paste it below “\"nodeAttrs\": [” in the network’s policy, then Save.");
+    /// <summary>
+    /// The line <see cref="Outage"/> copies, one entry of the policy's « nodeAttrs » (HuJSON): a whole « nodeAttrs » pasted
+    /// beside the one a policy often has already (Funnel's) is refused by Tailscale (« duplicate name »).
+    /// </summary>
+    public const string OutageSetting = "{ \"target\": [\"autogroup:member\", \"autogroup:tagged\"], \"attr\": [\"cache-network-maps\"] },";
 
     /// <summary>What a sign-in or sign-out says beside its button (<see cref="BuiltInTailnet"/>).</summary>
     public static string PageOpened => L("La page de connexion de Tailscale s’est ouverte dans ton navigateur : connecte-toi avec ton compte Tailscale, celui du PC de Jellyfin.",

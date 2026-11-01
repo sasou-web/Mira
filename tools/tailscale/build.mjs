@@ -11,14 +11,15 @@
 // and go-winres is pinned in tools/tailscale/winres.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { backport } from './backport.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
 const module = join(root, 'src/Mira.Tailscale');
-const command = join(module, 'cmd/mira-tailscale');
 
 const args = process.argv.slice(2);
 const versionAt = args.indexOf('--version');
@@ -56,24 +57,36 @@ try { execFileSync('go', ['version'], { stdio: 'ignore', env: { ...host, GOTOOLC
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
 
+// What comes from Tailscale's main branch before its release (backport.mjs): the cache of the network map without a
+// line in the tailnet's policy. The node is built in the folder it gives (a copy of src/Mira.Tailscale, or itself).
+const work = mkdtempSync(join(tmpdir(), 'mira-tailscale-'));
+const source = backport(join(work, 'module'), host);
 // The file properties of the Windows executable, as an object file go build links when it sits beside main.go.
-const resource = join(command, `rsrc_windows_${goarch}.syso`);
+const resource = join(source.dir, 'cmd/mira-tailscale', `rsrc_windows_${goarch}.syso`);
 try {
   if (goos === 'windows') {
     run('go', ['tool', 'go-winres', 'simply', '--arch', goarch, '--manifest', 'cli',
       '--product-name', 'Mira', '--product-version', version, '--file-version', version,
       '--file-description', 'Mira (Tailscale)', '--original-filename', name,
       '--copyright', 'Copyright (c) 2026 sasou-web and Mira contributors; includes Tailscale (BSD-3-Clause)',
-      '--icon', join(root, 'src/Mira.Desktop/Assets/mira.ico'), '--out', join(command, 'rsrc')], { cwd: join(here, 'winres'), env: host });
+      '--icon', join(root, 'src/Mira.Desktop/Assets/mira.ico'), '--out', join(source.dir, 'cmd/mira-tailscale', 'rsrc')], { cwd: join(here, 'winres'), env: host });
     if (!existsSync(resource)) throw new Error(`go-winres did not write ${resource}`);
   }
   run('go', ['build', '-o', binary, '-trimpath', '-buildvcs=false', '-tags', tags.join(','),
     '-ldflags', `-s -w -buildid= -X main.version=${version}`, './cmd/mira-tailscale'], {
-    cwd: module,
-    env: { ...host, CGO_ENABLED: '0', GOOS: goos, GOARCH: goarch, GOFLAGS: '-mod=readonly', ...(goarch === 'amd64' ? { GOAMD64: 'v1' } : {}), ...(goarch === 'arm64' ? { GOARM64: 'v8.0' } : {}) },
+    cwd: source.dir,
+    env: { ...host, CGO_ENABLED: '0', GOOS: goos, GOARCH: goarch, GOFLAGS: source.flags.join(' '), ...(goarch === 'amd64' ? { GOAMD64: 'v1' } : {}), ...(goarch === 'arm64' ? { GOARM64: 'v8.0' } : {}) },
   });
 } finally {
   rmSync(resource, { force: true });
+  rmSync(work, { recursive: true, force: true });
+}
+
+// Built for this machine: its hello says the capability version backport.mjs is for (the node ends with its input).
+const system = { win32: 'windows' }[process.platform] ?? process.platform;
+if (goos === system && goarch === ({ x64: 'amd64' }[process.arch] ?? process.arch)) {
+  const hello = JSON.parse(execFileSync(binary, [], { input: '', encoding: 'utf8', timeout: 30000 }).split('\n')[0]);
+  if (!(hello.capabilityVersion >= 149)) { console.error(`${binary}: capability version ${hello.capabilityVersion}, 149 or later expected (backport.mjs).`); process.exit(1); }
 }
 
 // Mira checks the executable by its SHA-256 with the PE checksum and certificate entry read as zeros and without a

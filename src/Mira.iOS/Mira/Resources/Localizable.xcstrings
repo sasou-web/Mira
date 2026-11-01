@@ -3810,32 +3810,32 @@
         }
       }
     },
-    "For Built-in Tailscale to keep working during a Tailscale outage, your Tailscale network must allow it, once (its administrator): copy the setting, open the network’s policy in JSON, paste it right after the first “{”, then Save. Already a “nodeAttrs”? Paste only its middle line inside it. Mira notices by itself.": {
+    "Tailscale usually lets Built-in Tailscale work during its outages by itself. If this note stays, your network’s administrator can allow it, once: copy the line, open the network’s policy, find “\"nodeAttrs\": [” and paste the line just below it, then Save. No “nodeAttrs”? Type “\"nodeAttrs\": [ ],” right after the first “{” and paste the line between the brackets. Mira notices by itself.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pour que Tailscale intégré marche même pendant une panne de Tailscale, ton réseau Tailscale doit l’autoriser, une fois (son administrateur) : copie le réglage, ouvre la politique du réseau en JSON, colle-le juste après la première « { », puis Save. Déjà un « nodeAttrs » ? Colle seulement sa ligne du milieu dedans. Mira le voit toute seule."
+            "value": "D’habitude, Tailscale laisse de lui-même Tailscale intégré marcher pendant ses pannes. Si cet avis reste, l’administrateur de ton réseau peut l’autoriser, une fois : copie la ligne, ouvre la politique du réseau, cherche « \"nodeAttrs\": [ » et colle la ligne juste dessous, puis Save. Pas de « nodeAttrs » ? Écris « \"nodeAttrs\": [ ], » juste après la première « { » et colle la ligne entre les crochets. Mira le voit toute seule."
           }
         }
       }
     },
-    "Setting copied": {
+    "Line copied": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Réglage copié"
+            "value": "Ligne copiée"
           }
         }
       }
     },
-    "Copy the setting": {
+    "Copy the line": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copier le réglage"
+            "value": "Copier la ligne"
           }
         }
       }

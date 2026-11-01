@@ -3,7 +3,9 @@
 //
 // Requests ({"id":1,"op":"start",...}) are answered by a line with the same id ({"id":1,"ok":true} or {"id":1,"ok":false,
 // "code":"…","error":"…"}); events have no id ({"event":"status","status":{…}}). The first line is the hello event, which
-// tells the protocol, this helper's version (Mira's), Tailscale's and Go's, and whether logs could ever be uploaded
+// tells the protocol, this helper's version (Mira's), Tailscale's, its capability version (149 and later: the cache of
+// the network map comes without a line in the tailnet's policy, tools/tailscale/backport.mjs) and Go's, and whether
+// logs could ever be uploaded
 // (never: the app refuses a helper that says so). The helper ends when its input does.
 //
 //	start   dir, hostname, controlURL (tests), authKey (tests), stateKey (32 bytes, base64), proxyUser, proxyPassword:
@@ -37,6 +39,7 @@ import (
 
 	"miracinema.app/tailscale/tailnet"
 	"tailscale.com/feature/buildfeatures"
+	"tailscale.com/tailcfg"
 )
 
 // version is Mira's, set at build time (-X main.version=x.y.z): the app runs a helper of its own version only.
@@ -71,6 +74,7 @@ type message struct {
 	Protocol  int             `json:"protocol,omitempty"`
 	Version   string          `json:"version,omitempty"`
 	Tailscale string          `json:"tailscale,omitempty"`
+	CapVer    int             `json:"capabilityVersion,omitempty"`
 	Go        string          `json:"go,omitempty"`
 	LogUpload *bool           `json:"logUpload,omitempty"`
 }
@@ -83,7 +87,7 @@ func main() {
 	out := newOutput(os.Stdout)
 	h := &helper{out: out, logf: logs.logf}
 	uploads := buildfeatures.HasLogTail
-	out.send(message{Event: "hello", Protocol: protocol, Version: version, Tailscale: tailscaleVersion(), Go: runtime.Version(), LogUpload: &uploads})
+	out.send(message{Event: "hello", Protocol: protocol, Version: version, Tailscale: tailscaleVersion(), CapVer: int(tailcfg.CurrentCapabilityVersion), Go: runtime.Version(), LogUpload: &uploads})
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
