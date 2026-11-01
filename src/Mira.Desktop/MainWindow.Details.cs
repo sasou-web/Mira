@@ -393,14 +393,30 @@ public partial class MainWindow
         DetailStudiosBlock.Visibility = studios.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowDetailPlayLabel(item);
         DetailRestart.Content ??= ActionLabel("refresh", L("Depuis le début", "From the beginning"));
-        var favorite = item.UserData.IsFavorite;
-        FavoriteButton.Content = ActionLabel(favorite ? "heart-fill" : "heart", favorite ? L("Favori", "Favorite") : L("Ajouter aux favoris", "Add to favorites"));
+        ShowFavorite(item.UserData.IsFavorite); ShowWatched(item, item.UserData.Played);
+        ShowTogetherButton(); ShowOfflineButton(); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item);
+    }
+    private void ShowFavorite(bool favorite)
+    {
+        SetActionLabel(FavoriteButton, favorite ? "heart-fill" : "heart", favorite ? L("Favori", "Favorite") : L("Ajouter aux favoris", "Add to favorites"));
         ShowState(FavoriteButton, favorite, favorite ? L("Dans tes favoris. Clique pour le retirer", "In your favorites. Click to remove it") : null);
-        var played = item.UserData.Played;
-        WatchedButton.Content = ActionLabel("check", played ? item.Type == "Series" ? L("Vue", "Watched") : L("Vu", "Watched")
+    }
+    private void ShowWatched(MediaItem item, bool played)
+    {
+        SetActionLabel(WatchedButton, "check", played ? item.Type == "Series" ? L("Vue", "Watched") : L("Vu", "Watched")
             : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"));
         ShowState(WatchedButton, played, played ? L("Vu. Clique pour le marquer comme non vu", "Watched. Click to mark it as unwatched") : null);
-        ShowTogetherButton(); ShowOfflineButton(); _ = ShowFilesButtonAsync(item); _ = ShowFollowButtonAsync(item);
+    }
+    /// <summary>
+    /// A button's icon and label changed where they are, never a new content: drawn again with the same state (the page
+    /// refreshed after the server answered), it does not move; a new icon pops in (<see cref="Motion.Swap"/>). A new label is
+    /// a new <see cref="TextBlock"/>, so <see cref="ActionRow"/> hides or shows it as it does any label.
+    /// </summary>
+    private static void SetActionLabel(Button button, string icon, string label)
+    {
+        if (button.Content is not StackPanel { Children: [Icon glyph, TextBlock text] } panel) { button.Content = ActionLabel(icon, label); return; }
+        Motion.Swap(glyph, icon);
+        if (text.Text != label) panel.Children[1] = new TextBlock { Text = label, Margin = text.Margin };
     }
     /// <summary>Length and ratings, then the picture of the file Lecture plays and when it ends (the episode it picks up at, on a series).</summary>
     private void RenderDetailMeta()
@@ -419,8 +435,26 @@ public partial class MainWindow
     /// <param name="tip">Said by its tooltip and to the Narrator when on: what it is and what a click does.</param>
     private void ShowState(Button button, bool on, string? tip = null)
     {
-        if (on) { button.BorderBrush = Palette.Get("Text"); button.BorderThickness = new Thickness(1.5); }
-        else { button.ClearValue(Control.BorderBrushProperty); button.ClearValue(Control.BorderThicknessProperty); }
+        var wasOn = _buttonOn.GetValueOrDefault(button); _buttonOn[button] = on;
+        // The outline fades in and out with the row's own movement, once the page is on screen; drawn again in the same
+        // state, it stays as it is.
+        var eased = button.IsVisible && !Motion.Reduced;
+        if (on && !wasOn)
+        {
+            var brush = Palette.Get("Text").Clone(); button.BorderBrush = brush; button.BorderThickness = new Thickness(1.5);
+            if (eased) Motion.Animate(brush, System.Windows.Media.Brush.OpacityProperty, 1, 240, 0, Motion.Soft);
+        }
+        else if (!on && wasOn)
+        {
+            if (!eased) { button.ClearValue(Control.BorderBrushProperty); button.ClearValue(Control.BorderThicknessProperty); }
+            else
+            {
+                var brush = button.BorderBrush.Clone(); button.BorderBrush = brush;
+                var fade = new System.Windows.Media.Animation.DoubleAnimation { To = 0, Duration = TimeSpan.FromMilliseconds(180), EasingFunction = Motion.Soft };
+                fade.Completed += (_, _) => { if (ReferenceEquals(button.BorderBrush, brush)) { button.ClearValue(Control.BorderBrushProperty); button.ClearValue(Control.BorderThicknessProperty); } };
+                brush.BeginAnimation(System.Windows.Media.Brush.OpacityProperty, fade);
+            }
+        }
         if (!ReferenceEquals(button, TogetherButton)) ActionRow.SetKeep(button, on);
         button.ToolTip = tip;
         if (on && tip is not null) AutomationProperties.SetName(button, tip); else button.ClearValue(AutomationProperties.NameProperty);
@@ -430,6 +464,10 @@ public partial class MainWindow
     /// <summary>The cast with their photos under the picture; each one their titles in the library.</summary>
     private void ShowCast(MediaItem item)
     {
+        // The same people drawn again (the page refreshed after « Vu ») keep their cards and photos.
+        var cast = string.Join("|", item.CastPeople.Select(x => $"{x.Id}/{x.Name}/{x.Role}/{x.PrimaryImageTag}"));
+        if (cast == _castShown && DetailCastCards.Children.Count > 0) return;
+        _castShown = cast;
         DetailCastCards.Children.Clear();
         foreach (var person in item.CastPeople)
         {
@@ -629,32 +667,55 @@ public partial class MainWindow
             target.Inlines.Add(link);
         }
     }
-    private async Task ToggleFavoriteAsync(MediaItem item)
+    /// <returns>False when Jellyfin refused it (said by the notice).</returns>
+    private async Task<bool> ToggleFavoriteAsync(MediaItem item)
     {
         try
         {
             var favorite = !item.UserData.IsFavorite;
             if (_client is not null) await _client.SetFavoriteAsync(item.Id, favorite);
-            else if (!_demo) return;
+            else if (!_demo) return false;
             item.UserData.IsFavorite = favorite; _favoriteOverride = (item.Id, favorite);
             // In the favourites view, a removed title leaves the list.
             var left = _catalog.MarkFavorite(item, favorite, _similar);
             if (_detail is { } open && open.Id == item.Id) open.UserData.IsFavorite = favorite;
             _metadata?.Clear();
             if (left) RenderLibrary();
+            return true;
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return false; }
     }
+    // Favori and Vu change at the click, before Jellyfin answers, and move there smoothly (the row eases its buttons to
+    // their new widths); a refusal puts them back. Never disabled while waiting: a disabled button fades to 35 %, a flash.
+    private string? _castShown;
+    /// <summary>Whether each button of the page was last drawn on: its outline fades only when that changes.</summary>
+    private readonly Dictionary<Button, bool> _buttonOn = [];
+    private bool _favoriteBusy, _watchedBusy;
     private async void Favorite_Click(object sender, RoutedEventArgs e)
     {
-        if (_detail is not { } item) return; FavoriteButton.IsEnabled = false;
-        try { await ToggleFavoriteAsync(item); if (_detail?.Id == item.Id) RenderDetailText(_detail); }
-        finally { FavoriteButton.IsEnabled = true; }
+        if (_detail is not { } item || _favoriteBusy) return; _favoriteBusy = true;
+        try
+        {
+            var want = !item.UserData.IsFavorite;
+            DetailActions.EaseNext(); ShowFavorite(want);
+            await ToggleFavoriteAsync(item);
+            if (_detail is { } shown && shown.Id == item.Id && shown.UserData.IsFavorite != want) { DetailActions.EaseNext(); ShowFavorite(shown.UserData.IsFavorite); }
+        }
+        finally { _favoriteBusy = false; }
     }
     private async void Watched_Click(object sender, RoutedEventArgs e)
     {
-        if (_detail is not { } item) return; WatchedButton.IsEnabled = false;
-        try { await SetPlayedAsync(item, !item.UserData.Played); await RefreshDetailAsync(); }
-        finally { WatchedButton.IsEnabled = true; }
+        if (_detail is not { } item || _watchedBusy) return; _watchedBusy = true;
+        try
+        {
+            var want = !item.UserData.Played;
+            DetailActions.EaseNext(); ShowWatched(item, want);
+            var done = await SetPlayedAsync(item, want);
+            if (_detail is not { } shown || shown.Id != item.Id) return;
+            if (shown.UserData.Played != want) { DetailActions.EaseNext(); ShowWatched(shown, shown.UserData.Played); }
+            // A series' episodes and the one Lecture picks up at come from Jellyfin; a film has nothing more to ask.
+            if (done && item.Type == "Series") await RefreshDetailAsync();
+        }
+        finally { _watchedBusy = false; }
     }
 }

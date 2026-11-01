@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 namespace Mira.Desktop.Views;
 
@@ -54,9 +55,54 @@ public sealed class ActionRow : Panel
     }
     private void ContentChanged(object? sender, EventArgs e) => InvalidateMeasure();
 
+    // ---- Easing to new widths ------------------------------------------------------------------------------------
+    // A button that changes state (« Vu » on, its word beside its icon) grows or shrinks to its new width over a short
+    // ease, the buttons after it sliding along, instead of jumping; a page drawn for a new title takes its widths at once.
+    private const int EaseMs = 260;
+    private bool _easeNext;
+    /// <summary>Each button's width on screen at the last arrange: where an ease starts.</summary>
+    private readonly Dictionary<UIElement, double> _shown = [];
+    /// <summary>Buttons growing: their content starts at the left, so the label comes in as a wipe beside the icon.</summary>
+    private static readonly ConditionalWeakTable<Button, object> Growing = new();
+    /// <summary>The ease each button runs, so that an older one ending does not cut a newer one short.</summary>
+    private static readonly ConditionalWeakTable<Button, DoubleAnimation> Easing = new();
+
+    /// <summary>The next layout of the row eases its buttons from their widths on screen to their new ones.</summary>
+    public void EaseNext() { _easeNext = true; InvalidateMeasure(); }
+
+    /// <summary>After a measure for <see cref="EaseNext"/>: each button whose width changed animates its Width from the old one.</summary>
+    private void StartEase(IEnumerable<UIElement> shown, Size infinite)
+    {
+        _easeNext = false;
+        if (Motion.Reduced || !IsVisible) return;
+        foreach (var button in shown.OfType<Button>())
+        {
+            if (!_shown.TryGetValue(button, out var from) || Math.Abs(from - button.DesiredSize.Width) < .5) continue;
+            var to = button.DesiredSize.Width;
+            var grows = to > from;
+            if (grows) { Growing.AddOrUpdate(button, true); button.HorizontalContentAlignment = HorizontalAlignment.Left; }
+            else Growing.Remove(button);
+            var ease = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(EaseMs)) { EasingFunction = Motion.EaseOut };
+            // Done, the button takes its own width again (Auto, or the circle's), unless a newer ease replaced this one.
+            ease.Completed += (_, _) =>
+            {
+                if (!ReferenceEquals(Easing.TryGetValue(button, out var current) ? current : null, ease)) return;
+                Easing.Remove(button); Growing.Remove(button); button.HorizontalContentAlignment = HorizontalAlignment.Center;
+                button.BeginAnimation(FrameworkElement.WidthProperty, null);
+            };
+            Easing.AddOrUpdate(button, ease);
+            button.BeginAnimation(FrameworkElement.WidthProperty, ease);
+            if (grows && button.Content is Panel panel && panel.Children.OfType<TextBlock>().FirstOrDefault() is { Visibility: Visibility.Visible } text)
+                Motion.Fade(text, 1, EaseMs, 0, Motion.Soft);
+            button.Measure(infinite);
+        }
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
         var infinite = new Size(double.PositiveInfinity, availableSize.Height);
+        // A new ease starts from the widths on screen: a running one gives way, its button measured at its own width again.
+        if (_easeNext) foreach (var button in InternalChildren.OfType<Button>().Where(x => Easing.TryGetValue(x, out _))) { button.BeginAnimation(FrameworkElement.WidthProperty, null); Growing.Remove(button); Easing.Remove(button); }
         var shown = InternalChildren.OfType<UIElement>().Where(x => x.Visibility != Visibility.Collapsed).ToList();
         double width = 0, height = 0;
         if (IconsOnly)
@@ -75,6 +121,7 @@ public sealed class ActionRow : Panel
                     width -= before - button.DesiredSize.Width;
                     if (width <= availableSize.Width) break;
                 }
+            if (_easeNext) { StartEase(shown, infinite); width = shown.Sum(x => x.DesiredSize.Width); }
             return new Size(Math.Min(width, availableSize.Width), height);
         }
         foreach (var child in shown) { if (child is Button button) Show(button, true); child.Measure(infinite); width += child.DesiredSize.Width; }
@@ -87,6 +134,7 @@ public sealed class ActionRow : Panel
                 width -= before - button.DesiredSize.Width;
                 if (width <= availableSize.Width) break;
             }
+        if (_easeNext) { StartEase(shown, infinite); width = shown.Sum(x => x.DesiredSize.Width); }
         foreach (var child in shown) height = Math.Max(height, child.DesiredSize.Height);
         return new Size(Math.Min(width, availableSize.Width), height);
     }
@@ -99,6 +147,8 @@ public sealed class ActionRow : Panel
             if (child.Visibility == Visibility.Collapsed) continue;
             child.Arrange(new Rect(x, 0, child.DesiredSize.Width, finalSize.Height)); x += child.DesiredSize.Width;
         }
+        _shown.Clear();
+        foreach (UIElement child in InternalChildren) if (child.Visibility != Visibility.Collapsed) _shown[child] = child.DesiredSize.Width;
         return finalSize;
     }
 
@@ -115,7 +165,7 @@ public sealed class ActionRow : Panel
     {
         Show(button, true);
         button.ClearValue(FrameworkElement.WidthProperty); button.Height = Round;
-        button.HorizontalContentAlignment = HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
+        button.HorizontalContentAlignment = Growing.TryGetValue(button, out _) ? HorizontalAlignment.Left : HorizontalAlignment.Center; button.VerticalContentAlignment = VerticalAlignment.Center;
         Motion.SetRadius(button, new CornerRadius(Round * .32));
     }
     /// <summary>Shows or hides the label of a button that has one, and marks the way down to it for measuring again.</summary>

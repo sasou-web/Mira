@@ -540,27 +540,30 @@ public partial class MainWindow
         if (_client is { } client && await LoadHeroSeriesAsync(client, seriesId) is { } series) return series;
         return new MediaItem { Id = seriesId, Name = item.SeriesName ?? item.Name, Type = "Series" };
     }
-    private async Task SetPlayedAsync(MediaItem item, bool played)
+    /// <returns>False when Jellyfin refused it (said by the notice).</returns>
+    private async Task<bool> SetPlayedAsync(MediaItem item, bool played)
     {
         try
         {
             if (_client is not null) await _client.SetPlayedAsync(item.Id, played);
-            else if (!_demo) return;
+            else if (!_demo) return false;
             if (_store is { } store) await Task.Run(() => store.ForgetProgress(item.Id));
             _catalog.MarkPlayed(item, played, _episodes, _similar);
             _metadata?.Clear();
             SetNotice(L($"« {item.DisplayTitle} » {(played ? "marqué comme vu" : "marqué comme non vu")}.", $"“{item.DisplayTitle}” marked as {(played ? "watched" : "unwatched")}."));
             RenderAfterUserDataChange();
             if (!_demo) await RefreshAsync(quiet: true);
+            return true;
         }
-        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); }
+        catch (Exception ex) when (IsExpected(ex)) { SetError(Friendly(ex)); return false; }
     }
     /// <summary>Redraws whatever shows watched or favourite state after a change made in Mira.</summary>
     private void RenderAfterUserDataChange()
     {
         if (_demo) { _catalog.Resume = (_demoItems ?? []).Where(x => x.Progress > 0).ToList(); }
         RenderLibrary();
-        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0 || _saga is not null) RenderSimilar(); }
+        // Lecture's new words (« Revoir ») move the buttons after it: they slide there.
+        if (DetailOverlay.Visibility == Visibility.Visible && _detail is { } detail) { DetailActions.EaseNext(); RenderDetailText(detail); if (_episodes.Count > 0) RenderEpisodes(); if (_similar.Count > 0 || _saga is not null) RenderSimilar(); }
     }
     private void ResumePrevious_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, -624, true);
     private void ResumeNext_Click(object sender, RoutedEventArgs e) => SmoothScroll.By(ResumeScroll, 624, true);
