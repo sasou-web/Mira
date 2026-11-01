@@ -81,7 +81,7 @@ public partial class MainWindow
                 PlayerSurface.Width = size.Width; PlayerSurface.Height = size.Height;
                 var clip = new RectangleGeometry(new Rect(size), radius, radius); clip.Freeze(); PlayerSurface.Clip = clip;
             }
-            PlayerOverlayLayer.Reposition();
+            PlayerOverlayLayer.Reposition(); PlayStateLayer.Reposition();
             if (PlayerOptionsPopup.IsOpen) { PlayerOptionsPopup.HorizontalOffset = .01; PlayerOptionsPopup.HorizontalOffset = 0; }
         }, DispatcherPriority.Render);
     }
@@ -136,7 +136,7 @@ public partial class MainWindow
         _surfaceClick.Stop(); _lastSurfacePoint = null;
         // Opened again later, the surface starts as nothing shows it now: controls hidden.
         if (_controlsVisible) { _controlsVisible = false; SetPlayerPanels(false, 0); }
-        PlayerOverlayLayer.IsOpen = PlayerOptionsPopup.IsOpen = false;
+        PlayerOverlayLayer.IsOpen = PlayerOptionsPopup.IsOpen = false; HidePlayState();
         _volumeHide.Stop(); SetVolumeReveal(false);
         PlayerSurface.Cursor = Cursors.Arrow;
     }
@@ -277,6 +277,7 @@ public partial class MainWindow
     {
         if (_miniPlayer) return;
         SeekPillText.Text = text;
+        HidePlayState();
         if (SeekPill.Visibility != Visibility.Visible) Motion.Reveal(SeekPill, 160, 4);
         if (_seekPillHide is null) { _seekPillHide = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) }; _seekPillHide.Tick += (_, _) => { _seekPillHide.Stop(); _seekPillTotal = 0; SeekPill.Visibility = Visibility.Collapsed; }; }
         _seekPillHide.Stop(); _seekPillHide.Start();

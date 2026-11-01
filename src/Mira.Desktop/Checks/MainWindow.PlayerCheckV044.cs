@@ -71,6 +71,16 @@ public partial class MainWindow
         var before = mpv.Number("time-pos"); var wasPaused = mpv.Flag("pause");
         var space = Press(PlayerTracksButton, Key.Space); await Task.Delay(150); mpv.Poll();
         require(space && mpv.Flag("pause") != wasPaused && Math.Abs(mpv.Number("time-pos") - before) < 2 && !PlayerOptionsPopup.IsOpen, "Space toggles pause even when the event targets the subtitles button");
+        {
+            var shown = PlayStateLayer.Handle != IntPtr.Zero && GetWindowRect(PlayStateLayer.Handle, out var flash) ? flash : default;
+            GetWindowRect(PlayerOverlayLayer.Handle, out var controls);
+            var small = shown.Right - shown.Left > 0 && shown.Right - shown.Left < (controls.Right - controls.Left) / 4;
+            var centred = Math.Abs((shown.Left + shown.Right) / 2.0 - (controls.Left + controls.Right) / 2.0) <= 2 && Math.Abs((shown.Top + shown.Bottom) / 2.0 - (controls.Top + controls.Bottom) / 2.0) <= 2;
+            require(PlayStateFlash.IsVisible && PlayStateIcon.Kind == (mpv.Flag("pause") ? "pause" : "play") && small && centred && (GetWindowLong(PlayStateLayer.Handle, -20) & 0x20) != 0,
+                $"pause or play pressed: its icon flashes in the middle, in a click-through window of its own size ({shown.Right - shown.Left} px wide)");
+            await Task.Delay(900);
+            require(!PlayStateFlash.IsVisible && !PlayStateLayer.IsOpen, "the pause and play flash fades out and closes its window");
+        }
         mpv.Set("pause", "yes"); await Task.Delay(120); mpv.Poll();
         var start = mpv.Number("time-pos"); _session.Position = start;
         var right = Press(PauseButton, Key.Right); await Task.Delay(400); mpv.Poll();
