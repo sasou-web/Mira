@@ -21,7 +21,7 @@ internal sealed class FrameProbe
     public static bool Forced { get; set; }
     public static string? Last { get; private set; }
     private static FrameProbe? _current;
-    private static readonly PropertyInfo? OperationName = typeof(DispatcherOperation).GetProperty("Name", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo? OperationMethod = typeof(DispatcherOperation).GetField("_method", BindingFlags.Instance | BindingFlags.NonPublic);
 
     private readonly string _label;
     private readonly Dispatcher _dispatcher;
@@ -85,9 +85,9 @@ internal sealed class FrameProbe
     }
     private static string Describe(DispatcherOperation operation)
     {
-        var name = OperationName?.GetValue(operation) as string ?? "?";
-        // « System.Windows.Media.MediaContext.RenderMessageHandler » → « MediaContext.RenderMessageHandler ».
-        var parts = name.Split('.'); if (parts.Length > 2) name = string.Join('.', parts[^2..]);
+        // The method the operation calls, with its class (« MediaContext.RenderMessageHandlerCore »).
+        var method = (OperationMethod?.GetValue(operation) as Delegate)?.Method;
+        var name = method is null ? "?" : $"{method.DeclaringType?.FullName?.Split('.')[^1]}.{method.Name}";
         return $"{name} ({operation.Priority})";
     }
     private async Task EndLaterAsync(int ms) { await Task.Delay(ms); End(); }
