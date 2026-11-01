@@ -23,6 +23,8 @@ public partial class MainWindow
     /// thread so the library moves meanwhile; the next engine, and closing, wait for it.
     /// </summary>
     private Task _engineReleased = Task.CompletedTask;
+    /// <summary>What the release waits for: the end of the player's closing movement, which mpv's ending would hold up.</summary>
+    private Task _releaseWhen = Task.CompletedTask;
     private IntPtr _videoHandle;
     /// <summary>What plays, where it is and what Jellyfin was told (Mira.Core, tested without the window).</summary>
     private readonly PlaybackSession _session = new();
@@ -367,8 +369,13 @@ public partial class MainWindow
             }
         }
         // Whatever failed above, the engine is released: it would otherwise play on behind the library.
-        finally { _loaded = false; if (_mpv is { } engine) { _settings.Volume = engine.Level; _mpv = null; _engineReleased = Task.Run(() => { var released = System.Diagnostics.Stopwatch.StartNew(); engine.Dispose(); FrameProbe.Finished("mpv released", released.Elapsed.TotalMilliseconds); }); } }
+        finally { _loaded = false; if (_mpv is { } engine) { _settings.Volume = engine.Level; _mpv = null; _engineReleased = ReleaseEngineAsync(engine, _releaseWhen); } }
         if (hadPlayback && !_closing) using (FrameProbe.Time("RenderAfterUserDataChange")) RenderAfterUserDataChange();
+    }
+    private static async Task ReleaseEngineAsync(MpvEngine engine, Task when)
+    {
+        await when;
+        await Task.Run(() => { var released = System.Diagnostics.Stopwatch.StartNew(); engine.Dispose(); FrameProbe.Finished("mpv released", released.Elapsed.TotalMilliseconds); });
     }
     private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false) => (await EpisodeContextAsync(current, quiet)).Next;
     /// <summary>The episode after <paramref name="current"/> and every episode of its series (for "Épisode 3 / 12").</summary>

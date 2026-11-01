@@ -27,23 +27,22 @@ public partial class MainWindow
     /// <summary>Reduces or expands the player as a person asks it: moving between the two places when it can.</summary>
     private async void SetMiniPlayerSmoothly(bool mini)
     {
-        if (!_playing || _morphing) return;
-        if (mini == _miniPlayer) return;
+        if (!_playing || _morphing || mini == _miniPlayer) return;
         if (Motion.Reduced || _fullscreen || _miniStowed || WindowState == WindowState.Minimized || PlayerErrorShown || !_loaded) { SetMiniPlayer(mini); return; }
         FrameProbe.Begin(mini ? "reduce" : "expand");
         var version = ++_morphVersion; _morphing = true;
         var from = VideoRect(); var fromRadius = _miniPlayer ? MiniRadius : 0d;
-        using (FrameProbe.Time("picture")) ShowMorph(VideoPicture(), from, fromRadius);
-        ClosePlayerPopups(); VideoContainer.Visibility = Visibility.Hidden;
+        if (!await CoverVideoAsync(from, fromRadius) || version != _morphVersion) return;
         using (FrameProbe.Time("SetMiniPlayer")) SetMiniPlayer(mini);
         // Expanding: the page stays under the growing picture until the picture covers it.
         if (!mini) LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Visible;
         PlayerShell.Opacity = 0; PlayerShell.IsHitTestVisible = false; MiniFrame.Opacity = 0;
         ClosePlayerPopups();
-        // Every layout of the new page now, under the still, rather than during the movement.
+        // The new page laid out, and what that queued done, under the still rather than during the movement.
         using (FrameProbe.Time("layout")) UpdateLayout();
-        var to = VideoRect();
-        await MoveMorphAsync(from, to, fromRadius, mini ? MiniRadius : 0, MorphMs);
+        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+        if (version != _morphVersion) return;
+        await MoveMorphAsync(from, VideoRect(), fromRadius, mini ? MiniRadius : 0, MorphMs);
         if (version != _morphVersion) return;
         if (!_miniPlayer) LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Collapsed;
         EndMorph();
@@ -51,7 +50,8 @@ public partial class MainWindow
     }
     /// <summary>
     /// Closing the player (Stop, ✕ of the mini-player): the still of the picture shrinks a little and fades over the page
-    /// it goes back to, which is drawn first, behind it, with the progress just made.
+    /// it goes back to, drawn first behind it with the progress just made. mpv ends after the movement (its ending holds
+    /// the interface's thread up while its window goes).
     /// </summary>
     private async Task<bool> ClosePlayerSmoothlyAsync()
     {
@@ -59,18 +59,46 @@ public partial class MainWindow
         var version = ++_morphVersion; _morphing = true;
         mpv.Set("pause", "yes"); mpv.Set("mute", "yes");
         var from = VideoRect(); var radius = _miniPlayer ? MiniRadius : 0d;
-        using (FrameProbe.Time("picture")) ShowMorph(VideoPicture(), from, radius);
-        ClosePlayerPopups(); VideoContainer.Visibility = Visibility.Hidden;
-        PlayerShell.Opacity = 0; PlayerShell.IsHitTestVisible = false; MiniFrame.Opacity = 0;
-        await StopPlaybackAsync(); FrameProbe.Mark("stopped");
-        // The page is there at once, under the still that fades: no second fade of its own.
-        if (_returnToDetail is { } page && _detail?.Id == page.Id) { DetailOverlay.BeginAnimation(OpacityProperty, null); DetailOverlay.Opacity = 1; DetailOverlay.Visibility = Visibility.Visible; }
-        using (FrameProbe.Time("ReturnToLibrary")) ReturnToLibrary(reveal: false);
-        using (FrameProbe.Time("layout")) UpdateLayout();
-        var shrunk = new Rect(from.X + from.Width * .04, from.Y + from.Height * .04, from.Width * .92, from.Height * .92);
-        await MoveMorphAsync(from, shrunk, radius, Math.Max(radius, 14), CloseMs, fade: true);
-        if (version == _morphVersion) EndMorph();
+        var moved = new TaskCompletionSource(); _releaseWhen = moved.Task;
+        try
+        {
+            if (!await CoverVideoAsync(from, radius)) return true;
+            PlayerShell.Opacity = 0; PlayerShell.IsHitTestVisible = false; MiniFrame.Opacity = 0;
+            await StopPlaybackAsync(); FrameProbe.Mark("stopped");
+            // The page is there at once, under the still that fades: no second fade of its own.
+            if (_returnToDetail is { } page && _detail?.Id == page.Id) { DetailOverlay.BeginAnimation(OpacityProperty, null); DetailOverlay.Opacity = 1; DetailOverlay.Visibility = Visibility.Visible; }
+            using (FrameProbe.Time("ReturnToLibrary")) ReturnToLibrary(reveal: false);
+            using (FrameProbe.Time("layout")) UpdateLayout();
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+            if (version != _morphVersion) return true;
+            var shrunk = new Rect(from.X + from.Width * .04, from.Y + from.Height * .04, from.Width * .92, from.Height * .92);
+            await MoveMorphAsync(from, shrunk, radius, Math.Max(radius, 14), CloseMs, fade: true);
+            if (version == _morphVersion) EndMorph();
+            return true;
+        }
+        finally { _releaseWhen = Task.CompletedTask; moved.TrySetResult(); }
+    }
+    /// <summary>
+    /// The still of the picture over the video, then the video hidden once a frame with the still has been drawn: the
+    /// screen does not change, and the video window no longer covers what WPF draws.
+    /// </summary>
+    private async Task<bool> CoverVideoAsync(Rect at, double radius)
+    {
+        var version = _morphVersion;
+        ImageSource? picture; using (FrameProbe.Time("picture")) picture = VideoPicture();
+        ShowMorph(picture, at, radius); ClosePlayerPopups();
+        await RenderedAsync(2);
+        if (version != _morphVersion) return false;
+        VideoContainer.Visibility = Visibility.Hidden;
         return true;
+    }
+    /// <summary>After <paramref name="frames"/> frames drawn by WPF.</summary>
+    private static Task RenderedAsync(int frames)
+    {
+        var done = new TaskCompletionSource(); var seen = 0;
+        void Frame(object? sender, EventArgs e) { if (++seen < frames) return; CompositionTarget.Rendering -= Frame; done.TrySetResult(); }
+        CompositionTarget.Rendering += Frame;
+        return done.Task;
     }
     /// <summary>Puts everything back as the player shows it, the still gone.</summary>
     private void EndMorph()
