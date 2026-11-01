@@ -27,6 +27,12 @@ public sealed class PlayerOverlay : FrameworkElement
     protected override IEnumerator LogicalChildren => new[] { Child }.GetEnumerator();
     public static readonly DependencyProperty PlacementTargetProperty = DependencyProperty.Register(nameof(PlacementTarget), typeof(FrameworkElement), typeof(PlayerOverlay));
     public FrameworkElement PlacementTarget { get => (FrameworkElement)GetValue(PlacementTargetProperty); set => SetValue(PlacementTargetProperty, value); }
+    /// <summary>
+    /// Empty: the window covers the whole target. Otherwise a box of this size in its middle, which takes no input.
+    /// Every frame of an animation sends the whole layered window to Windows, so something animated on its own (the
+    /// pause and play flash) gets a window of its own size rather than repainting one the size of the video.
+    /// </summary>
+    public Size Box { get; set; } = Size.Empty;
     public bool IsOpen
     {
         get => _source is not null;
@@ -40,7 +46,8 @@ public sealed class PlayerOverlay : FrameworkElement
             {
                 // WS_CHILD | WS_CLIPSIBLINGS. WS_EX_NOACTIVATE keeps the keyboard where it is, as WPF does for its
                 // menus: the window's own focus, routed by WPF to the control focused here.
-                ParentWindow = owner.Handle, WindowStyle = 0x40000000 | 0x04000000, ExtendedWindowStyle = 0x08000000,
+                // A box adds WS_EX_TRANSPARENT: clicks go through it to the controls' window under it.
+                ParentWindow = owner.Handle, WindowStyle = 0x40000000 | 0x04000000, ExtendedWindowStyle = 0x08000000 | (Box.IsEmpty ? 0 : 0x20),
                 UsesPerPixelTransparency = true,
                 PositionX = (int)rect.X, PositionY = (int)rect.Y,
                 Width = Math.Max(1, (int)rect.Width), Height = Math.Max(1, (int)rect.Height)
@@ -74,7 +81,14 @@ public sealed class PlayerOverlay : FrameworkElement
         if (_source is null || Child is null || !PlacementTarget.IsVisible) return;
         var parent = GetParent(_source.Handle);
         var rect = Bounds(parent);
-        Child.Width = PlacementTarget.ActualWidth; Child.Height = PlacementTarget.ActualHeight;
+        if (Box.IsEmpty) { Child.Width = PlacementTarget.ActualWidth; Child.Height = PlacementTarget.ActualHeight; }
+        else
+        {
+            Child.Width = Box.Width; Child.Height = Box.Height;
+            var scale = rect.Width / Math.Max(1, PlacementTarget.ActualWidth);
+            var size = new Size(Math.Ceiling(Box.Width * scale), Math.Ceiling(Box.Height * scale));
+            rect = new Rect(Math.Round(rect.X + (rect.Width - size.Width) / 2), Math.Round(rect.Y + (rect.Height - size.Height) / 2), size.Width, size.Height);
+        }
         // Moving a per-pixel transparent window makes Windows recompose it: skip calls that change nothing.
         if (rect == _placed) return;
         _placed = rect;

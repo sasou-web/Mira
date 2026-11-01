@@ -306,8 +306,13 @@ export function create({ id, query }) {
     else if (step === 'close' || step === 'close-landing') close({ landing: step === 'close-landing' });
   }
 
+  let shownPaused = null;
   function updatePlayIcon() {
-    clear(playButton).append(icon(video.paused ? 'play' : 'pause', { size: 36 }));
+    // A change of state pops the glyph in, so the big button reads as the pause or play just made.
+    const glyph = icon(video.paused ? 'play' : 'pause', { size: 36 });
+    if (shownPaused !== null && shownPaused !== video.paused) glyph.classList.add('pop');
+    shownPaused = video.paused;
+    clear(playButton).append(glyph);
     playButton.setAttribute('aria-label', video.paused ? tr('Lecture') : tr('Pause'));
   }
   function updateMute() { clear(muteButton).append(icon(video.muted ? 'mute' : 'volume')); }

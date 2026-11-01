@@ -946,6 +946,9 @@ html:not(.touch) .user-pick:active .avatar, .user-pick.pressed .avatar { transfo
 .controls:has(.p-busy:not([hidden])) .p-center .round.big { visibility: hidden; }
 .p-flash { position: absolute; top: 50%; width: 92px; height: 92px; margin-top: -46px; border-radius: 50%; display: grid; place-items: center; gap: 0; background: rgba(255, 255, 255, 0.12); font-size: 13px; font-weight: 800; animation: flash 520ms var(--ease) forwards; pointer-events: none; }
 .p-flash.left { left: 12%; } .p-flash.right { right: 12%; }
+/* Pause or play just made: the big button's glyph pops in (a pause always brings the controls back). */
+.p-center .round.big .icon.pop { animation: state-pop 240ms var(--ease); }
+@keyframes state-pop { from { opacity: 0.35; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
 @keyframes flash { 0% { opacity: 0; transform: scale(0.8); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.06); } }
 .pill {
   position: absolute; z-index: 3; right: calc(var(--right) + 16px); bottom: calc(var(--bottom) + 96px);

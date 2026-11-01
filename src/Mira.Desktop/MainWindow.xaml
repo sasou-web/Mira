@@ -155,6 +155,17 @@
     </Grid>
     </AdornerDecorator>
    </playback:PlayerOverlay>
+   <!-- Pause or play just pressed (click, Space, K, media keys): the new state in the middle of the picture, gone in under a second (ShowPlayState).
+       In a window of its own size: animating it in the controls' window would repaint one the size of the video each frame. -->
+   <playback:PlayerOverlay x:Name="PlayStateLayer" PlacementTarget="{Binding ElementName=PlayerShell}" Box="88,88">
+    <Grid x:Name="PlayStateFlash" Visibility="Collapsed" IsHitTestVisible="False" Opacity="0">
+     <Grid Width="76" Height="76" RenderTransformOrigin=".5,.5">
+      <Grid.RenderTransform><ScaleTransform x:Name="PlayStateScale"/></Grid.RenderTransform>
+      <Ellipse Fill="{StaticResource Pill}" Stroke="{StaticResource Hairline}" StrokeThickness="1"/>
+      <v:Icon x:Name="PlayStateIcon" Kind="pause" Width="32" Height="32" Foreground="White"/>
+     </Grid>
+    </Grid>
+   </playback:PlayerOverlay>
    <Popup x:Name="PlayerOptionsPopup" PlacementTarget="{Binding ElementName=PlayerShell}" Placement="Custom" AllowsTransparency="True" StaysOpen="False" Opened="PlayerOptions_Opened" Closed="PlayerOptions_Closed">
     <!-- One menu window, opened above the button that asked for it: audio and subtitles, or the ⋮ options. -->
     <v:Squircle x:Name="PlayerMenu" Background="{StaticResource Menu}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Padding="6" Margin="0,0,0,10" TextElement.FontFamily="{StaticResource AppFont}" TextElement.Foreground="{StaticResource Text}" KeyDown="PlayerOptions_KeyDown">

@@ -506,6 +506,7 @@ public sealed partial class PlayerPage : UserControl
     {
         if (_mpv is null) return;
         var pause = !_mpv.Flag("pause");
+        if (_loaded) ShowPlayState(pause);
         // In a group, play waits for Jellyfin, which starts every device at the same moment.
         if (Group.PlaysFor(this) && _loaded) { if (pause) QuietPause(true); Group.Send(pause ? "Pause" : "Unpause"); ShowControls(); return; }
         _mpv.Set("pause", pause ? "yes" : "no");
