@@ -367,8 +367,8 @@ public partial class MainWindow
             }
         }
         // Whatever failed above, the engine is released: it would otherwise play on behind the library.
-        finally { _loaded = false; if (_mpv is { } engine) { _settings.Volume = engine.Level; _mpv = null; _engineReleased = Task.Run(engine.Dispose); } }
-        if (hadPlayback && !_closing) RenderAfterUserDataChange();
+        finally { _loaded = false; if (_mpv is { } engine) { _settings.Volume = engine.Level; _mpv = null; _engineReleased = Task.Run(() => { var released = System.Diagnostics.Stopwatch.StartNew(); engine.Dispose(); FrameProbe.Finished("mpv released", released.Elapsed.TotalMilliseconds); }); } }
+        if (hadPlayback && !_closing) using (FrameProbe.Time("RenderAfterUserDataChange")) RenderAfterUserDataChange();
     }
     private async Task<MediaItem?> GetNextAsync(MediaItem current, bool quiet = false) => (await EpisodeContextAsync(current, quiet)).Next;
     /// <summary>The episode after <paramref name="current"/> and every episode of its series (for "Épisode 3 / 12").</summary>
@@ -401,14 +401,17 @@ public partial class MainWindow
     /// </summary>
     private async Task LeavePlayerAsync()
     {
+        FrameProbe.Begin("stop");
         if (!_miniPlayer && !_fullscreen && !Motion.Reduced && PlayerShell.Visibility == Visibility.Visible && _mpv is { } mpv)
         {
             mpv.Set("pause", "yes"); mpv.Set("mute", "yes");
             ClosePlayerPopups(); VideoContainer.Visibility = Visibility.Hidden;
             LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Visible;
-            RestoreDetailPage(refresh: false);
+            using (FrameProbe.Time("RestoreDetailPage")) RestoreDetailPage(refresh: false);
             Motion.Fade(PlayerShell, 0, 240, 1, Motion.EaseOut); await Task.Delay(240);
-            await StopPlaybackAsync(); ReturnToLibrary(reveal: false);
+            FrameProbe.Mark("faded");
+            await StopPlaybackAsync(); FrameProbe.Mark("stopped");
+            using (FrameProbe.Time("ReturnToLibrary")) ReturnToLibrary(reveal: false);
         }
         else { await StopPlaybackAsync(); ReturnToLibrary(); }
         PlayerShell.BeginAnimation(OpacityProperty, null); PlayerShell.Opacity = 1;

@@ -48,6 +48,7 @@ public partial class MainWindow
             _heroAccent.BeginAnimation(SolidColorBrush.ColorProperty, new System.Windows.Media.Animation.ColorAnimation(accent, TimeSpan.FromMilliseconds(Motion.Reduced ? 0 : 650)));
             if (changed)
             {
+                FrameProbe.Mark("hero changes");
                 HeroPreviousImage.BeginAnimation(OpacityProperty, null); HeroPreviousImage.Opacity = 1;
                 HeroPreviousImage.Source = HeroImage.Source; HeroImage.Source = image;
                 if (image is not null) Motion.Fade(HeroImage, 1, 650, HeroPreviousImage.Source is null ? .2 : 0, Motion.Soft);
