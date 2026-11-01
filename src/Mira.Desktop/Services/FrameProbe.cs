@@ -98,8 +98,14 @@ internal sealed class FrameProbe
         if (ReferenceEquals(_current, this)) _current = null;
         CompositionTarget.Rendering -= Rendering;
         _dispatcher.Hooks.OperationStarted -= Started; _dispatcher.Hooks.OperationCompleted -= Completed; _dispatcher.Hooks.OperationAborted -= Completed;
-        var line = Summary();
-        Last = line;
+        Last = Summary(); Write(Last);
+    }
+    /// <summary>Ends the measure under way now (Mira closing), written as it is.</summary>
+    public static void Flush() => _current?.End();
+    /// <summary>One line of its own: the probe is on, a transition went without its movement and why.</summary>
+    public static void Note(string text) { if (LogPath is not null) Write($"{DateTimeOffset.Now:HH:mm:ss} {text}"); }
+    private static void Write(string line)
+    {
         if (LogPath is { } path) { try { File.AppendAllText(path, line + Environment.NewLine); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
     }
 

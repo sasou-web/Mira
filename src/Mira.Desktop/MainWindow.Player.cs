@@ -559,7 +559,7 @@ public partial class MainWindow
             Attempt(() => SystemEvents.PowerModeChanged -= PowerModeChanged);
             Attempt(() => { _windows?.Dispose(); _windows = null; });
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
-            _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop();
+            _fallbackRefresh.Stop(); _searchTimer.Stop(); _externalRefresh.Stop(); FrameProbe.Flush();
             await AttemptAsync(() => StopPlaybackAsync()); await AttemptAsync(() => _engineReleased); await AttemptAsync(StopTorLinkAsync); Attempt(() => _profile.SaveSettings(_settings)); await AttemptAsync(DisconnectServicesAsync);
             // After the last reports to Jellyfin, which may go through it; before an update replaces its file.
             await AttemptAsync(StopTailnetAsync);

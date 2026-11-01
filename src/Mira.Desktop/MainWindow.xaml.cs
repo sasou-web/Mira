@@ -199,7 +199,7 @@ public partial class MainWindow : Window
         catch (TimeoutException) { }
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Loaded);
         await Motion.HideAsync(StartupVeil, 220);
-        _startupComplete = true;
+        _startupComplete = true; FrameProbe.Note($"frame probe on: render tier {System.Windows.Media.RenderCapability.Tier >> 16}, reduced motion {Motion.Reduced}");
     }
     // The fictional catalogue of the checks and of the gallery (--demo): the app itself offers no demo.
     private async Task ShowDemoAsync()

@@ -28,7 +28,11 @@ public partial class MainWindow
     private async void SetMiniPlayerSmoothly(bool mini)
     {
         if (!_playing || _morphing || mini == _miniPlayer) return;
-        if (Motion.Reduced || _fullscreen || _miniStowed || WindowState == WindowState.Minimized || PlayerErrorShown || !_loaded) { SetMiniPlayer(mini); return; }
+        if (Motion.Reduced || _fullscreen || _miniStowed || WindowState == WindowState.Minimized || PlayerErrorShown || !_loaded)
+        {
+            FrameProbe.Note($"{(mini ? "reduce" : "expand")} without movement: reduced motion {Motion.Reduced}, fullscreen {_fullscreen}, tucked away {_miniStowed}, error {PlayerErrorShown}, loaded {_loaded}");
+            SetMiniPlayer(mini); return;
+        }
         FrameProbe.Begin(mini ? "reduce" : "expand");
         var version = ++_morphVersion; _morphing = true;
         var from = VideoRect(); var fromRadius = _miniPlayer ? MiniRadius : 0d;
@@ -55,7 +59,11 @@ public partial class MainWindow
     /// </summary>
     private async Task<bool> ClosePlayerSmoothlyAsync()
     {
-        if (Motion.Reduced || _fullscreen || _miniStowed || PlayerShell.Visibility != Visibility.Visible || PlayerErrorShown || _mpv is not { } mpv || !_loaded || _morphing) return false;
+        if (Motion.Reduced || _fullscreen || _miniStowed || PlayerShell.Visibility != Visibility.Visible || PlayerErrorShown || _mpv is not { } mpv || !_loaded || _morphing)
+        {
+            FrameProbe.Note($"close without movement: reduced motion {Motion.Reduced}, fullscreen {_fullscreen}, tucked away {_miniStowed}, error {PlayerErrorShown}, loaded {_loaded}, moving {_morphing}");
+            return false;
+        }
         var version = ++_morphVersion; _morphing = true;
         mpv.Set("pause", "yes"); mpv.Set("mute", "yes");
         var from = VideoRect(); var radius = _miniPlayer ? MiniRadius : 0d;
