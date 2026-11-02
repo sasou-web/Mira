@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -68,7 +69,7 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
         finally { _gate.Release(); }
     }
 
-    private async Task<string?> StartCoreAsync(string savePath, CancellationToken ct)
+    private async Task<string?> StartCoreAsync(string savePath, CancellationToken ct, bool restarted = false)
     {
         if (Program() is not { } program) return L("qBittorrent n’est pas installé sur ce PC.", "qBittorrent isn’t installed on this PC.");
         var secret = _secret ??= LoadSecret();
@@ -100,6 +101,15 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
             await client.SetPreferencesAsync(QBittorrentSettings.Preferences(savePath, secret.PeerPort), ct);
             _client = client;
             return null;
+        }
+        catch (QBittorrentException ex) when (ex.SignIn && !restarted && StopOwn() > 0)
+        {
+            // Mira's own qBittorrent refuses its password (one started with an older one, or banning 127.0.0.1 after
+            // too many tries): stopped, then started again from the settings written now, once.
+            if (!ReferenceEquals(client, _client)) client.Dispose();
+            _client = null;
+            await Task.Delay(1500, ct);
+            return await StartCoreAsync(savePath, ct, restarted: true);
         }
         catch (QBittorrentException ex) { if (!ReferenceEquals(client, _client)) client.Dispose(); return ex.Message; }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException || ex is OperationCanceledException && !ct.IsCancellationRequested)
@@ -166,6 +176,35 @@ internal sealed class QBittorrentHost(string profile) : IDisposable
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    /// <summary>
+    /// Ends the qBittorrent started under this profile (its command line names it), never another one the person uses:
+    /// read through WMI's scripting objects, which need no administrator rights for this account's processes. How many.
+    /// </summary>
+    private int StopOwn()
+    {
+        var stopped = 0;
+        try
+        {
+            dynamic locator = Activator.CreateInstance(Type.GetTypeFromProgID("WbemScripting.SWbemLocator", throwOnError: true)!)!;
+            dynamic service = locator.ConnectServer(".", @"root\cimv2");
+            foreach (dynamic found in service.ExecQuery("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'qbittorrent.exe'"))
+            {
+                var line = (object?)found.Properties_.Item("CommandLine").Value as string;
+                if (line is null || !line.Contains("--profile=" + ProfileDirectory, StringComparison.OrdinalIgnoreCase)) continue;
+                try
+                {
+                    using var process = Process.GetProcessById(Convert.ToInt32((object)found.Properties_.Item("ProcessId").Value));
+                    process.Kill();
+                    process.WaitForExit(10_000);
+                    stopped++;
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception or FormatException or OverflowException) { }
+            }
+        }
+        catch (Exception ex) when (ex is COMException or ArgumentException or InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or TypeLoadException) { }
+        return stopped;
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
