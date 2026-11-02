@@ -48,11 +48,8 @@ public sealed class MpvPlayer : MpvClient
             // A log of mpv's own messages, when asked for: MIRA_MPV_LOG=/path/to/mpv.log.
             if (Environment.GetEnvironmentVariable("MIRA_MPV_LOG") is { Length: > 0 } log) { Option("log-file", log); Option("msg-level", "all=v"); }
             Option("hwdec", settings.HardwareDecoding ? "auto-safe" : "no");
-            // The colours of the screen: mpv converts the video to the display's own profile, which the view hands it
-            // (VideoView.ShowColours). Its frames reach the screen untouched by macOS, so without it the BT.709 of a film
-            // is stretched over a wide-gamut (P3) screen: faces red, colours too strong. An mpv without colour management
-            // (no lcms2) simply does not know the option.
-            if (OperatingSystem.IsMacOS()) TryOption("icc-profile-auto", "yes");
+            // The colours of the screen: the view sets target-prim to Display P3 on a wide-gamut screen
+            // (VideoView.ShowColours), never the screen's ICC profile, which turned the picture grey on a MacBook (M2).
             if (picture is not null) PictureOptions(picture, displaySync: false);
             PlayerOptions(settings);
             // Extra mpv options for a diagnosis, MIRA_MPV_OPTIONS="name=value;name=value".

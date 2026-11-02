@@ -4,8 +4,8 @@ using Avalonia.Controls;
 namespace Mira.Mac.Playback;
 
 /// <summary>
-/// The colour profile (ICC) of a Mac's screen, as macOS has it in « Displays » settings, for mpv to convert the video to
-/// it: what mpv's own window does with icc-profile-auto, and what an app drawing mpv's frames itself must hand it.
+/// The colours of a Mac's screen, as macOS has them in « Displays » settings, for mpv to convert the video to them
+/// (VideoView.ShowColours).
 /// </summary>
 internal static partial class DisplayProfile
 {
@@ -13,10 +13,8 @@ internal static partial class DisplayProfile
     private const string CoreFoundation = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
     [LibraryImport(CoreGraphics)] private static partial uint CGMainDisplayID();
     [LibraryImport(CoreGraphics)] private static partial IntPtr CGDisplayCopyColorSpace(uint display);
-    [LibraryImport(CoreGraphics)] private static partial IntPtr CGColorSpaceCopyICCData(IntPtr space);
+    [LibraryImport(CoreGraphics)][return: MarshalAs(UnmanagedType.U1)] private static partial bool CGColorSpaceIsWideGamutRGB(IntPtr space);
     [LibraryImport(CoreGraphics)] private static partial IntPtr CGColorSpaceCopyName(IntPtr space);
-    [LibraryImport(CoreFoundation)] private static partial nint CFDataGetLength(IntPtr data);
-    [LibraryImport(CoreFoundation)] private static partial IntPtr CFDataGetBytePtr(IntPtr data);
     [LibraryImport(CoreFoundation)] private static partial void CFRelease(IntPtr value);
     [LibraryImport(CoreFoundation)] private static partial nint CFStringGetLength(IntPtr value);
     [LibraryImport(CoreFoundation)][return: MarshalAs(UnmanagedType.U1)] private static partial bool CFStringGetCString(IntPtr value, byte[] buffer, nint size, uint encoding);
@@ -29,35 +27,25 @@ internal static partial class DisplayProfile
         return handle is { HandleDescriptor: "CGDirectDisplayID" } ? (uint)handle.Handle : CGMainDisplayID();
     }
 
-    /// <summary>The screen's ICC profile and the name of its colour space; null when macOS gives none.</summary>
-    public static (byte[] Data, string Name)? Read(uint display)
+    /// <summary>
+    /// The name of the screen's colour space when it is wide gamut (P3: the Mac's own screen since 2016, most recent
+    /// monitors), null for an sRGB screen or when macOS says nothing.
+    /// </summary>
+    public static string? WideGamut(uint display)
     {
         var space = CGDisplayCopyColorSpace(display);
         if (space == IntPtr.Zero) return null;
-        try
-        {
-            var icc = CGColorSpaceCopyICCData(space);
-            if (icc == IntPtr.Zero) return null;
-            try
-            {
-                var length = CFDataGetLength(icc);
-                if (length <= 0) return null;
-                var data = new byte[length];
-                Marshal.Copy(CFDataGetBytePtr(icc), data, 0, data.Length);
-                return (data, Name(space));
-            }
-            finally { CFRelease(icc); }
-        }
+        try { return CGColorSpaceIsWideGamutRGB(space) ? Name(space) : null; }
         finally { CFRelease(space); }
     }
     private static string Name(IntPtr space)
     {
         var name = CGColorSpaceCopyName(space);
-        if (name == IntPtr.Zero) return "ICC";
+        if (name == IntPtr.Zero) return "P3";
         try
         {
             var buffer = new byte[CFStringGetLength(name) * 4 + 1];
-            return CFStringGetCString(name, buffer, buffer.Length, Utf8) ? System.Text.Encoding.UTF8.GetString(buffer).TrimEnd('\0') : "ICC";
+            return CFStringGetCString(name, buffer, buffer.Length, Utf8) ? System.Text.Encoding.UTF8.GetString(buffer).TrimEnd('\0') : "P3";
         }
         finally { CFRelease(name); }
     }

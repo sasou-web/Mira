@@ -46,16 +46,6 @@ internal static unsafe class MpvRender
     }
     public static void SetUpdateCallback(MpvPlayer player, IntPtr context, delegate* unmanaged[Cdecl]<IntPtr, void> callback, IntPtr state) =>
         ((delegate* unmanaged[Cdecl]<IntPtr, delegate* unmanaged[Cdecl]<IntPtr, void>, IntPtr, void>)player.Export("mpv_render_context_set_update_callback"))(context, callback, state);
-    /// <summary>The display's ICC profile for icc-profile-auto (mpv copies it); empty: none.</summary>
-    public static int SetIccProfile(MpvPlayer player, IntPtr context, byte[] profile)
-    {
-        fixed (byte* data = profile)
-        {
-            var bytes = new ByteArray { Data = (IntPtr)data, Size = (nuint)profile.Length };
-            var parameter = new Param { Type = ParamIccProfile, Data = (IntPtr)(&bytes) };
-            return ((delegate* unmanaged[Cdecl]<IntPtr, Param, int>)player.Export("mpv_render_context_set_parameter"))(context, parameter);
-        }
-    }
     public static int Render(MpvPlayer player, IntPtr context, Param* parameters) =>
         ((delegate* unmanaged[Cdecl]<IntPtr, Param*, int>)player.Export("mpv_render_context_render"))(context, parameters);
     public static void Free(IntPtr library, IntPtr context) =>
@@ -170,20 +160,22 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
         Interlocked.Increment(ref _looks);
     }
     private const int GlRgba = 0x1908, GlUnsignedByte = 0x1401;
-    /// <summary>The screen whose colour profile mpv has (0: none yet), and when the view last looked.</summary>
+    /// <summary>The screen whose colours mpv has (0: none yet), and when the view last looked.</summary>
     private uint _profileDisplay; private long _profileCheckedAt = long.MinValue / 2;
-    /// <summary>The name of the screen's colour profile mpv converts to (« Infos de lecture »); empty when it has none.</summary>
+    /// <summary>The name of the wide-gamut screen mpv converts the colours to (« Informations »); empty when it does not.</summary>
     public string ColourProfile { get; private set; } = "";
     /// <summary>
-    /// The colour profile of the screen showing the view, handed to mpv (icc-profile-auto): at the first frame, then
-    /// when the window goes to another screen (looked at every 2 s). Not on Linux, where the checks run.
+    /// The colours of the screen showing the view: on a wide-gamut screen (P3, every recent Mac), mpv converts the video
+    /// to Display P3 (target-prim), since macOS shows mpv's frames untouched and would stretch a film's BT.709 over P3.
+    /// At the first frame, then when the window goes to another screen (looked at every 2 s). Not on Linux, where the
+    /// checks run. Never the screen's ICC profile (icc-profile-auto): with it, a friend's MacBook (M2, 0.8.7 to 0.9.1)
+    /// showed a grey picture with the sound and time going on, and turning it off brought the film back.
     /// </summary>
     private void ShowColours(MpvPlayer player)
     {
         if (_noColours)
         {
-            // Taken back on the thread that draws, as mpv's render context wants.
-            if (ColourProfile.Length > 0) { MpvRender.SetIccProfile(player, _context, []); ColourProfile = ""; }
+            if (ColourProfile.Length > 0) { player.Set("target-prim", "auto"); ColourProfile = ""; }
             return;
         }
         if (!OperatingSystem.IsMacOS() || Environment.TickCount64 - _profileCheckedAt < 2000) return;
@@ -191,8 +183,9 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
         var display = DisplayProfile.DisplayOf(this);
         if (display == _profileDisplay) return;
         _profileDisplay = display;
-        if (DisplayProfile.Read(display) is not { } profile) { ColourProfile = ""; return; }
-        ColourProfile = MpvRender.SetIccProfile(player, _context, profile.Data) >= 0 ? profile.Name : "";
+        var wide = DisplayProfile.WideGamut(display);
+        player.Set("target-prim", wide is null ? "auto" : "display-p3");
+        ColourProfile = wide ?? "";
     }
     /// <summary>The OpenGL renderer, as the driver names it (diagnostics, self-check).</summary>
     public string Renderer { get; private set; } = "";

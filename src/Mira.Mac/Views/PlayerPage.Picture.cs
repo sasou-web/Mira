@@ -46,7 +46,7 @@ public sealed partial class PlayerPage
     // —— A grey picture ——
     // A Mac where mpv's OpenGL picture came out a single grey while the sound and the bar went on (0.8.7, a friend's
     // Mac): the view looks at a frame each second (VideoView.Flat), and four flat ones in a row while it plays take a
-    // step back from what OpenGL does there: the screen's colour profile and debanding, then hardware decoding, then
+    // step back from what OpenGL does there: the screen's colours and debanding, then hardware decoding, then
     // no OpenGL at all (SoftwareVideoView). The step is kept (PlayerSettings.VideoRepair) until « Image » is chosen again.
     private long _greyLookAt; private int _greyLooks, _greyFlat;
     private bool _repairing;
@@ -66,7 +66,7 @@ public sealed partial class PlayerPage
     {
         if (level >= 1)
         {
-            mpv.Set("icc-profile-auto", "no"); mpv.Set("deband", "no");
+            mpv.Set("deband", "no");
             if (surface is VideoView view) view.DropColours();
         }
         if (level >= 2) mpv.Set("hwdec", "no");
@@ -87,8 +87,8 @@ public sealed partial class PlayerPage
         {
             Repair(mpv, view, level);
             if (asked) _shell.Notice(level == 1
-                ? L("Réparation 1 sur 3 : profil de couleurs de l’écran et lissage coupés. Toujours grise ? ⋮ → Réparer encore.",
-                    "Repair 1 of 3: screen colour profile and smoothing off. Still grey? ⋮ → Repair again.")
+                ? L("Réparation 1 sur 3 : couleurs de l’écran et lissage coupés. Toujours grise ? ⋮ → Réparer encore.",
+                    "Repair 1 of 3: screen colours and smoothing off. Still grey? ⋮ → Repair again.")
                 : L("Réparation 2 sur 3 : décodage matériel coupé. Toujours grise ? ⋮ → Réparer encore.",
                     "Repair 2 of 3: hardware decoding off. Still grey? ⋮ → Repair again."));
             return;
@@ -127,7 +127,7 @@ public sealed partial class PlayerPage
         var repair = new Button { Content = _shell.Settings.VideoRepair > 0 ? L("Réparer encore", "Repair again") : L("Réparer", "Repair"), Classes = { "menuchip" }, MinWidth = 96, Margin = new Thickness(0) };
         var tip = L($"Essayer la réparation {next} sur 3 : ", $"Try repair {next} of 3: ") + (next switch
         {
-            1 => L("profil de couleurs de l’écran et lissage coupés", "screen colour profile and smoothing off"),
+            1 => L("couleurs de l’écran et lissage coupés", "screen colours and smoothing off"),
             2 => L("décodage matériel coupé", "hardware decoding off"),
             _ => L("image dessinée sans OpenGL", "picture drawn without OpenGL")
         });
@@ -157,7 +157,7 @@ public sealed partial class PlayerPage
         var shownWidth = mpv.Number("osd-width"); var shownHeight = mpv.Number("osd-height");
         var drawing = _surface is VideoView gl ? $"OpenGL{(gl.Renderer.Length > 0 ? " · " + gl.Renderer : "")}" : L("logiciel (sans OpenGL)", "software (no OpenGL)");
         if (shownWidth > 0 && shownHeight > 0) drawing += $" · {shownWidth:0} × {shownHeight:0}";
-        var colours = _surface is VideoView { ColourProfile.Length: > 0 } view ? L($"profil de l’écran ({view.ColourProfile})", $"screen profile ({view.ColourProfile})") : L("non gérées", "not managed");
+        var colours = _surface is VideoView { ColourProfile.Length: > 0 } view ? L($"écran large gamme ({view.ColourProfile})", $"wide-gamut screen ({view.ColourProfile})") : L("non gérées", "not managed");
         // What the frame mpv drew holds, looked at once a second while it plays: « unie #BBBBBB » with a grey screen = mpv's
         // own picture is grey; « variée » = mpv draws the film and the grey comes after it, when macOS shows the window.
         var look = _surface is VideoView { LastLook: { Length: > 0 } seen } looked
@@ -165,8 +165,8 @@ public sealed partial class PlayerPage
             : null;
         var repair = _shell.Settings.VideoRepair switch
         {
-            1 => L("\nRéparé  image grise : profil de l’écran et lissage coupés", "\nRepaired  grey picture: screen profile and smoothing off"),
-            2 => L("\nRéparé  image grise : profil de l’écran, lissage et décodage matériel coupés", "\nRepaired  grey picture: screen profile, smoothing and hardware decoding off"),
+            1 => L("\nRéparé  image grise : couleurs de l’écran et lissage coupés", "\nRepaired  grey picture: screen colours and smoothing off"),
+            2 => L("\nRéparé  image grise : couleurs de l’écran, lissage et décodage matériel coupés", "\nRepaired  grey picture: screen colours, smoothing and hardware decoding off"),
             >= 3 => L("\nRéparé  image grise : rendu sans OpenGL", "\nRepaired  grey picture: drawn without OpenGL"),
             _ => ""
         };
