@@ -2,6 +2,10 @@
 
 ## Non publié
 
+## 0.9.1 — 2026-11-02
+
+Trackers privés par qBittorrent, lecteur plus fluide, Mira pour Mac par Homebrew.
+
 - **Trackers privés par qBittorrent (Windows, PC de Jellyfin)** : un magnet d’un tracker privé (C411…) restait à 0 % dans TorLink, qui ne peut pas en lire les métadonnées et n’est pas accepté par ces trackers. Téléchargements → « Installer qBittorrent » installe le vrai qBittorrent (5.3.0, depuis SourceForge, empreinte vérifiée, une autorisation de Windows) ; Mira le lance caché dans son propre profil (interface web sur 127.0.0.1, mot de passe aléatoire gardé par DPAPI). Les magnets collés et les `.torrent` (bouton « Ajouter un .torrent » ou glisser-déposer, sous Windows et dans Télécharger de Mira web, qui passe par le relais de l’extension) vont alors à qBittorrent, s’affichent dans la même liste, se mettent en pause, reprennent, s’annulent ; un téléchargement fini est rangé dans la bibliothèque par lien physique (sinon copie) et qBittorrent continue de le partager (ratio).
 - **Pastille « vu » claire partout** : sous Windows, un titre déjà vu portait un rond sombre à coche verte. Il porte maintenant la pastille claire du web et du Mac, de même forme et couleur que le compteur d’épisodes, coche noire. Une ombre douce, ajoutée aux deux pastilles sur les trois apps, la garde lisible sur une affiche claire.
 - **Lecture arrondi comme ses voisins (Windows)** : sur la fiche d’un titre, le bouton blanc Lecture avait des coins plus serrés (6 sur une série, 11 sur un film) que les boutons sombres à côté. Il a maintenant la même courbe qu’eux. Mac et Mira web l’avaient déjà.

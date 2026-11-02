@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.9.1",
+    "summary": "Trackers privés par qBittorrent, lecteur plus fluide, Mira pour Mac par Homebrew.",
+    "en": { "summary": "Private trackers through qBittorrent, a smoother player, Mira for Mac with Homebrew." },
+    "items": [
+      { "icon": "download", "title": "Trackers privés par qBittorrent", "text": "Sur le PC de Jellyfin, Mira installe qBittorrent : liens magnet et fichiers .torrent y vont, et il continue de partager.", "web": true,
+        "en": { "title": "Private trackers through qBittorrent", "text": "On the Jellyfin PC, Mira installs qBittorrent: magnet links and .torrent files go there, and it keeps seeding." } },
+      { "icon": "play", "title": "Un lecteur plus fluide", "text": "Il se réduit et se ferme sans à-coup, la pause se voit au milieu, son titre ouvre la fiche.",
+        "en": { "title": "A smoother player", "text": "It shrinks and closes without a jolt, pause shows in the middle, its title opens the page." } },
+      { "icon": "sparkle", "title": "Des boutons plus doux", "text": "« Vu » et « Favori » changent au clic sans redessiner la fiche, pastille « vu » claire, champs sobres.",
+        "en": { "title": "Gentler buttons", "text": "“Watched” and “Favorite” change on click without redrawing the page, a light watched badge, plain fields." } },
+      { "icon": "download", "title": "Mira pour Mac avec Homebrew", "text": "brew install --cask sasou-web/mira/mira, mis à jour à chaque version.",
+        "en": { "title": "Mira for Mac with Homebrew", "text": "brew install --cask sasou-web/mira/mira, updated with every release." } },
+      { "icon": "refresh", "title": "Tailscale intégré pendant ses pannes", "text": "Le nœud de Mira demande lui-même le cache des appareils : plus rien à coller dans la politique du réseau.",
+        "en": { "title": "Built-in Tailscale during its outages", "text": "Mira’s node asks for the device cache itself: nothing left to paste in the network policy." } }
+    ]
+  },
+  {
     "version": "0.9.0",
     "summary": "Mira pour Windows plus soignée : fiche cinéma, pages qui gardent leur place, lecteur à raccourcis.",
     "en": { "summary": "A more polished Mira for Windows: cinema title page, pages that keep their place, player shortcuts." },
