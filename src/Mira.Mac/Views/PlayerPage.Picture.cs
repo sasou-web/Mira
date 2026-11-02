@@ -39,7 +39,7 @@ public sealed partial class PlayerPage
         _pictureSize = size;
         if (!_pictureWatch.Struggling(DateTimeOffset.UtcNow, (long)mpv.Number("frame-drop-count"), steady)) return;
         _picture = _pictureCap = lower; _pictureCapFor = PictureQuality.Known(_shell.Settings.Picture);
-        mpv.Picture(lower, displaySync: false);
+        mpv.Picture(lower, displaySync: false, deband: false);
         _shell.Notice(L($"Image passée en « {PictureQuality.Label(lower)} » : ce Mac perdait des images. Jusqu’à la fermeture de Mira (Réglages → Lecture → Image).",
             $"Picture set to “{PictureQuality.Label(lower)}”: this Mac was dropping frames. Until Mira quits (Settings → Playback → Picture)."));
     }

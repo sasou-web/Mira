@@ -23,8 +23,8 @@ public static class PictureQuality
     public static IReadOnlyList<(string Key, string Label, string Details)> MacChoices =>
     [
         (Standard, L("Standard", "Standard"), L("Le rendu d’origine de mpv, le plus léger", "mpv’s own rendering, the lightest")),
-        (Cinema, L("Cinéma", "Cinema"), L("Sans bandes dans les dégradés (ciel, ombres, fondus)", "No banding in gradients (skies, shadows, fades)")),
-        (Best, L("Maximale", "Maximum"), L("Cinéma, avec la mise à l’échelle la plus fine", "Cinema, with the finest scaling")),
+        (Cinema, L("Cinéma", "Cinema"), L("Le rendu de mpv ; le lissage des dégradés reste coupé sur Mac pour l’instant", "mpv’s rendering; gradient smoothing stays off on Mac for now")),
+        (Best, L("Maximale", "Maximum"), L("Avec la mise à l’échelle la plus fine", "With the finest scaling")),
     ];
     /// <summary>A saved choice Mira knows, else « Cinéma ».</summary>
     public static string Known(string? choice) => Choices.Any(x => x.Key == choice) ? choice! : Cinema;
@@ -38,7 +38,7 @@ public static class PictureQuality
     /// API does not know the screen's refresh, and would fall back to the audio's timing with a warning), frames keep
     /// their own timing, without interpolation.
     /// </summary>
-    public static IReadOnlyList<(string Name, string? Value)> Options(string? choice, bool displaySync = true)
+    public static IReadOnlyList<(string Name, string? Value)> Options(string? choice, bool displaySync = true, bool deband = true)
     {
         var level = Known(choice);
         bool cinema = level != Standard, best = level == Best, timed = cinema && displaySync;
@@ -49,7 +49,9 @@ public static class PictureQuality
             ("video-sync", timed ? "display-resample" : null),
             ("interpolation", timed ? "yes" : null),
             ("tscale", timed ? "oversample" : null),
-            ("deband", cinema ? "yes" : null),
+            // Not on a Mac (deband false): the grey picture of a MacBook (M2, 0.8.7 to 0.9.1) came back with the screen's
+            // ICC profile and deband both off, and the two were never told apart on a real Mac.
+            ("deband", cinema && deband ? "yes" : null),
             // mpv's high-quality profile (etc/builtin.conf).
             ("scale", best ? "ewa_lanczossharp" : null),
             ("scale-antiring", best ? "0.6" : null),
