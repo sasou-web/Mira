@@ -56,7 +56,7 @@ public sealed partial class PlayerPage
         if (_surface is not VideoView view || _repairing || paused || mpv.Flag("seeking") || mpv.Flag("paused-for-cache")) return;
         var (flat, looks) = view.Flat;
         if (looks != _greyLooks) { _greyLooks = looks; _greyFlat = flat ? _greyFlat + 1 : 0; }
-        if (_greyFlat >= 4) { _greyFlat = 0; _ = RepairAsync(mpv, view); return; }
+        if (_greyFlat >= 4) { _greyFlat = 0; _ = RepairAsync(mpv, view, asked: false); return; }
         if (Environment.TickCount64 - _greyLookAt < 1000) return;
         _greyLookAt = Environment.TickCount64;
         view.LookNextFrame();
@@ -71,14 +71,28 @@ public sealed partial class PlayerPage
         }
         if (level >= 2) mpv.Set("hwdec", "no");
     }
-    private async Task RepairAsync(MpvPlayer mpv, VideoView view)
+    /// <summary>
+    /// The next step, at once: four flat looks in a row (<paramref name="asked"/> false), or « Réparer » of ⋮ when the
+    /// picture stays grey or black on the screen while the frame mpv drew is not (macOS composing the window, which no
+    /// look can see), each click one step further, said each time.
+    /// </summary>
+    private async Task RepairAsync(MpvPlayer mpv, VideoView view, bool asked)
     {
         var level = Math.Min(3, _shell.Settings.VideoRepair + 1);
         _shell.Settings.VideoRepair = level;
-        System.Diagnostics.Trace.WriteLine($"Mira: grey picture, repair {level}");
+        System.Diagnostics.Trace.WriteLine($"Mira: grey picture, repair {level}{(asked ? " (asked)" : "")}, look {view.LastLook}");
         // The next looks after the change has reached the screen.
-        _greyLookAt = Environment.TickCount64 + 1500;
-        if (level < 3) { Repair(mpv, view, level); return; }
+        _greyLookAt = Environment.TickCount64 + 1500; _greyFlat = 0;
+        if (level < 3)
+        {
+            Repair(mpv, view, level);
+            if (asked) _shell.Notice(level == 1
+                ? L("Réparation 1 sur 3 : profil de couleurs de l’écran et lissage coupés. Toujours grise ? ⋮ → Réparer encore.",
+                    "Repair 1 of 3: screen colour profile and smoothing off. Still grey? ⋮ → Repair again.")
+                : L("Réparation 2 sur 3 : décodage matériel coupé. Toujours grise ? ⋮ → Réparer encore.",
+                    "Repair 2 of 3: hardware decoding off. Still grey? ⋮ → Repair again."));
+            return;
+        }
         _repairing = true;
         try { await DrawWithoutOpenGlAsync(mpv, view); }
         finally { _repairing = false; }
@@ -105,6 +119,27 @@ public sealed partial class PlayerPage
             "The picture stayed grey: the video is now drawn without OpenGL. Until Settings → Playback → Picture is chosen again."));
     }
 
+    /// <summary>« Image grise ou noire ? Réparer » under « Informations », while OpenGL draws the video.</summary>
+    private Control? GreyRepairLine()
+    {
+        if (_mpv is not { } mpv || !_loaded || _surface is not VideoView view || _repairing) return null;
+        var next = Math.Min(3, _shell.Settings.VideoRepair + 1);
+        var repair = new Button { Content = _shell.Settings.VideoRepair > 0 ? L("Réparer encore", "Repair again") : L("Réparer", "Repair"), Classes = { "menuchip" }, MinWidth = 96, Margin = new Thickness(0) };
+        var tip = L($"Essayer la réparation {next} sur 3 : ", $"Try repair {next} of 3: ") + (next switch
+        {
+            1 => L("profil de couleurs de l’écran et lissage coupés", "screen colour profile and smoothing off"),
+            2 => L("décodage matériel coupé", "hardware decoding off"),
+            _ => L("image dessinée sans OpenGL", "picture drawn without OpenGL")
+        });
+        ToolTip.SetTip(repair, tip);
+        Avalonia.Automation.AutomationProperties.SetName(repair, tip);
+        repair.Click += (_, _) => { (_more.Flyout as Flyout)?.Hide(); _ = RepairAsync(mpv, view, asked: true); };
+        var line = new DockPanel { Margin = new Thickness(10, 0, 6, 8) };
+        DockPanel.SetDock(repair, Dock.Right); line.Children.Add(repair);
+        line.Children.Add(new TextBlock { Text = L("Image grise ou noire ?", "Grey or black picture?"), FontSize = 13, Foreground = Ui.Brush("#DEDEE4"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        return line;
+    }
+
     /// <summary>
     /// « Informations » of the ⋮ menu, as on Windows: what mpv plays and how it draws it, to tell a stream converted by
     /// Jellyfin (« Qualité » above says it), a Mac without OpenGL or without its screen's colours from a file of poor quality.
@@ -123,6 +158,11 @@ public sealed partial class PlayerPage
         var drawing = _surface is VideoView gl ? $"OpenGL{(gl.Renderer.Length > 0 ? " · " + gl.Renderer : "")}" : L("logiciel (sans OpenGL)", "software (no OpenGL)");
         if (shownWidth > 0 && shownHeight > 0) drawing += $" · {shownWidth:0} × {shownHeight:0}";
         var colours = _surface is VideoView { ColourProfile.Length: > 0 } view ? L($"profil de l’écran ({view.ColourProfile})", $"screen profile ({view.ColourProfile})") : L("non gérées", "not managed");
+        // What the frame mpv drew holds, looked at once a second while it plays: « unie #BBBBBB » with a grey screen = mpv's
+        // own picture is grey; « variée » = mpv draws the film and the grey comes after it, when macOS shows the window.
+        var look = _surface is VideoView { LastLook: { Length: > 0 } seen } looked
+            ? (seen == "~" ? L("variée", "varied") : seen.StartsWith('#') ? L("unie ", "single colour ") + seen : seen) + $" ({looked.Flat.Looks})"
+            : null;
         var repair = _shell.Settings.VideoRepair switch
         {
             1 => L("\nRéparé  image grise : profil de l’écran et lissage coupés", "\nRepaired  grey picture: screen profile and smoothing off"),
@@ -130,8 +170,9 @@ public sealed partial class PlayerPage
             >= 3 => L("\nRéparé  image grise : rendu sans OpenGL", "\nRepaired  grey picture: drawn without OpenGL"),
             _ => ""
         };
-        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}{repair}",
-            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{repair}");
+        var seenLine = look is null ? "" : L($"\nImage lue  {look}", $"\nFrame read  {look}");
+        return L($"Vidéo  {(video.Length > 0 ? video : "—")}\nDécodage  {decoding}\nRendu  {drawing}\nCouleurs  {colours}\nImage  {PictureInfo}\nImages perdues  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}",
+            $"Video  {(video.Length > 0 ? video : "—")}\nDecoding  {decoding}\nRendering  {drawing}\nColours  {colours}\nPicture  {PictureInfo}\nDropped frames  {mpv.Get("frame-drop-count") ?? "0"}{seenLine}{repair}");
     }
     /// <summary>The level playing, said in « Informations ».</summary>
     private string PictureInfo => PictureQuality.Label(_picture) + (_picture != PictureQuality.Known(_shell.Settings.Picture) ? L(" (allégée)", " (lightened)") : "");

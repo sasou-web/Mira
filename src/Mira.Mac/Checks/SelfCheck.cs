@@ -206,7 +206,7 @@ public static class SelfCheck
                 Check(started, $"lecture ({renderer}) : images", $"{player?.Surface?.GetType().Name}, {player?.Surface?.Frames} images{(player?.Surface is Playback.VideoView { Renderer.Length: > 0 } gl ? ", " + gl.Renderer : "")}{(player?.VideoFallback is { } why ? " — repli : " + why : "")}");
                 if (player?.Engine is not { } engine) continue;
                 var info = player.InfoText() ?? "";
-                Check(info.Split('\n').Length == 6 && info.Contains("OpenGL ·") == player.Surface is Playback.VideoView && PictureQuality.Choices.Any(x => info.Contains(PictureQuality.Label(x.Key))), $"informations de lecture ({renderer})", info.Replace('\n', ' '));
+                Check(info.Split('\n').Length == (player.Surface is Playback.VideoView { LastLook.Length: > 0 } ? 7 : 6) && info.Contains("OpenGL ·") == player.Surface is Playback.VideoView && PictureQuality.Choices.Any(x => info.Contains(PictureQuality.Label(x.Key))), $"informations de lecture ({renderer})", info.Replace('\n', ' '));
                 var audio = engine.Get("current-ao");
                 if (string.IsNullOrEmpty(audio)) Check(true, $"volume à 150 % ({renderer})", "pas de sortie audio sur cette machine : non mesurable");
                 else Check((engine.Get("af") ?? "").Contains(VolumeBoost.Label) && Math.Abs(engine.Number("volume") - 100) < 0.5, $"volume à 150 % ({renderer})", $"{player.Volume}, sortie {audio}, af {engine.Get("af")}");
@@ -227,10 +227,23 @@ public static class SelfCheck
                     else if (string.IsNullOrEmpty(engine.Get("current-ao"))) Check(true, "image grise : réparée", "pas de sortie audio sur cette machine : non mesurable");
                     else
                     {
-                        engine.Set("loop-file", "inf"); engine.Set("contrast", "-100"); engine.Set("brightness", "50");
+                        // « Réparer » of ⋮, for a grey screen no look sees: one step at once, said in « Informations ».
+                        player.MoreButton.Flyout!.ShowAt(player.MoreButton);
+                        await Task.Delay(600);
+                        var repairButton = ((player.MoreButton.Flyout as Flyout)?.Content as Control)?.GetVisualDescendants().OfType<Button>()
+                            .FirstOrDefault(x => Avalonia.Automation.AutomationProperties.GetName(x)?.StartsWith(Lang.L("Essayer la réparation 1", "Try repair 1")) == true);
+                        repairButton?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                        await Task.Delay(300);
+                        var asked = player.InfoText() ?? "";
+                        Check(repairButton is not null && window.Settings.VideoRepair == 1 && asked.Contains(Lang.L("Réparé", "Repaired")) && asked.Contains(Lang.L("Image lue", "Frame read")),
+                            "image grise : « Réparer » à la main", $"bouton {(repairButton is null ? "absent" : "trouvé")}, étape {window.Settings.VideoRepair} — {asked.Replace('\n', ' ')}");
+                        player.MoreButton.Flyout.Hide();
+                        // Bars beside the picture, as on a screen wider than the film (a MacBook's 2940 × 1640 around a 16:9
+                        // film): black there, grey in the middle, it is still the grey picture.
+                        engine.Set("loop-file", "inf"); engine.Set("video-aspect-override", "4:3"); engine.Set("contrast", "-100"); engine.Set("brightness", "50");
                         var repaired = await Until(() => player.Surface is Playback.SoftwareVideoView, 45);
                         var frames = player.Surface?.Frames ?? 0;
-                        engine.Set("contrast", "0"); engine.Set("brightness", "0");
+                        engine.Set("contrast", "0"); engine.Set("brightness", "0"); engine.Set("video-aspect-override", "-1");
                         var drawing = repaired && await Until(() => player.Surface?.Frames > frames + 12, 10);
                         Check(repaired && drawing && window.Settings.VideoRepair == 3 && !(player.InfoText() ?? "").Contains("OpenGL ·"),
                             "image grise : réparée", $"étape {window.Settings.VideoRepair}, {player.Surface?.GetType().Name}, {player.Surface?.Frames} images");
