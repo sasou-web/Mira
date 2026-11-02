@@ -32,7 +32,12 @@ jobs:
         run: dotnet restore tests/Mira.Core.Tests/Mira.Core.Tests.csproj --configfile NuGet.Config
       - name: Build
         run: dotnet build tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore
+      # The real qBittorrent (Ubuntu's qbittorrent-nox) for its Web API under Mira's profile, settings and password.
+      - name: qBittorrent
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends qbittorrent-nox
       - name: Tests free of WPF (Linux)
+        env:
+          MIRA_QBITTORRENT: /usr/bin/qbittorrent-nox
         run: dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-build
   # Mira's own Tailscale node (src/Mira.Tailscale), built with the tags of the helper the apps ship (logs to Tailscale
   # compiled out): its tests start a whole Tailscale network in the process (control, relay, the Jellyfin PC) and sign

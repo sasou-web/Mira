@@ -16,6 +16,7 @@ internal static class PortableTests
         await JellyfinCareTests.RunAsync(run);
         await TorLinkTests.RunAsync(run);
         await RemoteDownloadTests.RunAsync(run);
+        await QBittorrentTests.RunAsync(run);
         await SeriesFollowingTests.RunAsync(run);
         await UpgradeTests.RunAsync(run);
         await SubtitleTests.RunAsync(run);
