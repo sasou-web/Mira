@@ -167,9 +167,17 @@ jobs:
         run: |
           (cd src/Mira.Tailscale && CGO_ENABLED=0 go build -trimpath -tags "$(cat build-tags.txt)" -o "$RUNNER_TEMP/mira-testnet" ./cmd/mira-testnet)
           dotnet restore tests/Mira.Core.Tests/Mira.Core.Tests.csproj --configfile NuGet.Config
-          MIRA_TAILNET_HELPER="$PWD/dist/mac/Mira.app/Contents/MacOS/mira-tailscale" MIRA_TAILNET_TESTNET="$RUNNER_TEMP/mira-testnet" \
-          MIRA_TAILNET_MPV="$(brew --prefix)/lib/libmpv.dylib" MIRA_TAILNET_VERSION="$VERSION" \
-            dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore -- --filter "Tailscale intégré"
+          # A second try when the first fails: the hosted macOS runners sometimes lose the test network's UDP (seen on
+          # release runs of 0.9.2, green when run again on the same commit); a real fault fails both.
+          for attempt in 1 2; do
+            if MIRA_TAILNET_HELPER="$PWD/dist/mac/Mira.app/Contents/MacOS/mira-tailscale" MIRA_TAILNET_TESTNET="$RUNNER_TEMP/mira-testnet" \
+              MIRA_TAILNET_MPV="$(brew --prefix)/lib/libmpv.dylib" MIRA_TAILNET_VERSION="$VERSION" \
+              dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore -- --filter "Tailscale intégré"; then
+              break
+            fi
+            [ "$attempt" = 2 ] && exit 1
+            echo "::warning::Built-in Tailscale tests failed once on this runner; trying again."
+          done
       # Built-in Tailscale in Mira itself (src/Mira.Mac/Checks/TailnetCheck.cs): Mira.app as it ships signs in to the test
       # network from its login page, then to the self-check's stand-in Jellyfin, which Mira serves on a port the network's
       # Jellyfin PC forwards; Home and a film through the node, the PC off then on. Started again on the same profile, the
