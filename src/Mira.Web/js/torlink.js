@@ -9,6 +9,26 @@ import { airDay, dayText, today } from './calendar.js';
 /** What a title found in a category of TorLink is, on its card (RemoteLines.KindLabel); empty when the relay does not say. */
 export const kindLabel = (category) => ({ movies: tr('Film'), tv: tr('Série'), anime: tr('Anime') })[category] ?? '';
 export const MAX_QUERY = 120, MAX_MAGNET = 8192, MAX_NAME = 300;
+/** A .torrent sent to the relay: 4 MiB at most, as RemoteDownloads.MaxTorrent of Mira.Core. */
+export const MAX_TORRENT = 4 << 20;
+
+/**
+ * What stops a file from going as a .torrent (a bencoded dictionary with an « info » key, as the relay checks it
+ * again): null when it can go. Read from its bytes, never its name: a site may serve one as « download.php ».
+ */
+export function torrentProblem(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.length === 0) return tr('Ce n’est pas un fichier .torrent.');
+  if (bytes.length > MAX_TORRENT) return tr('Ce fichier .torrent est trop gros (4 Mo au plus).');
+  const head = new TextDecoder('latin1').decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
+  return bytes[0] === 0x64 && bytes[bytes.length - 1] === 0x65 && head.includes('4:info') ? null : tr('Ce n’est pas un fichier .torrent.');
+}
+
+/** A file's bytes in base64, as the relay takes a .torrent. */
+export function base64(bytes) {
+  let text = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
 
 // .NET's char.IsControl: C0, DEL and C1.
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g;

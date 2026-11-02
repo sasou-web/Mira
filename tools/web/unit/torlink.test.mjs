@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { setLanguage } from '../../../src/Mira.Web/js/i18n.js';
 import {
   kindLabel, cleanQuery, infoHash, displayName, cleanName, size, speed, agentLine, hitLine, requestLine, downloadLine, controllable, remaining, timeLeft,
-  followNote, followLine, pickLine, takenLine, placedLine,
+  followNote, followLine, pickLine, takenLine, placedLine, torrentProblem, base64, MAX_TORRENT,
 } from '../../../src/Mira.Web/js/torlink.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../tests/fixtures/torlink-remote.json', import.meta.url), 'utf8'));
@@ -109,4 +109,18 @@ test('the same lines in English', () => {
     assert.equal(pickLine({ episode: 'S01E13', size: 1.4 * 2 ** 30, state: 'waiting', sendAt: '2026-10-15T12:08:00Z' }, now), 'S01E13 · 1.4 GB · goes in 8\u00a0min');
     assert.equal(takenLine({ episode: 'S01E13', at: '2026-10-15T10:00:00Z' }, now), 'S01E13 · taken 2h ago');
   } finally { setLanguage('fr'); }
+});
+
+test('a .torrent is read by its bytes, as the relay reads it again', () => {
+  const bytes = (text) => new TextEncoder().encode(text);
+  const torrent = bytes('d8:announce20:https://c411.org/ann4:infod4:name4:Dune6:lengthi1e7:privatei1eee');
+  assert.equal(torrentProblem(torrent), null);
+  assert.equal(torrentProblem(bytes('<!doctype html><title>Login</title>')), 'Ce n’est pas un fichier .torrent.', 'A login page served in its place');
+  assert.equal(torrentProblem(bytes('d4:name4:Dunee')), 'Ce n’est pas un fichier .torrent.', 'No info');
+  assert.equal(torrentProblem(new Uint8Array(0)), 'Ce n’est pas un fichier .torrent.');
+  const big = new Uint8Array(MAX_TORRENT + 1); big.set(torrent); big[big.length - 1] = 0x65;
+  assert.match(torrentProblem(big), /trop gros/);
+  assert.equal(Buffer.from(base64(torrent), 'base64').toString('latin1'), Buffer.from(torrent).toString('latin1'));
+  const all = new Uint8Array(70_000).map((_, i) => i % 256);
+  assert.deepEqual([...Buffer.from(base64(all), 'base64')], [...all], 'Past one chunk, every byte');
 });

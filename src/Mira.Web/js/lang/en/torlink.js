@@ -70,6 +70,11 @@ export default {
   Effacer: 'Clear',
   Chercher: 'Search',
   'Coller un lien magnet': 'Paste a magnet link',
+  'Ajouter un .torrent': 'Add a .torrent',
+  'Ce n’est pas un fichier .torrent.': 'This isn’t a .torrent file.',
+  'Ce fichier .torrent est trop gros (4 Mo au plus).': 'This .torrent file is too big (4 MB at most).',
+  'Colle le lien d’un site que tu connais : qBittorrent le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque. Un tracker privé : envoie plutôt son .torrent.':
+    'Paste a link from a site you know: qBittorrent downloads it on the server PC, then Mira puts it in your library. From a private tracker, send its .torrent instead.',
   'Sur le PC serveur': 'On the server PC',
   'Rangés dans ta bibliothèque': 'Added to your library',
   'TorLink télécharge sur le PC où tourne Jellyfin, sans que tu aies à y toucher, puis Mira range le titre dans ta bibliothèque. Mira doit y être ouvert, même réduit. Seuls les comptes administrateurs de Jellyfin voient cet écran.':
