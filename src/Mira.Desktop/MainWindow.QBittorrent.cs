@@ -140,6 +140,8 @@ public partial class MainWindow
     {
         var installed = QBittorrentInstalled();
         QBittorrentInstallButton.Visibility = _serverLocal && !installed && !_qbInstalling ? Visibility.Visible : Visibility.Collapsed;
+        // The same button on the page itself, beside « Add a .torrent »: under « Paste a magnet link » alone, nobody found it.
+        QBittorrentInstallTop.Visibility = QBittorrentInstallButton.Visibility;
         QBittorrentLine.Text = !_serverLocal
             ? L("Un lien d’un tracker privé, ou un fichier .torrent : le qBittorrent du PC serveur le télécharge, et continue de le partager pour ton ratio.", "A link from a private tracker, or a .torrent file: the server PC’s qBittorrent downloads it, and keeps sharing it for your ratio.")
             : _qbInstalling ? L("Installation de qBittorrent… Windows demande ton autorisation.", "Installing qBittorrent… Windows asks for your permission.")
