@@ -37,6 +37,7 @@ internal static class TestSupport
             switch (item)
             {
                 case long number: stream.Write(Encoding.ASCII.GetBytes($"i{number}e")); break;
+                case byte[] raw: stream.Write(Encoding.ASCII.GetBytes($"{raw.Length}:")); stream.Write(raw); break;
                 case string text: var bytes = Encoding.UTF8.GetBytes(text); stream.Write(Encoding.ASCII.GetBytes($"{bytes.Length}:")); stream.Write(bytes); break;
                 case IEnumerable<KeyValuePair<string, object>> map: stream.WriteByte((byte)'d'); foreach (var (key, entry) in map.OrderBy(x => x.Key, StringComparer.Ordinal)) { Write(key); Write(entry); } stream.WriteByte((byte)'e'); break;
                 case System.Collections.IEnumerable list: stream.WriteByte((byte)'l'); foreach (var entry in list) Write(entry!); stream.WriteByte((byte)'e'); break;

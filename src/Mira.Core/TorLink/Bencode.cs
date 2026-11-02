@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Mira.Core;
@@ -6,6 +7,11 @@ namespace Mira.Core;
 /// <summary>A file of a torrent, relative to the download folder, exactly where WebTorrent writes it.</summary>
 public sealed record TorrentFileEntry(string RelativePath, long Length);
 public sealed record TorrentInfo(string Name, IReadOnlyList<TorrentFileEntry> Files);
+/// <summary>
+/// A .torrent someone gives Mira: its info hash (SHA-1 of the info dictionary, lower case), name, total size and whether
+/// it is private (« private » = 1: a private tracker's, never shared outside its tracker).
+/// </summary>
+public sealed record TorrentFile(string InfoHash, string Name, long Size, bool Private);
 
 /// <summary>
 /// Minimal .torrent reader: only the name and the file list of the info dictionary are extracted. A file larger than
@@ -47,6 +53,87 @@ public static class Bencode
         }
         else if (info.GetValueOrDefault("length") is long single && single >= 0 && StoredPath([name]) is { } path) files.Add(new(path, single));
         return new(name, files);
+    }
+
+    /// <summary>
+    /// What Mira needs of a .torrent before sending it on: null for anything that isn't one (no info dictionary, no name, no
+    /// file), or one over the limits above.
+    /// </summary>
+    public static TorrentFile? ReadFile(ReadOnlySpan<byte> data)
+    {
+        if (ReadTorrent(data) is not { Files.Count: > 0 } info || data[0] != (byte)'d') return null;
+        // The info dictionary's own bytes, as the file has them: their SHA-1 is the info hash.
+        int start = -1, end = -1;
+        try
+        {
+            var position = 1;
+            while (position < data.Length && data[position] != (byte)'e')
+            {
+                var keyStart = position;
+                position = End(data, position, 0);
+                var key = Key(data[keyStart..position]);
+                var valueStart = position;
+                position = End(data, position, 0);
+                if (key == "info") { start = valueStart; end = position; }
+            }
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException) { return null; }
+        if (start < 0) return null;
+        var dictionary = data[start..end];
+        return new(Convert.ToHexStringLower(SHA1.HashData(dictionary)), info.Name, info.Files.Sum(x => x.Length), Private(dictionary));
+    }
+
+    /// <summary>The text of a byte string key (« 4:info »).</summary>
+    private static string Key(ReadOnlySpan<byte> token)
+    {
+        var colon = token.IndexOf((byte)':');
+        return colon < 1 ? "" : Encoding.UTF8.GetString(token[(colon + 1)..]);
+    }
+
+    /// <summary>« private » = 1 among the info dictionary's keys (read already: its bytes are well formed).</summary>
+    private static bool Private(ReadOnlySpan<byte> info)
+    {
+        var position = 1;
+        while (position < info.Length && info[position] != (byte)'e')
+        {
+            var keyStart = position;
+            position = End(info, position, 0);
+            var key = Key(info[keyStart..position]);
+            var valueStart = position;
+            position = End(info, position, 0);
+            if (key == "private") return info[valueStart..position].SequenceEqual("i1e"u8);
+        }
+        return false;
+    }
+
+    /// <summary>Where the value starting at <paramref name="position"/> ends, without reading it.</summary>
+    private static int End(ReadOnlySpan<byte> data, int position, int depth)
+    {
+        if (depth > MaxDepth || position >= data.Length) throw new FormatException();
+        var token = data[position];
+        if (token == (byte)'i')
+        {
+            var end = data[(position + 1)..].IndexOf((byte)'e');
+            if (end is < 1 or > 20) throw new FormatException();
+            return position + end + 2;
+        }
+        if (token is (byte)'l' or (byte)'d')
+        {
+            position++;
+            while (position < data.Length && data[position] != (byte)'e') position = End(data, position, depth + 1);
+            if (position >= data.Length) throw new FormatException();
+            return position + 1;
+        }
+        if (token is >= (byte)'0' and <= (byte)'9')
+        {
+            var colon = data.Slice(position, Math.Min(11, data.Length - position)).IndexOf((byte)':');
+            if (colon < 1 || colon > 10) throw new FormatException();
+            var length = int.Parse(Encoding.ASCII.GetString(data.Slice(position, colon)), NumberStyles.None, CultureInfo.InvariantCulture);
+            position += colon + 1;
+            if (length > data.Length - position) throw new FormatException();
+            return position + length;
+        }
+        throw new FormatException();
     }
 
     /// <summary>
