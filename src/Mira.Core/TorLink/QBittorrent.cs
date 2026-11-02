@@ -233,7 +233,11 @@ public static class QBittorrentDownloads
 }
 
 /// <summary>Refused by qBittorrent: a wrong password, an address it bans for too many, or an answer Mira can't read.</summary>
-public sealed class QBittorrentException(string message) : Exception(message);
+public sealed class QBittorrentException(string message, bool signIn = false) : Exception(message)
+{
+    /// <summary>Its sign-in was refused (password, or too many attempts): what a fresh start of Mira's own qBittorrent mends.</summary>
+    public bool SignIn => signIn;
+}
 
 /// <summary>
 /// qBittorrent's Web API (v2), on 127.0.0.1 only, under Mira's account: its session cookie is asked again whenever
@@ -272,9 +276,9 @@ public sealed class QBittorrentClient : IDisposable
             using var response = await _http.PostAsync("auth/login", content, ct);
             var body = (await response.Content.ReadAsStringAsync(ct)).Trim();
             if (response.StatusCode == HttpStatusCode.Forbidden)
-                throw new QBittorrentException(L("qBittorrent refuse Mira pour un moment (trop d’essais) : il réessaiera.", "qBittorrent is refusing Mira for a while (too many attempts): it’ll try again."));
+                throw new QBittorrentException(L("qBittorrent refuse Mira pour un moment (trop d’essais) : il réessaiera.", "qBittorrent is refusing Mira for a while (too many attempts): it’ll try again."), signIn: true);
             if (!response.IsSuccessStatusCode || body != "Ok.")
-                throw new QBittorrentException(L("qBittorrent n’accepte pas le mot de passe de Mira.", "qBittorrent doesn’t accept Mira’s password."));
+                throw new QBittorrentException(L("qBittorrent n’accepte pas le mot de passe de Mira.", "qBittorrent doesn’t accept Mira’s password."), signIn: true);
             _signedIn = true;
         }
         finally { _login.Release(); }
