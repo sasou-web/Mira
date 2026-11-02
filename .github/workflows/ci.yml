@@ -32,19 +32,24 @@ jobs:
         run: dotnet restore tests/Mira.Core.Tests/Mira.Core.Tests.csproj --configfile NuGet.Config
       - name: Build
         run: dotnet build tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-restore
-      # The real qBittorrent for its Web API under Mira's profile, settings and password: the qBittorrent team's own
-      # build (their PPA), a 5.x like the one Mira installs on Windows. Ubuntu's 4.6 answers sign-in otherwise
-      # (« Ok. » instead of 204): Mira's 0.9.1 knew only that one and took 5.3's answer for a refused password.
+      # The real qBittorrent for its Web API under Mira's profile, settings and password: Ubuntu's qbittorrent-nox (4.6),
+      # then a 5.3.0 like the one Mira installs on Windows, which answers sign-in otherwise (204, not « Ok. »: Mira's
+      # 0.9.1 knew only 4.6 and took 5.3's answer for a refused password). Neither Ubuntu nor the qBittorrent team's PPA
+      # has a 5.x for this runner: the static build the qBittorrent wiki points to, its SHA-256 pinned.
       - name: qBittorrent
         run: |
-          sudo add-apt-repository -y ppa:qbittorrent-team/qbittorrent-stable
           sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends qbittorrent-nox
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/qbittorrent-nox-5" https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-5.3.0_v2.0.15/x86_64-qbittorrent-nox
+          echo "501202c16dff9b2486b91ae52f15e06e2027affdda514e70bb552d3833e31696  $RUNNER_TEMP/qbittorrent-nox-5" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/qbittorrent-nox-5"
           qbittorrent-nox --version
-          qbittorrent-nox --version | grep -Eq 'v(5|[6-9])\.'
+          "$RUNNER_TEMP/qbittorrent-nox-5" --version
       - name: Tests free of WPF (Linux)
         env:
           MIRA_QBITTORRENT: /usr/bin/qbittorrent-nox
         run: dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-build
+      - name: The real qBittorrent 5.3.0
+        run: MIRA_QBITTORRENT="$RUNNER_TEMP/qbittorrent-nox-5" dotnet run --project tests/Mira.Core.Tests/Mira.Core.Tests.csproj -c Release --no-build -- --filter "le vrai, dans le profil"
   # Mira's own Tailscale node (src/Mira.Tailscale), built with the tags of the helper the apps ship (logs to Tailscale
   # compiled out): its tests start a whole Tailscale network in the process (control, relay, the Jellyfin PC) and sign
   # a node in as the apps do; then the helper is built for Windows and Mac. Last, Mira.Core against the real helper on
