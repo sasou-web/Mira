@@ -342,6 +342,10 @@ final class MiraUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["tailscale.connected"].exists, "The sheet does not say Mira is connected to Tailscale")
         settle()
         capture("42-tailscale-found")
+        // The server's row can sit under the bottom of the screen, below the outage note: brought up before the tap,
+        // which would otherwise land on the screen's edge and open nothing.
+        let screen = app.windows.firstMatch.frame
+        for _ in 0..<4 where !(found.isHittable && found.frame.maxY < screen.maxY - 40) { app.swipeUp() }
         found.tap()
         signInAccount(app, password: "mira")
         XCTAssertTrue(app.staticTexts["Continue watching"].waitForExistence(timeout: 30), "Home never showed Continue watching through Built-in Tailscale")
