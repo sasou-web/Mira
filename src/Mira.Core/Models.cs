@@ -319,6 +319,11 @@ public sealed class PlayerSettings
     /// release of each title, progress); true TorLink's own interface, in its terminal.
     /// </summary>
     public bool TorLinkTerminal { get; set; }
+    /// <summary>
+    /// Where Mira's qBittorrent downloads (private trackers), chosen the first time it starts beside the library
+    /// (<see cref="TorLink.QBittorrentHistory.DownloadFolder"/>) and kept: qBittorrent goes on sharing from there.
+    /// </summary>
+    public string QBittorrentFolder { get; set; } = "";
     /// <summary>Manual library folders; empty: the folders of the Jellyfin libraries.</summary>
     public string TorLinkMoviesFolder { get; set; } = "";
     public string TorLinkSeriesFolder { get; set; } = "";

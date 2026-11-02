@@ -13,7 +13,7 @@ public sealed record TorLinkCompletion(string Id, string Name, string? Source, l
 /// queue and history. Mira writes only two things, and only while TorLink is closed: a download folder when TorLink
 /// has none yet (<see cref="ChooseDownloadDirectory"/>), and a pause on the sharing of downloads it moved (<see cref="PauseSeeds"/>).
 /// </summary>
-public sealed partial class TorLinkState
+public sealed partial class TorLinkState : IDownloadSource
 {
     public string ConfigDirectory { get; }
     public string DataDirectory { get; }

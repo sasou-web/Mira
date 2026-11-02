@@ -92,7 +92,10 @@ public partial class MainWindow
             DateTime.UtcNow - _remoteElsewhereAt < TimeSpan.FromMinutes(1), !_torlinkHeadless.Running && TorLinkInUse(), installation is { Outdated: false });
         var (searches, requests, controls, follows) = (_remoteSearchOutcomes.ToList(), _remoteRequestOutcomes.ToList(), _remoteControlOutcomes.ToList(), _remoteFollowOutcomes.ToList());
         // Follows, even empty: this Mira checks the series followed (MainWindow.Follows.cs); it replaces titles (MainWindow.Upgrades.cs).
-        var report = new AgentReport(Environment.MachineName, problem is null, problem, await RemoteDownloadsAsync(ct), TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls, follows, Replaces: true);
+        // qBittorrent (private trackers) takes pasted links and .torrent files, whatever TorLink's state; its downloads are listed with TorLink's.
+        List<RelayDownload> downloads = [.. await RemoteDownloadsAsync(ct), .. await QBittorrentDownloadsAsync(ct)];
+        var report = new AgentReport(Environment.MachineName, problem is null, problem, downloads, TorLinkRemote.Placed(torlink.Importer.Entries), searches, requests, controls, follows, Replaces: true,
+            QBittorrent: !_demo && QBittorrentInstalled());
         var (work, status) = await client.TorLinkExchangeAsync(report, ct);
         if (!ReferenceEquals(client, _client)) return TimeSpan.FromSeconds(5);
         if (work is null)
@@ -155,6 +158,30 @@ public partial class MainWindow
     private async Task RunRemoteDownloadsAsync(TorLinkInstallation? installation, List<WorkRequest> requests, List<WorkControl> controls)
     {
         var ct = _torlinkLifetime.Token;
+        // A .torrent, or a pasted link once qBittorrent is installed: qBittorrent's (a private tracker's, often), never TorLink's.
+        var qbittorrent = QBittorrentInstalled();
+        var theirs = requests.Where(x => x.Torrent is not null || x.Pasted && qbittorrent && x.Place is null && x.Replace is null).ToList();
+        foreach (var request in theirs)
+        {
+            byte[]? file = null;
+            if (request.Torrent is { } encoded)
+            {
+                try { file = Convert.FromBase64String(encoded); } catch (FormatException) { }
+                if (file is null || Bencode.ReadFile(file) is null) { _remoteRequestOutcomes.Add(new(request.Id, "failed", L("Ce n’est pas un fichier .torrent.", "That’s not a .torrent file."))); continue; }
+            }
+            var declined = await AddToQBittorrentAsync(file is null ? request.Magnet : null, file);
+            _remoteRequestOutcomes.Add(new(request.Id, declined is null ? "sent" : "failed", declined));
+        }
+        requests = requests.Except(theirs).ToList();
+        var left = new List<WorkControl>();
+        foreach (var control in controls)
+        {
+            var handled = RemoteDownloads.IsInfoHash(control.Target) && RemoteDownloads.IsAction(control.Action) ? await ControlQBittorrentAsync(control.Target, control.Action) : null;
+            if (handled is null) left.Add(control);
+            else _remoteControlOutcomes.Add(new(control.Id, handled.Length == 0 ? "done" : "failed", handled.Length == 0 ? null : handled));
+        }
+        controls = left;
+        if (requests.Count == 0 && controls.Count == 0) return;
         if (await StartHeadlessAsync(installation) is { } refused)
         {
             _remoteRequestOutcomes.AddRange(requests.Select(x => new AgentOutcome(x.Id, "failed", refused)));

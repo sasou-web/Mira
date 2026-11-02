@@ -17,6 +17,8 @@ public static partial class RemoteDownloads
     /// <summary>What can be asked of a download already in TorLink: cancelled (its partial files deleted), paused, resumed.</summary>
     public static readonly IReadOnlyList<string> Actions = ["delete", "pause", "resume"];
     public const int MaxQuery = 120, MaxMagnet = 8192, MaxName = 300;
+    /// <summary>A .torrent sent from another device: real ones are a few hundred kilobytes at most.</summary>
+    public const int MaxTorrent = 4 << 20;
     /// <summary>A month: TorLink's guess beyond that (a few bytes a second) is no time to show.</summary>
     public const long MaxEta = 30L * 24 * 3600;
 

@@ -17,9 +17,12 @@ public static class RemoteProtocol
 /// the work it took. <paramref name="Follows"/>: the outcome of the series it checked (« Suivre une série », after 0.8.4);
 /// an older agent leaves it out, and the relay hands it no series. <paramref name="Replaces"/>: it puts a better version
 /// in a title's place (« Remplacer par une meilleure version », after 0.8.5); the relay hands an older one no such download.
+/// <paramref name="QBittorrent"/>: its qBittorrent takes pasted magnet links and .torrent files now, TorLink ready or not
+/// (private trackers, after 0.9.0); its downloads are among <paramref name="Downloads"/>.
 /// </summary>
 public sealed record AgentReport(string? Name, bool Accepting, string? Problem, List<RelayDownload>? Downloads, List<RelayPlaced>? Placed,
-    List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls, List<AgentFollowOutcome>? Follows = null, bool Replaces = false);
+    List<AgentSearchOutcome>? Searches, List<AgentOutcome>? Requests, List<AgentOutcome>? Controls, List<AgentFollowOutcome>? Follows = null, bool Replaces = false,
+    bool QBittorrent = false);
 /// <summary>
 /// A download in TorLink: its info hash, TorLink's status (downloading, queued, paused, failed), percent, bytes per second,
 /// its size and what it has of it (0 when unknown), and the seconds TorLink still expects (null when it cannot tell).
@@ -44,8 +47,11 @@ public sealed record WorkSearch(string Id, string Query, string Category);
 /// <summary>
 /// <paramref name="Place"/>: an episode of a followed series, placed in its folder whatever its release calls it.
 /// <paramref name="Replace"/>: the film or episode of Jellyfin (its id) whose file this download replaces once checked.
+/// <paramref name="Torrent"/>: a .torrent someone gave (base64), for qBittorrent only; <paramref name="Magnet"/> is then its
+/// info hash's magnet link, for the name and the hash. <paramref name="Pasted"/>: a magnet link someone pasted (not a
+/// search result): qBittorrent takes it when it is ready (a private tracker's, often).
 /// </summary>
-public sealed record WorkRequest(string Id, string Magnet, string Name, FollowPlace? Place = null, string? Replace = null);
+public sealed record WorkRequest(string Id, string Magnet, string Name, FollowPlace? Place = null, string? Replace = null, string? Torrent = null, bool Pasted = false);
 public sealed record WorkControl(string Id, string Target, string Action);
 
 // « Suivre une série »: the series whose new episodes the agent fetches by itself, kept by the relay on the server
@@ -90,8 +96,9 @@ public sealed record RelayStatus(RelayAgent? Agent, List<RelayRequest> Requests,
 /// <summary>
 /// <paramref name="Follows"/>: its Mira checks the series followed (an agent of 0.8.4 or before does not).
 /// <paramref name="Replaces"/>: it replaces a title's file by a better version (an agent of 0.8.5 or before does not).
+/// <paramref name="QBittorrent"/>: its qBittorrent takes pasted magnet links and .torrent files (an agent of 0.9.0 or before does not).
 /// </summary>
-public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows = false, bool Replaces = false);
+public sealed record RelayAgent(string Name, bool Online, DateTimeOffset Seen, bool Accepting, string? Problem, bool Follows = false, bool Replaces = false, bool QBittorrent = false);
 /// <summary><paramref name="Replace"/>: the title (its id in Jellyfin) whose file this download is to replace.</summary>
 public sealed record RelayRequest(string Id, string Name, long Size, string InfoHash, string State, string? Error, DateTimeOffset Created, string? Replace = null);
 public sealed record RelayControl(string Id, string Target, string Action, string State);
