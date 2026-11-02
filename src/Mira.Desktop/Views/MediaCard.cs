@@ -13,6 +13,9 @@ public sealed class MediaCard : Button
 {
     /// <summary>A poster's corners: Mira's squircle, rounder than the 5 they were so a poster reads as an object rather than a crop.</summary>
     public const double PosterRadius = 11;
+    /// <summary>A soft shadow under the corner badges: they stay legible on a light poster.</summary>
+    private static readonly System.Windows.Media.Effects.DropShadowEffect BadgeShadow = Frozen(new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 1.5, Direction = 270, Opacity = .45 });
+    private static T Frozen<T>(T value) where T : Freezable { value.Freeze(); return value; }
     public MediaItem Item { get; }
     public string RenderKey { get; }
     public ImageSource? ImageSource => _image.Source;
@@ -62,14 +65,20 @@ public sealed class MediaCard : Button
         RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.HighQuality); _visual.Children.Add(_image);
         if (item.UserData.Played)
         {
-            _visual.Children.Add(new Border { Background = new SolidColorBrush(Color.FromArgb(225, 13, 16, 16)), CornerRadius = new CornerRadius(12), Width = 25, Height = 25, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(9), Child = new Icon { Kind = "check", Width = 14, Height = 14, Foreground = new SolidColorBrush(Color.FromRgb(176, 217, 178)) } });
+            // Watched: the light pill of the episode count with a check in it, as on the web and the Mac.
+            _visual.Children.Add(new Border
+            {
+                Background = Palette.Get("Accent"), CornerRadius = new CornerRadius(12.5), Width = 25, Height = 25, Effect = BadgeShadow,
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(9),
+                Child = new Icon { Kind = "check", Width = 14, Height = 14, Foreground = Palette.Get("OnAccent") }
+            });
         }
         // A series under way: how many episodes are left, so that new ones show from the library.
         else if (item.EpisodesToWatchBadge is { } count)
         {
             _visual.Children.Add(new Border
             {
-                Background = Palette.Get("Accent"), CornerRadius = new CornerRadius(12.5), MinWidth = 25, Height = 25, Padding = new Thickness(7, 0, 7, 0),
+                Background = Palette.Get("Accent"), CornerRadius = new CornerRadius(12.5), MinWidth = 25, Effect = BadgeShadow, Height = 25, Padding = new Thickness(7, 0, 7, 0),
                 HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(9),
                 Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeights.ExtraBold, Foreground = Palette.Get("OnAccent"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
             });
