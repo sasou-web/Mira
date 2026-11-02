@@ -1,5 +1,18 @@
 [
   {
+    "version": "0.9.2",
+    "summary": "Correctifs : qBittorrent 5, boutons de la fiche sous Windows, image grise sur Mac.",
+    "en": { "summary": "Fixes: qBittorrent 5, the title page buttons on Windows, the grey picture on Mac." },
+    "items": [
+      { "icon": "download", "title": "qBittorrent accepte Mira", "text": "Sur le PC de Jellyfin, qBittorrent 5 n’est plus pris pour un refus du mot de passe : les .torrent arrivent.", "web": true,
+        "en": { "title": "qBittorrent accepts Mira", "text": "On the Jellyfin PC, qBittorrent 5 is no longer taken for a refused password: .torrent files get there." } },
+      { "icon": "check", "title": "« Vu » et « Favori » sans erreur", "text": "Sous Windows, ces boutons et « Regarder ensemble » changent de nouveau sans message d’erreur.",
+        "en": { "title": "“Watched” and “Favorite” without an error", "text": "On Windows, these buttons and “Watch together” change again without an error message." } },
+      { "icon": "play", "title": "Image grise réparée sur Mac", "text": "La réparation lit le milieu de l’image, et ⋮ → Réparer la lance à la main.",
+        "en": { "title": "Grey picture repaired on Mac", "text": "The repair reads the middle of the picture, and ⋮ → Repair starts it by hand." } }
+    ]
+  },
+  {
     "version": "0.9.1",
     "summary": "Trackers privés par qBittorrent, lecteur plus fluide, Mira pour Mac par Homebrew.",
     "en": { "summary": "Private trackers through qBittorrent, a smoother player, Mira for Mac with Homebrew." },
