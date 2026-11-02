@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -45,6 +46,9 @@ internal static class QBittorrentTests
             var fresh = QBittorrentSettings.Ini(null, 18411, "a:b");
             Assert(fresh.Contains("[Preferences]\r\n") && fresh.Contains("WebUI\\Address=127.0.0.1\r\n") && fresh.Contains("WebUI\\Port=18411\r\n")
                 && fresh.Contains("WebUI\\Password_PBKDF2=\"@ByteArray(a:b)\"\r\n") && fresh.Contains("[LegalNotice]\r\nAccepted=true") && fresh.Contains("StartUpWindowState=Hidden"), fresh);
+            var webUI = fresh[fresh.IndexOf("[WebUI]\r\n", StringComparison.Ordinal)..];
+            Assert(webUI.Contains("\r\nAddress=127.0.0.1\r\n") && webUI.Contains("\r\nPort=18411\r\n") && webUI.Contains("\r\nUsername=mira\r\n")
+                && webUI.Contains("\r\nPassword_PBKDF2=\"@ByteArray(a:b)\"\r\n") && webUI.Contains("\r\nLocalHostAuth=true\r\n"), "The Web UI's keys under [WebUI] too (qBittorrent 5.2 and later): " + fresh);
             const string existing = "[BitTorrent]\nSession\\Port=51413\n\n[Preferences]\nWebUI\\Port=8080\nGeneral\\Locale=fr\nwebui\\address=*\n\n[Meta]\nMigrationVersion=8\n";
             var merged = QBittorrentSettings.Ini(existing, 18411, "a:b");
             Assert(merged.Contains("Session\\Port=51413") && merged.Contains("General\\Locale=fr") && merged.Contains("MigrationVersion=8"), "The person's settings stay: " + merged);
@@ -54,6 +58,16 @@ internal static class QBittorrentTests
                 "New keys in their section, before the blank line: " + preferences);
             Assert(QBittorrentSettings.Ini(merged, 18411, "a:b") == merged, "Written again: the same");
             return Task.CompletedTask;
+        });
+
+        await Test("qBittorrent : connexion acceptée comme 4.x et 5.1 la disent (200 « Ok. ») et comme 5.2 et après (204 sans texte), refusée sinon", async () =>
+        {
+            foreach (var (status, body, accepted) in new[] { (HttpStatusCode.OK, "Ok.", true), (HttpStatusCode.NoContent, "", true), (HttpStatusCode.OK, "Fails.", false), (HttpStatusCode.Unauthorized, "", false) })
+            {
+                using var client = new QBittorrentClient(18411, "secret", new Answer(status, body));
+                try { await client.SignInAsync(CancellationToken.None); Assert(accepted, $"{(int)status} « {body} » accepted"); }
+                catch (QBittorrentException ex) { Assert(!accepted && ex.SignIn, $"{(int)status} « {body} » refused: {ex.Message}"); }
+            }
         });
 
         await Test("qBittorrent : ses états dits comme ceux de TorLink (en cours, en attente, en pause, échec, terminé)", () =>
@@ -143,6 +157,13 @@ internal static class QBittorrentTests
             await Test("qBittorrent : le vrai, dans le profil de Mira (réglages, mot de passe, .torrent privé partagé, magnet, pause, reprise, annulation)", () => RealAsync(program));
     }
 
+    /// <summary>The same answer to every request.</summary>
+    private sealed class Answer(HttpStatusCode status, string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
+    }
+
     /// <summary>A one-file .torrent of <paramref name="content"/>, and its info dictionary's bytes.</summary>
     private static (byte[] Bytes, byte[] Info) Torrent(string name, byte[] content, bool isPrivate)
     {
@@ -169,16 +190,21 @@ internal static class QBittorrentTests
         var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
         // A setting of the person's, kept.
         File.WriteAllText(Path.Combine(config, QBittorrentSettings.FileName), QBittorrentSettings.Ini("[Preferences]\nGeneral\\Locale=fr\n", port, QBittorrentSettings.PasswordHash(password)));
-        var start = new ProcessStartInfo(program) { RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true };
-        start.ArgumentList.Add("--profile=" + Path.Combine(root, "profile"));
-        using var process = Process.Start(start) ?? throw new Exception("qBittorrent did not start");
         var output = new StringBuilder();
-        process.OutputDataReceived += (_, e) => { lock (output) output.AppendLine(e.Data); };
-        process.ErrorDataReceived += (_, e) => { lock (output) output.AppendLine(e.Data); };
-        process.BeginOutputReadLine(); process.BeginErrorReadLine();
+        Process Start()
+        {
+            var start = new ProcessStartInfo(program) { RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true };
+            start.ArgumentList.Add("--profile=" + Path.Combine(root, "profile"));
+            var started = Process.Start(start) ?? throw new Exception("qBittorrent did not start");
+            started.OutputDataReceived += (_, e) => { lock (output) output.AppendLine(e.Data); };
+            started.ErrorDataReceived += (_, e) => { lock (output) output.AppendLine(e.Data); };
+            started.BeginOutputReadLine(); started.BeginErrorReadLine();
+            return started;
+        }
+        var process = Start();
         try
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
             var ct = timeout.Token;
             using var client = new QBittorrentClient(port, password);
             string? version = null;
@@ -228,10 +254,28 @@ internal static class QBittorrentTests
             await client.ControlAsync(file.InfoHash, "pause", ct);
             ini = File.ReadAllText(Path.Combine(config, QBittorrentSettings.FileName));
             Assert(ini.Contains("General\\Locale=fr"), "The person's setting kept: " + ini);
+
+            // Quit, then started again under another password (a profile whose secret was drawn anew): qBittorrent 5.2
+            // and later, which moved the Web UI's keys to [WebUI] at its first start, read Mira's there.
+            await client.QuitAsync(ct);
+            await process.WaitForExitAsync(ct);
+            process.Dispose();
+            var renewed = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+            var settings = Path.Combine(config, QBittorrentSettings.FileName);
+            File.WriteAllText(settings, QBittorrentSettings.Ini(File.ReadAllText(settings), port, QBittorrentSettings.PasswordHash(renewed)));
+            process = Start();
+            using var again = new QBittorrentClient(port, renewed);
+            while (await again.VersionAsync(ct) is null)
+            {
+                if (process.HasExited) throw new Exception("qBittorrent quit: " + output);
+                await Task.Delay(200, ct);
+            }
+            Assert((await again.TorrentsAsync(ct)).Any(x => x.Hash == file.InfoHash), "Its downloads kept across the restart");
         }
         finally
         {
             try { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); } catch (InvalidOperationException) { }
+            process.Dispose();
             try { Directory.Delete(root, recursive: true); } catch (IOException) { }
         }
     }
