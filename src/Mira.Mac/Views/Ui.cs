@@ -294,16 +294,18 @@ public static class Cards
         };
     }
     private static Control Progress(double share) => new ProgressLine { Value = share, VerticalAlignment = VerticalAlignment.Bottom, Height = 4, Margin = new Thickness(10, 0, 10, 10) };
+    /// <summary>A soft shadow under the corner badges: they stay legible on a light poster.</summary>
+    private static readonly BoxShadows BadgeShadow = BoxShadows.Parse("0 0 0 1 #2E000000, 0 2 8 0 #73000000");
     private static Control Watched() => new Border
     {
-        Background = Ui.Brush("#E0F5F5F7"), CornerRadius = new CornerRadius(12), Width = 24, Height = 24, Margin = new Thickness(8),
+        Background = Ui.Brush("#F5F5F7"), CornerRadius = new CornerRadius(12), BoxShadow = BadgeShadow, Width = 24, Height = 24, Margin = new Thickness(8),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
         Child = new Icon("check", 14) { Foreground = Ui.Brush("#0B0B0C") }
     };
     /// <summary>Episodes left in a series under way: new ones show from the library.</summary>
     private static Control ToWatch(string count) => new Border
     {
-        Background = Ui.Brush("#E0F5F5F7"), CornerRadius = new CornerRadius(12), MinWidth = 24, Height = 24, Padding = new Thickness(7, 0), Margin = new Thickness(8),
+        Background = Ui.Brush("#F5F5F7"), CornerRadius = new CornerRadius(12), BoxShadow = BadgeShadow, MinWidth = 24, Height = 24, Padding = new Thickness(7, 0), Margin = new Thickness(8),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
         Child = new TextBlock { Text = count, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Ui.Brush("#0B0B0C"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
     };
