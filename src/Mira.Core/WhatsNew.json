@@ -8,8 +8,8 @@
         "en": { "title": "qBittorrent accepts Mira", "text": "On the Jellyfin PC, qBittorrent 5 is no longer taken for a refused password: .torrent files get there." } },
       { "icon": "check", "title": "« Vu » et « Favori » sans erreur", "text": "Sous Windows, ces boutons et « Regarder ensemble » changent de nouveau sans message d’erreur.",
         "en": { "title": "“Watched” and “Favorite” without an error", "text": "On Windows, these buttons and “Watch together” change again without an error message." } },
-      { "icon": "play", "title": "Image grise réparée sur Mac", "text": "La réparation lit le milieu de l’image, et ⋮ → Réparer la lance à la main.",
-        "en": { "title": "Grey picture repaired on Mac", "text": "The repair reads the middle of the picture, and ⋮ → Repair starts it by hand." } }
+      { "icon": "play", "title": "Image grise réparée sur Mac", "text": "Sur certains Mac (M2), l’image ne reste plus grise : profil de l’écran et deband ne sont plus posés.",
+        "en": { "title": "Grey picture repaired on Mac", "text": "On some Macs (M2), the picture no longer stays grey: no more screen profile or debanding." } }
     ]
   },
   {
