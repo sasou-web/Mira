@@ -965,6 +965,36 @@ await Test("Lecteurs d’écran : un bouton fait d’une icône et d’un texte 
     if (failure is not null) throw failure;
     return Task.CompletedTask;
 });
+await Test("Boutons de la fiche : « Vu », « Favori » et « Regarder ensemble » changent d’icône et de mot sur place, sans erreur", () =>
+{
+    // 0.9.1 replaced the label by `Children[1] = …`, which WPF refuses while the slot holds a child: every click on « Vu »
+    // or « Favori » ended in Mira's error message.
+    Exception? failure = null;
+    var thread = new Thread(() =>
+    {
+        try
+        {
+            var panel = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            var glyph = new Mira.Desktop.Views.Icon { Kind = "check" }; panel.Children.Add(glyph);
+            panel.Children.Add(new System.Windows.Controls.TextBlock { Text = "Marquer comme vu", Margin = new System.Windows.Thickness(9, 0, 0, 0) });
+            var button = new System.Windows.Controls.Button { Content = panel };
+            var row = new Mira.Desktop.Views.ActionRow { IconsOnly = true };
+            row.Children.Add(new System.Windows.Controls.Button { Content = "Lecture" }); row.Children.Add(button);
+            row.Measure(new System.Windows.Size(800, 60)); row.Arrange(new System.Windows.Rect(0, 0, 800, 60));
+            Assert(Mira.Desktop.Views.ActionRow.Relabel(button, "check", "Vu"), "Icon and label not recognised");
+            Assert(ReferenceEquals(button.Content, panel) && ReferenceEquals(panel.Children[0], glyph), "Content replaced instead of changed in place");
+            Assert(panel.Children is [Mira.Desktop.Views.Icon, System.Windows.Controls.TextBlock { Text: "Vu" } label] && label.Margin.Left == 9, "Label not changed");
+            Assert(Mira.Desktop.Views.ActionRow.Relabel(button, "check", "Marquer comme vu") && panel.Children[1] is System.Windows.Controls.TextBlock { Text: "Marquer comme vu" }, "Label not changed back");
+            Assert(Mira.Desktop.Views.ActionRow.Relabel(button, "heart-fill", "Favori") && glyph.Kind == "heart-fill" && panel.Children.Count == 2, "Icon not changed");
+            row.Measure(new System.Windows.Size(800, 60)); row.Arrange(new System.Windows.Rect(0, 0, 800, 60));
+            Assert(!Mira.Desktop.Views.ActionRow.Relabel(new System.Windows.Controls.Button { Content = "Lecture" }, "play", "Lecture"), "Text content taken for an icon and its label");
+        }
+        catch (Exception ex) { failure = ex; }
+    });
+    thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+    if (failure is not null) throw failure;
+    return Task.CompletedTask;
+});
 await DesktopSupplyChainTests.RunAsync(Test, testRoot);
 if (args.Contains("--torlink-integration"))
 {

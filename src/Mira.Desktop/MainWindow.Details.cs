@@ -408,16 +408,10 @@ public partial class MainWindow
             : item.Type == "Series" ? L("Marquer la série comme vue", "Mark show as watched") : L("Marquer comme vu", "Mark as watched"));
         ShowState(WatchedButton, played, played ? L("Vu. Clique pour le marquer comme non vu", "Watched. Click to mark it as unwatched") : null);
     }
-    /// <summary>
-    /// A button's icon and label changed where they are, never a new content: drawn again with the same state (the page
-    /// refreshed after the server answered), it does not move; a new icon pops in (<see cref="Motion.Swap"/>). A new label is
-    /// a new <see cref="TextBlock"/>, so <see cref="ActionRow"/> hides or shows it as it does any label.
-    /// </summary>
+    /// <summary>A button's icon and label changed where they are (<see cref="ActionRow.Relabel"/>), or its first content.</summary>
     private static void SetActionLabel(Button button, string icon, string label)
     {
-        if (button.Content is not StackPanel { Children: [Icon glyph, TextBlock text] } panel) { button.Content = ActionLabel(icon, label); return; }
-        Motion.Swap(glyph, icon);
-        if (text.Text != label) panel.Children[1] = new TextBlock { Text = label, Margin = text.Margin };
+        if (!ActionRow.Relabel(button, icon, label)) button.Content = ActionLabel(icon, label);
     }
     /// <summary>Length and ratings, then the picture of the file Lecture plays and when it ends (the episode it picks up at, on a series).</summary>
     private void RenderDetailMeta()

@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **« Vu », « Favori » et « Regarder ensemble » sans erreur (Windows)** : en 0.9.1, cliquer l’un de ces boutons sur la fiche d’un titre affichait le message d’erreur de Mira (`ArgumentException` dans `VisualCollection.set_Item`, dans `errors.log`) et le mot du bouton ne changeait pas. Mira remplaçait le mot par `Children[1] = …`, que WPF refuse tant que la place est prise : il le retire puis met le nouveau. Un test Windows change le mot d’un bouton sur place.
+
 ## 0.9.1 — 2026-11-02
 
 Trackers privés par qBittorrent, lecteur plus fluide, Mira pour Mac par Homebrew.
