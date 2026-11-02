@@ -8,7 +8,7 @@ import { tr, trn } from '../i18n.js';
 import { sheet, toast, errorState, emptyState } from '../components.js';
 import { goBack, replaceRoute } from '../app.js';
 import { session, temp } from '../session.js';
-import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable, followLine, followNote, pickLine, takenLine, placedLine } from '../torlink.js';
+import { kindLabel, cleanQuery, infoHash, agentLine, hitLine, requestLine, downloadLine, controllable, torrentProblem, base64, MAX_TORRENT, followLine, followNote, pickLine, takenLine, placedLine } from '../torlink.js';
 import { followedSheet } from '../follow.js';
 import { groupReleases, parseRelease, qualityLine, warning, readableName } from '../releases.js';
 import { ownedLookups, ownedLine, lookupKey } from '../owned.js';
@@ -42,6 +42,9 @@ export function create({ query }) {
   const form = h('form', { class: 'torlink-search', role: 'search', on: { submit: (e) => { e.preventDefault(); input.blur(); search(); } } },
     h('div', { class: 'search-box' }, icon('search'), input, clearButton), go);
   const paste = h('button', { class: 'btn quiet small torlink-paste', type: 'button', on: { click: () => askMagnet() } }, icon('link', { size: 16 }), tr('Coller un lien magnet'));
+  // A .torrent (a private tracker's, which no magnet link can fetch): only to a PC whose Mira drives qBittorrent.
+  const picker = h('input', { type: 'file', accept: '.torrent,application/x-bittorrent', hidden: true, on: { change: () => { const file = picker.files?.[0]; picker.value = ''; if (file) sendTorrent(file); } } });
+  const upload = h('button', { class: 'btn quiet small torlink-paste', type: 'button', hidden: true, on: { click: () => picker.click() } }, icon('plus', { size: 16 }), tr('Ajouter un .torrent'));
   const found = h('div', { class: 'torlink-results', 'aria-live': 'polite' });
   const listTitle = h('h2', { class: 'label group-title', hidden: true }, tr('Sur le PC serveur'));
   const list = h('div', { class: 'group torlink-list', hidden: true });
@@ -64,7 +67,7 @@ export function create({ query }) {
   const banner = h('section', { class: 'group torlink-upgrade', hidden: true, 'aria-label': tr('Meilleure version') });
   // What the PC has under way and has placed comes before the results: a download just asked for, or a title just
   // placed, shows at once, not 60 results below.
-  const body = h('div', {}, banner, h('div', { class: 'torlink-tools' }, form, paste), listTitle, list, followsTitle, followsList, placedTitle, placedList, placedMore, absent, found, note);
+  const body = h('div', {}, banner, h('div', { class: 'torlink-tools' }, form, paste, upload, picker), listTitle, list, followsTitle, followsList, placedTitle, placedList, placedMore, absent, found, note);
   clear(el).append(back,
     h('div', { class: 'page', style: { paddingTop: 'calc(var(--top) + 64px)', paddingBottom: '12px' } }, h('h1', { class: 'page-title' }, tr('Télécharger')), status),
     body);
@@ -105,6 +108,7 @@ export function create({ query }) {
     say(agent ? line.text : '');
     absent.hidden = !!agent; note.hidden = !agent;
     input.disabled = paste.disabled = !agent;
+    upload.hidden = !agent?.qBittorrent;
     go.disabled = !ready || !!looking;
     latest = {
       requests: state?.requests ?? [], downloads: state?.downloads ?? [], placed: state?.placed ?? [], controls: state?.controls ?? [],
@@ -482,7 +486,7 @@ export function create({ query }) {
         if (looking === null && lastHits?.search === body.search && !upgrade) keep({ query: lastHits.query, id: body.search, started: lastHits.started });
       }
       toast(body.replace ? tr('Demandé au PC serveur : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.')
-        : ready ? tr('Envoyé au PC serveur.') : tr('Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.'));
+        : ready || (agent?.qBittorrent && agent.online) ? tr('Envoyé au PC serveur.') : tr('Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.'));
       await load();
       // Its row, with its progress, is above the results: brought into view when the results hid it.
       if (!listTitle.hidden && listTitle.getBoundingClientRect().top < 0) listTitle.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -492,6 +496,25 @@ export function create({ query }) {
       return false;
     }
   }
+
+  async function sendTorrent(file) {
+    let bytes;
+    try { bytes = file.size > MAX_TORRENT ? null : new Uint8Array(await file.arrayBuffer()); } catch { bytes = null; }
+    const problem = bytes ? torrentProblem(bytes) : tr('Ce fichier .torrent est trop gros (4 Mo au plus).');
+    if (problem) { toast(problem, { tone: 'error' }); return; }
+    upload.disabled = true;
+    try { await send({ torrent: base64(bytes) }); } finally { upload.disabled = false; }
+  }
+
+  // A .torrent dropped anywhere on the page (a computer): sent as the button sends it.
+  const dropped = (e) => [...(e.dataTransfer?.items ?? [])].some((x) => x.kind === 'file');
+  el.addEventListener('dragover', (e) => { if (agent?.qBittorrent && dropped(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+  el.addEventListener('drop', (e) => {
+    if (!agent?.qBittorrent || !dropped(e)) return;
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) sendTorrent(file);
+  });
 
   function askMagnet() {
     const field = h('input', {
@@ -511,7 +534,9 @@ export function create({ query }) {
         else button.disabled = false;
       } },
     }, field,
-    h('p', { class: 'group-note', id: 'torlink-magnet-note' }, tr('Colle le lien d’un site que tu connais : TorLink le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque.')),
+    h('p', { class: 'group-note', id: 'torlink-magnet-note' }, agent?.qBittorrent
+      ? tr('Colle le lien d’un site que tu connais : qBittorrent le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque. Un tracker privé : envoie plutôt son .torrent.')
+      : tr('Colle le lien d’un site que tu connais : TorLink le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque.')),
     errorBox, button);
     close = sheet({ title: tr('Coller un lien magnet'), body: box, focus: field });
   }
