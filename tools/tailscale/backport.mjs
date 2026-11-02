@@ -23,7 +23,9 @@ const declaration = /^const CurrentCapabilityVersion CapabilityVersion = (\d+)$/
 // `wanted`, else the patched copy written in folder.
 export function backport(folder, env = process.env) {
   const go = (cwd, ...argv) => execFileSync('go', argv, { cwd, env: { ...env, GOFLAGS: '-mod=readonly' }, encoding: 'utf8' }).trim();
-  const dir = go(module, 'list', '-m', '-f', '{{.Dir}}', 'tailscale.com');
+  // go mod download, not go list -m: with an empty module cache (a fresh runner), go list -m gives no Dir.
+  const dir = JSON.parse(go(module, 'mod', 'download', '-json', 'tailscale.com')).Dir;
+  if (!dir) throw new Error('tailscale.com: go mod download gave no folder.');
   const current = capability(join(dir, 'tailcfg', 'tailcfg.go'));
   if (current >= wanted) return { dir: module, flags: ['-mod=readonly'] };
   if (current !== wanted - 1) throw new Error(`tailscale.com: capability version ${current}, ${wanted - 1} expected: see tools/tailscale/backport.mjs.`);
