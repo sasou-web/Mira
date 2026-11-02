@@ -12,6 +12,20 @@ namespace Mira.Core.TorLink;
 // window, beside a qBittorrent the person may use too) and drives it through its Web API, on 127.0.0.1 only, with a
 // password Mira draws and keeps.
 
+/// <summary>
+/// qBittorrent for Windows as Mira installs it when it is not there yet: its official x64 installer, at the address and
+/// SHA-256 of winget's reviewed manifest (qBittorrent.qBittorrent), checked again against the file. It installs for the
+/// whole PC (Windows asks for the administrator's consent) and adds its own rule to Windows' firewall.
+/// </summary>
+public sealed record QBittorrentPackage(string Version, Uri Url, string Sha256)
+{
+    public const long MaximumSize = 200L << 20;
+    public static readonly QBittorrentPackage Current = new("5.3.0",
+        new("https://sourceforge.net/projects/qbittorrent/files/qbittorrent-win32/qbittorrent-5.3.0/qbittorrent_5.3.0_x64_setup.exe/download"),
+        "AFF5B3BDC00D6E5773D6099BA30F9696DD3DFD1669AB0F64CE5C4E7168486436");
+    public string FileName => $"qbittorrent_{Version}_x64_setup.exe";
+}
+
 /// <summary>What Mira writes in the qBittorrent.ini of its profile before each start; the rest is the person's or qBittorrent's.</summary>
 public static class QBittorrentSettings
 {
@@ -112,6 +126,52 @@ public static class QBittorrentSettings
         ["start_paused_enabled"] = false,
         ["auto_tmm_enabled"] = false,
     };
+}
+
+/// <summary>
+/// qBittorrent's finished downloads in Mira's category, read once (torrents/info, then torrents/files of each), for
+/// <see cref="TorLinkImporter"/>: placed in the library by hard link or copy, never taken from qBittorrent, which goes on
+/// sharing them.
+/// </summary>
+public sealed class QBittorrentHistory(IReadOnlyList<TorLinkCompletion> completions, IReadOnlyDictionary<string, TorrentInfo> files) : IDownloadSource
+{
+    /// <summary>The source Mira gives them: TorLink's are its search sites.</summary>
+    public const string Source = "qbittorrent";
+
+    public List<TorLinkCompletion>? ReadHistory() => completions.ToList();
+    public TorrentInfo? ReadTorrent(string id, out bool refused) { refused = false; return files.GetValueOrDefault(id); }
+
+    /// <summary>The finished ones of <paramref name="torrents"/>, with their files from <paramref name="filesOf"/>.</summary>
+    public static async Task<QBittorrentHistory> ReadAsync(IReadOnlyList<QBittorrentTorrent> torrents, Func<string, CancellationToken, Task<List<TorrentFileEntry>>> filesOf, ISet<string> known, CancellationToken ct)
+    {
+        var done = new List<TorLinkCompletion>(); var files = new Dictionary<string, TorrentInfo>(StringComparer.OrdinalIgnoreCase);
+        foreach (var torrent in torrents.Where(QBittorrentDownloads.Finished))
+        {
+            var at = torrent.CompletedOn > 0 ? DateTimeOffset.FromUnixTimeSeconds(torrent.CompletedOn) : DateTimeOffset.UtcNow;
+            done.Add(new(torrent.Hash, torrent.Name, Source, torrent.Size, torrent.SavePath, at));
+            // Files are asked only for a download not placed yet: the others are not looked at again.
+            if (!known.Contains(torrent.Hash)) files[torrent.Hash] = new(torrent.Name, await filesOf(torrent.Hash, ct));
+        }
+        return new(done, files);
+    }
+
+    /// <summary>
+    /// Where qBittorrent downloads for Mira: beside the first library folder (on its drive: a hard link instead of a
+    /// copy), never inside one, where Jellyfin would list unfinished files; otherwise in the person's Downloads.
+    /// </summary>
+    public static string DownloadFolder(MediaLibraries libraries)
+    {
+        var name = L("Téléchargements qBittorrent", "qBittorrent downloads");
+        try
+        {
+            var roots = new[] { libraries.Movies, libraries.Series, libraries.Anime }.OfType<string>().Where(x => x.Trim().Length > 0)
+                .Select(x => Path.GetFullPath(x.Trim()).TrimEnd('\\', '/')).ToList();
+            bool InsideLibrary(string folder) => roots.Any(root => folder.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || string.Equals(folder, root, StringComparison.OrdinalIgnoreCase));
+            if (roots.Count > 0 && Path.GetDirectoryName(roots[0]) is { Length: > 0 } parent && Path.Combine(parent, name) is var beside && !InsideLibrary(beside)) return beside;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { }
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", name);
+    }
 }
 
 /// <summary>A download in qBittorrent, as its Web API lists it (torrents/info): the fields Mira reads.</summary>

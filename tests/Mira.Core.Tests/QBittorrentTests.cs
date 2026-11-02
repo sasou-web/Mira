@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Mira.Core;
 using Mira.Core.TorLink;
+using Mira.Jellyfin;
 using static TestSupport;
 
 /// <summary>
@@ -73,6 +74,69 @@ internal static class QBittorrentTests
             Assert(QBittorrentDownloads.Download(torrents[2]) is { Status: "failed", Error.Length: > 0 }, "Failed, with a reason");
             Assert(!QBittorrentDownloads.Finished(torrents[0]), "Not finished");
             return Task.CompletedTask;
+        });
+
+        await Test("qBittorrent : un .torrent envoyé d’un autre appareil passe par le relais seulement vers un PC serveur qui a qBittorrent, avec les liens collés", () =>
+        {
+            var now = DateTimeOffset.Parse("2026-11-02T02:00:00Z");
+            var relay = new TorLinkRelay(() => now);
+            var (bytes, _) = Torrent("Sonic 2 (2022).mkv", Encoding.ASCII.GetBytes(new string('x', 40_000)), isPrivate: true);
+            var file = Bencode.ReadFile(bytes)!;
+            var encoded = Convert.ToBase64String(bytes);
+            Assert(relay.Request(null, null, null, null, null, torrent: encoded).Error!.Contains("qBittorrent"), "No agent yet: refused, with why");
+            AgentReport Report(bool accepting, bool qbittorrent, List<AgentOutcome>? requests = null) =>
+                new("PC-SALON", accepting, accepting ? null : "TorLink n’est pas activé dans Mira sur le PC serveur.", [], [], [], requests, [], QBittorrent: qbittorrent);
+            relay.Exchange("pc-1", Report(accepting: true, qbittorrent: false));
+            Assert(relay.Request(null, null, null, null, null, torrent: encoded).Error!.Contains("qBittorrent") && relay.Status().Agent is { QBittorrent: false }, "A Mira without qBittorrent: refused");
+            relay.Exchange("pc-1", Report(accepting: false, qbittorrent: true));
+            Assert(relay.Status().Agent is { QBittorrent: true, Accepting: false }, "Said to Mira web");
+            Assert(relay.Request(null, null, null, null, null, torrent: "not base64!") is { Id: null, Error: "Ce n’est pas un fichier .torrent." }, "Not base64");
+            Assert(relay.Request(null, null, null, null, null, torrent: Convert.ToBase64String("<html>"u8.ToArray())) is { Id: null }, "Not a .torrent");
+            Assert(relay.Request(null, null, null, null, null, replace: "0123456789abcdef0123456789abcdef", torrent: encoded) is { Id: null }, "Never for a better version");
+            var (sent, error) = relay.Request(null, null, null, null, null, torrent: encoded);
+            Assert(sent is not null && error is null, "Taken: " + error);
+            Assert(relay.Status().Requests.Single() is { Name: "Sonic 2 (2022).mkv", Size: 40_000 } request && request.InfoHash == file.InfoHash, "Named and sized from the file");
+            var (pasted, _) = relay.Request($"magnet:?xt=urn:btih:{new string('c', 40)}&dn=Dune", null, null, null, null);
+            // TorLink off, qBittorrent ready: the .torrent and the pasted link go, to qBittorrent.
+            var work = relay.Exchange("pc-1", Report(accepting: false, qbittorrent: true));
+            Assert(work.Requests.Count == 2 && work.Requests.Single(x => x.Id == sent).Torrent == encoded && work.Requests.All(x => x.Pasted), "Handed with the file: " + string.Join(", ", work.Requests));
+            Assert(work.Requests.Single(x => x.Id == sent).Magnet.Contains(file.InfoHash), "Its hash's magnet beside it");
+            relay.Exchange("pc-1", Report(accepting: false, qbittorrent: true, requests: [new(sent!, "sent", null), new(pasted!, "failed", "qBittorrent a refusé ce téléchargement.")]));
+            Assert(relay.Status().Requests.Single(x => x.Id == pasted).Error == "qBittorrent a refusé ce téléchargement.", "Its refusal said");
+            // Neither TorLink nor qBittorrent: nothing is handed.
+            var (waiting, _) = relay.Request($"magnet:?xt=urn:btih:{new string('d', 40)}", null, null, null, null);
+            Assert(relay.Exchange("pc-1", Report(accepting: false, qbittorrent: false)).Requests.Count == 0, "Nobody to take it");
+            Assert(relay.Exchange("pc-1", Report(accepting: true, qbittorrent: false)).Requests.Single().Id == waiting, "TorLink takes a pasted link when there's no qBittorrent");
+            return Task.CompletedTask;
+        });
+
+        await Test("qBittorrent : un téléchargement fini rangé dans la bibliothèque sans le retirer à qBittorrent (lien physique, sinon copie)", async () =>
+        {
+            var root = Directory.CreateTempSubdirectory("mira-qb-import-").FullName;
+            try
+            {
+                var downloads = Directory.CreateDirectory(Path.Combine(root, "qBittorrent downloads")).FullName;
+                var films = Directory.CreateDirectory(Path.Combine(root, "Films")).FullName;
+                var source = Path.Combine(downloads, "Sonic.The.Hedgehog.2.2022.MULTi.1080p.mkv");
+                File.WriteAllBytes(source, new byte[1000]);
+                const string hash = "c12fe1c06bba254a9dc9f519b335aa7c1367a88a";
+                var torrents = new List<QBittorrentTorrent>
+                {
+                    new(hash, "Sonic.The.Hedgehog.2.2022.MULTi.1080p.mkv", "stalledUP", 1, 0, 3, 1000, 1000, 0, downloads, source, "Mira", 1_793_600_000, 0.4),
+                    new(new string('e', 40), "Unfinished", "downloading", 0.5, 10, 3, 1000, 500, 50, downloads, null, "Mira", 0, 0),
+                };
+                var asked = new List<string>();
+                var history = await QBittorrentHistory.ReadAsync(torrents, (id, _) => { asked.Add(id); return Task.FromResult(new List<TorrentFileEntry> { new("Sonic.The.Hedgehog.2.2022.MULTi.1080p.mkv", 1000) }); }, new HashSet<string>(), CancellationToken.None);
+                Assert(history.ReadHistory() is [{ Id: hash, Source: QBittorrentHistory.Source }] && asked.SequenceEqual([hash]), "Only the finished one, its files asked");
+                var importer = new TorLinkImporter(Path.Combine(root, "profile"));
+                await importer.ProcessAsync(history, new MediaLibraries(films, null, null), ImportMode.Share, automatic: false, requested: [hash]);
+                var placed = Path.Combine(films, "Sonic The Hedgehog 2 (2022)", "Sonic The Hedgehog 2 (2022).mkv");
+                Assert(importer.Find(hash) is { State: TorLinkImportState.Imported, MovedOut: false } && File.Exists(placed), "Placed: " + importer.Find(hash)?.Message);
+                Assert(File.Exists(source), "Left to qBittorrent, which shares it");
+                Assert(QBittorrentHistory.DownloadFolder(new(films, null, null)) == Path.Combine(root, L("Téléchargements qBittorrent", "qBittorrent downloads")), "Beside the library");
+                Assert(QBittorrentHistory.DownloadFolder(new(null, null, null)).EndsWith(L("Téléchargements qBittorrent", "qBittorrent downloads"), StringComparison.Ordinal), "No library: the person's Downloads");
+            }
+            finally { Directory.Delete(root, recursive: true); }
         });
 
         if (Environment.GetEnvironmentVariable("MIRA_QBITTORRENT") is { Length: > 0 } program)

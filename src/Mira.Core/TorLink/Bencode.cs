@@ -80,7 +80,7 @@ public static class Bencode
         catch (Exception ex) when (ex is FormatException or OverflowException) { return null; }
         if (start < 0) return null;
         var dictionary = data[start..end];
-        return new(Convert.ToHexStringLower(SHA1.HashData(dictionary)), info.Name, info.Files.Sum(x => x.Length), Private(dictionary));
+        return new(Convert.ToHexString(SHA1.HashData(dictionary)).ToLowerInvariant(), info.Name, info.Files.Sum(x => x.Length), Private(dictionary));
     }
 
     /// <summary>The text of a byte string key (« 4:info »).</summary>

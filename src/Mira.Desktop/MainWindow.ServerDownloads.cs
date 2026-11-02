@@ -111,10 +111,12 @@ public partial class MainWindow
             : L("Ce que tu envoies apparaît ici avec sa progression et le temps restant, puis rejoint ta bibliothèque.", "What you send shows up here with its progress and the time left, then joins your library.");
         ServerResultsHint.Text = here ? L("TorLink le cherche depuis ce PC. Mira regroupe les versions par titre et par épisode, et met la meilleure en avant : la qualité de la source d’abord, le 1080p, puis MULTI ou VF.", "TorLink searches for it from this PC. Mira groups the versions by title and by episode, and puts the best one first: the source’s quality first, 1080p, then MULTI or French audio.")
             : L("TorLink le cherche sur le PC serveur. Mira regroupe les versions par titre et par épisode, et met la meilleure en avant : la qualité de la source d’abord, le 1080p, puis MULTI ou VF.", "TorLink searches for it on the server PC. Mira groups the versions by title and by episode, and puts the best one first: the source’s quality first, 1080p, then MULTI or French audio.");
-        ServerMagnetHint.Text = here ? L("Le lien d’un site que tu connais : TorLink le télécharge sur ce PC, puis Mira le range dans ta bibliothèque.", "A link from a site you know: TorLink downloads it on this PC, then Mira sorts it into your library.")
-            : L("Le lien d’un site que tu connais : TorLink le télécharge sur le PC serveur, puis Mira le range dans ta bibliothèque.", "A link from a site you know: TorLink downloads it on the server PC, then Mira sorts it into your library.");
+        ServerMagnetHint.Text = here ? QBittorrentInstalled() ? L("Le lien d’un site que tu connais : qBittorrent le télécharge sur ce PC, puis Mira le range dans ta bibliothèque.", "A link from a site you know: qBittorrent downloads it on this PC, then Mira sorts it into your library.")
+                : L("Le lien d’un site que tu connais : TorLink le télécharge sur ce PC, puis Mira le range dans ta bibliothèque.", "A link from a site you know: TorLink downloads it on this PC, then Mira sorts it into your library.")
+            : L("Le lien d’un site que tu connais : le PC serveur le télécharge, puis Mira le range dans ta bibliothèque.", "A link from a site you know: the server PC downloads it, then Mira sorts it into your library.");
         ServerMagnetSend.Content = here ? L("Télécharger", "Download") : L("Envoyer au PC serveur", "Send to the server PC");
         ServerPlacedTitle.Text = here ? L("Vers Jellyfin", "To Jellyfin") : L("Rangés dans ta bibliothèque", "Sorted into your library");
+        DescribeQBittorrent();
     }
 
     private async Task ServerTickAsync()
@@ -164,7 +166,7 @@ public partial class MainWindow
     private async Task LoadLocalDownloadsAsync(int mine)
     {
         List<RelayDownload> downloads;
-        try { downloads = await RemoteDownloadsAsync(_torlinkLifetime.Token); }
+        try { downloads = [.. await RemoteDownloadsAsync(_torlinkLifetime.Token), .. await QBittorrentDownloadsAsync(_torlinkLifetime.Token)]; }
         catch (OperationCanceledException) { return; }
         if (mine != _serverVersion || !_serverScreen || !_serverLocal) return;
         // The series followed are the relay's, on this PC too.
@@ -221,6 +223,8 @@ public partial class MainWindow
     /// <summary>A pause, a resume or a cancel by this PC's TorLink: null once done, otherwise why not.</summary>
     private async Task<string?> ControlHereAsync(string id, string action)
     {
+        // qBittorrent's (a private tracker's): "" once done.
+        if (await ControlQBittorrentAsync(id, action) is { } handled) return handled.Length == 0 ? null : handled;
         if (await StartLocalTorLinkAsync() is { } refused) return refused;
         if (_torlinkHeadless.Client is not { } serve) return L("TorLink n’a pas répondu.", "TorLink didn’t answer.");
         var ct = _torlinkLifetime.Token;
@@ -702,9 +706,10 @@ public partial class MainWindow
     }
 
     /// <summary>Its row, with its progress, is at the top of the right column.</summary>
-    private async Task SentToServerAsync(bool replacing = false)
+    private async Task SentToServerAsync(bool replacing = false, bool qbittorrent = false)
     {
         SetNotice(replacing ? L("Demandé : la nouvelle version prendra la place de l’ancienne une fois téléchargée et vérifiée.", "Requested: the new version will take the old one’s place once downloaded and checked.")
+            : qbittorrent ? L("qBittorrent le télécharge : sa progression s’affiche à droite.", "qBittorrent is downloading it: its progress shows on the right.")
             : _serverLocal ? L("TorLink le télécharge : sa progression s’affiche à droite.", "TorLink is downloading it: its progress shows on the right.")
             : _serverReady ? L("Envoyé au PC serveur : sa progression s’affiche à droite.", "Sent to the server PC: its progress shows on the right.") : L("Demande gardée : le PC serveur la fera dès que Mira y sera ouvert.", "Request kept: the server PC will do it as soon as Mira is open there."));
         SmoothScroll.Jump(ServerQueueScroll);
@@ -745,10 +750,12 @@ public partial class MainWindow
         ServerMagnetSend.IsEnabled = false;
         try
         {
+            // On this PC, qBittorrent takes it when it is installed: a pasted link is often a private tracker's.
+            var qbittorrent = _serverLocal && QBittorrentInstalled();
             if (!_serverLocal) await client!.TorLinkRequestAsync(magnet, _connectionLifetime.Token);
-            else if (await DownloadHereAsync(magnet) is { } refused) { ShowMagnetError(refused); return; }
+            else if (await (qbittorrent ? AddToQBittorrentAsync(magnet, null) : DownloadHereAsync(magnet)) is { } refused) { ShowMagnetError(refused); return; }
             CloseServerMagnet(); ServerMagnetButton.Focus();
-            await SentToServerAsync();
+            await SentToServerAsync(qbittorrent: qbittorrent);
         }
         catch (Exception ex) when (IsExpected(ex)) { ShowMagnetError(ServerError(ex)); }
         finally { ServerMagnetSend.IsEnabled = true; }

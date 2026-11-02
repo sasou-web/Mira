@@ -18,6 +18,8 @@ internal static class RelayText
         ["Mira n’est pas ouvert sur le PC serveur : c’est lui qui cherche, avec TorLink."] = "Mira isn’t open on the server PC: that’s where the search runs, with TorLink.",
         ["Ce résultat n’est plus là : cherche de nouveau."] = "This result is gone: search again.",
         ["Ce n’est pas un lien magnet (« magnet:?xt=urn:btih:… »)."] = "That’s not a magnet link (“magnet:?xt=urn:btih:…”).",
+        ["Ce n’est pas un fichier .torrent."] = "That’s not a .torrent file.",
+        ["Le PC serveur n’a pas encore qBittorrent : installe-le dans la page Téléchargements de Mira, sur ce PC."] = "The server PC doesn’t have qBittorrent yet: install it from Mira’s Downloads page, on that PC.",
         ["Trop de demandes attendent déjà le PC serveur."] = "Too many requests are already waiting for the server PC.",
         ["Mira sur le PC serveur ne sait pas encore remplacer un titre : mets-le à jour."] = "Mira on the server PC can’t replace a title yet: update it.",
         ["Ce fichier est déjà demandé au PC serveur."] = "This file has already been asked of the server PC.",

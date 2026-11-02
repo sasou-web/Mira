@@ -278,7 +278,7 @@
       </StackPanel>
      </ScrollViewer>
      <!-- Mira web's screen (MainWindow.ServerDownloads.cs): away from the PC of Jellyfin, it sends TorLink there searches and downloads; on that PC, it runs them with TorLink here. -->
-     <Grid x:Name="ServerDownloadsPanel" Grid.ColumnSpan="3" Visibility="Collapsed" Background="{StaticResource Bg}"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="22"/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions>
+     <Grid x:Name="ServerDownloadsPanel" Grid.ColumnSpan="3" Visibility="Collapsed" Background="{StaticResource Bg}" AllowDrop="True" DragOver="ServerDownloads_DragOver" Drop="ServerDownloads_Drop"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="22"/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions>
       <DockPanel>
        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
         <!-- « Chercher une meilleure version » (MainWindow.Upgrades.cs): the title whose file the results would replace. -->
@@ -298,8 +298,9 @@
           <Button Grid.Column="2" Style="{StaticResource Quiet}" Content="{v:L 'Fermer', 'Close'}" Margin="6,0,0,0" Click="ServerMagnetClose_Click"/>
          </Grid>
          <TextBlock x:Name="ServerMagnetError" FontSize="12" Foreground="{StaticResource WarningText}" TextWrapping="Wrap" Margin="0,8,0,0" Visibility="Collapsed" v:Accessible.Announce="Assertive"/>
+         <DockPanel Margin="0,12,0,0"><Button x:Name="QBittorrentInstallButton" DockPanel.Dock="Right" Style="{StaticResource Quiet}" Content="{v:L 'Installer qBittorrent', 'Install qBittorrent'}" Margin="12,0,0,0" VerticalAlignment="Center" Visibility="Collapsed" Click="QBittorrentInstall_Click"/><TextBlock x:Name="QBittorrentLine" Style="{StaticResource SettingDescription}" Margin="0" VerticalAlignment="Center" v:Accessible.Announce="Polite"/></DockPanel>
         </StackPanel></v:Squircle>
-        <DockPanel Margin="0,12,0,0"><Button x:Name="ServerMagnetButton" DockPanel.Dock="Right" Style="{StaticResource Quiet}" Click="ServerMagnet_Click" AutomationProperties.Name="{v:L 'Coller un lien magnet', 'Paste a magnet link'}"><StackPanel Orientation="Horizontal"><v:Icon Kind="link" Width="16" Height="16" Margin="0,0,8,0"/><TextBlock Text="{v:L 'Coller un lien magnet', 'Paste a magnet link'}"/></StackPanel></Button><TextBlock x:Name="ServerSearchStatus" FontSize="12.5" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="2,0,12,0" v:Accessible.Announce="Polite"/></DockPanel>
+        <DockPanel Margin="0,12,0,0"><Button x:Name="ServerTorrentButton" DockPanel.Dock="Right" Style="{StaticResource Quiet}" Margin="6,0,0,0" Click="ServerTorrent_Click" ToolTip="{v:L 'Ou dépose-le sur cette page', 'Or drop it on this page'}" AutomationProperties.Name="{v:L 'Ajouter un fichier .torrent', 'Add a .torrent file'}"><StackPanel Orientation="Horizontal"><v:Icon Kind="folder" Width="16" Height="16" Margin="0,0,8,0"/><TextBlock Text="{v:L 'Ajouter un .torrent', 'Add a .torrent'}"/></StackPanel></Button><Button x:Name="ServerMagnetButton" DockPanel.Dock="Right" Style="{StaticResource Quiet}" Click="ServerMagnet_Click" AutomationProperties.Name="{v:L 'Coller un lien magnet', 'Paste a magnet link'}"><StackPanel Orientation="Horizontal"><v:Icon Kind="link" Width="16" Height="16" Margin="0,0,8,0"/><TextBlock Text="{v:L 'Coller un lien magnet', 'Paste a magnet link'}"/></StackPanel></Button><TextBlock x:Name="ServerSearchStatus" FontSize="12.5" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="2,0,12,0" v:Accessible.Announce="Polite"/></DockPanel>
        </StackPanel>
        <Grid>
         <ScrollViewer Style="{StaticResource {x:Type ScrollViewer}}" x:Name="ServerResultsScroll" VerticalScrollBarVisibility="Auto" v:SmoothScroll.Enabled="True"><StackPanel x:Name="ServerResults" Margin="0,0,8,0"/></ScrollViewer>

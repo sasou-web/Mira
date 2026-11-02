@@ -8,7 +8,11 @@ namespace Mira.Core;
 /// once, one file at a time. KeepSeeding: a hard link on the same NTFS drive, so TorLink keeps sharing without a
 /// second copy; where no link is possible, the file moves as with Move. Neither mode leaves a download twice on disk.
 /// </summary>
-public enum ImportMode { KeepSeeding, Move }
+/// <summary>
+/// KeepSeeding: a hard link where the drive allows it, otherwise moved. Move: moved. Share: never takes anything from the
+/// download (qBittorrent goes on sharing it for a private tracker's ratio): a hard link, otherwise a copy.
+/// </summary>
+public enum ImportMode { KeepSeeding, Move, Share }
 
 public sealed record ImportFailure(ImportOperation Operation, string Reason);
 
@@ -58,7 +62,8 @@ public static class MediaImporter
                 try
                 {
                     Directory.CreateDirectory(target.DirectoryName!);
-                    if (mode == ImportMode.KeepSeeding && TryHardLink(source.FullName, destination)) { linked = true; JellyfinServiceAccess.ShareWithFolder(destination); }
+                    if (mode is ImportMode.KeepSeeding or ImportMode.Share && TryHardLink(source.FullName, destination)) { linked = true; JellyfinServiceAccess.ShareWithFolder(destination); }
+                    else if (mode == ImportMode.Share) { await CopyAsync(source.FullName, destination, ct); copied = true; JellyfinServiceAccess.ShareWithFolder(destination); }
                     else if (SameVolume(source.FullName, destination)) { await MoveAsync(source.FullName, destination, ct); moved = true; JellyfinServiceAccess.ShareWithFolder(destination); }
                     else
                     {

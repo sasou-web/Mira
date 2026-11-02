@@ -40,11 +40,12 @@ public sealed class TorLinkController : ControllerBase
     public IActionResult SearchState(string id) => Relay.SearchState(id) is { } search ? Answer(RelayText.For(search, French)) : NotFound();
 
     [HttpPost("requests")]
-    [RequestSizeLimit(32_768)]
+    // A .torrent comes in base64: 4 MB at most (RemoteDownloads.MaxTorrent), a third more once encoded.
+    [RequestSizeLimit(6 << 20)]
     public async Task<IActionResult> Ask(CancellationToken cancellationToken)
     {
         var body = await ReadAsync<RequestBody>(cancellationToken).ConfigureAwait(false);
-        var (id, error) = Relay.Request(body?.Magnet, body?.Search, body?.Result, body?.Name, body?.Size, body?.Replace);
+        var (id, error) = Relay.Request(body?.Magnet, body?.Search, body?.Result, body?.Name, body?.Size, body?.Replace, body?.Torrent);
         return id is null ? Refuse(error) : Answer(new { id });
     }
 
@@ -127,7 +128,7 @@ public sealed class TorLinkController : ControllerBase
     }
 
     private sealed record SearchBody(string? Query, string? Category);
-    private sealed record RequestBody(string? Magnet, string? Search, string? Result, string? Name, long? Size, string? Replace);
+    private sealed record RequestBody(string? Magnet, string? Search, string? Result, string? Name, long? Size, string? Replace, string? Torrent);
     private sealed record ControlBody(string? Id, string? Action);
     private sealed record FollowBody(string? SeriesId, string? Name, string? Query);
 }

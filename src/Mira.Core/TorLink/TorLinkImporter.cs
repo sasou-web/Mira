@@ -101,6 +101,18 @@ public sealed record SavedUserData(string UserId, bool Played, int PlayCount, lo
 }
 
 /// <summary>A download sent to TorLink for a series followed (its info hash), and where it goes once finished.</summary>
+/// <summary>
+/// Where finished downloads are read from: TorLink's history and the .torrent files it keeps (<see cref="TorLinkState"/>),
+/// or qBittorrent's downloads in Mira's category (<see cref="QBittorrentHistory"/>).
+/// </summary>
+public interface IDownloadSource
+{
+    /// <summary>Finished downloads; null while they can't be read (try again).</summary>
+    List<TorLinkCompletion>? ReadHistory();
+    /// <summary>A download's files; <paramref name="refused"/>: its metadata was over <see cref="Bencode"/>'s limits.</summary>
+    TorrentInfo? ReadTorrent(string id, out bool refused);
+}
+
 public sealed record TorLinkExpected(string Id, ImportTarget Target, DateTimeOffset At);
 
 /// <summary>
@@ -182,7 +194,7 @@ public sealed class TorLinkImporter
     /// Imports the downloads TorLink finished since the baseline (when <paramref name="automatic"/>), retries the ones
     /// still waiting for their files or for a library folder, and imports the <paramref name="requested"/> ones in any case.
     /// </summary>
-    public async Task<int> ProcessAsync(TorLinkState state, MediaLibraries libraries, ImportMode mode, bool automatic, IReadOnlyCollection<string>? requested = null, CancellationToken ct = default)
+    public async Task<int> ProcessAsync(IDownloadSource state, MediaLibraries libraries, ImportMode mode, bool automatic, IReadOnlyCollection<string>? requested = null, CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);
         try
@@ -211,7 +223,7 @@ public sealed class TorLinkImporter
         finally { _gate.Release(); }
     }
 
-    private async Task ImportAsync(TorLinkCompletion completion, TorLinkImportEntry? previous, TorLinkState state, MediaLibraries libraries, ImportMode mode, ImportTarget? target, CancellationToken ct)
+    private async Task ImportAsync(TorLinkCompletion completion, TorLinkImportEntry? previous, IDownloadSource state, MediaLibraries libraries, ImportMode mode, ImportTarget? target, CancellationToken ct)
     {
         var entry = previous ?? new TorLinkImportEntry { Id = completion.Id, Name = completion.Name, Source = completion.Source, CompletedAt = completion.CompletedAt };
         entry = entry with { State = TorLinkImportState.Importing, Message = null, UpdatedAt = DateTimeOffset.UtcNow };
@@ -443,10 +455,10 @@ public sealed class TorLinkImporter
     /// Finished files of a download, only once every video and subtitle is complete on disk; never outside TorLink's folder.
     /// A file an earlier attempt moved into the library (<paramref name="placed"/>) counts where it now is.
     /// </summary>
-    public static List<SourceFile>? DownloadedFiles(TorLinkState state, TorLinkCompletion completion, IReadOnlyList<TorLinkImportedFile>? placed = null) =>
+    public static List<SourceFile>? DownloadedFiles(IDownloadSource state, TorLinkCompletion completion, IReadOnlyList<TorLinkImportedFile>? placed = null) =>
         DownloadedFiles(state, completion, placed, out _);
     /// <summary><paramref name="torrentRefused"/>: the download's .torrent was too large to read; its files are looked for by name.</summary>
-    public static List<SourceFile>? DownloadedFiles(TorLinkState state, TorLinkCompletion completion, IReadOnlyList<TorLinkImportedFile>? placed, out bool torrentRefused)
+    public static List<SourceFile>? DownloadedFiles(IDownloadSource state, TorLinkCompletion completion, IReadOnlyList<TorLinkImportedFile>? placed, out bool torrentRefused)
     {
         torrentRefused = false;
         string root;
