@@ -48,7 +48,7 @@ public sealed partial class PlayerPage
         _miniChrome.Transitions = [new Avalonia.Animation.DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(160) }];
         var frame = new Grid { Children = { content, _miniChrome, _miniProgress } };
         _miniProgress.IsVisible = false;
-        _frame = new Border { Child = frame, ClipToBounds = true };
+        _frame = new Border { Child = frame };
         return _frame;
     }
     /// <summary>Shrinks the player to its corner, or brings it back over the whole window.</summary>
@@ -60,6 +60,9 @@ public sealed partial class PlayerPage
         _mini = mini; _miniDragging = false; _miniPress = null; RenderTransform = null;
         _chrome.IsVisible = _skipHost.IsVisible = !mini;
         _miniChrome.IsVisible = _miniProgress.IsVisible = mini;
+        // Clipped only in its corner, to round it: over the whole window the video's OpenGL surface goes to the screen
+        // as it did before the mini-player (0.8.6), with nothing between.
+        _frame.ClipToBounds = mini;
         _frame.CornerRadius = new CornerRadius(mini ? MiniRadius : 0);
         _frame.BoxShadow = mini ? BoxShadows.Parse("0 12 36 0 #99000000") : default;
         _frame.BorderThickness = new Thickness(mini ? 1 : 0); _frame.BorderBrush = Ui.Brush("#30FFFFFF");

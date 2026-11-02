@@ -136,28 +136,37 @@ public sealed unsafe class VideoView : OpenGlControlBase, IVideoSurface
     /// <summary>Asks for a look at the next frame mpv draws (<see cref="Flat"/>).</summary>
     public void LookNextFrame() => _lookWanted = true;
     /// <summary>
-    /// The last frame looked at was a single colour other than black (its rows from a fifth to two thirds of the
-    /// height, above the subtitles), and how many looks so far: what a Mac whose OpenGL lost the picture shows, grey.
+    /// The last frame looked at was a single colour other than black (its middle: rows from a fifth to two thirds of the
+    /// height, above the subtitles, and the three fifths across, clear of the black bars beside a film narrower than the
+    /// screen), and how many looks so far: what a Mac whose OpenGL lost the picture shows, grey.
     /// </summary>
     public (bool Flat, int Looks) Flat => (_flat, Volatile.Read(ref _looks));
     private volatile bool _flat;
     private int _looks;
+    /// <summary>
+    /// What the last look found, for « Informations »: the grey on the screen is in mpv's frame (repairable here) or
+    /// only on the screen (macOS composing the window). Empty before the first look.
+    /// </summary>
+    public string LastLook { get; private set; } = "";
     private void Look(GlInterface gl, int width, int height)
     {
         if (_readPixels == IntPtr.Zero) _readPixels = gl.GetProcAddress("glReadPixels");
-        if (_readPixels == IntPtr.Zero || width < 16 || height < 16) return;
+        if (_readPixels == IntPtr.Zero || width < 16 || height < 16) { LastLook = "no glReadPixels"; return; }
         var read = (delegate* unmanaged[Cdecl]<int, int, int, int, int, int, void*, void>)_readPixels;
-        var row = new byte[width * 4];
+        var (left, across) = (width / 5, width * 3 / 5);
+        var row = new byte[across * 4];
         Span<int> low = [255, 255, 255], high = [0, 0, 0];
         fixed (byte* pixels = row)
             for (var line = 0; line < 6; line++)
             {
                 // OpenGL counts rows from the bottom: a third to four fifths from there.
-                read(0, height / 3 + line * (height * 7 / 15) / 5, width, 1, GlRgba, GlUnsignedByte, pixels);
+                read(left, height / 3 + line * (height * 7 / 15) / 5, across, 1, GlRgba, GlUnsignedByte, pixels);
                 for (var x = 0; x < row.Length; x += 4)
                     for (var c = 0; c < 3; c++) { low[c] = Math.Min(low[c], row[x + c]); high[c] = Math.Max(high[c], row[x + c]); }
             }
-        _flat = high[0] - low[0] <= 6 && high[1] - low[1] <= 6 && high[2] - low[2] <= 6 && high[0] + high[1] + high[2] > 3 * 40;
+        var single = high[0] - low[0] <= 6 && high[1] - low[1] <= 6 && high[2] - low[2] <= 6;
+        _flat = single && high[0] + high[1] + high[2] > 3 * 40;
+        LastLook = single ? $"#{high[0]:X2}{high[1]:X2}{high[2]:X2}" : "~";
         Interlocked.Increment(ref _looks);
     }
     private const int GlRgba = 0x1908, GlUnsignedByte = 0x1401;
