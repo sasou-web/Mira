@@ -50,7 +50,7 @@ public sealed class MpvPlayer : MpvClient
             Option("hwdec", settings.HardwareDecoding ? "auto-safe" : "no");
             // The colours of the screen: the view sets target-prim to Display P3 on a wide-gamut screen
             // (VideoView.ShowColours), never the screen's ICC profile, which turned the picture grey on a MacBook (M2).
-            if (picture is not null) PictureOptions(picture, displaySync: false);
+            if (picture is not null) PictureOptions(picture, displaySync: false, deband: false);
             PlayerOptions(settings);
             // Extra mpv options for a diagnosis, MIRA_MPV_OPTIONS="name=value;name=value".
             foreach (var pair in (Environment.GetEnvironmentVariable("MIRA_MPV_OPTIONS") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))

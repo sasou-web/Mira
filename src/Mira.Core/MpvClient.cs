@@ -100,18 +100,18 @@ public abstract unsafe class MpvClient : IDisposable
             if ((value ?? Get($"option-info/{name}/default-value")) is { } text) Set(name, text);
     }
     /// <summary>« Image » (<see cref="PictureQuality"/>) before the playback starts; an option this mpv does not know is left out.</summary>
-    protected void PictureOptions(string? level, bool displaySync = true)
+    protected void PictureOptions(string? level, bool displaySync = true, bool deband = true)
     {
-        foreach (var (name, value) in PictureQuality.Options(level, displaySync))
+        foreach (var (name, value) in PictureQuality.Options(level, displaySync, deband))
             if (value is not null) TryOption(name, value);
     }
     /// <summary>
     /// « Image » changed while a video plays (only ever to a lighter level: <see cref="PictureWatch"/>): each option set
     /// again, mpv's own default where the level sets none.
     /// </summary>
-    public void Picture(string? level, bool displaySync = true)
+    public void Picture(string? level, bool displaySync = true, bool deband = true)
     {
-        foreach (var (name, value) in PictureQuality.Options(level, displaySync))
+        foreach (var (name, value) in PictureQuality.Options(level, displaySync, deband))
             if ((value ?? Get($"option-info/{name}/default-value")) is { } text) Set(name, text);
     }
     /// <summary>The mpv output whose devices Mira lists (« wasapi » on Windows); none, only the system's default device.</summary>
