@@ -53,20 +53,35 @@ public static class QBittorrentSettings
     /// [Preferences]): the Web UI on 127.0.0.1 and its port, behind Mira's account, without UPnP; the legal notice
     /// accepted (qBittorrent asks once otherwise, before anything else); started hidden in the notification area, which
     /// keeps it (closing the window keeps it running, and quitting asks nothing); no check for its updates, which would
-    /// reach qbittorrent.org (Mira says when one is out).
+    /// reach qbittorrent.org (Mira says when one is out). The Web UI's keys twice: qBittorrent 5.2 and later read them
+    /// under [WebUI] (« WebUI/Port »), and move those of [Preferences] there only once, at their first start; 5.1 and
+    /// before read them under [Preferences] only.
     /// </summary>
-    public static IReadOnlyList<(string Section, string Key, string Value)> Managed(int webPort, string passwordHash) =>
+    public static IReadOnlyList<(string Section, string Key, string Value)> Managed(int webPort, string passwordHash)
+    {
+        (string Key, string Value)[] webUI =
+        [
+            ("Enabled", "true"),
+            ("Address", "127.0.0.1"),
+            ("Port", webPort.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            ("Username", Username),
+            ("Password_PBKDF2", $"\"@ByteArray({passwordHash})\""),
+            ("LocalHostAuth", "true"),
+            ("UseUPnP", "false"),
+            ("HostHeaderValidation", "true"),
+            ("CSRFProtection", "true"),
+        ];
+        return
+        [
+            ("LegalNotice", "Accepted", "true"),
+            .. webUI.Select(x => ("Preferences", @"WebUI\" + x.Key, x.Value)),
+            .. Others,
+            .. webUI.Select(x => ("WebUI", x.Key, x.Value)),
+        ];
+    }
+
+    private static readonly (string Section, string Key, string Value)[] Others =
     [
-        ("LegalNotice", "Accepted", "true"),
-        ("Preferences", @"WebUI\Enabled", "true"),
-        ("Preferences", @"WebUI\Address", "127.0.0.1"),
-        ("Preferences", @"WebUI\Port", webPort.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-        ("Preferences", @"WebUI\Username", Username),
-        ("Preferences", @"WebUI\Password_PBKDF2", $"\"@ByteArray({passwordHash})\""),
-        ("Preferences", @"WebUI\LocalHostAuth", "true"),
-        ("Preferences", @"WebUI\UseUPnP", "false"),
-        ("Preferences", @"WebUI\HostHeaderValidation", "true"),
-        ("Preferences", @"WebUI\CSRFProtection", "true"),
         ("Preferences", @"General\SystrayEnabled", "true"),
         ("Preferences", @"General\CloseToTray", "true"),
         ("Preferences", @"General\CloseToTrayNotified", "true"),
@@ -277,7 +292,8 @@ public sealed class QBittorrentClient : IDisposable
             var body = (await response.Content.ReadAsStringAsync(ct)).Trim();
             if (response.StatusCode == HttpStatusCode.Forbidden)
                 throw new QBittorrentException(L("qBittorrent refuse Mira pour un moment (trop d’essais) : il réessaiera.", "qBittorrent is refusing Mira for a while (too many attempts): it’ll try again."), signIn: true);
-            if (!response.IsSuccessStatusCode || body != "Ok.")
+            // qBittorrent 5.1 and before: 200 « Ok. », or « Fails. »; 5.2 and later: 204 without a body, or 401.
+            if (!response.IsSuccessStatusCode || body is not ("Ok." or ""))
                 throw new QBittorrentException(L("qBittorrent n’accepte pas le mot de passe de Mira.", "qBittorrent doesn’t accept Mira’s password."), signIn: true);
             _signedIn = true;
         }
@@ -311,6 +327,9 @@ public sealed class QBittorrentClient : IDisposable
         var body = await TextAsync(HttpMethod.Post, "torrents/add", Content, ct, accept: [HttpStatusCode.UnsupportedMediaType, HttpStatusCode.Conflict]);
         return body is not null && !body.Trim().StartsWith("Fails", StringComparison.Ordinal);
     }
+
+    /// <summary>app/shutdown: qBittorrent saves its settings and list, then quits.</summary>
+    public async Task QuitAsync(CancellationToken ct) => await TextAsync(HttpMethod.Post, "app/shutdown", null, ct);
 
     /// <summary>app/setPreferences with <see cref="QBittorrentSettings.Preferences"/>.</summary>
     public async Task SetPreferencesAsync(IReadOnlyDictionary<string, object> preferences, CancellationToken ct) =>
