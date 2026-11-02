@@ -21,7 +21,7 @@ public partial class MainWindow
     private async Task OpenPlayingPageAsync(bool atEpisode)
     {
         if (!_playing || _session.Item is not { } item) return;
-        if (!_miniPlayer) SetMiniPlayer(true);
+        if (!_miniPlayer) SetMiniPlayerSmoothly(true);
         try
         {
             var page = await PageItemAsync(item);
