@@ -42,6 +42,22 @@ public sealed class ActionRow : Panel
 
     /// <summary>Whether <paramref name="button"/> shows its label; true when it shows the one Mira wants.</summary>
     public static bool ShowsLabel(Button button) => !Compact.TryGetValue(button, out _);
+    /// <summary>
+    /// A button's icon and label changed where they are, its content kept: drawn again in the same state (the page refreshed
+    /// after the server answered), it does not move; a new icon pops in (<see cref="Motion.Swap"/>). A new label is a new
+    /// <see cref="TextBlock"/> in the old one's place, which the row hides or shows as it does any label: measured again,
+    /// as for new content. False when the content is not an <see cref="Icon"/> and its label.
+    /// </summary>
+    public static bool Relabel(Button button, string icon, string label)
+    {
+        if (button.Content is not StackPanel { Children: [Icon glyph, TextBlock text] } panel) return false;
+        Motion.Swap(glyph, icon);
+        if (text.Text == label) return true;
+        // Never `Children[1] = …`: WPF's VisualCollection refuses to set a slot that holds a child (ArgumentException).
+        panel.Children.RemoveAt(1); panel.Children.Insert(1, new TextBlock { Text = label, Margin = text.Margin });
+        (VisualTreeHelper.GetParent(button) as UIElement)?.InvalidateMeasure();
+        return true;
+    }
     /// <summary>The width the row takes with every label, at its last measure.</summary>
     public double LabelledWidth { get; private set; }
 
