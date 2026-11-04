@@ -27,10 +27,11 @@ public sealed partial class PlayerPage
     /// <summary>The frame that rounds the mini-player, and its own controls over the picture.</summary>
     private Control BuildMini(Control content)
     {
+        var pip = Ui.IconButton("pip", L("Image dans l’image : la vidéo dans sa propre fenêtre, au-dessus des autres", "Picture in picture: the video in its own window, above the others"), () => _ = EnterPipAsync(), "player", 17, L("Image dans l’image", "Picture in picture"));
         var expand = Ui.IconButton("expand", L("Agrandir le lecteur · I", "Expand the player · I"), () => SetMini(false), "player", 17);
         var close = Ui.IconButton("close", L("Fermer le mini-lecteur", "Close the mini player"), () => _ = _shell.StopPlaybackAsync(), "player", 17);
-        foreach (var button in new[] { expand, close }) { button.Width = button.Height = 32; button.CornerRadius = new CornerRadius(16); }
-        var top = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), VerticalAlignment = VerticalAlignment.Top, Height = 52 };
+        foreach (var button in new[] { pip, expand, close }) { button.Width = button.Height = 32; button.CornerRadius = new CornerRadius(16); }
+        var top = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), VerticalAlignment = VerticalAlignment.Top, Height = 52 };
         top.Background = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
@@ -38,8 +39,8 @@ public sealed partial class PlayerPage
         };
         _miniTitle.Margin = new Thickness(14, 0, 8, 6);
         top.Children.Add(_miniTitle);
-        expand.Margin = new Thickness(0, 0, 0, 6); close.Margin = new Thickness(2, 0, 8, 6);
-        Grid.SetColumn(expand, 1); top.Children.Add(expand); Grid.SetColumn(close, 2); top.Children.Add(close);
+        pip.Margin = new Thickness(0, 0, 2, 6); expand.Margin = new Thickness(0, 0, 0, 6); close.Margin = new Thickness(2, 0, 8, 6);
+        Grid.SetColumn(pip, 1); top.Children.Add(pip); Grid.SetColumn(expand, 2); top.Children.Add(expand); Grid.SetColumn(close, 3); top.Children.Add(close);
         var play = new Button { Content = _miniPauseIcon, Classes = { "player" }, Width = 44, Height = 44, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Background = Ui.Brush("#80000000") };
         play.Click += (_, _) => TogglePause();
         Speak(play, _miniPauseIcon, kind => kind == "play" ? L("Lecture", "Play") : L("Pause", "Pause"), L("Espace", "Space"));
@@ -54,6 +55,8 @@ public sealed partial class PlayerPage
     /// <summary>Shrinks the player to its corner, or brings it back over the whole window.</summary>
     public void SetMini(bool mini)
     {
+        // The video in the small window: expanding brings it back first (PlayerPage.Pip.cs), which comes here again.
+        if (!mini && _pip is not null && !_pipMoving) { _ = ReturnFromPipAsync(); return; }
         if (mini == _mini || _stopped && mini) return;
         if (mini && _shell.WindowState == WindowState.FullScreen) ToggleFullscreen();
         foreach (var button in new[] { _tracks, _more, _episodesButton }) (button.Flyout as Avalonia.Controls.Flyout)?.Hide();

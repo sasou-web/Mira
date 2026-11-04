@@ -60,6 +60,9 @@ public static class IconPaths
         ["trash"] = "M4 6.5H20 M9.5 6.5V5Q9.5 3.5 11 3.5H13Q14.5 3.5 14.5 5V6.5 M6 6.5L6.9 18.5Q7.1 20.5 9.1 20.5H14.9Q16.9 20.5 17.1 18.5L18 6.5 M10 10.5V16.5M14 10.5V16.5",
         ["minus"] = "M5 12H19",
         ["exit"] = "M10 3H7Q3 3 3 7V17Q3 21 7 21H10M9 12H21M16 7L21 12L16 17",
+        // « Image dans l’image »: the picture going out of the window, and back into it.
+        ["pip"] = "M11 4H7Q3 4 3 8V16Q3 20 7 20H17Q21 20 21 16V13 M14.5 3.5H20.5V9.5 M20.5 3.5L12 12",
+        ["pip-exit"] = "M11 4H7Q3 4 3 8V16Q3 20 7 20H17Q21 20 21 16V13 M20.5 3.5L13 11 M13 5.5V11H18.5",
         ["sliders"] = "M3 7H7M11 7H21M3 17H13M17 17H21 M11 7A2 2 0 1 1 7 7A2 2 0 1 1 11 7 M17 17A2 2 0 1 1 13 17A2 2 0 1 1 17 17",
         ["rewind"] = "M4 8A8.5 8.5 0 1 1 3.5 14M3 3V8H8",
         ["forward"] = "M20 8A8.5 8.5 0 1 0 20.5 14M21 3V8H16",

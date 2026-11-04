@@ -630,6 +630,8 @@ public sealed partial class MainWindow : Window
     {
         if (Player != player) return;
         Player = null;
+        // « Image dans l’image »: its window goes with the playback (the video already let go by StopAsync).
+        player.ClosePip();
         // The group plays on without this Mac.
         Group.SetAway(true);
         _overlay.Children.Remove(player);
@@ -829,6 +831,8 @@ public sealed partial class MainWindow : Window
             if (WindowState is WindowState.Normal) (Settings.WindowWidth, Settings.WindowHeight) = (Math.Round(Width), Math.Round(Height));
             Settings.WindowMaximized = WindowState == WindowState.Maximized;
             Hide();
+            // « Image dans l’image » goes with it; closed once the playback has stopped (CloseOverlayPlayerAsync).
+            Player?.Pip?.Hide();
             // The last progress report still leaves while the window is already gone.
             await AttemptAsync(StopPlaybackAsync);
             Attempt(() => Profile.SaveSettings(Settings));
