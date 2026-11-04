@@ -109,6 +109,13 @@ public partial class MainWindow
 
     private void TailnetConsole_Click(object sender, RoutedEventArgs e) => OpenWebPage(TailscaleNode.Machines);
     private void TailnetPolicy_Click(object sender, RoutedEventArgs e) => OpenWebPage(TailscaleNode.Policy);
+    /// <summary>The outage setting is optional: hidden for good once the person says so.</summary>
+    private void TailnetOutageHide_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.TailnetOutageHidden = true;
+        if (!TrySaveSettings()) AddNotice(SettingsNotSaved);
+        RenderTailnet();
+    }
     /// <summary>The setting that lets the node start during an outage of Tailscale, for the tailnet's policy (TailnetText.Outage).</summary>
     private void TailnetOutageCopy_Click(object sender, RoutedEventArgs e)
     {
@@ -166,11 +173,13 @@ public partial class MainWindow
         TailnetWayText.Text = TailnetWay() is { } way ? TailnetText.Path(way) : "";
         TailnetWayText.Visibility = TailnetWayText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         TailnetAbout.Text = TailnetText.Purpose + " " + TailnetText.Privacy;
-        // On a tailnet that doesn't let it start during an outage of Tailscale: the setting, gone once the policy has it.
-        TailnetOutage.Visibility = tailnet?.AsksOutageCache == true ? Visibility.Visible : Visibility.Collapsed;
+        // On a tailnet that doesn't let it start during an outage of Tailscale: the optional setting, gone once the policy
+        // has it or once hidden.
+        TailnetOutage.Visibility = tailnet?.AsksOutageCache == true && !_settings.TailnetOutageHidden ? Visibility.Visible : Visibility.Collapsed;
         TailnetOutageText.Text = TailnetText.Outage;
         TailnetOutageCopyButton.Content = TailnetText.CopyOutage;
         TailnetPolicyButton.Content = TailnetText.OpenPolicy;
+        TailnetOutageHideButton.Content = TailnetText.HideOutage;
         var stopped = signedIn && helper is TailnetHelper.Off or TailnetHelper.Stopped or TailnetHelper.Failed or TailnetHelper.Restarting;
         var needsLogin = state is TailnetStates.NeedsLogin or TailnetStates.Expired;
         TailnetSignInButton.Content = signingIn && page is not null ? TailnetText.ReopenPage : stopped ? TailnetText.Retry : TailnetText.SignIn;
