@@ -29,7 +29,7 @@ public partial class MainWindow
     /// <summary>The video out into its own window, the library back in this one.</summary>
     private void EnterPip()
     {
-        if (!_playing || _pip is not null || _videoHost is not { } video || PlayerErrorShown || _morphing || !VideoContainer.Children.Contains(video)) return;
+        if (!_playing || _pip is not null || _videoHost is not { } video || PlayerErrorShown || _morphing || _videoWaits || !VideoContainer.Children.Contains(video)) return;
         if (_fullscreen) ToggleFullscreen();
         ClosePlayerPopups(); ClosePreview();
         var aspect = VideoAspect() ?? 16d / 9;
