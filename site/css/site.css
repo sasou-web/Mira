@@ -124,7 +124,6 @@ code { font: 600 0.82em/1.5 ui-monospace, 'Cascadia Code', Menlo, monospace; bac
 .lines { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 40px; }
 .lines li { padding: 22px; border-radius: 26px; }
 .lines h2 { font-size: 19px; letter-spacing: -0.02em; }
-.lines p { margin-top: 6px; font-size: 15px; color: var(--muted); }
 
 /* Posters: a part of the page over a backdrop drawn from its own screen, faded into the next one. */
 .poster { position: relative; isolation: isolate; overflow: clip; padding: clamp(96px, 10vw, 150px) 0; }
@@ -132,19 +131,19 @@ code { font: 600 0.82em/1.5 ui-monospace, 'Cascadia Code', Menlo, monospace; bac
 .poster::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, var(--bg), transparent 22%, transparent 78%, var(--bg)); }
 .plain { padding: clamp(72px, 8vw, 120px) 0; }
 
-.head { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 32px; align-items: end; }
+.head { max-width: 900px; }
 .kicker { font-size: 15px; font-weight: 800; color: var(--muted); }
 .head h2, .party h2 { margin-top: 10px; font-size: clamp(38px, 5.4vw, 80px); line-height: 0.98; letter-spacing: -0.05em; }
-.head > p, .party .copy > p { font-size: clamp(17px, 1.4vw, 19px); color: var(--soft); }
 
 .frame { margin-top: clamp(40px, 5vw, 64px); border-radius: 14px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 50px 110px rgba(0, 0, 0, 0.55); }
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
 .cards.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cards li, .cards article { padding: 22px 24px; border-radius: 24px; color: var(--soft); font-size: 15.5px; }
-.cards h3 { color: var(--ink); font-size: 18px; letter-spacing: -0.02em; margin-bottom: 4px; }
+.cards li { display: flex; align-items: center; gap: 16px; }
+.cards h3 { color: var(--ink); font-size: 18px; letter-spacing: -0.02em; }
 .cards .tag { font-size: 13.5px; font-weight: 800; color: var(--muted); margin-bottom: 6px; }
 .cards.two h3 { font-size: 24px; }
-.cards .icon { width: 24px; height: 24px; margin-bottom: 14px; color: var(--ink); }
+.cards .icon { flex: none; width: 24px; height: 24px; color: var(--ink); }
 .head + .cards { margin-top: clamp(40px, 5vw, 64px); }
 
 .fan { position: relative; display: flex; justify-content: center; height: clamp(380px, 42vw, 580px); margin-top: clamp(40px, 5vw, 64px); }
@@ -155,7 +154,6 @@ code { font: 600 0.82em/1.5 ui-monospace, 'Cascadia Code', Menlo, monospace; bac
 
 /* Your party: the card a friend sees where the link is shared. */
 .party { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(32px, 6vw, 96px); align-items: center; }
-.party .copy > p { margin-top: 20px; }
 .invite { justify-self: end; width: 100%; max-width: 480px; padding: 16px; border-radius: 28px; }
 .invite > img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 16px; }
 .invite .who { display: flex; align-items: center; gap: 12px; padding: 16px 6px 6px; }
@@ -215,13 +213,10 @@ footer .credits dd { margin: 2px 0 0; }
   .devices .phone.two { left: auto; right: -2%; bottom: -46%; }
   .lines li { padding: 16px; border-radius: 20px; }
   .lines h2 { font-size: 16px; }
-  .lines p { font-size: 14px; }
   .poster, .plain { padding: 88px 0; }
-  .head, .party, .cards, .cards.two, .doors, footer .wrap { grid-template-columns: minmax(0, 1fr); }
-  .head { gap: 16px; }
+  .party, .cards, .cards.two, .doors, footer .wrap { grid-template-columns: minmax(0, 1fr); }
   .invite { justify-self: stretch; }
-  .cards li { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 16px; padding: 20px; }
-  .cards li .icon { grid-row: span 2; margin: 2px 0 0; }
+  .cards li { padding: 18px 20px; }
   footer nav { justify-content: flex-start; }
 }
 @media (max-width: 420px) {
