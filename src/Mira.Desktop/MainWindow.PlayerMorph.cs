@@ -17,7 +17,7 @@ namespace Mira.Desktop;
 /// </summary>
 public partial class MainWindow
 {
-    private const int MorphMs = 380, DarkenMs = 180, LiftMs = 320, DismissMs = 200, SpinnerAfterMs = 1200;
+    private const int MorphMs = 340, DarkenMs = 180, LiftMs = 320, DismissMs = 200, SpinnerAfterMs = 1200;
     private bool _morphing;
     private int _morphVersion;
 
@@ -43,53 +43,81 @@ public partial class MainWindow
         FrameProbe.Begin(mini ? "reduce" : "expand");
         var version = ++_morphVersion; _morphing = true;
         var host = _videoHost!; var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        // First: their layered windows would otherwise be drawn again, whole, with the new layout.
+        ClosePlayerPopups();
         var fromRadius = _miniPlayer ? MiniRadius * dpi : 0d; var from = host.BeginMove();
         using (FrameProbe.Time("SetMiniPlayer")) SetMiniPlayer(mini);
         // Expanding: the page stays under the growing video until the video covers it.
         if (!mini) LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Visible;
         PlayerShell.Opacity = 0; PlayerShell.IsHitTestVisible = false; MiniFrame.Opacity = 0;
-        ClosePlayerPopups();
         using (FrameProbe.Time("layout")) UpdateLayout();
         var to = host.LaidOut ?? from;
         // Growing, mpv draws at the final size at once: the picture stays sharp, scaled down by Windows. Shrinking, it
-        // goes on at the size it has, and learns the new one on landing (EndMove).
+        // goes on at the size it has until the video is nearly there (MoveVideoAsync).
         if (to.Width > from.Width) host.DrawAt(to.Size);
+        // The page's first drawing, heavy on a 4K screen, would hold back the first frames of the movement: it is drawn
+        // now, the video unmoved over it, and the clock starts after it.
+        await RenderedAsync(3);
+        if (version != _morphVersion) return;
+        FrameProbe.Mark("moving");
         await MoveVideoAsync(host, from, to, fromRadius, mini ? MiniRadius * dpi : 0, MorphMs);
         if (version != _morphVersion) return;
         if (_playing && !_miniPlayer) { LibraryShell.Visibility = NavigationRail.Visibility = TitleBar.Visibility = Visibility.Collapsed; LeavePagesForPlayer(); }
         EndMorph();
-        if (_playing) { if (_miniPlayer) Motion.Fade(MiniFrame, 1, 140, 0); ShowPlayerControls(); }
+        // The controls' windows come back with the next tick, the video settled; their panels with the pointer.
+        if (_playing && _miniPlayer) Motion.Fade(MiniFrame, 1, 140, 0);
     }
     /// <summary>
-    /// Moves the video's own window from one place to the other, timed by the clock rather than counted in frames: a late
-    /// frame shows it further on, never a slower movement. WPF has nothing to draw meanwhile, and mpv goes on playing.
+    /// Moves the video's own window from one place to the other, a step at each frame of the screen (WPF's own frames come
+    /// at 60 to 100 a second, unevenly, when it has nothing to draw), timed by the clock rather than counted in frames: a
+    /// late frame shows it further on, never a slower movement. WPF has nothing to draw meanwhile, and mpv goes on playing.
     /// </summary>
     /// <param name="leaving">Gathers speed instead of landing.</param>
     private Task MoveVideoAsync(VideoHost host, Rect from, Rect to, double fromRadius, double toRadius, int ms, bool leaving = false)
     {
         var done = new TaskCompletionSource();
-        var version = _morphVersion; var clock = Stopwatch.StartNew();
-        void Frame(object? sender, EventArgs e)
+        var version = _morphVersion; var clock = Stopwatch.StartNew(); var queued = 0; var steps = 0;
+        var tell = !leaving && to.Width < from.Width;
+        void Step()
         {
-            if (version != _morphVersion) { CompositionTarget.Rendering -= Frame; done.TrySetResult(); return; }
+            Interlocked.Exchange(ref queued, 0);
+            if (done.Task.IsCompleted) return;
+            if (version != _morphVersion) { done.TrySetResult(); return; }
             var t = Math.Min(1, clock.Elapsed.TotalMilliseconds / ms);
             var k = leaving ? t * t : Glide(t);
             static double Mix(double a, double b, double k) => a + (b - a) * k;
             host.Move(new Rect(Mix(from.X, to.X, k), Mix(from.Y, to.Y, k), Mix(from.Width, to.Width, k), Mix(from.Height, to.Height, k)), Mix(fromRadius, toRadius, k));
-            if (t >= 1) { CompositionTarget.Rendering -= Frame; done.TrySetResult(); }
+            // Nearly there: mpv takes the small size now, in the movement, rather than as it lands.
+            if (tell && k > .85) { tell = false; host.DrawAt(to.Size); }
+            ++steps;
+            if (t >= 1) { FrameProbe.Mark($"landed after {steps} steps"); done.TrySetResult(); }
         }
-        CompositionTarget.Rendering += Frame;
+        Step();
+        var pace = new Thread(() =>
+        {
+            while (!done.Task.IsCompleted)
+            {
+                var before = Stopwatch.GetTimestamp();
+                VideoHost.AwaitScreen();
+                // No composition to wait for (the screen off, a remote session): the clock alone.
+                if (Stopwatch.GetElapsedTime(before).TotalMilliseconds < 1) Thread.Sleep(4);
+                if (Interlocked.Exchange(ref queued, 1) == 0) Dispatcher.BeginInvoke(Step, System.Windows.Threading.DispatcherPriority.Send);
+            }
+        });
+        pace.IsBackground = true; pace.Priority = ThreadPriority.AboveNormal; pace.Name = "Mira video movement"; pace.Start();
+        // Whatever the screen does, the movement ends on time.
+        _ = Task.Delay(ms + 120).ContinueWith(_ => Dispatcher.BeginInvoke(Step), TaskScheduler.Default);
         return done.Task;
     }
     /// <summary>
-    /// A cubic Bézier (.3, 0, .1, 1): it gathers speed over the first frames, then a long soft landing. An ease-out from
-    /// the first frame covered more than half the way in 80 ms: a jump, then a crawl.
+    /// A cubic Bézier (.4, 0, .2, 1): it gathers speed over the first frames and lands softly, without crawling: on the last
+    /// pixels a window steps visibly. An ease-out from the first frame covered more than half the way in 80 ms: a jump.
     /// </summary>
     private static double Glide(double t)
     {
         static double Bezier(double a, double b, double s) => 3 * (1 - s) * (1 - s) * s * a + 3 * (1 - s) * s * s * b + s * s * s;
         double low = 0, high = 1;
-        for (var i = 0; i < 14; i++) { var s = (low + high) / 2; if (Bezier(.3, .1, s) < t) low = s; else high = s; }
+        for (var i = 0; i < 14; i++) { var s = (low + high) / 2; if (Bezier(.4, .2, s) < t) low = s; else high = s; }
         return Bezier(0, 1, (low + high) / 2);
     }
     /// <summary>
