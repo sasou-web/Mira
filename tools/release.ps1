@@ -318,6 +318,7 @@ try {
     # signing policy" line credits SignPath only when the Windows files will carry its signature.
     $notes = Join-Path $workspace ".artifacts/release-notes-$version.md"
     Remove-Item -LiteralPath $notes -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path (Split-Path -Parent $notes) -Force | Out-Null
     $notesOptions = @(); if ($Unsigned) { $notesOptions += '--unsigned' }
     # The banner on top of the page (tools/banner), committed by banner.yml on the preparation branch.
     if (Test-Path -LiteralPath (Join-Path $workspace "docs/releases/$version.jpg")) { $notesOptions += '--banner' }
