@@ -14,7 +14,7 @@ public sealed class TorLinkPlacement : IDisposable
     public TorLinkPlacement(TorLinkState state, TorLinkImporter importer) { State = state; Importer = importer; }
     public TorLinkState State { get; }
     public TorLinkImporter Importer { get; }
-    /// <summary>The library folders in use: chosen in Réglages → TorLink, otherwise those of Jellyfin this PC reaches.</summary>
+    /// <summary>The library folders in use: chosen in Réglages → Téléchargements, otherwise those of Jellyfin this PC reaches.</summary>
     public MediaLibraries Libraries { get; private set; } = new(null, null, null);
     /// <summary>Jellyfin's library folders that this PC reaches.</summary>
     public MediaLibraries Detected { get; private set; } = new(null, null, null);
@@ -61,7 +61,7 @@ public sealed class TorLinkPlacement : IDisposable
         Detected = await Task.Run(() => new MediaLibraries(Reachable(detected.Movies), Reachable(detected.Series), Reachable(detected.Anime)));
         Ready = true;
     }
-    /// <summary>The folders chosen in Réglages → TorLink first (empty: the one found). True when the folders in use changed.</summary>
+    /// <summary>The folders chosen in Réglages → Téléchargements first (empty: the one found). True when the folders in use changed.</summary>
     public bool Choose(string movies, string series, string anime)
     {
         var previous = Libraries;
@@ -176,7 +176,7 @@ public sealed class TorLinkPlacement : IDisposable
         TorLinkImportState.Partial => L($"« {TitleOf(entry)} » : une partie des fichiers est rangée. Détails dans TorLink.", $"“{TitleOf(entry)}”: some of the files are in place. Details in TorLink."),
         TorLinkImportState.Conflict => L($"« {TitleOf(entry)} » est déjà dans la bibliothèque : rien n’a été remplacé.", $"“{TitleOf(entry)}” is already in the library: nothing was replaced."),
         TorLinkImportState.Failed => L($"« {TitleOf(entry)} » n’a pas pu être rangé. Détails dans TorLink.", $"“{TitleOf(entry)}” couldn’t be put in place. Details in TorLink."),
-        TorLinkImportState.Blocked => L("TorLink : choisis les dossiers de ta bibliothèque dans Réglages → TorLink.", "TorLink: choose your library folders in Settings → TorLink."),
+        TorLinkImportState.Blocked => L("TorLink : choisis les dossiers de ta bibliothèque dans Réglages → Téléchargements.", "TorLink: choose your library folders in Settings → Downloads."),
         _ => null
     };
     /// <summary>The line above the list of downloads.</summary>
@@ -185,8 +185,8 @@ public sealed class TorLinkPlacement : IDisposable
         var libraries = Libraries;
         var missing = new[] { (L("Films", "Movies"), libraries.RootFor(MediaKind.Movie)), (L("Séries", "Shows"), libraries.RootFor(MediaKind.Series)) }.Where(x => x.Item2 is null).Select(x => x.Item1).ToList();
         if (!automatic) return L("Rangement automatique désactivé : « Importer » range un téléchargement à la demande.", "Automatic sorting is off: “Import” puts a download in place when you ask.");
-        if (missing.Count == 2) return L("Choisis les dossiers de ta bibliothèque dans Réglages → TorLink pour ranger les téléchargements.", "Choose your library folders in Settings → TorLink to sort downloads.");
-        if (missing.Count == 1) return L($"Rangement automatique. Dossier {missing[0]} à choisir dans Réglages → TorLink.", $"Automatic sorting. Choose the {missing[0]} folder in Settings → TorLink.");
+        if (missing.Count == 2) return L("Choisis les dossiers de ta bibliothèque dans Réglages → Téléchargements pour ranger les téléchargements.", "Choose your library folders in Settings → Downloads to sort downloads.");
+        if (missing.Count == 1) return L($"Rangement automatique. Dossier {missing[0]} à choisir dans Réglages → Téléchargements.", $"Automatic sorting. Choose the {missing[0]} folder in Settings → Downloads.");
         return libraries.Anime is null ? L("Rangement automatique dans Films et Séries (les animes rejoignent les séries).", "Automatic sorting into Movies and Shows (anime goes with shows).") : L("Rangement automatique dans Films, Séries et Animes.", "Automatic sorting into Movies, Shows and Anime.");
     }
     public static string TitleOf(TorLinkImportEntry entry) => entry.Title.Length > 0 ? entry.Title : entry.Name;

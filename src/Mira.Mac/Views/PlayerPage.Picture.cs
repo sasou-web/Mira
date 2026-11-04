@@ -53,7 +53,7 @@ public sealed partial class PlayerPage
     /// <summary>Each tick of a loaded playback: a look at the picture once a second while it plays.</summary>
     private void WatchGrey(MpvPlayer mpv, bool paused)
     {
-        if (_surface is not VideoView view || _repairing || paused || mpv.Flag("seeking") || mpv.Flag("paused-for-cache")) return;
+        if (_surface is not VideoView view || _repairing || _pipMoving || paused || mpv.Flag("seeking") || mpv.Flag("paused-for-cache")) return;
         var (flat, looks) = view.Flat;
         if (looks != _greyLooks) { _greyLooks = looks; _greyFlat = flat ? _greyFlat + 1 : 0; }
         if (_greyFlat >= 4) { _greyFlat = 0; _ = RepairAsync(mpv, view, asked: false); return; }

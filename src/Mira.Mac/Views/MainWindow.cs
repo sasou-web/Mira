@@ -33,6 +33,8 @@ public abstract class Page : UserControl
     public virtual Task LoadAsync() => Task.CompletedTask;
     /// <summary>Progress, watched or favourite marks changed (after a playback, a menu action): redraw what shows them.</summary>
     public virtual Task RefreshAsync() => Task.CompletedTask;
+    /// <summary>Its rail entry (or shortcut) chosen again while it shows: nothing reloads or fades in again; its list glides back to the top.</summary>
+    public virtual void ShowAgain() { if (Content is ScrollViewer scroll) GlideUp.Start(scroll); }
 }
 
 /// <summary>
@@ -102,6 +104,8 @@ public sealed partial class MainWindow : Window
             ExtendClientAreaTitleBarHeightHint = 30;
             TitleBarInset = 30;
         }
+        // The banners' captures (--gallery), drawn on Linux: the room the traffic lights take on a Mac, for the frame to draw them.
+        else if (args.Contains("--gallery")) TitleBarInset = 30;
         _root.ColumnDefinitions = new ColumnDefinitions("Auto,*");
         // The pages take the whole width, under the rail (Page): a picture runs to the window's edge, as on Windows.
         Grid.SetColumnSpan(_host, 2); _root.Children.Add(_host);
@@ -233,6 +237,7 @@ public sealed partial class MainWindow : Window
     private async Task StartAsync()
     {
         if (Args.Contains("--self-check")) { await Checks.SelfCheck.RunAsync(this); return; }
+        if (Args.Contains("--gallery")) { await Checks.Gallery.RunAsync(this); return; }
         // The check of « Tailscale intégré »: its stand-in Jellyfin served before anything asks it.
         var tailnetCheck = Args.Contains("--tailnet-check") ? new Checks.TailnetCheck(this) : null;
         // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.
@@ -531,6 +536,8 @@ public sealed partial class MainWindow : Window
     {
         if (Session is null) return;
         if (Watching) return;
+        // Its own entry again while its page shows (the one the rail opened, not a page reached from it): as on Windows.
+        if (_history.Count == 0 && Current is { } shown && shown.Rail == key) { shown.ShowAgain(); return; }
         // The rail starts a new history, as on the Windows app.
         _history.Clear(); _forward.Clear();
         Page page = key switch
@@ -627,6 +634,8 @@ public sealed partial class MainWindow : Window
     {
         if (Player != player) return;
         Player = null;
+        // « Image dans l’image »: its window goes with the playback (the video already let go by StopAsync).
+        player.ClosePip();
         // The group plays on without this Mac.
         Group.SetAway(true);
         _overlay.Children.Remove(player);
@@ -826,6 +835,8 @@ public sealed partial class MainWindow : Window
             if (WindowState is WindowState.Normal) (Settings.WindowWidth, Settings.WindowHeight) = (Math.Round(Width), Math.Round(Height));
             Settings.WindowMaximized = WindowState == WindowState.Maximized;
             Hide();
+            // « Image dans l’image » goes with it; closed once the playback has stopped (CloseOverlayPlayerAsync).
+            Player?.Pip?.Hide();
             // The last progress report still leaves while the window is already gone.
             await AttemptAsync(StopPlaybackAsync);
             Attempt(() => Profile.SaveSettings(Settings));

@@ -424,6 +424,33 @@ public sealed class CardRow : StackPanel
     }
 }
 
+/// <summary>
+/// A page's list eased back to its top, frame by frame (<see cref="ScrollMotion"/>, the Windows wheel's): its rail entry
+/// chosen again. A scroll by hand meanwhile stops it.
+/// </summary>
+public static class GlideUp
+{
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ScrollViewer, ScrollMotion> Gliding = new();
+    public static void Start(ScrollViewer scroll)
+    {
+        if (scroll.Offset.Y <= .5 || TopLevel.GetTopLevel(scroll) is not { } top) return;
+        var motion = new ScrollMotion(); motion.Reset(scroll.Offset.Y); motion.Add(-scroll.Offset.Y, Maximum(scroll));
+        Gliding.AddOrUpdate(scroll, motion);
+        TimeSpan? last = null; var set = scroll.Offset.Y;
+        void Frame(TimeSpan now)
+        {
+            if (!Gliding.TryGetValue(scroll, out var current) || current != motion) return;
+            if (Math.Abs(scroll.Offset.Y - set) > 1) { Gliding.Remove(scroll); return; }
+            var seconds = last is { } before ? (now - before).TotalSeconds : 1 / 60d; last = now;
+            set = motion.Step(Math.Min(.1, seconds), Maximum(scroll));
+            scroll.Offset = new Vector(scroll.Offset.X, set);
+            if (motion.Moving) top.RequestAnimationFrame(Frame); else Gliding.Remove(scroll);
+        }
+        top.RequestAnimationFrame(Frame);
+    }
+    private static double Maximum(ScrollViewer scroll) => Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height);
+}
+
 /// <summary>Converts a hue to the placeholder tone.</summary>
 internal static class HsvColor
 {

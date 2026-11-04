@@ -26,6 +26,7 @@ namespace Mira.Mac.Views;
 public sealed class DownloadsPage : Page
 {
     public override string Rail => "downloads";
+    public override void ShowAgain() { GlideUp.Start(_resultsScroll); GlideUp.Start(_queueScroll); }
     private static readonly TimeSpan SearchWait = TimeSpan.FromSeconds(90);
     private static string PageLine => L("Chaque téléchargement terminé rejoint ta bibliothèque.", "Each finished download joins your library.");
     // The Windows app's states and secondary ink (Themes/Cinema.xaml).

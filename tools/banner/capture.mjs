@@ -1,18 +1,16 @@
-// The captures of a release's banner (tools/banner/banner.mjs): the screens of Mira web that this version changed,
-// listed in tools/banner/scenes.json, on the library of tools/banner/media.sh (the README's). A phone scene is a whole
-// iPhone 17 Pro screen (402 × 874 points, ×3, as tools/gallery/web.mjs); a screen scene, Mira web in a computer's
-// window (1440 × 900, ×2). Each scene also gives the box of what changed (focus), lit on the banner; then backdrops
-// of a few titles, still-1.jpg to still-N.jpg, among which the banner takes its light.
+// The captures of a release's banner (tools/banner/banner.mjs) that the galleries do not take: the scenes of Mira web
+// that this version changed (tools/banner/plan.mjs, from scenes.json), on the library of tools/banner/media.sh (the
+// README's), in English. A phone scene is a whole iPhone 17 Pro screen (402 × 874 points, ×3, as
+// tools/gallery/web.mjs); a screen scene, Mira web in a computer's window (1440 × 900, ×2). Each scene also gives the
+// box of what changed (focus), lit on the banner; then backdrops of a few films, still-<name>.jpg.
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/banner/capture.mjs <x.y.z> <url of /Mira/> <user> <password> <folder>
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { plan } from './plan.mjs';
 
 const [version, base, user, password, out] = process.argv.slice(2);
 if (!out) { console.error('usage: capture.mjs <x.y.z> <url /Mira/> <user> <password> <folder>'); process.exit(2); }
-const scenesOf = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'scenes.json'), 'utf8'));
-const wanted = scenesOf[version];
-if (!wanted?.length) { console.error(`tools/banner/scenes.json has no scene for ${version}`); process.exit(1); }
+const wanted = plan(version).scenes;
 mkdirSync(out, { recursive: true });
 const { chromium, devices } = await import(process.env.PLAYWRIGHT ?? 'playwright');
 const browser = await chromium.launch();
@@ -22,21 +20,21 @@ async function open(kind) {
   const context = kind === 'phone'
     ? await browser.newContext({
       ...devices['iPhone 15 Pro'], viewport: { width: 402, height: 874 }, screen: { width: 402, height: 874 }, deviceScaleFactor: 3,
-      locale: 'fr-FR', reducedMotion: 'reduce',
+      locale: 'en-US', reducedMotion: 'reduce',
     })
-    : await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, locale: 'fr-FR', reducedMotion: 'reduce' });
+    : await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, locale: 'en-US', reducedMotion: 'reduce' });
   if (kind === 'phone') await context.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
   const page = await context.newPage();
   if (kind === 'phone') await (await context.newCDPSession(page)).send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 62, bottom: 34, left: 0, right: 0 } });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base); await page.waitForTimeout(1500);
-  if (await page.locator('.users').count()) await page.getByRole('button', { name: 'Autre compte' }).click();
+  if (await page.locator('.users').count()) await page.getByRole('button', { name: /^(Autre compte|Other account)$/ }).click();
   await page.fill('#login-name', user); await page.fill('#login-password', password);
-  await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
+  await page.getByRole('button', { name: /^(Se connecter|Sign in)$/ }).click();
   await page.waitForFunction(() => location.hash === '#/' || location.hash === '', null, { timeout: 15000 });
   await page.waitForTimeout(3000);
-  for (const name of ['Fermer', 'Plus tard', 'Pas maintenant', 'OK']) {
-    const button = page.getByRole('button', { name, exact: true });
+  for (const name of [/^(Fermer|Close)$/, /^(Plus tard|Later)$/, /^(Pas maintenant|Not now)$/, /^OK$/]) {
+    const button = page.getByRole('button', { name });
     if (await button.count() && await button.first().isVisible()) await button.first().click().catch(() => {});
   }
   return { context, page };
@@ -131,7 +129,7 @@ const scenes = {
     for (let i = 1; i < 8; i++) {
       const card = page.locator('.row .card').nth(i);
       await card.click({ button: 'right' }); await page.waitForTimeout(500);
-      const add = page.getByRole('menuitem', { name: /Ajouter aux favoris/ }).first();
+      const add = page.getByRole('menuitem', { name: /Ajouter aux favoris|Add to favorites/ }).first();
       if (await add.isVisible()) {
         id = await card.evaluate((c) => (c.getAttribute('href') ?? c.querySelector('a')?.getAttribute('href'))?.match(/titre\/([^/?]+)/)?.[1] ?? null).catch(() => null);
         await add.click(); break;
@@ -184,7 +182,7 @@ try {
       if (name !== 'notice') await settle(page);
       await page.screenshot({ path: join(out, `${name}.png`) });
       for (const undo of after.splice(0)) await undo();
-      listed.push({ file: `${name}.png`, kind, focus: focus ?? undefined, captureWidth: kind === 'phone' ? 402 : 1440 });
+      listed.push({ file: `${name}.png`, kind, focus: focus ?? undefined, width: kind === 'phone' ? 402 : 1440, height: kind === 'phone' ? 874 : 900 });
       console.log(`${name}.png`);
     } finally { await context.close(); }
   }
@@ -192,13 +190,13 @@ try {
   const { context, page } = await open('phone');
   try {
     const { find } = await titles(page);
-    let n = 0;
     // Not Spirited Away: its first backdrop on TMDb is a photo of Hayao Miyazaki.
-    for (const name of ['Arcane (2021)', 'Spider-Man Across the Spider-Verse (2023)', 'Klaus (2019)', 'Coco (2017)', 'The Wild Robot (2024)',
-      'Puss in Boots The Last Wish (2022)', 'Nimona (2023)', 'Your Name. (2016)']) {
+    for (const [short, name] of [['arcane', 'Arcane (2021)'], ['spider-verse', 'Spider-Man Across the Spider-Verse (2023)'], ['klaus', 'Klaus (2019)'],
+      ['coco', 'Coco (2017)'], ['wild-robot', 'The Wild Robot (2024)'], ['puss-in-boots', 'Puss in Boots The Last Wish (2022)'], ['nimona', 'Nimona (2023)'],
+      ['your-name', 'Your Name. (2016)']]) {
       const title = find(name);
       const still = title && await page.request.get(new URL(`../Items/${title.Id}/Images/Backdrop?maxWidth=2400&quality=90`, base).href);
-      if (still?.ok()) writeFileSync(join(out, `still-${++n}.jpg`), await still.body());
+      if (still?.ok()) writeFileSync(join(out, `still-${short}.jpg`), await still.body());
       else console.log(`::warning::no backdrop for ${name}`);
     }
   } finally { await context.close(); }

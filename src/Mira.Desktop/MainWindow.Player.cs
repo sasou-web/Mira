@@ -38,7 +38,7 @@ public partial class MainWindow
     /// <param name="chosen">Picked on a page (a title, a card, a menu), not by the player: in a group that has another title on, asked first.</param>
     private async Task PlayAsync(MediaItem item, bool keepMini = false, bool completePrevious = false, bool fromStart = false, long? groupStart = null, bool chosen = false)
     {
-        ClosePreview(); var asked = item;
+        ClosePreview(); var asked = item; Task? darkening = null;
         if (_playBusy) return; _playBusy = true;
         // Opening a stream can take a moment: say so right away instead of looking frozen.
         if (!_playing) Mouse.OverrideCursor = Cursors.AppStarting;
@@ -68,6 +68,8 @@ public partial class MainWindow
                 if (await AskGroupAsync(item, fromStart, completePrevious, chosen)) return;
                 groupStart = _groupQueue?.StartTicks ?? 0;
             }
+            // The page darkens while the stream opens: the player comes up behind black, not in one cut.
+            if (!_playing && !keepMini && !(_demo && _testMedia is null) && Shade is { } shade) darkening = shade.DarkenAsync(DarkenMs);
             string location; string? authorization = null; MediaSource? source = null; string session = ""; OfflineCopy? kept = null; ServerStream? stream = null;
             // A finished title starts over instead of resuming on its last seconds; « Depuis le début » too.
             double StartAt() => groupStart is { } ticks ? ticks / 1e7 : PlaybackSession.StartAt(item, remember: !_demo && _settings.RememberPosition && !fromStart, back: _settings.ResumeBack);
@@ -91,6 +93,7 @@ public partial class MainWindow
                 source = stream.Source; session = stream.PlaySessionId; location = stream.Location; authorization = stream.Authorization;
             }
             await StopPlaybackAsync(completePrevious);
+            if (darkening is not null) await darkening;
             _playingCopy = kept; UseStream(stream);
             // After the previous playback stopped: it may have been this title, now further on or watched.
             _session.Begin(item, source, session, StartAt(), stream?.PlayMethod ?? "DirectPlay"); _loaded = false;
@@ -99,8 +102,10 @@ public partial class MainWindow
             ShowPlayingLinks(item);
             // The next episode can start while the settings page is open over the mini-player: it leaves it.
             AutoSaveSettings(); DetailOverlay.Visibility = Visibility.Collapsed; SettingsOverlay.Visibility = Visibility.Collapsed;
-            HidePlayerError(); LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible;
-            NavigationRail.Visibility = Visibility.Collapsed;
+            HidePlayerError();
+            // Another title chosen in the library while one plays in « Image dans l’image »: it opens in the player.
+            if (!keepMini) EndPip(show: false);
+            if (_pip is null) { LibraryShell.Visibility = Visibility.Collapsed; PlayerShell.Visibility = Visibility.Visible; NavigationRail.Visibility = Visibility.Collapsed; }
             // The player's keys must reach Mira, not the TorLink terminal left open underneath.
             if (TorLinkOverlay.IsKeyboardFocusWithin) Focus();
             NextButton.IsEnabled = !_demo && item.Type == "Episode";
@@ -122,7 +127,7 @@ public partial class MainWindow
             _playLocation = location; _playAuthorization = authorization; _fileOpen = false; _asleep = false; _lastTick = DateTime.UtcNow;
             PublishWindowsTrack(item);
             _mpv.FileLoaded += FileLoaded;
-            _mpv.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); };
+            _mpv.PlaybackRestarted += () => { _session.LastReport = DateTimeOffset.MinValue; GroupRestarted(); RevealVideo(); };
             var generation = ++_playGeneration;
             _ = LoadServerMarkersAsync(item, generation);
             _mpv.Ended += eof =>
@@ -139,9 +144,13 @@ public partial class MainWindow
             // In a group: loaded paused, « ready » once there (GroupRestarted), played when Jellyfin says.
             _groupReadyPending = groupStart is not null; _groupStallSince = null; _groupStalled = false;
             if (groupStart is not null) { SetGroupAway(false); GroupReport("Buffering", _session.Position, false); }
+            // Not in the mini-player, which shows over the page: there the picture simply arrives.
+            if (!keepMini && Shade is not null) { _videoWaits = true; _videoHost.Conceal(true); }
             _mpv.Load(location, _session.Position, authorization, paused: groupStart is not null);
             if (_demo && _testMedia is not null && _args.Contains("--loop-test-media")) _mpv.Set("loop-file", "inf");
             SetMiniPlayer(keepMini, preserveFullscreen: true); _playerTimer.Start();
+            // The sheet stays until the first picture rises from it; a slow start shows its spinner.
+            if (darkening is not null) { darkening = null; _ = LiftForSpinnerAsync(generation); }
         }
         catch (Exception ex) when (IsExpected(ex) || ex is TimeoutException)
         {
@@ -153,9 +162,14 @@ public partial class MainWindow
         {
             // An incompatible engine DLL must not leave a black screen with no way back.
             await StopPlaybackAsync();
-            PlaybackFailed(L("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Lecture.", "The chosen mpv engine seems incompatible. Check its location in Settings → Playback."), asked, keepMini, L("Ouvrir les réglages", "Open settings"), () => { Settings_Click(this, new()); return Task.CompletedTask; });
+            PlaybackFailed(L("Le moteur mpv choisi semble incompatible. Vérifie son emplacement dans Réglages → Mira sur ce PC.", "The chosen mpv engine seems incompatible. Check its location in Settings → Mira on this PC."), asked, keepMini, L("Ouvrir les réglages", "Open settings"), () => { Settings_Click(this, new()); return Task.CompletedTask; });
         }
-        finally { _playBusy = false; Mouse.OverrideCursor = null; }
+        finally
+        {
+            _playBusy = false; Mouse.OverrideCursor = null;
+            // Stopped before the player came up (a stream that cannot open): the page is back, or the error's screen is.
+            if (darkening is not null) _ = Shade?.LiftAsync(LiftMs);
+        }
     }
     /// <summary>
     /// The file Jellyfin plays, read directly when this PC sees it: checked off the UI thread, since it may be on a
@@ -172,7 +186,7 @@ public partial class MainWindow
         var generation = _playGeneration;
         var reopened = _wake == WakeState.Reloading; _wake = WakeState.None; _recoveryLoad = false;
         _starvedSince = null; _buffering = false; ShowPlayerStatus(null);
-        _loaded = true; SeekBar.IsEnabled = true; SetPlayerLoading(false); ShowPlayerControls(); _session.Paused = _mpv.Flag("pause"); _session.Duration = _mpv.Number("duration", _session.Duration); _session.Position = _mpv.Number("time-pos", _session.Position);
+        _loaded = true; SeekBar.IsEnabled = true; SetPlayerLoading(false); if (!_videoWaits) ShowPlayerControls(); _session.Paused = _mpv.Flag("pause"); _session.Duration = _mpv.Number("duration", _session.Duration); _session.Position = _mpv.Number("time-pos", _session.Position);
         _stallFrom = _session.Position;
         SeekBar.SetPlayback(_session.Position, _session.Duration, !_session.Paused, _mpv.Number("speed", 1)); LoadFileChapters();
         UpdateWindowsPlayback();
@@ -243,7 +257,7 @@ public partial class MainWindow
             WatchGroupStall(); WatchPicture(paused);
             if (changed && _miniStowed) MiniTabPulse.Opacity = paused ? .35 : 1;
             UpdateSkip(); CheckSleepTimer();
-            UpdateWindowsPlayback();
+            UpdateWindowsPlayback(); UpdatePip();
             var vol = _mpv.Level; if (Math.Abs(VolumeSlider.Value - vol) > 1) VolumeSlider.Value = vol;
             if (_session.Item is not null) _session.Item.UserData.PlaybackPositionTicks = TimeSpan.FromSeconds(Math.Max(0, _session.Position)).Ticks;
             _recovery.Played(_session.Position);
@@ -293,6 +307,7 @@ public partial class MainWindow
     /// </summary>
     private void PlaybackFailed(string message, MediaItem? item, bool mini, string action, Func<Task>? onAction)
     {
+        EndPip(show: false);
         if (mini) { ReturnToLibrary(); SetNotice(message, onAction is null ? null : action, onAction is null ? null : () => _ = onAction(), sticky: true); return; }
         if (_fullscreen) ToggleFullscreen();
         ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); ClosePreview();
@@ -350,6 +365,8 @@ public partial class MainWindow
     private async Task StopPlaybackAsync(bool completed = false)
     {
         var hadPlayback = _loaded;
+        // Stopped before its first picture: no picture will lift the sheet.
+        if (_videoWaits) { _videoWaits = false; _videoHost?.Conceal(false); _ = Shade?.LiftAsync(LiftMs); }
         ++_playGeneration; ClosePlayerPopups(); _playerTimer.Stop(); SeekBar.IsEnabled = false; SetPlayerLoading(false);
         if (_playing && _loaded && _mpv is not null && !completed) _session.Position = ReportedPosition(_mpv.Number("time-pos", _session.Position));
         completed = _session.Completes(_loaded, completed);
@@ -413,6 +430,7 @@ public partial class MainWindow
     }
     private void ReturnToLibrary(bool reveal = true)
     {
+        EndPip(show: false);
         if (_fullscreen) ToggleFullscreen(); ClosePlayerPopups(); _miniPlayer = false; ResetMiniPlacement(); _sleep.Clear();
         // The group plays on without this PC.
         SetGroupAway(true);
@@ -423,12 +441,18 @@ public partial class MainWindow
     private MediaItem? _returnToDetail;
     private bool _returnToSettings;
     /// <summary>Playback started from a title page comes back to that page, with progress and watched marks refreshed; Réglages too, left for the player.</summary>
-    private void RestoreDetailPage(bool refresh = true)
+    /// <param name="at">There at once, without its entrance.</param>
+    private void RestoreDetailPage(bool refresh = true, bool at = false)
     {
-        if (_returnToSettings) { _returnToSettings = false; if (SettingsOverlay.Visibility != Visibility.Visible) Motion.Reveal(SettingsOverlay, 260, 10); }
+        if (_returnToSettings) { _returnToSettings = false; if (SettingsOverlay.Visibility != Visibility.Visible) Show(SettingsOverlay); }
         if (_returnToDetail is not { } page || _detail?.Id != page.Id) { _returnToDetail = null; return; }
-        if (DetailOverlay.Visibility != Visibility.Visible) Motion.Reveal(DetailOverlay, 260, 10);
+        if (DetailOverlay.Visibility != Visibility.Visible) Show(DetailOverlay);
         if (refresh) _ = RefreshDetailAsync();
+        void Show(FrameworkElement overlay)
+        {
+            if (!at) { Motion.Reveal(overlay, 260, 10); return; }
+            overlay.BeginAnimation(OpacityProperty, null); overlay.Opacity = 1; overlay.IsHitTestVisible = true; overlay.Visibility = Visibility.Visible;
+        }
     }
     private void Pause_Click(object sender, RoutedEventArgs e)
     {
@@ -512,10 +536,10 @@ public partial class MainWindow
         if (PlayerErrorShown) return;
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.K or Key.F && (!_playing || _miniPlayer)) { SearchNav_Click(this, new()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && (!_playing || _miniPlayer) && RailShortcut(e.Key)) { e.Handled = true; return; }
-        if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { OpenGuide(); e.Handled = true; return; }
+        if (e.Key == Key.F1 && (!_playing || _miniPlayer)) { Guide_Click(this, new()); e.Handled = true; return; }
         if (e.OriginalSource is TextBox or System.Windows.Controls.PasswordBox || !_playing) return;
         // Space, arrows, M, F and S are handled earlier by Player_PreviewKeyDown, before any focused control.
-        if (e.Key == Key.I && !e.IsRepeat) { SetMiniPlayerSmoothly(!_miniPlayer); e.Handled = true; }
+        if (e.Key == Key.I && !e.IsRepeat) { if (_pip is not null) ReturnFromPip(); else SetMiniPlayerSmoothly(!_miniPlayer); e.Handled = true; }
     }
     /// <summary>Alt+← or the "back" key. WPF reports Alt+← as Key.System; keys forwarded by WebView2 carry the arrow itself.</summary>
     private static bool IsBackKey(KeyEventArgs e) => e.Key == Key.BrowserBack || Keyboard.Modifiers == ModifierKeys.Alt && (e.SystemKey == Key.Left || e.Key == Key.Left);
@@ -559,6 +583,8 @@ public partial class MainWindow
             // Before the first await: when Windows shuts down or Setup closes Mira, WPF closes the window without
             // waiting for the rest (see SessionEnding).
             KeepForNextStart();
+            // The video back in this window before anything closes: closing the small one would destroy it under mpv.
+            Attempt(() => EndPip(show: false));
             Attempt(() => SystemEvents.PowerModeChanged -= PowerModeChanged);
             Attempt(() => { _windows?.Dispose(); _windows = null; });
             Attempt(() => { UpdateHeroClock(); ClosePreview(); SmoothScroll.Cancel(LibraryScroll); SmoothScroll.Cancel(DetailScroll); SmoothScroll.Cancel(SettingsScroll); SmoothScroll.Cancel(ResumeScroll); });
