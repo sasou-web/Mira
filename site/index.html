@@ -7,7 +7,7 @@
   <meta name="referrer" content="no-referrer">
   <title>Mira : ta bibliothèque Jellyfin, comme au cinéma</title>
   <meta name="description" content="Mira est un client Jellyfin gratuit pour Windows, Mac, iPhone et Android : une bibliothèque belle comme au cinéma, une lecture qui lit tout, et rien ne quitte ton serveur.">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#0a0807">
   <link rel="canonical" href="https://miracinema.app/">
   <link rel="alternate" hreflang="fr" href="https://miracinema.app/">
   <link rel="alternate" hreflang="en" href="https://miracinema.app/en/">
@@ -25,294 +25,206 @@
   <link rel="icon" href="img/mark.svg" type="image/svg+xml">
   <link rel="icon" href="img/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-  <link rel="preload" href="fonts/nunito-sans-800.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/nunito-800.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/site.css">
   <script src="js/site.js" defer></script>
 </head>
-<body class="seance">
+<body>
   <a class="skip" href="#contenu">Aller au contenu</a>
-
-  <!-- The top letterbox bar: what a player shows over the film. -->
-  <header class="top">
-    <a class="brand" href="./" aria-label="Mira, accueil"><img src="img/mark.svg" alt="" width="28" height="28">Mira</a>
-    <a class="resume" href="#contenu" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#play"/></svg><span>Reprendre à <time>00:00</time></span></a>
-    <a class="button primary get" href="#telecharger"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg><span>Télécharger</span></a>
+  <header class="top glass-panel">
+    <a class="brand" href="./" aria-label="Mira, accueil"><img src="img/mark.svg" alt="" width="26" height="26">Mira</a>
+    <nav aria-label="Parties de la page"><a href="#bibliotheque">Bibliothèque</a><a href="#telephone">Téléphone</a><a href="#ensemble">Ensemble</a><a href="#vie-privee">Vie privée</a></nav>
+    <a class="button primary" href="#telecharger"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger</a>
   </header>
 
   <main id="contenu">
-    <!-- Opening titles: the featured film's still, the title, the first subtitle. -->
-    <section class="chapter opening" id="ouverture" data-thumb="img/film-still-640.webp" aria-labelledby="titre">
-      <div class="still" aria-hidden="true">
-        <img src="img/film-still-1280.webp" srcset="img/film-still-640.webp 640w, img/film-still-1280.webp 1280w, img/film-still-2000.webp 2000w" sizes="100vw" width="1280" height="720" alt="" fetchpriority="high">
-      </div>
-      <div class="title-card">
-        <p class="kicker">Une séance privée, chez toi</p>
-        <h1 id="titre" class="title">Mira</h1>
-        <p class="tagline">Le client Jellyfin pour Windows, Mac, iPhone et Android</p>
-        <div class="actions">
-          <a class="button primary" data-for="windows" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Windows</a>
-          <a class="button quiet" data-for="windows" href="#telecharger">Mac, iPhone et Android</a>
-          <a class="button primary" data-for="mac" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Mac</a>
-          <a class="button quiet" data-for="mac" href="#telecharger" hidden>Windows, iPhone et Android</a>
-          <a class="button primary" data-for="phone" href="#telephone" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Mira sur ton téléphone</a>
-          <a class="button quiet" data-for="phone" href="#telecharger" hidden>Windows et Mac</a>
+    <section class="hero" aria-labelledby="titre">
+      <img class="still" src="img/film-still-1280.webp" srcset="img/film-still-640.webp 640w, img/film-still-1280.webp 1280w, img/film-still-2000.webp 2000w" sizes="100vw" width="1280" height="720" alt="" fetchpriority="high">
+      <div class="wrap opening">
+        <div>
+          <p class="version glass-panel">Mira __VERSION__</p>
+          <h1 id="titre">Ta bibliothèque,<br> comme au cinéma.</h1>
+          <p class="lede">Un client Jellyfin gratuit pour Windows, Mac, iPhone et Android. Il lit tout, prépare ton serveur, et rien ne quitte ta maison.</p>
+          <div class="actions">
+            <a class="button primary" data-for="windows" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Windows</a>
+            <a class="button glass-panel" data-for="windows" href="#telecharger">Mac, iPhone, Android</a>
+            <a class="button primary" data-for="mac" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Télécharger pour Mac</a>
+            <a class="button glass-panel" data-for="mac" href="#telecharger" hidden>Windows, iPhone, Android</a>
+            <a class="button primary" data-for="phone" href="#telephone" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Mira sur ton téléphone</a>
+            <a class="button glass-panel" data-for="phone" href="#telecharger" hidden>Windows et Mac</a>
+          </div>
+          <ul class="free">
+            <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#check"/></svg>Gratuit</li>
+            <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#check"/></svg>Open source</li>
+            <li><svg class="icon" aria-hidden="true"><use href="img/icons.svg#check"/></svg>Sans compte</li>
+          </ul>
         </div>
-        <ul class="ratings">
-          <li>Gratuit</li>
-          <li>Open source</li>
-          <li>Sans compte</li>
+        <div class="devices">
+          <img class="window" src="img/windows-film-1600.webp" srcset="img/windows-film-960.webp 960w, img/windows-film-1600.webp 1600w, img/windows-film-2400.webp 2400w" sizes="(max-width: 860px) 92vw, 56vw" width="2880" height="1800" alt="La fiche d’un film dans Mira pour Windows, avec Reprendre">
+          <div class="phone one" aria-hidden="true"><div class="screen"><img src="img/web-home-720.webp" srcset="img/web-home-390.webp 390w, img/web-home-720.webp 720w" sizes="(max-width: 860px) 32vw, 16vw" width="1206" height="2622" alt=""></div></div>
+          <div class="phone two" aria-hidden="true"><div class="screen"><img src="img/web-film-720.webp" srcset="img/web-film-390.webp 390w, img/web-film-720.webp 720w" sizes="(max-width: 860px) 32vw, 16vw" width="1206" height="2622" alt=""></div></div>
+        </div>
+      </div>
+      <ul class="wrap lines">
+        <li class="glass-panel"><h2>Lit tout</h2><p>Le moteur mpv, dans Mira : presque tout fichier, tel quel.</p></li>
+        <li class="glass-panel"><h2>Là où tu t’es arrêté</h2><p>À la minute, sur le PC, le Mac ou le téléphone.</p></li>
+        <li class="glass-panel"><h2>Ta party</h2><p>Un lien pour voir le même film, chacun chez soi.</p></li>
+        <li class="glass-panel"><h2>Rien de collecté</h2><p>Pas de compte Mira, pas de statistiques, pas de pub.</p></li>
+      </ul>
+    </section>
+
+    <section class="poster" id="bibliotheque" aria-labelledby="c1">
+      <img class="backdrop" src="img/windows-film-960.webp" width="960" height="600" alt="" loading="lazy">
+      <div class="wrap">
+        <div class="head">
+          <div><p class="kicker">Bibliothèque</p><h2 id="c1">Belle dès le premier lancement.</h2></div>
+          <p>Affiches, grandes images, distribution et collections : ta bibliothèque ressemble à un service de streaming, sans rien régler.</p>
+        </div>
+        <img class="frame" src="img/windows-films-1600.webp" srcset="img/windows-films-960.webp 960w, img/windows-films-1600.webp 1600w, img/windows-films-2400.webp 2400w" sizes="(max-width: 1336px) 92vw, 1296px" width="2880" height="1800" alt="Tous les films dans Mira pour Windows, avec recherche, filtres et tri" loading="lazy">
+        <ul class="cards">
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#calendar"/></svg><h3>Épisodes à venir</h3><p>Et ceux qui manquent à une saison, datés.</p></li>
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#stack"/></svg><h3>Tes collections</h3><p>Les sagas trouvées toutes seules, et celles que tu fais à la main.</p></li>
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#pencil"/></svg><h3>Corriger un titre</h3><p>Celui que Jellyfin a mal reconnu, en deux clics.</p></li>
         </ul>
       </div>
-      <p class="subtitle opening-line"><span>Ta bibliothèque Jellyfin, comme au cinéma.</span></p>
     </section>
 
-    <!-- Chapter 1: the computer. The screen stays, the subtitles change as the page scrolls. -->
-    <section class="chapter" id="bibliotheque" data-thumb="img/windows-home-960.webp" aria-labelledby="c1">
-      <header class="intertitle">
-        <p class="number">Chapitre 1</p>
-        <h2 id="c1">Ta bibliothèque</h2>
-        <p class="subtitle"><span>Une salle de cinéma dans une fenêtre.</span></p>
-        <p class="lede">Mira pour Windows et pour Mac lit tout elle-même, avec le moteur mpv : presque tous les fichiers, tels quels.</p>
-      </header>
-      <div class="scene">
-        <div class="stage">
-          <div class="frame" aria-hidden="true">
-            <img class="shot on" src="img/windows-home-1600.webp" srcset="img/windows-home-960.webp 960w, img/windows-home-1600.webp 1600w, img/windows-home-2400.webp 2400w" sizes="(max-width: 900px) 1px, 80vw" width="2880" height="1800" alt="" loading="lazy">
-            <img class="shot" src="img/windows-film-1600.webp" srcset="img/windows-film-960.webp 960w, img/windows-film-1600.webp 1600w, img/windows-film-2400.webp 2400w" sizes="(max-width: 900px) 1px, 80vw" width="2880" height="1800" alt="" loading="lazy">
-            <img class="shot" src="img/windows-series-1600.webp" srcset="img/windows-series-960.webp 960w, img/windows-series-1600.webp 1600w, img/windows-series-2400.webp 2400w" sizes="(max-width: 900px) 1px, 80vw" width="2880" height="1800" alt="" loading="lazy">
-            <img class="shot" src="img/windows-films-1600.webp" srcset="img/windows-films-960.webp 960w, img/windows-films-1600.webp 1600w, img/windows-films-2400.webp 2400w" sizes="(max-width: 900px) 1px, 80vw" width="2880" height="1800" alt="" loading="lazy">
-            <img class="shot" src="img/windows-subtitles-1600.webp" srcset="img/windows-subtitles-960.webp 960w, img/windows-subtitles-1600.webp 1600w, img/windows-subtitles-2400.webp 2400w" sizes="(max-width: 900px) 1px, 80vw" width="2880" height="1800" alt="" loading="lazy">
-          </div>
-          <ol class="cues">
-            <li class="cue on">
-              <img src="img/windows-home-960.webp" width="960" height="600" alt="L’accueil de Mira pour Windows : Arcane en grand, et « Continuer à regarder »" loading="lazy">
-              <h3 class="subtitle"><span>Belle dès l’ouverture.</span></h3>
-              <p>Affiches, grands visuels, résumés, distribution et sagas : ta bibliothèque ressemble à celle d’un service de streaming, sans rien régler.</p>
-            </li>
-            <li class="cue">
-              <img src="img/windows-film-960.webp" width="960" height="600" alt="La fiche d’un film, avec « Reprendre »" loading="lazy">
-              <h3 class="subtitle"><span>Tu reprends où tu en étais.</span></h3>
-              <p>Sur le PC, le Mac ou le téléphone, « Continuer à regarder » te ramène à la bonne minute. L’heure de fin s’affiche avant même de lancer.</p>
-            </li>
-            <li class="cue">
-              <img src="img/windows-series-960.webp" width="960" height="600" alt="Une série et ses épisodes" loading="lazy">
-              <h3 class="subtitle"><span>L’épisode suivant s’enchaîne seul.</span></h3>
-              <p>Les intros se passent d’un geste, et chaque série garde ses langues : l’animé en japonais, la comédie en français.</p>
-            </li>
-            <li class="cue">
-              <img src="img/windows-films-960.webp" width="960" height="600" alt="Tous les films, avec recherche, filtres et tri" loading="lazy">
-              <h3 class="subtitle"><span>Tout retrouver, tout de suite.</span></h3>
-              <p>Recherche, filtres et tri pour des centaines de titres, et une bibliothèque gardée sur le disque : elle s’ouvre même quand le serveur dort.</p>
-            </li>
-            <li class="cue">
-              <img src="img/windows-subtitles-960.webp" width="960" height="600" alt="Les réglages des langues et des sous-titres" loading="lazy">
-              <h3 class="subtitle"><span>Les bonnes langues, dès le premier épisode.</span></h3>
-              <p>Pistes audio, sous-titres à ta taille, chapitres et aperçus sur la barre : la lecture se fait dans Mira, pas dans un navigateur.</p>
-            </li>
-          </ol>
+    <section class="poster" id="lecture" aria-labelledby="c2">
+      <img class="backdrop" src="img/windows-series-960.webp" width="960" height="600" alt="" loading="lazy">
+      <div class="wrap">
+        <div class="head">
+          <div><p class="kicker">Lecture</p><h2 id="c2">Les bonnes langues, dès le premier épisode.</h2></div>
+          <p>La lecture se fait dans Mira, pas dans un navigateur : le fichier tel quel, ses pistes audio, ses sous-titres à ta taille.</p>
         </div>
-      </div>
-    </section>
-
-    <!-- Chapter 2: the phone. First the guide that prepares everything, then the phones. -->
-    <section class="chapter" id="telephone" data-thumb="img/web-home-390.webp" aria-labelledby="c2">
-      <header class="intertitle">
-        <p class="number">Chapitre 2</p>
-        <h2 id="c2">Sur ton téléphone</h2>
-        <p class="subtitle"><span>Dans ta poche, sans App Store.</span></p>
-        <p class="lede">Mira web est servie par ton propre serveur Jellyfin. Sur iPhone, elle s’ouvre comme une app depuis l’écran d’accueil. Sur Android aussi.</p>
-      </header>
-      <div class="scene">
-        <div class="stage">
-          <div class="frame" aria-hidden="true">
-            <div class="shot guide on">
-              <p class="guide-title"><img src="img/mark.svg" alt="" width="22" height="22">Mira sur ton téléphone</p>
-              <ol class="checklist">
-                <li><span class="tick"><svg class="icon"><use href="img/icons.svg#check"/></svg></span>Jellyfin installé sur ce PC</li>
-                <li><span class="tick"><svg class="icon"><use href="img/icons.svg#check"/></svg></span>Films, séries et animés rangés</li>
-                <li><span class="tick"><svg class="icon"><use href="img/icons.svg#check"/></svg></span>Pare-feu ouvert aux réseaux privés seulement</li>
-                <li><span class="tick"><svg class="icon"><use href="img/icons.svg#check"/></svg></span>QR code prêt pour ton téléphone</li>
-              </ol>
-            </div>
-            <div class="shot phones">
-              <div class="phone"><div class="glass"><img src="img/web-home-720.webp" srcset="img/web-home-390.webp 390w, img/web-home-720.webp 720w, img/web-home-1080.webp 1080w" sizes="(max-width: 900px) 40vw, 18vw" width="1206" height="2622" alt="" loading="lazy"></div></div>
-              <div class="phone"><div class="glass"><img src="img/web-film-720.webp" srcset="img/web-film-390.webp 390w, img/web-film-720.webp 720w, img/web-film-1080.webp 1080w" sizes="(max-width: 900px) 40vw, 18vw" width="1206" height="2622" alt="" loading="lazy"></div></div>
-              <div class="phone"><div class="glass"><img src="img/web-series-720.webp" srcset="img/web-series-390.webp 390w, img/web-series-720.webp 720w, img/web-series-1080.webp 1080w" sizes="(max-width: 900px) 40vw, 18vw" width="1206" height="2622" alt="" loading="lazy"></div></div>
-            </div>
-          </div>
-          <ol class="cues">
-            <li class="cue on" data-shot="0">
-              <h3 class="subtitle"><span>Pas encore de Jellyfin ? Mira l’installe.</span></h3>
-              <p>Mira pour Windows l’installe et le prépare, puis « Tout préparer » règle le reste pour le téléphone. Une autorisation de Windows, et c’est prêt.</p>
-            </li>
-            <li class="cue" data-shot="1">
-              <h3 class="subtitle"><span>Scanne le QR code.</span></h3>
-              <p>Dans Mira pour Windows : Guide, puis Mira sur ton téléphone. L’appareil photo ouvre Mira web, déjà à la bonne adresse.</p>
-            </li>
-            <li class="cue" data-shot="1">
-              <h3 class="subtitle"><span>Garde-la sur l’écran d’accueil.</span></h3>
-              <p>Partager, puis Sur l’écran d’accueil : elle s’ouvre comme une app, à la maison comme ailleurs avec Tailscale.</p>
-            </li>
-          </ol>
-        </div>
-      </div>
-    </section>
-
-    <!-- Chapter 3: two screens, one film. -->
-    <section class="chapter" id="ensemble" data-thumb="img/film-still-640.webp" aria-labelledby="c3">
-      <header class="intertitle">
-        <p class="number">Chapitre 3</p>
-        <h2 id="c3">Ensemble</h2>
-        <p class="subtitle"><span>Le même film, chacun chez soi.</span></p>
-        <p class="lede">Crée un groupe, envoie le lien. Ton ami l’ouvre, et vous regardez au même instant. Une pause chez l’un met en pause chez l’autre.</p>
-      </header>
-      <div class="together" role="group" aria-label="Démonstration : deux lectures synchronisées" data-playing="Ensemble · lecture synchronisée" data-by-you="Tu as mis en pause pour vous deux" data-by-friend="Ton ami a mis en pause pour vous deux">
-        <div class="screens">
-          <figure class="mini">
-            <div class="mini-frame"><img src="img/film-still-640.webp" srcset="img/film-still-640.webp 640w, img/film-still-1280.webp 1280w" sizes="(max-width: 700px) 92vw, 44vw" width="1280" height="720" alt="" loading="lazy"></div>
-            <div class="mini-bar"><button class="toggle" type="button" aria-label="Mettre en pause chez toi" data-pause="Mettre en pause chez toi" data-play="Reprendre chez toi" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#pause"/></svg></button><div class="track"><i></i><b></b></div></div>
-            <figcaption>Chez toi</figcaption>
-          </figure>
-          <figure class="mini">
-            <div class="mini-frame"><img src="img/film-still-640.webp" srcset="img/film-still-640.webp 640w, img/film-still-1280.webp 1280w" sizes="(max-width: 700px) 92vw, 44vw" width="1280" height="720" alt="" loading="lazy"></div>
-            <div class="mini-bar"><button class="toggle" type="button" aria-label="Mettre en pause chez ton ami" data-pause="Mettre en pause chez ton ami" data-play="Reprendre chez ton ami" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#pause"/></svg></button><div class="track"><i></i><b></b></div></div>
-            <figcaption>Chez ton ami</figcaption>
-          </figure>
-        </div>
-        <p class="subtitle sync-state"><span><svg class="icon" aria-hidden="true"><use href="img/icons.svg#users"/></svg><span class="state">Ensemble · lecture synchronisée</span></span></p>
-        <p class="try" hidden>Essaie : mets en pause d’un côté.</p>
-      </div>
-    </section>
-
-    <!-- Chapter 4: the card shown before a film, here for privacy. -->
-    <section class="chapter" id="vie-privee" aria-labelledby="c4">
-      <header class="intertitle">
-        <p class="number">Chapitre 4</p>
-        <h2 id="c4">Rien ne sort</h2>
-        <p class="subtitle"><span>Rien ne quitte ton serveur.</span></p>
-        <p class="lede">Ta bibliothèque, ce que tu regardes et quand : tout reste entre tes appareils et ton Jellyfin.</p>
-      </header>
-      <div class="carton">
-        <p class="carton-head">Cette séance est privée</p>
-        <ul class="facts">
-          <li><strong>Pas de compte Mira</strong><span>Tu te connectes à ton Jellyfin, à personne d’autre.</span></li>
-          <li><strong>Rien de collecté</strong><span>Ni statistiques, ni publicité, ni rapport envoyé en coulisses.</span></li>
-          <li><strong>Une seule question</strong><span>Y a-t-il une mise à jour ? posée à GitHub, et désactivable sous Windows.</span></li>
-          <li><strong>Ce site non plus</strong><span>Aucun cookie, aucun traqueur, aucune police chargée ailleurs. Hébergé par GitHub Pages.</span></li>
+        <img class="frame" src="img/windows-series-1600.webp" srcset="img/windows-series-960.webp 960w, img/windows-series-1600.webp 1600w, img/windows-series-2400.webp 2400w" sizes="(max-width: 1336px) 92vw, 1296px" width="2880" height="1800" alt="Arcane et ses épisodes dans Mira pour Windows" loading="lazy">
+        <ul class="cards">
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#subtitles"/></svg><h3>Sous-titres trouvés pour toi</h3><p>Vérifiés sur le film et calés sur les voix, par ton serveur.</p></li>
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#chapters"/></svg><h3>Aperçus sur la barre</h3><p>Les génériques passés d’un geste, l’épisode suivant tout seul.</p></li>
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#volume"/></svg><h3>Le son pour ton ampli</h3><p>Dolby et DTS envoyés tels quels, depuis Mira pour Windows.</p></li>
         </ul>
-        <p class="carton-foot">Projection : ton serveur Jellyfin · Dans la salle : toi et tes invités</p>
       </div>
     </section>
 
-    <!-- Chapter 5: the downloads, one room each. -->
-    <section class="chapter" id="telecharger" aria-labelledby="c5">
-      <header class="intertitle">
-        <p class="number">Chapitre 5</p>
-        <h2 id="c5">Prends place</h2>
-        <p class="subtitle"><span>Choisis ta salle.</span></p>
-        <p class="lede">Mira __VERSION__, gratuite et open source. Il te faut un serveur Jellyfin 10.9 ou plus, ou laisse Mira pour Windows l’installer.</p>
-      </header>
-      <div class="rooms">
-        <article class="room" data-for="windows">
-          <p class="room-number"><span>Salle</span> <b>1</b><span class="yours" hidden>Ton appareil</span></p>
-          <h3>Windows</h3>
-          <p class="needs">Windows 10 ou 11, x64</p>
-          <p>L’installateur, et Mira se met ensuite à jour toute seule.</p>
-          <div>
+    <section class="poster" id="telephone" aria-labelledby="c3">
+      <img class="backdrop" src="img/web-home-390.webp" width="390" height="848" alt="" loading="lazy">
+      <div class="wrap">
+        <div class="head">
+          <div><p class="kicker">Téléphone</p><h2 id="c3">Dans ta poche, chez toi et ailleurs.</h2></div>
+          <p>Tailscale intégré joint ton serveur de partout, sans app VPN à installer.</p>
+        </div>
+        <div class="fan" aria-hidden="true">
+          <div class="phone"><div class="screen"><img src="img/web-film-720.webp" srcset="img/web-film-390.webp 390w, img/web-film-720.webp 720w, img/web-film-1080.webp 1080w" sizes="(max-width: 860px) 42vw, 18vw" width="1206" height="2622" alt="" loading="lazy"></div></div>
+          <div class="phone"><div class="screen"><img src="img/web-home-720.webp" srcset="img/web-home-390.webp 390w, img/web-home-720.webp 720w, img/web-home-1080.webp 1080w" sizes="(max-width: 860px) 42vw, 18vw" width="1206" height="2622" alt="" loading="lazy"></div></div>
+          <div class="phone"><div class="screen"><img src="img/web-series-720.webp" srcset="img/web-series-390.webp 390w, img/web-series-720.webp 720w, img/web-series-1080.webp 1080w" sizes="(max-width: 860px) 42vw, 18vw" width="1206" height="2622" alt="" loading="lazy"></div></div>
+        </div>
+        <div class="cards two">
+          <article class="glass-panel"><p class="tag">iPhone et iPad · en essai</p><h3>Mira pour iPhone</h3><p>L’app native, avec son propre lecteur, l’image dans l’image et AirPlay. Installée avec AltStore et un identifiant Apple gratuit.</p></article>
+          <article class="glass-panel"><p class="tag">iPhone, iPad, Android</p><h3>Mira web</h3><p>Servie par ton propre Jellyfin, rien à télécharger : scanne le QR code de Mira pour Windows et ajoute-la à ton écran d’accueil.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="poster" id="ensemble" aria-labelledby="c4">
+      <img class="backdrop" src="img/film-still-640.webp" width="640" height="360" alt="" loading="lazy">
+      <div class="wrap party">
+        <div class="copy">
+          <p class="kicker">Ensemble</p>
+          <h2 id="c4">Un lien, le même film.</h2>
+          <p>Envoie le lien de ta party. Tes amis te rejoignent depuis leur téléphone ou leur ordinateur, même depuis leur propre Jellyfin. Une pause d’un côté met tout le monde en pause.</p>
+        </div>
+        <figure class="invite glass-panel" aria-label="La carte d’un lien de party, comme une discussion l’affiche">
+          <img src="img/film-still-640.webp" srcset="img/film-still-640.webp 640w, img/film-still-1280.webp 1280w" sizes="(max-width: 860px) 88vw, 450px" width="1280" height="720" alt="" loading="lazy">
+          <figcaption>
+            <div class="who"><img class="mark" src="img/mark.svg" alt="" width="44" height="44"><div><p class="title">Rejoins la party Mira</p><p class="what">Camille regarde Arcane · S1 É3</p></div></div>
+            <div class="join" aria-hidden="true"><span>Ouvrir dans Mira</span><span>Dans le navigateur</span></div>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="plain" id="installation" aria-labelledby="c5">
+      <div class="wrap">
+        <div class="head">
+          <div><p class="kicker">Installation</p><h2 id="c5">Pas encore de Jellyfin ? Mira s’en occupe.</h2></div>
+          <p>Sur le PC qui garde tes films, Mira pour Windows installe Jellyfin et prépare tout en un clic, avec une seule autorisation de Windows.</p>
+        </div>
+        <ul class="cards">
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#server"/></svg><h3>Un serveur qui se règle seul</h3><p>Pare-feu ouvert à ta maison seulement, PC gardé éveillé, carte graphique, sauvegardes et mises à jour.</p></li>
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#qr"/></svg><h3>Le téléphone en un scan</h3><p>Un QR code ouvre Mira web à la bonne adresse, chez toi ou ailleurs.</p></li>
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#link"/></svg><h3>Tailscale intégré</h3><p>Connecte-toi une fois : Mira trouve ton serveur de partout, sur chaque appareil.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="plain" id="vie-privee" aria-labelledby="c6">
+      <div class="wrap">
+        <div class="head">
+          <div><p class="kicker">Vie privée</p><h2 id="c6">Rien ne quitte ton serveur.</h2></div>
+          <p>Ta bibliothèque, ce que tu regardes et quand : ça reste entre tes appareils et ton Jellyfin.</p>
+        </div>
+        <ul class="cards">
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#user"/></svg><h3>Pas de compte Mira</h3><p>Tu te connectes à ton Jellyfin, et à personne d’autre. Ni statistiques, ni pub.</p></li>
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#check"/></svg><h3>Seulement ce que tu actives</h3><p>Mises à jour, Tailscale, recherche de sous-titres : chacun dit ce qu’il envoie avant de commencer.</p></li>
+          <li class="glass-panel"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#search"/></svg><h3>Ce site non plus</h3><p>Ni cookies, ni traqueurs, rien de chargé ailleurs. Hébergé par GitHub Pages.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="plain" id="telecharger" aria-labelledby="c7">
+      <div class="wrap">
+        <div class="head">
+          <div><p class="kicker">Télécharger · Mira __VERSION__</p><h2 id="c7">Choisis ton écran.</h2></div>
+          <p>Gratuit et open source. Il te faut un serveur Jellyfin 10.9 ou plus récent, ou laisse Mira pour Windows l’installer.</p>
+        </div>
+        <div class="doors">
+          <article class="door glass-panel" data-for="windows">
+            <p class="needs"><span>Windows 10 ou 11, x64</span><b hidden>Ton appareil</b></p>
+            <h3>Windows</h3>
+            <p>L’installateur, puis Mira se met à jour toute seule.</p>
             <a class="button primary" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-setup.exe"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Installateur</a>
             <p class="more"><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64-portable.exe">Portable</a><a href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-win-x64.zip">Zip</a><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION.md">Guide</a></p>
-          </div>
-        </article>
-        <article class="room" data-for="mac">
-          <p class="room-number"><span>Salle</span> <b>2</b><span class="yours" hidden>Ton appareil</span></p>
-          <h3>Mac</h3>
-          <p class="needs">Puce Apple, macOS 15 ou plus</p>
-          <p>Glisse Mira dans Applications, puis autorise-la une fois : elle n’est pas signée par Apple. Ou, avec Homebrew : <code class="command">brew install --cask sasou-web/mira/mira</code></p>
-          <div>
-            <a class="button primary" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Image disque</a>
+          </article>
+          <article class="door glass-panel" data-for="mac">
+            <p class="needs"><span>Apple silicon, macOS 15 ou plus récent</span><b hidden>Ton appareil</b></p>
+            <h3>Mac</h3>
+            <p>Glisse Mira dans Applications, puis autorise-la une fois : elle n’est pas signée par Apple. Ou avec Homebrew : <code>brew install --cask sasou-web/mira/mira</code></p>
+            <a class="button glass-panel" href="https://github.com/sasou-web/Mira/releases/download/v__VERSION__/Mira-__VERSION__-mac-arm64.dmg"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#download"/></svg>Image disque</a>
             <p class="more"><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-MAC.md">Guide d’installation</a></p>
-          </div>
-        </article>
-        <article class="room" data-for="phone">
-          <p class="room-number"><span>Salle</span> <b>3</b><span class="yours" hidden>Ton appareil</span></p>
-          <h3>iPhone, iPad, Android</h3>
-          <p class="needs">Rien à télécharger</p>
-          <p>Mira web arrive par ton serveur : dans Mira pour Windows, Guide, puis Mira sur ton téléphone, et scanne le QR code.</p>
-          <div>
-            <a class="button quiet" href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-WEB.md"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Voir le guide</a>
-          </div>
-        </article>
+          </article>
+          <article class="door glass-panel" data-for="phone">
+            <p class="needs"><span>Rien à télécharger</span><b hidden>Ton appareil</b></p>
+            <h3>iPhone, iPad, Android</h3>
+            <p>Mira web vient de ton serveur : dans Mira pour Windows, Guide, puis Mira sur ton téléphone. Sur iPhone, l’app native est en essai.</p>
+            <a class="button glass-panel" href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-WEB.md"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#phone"/></svg>Guide de Mira web</a>
+            <p class="more"><a href="https://github.com/sasou-web/Mira/blob/main/docs/INSTALLATION-IOS.md">Mira pour iPhone</a></p>
+          </article>
+        </div>
+        <p class="note">Les fichiers Windows ne sont pas encore signés : SmartScreen peut demander une confirmation (Informations complémentaires, puis Exécuter quand même). Chaque version publie ses empreintes SHA-256 dans une <a href="https://github.com/sasou-web/Mira/releases/tag/v__VERSION__">release immuable</a> sur GitHub.</p>
       </div>
-      <p class="note">Les fichiers Windows ne sont pas encore signés : SmartScreen peut demander confirmation (Informations complémentaires, puis Exécuter quand même). Chaque version publie ses empreintes SHA-256 dans une <a href="https://github.com/sasou-web/Mira/releases/tag/v__VERSION__">release immuable</a> sur GitHub.</p>
     </section>
   </main>
 
-  <footer class="chapter credits" id="generique" aria-labelledby="generique-titre">
-    <h2 id="generique-titre" class="number">Générique de fin</h2>
-    <div class="roll" tabindex="0" aria-label="Générique, défilant : survole ou sélectionne-le pour l’arrêter">
-      <dl>
-        <div><dt>Une application de</dt><dd><a href="https://github.com/sasou-web">sasou-web</a></dd></div>
-        <div><dt>Écrite avec</dt><dd>Claude, d’Anthropic</dd></div>
-        <div><dt>Serveur</dt><dd><a href="https://jellyfin.org">Jellyfin</a></dd></div>
-        <div><dt>Lecture</dt><dd><a href="https://mpv.io">mpv</a></dd></div>
-        <div><dt>Police</dt><dd>Nunito Sans, SIL Open Font License</dd></div>
-        <div><dt>Icônes</dt><dd>Phosphor, licence MIT</dd></div>
-        <div><dt>À l’affiche</dt><dd>Arcane (2021), Fortiche, Riot Games</dd></div>
-        <div><dt>Et aussi</dt><dd>Spider-Man : Across the Spider-Verse (2023), Sony Pictures Animation, et d’autres films d’animation</dd></div>
-        <div><dt>Affiches et résumés</dt><dd>TMDb</dd></div>
-        <div><dt>Licence</dt><dd><a href="https://github.com/sasou-web/Mira/blob/main/LICENSE">MIT</a></dd></div>
+  <footer>
+    <div class="wrap">
+      <div class="about">
+        <a class="brand" href="./"><img src="img/mark.svg" alt="" width="26" height="26">Mira</a>
+        <p>Un projet indépendant, sans lien avec Jellyfin. Aucun film n’est fourni.</p>
+      </div>
+      <nav aria-label="Liens">
+        <a href="https://github.com/sasou-web/Mira">Code source</a>
+        <a href="https://discord.gg/Bh3F6PDUvB">Discord</a>
+        <a href="https://github.com/sasou-web/Mira/blob/main/CHANGELOG.md">Historique des versions</a>
+        <a href="https://github.com/sasou-web/Mira/blob/main/SECURITY.md">Sécurité</a>
+        <a href="https://github.com/sasou-web/Mira#code-signing-policy">Politique de signature</a>
+        <a href="en/" hreflang="en" lang="en">English</a>
+      </nav>
+      <dl class="credits">
+        <div><dt>Une app de</dt><dd><a href="https://github.com/sasou-web">sasou-web</a>, écrite avec Claude</dd></div>
+        <div><dt>Avec</dt><dd><a href="https://jellyfin.org">Jellyfin</a> et <a href="https://mpv.io">mpv</a></dd></div>
+        <div><dt>Police et icônes</dt><dd>Nunito (SIL Open Font License), Phosphor (MIT)</dd></div>
+        <div><dt>À l’écran</dt><dd>Arcane © Riot Games, Fortiche ; les autres titres à leurs ayants droit ; affiches de TMDb</dd></div>
       </dl>
     </div>
-    <div class="end">
-      <img src="img/mark.svg" alt="" width="40" height="40">
-      <p>Mira est un projet indépendant, sans lien avec Jellyfin. Aucun film n’est fourni.</p>
-      <ul>
-        <li><a href="https://github.com/sasou-web/Mira">Code source</a></li>
-        <li><a href="https://discord.gg/Bh3F6PDUvB">Discord</a></li>
-        <li><a href="https://github.com/sasou-web/Mira/blob/main/CHANGELOG.md">Historique des versions</a></li>
-        <li><a href="https://github.com/sasou-web/Mira/blob/main/SECURITY.md">Sécurité</a></li>
-        <li><a href="https://github.com/sasou-web/Mira/blob/main/docs/README.fr.md#politique-de-signature-du-code">Politique de signature du code</a></li>
-        <li><a href="en/" hreflang="en" lang="en">English</a></li>
-      </ul>
-      <p class="post-credits"><span class="number">Scène post-générique</span>Mira se met à jour toute seule. À la prochaine séance.</p>
-    </div>
   </footer>
-
-  <!-- The bottom letterbox bar: Mira's player. Without scripts, its menus still open and its chapters still lead. -->
-  <nav class="player" aria-label="Lecteur de la séance">
-    <div class="timeline" hidden>
-      <div class="scrub" role="slider" tabindex="0" aria-label="Position dans la séance" aria-valuemin="0" aria-valuemax="360" aria-valuenow="0" aria-valuetext="00:00">
-        <div class="rail"><i class="ahead"></i><i class="fill"></i></div>
-        <b class="head"></b>
-      </div>
-      <div class="preview" aria-hidden="true"><div class="preview-image"></div><p><span class="preview-chapter"></span><span class="preview-time"></span></p></div>
-    </div>
-    <div class="controls">
-      <button class="play" type="button" aria-pressed="false" hidden><svg class="icon" aria-hidden="true"><use href="img/icons.svg#play"/></svg><span class="visually-hidden">Lecture automatique</span></button>
-      <p class="time" hidden><span class="now">00:00</span><span class="total"> / 06:00</span></p>
-      <p class="current"></p>
-      <button class="pill" type="button" popovertarget="sous-titres"><span class="cc" aria-hidden="true">CC</span><span>Français</span></button>
-      <div class="menu" id="sous-titres" popover>
-        <p class="menu-title">Sous-titres</p>
-        <ul>
-          <li><a href="./" aria-current="page"><svg class="icon" aria-hidden="true"><use href="img/icons.svg#check"/></svg>Français</a></li>
-          <li><a href="en/" hreflang="en" lang="en"><span class="icon" aria-hidden="true"></span>English</a></li>
-        </ul>
-      </div>
-      <button class="pill" type="button" popovertarget="chapitres"><span>Chapitres</span></button>
-      <div class="menu chapters" id="chapitres" popover>
-        <p class="menu-title">Chapitres</p>
-        <ol>
-          <li><a href="#ouverture"><span>Générique d’ouverture</span><time></time></a></li>
-          <li><a href="#bibliotheque"><span>1. Ta bibliothèque</span><time></time></a></li>
-          <li><a href="#telephone"><span>2. Sur ton téléphone</span><time></time></a></li>
-          <li><a href="#ensemble"><span>3. Ensemble</span><time></time></a></li>
-          <li><a href="#vie-privee"><span>4. Rien ne sort</span><time></time></a></li>
-          <li><a href="#telecharger"><span>5. Prends place</span><time></time></a></li>
-          <li><a href="#generique"><span>Générique de fin</span><time></time></a></li>
-        </ol>
-      </div>
-    </div>
-  </nav>
 </body>
 </html>

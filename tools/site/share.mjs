@@ -19,8 +19,8 @@ const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
 const scratch = mkdtempSync(join(tmpdir(), 'mira-share-'));
 for (const [file, [title, line]] of Object.entries(cards)) {
   writeFileSync(join(scratch, 'card.html'), `<!doctype html><html><head><style>
-    @font-face { font-family: N; font-weight: 800; src: url('${site}/fonts/nunito-sans-800.woff2'); }
-    @font-face { font-family: N; font-weight: 600; src: url('${site}/fonts/nunito-sans-600.woff2'); }
+    @font-face { font-family: N; font-weight: 800; src: url('${site}/fonts/nunito-800.woff2'); }
+    @font-face { font-family: N; font-weight: 600; src: url('${site}/fonts/nunito-600.woff2'); }
     body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: #070708; color: #f4f4f5; font-family: N; position: relative; }
     .glow { position: absolute; right: -120px; top: 40px; width: 820px; height: 520px; filter: blur(90px) saturate(150%); opacity: .55; }
     .shot { position: absolute; left: 560px; top: 120px; width: 860px; border-radius: 18px; border: 1px solid #26262a;
