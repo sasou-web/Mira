@@ -37,7 +37,7 @@ public abstract class Page : UserControl
 
 /// <summary>
 /// Mira's window: the rail of the Windows app on the left, the current page beside it, the player above everything
-/// while it plays. Pages are kept in a history that Échap, ⌘[ and the back button walk.
+/// while it plays. Pages are kept in a history that Échap, ⌘[, the back button and a swipe walk (⌘] and the other swipe forward).
 /// </summary>
 public sealed partial class MainWindow : Window
 {
@@ -123,6 +123,7 @@ public sealed partial class MainWindow : Window
             Grid.SetColumnSpan(strip, 2); _root.Children.Add(strip);
         }
         Content = _root;
+        ListenToTrackpad();
         _toastTimer.Tick += (_, _) => HideNotice();
         _serverChanged.Tick += (_, _) => { _serverChanged.Stop(); _ = RefreshPagesAsync(fromServer: true); };
         _choicesSoon.Tick += async (_, _) => { _choicesSoon.Stop(); await SyncChoicesAsync(); };
@@ -137,7 +138,7 @@ public sealed partial class MainWindow : Window
         // The mini-player takes its keys only when it has the focus: the library around it keeps its own.
         AddHandler(KeyDownEvent, (_, e) => { if (Player is { } player && (!player.IsMini || e.Source is Visual source && player.IsVisualAncestorOf(source))) player.HandleKey(e); }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
-        PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsXButton1Pressed) Back(); };
+        PointerPressed += (_, e) => { var buttons = e.GetCurrentPoint(this).Properties; if (buttons.IsXButton1Pressed) Back(); else if (buttons.IsXButton2Pressed) Forward(); };
         // A press whose release never came (a menu or the player gone from under it, the window turned full screen by a
         // double click) left the pointer captured by what remained: every turn of the wheel went there, never to the page.
         AddHandler(PointerMovedEvent, (_, e) => Unstick(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -258,7 +259,7 @@ public sealed partial class MainWindow : Window
         // Opened from an invitation (a mira:// link) before any account: its Jellyfin, to sign in to.
         if (_invite is { } invite) login.Server = invite.Server;
         _overlay.Children.Clear(); _overlay.Children.Add(login);
-        _history.Clear(); _host.Content = null;
+        _history.Clear(); _forward.Clear(); _host.Content = null;
     }
     /// <summary>Opens the library of a signed-in account.</summary>
     public async Task ActivateAsync(Connection connection, HttpMessageHandler? handler = null)
@@ -299,7 +300,7 @@ public sealed partial class MainWindow : Window
         CollectionRights = TitleCollections.Rights.None;
         _ = LoadCollectionRightsAsync(Session);
         _ = LoadOfflineAsync(Session);
-        _history.Clear();
+        _history.Clear(); _forward.Clear();
         await NavigateAsync(new HomePage(this));
         if (Session.Store.DamagedCopy is not null) Notice(L("Le cache local de ce compte était illisible : il a été recréé.", "This account’s local cache couldn’t be read: it was created again."));
         // Opened from a mira:// link before this account was: asked now.
@@ -531,7 +532,7 @@ public sealed partial class MainWindow : Window
         if (Session is null) return;
         if (Watching) return;
         // The rail starts a new history, as on the Windows app.
-        _history.Clear();
+        _history.Clear(); _forward.Clear();
         Page page = key switch
         {
             "home" => new HomePage(this),
@@ -548,6 +549,7 @@ public sealed partial class MainWindow : Window
     public async Task NavigateAsync(Page page)
     {
         if (Current is { } current && current != page) _history.Add(current);
+        _forward.Clear();
         _host.Content = page;
         Light(page.Rail);
         page.Opacity = 0;
@@ -566,6 +568,7 @@ public sealed partial class MainWindow : Window
         if (Player is { IsMini: false } player) { player.SetMini(true); return true; }
         if (_history.Count == 0) return false;
         var previous = _history[^1]; _history.RemoveAt(_history.Count - 1);
+        if (Current is { } current) _forward.Add(current);
         _host.Content = previous; Light(previous.Rail);
         _ = previous.RefreshAsync();
         return true;
@@ -802,6 +805,8 @@ public sealed partial class MainWindow : Window
         if (Watching) return;
         var command = e.KeyModifiers.HasFlag(KeyModifiers.Meta) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (e.Key == Key.Escape || command && e.Key == Key.OemOpenBrackets) { if (Back()) e.Handled = true; return; }
+        if (command && e.Key == Key.OemCloseBrackets) { if (Forward()) e.Handled = true; return; }
+        if (command && e.Source is not TextBox && ZoomKey(e)) { e.Handled = true; return; }
         if (command && e.Key is Key.F or Key.K) { NavigateRoot("search"); e.Handled = true; return; }
         if (command && e.Key == Key.OemComma) { NavigateRoot("settings"); e.Handled = true; return; }
         // I brings the mini-player back over the window, as on Windows; never while typing.

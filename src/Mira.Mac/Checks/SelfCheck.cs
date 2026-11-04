@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.VisualTree;
 using Mira.Core;
+using Mira.Mac.Services;
 using Mira.Mac.Views;
 
 namespace Mira.Mac.Checks;
@@ -47,6 +48,17 @@ public static class SelfCheck
         {
             Check(Playback.MpvPlayer.FindLibrary(window.Settings.MpvPath) is not null, "libmpv trouvé", Playback.MpvPlayer.FindLibrary(window.Settings.MpvPath) ?? "introuvable");
             window.Settings.AutoNext = true; window.Settings.RememberPosition = true; window.Settings.Volume = 150;
+            // The trackpad read as a Mac's out of the box (natural scrolling, two fingers between pages), whatever this machine says.
+            MacTrackpad.Override(natural: true, swipes: true);
+            // Two-finger gestures as macOS sends them: scroll events 16 ms apart, a pause between gestures.
+            var gestureClock = 1_000_000L;
+            var trackpad = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+            void Swipe(Avalonia.Interactivity.Interactive target, Point at, double x, double y, int events)
+            {
+                gestureClock += 1000;
+                for (var i = 0; i < events; i++)
+                    target.RaiseEvent(new PointerWheelEventArgs(target, trackpad, window, at, (ulong)(gestureClock += 16), PointerPointProperties.None, KeyModifiers.None, new Vector(x, y)));
+            }
 
             // —— Sign-in ——
             // The sign-in page, seen as it opens (the mock signs in without it).
@@ -145,6 +157,28 @@ public static class SelfCheck
                 await seriesPage.RefreshAsync(); await seriesPage.RefreshAsync();
                 Check(seriesPage.EpisodesShown, "fiche d’une série : épisodes gardés après une actualisation");
             }
+            // Two fingers to the right: the page before (the series grid); to the left: this page again.
+            var swipeAt = new Point(window.Bounds.Width / 2, 140);
+            if (window.InputHitTest(swipeAt) is Avalonia.Interactivity.Interactive swipeTarget && window.Current is DetailPage swipedFrom)
+            {
+                Swipe(swipeTarget, swipeAt, .15, 0, 30);
+                var wentBack = window.Current is BrowsePage;
+                if (window.InputHitTest(swipeAt) is Avalonia.Interactivity.Interactive back) Swipe(back, swipeAt, -.15, 0, 30);
+                Check(wentBack && window.Current == swipedFrom, "trackpad : deux doigts vers la droite = Retour, vers la gauche = Avant", $"retour {wentBack}, puis {window.Current?.GetType().Name}");
+            }
+            else Check(false, "trackpad : deux doigts vers la droite = Retour, vers la gauche = Avant", "rien sous le pointeur");
+            // A pinch (or ⌘+) makes the grid's posters larger: fewer of them on a line.
+            window.Go("Movie");
+            if (await Until(() => window.Current is BrowsePage { Items.Count: > 0 }, 15))
+            {
+                await Task.Delay(500);
+                var grid = window.Current!.GetVisualDescendants().OfType<Mira.Mac.Views.CardGrid>().First();
+                var narrow = grid.Children[0].Bounds.Width;
+                window.ZoomGrids(Trackpad.ZoomMax); await Task.Delay(300);
+                var wide = grid.Children[0].Bounds.Width;
+                window.ZoomGrids(1); await Task.Delay(300);
+                Check(wide > narrow * 1.3 && Math.Abs(grid.Children[0].Bounds.Width - narrow) < 1, "trackpad : pincer agrandit les affiches de la grille", $"{narrow:0} → {wide:0} px, puis {grid.Children[0].Bounds.Width:0}");
+            }
             SettingsPage.OpenAt("playback");
             window.Go("settings");
             await Task.Delay(800); Capture(window, output, "07-settings");
@@ -213,6 +247,14 @@ public static class SelfCheck
                 var before = player.Position;
                 Key(window, Avalonia.Input.Key.Right);
                 Check(await Until(() => player.Position >= before + 8, 6), $"avance de 10 s ({renderer})", $"{before:0.0} → {player.Position:0.0}");
+                if (!software)
+                {
+                    // Two fingers sideways over the picture: about 6 s on, the bar at once, the film when the fingers rest.
+                    var from = player.Position;
+                    Swipe(player, new Point(player.Bounds.Width / 2, player.Bounds.Height / 2), .15, 0, 20);
+                    var aimed = player.ScrubTarget;
+                    Check(aimed > from + 4 && aimed < from + 8 && await Until(() => player.Position >= aimed - 1.5, 6), "trackpad : glisser sur l’image avance dans le film", $"{from:0.0} → {aimed:0.0}, lu {player.Position:0.0}");
+                }
                 var unnamed = Unnamed(window);
                 Check(unnamed.Count == 0, $"VoiceOver : tout est nommé (lecteur, {renderer})", string.Join(", ", unnamed.Take(8)));
                 await Task.Delay(1500);

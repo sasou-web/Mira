@@ -338,6 +338,42 @@ internal static class PlayerTests
             var item = new MediaItem { Id = "x", Name = "Le départ", SeriesName = "Les étoiles", Type = "Episode", ParentIndexNumber = 2, IndexNumber = 3, RunTimeTicks = 100, UserData = new() { PlaybackPositionTicks = 200 } };
             Assert(item.Progress == 1, "Progress overflow"); Assert(item.Subtitle.Contains("S02 · E03"), "Episode label missing"); return Task.CompletedTask;
         });
+        await Test("Trackpad du Mac : sens des doigts, balayage Retour/Avant, axe, pincement", () =>
+        {
+            // Natural scrolling: the content follows the fingers; without it, the wheel goes the other way.
+            Assert(Trackpad.Finger(1, -1, natural: true) == (1, 1) && Trackpad.Finger(1, -1, natural: false) == (-1, -1), "Finger direction");
+            // Fingers to the right, in steps of 16 ms: back once, past the reach, and nothing more in the same gesture (momentum).
+            var swipe = new TrackpadSwipe(); long time = 1000; var ways = new List<int>();
+            for (var i = 0; i < 40; i++) { swipe.Add(.15, .01, time += 16); if (swipe.Swiped() is var way and not 0) ways.Add(way); }
+            Assert(swipe.Axis == SwipeAxis.Horizontal && ways.SequenceEqual([-1]), $"Back swipe: {swipe.Axis} {string.Join(",", ways)}");
+            // A pause ends the gesture: the next one, to the left, goes forward.
+            ways.Clear(); time += Trackpad.Gap + 1;
+            for (var i = 0; i < 30; i++) { swipe.Add(-.15, 0, time += 16); if (swipe.Swiped() is var way and not 0) ways.Add(way); }
+            Assert(ways.SequenceEqual([1]), "Forward swipe: " + string.Join(",", ways));
+            // Short of the reach: shown, never done.
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 10; i++) swipe.Add(.2, 0, time += 16);
+            Assert(swipe.Progress is > .5 and < 1 && swipe.Swiped() == 0, $"Half a swipe: {swipe.Progress}");
+            // A scroll down a page that drifts sideways is vertical, whatever the drift adds up to later.
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 60; i++) swipe.Add(.08, -.2, time += 16);
+            Assert(swipe.Axis == SwipeAxis.Vertical && swipe.Progress == 0 && swipe.Swiped() == 0, "Vertical drift went back");
+            // Claimed by a row that scrolls: no page change.
+            swipe = new TrackpadSwipe(); time = 0;
+            for (var i = 0; i < 40; i++) { if (swipe.Add(.15, 0, time += 16)) swipe.Claim(); }
+            Assert(swipe.Claimed && swipe.Swiped() == 0 && swipe.Progress == 0, "A claimed swipe changed the page");
+            // A clock that goes back starts a new gesture.
+            swipe.Add(.1, 0, 5); Assert(!swipe.Claimed && swipe.Axis == SwipeAxis.Undecided, "Clock going back");
+            // Pinch: once per gesture, either way; the grids' zoom stays within its bounds.
+            var pinch = new TrackpadPinch(); time = 0; var pinched = new List<int>();
+            for (var i = 0; i < 20; i++) { pinch.Add(.03, time += 16); if (pinch.Pinched() is var way and not 0) pinched.Add(way); }
+            time += Trackpad.Gap + 1;
+            for (var i = 0; i < 20; i++) { pinch.Add(-.03, time += 16); if (pinch.Pinched() is var way and not 0) pinched.Add(way); }
+            Assert(pinched.SequenceEqual([1, -1]), "Pinch: " + string.Join(",", pinched));
+            Assert(Trackpad.Zoom(1, 5) == Trackpad.ZoomMax && Trackpad.Zoom(1, -.9) == Trackpad.ZoomMin && Math.Abs(Trackpad.Zoom(1, .1) - 1.1) < 1e-9, "Zoom bounds");
+            Assert(new PlayerSettings().GridZoom == 1, "Grid zoom default");
+            return Task.CompletedTask;
+        });
         await Test("Défilement : même distance à 30, 60 et 144 images/s", () =>
         {
             var positions = new List<double>();
