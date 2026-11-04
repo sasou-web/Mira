@@ -10,6 +10,10 @@ on:
       version:
         description: Version (x.y.z) whose banner to draw
         required: true
+      sources:
+        description: Also commit the raw captures (Mira web, Mira for Mac) to the branch, for new banner designs
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -66,6 +70,21 @@ jobs:
           mkdir -p docs/releases
           node tools/banner/banner.mjs "$VERSION" .artifacts/banner "docs/releases/$VERSION.jpg"
           ls -la docs/releases
+      - name: Mira for Mac, its screens (Linux, virtual display, at ×2)
+        if: inputs.sources
+        run: |
+          sudo apt-get install -y -q xvfb libgl1-mesa-dri >/dev/null
+          dotnet build src/Mira.Mac/Mira.Mac.csproj -c Release -nologo -v q
+          dll=$(find src/Mira.Mac/bin/Release -name Mira.dll | head -1)
+          export MIRA_GALLERY_SERVER=http://127.0.0.1:8096 MIRA_GALLERY_USER="$GALLERY_USER" MIRA_GALLERY_PASSWORD="$GALLERY_PASSWORD" AVALONIA_GLOBAL_SCALE_FACTOR=2 LANG=en_US.UTF-8
+          timeout 300 xvfb-run -a -s "-screen 0 3200x2000x24" dotnet "$dll" --data .artifacts/mac-profile --gallery .artifacts/sources/mac || true
+          cat .artifacts/sources/mac/gallery-result.txt || true
+          GALLERY_LANGUAGE=en PLAYWRIGHT="$PWD/.artifacts/pw/node_modules/playwright/index.mjs" node tools/gallery/web.mjs http://127.0.0.1:8096/Mira/ "$GALLERY_USER" "$GALLERY_PASSWORD" .artifacts/sources/web || true
+          cp -r .artifacts/banner .artifacts/sources/scenes
+          mkdir -p docs/releases/sources && for f in $(find .artifacts/sources -name '*.png' -o -name '*.jpg' -o -name '*.txt'); do
+            n=$(basename "$(dirname "$f")")-$(basename "$f"); case "$f" in *.png) ffmpeg -loglevel error -y -i "$f" -q:v 2 "docs/releases/sources/${n%.png}.jpg" ;; *) cp "$f" "docs/releases/sources/$n" ;; esac
+          done
+          ls -la docs/releases/sources
       - name: Jellyfin log
         if: failure()
         run: docker logs jellyfin 2>&1 | tail -80
@@ -85,6 +104,7 @@ jobs:
           TOKEN: ${{ github.token }}
         run: |
           git add "docs/releases/$VERSION.jpg"
+          if [ -d docs/releases/sources ]; then git add docs/releases/sources; fi
           if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Draw the banner of Mira $VERSION"
           git push "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:$BRANCH"
