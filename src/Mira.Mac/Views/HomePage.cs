@@ -166,7 +166,7 @@ public sealed class HomePage : Page
     private Control LatestGrid(Session session, List<MediaItem> latest)
     {
         var grid = new CardGrid { MinItemWidth = 180 };
-        foreach (var item in latest) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu));
+        foreach (var item in latest) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
         var title = new DockPanel { Margin = new Thickness(0, 0, 6, 22) };
         var count = new TextBlock { FontSize = 12, Foreground = Ui.Faint, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
         void Counted() => count.Text = Lang.Count(Math.Max(_latestTotal, grid.Children.Count), "titre", "titres", "title", "titles");
@@ -184,7 +184,7 @@ public sealed class HomePage : Page
             {
                 var next = await session.Client.BrowseAsync(start: grid.Children.Count, limit: 30, ct: session.Lifetime);
                 await Task.Run(() => Errors.TryCache(() => session.Store.ApplyLocalProgress(next.Items)));
-                foreach (var item in next.Items) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu));
+                foreach (var item in next.Items) grid.Children.Add(Cards.Poster(item, session.Images, Shell.Open, Shell.Menu, CardGrid.Pixels));
                 _latestTotal = next.Items.Count == 0 ? grid.Children.Count : next.TotalRecordCount;
                 Counted();
                 more.IsVisible = grid.Children.Count < _latestTotal;

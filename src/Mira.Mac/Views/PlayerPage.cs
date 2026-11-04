@@ -214,6 +214,7 @@ public sealed partial class PlayerPage : UserControl
         _initializing = true; _volume.Value = VolumeBoost.Clamp(shell.Settings.Volume); _initializing = false;
         if (_volume.Value > 0) _lastAudible = _volume.Value;
         ShowVolume();
+        ListenToTrackpad();
     }
     /// <summary>The places of the top and bottom bars, their shades included, shown or not.</summary>
     public bool InBarBand(Point point) => _top.Bounds.Contains(point) || _bottom.Bounds.Contains(point);

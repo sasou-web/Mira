@@ -166,9 +166,13 @@ public sealed class EmptyState : StackPanel
 public sealed class CardGrid : Panel
 {
     public double MinItemWidth { get; set; } = 168;
+    /// <summary>The posters' size chosen with a pinch or ⌘+ / ⌘− (<see cref="Trackpad.Zoom"/>), for every grid.</summary>
+    public static double Zoom { get; set; } = 1;
+    /// <summary>The width a grid's poster is fetched at: twice its points (Retina), one step up once pinched larger.</summary>
+    public static int Pixels => Zoom > 1.05 ? 540 : 360;
     public double Gap { get; set; } = 22;
     public double RowGap { get; set; } = 30;
-    private int Columns(double width) => Math.Max(1, (int)Math.Floor((width + Gap) / (MinItemWidth + Gap)));
+    private int Columns(double width) => Math.Max(1, (int)Math.Floor((width + Gap) / (MinItemWidth * Zoom + Gap)));
     protected override Size MeasureOverride(Size available)
     {
         var width = double.IsInfinity(available.Width) ? 1200 : available.Width;
@@ -201,7 +205,8 @@ public sealed class CardGrid : Panel
 /// <summary>Posters and wide cards, with their progress and watched marks.</summary>
 public static class Cards
 {
-    public static Button Poster(MediaItem item, Images? images, Action<MediaItem> open, Func<MediaItem, ContextMenu?>? menu = null)
+    /// <param name="pixels">The width the poster is fetched at: <see cref="CardGrid.Pixels"/> in a grid.</param>
+    public static Button Poster(MediaItem item, Images? images, Action<MediaItem> open, Func<MediaItem, ContextMenu?>? menu = null, int pixels = 360)
     {
         var image = new Image { Stretch = Stretch.UniformToFill };
         var frame = new Grid { ClipToBounds = true };
@@ -223,7 +228,7 @@ public static class Cards
         button.Click += (_, _) => open(item);
         if (menu?.Invoke(item) is { } context) button.ContextMenu = context;
         Avalonia.Automation.AutomationProperties.SetName(button, string.Join(", ", new[] { item.DisplayTitle, Caption(item), item.EpisodesToWatchText }.Where(x => !string.IsNullOrEmpty(x))));
-        if (images is not null) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(item));
+        if (images is not null) Ui.LoadWhenVisible(button, image, () => images.PosterAsync(item, pixels));
         return button;
     }
     public static Button Wide(MediaItem item, Images? images, Action<MediaItem> open, double width = 300, Func<MediaItem, ContextMenu?>? menu = null)

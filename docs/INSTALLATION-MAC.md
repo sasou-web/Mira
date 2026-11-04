@@ -67,7 +67,9 @@ Ensuite, le nœud démarre avec Mira et s’arrête avec elle. **Réglages → T
 | --- | --- |
 | Rechercher | ⌘F |
 | Réglages | ⌘, |
-| Retour | Échap, ⌘[ ou bouton arrière de la souris |
+| Retour | Échap, ⌘[, bouton arrière de la souris, ou deux doigts vers la droite sur le trackpad |
+| Avant (la page quittée par Retour) | ⌘], bouton avant de la souris, ou deux doigts vers la gauche |
+| Affiches plus grandes / plus petites dans les grilles | ⌘+ / ⌘−, ou pincer sur le trackpad ; ⌘0 revient à la taille d’origine |
 | Lecture / pause | Espace / K, ou un clic sur la vidéo |
 | Reculer / avancer de 10 secondes | ← / → |
 | Volume (jusqu’à 200 %) | ↑ / ↓, ou la molette sur le haut-parleur |
@@ -75,6 +77,13 @@ Ensuite, le nœud démarre avec Mira et s’arrête avec elle. **Réglages → T
 | Plein écran | F, ou un double-clic sur la vidéo |
 | Passer l’opening ou l’ending | S |
 | Épisode suivant | N |
+
+### Trackpad
+
+Mira suit les réglages du trackpad de ton Mac (**Réglages Système → Trackpad**) : le sens du défilement (**Défilement naturel** ou non) et **Plus de gestes → Balayer entre les pages**, relus chaque fois que tu reviens dans Mira.
+
+- **Dans la bibliothèque** : deux doigts vers la droite = Retour, vers la gauche = Avant (une flèche ronde arrive sur le côté et s’allume quand tu as glissé assez loin), comme dans Safari. Au-dessus d’une rangée d’affiches, le geste fait d’abord défiler la rangée, puis change de page une fois au bout. Si ton Mac balaie entre les pages à trois doigts, c’est à trois doigts dans Mira aussi. **Pincer** change la taille des affiches des grilles (Films, Séries, Ajoutés récemment), gardée pour la suite. **Clic forcé** (appuyer plus fort, trackpad Force Touch) sur une affiche ou un épisode ouvre son menu, comme un clic droit.
+- **Dans le lecteur** : deux doigts vers la droite ou la gauche avancent ou reculent dans le film (environ 6 secondes pour un geste moyen, la barre suit tout de suite), vers le haut ou le bas changent le volume (la molette d’une souris aussi). Écarter deux doigts passe en plein écran ; les rapprocher en sort, puis réduit le lecteur en mini-lecteur. Écarter sur le mini-lecteur le rouvre en grand.
 
 ## Mises à jour
 
