@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- **Boutons plats (Windows)** : les boutons (Lecture, « Regarder ensemble », Favori, Vu… de la fiche, « Plus d’infos » de l’Accueil), les listes déroulantes et les cartes n’ont plus de reflet clair en haut ni de bord éclairé : un fond uni, comme Mira web. Survol et appui éclaircissent toujours le fond, l’anneau du clavier reste ; une liste déroulante s’éclaircit aussi au survol et une fois ouverte.
+
 ## 0.9.2 — 2026-11-02
 
 Correctifs : qBittorrent 5 accepté, boutons de la fiche sous Windows, image grise sur Mac.
