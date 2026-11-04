@@ -21,6 +21,8 @@ public partial class MainWindow
         engine.Command("sub-add", subtitles, "select"); engine.Set("pause", "yes");
         await until(() => engine.Get("sid") is not (null or "no" or ""));
 
+        // Its first picture shown first: never out to the small window while it still rises from black.
+        await until(() => !_videoWaits);
         SetMiniPlayer(true); await Task.Delay(150);
         EnterPip(); await Task.Delay(600);
         var pip = _pip;
