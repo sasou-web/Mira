@@ -13,7 +13,8 @@ namespace Mira.Desktop;
 /// from the player or the mini-player. Mira's window goes back to the library as with the mini-player (_miniPlayer stays
 /// true), the mini-player's place left empty. The video's native window is moved there and back, mpv going on as it was:
 /// nothing reloads, the next episode plays there too, and the subtitles are mpv's own, raised to stay readable at that
-/// size (<see cref="PictureInPicture.SubtitleScale"/>). Back to Mira by its button, a double click or I; « Fermer » stops.
+/// size (<see cref="PictureInPicture.SubtitleScale"/>) and above the controls while they show. Back to Mira by its button,
+/// a double click or I; « Fermer » stops.
 /// </summary>
 public partial class MainWindow
 {
@@ -21,6 +22,8 @@ public partial class MainWindow
     /// <summary>The engine whose subtitles were sized for the small window: a new title brings a new engine, sized again.</summary>
     private MpvEngine? _pipEngine;
     private double _pipSubtitleScale = 1;
+    /// <summary>That engine's own sub-margin-y, put back when the controls go and when the video leaves; the one set now.</summary>
+    private int _pipMargin = 22, _pipMarginNow = 22;
     private long _pipTracksAt;
     private bool? _pipSubtitles;
 
@@ -44,6 +47,7 @@ public partial class MainWindow
         pip.Key += PipKey;
         pip.Placed += () => RememberPip(pip);
         pip.Resized += SizePipSubtitles;
+        pip.ControlsChanged += LiftPipSubtitles;
         _pip = pip; _pipEngine = null; _pipSubtitles = null; _pipTracksAt = 0;
         try
         {
@@ -86,7 +90,11 @@ public partial class MainWindow
             pip.Release(video);
             if (!VideoContainer.Children.Contains(video)) VideoContainer.Children.Add(video);
         }
-        if (_mpv is { } mpv && ReferenceEquals(mpv, _pipEngine) && _pipSubtitleScale != 1) mpv.Set("sub-scale", "1");
+        if (_mpv is { } mpv && ReferenceEquals(mpv, _pipEngine))
+        {
+            if (_pipSubtitleScale != 1) mpv.Set("sub-scale", "1");
+            if (_pipMarginNow != _pipMargin) mpv.Set("sub-margin-y", _pipMargin.ToString(CultureInfo.InvariantCulture));
+        }
         _pipEngine = null; _pipSubtitleScale = 1;
         pip.Dismiss();
         if (show) PlayerShell.Visibility = Visibility.Visible;
@@ -124,7 +132,12 @@ public partial class MainWindow
         pip.SetPaused(_session.Paused);
         pip.SetTime($"{TimeLabel(_session.Position)} / {TimeLabel(_session.Duration)}", _session.Duration > 0 ? _session.Position / _session.Duration : 0);
         if (_loaded && VideoAspect() is { } aspect && Math.Abs(aspect - pip.Aspect) > .01) { pip.Aspect = aspect; pip.Refit(); }
-        if (!ReferenceEquals(mpv, _pipEngine)) { _pipEngine = mpv; _pipSubtitleScale = 1; _pipTracksAt = 0; SizePipSubtitles(); }
+        if (!ReferenceEquals(mpv, _pipEngine))
+        {
+            _pipEngine = mpv; _pipSubtitleScale = 1; _pipTracksAt = 0;
+            _pipMargin = _pipMarginNow = mpv.Number("sub-margin-y", 22) is var margin and >= 0 and <= 600 ? (int)margin : 22;
+            SizePipSubtitles();
+        }
         UpdatePipSubtitles();
     }
     /// <summary>
@@ -135,8 +148,18 @@ public partial class MainWindow
     {
         if (_pip is not { } pip || _mpv is not { } mpv || !ReferenceEquals(mpv, _pipEngine)) return;
         var scale = PictureInPicture.SubtitleScale(_settings.SubtitleSize, pip.VideoHeight);
-        if (scale == _pipSubtitleScale) return;
-        if (mpv.Set("sub-scale", scale.ToString(CultureInfo.InvariantCulture))) _pipSubtitleScale = scale;
+        if (scale != _pipSubtitleScale && mpv.Set("sub-scale", scale.ToString(CultureInfo.InvariantCulture))) _pipSubtitleScale = scale;
+        LiftPipSubtitles();
+    }
+    /// <summary>
+    /// While the controls show, the subtitles go above the time and the subtitles' button, as on video sites
+    /// (<see cref="PictureInPicture.SubtitleMargin"/>); back to their place once the controls go.
+    /// </summary>
+    private void LiftPipSubtitles()
+    {
+        if (_pip is not { } pip || _mpv is not { } mpv || !ReferenceEquals(mpv, _pipEngine)) return;
+        var margin = pip.ControlsShown ? PictureInPicture.SubtitleMargin(pip.Fit.Lift, pip.VideoHeight, _pipMargin) : _pipMargin;
+        if (margin != _pipMarginNow && mpv.Set("sub-margin-y", margin.ToString(CultureInfo.InvariantCulture))) _pipMarginNow = margin;
     }
     /// <summary>The subtitles' button: shown with a track to show, lit while one shows. The track list is read at most once a second.</summary>
     private void UpdatePipSubtitles()

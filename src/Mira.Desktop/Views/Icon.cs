@@ -67,14 +67,30 @@ public sealed class Icon : FrameworkElement
                 { var color = ink.Color; color.A = (byte)(color.A * .15); var wash = new SolidColorBrush(color); wash.Freeze(); dc.DrawGeometry(wash, null, geometry); }
             }
             if (geometry is not null) dc.DrawGeometry(filled ? Foreground : null, filled ? null : RoundPen(Foreground, Kind == "next-episode" ? 2.3 : 2), geometry);
-            if (Kind is "rewind" or "forward")
-            {
-                var text = new FormattedText("10", System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                    new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), 7.5, Foreground, VisualTreeHelper.GetDpi(this).PixelsPerDip);
-                dc.DrawText(text, new Point((24 - text.Width) / 2, 9));
-            }
+            if (Ten(Kind) is { } ten) dc.DrawGeometry(Foreground, null, ten);
         }
         dc.Pop(); dc.Pop();
+    }
+    private static readonly Dictionary<string, Geometry?> Tens = [];
+    /// <summary>
+    /// The « 10 » of "rewind" and "forward" as a shape in Mira's font, its ink centred in their circle
+    /// (<see cref="IconPaths.TenCentre"/>); made once, on the interface's thread, as every icon is drawn.
+    /// </summary>
+    private static Geometry? Ten(string kind)
+    {
+        if (Tens.TryGetValue(kind, out var made)) return made;
+        if (IconPaths.TenCentre(kind) is not var (x, y)) return null;
+        var font = Application.Current?.TryFindResource("AppFont") as FontFamily;
+        var text = new FormattedText(IconPaths.Ten, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            new Typeface(font ?? new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), IconPaths.TenSize, Brushes.White, 1);
+        var geometry = text.BuildGeometry(new Point());
+        var ink = geometry.Bounds;
+        if (ink.IsEmpty || !(ink.Width > 0)) return null;
+        geometry.Transform = new TranslateTransform(x - ink.X - ink.Width / 2, y - ink.Y - ink.Height / 2);
+        geometry.Freeze();
+        // Kept only in Mira's own font: drawn before the application's resources, it is made again later.
+        if (font is not null) Tens[kind] = geometry;
+        return geometry;
     }
     private static Pen RoundPen(Brush brush, double width) => new(brush, width) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
 }

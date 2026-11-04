@@ -16,6 +16,14 @@ public static class IconPaths
     public const string PreviousEpisode = "M17.7 5.3Q19.8 4.1 19.8 6.5V17.5Q19.8 19.9 17.7 18.7L8.8 13.3Q6.7 12 8.8 10.7Z";
     public const string More = "M13.55 5A1.55 1.55 0 1 1 10.45 5A1.55 1.55 0 1 1 13.55 5Z M13.55 12A1.55 1.55 0 1 1 10.45 12A1.55 1.55 0 1 1 13.55 12Z M13.55 19A1.55 1.55 0 1 1 10.45 19A1.55 1.55 0 1 1 13.55 19Z";
     public const string Heart = "M12 20C10 19 3 14 3 8.7C3 2.8 10 1.8 12 6C14 1.8 21 2.8 21 8.7C21 14 14 19 12 20Z";
+    /// <summary>
+    /// The « 10 » inside "rewind" and "forward", in Mira's font (Nunito Bold), its size, and the middle of their circle
+    /// (the centre of their arc): each app centres the digits' own ink there, not their line box, whose space above and
+    /// below the digits is uneven.
+    /// </summary>
+    public const string Ten = "10";
+    public const double TenSize = 7.5;
+    public static (double X, double Y)? TenCentre(string kind) => kind switch { "rewind" => (11.67, 11.66), "forward" => (12.33, 11.66), _ => null };
     /// <summary>Outlines, by kind (play and pause are filled).</summary>
     public static IReadOnlyDictionary<string, string> Strokes { get; } = new Dictionary<string, string>
     {

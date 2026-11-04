@@ -28,10 +28,11 @@ public sealed class PipWindow : Window
     private readonly Grid _root = new() { Background = Brushes.Black };
     private readonly Grid _top, _bottom;
     private readonly StackPanel _middle;
-    private readonly TextBlock _title = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 8, 0) };
-    private readonly TextBlock _time = new() { FontSize = 12, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0), FontFeatures = new FontFeatureCollection { FontFeature.Parse("tnum") } };
+    private readonly DockPanel _topRow, _bottomRow;
+    private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _time = new() { Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, FontFeatures = new FontFeatureCollection { FontFeature.Parse("tnum") } };
     private readonly Icon _playIcon = new("pause", 26);
-    private readonly Button _play, _subtitles;
+    private readonly Button _back, _close, _rewind, _play, _forward, _subtitles;
     // Under the subtitles' glyph while they show, as on video sites.
     private readonly Border _subtitlesOn = new() { Height = 2, Width = 14, CornerRadius = new CornerRadius(1), Background = Brushes.White, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5), IsHitTestVisible = false };
     private readonly ProgressLine _progress = new() { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false };
@@ -78,24 +79,29 @@ public sealed class PipWindow : Window
             ExtendClientAreaTitleBarHeightHint = 0;
         }
 
-        var back = Round("pip-exit", 32, 17, L("Revenir dans Mira · I", "Back to Mira · I"), () => Back?.Invoke());
-        var close = Round("close", 32, 17, L("Fermer le lecteur", "Close the player"), () => Stop?.Invoke());
-        close.Margin = new Thickness(2, 0, 0, 0);
-        var buttons = Ui.Row(0, back, close);
+        _back = Round("pip-exit", 32, 17, L("Revenir dans Mira · I", "Back to Mira · I"), () => Back?.Invoke());
+        _close = Round("close", 32, 17, L("Fermer le lecteur", "Close the player"), () => Stop?.Invoke());
+        _close.Margin = new Thickness(2, 0, 0, 0);
+        var buttons = Ui.Row(0, _back, _close);
         DockPanel.SetDock(buttons, Dock.Right);
-        _top = new Grid { Height = 56, VerticalAlignment = VerticalAlignment.Top, Background = Shade(top: true), Children = { new DockPanel { Margin = new Thickness(12, 10, 10, 0), VerticalAlignment = VerticalAlignment.Top, Children = { buttons, _title } } } };
+        // Sizes and margins are set by FitControls, at the window's size.
+        _topRow = new DockPanel { VerticalAlignment = VerticalAlignment.Top, Children = { buttons, _title } };
+        _top = new Grid { VerticalAlignment = VerticalAlignment.Top, Background = Shade(top: true), Children = { _topRow } };
 
-        var rewind = Round("rewind", 40, 21, L("Reculer de 10 s · ←", "Back 10 s · ←"), () => Seek?.Invoke(-10));
+        _rewind = Round("rewind", 40, 21, L("Reculer de 10 s · ←", "Back 10 s · ←"), () => Seek?.Invoke(-10));
         _play = Round("pause", 52, 26, L("Pause · Espace", "Pause · Space"), () => PlayPause?.Invoke());
-        _play.Content = _playIcon; _play.Background = Ui.Brush("#80000000"); _play.Margin = new Thickness(14, 0, 14, 0);
-        var forward = Round("forward", 40, 21, L("Avancer de 10 s · →", "Forward 10 s · →"), () => Seek?.Invoke(10));
-        _middle = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Children = { rewind, _play, forward } };
+        _play.Content = _playIcon; _play.Background = Ui.Brush("#80000000");
+        _forward = Round("forward", 40, 21, L("Avancer de 10 s · →", "Forward 10 s · →"), () => Seek?.Invoke(10));
+        _middle = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Children = { _rewind, _play, _forward } };
 
         _subtitles = Round("subtitles", 32, 18, L("Afficher les sous-titres · C", "Show subtitles · C"), () => Subtitles?.Invoke());
         _subtitles.Content = new Grid { Children = { new Icon("subtitles", 18), _subtitlesOn } };
         _subtitles.IsVisible = false; _subtitlesOn.IsVisible = false;
         DockPanel.SetDock(_subtitles, Dock.Right);
-        _bottom = new Grid { Height = 56, VerticalAlignment = VerticalAlignment.Bottom, Background = Shade(top: false), Children = { new DockPanel { Margin = new Thickness(12, 0, 10, 10), VerticalAlignment = VerticalAlignment.Bottom, Children = { _subtitles, _time } } } };
+        _bottomRow = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Children = { _subtitles, _time } };
+        _bottom = new Grid { VerticalAlignment = VerticalAlignment.Bottom, Background = Shade(top: false), Children = { _bottomRow } };
+        FitControls(Fit, force: true);
+        _root.SizeChanged += (_, e) => FitControls(PictureInPicture.ControlsFor(e.NewSize.Width, e.NewSize.Height));
 
         foreach (var part in new Control[] { _top, _middle, _bottom }) part.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
         _root.Children.Add(VideoHost);
@@ -121,6 +127,38 @@ public sealed class PipWindow : Window
         StartPoint = new RelativePoint(0, top ? 0 : 1, RelativeUnit.Relative), EndPoint = new RelativePoint(0, top ? 1 : 0, RelativeUnit.Relative),
         GradientStops = { new GradientStop(Color.Parse("#B0000000"), 0), new GradientStop(Color.Parse("#00000000"), 1) }
     };
+    /// <summary>
+    /// The controls at the sizes of <paramref name="fit"/>, as on Windows: in a small window, lighter bars, buttons and
+    /// spaces, the title and the 10 s jumps left out when too narrow; the text and the corners' glyphs the same distance
+    /// from every edge.
+    /// </summary>
+    private void FitControls(PictureInPicture.Controls fit, bool force = false)
+    {
+        if (fit == Fit && !force) return;
+        Fit = fit;
+        const double margin = PictureInPicture.Controls.Margin;
+        _top.Height = _bottom.Height = fit.Bar;
+        _topRow.Margin = new Thickness(margin, margin, margin, 0);
+        _bottomRow.Margin = new Thickness(margin, 0, margin, margin);
+        _title.Margin = new Thickness(fit.Inset - margin, 0, 8, 0); _time.Margin = new Thickness(fit.Inset - margin, 0, 0, 0);
+        _title.FontSize = fit.TextSize; _time.FontSize = fit.TextSize - .5;
+        _title.Opacity = fit.Title ? 1 : 0;
+        foreach (var corner in new[] { _back, _close }) Size(corner, fit.Corner, fit.CornerGlyph);
+        // The subtitles' glyph a pixel larger, its bar just under it.
+        var subtitles = fit.CornerGlyph + 1;
+        Size(_subtitles, fit.Corner, subtitles);
+        _subtitlesOn.Width = subtitles - 4; _subtitlesOn.Margin = new Thickness(0, 0, 0, (fit.Corner - subtitles) / 2 - 2);
+        Size(_play, fit.Play, fit.PlayGlyph);
+        if (_paused) _playIcon.Margin = new Thickness(fit.PlayGlyph * 3 / 26, 0, 0, 0);
+        _play.Margin = new Thickness(fit.Spacing, 0, fit.Spacing, 0);
+        foreach (var jump in new[] { _rewind, _forward }) { Size(jump, fit.Jump, fit.JumpGlyph); jump.IsVisible = fit.Jumps; }
+        if (!force) ControlsChanged?.Invoke();
+    }
+    private static void Size(Button button, double size, double glyph)
+    {
+        button.Width = button.Height = size; button.CornerRadius = new CornerRadius(size / 2);
+        if ((button.Content as Icon ?? (button.Content as Panel)?.Children.OfType<Icon>().FirstOrDefault()) is { } icon) icon.Width = icon.Height = glyph;
+    }
     private static Button Round(string icon, double size, double glyph, string tip, Action click)
     {
         var button = Ui.IconButton(icon, tip, click, "player", glyph);
@@ -132,6 +170,10 @@ public sealed class PipWindow : Window
     public double VideoHeight => VideoHost.Bounds.Height;
     /// <summary>Its controls on the picture, for the self-check.</summary>
     public bool ControlsShown => _shown;
+    /// <summary>How its controls fit its size now (<see cref="PictureInPicture.ControlsFor"/>).</summary>
+    public PictureInPicture.Controls Fit { get; private set; } = PictureInPicture.ControlsFor(PictureInPicture.Width, PictureInPicture.Width * 9 / 16);
+    /// <summary>The controls shown or hidden, or fitted to another size: the subtitles go above them or back down.</summary>
+    public event Action? ControlsChanged;
     /// <summary>The video's shape, width over height.</summary>
     public double Aspect => _aspect;
 
@@ -155,7 +197,7 @@ public sealed class PipWindow : Window
         _paused = paused;
         _playIcon.Kind = paused ? "play" : "pause";
         // The play triangle's weight sits left of its box: nudged so it looks centred in the circle.
-        _playIcon.Margin = paused ? new Thickness(3, 0, 0, 0) : default;
+        _playIcon.Margin = paused ? new Thickness(Fit.PlayGlyph * 3 / 26, 0, 0, 0) : default;
         var tip = paused ? L("Lecture · Espace", "Play · Space") : L("Pause · Espace", "Pause · Space");
         ToolTip.SetTip(_play, tip); AutomationProperties.SetName(_play, tip.Split(" · ")[0]);
         ShowControls();
@@ -186,6 +228,7 @@ public sealed class PipWindow : Window
         if (_shown) return;
         _shown = true;
         foreach (var part in new Control[] { _top, _middle, _bottom }) { part.Opacity = 1; part.IsHitTestVisible = true; }
+        ControlsChanged?.Invoke();
     }
     /// <summary>For the self-check: the controls gone at once, as once the pointer left.</summary>
     internal void HideControlsNow() { _lastMotion = 0; HideWhenIdle(); }
@@ -198,6 +241,7 @@ public sealed class PipWindow : Window
         if (idle < (_root.IsPointerOver ? 2500 : 600)) return;
         _shown = false; _idle.Stop();
         foreach (var part in new Control[] { _top, _middle, _bottom }) { part.Opacity = 0; part.IsHitTestVisible = false; }
+        ControlsChanged?.Invoke();
     }
 
     // —— Moved by a drag on the picture; a click pauses, a double click goes back to Mira ——

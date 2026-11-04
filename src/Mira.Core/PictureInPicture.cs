@@ -140,6 +140,50 @@ public static class PictureInPicture
         return Math.Round(Math.Clamp(Readable / (fontSize * height / 720), 1, 2), 2);
     }
 
+    /// <summary>
+    /// How its controls fit its size, in device-independent pixels: the player's sizes from 340 × 200, lighter bars,
+    /// buttons and spaces below; the title from 300 wide only, the 10 s jumps from 200 only.
+    /// </summary>
+    public readonly record struct Controls(bool Small, bool Title, bool Jumps)
+    {
+        /// <summary>From the window's edges to the rows of buttons: just clear of the band that resizes it (<see cref="Grip"/>).</summary>
+        public const double Margin = Grip + .5;
+        /// <summary>The top and bottom shades' height.</summary>
+        public double Bar => Small ? 46 : 56;
+        /// <summary>The round buttons of the corners (back to Mira, close, subtitles) and their glyph.</summary>
+        public double Corner => Small ? 26 : 32;
+        public double CornerGlyph => Small ? 15 : 17;
+        /// <summary>The play button in the middle, the jumps beside it, and the space between them.</summary>
+        public double Play => Small ? 40 : 52;
+        public double PlayGlyph => Small ? 20 : 26;
+        public double Jump => Small ? 32 : 40;
+        public double JumpGlyph => Small ? 17 : 21;
+        public double Spacing => Small ? 8 : 14;
+        /// <summary>From the window's edges to the title, the time and the corners' glyphs: the same on every side.</summary>
+        public double Inset => Margin + (Corner - CornerGlyph) / 2;
+        public double TextSize => Small ? 11.5 : 12.5;
+        /// <summary>How high the subtitles go while the controls show: above the time and the subtitles' button.</summary>
+        public double Lift => Inset + CornerGlyph + 8;
+    }
+
+    /// <summary>The controls for a window <paramref name="width"/> × <paramref name="height"/> device-independent pixels.</summary>
+    public static Controls ControlsFor(double width, double height)
+    {
+        var small = !(width >= 340 && height >= 200);
+        return new(small, !small || width >= 300, !(width < 200));
+    }
+
+    /// <summary>
+    /// mpv's sub-margin-y that keeps the subtitles <paramref name="lift"/> above the bottom of a window
+    /// <paramref name="height"/> high (device-independent pixels): mpv counts it for a window 720 high. Never below its
+    /// own margin (<paramref name="usual"/>), at most halfway up.
+    /// </summary>
+    public static int SubtitleMargin(double lift, double height, int usual)
+    {
+        if (!(lift > 0) || !(height > 0) || !double.IsFinite(lift / height)) return usual;
+        return (int)Math.Clamp(Math.Round(lift * 720 / height), usual, 360);
+    }
+
     private static List<ScreenFit.Screen> Usable(IReadOnlyList<ScreenFit.Screen> screens) =>
         screens.Where(s => s.Scale > 0 && double.IsFinite(s.Scale) && s.WorkArea.Width > 0 && s.WorkArea.Height > 0
             && double.IsFinite(s.WorkArea.Left + s.WorkArea.Top + s.WorkArea.Width + s.WorkArea.Height)).ToList();

@@ -30,9 +30,10 @@ internal sealed class PipWindow : Window
     private readonly Grid _root = new() { Background = Brushes.Black }, _video = new();
     private readonly Grid _surface, _top, _bottom, _track;
     private readonly StackPanel _middle;
+    private readonly DockPanel _topRow, _bottomRow;
     private readonly TextBlock _title, _time;
     private readonly Icon _playIcon = new() { Kind = "pause", Width = 26, Height = 26 };
-    private readonly Button _play, _subtitles;
+    private readonly Button _back, _close, _rewind, _play, _forward, _subtitles;
     private readonly Border _subtitlesOn, _progress;
     private readonly DispatcherTimer _idle = new() { Interval = TimeSpan.FromMilliseconds(250) }, _click = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private long _lastMotion;
@@ -55,6 +56,10 @@ internal sealed class PipWindow : Window
     /// <summary>The video's height in device-independent pixels: what the subtitles are sized to.</summary>
     public double VideoHeight => _root.ActualHeight;
     public bool ControlsShown => _shown;
+    /// <summary>How its controls fit its size now (<see cref="PictureInPicture.ControlsFor"/>).</summary>
+    public PictureInPicture.Controls Fit { get; private set; } = PictureInPicture.ControlsFor(PictureInPicture.Width, PictureInPicture.Width * 9 / 16);
+    /// <summary>The controls shown or hidden, or fitted to another size: the subtitles go above them or back down.</summary>
+    public event Action? ControlsChanged;
     /// <summary>« Revenir dans Mira », a double click or I.</summary>
     public event Action? Back;
     /// <summary>« Fermer », or Alt+F4: the playback stops.</summary>
@@ -84,22 +89,23 @@ internal sealed class PipWindow : Window
         WindowChrome.SetWindowChrome(this, new WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(0), GlassFrameThickness = new Thickness(1), UseAeroCaptionButtons = false });
         _ = new WindowFrame(this);
 
-        _title = new TextBlock { Foreground = Palette.Get("Text"), FontWeight = FontWeights.SemiBold, FontSize = 12.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 8, 0) };
-        var back = Round("pip-exit", 32, 17, L("Revenir dans Mira", "Back to Mira"), L("Revenir dans Mira · I", "Back to Mira · I"), () => Back?.Invoke());
-        var close = Round("close", 32, 17, L("Fermer le lecteur", "Close the player"), L("Fermer le lecteur", "Close the player"), () => Stop?.Invoke());
-        close.Margin = new Thickness(2, 0, 0, 0);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Children = { back, close } };
+        _title = new TextBlock { Foreground = Palette.Get("Text"), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        _back = Round("pip-exit", 32, 17, L("Revenir dans Mira", "Back to Mira"), L("Revenir dans Mira · I", "Back to Mira · I"), () => Back?.Invoke());
+        _close = Round("close", 32, 17, L("Fermer le lecteur", "Close the player"), L("Fermer le lecteur", "Close the player"), () => Stop?.Invoke());
+        _close.Margin = new Thickness(2, 0, 0, 0);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Children = { _back, _close } };
         DockPanel.SetDock(buttons, Dock.Right);
-        // Clear of the edges' grip: a press there resizes, never on a button.
-        _top = new Grid { Height = 52, VerticalAlignment = VerticalAlignment.Top, Children = { Shade(top: true), new DockPanel { Margin = new Thickness(12, 10, 10, 0), VerticalAlignment = VerticalAlignment.Top, Children = { buttons, _title } } } };
+        // Clear of the edges' grip: a press there resizes, never on a button. Sizes and margins are set by FitControls.
+        _topRow = new DockPanel { VerticalAlignment = VerticalAlignment.Top, Children = { buttons, _title } };
+        _top = new Grid { VerticalAlignment = VerticalAlignment.Top, Children = { Shade(top: true), _topRow } };
 
-        var rewind = Round("rewind", 40, 21, L("Reculer de 10 secondes", "Back 10 seconds"), L("Reculer de 10 s · ←", "Back 10 s · ←"), () => Seek?.Invoke(-10));
+        _rewind = Round("rewind", 40, 21, L("Reculer de 10 secondes", "Back 10 seconds"), L("Reculer de 10 s · ←", "Back 10 s · ←"), () => Seek?.Invoke(-10));
         _play = Round("pause", 52, 26, "Pause", L("Pause · Espace", "Pause · Space"), () => PlayPause?.Invoke());
-        _play.Content = _playIcon; _play.Background = Palette.Get("Pill"); _play.Margin = new Thickness(14, 0, 14, 0);
-        var forward = Round("forward", 40, 21, L("Avancer de 10 secondes", "Forward 10 seconds"), L("Avancer de 10 s · →", "Forward 10 s · →"), () => Seek?.Invoke(10));
-        _middle = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Children = { rewind, _play, forward } };
+        _play.Content = _playIcon; _play.Background = Palette.Get("Pill");
+        _forward = Round("forward", 40, 21, L("Avancer de 10 secondes", "Forward 10 seconds"), L("Avancer de 10 s · →", "Forward 10 s · →"), () => Seek?.Invoke(10));
+        _middle = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Children = { _rewind, _play, _forward } };
 
-        _time = new TextBlock { Foreground = Palette.Get("Text"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) };
+        _time = new TextBlock { Foreground = Palette.Get("Text"), VerticalAlignment = VerticalAlignment.Center };
         Typography.SetNumeralAlignment(_time, FontNumeralAlignment.Tabular);
         // The subtitles' button carries a bar under its glyph while they show, as on video sites.
         _subtitlesOn = new Border { Height = 2, Width = 14, CornerRadius = new CornerRadius(1), Background = Palette.Get("Accent"), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5), IsHitTestVisible = false };
@@ -107,7 +113,8 @@ internal sealed class PipWindow : Window
         _subtitles.Content = new Grid { Children = { new Icon { Kind = "subtitles", Width = 18, Height = 18 }, _subtitlesOn } };
         _subtitles.Visibility = Visibility.Collapsed;
         DockPanel.SetDock(_subtitles, Dock.Right);
-        _bottom = new Grid { Height = 52, VerticalAlignment = VerticalAlignment.Bottom, Children = { Shade(top: false), new DockPanel { Margin = new Thickness(12, 0, 10, 10), VerticalAlignment = VerticalAlignment.Bottom, Children = { _subtitles, _time } } } };
+        _bottomRow = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Children = { _subtitles, _time } };
+        _bottom = new Grid { VerticalAlignment = VerticalAlignment.Bottom, Children = { Shade(top: false), _bottomRow } };
 
         _progress = new Border { HorizontalAlignment = HorizontalAlignment.Left, Width = 0, Background = Palette.Get("Accent") };
         _track = new Grid { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = Palette.Get("Hairline"), IsHitTestVisible = false, Children = { _progress } };
@@ -128,7 +135,8 @@ internal sealed class PipWindow : Window
 
         Controls = new PlayerOverlay { PlacementTarget = _root, Child = new AdornerDecorator { Child = _surface } };
         _root.Children.Add(_video); _root.Children.Add(Controls);
-        _root.SizeChanged += (_, _) => { Controls.Reposition(); Resized?.Invoke(); };
+        FitControls(Fit, force: true);
+        _root.SizeChanged += (_, _) => { FitControls(PictureInPicture.ControlsFor(_root.ActualWidth, _root.ActualHeight)); Controls.Reposition(); Resized?.Invoke(); };
         Content = _root;
 
         _idle.Tick += (_, _) => HideWhenIdle();
@@ -177,7 +185,7 @@ internal sealed class PipWindow : Window
         _paused = paused;
         Motion.Swap(_playIcon, paused ? "play" : "pause");
         // The play triangle's weight sits left of its box: nudged so it looks centred in the circle.
-        _playIcon.Margin = paused ? new Thickness(3, 0, 0, 0) : new Thickness(0);
+        _playIcon.Margin = paused ? new Thickness(Fit.PlayGlyph * 3 / 26, 0, 0, 0) : new Thickness(0);
         _play.ToolTip = paused ? L("Lecture · Espace", "Play · Space") : L("Pause · Espace", "Pause · Space");
         AutomationProperties.SetName(_play, paused ? L("Lecture", "Play") : "Pause");
         ShowControls();
@@ -216,6 +224,7 @@ internal sealed class PipWindow : Window
         if (_shown) return;
         _shown = true; _time.Text = _timeText;
         foreach (var panel in new UIElement[] { _top, _middle, _bottom }) { panel.IsHitTestVisible = true; Motion.Fade(panel, 1, 140); }
+        ControlsChanged?.Invoke();
     }
     /// <summary>For the player check: the controls gone at once, as once the pointer left.</summary>
     internal void HideControlsNow() { _lastMotion = 0; HideWhenIdle(); }
@@ -230,6 +239,7 @@ internal sealed class PipWindow : Window
         if (idle < (_surface.IsMouseOver ? 2500 : 600)) return;
         _shown = false; _idle.Stop();
         foreach (var panel in new UIElement[] { _top, _middle, _bottom }) { panel.IsHitTestVisible = false; Motion.Fade(panel, 0, 240); }
+        ControlsChanged?.Invoke();
     }
 
     private void PointerMoved(object sender, MouseEventArgs e)
@@ -316,6 +326,39 @@ internal sealed class PipWindow : Window
     /// <summary>The middle of a window, in device pixels: where the small window opens the first time.</summary>
     public static (double X, double Y)? Middle(IntPtr window) => window != IntPtr.Zero && GetWindowRect(window, out var r) ? ((r.Left + r.Right) / 2d, (r.Top + r.Bottom) / 2d) : null;
 
+    /// <summary>
+    /// The controls at the sizes of <paramref name="fit"/>: in a small window, lighter bars, buttons and spaces, the title
+    /// and the 10 s jumps left out when too narrow; the text and the corners' glyphs the same distance from every edge.
+    /// </summary>
+    private void FitControls(PictureInPicture.Controls fit, bool force = false)
+    {
+        if (fit == Fit && !force) return;
+        Fit = fit;
+        const double margin = PictureInPicture.Controls.Margin;
+        _top.Height = _bottom.Height = fit.Bar;
+        _topRow.Margin = new Thickness(margin, margin, margin, 0);
+        _bottomRow.Margin = new Thickness(margin, 0, margin, margin);
+        // The text starts where the glyphs on the other side end: Inset from the window's edges.
+        _title.Margin = new Thickness(fit.Inset - margin, 0, 8, 0); _time.Margin = new Thickness(fit.Inset - margin, 0, 0, 0);
+        _title.FontSize = fit.TextSize; _time.FontSize = fit.TextSize - .5;
+        _title.Visibility = fit.Title ? Visibility.Visible : Visibility.Hidden;
+        foreach (var corner in new[] { _back, _close }) Size(corner, fit.Corner, fit.CornerGlyph);
+        // The subtitles' glyph a pixel larger, as in the player, its bar just under it.
+        var subtitles = fit.CornerGlyph + 1;
+        Size(_subtitles, fit.Corner, subtitles);
+        _subtitlesOn.Width = subtitles - 4; _subtitlesOn.Margin = new Thickness(0, 0, 0, (fit.Corner - subtitles) / 2 - 2);
+        Size(_play, fit.Play, fit.PlayGlyph);
+        if (_paused) _playIcon.Margin = new Thickness(fit.PlayGlyph * 3 / 26, 0, 0, 0);
+        _play.Margin = new Thickness(fit.Spacing, 0, fit.Spacing, 0);
+        foreach (var jump in new[] { _rewind, _forward }) { Size(jump, fit.Jump, fit.JumpGlyph); jump.Visibility = fit.Jumps ? Visibility.Visible : Visibility.Collapsed; }
+        if (!force) ControlsChanged?.Invoke();
+    }
+    private static void Size(Button button, double size, double glyph)
+    {
+        button.Width = button.Height = size;
+        Motion.SetRadius(button, new CornerRadius(size / 2));
+        if ((button.Content as Icon ?? (button.Content as Panel)?.Children.OfType<Icon>().FirstOrDefault()) is { } icon) icon.Width = icon.Height = glyph;
+    }
     private Button Round(string icon, double size, double glyph, string name, string tip, Action click)
     {
         var button = new Button { Style = (Style)FindResource("PlayerButton"), Width = size, Height = size, Content = new Icon { Kind = icon, Width = glyph, Height = glyph }, ToolTip = tip };
