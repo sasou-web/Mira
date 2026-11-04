@@ -25,8 +25,10 @@ struct TailscaleSection: View {
 }
 
 /// Built-in Tailscale's state, in rows of a list: connecting, the sign-in, the approval waited for, the network and the
-/// PC with Jellyfin, a failure; and signing out.
+/// PC with Jellyfin, a failure; and signing out. The optional outage setting only in Settings (`outage`): in the sheet
+/// that looks for Jellyfin, it would only push the servers found down the screen.
 struct TailnetRows: View {
+    var outage = true
     @Environment(AppModel.self) private var app
     @State private var confirmSignOut = false
 
@@ -91,7 +93,7 @@ struct TailnetRows: View {
                     SettingsRow(pc.online ? "PC with Jellyfin online" : "PC with Jellyfin offline", verbatim: pcLine(pc),
                                 symbol: pc.online ? "desktopcomputer" : "desktopcomputer.trianglebadge.exclamationmark")
                 }
-                if tailnet.status.outageCache != true {
+                if outage, tailnet.status.outageCache != true {
                     OutageRows()
                 }
             case let .failed(message):
@@ -221,7 +223,7 @@ struct TailscaleSheet: View {
             List {
                 Section {
                     if tailnet.enabled {
-                        TailnetRows()
+                        TailnetRows(outage: found == nil)
                     } else {
                         Button {
                             Task {
