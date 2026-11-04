@@ -229,13 +229,13 @@ function Wait-WindowsBuild([string]$commit) {
 # Points the branch release/vX.Y.Z at $commit (made if missing); false when GitHub refuses it.
 function Set-ReleaseBranch([string]$branch, [string]$commit) {
     for ($attempt = 0; $attempt -lt 3; $attempt++) {
-        $at = ([string](Get-Native { gh api "repos/$repository/git/ref/heads/$branch" --jq .object.sha })).Trim()
+        $at = "$(Get-Native { gh api "repos/$repository/git/ref/heads/$branch" --jq .object.sha })".Trim()
         if ($at -eq $commit) { return $true }
         if ($attempt) { Start-Sleep -Seconds 5 }
         if ($at) { [void](Test-Native { gh api -X PATCH "repos/$repository/git/refs/heads/$branch" -f "sha=$commit" -F force=true }) }
         else { [void](Test-Native { gh api -X POST "repos/$repository/git/refs" -f "ref=refs/heads/$branch" -f "sha=$commit" }) }
     }
-    return ([string](Get-Native { gh api "repos/$repository/git/ref/heads/$branch" --jq .object.sha })).Trim() -eq $commit
+    return "$(Get-Native { gh api "repos/$repository/git/ref/heads/$branch" --jq .object.sha })".Trim() -eq $commit
 }
 # Mira's own files of the application folder (its Tailscale node included), taken out of the archive to check their signatures.
 function Expand-Checked([string]$archive, [string]$folder) {
@@ -284,10 +284,10 @@ try {
     }
     Invoke-Native 'git checkout main' { git checkout main }
     Invoke-Retry 'git pull' { git pull --ff-only } | Out-Host
-    $commit = ([string](git rev-parse HEAD)).Trim()
-    $remote = ([string](git config branch.main.remote)).Trim()
+    $commit = "$(git rev-parse HEAD)".Trim()
+    $remote = "$(git config branch.main.remote)".Trim()
     # git pull is content when main is ahead; GitHub would only refuse those commits at the very end.
-    if ($commit -ne ([string](git rev-parse '@{u}')).Trim()) {
+    if ($commit -ne "$(git rev-parse '@{u}')".Trim()) {
         throw "main a des commits absents de GitHub (git log $remote/main..main) : pousse-les ou retire-les avant de publier."
     }
 
@@ -481,7 +481,7 @@ try {
     foreach ($name in $others) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $release $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
     foreach ($name in $iphone) { $expected[$name] = (Get-FileHash -LiteralPath (Join-Path $ios $name) -Algorithm SHA256).Hash.ToLowerInvariant() }
     # A draft has no tag: its assets are read through its API address.
-    $api = ([string](Invoke-Retry 'gh release view' { gh release view $tag --repo $repository --json apiUrl --jq .apiUrl })).Trim() -replace '^https://api\.github\.com/', ''
+    $api = "$(Invoke-Retry 'gh release view' { gh release view $tag --repo $repository --json apiUrl --jq .apiUrl })".Trim() -replace '^https://api\.github\.com/', ''
     if (-not $api) { throw "gh release view ne donne pas l’adresse du brouillon de $tag." }
     for ($check = 0; ; $check++) {
         $listed = @(Invoke-Retry 'gh api (fichiers du brouillon)' { gh api "$api/assets?per_page=100" --jq '.[] | [.name, .state, .digest, .uploader.login, .id] | @tsv' })
@@ -532,7 +532,7 @@ try {
     # From here on the release is out: what follows warns, never stops.
     Remove-Item -LiteralPath $stateFile -ErrorAction SilentlyContinue
     if ($script:ref -ne 'main') { [void](Test-Native { gh api -X DELETE "repos/$repository/git/refs/heads/$branch" }) }
-    if (([string](Get-Answer { gh api "repos/$repository/releases/tags/$tag" --jq .immutable })).Trim() -ne 'true') {
+    if ("$(Get-Answer { gh api "repos/$repository/releases/tags/$tag" --jq .immutable })".Trim() -ne 'true') {
         Write-Warning "GitHub ne dit pas la release $tag immuable : ses fichiers pourraient encore être remplacés. Vérifie le réglage « Enable release immutability » (https://github.com/$repository/settings)."
     }
     # GitHub signs an attestation of an immutable release's files; gh 2.81 and later can check it. (« gh release <unknown>
