@@ -121,8 +121,14 @@ public partial class MainWindow
                 SetMiniPlayer(false); _mpv!.Set("pause", "no"); await Task.Delay(1500);
                 SetMiniPlayerSmoothly(true); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
                 Require(_miniPlayer && !_morphing && VideoContainer.IsVisible && PlayerShell.Opacity == 1 && _morphLayer?.Visibility != Visibility.Visible, "reduced smoothly: the video back in the mini-player, the still gone");
-                SetMiniPlayerSmoothly(false); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
-                Require(!_miniPlayer && !_morphing && VideoContainer.IsVisible && !LibraryShell.IsVisible && PlayerShell.ActualWidth > 900, "expanded smoothly: the whole player back, the page under it hidden");
+                await ShowDetailsAsync(DemoLibrary.Items()[0]); await Task.Delay(300);
+                SetMiniPlayerSmoothly(false); await Task.Delay(120);
+                Require(_morphing && DetailOverlay.IsVisible, "expanding: the page stays under the growing video");
+                await Task.Delay(2600); checks.Add("INFO transition " + FrameProbe.Last);
+                Require(!_miniPlayer && !_morphing && VideoContainer.IsVisible && !LibraryShell.IsVisible && !DetailOverlay.IsVisible && PlayerShell.ActualWidth > 900, "expanded smoothly: the whole player back, the page under it hidden");
+                SetMiniPlayerSmoothly(true); await Task.Delay(800);
+                Require(_miniPlayer && DetailOverlay.IsVisible, "reduced again: the title page opened in the mini-player is back, not the library under it");
+                await CloseDetailsAsync(); SetMiniPlayerSmoothly(false); await Task.Delay(800);
                 StopPlayer_Click(this, new()); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
                 Require(!_playing && _mpv is null && !_morphing && LibraryShell.IsVisible && _morphLayer?.Visibility != Visibility.Visible, "closed smoothly: the page back, the still gone");
                 await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded); _mpv!.Set("pause", "yes"); SetMiniPlayer(true);

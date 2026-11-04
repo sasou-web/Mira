@@ -367,7 +367,7 @@ public partial class MainWindow
         _changingPlayerLayout = true;
         if (mini) EnterMiniLayout(keepPlacement: wasMini); else ResetMiniPlacement();
         LibraryShell.Visibility = NavigationRail.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
-        if (!mini) { AutoSaveSettings(); DetailOverlay.Visibility = SettingsOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed; }
+        if (!mini) { AutoSaveSettings(); if (!_morphing) LeavePagesForPlayer(); }
         TitleBar.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
         PlayerWindowChrome.Visibility = mini || _fullscreen ? Visibility.Collapsed : Visibility.Visible;
         // 42 above and 22 below the 44-unit back button: the header must stay at least 108 high.
@@ -384,8 +384,15 @@ public partial class MainWindow
         PauseButton.Width = PauseButton.Height = mini ? 34 : 40; Motion.SetRadius(PauseButton, new CornerRadius(mini ? 17 : 20));
         PauseIcon.Width = PauseIcon.Height = mini ? 19 : 24;
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls(); UpdateSkip();
-        if (mini) { Motion.Reveal(LibraryScroll, 220, 5); UpdateNavigation(); if (!wasMini) RestoreDetailPage(refresh: false); ShowPendingUpdateNotice(); }
+        if (mini) { Motion.Reveal(LibraryScroll, 220, 5); if (!wasMini) RestoreDetailPage(refresh: false); UpdateNavigation(); ShowPendingUpdateNotice(); }
         if (mini && !wasMini && _loaded) _ = RefreshMiniResumeAsync();
+    }
+    /// <summary>The player takes the whole window: the page open over the library goes, and comes back with the mini-player or when playback stops.</summary>
+    private void LeavePagesForPlayer()
+    {
+        if (DetailOverlay.Visibility == Visibility.Visible && _detail is not null) _returnToDetail = _detail;
+        _returnToSettings = SettingsOverlay.Visibility == Visibility.Visible;
+        DetailOverlay.Visibility = SettingsOverlay.Visibility = LoginOverlay.Visibility = Visibility.Collapsed;
     }
     private async void StopPlayer_Click(object sender, RoutedEventArgs e)
     { await LeavePlayerAsync(); if (!_demo) await RefreshAsync(quiet: true); else RenderDemo(); FrameProbe.Mark("refreshed"); }
