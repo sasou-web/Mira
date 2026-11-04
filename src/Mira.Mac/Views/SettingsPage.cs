@@ -13,6 +13,8 @@ namespace Mira.Mac.Views;
 public sealed partial class SettingsPage : Page
 {
     public override string Rail => "settings";
+    /// <summary>Again while shown: the tab a notice asked for (<see cref="OpenAt"/>), else this one back to its top, nothing filled again.</summary>
+    public override void ShowAgain() { if (_lastTab != CurrentTab) Show(_lastTab); else GlideUp.Start(_tabScroll); }
     // Built with the page: the language is set once Mira opens.
     private static (string Label, string Value)[] Audio =>
         [(L("Japonais, puis français", "Japanese, then French"), "jpn,ja,fre,fra,fr,eng,en"), (L("Japonais, puis anglais", "Japanese, then English"), "jpn,ja,eng,en,fre,fra,fr"),

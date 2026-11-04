@@ -13,11 +13,12 @@ public partial class MainWindow
     private bool LibraryOnScreen => !new UIElement[] { DetailOverlay, SettingsOverlay, TorLinkOverlay, GuideOverlay }.Any(x => x.Visibility == Visibility.Visible && x.IsHitTestVisible);
     /// <summary>
     /// A page of the rail (<paramref name="view"/>, one library for « library » with <paramref name="parentId"/>): the one
-    /// on screen kept first, then the chosen one as it was left, or afresh when its button is clicked again while shown.
+    /// on screen kept first, then the chosen one as it was left. Its button clicked again while it shows (or its Ctrl+1 to
+    /// 5) reloads nothing and replays no arrival: the list only glides back to the top.
     /// </summary>
     private async Task GoToPageAsync(string view, string? parentId = null, bool keepSearch = false)
     {
-        var from = PageMemory.KeyOf(_catalog); var onScreen = LibraryOnScreen;
+        if (LibraryOnScreen && PageMemory.Shows(_catalog, view, parentId)) { SmoothScroll.ToTop(LibraryScroll); return; }
         KeepPage();
         if (!keepSearch) { ResetFilters(); _filtersOpen = false; }
         _catalog.View = view;
@@ -26,8 +27,7 @@ public partial class MainWindow
             _filterBusy = true; _catalog.ParentId = parentId;
             LibraryFilter.SelectedItem = LibraryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == (parentId ?? "")); _filterBusy = false;
         }
-        var key = PageMemory.KeyOf(_catalog);
-        var recalled = _pages.Recall(key, again: onScreen && key == from);
+        var recalled = _pages.Recall(PageMemory.KeyOf(_catalog));
         if (recalled is not null) Restore(recalled);
         await NavigateLibraryAsync(recalled);
     }

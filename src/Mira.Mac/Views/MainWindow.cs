@@ -33,6 +33,8 @@ public abstract class Page : UserControl
     public virtual Task LoadAsync() => Task.CompletedTask;
     /// <summary>Progress, watched or favourite marks changed (after a playback, a menu action): redraw what shows them.</summary>
     public virtual Task RefreshAsync() => Task.CompletedTask;
+    /// <summary>Its rail entry (or shortcut) chosen again while it shows: nothing reloads or fades in again; its list glides back to the top.</summary>
+    public virtual void ShowAgain() { if (Content is ScrollViewer scroll) GlideUp.Start(scroll); }
 }
 
 /// <summary>
@@ -534,6 +536,8 @@ public sealed partial class MainWindow : Window
     {
         if (Session is null) return;
         if (Watching) return;
+        // Its own entry again while its page shows (the one the rail opened, not a page reached from it): as on Windows.
+        if (_history.Count == 0 && Current is { } shown && shown.Rail == key) { shown.ShowAgain(); return; }
         // The rail starts a new history, as on the Windows app.
         _history.Clear(); _forward.Clear();
         Page page = key switch
