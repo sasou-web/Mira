@@ -225,6 +225,7 @@ public partial class MainWindow
             row.Children.Add(identify); row.Children.Add(open); row.Children.Add(text);
             FixPanel.Children.Add(row);
         }
+        FixNote.Text = string.Join("\n", TitleIdentity.Note(_fixEntries));
         FixMore.Visibility = _fixEntries.Count > FixShown ? Visibility.Visible : Visibility.Collapsed;
         FixMore.Content = _fixAll ? L("Voir moins", "Show fewer") : L($"Voir les {_fixEntries.Count}", $"See all {_fixEntries.Count}");
     }

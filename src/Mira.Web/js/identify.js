@@ -17,15 +17,18 @@ const nameKey = (name) => titleKey(String(name ?? '').replace(YEAR, ''));
 const folderYear = (name) => { const m = String(name ?? '').match(YEAR); return m ? Number(m[1]) : null; };
 const filled = (value) => typeof value === 'string' && value.trim() !== '';
 
+// The ids that name this very title. Jellyfin also keeps the id of the saga a film belongs to (« TmdbCollection »):
+// Sonic 1, 2 and 3 share it, and are three films, so ids of a collection never count.
+const ids = (item) => Object.entries(item?.ProviderIds ?? {}).filter(([key, value]) => filled(value) && !/collection/i.test(key));
+
 /** Whether Jellyfin matched the title to anything: one id of a metadata source, whichever. */
-export const identified = (item) => Object.values(item?.ProviderIds ?? {}).some(filled);
+export const identified = (item) => ids(item).length > 0;
 
 /** Two titles of one kind that are the same: an id of a metadata source in common, or the same name and year. */
 function same(a, b) {
   if (a.Type !== b.Type) return false;
-  const others = Object.entries(b.ProviderIds ?? {});
-  const shared = Object.entries(a.ProviderIds ?? {}).some(([key, value]) => filled(value)
-    && others.some(([k, v]) => k.toLowerCase() === key.toLowerCase() && String(v ?? '').trim().toLowerCase() === value.trim().toLowerCase()));
+  const others = ids(b);
+  const shared = ids(a).some(([key, value]) => others.some(([k, v]) => k.toLowerCase() === key.toLowerCase() && v.trim().toLowerCase() === value.trim().toLowerCase()));
   if (shared) return true;
   const key = nameKey(a.Name);
   return key !== '' && key === nameKey(b.Name) && (a.ProductionYear ?? folderYear(a.Name)) === (b.ProductionYear ?? folderYear(b.Name));
@@ -67,6 +70,21 @@ export function problemText(problem, twin = null) {
     default: return tr('Sans résumé');
   }
 }
+/**
+ * What the words of the list mean, under it: one line for each kind of problem it shows (never « Non reconnu »
+ * explained under a list of duplicates), then what « Identifier » does.
+ */
+export function fixNote(entries) {
+  const shown = new Set((entries ?? []).flatMap((x) => x.problems));
+  if (!shown.size) return [];
+  const lines = [];
+  if (shown.has('Unidentified')) lines.push(tr('« Non reconnu » : Jellyfin n’a trouvé ce titre sur aucune de ses sources (TMDb…), souvent à cause d’un nom de dossier abîmé ou d’un titre romaji.'));
+  if (shown.has('Duplicate')) lines.push(tr('« En double » : deux titres renvoient à la même fiche (TMDb, IMDb…) ou portent le même nom et la même année : le même titre est rangé deux fois, ou l’un des deux a été mal reconnu.'));
+  if (shown.has('NoPoster') || shown.has('NoYear') || shown.has('NoOverview')) lines.push(tr('« Sans affiche », « Sans année », « Sans résumé » : la fiche trouvée par Jellyfin est incomplète.'));
+  lines.push(tr('« Identifier » te laisse choisir la bonne fiche.'));
+  return lines;
+}
+
 /** « Non reconnu · Sans affiche ». */
 export const entryText = (entry) => entry.problems.map((p) => problemText(p, entry.twin)).join(' · ');
 

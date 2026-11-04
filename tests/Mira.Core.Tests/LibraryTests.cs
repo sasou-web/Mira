@@ -1522,6 +1522,12 @@ internal static class LibraryTests
             var found = TitleIdentity.Check(titles).Select(x => $"{x.Item.Id} | {TitleIdentity.Text(x)}").ToList();
             var expected = root.GetProperty("problems").EnumerateArray().Select(x => $"{x[0].GetString()} | {x[1].GetString()}").ToList();
             Assert(found.SequenceEqual(expected), "List: " + string.Join(" ; ", found));
+            foreach (var x in root.GetProperty("notes").EnumerateArray())
+            {
+                var problems = x[0].EnumerateArray().Select(p => new TitleIdentity.Entry(new MediaItem { Id = "x", Name = "x" }, [Enum.Parse<TitleIdentity.Problem>(p.GetString()!)], null)).ToList();
+                var lines = TitleIdentity.Note(problems);
+                Assert(lines.SequenceEqual(x[1].EnumerateArray().Select(l => l.GetString()!)), $"Note {x[0]}: {string.Join(" / ", lines)}");
+            }
             foreach (var x in root.GetProperty("queries").EnumerateArray())
             {
                 var query = TitleIdentity.Search(x[0].GetString(), x[1].GetString());

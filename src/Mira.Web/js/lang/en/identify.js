@@ -38,6 +38,11 @@ export default {
   'Rien à corriger : Jellyfin a reconnu chaque film et chaque série, avec leur affiche.': 'Nothing to fix: Jellyfin recognized every movie and show, with its poster.',
   '{n} titre non reconnu par Jellyfin, sur {total} à revoir.': ['{n} title Jellyfin didn’t recognize, of {total} to check.', '{n} titles Jellyfin didn’t recognize, of {total} to check.'],
   '{n} titre à revoir.': ['{n} title to check.', '{n} titles to check.'],
-  '« Non reconnu » : Jellyfin n’a trouvé ce titre sur aucune de ses sources (TMDb…). Souvent un nom de dossier abîmé, ou un titre romaji. « Identifier » te laisse choisir le bon ; un titre en double est peut-être rangé deux fois.':
-    '“Not recognized”: Jellyfin didn’t find this title in any of its sources (TMDb…). Often a mangled folder name, or a romaji title. “Identify” lets you choose the right one; a duplicate title may be filed twice.',
+  '« Non reconnu » : Jellyfin n’a trouvé ce titre sur aucune de ses sources (TMDb…), souvent à cause d’un nom de dossier abîmé ou d’un titre romaji.':
+    '“Not recognized”: Jellyfin found this title in none of its sources (TMDb…), often because of a mangled folder name or a romaji title.',
+  '« En double » : deux titres renvoient à la même fiche (TMDb, IMDb…) ou portent le même nom et la même année : le même titre est rangé deux fois, ou l’un des deux a été mal reconnu.':
+    '“Duplicate”: two titles point to the same entry (TMDb, IMDb…) or share a name and a year: the same title is filed twice, or one of them was matched wrongly.',
+  '« Sans affiche », « Sans année », « Sans résumé » : la fiche trouvée par Jellyfin est incomplète.':
+    '“No poster”, “No year”, “No summary”: the entry Jellyfin found is incomplete.',
+  '« Identifier » te laisse choisir la bonne fiche.': '“Identify” lets you choose the right one.',
 };
