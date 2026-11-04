@@ -173,7 +173,7 @@ public static class MediaPlanner
     private static ImportPlan PlanMovies(Context context, List<SourceFile> videos, List<SourceFile> subtitles)
     {
         var root = context.Libraries.RootFor(MediaKind.Movie);
-        if (root is null) return Blocked(MediaKind.Movie, L("Choisis le dossier Films de Jellyfin dans Réglages → TorLink.", "Choose Jellyfin’s Movies folder in Settings → TorLink."));
+        if (root is null) return Blocked(MediaKind.Movie, L("Choisis le dossier Films de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Movies folder in Settings → Downloads."));
         var mains = videos.Where(v => !ReleaseName.InExtrasFolder(v.RelativePath)).OrderByDescending(v => v.Length).ToList();
         if (mains.Count == 0) mains = videos.OrderByDescending(v => v.Length).ToList();
         var bonus = videos.Except(mains).ToList();
@@ -274,8 +274,8 @@ public static class MediaPlanner
             : context.TvSource ? MediaKind.Series
             : context.Grouped || numbered.Any(x => x.Absolute) ? MediaKind.Anime : MediaKind.Series);
         var root = context.Target?.Root ?? context.Libraries.RootFor(kind);
-        if (root is null) return Blocked(kind, kind == MediaKind.Anime ? L("Choisis le dossier Animes de Jellyfin dans Réglages → TorLink.", "Choose Jellyfin’s Anime folder in Settings → TorLink.")
-            : L("Choisis le dossier Séries de Jellyfin dans Réglages → TorLink.", "Choose Jellyfin’s Shows folder in Settings → TorLink."));
+        if (root is null) return Blocked(kind, kind == MediaKind.Anime ? L("Choisis le dossier Animes de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Anime folder in Settings → Downloads.")
+            : L("Choisis le dossier Séries de Jellyfin dans Réglages → Téléchargements.", "Choose Jellyfin’s Shows folder in Settings → Downloads."));
         var show = context.Target?.Folder ?? FindFolder(root, title, year) ?? (alias is not null && SameFolder(alias.Root, root) ? alias.Folder : null) ?? ReleaseName.SafeName(year is null ? title : $"{title} ({year})");
         var showPath = Path.Combine(root, show);
         var seasons = ExistingFolders(showPath);
