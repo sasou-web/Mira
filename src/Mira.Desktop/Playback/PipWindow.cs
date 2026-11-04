@@ -134,7 +134,7 @@ internal sealed class PipWindow : Window
         _idle.Tick += (_, _) => HideWhenIdle();
         _click.Tick += (_, _) => { _click.Stop(); PlayPause?.Invoke(); };
         SourceInitialized += (_, _) => Screens.Move(Handle, _opening);
-        Loaded += (_, _) => { Controls.IsOpen = true; Controls.Reposition(); Controls.Raise(); ShowControls(); };
+        Loaded += (_, _) => { Controls.IsOpen = true; Controls.Reposition(); KeepControlsOnTop(); ShowControls(); };
     }
     private IntPtr Handle => new WindowInteropHelper(this).Handle;
 
@@ -142,8 +142,15 @@ internal sealed class PipWindow : Window
     public void Hold(VideoHost video)
     {
         if (!_video.Children.Contains(video)) _video.Children.Add(video);
-        // The video's window joins this one on top of its children: the controls go back above it.
-        Dispatcher.BeginInvoke(() => { Controls.Reposition(); Controls.Raise(); }, DispatcherPriority.Render);
+        // The video's window joins this one on top of its children: the controls go back above it, once the move is
+        // done and once the window has settled (its controls' window is made only when it has loaded).
+        Dispatcher.BeginInvoke(() => { Controls.Reposition(); KeepControlsOnTop(); }, DispatcherPriority.Render);
+        Dispatcher.BeginInvoke(KeepControlsOnTop, DispatcherPriority.Background);
+    }
+    /// <summary>The controls' window back above the video's when anything sits above it (GW_HWNDPREV): a window moved in goes on top.</summary>
+    private void KeepControlsOnTop()
+    {
+        if (Controls.Handle is var controls && controls != IntPtr.Zero && GetWindow(controls, 3) != IntPtr.Zero) Controls.Raise();
     }
     /// <summary>The video taken back, before this window closes: closing it with the video inside would destroy mpv's window.</summary>
     public void Release(VideoHost video) => _video.Children.Remove(video);
@@ -204,6 +211,7 @@ internal sealed class PipWindow : Window
     public void ShowControls()
     {
         _lastMotion = Environment.TickCount64;
+        KeepControlsOnTop();
         if (!_idle.IsEnabled) _idle.Start();
         if (_shown) return;
         _shown = true; _time.Text = _timeText;
@@ -330,4 +338,5 @@ internal sealed class PipWindow : Window
     [DllImport("user32")] private static extern bool GetCursorPos(out NativePoint point);
     [DllImport("user32")] private static extern bool GetWindowRect(IntPtr hwnd, out NativeRect rect);
     [DllImport("user32")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+    [DllImport("user32")] private static extern IntPtr GetWindow(IntPtr hwnd, uint command);
 }
