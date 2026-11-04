@@ -1,4 +1,4 @@
-// The README's captures of Mira web, a whole iPhone screen in Chromium, on the library of tools/gallery/setup.mjs:
+// The README's captures of Mira web, a whole iPhone screen in Chromium, on the library of tools/banner/media.sh (set up by tools/gallery/setup.mjs):
 // Home, a film's page, the films and a series' page.
 //   PLAYWRIGHT=<.../playwright/index.mjs> node tools/gallery/web.mjs <url of /Mira/> <user> <password> <folder>
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -54,7 +54,7 @@ try {
   const session = await page.evaluate(() => JSON.parse(localStorage.getItem('mira.session')));
   const { Items: titles } = await api(`Items?userId=${session.userId}&recursive=true&includeItemTypes=Movie,Series&fields=Path`);
   const find = (name) => titles.find((x) => (x.Path ?? '').replace(/\\/g, '/').includes(name));
-  const film = find('Spring (2019)'), series = find('Pioneer One');
+  const film = find('Spider-Man Across the Spider-Verse (2023)'), series = find('Arcane (2021)');
   await page.locator('.tabbar a[data-tab="films"]').click(); await wait(2500);
   await shot('web-films');
   if (film) { await page.goto(`${base}#/titre/${film.Id}`); await wait(2500); await shot('web-film'); }

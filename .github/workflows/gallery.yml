@@ -1,7 +1,7 @@
 name: README captures
 # The captures of the README (docs/screenshots/readme/): Mira for Windows, the real window, and Mira web at an iPhone's
-# size, each signed in to a real Jellyfin 12.1 whose library holds free films (tools/gallery/media.sh) with their TMDb
-# artwork. Run on request (Run workflow) from a branch other than main: the captures are committed to that branch, to
+# size, each signed in to a real Jellyfin 12.1 whose library is the README's demonstration one (tools/banner/media.sh: animated films and series, black placeholder
+# videos) with its TMDb artwork. Run on request (Run workflow) from a branch other than main: the captures are committed to that branch, to
 # go to main through its pull request; from main, they are only kept as an artifact. Never on a push or a pull
 # request: its own commit would start it again.
 on:
@@ -45,9 +45,9 @@ jobs:
       - name: Jellyfin 12.1 from its sources
         working-directory: .artifacts/jellyfin-src
         run: dotnet publish Jellyfin.Server/Jellyfin.Server.csproj -c Release -o ../jf -p:DebugType=none -nologo -v q
-      - name: Free films
+      - name: The library
         shell: bash
-        run: tools/gallery/media.sh "$PWD/.artifacts/media"
+        run: tools/banner/media.sh "$PWD/.artifacts/media"
       - name: Jellyfin, its library and a viewer's traces
         shell: pwsh
         run: |
@@ -105,10 +105,10 @@ jobs:
         run: |
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Mira.Jellyfin/Mira.Jellyfin.csproj)
           tools/web/package.sh "$version" http://127.0.0.1:8765
-      - name: Free films
+      - name: The library
         run: |
           command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
-          tools/gallery/media.sh "$PWD/.artifacts/media"
+          tools/banner/media.sh "$PWD/.artifacts/media"
       - name: Jellyfin 12.1, its library, Mira web installed from the repository
         run: |
           (cd dist/web && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
