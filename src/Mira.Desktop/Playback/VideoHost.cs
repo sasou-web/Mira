@@ -86,9 +86,21 @@ public sealed class VideoHost : HwndHost
     }
     private bool _moving;
     private Rect? _laidOut;
+    /// <summary>
+    /// Nothing of the window shows, and it keeps its size: mpv draws its first picture unseen, to be revealed from black.
+    /// </summary>
+    public void Conceal(bool concealed)
+    {
+        if (concealed == _concealed || Handle == IntPtr.Zero) return;
+        _concealed = concealed;
+        if (!concealed) { _clipped = true; ApplyRegion(); return; }
+        var nothing = CreateRectRgn(0, 0, 0, 0);
+        if (SetWindowRgn(Handle, nothing, true) == 0) { DeleteObject(nothing); _concealed = false; }
+    }
+    private bool _concealed;
     private void ApplyRegion()
     {
-        if (Handle == IntPtr.Zero) return;
+        if (Handle == IntPtr.Zero || _concealed) return;
         if (_radius <= 0 || _pixels.Width < 1)
         {
             if (_clipped) { SetWindowRgn(Handle, IntPtr.Zero, true); _clipped = false; }
@@ -119,6 +131,7 @@ public sealed class VideoHost : HwndHost
     [DllImport("user32")] private static extern IntPtr GetParent(IntPtr hwnd);
     [DllImport("user32")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32")] private static extern int SetWindowRgn(IntPtr hwnd, IntPtr region, bool redraw);
+    [DllImport("gdi32")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
     [DllImport("gdi32")] private static extern IntPtr CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
     [DllImport("gdi32")] private static extern bool DeleteObject(IntPtr handle);
 }
