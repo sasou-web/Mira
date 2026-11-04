@@ -102,6 +102,8 @@ public sealed partial class MainWindow : Window
             ExtendClientAreaTitleBarHeightHint = 30;
             TitleBarInset = 30;
         }
+        // The banners' captures (--gallery), drawn on Linux: the room the traffic lights take on a Mac, for the frame to draw them.
+        else if (args.Contains("--gallery")) TitleBarInset = 30;
         _root.ColumnDefinitions = new ColumnDefinitions("Auto,*");
         // The pages take the whole width, under the rail (Page): a picture runs to the window's edge, as on Windows.
         Grid.SetColumnSpan(_host, 2); _root.Children.Add(_host);
@@ -233,6 +235,7 @@ public sealed partial class MainWindow : Window
     private async Task StartAsync()
     {
         if (Args.Contains("--self-check")) { await Checks.SelfCheck.RunAsync(this); return; }
+        if (Args.Contains("--gallery")) { await Checks.Gallery.RunAsync(this); return; }
         // The check of « Tailscale intégré »: its stand-in Jellyfin served before anything asks it.
         var tailnetCheck = Args.Contains("--tailnet-check") ? new Checks.TailnetCheck(this) : null;
         // Signed in to « Tailscale intégré » before: its node starts first, Jellyfin may be reached through it.

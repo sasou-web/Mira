@@ -30,7 +30,7 @@ public partial class App : Application
             // question can hold their sign-in on a Mac nobody watches (GitHub's); the self-check checks the keychain apart,
             // with a time limit. The key of « Tailscale intégré » goes the same way (Profile.TailnetKey), in the same item:
             // one question from macOS after an update rather than one per secret.
-            var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") && !args.Contains("--tailnet-check") ? new KeychainVault(new Keychain(), data ?? Profile.DefaultDirectory()) : null;
+            var tokens = OperatingSystem.IsMacOS() && !args.Contains("--self-check") && !args.Contains("--tailnet-check") && !args.Contains("--gallery") ? new KeychainVault(new Keychain(), data ?? Profile.DefaultDirectory()) : null;
             var window = new MainWindow(args, new Profile(data, tokens));
             desktop.MainWindow = window;
             NameMenu();
