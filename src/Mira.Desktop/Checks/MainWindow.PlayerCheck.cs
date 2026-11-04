@@ -25,6 +25,8 @@ public partial class MainWindow
             _settings.Volume = 0; _settings.AutoNext = false; _settings.AutoSkip = false; VolumeSlider.Value = 0;
             await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded);
             Require(_mpv is not null && _videoHandle != IntPtr.Zero, "native video host loads the synthetic clip");
+            var videoClass = new System.Text.StringBuilder(32); GetClassName(_videoHandle, videoClass, 32);
+            Require(videoClass.ToString() == "MiraVideo", "the video's window is black behind mpv: no flash of light when a title starts");
             Require(PlayerLoading.Visibility == Visibility.Collapsed && System.Windows.Input.Mouse.OverrideCursor is null, "loading indicator and busy cursor clear once the first frame is ready");
             ShowPlayerControls(); HidePlayerControls();
             Require(!_controlsVisible && PlayerSurface.IsHitTestVisible && PlayerSurface.Cursor == System.Windows.Input.Cursors.None && !PlayerControls.IsHitTestVisible, "hidden controls keep a mouse-sensitive video surface and hide the cursor");
