@@ -64,6 +64,7 @@ public partial class MainWindow
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
         base.OnDpiChanged(oldDpi, newDpi);
+        if (_pip is not null) return;
         if (_miniPlayer) { _videoHost?.SetCornerRadius(MiniRadius * newDpi.DpiScaleX); KeepMiniInPlace(); }
         else PositionPlayerControls();
     }

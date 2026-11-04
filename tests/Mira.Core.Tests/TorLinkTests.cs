@@ -156,7 +156,7 @@ internal static class TorLinkTests
             await torlink.DetectLibrariesAsync(null, CancellationToken.None);
             Assert(torlink.Ready && torlink.Choose("", " ", "") == false && torlink.Summary(true).StartsWith("Choisis", StringComparison.Ordinal), "No folder found nor chosen");
             Assert(torlink.Choose(" " + films + " ", "", "") && torlink.Libraries == new MediaLibraries(films, null, null) && !torlink.Choose(films, "", ""), "Chosen folder, trimmed, changes once");
-            Assert(torlink.Summary(true) == "Rangement automatique. Dossier Séries à choisir dans Réglages → TorLink." && torlink.Summary(false).StartsWith("Rangement automatique désactivé", StringComparison.Ordinal), "Summary line");
+            Assert(torlink.Summary(true) == "Rangement automatique. Dossier Séries à choisir dans Réglages → Téléchargements." && torlink.Summary(false).StartsWith("Rangement automatique désactivé", StringComparison.Ordinal), "Summary line");
             Assert(torlink.PlacementDue(), "A new history is not due");
             await torlink.PlaceAsync(() => (true, ImportMode.KeepSeeding), async () => { if (rounds++ == 0) await torlink.PlaceAsync(() => (true, ImportMode.KeepSeeding), () => Task.CompletedTask, CancellationToken.None); }, CancellationToken.None);
             Assert(rounds == 2, "A round asked for during another one runs after it, not at the same time: " + rounds);

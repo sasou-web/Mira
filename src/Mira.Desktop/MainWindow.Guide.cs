@@ -91,7 +91,8 @@ public partial class MainWindow
     private void WhatsNewDetails_Click(object sender, RoutedEventArgs e) => OpenWebPage($"https://github.com/sasou-web/Mira/releases/tag/v{JellyfinClient.AppVersion}");
 
     // The guide, from the ? of the rail, F1, an empty library, or once after the first connection.
-    private void Guide_Click(object sender, RoutedEventArgs e) => OpenGuide();
+    /// <summary>The ? of the rail and F1: the guide, or, already shown, back to its top without drawing it again.</summary>
+    private void Guide_Click(object sender, RoutedEventArgs e) { if (GuideOverlay.Visibility == Visibility.Visible && GuideOverlay.IsHitTestVisible) SmoothScroll.ToTop(GuideScroll); else OpenGuide(); }
     private async void CloseGuide_Click(object sender, RoutedEventArgs e) => await CloseGuideAsync();
     private async Task CloseGuideAsync() { await Motion.HideAsync(GuideOverlay); UpdateNavigation(); UpdateHeroClock(); GiveFocusBack(ref _guideOrigin); }
     /// <summary>Once, right after the first connection or the Jellyfin setup, with what is relevant at that moment.</summary>

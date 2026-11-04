@@ -25,6 +25,8 @@ public partial class MainWindow
             _settings.Volume = 0; _settings.AutoNext = false; _settings.AutoSkip = false; VolumeSlider.Value = 0;
             await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded);
             Require(_mpv is not null && _videoHandle != IntPtr.Zero, "native video host loads the synthetic clip");
+            await Until(() => !_videoWaits);
+            checks.Add($"INFO black sheet over the window: {(Shade is null ? "not available here" : "available")}");
             var videoClass = new System.Text.StringBuilder(32); GetClassName(_videoHandle, videoClass, 32);
             Require(videoClass.ToString() == "MiraVideo", "the video's window is black behind mpv: no flash of light when a title starts");
             Require(PlayerLoading.Visibility == Visibility.Collapsed && System.Windows.Input.Mouse.OverrideCursor is null, "loading indicator and busy cursor clear once the first frame is ready");
@@ -120,19 +122,30 @@ public partial class MainWindow
                 // Leaving the player, as a person does it: playing, then reduced; playing, then stopped (frames, work).
                 SetMiniPlayer(false); _mpv!.Set("pause", "no"); await Task.Delay(1500);
                 SetMiniPlayerSmoothly(true); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
-                Require(_miniPlayer && !_morphing && VideoContainer.IsVisible && PlayerShell.Opacity == 1 && _morphLayer?.Visibility != Visibility.Visible, "reduced smoothly: the video back in the mini-player, the still gone");
+                Require(_miniPlayer && !_morphing && VideoContainer.IsVisible && PlayerShell.Opacity == 1, "reduced smoothly: the video in the mini-player");
+                var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+                Require(Math.Abs(_mpv!.Number("osd-width") - MiniWidth * scale) < 3, $"mpv told the size it lands at, once ({_mpv.Get("osd-width")} px)");
                 await ShowDetailsAsync(DemoLibrary.Items()[0]); await Task.Delay(300);
-                SetMiniPlayerSmoothly(false); await Task.Delay(120);
+                SetMiniPlayerSmoothly(false); await Task.Delay(100);
                 Require(_morphing && DetailOverlay.IsVisible, "expanding: the page stays under the growing video");
                 await Task.Delay(2600); checks.Add("INFO transition " + FrameProbe.Last);
                 Require(!_miniPlayer && !_morphing && VideoContainer.IsVisible && !LibraryShell.IsVisible && !DetailOverlay.IsVisible && PlayerShell.ActualWidth > 900, "expanded smoothly: the whole player back, the page under it hidden");
+                Require(Math.Abs(_mpv!.Number("osd-width") - VideoContainer.ActualWidth * scale) < 3, $"mpv draws at the whole player's size ({_mpv.Get("osd-width")} px)");
                 SetMiniPlayerSmoothly(true); await Task.Delay(800);
                 Require(_miniPlayer && DetailOverlay.IsVisible, "reduced again: the title page opened in the mini-player is back, not the library under it");
                 await CloseDetailsAsync(); SetMiniPlayerSmoothly(false); await Task.Delay(800);
                 StopPlayer_Click(this, new()); await Task.Delay(2700); checks.Add("INFO transition " + FrameProbe.Last);
-                Require(!_playing && _mpv is null && !_morphing && LibraryShell.IsVisible && _morphLayer?.Visibility != Visibility.Visible, "closed smoothly: the page back, the still gone");
+                Require(!_playing && _mpv is null && !_morphing && LibraryShell.IsVisible, "closed smoothly: the page back");
+                await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded && !_videoWaits); SetMiniPlayerSmoothly(true); await Task.Delay(700);
+                StopPlayer_Click(this, new()); await Task.Delay(1200);
+                Require(!_playing && _mpv is null && !_morphing && LibraryShell.IsVisible && !_miniPlayer, "the mini-player's ✕: it slides out, the page stays");
+                await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded && !_videoWaits); ToggleFullscreen(); await Task.Delay(300);
+                SetMiniPlayerSmoothly(true); await Task.Delay(1200);
+                Require(_miniPlayer && !_fullscreen && !_morphing && PlayerShell.ActualWidth == MiniWidth, "out of full screen to the mini-player");
+                await StopPlaybackAsync(); ReturnToLibrary();
                 await PlayAsync(DemoLibrary.Items()[0]); await Until(() => _loaded); _mpv!.Set("pause", "yes"); SetMiniPlayer(true);
             }
+            await RunPipChecksAsync(output, checks, Require, Until);
             await StopPlaybackAsync(); ReturnToLibrary();
             Require(!_playing && _mpv is null && LibraryShell.IsVisible && !PlayerOverlayLayer.IsOpen, "stop releases mpv and closes player overlays");
             await _engineReleased;

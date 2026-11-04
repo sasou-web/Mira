@@ -114,7 +114,7 @@ public partial class MainWindow
     /// </summary>
     private bool OpenPlayerSurface()
     {
-        if (!_playing || _morphing || WindowState == WindowState.Minimized || (_miniPlayer && !MiniSettled)) return false;
+        if (!_playing || _morphing || _pip is not null || WindowState == WindowState.Minimized || (_miniPlayer && !MiniSettled)) return false;
         // Called on every mouse move: layout changes position the overlay themselves, so only a new window needs it.
         if (!PlayerOverlayLayer.IsOpen) { PositionPlayerControls(); PlayerOverlayLayer.IsOpen = true; TransportLayer.IsOpen = true; }
         return true;
@@ -145,7 +145,7 @@ public partial class MainWindow
     private void UpdatePlayerControls()
     {
         if (!_playing || WindowState == WindowState.Minimized) { ClosePlayerPopups(); return; }
-        if (_morphing || _miniPlayer && !MiniSettled) { if (PlayerOverlayLayer.IsOpen) ClosePlayerPopups(); return; }
+        if (_morphing || _pip is not null || _miniPlayer && !MiniSettled) { if (PlayerOverlayLayer.IsOpen) ClosePlayerPopups(); return; }
         // Also when playback started with Mira in the background (the next episode, the group).
         OpenPlayerSurface();
         if (!PlayerInFront) { if (_controlsVisible || PlayerOptionsPopup.IsOpen) LeavePlayerControls(); return; }
@@ -361,6 +361,8 @@ public partial class MainWindow
     private void SetMiniPlayer(bool mini, bool preserveFullscreen = false)
     {
         if (!_playing) return;
+        // Back from « Image dans l’image »: the video into this window again before the player takes it.
+        if (!mini) EndPip(show: true);
         if (_fullscreen && !preserveFullscreen) ToggleFullscreen();
         PlayerOptionsPopup.IsOpen = false; ClosePreview();
         var wasMini = _miniPlayer; _miniPlayer = mini;
@@ -376,7 +378,7 @@ public partial class MainWindow
         PlayerControlsBody.Margin = mini ? new Thickness(14, 0, 14, 8) : new Thickness(24, 0, 24, 14);
         // The mini-player shows its title at the top and keeps only play / pause, centred under the timeline.
         PlayerInfo.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
-        MiniTitle.Visibility = MiniExpandButton.Visibility = MiniCloseButton.Visibility = MiniOutline.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
+        MiniTitle.Visibility = MiniPipButton.Visibility = MiniExpandButton.Visibility = MiniCloseButton.Visibility = MiniOutline.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
         PlayerTransport.Height = PlayerTransportSlot.Height = mini ? 36 : 44; PlayerTransportSlot.Margin = new Thickness(-8, mini ? 0 : 2, -8, 0);
         Grid.SetColumnSpan(PlayerLeftGroup, mini ? 3 : 1); PlayerLeftGroup.HorizontalAlignment = mini ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         foreach (var control in new FrameworkElement[] { PlayerBackButton, PlayerVolumeGroup, PlayerRightGroup }) control.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
@@ -384,8 +386,11 @@ public partial class MainWindow
         PauseButton.Width = PauseButton.Height = mini ? 34 : 40; Motion.SetRadius(PauseButton, new CornerRadius(mini ? 17 : 20));
         PauseIcon.Width = PauseIcon.Height = mini ? 19 : 24;
         _changingPlayerLayout = false; PositionPlayerControls(); ShowPlayerControls(); UpdateSkip();
-        if (mini) { Motion.Reveal(LibraryScroll, 220, 5); if (!wasMini) RestoreDetailPage(refresh: false); UpdateNavigation(); ShowPendingUpdateNotice(); }
+        // Under the video that shrinks, the page is simply there: a fade would show the library, or black, behind it first.
+        if (mini) { if (!_morphing) Motion.Reveal(LibraryScroll, 220, 5); if (!wasMini) RestoreDetailPage(refresh: false, at: _morphing); UpdateNavigation(); ShowPendingUpdateNotice(); }
         if (mini && !wasMini && _loaded) _ = RefreshMiniResumeAsync();
+        // In its own window: the library alone in this one, the mini-player's place left empty.
+        if (_pip is not null) HideForPip();
     }
     /// <summary>The player takes the whole window: the page open over the library goes, and comes back with the mini-player or when playback stops.</summary>
     private void LeavePagesForPlayer()

@@ -51,6 +51,8 @@ public static class SmoothScroll
     public static void By(ScrollViewer viewer, double pixels, bool horizontal = false) => Drivers.GetValue(viewer, v => new Driver(v)).Add(pixels, horizontal);
     public static void Cancel(ScrollViewer viewer) { if (Drivers.TryGetValue(viewer, out var driver)) driver.Stop(); }
     public static void Jump(ScrollViewer viewer, double offset = 0) { Cancel(viewer); viewer.ScrollToVerticalOffset(offset); }
+    /// <summary>Eased back to the top, as the wheel moves it (at once when animations are reduced); nothing at the top already.</summary>
+    public static void ToTop(ScrollViewer viewer) { if (viewer.VerticalOffset > .5) By(viewer, -viewer.VerticalOffset - viewer.ExtentHeight); }
     private sealed class Driver
     {
         private readonly ScrollViewer _viewer;

@@ -325,10 +325,12 @@ public static class SelfCheck
                     Key(window, Avalonia.Input.Key.I);
                     Check(await Until(() => !player.IsMini && player.Bounds.Width > 800, 3), "mini-lecteur : agrandi par I", $"{player.Bounds.Width:0}");
                 }
+                var pipLeft = await PipChecksAsync(window, player, engine, renderer, output, Check);
                 Key(window, Avalonia.Input.Key.Space);
                 Check(await Until(() => engine.Flag("pause"), 3), $"pause ({renderer})");
                 await window.StopPlaybackAsync();
                 Check(window.Player is null, $"retour à la bibliothèque ({renderer})");
+                if (pipLeft is not null) Check(!pipLeft.IsVisible && player.Pip is null, $"image dans l’image : partie avec la lecture ({renderer})");
             }
             Environment.SetEnvironmentVariable("MIRA_SOFTWARE_VIDEO", null);
             if (mock is not null)
@@ -452,6 +454,68 @@ public static class SelfCheck
             .Prepend($"Mira {Services.Updates.Current} — {RuntimeInformation.OSDescription} {RuntimeInformation.OSArchitecture} — {DateTimeOffset.Now:yyyy-MM-dd HH:mm}"));
         Console.WriteLine($"{results.Count(x => x.Ok)}/{results.Count} contrôles réussis.");
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown(exit);
+    }
+
+    /// <summary>
+    /// « Image dans l’image », as on Windows: the video moved into a window of its own above the others, the same engine
+    /// playing on and drawing there, the subtitles raised for its size, the library back in Mira's window; then back in
+    /// Mira, the whole player drawing again with mpv's own subtitle size; then into it again from the whole player, left
+    /// open for the stop that follows. The small window, still open, for the stop to check.
+    /// </summary>
+    private static async Task<PipWindow?> PipChecksAsync(MainWindow window, PlayerPage player, Playback.MpvPlayer engine, string renderer, string output, Action<bool, string, string> check)
+    {
+        var subtitles = Path.Combine(output, "pip-subtitles.srt");
+        await File.WriteAllTextAsync(subtitles, "1\r\n00:00:00,000 --> 00:00:59,000\r\nMIRA PIP SUBTITLES\r\n");
+        engine.TryCommand("sub-add", subtitles, "select");
+        await player.EnterPipAsync();
+        var pip = player.Pip;
+        var surface = player.Surface;
+        check(pip is { IsVisible: true, Topmost: true } && surface?.View.Parent == pip.VideoHost && ReferenceEquals(player.Engine, engine) && player.IsFileLoaded && player.IsMini && !player.IsVisible && !window.Watching,
+            $"image dans l’image : sa fenêtre au-dessus des autres, la même lecture ({renderer})", $"{surface?.GetType().Name}, fenêtre {pip?.Bounds.Width:0} × {pip?.Bounds.Height:0}{(window.NoticeText is { Length: > 0 } said ? " — " + said : "")}");
+        if (pip is null || surface is null) return null;
+        var frames = surface.Frames; var position = player.Position;
+        check(await Until(() => player.Surface?.Frames > frames + 12 && player.Position > position + 1, 10), $"image dans l’image : la vidéo y est dessinée et avance ({renderer})", $"{player.Surface?.Frames - frames} images, {position:0.0} → {player.Position:0.0}");
+        var expected = PictureInPicture.SubtitleScale(window.Settings.SubtitleSize, pip.VideoHeight);
+        check(expected > 1 && Math.Abs(engine.Number("sub-scale") - expected) < .01 && engine.Get("sub-visibility") == "yes" && !ConvertedTracks.Off(engine.Get("sid")),
+            $"image dans l’image : sous-titres agrandis pour sa taille ({renderer})", $"{pip.VideoHeight:0} de haut, sub-scale {engine.Get("sub-scale")}");
+        pip.ShowControls(); await Task.Delay(300);
+        var name = renderer == "OpenGL" ? "opengl" : "software";
+        ScreenColour(Path.Combine(output, $"08f-pip-{name}.png"));
+        var unnamed = Unnamed(pip);
+        check(unnamed.Count == 0, $"VoiceOver : tout est nommé (image dans l’image, {renderer})", string.Join(", ", unnamed.Take(8)));
+        // While the controls show, the subtitles above the time and the subtitles' button (sub-pos, sub-margin-y at 0); at
+        // their place once they go. mpv's own margin, which changed with its versions (22, then 34).
+        var usual = (int)engine.Number("option-info/sub-margin-y/default-value", 22); var own = SubtitleStyle.Height(window.Settings.SubtitleHeight);
+        double Margin() => engine.Number("sub-margin-y", -1); double Position() => engine.Number("sub-pos", -1);
+        var lifted = PictureInPicture.SubtitleLift(pip.Fit.Lift, pip.VideoHeight, own);
+        check(lifted is { } at && Math.Abs(Position() - at) < .5 && Margin() == 0, $"image dans l’image : sous-titres au-dessus des commandes tant qu’elles se voient ({renderer})", $"sub-pos {Position()}, attendu {lifted}, sub-margin-y {Margin()}");
+        // The smallest window: lighter controls, each row in it, the subtitles still above them.
+        if (pip.Placement() is { } placed && PipWindow.ScreensOf(pip) is { Count: > 0 } screens && PictureInPicture.ScreenOf(placed, screens) is { } screen)
+        {
+            var narrowest = PictureInPicture.Widths(screen, pip.Aspect).Minimum;
+            pip.Place(placed with { Width = narrowest, Height = Math.Round(narrowest / pip.Aspect) }, screen);
+            await Until(() => pip.Fit.Small, 3); pip.ShowControls(); await Task.Delay(400);
+            ScreenColour(Path.Combine(output, $"08g-pip-small-{name}.png"));
+            var small = PictureInPicture.SubtitleLift(pip.Fit.Lift, pip.VideoHeight, own);
+            check(pip.Fit is { Small: true, Jumps: true } && small is { } there && Math.Abs(Position() - there) < .5 && Margin() == 0, $"image dans l’image : commandes allégées dans la plus petite fenêtre, sous-titres au-dessus ({renderer})",
+                $"{pip.Bounds.Width:0} × {pip.Bounds.Height:0}, {pip.Fit}, sub-pos {Position()}, attendu {small}");
+            pip.Place(placed, screen);
+            await Until(() => !pip.Fit.Small, 3);
+        }
+        pip.HideControlsNow(); await Task.Delay(200);
+        check(Math.Abs(Margin() - usual) < .5 && Math.Abs(Position() - own) < .5, $"image dans l’image : sous-titres à leur place une fois les commandes parties ({renderer})", $"sub-margin-y {Margin()}, sub-pos {Position()}");
+
+        await player.ReturnFromPipAsync();
+        frames = player.Surface?.Frames ?? 0;
+        check(player.Pip is null && !pip.IsVisible && player.IsVisible && !player.IsMini && player.Surface?.View.Parent is { } host && host != pip.VideoHost && ReferenceEquals(player.Engine, engine)
+            && Math.Abs(engine.Number("sub-scale") - 1) < .001 && Math.Abs(engine.Number("sub-margin-y") - engine.Number("option-info/sub-margin-y/default-value", 22)) < .5
+            && Math.Abs(engine.Number("sub-pos") - SubtitleStyle.Height(window.Settings.SubtitleHeight)) < .5 && await Until(() => player.Surface?.Frames > frames + 12, 10),
+            $"image dans l’image : de retour dans Mira, le lecteur entier ({renderer})", $"{player.Surface?.GetType().Name}, sub-scale {engine.Get("sub-scale")}");
+        engine.Set("sid", "no");
+
+        await player.EnterPipAsync();
+        check(player.Pip is { IsVisible: true } && !player.IsVisible && window.Player == player, $"image dans l’image : ouverte depuis le lecteur entier ({renderer})", "");
+        return player.Pip;
     }
 
     private static async Task<bool> Until(Func<bool> condition, double seconds)

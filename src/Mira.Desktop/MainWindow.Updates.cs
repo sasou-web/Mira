@@ -7,7 +7,7 @@ using Mira.Desktop.Services;
 
 namespace Mira.Desktop;
 
-/// <summary>Automatic updates: Réglages → Mises à jour, the "ready" notice, and the installation when Mira closes.</summary>
+/// <summary>Automatic updates: Réglages → Mira sur ce PC, the "ready" notice, and the installation when Mira closes.</summary>
 public partial class MainWindow
 {
     private Updater? _updater;

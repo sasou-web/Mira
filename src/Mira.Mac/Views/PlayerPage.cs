@@ -152,7 +152,9 @@ public sealed partial class PlayerPage : UserControl
         // play, next episode and volume on the left, the menus and fullscreen on the right.
         var left = Ui.Row(6, play, _previous, _next, volumeGroup);
         var miniButton = Ui.IconButton("mini", L("Mini-lecteur · I", "Mini player · I"), () => SetMini(true), "player", 22);
-        var right = Ui.Row(6, _episodesButton, _more, _tracks, miniButton, fullscreen);
+        // « Image dans l’image », as on Windows: the video in its own window, above the others (PlayerPage.Pip.cs).
+        var pipButton = Ui.IconButton("pip", L("Image dans l’image : la vidéo dans sa propre fenêtre, au-dessus des autres", "Picture in picture: the video in its own window, above the others"), () => _ = EnterPipAsync(), "player", 22, L("Image dans l’image", "Picture in picture"));
+        var right = Ui.Row(6, _episodesButton, _more, _tracks, miniButton, pipButton, fullscreen);
         var transport = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(-8, 2, -8, 0), Height = 44 };
         left.VerticalAlignment = right.VerticalAlignment = VerticalAlignment.Center;
         transport.Children.Add(left); Grid.SetColumn(right, 2); transport.Children.Add(right);
@@ -321,17 +323,18 @@ public sealed partial class PlayerPage : UserControl
         }
         player.SetLevel(_volume.Value);
     }
-    private async Task<bool> AttachAsync(IVideoSurface surface, MpvPlayer player)
+    /// <summary>mpv's view into <paramref name="host"/>: by default the player's place, or the small window while it is open (PlayerPage.Pip.cs).</summary>
+    private async Task<bool> AttachAsync(IVideoSurface surface, MpvPlayer player, Panel? host = null)
     {
         _surface = surface;
-        _videoHost.Children.Add(surface.View);
+        (host ?? VideoPanel).Children.Add(surface.View);
         try { return await surface.AttachAsync(player).WaitAsync(TimeSpan.FromSeconds(4)); }
         catch (TimeoutException) { return false; }
     }
     private async Task DetachAsync(IVideoSurface surface)
     {
         // Leaving the window frees mpv's render context with OpenGL current (VideoView.OnOpenGlDeinit).
-        _videoHost.Children.Remove(surface.View);
+        (surface.View.Parent as Panel)?.Children.Remove(surface.View);
         surface.Release();
         await Task.Yield();
         if (_surface == surface) _surface = null;
@@ -455,7 +458,8 @@ public sealed partial class PlayerPage : UserControl
         try
         {
             mpv.Poll(); ShowGroup();
-            if (_mpv is null || !_loaded || _stopped) return;
+            // The video on its way to or from the small window, paused for that moment: never a pause for the group.
+            if (_mpv is null || !_loaded || _stopped || _pipMoving) return;
             ShowBuffering(mpv); KeepTracks(mpv);
             _session.Position = Reported(mpv.Number("time-pos", _session.Position)); _session.Duration = mpv.Number("duration", _session.Duration);
             _recovery.Played(_session.Position);
@@ -464,7 +468,7 @@ public sealed partial class PlayerPage : UserControl
             if (paused != _session.Paused) { _session.Paused = paused; _pauseIcon.Kind = paused ? "play" : "pause"; if (paused) ShowControls(); _session.LastReport = DateTimeOffset.MinValue; GroupPauseChanged(paused); }
             WatchGroupStall(mpv); WatchPicture(mpv, paused); WatchGrey(mpv, paused);
             _timeline.SetPlayback(_session.Position, _session.Duration, mpv.Number("demuxer-cache-time", 0));
-            ShowTime(_session.Position); MiniProgress();
+            ShowTime(_session.Position); MiniProgress(); UpdatePip();
             _chapter.Text = _skips.Chapters.LastOrDefault(c => c.Start <= _session.Position + .25).Title ?? "";
             _chapter.IsVisible = _chapter.Text.Length > 0;
             UpdateSkip();
@@ -581,6 +585,7 @@ public sealed partial class PlayerPage : UserControl
             case Key.Up: ChangeVolume(5); break;
             case Key.Down: ChangeVolume(-5); break;
             case Key.M: ToggleMute(); break;
+            case Key.C: ToggleSubtitles(); break;
             case Key.F: ToggleFullscreen(); break;
             case Key.S: if (_skips.Active is not null) Skip(); break;
             case Key.N: if (_skips.Next is { } next) _ = PlayNextAsync(next); break;

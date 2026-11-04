@@ -75,7 +75,7 @@ public partial class MainWindow
     private static string SettingsNotSaved => L("Réglages appliqués, mais pas enregistrés : le disque est plein ou le fichier des réglages est utilisé par un autre programme. Mira réessaiera en se fermant.",
         "Settings applied but not saved: the disk is full or the settings file is in use by another program. Mira will try again when it closes.");
     private bool SettingsChanged() =>
-        _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || PictureChoice.Items.Count > 0 && PictureQuality.Known(_settings.Picture) != Choice(PictureChoice) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || _settings.RememberPosition != (RememberCheck.IsChecked == true) || _settings.ResumeBack.ToString(CultureInfo.InvariantCulture) != Choice(ResumeBackChoice)
+        _settings.HardwareDecoding != (HardwareCheck.IsChecked == true) || PictureChoice.Items.Count > 0 && PictureQuality.Known(_settings.Picture) != Choice(PictureChoice) || _settings.AutoNext != (AutoNextCheck.IsChecked == true) || _settings.AutoSkip != (AutoSkipCheck.IsChecked == true) || ResumeShown() != Choice(ResumeBackChoice)
         || QualityChoice.Items.Count > 0 && StreamQuality.Known(_settings.Quality) != Choice(QualityChoice)
         || _settings.ShowProgress != (ShowProgressCheck.IsChecked == true) || _settings.ReduceMotion != (ReduceMotionCheck.IsChecked == true) || _settings.HeroAutoPlay != (HeroAutoPlayCheck.IsChecked == true)
         || _settings.PosterDensity != Choice(DensityChoice) || _settings.AudioLanguage != AudioLanguageBox.Text.Trim() || _settings.SubtitleLanguage != SubtitleLanguageBox.Text.Trim()
@@ -88,15 +88,21 @@ public partial class MainWindow
         || _settings.AutoUpdate != (AutoUpdateCheck.IsChecked == true) || _settings.EpisodeNotices != (EpisodeNoticesCheck.IsChecked == true)
         || AudioSettingsChanged() || Choice(MiraLanguageChoice) is { Length: > 0 } language && language != ShownLanguage;
     private bool _settingsBusy;
+    /// <summary>The gear of the rail: Réglages, or, already shown, its tab back to the top, nothing filled or animated again.</summary>
+    private void SettingsNav_Click(object sender, RoutedEventArgs e)
+    {
+        if (SettingsOverlay.Visibility == Visibility.Visible && SettingsOverlay.IsHitTestVisible) SmoothScroll.ToTop(SettingsScroll);
+        else Settings_Click(sender, e);
+    }
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
-        // The gear clicked again while the page is open refills it from the saved settings: what was changed is kept first.
+        // Opened again from a notice while the page is open, it refills from the saved settings: what was changed is kept first.
         AutoSaveSettings();
         RememberFocus(ref _settingsOrigin, SettingsOverlay);
         ClosePreview(); ++_detailVersion; _returnToDetail = null;
         _settingsBusy = true;
-        HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip; RememberCheck.IsChecked = _settings.RememberPosition;
-        SelectChoice(ResumeBackChoice, _settings.ResumeBack.ToString(CultureInfo.InvariantCulture));
+        HardwareCheck.IsChecked = _settings.HardwareDecoding; AutoNextCheck.IsChecked = _settings.AutoNext; AutoSkipCheck.IsChecked = _settings.AutoSkip;
+        SelectChoice(ResumeBackChoice, ResumeShown());
         if (PictureChoice.Items.Count == 0) foreach (var (key, label, details) in PictureQuality.Choices) PictureChoice.Items.Add(new ComboBoxItem { Content = label, Tag = key, ToolTip = details });
         SelectChoice(PictureChoice, PictureQuality.Known(_settings.Picture));
         if (QualityChoice.Items.Count == 0) foreach (var (key, label, _, details) in StreamQuality.Choices) QualityChoice.Items.Add(new ComboBoxItem { Content = label, Tag = key, ToolTip = details });
@@ -124,6 +130,10 @@ public partial class MainWindow
         SettingsSaveStatus.Text = SettingsApplyAtOnce;
         _ = Dispatcher.BeginInvoke(() => PlaybackSettingsNav.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
+    private const string ResumeOff = "off";
+    /// <summary>The resume choice the saved settings make: off, else a distance the list has (5 s otherwise).</summary>
+    private string ResumeShown() => !_settings.RememberPosition ? ResumeOff
+        : (PlaybackSession.ResumeBackChoices.Contains(_settings.ResumeBack) ? _settings.ResumeBack : 5).ToString(CultureInfo.InvariantCulture);
     private static string SettingsApplyAtOnce => L("Chaque changement s’applique et s’enregistre tout de suite.", "Each change applies and is saved at once.");
     private static void SelectChoice(ComboBox box, string value) => box.SelectedItem = box.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == value) ?? box.Items.OfType<ComboBoxItem>().Last();
     private void SettingsTab_Click(object sender, RoutedEventArgs e) => SelectSettingsTab((string)((Button)sender).Tag);
@@ -139,6 +149,8 @@ public partial class MainWindow
             nav.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
             empty.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
         }
+        // « Ton serveur » heads what only its owner sees, under what everyone uses.
+        ServerToolsLabel.Visibility = new[] { SharingSettingsNav, CareSettingsNav, TorLinkSettingsNav }.Any(x => x.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
     }
     private bool _settingsGroupsWatched;
     private void WatchSettingsGroups()
@@ -177,18 +189,18 @@ public partial class MainWindow
         TorLinkSettings.Visibility = tab == "torlink" ? Visibility.Visible : Visibility.Collapsed;
         UpdateSettings.Visibility = tab == "updates" ? Visibility.Visible : Visibility.Collapsed;
         ReportSettings.Visibility = tab == "report" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsSectionTitle.Text = tab switch { "subtitles" => L("Audio & sous-titres", "Audio & subtitles"), "appearance" => L("Apparence", "Appearance"), "server" => "Jellyfin", "sharing" => L("Amis & invités", "Friends & guests"), "care" => L("Entretien", "Maintenance"), "torlink" => "TorLink", "updates" => L("Mises à jour", "Updates"), "report" => L("Ton bilan", "Your recap"), _ => L("Lecture", "Playback") };
+        SettingsSectionTitle.Text = tab switch { "subtitles" => L("Audio & sous-titres", "Audio & subtitles"), "appearance" => L("Apparence", "Appearance"), "server" => L("Compte & serveur", "Account & server"), "sharing" => L("Amis & invités", "Friends & guests"), "care" => L("Entretien", "Maintenance"), "torlink" => L("Téléchargements", "Downloads"), "updates" => L("Mira sur ce PC", "Mira on this PC"), "report" => L("Ton bilan", "Your recap"), _ => L("Lecture", "Playback") };
         SettingsSectionDescription.Text = tab switch
         {
-            "subtitles" => L("Où part le son, et les bonnes langues dès le premier épisode.", "Where the sound goes, and the right languages from the very first episode."),
-            "appearance" => L("Ajuste le confort de navigation à tes habitudes.", "Make browsing work the way you like."),
-            "server" => L("Ta bibliothèque et ta progression, toujours à portée de main.", "Your library and your progress, always at hand."),
+            "subtitles" => L("Les bonnes langues dès le premier épisode, et des sous-titres lisibles.", "The right languages from the very first episode, and readable subtitles."),
+            "appearance" => L("La langue de Mira et ce que montre l’accueil.", "Mira’s language and what Home shows."),
+            "server" => L("Ton compte, ton serveur Jellyfin et tes bibliothèques.", "Your account, your Jellyfin server and your libraries."),
             "sharing" => L("Un compte pour un ami, un lien pour un invité, un appareil à autoriser.", "An account for a friend, a link for a guest, a device to let in."),
             "care" => L("Ce qui garde ta bibliothèque en forme : titres à corriger, sous-titres, épisodes manquants, Jellyfin sur ce PC.", "What keeps your library in shape: titles to fix, subtitles, missing episodes, Jellyfin on this PC."),
-            "torlink" => L("Tes téléchargements rangés dans Jellyfin, sans rien déplacer à la main.", "Your downloads filed in Jellyfin, without moving anything by hand."),
-            "updates" => L("Les nouvelles versions de Mira, installées sans y penser.", "New versions of Mira, installed without a thought."),
+            "torlink" => L("Où vont tes téléchargements, et comment ils rejoignent Jellyfin.", "Where your downloads go, and how they join Jellyfin."),
+            "updates" => L("Mises à jour, titres gardés sur ce PC et moteur de lecture.", "Updates, titles kept on this PC and the playback engine."),
             "report" => L("Ce que tu as regardé, sur tous tes appareils.", "What you’ve watched, on all your devices."),
-            _ => L("Le confort de lecture, sans avoir à y penser.", "Comfortable playback, without having to think about it.")
+            _ => L("Ce qui compte pendant que tu regardes.", "What matters while you watch.")
         };
         foreach (var button in SettingsNavigation.Children.OfType<Button>()) { var active = button.Tag?.ToString() == tab; button.Background = active ? Palette.Get("Text") : Brushes.Transparent; button.Foreground = active ? Palette.Get("OnAccent") : Palette.Get("TextBody"); }
         SettingsScroll.ScrollToTop();
@@ -250,8 +262,10 @@ public partial class MainWindow
     /// <summary>What the page shows becomes Mira's settings; false when they could not be written.</summary>
     private bool ApplySettings()
     {
-        _settings.HardwareDecoding = HardwareCheck.IsChecked == true; _settings.AutoNext = AutoNextCheck.IsChecked == true; _settings.AutoSkip = AutoSkipCheck.IsChecked == true; _settings.RememberPosition = RememberCheck.IsChecked == true;
-        _settings.ResumeBack = int.TryParse(Choice(ResumeBackChoice), NumberStyles.Integer, CultureInfo.InvariantCulture, out var back) ? back : 5;
+        _settings.HardwareDecoding = HardwareCheck.IsChecked == true; _settings.AutoNext = AutoNextCheck.IsChecked == true; _settings.AutoSkip = AutoSkipCheck.IsChecked == true;
+        // « Reprendre là où tu t’es arrêté » holds both: off, or how far before. Off keeps the distance for when it comes back.
+        _settings.RememberPosition = Choice(ResumeBackChoice) != ResumeOff;
+        if (int.TryParse(Choice(ResumeBackChoice), NumberStyles.Integer, CultureInfo.InvariantCulture, out var back)) _settings.ResumeBack = back;
         // From the next playback (mpv sizes the decoder's frames for it when it opens). Chosen again: tried again, even
         // after this PC was put on a lighter level.
         if (PictureChoice.Items.Count > 0 && PictureQuality.Known(Choice(PictureChoice)) is var picture && picture != PictureQuality.Known(_settings.Picture)) { _settings.Picture = picture; _pictureCap = null; }
@@ -286,7 +300,7 @@ public partial class MainWindow
         if (automaticAgain) _torlinkImporter?.RestartBaseline();
         if (_torlinkEnabled) ApplyTorLinkLibraries();
         if (remoteChanged) VisitRelaySoon();
-        _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.StyleSubtitles(_settings);
+        _mpv?.Set("hwdec", _settings.HardwareDecoding ? "auto" : "no"); _mpv?.StyleSubtitles(_settings); LiftPipSubtitles(again: true);
         RenderLibrary(); UpdateHeroClock(); SettingsSaveStatus.Text = saved ? L("Enregistré.", "Saved.") : SettingsNotSaved;
         return saved;
     }

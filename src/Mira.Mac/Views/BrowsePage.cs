@@ -63,6 +63,7 @@ public sealed class BrowsePage : Page
     private int _total, _version;
     private bool _loading, _filling, _favoritesOnly;
     private CancellationTokenSource? _request;
+    public override void ShowAgain() { base.ShowAgain(); if (_kind == BrowseKind.Search) SelectSearch(); }
     public override string Rail => _person is not null || _saga is not null || _studio is not null ? "" : _kind switch { BrowseKind.Movies => "Movie", BrowseKind.Series => "Series", BrowseKind.Search => "search", _ => "library" };
     public IReadOnlyList<MediaItem> Items => _items;
     /// <summary>The people the search found, shown above its titles.</summary>
